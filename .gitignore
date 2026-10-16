@@ -7,6 +7,10 @@
 *.tar.gz
 images/
 
+# IRIS source exported from the Early Access instance (InterSystems code): never publish
+irislib/
+irissys/
+
 # Editor settings that can hold IRIS server passwords
 .vscode/settings.json
 *.code-workspace
@@ -32,6 +36,9 @@ durable/
 
 # Internal handoff notes (local paths, containers, owner preferences): never publish
 docs/handoff/
+
+# BMad decision logs (append-only; they name competitors and internal files): never publish
+.memlog.md
 
 # macOS
 .DS_Store
