@@ -1,0 +1,37 @@
+# Secrets: model keys, bot tokens, passwords
+.env
+.env.*
+!.env.example
+
+# InterSystems AI Hub Early Access images: never publish them (contest rule)
+*.tar.gz
+images/
+
+# Editor settings that can hold IRIS server passwords
+.vscode/settings.json
+*.code-workspace
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Build output and dependencies (release branches force-add the built UI bundle)
+node_modules/
+dist/
+.angular/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IRIS durable data from local containers: keep the folder, ignore its contents
+iris-data/*
+!iris-data/.gitkeep
+durable/
+*.log
+
+# Internal handoff notes (local paths, containers, owner preferences): never publish
+docs/handoff/
+
+# macOS
+.DS_Store
