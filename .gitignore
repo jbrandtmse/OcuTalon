@@ -35,3 +35,6 @@ docs/handoff/
 
 # macOS
 .DS_Store
+
+# /epic-cycle parallel epic worktrees
+.worktrees/
