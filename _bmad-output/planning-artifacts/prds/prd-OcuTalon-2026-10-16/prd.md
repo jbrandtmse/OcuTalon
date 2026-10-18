@@ -2,7 +2,7 @@
 title: OcuTalon PRD
 status: final
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # PRD: OcuTalon
@@ -285,7 +285,7 @@ A production developer can add the bridge to their own production and get attent
 A session's conversation continues after IRIS or its container restarts.
 
 **Acceptance criteria:**
-- After a restart, the session's history, background checks, pending reminders, pending approval requests and paired chat are all intact.
+- After a restart, the session's history, background checks, pending reminders, pending approval requests and (from 0.1.1, once Telegram ships) paired chat are all intact.
 - The next turn after a restart uses the earlier conversation as context. A test asks something that can only be answered from before the restart.
 
 ### 4.2 Approvals, risk and audit
@@ -328,7 +328,7 @@ Each risky action becomes one approval request that an approver answers from any
 - **The first answer wins:**
   - within 5 seconds (measured as NFR-9 says), the other channels show the result and where it came from (for example "Approved from Telegram at 14:15"), and their buttons stop working;
   - a late press gets a short reply saying the request was already answered.
-- **Reject** means no action. The user is told, the rejection is recorded, and the incident returns to open (FR-24).
+- **Reject** means no action. The user is told, the rejection is recorded, and the incident returns to open unless another of its requests is still pending or a fix is still running (FR-24).
 - **Before acting:** OcuTalon checks that each target is still in the state the dry run saw. Targets that changed are skipped, reported, and never acted on without a new approval. New failures that join the incident after its notice, while it is awaiting approval, fixing or resolved, get a request of their own, raised once they settle and sent as its own notice; an open incident only counts them (P27).
 - **Expiry:** a request expires 24 hours after it was raised, and an expired request cannot be approved. `[ASSUMPTION: 24-hour expiry]`
 - **Who may answer:**
@@ -371,7 +371,7 @@ IRIS roles decide who may use, administer and approve.
 **Acceptance criteria:**
 - **Step 1:**
   - the install creates an OcuTalon admin role and an OcuTalon user role;
-  - on a local install, the account the README names holds both;
+  - on a local install, the account the README names holds both, plus the read-only trace role, so its Visual Trace links open after signing in to Visual Trace (P33);
   - the online demo's account holds the user role, plus the read-only trace role so Visual Trace opens without a second sign-in (FR-59), and is never an admin.
 - **Step 6:**
   - an admin assigns approver roles, either for all risky actions or for one kind such as resend or partner warnings, and a viewer role;
@@ -430,7 +430,7 @@ Only signed-in users reach the web app.
   - The web app uses IRIS sign-in.
   - The README gives the account and password that the install sets, and how to change them.
   - The first sign-in does not force a password change.
-- No page other than the splash and sign-in pages is reachable without signing in. Two endpoints are the exceptions: the webhook (FR-45), which uses its own secret, and the online demo's read-only status endpoint, which holds no session and reports only readiness, the next reset and whether the demo is busy.
+- No page other than the splash and sign-in pages is reachable without signing in. Two endpoints are the exceptions: the webhook (FR-45), which uses its own secret, and the online demo's read-only status endpoint, which holds no session and reports only readiness, the next reset, whether the demo is busy, and the last reset's time and kind (scheduled or unscheduled), so the splash screen can say why a session ended (P32).
 - While the online demo's IRIS is down during a reset, scheduled or not, the demo host may serve a maintenance page saying the demo is resetting, and when the demo is full it serves a busy page. IRIS doesn't serve those pages, so the rule above doesn't cover them.
 
 #### FR-15: Session isolation on the online demo [1.0.0 kit]
@@ -597,7 +597,7 @@ Failures that share a cause become one incident whose cause is explained in plai
 - **The diagnosis** names a cause category and the element at fault, such as the field, setting or endpoint. It rests on evidence from the failed messages, their errors and the trace. The incident offers that evidence, including a sample failed message and its error, behind "Show details".
 - **States:**
   - an incident is open until a fix is proposed, then awaiting approval, then fixing;
-  - if its approval request is rejected or expires, it returns to open, and in demo mode it keeps Break the feed inactive until the user dismisses it;
+  - if its approval request is rejected or expires, it returns to open (unless another of its requests is still pending or a fix is still running), and in demo mode it keeps Break the feed inactive until the user dismisses it;
   - it is resolved when the fix completes;
   - a resolved incident is closed when no new failure with the same cause has arrived for 15 minutes, or when the user dismisses it, from the incident's card on the page or in the chat `[ASSUMPTION: 15 minutes]`;
   - an open incident (no fix proposed, or its request rejected or expired) is closed when the user dismisses it, and outside demo mode also after the same 15 quiet minutes; an incident awaiting approval or fixing never closes on its own (P26);
@@ -1085,9 +1085,10 @@ Each release installs over the previous one and keeps the user's data and settin
 **Acceptance criteria:**
 - **Test:**
   1. Install the previous release.
-  2. Create a conversation, a pending reminder, a pending approval request, a watched production, a pairing and a settings change, plus, from step 3, a memory and a document.
+  2. Create a conversation, a pending reminder, a pending approval request, a watched production and a settings change; a pairing once the previous release includes Telegram (so from the upgrade to 0.1.2); and, from step 3, a memory and a document.
   3. Upgrade to the new release.
 - After the upgrade, all of them are present and work: the reminder fires, and the approval request can still be answered.
+- The restart check (FR-6) includes a pairing from 0.1.1, the first release with Telegram.
 
 #### FR-61: Security overview [1.0.0 kit]
 
@@ -1135,7 +1136,7 @@ A recorded set of items and incidents measures decisions, causes, cost and reque
 
 ## 5. Cross-cutting non-functional requirements
 
-Timing bounds are measured in the clean-machine rehearsal and on the online demo, not asserted in sharded CI, where shared runners make them unreliable. CI asserts order and outcomes.
+Timing bounds over real networks are measured in the clean-machine rehearsal and on the online demo. CI also checks the 5-second limits of FR-1, FR-8 and FR-18 and the 2-second limit of NFR-9 against the mock on every run (P30). Other timing bounds aren't asserted in sharded CI, where shared runners make them unreliable. CI asserts order and outcomes.
 
 ### 5.1 Model use (N9)
 
@@ -1281,10 +1282,10 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
   - `main` moves only through a release pull request with every check green.
   - Unfinished features are kept off the demo path.
   - A release branch is never changed after its cut.
-- **REL-2: The demo path never breaks.** An automated test of the demo path's web route (with the mocked model and mocked Telegram) runs on every pull request and every push to `main`. A failure blocks the release.
+- **REL-2: The demo path never breaks.** An automated test of the demo path's web route (with the mocked model and, from 0.1.1, mocked Telegram) runs on every pull request and every push to `main`. A failure blocks the release.
 - **REL-3: Scripted releases.**
   - One scripted sequence covers the version bump, the built web bundle (committed on the release branch, so a Docker install needs no Node.js), the clean-machine rehearsal, the online demo update and the draft release notes.
-  - The author's hands-on time for a release is at most 15 minutes, not counting CI. `[ASSUMPTION: 15 minutes]`
+  - The author's hands-on time for a release is at most 15 minutes, not counting CI or the REL-7 hands-on pass. `[ASSUMPTION: 15 minutes]`
 - **REL-4: Sharded, fast CI.**
   - **Speed:** a full CI run takes at most 30 minutes of wall-clock time.
   - **Where tests run:** tests against a live IRIS instance run on a dedicated runner, and everything that doesn't need IRIS runs on hosted runners.
@@ -1301,7 +1302,7 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
   - Every release before the first public release on Open Exchange is numbered 0.1.x, with release 1 as 0.1.0.
   - 1.0.0 is the first public Open Exchange release. The author picks its date, no later than the contest submission.
   - 1.0.0 and every later release include the 1.0.0 kit.
-- **REL-10: The online demo follows releases.** From release 1, the online demo is updated with every release, with access restricted until the author launches it.
+- **REL-10: The online demo follows releases.** Once the demo host exists (November 1 at the latest), the online demo is updated with every release, with access restricted until the author launches it; a release cut before then is installed by the host's first deploy (P31).
 - **REL-11: Outward actions are the author's.** Release cuts, pushes, publishing on Open Exchange, launching the online demo, posts and bonus claims happen only on the author's word.
 
 ### 7.4 Timeline
@@ -1424,8 +1425,8 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 | The platform's MCP client, and whether its policies cover remote tools | Step 4 (FR-47 to FR-50) | Done: checked on October 17. OcuTalon enforces FR-49 itself either way |
 | The platform's MCP server | Step 7 (FR-51) | Done: checked on October 17 |
 | The IRIS (non-Health) AI Hub build 154 image | 1.0.0 (NFR-21) | Done: checked on October 17, and treated as equivalent to IRIS for Health (NFR-21) |
-| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | 0.1.1 (Telegram); the online demo | Development bots exist. The demo bot's token moves to the demo server by November 2-4 |
-| A Telegram route on the online demo's gateway | The online demo with Telegram | Due by November 2-4 |
+| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | 0.1.1 (Telegram); the online demo | Development bots exist. The demo bot's token moves to the demo server by November 1, when the demo host is ready |
+| A Telegram route on the online demo's gateway | The online demo with Telegram | Due by November 1, when the demo host is ready |
 | The online demo host, with access restricted | The online demo (REL-10) | Ready by November 1; public by November 4 |
 | A dedicated CI runner that holds the image privately | REL-4 | Ready before the first story merges |
 

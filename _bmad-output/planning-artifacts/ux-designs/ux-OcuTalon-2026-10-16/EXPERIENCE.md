@@ -7,7 +7,7 @@ sources:
   - _bmad-output/planning-artifacts/briefs/brief-OcuTalon-2026-10-16/brief.md
   - _bmad-output/planning-artifacts/briefs/brief-OcuTalon-2026-10-16/addendum.md
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # OcuTalon: Experience Spine
@@ -273,7 +273,7 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
 
 ### Incident and approval components
 
-- **Incident card.** One card per incident (FR-24), updated in place and never duplicated. The visible evidence line names the cause category, the element at fault, and the grouping ("Data format change · order date · 50 failures grouped into this incident"). The proposed fix appears without the message's closing "Approve?" ("I can repair and resend all 50."); that question belongs to message text on the phone and in Telegram, where the buttons follow it, never to the web card. **Show details** reveals the evidence panel. The lifecycle and **Dismiss** are under Incidents and Approvals.
+- **Incident card.** One card per incident (FR-24), updated in place and never duplicated. The visible evidence line names the cause category, the element at fault, and the grouping ("Data format change · order date · 50 failures grouped into this incident"). The proposed fix appears without the message's closing "Approve?" ("I can repair and resend all 50."); that question belongs to message text on the phone and in Telegram, where the buttons follow it, never to the web card. **Show details** reveals the evidence panel. It holds one approval request card per request, in the order they were raised (a later request adds a card, P27); each request card carries its own answered status and result notice, while the incident's state chip follows the incident's state. The lifecycle and **Dismiss** are under Incidents and Approvals.
 - **Incident state chip.** Static text with the state's name. A state change is announced as part of the card's update.
 - **Approval request card.**
   - It shows what will happen, the fixed-targets line, the dry run, **Approve**, **Reject**, and the expiry. A standalone request (steps 4 and 5) also shows "Why:" with its reason; inside an incident card that line is left out, because the cause sits just above.
@@ -289,14 +289,14 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - failures by production item, with first and last times;
   - "Held as an IRIS Workflow task until someone answers.";
   - trace links to the sample message and the first failure.
-- **Result notice.** The result text from Incidents and Approvals › Results, followed by its audit line.
+- **Result notice.** A band inside its approval request's card in the incident card, one per approved request: that request's result text from Incidents and Approvals › Results, followed by its audit line.
 
 ### Simulated device components
 
 - **Simulated device panel.** Uses the ARIA tabs pattern (arrow keys move between tabs). A tab's name includes its count ("Simulated mailbox, 2 new"). Content never switches tabs by itself; an unselected tab with new content gets a badge instead. A switch the user causes is allowed, such as the guide's **Show me**.
 - **Simulated label.** Static text inside each device, always visible. Not focusable.
 - **Simulated phone.** A real channel (FR-13).
-  - It shows the session's **notifications only**: tell now, reminders, incident notices with approval requests, results, and fallback notices. These are the same texts the paired chat gets. Conversation replies stay in their own channel.
+  - It shows the session's **notifications only**: tell now, reminders, incident notices (with an approval request, without a fix, or fallback), later approval requests, and results. These are the same texts the paired chat gets. Conversation replies stay in their own channel.
   - It has no composer `[ASSUMPTION]`.
   - New notifications scroll into view unless the user has scrolled up or an approval request is pending on screen. In either case the new-messages pattern applies instead, so a late arrival can't shift Approve and Reject under the pointer.
 - **Phone notification.** An approval request follows the approval request card's rules. Once it is answered, the buttons are replaced by the answered line in message form, as Telegram's edited message reads.
@@ -348,7 +348,7 @@ These have behavior of their own. Other later-step controls are specified under 
 | **Demo busy** | Splash screen; the demo host's busy page | When the online demo can't take another session right now: "The demo is busy right now. Try again in a few minutes, or install it yourself." with "Install it yourself (README)". On the splash it is a field error under the button, which stays enabled. Never a raw server error page. |
 | **Demo allowance used up: session** | Main page, online demo | The "allowance used up: session" banner. The composer and the guide's prompt buttons become `aria-disabled`, with the reason as visible text. The chat and the paired chat get the allowance message once (FR-40). Break the feed, Approve, and Reject keep working. |
 | **Demo allowance used up: daily cap** | Main page, online demo | The "daily cap" banner, and once, a chat message pointing to the local install (Message Catalog › Conversation). The composer stays usable, and every decision takes the fallback route with the daily-cap reason, so replies explain themselves (FR-4, FR-40). |
-| **Daily cost cap reached (local)** | Main page | As the daily-cap state, with the local banner (FR-40). |
+| **Daily cost cap reached (local)** | Main page | As the daily-cap state, with the local banner and no chat message (FR-40). |
 | **No model key** | Main page, local | The "no model key" banner (FR-38). Decisions show the fallback flag with the reason "no model key is set". |
 | **Heartbeat stalled** | Main page | The "heartbeat stalled" banner (FR-32). Background check rows show "Last run 14:09 (late)". |
 | **Telegram card: not set up** | Status rail | "Telegram not set up", with "How to set it up" linking to the README (FR-21). No banner. A release that doesn't include Telegram yet (0.1.0, PRD §7.2) has no Telegram section at all. |
@@ -428,7 +428,7 @@ Behavioral rules. Contrast is specified and verified in `DESIGN.md` under Colors
   | Reminder | "Reminder: stretch." |
   | Incident notice | "Incident: 50 orders failed since 14:12 ET. Approval needed.", or for a fallback or a cause with no fix, "… No fix proposed." |
   | Answered elsewhere | The answered status, unless it just took focus |
-  | Result | "All 50 orders went through." or the partial result |
+  | Result | "All 50 orders went through.", or another result text (Incidents and Approvals › Results) |
   | Guide advanced | "Step 3 of 5: Break the feed" |
   | Break the feed sent | "Sent. OcuTalon usually notices within a minute." |
   | Email decided | "Email 'Certificate change on Friday': Digest" |
@@ -577,7 +577,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
 | — | *(before step 1, from 0.1.1, while Telegram is on and unpaired)* | "Optional: scan the QR code in the Telegram card to get the notice on your own phone." | None | Telegram paired, or step 1 done |
 | 1 | Watch | "Watch the Orders production and only tell me if something needs me." | **Send** | A production watch for the Orders production exists in the session |
 | 2 | Reminder | "Remind me in 1 minute to stretch." | **Send** | A reminder exists in the session, pending or fired |
-| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | **Go to Break the feed**, which focuses the control without pressing it | The incident notice or fallback notice arrived |
+| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | **Go to Break the feed**, which focuses the control without pressing it | The incident notice, fallback notice or no-fix notice arrived |
 | 4 | Approve | Paired (from 0.1.1): "Approve the fix in Telegram on your phone, or on the simulated phone." Unpaired: "Approve the fix on the simulated phone, or in the chat." | **Show me** (see Accessibility Floor › Focus replacement) | The approval request is answered |
 | 5 | Open the trace | "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision." | **Open the trace** (the incident's trace link) | The trace link was opened |
 
@@ -586,7 +586,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
   - **If rejected:** "Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again."
   - **After a fallback notice:** "OcuTalon couldn't diagnose this run, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again." Step 5 stays available.
   - **After a notice without a fix (P25):** "OcuTalon found the cause but has no fix for it, so there's nothing to approve. Open the trace to see why, or dismiss the incident and press Break the feed again." Step 5 stays available.
-- **The finish state** replaces the prompt bar when step 5 is done after a run that ended with an approved fix and a resolved incident; after a fallback notice or a rejection, the guide keeps the matching hint above and shows no finish text (P24, October 17):
+- **The finish state** replaces the prompt bar when step 5 is done after a run that ended with an approved fix and a resolved incident; after a fallback notice, a no-fix notice or a rejection, the guide keeps the matching hint above and shows no finish text (P24, October 17):
   - "Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log."
   - "This run: {n} decisions · {tokens} tokens · {cost} on {model}." The figures cover this session's decisions and turns; for example, "This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5".
   - The links "See the whole conversation in Visual Trace ↗", "Install OcuTalon yourself ↗", and "Use the same bridge in your own production ↗" (the bridge developer guide, 1.0.0 kit; FR-5).
@@ -598,7 +598,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
 | State | Box shows |
 | --- | --- |
 | Inactive: not watching | Hint: "Ask OcuTalon to watch the Orders production first (step 1)." and a **Do step 1** link that selects step 1 |
-| Inactive: incident in progress | Hint: "Finish the current Orders incident first: approve the fix, or reject it and then dismiss the incident." |
+| Inactive: incident in progress | Hint: "Finish the current Orders incident first: approve or reject its fix, or dismiss the incident." It covers an open incident of any variant (fallback, no fix, rejected, expired), which only Dismiss clears |
 | Active | The button under the box's "Demo control" label. While it is the current step, the box adds its "Next step" marker, which leaves once the button is pressed. While step 5 (Open the trace) is current, the button stays active but takes the secondary style, so the trace step is the loudest thing on the page; it returns to the attention style once the finish state shows. |
 | Sending | The button busy; the box text reads "Sending 50 orders…" |
 | Waiting | "Sent. OcuTalon usually notices within a minute." with the elapsed time. When the server reports progress, real status lines replace it: "OcuTalon noticed failures in the Orders production", then "Waiting for the failures to settle", then "Working out the cause from the failed messages". They never show counts before the settle rule ends (FR-24). |
@@ -641,17 +641,18 @@ The single source for the incident lifecycle, approval request states, answered 
 | --- | --- | --- | --- |
 | **Open**, before the notice | (no card yet) | Nothing in the chat or the rail: until the notice is sent, only the progress line under Break the feed shows (noticed, settling, diagnosing) | None |
 | **Awaiting approval** | Awaiting approval | Headline, cause, evidence line, proposed fix, approval request card | Approve, Reject, Show details |
-| **Fixing** | Fixing | The approved answered status, then "Repairing and resending 50 orders…" | Show details |
-| **Resolved** | Resolved | The result notice and its audit line | Dismiss, Show details |
-| Resolved, partial | Resolved | The partial result. Messages that failed again are reported, not retried (FR-25); new failures with the same cause get their own approval request. | Dismiss, Show details |
-| **Closed** | Closed | Compacted to the headline and result. A resolved incident closes after 15 quiet minutes, by Dismiss, or by the replay rule `[ASSUMPTION: 15 minutes]`; an open one closes by Dismiss, and outside demo mode also after 15 quiet minutes (PRD FR-24, P26). Awaiting approval and fixing never close on their own | Show details |
+| **Fixing** | Fixing | In the approved request's card, its answered status, then "Repairing and resending 50 orders…" | Show details |
+| **Resolved** | Resolved | In each approved request's card, its own result notice and audit line | Dismiss, Show details |
+| Resolved, partial or couldn't start | Resolved | The partial result, or the "Couldn't start" result, in its request's card. Messages that failed again are reported, not retried (FR-25); new failures with the same cause get their own approval request. | Dismiss, Show details |
+| **Closed** | Closed | Compacted to the headline and each request's result. A resolved incident closes after 15 quiet minutes, by Dismiss, or by the replay rule `[ASSUMPTION: 15 minutes]`; an open one closes by Dismiss, and outside demo mode also after 15 quiet minutes (PRD FR-24, P26). Awaiting approval and fixing never close on their own | Show details |
 | Open, fallback | Open, with the fallback flag | The fallback notice and the failure groups, with no fix (FR-4) | Dismiss, Show details |
 | Open, cause found, no fix | Open | The no-fix notice: the headline, the cause, the evidence line and the failure groups, with no fix and no approval request (PRD FR-24, P25) | Dismiss, Show details |
 | Open, rejected | Open | The rejected answered status (PRD FR-24) | Dismiss, Show details |
 | Open, expired (local installs) | Open | The expired answered status | Dismiss, Show details |
 
 - **Dismiss** closes the incident. On an open incident it also re-enables Break the feed; a resolved incident doesn't block it in the first place (FR-16).
-- **Later failures** with the same cause, arriving before the incident closes, update the headline count, with a line such as "2 more since the notice". While the incident is awaiting approval, fixing or resolved, they settle by the same rule and then get their own approval request (FR-8, P27): it is sent as its own notice (Message Catalog › Later approval request in the same incident) and appears as a second approval request card in the same incident card, and the incident shows Awaiting approval while any request is pending. An open incident only updates its count.
+- **Later failures** with the same cause, arriving before the incident closes, update the headline count, with a line such as "2 more since the notice". While the incident is awaiting approval, fixing or resolved, they settle by the same rule and then get their own approval request (FR-8, P27): it is sent as its own notice (Message Catalog › Later approval request in the same incident) and appears as another approval request card in the same incident card, with its own answered status and result notice. An open incident only updates its count.
+- **When requests overlap,** the state chip follows one rule: Fixing while a fix runs; otherwise Awaiting approval while any request is pending; otherwise the latest request's outcome, the one that arrived last (Resolved after a finished fix, Open after a rejection or an expiry). One fix runs at a time per incident: a request approved while another fix runs shows its answered status, and its fix starts when the running one ends. A request cancelled when its session ends on the online demo changes nothing; the reset clears that session's incidents.
 - **After closing,** a failure with the same cause opens a new incident card (FR-24).
 - **On a local install,** several watchers share one incident and its approval requests (FR-23), and the answered status names who answered.
 
@@ -679,8 +680,9 @@ On the page an answered status is a status line without a final period unless it
 | Some failed again and some skipped | "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval." (FR-8, FR-25; P16, October 17) |
 | Still running after the wait | "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done." The final result follows when the resend ends (FR-25; P16) |
 | Cut off by a restart | "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval." (FR-25; P16) |
+| Couldn't start | "Nothing was resent: {reason}. Nothing was changed." For example, "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed." An approved fix whose run can't start, because OcuTalon's service user lacks what the fix needs (FR-25, NFR-12) |
 
-In the web app, every result is followed by the audit line "Recorded in the IRIS audit log."
+Each approved request has its own result, shown as a band in that request's card (Component Patterns › Result notice). In the web app, every result is followed by the audit line "Recorded in the IRIS audit log."
 
 ## Message Catalog
 
@@ -741,7 +743,7 @@ No reply to an unpaired chat identifies a session, names anyone, or reveals any 
 
 | Case | Text |
 | --- | --- |
-| Tell now | "{what happened}", then "Why now: {reason}" on its own line (UJ-2) |
+| Tell now | "{what happened}", then "Why now: {reason}" on its own line (UJ-2). `{what happened}` is the item's code-written one-line summary (sender and subject for mail, otherwise its first line); `{reason}` is the decision's first reason. An item whose notice text is fixed by code, such as a production state change, uses its own text below instead |
 | Production state change (FR-23) | "The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production." |
 | Reminder | "Reminder: {text}." Late, when it fires more than 10 seconds after its due time: "Reminder (late; it was due at {time}): {text}." (FR-34) |
 
@@ -758,7 +760,8 @@ Details and trace: on your OcuTalon page.
 ```
 
 - **Where each slot comes from:**
-  - the count, time, item noun, field, and before-and-after values come from the real failures and the diagnosis's structured result (addendum §9);
+  - the count, time, field, and before-and-after values come from the real failures and the diagnosis's structured result (addendum §9);
+  - `{item noun}` is the diagnosis's item noun, given in singular and plural ("order", "orders"); the sending channel picks the form by the count. When no usable diagnosis gives one, code takes it from the fallback notice's fixed map;
   - `{resend count}` is the dry run's count of copies to resend, which the web card's "Will resend" line uses too;
   - `{cause}` and `{fix summary}` are written by the diagnosis agent;
   - only the connective words are fixed.
@@ -773,6 +776,7 @@ Details and trace: on your OcuTalon page.
 | Late press (an alert) | "Already answered: approved from the web chat at {time}." |
 | Press from a chat that isn't the paired chat (an alert) | "Only the paired chat can answer this request." (FR-20) |
 | Press on an unknown request, or one from before a reset (an alert) | "That request is no longer available." (FR-20) |
+| Press on a request that expired (an alert) | "Expired at {time}. Nothing was changed." (FR-8) |
 | Result | The texts under Incidents and Approvals › Results |
 | Rejected follow-up | "Fix rejected. Nothing was changed. The incident stays open on your OcuTalon page." |
 
@@ -788,7 +792,7 @@ Failures:
 Details and trace: on your OcuTalon page.
 ```
 
-- **Where each slot comes from:** code writes every slot, because the model's answer couldn't be used: `{readable item name}` is the production item's name; `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `{fallback reason}` is the reason text under Conversation.
+- **Where each slot comes from:** code writes every slot, because the model's answer couldn't be used: `{readable item name}` is the production item's name; `{plain error summary}` is the error's first sentence, at most 80 characters, through the redactor; `{fallback reason}` is the reason text under Conversation; `{item noun}` comes from a fixed map from the failed messages' class to its noun ("order" or "orders" for the Orders demo's messages, otherwise "message" or "messages"), in the form the count needs.
 
 ### Incident notice without a fix (FR-24, P25)
 
@@ -805,11 +809,11 @@ Details and trace: on your OcuTalon page.
 ```
 
 - **Unknown cause:** the first line reads "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed."
-- **Where each slot comes from:** `{cause}` is written by the diagnosis agent; every other slot comes from the failures, as in the fallback notice.
+- **Where each slot comes from:** `{cause}` is written by the diagnosis agent, and `{item noun}` comes from the diagnosis, as in the incident notice; every other slot comes from the failures, as in the fallback notice.
 
 ### Later approval request in the same incident (FR-8, P27)
 
-For same-cause failures that arrive after the notice, while the incident is awaiting approval, fixing or resolved, once they settle. It is its own message, with Telegram's **Approve** and **Reject** buttons, and a second approval request card in the incident card.
+For same-cause failures that arrive after the notice, while the incident is awaiting approval, fixing or resolved, once they settle. It is its own message, with Telegram's **Approve** and **Reject** buttons, and another approval request card in the incident card, with its own answered status and result notice.
 
 ```
 {count} more {item noun} failed since {time}, with the same cause. I can {fix summary}. Approve?

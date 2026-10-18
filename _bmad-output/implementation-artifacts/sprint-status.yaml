@@ -1,0 +1,286 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 10-18-2026 06:43
+last_updated: 10-18-2026 06:43
+project: OcuTalon
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-0: backlog
+  0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: backlog
+  0-2-the-package-installs-and-upgrades-itself-at-every-start: backlog
+  0-3-sign-in-to-an-empty-ocutalon-page: backlog
+  0-4-the-cross-lane-message-and-data-contracts: backlog
+  0-5-live-events-and-the-rest-skeleton: backlog
+  0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or: backlog
+  0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model: backlog
+  0-8-the-demo-path-test-signs-in-and-loads-the-page: backlog
+  epic-0-retrospective: optional
+
+  epic-1: backlog
+  1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor: backlog
+  1-2-agent-runners-send-every-request-under-the-model-rules: backlog
+  1-3-decide-records-exactly-one-attention-decision-per-item: backlog
+  1-4-every-turn-and-decision-carries-its-tokens-and-cost: backlog
+  1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual: backlog
+  1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star: backlog
+  1-7-timeouts-and-rate-limits-end-every-decision-on-time: backlog
+  1-8-conversations-survive-restarts: backlog
+  1-9-no-model-request-goes-over-100-000-tokens: backlog
+  1-10-the-chat-agent-sets-lists-and-cancels-reminders: backlog
+  1-11-old-messages-and-records-are-purged-on-schedule: backlog
+  1-12-items-saved-for-the-digest-are-kept-for-it: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-lay-out-the-main-page-frame: backlog
+  2-2-keep-the-session-and-load-its-snapshot-with-live-updates: backlog
+  2-3-route-every-command-by-verb-with-origin-checks: backlog
+  2-4-answer-every-chat-message-through-the-turn-pipeline: backlog
+  2-5-chat-with-ocutalon-in-the-page: backlog
+  2-6-show-every-decision-with-its-reasons-and-cost: backlog
+  2-7-route-untrusted-items-and-notifications-by-outcome: backlog
+  2-8-show-the-status-rail: backlog
+  2-9-open-anything-in-visual-trace: backlog
+  2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: backlog
+  2-11-push-live-events-over-a-websocket-on-local-installs: backlog
+  2-12-meet-the-accessibility-and-responsive-floor: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-roles-and-the-service-user-grant-only-what-the-architecture: backlog
+  3-2-one-gate-decides-every-tool-call: backlog
+  3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: backlog
+  3-4-each-risky-action-becomes-one-approval-request-held-in-iris: backlog
+  3-5-the-first-answer-wins-and-unanswered-requests-expire: backlog
+  3-6-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
+  3-7-every-action-and-governance-event-is-in-the-iris-audit-log: backlog
+  3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-switch-demo-mode-from-the-terminal: backlog
+  4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: backlog
+  4-3-break-the-feed-with-a-real-batch-of-50-orders: backlog
+  4-4-show-the-demo-guide-and-the-break-the-feed-box: backlog
+  4-5-get-notifications-on-the-simulated-phone: backlog
+  4-6-simulate-incoming-email-in-the-simulated-mailbox: backlog
+  4-7-finish-the-demo-guide: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: backlog
+  5-2-new-failures-are-picked-up-within-seconds: backlog
+  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: backlog
+  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: backlog
+  5-5-an-incident-moves-through-its-states-and-closes: backlog
+  5-6-the-production-watch-runs-on-every-heartbeat: backlog
+  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-show-each-incident-as-one-card-in-the-chat: backlog
+  6-2-approve-or-reject-a-fix-from-the-web-chat: backlog
+  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: backlog
+  6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: backlog
+  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: backlog
+  7-3-approved-repairs-are-re-checked-and-resent: backlog
+  7-4-ocutalon-reports-how-many-orders-went-through: backlog
+  7-5-mixed-unfinished-and-interrupted-resends-say-how-far-they-go: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: backlog
+  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: backlog
+  8-3-a-reminder-fires-on-time-on-every-channel: backlog
+  8-4-set-list-and-cancel-reminders-in-plain-words: backlog
+  8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: backlog
+  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: backlog
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: backlog
+  9-4-ten-incidents-are-recorded-from-real-failures: backlog
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
+  epic-9-retrospective: optional
+
+  epic-10: backlog
+  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: backlog
+  10-2-the-readme-gets-a-judge-from-download-to-sign-in: backlog
+  10-3-the-session-side-of-telegram-is-ready-and-stays-off: backlog
+  epic-10-retrospective: optional
+
+  epic-11: backlog
+  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
+  11-2-upgrades-and-restarts-keep-every-record-working: backlog
+  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
+  11-4-the-release-gets-draft-notes-and-a-checklist: backlog
+  11-5-one-scripted-sequence-cuts-a-release: backlog
+  11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  epic-11-retrospective: optional
+
+  epic-12: backlog
+  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: backlog
+  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: backlog
+  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: backlog
+  12-4-a-valid-code-pairs-the-chat-with-the-session: backlog
+  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
+  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
+  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
+  epic-12-retrospective: optional
+
+  epic-13: backlog
+  13-1-the-example-production-makes-its-own-decision-through-the-br: backlog
+  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: backlog
+  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: backlog
+  epic-13-retrospective: optional
+
+  epic-14: backlog
+  14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t: backlog
+  14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto: backlog
+  epic-14-retrospective: optional
+
+  epic-15: backlog
+  15-1-the-first-install-run-creates-ocutalon-and-gives-the-next-co: backlog
+  15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo: backlog
+  15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: backlog
+  epic-15-retrospective: optional
+
+  epic-16: backlog
+  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: backlog
+  16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: backlog
+  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: backlog
+  16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: backlog
+  16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: backlog
+  16-6-a-probe-checks-the-demo-every-15-minutes: backlog
+  16-7-the-demo-host-is-adapted-for-the-launch: backlog
+  16-8-the-page-counts-down-to-the-reset-and-waits-it-out: backlog
+  16-9-allowances-cap-messages-model-cost-and-simulated-emails: backlog
+  16-10-sessions-stay-isolated-under-load-and-the-readme-leads-to-th: backlog
+  epic-16-retrospective: optional
+
+  epic-17: backlog
+  17-1-fix-the-step-2-contracts-in-the-spine: backlog
+  17-2-retry-once-on-a-second-model-before-falling-back: backlog
+  17-3-run-each-agent-on-a-supported-provider: backlog
+  17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: backlog
+  17-5-check-the-vital-signs-and-every-coverage-entry: backlog
+  17-6-send-the-daily-digest-at-the-set-time-and-on-request: backlog
+  17-7-give-an-all-clear-only-when-every-check-passed: backlog
+  epic-17-retrospective: optional
+
+  epic-18: backlog
+  18-1-open-the-settings-page-as-an-admin: backlog
+  18-2-set-the-time-zone-and-the-daily-digest-at-run-time: backlog
+  18-3-choose-models-and-set-budgets-in-settings: backlog
+  18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
+  epic-18-retrospective: optional
+
+  epic-19: backlog
+  19-1-settle-step-3-ownership-and-fix-its-contracts: backlog
+  19-2-compute-embeddings-offline-in-a-worker: backlog
+  19-3-remember-recall-list-and-forget-in-the-chat: backlog
+  19-4-answer-from-documents-with-citations: backlog
+  19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
+  epic-19-retrospective: optional
+
+  epic-20: backlog
+  20-1-add-and-remove-documents-on-a-documents-page: backlog
+  20-2-see-citations-and-memories-in-answers: backlog
+  epic-20-retrospective: optional
+
+  epic-21: backlog
+  21-1-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
+  21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp: backlog
+  21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: backlog
+  21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: backlog
+  21-5-set-up-source-polls-and-answer-tool-call-approval-requests: backlog
+  epic-21-retrospective: optional
+
+  epic-22: backlog
+  22-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
+  22-2-classify-mcp-tools-by-server-and-name: backlog
+  22-3-call-mcp-tools-only-through-the-governed-proxy: backlog
+  22-4-hold-risky-and-unclassified-mcp-calls-for-approval: backlog
+  22-5-poll-a-read-only-mcp-tool-as-a-source: backlog
+  22-6-document-a-worked-jira-example-and-mcp-governance: backlog
+  22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: backlog
+  epic-22-retrospective: optional
+
+  epic-23: backlog
+  23-1-record-the-setting-history-of-each-watched-production: backlog
+  23-2-suspend-resume-and-reroute-with-a-dry-run: backlog
+  23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
+  23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
+  23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: backlog
+  23-6-write-an-incident-summary-when-an-incident-closes: backlog
+  23-7-watch-queue-backlogs-between-digests: backlog
+  23-8-watch-a-saved-sql-query-as-a-read-only-sql-user: backlog
+  epic-23-retrospective: optional
+
+  epic-24: backlog
+  24-1-set-the-on-call-person-and-backup-in-settings: backlog
+  24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings: backlog
+  24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on: backlog
+  24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t: backlog
+  epic-24-retrospective: optional
+
+  epic-25: backlog
+  25-1-see-tokens-and-cost-over-time-on-the-usage-page: backlog
+  25-2-filter-past-decisions-and-incidents-on-the-history-page: backlog
+  25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
+  25-4-assign-approver-and-viewer-roles-in-settings: backlog
+  25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: backlog
+  epic-25-retrospective: optional
+
+  epic-26: backlog
+  26-1-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
+  26-2-files-become-items-and-pdf-and-word-documents: backlog
+  26-3-caption-a-photo-and-keep-the-caption-as-a-memory: backlog
+  26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe: backlog
+  epic-26-retrospective: optional
+
+  epic-27: backlog
+  27-1-receive-slack-events-by-webhook: backlog
+  27-2-reply-as-slack-messages-with-no-socket-mode: backlog
+  epic-27-retrospective: optional
+
+  epic-28: backlog
+  28-1-draft-a-transform-change-as-a-proposal-that-is-never-applied: backlog
+  28-2-fade-unused-memories-and-merge-duplicates-nightly: backlog
+  28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: backlog
+  epic-28-retrospective: optional

@@ -4,7 +4,7 @@ type: architecture-notes
 companion_of: ARCHITECTURE-SPINE.md
 status: final
 created: '2026-10-16'
-updated: '2026-10-17'
+updated: '2026-10-18'
 ---
 
 # Architecture Notes: OcuTalon
@@ -157,6 +157,8 @@ The architecture changes no requirement on its own. The author accepted these on
 | P29 | PRD REL-7 | Step 1 has two hands-on passes: before 0.1.0 on the web demo path (Story 11.6) and before 0.1.1 with Telegram (Story 12.7) | **Accepted October 17** (readiness gate) and applied |
 | P30 | PRD FR-1, FR-8, FR-18, NFR-9 | Measured over real networks, the 5-second limits hold in at least 19 of 20 runs; CI checks each against the mock on every run | **Accepted October 17** (readiness gate) and applied |
 | P31 | PRD FR-59, §7.4, §11.1 | The online demo runs with access restricted from November 1 at the latest, on the latest release, not "from release 1" | **Accepted October 17** (readiness gate) and applied |
+| P32 | PRD §4.3 (the public status endpoint); spine AD-13, AD-25, REST surface | `/ocutalon/public/status` also reports the last reset's time and kind, so the splash can say why a session ended | **Accepted October 18** (readiness re-run) and applied |
+| P33 | PRD FR-11; spine AD-23, AD-24 | On a local install (Docker or IPM) the README account holds the admin and user roles and the read-only trace role (`OcuTalonUser`, `OcuTalonAdmin`, `OcuTalonTraceViewer`), so trace links open after the local sign-in popover | **Accepted October 18** (readiness re-run, second round) and applied |
 
 ## 6. The review gate
 

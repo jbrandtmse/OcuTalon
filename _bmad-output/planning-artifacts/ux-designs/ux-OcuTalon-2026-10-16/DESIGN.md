@@ -3,7 +3,7 @@ name: OcuTalon
 description: Visual identity for OcuTalon's web app, online demo and simulated devices. Navy, teal and orange taken from the logo; calm, dense and evidence-first; light and dark themes.
 status: final
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-18
 colors:
   # Light theme. In dark mode every {colors.<name>} resolves to {colors.<name>-dark};
   # exceptions are listed under "Colors". Contrast for load-bearing pairs is there too.
@@ -801,13 +801,13 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 
 ### Incident and approval components
 
-- **Incident card.** A full-width card with a 4px left accent bar: attention while the incident needs a person (including the fallback, rejected, and expired variants of open), info while fixing, success when resolved, and border-strong when closed. Anatomy, top to bottom:
+- **Incident card.** A full-width card with a 4px left accent bar: attention while the incident needs a person (including the fallback, no-fix, rejected, and expired variants of open), info while fixing, success when resolved, and border-strong when closed. Anatomy, top to bottom:
   1. the state chip (and the fallback flag, if any) and the time;
   2. the headline in `{typography.headline}`;
   3. the cause sentence in `{typography.body-chat}`;
   4. the evidence line in `{typography.body-sm}` and `{colors.ink-muted}` ("Data format change · order date · 50 failures grouped into this incident");
   5. the proposed fix sentence, without the message's closing "Approve?", which belongs to phone and Telegram text only;
-  6. the embedded approval request card, or, on a fallback card, the failure groups and a row with "Show details" and Dismiss;
+  6. the embedded approval request cards (one per request, in the order raised), each with its own answered status and result notice, or, on a fallback card, the failure groups and a row with "Show details" and Dismiss;
   7. the evidence panel, when expanded;
   8. a footer with the decision strip and the trace link.
 - **Incident state chip.** A borderless pill, colored by the five `incident-state-*` tokens.
@@ -820,10 +820,10 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
   - the expiry in caption.
 
   Once answered, the label reads "Approval request", the answered status replaces the two buttons in the same row, and "Show details" stays at the right. The fixed-targets line, the expiry, and the dry run's "Nothing has changed yet." are removed, and the dry run stays as a record.
-- **Answered status.** One line in `{typography.body-strong}` with an icon: `circle-check` in `{colors.success-ink}` for approved, `circle-slash` in `{colors.ink-muted}` for rejected, and `clock` in `{colors.ink-muted}` for expired. Example: "Approved from Telegram at 14:15". When there is no result notice, Dismiss sits at the right end of this row.
+- **Answered status.** One line in `{typography.body-strong}` with an icon: `circle-check` in `{colors.success-ink}` for approved, `circle-slash` in `{colors.ink-muted}` for rejected, and `clock` in `{colors.ink-muted}` for expired. Example: "Approved from Telegram at 14:15". When the last request has no result notice (rejected or expired), Dismiss sits at the right end of its answered-status row.
 - **Dry run block.** On `{colors.sunken}`. A "Dry run" label and a count line ("50 orders affected"). Then the example as two rows, each labeled in text so color is never the only cue: "Before" with its value in `{typography.mono}` and `{colors.danger-ink}`, and "After" with its value in `{typography.mono}` and `{colors.success-ink}`. Last come the "Will resend" line and, while pending, "Nothing has changed yet."
 - **Evidence panel.** Revealed by "Show details", below the approval row. On `{colors.sunken}`, with message excerpts and errors in `{typography.mono-sm}`; its labels stay in Inter.
-- **Result notice.** A band inside the incident card: `result-success` with `circle-check` for a full success ("All 50 orders went through."), or `result-partial` with `triangle-alert` for a partial result. Dismiss is a ghost button at the band's right end. The audit line ("Recorded in the IRIS audit log.") sits beneath the band in caption.
+- **Result notice.** A band inside its approval request's card in the incident card, beneath that request's answered status; each approved request has its own: `result-success` with `circle-check` for a full success ("All 50 orders went through."), or `result-partial` with `triangle-alert` for a partial result or one where nothing was resent ("Couldn't start"). Dismiss, an incident action, is a ghost button at the right end of the last request's band. The audit line ("Recorded in the IRIS audit log.") sits beneath each band in caption.
 
 ### Simulated device components
 
