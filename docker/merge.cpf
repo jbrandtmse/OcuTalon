@@ -1,0 +1,18 @@
+[Actions]
+CreateResource:Name=%DB_OCUTALON_CODE,Description="OcuTalon code database"
+CreateDatabase:Name=OCUTALON_CODE,Directory=ocutalon_code,Resource=%DB_OCUTALON_CODE
+CreateResource:Name=%DB_OCUTALON_DATA,Description="OcuTalon data database"
+CreateDatabase:Name=OCUTALON_DATA,Directory=ocutalon_data,Resource=%DB_OCUTALON_DATA
+CreateResource:Name=%DB_OCUTALON_PRIVATE,Description="OcuTalon private database"
+CreateDatabase:Name=OCUTALON_PRIVATE,Directory=ocutalon_private,Resource=%DB_OCUTALON_PRIVATE
+CreateResource:Name=%DB_OCUTALON_PUBLIC,Description="OcuTalon public database",PublicPermission=R
+CreateDatabase:Name=OCUTALON_PUBLIC,Directory=ocutalon_public,Resource=%DB_OCUTALON_PUBLIC
+CreateNamespace:Name=OCUTALON,Globals=OCUTALON_DATA,Routines=OCUTALON_CODE,Interop=1
+CreateMapGlobal:Namespace=OCUTALON,Name=OcuTalonP.*,Database=OCUTALON_PRIVATE
+CreateMapGlobal:Namespace=OCUTALON,Name=OcuTalonBP.*,Database=OCUTALON_PRIVATE
+CreateMapGlobal:Namespace=OCUTALON,Name=AI.Agent.Session*,Database=OCUTALON_PRIVATE
+CreateMapGlobal:Namespace=OCUTALON,Name=IRIS.IF.*,Database=OCUTALON_PRIVATE
+CreateMapGlobal:Namespace=OCUTALON,Name=OcuTalonPublic,Database=OCUTALON_PUBLIC
+CreateMapPackage:Namespace=OCUTALON,Name=OcuTalon.Web.Public,Database=OCUTALON_PUBLIC
+CreateMapPackage:Namespace=OCUTALON,Name=OcuTalon.Data.Public,Database=OCUTALON_PUBLIC
+ModifyService:Name=%Service_CallIn,Enabled=1,AutheEnabled=48

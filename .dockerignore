@@ -1,0 +1,6 @@
+# Allow-list: nothing enters the build context unless it is named here,
+# so .env, irislib/, irissys/ and .git stay out.
+*
+!docker/merge.cpf
+!docker/healthcheck.sh
+!src/module.xml

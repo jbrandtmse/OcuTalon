@@ -2,12 +2,21 @@
 title: 'Story 0.1: The image builds and starts OcuTalon in its own namespace'
 type: 'feature'
 created: '2026-10-18'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5e0324ed680dfc1d7bdd9024eccd10b6b5042afb'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      iris-main skips an unchanged merge file, so a merge that failed partway on a first start, or a mapping removed by hand, is not repaired by a plain restart.
+    evidence: |-
+      Build 154 logs "unchanged; skipping" and adds no Merging line when the merge file equals /durable/iris/^opt^ocutalon^merge.cpf.last_merge. Whether iris-main writes that copy after a failed merge was not tested.
+      A throwaway run whose merge file holds a failing action on the first start, followed by a plain restart, would settle it. Story 0.2's after-start script could re-run `iris merge` explicitly.
+    location: >-
+      docker/Dockerfile (ISC_CPF_MERGE_FILE)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -131,7 +140,58 @@ Rows 1–6 run `docker/healthcheck.sh` hermetically, with a fake `iris` on `PATH
 
 ## Spec Change Log
 
+### 2026-10-18 -- Implement-stage observation (no loopback)
+- Trigger: on build 154, `iris-main` applies `ISC_CPF_MERGE_FILE` only when the file differs from its saved copy, `/durable/iris/^opt^ocutalon^merge.cpf.last_merge` (it logs `Files differ; merging` or `unchanged; skipping`). The merge therefore does not run at every start: it runs at the first start and whenever the merge file changes, as a new image's would. AD-23 ("A CPF merge at every start") and AC 2 ("the merge reapplies") are worded for every start.
+- Amended: nothing inside the intent contract. `test-compose-start.sh` covers four restarts: a plain stop and start and a plain recreate (merge skipped, probes and `CHECK` hold); a stop and start after the saved copy is edited, which is what an image with a changed merge file looks like (iris-main replaces the read-only copy, the merge reapplies cleanly); and a recreate after the saved copy is removed (the merge reapplies cleanly).
+- Known-bad state avoided: asserting a `Merging` line after a plain restart, which build 154 never writes.
+- KEEP: the relative `Directory=` values (they resolved to `/durable/iris/mgr/<dir>/`, so no switch to absolute paths); the `restart_round` helper; the filter control for the merge log.
+- For the lead (Rule 20, light path): word AD-23's merge sentence and Rule 21's "the merge reapplies at every start" as "at the first start and whenever `merge.cpf` changes". Story 0.2's after-start script may run `iris merge` explicitly where it needs a guaranteed reapply (see `deferred:`).
+
 ## Review Triage Log
+
+### 2026-10-18 -- Review pass
+- verdicts: 40 findings -- high 0, medium 6, low 25, false 8, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind Hunter: `## Auto Run Result` still reads `ready-for-dev` -- the fix is to edit this spec; Finalize rewrites the block.
+  - `[medium]` `[patch]` Blind Hunter: no LF rule, so a Windows checkout with autocrlf gives `healthcheck.sh` a CRLF shebang and the container never reports healthy -- added `docker/**` and `src/module.xml` `eol=lf` to `.gitattributes`, pinned by `files_keep_lf` in `test-compose-file.sh`.
+  - `[false]` `[reject]` Blind Hunter: the marker persists, so a restart can report healthy before the merge finishes -- the merge runs before IRIS starts (probe log: `Merging` precedes `running`), and the marker writer and its removal at start are Story 0.2's (Never list, AD-23 step 1).
+  - `[medium]` `[patch]` Blind Hunter: only a forced re-merge is tested, never a plain restart or a changed merge file -- `test-compose-start.sh` now runs `restart_round` four times (plain stop/start, plain recreate, changed saved copy, removed saved copy). Grouped with Edge Case 3 and 9 members and Intent 1.
+  - `[low]` `[patch]` Blind Hunter: row 8 oracle repeats the Dockerfile's `sed` -- the control build now has a later decoy `<Version>9.9.9</Version>` and the image must still hold the first. Grouped with Edge Case 8, Verification Gap 4 and Intent 6.
+  - `[low]` `[patch]` Blind Hunter: mutation coverage partial -- rows 1 to 3 now have recorded mutations; the other sub-assertions are not pinning tests (Rule 19 scopes to one mutation per AC).
+  - `[low]` `[reject]` Blind Hunter: Compose version undocumented -- the `env_file` long form is the spec's; prerequisites belong to Epic 10's install script and README. Residual risk recorded.
+  - `[low]` `[patch]` Edge Case: the merge-log filter ignores severity 1 while the failure text said "warnings or errors" -- the spec bars severity 2 and 3; the failure text now says "severity 2 or 3 lines".
+  - `[low]` `[reject]` Edge Case: fixed 240 s first-start wait -- the spec fixes it, and a first start measured about 2 minutes (Rule 21); Story 0.7 sizes CI waits.
+  - `[medium]` `[patch]` Edge Case: a changed merge file against an existing, read-only saved copy is never exercised -- the concern that iris-main cannot overwrite the 0444 copy is false (a probe stack logged `Files differ; merging` and replaced it); the path is now a test round. Grouped with Blind Hunter 4.
+  - `[false]` `[reject]` Edge Case: `docker compose exec` failure read as "script exited 1" -- `stays_starting` also needs Docker's status `starting`, two monitor runs and a last monitor exit of 1, which a stopped container fails.
+  - `[low]` `[reject]` Edge Case: `IRIS_IMAGE` set only in `.env` gives the control builds another base -- they exercise only the Dockerfile's version logic, which does not depend on the base.
+  - `[medium]` `[patch]` Edge Case: CRLF on Windows checkouts -- same root cause as Blind Hunter 2, patched there.
+  - `[low]` `[reject]` Edge Case: the only-service awk misses quoted or oddly indented names -- `config --services` would break AD-22's `--quiet` rule, and the `mock` check catches the case that matters.
+  - `[low]` `[patch]` Edge Case: the `sed` takes the last `<Version>` of a line, comments included -- the decoy build pins first-wins; the sed is line-based by design. Grouped with Blind Hunter 5.
+  - `[maybe-false]` `[defer]` Edge Case: a merge that failed partway, or a hand-removed mapping, is not repaired by a plain restart because an unchanged file is skipped -- unverified medium; a run with a failing first merge would settle it. In `deferred:`.
+  - `[low]` `[patch]` Verification Gap: `pull_policy`, `restart`, `env_file` and `ports` are unpinned -- four checks added to `test-compose-file.sh`.
+  - `[medium]` `[patch]` Verification Gap: a missing resource and a resource with no public permission print the same `pub-read`/`pub-write` -- `CHECK` now prints `res-exists` for the four resources.
+  - `[low]` `[patch]` Verification Gap: the merge-log check has no positive control -- `merge_errors` is a function run first on a synthetic excerpt.
+  - `[low]` `[patch]` Verification Gap: row 8 first-version not independently pinned -- same fix as Blind Hunter 5 (reviewer proposed defer).
+  - `[low]` `[patch]` Verification Gap: row 7 "no marker" assumed state it did not create -- the marker is removed first.
+  - `[low]` `[patch]` Verification Gap: rows 1 to 3 have no `mutation:` line -- three mutations demonstrated and recorded in `## Verification`.
+  - `[low]` `[patch]` Verification Gap: AC 2 "without errors" clause cannot be shown to fail -- same fix as Verification Gap 3, with a recorded mutation.
+  - `[false]` `[reject]` Verification Gap: the lead's slot AC has no pinning test -- it is the lead's manual procedure by design.
+  - `[low]` `[patch]` Verification Gap: the throwaway override's invariant is asserted nowhere -- the live test checks zero published ports and zero key variables (counts only, no values printed).
+  - `[false]` `[reject]` Verification Gap: the scripts are not in a CI path -- Story 0.7 adds it (Design Notes).
+  - `[low]` `[reject]` Verification Gap: stale `Auto Run Result` -- same as Blind Hunter 1.
+  - `[false]` `[reject]` Verification Gap: the matrix says row 6 covers rows 1 to 4 while the test covers 1 to 5 -- the test is stricter, no defect.
+  - `[low]` `[patch]` Verification Gap: `config --quiet` cannot see a regression of `required: false` where `.env` exists -- the `env_file` check added for the first finding pins it.
+  - `[low]` `[reject]` Verification Gap: Compose 2.24.4 needed for `!reset` -- same as Blind Hunter 7; the override is test-only and fails loudly.
+  - `[low]` `[reject]` Verification Gap: hermetic test falls back to `sh` without `dash` -- row 7 runs the script under the image's own `/bin/sh` through Docker.
+  - `[medium]` `[patch]` Intent Alignment: the test never runs the unforced restart path "at every start" implies -- plain rounds added; the wording divergence is in the Spec Change Log. Grouped with Blind Hunter 4.
+  - `[low]` `[patch]` Intent Alignment: relative `Directory=` is checked nowhere in text -- `test-compose-file.sh` now requires four `Directory=` values, none absolute.
+  - `[low]` `[reject]` Intent Alignment: "no IRIS session" is observed through a fake `iris` on `PATH` -- a bypass would need an absolute path in a 12-line script; theoretical.
+  - `[false]` `[reject]` Intent Alignment: row 7 sits inside `start_period` -- Docker's own health log records each exit code and the `healthy` transition, and the later `unhealthy` state is by design until Story 0.2.
+  - `[low]` `[patch]` Intent Alignment: the judges' file differs from the file the live test runs (`ports`, `env_file`) -- static checks now pin them. Grouped with Verification Gap 1.
+  - `[low]` `[patch]` Intent Alignment: row 8 oracle shares the Dockerfile's extraction -- same fix as Blind Hunter 5.
+  - `[false]` `[reject]` Intent Alignment: durability is split between the Dockerfile `ENV` and the compose mount -- both are observed, statically and live; no divergence.
+  - `[low]` `[reject]` Intent Alignment: `CHECK` samples mappings rather than listing them -- it resolves six globals and both packages, one per merge line; AD-3's set is the merge file's.
+  - `[false]` `[reject]` Intent Alignment: scripts use `tr`, `cut`, `wc` and similar -- the spec's list names the toolchain, not each coreutil.
 
 ## Design Notes
 
@@ -177,7 +237,59 @@ Rows 1–6 run `docker/healthcheck.sh` hermetically, with a fake `iris` on `PATH
 - Row 7: a qlist-only compose `test` turns it red.
 - AC 3: `stop_grace_period: 30s`, or a value in `.env.example`, turns `test-compose-file.sh` red.
 
+**Mutation results (Rule 19):** each applied with the smallest change, run, then reverted; `git status --short` and the file's `shasum` were identical afterwards.
+- mutation: `docker/healthcheck.sh` pattern `'\^running'` changed to `';running'` -> `test-healthcheck.sh` row 4 (ready) went red.
+- mutation: `docker/healthcheck.sh` `[ -n "$want" ] && [ "$have" = "$want" ]` changed to `[ "$have" = "$want" ]` (no `-n` guard) -> `test-healthcheck.sh` row 5 (empty version) went red.
+- mutation: `docker/healthcheck.sh` given an extra `iris session IRIS -U %SYS` call -> `test-healthcheck.sh` row 6 (no session) went red.
+- mutation: the `CreateMapGlobal ... Name=IRIS.IF.*` line deleted from `docker/merge.cpf` -> `test-compose-start.sh` went red in `CHECK` (`gdest|IRIS.IF.S01` resolved to `ocutalon_data`), on the first start and again after each restart.
+- mutation: the service's `volumes: - durable:/durable` removed from `docker-compose.yml` -> `test-compose-start.sh` went red at the first `CHECK` (`/durable` not the named volume) and again after the recreate (both probes gone).
+- mutation: the health check `test` replaced by the qlist-only `["CMD-SHELL", "iris qlist | grep -q '\\^running'"]` -> `test-compose-start.sh` row 7 went red for "no marker" and "wrong marker" (status `healthy`, wanted `starting`).
+- mutation: `stop_grace_period: 60s` changed to `30s` in `docker-compose.yml` -> `test-compose-file.sh` went red (`compose: stop_grace_period 60s`).
+- mutation: `ANTHROPIC_API_KEY=` changed to `ANTHROPIC_API_KEY=x` in `.env.example` -> `test-compose-file.sh` went red (`env.example: both keys, no values, nothing else`).
+- mutation: `&& test -n "$version"` removed from `docker/Dockerfile` -> `test-compose-file.sh` went red (`dockerfile: an empty version fails the build`) and `test-compose-start.sh` row 8 went red (`a manifest without a version built an image`).
+- mutation: `docker/healthcheck.sh` pattern `'\^running'` changed to `'\^'` -> `test-healthcheck.sh` row 1 (IRIS down) went red.
+- mutation: `docker/healthcheck.sh` marker read changed to `have=$(cat "$marker_file" 2>/dev/null || cat "$version_file")` (a missing marker reads as the version) -> `test-healthcheck.sh` row 2 (no marker) went red.
+- mutation: `docker/healthcheck.sh` final test changed to `[ -n "$want" ]` (the marker is not compared) -> `test-healthcheck.sh` row 3 (other version) went red.
+- mutation: `pull_policy: build` deleted from `docker-compose.yml` -> `test-compose-file.sh` went red (`compose: pull_policy build`).
+- mutation: `Directory=ocutalon_code` changed to `Directory=/durable/iris/mgr/ocutalon_code` in `docker/merge.cpf` -> `test-compose-file.sh` went red (`merge.cpf: four database directories, all relative`).
+- mutation: the `docker/**` rule deleted from `.gitattributes` -> `test-compose-file.sh` went red (`gitattributes: the copied and executed files keep LF`).
+- mutation: `head -n 1` changed to `tail -n 1` in the version extraction of `docker/Dockerfile` -> `test-compose-start.sh` went red (`row 8 with a later <Version> the image holds '9.9.9', wanted '0.1.0'`).
+- mutation: `($3 == 2 || $3 == 3)` changed to `($3 == 2 || $3 == 9)` in the `merge_errors` filter of `test-compose-start.sh` -> its control went red (`merge log filter does not isolate the severity 2 and 3 lines of one process`).
+
+**Observed behavior that shaped the live test:** `iris-main` applies `ISC_CPF_MERGE_FILE` at a start only when the file differs from its saved copy (`/durable/iris/^opt^ocutalon^merge.cpf.last_merge`, mode 0444) and otherwise logs `unchanged; skipping`, so a plain restart adds no `Merging` line. `test-compose-start.sh` therefore runs four restarts: plain stop and start, plain recreate, a stop and start after the saved copy is edited (a changed merge file), and a recreate after the saved copy is removed. The last two assert one more `Merging` line and no severity 2 or 3 line from its process. `Security.Resources.Get` returns `PublicPermission` as letters (`R`), not a mask; the test accepts either.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `docker compose up` now builds one image from `docker/Dockerfile` (`FROM ${IRIS_IMAGE}`, default `ocutalon-iris-base:2026.3.0AI.154.0`) and starts it with durable `%SYS` on a named volume. `docker/merge.cpf` creates the four OCUTALON databases (public Read on the public one), the namespace with Interoperability, AD-3's global and package maps and `%Service_CallIn`, with relative directories that resolve to `/durable/iris/mgr/<dir>/`. `docker/healthcheck.sh` calls only `iris qlist` and compares the ready marker with `/opt/ocutalon/version`, which the build derives from the first `<Version>` of `src/module.xml`.
+
+**Files changed.**
+- `src/module.xml` -- manifest identity only (name, version 0.1.0).
+- `docker/merge.cpf` -- the CPF merge actions.
+- `docker/healthcheck.sh` -- POSIX `sh` health check.
+- `docker/Dockerfile` -- recipe, read-only copies under `/opt/ocutalon/`, version derivation that fails on an empty version.
+- `.dockerignore` -- allow-list of the three copied files.
+- `docker-compose.yml` -- the judges' file: `name:`, one `iris` service, volume, health check, `stop_grace_period: 60s`.
+- `.env.example` -- the two keys, no values.
+- `.gitattributes` -- `docker/**` and `src/module.xml` keep LF (added at review; not in the Tasks list).
+- `docker/tests/compose.throwaway.yml`, `test-healthcheck.sh`, `test-compose-file.sh`, `test-compose-start.sh` -- the override and the three tests (rows 1 to 6 hermetic, static inspection, live throwaway run).
+
+**Review.** 40 findings: high 0, medium 6, low 25, false 8, maybe-false 1. Patches applied (7 entries after grouping, three of them medium): LF rules for the copied files; plain, changed-file and removed-record restart rounds; `res-exists` in `CHECK`; first-wins `<Version>` decoy build; static checks for `pull_policy`, `restart`, `env_file`, `ports` and relative `Directory=`; a control for the merge-log filter; the marker removed before row 7; a published-port and key-variable check on the throwaway container; mutation lines for rows 1 to 3. Deferred: 1 (an unchanged merge file is skipped, so a partly failed first merge is not retried; unverified medium). Rejected findings carry their reasons in the triage log (spec-bound, belong to Story 0.2 or 0.7, theoretical, or false).
+
+**Follow-up review recommended: true.** Three medium entries were patched. Unverified: the `.gitattributes` rules have not been exercised on a real Windows autocrlf checkout, and the changed-merge-file round emulates an upgrade by editing iris-main's saved copy instead of starting a new image.
+
+**Verification performed (final tree).**
+- `bash docker/tests/test-healthcheck.sh`: exit 0, rows 1 to 6 PASS.
+- `bash docker/tests/test-compose-file.sh`: exit 0, 26 checks PASS.
+- `bash docker/tests/test-compose-start.sh`: exit 0, 32 PASS lines in about 70 s, in a throwaway `ocutalon-t01-*` project.
+- `(once)` non-Health image build: exit 0, `qlist` field 10 is `IRIS`.
+- `(once)` `git status --short`: the Tasks files plus `.gitattributes` and this spec.
+- The eight mutations added at review went red and were reverted byte-identical (the nine recorded by the implement pass were demonstrated by it). `docker compose ls -a`, `docker volume ls` and `docker image ls` show nothing named `ocutalon-t01-*`.
+- Matrix Test Audit: rows 1 to 6 ran in `test-healthcheck.sh`, rows 7 and 8 in `test-compose-start.sh`, all passing.
+
+**Residual risks.**
+- AD-23 and Rule 21 say the merge reapplies at every start. On build 154 it runs at the first start and whenever the merge file changes (see the Spec Change Log); the lead words the spine accordingly.
+- The compose file needs Docker Compose 2.24 or later (`env_file` with `required: false`); Epic 10's install script and README state it.
+- The slot recreation AC is the lead's, after code review, and has not been run.

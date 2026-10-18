@@ -1,0 +1,5 @@
+# Test-only override for throwaway projects: publishes no host port and passes no keys into the container.
+services:
+  iris:
+    ports: !reset []
+    env_file: !reset []
