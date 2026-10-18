@@ -1,0 +1,326 @@
+---
+title: 'Story 0.2: The package installs and upgrades itself at every start'
+type: 'feature'
+created: '2026-10-18'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context: []
+warnings: ['multiple-goals', 'oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Story 0.1's image starts IRIS with OCUTALON but installs nothing: no IPM, no `ocutalon` package, no installer steps and no ready marker, so the container never turns healthy. A plain restart doesn't re-merge either (DW-1).
+
+**Approach:** Add an after-start script, run through `iris-main --after`, that re-merges, clears readiness, installs IPM 0.10.10 from a release file in the image, version-gates and loads the one package (bridge resources first), runs the installer-step registry in AD-23's order, and writes the marker atomically. Also add:
+- the registry and its step contract;
+- `OcuTalon.Data.Public.Settings`, fully implemented;
+- the standalone bridge installer (a stub);
+- a stub for every step a later story fills.
+
+## Boundaries & Constraints
+
+**Always:**
+- **Running the script.** It runs as the IRIS user under OS authentication and always exits 0. It stops at the first failure, logs the failing step, and leaves no marker behind (an old one included).
+- **Order.** `iris merge` first (DW-1), then clear the marker and readiness, then IPM, the package, the steps, and the marker.
+- **The ObjectScript part** runs in one `iris session`. `$$$` macros go only inside classes; they don't expand in terminal scripts.
+- **`^OcuTalonPublic`** is reached only through `OcuTalon.Data.Public.Settings`, by every class and script, tests included. That class references only `$SYSTEM.Status` and ObjectScript functions, which AD-3's allow-list permits, so it uses `$SYSTEM.Status.Error` and never `$$$ERROR`.
+- **Namespace switching.** Only `OcuTalon.Install.*` and `OcuTalon.Bridge.Installer` switch namespace, and only to `%SYS`, each class in one method with `New $NAMESPACE` (AD-3).
+- **Bridge isolation.** Nothing under `src/bridge/` references another `OcuTalon` package (AD-2).
+- **Upgrades** compile in place through IPM `load`. Never uninstall first (AD-13), and never use `-dev`, which turns off IPM's rollback.
+- **Live runs** use a unique throwaway project each, at most one IRIS stack at a time, torn down by the test that started it (Rule 21).
+- **Slot A** receives classes through `iris_doc_load` and runs tests through `iris_execute_tests`. Every call names `server: ocutalon-slot-a` and `namespace: OCUTALON`.
+- **Scripts** are ASCII. The tests and `after-start.sh` run under bash 3.2 (the hermetic test runs the script on the host) and use only POSIX tools, docker, git, sed, grep and awk.
+
+**Never:**
+- **The stub steps' content** (users, web applications, SSL, `Demo`, Config Store, audit events, Telegram, `Production`): each later story fills its own (see Design Notes).
+- **Other stories' scope:**
+  - in `module.xml`, any `<Invoke>`, CPF resource or map-and-stop step (Epic 15);
+  - `FileCopy` or a web application (0.3);
+  - the purge-task declarations (1.11);
+  - the online-demo keys (3.8).
+- **Network and secrets:**
+  - no network fetch at build or start;
+  - no `docker push` or registry sign-in;
+  - no `docker compose config` without `--quiet`, and no `docker inspect` without `--format`;
+  - never read or print `.env`, and never print an environment value. Steps read only the variables named here (`OCUTALON_DEV`, `OCUTALON_ONLINE_DEMO` and the script's own `OCUTALON_IMAGE_VERSION`/`OCUTALON_PUBLIC_CLASSES`).
+- **The judges' `docker-compose.yml` doesn't change.** No `container_name` anywhere.
+- **Runtime targets:** never stop, wipe, restart or recreate `ocutalon-slot-a` or `-b`. Nothing comes from `irislib/` or `irissys/`.
+
+## I/O & Edge-Case Matrix
+
+Where each row runs:
+- `test-install-start.sh` (live): rows 1–5;
+- `test-install-upgrade.sh` (live): rows 6 and 7;
+- `test-after-start.sh` (hermetic, with a fake `iris` on `PATH`): rows 8–10, plus row 7's shell side;
+- `%UnitTest` on slot A: rows 11 and 12.
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| 1 Fresh volume | first `up` | Docker reports `healthy`; the marker equals `/opt/ocutalon/version`. The log shows, in order: merge, the readiness step (nothing to clear on a fresh volume), IPM 0.10.10 installed in `%SYS` and mapped into OCUTALON only, package loaded (`not installed`), one `STEP` line per Design Notes order entry (the test writes the expected order out itself, never reading `Order()`), `RESULT OK`. `Get("ready")` is `1` and `Get("onlineDemo")` is `0` | none |
+| 2 Same version, mapping removed by hand | `Config.MapGlobals` entry `IRIS.IF.*` deleted, data and private probes set, then stop and start | the mapping is back (DW-1); package `skipped`, so the compile time of `OcuTalon.Install.Registry` is unchanged; every step runs again; probes intact; healthy | none |
+| 3 Dev reload | recreate with `docker-compose.dev.yml` (`OCUTALON_DEV=1`) | package loaded (`dev`), compile time changed, healthy | none |
+| 4 Hidden public class | `OcuTalon.Data.Public.Settings` deleted from OCUTALON, then restart | load forced (`public classes`); the class is compiled again and resolves to `OCUTALON_PUBLIC`; healthy | none |
+| 5 Bridge alone | in the running stack, a fresh Interoperability namespace `OCUBRIDGET` with no IPM; `LoadDir` of `/opt/ocutalon/src/bridge/cls`, then `OcuTalon.Bridge.Installer.Run()` | both return 1. The namespace holds no `OcuTalon` class outside `.Bridge` and `.BridgeExample`, and no `%IPM` | test fails |
+| 6 Upgrade in place | probes set under V0, recreate with an image whose version is V0 plus one patch | installed and marker equal the new version; every step ran again; probes intact | none |
+| 7 Step fails | an image (V0 plus one patch) whose `Step.SSL.Run` returns an error | the log names `SSL` as failed, and no later step ran. No marker, `Get("ready")` empty, container running with `RestartCount` 0, status never `healthy`. A next good image (plus two patches) reaches ready | logged |
+| 8 Merge fails | fake `iris merge` exits 7; an old marker is present | exit 0, marker removed, no session started, log names `merge` | logged |
+| 9 Session gives no result | fake session prints no `RESULT` line, or exits non-zero | exit 0, no marker, log names `session` | logged |
+| 10 Other version | session prints `RESULT OK 9.9.9` | exit 0, no marker | logged |
+| 11 Refused key | `Set("nosuch","x")`, `Set("ready",1)`, `Get("nosuch",.sc)` | error status naming the key; nothing stored; `Get` returns `""` | caller sees `%Status` |
+| 12 `NextReset(now)` | anchor `2026-10-18T00:00:00Z`, interval `4` | now 17T23:00 gives 18T00:00; now 18T00:00 gives 18T04:00; now 18T05:30 gives 18T08:00; now 19T23:59:59 gives 20T00:00. No anchor, or an interval that is empty, `0` or not a number, gives `""` | none |
+
+</intent-contract>
+
+## Code Map
+
+- **Spine** (`_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`), read by range:
+  - AD-2 L108–119, AD-3 L121–148, AD-5 L174–183, AD-13 L357, AD-19 L473–513, AD-23 L593–636, AD-27 L732–740, AD-29 L752–766;
+  - ownership L995–1059, source tree L1119–1143, S1/S16/S19 L1197, L1212, L1215.
+- **Epics** (`epics.md`): this story L782–816; the purge tasks, Story 1.11, L1319–1336; the `Public` step's online-demo writes, Story 3.8, L1972–1990.
+- **S1 prior art** (read-only, outside the repo), under `../spikes/install/`:
+  - `scripts/after-start.sh`: marker through a tmp file and `mv`, always `exit 0`;
+  - `scripts/install.cos`: the one-liner pattern;
+    - IPM: `%IPM.Storage.Module.NameOpen("zpm").VersionString`, then `$SYSTEM.OBJ.Load(file,"ck-d")`;
+    - mapping: `Config.MapPackages.Exists("OCUTALON","%IPM")`, then `%IPM.Main.Shell("enable -map -ns OCUTALON -q")`;
+    - package: `Shell("load <dir>")`, then `RESULT OK <v>`;
+  - `Dockerfile`: `CMD ["--after", ...]`;
+  - `spike-app/module.xml`: `<SourcesRoot>.</SourcesRoot>`, one `<Resource Name="X.PKG" Directory="bridge/cls"/>` per package;
+  - `scratch/overlap/module.xml`: `OcuSpikeOv.Bridge.PKG` and then `OcuSpikeOv.PKG` together load correctly, which is this story's layout.
+- **IPM 0.10.10** (`../spikes/install/ref/ipm-src/`, tag v0.10.10):
+  - `Shell()` returns `%Status` (`Main.cls:838`);
+  - `load` reruns the whole lifecycle even for the same version, refuses a downgrade, and is rolled back on error outside `-dev` (`Utils/Module.cls:1171, 1192, 1315`);
+  - `enable -map -ns` adds a package mapping `%IPM` and a routine mapping `%IPM.*`; installing the release file maps nothing outside `%SYS` (`Main.cls:3617`, `preload/cls/IPM/Installer.cls:27`);
+  - IPM adds a package mapping for any resource whose package isn't in the namespace's routine database. `OcuTalon` and `OcuTalon.Bridge` are, so none is added; if one appears, load with `-DNoMapping=1`;
+  - a semver prerelease sorts lower, so upgrade tests bump the patch number.
+- **IRIS APIs:**
+  - `%SYS.Namespace.GetRoutineDest(ns, routine, type)` and `GetPackageDest`, at `irislib/%SYS/Namespace.cls:116, 141`. They return `system^dir`, for example `^/durable/iris/mgr/ocutalon_public/`. Compare with `Config.Databases` in `%SYS`; IPM's own way is `DatabasesByDirectory` (ipm `Utils/Build.cls:553`).
+  - `%SYS.Task`: `FindId(name)`, then `%New()` and `%Save()`. The codes are in `irislib/%syTask.inc:64–73`. Task settings are stored as `$lb` pairs and set with `AssignSettings`. `%SYS.Task.Definition` provides `OnTask()` and `TaskName` (`irislib/%SYS/Task/Definition.cls:21, 38`).
+  - `Security.Roles` `Create`, `Modify` (`Resources` given as `"R:RW,S:U"`) and `Exists`, in `%SYS`, at `irissys/Security/Roles.cls:107, 259, 141`.
+  - Subclasses: `$$GetAllDerivedClasses^%occLibrary`, plus the `Abstract` flag (`irislib/%AI/Catalog.cls:113–120`). A class and a package can share a name: `%SYS.Task` and `%SYS.Task.*` both exist.
+  - `$SYSTEM.OBJ.LoadDir(dir,"ck-d",.err,1)` (`irislib/%SYSTEM/OBJ.cls:165`).
+  - UTC ISO 8601 without zone conversion: `$TR($ZDT($ZTS,3,1)," ","T")_"Z"`, and back with `$ZDTH($TR($E(s,1,19),"T"," "),3,1)`. Never pass `$ZTS` to tformat 7.
+- **Base-image probe (October 18):**
+  - `iris-main` runs the `--after` command to completion and only then does its own `Files differ; merging` or `unchanged; skipping` and the `*.last_merge` copy.
+  - `iris merge IRIS <file>` exits 0 on success and 7 when an action fails (`ERROR #503`, `#507` and `#520` at severity 1), and it logs `Merging <file> into ...` in `messages.log`.
+  - `iris session IRIS -U %SYS` works inside `--after`.
+- **Story 0.1 tests this story must update (Rule 19):**
+  - `docker/tests/test-build-inputs.sh` L37–61: the COPY parsing doesn't expand a directory source or create decoy parents, and the `src/other.xml` decoy becomes legitimate;
+  - `test-compose-file.sh`: L128–134, the exact `.dockerignore` list; L115–121, `files_keep_lf`; no check yet for `CMD`;
+  - `test-compose-start.sh`:
+    - L397–416, row 8's build directory, which lacks the new COPY sources;
+    - L420–430, the `/opt/ocutalon` owners and modes (`module.xml` moves into `src/`);
+    - row 7 and the `Merging` counts assume that nothing writes the marker;
+  - `test-boundaries.sh` L82: it scans only `src/module.xml`.
+- **IPM release file:** `../spikes/install/ipm/zpm-0.10.10.xml`, 1,593,780 bytes, sha256 `daa2adabd66b488f57187d29712e54b0c25bbe000794fbf2a35a882c458b788a`, ASCII, with no boundary-rule hit. Its licence is `../spikes/install/ref/ipm-src/LICENSE`: MIT, "Copyright (c) 2019 InterSystems Developer Community", sha256 `ad94a204521dfec7db27a44bd068e33d7f889cd2e4352f68bbb790b2291c888f`.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `docker/ipm/zpm-0.10.10.xml`, `docker/ipm/LICENSE` -- byte-identical copies of the two files above -- the pinned IPM Stack row, with its licence notice kept.
+- `src/module.xml` -- add `<SourcesRoot>.</SourcesRoot>`, then `<Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>`, then `<Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>`. `<Version>0.1.0</Version>` stays the first `<Version>` -- AD-2.
+- `src/bridge/cls/OcuTalon/Bridge/Installer.cls` -- `ClassMethod Run() As %Status`. It returns an error naming the namespace when that namespace isn't an Interoperability namespace (`%EnsembleMgr.IsEnsembleNamespace()`), and `$$$OK` otherwise. It holds nothing else yet -- AD-2.
+- `src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls` -- the accessor:
+  - `Get(key, Output sc) As %String`, for the fixed keys and `ready`;
+  - `Set(key, value) As %Status`, for the fixed keys only (`ready` is refused); `""` removes the key;
+  - `ClearReady()`, `SetReady()` (stores `1`) and `NextReset(now="") As %String`, as in row 12;
+  - storage in `^OcuTalonPublic(key)`, no defaults applied, and the key list in a parameter.
+  - AD-19.
+- `src/ocutalon/cls/OcuTalon/Install/Step.cls` -- the abstract step contract, with do-nothing defaults: `Run() As %Status`, `Grants() As %DynamicArray`, `Reconcile() As %Status`, `Tasks() As %DynamicArray` and `Purge(daysToKeep As %Integer) As %Status` -- AD-23.
+- `src/ocutalon/cls/OcuTalon/Install/Registry.cls` --
+  - `Order()`, the fixed list in Design Notes;
+  - `Areas()`, every compiled, non-abstract subclass of `OcuTalon.Install.Step` named `OcuTalon.Install.Step.*`, sorted by name;
+  - `Run(caller) As %Status`, which refuses any namespace but OCUTALON, runs the order, writes `STEP <name> OK <s>s` or `STEP <name> FAILED <text>` for each step, and stops at the first failure;
+  - `Purge(days)`, which calls every area's `Purge` and combines the failures.
+- `src/ocutalon/cls/OcuTalon/Install/Step/` -- the steps listed in Design Notes:
+  - `Public.cls`: `Run` sets `onlineDemo` to 1 when `OCUTALON_ONLINE_DEMO` is `1`, else 0; `Ready()` calls `SetReady`.
+  - `Roles.cls`: composes roles from every area's `Grants()`. Per role it takes the union of permissions and creates the role, or modifies it to exactly that set. A role name that doesn't start with `OcuTalon` fails the step, naming the area.
+  - `Tasks.cls`: for every area's `Tasks()` entry, creates the task in OCUTALON when `FindId(name)` is empty and leaves an existing task alone. A name that doesn't start with `OcuTalon`, or a duplicate name, fails the step.
+  - `Reconcile.cls`: calls every area's `Reconcile()`.
+  - `PrivateData.cls`: confirms that a sample name under each of the four private mappings (`OcuTalonP.Zz`, `OcuTalonBP.Zz`, `AI.Agent.SessionD`, `IRIS.IF.Zz`) and every `^OcuTalonP.`/`^OcuTalonBP.` storage global of a compiled `OcuTalon` class resolve to `OCUTALON_PRIVATE`, and that `OCUTALON_DATA` holds no global with a private prefix (`OcuTalonP.`, `OcuTalonBP.`, `AI.Agent.Session`, `IRIS.IF.`). It fails naming the first offender.
+  - `Users`, `Web`, `SSL`, `Demo`, `Provider`, `Audit`, `Telegram` and `Production`: stubs whose `Run` returns `$$$OK`.
+  - AD-19, AD-23, AD-24.
+- `src/ocutalon/cls/OcuTalon/Install/Task/Purge.cls` -- a `%SYS.Task.Definition` with `TaskName` "OcuTalon purge" and `Property DaysToKeep As %Integer [ InitialExpression = 90 ]`. `OnTask()` returns `Registry.Purge(..DaysToKeep)` -- AD-27. Story 1.11 declares it in a `Tasks()` and adds `Bridge.Purge`.
+- `docker/after-start.sh` -- the shell side, in this order:
+  1. `iris merge IRIS "$merge"`;
+  2. `rm` the marker and any stale tmp files;
+  3. export `OCUTALON_IMAGE_VERSION` (from the version file) and `OCUTALON_PUBLIC_CLASSES` (class names derived from the `.cls` files under the image's `OcuTalon/{Web,Data}/Public/`);
+  4. one `iris session IRIS -U %SYS < "$cos"`;
+  5. the marker, only on `RESULT OK <image version>`: a tmp file in the marker's directory, then `mv`.
+
+  The run's log is rewritten each start at `/durable/ocutalon-after-start.log`, and a one-line summary per step goes to stdout. The paths can be overridden only for the hermetic test (`OCUTALON_READY_MARKER`, `OCUTALON_VERSION_FILE`, `OCUTALON_MERGE_FILE`, `OCUTALON_SRC_DIR`, `OCUTALON_SESSION_SCRIPT`, `OCUTALON_AFTER_START_LOG`). Always `exit 0`. Use no `set -x`, `env` or other output of the environment -- AD-23, DW-1.
+- `docker/after-start.cos` -- one guarded one-liner per phase, each printing a `STEP` line:
+  1. in OCUTALON, `ClearReady()` when `OcuTalon.Data.Public.Settings` is compiled;
+  2. in `%SYS`, install IPM when it is missing or older than 0.10.10;
+  3. map IPM when `%IPM` isn't mapped into OCUTALON;
+  4. check each public class: compiled, and its routine (`GetRoutineDest`) in the `OCUTALON_PUBLIC` directory;
+  5. `load /opt/ocutalon/src` when the installed `ocutalon` version differs from the image's, `OCUTALON_DEV` is `1`, or step 4 failed (log the reason), then confirm the installed version equals the image's;
+  6. `Registry.Run("after-start")`;
+  7. `RESULT OK <installed version>`.
+
+  Later lines are skipped once a step has failed.
+- `docker/Dockerfile` --
+  - COPY `src/` to `/opt/ocutalon/src/`, `docker/ipm/` to `/opt/ocutalon/ipm/`, and `merge.cpf`, `healthcheck.sh`, `after-start.sh` and `after-start.cos` to `/opt/ocutalon/`;
+  - take the version from `/opt/ocutalon/src/module.xml`, keeping the empty-version failure;
+  - make everything root-owned and read-only (files 444; directories, `healthcheck.sh` and `after-start.sh` 555);
+  - add `CMD ["--after", "/opt/ocutalon/after-start.sh"]`.
+- `.dockerignore`, `.gitattributes` -- the allow-list gains `src` (all of it), the two scripts and the two `docker/ipm/` files. Add `src/** text eol=lf`.
+- `docker-compose.dev.yml` -- `name: ocutalon-dev` and `services.iris.environment.OCUTALON_DEV: "1"`, nothing else. It is used with `-f docker-compose.yml -f docker-compose.dev.yml`.
+- `docker/tests/lib-live.sh` -- move the live helpers out of `test-compose-start.sh` (`dc`, `iris_script` with its retry, the deadline and waits, `merge_count`/`merge_errors`, the teardown trap). Add `copy_build_context <dir>` (the Dockerfile's COPY sources, directories expanded) and `wait_started_ready`, which waits for this start's log end line and then Docker's `healthy`. It must never accept a previous start's log or health, so either remove the log before each stop or match a start stamp the script writes on its first line. The three live tests source it -- Rule 2.
+- `docker/tests/compose.no-after-start.yml`, `docker/tests/test-compose-start.sh` --
+  - the override replaces the CMD so that no after-start script runs, which keeps 0.1's rows (no marker gives `starting`, and the `Merging` counts) valid;
+  - row 8 builds from `copy_build_context`;
+  - the owner and mode list follows the new `/opt/ocutalon` layout.
+- `docker/tests/test-compose-file.sh`, `test-build-inputs.sh`, `test-boundaries.sh` --
+  - pin the new allow-list, the LF rule for the new files, `CMD`, and the dev file (`name: ocutalon-dev`, `OCUTALON_DEV` "1", no mock, no `container_name`, `config --quiet` passing with both files);
+  - expand directory COPY sources;
+  - scan all of `src` and `docker-compose.dev.yml`.
+- `docker/tests/test-after-start.sh` -- rows 8–10, plus:
+  - row 7's shell side: a `STEP SSL FAILED` transcript leaves no marker and the log names `SSL`;
+  - the success path: marker written through a tmp file, none left over;
+  - order: merge before session, as seen by the fake `iris`.
+
+  Its own fake `iris` is a copy (see Design Notes, Reuse).
+- `docker/tests/test-install-start.sh`, `docker/tests/test-install-upgrade.sh` -- the live matrix rows, each with a unique `-p ocutalon-t02{s,u}-<epoch>-$$`, a 540 s deadline and an EXIT trap that runs `down -v --rmi local`. Upgrade images are built from `copy_build_context` with the version bumped (and, for row 7, `SSL.cls` replaced) through an override with an absolute temporary build context.
+- `src/ocutalon/cls/OcuTalon/Test/Data/PublicSettings.cls`, `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`, `src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls` -- the `%UnitTest` classes for rows 11–12 and the ACs below. Each saves and restores every public key it touches through the accessor. The fixture area is created and compiled in `OnBeforeAllTests` and deleted with its role, its task and its `^OcuTalonTest` nodes in `OnAfterAllTests`.
+
+**Acceptance Criteria:**
+- Given a fixture class `OcuTalon.Install.Step.ZzFixture<n>` created by the test, when `Areas()`, the `Roles`, `Tasks` and `Reconcile` steps and the purge task's `OnTask` run, then:
+  - the fixture is discovered, and the abstract base and an `OcuTalon.Install.Step` subclass outside that package are not;
+  - its declared role holds exactly its declared resources;
+  - its task (declared `Suspended`, so it never runs) exists once with the declared schedule and `DaysToKeep`, and a second run leaves a changed `DailyStartTime` and `DaysToKeep` alone;
+  - its `Reconcile` runs once per run;
+  - its `Purge` receives the task's `DaysToKeep` (`OcuTalon.Test.Install.Registry`).
+- Given OCUTALON with its mappings, when `Step.PrivateData` runs, then it passes, and with `^OcuTalonP.ZzPlanted` written straight into `OCUTALON_DATA` it fails naming that global (`OcuTalon.Test.Install.PrivateData`).
+- Given the accessor, when a fixed key is set, read, removed with `""`, and readiness is cleared and set, then each read returns what was stored, and the `Public` step writes `onlineDemo` 0 without `OCUTALON_ONLINE_DEMO` (`OcuTalon.Test.Data.PublicSettings`).
+- Given Story 0.1's tests, when they run against this story's tree, then all five pass with only the updates named above, and the judges' `docker-compose.yml` is byte-identical to its committed version.
+
+## Spec Change Log
+
+## Review Triage Log
+
+## Design Notes
+
+**ADs:**
+- AD-2: one package, bridge first; the bridge loads alone.
+- AD-3: namespace switching; the public package allow-list.
+- AD-5: only code is replaced.
+- AD-13: upgrades compile in place.
+- AD-19: the accessor and the `Public` step; structural or seed.
+- AD-22: throwaway stacks.
+- AD-23: the recipe, the script's order, the health check, the private-data check.
+- AD-24: the roles composed here are what Story 0.3 fills.
+- AD-27: the purge task.
+- AD-29: lanes; Epic 0 builds the registry and the accessor.
+- AD-33: one owner per step.
+
+Spikes S1, S16 and S19.
+
+**Order** (`Registry.Order()`), with each step's lane and filler:
+
+| # | Step | Lane | In this story | Filled by |
+| --- | --- | --- | --- | --- |
+| 1 | `Bridge.Installer` | A | stub | 0.4–0.6, Epic 1 |
+| 2 | `Public` | A | flag | 3.8 |
+| 3 | `Roles` | A | composer | 0.3 |
+| 4 | `Users` | A | stub | 0.3 |
+| 5 | `Web` | B | stub | 0.3 |
+| 6 | `SSL` | A | stub | the first story that needs a client SSL configuration |
+| 7 | `Tasks` | A | built | 1.11, and later areas |
+| 8 | `Demo` | B | stub | 0.6 |
+| 9 | `Provider` (Config Store) | A | stub | 1.1 |
+| 10 | `Audit` | A | stub | 0.4, then 3.7 |
+| 11 | `Telegram` | A | stub | 12.1 |
+| 12 | `Production` | A | stub that starts nothing | 0.6 |
+| 13 | `Reconcile` | A | built | areas' declarations |
+| 14 | `PrivateData` | A | built | — |
+| 15 | `Ready` (`Public.Ready`) | A | built | — |
+
+- The stub steps' content belongs to the stories in the table. Each fills its own step without re-ordering.
+- `PrivateData` is built here: AD-23 ends every start with that check, and no other story builds it.
+- A class under `OcuTalon.Install.Step.*` that isn't in the order (for example Lane B's `Schedule`, AD-18) only declares; its `Run` is never called.
+
+**Contracts fixed here** (cross-lane; the lead may record them in the spine, Rule 20):
+- `Grants()` entries are `{"role","resource","permission"}`. An empty `resource` declares the role alone, and role names start with `OcuTalon`.
+- `Tasks()` entries are `{"name","taskClass","description","task":{<%SYS.Task property>:value},"settings":{<task property>:value}}`, with names starting `OcuTalon`.
+- The public keys are `onlineDemo`, `demoUser`, `demoPassword`, `readonlyUser`, `readonlyPassword`, `resetIntervalHours`, `resetAnchor`, `lastReset`, `lastResetKind`, `proxyAddress`, `connectionCap`, `connectionReserve` and `messageAllowance`, plus `ready`. Times are UTC ISO 8601 with `Z`. Defaults are the `Public` step's job (3.8), not the accessor's.
+- The log contract is `STEP` and `RESULT`, with the log rewritten each start at `/durable/ocutalon-after-start.log`.
+- Epic 15's IPM path calls `Registry.Run("ipm")`.
+
+**Structural or seed (AD-19):**
+- The public settings and the roles are structural: rewritten every start.
+- Tasks are seed: created once.
+- The helper for System Default Settings (`structural`/`seed`) joins `OcuTalon.Install.Step` with its first user, Story 1.1, so every step shares it.
+
+**IPM file:** the release file and its licence live in `docker/ipm/` (Lane B's `docker/`) and ship in `/opt/ocutalon/ipm/`. Story 10.2's README points to the notice. This adds no new dependency: it is the pinned Stack row.
+
+**Integration ACs:**
+- The after-start script consumes the registry and the accessor, and produces the marker and readiness. Docker's health monitor consumes the marker (rows 1, 6 and 7).
+- Within this story, the `Public` step consumes the accessor (row 1).
+
+**Consumed-by:**
+- 0.3: the Roles declarations and the `Users`/`Web` steps; the login page reads the accessor.
+- 0.4: the `Audit` step, `Setting.Get` delegating to the accessor, and the first private classes that `PrivateData` checks.
+- 0.5: `/ocutalon/public/status` reads `ready` and `NextReset`.
+- 0.6: `Production` and `Demo`.
+- 0.7: CI runs `docker/tests/test-*.sh` and the shards, plus the public-package and `^OcuTalonPublic` checks.
+- 1.1: `Provider`.
+- 1.11: the purge declarations.
+- 3.8: the `Public` step's online-demo values.
+- 12.1: `Telegram`.
+- Epic 15: `Registry.Run("ipm")`.
+
+**Consumes:** Story 0.1's image, `merge.cpf`, health check, marker contract and allow-list.
+
+**Reuse (Rule 2):**
+- Every step extends `OcuTalon.Install.Step`.
+- The live helpers move into `lib-live.sh`, extracted from `test-compose-start.sh`.
+- The script's test-only path variables follow `healthcheck.sh`'s convention.
+- `test-after-start.sh` keeps its own fake `iris`, because `test-healthcheck.sh`'s answers only `qlist`.
+- The S1 scripts are adapted, not copied: they are outside the repo and were disposable.
+
+**Ledger inbox:** DW-1 is addressed: `after-start.sh` merges first, and rows 2 and 8 test it.
+
+## Verification
+
+**Commands:**
+- `(loop)` `bash docker/tests/test-after-start.sh` -- expected: exit 0, PASS for rows 7 (shell side) to 10 and the order.
+- `(loop)` `bash docker/tests/test-healthcheck.sh`, `bash docker/tests/test-compose-file.sh`, `bash docker/tests/test-build-inputs.sh` and `bash docker/tests/test-boundaries.sh`, one per call -- expected: exit 0 each.
+- `(loop)` `bash docker/tests/test-compose-start.sh` (`timeout: 600000`) -- expected: exit 0 in under 9 minutes, with nothing named `ocutalon-t01-*` left behind.
+- `(loop)` `bash docker/tests/test-install-start.sh` (`timeout: 600000`) -- expected: exit 0 for rows 1–5 in under 9 minutes, with nothing named `ocutalon-t02s-*` left behind.
+- `(loop)` `bash docker/tests/test-install-upgrade.sh` (`timeout: 600000`) -- expected: exit 0 for rows 6–7 in under 9 minutes, with nothing named `ocutalon-t02u-*` left behind.
+- `(loop)` `iris_doc_load` on `server: ocutalon-slot-a`, `namespace: OCUTALON`, with `compile: true` and `flags: "ck"`, after `iris_server_info` confirms build 154 and slot A's ports (1990/52790). Make two calls, so that each glob's base is a package root: first `src/bridge/cls/**/*.cls`, then `src/ocutalon/cls/**/*.cls` -- expected: every class compiles.
+- `(loop)` `iris_execute_tests` with `level: class` and the same server and namespace, one call each for `OcuTalon.Test.Data.PublicSettings`, `OcuTalon.Test.Install.Registry` and `OcuTalon.Test.Install.PrivateData`, waiting for each before the next -- expected: 0 failed.
+- `(once)` `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 bash docker/tests/test-install-start.sh` (`timeout: 600000`) -- expected: exit 0. This is the same Dockerfile on the non-Health image.
+- `(once)` `git status --short` -- expected: only the files listed in Tasks.
+
+**Shared surfaces:**
+- Story 0.1's pins on the Dockerfile's COPY set, the `.dockerignore` list, `files_keep_lf`, the `/opt/ocutalon` modes, row 8's build directory and `test-boundaries.sh`'s scope (all updated here).
+- Slot A's OCUTALON gains the `src` classes. The fixture role, task and class are created and removed by the tests.
+- Every test added or changed passes on a fresh environment, in either order.
+
+**Mutations to record (Rule 19):**
+- Row 1: swap `Tasks` and `SSL` in `Order()`; `test-install-start.sh` should go red.
+- Rows 2 and 8, DW-1: delete the `iris merge` call; `test-install-start.sh` (mapping not restored) and `test-after-start.sh` should go red.
+- Row 2: make the gate always load; red.
+- Row 3: ignore `OCUTALON_DEV`; red.
+- Row 4: skip the public-class check; red.
+- Row 5: make `Bridge.Installer` reference `OcuTalon.Install.Registry`; red.
+- Row 6: load only when nothing is installed; `test-install-upgrade.sh` should go red.
+- Rows 7 and 9: write the marker without a `RESULT` line; both tests should go red.
+- Row 11: let `Set` accept any key; red.
+- Row 12: use `>=` at the boundary; red.
+- AC 1: let the task step overwrite an existing task, and drop the package-prefix filter; red.
+- AC 2: drop the scan of the data database; red.
+- The dev file: `OCUTALON_DEV: "0"`; `test-compose-file.sh` should go red.
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
+
+Planning only: halted after planning, as the dispatch asked. Nothing is implemented. The spec passed the READY FOR DEVELOPMENT gate on its first check.

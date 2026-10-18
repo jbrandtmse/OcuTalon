@@ -41,3 +41,5 @@
 2026-10-18T20:57:39Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=resume_rerun_tracker_in_sync
 2026-10-18T21:02:05Z	Epic 0	epic_context_compiled	sha=50b2a86 reason=planning_artifact_newer model=claude-opus-5-5
 2026-10-18T21:02:05Z	Story 0.2	stage_spawned	stage=plan spawn_at=2026-10-18T21:02:05Z model=claude-opus-5-5 agent_name=0-2-plan-1 cycle_iteration=1
+2026-10-18T21:37:25Z	Story 0.2	story_created	spawn_at=2026-10-18T21:02:05Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-0-2-the-package-installs-and-upgrades-itself-at-every-start.md build_status=ready-for-dev epic_context=reused warnings=multiple-goals,oversized cycle_iteration=1
+2026-10-18T21:37:25Z	Story 0.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-2,AD-3,AD-5,AD-13,AD-19,AD-23,AD-24,AD-27,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-1 addressed=1 declined=0 mutates_shared_runtime=true note=slot_A_classes_and_self-created_fixtures;lifecycle_on_throwaway_stacks;public_keys_match_AD-19 model=claude-opus-5-5
