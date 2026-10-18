@@ -39,3 +39,5 @@
 2026-10-18T20:57:32Z	Epic 0	epic_branch_checked_out	repos=. head=4818461 mode=resume
 2026-10-18T20:57:32Z	Epic 0	ledger_load	total=3 open=0 routed=3 escalated=0 decision_pending=0 terminal=0 owner_unknown=0 burndown=0 reowned_none=0
 2026-10-18T20:57:39Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=resume_rerun_tracker_in_sync
+2026-10-18T21:02:05Z	Epic 0	epic_context_compiled	sha=50b2a86 reason=planning_artifact_newer model=claude-opus-5-5
+2026-10-18T21:02:05Z	Story 0.2	stage_spawned	stage=plan spawn_at=2026-10-18T21:02:05Z model=claude-opus-5-5 agent_name=0-2-plan-1 cycle_iteration=1
