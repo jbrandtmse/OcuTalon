@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OcuTalon key states</title>
+<style>
+/*
+  OcuTalon key states sheet. Illustrative only: DESIGN.md and EXPERIENCE.md are the contract and win on any conflict.
+  Governing spine sections:
+  - DESIGN.md: frontmatter tokens (colors incl. -dark, header-bg, phone-frame; typography; rounded; spacing; components);
+    Colors (dark-mode exceptions); Typography; Shapes (borderless pills vs bordered actionable chips); Elevation & Depth;
+    Components > Frame (Status banner, Tooltip, Links), Demo guide and controls (Demo guide, Prompt bar,
+    Guide collapsed bar, Break the feed), Status rail (Telegram card), Chat (Chat message user/OcuTalon,
+    Decision strip, Outcome chip, Fallback flag, Composer, Notice card, Empty chat panel), Incident and approval components
+    (Incident card, Incident state chip, Approval request card, Answered status, Dry run block, Evidence panel,
+    Result notice), Simulated device components (Simulated device panel, Simulated label, Simulated phone, Phone notification,
+    Simulated mailbox, Email row, Sample email chip), Trace link.
+  - EXPERIENCE.md: Voice and Tone > Formats; Component Patterns > Frame (Status banner, Link), Demo guide and controls,
+    Status rail (Telegram card), Chat (Decision strip, Outcome chip, Fallback flag, Composer, Notice card),
+    Incident and approval components, Simulated device components; State Patterns (Fresh session, Telegram unpaired / paired /
+    not set up / just unpaired, Bot in use, banner-driven states); Demo Mode > The demo guide, Break the feed;
+    Incidents and Approvals > Incident lifecycle, Approval request states, Results; Message Catalog > Conversation
+    (fallback reasons), Notifications and reminders, Incident notice, Fallback incident notice, Status banners,
+    Sample emails.
+*/
+:root{
+  --bg:#F4F7FA; --surface:#FFFFFF; --raised:#FFFFFF; --sunken:#EAEFF4; --header-bg:#FFFFFF;
+  --border:#D3DCE5; --border-strong:#76879B;
+  --ink:#102A45; --ink-muted:#4A5C72; --ink-disabled:#98A4B3;
+  --brand-navy:#102A45; --brand-teal:#399897; --brand-orange:#DE5034;
+  --action:#1A6F6D; --action-hover:#145958; --on-action:#FFFFFF; --action-ink:#1A6F6D; --action-soft:#E3F2F1;
+  --attention:#B83A1E; --attention-hover:#9A2F17; --on-attention:#FFFFFF; --attention-ink:#B03519; --attention-soft:#FDEDE8;
+  --success-ink:#146C43; --success-soft:#E5F3EB; --warning-ink:#8A5300; --warning-soft:#FFF4DC;
+  --danger-ink:#B42318; --danger-soft:#FDECEA; --info-ink:#2D5788; --info-soft:#E7EEF7; --neutral-soft:#ECEFF3;
+  --focus:#1A6F6D; --scrim:#102A4573; --phone-frame:#102A45;
+  --phone-shadow:0 12px 32px #102A452E;
+  --f-display:Montserrat, 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --f-ui:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --f-mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.theme-dark{
+  --bg:#11192B; --surface:#18233A; --raised:#202D48; --sunken:#0C1322; --header-bg:#161D2F;
+  --border:#2E3D5A; --border-strong:#6B7C99;
+  --ink:#EEF2F7; --ink-muted:#AAB6C8; --ink-disabled:#5F6D86;
+  --brand-navy:#11192B; --brand-teal:#329C97; --brand-orange:#DB482B;
+  --action:#45B9B3; --action-hover:#5FC7C1; --on-action:#0B1220; --action-ink:#5CC9C3; --action-soft:#173A43;
+  --attention:#F26B4F; --attention-hover:#F5826A; --on-attention:#0B1220; --attention-ink:#F47A60; --attention-soft:#3B2128;
+  --success-ink:#5CCB93; --success-soft:#16362E; --warning-ink:#F1B656; --warning-soft:#3A2F1A;
+  --danger-ink:#F7867B; --danger-soft:#3D1E24; --info-ink:#8DB3E6; --info-soft:#1B2E4C; --neutral-soft:#222E44;
+  --focus:#5CC9C3; --scrim:#05091299; --phone-frame:#6B7C99;
+  --phone-shadow:0 12px 32px #00000080;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.5 var(--f-ui);-webkit-font-smoothing:antialiased;padding:32px 24px 72px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+a{color:inherit;text-decoration:none}
+.page{width:1240px;margin:0 auto}
+.num{font-variant-numeric:tabular-nums}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+
+/* ---------- sheet chrome ---------- */
+.sheet-head{display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.mark{width:28px;height:28px;border-radius:6px;background:#102A45 url(data:image/png;base64,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) center/cover no-repeat;flex:none;display:inline-block}
+.mark.av{width:24px;height:24px;border-radius:5px}
+.wordmark{font:800 20px/1 var(--f-display);letter-spacing:-0.005em}
+.wordmark .o{color:var(--ink)} .wordmark .t{color:var(--brand-orange)}
+.sheet-title{font:700 20px/1.3 var(--f-display);color:var(--ink-muted)}
+.sheet-intro{font:400 13px/1.45 var(--f-ui);color:var(--ink-muted);margin-bottom:40px;max-width:900px}
+.sec{margin-bottom:64px}
+.sec-h{font:700 20px/1.3 var(--f-display);margin-bottom:4px}
+.sec-sub{font:400 13px/1.45 var(--f-ui);color:var(--ink-muted);margin-bottom:20px;max-width:1000px}
+.grid2{display:grid;grid-template-columns:600px 600px;gap:40px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:28px}
+.row{display:flex;flex-wrap:wrap;gap:28px 24px;align-items:flex-start}
+.grid4{display:grid;grid-template-columns:repeat(4,288px);justify-content:space-between;align-items:start}
+.cap{margin-top:8px;font:400 12px/1.45 var(--f-ui);color:var(--ink-muted)}
+.cap b{color:var(--ink);font-weight:600}
+.anno{display:inline-block;border:1px dashed var(--border-strong);border-radius:4px;padding:1px 6px;font:600 12px/1.4 var(--f-ui);color:var(--ink-muted);background:var(--surface)}
+
+/* ---------- type ---------- */
+.lbl{font:600 12px/1.3 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.t-cap{font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.mono{font:400 13px/1.5 var(--f-mono)}
+.mono-sm{font:400 12px/1.45 var(--f-mono)}
+
+/* ---------- pills ---------- */
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:9999px;font:600 12px/1 var(--f-ui);white-space:nowrap}
+.chip .ic{width:13px;height:13px}
+.c-ignore{background:var(--neutral-soft);color:var(--ink-muted)}
+.c-digest{background:var(--info-soft);color:var(--info-ink)}
+.c-tell{background:var(--attention-soft);color:var(--attention-ink)}
+.c-act{background:var(--action-soft);color:var(--action-ink)}
+.c-fallback{background:var(--warning-soft);color:var(--warning-ink)}
+.c-next{background:var(--action-soft);color:var(--action-ink)}
+.s-att{background:var(--attention-soft);color:var(--attention-ink)}
+.s-fix{background:var(--info-soft);color:var(--info-ink)}
+.s-ok{background:var(--success-soft);color:var(--success-ink)}
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:9999px;background:var(--neutral-soft);color:var(--ink-muted);font:600 12px/1 var(--f-ui);letter-spacing:.06em;text-transform:uppercase}
+.sim{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid var(--warning-ink);background:var(--warning-soft);color:var(--warning-ink);border-radius:9999px;font:600 12px/1 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:var(--action);color:var(--on-action);font:400 12px/1 var(--f-ui)}
+
+/* ---------- buttons and links ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 14px;border-radius:6px;font:600 14px/1 var(--f-ui);border:1px solid transparent;white-space:nowrap}
+.btn-primary{background:var(--action);color:var(--on-action)}
+.btn-secondary{background:var(--surface);color:var(--action-ink);border-color:var(--border-strong)}
+.btn-attention{background:var(--attention);color:var(--on-attention)}
+.btn-ghost{background:transparent;color:var(--action-ink);min-height:32px;padding:0 8px}
+.btn-inactive{background:var(--neutral-soft);color:var(--ink-muted);border:1px dashed var(--border-strong)}
+.btn-icon{width:32px;min-height:32px;padding:0;color:var(--ink-muted)}
+.btn .ic{width:15px;height:15px}
+.link{display:inline-flex;align-items:center;gap:4px;color:var(--action-ink);font:600 13px/1.45 var(--f-ui);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+.link .ic{width:13px;height:13px}
+.trace{display:inline-flex;align-items:center;gap:3px;color:var(--action-ink);font:400 12px/1.4 var(--f-ui);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+.trace .ic{width:12px;height:12px}
+
+/* ---------- cards with accent bar ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--bar)}
+.incident{--bar:var(--attention);padding:16px 16px 14px 20px;width:600px}
+.incident.bar-fix{--bar:var(--info-ink)}
+.incident.bar-ok{--bar:var(--success-ink)}
+.inc-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.inc-head{font:600 17px/1.35 var(--f-ui);margin-bottom:4px}
+.inc-p{font:400 15px/1.55 var(--f-ui)}
+.inc-ev{font:400 13px/1.45 var(--f-ui);color:var(--ink-muted);margin:2px 0 6px}
+.inc-groups{font:400 15px/1.55 var(--f-ui);margin-top:6px}
+.approval{--bar:var(--attention);margin-top:12px;padding:12px 12px 10px 16px}
+.approval.ap-ok{--bar:var(--success-ink)}
+.approval.ap-closed{--bar:var(--border-strong)}
+.lbl.att{color:var(--attention-ink)}
+.ap-what{font:400 14px/1.5 var(--f-ui);margin-top:4px}
+.ap-what strong{font-weight:600}
+.ap-fixed{font:400 13px/1.45 var(--f-ui);margin-top:4px}
+.dry{background:var(--sunken);border-radius:6px;padding:10px 12px;margin-top:10px;font:400 13px/1.45 var(--f-ui)}
+.dry-count{font-weight:600;margin:2px 0 6px}
+.dry-row{display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:baseline;padding:1px 0}
+.dry-row .dl{color:var(--ink-muted);font-weight:600}
+.before{color:var(--danger-ink)} .after{color:var(--success-ink)}
+.dry-note{margin-top:6px;color:var(--ink-muted)}
+.ap-row{display:flex;gap:8px;align-items:center;margin-top:12px;min-height:36px}
+.ap-row .push{margin-left:auto}
+.ap-row .btn-ghost .ic{width:14px;height:14px}
+.ap-exp{margin-top:6px}
+.answered{display:flex;align-items:center;gap:6px;font:600 14px/1.5 var(--f-ui)}
+.answered.ok{color:var(--success-ink)} .answered.muted{color:var(--ink-muted)}
+.progress{font:400 14px/1.5 var(--f-ui);color:var(--ink-muted);margin-top:12px}
+.acts{display:flex;gap:4px;align-items:center;justify-content:flex-end;margin-top:10px}
+.evidence{background:var(--sunken);border-radius:6px;padding:12px;margin-top:10px;display:grid;gap:10px}
+.ev-l{font:600 12px/1.3 var(--f-ui);color:var(--ink-muted);margin-bottom:2px}
+.ev-v{font:400 12px/1.45 var(--f-mono);color:var(--ink);overflow-wrap:anywhere}
+.ev-ui{font:400 13px/1.45 var(--f-ui)}
+.ev-links{display:flex;align-items:center;gap:6px;font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.inc-foot{border-top:1px solid var(--border);margin-top:14px;padding-top:10px}
+.result{display:flex;gap:8px;align-items:center;border-radius:6px;padding:4px 4px 4px 12px;margin-top:12px;font:400 14px/1.5 var(--f-ui);min-height:40px}
+.result > span{flex:1;padding:4px 0}
+.result.ok{background:var(--success-soft);color:var(--success-ink);font-weight:600}
+.result.partial{background:var(--warning-soft);color:var(--warning-ink);align-items:flex-start}
+.result.partial .ic{margin-top:6px}
+.audit{margin-top:4px}
+
+/* ---------- decision strip ---------- */
+.strip-1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.strip-2{font:400 13px/1.45 var(--f-ui);color:var(--ink);margin-top:6px;max-width:72ch}
+.strip-2.fb{color:var(--warning-ink)}
+.det-btn{display:inline-flex;align-items:center;gap:3px;margin-top:4px;color:var(--action-ink);font:600 12px/1.4 var(--f-ui);min-height:32px}
+.det-btn .ic{width:13px;height:13px}
+.details{background:var(--sunken);border-radius:6px;padding:8px 12px;display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;align-items:baseline}
+.details .k{font:400 12px/1.45 var(--f-ui);color:var(--ink-muted)}
+.details .v{font:400 12px/1.45 var(--f-ui)}
+
+/* ---------- chat ---------- */
+.chatcol{width:600px;background:var(--surface);border:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:16px}
+.msg-user{align-self:flex-end;max-width:80%;text-align:right}
+.bubble{background:var(--sunken);border-radius:10px;padding:8px 12px;font:400 15px/1.55 var(--f-ui);text-align:left}
+.umeta{font:400 12px/1.4 var(--f-ui);color:var(--ink-muted);margin-top:4px}
+.oc-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.oc-name{font:600 14px/1.5 var(--f-ui)}
+.oc-text{font:400 15px/1.55 var(--f-ui);max-width:72ch;margin-bottom:8px}
+.chip-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.chip-cell{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.notice{--bar:var(--info-ink);width:600px;padding:12px 16px 12px 20px}
+.notice.tell{--bar:var(--attention)}
+.notice-msg{display:flex;align-items:flex-start;gap:8px;font:400 15px/1.55 var(--f-ui)}
+.notice-msg .ic{margin-top:4px;width:16px;height:16px}
+.notice.rem .notice-msg .ic{color:var(--info-ink)}
+.notice.tell .notice-msg .ic{color:var(--attention-ink)}
+.notice-sub{margin:2px 0 0 24px}
+.notice .strip-1{margin:8px 0 0 24px}
+
+/* ---------- demo guide ---------- */
+.guide{width:1240px;min-height:92px;display:flex;background:var(--surface);border:1px solid var(--border)}
+.g-main{flex:1;min-width:0;padding:8px 12px 10px;display:flex;flex-direction:column;gap:8px}
+.g-row1{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.g-steps{display:flex;align-items:center;gap:0}
+.g-step{display:inline-flex;align-items:center;gap:6px;font:400 13px/1.3 var(--f-ui);color:var(--ink-muted);padding:4px 3px;border-bottom:2px solid transparent}
+.g-step.cur{font:600 14px/1.3 var(--f-ui);color:var(--ink)}
+.g-step.sel{border-bottom-color:var(--ink)}
+.mk{width:20px;height:20px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font:600 12px/1 var(--f-ui)}
+.mk.done{color:var(--success-ink)}
+.mk.done .ic{width:18px;height:18px;stroke-width:2.5}
+.mk.cur{background:var(--action);color:var(--on-action)}
+.mk.up{border:1.5px solid var(--border-strong);color:var(--ink-muted)}
+.chev{width:12px;height:12px;color:var(--border-strong)}
+.g-meta{margin-left:auto;font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.g-row2{display:flex;align-items:center;gap:12px;min-height:44px;background:var(--sunken);border-radius:6px;padding:6px 6px 6px 12px}
+.g-next{font:600 14px/1.35 var(--f-ui);flex:none}
+.g-text{flex:1;min-width:0}
+.g-prompt{font:400 15px/1.35 var(--f-ui)}
+.g-opt{font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.g-fin{font:400 13px/1.45 var(--f-ui);display:flex;flex-direction:column;gap:3px;padding:2px 0}
+.g-fin .muted{color:var(--ink-muted)}
+.g-fin .links{display:flex;gap:2px 16px;flex-wrap:wrap}
+.g-fin .run{font-weight:600}
+.btf{width:352px;flex:none;border-left:1px solid var(--border);padding:10px 16px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;background:var(--surface)}
+.btf.solo{border:1px solid var(--border);border-radius:10px}
+.btf.next{box-shadow:inset 4px 0 0 var(--action)}
+.btf-top{display:flex;align-items:center;gap:8px;width:100%}
+.btf-top .lbl{color:var(--attention-ink)}
+.btf-top .chip{margin-left:auto}
+.btf-hint{font:400 13px/1.45 var(--f-ui);color:var(--ink-muted)}
+.btf-hint .link{font-size:13px}
+.btf-line{font:400 13px/1.45 var(--f-ui);color:var(--ink)}
+.guide-bar{width:1240px;min-height:40px;display:flex;align-items:center;gap:8px;padding:4px 8px 4px 16px;background:var(--surface);border:1px solid var(--border);font:400 13px/1.45 var(--f-ui);color:var(--ink-muted)}
+.guide-bar .end{margin-left:auto;display:flex;align-items:center;gap:10px}
+.guide-bar .lbl{color:var(--attention-ink)}
+
+/* ---------- status rail / Telegram ---------- */
+.rail{width:288px;background:var(--bg);border:1px solid var(--border);padding:12px 4px}
+.rail-h{margin:0 8px 8px}
+.tg{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;font:400 13px/1.45 var(--f-ui)}
+.tg-row{display:flex;align-items:center;gap:8px}
+.tg-row .btn-ghost{margin-left:auto}
+.tg-row .ok{color:var(--success-ink)} .tg-row .warn{color:var(--warning-ink)} .tg-row .muted{color:var(--ink-muted)}
+.qr{width:132px;height:132px;padding:12px;background:#FFFFFF;border:1px solid var(--border);border-radius:6px;margin:0 auto;display:grid;grid-template-columns:repeat(21,1fr);grid-template-rows:repeat(21,1fr)}
+.qr b{background:#102A45}
+.qr i{background:#FFFFFF}
+.qr-anno{text-align:center;margin:6px 0 8px}
+.tg-line{margin-bottom:6px}
+.tg-foot{display:flex;align-items:center;justify-content:space-between}
+.tg-sub{margin-top:6px;padding-left:24px}
+
+/* ---------- banners ---------- */
+.banners{width:1240px;border:1px solid var(--border);background:var(--surface)}
+.banner{display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px;background:var(--bsoft);border-left:4px solid var(--bink);font:400 14px/1.5 var(--f-ui);color:var(--ink)}
+.banner + .banner{border-top:1px solid var(--border)}
+.banner > .ic{color:var(--bink);width:18px;height:18px}
+.banner .bt{flex:1;min-width:0}
+.banner .link{font-size:14px;white-space:nowrap}
+.banner .code{font:400 13px/1.5 var(--f-mono)}
+.b-danger{--bsoft:var(--danger-soft);--bink:var(--danger-ink)}
+.b-warn{--bsoft:var(--warning-soft);--bink:var(--warning-ink)}
+.b-info{--bsoft:var(--info-soft);--bink:var(--info-ink)}
+
+/* ---------- simulated devices ---------- */
+.phone{width:320px;background:var(--phone-frame);border-radius:28px;padding:12px;box-shadow:var(--phone-shadow)}
+.screen{width:296px;min-height:360px;background:var(--surface);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.ph-top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)}
+.ph-name{font:600 15px/1.4 var(--f-ui)}
+.ph-body{flex:1;padding:12px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end}
+.note{background:var(--sunken);border-radius:10px;padding:10px 12px;font:400 14px/1.45 var(--f-ui);color:var(--ink)}
+.note > p + p, .note > p + .inset, .note > .inset + p{margin-top:8px}
+.note .ts{font:400 12px/1.4 var(--f-ui);color:var(--ink-muted);margin-top:6px}
+.note .ans{display:flex;align-items:flex-start;gap:6px;color:var(--success-ink);font-weight:600;margin-top:8px}
+.note .ans .ic{margin-top:2px}
+.inset{background:var(--surface);border-radius:6px;padding:8px 10px}
+.inset .mono-sm{font-size:12px}
+.ph-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.ph-btns .btn{min-height:40px;width:100%}
+.panel{width:352px;background:var(--bg);border:1px solid var(--border)}
+.tabs{display:flex;border-bottom:1px solid var(--border);padding:0 8px}
+.tab{display:inline-flex;align-items:center;gap:6px;padding:10px 8px 9px;font:600 14px/1.3 var(--f-ui);color:var(--ink-muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab.sel{color:var(--ink);border-bottom-color:var(--action)}
+.panel-body{padding:12px}
+.mailbox{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.mb-top{display:flex;align-items:center;justify-content:flex-end;padding:8px 12px;border-bottom:1px solid var(--border)}
+.mb-compose{padding:12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.samples{display:flex;flex-wrap:wrap;gap:6px}
+.sample{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 12px;border-radius:9999px;background:var(--surface);border:1px solid var(--border-strong);color:var(--action-ink);font:600 12px/1 var(--f-ui);white-space:nowrap}
+.sample .ic{width:13px;height:13px}
+.mrow{padding:10px 12px 10px 24px;font:400 13px/1.45 var(--f-ui);position:relative}
+.mrow + .mrow{border-top:1px solid var(--border)}
+.mrow.unread::before{content:"";position:absolute;left:10px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--action)}
+.mrow-top{display:flex;justify-content:space-between;gap:8px}
+.mrow .from{font-weight:600}
+.mrow .subj{margin:1px 0 6px}
+.deciding{font:400 12px/1.4 var(--f-ui);color:var(--ink-muted)}
+.mrow-solo{width:352px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+
+/* ---------- empty chat ---------- */
+.chat-empty{width:600px;min-height:500px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column}
+.empty{margin:auto;width:460px;text-align:center;padding:24px 0}
+.empty-h{font:700 20px/1.3 var(--f-display);margin-bottom:16px}
+.empty-list{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;text-align:left;margin:0 auto 16px;width:max-content}
+.empty-list .chip{justify-self:start}
+.empty-list .m{font:400 13px/1.45 var(--f-ui);color:var(--ink-muted)}
+.empty-p{font:400 14px/1.5 var(--f-ui);color:var(--ink-muted)}
+.empty-p + .empty-p{margin-top:6px}
+.composer{margin:12px;border:1px solid var(--border-strong);border-radius:10px;display:flex;align-items:flex-end;gap:8px;padding:8px 8px 8px 12px;background:var(--surface)}
+.composer .ph{flex:1;font:400 15px/1.55 var(--f-ui);color:var(--ink-muted);padding:6px 0}
+
+/* ---------- dark strip ---------- */
+.theme-dark.strip{background:var(--bg);color:var(--ink);border-radius:10px;overflow:hidden}
+.dk-header{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 16px;background:var(--header-bg);border-bottom:1px solid var(--border)}
+.dk-grid{display:grid;grid-template-columns:600px 1fr;gap:32px;align-items:start;padding:24px}
+.theme-dark .cap{color:var(--ink-muted)}
+.theme-dark .cap b{color:var(--ink)}
+.dk-col{display:flex;flex-direction:column;gap:20px}
+.dk-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-bell-ring" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+  <symbol id="i-life-buoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></symbol>
+  <symbol id="i-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-circle-slash" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/></symbol>
+  <symbol id="i-circle-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="i-pause-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+</svg>
+
+<div class="page">
+
+<header class="sheet-head">
+  <span class="mark" role="img" aria-label="OcuTalon logo mark"></span>
+  <span class="wordmark"><span class="o">Ocu</span><span class="t">Talon</span></span>
+  <span class="sheet-title">Key states sheet</span>
+</header>
+<p class="sheet-intro">Load-bearing alternate states of OcuTalon's key components, at real size, light theme (section H repeats key parts in the dark theme). Each caption names the state and the spine rows it illustrates. Illustrative only: DESIGN.md and EXPERIENCE.md are the contract and win on any conflict.</p>
+
+<!-- ================= A ================= -->
+<section class="sec">
+  <h2 class="sec-h">A. Incident card states</h2>
+  <p class="sec-sub">Chat column width (600px). One card per incident, updated in place. Page times are plain; times inside message text carry ET (online demo).</p>
+  <div class="grid2">
+
+    <!-- A1 -->
+    <div>
+      <article class="card incident">
+        <div class="inc-top"><span class="chip s-att">Awaiting approval</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval">
+          <div class="lbl att">Approval needed</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+            <div class="dry-note">Nothing has changed yet.</div>
+          </div>
+          <div class="ap-row"><button type="button" class="btn btn-primary">Approve</button><button type="button" class="btn btn-secondary">Reject</button><button type="button" class="btn btn-ghost push" aria-expanded="true">Show details <svg class="ic"><use href="#i-chevron-up"/></svg></button></div>
+          <div class="t-cap ap-exp num">Expires tomorrow at 14:13</div>
+          <div class="evidence">
+            <div><div class="ev-l">Cause</div><div class="ev-ui">Data format change · field: order date</div></div>
+            <div><div class="ev-l">Sample failed message</div><div class="ev-v">OrderID=1047|OrderDate=10/16/2026</div></div>
+            <div><div class="ev-l">Error</div><div class="ev-v">Could not parse OrderDate '10/16/2026' with format YYYY-MM-DD</div></div>
+            <div><div class="ev-l">Failures by item</div><div class="ev-v num">Order transform: 50 failures, first 14:12:03, last 14:12:31</div></div>
+            <div class="ev-ui">Held as an IRIS Workflow task until someone answers.</div>
+            <div class="ev-links"><span>Sample message</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a><span>·</span><span>First failure</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div>
+          </div>
+        </div>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A1 · Awaiting approval, Show details expanded.</b> EXPERIENCE › Incidents and Approvals › Incident lifecycle: Awaiting approval; Approval request states: Pending (fixed-targets line, expiry) · Component Patterns › Incident card (evidence line), Approval request card, Dry run block, Evidence panel · DESIGN › Incident card anatomy, Approval request card (label, "Why:", one row with Show details at the right). The sample message excerpt is illustrative. The footer strip shows line 1 only, because the spine gives no reasons text for the incident decision. The evidence panel opening below the row is an inference.</p>
+    </div>
+
+    <!-- A2 -->
+    <div>
+      <article class="card incident bar-fix">
+        <div class="inc-top"><span class="chip s-fix">Fixing</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval ap-ok">
+          <div class="lbl">Approval request</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+          </div>
+          <div class="ap-row"><span class="answered ok"><svg class="ic"><use href="#i-circle-check"/></svg><span class="num">Approved from Telegram at 14:15</span></span><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button></div>
+        </div>
+        <p class="progress">Repairing and resending 50 orders…</p>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A2 · Fixing.</b> EXPERIENCE › Incident lifecycle: Fixing (answered status, then "Repairing and resending 50 orders…") · Approval request states: Approved · DESIGN › Incident card accent bar fixing (info), Approval request card (label "Approval request" once answered; the answered status replaces the buttons in the same row), Answered status (circle-check). The spine doesn't say whether "Nothing has changed yet." stays in the dry run after approval; it is dropped here and in later states.</p>
+    </div>
+
+    <!-- A3 -->
+    <div>
+      <article class="card incident bar-ok">
+        <div class="inc-top"><span class="chip s-ok">Resolved</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval ap-ok">
+          <div class="lbl">Approval request</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+          </div>
+          <div class="ap-row"><span class="answered ok"><svg class="ic"><use href="#i-circle-check"/></svg><span class="num">Approved from Telegram at 14:15</span></span><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button></div>
+        </div>
+        <div class="result ok"><svg class="ic"><use href="#i-circle-check"/></svg><span>All 50 orders went through.</span><button type="button" class="btn btn-ghost">Dismiss</button></div>
+        <p class="t-cap audit">Recorded in the IRIS audit log.</p>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A3 · Resolved.</b> EXPERIENCE › Incident lifecycle: Resolved (result notice and its audit line; Dismiss, Show details) · Results: All went through ("Recorded in the IRIS audit log.") · DESIGN › Result notice (result-success, audit line beneath in caption), Dismiss as a ghost button at the right end of the result notice, accent bar resolved.</p>
+    </div>
+
+    <!-- A4 -->
+    <div>
+      <article class="card incident">
+        <div class="inc-top"><span class="chip s-att">Open</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval ap-closed">
+          <div class="lbl">Approval request</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+          </div>
+          <div class="ap-row"><span class="answered muted"><svg class="ic"><use href="#i-circle-slash"/></svg><span class="num">Rejected from the web chat at 14:16. Nothing was changed.</span></span><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button><button type="button" class="btn btn-ghost">Dismiss</button></div>
+        </div>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A4 · Open, rejected.</b> EXPERIENCE › Incident lifecycle: Open, rejected · Approval request states: Rejected · Voice and Tone › Formats (channels in answered statuses) · DESIGN › Answered status (circle-slash, ink-muted), approval accent bar closed, the attention bar kept on open variants, Dismiss at the right end of the answered row when there is no result.</p>
+    </div>
+
+    <!-- A5 -->
+    <div>
+      <article class="card incident">
+        <div class="inc-top"><span class="chip s-att">Open</span><span class="chip c-fallback"><svg class="ic"><use href="#i-life-buoy"/></svg>Fallback</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed.</p>
+        <div class="inc-groups num">
+          <div>Failures:</div>
+          <div>Order transform: 50, "date could not be read", first at 14:12 ET</div>
+        </div>
+        <div class="acts"><button type="button" class="btn btn-ghost" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button><button type="button" class="btn btn-ghost">Dismiss</button></div>
+        <div class="inc-foot">
+          <div class="strip-1"><span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span><span class="chip c-fallback"><svg class="ic"><use href="#i-life-buoy"/></svg>Fallback</span><span class="num">$0.0001 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div>
+          <p class="strip-2 fb">The model didn't answer within 60 seconds.</p>
+        </div>
+      </article>
+      <p class="cap"><b>A5 · Open, fallback.</b> EXPERIENCE › Incident lifecycle: Open, fallback (Open + fallback flag; failure groups; no fix) · Message Catalog › Fallback incident notice (one line per group, readable item name), Fallback reasons · Component Patterns › Decision strip (a fallback omits confidence; its reason is the first line) · Fallback flag (outcome Tell now) · DESIGN › Decision strip (fallback reason in warning-ink). No Approve or Reject. With no approval card and no result, the spine doesn't place Show details and Dismiss; they sit in their own row here. The cost value is illustrative.</p>
+    </div>
+
+    <!-- A6 -->
+    <div>
+      <article class="card incident bar-ok">
+        <div class="inc-top"><span class="chip s-ok">Resolved</span><span class="t-cap num">14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval ap-ok">
+          <div class="lbl">Approval request</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+          </div>
+          <div class="ap-row"><span class="answered ok"><svg class="ic"><use href="#i-circle-check"/></svg><span class="num">Approved from Telegram at 14:15</span></span><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button></div>
+        </div>
+        <div class="result partial"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="num">48 of 50 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval.</span><button type="button" class="btn btn-ghost">Dismiss</button></div>
+        <p class="t-cap audit">Recorded in the IRIS audit log.</p>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A6 · Resolved, partial.</b> EXPERIENCE › Incident lifecycle: Resolved, partial (reported, not retried) · Results: Some failed again (FR-25), followed by the audit line · DESIGN › Result notice (result-partial), Dismiss at the right end of the result notice, accent bar resolved. The partial notice's icon isn't named; triangle-alert is used.</p>
+    </div>
+
+    <!-- A7 -->
+    <div>
+      <article class="card incident">
+        <div class="inc-top"><span class="chip s-att">Open</span><span class="t-cap num">Oct 15 at 14:13</span></div>
+        <h3 class="inc-head">50 orders failed since 14:12</h3>
+        <p class="inc-p">The partner changed its date format.</p>
+        <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+        <p class="inc-p">I can repair and resend all 50.</p>
+        <div class="card approval ap-closed">
+          <div class="lbl">Approval request</div>
+          <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+          <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+          <div class="dry">
+            <div class="lbl">Dry run</div>
+            <div class="dry-count num">50 orders affected</div>
+            <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+            <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+            <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+          </div>
+          <div class="ap-row"><span class="answered muted"><svg class="ic"><use href="#i-clock"/></svg><span class="num">Expired at 14:13. Nothing was changed.</span></span><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button><button type="button" class="btn btn-ghost">Dismiss</button></div>
+        </div>
+        <div class="inc-foot"><div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0006 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div></div>
+      </article>
+      <p class="cap"><b>A7 · Open, expired (local install only).</b> EXPERIENCE › Incident lifecycle: Open, expired · Approval request states: Expired · Voice and Tone › Formats (local install: no ET in message text) · DESIGN › Answered status (clock, ink-muted), Dismiss at the right end of the answered row.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= B ================= -->
+<section class="sec">
+  <h2 class="sec-h">B. Decision strip, outcome chips and notice cards</h2>
+  <p class="sec-sub">Outcome chips are borderless, not focusable pills, each with its own icon and label. On a reply the strip's cost is the turn's; on cards it is the decision's own.</p>
+  <div class="grid2">
+    <div class="stack">
+      <div>
+        <div class="chip-grid">
+          <div class="chip-cell"><span class="chip c-ignore"><svg class="ic"><use href="#i-eye-off"/></svg>Ignore</span><span class="t-cap">Recorded; nobody notified</span></div>
+          <div class="chip-cell"><span class="chip c-digest"><svg class="ic"><use href="#i-inbox"/></svg>Digest</span><span class="t-cap">Saved for later; nobody notified now</span></div>
+          <div class="chip-cell"><span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span><span class="t-cap">Needs you now</span></div>
+          <div class="chip-cell"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="t-cap">OcuTalon took or requested an action</span></div>
+        </div>
+        <p class="cap"><b>B1 · Outcome chips with their release-1 meanings.</b> EXPERIENCE › Component Patterns › Outcome chip (not focusable; meanings, Digest's release-1 wording) · DESIGN › Outcome chip, outcome-chip-* (eye-off, inbox, bell-ring, zap).</p>
+      </div>
+      <div>
+        <div class="chatcol">
+          <div>
+            <div class="oc-head"><span class="mark av" role="img" aria-label=""></span><span class="oc-name">OcuTalon</span><span class="t-cap num">14:11</span></div>
+            <p class="oc-text">I couldn't answer that: the model didn't answer within 60 seconds. Nothing was changed.</p>
+            <div class="strip-1"><span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span><span class="chip c-fallback"><svg class="ic"><use href="#i-life-buoy"/></svg>Fallback</span><span class="num">$0.0001 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div>
+            <p class="strip-2 fb">The model didn't answer within 60 seconds.</p>
+          </div>
+        </div>
+        <p class="cap"><b>B2 · Fallback reply.</b> EXPERIENCE › Message Catalog › Conversation: Chat turn fallback, Fallback reasons · Component Patterns › Decision strip (no confidence on a fallback; reason as the first line), Fallback flag (outcome Tell now) · DESIGN › Decision strip (fallback reason in warning-ink), Fallback flag. The cost value is illustrative.</p>
+      </div>
+      <div>
+        <div class="card notice rem">
+          <div class="notice-msg"><svg class="ic"><use href="#i-bell"/></svg><span>Reminder: stretch.</span></div>
+          <div class="t-cap notice-sub num">Due 14:12 · arrived 14:12</div>
+        </div>
+        <p class="cap"><b>B4 · Notice card, reminder.</b> EXPERIENCE › Component Patterns › Notice card (due and arrival times) · Message Catalog › Reminder · DESIGN › Notice card (info accent bar, bell icon, no separate title).</p>
+      </div>
+    </div>
+    <div class="stack">
+      <div>
+        <div class="chatcol">
+          <div class="msg-user">
+            <div class="bubble">Watch the Orders production and only tell me if something needs me.</div>
+            <div class="umeta num">From the demo guide · 14:10</div>
+          </div>
+          <div>
+            <div class="oc-head"><span class="mark av" role="img" aria-label=""></span><span class="oc-name">OcuTalon</span><span class="t-cap num">14:10</span></div>
+            <p class="oc-text">I'll watch the Orders production and stay quiet unless something needs you.</p>
+            <div class="strip-1"><span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="num">Confidence 0.94 · $0.0008 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div>
+            <p class="strip-2">You asked me to watch the Orders production and only tell you if something needs you.</p>
+            <button type="button" class="det-btn" aria-expanded="true" aria-label="Decision details">Details <svg class="ic"><use href="#i-chevron-up"/></svg></button>
+            <div class="details">
+              <span class="k">Tokens</span><span class="mono-sm num">Input 1,084 · Output (includes thinking) 312 · Cache read 0 · Cache write 0</span>
+              <span class="k">Model</span><span class="v">Claude Haiku 5.5</span>
+              <span class="k">Agent steps</span><span class="v num">2</span>
+              <span class="k">Duration</span><span class="v num">3.4 s</span>
+              <span class="k">Decision message</span><span class="mono-sm num">4512</span>
+              <span class="k">Cost</span><span class="v num">Decision $0.0003 · Turn $0.0008</span>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><b>B3 · Reply with decision strip, Details expanded.</b> EXPERIENCE › Component Patterns › Decision strip (turn cost on a reply; Details: token breakdown, model display name, agent-step count, duration, decision-message reference, "Decision · Turn") · Voice and Tone › Formats (tokens with "Output (includes thinking)") · Chat message (user) "From the demo guide" · DESIGN › Decision strip, Chat message (OcuTalon) (24px avatar). The reasons text and the decision-message reference format are illustrative; the spine gives neither.</p>
+      </div>
+      <div>
+        <div class="card notice tell">
+          <div class="notice-msg"><svg class="ic"><use href="#i-bell-ring"/></svg><span class="num">The Orders production stopped at 14:40 ET.</span></div>
+          <p class="notice-sub" style="font:400 15px/1.55 var(--f-ui)">Why now: you asked me to watch the Orders production.</p>
+          <div class="strip-1"><span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span><span class="num">Confidence 0.97 · $0.0004 ·</span><a class="trace" href="#"><svg class="ic"><use href="#i-external-link"/></svg>Trace</a></div>
+        </div>
+        <p class="cap"><b>B5 · Notice card, tell now.</b> EXPERIENCE › Component Patterns › Notice card ("Why now:" line and decision strip) · Message Catalog › Production state change · DESIGN › Notice card (attention accent bar, bell-ring icon). The strip shows line 1 only; the spine gives no reasons text.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= C ================= -->
+<section class="sec">
+  <h2 class="sec-h">C. Demo guide states</h2>
+  <p class="sec-sub">Full width at 1240px. Row 1: steps; row 2: the prompt bar on the sunken color. The Break the feed box sits at the right end, aligned over the 352px device column.</p>
+  <div class="stack">
+
+    <!-- C1 -->
+    <div>
+      <div class="guide">
+        <div class="g-main">
+          <div class="g-row1">
+            <span class="lbl">Demo guide</span>
+            <div class="g-steps">
+              <span class="g-step cur sel"><span class="mk cur">1</span>Watch</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">2</span>Reminder</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">3</span>Break the feed</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">4</span>Approve</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">5</span>Open the trace</span>
+            </div>
+            <span class="g-meta">About 2 minutes</span>
+            <button type="button" class="btn btn-ghost">Hide guide</button>
+          </div>
+          <div class="g-row2">
+            <span class="g-next">Next:</span>
+            <div class="g-text">
+              <div class="g-prompt">"Watch the Orders production and only tell me if something needs me."</div>
+              <div class="g-opt">Optional: scan the QR code in the Telegram card to get the notice on your own phone.</div>
+            </div>
+            <button type="button" class="btn btn-primary">Send</button>
+          </div>
+        </div>
+        <div class="btf">
+          <div class="btf-top"><span class="lbl">Demo control</span></div>
+          <button type="button" class="btn btn-inactive" aria-disabled="true"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-hint">Ask OcuTalon to watch the Orders production first (step 1). <a class="link" href="#">Do step 1</a></span>
+        </div>
+      </div>
+      <p class="cap"><b>C1 · Fresh session: step 1 current and selected; Break the feed inactive (not watching).</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide (the row before step 1, step 1) · State Patterns › Telegram unpaired (the optional line) · Break the feed: Inactive, not watching · DESIGN › Demo guide (filled teal disc with number for current, hollow circle with number for upcoming, 2px bottom bar on the selected step), Prompt bar (sunken), Break the feed (the "Demo control" label above the button; inactive: dashed border, ink-muted label, hint beneath).</p>
+    </div>
+
+    <!-- C2 -->
+    <div>
+      <div class="guide">
+        <div class="g-main">
+          <div class="g-row1">
+            <span class="lbl">Demo guide</span>
+            <div class="g-steps">
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Watch</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Reminder</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step cur sel"><span class="mk cur">3</span>Break the feed</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">4</span>Approve</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">5</span>Open the trace</span>
+            </div>
+            <span class="g-meta">About 2 minutes</span>
+            <button type="button" class="btn btn-ghost">Hide guide</button>
+          </div>
+          <div class="g-row2">
+            <span class="g-next">Next:</span>
+            <div class="g-text"><div class="g-prompt">"Press Break the feed. The partner will send 50 orders in a new date format."</div></div>
+            <button type="button" class="btn btn-primary">Go to Break the feed</button>
+          </div>
+        </div>
+        <div class="btf next">
+          <div class="btf-top"><span class="lbl">Demo control</span><span class="chip c-next">Next step</span></div>
+          <button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+        </div>
+      </div>
+      <p class="cap"><b>C2 · Step 3 current; Break the feed active as the next step.</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide: step 3 ("Go to Break the feed" focuses the control without pressing it) · Break the feed: Active ("Next step" marker) · DESIGN › Break the feed (Next step: 4px teal left bar plus a "Next step" tag). The tag's colors aren't specified; action-soft is used.</p>
+    </div>
+
+    <!-- C3 -->
+    <div>
+      <div class="guide">
+        <div class="g-main">
+          <div class="g-row1">
+            <span class="lbl">Demo guide</span>
+            <div class="g-steps">
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Watch</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Reminder</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step cur sel"><span class="mk cur">3</span>Break the feed</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">4</span>Approve</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk up">5</span>Open the trace</span>
+            </div>
+            <span class="g-meta">About 2 minutes</span>
+            <button type="button" class="btn btn-ghost">Hide guide</button>
+          </div>
+          <div class="g-row2">
+            <div class="g-text"><div class="g-prompt">Waiting for OcuTalon. The reminder may arrive first.</div></div>
+          </div>
+        </div>
+        <div class="btf next">
+          <div class="btf-top"><span class="lbl">Demo control</span><span class="chip c-next">Next step</span></div>
+          <button type="button" class="btn btn-inactive" aria-disabled="true"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-line num">Sent. OcuTalon usually notices within a minute. <span style="white-space:nowrap">· 23 s</span></span>
+        </div>
+      </div>
+      <p class="cap"><b>C3 · Waiting.</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide: step 3 "While waiting" · Break the feed: Waiting (elapsed time) · DESIGN › Break the feed (waiting lines under the button in body-sm). The button's look while waiting and the elapsed-time format aren't specified; shown inactive, with "23 s" as in the turn indicator.</p>
+    </div>
+
+    <!-- C4 -->
+    <div>
+      <div class="guide">
+        <div class="g-main">
+          <div class="g-row1">
+            <span class="lbl">Demo guide</span>
+            <div class="g-steps">
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Watch</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Reminder</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Break the feed</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Approve</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
+              <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Open the trace</span>
+            </div>
+            <span class="g-meta">About 2 minutes</span>
+            <button type="button" class="btn btn-ghost">Hide guide</button>
+          </div>
+          <div class="g-row2">
+            <div class="g-text g-fin">
+              <div>Done. You saw an AI Hub agent read 50 failed orders and name the cause, every decision, with its cost, and every step it took land in Visual Trace, and a fix that waited for your approval and was recorded in the audit log.</div>
+              <div class="run num">This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5.</div>
+              <div class="links">
+                <a class="link" href="#">See the whole conversation in Visual Trace <svg class="ic"><use href="#i-external-link"/></svg></a>
+                <a class="link" href="#">Install OcuTalon yourself <svg class="ic"><use href="#i-external-link"/></svg></a>
+                <a class="link" href="#">Use the same bridge in your own production <svg class="ic"><use href="#i-external-link"/></svg></a>
+              </div>
+              <div class="muted">More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.</div>
+            </div>
+            <button type="button" class="btn btn-secondary" style="align-self:flex-end">Run again</button>
+          </div>
+        </div>
+        <div class="btf">
+          <div class="btf-top"><span class="lbl">Demo control</span></div>
+          <button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+        </div>
+      </div>
+      <p class="cap"><b>C4 · Finish state.</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide: finish state (the run total, three links, "More to try", Run again) · Break the feed: Active (a resolved incident doesn't block it; the replay rule) · DESIGN › Demo guide (minimum height, so the strip grows), Links (underlined). The style of the run-total line isn't specified; it is set in semibold here.</p>
+    </div>
+
+    <!-- C5 -->
+    <div>
+      <div class="guide-bar">
+        <span class="num">Demo guide · step 2 of 5 ·</span><button type="button" class="btn btn-ghost" aria-expanded="false">Show guide</button>
+        <span class="end"><span class="lbl">Demo control</span><button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button></span>
+      </div>
+      <p class="cap"><b>C5 · Guide collapsed.</b> EXPERIENCE › Component Patterns › Guide collapsed bar ("Show guide"; Break the feed stays at the right end with the same rules) · DESIGN › Guide collapsed bar (40px minimum). Putting the "Demo control" label inline beside the button is an inference.</p>
+    </div>
+
+    <!-- C6 -->
+    <div>
+      <div class="row" style="gap:24px">
+        <div class="btf solo next">
+          <div class="btf-top"><span class="lbl">Demo control</span><span class="chip c-next">Next step</span></div>
+          <button type="button" class="btn btn-inactive" aria-disabled="true"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-line">Working out the cause from the failed messages</span>
+        </div>
+        <div class="btf solo next">
+          <div class="btf-top"><span class="lbl">Demo control</span><span class="chip c-next">Next step</span></div>
+          <button type="button" class="btn btn-inactive" aria-disabled="true"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-line">Still waiting. The notice will appear in the chat and on the Simulated phone tab.</span>
+        </div>
+        <div class="btf solo next">
+          <div class="btf-top"><span class="lbl">Demo control</span><span class="chip c-next">Next step</span></div>
+          <button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-line">No notice after 3 minutes, so something went wrong with this run. Open the Orders watch's trace in Background checks, or try again.</span>
+        </div>
+        <div class="btf solo">
+          <div class="btf-top"><span class="lbl">Demo control</span></div>
+          <button type="button" class="btn btn-inactive" aria-disabled="true"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          <span class="btf-hint">Finish the current Orders incident first: approve the fix, or reject it and then dismiss the incident.</span>
+        </div>
+      </div>
+      <p class="cap"><b>C6 · Break the feed box: live status, still waiting (90 seconds), no notice (3 minutes), inactive (incident in progress).</b> EXPERIENCE › Demo Mode and the Online Demo › Break the feed (Waiting with server status lines; Still waiting; No notice, where the button follows the server's state; Notice arrived, which leaves it inactive) · DESIGN › Break the feed. The no-notice box shows the button active, assuming the server allows a retry.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= D ================= -->
+<section class="sec">
+  <h2 class="sec-h">D. Telegram card states</h2>
+  <p class="sec-sub">Rail width (288px, 4px scroll gutter), first rail section, headed "Telegram" with no count. The QR code stays navy on white in both themes.</p>
+  <div class="grid4">
+    <div>
+      <div class="rail">
+        <div class="lbl rail-h">Telegram</div>
+        <div class="tg">
+          <div class="qr" role="img" aria-label="QR code that opens OcuTalon in Telegram to pair this session"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><b></b><b></b><b></b><i></i><i></i><i></i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><i></i><i></i><i></i><i></i><b></b><i></i><b></b><b></b><i></i><b></b><i></i><i></i><b></b><i></i><i></i><i></i><i></i><i></i><b></b><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b><i></i><b></b><b></b><b></b><i></i><b></b><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><b></b><b></b><b></b><b></b><b></b><i></i><b></b><i></i><b></b><b></b><b></b><i></i><b></b><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><i></i><b></b><b></b><i></i><i></i><i></i><b></b><i></i><b></b><b></b><b></b><i></i><b></b><b></b><i></i><i></i><i></i><i></i><i></i><b></b><i></i><i></i><i></i><i></i><b></b><i></i><i></i><b></b><i></i><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><b></b><i></i><b></b><i></i><b></b><i></i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><i></i><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><b></b><i></i><i></i><i></i><b></b><b></b><i></i><i></i><i></i><i></i><b></b><b></b><b></b><i></i><i></i><b></b><i></i><b></b><i></i><b></b><b></b><b></b><b></b><b></b><i></i><i></i><b></b><b></b><i></i><b></b><b></b><i></i><i></i><i></i><i></i><i></i><b></b><b></b><i></i><i></i><i></i><b></b><i></i><i></i><i></i><b></b><b></b><b></b><i></i><b></b><b></b><i></i><i></i><i></i><i></i><i></i><b></b><b></b><i></i><i></i><i></i><i></i><b></b><b></b><i></i><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b><i></i><i></i><i></i><b></b><b></b><b></b><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><i></i><i></i><i></i><i></i><b></b><b></b><b></b><i></i><b></b><i></i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><i></i><b></b><b></b><i></i><i></i><b></b><b></b><i></i><i></i><b></b><i></i><i></i><b></b><b></b><i></i><i></i><i></i><i></i><i></i><b></b><i></i><b></b><i></i><b></b><b></b><i></i><b></b><b></b><i></i><i></i><b></b><b></b><b></b><b></b><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><b></b><b></b><b></b><b></b><i></i><b></b><b></b><b></b><b></b><b></b><b></b><i></i><i></i><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><i></i><b></b><i></i><i></i><i></i><b></b><b></b><i></i><i></i><b></b><b></b><b></b><b></b><b></b><i></i><b></b><b></b><b></b><i></i><b></b><i></i><i></i><b></b><i></i><i></i><i></i><b></b><i></i><b></b><b></b><b></b><i></i><i></i><i></i><b></b><i></i><i></i><i></i><i></i><i></i><b></b><i></i><i></i><b></b><i></i><b></b><i></i><b></b><i></i><i></i><b></b><i></i><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><i></i><b></b><i></i><b></b><i></i><i></i><i></i><b></b><b></b><i></i><i></i><i></i><i></i><b></b></div>
+          <div class="qr-anno"><span class="anno">QR placeholder</span></div>
+          <p class="tg-line">Scan with your phone's camera, then tap Start in Telegram.</p>
+          <div class="tg-foot"><a class="link" href="#">Open in Telegram</a><span class="t-cap num">New code in 9 min</span></div>
+        </div>
+      </div>
+      <p class="cap" style="width:288px"><b>D1 · Unpaired.</b> EXPERIENCE › State Patterns › Telegram unpaired · Component Patterns › Telegram card · Accessibility Floor (QR alt text) · DESIGN › Telegram card unpaired, qr-code-block (132px, #102A45 on #FFFFFF, 12px quiet zone).</p>
+    </div>
+    <div class="stack">
+      <div>
+        <div class="rail">
+          <div class="lbl rail-h">Telegram</div>
+          <div class="tg"><div class="tg-row"><svg class="ic ok"><use href="#i-circle-check"/></svg><span>Telegram paired · Dana</span><button type="button" class="btn btn-ghost">Unpair</button></div></div>
+        </div>
+        <p class="cap" style="width:288px"><b>D2 · Paired.</b> EXPERIENCE › State Patterns › Telegram paired · Component Patterns › Telegram card (Unpair acts on one press) · DESIGN › Telegram card paired.</p>
+      </div>
+      <div>
+        <div class="rail">
+          <div class="lbl rail-h">Telegram</div>
+          <div class="tg"><div class="tg-row"><svg class="ic muted"><use href="#i-circle-slash"/></svg><span>Telegram unpaired</span></div></div>
+        </div>
+        <p class="cap" style="width:288px"><b>D5 · Just unpaired.</b> EXPERIENCE › State Patterns › Telegram just unpaired (5 seconds, then a fresh QR code) · DESIGN › Telegram card just unpaired (circle-slash, ink-muted).</p>
+      </div>
+    </div>
+    <div>
+      <div class="rail">
+        <div class="lbl rail-h">Telegram</div>
+        <div class="tg"><div class="tg-row"><span>Telegram not set up</span></div><div style="margin-top:6px"><a class="link" href="#">How to set it up <svg class="ic"><use href="#i-external-link"/></svg></a></div></div>
+      </div>
+      <p class="cap" style="width:288px"><b>D3 · Not set up.</b> EXPERIENCE › State Patterns › Telegram not set up (README link; no banner) · DESIGN › Telegram card not set up.</p>
+    </div>
+    <div>
+      <div class="rail">
+        <div class="lbl rail-h">Telegram</div>
+        <div class="tg"><div class="tg-row"><svg class="ic warn"><use href="#i-pause-circle"/></svg><span>Telegram paused</span></div><div class="t-cap tg-sub num">Retrying at 14:40</div></div>
+      </div>
+      <p class="cap" style="width:288px"><b>D4 · Paused (bot in use).</b> EXPERIENCE › State Patterns › Bot in use (QR withdrawn while paused) · DESIGN › Telegram card paused (pause-circle in warning-ink, retry time in caption). The retry line's wording is illustrative; the spine gives only "the retry time".</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= E ================= -->
+<section class="sec">
+  <h2 class="sec-h">E. Status banners, in stack order</h2>
+  <p class="sec-sub">Full width under the header, in the fixed stack order. Stacked here to show the order; they don't all occur together (allowance is online demo only; no model key and the cost cap are local; unreachable replaces reconnecting after 30 seconds).</p>
+  <div class="banners">
+    <div class="banner b-danger"><svg class="ic"><use href="#i-circle-alert"/></svg><span class="bt num">You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 15:02.</span><a class="link" href="#">Install it yourself <svg class="ic"><use href="#i-external-link"/></svg></a></div>
+    <div class="banner b-danger"><svg class="ic"><use href="#i-circle-alert"/></svg><span class="bt">Can't reach OcuTalon. Retrying every 10 seconds.</span></div>
+    <div class="banner b-warn"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="bt">OcuTalon has no model key, so every decision uses fixed rules. Add <span class="code">ANTHROPIC_API_KEY</span> to the <span class="code">.env</span> file and restart OcuTalon.</span><a class="link" href="#">How to set a key <svg class="ic"><use href="#i-external-link"/></svg></a></div>
+    <div class="banner b-warn"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="bt num">OcuTalon has reached today's cost limit of $2.00. Decisions use fixed rules until 00:00.</span><a class="link" href="#">Budgets</a></div>
+    <div class="banner b-warn"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="bt num">Background checks have paused: the heartbeat last ran at 14:09. Watches and reminders may be late until it recovers.</span></div>
+    <div class="banner b-warn"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="bt num">Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 14:40. Each OcuTalon needs its own bot.</span><a class="link" href="#">Set up a bot <svg class="ic"><use href="#i-external-link"/></svg></a></div>
+    <div class="banner b-warn"><svg class="ic"><use href="#i-triangle-alert"/></svg><span class="bt">The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.</span><button type="button" class="btn btn-icon" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="banner b-info"><svg class="ic"><use href="#i-info"/></svg><span class="bt">Reconnecting… New messages may be delayed.</span><button type="button" class="btn btn-icon" aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  </div>
+  <p class="cap"><b>E · Allowance used up (session), unreachable, no model key, daily cost cap (local), heartbeat stalled, bot in use, reset soon, reconnecting.</b> EXPERIENCE › Component Patterns › Status banner (fixed stack order; one action link; only reset soon and reconnecting close) · Message Catalog › Status banners (texts verbatim; neutral "OcuTalon will try again") · State Patterns › Live updates interrupted, Demo allowance used up, Daily cost cap reached, No model key, Heartbeat stalled, Bot in use, Reset soon · DESIGN › Status banner (triangle-alert, circle-alert, info; underlined action link). The cost-cap amount and time are illustrative.</p>
+</section>
+
+<!-- ================= F ================= -->
+<section class="sec">
+  <h2 class="sec-h">F. Simulated devices</h2>
+  <p class="sec-sub">296px phone screens: a generic phone with "OcuTalon" and the "Simulated" label in its top bar, notifications newest at the bottom. The mailbox shown in its 352px device panel, with the label in the mailbox header.</p>
+  <div class="row" style="gap:40px">
+
+    <div>
+      <div class="phone">
+        <div class="screen">
+          <div class="ph-top"><span class="ph-name">OcuTalon</span><span class="sim">Simulated</span></div>
+          <div class="ph-body">
+            <div class="note">
+              <p>Reminder: stretch.</p>
+              <div class="ts num">14:12</div>
+            </div>
+            <div class="note">
+              <p class="num">50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?</p>
+              <div class="inset num">Dry run: 50 orders affected. Example: order date <span class="mono-sm before">10/16/2026</span> becomes <span class="mono-sm after">2026-10-16</span>. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.</div>
+              <p>Details and trace: on your OcuTalon page.</p>
+              <div class="ph-btns"><button type="button" class="btn btn-primary">Approve</button><button type="button" class="btn btn-secondary">Reject</button></div>
+              <div class="ts num">14:13</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="cap" style="width:320px"><b>F1 · Phone: reminder, then a pending approval request.</b> EXPERIENCE › Component Patterns › Simulated phone (notifications only), Phone notification · Message Catalog › Reminder, Incident notice with approval request · DESIGN › Phone notification (compact dry run as a surface inset, mono-sm values in danger and success ink; Approve and Reject side by side, half width, 40px), Simulated phone (phone-frame, label in the top bar).</p>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="screen">
+          <div class="ph-top"><span class="ph-name">OcuTalon</span><span class="sim">Simulated</span></div>
+          <div class="ph-body">
+            <div class="note">
+              <p class="num">50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?</p>
+              <div class="inset num">Dry run: 50 orders affected. Example: order date <span class="mono-sm before">10/16/2026</span> becomes <span class="mono-sm after">2026-10-16</span>. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.</div>
+              <p>Details and trace: on your OcuTalon page.</p>
+              <p class="ans num"><svg class="ic"><use href="#i-circle-check"/></svg><span>Approved from the web chat at 14:15 ET.</span></p>
+              <div class="ts num">14:13</div>
+            </div>
+            <div class="note">
+              <p>All 50 orders went through.</p>
+              <div class="ts num">14:15</div>
+            </div>
+            <div class="note">
+              <p class="num">The Orders production stopped at 14:40 ET.</p>
+              <p>Why now: you asked me to watch the Orders production.</p>
+              <div class="ts num">14:40</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="cap" style="width:320px"><b>F2 · Phone: approval answered, result, tell now.</b> EXPERIENCE › Component Patterns › Phone notification (answered line in message form) · Message Catalog › Incident notice "Answered anywhere", Results, Production state change (tell now with "Why now:") · DESIGN › Phone notification.</p>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="tabs" role="tablist">
+          <span class="tab" role="tab" aria-selected="false">Simulated phone <span class="tab-badge num">1</span></span>
+          <span class="tab sel" role="tab" aria-selected="true">Simulated mailbox</span>
+        </div>
+        <div class="panel-body">
+          <div class="mailbox">
+            <div class="mb-top"><span class="sim">Simulated</span></div>
+            <div class="mb-compose">
+              <div class="samples">
+                <button type="button" class="sample" aria-label="Sample: newsletter, send sample email"><svg class="ic"><use href="#i-mail"/></svg>Sample: newsletter</button>
+                <button type="button" class="sample" aria-label="Sample: partner notice, send sample email"><svg class="ic"><use href="#i-mail"/></svg>Sample: partner notice</button>
+                <button type="button" class="sample" aria-label="Sample: suspicious request, send sample email"><svg class="ic"><use href="#i-mail"/></svg>Sample: suspicious request</button>
+              </div>
+              <span class="t-cap">Send one and see what OcuTalon decides.</span>
+              <button type="button" class="btn btn-secondary">Simulate an incoming email</button>
+            </div>
+            <div class="mrow unread">
+              <div class="mrow-top"><span class="from">Order Partner Support</span><span class="t-cap num">14:22</span></div>
+              <div class="subj">Urgent: resend all failed orders now</div>
+              <span class="deciding">Deciding…</span>
+            </div>
+            <div class="mrow unread">
+              <div class="mrow-top"><span class="from">Results Partner IT</span><span class="t-cap num">14:21</span></div>
+              <div class="subj">Certificate change on Friday</div>
+              <span class="chip c-digest"><svg class="ic"><use href="#i-inbox"/></svg>Digest</span>
+            </div>
+            <div class="mrow unread">
+              <div class="mrow-top"><span class="from">Integration Tips Newsletter</span><span class="t-cap num">14:20</span></div>
+              <div class="subj">This week: five tips for faster transforms</div>
+              <span class="chip c-ignore"><svg class="ic"><use href="#i-eye-off"/></svg>Ignore</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="cap" style="width:352px"><b>F3 · Mailbox: three sample chips, the suspicious request still deciding, a digested partner notice and an ignored newsletter.</b> EXPERIENCE › Component Patterns › Simulated mailbox (incoming third-party mail; "Simulate an incoming email"), Email row, Sample email chip (always visible; never promises an outcome), Device tab (badge count) · Message Catalog › Sample emails · DESIGN › Simulated device panel (3px teal bar on the selected tab, tab badge), Simulated mailbox (label in its header), Sample email chip (bordered, actionable), Email row (unread teal dot). The header holds only the label; the spine names nothing else for it.</p>
+      <div class="mrow-solo" style="margin-top:20px">
+        <div class="mrow">
+          <div class="mrow-top"><span class="from">Results Partner IT</span><span class="t-cap num">14:21</span></div>
+          <div class="subj">Certificate change on Friday</div>
+          <span class="chip c-digest"><svg class="ic"><use href="#i-inbox"/></svg>Digest</span>
+        </div>
+      </div>
+      <p class="cap" style="width:352px"><b>F4 · The same row once decided: Digest.</b> EXPERIENCE › Key Flows › Coda (the partner notice comes back as Digest or Tell now) · Email row (decided email shows its chip).</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= G ================= -->
+<section class="sec">
+  <h2 class="sec-h">G. Fresh-session chat</h2>
+  <p class="sec-sub">Chat column width. The panel gives way to the first message.</p>
+  <div class="chat-empty">
+    <div class="empty">
+      <h3 class="empty-h">For everything that arrives, OcuTalon makes one attention decision</h3>
+      <div class="empty-list">
+        <span class="chip c-ignore"><svg class="ic"><use href="#i-eye-off"/></svg>Ignore</span><span class="m">Recorded; nobody notified</span>
+        <span class="chip c-digest"><svg class="ic"><use href="#i-inbox"/></svg>Digest</span><span class="m">Saved for later; nobody notified now</span>
+        <span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span><span class="m">Needs you now</span>
+        <span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span><span class="m">OcuTalon took or requested an action</span>
+      </div>
+      <p class="empty-p">It watches your productions from inside IRIS, and every decision is a production message you can trace.</p>
+      <p class="empty-p">Anything risky waits for your approval.</p>
+      <p class="empty-p">Start with step 1 of the demo guide above.</p>
+    </div>
+    <div class="composer"><span class="ph">Message OcuTalon</span><button type="button" class="btn btn-primary">Send</button></div>
+  </div>
+  <p class="cap"><b>G · Fresh session (empty chat), demo mode.</b> EXPERIENCE › State Patterns › Fresh session (empty chat) · Component Patterns › Outcome chip (meanings), Composer · DESIGN › Empty chat panel (headline in display-md, meanings in body-sm, following lines in body and ink-muted), Composer.</p>
+</section>
+
+<!-- ================= H ================= -->
+<section class="sec">
+  <h2 class="sec-h">H. Dark theme</h2>
+  <p class="sec-sub">The same components on the dark tokens: the navy canvas, the header on #161D2F and the slate phone frame.</p>
+  <div class="theme-dark strip">
+    <div class="dk-header">
+      <span class="mark" role="img" aria-label="OcuTalon logo mark"></span>
+      <span class="wordmark"><span class="o">Ocu</span><span class="t">Talon</span></span>
+      <span class="badge">Online demo</span>
+    </div>
+    <div class="dk-grid">
+      <div>
+        <article class="card incident">
+          <div class="inc-top"><span class="chip s-att">Awaiting approval</span><span class="t-cap num">14:13</span></div>
+          <h3 class="inc-head">50 orders failed since 14:12 ET</h3>
+          <p class="inc-p">The partner changed its date format.</p>
+          <p class="inc-ev num">Data format change · order date · 50 failures grouped into this incident</p>
+          <p class="inc-p">I can repair and resend all 50.</p>
+          <div class="card approval">
+            <div class="lbl att">Approval needed</div>
+            <p class="ap-what"><strong>Repair and resend 50 orders.</strong></p>
+            <p class="ap-fixed">Approving runs exactly this change on these 50 orders, without asking the model again. New failures need their own approval.</p>
+            <div class="dry">
+              <div class="lbl">Dry run</div>
+              <div class="dry-count num">50 orders affected</div>
+              <div class="dry-row"><span class="dl">Before</span><span>Order date <span class="mono before">10/16/2026</span></span></div>
+              <div class="dry-row"><span class="dl">After</span><span>Order date <span class="mono after">2026-10-16</span></span></div>
+              <div class="dry-row"><span class="dl">Will resend</span><span>50 repaired copies; the originals stay unchanged.</span></div>
+              <div class="dry-note">Nothing has changed yet.</div>
+            </div>
+            <div class="ap-row"><button type="button" class="btn btn-primary">Approve</button><button type="button" class="btn btn-secondary">Reject</button><button type="button" class="btn btn-ghost push" aria-expanded="false">Show details <svg class="ic"><use href="#i-chevron-down"/></svg></button></div>
+            <div class="t-cap ap-exp num">Expires tomorrow at 14:13</div>
+          </div>
+        </article>
+        <p class="cap"><b>H1 · Header and incident card (awaiting approval, compact), dark.</b> DESIGN › Colors (dark mode; header-bg-dark under the logo mark), App header, Context badge, Incident card, Approval request card, Dry run block (on-action switches to dark ink on the brighter teal).</p>
+      </div>
+      <div class="dk-col">
+        <div>
+          <div class="dk-row">
+            <span class="chip c-ignore"><svg class="ic"><use href="#i-eye-off"/></svg>Ignore</span>
+            <span class="chip c-digest"><svg class="ic"><use href="#i-inbox"/></svg>Digest</span>
+            <span class="chip c-tell"><svg class="ic"><use href="#i-bell-ring"/></svg>Tell now</span>
+            <span class="chip c-act"><svg class="ic"><use href="#i-zap"/></svg>Act</span>
+            <span class="chip c-fallback"><svg class="ic"><use href="#i-life-buoy"/></svg>Fallback</span>
+            <span class="sim">Simulated</span>
+          </div>
+          <p class="cap"><b>H2 · Outcome chips, fallback flag and simulated label, dark.</b> DESIGN › outcome-chip-*, Fallback flag, Simulated label on dark tokens.</p>
+        </div>
+        <div>
+          <div class="btf solo">
+            <div class="btf-top"><span class="lbl">Demo control</span></div>
+            <button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
+          </div>
+          <p class="cap"><b>H3 · Break the feed active, dark.</b> EXPERIENCE › Demo Mode and the Online Demo › Break the feed: Active · DESIGN › Break the feed (label in attention-ink; on-attention dark ink on attention-dark).</p>
+        </div>
+        <div>
+          <div class="phone">
+            <div class="screen">
+              <div class="ph-top"><span class="ph-name">OcuTalon</span><span class="sim">Simulated</span></div>
+              <div class="ph-body">
+                <div class="note">
+                  <p class="num">50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?</p>
+                  <div class="inset num">Dry run: 50 orders affected. Example: order date <span class="mono-sm before">10/16/2026</span> becomes <span class="mono-sm after">2026-10-16</span>. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.</div>
+                  <p>Details and trace: on your OcuTalon page.</p>
+                  <div class="ph-btns"><button type="button" class="btn btn-primary">Approve</button><button type="button" class="btn btn-secondary">Reject</button></div>
+                  <div class="ts num">14:13</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="cap" style="width:320px"><b>H4 · Simulated phone, dark.</b> DESIGN › Colors (phone-frame-dark slate frame), Simulated phone (dark shadow), Phone notification.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

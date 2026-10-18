@@ -2,7 +2,7 @@
 title: OcuTalon PRD
 status: final
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # PRD: OcuTalon
@@ -17,7 +17,7 @@ How to read it:
 
 - **Vocabulary.** §3 (Glossary) defines every domain term once. The rest of the document uses those terms exactly.
 - **Requirements.** §4 groups features. Each holds numbered functional requirements (FR-1 to FR-62) with testable acceptance criteria. §5 holds cross-cutting non-functional requirements (NFR-1 to NFR-26), §6 holds constraints (CON-1 to CON-5), and §7.3 holds release requirements (REL-1 to REL-11). §2.3 holds the user journeys (UJ-1, UJ-2), and §10 the success metrics (SM-1 to SM-10) and counter-metrics (SM-C1 to SM-C5). IDs are stable; later edits add numbers rather than renumber.
-- **Build steps.** Every FR heading names what delivers it: a build step, for example **[Step 1]**, or **[1.0.0 kit]** or **[Every release]** for work outside the steps; a **Delivery** line under the heading notes any part that arrives in another step. §7.1 gives each step's priority (Must, Should or Could), and the build order is the cut line. Release 1 (0.1.0) is step 1, targeting October 30; §7.2 defines its floor and §7.4 gives the dates.
+- **Build steps.** Every FR heading names what delivers it: a build step, for example **[Step 1]**, or **[1.0.0 kit]** or **[Every release]** for work outside the steps; a **Delivery** line under the heading notes any part that arrives in another step. §7.1 gives each step's priority (Must, Should or Could), and the build order is the cut line. Step 1 ships as release 1 (0.1.0, the floor), targeting October 30, and 0.1.1 with Telegram right after it; §7.2 defines the floor and §7.4 gives the dates.
 - **Non-negotiables.** N1 to N15 are mapped to the requirements that cover them in §8.3, the only place that maps them.
 - **Inferences.** Anything the author has not confirmed is tagged `[ASSUMPTION]` inline and collected in §13.
 - **Implementation notes.** Platform facts, class names, mechanisms and the options considered live in `addendum.md` beside this file, not here.
@@ -46,7 +46,7 @@ Three things make OcuTalon different, in this order:
 
 1. **It lives inside the integration engine.** It reads the failed messages, the trace and the history of setting changes. That is how it can name a cause where an outside agent sees only an error count.
 2. **The assistant is itself a production.** Every decision, with its reasons, steps and cost, is a production message. You audit and debug your assistant in the same Visual Trace you use for your feeds.
-3. **It is extensible and governed by default.** You extend it by adding MCP servers. Every tool call, including calls to tools from servers you add, runs under IRIS permissions and AI Hub policies and follows the same approval and audit rules. OcuTalon itself has no way to run shell commands. *An OpenClaw your security team can approve.*
+3. **It is extensible and governed by default.** You extend it by adding MCP servers. Every tool call, including calls to tools from servers you add, is checked against IRIS permissions and AI Hub policies and follows the same approval and audit rules. OcuTalon itself has no way to run shell commands. *An OpenClaw your security team can approve.*
 
 What it remembers stays in your own IRIS database. The component that lets a production call the agent is a documented, reusable bridge that other productions can use.
 
@@ -100,9 +100,9 @@ The author asked for these two journeys to be drafted from the demo script, and 
   1. **The page.** It shows the chat; a simulated phone and a simulated mailbox, both labelled "Simulated"; a demo guide listing the steps, each with a one-click prompt; a **Break the feed** button marked as a demo control; and a Telegram QR code. Dana scans the QR code and Telegram opens the OcuTalon bot. Dana taps **Start**. The bot confirms the pairing, and the page shows "Telegram paired" with Dana's Telegram name.
   2. **The watch.** Dana clicks the guide's first prompt, "Watch the Orders production and only tell me if something needs me." OcuTalon replies that it will watch the Orders production and stay quiet unless something needs Dana. The reply shows the attention decision with its reasons and a link to its trace. The new background check appears in the page's list, and **Break the feed** becomes active.
   3. **The reminder.** Dana clicks the next prompt, "Remind me in 1 minute to stretch." OcuTalon confirms.
-  4. **The incident.** Dana clicks **Break the feed**. The reminder arrives while they wait. Within a minute, both the simulated phone and Dana's Telegram show "50 orders failed since 14:12. The partner changed its date format. I can repair and resend all 50. Approve?", with **Approve**, **Reject** and the dry run.
+  4. **The incident.** Dana clicks **Break the feed**. The reminder arrives while they wait. Within a minute, both the simulated phone and Dana's Telegram show "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?", with **Approve**, **Reject** and the dry run.
   5. **The approval.** Dana taps **Approve** in Telegram. The web page marks the request "Approved from Telegram". OcuTalon repairs the dates, resends the 50 orders and reports that all 50 went through.
-  6. **The trace.** Dana clicks the trace link beside the incident. Visual Trace opens under the read-only account at Dana's conversation. It shows the decision with its outcome, reasons and confidence, each agent step, and the tokens and cost of every turn.
+  6. **The trace.** Dana clicks the trace link beside the incident. Visual Trace opens at Dana's conversation, already signed in (FR-59). It shows the decision with its outcome, reasons and confidence, each agent step, and the tokens and cost of every turn.
 - **Climax:** Dana taps Approve on their own phone and sees the 50 orders go through. Then they open the incident's attention decision, with its cost, in Visual Trace.
 - **Resolution:** In about two minutes Dana has watched every README claim happen on real components. The next scheduled reset clears the session and the pairing. Dana goes on to scoring, or to the README's local install.
 - **Edge cases:**
@@ -110,7 +110,7 @@ The author asked for these two journeys to be drafted from the demo script, and 
   - Dana clicks **Break the feed** before asking OcuTalon to watch. The button is inactive, with a hint to ask OcuTalon to watch the Orders production first.
   - Dana scans a QR code photographed before the last reset. The bot replies that the code didn't work and asks Dana to scan the current code on the page. Nothing is linked.
   - Another judge clicks **Break the feed** at the same moment. Each judge sees only their own 50 orders and their own incident.
-  - The model refuses or times out. The phone says that 50 orders failed since 14:12, that OcuTalon couldn't work out the cause, and lists the failures. No fix is proposed (FR-4).
+  - The model refuses or times out. The phone says that 50 orders failed since 14:12 ET, that OcuTalon couldn't work out the cause, and lists the failures. No fix is proposed (FR-4).
   - **Local install:** after running the install script, Dana follows the same path at a local address, signing in with the credentials the README gives. The QR code appears only if Dana has set their own bot token.
 - **Note:** the demo guide sets the reminder before Break the feed so that its minute overlaps the wait for the incident. The brief's script lists the reminder after the approval.
 
@@ -142,7 +142,7 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **Action.** Anything OcuTalon does beyond replying: a tool call that changes something or sends something.
 - **Safe action.** An action OcuTalon may take without approval (FR-7).
 - **Risky action.** An action that waits for an approved approval request (FR-7).
-- **Approval request.** An IRIS Workflow task asking a person to approve or reject one risky action on a fixed set of targets, showing its dry run.
+- **Approval request.** An IRIS Workflow task asking a person to approve or reject one risky action on a fixed set of targets, showing its dry run, or the exact call when the tool can't preview its effect.
 - **Approver.** A person allowed to answer an approval request (FR-8, FR-11).
 - **Dry run.** A preview of what a fix would change, produced without changing anything.
 - **Fix.** A remediation from a fixed set: repair and resend (step 1); reroute messages, suspend or resume a production item, or roll back a setting (step 5); a drafted transform change (step 7).
@@ -159,7 +159,7 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **All-clear.** A statement that everything is fine. It is allowed only when every entry on the coverage list passed.
 - **Channel.** A way to talk to OcuTalon: web chat, simulated phone, simulated mailbox, Telegram, email, webhook or Slack. Each channel is part of the production.
 - **Simulated phone, simulated mailbox.** Web page panels labelled "Simulated" and backed by real production channels. They exist so the demo works without a real phone or mail server.
-- **Session.** One person's conversation with OcuTalon in the web app, with its own history. On the online demo, everything a judge creates belongs to their session. On a local install, everything a user creates belongs to that signed-in user.
+- **Session.** One person's conversation with OcuTalon in the web app, with its own history. On the online demo, everything a judge creates belongs to their session. On a local install, everything a user creates belongs to that signed-in user, except documents, which every user of the install shares as team runbooks (P23, October 17).
 - **Pairing.** The link between one Telegram private chat and one session.
 - **Pairing code.** The one-time code carried in the QR code's link.
 - **Paired chat.** The Telegram chat a session is linked to.
@@ -174,14 +174,14 @@ The author asked for these two journeys to be drafted from the demo script, and 
 - **MCP server.** A Model Context Protocol server whose tools OcuTalon can call.
 - **Tool.** One operation OcuTalon can call. It is built in, comes from an MCP server, or comes from a developer's own toolset used through the bridge.
 - **Tool classification.** For an MCP tool or a developer's own tool: **unclassified**, **read-only** or **risky**. Unclassified counts as risky.
-- **Service user.** The IRIS user that OcuTalon's tools run as.
+- **Service user.** The IRIS user whose privileges every tool call and every fix is checked against. OcuTalon's production itself runs as IRIS's Interoperability system user (FR-61).
 - **Admin.** A person with the OcuTalon admin role (FR-11).
 - **Budget.** A limit on model use: tokens per attention decision, cost per day and, on the online demo, turns per session.
 - **Evaluation set.** The recorded items and incidents used to measure OcuTalon (FR-62).
 - **Build step.** One of the seven ordered increments in §7.1. Their order is the cut line.
 - **1.0.0 kit.** The items every release from 1.0.0 must include: the IPM package, the documented bridge with its example production, the online demo and the security overview. They are built on a parallel track and never cut (§7.1).
 - **Release.** A tagged, installable version of OcuTalon. **Release 1** is the first one, 0.1.0.
-- **Floor.** The part of release 1 that must ship whatever happens: the web demo path and everything it depends on (§7.2).
+- **Floor.** The part of step 1 that must ship whatever happens, as release 1 (0.1.0): the web demo path and everything it depends on (§7.2).
 - **The author.** The author and maintainer of OcuTalon, who decides scope and when to cut releases.
 
 ## 4. Features
@@ -213,7 +213,7 @@ The bridge makes exactly one attention decision for every item. Realizes UJ-1, U
 - The decision message appears in Visual Trace with every field readable.
 - **A message the user writes to OcuTalon is always answered.** Its outcome is tell now (an answer) or act (the message asks for an action). It is never ignored or held for the digest.
 - **What each outcome does:**
-  - **Tell now:** the user is notified on the session's channels (web chat or simulated phone, plus the paired chat if there is one) within 5 seconds of the decision.
+  - **Tell now:** the user is notified within 5 seconds of the decision (measured as NFR-9 says). A reply to the user's message goes to the channel the message came from; the web chat shows every turn, including those from the paired chat. Every other notification goes to the web chat, the simulated phone (in demo mode) and the paired chat if there is one.
   - **Digest:** the item is stored for the next daily digest.
   - **Ignore:** nobody is notified, but the decision is still recorded.
   - **Act:** a safe action runs; a risky action raises an approval request instead (FR-7, FR-8).
@@ -233,7 +233,7 @@ Every turn and every attention decision shows its tokens and cost. Realizes UJ-1
 Every model request and tool call in a turn or decision is recorded as an agent step in Visual Trace. Realizes UJ-1.
 
 **Acceptance criteria:**
-- A turn that makes two tool calls shows both tool calls and every model request, in order. Each step has its name, a summary of inputs and result, its duration, and its tokens where it has them.
+- A turn that makes two tool calls shows both tool calls and every model request, in order. Each step has its name, a summary of inputs and result, its duration, and its tokens where it has them. On build 154 the platform reports tokens per turn, not per model request, so a model-request step carries an estimated request size, labelled as an estimate, and tokens and cost are recorded per turn and per decision (FR-2).
 - No key, access token, password or Telegram identity appears in any agent step.
 
 #### FR-4: Fallback route [Step 1]
@@ -260,7 +260,7 @@ When the model cannot give a usable answer, OcuTalon falls back to fixed rules a
 
 #### FR-5: The reusable bridge [Step 1]
 
-**Delivery:** Step 1; the developer guide and the example production are part of the 1.0.0 kit.
+**Delivery:** Step 1; the developer guide and the example production are part of the 1.0.0 kit. OcuTalon installs the bridge itself, as part of its own package (FR-57). A separate bridge product, with its own IPM package and Open Exchange listing, is a follow-on.
 
 A production developer can add the bridge to their own production and get attention decisions, agent steps in the trace and Workflow approvals without writing agent plumbing.
 
@@ -276,7 +276,7 @@ A production developer can add the bridge to their own production and get attent
 - The developer classifies each tool in their own toolset as read-only or risky in the bridge's settings. An unclassified tool counts as risky.
 - It works in a production that has none of OcuTalon's channels or web app.
 - **Documentation:**
-  - a developer guide covers installing the bridge, its settings, its message types, tool classification and the fallback route;
+  - a developer guide covers installing the bridge into another production without OcuTalon (its classes load on their own, without IPM), its settings, its message types, tool classification and the fallback route;
   - an example production outside OcuTalon uses the bridge for its own decision.
 - On a clean instance, following the guide installs and runs the example, and its decisions appear in Visual Trace.
 
@@ -322,17 +322,17 @@ Every action is classified as safe or risky before it runs.
 Each risky action becomes one approval request that an approver answers from any of the session's channels. Realizes UJ-1.
 
 **Acceptance criteria:**
-- **Content:** each approval request states what will happen, why, and the dry run result, with Approve and Reject.
+- **Content:** each approval request states what will happen, why, and the dry run result, with Approve and Reject. A request for a tool that can't preview its effect (from step 4) says so and shows the exact call instead of a dry run.
 - **Fixed targets:** the request is fixed when it is raised: the exact messages or settings, and the exact change. Carrying it out calls no model.
 - **Channels:** it appears in the web chat, on the simulated phone, and in the paired chat with inline Approve and Reject buttons.
 - **The first answer wins:**
-  - within 5 seconds, the other channels show the result and where it came from (for example "Approved from Telegram at 14:15"), and their buttons stop working;
+  - within 5 seconds (measured as NFR-9 says), the other channels show the result and where it came from (for example "Approved from Telegram at 14:15"), and their buttons stop working;
   - a late press gets a short reply saying the request was already answered.
-- **Reject** means no action. The user is told, and the rejection is recorded.
-- **Before acting:** OcuTalon checks that each target is still in the state the dry run saw. Targets that changed are skipped, reported, and never acted on without a new approval. New failures that join the incident while a request is pending get a request of their own.
+- **Reject** means no action. The user is told, the rejection is recorded, and the incident returns to open (FR-24).
+- **Before acting:** OcuTalon checks that each target is still in the state the dry run saw. Targets that changed are skipped, reported, and never acted on without a new approval. New failures that join the incident after its notice, while it is awaiting approval, fixing or resolved, get a request of their own, raised once they settle and sent as its own notice; an open incident only counts them (P27).
 - **Expiry:** a request expires 24 hours after it was raised, and an expired request cannot be approved. `[ASSUMPTION: 24-hour expiry]`
 - **Who may answer:**
-  - on a local install before step 6, any signed-in user with the OcuTalon user role;
+  - on a local install before step 6, any signed-in user with the OcuTalon user role, for a request they can see (their own, or one for a production they watch);
   - on the online demo, the session that owns the request, from any of its channels including the paired chat;
   - from step 6, a user who holds the right approver role (FR-11).
 - Pending approval requests survive restarts.
@@ -372,11 +372,12 @@ IRIS roles decide who may use, administer and approve.
 - **Step 1:**
   - the install creates an OcuTalon admin role and an OcuTalon user role;
   - on a local install, the account the README names holds both;
-  - the online demo's account holds the user role only and is never an admin.
+  - the online demo's account holds the user role, plus the read-only trace role so Visual Trace opens without a second sign-in (FR-59), and is never an admin.
 - **Step 6:**
   - an admin assigns approver roles, either for all risky actions or for one kind such as resend or partner warnings, and a viewer role;
   - a user without the right approver role sees an approval request but cannot answer it, and is told why;
-  - the audit entry for an approval records the approver's role.
+  - the audit entry for an approval records the approver's role;
+  - the online demo's account also holds the approver role, and on the demo only the session that owns a request can answer it (FR-8).
 
 ### 4.3 Web app and demo mode
 
@@ -399,7 +400,8 @@ A signed-in user can chat with OcuTalon and see its decisions and notifications 
 - New messages, notifications and approval results appear without a reload within 2 seconds of being sent. If live push is unavailable, the page falls back to polling.
 - **Times:**
   - on the page, times are shown in the browser's time zone;
-  - in messages, times use the instance's configured time zone, and the online demo uses US Eastern time.
+  - in messages, times use the instance's configured time zone, and the online demo uses US Eastern time;
+  - on the online demo, times in messages carry the zone abbreviation ("14:12 ET"), so a visitor in another time zone isn't shown two clocks that disagree. A local install's messages show the time alone.
 - It works in current desktop Chrome, Edge, Firefox and Safari at 1280×720 and above. `[ASSUMPTION: desktop-first; the phone is simulated, so the page itself need not be mobile]`
 
 #### FR-13: Simulated phone and mailbox are real channels [Step 1]
@@ -410,7 +412,8 @@ The simulated phone and simulated mailbox behave as real channels and are clearl
 - Both panels carry a visible "Simulated" label.
 - Each is a real channel in the production. Its messages travel as production messages and look in Visual Trace exactly as a real channel's would.
 - The simulated phone shows notifications, reminders and approval requests with Approve and Reject.
-- The simulated mailbox shows messages OcuTalon sends by email, and lets the user write an email to OcuTalon, which arrives as an item.
+- The simulated mailbox stands in for the user's own inbox. It shows messages OcuTalon sends by email, and lets the user simulate an incoming email from any sender. It also offers one-click sample emails: a newsletter, a partner notice and a suspicious request.
+- Each simulated email arrives as an item that did not come from the user (FR-7, NFR-14), and gets its attention decision live. So it can be ignored or saved for the digest, which a message the user writes to OcuTalon never is (FR-1). The samples are inputs, not canned responses (CON-3).
 
 #### FR-14: Sign-in [Step 1]
 
@@ -422,12 +425,13 @@ Only signed-in users reach the web app.
 - **Online demo:**
   - A splash screen shows the demo user name and password, and the read-only account for Visual Trace. It says what the demo is.
   - It also says that the demo is reset to a clean state on a schedule, and that other visitors can see messages in Visual Trace, so no personal information should be typed.
-  - Signing in opens a fresh session.
+  - Signing in opens a fresh session. Signing in again from the same browser before the next reset resumes that session, with its conversation, pairing, orders and approval requests; signing out ends it.
 - **Local install:**
   - The web app uses IRIS sign-in.
   - The README gives the account and password that the install sets, and how to change them.
   - The first sign-in does not force a password change.
-- No page other than the splash and sign-in pages is reachable without signing in. The webhook endpoint (FR-45) is the one exception, and uses its own secret.
+- No page other than the splash and sign-in pages is reachable without signing in. Two endpoints are the exceptions: the webhook (FR-45), which uses its own secret, and the online demo's read-only status endpoint, which holds no session and reports only readiness, the next reset and whether the demo is busy.
+- While the online demo's IRIS is down during a reset, scheduled or not, the demo host may serve a maintenance page saying the demo is resetting, and when the demo is full it serves a busy page. IRIS doesn't serve those pages, so the rule above doesn't cover them.
 
 #### FR-15: Session isolation on the online demo [1.0.0 kit]
 
@@ -440,7 +444,7 @@ Judges using the online demo at the same time never see or affect each other's w
 - **Tested with concurrent sessions:**
   - one session's Break the feed never creates an incident, notification or approval request in another;
   - no session can see or answer another session's approval requests.
-- **Load:** at least 10 sessions can run the demo path at once, each meeting NFR-7 (NFR-23).
+- **Load:** as many signed-in visitors as one online-demo instance's licence allows (about 6, or about 3 with Visual Trace open; P28), each running the demo path within NFR-7 (NFR-23). Beyond that, the splash screen says the demo is busy.
 - **Visual Trace is shared:** it shows every session's messages under the shared read-only account, as the splash screen warns. No Telegram names, user names or phone numbers are stored in production messages, only an internal chat reference.
 - **Limits:** one IP address can open at most 5 new sessions per hour.
 - **The scheduled reset:** it clears every session, pairing and demo order (FR-59). The page shows the time left until the next reset.
@@ -459,6 +463,7 @@ An install can include the Orders production and a control that breaks its feed 
 - **Break the feed:**
   - It is active only while the session watches the Orders production and has no Orders incident that is open, awaiting approval or fixing. Otherwise it shows a hint saying what to do first.
   - Clicked, it has the simulated partner send the session's batch of 50 orders in a changed date format. They fail in the Orders production as real errors. No other session's orders and no shared partner state are affected.
+  - If the session's Orders incident is resolved when it is clicked, it first closes that incident, so each run opens a new incident with its own approval request (FR-24).
 - **Nothing on the demo path is canned.** The incident text is generated live from the real failures. Mock services exist only in CI's own configuration (CON-3).
 
 #### FR-17: Settings page [Step 2]
@@ -473,14 +478,14 @@ An admin can view and change OcuTalon's settings in the web app.
   - the digest time and channels;
   - the time zone;
   - the check thresholds (FR-36).
-- A change takes effect within one minute without a restart, and is audited.
+- A change takes effect within one minute without restarting IRIS or the production (the affected production items may restart themselves), and is audited.
 - Users who are not admins cannot open the settings page.
 
 ### 4.4 Telegram
 
 **Description.** Telegram puts the demo on a real phone. A judge scans the QR code on the page, and the bot links the judge's Telegram private chat to their session. Notifications, reminders and approval requests then arrive in Telegram too, with Approve and Reject buttons.
 
-The bot can't message anyone first, so pairing always starts from the user. Pairing has three cases: a valid code; an unknown, expired or used code; and a bare `/start`. Only a valid code links a chat. Telegram is optional: without a bot token, OcuTalon runs with Telegram off and the web demo path is unchanged. Telegram is in release 1, built after the web demo path (§7.2). Realizes UJ-1, UJ-2.
+The bot can't message anyone first, so pairing always starts from the user. Pairing has three cases: a valid code; an unknown, expired or used code; and a bare `/start`. Only a valid code links a chat. Telegram is optional: without a bot token, OcuTalon runs with Telegram off and the web demo path is unchanged. Telegram ships in 0.1.1, built right after release 1's web demo path (§7.2). Realizes UJ-1, UJ-2.
 
 #### FR-18: Pairing by QR code [Step 1]
 
@@ -495,7 +500,7 @@ A user links their Telegram private chat to their session by scanning the QR cod
   - is at most 64 characters, using only `A-Z`, `a-z`, `0-9`, `_` and `-`;
   - has at least 128 bits of randomness;
   - is replaced on the page by a new code when it expires or is used.
-- **A valid code** links the private chat that sent it to the session. The bot confirms in one sentence. Within 5 seconds the page shows "Telegram paired" and the Telegram display name, with an **Unpair** button.
+- **A valid code** links the private chat that sent it to the session. The bot confirms in one sentence. Within 5 seconds (measured as NFR-9 says) the page shows "Telegram paired" and the Telegram display name, with an **Unpair** button.
 - **One chat, one session:**
   - a chat that pairs with a new session leaves its old one, and the old session's page shows it is no longer paired;
   - a session that pairs a second chat drops the first, and the first chat is told.
@@ -522,7 +527,7 @@ Once paired, the chat works as a channel of the session. Realizes UJ-1, UJ-2.
 
 **Acceptance criteria:**
 - A message from the paired chat is a turn in the session. It is delivered as the user's own message, never inside a tool result, and the reply goes back to the chat.
-- Tell-now notifications, incident notices and reminders go to the paired chat as well as the web chat or simulated phone.
+- Notifications go to the paired chat as well as the web chat and, in demo mode, the simulated phone: tell-now items that aren't replies, incident notices, approval requests, reminders and results.
 - Model-written text with any punctuation reaches the chat intact.
 - **Approval requests:**
   - they arrive with inline Approve and Reject buttons, and the first answer wins (FR-8);
@@ -553,7 +558,7 @@ Each running OcuTalon uses its own bot, and notices when another process uses th
 **Acceptance criteria:**
 - The online demo's bot is used only by the online demo. Each development and test instance uses a separate bot, and CI uses a mock.
 - **If Telegram reports that another process is polling the same token:**
-  - the instance pauses polling and shows "This bot is in use by another OcuTalon" in its status;
+  - the instance pauses polling, and its status shows that the bot is in use by another OcuTalon (the UX's "bot in use" banner);
   - it records the event;
   - it tries again after 5 minutes. `[ASSUMPTION: 5-minute back-off]`
 
@@ -573,11 +578,11 @@ A user asks OcuTalon in plain words to watch a production, and it sets up a back
   - the chat confirms what will be watched;
   - production names are matched by their display name, so "Orders" finds the Orders production;
   - the watch appears in the page's list of background checks.
-- **What it covers:** OcuTalon can watch any production on the instance, in any namespace, that the service user may read. For an unknown production name, OcuTalon asks which one was meant and lists those it can see.
+- **What it covers:** OcuTalon can watch any production on the instance, in any namespace, that the service user may read. For an unknown production name, OcuTalon asks which one was meant and lists those it can see. On the online demo, a session can watch only the Orders production; asked to watch another, OcuTalon says that only the Orders production is available on the demo.
 - **How fast it reacts:** new failures and alerts in the watched production are picked up within 15 seconds, without waiting for the heartbeat. The heartbeat checks the production's state every minute.
 - "Stop watching Orders" removes the watch.
 - **It reports only something new:** a new incident, or a change of state such as the production stopping or an item being disabled. It never repeats an incident it has already reported.
-- **Several watchers:** when several users of a local install watch the same production, they share one incident per cause, with one approval request.
+- **Several watchers:** when several users of a local install watch the same production, they share one incident per cause and its approval requests.
 
 #### FR-24: One incident with a plain-English cause [Step 1]
 
@@ -588,11 +593,15 @@ Failures that share a cause become one incident whose cause is explained in plai
 - **The settle rule:**
   - the notice is sent once no new failure with the same cause has arrived for 10 seconds, or 30 seconds after the first failure, whichever comes first `[ASSUMPTION: 10-second settle, 30-second cap]`;
   - failures arriving later update the incident's count.
-- **The notice** gives the count, when the failures began, the cause in plain English, and the proposed fix. For example: "50 orders failed since 14:12. The partner changed its date format. I can repair and resend all 50. Approve?"
+- **The notice** gives the count, when the failures began, the cause in plain English, and the proposed fix, or says that none of its fixes applies to that cause (P25). For example, on the online demo: "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?"
 - **The diagnosis** names a cause category and the element at fault, such as the field, setting or endpoint. It rests on evidence from the failed messages, their errors and the trace. The incident offers that evidence, including a sample failed message and its error, behind "Show details".
 - **States:**
   - an incident is open until a fix is proposed, then awaiting approval, then fixing;
-  - it is resolved when the fix completes, and closed when no new failure with the same cause has arrived for 15 minutes, or when the user dismisses it `[ASSUMPTION: 15 minutes]`;
+  - if its approval request is rejected or expires, it returns to open, and in demo mode it keeps Break the feed inactive until the user dismisses it;
+  - it is resolved when the fix completes;
+  - a resolved incident is closed when no new failure with the same cause has arrived for 15 minutes, or when the user dismisses it, from the incident's card on the page or in the chat `[ASSUMPTION: 15 minutes]`;
+  - an open incident (no fix proposed, or its request rejected or expired) is closed when the user dismisses it, and outside demo mode also after the same 15 quiet minutes; an incident awaiting approval or fixing never closes on its own (P26);
+  - in demo mode, Break the feed also closes a resolved Orders incident before sending a new batch (FR-16);
   - a failure with the same cause after closing opens a new incident.
 - On the evaluation set, the cause is right for at least 80% of recorded incidents (SM-2).
 
@@ -698,7 +707,7 @@ A user asks for a reminder in plain words, and it arrives on time. Realizes UJ-1
 - "Remind me in 1 minute to stretch" fires within 10 seconds of the due time. `[ASSUMPTION: 10-second tolerance]`
 - Reminders accept relative and day-and-time phrasing ("Thursday at 10") in the instance's configured time zone.
 - The reminder arrives on the session's channels, including the paired chat.
-- Reminders survive restarts. One that fell due while IRIS was down fires right after the restart, marked as late.
+- Reminders survive restarts. One that fell due while IRIS or OcuTalon was down fires right after the restart; any reminder that fires more than 10 seconds after its due time is marked as late.
 - The user can list and cancel reminders in the chat.
 - A pending reminder is visible in Visual Trace as a waiting process.
 
@@ -718,7 +727,7 @@ Once a day OcuTalon sends a short digest of the system's health and the user's i
 - **It has five parts:**
   - vital signs;
   - the coverage list with each check result;
-  - **needs you:** failed checks, and tell-now items the user hasn't yet dealt with by answering its approval request or acknowledging it in the chat;
+  - **needs you:** failed checks, and tell-now items the user hasn't yet dealt with by answering its approval request or marking it handled with **Got it** on the web chat, the simulated phone or Telegram;
   - **saved for later:** items with the digest outcome since the last digest, summarised, with a count;
   - the previous day's model cost.
 - When everything passed and nothing needs the user, it is at most 150 words. `[ASSUMPTION]`
@@ -734,7 +743,7 @@ The daily digest defines its coverage exactly and says what it covered. Realizes
     - free space for OcuTalon's databases and those of each watched production's namespace;
     - journal space;
     - license use;
-    - event log errors since the last digest.
+    - errors in the instance's own system log since the last digest (each watched production's own errors are in its entry).
   - **Each watched production:** its running state, items in error or disabled, failed messages since the last digest, and queue backlog over its threshold.
   - Each background check.
   - Each connected source.
@@ -823,7 +832,8 @@ Budgets keep model use and cost bounded.
 - **On the online demo:** `[ASSUMPTION: 50 turns and $20 defaults]`
   - each session may make at most 50 turns per hour;
   - the instance has a daily cost cap, $20 by default;
-  - after either limit is reached, the chat says the demo's allowance is used up and points to the local install.
+  - each session may simulate at most 20 incoming emails per hour, sample emails included, and after that the simulated mailbox says the limit is reached `[ASSUMPTION: 20 emails]`;
+  - after the turn limit or the cost cap is reached, the chat says the demo's allowance is used up and points to the local install.
 
 ### 4.9 Memory and documents
 
@@ -837,7 +847,8 @@ A user tells OcuTalon to remember something, and it recalls it later by meaning 
 - "Remember that the Results partner's contact is Lee" is stored in OcuTalon's own database, with an IRIS vector search index and a keyword index.
 - A later question that matches by meaning ("who do I call about Results?") or by keyword ("Lee") retrieves it. When an answer uses a memory, it says so.
 - The user can list, search and forget memories in the chat. A forgotten memory is gone from search at once.
-- **Embeddings work offline:** on a fresh install with all outbound network access blocked, storing and recalling a memory works on first use. The embedding model ships in the image.
+- A memory belongs to the user who stored it (on the online demo, to the session); no other user recalls it.
+- **Embeddings work offline:** on a fresh Docker install with all outbound network access blocked, storing and recalling a memory works on first use. The embedding model ships in the image. An IPM install downloads the model once, during the install.
 
 #### FR-42: Documents and runbooks with cited answers [Step 3]
 
@@ -849,6 +860,7 @@ A user adds documents, and OcuTalon answers from them with citations. Realizes U
 - Markdown and plain-text documents can be added in the web app. From step 6, PDF and Word files can be added too (FR-54).
 - An answer drawn from documents cites each document and section used.
 - If no document is relevant, OcuTalon says so rather than guessing.
+- On a local install, documents are shared by every user of the install; on the online demo, each session's documents are its own.
 - At most 5 passages are retrieved per model request, so requests stay within the size limit (NFR-3).
 
 #### FR-43: Fading and consolidating old memories [Step 7, Could]
@@ -993,9 +1005,9 @@ On a machine where the judge has loaded the AI Hub build 154 image, one script t
 - **The script:**
   - finds the loaded build 154 image, and checks that its CPU architecture matches the machine;
   - retags it to the name the compose file expects;
-  - runs `docker compose up`, and waits for the compose health check to report OcuTalon ready, showing progress, for up to 15 minutes, because a first start can take 8 minutes or more;
+  - runs `docker compose up`, and waits for the compose health check to report OcuTalon ready, showing progress, for up to 15 minutes, because a first start can take several minutes on a slow host;
   - prints the web address and the sign-in details.
-- **Image variants:** the IRIS for Health image is preferred. If only the IRIS (non-Health) build 154 image is loaded, the script uses it once NFR-21's check has passed.
+- **Image variants:** the IRIS for Health image is preferred. If only the IRIS (non-Health) build 154 image is loaded, the script uses it (NFR-21).
 - **Failures:** if the image isn't loaded, or its architecture doesn't match, the script stops with a clear message giving the exact fix.
 - It is safe to run again.
 - **Without the script:** after the judge loads and retags the image by hand as the README describes, a plain `docker compose up` gives the same result.
@@ -1016,7 +1028,7 @@ An IRIS user installs OcuTalon into an existing instance with IPM.
 
 **Acceptance criteria:**
 - Installing the IPM package into a clean AI Hub build 154 instance gives a working OcuTalon with demo mode off.
-- The IPM package also delivers the bridge and its example production (FR-5).
+- OcuTalon has one IPM package, because an Open Exchange listing carries one. It contains the bridge and its example production and installs them itself; it never depends on a separate bridge package (FR-5).
 - 1.0.0 and every later release include the IPM package.
 
 #### FR-58: README [Step 1]
@@ -1041,26 +1053,28 @@ The README lets a judge try OcuTalon in two minutes and install it without help.
 
 #### FR-59: The online demo [1.0.0 kit]
 
-**Delivery:** Runs with access restricted from release 1; public by the date in §7.4.
+**Delivery:** Runs with access restricted from November 1 at the latest, on the latest release; public by the date in §7.4 (P31).
 
 Anyone with the link can try OcuTalon with no install and no API key. Realizes UJ-1.
 
 **Acceptance criteria:**
 - **Access:**
-  - from release 1 the demo runs with access restricted, and it is public by the date in §7.4;
+  - from November 1 at the latest the demo runs with access restricted, on the latest release, and it is public by the date in §7.4;
   - it is updated with every release (REL-10);
   - it opens on the splash screen with the sign-in details (FR-14), and judges' sessions are isolated (FR-15).
 - **Resets:** a scheduled reset restores a clean state every 4 hours by default, and the author can change the interval. The page counts down to the next reset (FR-15). `[ASSUMPTION: 4-hour default]`
 - **The read-only account:**
   - it opens Visual Trace and the message viewer, and nothing else;
   - it cannot start, stop or change productions, resend messages, run SQL, or open security, settings or credential pages.
+- **Visual Trace from the page:** the demo account also holds the read-only trace role, so a trace link opens Visual Trace without a second sign-in. The read-only account stays, for opening the portal directly.
+- **The public accounts:** neither the demo account nor the read-only account can change its own password.
 - **Telegram** uses the demo's own bot.
 - **Protecting the key and the network:**
   - budgets cap use of the shared model key (FR-40);
   - the demo's IRIS has no general internet access;
-  - model requests, Telegram calls and, from step 4, calls to allow-listed MCP servers leave only through a gateway that holds the real key and allows only those destinations;
+  - model requests, Telegram calls and, from step 4, calls to allow-listed MCP servers leave only through a gateway that holds the real model key and the demo bot's token and allows only those destinations;
   - local embeddings work offline.
-- **Monitoring:** every 15 minutes, a probe signs in, sends a chat message and checks for a decision, and alerts the author if that fails. Two failures in a row also trigger a reset.
+- **Monitoring:** every 15 minutes, a probe signs in, sends a chat message and checks for a decision, and alerts the author if that fails. Two failures in a row also trigger a reset. A demo that is full (busy) is not a failure: the probe alerts but doesn't count it toward a reset. A decision taken by fixed rules because the daily cost cap was reached still counts as a decision.
 
 #### FR-60: Upgrade in place [Every release]
 
@@ -1082,7 +1096,7 @@ A security reviewer gets one document that explains what OcuTalon can do and wha
 **Acceptance criteria:**
 - **The overview lists:**
   - every built-in tool with its classification;
-  - the service user's IRIS privileges;
+  - the service user's IRIS privileges, and the limits of that check: the production runs as IRIS's Interoperability system user, and the service user's privileges are checked before every tool call and every fix rather than enforced by IRIS on the running code;
   - the approval and audit rules;
   - what data leaves the instance, and where to;
   - how MCP tools are classified;
@@ -1128,7 +1142,7 @@ Timing bounds are measured in the clean-machine rehearsal and on the online demo
 - **NFR-1: No sampling parameters.** No model request sets `temperature`, `top_p` or `top_k`. *Test:* the mocked model in CI rejects any request that contains them, and every demo-path test passes against it.
 - **NFR-2: Generous output caps.**
   - Every agent model request to a provider that takes an output cap sets one of at least 4,000 tokens, because thinking counts toward it.
-  - Models that reject an output cap through AI Hub (GPT-5 models) are sent none.
+  - Models that reject `max_tokens` through AI Hub (GPT-5 models) get the same cap as `max_completion_tokens` (P17, accepted October 17).
   - A reply cut off by the cap with no usable answer takes the fallback route (FR-4).
 - **NFR-3: Under 100,000 tokens per request.** No model request exceeds 100,000 input tokens.
   - **Keeping requests small:** before sending, the bridge offers only the tools the turn needs, keeps document retrieval small (FR-42) and compacts old turns. No single tool result passes more than 10,000 tokens to the model; a larger result is summarised or cut, and says so. `[ASSUMPTION: 10,000-token cap per tool result]`
@@ -1146,7 +1160,7 @@ Timing bounds are measured in the clean-machine rehearsal and on the online demo
   - The runs are measured in the clean-machine rehearsal and on the online demo.
   - The 60 seconds divide as follows: failures picked up within 15 seconds (FR-23); the settle rule ends at most 30 seconds after the first failure (FR-24); diagnosis takes at most 20 seconds; delivery takes at most 5 seconds.
 - **NFR-8: Fast first decision.** A chat message's attention decision, with reasons, is shown within 10 seconds in at least 19 of 20 runs on Claude Haiku 5.5. `[ASSUMPTION: 10-second bound]`
-- **NFR-9: Live updates within 2 seconds.** Messages, notifications and approval results reach the web page within 2 seconds of being sent, and other channels show an approval's result within 5 seconds (FR-8).
+- **NFR-9: Live updates within 2 seconds.** Messages, notifications and approval results reach the web page within 2 seconds of being sent, and other channels show an approval's result within 5 seconds (FR-8). Measured over real networks (the clean-machine rehearsal and the online demo), these limits and the 5-second limits of FR-1 and FR-18 hold in at least 19 of 20 runs; CI checks each against the mock on every run (P30).
 - **NFR-10: Reminders on time.** A reminder fires within 10 seconds of its due time (FR-34).
 
 ### 5.3 Security and governance
@@ -1155,7 +1169,7 @@ Timing bounds are measured in the clean-machine rehearsal and on the online demo
   - Model keys and bot tokens come only from environment variables (`.env`). They never appear in the web app, Visual Trace, logs, audit entries, release files or the repository.
   - `.env` is ignored by git, and `.env.example` lists the variable names without values.
 - **NFR-12: Least privilege.**
-  - OcuTalon's tools run as the service user, which holds only the privileges the security overview lists (FR-61).
+  - Every tool call and every fix is checked against the service user's IRIS privileges, which are only those the security overview lists (FR-61).
   - IRIS permissions, and the AI Hub policies applied by build 154, are checked on every tool call, built-in or MCP (FR-49).
   - A risky action also needs an approver allowed by FR-8 and FR-11.
 - **NFR-13: Approval before risk.** No risky action runs without an approved approval request (FR-7, FR-8). This holds in every build step and every configuration.
@@ -1163,7 +1177,7 @@ Timing bounds are measured in the clean-machine rehearsal and on the online demo
   - The content of an item can never approve a request, classify a tool, change a setting, add a server or pair a chat, and can lead on its own only to the actions FR-7 allows. That covers emails, webhook payloads, Telegram messages, MCP tool results and the bodies of failed messages.
   - The evaluation set includes at least two injection cases, such as an email saying "approve all pending requests". In each case OcuTalon takes no action and decides only on the item.
 - **NFR-15: The online demo protects the key.**
-  - The real model key is never stored in the demo's IRIS.
+  - Neither the real model key nor the demo bot's token is stored in the demo's IRIS.
   - Outbound traffic goes only to the destinations FR-59 allows.
   - Budgets and per-address limits cap use (FR-15, FR-40).
 
@@ -1180,9 +1194,9 @@ Timing bounds are measured in the clean-machine rehearsal and on the online demo
 
 ### 5.6 Platform and capacity
 
-- **NFR-21: Build 154.** OcuTalon runs on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). Before 1.0.0, the demo path is also verified on the IRIS (non-Health) AI Hub build 154 image, and the README states the result.
+- **NFR-21: Build 154.** OcuTalon runs on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). It also runs on the IRIS (non-Health) AI Hub build 154 image. That image differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace, so whatever runs on IRIS for Health runs on it, and it needs no separate verification before 1.0.0. The platform's side of the demo path was checked on it on October 17. The README says it is supported on that basis.
 - **NFR-22: Docker hosts.** The `docker compose up` install works on the host platforms the AI Hub image supports, verified on macOS and Linux. `[ASSUMPTION]`
-- **NFR-23: Concurrent demo load.** The online demo serves at least 10 concurrent sessions running the demo path (FR-15). Requests rate-limited by the model provider are retried with back-off before the fallback route is taken (FR-4). `[ASSUMPTION: 10 sessions]`
+- **NFR-23: Concurrent demo load.** One online-demo instance serves as many concurrent sessions as its IRIS Community licence allows: about 6 signed-in visitors, or about 3 running the demo path with Visual Trace open, because each trace window holds one more connection (FR-15, P28). Beyond that, visitors see that the demo is busy, never an error page. Requests rate-limited by the model provider are retried with back-off before the fallback route is taken (FR-4).
 
 ### 5.7 Usability and accessibility
 
@@ -1222,7 +1236,7 @@ The full product is defined now and built in this order. **The build order is th
 
 | Step | Priority | Contents | Requirements |
 | --- | --- | --- | --- |
-| **1 (release 1)** | Must | The two-minute demo plus Telegram, in this order: the bridge, attention decision, cost, fallback route, approvals, audit and roles; the web app and demo mode; IRIS watch with repair and resend; the heartbeat, production watch and reminders; the install script, namespace, README, evaluation set and CI; then Telegram last | FR-1 to FR-10, FR-11 (admin and user roles), FR-12, FR-13, FR-14 (local sign-in), FR-16, FR-18 to FR-25, FR-32 to FR-34, FR-37 (chat rule), FR-38, FR-55, FR-56, FR-58, FR-62 |
+| **1 (release 1, then 0.1.1)** | Must | The two-minute demo plus Telegram, in this order: the bridge, attention decision, cost, fallback route, approvals, audit and roles; the web app and demo mode; IRIS watch with repair and resend; the heartbeat, production watch and reminders; the install script, namespace, README, evaluation set and CI; then Telegram last | FR-1 to FR-10, FR-11 (admin and user roles), FR-12, FR-13, FR-14 (local sign-in), FR-16, FR-18 to FR-25, FR-32 to FR-34, FR-37 (chat rule), FR-38, FR-55, FR-56, FR-58, FR-62 |
 | **1.0.0 kit** (parallel track, from release 1) | Must, never cut | The IPM package; the bridge guide and example production; the online demo with its splash screen, isolation, caps and read-only account; the security overview | FR-5 (guide and example), FR-14 (online demo), FR-15, FR-40 (demo caps), FR-57, FR-59, FR-61 |
 | **2** | Should | The daily digest, choosing the model in settings, and budgets | FR-17, FR-35 to FR-37, FR-39, FR-40 |
 | **3** | Should | Memory and documents | FR-41, FR-42 |
@@ -1237,7 +1251,9 @@ The full product is defined now and built in this order. **The build order is th
 
 ### 7.2 Release 1 and its floor
 
-Release 1 (0.1.0) is the two-minute demo (UJ-1) plus Telegram, working end to end on real components. Nothing is faked except the labelled simulated phone and mailbox. It targets **October 30** and ships **no later than November 1**.
+Step 1 is the two-minute demo (UJ-1) plus Telegram, working end to end on real components, shipped as two releases: release 1 (0.1.0, the floor) and 0.1.1 (Telegram). Nothing is faked except the labelled simulated phone and mailbox. Release 1 targets **October 30** and ships **no later than November 1**.
+
+**Planned split (the author's decision, October 17):** 0.1.0 ships the floor, the web demo path. Telegram (FR-18 to FR-22) is built right after it, by the build lane that finishes the floor, and ships as **0.1.1**, the very next release, before any step 2 work in either build lane and before the online demo goes public. A release without Telegram shows no Telegram section on the page. This is the "if Telegram slips" path below, taken by plan.
 
 - **The floor** is the web demo path: UJ-1 without Telegram, plus everything it depends on. By ID, it is every step 1 requirement in §7.1 except the Telegram requirements, FR-18 to FR-22. Every floor item is reproducible on a clean install. It covers:
   - the bridge, the attention decision, cost in the trace and the fallback route;
@@ -1248,14 +1264,14 @@ Release 1 (0.1.0) is the two-minute demo (UJ-1) plus Telegram, working end to en
   - conversations that survive restarts;
   - the install script, the namespace and the README;
   - the evaluation set and CI with tests against a live IRIS instance.
-- **Order inside release 1:** the web demo path comes first, and Telegram (FR-18 to FR-22) comes last. That way the floor never waits on a bot token or the gateway's Telegram route.
-- **If Telegram slips** (the author's decision on October 16, which refines the brief's floor):
-  - if the Telegram stories aren't done when release 1 is cut, release 1 ships the floor;
-  - Telegram then goes out as the very next release, before any step 2 work, and before the online demo goes public.
+- **Order inside step 1:** the web demo path comes first (0.1.0), and Telegram (FR-18 to FR-22) comes last (0.1.1). That way the floor never waits on a bot token or the gateway's Telegram route.
+- **Telegram after the floor** (the author's decision on October 16, which refines the brief's floor, taken by plan on October 17):
+  - release 1 ships the floor;
+  - Telegram goes out as the very next release (0.1.1), before any step 2 work in either build lane, and before the online demo goes public.
 - **Telegram's dependencies:** the author's bot tokens (one per running instance), and a Telegram route on the online demo's gateway. Both must be ready before the stories that need them.
 - **Sizing:** size the stories at sprint planning, and keep release 1 green. Two pieces of work need stories of their own, because both are bigger than they look:
   - recording the 10 incidents for the evaluation set (FR-62);
-  - the CI mock of the Anthropic path, with its private CA (REL-4).
+  - the CI mock of the Anthropic path (REL-4).
 
 ### 7.3 Release requirements
 
@@ -1279,7 +1295,7 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
   - **On each release candidate,** the evaluation set and the demo incident gate (FR-62) run on Claude Haiku 5.5 itself. The targets are SM-1, SM-2, NFR-3 and NFR-4.
   - **A candidate below target** is run twice more and passes if two of the three runs meet target. Otherwise the release is blocked, unless the author overrides it with the reason given in the release notes.
 - **REL-6: Every release is rehearsed.** Each release passes the demo path, an install on a clean machine, and an in-place upgrade from the previous release (FR-60).
-- **REL-7: Hands-on pass.** Each build step ends with a hands-on pass using real keys, and with fixes for what that pass finds, before that step's release. The pass includes Telegram on iOS, Android and desktop clients.
+- **REL-7: Hands-on pass.** Each build step ends with a hands-on pass using real keys, and with fixes for what that pass finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram on iOS, Android and desktop clients (P29). Later passes include Telegram on those clients.
 - **REL-8: Release notes.** Each release has plain-language notes grouped by area, which the author publishes.
 - **REL-9: Version numbers.**
   - Every release before the first public release on Open Exchange is numbered 0.1.x, with release 1 as 0.1.0.
@@ -1292,8 +1308,9 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
 
 | Date | What |
 | --- | --- |
-| October 21 | Build starts |
-| October 30 (no later than November 1) | Release 1 (0.1.0); the online demo runs with access restricted |
+| After sprint planning and the author's review of the planning documents | Build starts (the author sets the date; October 21 was the original plan) |
+| October 30 (no later than November 1) | Release 1 (0.1.0, the floor); by November 1 the online demo runs with access restricted, on the latest release |
+| Right after 0.1.0, before the online demo goes public | 0.1.1 with Telegram (§7.2) |
 | November 2-4 | The online demo goes public; the judges' README |
 | November 5 | Last feature merge for the submission release; the hands-on pass and rehearsal follow |
 | Before November 7 | The voting-week polish list is written |
@@ -1401,22 +1418,22 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 
 | Dependency | Needed by | Plan |
 | --- | --- | --- |
-| How the platform reports a refused, empty or cut-off model reply | Step 1 (FR-4) | Test it at the start of step 1, before the stories for the fallback route |
-| A way for CI to mock the shipped Anthropic provider path | Step 1 (REL-4, NFR-1, NFR-5) | Set it up with CI, before the first story merges |
-| The platform's settings store | Step 2 (FR-39) | Test it before step 2. If it fails, model settings stay as production settings |
-| The platform's MCP client, and whether its policies cover remote tools | Step 4 (FR-47 to FR-50) | Test it before step 4. OcuTalon enforces FR-49 itself either way |
-| The platform's MCP server | Step 7 (FR-51) | Test it before step 7 |
-| The IRIS (non-Health) AI Hub build 154 image | 1.0.0 (NFR-21) | Verify the demo path before 1.0.0 |
-| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | Release 1 Telegram; the online demo | Development bots exist. The demo bot's token moves to the demo server by November 2-4 |
+| How the platform reports a refused, empty or cut-off model reply | Step 1 (FR-4) | Done: checked on October 17, before the epics |
+| A way for CI to mock the shipped Anthropic provider path | Step 1 (REL-4, NFR-1, NFR-5) | Done: checked on October 17; CI sets up the mock in Epic 0 |
+| The platform's settings store | Step 2 (FR-39) | Done: checked on October 17 |
+| The platform's MCP client, and whether its policies cover remote tools | Step 4 (FR-47 to FR-50) | Done: checked on October 17. OcuTalon enforces FR-49 itself either way |
+| The platform's MCP server | Step 7 (FR-51) | Done: checked on October 17 |
+| The IRIS (non-Health) AI Hub build 154 image | 1.0.0 (NFR-21) | Done: checked on October 17, and treated as equivalent to IRIS for Health (NFR-21) |
+| Telegram bot tokens, one per running instance; the online demo's bot on the demo server | 0.1.1 (Telegram); the online demo | Development bots exist. The demo bot's token moves to the demo server by November 2-4 |
 | A Telegram route on the online demo's gateway | The online demo with Telegram | Due by November 2-4 |
-| The online demo host, with access restricted | Release 1 (REL-10) | Ready by release 1; public by November 4 |
+| The online demo host, with access restricted | The online demo (REL-10) | Ready by November 1; public by November 4 |
 | A dedicated CI runner that holds the image privately | REL-4 | Ready before the first story merges |
 
 ### 11.2 Risks
 
 | Risk | Mitigation |
 | --- | --- |
-| **Scope against time,** the main risk | Build steps in order, as the cut line; stories sized at sprint planning; release 1 kept green; the floor ships without Telegram if it must (§7.2); feature work for the submission release ends November 5 |
+| **Scope against time,** the main risk | Build steps in order, as the cut line; stories sized at sprint planning; release 1 kept green; the floor ships first and Telegram follows as 0.1.1 (§7.2); feature work for the submission release ends November 5 |
 | **Diagnosis quality on a small, cheap model** | Build the evaluation set early in step 1 (FR-62). If Haiku falls short on causes, switch the diagnosis model to Claude Sonnet 5.5 through the bridge's settings, from step 1 (FR-5) |
 | **The demo incident goes wrong in front of a judge** | The 10-run gate for the demo incident on every release candidate (FR-62); the settle rule (FR-24); a fallback notice that never proposes a fix (FR-4) |
 | **Untested parts of an early-access platform** | Test each one before the stories that depend on it (§11.1); treat an unusable reply as a failure and take the fallback route (FR-4) |
@@ -1429,9 +1446,9 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 1. **When is 1.0.0 published?** The author decides, no later than the contest submission (REL-9). It does not block planning.
 2. **Is Claude Sonnet 5.5 needed for diagnosis?** The evaluation set decides once it exists in step 1. If Claude Sonnet 5.5 is needed, the bridge's settings switch the diagnosis model (FR-5), and step 2 makes the choice in the settings page.
 3. **Which bonuses does the contest list?** The list comes after October 26. It may confirm or change §8.2, including the two candidates. Bonus-driven work is not moved ahead of its build step, with one exception, decided by the author on October 16. If the list includes an Embedded Python bonus, reading PDF and Word documents (that part of FR-54) moves into step 3, alongside FR-42; if it doesn't, it stays in step 6. The extraction library is already proven on build 154, so the move is cheap.
-4. **What happens to MCP if the platform's MCP client fails its test?** Architecture should propose a fallback before step 4 starts, for example OcuTalon's own minimal MCP client. Email and webhooks ship in step 4 either way.
+4. **What happens to MCP if the platform's MCP client fails its test?** Answered by the architecture (October 17): OcuTalon's own minimal MCP client behind one governed proxy tool (architecture AD-21). Email and webhooks ship in step 4 either way.
 5. **Which channel pages the on-call person**, Telegram, email or both? Decide before step 5 (FR-28).
-6. **Does the bridge ship as its own IPM module?** Decide in architecture. FR-5 holds either way.
+6. **Does the bridge ship as its own IPM module?** Decided by the author (October 17): not within OcuTalon. OcuTalon's one IPM package contains the bridge and installs it itself, because an Open Exchange listing carries one IPM package; the bridge becomes its own product, with its own package and listing, as a follow-on (architecture AD-2). FR-5 holds either way.
 
 ## 13. Assumptions index
 
@@ -1450,14 +1467,13 @@ Candidates to check once the list is out: a bonus for implementing the contest's
   - 10% free disk or journal space;
   - 90% license use;
   - a backlog of 100 messages or a 10-minute wait.
-- §4.8 FR-40: the daily cost cap is off by default on a local install. The online demo allows 50 turns per session per hour and $20 a day.
+- §4.8 FR-40: the daily cost cap is off by default on a local install. The online demo allows 50 turns per session per hour and $20 a day. Each online-demo session may simulate 20 incoming emails an hour.
 - §4.12 FR-54: files are limited to 10 MB.
 - §4.13 FR-55: Windows users run the install script under WSL.
 - §4.13 FR-59: the online demo resets every 4 hours by default.
 - §5.1 NFR-3: one tool result passes at most 10,000 tokens to the model.
 - §5.2 NFR-8: a chat message's decision is shown within 10 seconds.
 - §5.6 NFR-22: the install works on the host platforms the AI Hub image supports, verified on macOS and Linux.
-- §5.6 NFR-23: the online demo serves 10 concurrent sessions.
 - §5.7 NFR-25: accessibility means keyboard use, labelled controls and WCAG 2.1 AA contrast, not a full audit.
 - §7.3 REL-3: a release takes at most 15 minutes of the author's hands-on time.
 - §10 SM-10: the targets for use after the contest (30 days, three community members, December 31, 2026).

@@ -2,7 +2,7 @@
 title: "Product Brief: OcuTalon"
 status: final
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Product Brief: OcuTalon
@@ -110,8 +110,8 @@ difference. What OcuTalon has that the others don't:
    outside agent sees only that errors went up.
 2. **The assistant is itself a production.** Its decisions, reasons, steps, and costs are production
    messages, so you audit and debug your assistant in the same Visual Trace you use for your feeds.
-3. **It's extensible, and governed by default.** Every tool call runs under IRIS permissions and AI Hub
-   policies, including calls to tools from MCP servers you add. Every action is audited, and OcuTalon
+3. **It's extensible, and governed by default.** Every tool call is checked against IRIS permissions and AI
+   Hub policies, including calls to tools from MCP servers you add. Every action is audited, and OcuTalon
    can't run shell commands. *An OpenClaw your security team can approve.*
 4. **What it remembers lives in your own database,** on infrastructure you already run, back up, and
    trust.
