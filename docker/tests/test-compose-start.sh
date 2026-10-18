@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Live test: builds the image and starts it in a throwaway compose project, then checks
+# Live test of Story 0.1's image with the after-start script switched off (compose.no-after-start.yml):
+# builds the image and starts it in a throwaway compose project, then checks
 #   - the OCUTALON namespace, databases, mappings and CallIn service (CHECK),
 #   - Docker's health monitor against docker/healthcheck.sh (matrix row 7),
-#   - the version baked into the image (matrix row 8) and the image's own files, owned by root and read-only,
+#   - the version baked into the image (matrix row 8) and the image's own files, owned by root and read-only
+#     (the sources, the pinned IPM release and the scripts included),
 #   - that the first start's merge runs without errors, and that data survives a plain stop and start
 #     and a plain recreate on the same volume, and a stop and start and a recreate that make iris-main
 #     reapply the merge, which then runs without errors.
@@ -13,42 +15,10 @@
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
-root=$(cd "$(dirname "$0")/../.." && pwd)
-cd "$root" || exit 1
-
-P="ocutalon-t01-$(date +%s)-$$"
-base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
-mgr=/durable/iris/mgr
-fails=0
-cid=""
-deadline=$((SECONDS + 540))
-
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-live.XXXXXX") || exit 1
-
-# A key source that only compose.throwaway.yml's env_file reset keeps out of the container.
-printf 'ANTHROPIC_API_KEY=decoy\nTELEGRAM_BOT_TOKEN=decoy\n' > "$tmp/decoy.env"
-printf 'services:\n  iris:\n    env_file:\n      - %s\n' "$tmp/decoy.env" > "$tmp/decoy.yml"
-
-dc() { docker compose -p "$P" -f docker-compose.yml -f "$tmp/decoy.yml" -f docker/tests/compose.throwaway.yml "$@"; }
-
-cleanup() {
-  dc down -v --rmi local >/dev/null 2>&1
-  docker image rm -f "$P-version-ok" "$P-version-bad" >/dev/null 2>&1
-  rm -rf "$tmp"
-}
-trap cleanup EXIT
-trap 'exit 130' INT TERM HUP
-
-pass() { echo "PASS $1"; }
-fail() {
-  echo "FAIL $1"
-  fails=$((fails + 1))
-}
-die() { # a failure after which nothing else can run
-  echo "FAIL $1"
-  echo "test-compose-start: aborted"
-  exit 1
-}
+. "$(dirname "$0")/lib-live.sh"
+live_start t01
+live_add_file "$root/docker/tests/compose.no-after-start.yml"
+LIVE_IMAGES+=("$P-version-ok" "$P-version-bad")
 
 # --- helpers ---
 
@@ -58,17 +28,7 @@ iris_ready() {
   dc exec -T iris sh -c 'iris qlist | grep -q "\^running" && cmp -s /opt/ocutalon/merge.cpf /durable/iris/*.last_merge' >/dev/null 2>&1
 }
 
-wait_ready() { # wait_ready <max seconds>
-  local waited=0
-  while [ "$waited" -lt "$1" ] && [ "$SECONDS" -lt "$deadline" ]; do
-    if iris_ready; then
-      return 0
-    fi
-    sleep 3
-    waited=$((waited + 3))
-  done
-  return 1
-}
+wait_ready() { wait_until "$1" iris_ready; } # wait_ready <max seconds>
 
 # iris-main skips a merge file that is unchanged since the one it applied last. Either of these makes
 # the next start apply the merge again over the existing databases and mappings:
@@ -78,24 +38,6 @@ wait_ready() { # wait_ready <max seconds>
 forget_last_merge() { dc exec -T iris sh -c 'rm -f /durable/iris/*.last_merge' >/dev/null 2>&1; }
 change_last_merge() {
   dc exec -T iris sh -c 'f=$(ls /durable/iris/*.last_merge) && chmod u+w "$f" && printf "; changed\n" >> "$f" && chmod 444 "$f"' >/dev/null 2>&1
-}
-
-# Error lines of process <pid>, from a messages.log excerpt on stdin: severity 2 or 3, or an `ERROR #`
-# line of any severity (build 154 logs a failed merge action at severity 1).
-merge_errors() { awk -v pid="($1)" '$2 == pid && ($3 == 2 || $3 == 3 || / ERROR #[0-9]/) { print }'; }
-
-# Runs an ObjectScript script from stdin in the given namespace and keeps the `CHK|` result lines.
-# A session that prints no result line is tried again, at most three tries 5 s apart.
-iris_script() { # iris_script <namespace> < script
-  local script out try=1
-  script=$(cat)
-  while :; do
-    out=$(printf '%s\n' "$script" | dc exec -T iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
-    if [ -n "$out" ] || [ "$try" -ge 3 ]; then break; fi
-    try=$((try + 1))
-    sleep 5
-  done
-  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
 }
 
 check_script() {
@@ -160,28 +102,6 @@ CHK|callin-authe|48
 EOX
 }
 
-# compare_chk <label> <actual file> <expected file>: every expected line must appear in the actual output.
-compare_chk() {
-  local label=$1 actual=$2 expected=$3 line prefix bad=0 n=0
-  if ! grep -q '^CHK|' "$actual"; then
-    fail "$label: the IRIS session printed nothing"
-    return 1
-  fi
-  while IFS= read -r line; do
-    n=$((n + 1))
-    if ! grep -qxF -- "$line" "$actual"; then
-      prefix=${line%|*}
-      echo "  $label: wanted '$line', got '$(grep -F -- "$prefix|" "$actual" | head -n 1)'"
-      bad=$((bad + 1))
-    fi
-  done < "$expected"
-  if [ "$bad" -eq 0 ]; then
-    pass "$label ($n values)"
-  else
-    fail "$label ($bad of $n values differ)"
-  fi
-}
-
 run_check() { # run_check <label>: namespace, databases, mappings, service, mount and data directory
   local label=$1 mounts qdir
   check_expected > "$tmp/check.expected"
@@ -203,43 +123,6 @@ run_check() { # run_check <label>: namespace, databases, mappings, service, moun
   fi
 }
 
-probe_data=probe-data-$P
-probe_private=probe-private-$P
-
-set_probes() {
-  local out
-  out=$(printf '%s\n' \
-    "Set ^OcuTalonS01Probe=\"$probe_data\",^OcuTalonP.S01Probe=\"$probe_private\"" \
-    'Write !,"CHK|probes-set|",$Namespace' \
-    'Halt' | iris_script OCUTALON)
-  if [ "$out" = "CHK|probes-set|OCUTALON" ]; then
-    pass "probes written in OCUTALON"
-  else
-    fail "probes could not be written in OCUTALON (got '$out')"
-  fi
-}
-
-# The probes must read back through the namespace and sit in the databases that the mappings name.
-check_probes() { # check_probes <label>
-  local label=$1
-  cat > "$tmp/probes.expected" <<EOP
-CHK|probe-data|$probe_data
-CHK|probe-private|$probe_private
-CHK|probe-data-in-data-db|$probe_data
-CHK|probe-private-in-private-db|$probe_private
-CHK|probe-private-in-data-db|0
-EOP
-  printf '%s\n' \
-    'Write !,"CHK|probe-data|",$Get(^OcuTalonS01Probe)' \
-    'Write !,"CHK|probe-private|",$Get(^OcuTalonP.S01Probe)' \
-    "Write !,\"CHK|probe-data-in-data-db|\",\$Get(^|\"^^$mgr/ocutalon_data/\"|OcuTalonS01Probe)" \
-    "Write !,\"CHK|probe-private-in-private-db|\",\$Get(^|\"^^$mgr/ocutalon_private/\"|OcuTalonP.S01Probe)" \
-    "Write !,\"CHK|probe-private-in-data-db|\",\$Data(^|\"^^$mgr/ocutalon_data/\"|OcuTalonP.S01Probe)" \
-    'Halt' | iris_script OCUTALON > "$tmp/probes.actual"
-  compare_chk "probes $label" "$tmp/probes.actual" "$tmp/probes.expected"
-}
-
-merge_count() { dc exec -T iris grep -c 'Merging /opt/ocutalon/merge.cpf' "$mgr/messages.log" 2>/dev/null | tr -d '\r'; }
 
 # The newest merge must have run without errors: no line of its process, from its "Merging" line on,
 # is an error line (merge_errors).
@@ -267,12 +150,6 @@ check_merge_log() { # check_merge_log <label> <count before>
 }
 
 # --- health monitor (row 7) ---
-
-health_status() { docker inspect --format '{{.State.Health.Status}}' "$cid" 2>/dev/null; }
-health_ends() { docker inspect --format '{{range .State.Health.Log}}{{.End}}{{"\n"}}{{end}}' "$cid" 2>/dev/null | grep . | tail -n 1; }
-health_last_exit() { docker inspect --format '{{range .State.Health.Log}}{{.ExitCode}}{{"\n"}}{{end}}' "$cid" 2>/dev/null | grep . | tail -n 1; }
-
-script_exit() { dc exec -T iris /opt/ocutalon/healthcheck.sh >/dev/null 2>&1; echo $?; }
 
 # For up to 40 s Docker keeps reporting `starting` while its monitor runs the script at least twice,
 # and each run exits 1.
@@ -395,8 +272,7 @@ fi
 # A second <Version> after the module's own must not change the image's version, and a manifest with
 # no version must fail the build.
 ctx="$tmp/context"
-mkdir -p "$ctx/docker" "$ctx/src"
-cp docker/Dockerfile docker/merge.cpf docker/healthcheck.sh "$ctx/docker/"
+copy_build_context "$ctx"
 awk '{ print } /<Version>/ && !done { print "    <Version>9.9.9</Version>"; done = 1 }' src/module.xml > "$ctx/src/module.xml"
 if docker build -q -f "$ctx/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-version-ok" "$ctx" >/dev/null 2>&1; then
   got=$(docker run --rm --entrypoint cat "$P-version-ok" /opt/ocutalon/version 2>/dev/null | tr -d '\r\n')
@@ -416,17 +292,23 @@ else
 fi
 
 # --- the image's own files: owned by root, so the IRIS user can neither change nor re-mode them ---
+# Directories 555, the two scripts that run 555, every other file 444. The listing is `type|path|owner|mode`.
 
-modes=$(dc exec -T iris sh -c 'stat -c "%n %u %a" /opt/ocutalon /opt/ocutalon/*' 2>/dev/null | tr -d '\r')
-want_modes="/opt/ocutalon 0 755
-/opt/ocutalon/healthcheck.sh 0 555
-/opt/ocutalon/merge.cpf 0 444
-/opt/ocutalon/module.xml 0 444
-/opt/ocutalon/version 0 444"
-if [ "$modes" = "$want_modes" ]; then
-  pass "/opt/ocutalon and its files are root's and read-only, the health check executable"
+modes=$(dc exec -T iris find /opt/ocutalon -exec stat -c '%F|%n|%u|%a' {} + 2>/dev/null | tr -d '\r' | sort)
+bad_modes=$(printf '%s\n' "$modes" | awk -F'|' '
+  { want = ($1 == "directory") ? 555 : 444
+    if ($2 == "/opt/ocutalon/healthcheck.sh" || $2 == "/opt/ocutalon/after-start.sh") want = 555
+    if (($1 != "directory" && $1 != "regular file") || $3 != 0 || $4 != want) print $2 " is " $1 ", owner " $3 ", mode " $4 "; wanted owner 0, mode " want }')
+missing=""
+for f in version merge.cpf healthcheck.sh after-start.sh after-start.cos ipm/zpm-0.10.10.xml ipm/LICENSE \
+  src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls; do
+  if ! printf '%s\n' "$modes" | grep -q "^regular file|/opt/ocutalon/$f|"; then missing="$missing $f"; fi
+done
+if [ -n "$modes" ] && [ -z "$bad_modes" ] && [ -z "$missing" ]; then
+  pass "/opt/ocutalon, its sources, scripts and pinned IPM release are root's and read-only, the two scripts executable ($(printf '%s\n' "$modes" | wc -l | tr -d ' ') entries)"
 else
-  fail "/opt/ocutalon owners and modes are '$(echo $modes)', wanted '$(echo $want_modes)'"
+  printf '%s\n' "$bad_modes" | head -n 5 | sed 's/^/  /'
+  fail "/opt/ocutalon owners and modes are wrong (missing:$missing)"
 fi
 
 # --- restarts ---

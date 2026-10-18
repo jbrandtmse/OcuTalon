@@ -5,6 +5,9 @@
       <Name>ocutalon</Name>
       <Version>0.1.0</Version>
       <Packaging>module</Packaging>
+      <SourcesRoot>.</SourcesRoot>
+      <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
+      <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
     </Module>
   </Document>
 </Export>

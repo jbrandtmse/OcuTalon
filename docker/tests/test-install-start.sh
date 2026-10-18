@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# Live test of the install at start (matrix rows 1 to 5): builds the image and starts it in one throwaway
+# compose project with the after-start script active, then checks
+#   - row 1, a fresh volume: healthy, the marker equal to the image's version, and a log that lists the merge,
+#     the readiness step, IPM installed in %SYS and mapped into OCUTALON only, the package loaded, one STEP
+#     line per installer step in the order of AD-23, and RESULT OK; readiness set, the online-demo flag off;
+#   - row 2, the same version with a mapping removed by hand: the mapping is back, the package skipped
+#     (its compile time unchanged), every step run again, data and private probes intact;
+#   - row 3, the developer compose file: the package loaded again;
+#   - row 4, a public class deleted: the load forced by the public-class check, the class back in OCUTALON_PUBLIC;
+#   - row 5, the bridge alone: src/bridge/ loaded into an Interoperability namespace without IPM, and its installer run,
+#     and refused in a namespace without Interoperability.
+# The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
+# volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
+# Prints one PASS or FAIL line per check; exits 0 only when all pass.
+# Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
+set -u
+
+. "$(dirname "$0")/lib-live.sh"
+live_start t02s
+
+version=$(manifest_version src/module.xml)
+ipm_version=0.10.10
+
+# The compile time of a class, as the class dictionary records it.
+compile_time() {
+  printf '%s\n' 'Write !,"CHK|compiled|",##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Install.Registry").TimeChanged' 'Halt' \
+    | session_value OCUTALON compiled
+}
+
+marker() { dc exec -T iris cat /durable/ocutalon.ready 2>/dev/null | tr -d '\r\n'; }
+
+# The state that a ready start leaves, whatever the start was: the marker, Docker's verdict, the installed versions.
+check_ready_state() { # check_ready_state <label>
+  local label=$1
+  if [ "$(marker)" = "$version" ]; then
+    pass "$label: the marker equals the image's version $version"
+  else
+    fail "$label: the marker is '$(marker)', wanted $version"
+  fi
+  if [ "$(health_status)" = healthy ] && [ "$(restart_count)" = 0 ]; then
+    pass "$label: Docker reports healthy, with no restart"
+  else
+    fail "$label: Docker reports '$(health_status)' after $(restart_count) restart(s), wanted healthy and 0"
+  fi
+  check_session "$label: installed package, readiness and flag" OCUTALON \
+    "CHK|package|$version
+CHK|ready|1
+CHK|onlineDemo|0
+CHK|settings-dest|^$mgr/ocutalon_public/
+CHK|ns|OCUTALON" \
+    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|package|",$Select($IsObject(m):m.VersionString,1:"")' \
+    'Write !,"CHK|ready|",##class(OcuTalon.Data.Public.Settings).Get("ready")' \
+    'Write !,"CHK|onlineDemo|",##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")' \
+    'Write !,"CHK|settings-dest|",##class(%SYS.Namespace).GetRoutineDest("OCUTALON","OcuTalon.Data.Public.Settings.1","INT")' \
+    'Write !,"CHK|ns|",$Namespace' \
+    'Halt'
+}
+
+# --- row 1: a fresh volume ---
+
+if ! dc up -d --build > "$tmp/up.log" 2>&1; then
+  tail -n 30 "$tmp/up.log"
+  die "build or start failed"
+fi
+live_track_image
+cid=$(dc ps -q iris)
+[ -n "$cid" ] || die "no iris container in project $P"
+
+if ! wait_started_ready 400; then
+  start_log | tail -n 30 | cut -c1-200
+  dc logs --tail 20 iris 2>&1 | cut -c1-200
+  die "row 1 the first start did not end ready within 400 s"
+fi
+pass "row 1 the first start ended ready"
+
+expected_run "nothing to clear" "installed $ipm_version (was none)" "mapped into OCUTALON" "skipped (package not installed)" \
+  "loaded (not installed)" "$version" > "$tmp/expected.row1"
+check_log "row 1" "$tmp/expected.row1"
+check_ready_state "row 1"
+if dc logs iris 2>&1 | tr -d '\r' | grep -q 'STEP Ready OK'; then
+  pass "row 1: the per-step summary reaches the container's output"
+else
+  fail "row 1: the container's output holds no STEP summary line"
+fi
+
+# IPM is installed in %SYS, and mapped into OCUTALON only: no other user namespace maps %IPM.
+check_session "row 1: IPM in %SYS, mapped into OCUTALON and not into USER" %SYS \
+  "CHK|ipm-version|$ipm_version
+CHK|ipm-mapped-ocutalon|1
+CHK|ipm-mapped-user|0" \
+  'Set m=##class(%IPM.Storage.Module).NameOpen("zpm") Write !,"CHK|ipm-version|",$Select($IsObject(m):m.VersionString,1:"")' \
+  'Write !,"CHK|ipm-mapped-ocutalon|",##class(Config.MapPackages).Exists("OCUTALON","%IPM")' \
+  'Write !,"CHK|ipm-mapped-user|",##class(Config.MapPackages).Exists("USER","%IPM")' \
+  'Halt'
+
+# --- row 2: the same version, with a mapping removed by hand ---
+
+set_probes
+check_probes "before the restart"
+compiled_before=$(compile_time)
+check_session "row 2: the IRIS.IF.* mapping is removed" %SYS "CHK|deleted|1" \
+  'Write !,"CHK|deleted|",##class(Config.MapGlobals).Delete("OCUTALON","IRIS.IF.*")' 'Halt'
+
+dc stop iris >/dev/null 2>&1
+dc start iris >/dev/null 2>&1
+if ! wait_started_ready 200; then
+  start_log | tail -n 20 | cut -c1-200
+  die "row 2 the restart did not end ready within 200 s"
+fi
+expected_run "cleared" "present $ipm_version" "already mapped" "ok" "skipped $version" "$version" > "$tmp/expected.row2"
+check_log "row 2" "$tmp/expected.row2"
+check_ready_state "row 2"
+check_session "row 2: the merge brought the IRIS.IF.* mapping back" OCUTALON "CHK|dest|^$mgr/ocutalon_private/" \
+  'Write !,"CHK|dest|",##class(%SYS.Namespace).GetGlobalDest("OCUTALON","^IRIS.IF.Zz")' 'Halt'
+check_probes "row 2"
+if [ "$(compile_time)" = "$compiled_before" ] && [ -n "$compiled_before" ]; then
+  pass "row 2: the package was not compiled again (compile time $compiled_before)"
+else
+  fail "row 2: the compile time of OcuTalon.Install.Registry changed from '$compiled_before' to '$(compile_time)'"
+fi
+
+# --- row 3: the developer compose file reloads the package ---
+
+compiled_before=$(compile_time)
+live_add_file "$root/docker-compose.dev.yml"
+if ! dc up -d >/dev/null 2>&1; then
+  die "row 3 recreate with docker-compose.dev.yml failed"
+fi
+cid=$(dc ps -q iris)
+if ! wait_started_ready 200; then
+  start_log | tail -n 20 | cut -c1-200
+  die "row 3 the dev start did not end ready within 200 s"
+fi
+expected_run "cleared" "present $ipm_version" "already mapped" "ok" "loaded (dev)" "$version" > "$tmp/expected.row3"
+check_log "row 3" "$tmp/expected.row3"
+check_ready_state "row 3"
+after=$(compile_time)
+if [ -n "$compiled_before" ] && [ -n "$after" ] && [ "$after" != "$compiled_before" ]; then
+  pass "row 3: the package was compiled again (compile time $compiled_before to $after)"
+else
+  fail "row 3: the compile time of OcuTalon.Install.Registry is '$after' after the dev start, it was '$compiled_before'"
+fi
+live_pop_file
+
+# --- row 4: a public class deleted ---
+
+if ! dc up -d >/dev/null 2>&1; then
+  die "row 4 recreate without the dev file failed"
+fi
+cid=$(dc ps -q iris)
+if ! wait_started_ready 200; then
+  die "row 4 the start without the dev file did not end ready within 200 s"
+fi
+check_session "row 4: the public class is deleted" OCUTALON "CHK|deleted|1" \
+  'Write !,"CHK|deleted|",$SYSTEM.OBJ.Delete("OcuTalon.Data.Public.Settings","-d")' 'Halt'
+dc stop iris >/dev/null 2>&1
+dc start iris >/dev/null 2>&1
+if ! wait_started_ready 200; then
+  start_log | tail -n 20 | cut -c1-200
+  die "row 4 the restart did not end ready within 200 s"
+fi
+expected_run "nothing to clear" "present $ipm_version" "already mapped" "OcuTalon.Data.Public.Settings is not compiled" \
+  "loaded (public classes)" "$version" > "$tmp/expected.row4"
+check_log "row 4" "$tmp/expected.row4"
+check_ready_state "row 4"
+
+# --- row 5: the bridge alone, in a namespace without IPM ---
+
+cat > "$tmp/ocubridget.cpf" <<'EOC'
+[Actions]
+CreateResource:Name=%DB_OCUBRIDGET,Description="Bridge-only test database"
+CreateDatabase:Name=OCUBRIDGET,Directory=ocubridget,Resource=%DB_OCUBRIDGET
+CreateNamespace:Name=OCUBRIDGET,Globals=OCUBRIDGET,Routines=OCUBRIDGET,Interop=1
+CreateResource:Name=%DB_OCUPLAIN,Description="Plain namespace test database"
+CreateDatabase:Name=OCUPLAIN,Directory=ocuplain,Resource=%DB_OCUPLAIN
+CreateNamespace:Name=OCUPLAIN,Globals=OCUPLAIN,Routines=OCUPLAIN
+EOC
+if dc exec -T iris sh -c 'cat > /tmp/ocubridget.cpf' < "$tmp/ocubridget.cpf" >/dev/null 2>&1 \
+  && dc exec -T iris iris merge IRIS /tmp/ocubridget.cpf >/dev/null 2>&1; then
+  pass "row 5: the Interoperability namespace OCUBRIDGET and the plain namespace OCUPLAIN are created"
+else
+  die "row 5 the namespaces OCUBRIDGET and OCUPLAIN could not be created"
+fi
+check_session "row 5: the bridge loads and installs alone, in a namespace without IPM" OCUBRIDGET \
+  "CHK|ipm-class|0
+CHK|load|1
+CHK|run|1
+CHK|other-classes|0
+CHK|ipm-after|0
+CHK|ns|OCUBRIDGET" \
+  'Write !,"CHK|ipm-class|",##class(%Dictionary.CompiledClass).%ExistsId("%IPM.Main")' \
+  'Write !,"CHK|load|",$SYSTEM.OBJ.LoadDir("/opt/ocutalon/src/bridge/cls","ck-d",.errors,1)' \
+  'Write !,"CHK|run|",##class(OcuTalon.Bridge.Installer).Run()' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH ? AND NOT (Name %STARTSWITH ? OR Name %STARTSWITH ?)","OcuTalon.","OcuTalon.Bridge.","OcuTalon.BridgeExample.") Do rs.%Next() Write !,"CHK|other-classes|",rs.%GetData(1)' \
+  'Write !,"CHK|ipm-after|",##class(%Dictionary.CompiledClass).%ExistsId("%IPM.Main")' \
+  'Write !,"CHK|ns|",$Namespace' \
+  'Halt'
+# The installer refuses a namespace that is not an Interoperability namespace, and names it.
+check_session "row 5: the bridge installer refuses a namespace without Interoperability" OCUPLAIN \
+  "CHK|load|1
+CHK|refused|1
+CHK|names-namespace|1" \
+  'Write !,"CHK|load|",$SYSTEM.OBJ.LoadDir("/opt/ocutalon/src/bridge/cls","ck-d",.errors,1)' \
+  'Set sc=##class(OcuTalon.Bridge.Installer).Run() Write !,"CHK|refused|",$SYSTEM.Status.IsError(sc),!,"CHK|names-namespace|",($SYSTEM.Status.GetErrorText(sc)["OCUPLAIN")' \
+  'Halt'
+
+if [ "$fails" -ne 0 ]; then
+  echo "test-install-start: $fails check(s) failed (project $P)"
+  exit 1
+fi
+echo "test-install-start: all checks passed"

@@ -1,0 +1,8 @@
+# Developer override: reloads the package at every start. Use it with
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+name: ocutalon-dev
+
+services:
+  iris:
+    environment:
+      OCUTALON_DEV: "1"

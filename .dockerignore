@@ -3,4 +3,8 @@
 *
 !docker/merge.cpf
 !docker/healthcheck.sh
-!src/module.xml
+!docker/after-start.sh
+!docker/after-start.cos
+!docker/ipm/zpm-0.10.10.xml
+!docker/ipm/LICENSE
+!src

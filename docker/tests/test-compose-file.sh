@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Static inspection of docker-compose.yml, docker/Dockerfile, .dockerignore and .env.example.
+# Static inspection of docker-compose.yml, docker-compose.dev.yml, docker/Dockerfile, .dockerignore and .env.example.
 # Starts no container. Prints one PASS or FAIL line per check; exits 0 only when every check passes.
 set -u
 
@@ -103,7 +103,13 @@ check "dockerfile: runs as UID 51773" last_user_is_51773
 check "dockerfile: data and merge environment" \
   bash -c "grep -q 'ISC_DATA_DIRECTORY=/durable/iris' '$dockerfile' && grep -q 'ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf' '$dockerfile'"
 check "dockerfile: an empty version fails the build" has_line "$dockerfile" 'test -n "\$version"'
+check "dockerfile: CMD runs the after-start script through iris-main" \
+  has_line "$dockerfile" '^CMD \["--after", "/opt/ocutalon/after-start\.sh"\]$'
+check "dockerfile: the sources, the pinned IPM release and the scripts are copied" \
+  bash -c "grep -q '^COPY src/ /opt/ocutalon/src/\$' '$dockerfile' && grep -q '^COPY docker/ipm/ /opt/ocutalon/ipm/\$' '$dockerfile' && grep -q '^COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\$' '$dockerfile'"
+check "dockerfile: the version comes from the copied manifest" has_line "$dockerfile" '/opt/ocutalon/src/module\.xml'
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
+check "after-start.sh: bash" test "$(head -n 1 docker/after-start.sh)" = '#!/bin/bash'
 
 # --- docker/merge.cpf and line endings ---
 
@@ -114,7 +120,9 @@ merge_directories_relative() {
 # Files that the image copies, or that a script runs, keep LF in every checkout.
 files_keep_lf() {
   local f
-  for f in docker/Dockerfile docker/merge.cpf docker/healthcheck.sh docker/tests/test-compose-file.sh src/module.xml \
+  for f in docker/Dockerfile docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
+    docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/test-compose-file.sh docker/tests/lib-live.sh \
+    src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalon/cls/OcuTalon/Install/Registry.cls \
     .dockerignore .env.example; do
     [ "$(git check-attr eol -- "$f" | sed 's/.*: //')" = lf ] || return 1
   done
@@ -129,11 +137,45 @@ dockerignore_is_allow_list() {
   # The first rule is '*', and the only exceptions are the files the Dockerfile copies.
   [ "$(code .dockerignore | head -n 1)" = '*' ] || return 1
   ! code .dockerignore | grep -v '^\*$' \
-    | grep -v -x -e '!docker/merge.cpf' -e '!docker/healthcheck.sh' -e '!src/module.xml' \
+    | grep -v -x -e '!docker/merge.cpf' -e '!docker/healthcheck.sh' -e '!docker/after-start.sh' -e '!docker/after-start.cos' \
+      -e '!docker/ipm/zpm-0.10.10.xml' -e '!docker/ipm/LICENSE' -e '!src' \
     | grep -q .
 }
 
+# Every exception the Dockerfile's COPY lines need is in the list, and none is missing.
+dockerignore_names_every_exception() {
+  local rule
+  for rule in '!docker/merge.cpf' '!docker/healthcheck.sh' '!docker/after-start.sh' '!docker/after-start.cos' \
+    '!docker/ipm/zpm-0.10.10.xml' '!docker/ipm/LICENSE' '!src'; do
+    code .dockerignore | grep -qx -e "$rule" || return 1
+  done
+}
+
 check "dockerignore: allow-list of the copied files only" dockerignore_is_allow_list
+check "dockerignore: every copied file or directory is allowed" dockerignore_names_every_exception
+
+# --- docker-compose.dev.yml ---
+
+dev=docker-compose.dev.yml
+
+# The override holds the project name and the one variable, and nothing else.
+dev_file_is_exact() {
+  [ "$(code "$dev")" = "name: ocutalon-dev
+services:
+  iris:
+    environment:
+      OCUTALON_DEV: \"1\"" ]
+}
+
+dev_no_mock() { ! code "$dev" | grep -qi 'mock'; }
+dev_no_container_name() { ! code "$dev" | grep -q "^[[:space:]]*container_name:"; }
+
+check "dev: the file holds only the project name and OCUTALON_DEV \"1\"" dev_file_is_exact
+check "dev: top-level name ocutalon-dev" has_line "$dev" '^name:[[:space:]]*ocutalon-dev[[:space:]]*$'
+check "dev: OCUTALON_DEV is \"1\" for the iris service" has_line "$dev" '^[[:space:]]*OCUTALON_DEV:[[:space:]]*"1"[[:space:]]*$'
+check "dev: no non-comment line says mock" dev_no_mock
+check "dev: no container_name" dev_no_container_name
+check "dev: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$dev" config --quiet
 
 # --- .env.example ---
 

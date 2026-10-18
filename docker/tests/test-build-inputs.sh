@@ -9,6 +9,7 @@
 # Creates and removes its own files and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
+. "$(dirname "$0")/lib-live.sh"
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 
@@ -33,17 +34,21 @@ fail() {
 
 # --- .dockerignore ---
 
-# The sources of the Dockerfile's COPY lines are what the context must carry.
-copied=$(awk '$1 == "COPY" { for (i = 2; i < NF; i++) if ($i !~ /^--/) print $i }' docker/Dockerfile | sort)
+# The files that the Dockerfile's COPY lines name, a directory source expanded to its files, are what the
+# context must carry. A directory source is allowed whole: a file that only the probe adds below it, such as
+# src/extra/decoy.xml, must be carried too, and a file beside the allowed ones must not be.
+copied=$(copied_files)
+carried=$(printf '%s\nsrc/extra/decoy.xml\n' "$copied" | sort)
 
 ctx="$tmp/context"
-mkdir -p "$ctx/docker/tests" "$ctx/src" "$ctx/irislib" "$ctx/irissys" "$ctx/.git" "$ctx/_bmad-output"
+mkdir -p "$ctx/docker/tests" "$ctx/docker/ipm" "$ctx/src/extra" "$ctx/irislib" "$ctx/irissys" "$ctx/.git" "$ctx/_bmad-output"
 cp .dockerignore "$ctx/.dockerignore"
 if [ -f docker/Dockerfile.dockerignore ]; then
   cp docker/Dockerfile.dockerignore "$ctx/docker/Dockerfile.dockerignore"
 fi
-for f in .env .env.local .env.example docker-compose.yml README.md docker/tests/test-x.sh docker/other.sh \
-  irislib/x irissys/x .git/config _bmad-output/x src/other.xml $copied; do
+for f in .env .env.local .env.example docker-compose.yml docker-compose.dev.yml README.md docker/tests/test-x.sh docker/other.sh \
+  docker/ipm/other.xml irislib/x irissys/x .git/config _bmad-output/x src/extra/decoy.xml $copied; do
+  mkdir -p "$ctx/$(dirname "$f")"
   echo decoy > "$ctx/$f"
 done
 # The probe takes the Dockerfile's place, so that the ignore file that applies to docker/Dockerfile applies to it.
@@ -53,11 +58,11 @@ if [ -z "$copied" ]; then
   fail "dockerignore: docker/Dockerfile has no COPY source to expect"
 elif docker build -f "$ctx/docker/Dockerfile" -o "type=local,dest=$tmp/out" "$ctx" > "$tmp/context.log" 2>&1; then
   sent=$(cd "$tmp/out/ctx" 2>/dev/null && find . -type f | sed 's:^\./::' | sort)
-  if [ "$sent" = "$copied" ]; then
-    pass "dockerignore: the build context carries only what the Dockerfile copies ($(echo "$copied" | wc -l | tr -d ' ') files)"
+  if [ "$sent" = "$carried" ]; then
+    pass "dockerignore: the build context carries only what the Dockerfile copies ($(echo "$carried" | wc -l | tr -d ' ') files)"
   else
     echo "  context holds: $(echo "$sent" | tr '\n' ' ')"
-    echo "  Dockerfile copies: $(echo "$copied" | tr '\n' ' ')"
+    echo "  Dockerfile copies: $(echo "$carried" | tr '\n' ' ')"
     fail "dockerignore: the build context differs from the files the Dockerfile copies"
   fi
 else

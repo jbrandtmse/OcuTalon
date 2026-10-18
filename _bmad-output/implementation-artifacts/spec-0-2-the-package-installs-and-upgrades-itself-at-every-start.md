@@ -2,9 +2,10 @@
 title: 'Story 0.2: The package installs and upgrades itself at every start'
 type: 'feature'
 created: '2026-10-18'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd917978f8b680548f3bd010d94f33b8c69e03583'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
 deferred: []
@@ -203,6 +204,70 @@ Where each row runs:
 
 ## Review Triage Log
 
+### 2026-10-18 — Review pass
+- verdicts: 56 findings — high 0, medium 2, low 49, false 5, maybe-false 0
+- findings:
+  - Blind Hunter (10):
+    - `[low]` `[reject]` Two failure paths lose their cause on stdout (the registry's refusal outside OCUTALON, the merge output) — the cause is in `/durable/ocutalon-after-start.log` (the log contract); the refusal is unreachable because phase 4 enters OCUTALON; the fix adds output paths.
+    - `[low]` `[reject]` The `iris session` run has no time limit — no hang was shown for this story's steps (all return at once); a guard needs `timeout`, which is not POSIX (macOS hosts run the hermetic test); later steps that wait (Story 0.6) own their timeouts.
+    - `[false]` `[reject]` The version gate is untested against a failed package load — AD-23 records that IPM rolls a failed load back (S1 tested a compile failure), so the next start sees the old version and loads again.
+    - `[low]` `[patch]` The shared 540 s deadline can cut row 7's 40 s watch short and still pass — the watch now has to run its full 40 s (`test-install-upgrade.sh`); the deadline itself is the spec's.
+    - `[low]` `[reject]` The purge task does not validate `DaysToKeep` — an admin-only input, and the spec has `OnTask` pass the value on; each area's `Purge` (Story 1.11) owns what a value means; a guard is added behaviour the spec does not ask for.
+    - `[low]` `[reject]` The pinned IPM release has no provenance or checksum test — the file is byte-identical to the spike's (sha256 checked at review, no CR bytes, so `eol=lf` leaves it alone); Story 10.2's README carries the notice.
+    - `[low]` `[reject]` The `ipm-map` phase ignores the status of `Config.Databases.Get` — the database exists whenever the merge succeeded, and a merge failure stops the run earlier; the check would only reword a message.
+    - `[low]` `[reject]` Test classes ship in `OcuTalon.PKG` and a dead test run could leave a fixture area — the spec puts the tests under `src/ocutalon/cls/OcuTalon/Test/`; the fixtures exist only while a test runs, and `Clean()` removes leftovers at the next run.
+    - `[low]` `[reject]` Negative-path unit tests are missing (`Registry.Run`, `Declared`, `Tasks.Check`, `Roles.Add`) — the acceptance criteria name the prefix and duplicate checks, which are tested; stop-at-first-failure of `Registry.Run` is pinned live by row 7; the rest are guards beyond the spec.
+    - `[low]` `[reject]` `OCUTALON_ONLINE_DEMO` is not in `.env.example` — the judges' compose file does not pass it, and the online-demo keys belong to Story 3.8.
+  - Edge Case Hunter (12):
+    - `[low]` `[reject]` Early finishes do not clear readiness — row 8 says no session starts after a failed merge, so nothing can clear it there.
+    - `[low]` `[reject]` `Areas()` ignores an error from `GetAllDerivedClasses` — the call does not fail for a compiled class; theoretical.
+    - `[low]` `[reject]` `NextReset` throws for an interval that carries the next slot past year 9999 — the interval comes from the `Public` step's configuration (Story 3.8); the fix adds a guard for a value no one sets.
+    - `[low]` `[reject]` A package reload for a misplaced public class has no re-check — the spec's phase 5 only confirms the version; row 4 pins the class's destination after the reload.
+    - `[low]` `[reject]` `Registry.Run`'s refusal prints no `STEP` line — the same finding as the first Blind Hunter row.
+    - `[false]` `[reject]` `iris merge` can exit 0 after a failed action — the base-image probe (Code Map) records exit 7 for a failed action.
+    - `[low]` `[reject]` `Config.Databases.Get` status is ignored — the same finding as the Blind Hunter row.
+    - `[low]` `[reject]` `DaysToKeep` is not validated — the same finding as the Blind Hunter row.
+    - `[low]` `[reject]` The session has no timeout — the same finding as the Blind Hunter row.
+    - `[low]` `[reject]` A time with an offset or no `Z` is read as UTC — the contract says times are UTC with `Z`, and the writer is Story 3.8.
+    - `[false]` `[reject]` `Step.Tasks` has no OCUTALON guard — `Registry.Run` refuses any other namespace, and the step is reached only through it.
+    - `[low]` `[reject]` `PrivateData` reads only the data, index, id and stream locations — a class with SQL map storage does not exist in the product, and the spec names "storage globals".
+  - Verification Gap Reviewer (7, then 14 other findings):
+    - `[medium]` `[patch]` The Reconcile and Purge "other areas still ran" assertions cannot fail (the failing fixture sorted last) — the failing fixture is now `ZzBad<n>`, which sorts before `ZzFixture<n>`; mutation recorded (`Quit` after the first failure).
+    - `[low]` `[reject]` `TestRefusedKeys` reads "nothing stored" through the refusing accessor — the intent has every class and script, tests included, reach `^OcuTalonPublic` only through `Settings`, so a direct read would break that rule.
+    - `[medium]` `[patch]` The mapping confirmations of `PrivateData` never run in the failing direction — `TestMappingMismatchFails` runs the check through a runtime subclass against namespace `USER`; mutation recorded.
+    - `[low]` `[patch]` The prefix filter of `StorageGlobals` is unpinned — a second fixture class with a global that is not private is asserted absent; mutation recorded.
+    - `[low]` `[reject]` The "resolves to" branch of the public-class check has no test — after the merge restores the mappings the branch is close to unreachable, and a live test needs mapping changes outside the matrix.
+    - `[low]` `[patch]` The marker-write failure leg is unpinned — `test-after-start.sh` gains four checks with an unwritable marker directory; mutation recorded.
+    - `[low]` `[reject]` The three `%UnitTest` classes have no executed host in the repo — the intent runs rows 11 and 12 as `%UnitTest` on slot A; the CI host is Story 0.7.
+    - `[low]` `[patch]` AC 3 has no `mutation:` line — three lines written, each demonstrated red and reverted.
+    - `[low]` `[patch]` AC 4 has no `mutation:` line — one line written (`!src` dropped from `.dockerignore`), demonstrated red in two tests and reverted.
+    - `[low]` `[reject]` Some AC 1 bullets have no line of their own — one demonstrated mutation per AC is the bar; AC 1 now has three.
+    - `[low]` `[reject]` Row 7's Docker side (`Quit` after a failed step, `exit 0`) has no line — the spec's mutation for rows 7 and 9 is the marker without a `RESULT` line, recorded for both tests.
+    - `[low]` `[reject]` Row 8's `drop_marker` has no line — one mutation per row, and the spec's mutation for rows 2 and 8 is recorded.
+    - `[low]` `[reject]` Row 9's `session_rc` check has no line — the reviewer confirmed the test catches it; one mutation per row is recorded.
+    - `[low]` `[reject]` Row 12's other legs have no line — one mutation per row is recorded.
+    - `[low]` `[reject]` Row 11's store-before-refuse variant has no line — the same finding as the second Verification Gap row.
+    - `[low]` `[reject]` `TestPublicStep` skips when `OCUTALON_ONLINE_DEMO` is 1, and the flag-on branch is untested — AC 3 names the flag-off case; the flag-on values belong to Story 3.8.
+    - `[low]` `[patch]` `TestFixedKeysRoundTrip` takes its keys from the class under test — it now asserts the contract's list of thirteen; mutation recorded.
+    - `[low]` `[patch]` Row 3's compile-time check has no guard for an empty "before" value — the guard is added.
+    - `[low]` `[reject]` `Clean()` resets the fixture counter — the number is always 1, which is harmless: the tests create and remove their own fixtures.
+    - `[low]` `[reject]` A killed run leaves readiness cleared on the instance it ran against — the tests run on slot A and throwaway stacks only.
+    - `[low]` `[reject]` On a same-version restart the old marker stays valid while the merge runs — the spec's order (merge, then clear the marker and readiness) and AD-23 put it there; recorded as a residual risk.
+  - Intent Alignment Auditor (13 divergences):
+    - `[low]` `[reject]` Row 7's `RestartCount` 0 holds trivially under the throwaway override's `restart: "no"`, and "never healthy" is watched for 40 s inside the 600 s start period — the `Running` check catches an exit; the throwaway override is Story 0.1's.
+    - `[low]` `[reject]` The flag-on path of the `Public` step has no assertion — the same finding as the Verification Gap row.
+    - `[low]` `[patch]` No test observes the STEP summary in the container's output — `test-install-start.sh` row 1 now checks `docker logs`; it passes.
+    - `[low]` `[reject]` `after-start.cos` and `Registry.Run`'s refusal run only in the live tests — the matrix places them there.
+    - `[false]` `[reject]` The script has six path overrides and the intent names four — the spec's Tasks list names all six.
+    - `[low]` `[reject]` Slot A compiles the classes directly, not through IPM — the spec's Verification says so, and rows 1–7 run the IPM path live.
+    - `[low]` `[reject]` A stale `ready` stays when the accessor class is missing and a later step fails — the spec and AD-23 clear readiness only when the class exists; the case needs a deleted class and a failing step together.
+    - `[low]` `[reject]` Rows 6 and 7 are chained, so the failing image is V0 plus two — the semantics are the same: a failing image newer than the installed one.
+    - `[low]` `[reject]` Story 0.1's live test runs with `--after /bin/true` — the spec's Tasks list asks for that override.
+    - `[low]` `[reject]` The dev file's `name:` is checked statically, since live rows use `-p` — the spec's Tasks list asks for the static checks.
+    - `[low]` `[reject]` Network and ASCII rules are checked by text scans only — that is `test-boundaries.sh`'s design from Story 0.1.
+    - `[false]` `[reject]` The session script prints environment values — it prints the image version, the script's own variable that the spec names and that the `RESULT` contract carries.
+    - `[low]` `[reject]` `mktemp` is not POSIX — Story 0.1's tests already use it, and it exists on macOS and Linux.
+
 ## Design Notes
 
 **ADs:**
@@ -305,22 +370,68 @@ Spikes S1, S16 and S19.
 
 **Mutations to record (Rule 19):**
 - Row 1: swap `Tasks` and `SSL` in `Order()`; `test-install-start.sh` should go red.
+  - mutation: `"Web", "SSL", "Tasks", "Demo"` in `Registry.Order()` -> `test-install-start.sh` red (`row 1`, `row 2`, `row 3`, `row 4`: the log differs from the expected phases and steps)
 - Rows 2 and 8, DW-1: delete the `iris merge` call; `test-install-start.sh` (mapping not restored) and `test-after-start.sh` should go red.
+  - mutation: `merge_out=$(iris merge IRIS ...)` replaced by `merge_out=""` in `after-start.sh` -> `test-after-start.sh` red (7 checks: merge before session, merge on a copy, old marker present at the merge, and the four row 8 checks) and `test-install-start.sh` red (row 2: the restart ended with `PrivateData FAILED ... IRIS.IF.Zz`, so `row 2 the restart did not end ready within 200 s`)
+  - mutation: `iris merge IRIS "$merge_file"` (the image's file itself) in place of the merge of the temporary copy in `after-start.sh` -> `test-install-start.sh` red (row 2: the restart ended with `PrivateData FAILED ... IRIS.IF.Zz`, so `row 2 the restart did not end ready within 200 s`; `iris merge` skips a path whose `*.last_merge` record is unchanged)
+  - mutation: the failure leg of the marker write replaced by `finish "ready $image_version"` in `after-start.sh` -> `test-after-start.sh` red (`marker not writable: the log names the marker`, `marker not writable: the log ends not ready`)
 - Row 2: make the gate always load; red.
+  - mutation: `Set why="always"` in `after-start.cos` -> `test-install-start.sh` red (`row 1` to `row 4` log checks, and `row 2: the compile time of OcuTalon.Install.Registry changed`)
 - Row 3: ignore `OCUTALON_DEV`; red.
+  - mutation: `dev=0` in `after-start.cos` -> `test-install-start.sh` red (`row 3: the log differs`, `row 3: the compile time ... is unchanged after the dev start`)
 - Row 4: skip the public-class check; red.
+  - mutation: `Set bad=""` before the load decision in `after-start.cos` (the check's result is discarded) -> `test-install-start.sh` red (`row 4 the restart did not end ready within 200 s`)
 - Row 5: make `Bridge.Installer` reference `OcuTalon.Install.Registry`; red.
+  - mutation: `Quit ##class(OcuTalon.Install.Registry).Order() '= ""` in place of `Quit $$$OK` in `Bridge.Installer.Run()` -> `test-install-start.sh` red (exit 1; `row 5: the bridge loads and installs alone ... (1 of 6 values differ)`)
 - Row 6: load only when nothing is installed; `test-install-upgrade.sh` should go red.
+  - mutation: `Set why=$Select(inst="":"not installed",1:"")` in `after-start.cos` -> `test-install-upgrade.sh` red (`STEP session FAILED 'RESULT OK 0.1.0', the image is 0.1.1`, so `row 6 the upgrade did not end ready within 200 s`)
 - Rows 7 and 9: write the marker without a `RESULT` line; both tests should go red.
+  - mutation: the `-z "$result"` and `!= "RESULT OK $image_version"` checks deleted from `after-start.sh` -> `test-after-start.sh` red (5 checks: rows 7, 9 and 10 write a marker) and `test-install-upgrade.sh` red (`row 7: the marker holds '0.1.2'`, `row 7: Docker reported healthy`)
 - Row 11: let `Set` accept any key; red.
+  - mutation: `Quit 1` in `Settings.IsFixedKey` -> `OcuTalon.Test.Data.PublicSettings:TestRefusedKeys` red
 - Row 12: use `>=` at the boundary; red.
+  - mutation: `at <= from` in place of `at < from` in `Settings.NextReset` -> `OcuTalon.Test.Data.PublicSettings:TestNextReset` red (`at the anchor: the next slot`)
 - AC 1: let the task step overwrite an existing task, and drop the package-prefix filter; red.
+  - mutation: `Tasks.Create` deletes an existing task of the name and creates it again -> `OcuTalon.Test.Install.Registry:TestTasksStep` red (`the changed start time is kept`)
+  - mutation: the `OcuTalon.Install.Step.` prefix test deleted from `Registry.Areas` -> `OcuTalon.Test.Install.Registry:TestAreas` red (`a subclass outside OcuTalon.Install.Step is not`)
+  - mutation: `Quit` after the `AppendStatus` in `Registry.CallAreas`, so the loop stops at the first failing area -> `OcuTalon.Test.Install.Registry:TestReconcileStep` and `:TestPurge` red (`the other areas still ran`)
 - AC 2: drop the scan of the data database; red.
+  - mutation: `Set found = ""` in place of the first `$Order` over `OCUTALON_DATA`'s globals in `PrivateData.Check` -> `OcuTalon.Test.Install.PrivateData:TestPlantedGlobalFails` red
+  - mutation: `If 0 {` in place of the mismatch test of the sample-global loop in `PrivateData.Check` -> `OcuTalon.Test.Install.PrivateData:TestMappingMismatchFails` red (`a namespace without the private mappings fails`)
+  - mutation: `If 1 {` in place of the `OcuTalonP.`/`OcuTalonBP.` prefix test in `PrivateData.StorageGlobals` -> `OcuTalon.Test.Install.PrivateData:TestPrivateStorageGlobals` red (`a global without a private prefix is not`)
+- AC 3: a rewritten key list, a readiness that stores 0, and an online-demo flag that is always 1; red.
+  - mutation: `lastRest` in place of `lastReset` in `Settings`'s `KEYS` -> `OcuTalon.Test.Data.PublicSettings:TestFixedKeysRoundTrip` red (`the fixed keys are the contract's thirteen`)
+  - mutation: `Set ^OcuTalonPublic(..#READY) = 0` in `Settings.SetReady` -> `OcuTalon.Test.Data.PublicSettings:TestReadiness` red (`ready is 1`)
+  - mutation: `Set demo = 1` in `Step.Public.Run` -> `OcuTalon.Test.Data.PublicSettings:TestPublicStep` red (`onlineDemo is 0 without OCUTALON_ONLINE_DEMO`)
+- AC 4: drop `!src` from `.dockerignore`; red.
+  - mutation: the `!src` line deleted from `.dockerignore` -> `test-compose-file.sh` red (`dockerignore: every copied file or directory is allowed`) and `test-build-inputs.sh` red (`dockerignore: the build context differs from the files the Dockerfile copies`)
 - The dev file: `OCUTALON_DEV: "0"`; `test-compose-file.sh` should go red.
+  - mutation: `OCUTALON_DEV: "0"` in `docker-compose.dev.yml` -> `test-compose-file.sh` red (`dev: the file holds only the project name and OCUTALON_DEV "1"`, `dev: OCUTALON_DEV is "1" for the iris service`)
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planning only: halted after planning, as the dispatch asked. Nothing is implemented. The spec passed the READY FOR DEVELOPMENT gate on its first check.
+**Summary.** The after-start script (`docker/after-start.sh`, with its ObjectScript session `docker/after-start.cos`) now installs IPM 0.10.10 from the release file in the image, version-gates and loads the one package, runs the 15-step registry in AD-23's order and writes the marker atomically; a failure at any point leaves no marker and the container running. The registry, the step contract, `OcuTalon.Data.Public.Settings`, the bridge installer, the 13 step classes (five built: `Public`, `Roles`, `Tasks`, `Reconcile`, `PrivateData`; eight stubs) and the purge task are in `src/`. Story 0.1's image files and five tests are updated for the new layout, and the live helpers moved into `docker/tests/lib-live.sh`.
+
+**Files changed.**
+- Image: `docker/Dockerfile`, `.dockerignore`, `.gitattributes`, `docker-compose.dev.yml` (new), `src/module.xml`, `docker/ipm/zpm-0.10.10.xml` and `docker/ipm/LICENSE` (byte-identical to the spike's copies, sha256 checked).
+- After-start: `docker/after-start.sh`, `docker/after-start.cos`.
+- Classes: `src/bridge/cls/OcuTalon/Bridge/Installer.cls`; `src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls`; `.../Install/{Registry,Step}.cls`; `.../Install/Step/*.cls`; `.../Install/Task/Purge.cls`; `.../Test/{Data/PublicSettings,Install/Registry,Install/PrivateData}.cls`.
+- Tests: new `docker/tests/{lib-live.sh,compose.no-after-start.yml,test-after-start.sh,test-install-start.sh,test-install-upgrade.sh}`; updated `test-compose-start.sh`, `test-compose-file.sh`, `test-build-inputs.sh`, `test-boundaries.sh`. `docker-compose.yml` is untouched.
+
+**Deviation for the lead (Rule 20 candidate).** `docker/after-start.sh` merges a fresh temporary copy of the merge file, not the image's file itself: on build 154 `iris merge` does nothing for a path whose `*.last_merge` record is unchanged, so the literal `iris merge IRIS "$merge"` never restores a mapping removed by hand (DW-1). Demonstrated at review: merging the image's file directly makes row 2 end `PrivateData FAILED ... IRIS.IF.Zz`. The order (merge first) and the merge file are unchanged. AD-23's DW-1 sentence ("re-runs `iris merge` with the image's merge file at every start") could name the copy.
+
+**Review.** 56 findings from four layers: high 0, medium 2, low 49, false 5. Patched 10, all in tests or test scripts (no product code changed in review): the failing fixture area now sorts before the healthy one so "the other areas still ran" can fail (medium); `PrivateData`'s mapping confirmation is run in the failing direction through a runtime subclass against namespace `USER` (medium); a fixture with a global that is not private pins the storage-prefix filter; an unwritable marker directory in `test-after-start.sh`; the exact thirteen public keys in `TestFixedKeysRoundTrip`; row 3's empty-value guard; row 7's full 40 s watch; a `docker logs` check of the STEP summary in row 1; and `mutation:` lines for AC 3 and AC 4 plus the new tests. Deferred: none. Rejected: 46 findings, each with its reason in the Review Triage Log (guards beyond the spec, duplicates, theoretical cases, and findings whose fix the intent excludes).
+
+**Follow-up review recommended: true.** Two medium findings were patched. Unverified risk: the two new test seams (`TestMappingMismatchFails` relies on namespace `USER` resolving the sample globals outside `OCUTALON_PRIVATE`; the `ZzBad<n>` ordering relies on name collation) have had only the author's mutation runs, no second reviewer.
+
+**Verification.** Every `(loop)` command passed on the final tree: `test-after-start.sh` (48 checks), `test-healthcheck.sh`, `test-compose-file.sh`, `test-build-inputs.sh`, `test-boundaries.sh`; live `test-compose-start.sh` (72 s), `test-install-start.sh` (88 s, 30 checks), `test-install-upgrade.sh` (101 s, 22 checks), each in its own throwaway project with nothing left behind; slot A (build 154, port 52790): both `iris_doc_load` calls compiled, `PublicSettings` 5/5, `Registry` 8/8, `PrivateData` 4/4, and no fixture class, role, task or `^OcuTalonTest` node remains. The `(once)` run `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 bash docker/tests/test-install-start.sh` passed (56 s, 30 checks); `git status --short` lists only the files in Tasks. Mutations: all recorded lines were demonstrated red and reverted with a byte-identical tree (sha256 manifest before and after).
+
+**Residual risks.**
+- On a same-version restart the old marker stays valid while IRIS comes up and the merge runs, so Docker can report `healthy` for those seconds before this start's session has cleared readiness. This follows the spec's order (merge, then clear the marker) and AD-23.
+- A hung step has no timeout: the container stays `starting`, then `unhealthy`, with no end line in the log. Steps that wait (Story 0.6's `Production`) should bound their own waits.
+- In the health image HSLIB and HSSYS already map `%IPM`, so row 1 asserts "mapped into OCUTALON and not into USER", not "only OCUTALON".
+- The log carries the full IPM install transcript (about 700 lines on a first start).
+- Rows 6 and 7 are chained on one stack, so row 7's failing image is V0 plus two and the next good one V0 plus three.
