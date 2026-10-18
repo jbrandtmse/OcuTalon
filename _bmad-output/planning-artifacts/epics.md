@@ -770,8 +770,14 @@ So that I get a working, isolated OcuTalon without configuring IRIS by hand.
 
 **Given** the compose file
 **When** it is inspected
-**Then** it sets its own top-level `name:`, `stop_grace_period: 60s` on the IRIS service, and a health check with a `start_period` of at least 10 minutes that opens no IRIS session and passes only when `iris qlist` shows IRIS running and the ready marker equals the image's version (AD-23)
+**Then** it sets its own top-level `name:`, `stop_grace_period: 60s` on the IRIS service, and a health check with a `start_period` of at least 10 minutes that opens no IRIS session and passes only when `iris qlist | grep -q '\^running'` succeeds (build 154 separates `qlist`'s fields with `^`, so a `;running` pattern never matches; S1) and the ready marker equals the image's version (AD-23)
+**And** a test runs the health-check script and finds it failing while IRIS is down (`qlist` reads `^down, last used ...`), failing while the marker is missing or holds another version, and passing only when both conditions hold
 **And** it contains no mock service (CON-3), and `.env.example` lists `ANTHROPIC_API_KEY` and `TELEGRAM_BOT_TOKEN` with no values while `.env` is git-ignored (NFR-11)
+
+**Given** this story's `docker/merge.cpf`
+**When** the story finishes
+**Then** both developer slots run it (Rule 21): for each slot folder beside the main checkout (`ocutalon-slot-a`, then `ocutalon-slot-b`), the agent copies `docker/merge.cpf` into the slot's `config/` folder, stops the slot with `docker compose down`, empties its `iris-data/` folder (keeping the folder itself), starts it with `docker compose up -d --wait`, and re-applies its `_SYSTEM` password with the slot's `set-system-password.py`
+**And** through each slot's MCP profile, namespace OCUTALON has Interoperability enabled and AD-3's databases and mappings; if the directories `docker/merge.cpf` names don't match the slot's durable mount (`./iris-data` at `/durable`, `ISC_DATA_DIRECTORY` `/durable/iris`), the agent adjusts the slot's compose file, never the merge file
 
 ### Story 0.2: The package installs and upgrades itself at every start
 
