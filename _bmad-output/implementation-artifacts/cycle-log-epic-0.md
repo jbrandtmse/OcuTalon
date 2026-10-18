@@ -32,3 +32,10 @@
 2026-10-18T20:17:40Z	Epic 0	ledger_routed_planned	story=0-2-the-package-installs-and-upgrades-itself-at-every-start entries=1 excess=0 by=spec_gate
 2026-10-18T20:17:40Z	Epic 0	ledger_routed_planned	story=10-2-the-readme-gets-a-judge-from-download-to-sign-in entries=1 excess=0 by=spec_gate
 2026-10-18T20:17:40Z	Epic 0	epic_paused	reason=user_quota next=0.2_prewarm_then_plan note=planning_artifacts_newer_than_epic-0-context;rerun_prewarm_first
+2026-10-18T20:57:32Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed note=resume
+2026-10-18T20:57:32Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=none
+2026-10-18T20:57:32Z	Epic 0	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-18T20:57:32Z	Epic 0	telemetry_gate	pending=0 action=none
+2026-10-18T20:57:32Z	Epic 0	epic_branch_checked_out	repos=. head=4818461 mode=resume
+2026-10-18T20:57:32Z	Epic 0	ledger_load	total=3 open=0 routed=3 escalated=0 decision_pending=0 terminal=0 owner_unknown=0 burndown=0 reowned_none=0
+2026-10-18T20:57:39Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=resume_rerun_tracker_in_sync

@@ -8,7 +8,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
 ## Stories
 
-- Story 0.1: The image builds and starts OcuTalon in its own namespace
+- Story 0.1: The image builds and starts OcuTalon in its own namespace (done)
 - Story 0.2: The package installs and upgrades itself at every start
 - Story 0.3: Sign in to an empty OcuTalon page
 - Story 0.4: The cross-lane message and data contracts
@@ -51,53 +51,55 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 ### Governing rules (by AD id)
 
 - **AD-2 (one package, separable bridge):**
-  - "OcuTalon ships **one** IPM package, `ocutalon`." `src/module.xml` lists the bridge's resources (`src/bridge/`: `OcuTalon.Bridge`, `OcuTalon.BridgeExample`) "before everything else (`src/ocutalon/`), plus the Angular app's built bundle."
-  - `src/bridge/` loads with `$SYSTEM.OBJ.LoadDir`, and `OcuTalon.Bridge.Installer` sets it up. "OcuTalon's installer calls it as its first step."
+  - OcuTalon ships one IPM package, `ocutalon`. `src/module.xml` lists the bridge's resources (`src/bridge/`: `OcuTalon.Bridge`, `OcuTalon.BridgeExample`) before everything else (`src/ocutalon/`), plus the Angular app's built bundle.
+  - `src/bridge/` also loads alone with `$SYSTEM.OBJ.LoadDir`, and `OcuTalon.Bridge.Installer` sets it up. OcuTalon's installer calls it as its first step.
   - CI fails if any `OcuTalon.Bridge` class references another `OcuTalon` package. CI also fails if any class outside `OcuTalon.Bridge`, `.BridgeExample`, `.Agent`, `.Tools`, `.Docs`, `.Memory`, `.Mcp`, `.Install` and `.Test` (matched as whole package names) references `%AI` or `EnsLib.AI`.
   - `OwnerRef` is exactly a `SessionRef`, `instance` or `eval`.
 - **AD-3 (namespaces and databases):**
   - OCUTALON has code, data, private and public (`OCUTALON_PUBLIC`, public Read) databases.
   - The public database holds only `OcuTalon.Web.Public`, `OcuTalon.Data.Public` and `^OcuTalonPublic`. Those packages may reference only `%CSP` (including `%CSP.REST`), dynamic objects, `$SYSTEM.License`, `$SYSTEM.Status`, `$SYSTEM.Encryption` and each other.
   - The status class overrides `%CSP.REST.AccessCheck`.
-  - "Global mappings put those two prefixes (written `OcuTalonP.*` and `OcuTalonBP.*`, with the dot, so `^OcuTalonPublic` stays in the public database ...), `^AI.Agent.Session*` and `^IRIS.IF.*` in the private database."
-  - "Mappings come first": the databases and mappings exist before any class compiles.
+  - Global mappings put `OcuTalonP.*` and `OcuTalonBP.*` (written with the dot, so `^OcuTalonPublic` stays in the public database), `^AI.Agent.Session*` and `^IRIS.IF.*` in the private database.
+  - Mappings come first: the databases and mappings exist before any class compiles.
   - `OcuTalon.Production` is not autostart on Docker.
   - Only `OcuTalon.Install.*`, `OcuTalon.Bridge.Installer` (to `%SYS`) and `Install.Step.Demo` (to OCUORDERS) switch namespace in Epic 0's code, each in one method with `New $NAMESPACE`.
   - On the non-Health image, `Interop=1` only enables Interoperability: there is no Foundation production, and the default web application is `/csp/<ns>`. Nothing may depend on either.
 - **AD-5 (durable state):**
   - All state lives on the durable volume, and an install replaces only code.
-  - "Storage is append-only ... Every such class's source carries its compiler-generated `Storage` block." Never edit a storage block by hand.
+  - Storage is append-only, and every such class's source carries its compiler-generated `Storage` block. Never edit a storage block by hand.
   - The production class holds structure only. Values go in System Default Settings, bridge tables or `OcuTalon.Data.Setting`.
 - **AD-19 (configuration homes):**
   - Model keys and bot tokens are environment-only, read through `@{env:VAR}` or `$SYSTEM.Util.GetEnviron`.
   - Endpoint overrides are `OCUTALON_MODEL_BASE_URL` (ending `/v1/`), `OCUTALON_EXTRA_CA_FILE` and `OCUTALON_TELEGRAM_API_BASE`. Only the CI override and the online demo set them.
   - The installer marks every value it writes `structural` (rewritten every start) or `seed` (written only when absent).
-  - `OcuTalon.Data.Public.Settings` "is their only reader and writer ... with no exception". It is fully implemented here: `Get`, `Set` for the fixed keys only, `ClearReady`, `SetReady` and `NextReset`. CI fails if any other class references `^OcuTalonPublic`.
+  - `OcuTalon.Data.Public.Settings` is the only reader and writer of `^OcuTalonPublic`, with no exception. It is fully implemented here: `Get`, `Set` for the fixed keys only, `ClearReady`, `SetReady` and `NextReset`. CI fails if any other class references `^OcuTalonPublic`.
   - `OcuTalon.Data.Setting.Get` serves product values through a 60-second cache.
 - **AD-23 (image and installer):**
   - **Image:**
     - One Dockerfile is built `FROM ocutalon-iris-base:2026.3.0AI.154.0`.
     - Every compose file sets its own top-level `name:`, and the IRIS service sets `stop_grace_period: 60s`.
     - The mount directory is owned by UID 51773; without that, IRIS can't start on a fresh volume.
-  - **The CPF merge** (`docker/merge.cpf`) creates the databases, namespace and mappings and enables `%Service_CallIn` at every start, idempotently.
+    - The judges' compose file publishes only the web port, `${OCUTALON_WEB_PORT:-52773}`, on every host interface, with no superserver port. This is the author's decision; the README warns that the portal is reachable from the LAN until the default passwords are changed.
+  - **The CPF merge** (`docker/merge.cpf`) creates the databases, namespace and mappings and enables `%Service_CallIn`, idempotently, at every start. On build 154, `iris-main` applies `ISC_CPF_MERGE_FILE` only at the first start and whenever the file changes, after IRIS is up. So the after-start script re-runs `iris merge` itself at every start, which also repairs a mapping removed by hand.
   - **The after-start script** runs under OS authentication, in this order:
-    1. delete the ready marker and clear readiness;
-    2. install IPM 0.10.10 into `%SYS`, mapped into OCUTALON only, and load the package, version-gated (`OCUTALON_DEV=1` reloads it every time). Before the gate, check that the public classes resolve to `OCUTALON_PUBLIC` and force a load if not;
-    3. run the steps: `Bridge.Installer`, `Public`, roles and users, web applications, SSL, tasks, `Demo`, Config Store, audit events, Telegram;
-    4. run `Production`;
-    5. run `Reconcile`;
-    6. `Public` runs `SetReady`;
-    7. write the ready marker, atomically.
+    1. re-run `iris merge` with the image's merge file, before any other step;
+    2. delete the ready marker and clear readiness;
+    3. install IPM 0.10.10 into `%SYS`, mapped into OCUTALON only, and load the package, version-gated (`OCUTALON_DEV=1` reloads it every time). Before the gate, check that the public classes resolve to `OCUTALON_PUBLIC` and force a load if not;
+    4. run the steps: `Bridge.Installer`, `Public`, roles and users, web applications, SSL, tasks, `Demo`, Config Store, audit events, Telegram;
+    5. run `Production`;
+    6. run `Reconcile`;
+    7. `Public` runs `SetReady`;
+    8. write the ready marker, atomically.
 
-    The script "always exits 0". A failure logs the failing step and writes no marker.
-  - **The health check:** "opens no IRIS session ... `iris qlist | grep -q '\^running'` ... and the ready marker equals the image's version". Its `start_period` is at least 10 minutes.
+    The script always exits 0. A failure logs the failing step and writes no marker.
+  - **The health check** opens no IRIS session. It passes only when `iris qlist | grep -q '\^running'` succeeds and the ready marker equals the image's version. Its `start_period` is at least 10 minutes.
   - **Static web files** go under the instance's durable data directory (`csp/ocutalon/`, through IPM's data-directory variable), never IPM's read-only CSP-directory variable.
   - **Version check:** check the version inside the built image, because a cached build context can bake in stale sources.
   - **Private-data check:** every start ends by confirming that the private globals resolve to the private database.
   - **Step registry:** areas declare `Grants()`, `Reconcile()`, `Tasks()` and `Purge(daysToKeep)`. The task step creates each task once and leaves an existing task alone.
 - **AD-13 (web applications and sign-in):**
   - `/ocutalon` (the built Angular files and the login page; `PermittedClasses` limited to those classes) and `/ocutalon/api` (`OcuTalon.Web.Api`, `%CSP.REST`, `/v1`) share one CSP session, with `SessionScope` strict and no CORS.
-  - Both, plus the trace applications, are in one sign-in group, `GroupById` `OcuTalon`, "never `%ISCMgtPortal`".
+  - Both, plus the trace applications, are in one sign-in group, `GroupById` `OcuTalon`, never `%ISCMgtPortal`.
   - `OcuTalonUser` holds no database resources directly; the applications grant them as application roles.
   - The login page `OcuTalon.Web.Public.Login` is a `%CSP.Login` subclass loaded from `OCUTALON_PUBLIC`, with no Angular. It keeps the form contract: fields `IRISUsername`, `IRISPassword` and `IRISLogin`, `InsertHiddenFields`, and `OnPreHTTP` calling the superclass.
   - The login page carries its styles inline, generated at build time, with no `style=` attributes. Its CSP header is `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`.
@@ -120,7 +122,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - Trace targets are `TraceHeaderId` and `TraceNamespace`.
   - Polling is the release-1 contract; the WebSocket comes second.
 - **Contract semantics fixed in Epic 0:**
-  - **`Commands.Submit` (AD-1):** sets `Origin` from the authenticated context, "`tool` whenever a bridge context is active". Origins are `web_user`, `web_admin`, `telegram`, `tool`, `timer` and `system`.
+  - **`Commands.Submit` (AD-1):** sets `Origin` from the authenticated context, always `tool` while a bridge context is active. Origins are `web_user`, `web_admin`, `telegram`, `tool`, `timer` and `system`.
   - **`Reply.Busy` (AD-6):** set when `Decide` refused a `turn` after a 2-second lock wait. The `Reply` carries no text and no decision, and busy is never an error status.
   - **`Decision` (AD-20):** unique on (`ItemId`, `Kind`).
   - **Compaction prompt (AD-20):** a constant whose first line starts `OCUTALON-COMPACTION-V1`.
@@ -216,7 +218,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 - **S3 (passed):** the Anthropic `base_url` reaches a mock over HTTP, so no CA or host alias is needed. `base_url` ends `/v1/`.
 - **S12 (passed):** the non-Health image runs the same Dockerfile, with no Foundation installer (a first start of about 20 seconds). Its web server is on.
 - **S16 (passed):**
-  - The package-mapped login page and status class dispatch before sign-in with no roles, at install and after an upgrade, in both namespaces.
+  - The package-mapped login page and status class dispatch before sign-in with no roles, at install and after an upgrade, in both namespaces. S16 also confirmed the merge actions through `iris merge` on a running instance.
   - A mapping created after a compile hides the classes, hence the check that they resolve to `OCUTALON_PUBLIC` and the forced reload.
   - The status class must override `AccessCheck`.
 - **S7 (partial):** one sign-in group opens the trace applications with no second sign-in. That requires exactly the seven permitted classes and the trace role's code-database Read and `Ens.MessageHeader` `SELECT`.
@@ -246,14 +248,28 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
 ## Cross-Story Dependencies
 
-- **0.1 → 0.2:** the merge file's databases and mappings must exist before anything compiles, and the health check reads the marker that 0.2's script writes.
-- **0.1, developer slots:** when 0.1 finishes, both developer slots (`ocutalon-slot-a`, then `ocutalon-slot-b`) get the new `merge.cpf`. Adjust a slot's compose file, never the merge file. The slots use the base image without the after-start script: code goes in through the IRIS MCP tools, and installer steps are run explicitly. The after-start install and destructive tests run only in throwaway compose stacks and CI.
+- **Delivered so far (Story 0.1, done).** Later stories build on these contracts:
+  - **Image version:** the first `<Version>` of `src/module.xml` (identity only so far: `ocutalon`, `0.1.0`, no resources) is baked into `/opt/ocutalon/version`, and the build fails if it is empty. Story 0.2 adds the resources.
+  - **Ready marker:** `/durable/ocutalon.ready` holds one line, the version. Story 0.2's after-start script writes it atomically: a temporary file in `/durable`, then `mv`. Until 0.2 lands, a container stays `starting` and then turns `unhealthy`, by design.
+  - **`docker/healthcheck.sh`:** passes only when `iris qlist` shows `^running` and the non-empty version file equals the marker. Its `OCUTALON_VERSION_FILE` and `OCUTALON_READY_MARKER` variables exist only for the hermetic test.
+  - **`docker/merge.cpf`:** uses relative database directories, which land in `/durable/iris/mgr/ocutalon_{code,data,private,public}/` under `ISC_DATA_DIRECTORY=/durable/iris`. They stay relative so S19's package CPF file can be this file minus the CallIn and IPM lines. It also maps `^OcuTalonPublic` and the two public packages to the public database.
+  - **`docker/Dockerfile`:** `ARG IRIS_IMAGE`, `/durable` owned by 51773, and the merge file, `module.xml` and health check under `/opt/ocutalon/`. It then sets `USER 51773`, with `ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf`.
+  - **`.dockerignore`:** `*`, then an allow-list of the copied files. Every file a later story copies into the image (sources, the IPM release file, the after-start script) must be added to it.
+  - **`docker-compose.yml`:** `name: ocutalon`, one service `iris` (`pull_policy: build`, `restart: unless-stopped`), `env_file` `.env` with `required: false`, the web port only, volume `durable:/durable`, and a health check with `start_period: 600s`.
+  - **Bash tests under `docker/tests/`:** `test-*.sh`, each runnable alone and exiting 0 on success. The live `test-compose-start.sh` uses a throwaway project with `compose.throwaway.yml`, which resets the ports and `env_file`. It forces `iris-main`'s merge by removing or editing the `*.last_merge` record, and it counts the `Merging /opt/ocutalon/merge.cpf` lines in `messages.log`. Story 0.2's per-start re-merge may change that count.
+- **0.1 → 0.2:** 0.2 hooks the after-start script into `iris-main` (`--after`), writes the marker, adds the `module.xml` resources and extends the `.dockerignore` allow-list. The script starts with the per-start `iris merge`.
+- **Developer slots:** both slots (`ocutalon-slot-a`, then `ocutalon-slot-b`) run 0.1's `merge.cpf`, copied to the slot's `config/`. Adjust a slot's mount or `ISC_DATA_DIRECTORY`, never the merge file. The slots use the base image without the after-start script: code goes in through the IRIS MCP tools, and installer steps are run explicitly. The after-start install and destructive tests run only in throwaway compose stacks and CI.
 - **0.2:** provides the step registry, the step order and `Data.Public.Settings`. Its `Production` step is a stub that 0.6 builds. 0.3's web-applications and role steps slot into its order. The OCUORDERS trace application and grants are created only by or after the `Demo` step (0.6).
+- **0.3:** uses 0.1's web port and public package mappings.
 - **0.4:** its contracts feed 0.5 (live payloads and their TypeScript interfaces) and 0.6 (items, `Commands.Submit`, `Catalog.Render` callers).
 - **0.6 → 0.7:** 0.6's constants (`MOCKKEY`, tool names, compaction prefix) are what 0.7's mock keys on.
 - **0.7 → 0.8:** 0.7's checks gate everything above. 0.8 runs in 0.7's IRIS job and needs 0.3's sign-in and 0.5's `/state`.
-- **0.7 and CI:** 0.7 also updates `_bmad/custom/skill-rules.md` (the IRIS test recipe, shard command, timings) and `_bmad/custom/parallel.yaml` (bootstrap, runtime locks). CI must run on `feature/OCT_OcuTalon_MVP` and `OCT-epic*` with no `cancel-in-progress`.
-- **Later epics:** Epic 1 (Lane A) and Epic 2 (Lane B) both start from Epic 0 and test against its stubs and the mock. Stub owners:
+- **0.7 and CI:**
+  - The CI override extends 0.1's compose file, and CI runs `docker/tests/test-*.sh`, the live one on the IRIS runner.
+  - 0.7 also updates `_bmad/custom/skill-rules.md` (the IRIS test recipe, shard command, timings) and `_bmad/custom/parallel.yaml` (bootstrap, runtime locks).
+  - CI must run on `feature/OCT_OcuTalon_MVP` and `OCT-epic*` with no `cancel-in-progress`.
+- **Epic 10 (from 0.1's compose file):** `install.sh` uses `IRIS_IMAGE`. The `env_file` with `required: false` needs Docker Compose 2.24 or later, so Story 10.1's `install.sh` refuses an older Compose and Story 10.2's README states the minimum. Story 10.2's README also carries the LAN-exposure warning for the published web port.
+- **Later epics:** Epic 1 (Lane A) and Epic 2 (Lane B) both start from Epic 0 and test against its stubs and the mock. Epic 15 derives `src/cpf/ocutalon.cpf` from `docker/merge.cpf`. Stub owners:
   - `BridgeSink`: Story 2.6
   - `Delivery`: Story 2.7
   - `Allowance` and `Trace.Join`: Stories 2.4 and 2.9
