@@ -813,6 +813,8 @@ So that every start lands on the right version of the code without touching data
 **When** `src/bridge/` is loaded with `$SYSTEM.OBJ.LoadDir` and `OcuTalon.Bridge.Installer` is run
 **Then** the bridge's (stub) classes compile and install without any other OcuTalon package (AD-2)
 
+- DW-1: Build 154's `iris-main` applies `ISC_CPF_MERGE_FILE` only at the first start and whenever it changes, so the after-start script re-runs `iris merge` with the image's merge file at every start, before its other steps, keeping AD-23's merge at every start true and repairing a mapping removed by hand (ledger; routed by spec_gate 2026-10-18)
+
 ### Story 0.3: Sign in to an empty OcuTalon page
 
 As a judge using a local install,
@@ -3113,6 +3115,8 @@ So that I can try it without help and trust that it claims only what the release
 **When** CI's public-text check and the author's review run
 **Then** it credits the BMAD Method and Claude Code, carries the note "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation." word for word, points to the third-party licence notices, and contains no key, local machine path, private infrastructure detail or name of another contest entrant (FR-58, CON-2, CON-5)
 **And** it names no other model provider and no Telegram setup yet, because other providers arrive with step 2 and the Telegram section with Epic 12, so it never claims more than the release ships (FR-58)
+
+- DW-3: The judges' compose file publishes the web port on every host interface by the author's decision (AD-23); the README warns that the Management Portal is reachable from the LAN until the default and README-account passwords are changed (ledger; routed by spec_gate 2026-10-18)
 
 ### Story 10.3: The session side of Telegram is ready and stays off
 

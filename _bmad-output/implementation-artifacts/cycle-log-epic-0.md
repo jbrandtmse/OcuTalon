@@ -26,3 +26,9 @@
 2026-10-18T18:24:19Z	Story 0.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
 2026-10-18T18:29:47Z	Story 0.1	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=slots_a_b_recreated_with_docker/merge.cpf;merge_no_errors;MCP_ocutalon-slot-a_and_-b:interop=1,4_dbs_in_/durable/iris/mgr,public_mask=R,callin=1/48,globals_and_packages_resolve_per_AD-3 model=claude-opus-5-5
 2026-10-18T18:29:47Z	Story 0.1	fresh_check	env=clean-checkout tests=5 result=pass order=forward,reverse pass_lines=76 leftovers=none
+2026-10-18T18:30:10Z	Story 0.1	committed	sha=854c6fb submodules= ci=none run=none amendments=none note=DW-2_bullet_epics.md:3083,spine_Deferred_DW-1_DW-3
+2026-10-18T18:30:10Z	Story 0.1	story_cycle	plan_to_commit_min=134 implement_passes=1 reviews=1 rework=0 first_ci=none models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-10-18T20:17:40Z	Epic 0	spine_updated	ad=AD-23 reason=clarification by=lead story=0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace lint=ok note=DW-1_re-merge_every_start,DW-3_every_interface;Deferred_rows_removed
+2026-10-18T20:17:40Z	Epic 0	ledger_routed_planned	story=0-2-the-package-installs-and-upgrades-itself-at-every-start entries=1 excess=0 by=spec_gate
+2026-10-18T20:17:40Z	Epic 0	ledger_routed_planned	story=10-2-the-readme-gets-a-judge-from-download-to-sign-in entries=1 excess=0 by=spec_gate
+2026-10-18T20:17:40Z	Epic 0	epic_paused	reason=user_quota next=0.2_prewarm_then_plan note=planning_artifacts_newer_than_epic-0-context;rerun_prewarm_first

@@ -179,6 +179,10 @@ Rejected:
 - KEEP: the relative `Directory=` values (they resolved to `/durable/iris/mgr/<dir>/`, so no switch to absolute paths); the `restart_round` helper; the filter control for the merge log.
 - For the lead (Rule 20, light path): word AD-23's merge sentence and Rule 21's "the merge reapplies at every start" as "at the first start and whenever `merge.cpf` changes". Story 0.2's after-start script may run `iris merge` explicitly where it needs a guaranteed reapply (see `deferred:`).
 
+### 2026-10-18 -- Author decisions on DW-1 and DW-3 (lead, after the story was committed)
+- DW-1: the author kept AD-23's merge at every start. AD-23 now says that build 154's `iris-main` merges only at the first start and on change, and that the after-start script re-runs `iris merge` at every start (Story 0.2, `DW-1:` bullet). Rule 21's slot note now says to wait for `*.last_merge` to match.
+- DW-3: the author kept the web port on every host interface. AD-23 records it, and Story 10.2's README warns about it (`DW-3:` bullet).
+
 ## Review Triage Log
 
 ### 2026-10-18 -- Review pass
