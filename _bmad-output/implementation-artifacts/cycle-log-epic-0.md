@@ -18,3 +18,11 @@
 2026-10-18T17:24:24Z	Epic 0	spine_updated	ad=deferred reason=clarification by=lead story=0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace lint=ok note=DW-1_mirrored_4_preexisting_placeholder_false_positives
 2026-10-18T17:24:24Z	Story 0.1	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=lead_slot_AC_runs_after_code_review model=claude-opus-5-5
 2026-10-18T17:24:25Z	Story 0.1	stage_spawned	stage=qa spawn_at=2026-10-18T17:24:25Z model=claude-sonnet-5-5 agent_name=0-1-qa-1 cycle_iteration=1
+2026-10-18T17:45:54Z	Story 0.1	qa_complete	spawn_at=2026-10-18T17:24:25Z model=claude-sonnet-5-5 tests=docker/tests/test-build-inputs.sh,docker/tests/test-boundaries.sh tests_added=2 tests_changed=2 mutations_demonstrated=25 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-10-18T17:45:54Z	Story 0.1	stage_spawned	stage=code-review spawn_at=2026-10-18T17:45:54Z model=claude-opus-5-5 agent_name=0-1-code-review-1 cycle_iteration=1
+2026-10-18T18:24:19Z	Story 0.1	cr_complete	spawn_at=2026-10-18T17:45:54Z model=claude-opus-5-5 resolved=15 fixed_at_source=15 by_design=0 wontfix_theoretical=0 routed=1 escalated=0 decision_pending=1 deferred=2 dismissed=7 high=0 med=5 low=12 rows=38 unresolved_high_med=2 clarifications=0 closing_sections_present=true review_tier=full-opus final_status=done cycle_iteration=1
+2026-10-18T18:24:19Z	Epic 0	ledger_routed_planned	story=10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to entries=1 excess=0 by=cr
+2026-10-18T18:24:19Z	Epic 0	spine_updated	ad=deferred reason=clarification by=lead story=0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace lint=ok note=DW-3_mirrored
+2026-10-18T18:24:19Z	Story 0.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
+2026-10-18T18:29:47Z	Story 0.1	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=slots_a_b_recreated_with_docker/merge.cpf;merge_no_errors;MCP_ocutalon-slot-a_and_-b:interop=1,4_dbs_in_/durable/iris/mgr,public_mask=R,callin=1/48,globals_and_packages_resolve_per_AD-3 model=claude-opus-5-5
+2026-10-18T18:29:47Z	Story 0.1	fresh_check	env=clean-checkout tests=5 result=pass order=forward,reverse pass_lines=76 leftovers=none

@@ -1,5 +1,7 @@
-# Test-only override for throwaway projects: publishes no host port and passes no keys into the container.
+# Test-only override for throwaway projects: publishes no host port, passes no keys into the container,
+# and never restarts on its own, so a run killed before its cleanup does not come back after a Docker restart.
 services:
   iris:
     ports: !reset []
     env_file: !reset []
+    restart: "no"

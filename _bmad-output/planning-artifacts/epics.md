@@ -3080,6 +3080,8 @@ So that I get a running OcuTalon without learning the image's tag rules or the c
 **Then** ShellCheck and scripted tests with a stub `docker` cover every branch above on hosted Linux and macOS runners, the macOS run using the shell macOS ships with (FR-55, NFR-22, REL-4)
 **And** one job on the IRIS runner runs the real script in a throwaway compose project until it reports healthy, then removes the retag, retags by the README's manual command and checks that a plain `docker compose up` reaches healthy on the same volume (FR-55, AD-22, AD-23)
 
+- DW-2: The judges' compose file needs Docker Compose 2.24 or later (`env_file` with `required: false`), and nothing checks or states it; `install.sh` refuses an older Compose with the exact fix, and Story 10.2's README states the minimum (ledger; routed by cr 2026-10-18)
+
 ### Story 10.2: The README gets a judge from download to sign-in
 
 As a judge,

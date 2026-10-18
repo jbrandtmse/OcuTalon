@@ -139,6 +139,37 @@ Rows 1–6 run `docker/healthcheck.sh` hermetically, with a fake `iris` on `PATH
     5. `python3 set-system-password.py`.
   - The slot compose file needs no change: with `ISC_DATA_DIRECTORY=/durable/iris`, the relative directories land in `./iris-data/iris/mgr/`. If one lands elsewhere, the lead fixes the slot's mount or `ISC_DATA_DIRECTORY`, never the merge file.
 
+### Review Findings
+
+Code review, 2026-10-18 (`bmad-code-review`, full mode, four layers). The layers reported 38 rows. Ten were rejected (seven lines under Rejected below), and the other 28 grouped into 16 entries. With the implement stage's residual note that makes 17 entries: 0 high, 5 medium, 12 low. All 15 patch entries were applied. The other two were ledgered (DW-2, DW-3), and DW-1 got an evidence trailer.
+
+- [x] [Review][Patch] [med] Readiness raced the merge: build 154's iris-main runs `iris merge` after it logs `...started InterSystems IRIS instance`, so in the changed-merge-file round `iris_ready` (qlist running and any `*.last_merge`) could pass before this start's merge. `iris_ready` now requires the record to equal `/opt/ocutalon/merge.cpf` (`cmp -s`). [docker/tests/test-compose-start.sh:iris_ready] fix-risk low.
+- [x] [Review][Patch] [med] AC 2's "without errors" could not see a real merge failure: build 154 logs a failed action at severity 1 (`ERROR #503`/`#507`), and the filter read only severity 2 and 3. `merge_errors` now also flags `ERROR #` lines, its control holds the recorded `ERROR #507` line, and the first start's merge is checked too. A live run showed that a failed merge leaves no record, so readiness never comes (DW-1 trailer). [docker/tests/test-compose-start.sh:merge_errors] fix-risk low.
+- [x] [Review][Patch] [med] "Receives no keys" depended on a `.env` the test did not create (Rule 19). The test now writes its own decoy key file into an extra override, which `compose.throwaway.yml`'s reset must drop. [docker/tests/test-compose-start.sh:dc] fix-risk low.
+- [x] [Review][Patch] [low] The plain restart rounds never confirmed a restart. The exit codes of stop, start and down are now checked; the start time must change, and a recreate must give a new container. [docker/tests/test-compose-start.sh:restart_round]
+- [x] [Review][Patch] [low] `git: .env is ignored` passed when a later rule negates it (`-v` prints `!.env`). It now needs `-q` and a non-negated `.gitignore` source. [docker/tests/test-compose-file.sh:git_ignores]
+- [x] [Review][Patch] [low] `git: .env.example is not ignored` could not fail on a tracked file. It now uses `--no-index`. [docker/tests/test-compose-file.sh:git_does_not_ignore]
+- [x] [Review][Patch] [low] The project name was not pinned; it must now be exactly `name: ocutalon`. [docker/tests/test-compose-file.sh:79]
+- [x] [Review][Patch] [low] The boundary scanner missed `docker compose ... push`, `dc push`, `docker image push`, `--push`, `convert`, `docker-compose` and `--format` templates that print `.Config.Env` or `{{json .}}`. It is widened, with five new controls. [docker/tests/test-boundaries.sh:risky_docker_calls]
+- [x] [Review][Patch] [low] The LF rule left out `.dockerignore` and `.env.example`, whose exact-match checks fail on CRLF. Both are added and pinned by `files_keep_lf`. [.gitattributes]
+- [x] [Review][Patch] [low] `docker/** text` would force any future binary under `docker/` to be treated as text; it is now `text=auto`. [.gitattributes]
+- [x] [Review][Patch] [low] There was no overall time budget: the capped waits add up to about 815 s, against the "under 9" minutes stated under Verification. A 540 s deadline now bounds every wait. [docker/tests/test-compose-start.sh]
+- [x] [Review][Patch] [low] Nothing pinned the read-only copies under `/opt/ocutalon`. The live test now checks their owner and mode (root; 444, or 555 for the health check). [docker/tests/test-compose-start.sh]
+- [x] [Review][Patch] [low] The throwaway override kept `restart: unless-stopped`; it now has `restart: "no"`. [docker/tests/compose.throwaway.yml]
+- [x] [Review][Patch] [low] Only `run_check` retried an IRIS session that printed nothing; `check_probes`, the first session after each restart, did not. The retry now lives in `iris_script`. [docker/tests/test-compose-start.sh:iris_script]
+- [x] [Review][Patch] [low] `.env.example` did not mention `OCUTALON_WEB_PORT`; it now has one comment line. [.env.example]
+- [x] [Review][Defer] [med] Docker Compose 2.24 or later is needed (`env_file` with `required: false`), and nothing checks or states that. DW-2 is routed to `10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to` (the install script refuses an older Compose, and Story 10.2's README states the minimum). This is the implement stage's residual note.
+- [x] [Review][Defer] [med] The web port is published on every host interface while a fresh volume holds default credentials. DW-3 is decision-pending for the author (spec-bound `ports` line; a product and security call).
+
+Rejected:
+- Blind Hunter: the spec is marked done while AC 2 says the merge reapplies at every start. This is DW-1, already ledgered as decision-pending. It is not a new occurrence; this review appended evidence to it.
+- Blind Hunter, Edge Case, Verification Gap, Acceptance Auditor: the closing records are stale after QA (26 checks against 29, file lists, the `git status` line, 32 PASS lines). Fixing them means editing the spec, so that is left to the lead or Finalize.
+- Edge Case: a precondition failure in `forget_last_merge`/`change_last_merge` is silent. Low: the round still goes red on the Merging count, only one record can exist, and the fix adds guards.
+- Edge Case: the `/home/irisowner` exclusion in the path scanner drops the whole line. Theoretical: it needs a line that holds both paths.
+- Edge Case: `$files` is unquoted in `scan_rule`. Theoretical: no file in scope has whitespace in its name, and the fix adds array handling.
+- Acceptance Auditor: `test-build-inputs.sh` needs the build 154 image, but the Design Notes hand-off names only the live test for the IRIS runner. Fixing the note means editing the spec; the script's header states the requirement, and Story 0.7 must place the script on the IRIS runner.
+- Acceptance Auditor: the health check's path variables can be reached through `.env`. Theoretical: it needs a deliberate `.env` line naming an undocumented variable. Reopen if `.env.example` or the README ever names them.
+
 ## Spec Change Log
 
 ### 2026-10-18 -- Implement-stage observation (no loopback)
@@ -223,6 +254,8 @@ Rows 1–6 run `docker/healthcheck.sh` hermetically, with a fake `iris` on `PATH
 - `(loop)` `bash docker/tests/test-healthcheck.sh` -- expected: exit 0, PASS for rows 1–6.
 - `(loop)` `bash docker/tests/test-compose-file.sh` -- expected: exit 0.
 - `(loop)` `bash docker/tests/test-compose-start.sh` (`timeout: 600000`) -- expected: exit 0 in about 3 to 5 minutes, under 9 even with every wait capped. Afterwards `docker compose ls -a` and `docker volume ls` show nothing named `ocutalon-t01-*`.
+- `(loop)` `bash docker/tests/test-build-inputs.sh` (QA) -- expected: exit 0 in under 10 s: the build context carries only the Dockerfile's COPY sources, and `IRIS_IMAGE` reaches `FROM`.
+- `(loop)` `bash docker/tests/test-boundaries.sh` (QA) -- expected: exit 0: ASCII only, no local path or key-like string, no push or sign-in, `config` only with `--quiet`, `inspect` only with `--format`.
 - `(once)` `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 docker compose -p ocutalon-t01-plain -f docker-compose.yml -f docker/tests/compose.throwaway.yml build && test "$(docker run --rm --entrypoint iris ocutalon-t01-plain-iris qlist | cut -d^ -f10)" = IRIS; rc=$?; docker image rm -f ocutalon-t01-plain-iris >/dev/null; [ $rc -eq 0 ]` -- expected: exit 0. This builds the non-Health image without starting IRIS.
 - `(once)` `git status --short` -- expected: only the files listed in Tasks.
 
@@ -255,7 +288,30 @@ Rows 1–6 run `docker/healthcheck.sh` hermetically, with a fake `iris` on `PATH
 - mutation: `Directory=ocutalon_code` changed to `Directory=/durable/iris/mgr/ocutalon_code` in `docker/merge.cpf` -> `test-compose-file.sh` went red (`merge.cpf: four database directories, all relative`).
 - mutation: the `docker/**` rule deleted from `.gitattributes` -> `test-compose-file.sh` went red (`gitattributes: the copied and executed files keep LF`).
 - mutation: `head -n 1` changed to `tail -n 1` in the version extraction of `docker/Dockerfile` -> `test-compose-start.sh` went red (`row 8 with a later <Version> the image holds '9.9.9', wanted '0.1.0'`).
-- mutation: `($3 == 2 || $3 == 3)` changed to `($3 == 2 || $3 == 9)` in the `merge_errors` filter of `test-compose-start.sh` -> its control went red (`merge log filter does not isolate the severity 2 and 3 lines of one process`).
+- mutation: the `|| / ERROR #[0-9]/` clause dropped from the `merge_errors` filter of `test-compose-start.sh` -> its control went red (`merge log filter does not isolate the error lines of one process`): the recorded build 154 `ERROR #507` line was no longer flagged. (Code review; this replaces the `$3 == 9` mutation of the filter before it.)
+
+**QA pass (QA).** Files added: `docker/tests/test-build-inputs.sh`, `docker/tests/test-boundaries.sh`. Files changed: `docker/tests/test-compose-start.sh` (`CHECK` resolves 12 globals and 4 packages, 42 values), `docker/tests/test-compose-file.sh` (4 checks added, the `.env` check reads the ignoring rule's source). Gaps closed: the wildcard maps were sampled once each and an exact-name map stayed green; `.env` could be ignored by a user's global file instead of `.gitignore`; the health check's command, interval, timeout and retries and the `sh` shebang were unpinned; `.dockerignore` and `IRIS_IMAGE` were pinned by text only; the intent's Boundaries (ASCII, no local path or key, no push, `--quiet`, `--format`) had no test. QA re-ran the recorded mutations for AC 2, AC 3 and rows 1 to 8 (each went red, each reverted byte-identical) and added:
+- mutation: `Name=AI.Agent.Session*` changed to `Name=AI.Agent.SessionD` in `docker/merge.cpf` (AC 1) -> `test-compose-start.sh` went red in `CHECK` (`gdest|AI.Agent.SessionI` resolved to `ocutalon_data`), on the first start and after each of the four restarts; the earlier sample (`SessionD` only) stayed green.
+- mutation: the `.env` rule deleted from `.gitignore` while a global ignore file holds `.env` -> `test-compose-file.sh` went red (`git: .env is ignored`); the former `git check-ignore -q .env` stayed green.
+- mutation: `retries: 3` changed to `retries: 1` -> `test-compose-file.sh` went red (`compose: health check interval 10s, timeout 5s, retries 3`).
+- mutation: the health check path `healthcheck.sh` changed to `healthcheck` in `docker-compose.yml` -> `test-compose-file.sh` went red (`compose: health check runs /opt/ocutalon/healthcheck.sh`).
+- mutation: `#!/bin/sh` changed to `#!/bin/bash` in `docker/healthcheck.sh` -> `test-compose-file.sh` went red (`healthcheck.sh: POSIX sh`).
+- mutation: the leading `*` removed from `.dockerignore` -> `test-build-inputs.sh` went red (`the build context differs from the files the Dockerfile copies`, listing the decoy `.env`, `irislib` and `.git` files).
+- mutation: `FROM ${IRIS_IMAGE}` changed to `FROM ocutalon-iris-base:2026.3.0AI.154.0` in `docker/Dockerfile`, and separately the compose build argument given a literal value -> `test-build-inputs.sh` went red both times (`IRIS_IMAGE: the built image carries label ''`).
+- mutation: a non-ASCII dash added to a comment of `docker/Dockerfile`; `/Users/...` added to `.env.example`; an `sk-ant-` string added to `docker/merge.cpf`; `--format` dropped from a `docker inspect` in `test-compose-start.sh`; `--quiet` dropped from `config` in `test-compose-file.sh` -> `test-boundaries.sh` went red for the matching rule each time, naming `file:line` only.
+- mutation: `push` removed from the sign-in scanner's pattern, and the `/Users/` pattern misspelled, in `test-boundaries.sh` itself -> its own controls went red (`the scanner does not flag sample 1`, `the scanner does not flag a line that breaks the rule`).
+- Every mutation was reverted: `git status --short` and the file's `shasum` matched before and after. `docker compose ls -a`, `docker volume ls`, `docker ps -a` and `docker image ls` show nothing named `ocutalon-t01-*`.
+
+**Code review pass (CR).** The static mutations were applied in the tree and reverted byte-identical (`git status --short` and `shasum` unchanged). The live ones ran in scratch copies of the build files, which hold no `.env`, so the repository never changed. Final tree: `test-healthcheck.sh` 6 PASS, `test-compose-file.sh` 29 PASS, `test-boundaries.sh` 5 PASS, `test-build-inputs.sh` 2 PASS, `test-compose-start.sh` 34 PASS in 74 s; nothing named `ocutalon-t01-*` was left.
+- mutation: `!.env` appended to `.gitignore` (AC 3) -> `test-compose-file.sh` went red (`git: .env is ignored`).
+- mutation: `!.env.example` deleted from `.gitignore` -> `test-compose-file.sh` went red (`git: .env.example is not ignored`).
+- mutation: `name: ocutalon` changed to `name: ocutalon-app` (AC 3) -> `test-compose-file.sh` went red (`compose: top-level name ocutalon`).
+- mutation: `.dockerignore text eol=lf` deleted from `.gitattributes` -> `test-compose-file.sh` went red (`gitattributes: the copied and executed files keep LF`).
+- mutation: the scanner's former push rule restored in `test-boundaries.sh` -> its controls went red (`the scanner does not flag sample 7`, `8` and `9`).
+- mutation: `env_file: !reset []` deleted from `compose.throwaway.yml`, run without a `.env` -> `test-compose-start.sh` went red (`throwaway container has '0' published port(s) and '2' key variable(s)`).
+- mutation: `chmod 444` changed to `chmod 644` in `docker/Dockerfile` -> `test-compose-start.sh` went red (`/opt/ocutalon owners and modes are ... 0 644 ...`).
+- mutation: `dc stop iris` and `dc down` in `restart_round` made no-ops with `--dry-run` (AC 2) -> `test-compose-start.sh` went red in all four rounds (`the container's start time did not change`, `no new container`).
+- mutation: the failing action `CreateMapGlobal:Namespace=OCUTALON,Name=OcuTalonZZ,Database=OCUTALON_NOSUCH` appended to `docker/merge.cpf` (AC 2, "without errors") -> `test-compose-start.sh` went red at the first start (`IRIS did not reach running with the merge applied within 240 s`). Build 154 logged the failure at severity 1 (`ERROR #503`, `#507`, `#520`) and kept IRIS running. It wrote no `*.last_merge`, so no readiness came, and the next start retried the merge (`Files differ; merging`).
 
 **Observed behavior that shaped the live test:** `iris-main` applies `ISC_CPF_MERGE_FILE` at a start only when the file differs from its saved copy (`/durable/iris/^opt^ocutalon^merge.cpf.last_merge`, mode 0444) and otherwise logs `unchanged; skipping`, so a plain restart adds no `Merging` line. `test-compose-start.sh` therefore runs four restarts: plain stop and start, plain recreate, a stop and start after the saved copy is edited (a changed merge file), and a recreate after the saved copy is removed. The last two assert one more `Merging` line and no severity 2 or 3 line from its process. `Security.Resources.Get` returns `PublicPermission` as letters (`R`), not a mask; the test accepts either.
 

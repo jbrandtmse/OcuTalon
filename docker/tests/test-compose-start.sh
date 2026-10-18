@@ -2,11 +2,14 @@
 # Live test: builds the image and starts it in a throwaway compose project, then checks
 #   - the OCUTALON namespace, databases, mappings and CallIn service (CHECK),
 #   - Docker's health monitor against docker/healthcheck.sh (matrix row 7),
-#   - the version baked into the image (matrix row 8),
-#   - that data survives a plain stop and start and a plain recreate on the same volume, and a
-#     stop and start and a recreate that make iris-main reapply the merge, which then runs without errors.
-# The project is unique, publishes no host port and receives no keys; an EXIT trap removes it
-# with its volume and image. Prints one PASS or FAIL line per check; exits 0 only when all pass.
+#   - the version baked into the image (matrix row 8) and the image's own files, owned by root and read-only,
+#   - that the first start's merge runs without errors, and that data survives a plain stop and start
+#     and a plain recreate on the same volume, and a stop and start and a recreate that make iris-main
+#     reapply the merge, which then runs without errors.
+# The project is unique, publishes no host port and receives no keys: the test adds a decoy key file
+# of its own, which the throwaway override must drop. An EXIT trap removes the project with its volume
+# and image. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
+# Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
@@ -18,10 +21,15 @@ base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
 mgr=/durable/iris/mgr
 fails=0
 cid=""
+deadline=$((SECONDS + 540))
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-live.XXXXXX") || exit 1
 
-dc() { docker compose -p "$P" -f docker-compose.yml -f docker/tests/compose.throwaway.yml "$@"; }
+# A key source that only compose.throwaway.yml's env_file reset keeps out of the container.
+printf 'ANTHROPIC_API_KEY=decoy\nTELEGRAM_BOT_TOKEN=decoy\n' > "$tmp/decoy.env"
+printf 'services:\n  iris:\n    env_file:\n      - %s\n' "$tmp/decoy.env" > "$tmp/decoy.yml"
+
+dc() { docker compose -p "$P" -f docker-compose.yml -f "$tmp/decoy.yml" -f docker/tests/compose.throwaway.yml "$@"; }
 
 cleanup() {
   dc down -v --rmi local >/dev/null 2>&1
@@ -44,15 +52,15 @@ die() { # a failure after which nothing else can run
 
 # --- helpers ---
 
-# Ready = IRIS running and the start-time merge finished. iris-main records a merge by copying the
-# merge file next to iris.cpf as *.last_merge, after the actions ran.
+# Ready = IRIS running and this start's merge recorded. iris-main records a merge by copying the
+# merge file next to iris.cpf as *.last_merge, after the actions ran, so the record equals the image's file.
 iris_ready() {
-  dc exec -T iris sh -c 'iris qlist | grep -q "\^running" && ls /durable/iris/*.last_merge >/dev/null 2>&1' >/dev/null 2>&1
+  dc exec -T iris sh -c 'iris qlist | grep -q "\^running" && cmp -s /opt/ocutalon/merge.cpf /durable/iris/*.last_merge' >/dev/null 2>&1
 }
 
 wait_ready() { # wait_ready <max seconds>
   local waited=0
-  while [ "$waited" -lt "$1" ]; do
+  while [ "$waited" -lt "$1" ] && [ "$SECONDS" -lt "$deadline" ]; do
     if iris_ready; then
       return 0
     fi
@@ -72,12 +80,22 @@ change_last_merge() {
   dc exec -T iris sh -c 'f=$(ls /durable/iris/*.last_merge) && chmod u+w "$f" && printf "; changed\n" >> "$f" && chmod 444 "$f"' >/dev/null 2>&1
 }
 
-# Lines of process <pid> with severity 2 or 3, from a messages.log excerpt on stdin.
-merge_errors() { awk -v pid="($1)" '$2 == pid && ($3 == 2 || $3 == 3) { print }'; }
+# Error lines of process <pid>, from a messages.log excerpt on stdin: severity 2 or 3, or an `ERROR #`
+# line of any severity (build 154 logs a failed merge action at severity 1).
+merge_errors() { awk -v pid="($1)" '$2 == pid && ($3 == 2 || $3 == 3 || / ERROR #[0-9]/) { print }'; }
 
 # Runs an ObjectScript script from stdin in the given namespace and keeps the `CHK|` result lines.
+# A session that prints no result line is tried again, at most three tries 5 s apart.
 iris_script() { # iris_script <namespace> < script
-  dc exec -T iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p'
+  local script out try=1
+  script=$(cat)
+  while :; do
+    out=$(printf '%s\n' "$script" | dc exec -T iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
+    if [ -n "$out" ] || [ "$try" -ge 3 ]; then break; fi
+    try=$((try + 1))
+    sleep 5
+  done
+  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
 }
 
 check_script() {
@@ -88,8 +106,8 @@ Set sc=##class(Config.Namespaces).Get("OCUTALON",.np) Write !,"CHK|ns-globals|",
 For db="OCUTALON_CODE","OCUTALON_DATA","OCUTALON_PRIVATE","OCUTALON_PUBLIC" { Kill dp Set sc=##class(Config.Databases).Get(db,.dp) Write !,"CHK|db-dir|",db,"|",$Get(dp("Directory")) Set d=##class(SYS.Database).%OpenId($Get(dp("Directory"))) Write !,"CHK|db-resource|",db,"|",$Select($IsObject(d):d.ResourceName,1:"") }
 For db="OCUTALON_CODE","OCUTALON_DATA","OCUTALON_PRIVATE","OCUTALON_PUBLIC" { Write !,"CHK|res-exists|",db,"|",##class(Security.Resources).Exists("%DB_"_db) }
 For db="OCUTALON_CODE","OCUTALON_DATA","OCUTALON_PRIVATE","OCUTALON_PUBLIC" { Kill rp Set sc=##class(Security.Resources).Get("%DB_"_db,.rp) Set pm=$Get(rp("PublicPermission")) Write !,"CHK|pub-read|",db,"|",$Select(pm?1.N:pm#2,1:pm["R") Write !,"CHK|pub-write|",db,"|",$Select(pm?1.N:pm\2#2,1:pm["W") }
-For g="OcuTalonP.S01","OcuTalonBP.S01","AI.Agent.SessionD","IRIS.IF.S01","OcuTalonPublic","OcuTalonS01" { Write !,"CHK|gdest|",g,"|",##class(%SYS.Namespace).GetGlobalDest("OCUTALON","^"_g) }
-For p="OcuTalon.Web.Public","OcuTalon.Data.Public" { Write !,"CHK|pdest|",p,"|",##class(%SYS.Namespace).GetPackageDest("OCUTALON",p) }
+For g="OcuTalonP.S01","OcuTalonP.S02","OcuTalonBP.S01","OcuTalonBP.S02","AI.Agent.SessionD","AI.Agent.SessionI","IRIS.IF.S01","IRIS.IF.Index","OcuTalonPublic","OcuTalonS01","AI.Agent.Other","IRIS.Other.S01" { Write !,"CHK|gdest|",g,"|",##class(%SYS.Namespace).GetGlobalDest("OCUTALON","^"_g) }
+For p="OcuTalon.Web.Public","OcuTalon.Data.Public","OcuTalon.Web.Other","OcuTalon.Data.Other" { Write !,"CHK|pdest|",p,"|",##class(%SYS.Namespace).GetPackageDest("OCUTALON",p) }
 Set sc=##class(Security.Services).Get("%Service_CallIn",.sv) Write !,"CHK|callin-enabled|",$Get(sv("Enabled")) Write !,"CHK|callin-authe|",$Get(sv("AutheEnabled"))
 Halt
 EOS
@@ -122,13 +140,21 @@ CHK|pub-write|OCUTALON_DATA|0
 CHK|pub-write|OCUTALON_PRIVATE|0
 CHK|pub-write|OCUTALON_PUBLIC|0
 CHK|gdest|OcuTalonP.S01|^$mgr/ocutalon_private/
+CHK|gdest|OcuTalonP.S02|^$mgr/ocutalon_private/
 CHK|gdest|OcuTalonBP.S01|^$mgr/ocutalon_private/
+CHK|gdest|OcuTalonBP.S02|^$mgr/ocutalon_private/
 CHK|gdest|AI.Agent.SessionD|^$mgr/ocutalon_private/
+CHK|gdest|AI.Agent.SessionI|^$mgr/ocutalon_private/
 CHK|gdest|IRIS.IF.S01|^$mgr/ocutalon_private/
+CHK|gdest|IRIS.IF.Index|^$mgr/ocutalon_private/
 CHK|gdest|OcuTalonPublic|^$mgr/ocutalon_public/
 CHK|gdest|OcuTalonS01|^$mgr/ocutalon_data/
+CHK|gdest|AI.Agent.Other|^$mgr/ocutalon_data/
+CHK|gdest|IRIS.Other.S01|^$mgr/ocutalon_data/
 CHK|pdest|OcuTalon.Web.Public|^$mgr/ocutalon_public/
 CHK|pdest|OcuTalon.Data.Public|^$mgr/ocutalon_public/
+CHK|pdest|OcuTalon.Web.Other|^$mgr/ocutalon_code/
+CHK|pdest|OcuTalon.Data.Other|^$mgr/ocutalon_code/
 CHK|callin-enabled|1
 CHK|callin-authe|48
 EOX
@@ -157,14 +183,9 @@ compare_chk() {
 }
 
 run_check() { # run_check <label>: namespace, databases, mappings, service, mount and data directory
-  local label=$1 try=0 mounts qdir
+  local label=$1 mounts qdir
   check_expected > "$tmp/check.expected"
-  while [ "$try" -lt 3 ]; do
-    check_script | iris_script %SYS > "$tmp/check.actual"
-    if grep -q '^CHK|' "$tmp/check.actual"; then break; fi
-    try=$((try + 1))
-    sleep 5
-  done
+  check_script | iris_script %SYS > "$tmp/check.actual"
   compare_chk "CHECK $label" "$tmp/check.actual" "$tmp/check.expected"
 
   mounts=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/durable"}}{{.Type}} {{.Name}}{{end}}{{end}}' "$cid" 2>/dev/null)
@@ -220,8 +241,8 @@ EOP
 
 merge_count() { dc exec -T iris grep -c 'Merging /opt/ocutalon/merge.cpf' "$mgr/messages.log" 2>/dev/null | tr -d '\r'; }
 
-# The newest merge must have run without a warning or error: no line of its process, from its
-# "Merging" line on, has severity 2 or 3.
+# The newest merge must have run without errors: no line of its process, from its "Merging" line on,
+# is an error line (merge_errors).
 check_merge_log() { # check_merge_log <label> <count before>
   local label=$1 before=$2 after last lineno pid bad
   after=$(merge_count)
@@ -239,9 +260,9 @@ check_merge_log() { # check_merge_log <label> <count before>
   bad=$(dc exec -T iris tail -n "+$lineno" "$mgr/messages.log" 2>/dev/null | tr -d '\r' | merge_errors "$pid")
   if [ -n "$bad" ]; then
     echo "$bad" | head -n 5 | sed 's/^/  /'
-    fail "merge $label: process $pid logged severity 2 or 3 lines"
+    fail "merge $label: process $pid logged error lines"
   else
-    pass "merge $label: reapplied by process $pid with no severity 2 or 3 lines"
+    pass "merge $label: applied by process $pid with no error lines"
   fi
 }
 
@@ -263,7 +284,7 @@ stays_starting() { # stays_starting <label>
     return
   fi
   last=$(health_ends)
-  while [ "$waited" -lt 40 ] && [ "$seen" -lt 2 ]; do
+  while [ "$waited" -lt 40 ] && [ "$seen" -lt 2 ] && [ "$SECONDS" -lt "$deadline" ]; do
     st=$(health_status)
     if [ "$st" != starting ]; then
       fail "row 7 $label: health status is '$st', wanted 'starting'"
@@ -290,19 +311,22 @@ stays_starting() { # stays_starting <label>
 
 # --- start ---
 
-# The merge-log filter must flag severity 2 and 3 lines of its own process, and only those.
+# The merge-log filter must flag the error lines of its own process, and only those. The ERROR #507
+# line is build 154's own record of a merge action that failed.
 cat > "$tmp/log.sample" <<'EOL'
-10/18/26-17:14:36:649 (1499) 0 [Utility.Event] Merging x into y
-10/18/26-17:14:36:650 (1499) 1 [Utility.Event] a warning
-10/18/26-17:14:36:651 (1499) 2 [Utility.Event] a severe line
-10/18/26-17:14:36:652 (1500) 3 [Utility.Event] another process
-10/18/26-17:14:36:653 (1499) 3 [Utility.Event] a fatal line
+10/18/26-18:10:02:276 (2488) 0 [Utility.Event] Merging /opt/ocutalon/merge.cpf into /durable/iris/iris.cpf
+10/18/26-18:10:02:709 (2489) 2 [Utility.Event] another process
+10/18/26-18:10:02:800 (2488) 1 [Utility.Event] a warning
+10/18/26-18:10:02:850 (2488) 1 [Utility.Event] ERROR #507: Action 'CreateMapGlobal' failed, Method Config.MapGlobals:CreateOne(), Error=ERROR #420: Database OCUTALON_NOSUCH does not exist
+10/18/26-18:10:02:851 (2488) 2 [Utility.Event] a severe line
+10/18/26-18:10:02:852 (2488) 3 [Utility.Event] a fatal line
 EOL
-if [ "$(merge_errors 1499 < "$tmp/log.sample" | wc -l | tr -d ' ')" = 2 ] \
-  && [ "$(merge_errors 1499 < "$tmp/log.sample" | grep -c ' \[Utility.Event\] a \(severe\|fatal\) line$')" = 2 ]; then
-  pass "merge log filter flags the severity 2 and 3 lines of its own process only"
+if [ "$(merge_errors 2488 < "$tmp/log.sample" | wc -l | tr -d ' ')" = 3 ] \
+  && [ "$(merge_errors 2488 < "$tmp/log.sample" | grep -c -e ' \[Utility.Event\] ERROR #507: ' \
+    -e ' \[Utility.Event\] a severe line$' -e ' \[Utility.Event\] a fatal line$')" = 3 ]; then
+  pass "merge log filter flags the error lines of its own process only"
 else
-  fail "merge log filter does not isolate the severity 2 and 3 lines of one process"
+  fail "merge log filter does not isolate the error lines of one process"
 fi
 
 if ! dc up -d --build > "$tmp/up.log" 2>&1; then
@@ -326,6 +350,7 @@ if ! wait_ready 240; then
   die "IRIS did not reach running with the merge applied within 240 s"
 fi
 pass "IRIS running with the merge applied"
+check_merge_log "first start" 0
 
 run_check "first start"
 
@@ -344,7 +369,7 @@ if [ "$rc" != 0 ]; then
 else
   waited=0
   st=$(health_status)
-  while [ "$st" != healthy ] && [ "$waited" -lt 60 ]; do
+  while [ "$st" != healthy ] && [ "$waited" -lt 60 ] && [ "$SECONDS" -lt "$deadline" ]; do
     sleep 2
     waited=$((waited + 2))
     st=$(health_status)
@@ -390,29 +415,63 @@ else
   fail "row 8 the control build with a version failed"
 fi
 
+# --- the image's own files: owned by root, so the IRIS user can neither change nor re-mode them ---
+
+modes=$(dc exec -T iris sh -c 'stat -c "%n %u %a" /opt/ocutalon /opt/ocutalon/*' 2>/dev/null | tr -d '\r')
+want_modes="/opt/ocutalon 0 755
+/opt/ocutalon/healthcheck.sh 0 555
+/opt/ocutalon/merge.cpf 0 444
+/opt/ocutalon/module.xml 0 444
+/opt/ocutalon/version 0 444"
+if [ "$modes" = "$want_modes" ]; then
+  pass "/opt/ocutalon and its files are root's and read-only, the health check executable"
+else
+  fail "/opt/ocutalon owners and modes are '$(echo $modes)', wanted '$(echo $want_modes)'"
+fi
+
 # --- restarts ---
 
 # restart_round <label> <stop|recreate> <plain|forget|change>
-# Restarts the container, then the probes and CHECK hold. For forget and change the merge also
-# reapplies over the existing databases: one more Merging line, and no severity 2 or 3 line.
+# Restarts the container (a new start time) or recreates it (a new container), then the probes and
+# CHECK hold. For forget and change the merge also reapplies over the existing databases: one more
+# Merging line, and no error line.
 restart_round() {
-  local label=$1 how=$2 merge=$3 before
+  local label=$1 how=$2 merge=$3 before started old
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    fail "$label: the run's 540 s deadline has passed"
+    return
+  fi
   before=$(merge_count)
   case "$merge" in
     forget) forget_last_merge ;;
     change) change_last_merge ;;
   esac
   if [ "$how" = stop ]; then
-    dc stop iris >/dev/null 2>&1
-    dc start iris >/dev/null 2>&1
+    started=$(docker inspect --format '{{.State.StartedAt}}' "$cid" 2>/dev/null)
+    if ! dc stop iris >/dev/null 2>&1 || ! dc start iris >/dev/null 2>&1; then
+      fail "$label: stop or start failed"
+      return
+    fi
+    if [ "$(docker inspect --format '{{.State.StartedAt}}' "$cid" 2>/dev/null)" = "$started" ]; then
+      fail "$label: the container's start time did not change"
+      return
+    fi
   else
-    dc down >/dev/null 2>&1
+    old=$cid
+    if ! dc down >/dev/null 2>&1; then
+      fail "$label: down failed"
+      return
+    fi
     if ! dc up -d > "$tmp/up2.log" 2>&1; then
       tail -n 20 "$tmp/up2.log"
       fail "$label: up -d after down failed"
       return
     fi
     cid=$(dc ps -q iris)
+    if [ -z "$cid" ] || [ "$cid" = "$old" ]; then
+      fail "$label: no new container (was $old, now '$cid')"
+      return
+    fi
   fi
   if ! wait_ready 90; then
     fail "$label: IRIS was not ready within 90 s"

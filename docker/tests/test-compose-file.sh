@@ -63,6 +63,12 @@ start_period_at_least_600() {
 
 has_line() { code "$1" | grep -q "$2"; }
 
+health_timing() {
+  has_line "$compose" '^[[:space:]]*interval:[[:space:]]*10s[[:space:]]*$' \
+    && has_line "$compose" '^[[:space:]]*timeout:[[:space:]]*5s[[:space:]]*$' \
+    && has_line "$compose" '^[[:space:]]*retries:[[:space:]]*3[[:space:]]*$'
+}
+
 check "compose: the only service is iris" only_service_is_iris
 check "compose: no non-comment line says mock" no_mock
 check "compose: no container_name" no_forbidden_key container_name
@@ -70,9 +76,12 @@ check "compose: no image tag" no_forbidden_key image
 check "compose: no fixed volume or project name below the top level" \
   bash -c "! grep -v '^[[:space:]]*#' '$compose' | grep -q '^[[:space:]][[:space:]]*name:'"
 check "compose: no superserver port" no_superserver_port
-check "compose: top-level name" has_line "$compose" '^name:[[:space:]]*[^[:space:]]'
+check "compose: top-level name ocutalon" has_line "$compose" '^name:[[:space:]]*ocutalon[[:space:]]*$'
 check "compose: stop_grace_period 60s" has_line "$compose" '^[[:space:]]*stop_grace_period:[[:space:]]*60s[[:space:]]*$'
 check "compose: start_period at least 600 s" start_period_at_least_600
+check "compose: health check runs /opt/ocutalon/healthcheck.sh" \
+  has_line "$compose" 'test:[[:space:]]*\["CMD",[[:space:]]*"/opt/ocutalon/healthcheck.sh"\]'
+check "compose: health check interval 10s, timeout 5s, retries 3" health_timing
 check "compose: IRIS_IMAGE build argument" has_line "$compose" 'IRIS_IMAGE:[[:space:]]*\${IRIS_IMAGE:-ocutalon-iris-base:2026\.3\.0AI\.154\.0}'
 check "compose: pull_policy build" has_line "$compose" '^[[:space:]]*pull_policy:[[:space:]]*build[[:space:]]*$'
 check "compose: restart unless-stopped" has_line "$compose" '^[[:space:]]*restart:[[:space:]]*unless-stopped[[:space:]]*$'
@@ -94,6 +103,7 @@ check "dockerfile: runs as UID 51773" last_user_is_51773
 check "dockerfile: data and merge environment" \
   bash -c "grep -q 'ISC_DATA_DIRECTORY=/durable/iris' '$dockerfile' && grep -q 'ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf' '$dockerfile'"
 check "dockerfile: an empty version fails the build" has_line "$dockerfile" 'test -n "\$version"'
+check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
 
 # --- docker/merge.cpf and line endings ---
 
@@ -104,7 +114,8 @@ merge_directories_relative() {
 # Files that the image copies, or that a script runs, keep LF in every checkout.
 files_keep_lf() {
   local f
-  for f in docker/Dockerfile docker/merge.cpf docker/healthcheck.sh docker/tests/test-compose-file.sh src/module.xml; do
+  for f in docker/Dockerfile docker/merge.cpf docker/healthcheck.sh docker/tests/test-compose-file.sh src/module.xml \
+    .dockerignore .env.example; do
     [ "$(git check-attr eol -- "$f" | sed 's/.*: //')" = lf ] || return 1
   done
 }
@@ -133,8 +144,11 @@ env_example_has_keys_without_values() {
 }
 
 # git check-ignore exits 0 when ignored, 1 when not ignored, 128 on error.
-git_ignores() { git check-ignore -q "$1"; }
-git_does_not_ignore() { git check-ignore -q "$1"; [ $? -eq 1 ]; }
+# The rule that ignores a path must be one of this repository's .gitignore, not a user's global ignore file;
+# -v also prints a matching negation, so the ignore itself is checked with -q.
+# A tracked path is never reported as ignored unless --no-index is given.
+git_ignores() { git check-ignore -q "$1" && git check-ignore -v "$1" 2>/dev/null | grep -q '^\.gitignore:[0-9]*:[^!]'; }
+git_does_not_ignore() { git check-ignore -q --no-index "$1"; [ $? -eq 1 ]; }
 
 check "env.example: both keys, no values, nothing else" env_example_has_keys_without_values
 check "git: .env is ignored" git_ignores .env
