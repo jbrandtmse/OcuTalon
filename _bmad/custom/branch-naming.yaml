@@ -1,0 +1,9 @@
+# Branch naming for /epic-cycle (Rules SC-1 and SC-2).
+# OcuTalon builds on one feature branch, feature/OCT_OcuTalon_MVP (TICKET = OCT, Description = OcuTalon_MVP).
+# Epic branches are OCT-epic{N}, merged into the feature branch at each epic's merge gate.
+feature_pattern: "feature/{TICKET}_{Description}"
+epic_pattern: "{TICKET}-epic{N}"
+ticket_format: "^(OCT|SPIKE|EXPLORE|REFACTOR)$"
+ticket_required: true
+description_format: "^[A-Za-z][A-Za-z0-9_-]{2,60}$"
+separator: "_"

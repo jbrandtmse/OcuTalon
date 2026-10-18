@@ -233,3 +233,20 @@ The spine is the source of truth for architecture decisions, and the pipeline ma
 ## Project-specific rules (add below as retros surface them)
 
 > Add additional rules here as retrospectives identify durable patterns. Number sequentially after Rule 20. Each rule should state what it applies to, the obligation, and (briefly) why.
+
+## Rule 21 — OcuTalon runtime targets (all skills and their subagents, under `/epic-cycle`)
+
+Each build runner has its own developer instance. The epic's `**Lane:**` line in `epics.md` picks it; Epic 0 has no lane and uses slot A.
+
+| Lane | Container | MCP `server` profile | Superserver / web port |
+| --- | --- | --- | --- |
+| A, and Epic 0 | `ocutalon-slot-a` | `ocutalon-slot-a` | 1990 / 52790 |
+| B | `ocutalon-slot-b` | `ocutalon-slot-b` | 1991 / 52791 |
+
+- **What a slot is.** The build 154 base image with namespace `OCUTALON` (Interoperability on, one code and one data database, `%Service_CallIn` enabled) on durable storage. It does not run the after-start script and has no `ocutalon` package installed: load and compile code into it with the IRIS MCP tools (`iris_doc_load`), and run installer steps or tests there explicitly. The after-start installer and the IPM install run in throwaway compose projects and in CI (the spine's environment table).
+- **Name the target on every call.** Pass `server` and `namespace` (`OCUTALON`, or `OCUORDERS` once it exists) on every MCP call; the profiles default to `HSCUSTOM`. Before a stage's first call, check the target's identity with `iris_server_info` (build 154, the profile's port).
+- **No other target.** No other IRIS instance, container or MCP profile on this machine is a build or test target. If your slot doesn't answer, stop with a `TOOLING:` clarification; never fall back to another instance. If two epics of the same lane ever run at once, the second stops with a clarification.
+- **Throwaway stacks for destructive work.** A destructive test (one that deletes or replaces namespaces, databases, security objects or data it did not create, or stops the instance) runs in a throwaway compose project (`docker compose -p <unique name>`), never on a slot (AD-22). Keep at most one throwaway IRIS stack per runner at a time, because the Docker VM's memory is shared with other long-running containers, and tear down only the projects you started.
+- Story 0.7 adds the IRIS test recipe, the shard and class commands and the per-class timings to this section.
+
+Why: other instances on this machine use the same namespace names and similar credentials, so a misrouted call answers plausibly and without an error (Rule 13).

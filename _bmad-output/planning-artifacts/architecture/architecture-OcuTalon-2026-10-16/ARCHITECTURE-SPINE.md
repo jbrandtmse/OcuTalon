@@ -1110,7 +1110,7 @@ flowchart TB
 
 | Environment | Image | Model | Telegram | Data |
 | --- | --- | --- | --- | --- |
-| Developer instance (one per runner) | a source-mounted container running the same after-start installer, loading `src/` with IPM | real key | its own bot, one poller per token | durable bind mount (on Linux, writable by UID 51773) |
+| Developer instance (one per runner: slot A for Epic 0 and Lane A, slot B for Lane B) | the build 154 base image with namespace OCUTALON, without the after-start script; the runner loads and compiles code with the IRIS MCP tools and runs installer steps explicitly, while the after-start installer and the IPM install run in throwaway stacks and CI (the author's decision, October 18) | real key | its own bot, one poller per token | durable bind mount (on Linux, writable by UID 51773) |
 | Throwaway test stack | `docker compose -p <name>` with the CI override | CI mock | CI mock | discarded volume; destructive tests never run on a developer instance |
 | CI | built on the runner, never cached | CI mock (real Haiku 5.5 only for live smoke and release candidates) | CI mock | discarded |
 | Judge's local install | built locally from the Dockerfile | the judge's key | optional, the judge's own bot | named volume |

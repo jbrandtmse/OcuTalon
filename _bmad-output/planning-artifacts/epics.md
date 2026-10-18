@@ -964,6 +964,13 @@ So that `main` stays releasable and the image never leaks.
 **When** CI starts
 **Then** no job runs on the self-hosted runner, and the AI Hub image never enters a cache or artifact (REL-4, CON-1)
 
+**Given** this story's CI is merged
+**When** `/epic-cycle` next runs and its pre-flight reads CI with `gh`
+**Then** both workflows run on every push to the feature branch `feature/OCT_OcuTalon_MVP` and to the epic branches `OCT-epic*` (the names in `_bmad/custom/branch-naming.yaml`) and on every pull request, with no `cancel-in-progress` on those branches, so every pushed commit has its own run for the pipeline to resolve
+**And** the project-specific rules in `_bmad/custom/skill-rules.md` record the IRIS test recipe the pipeline runs: the script that runs the IRIS jobs in a throwaway compose project (Rule 19's fresh-environment recipe, and the stand-in until the self-hosted runner is registered), the command that runs one `%UnitTest` shard or class, the usual CI run time and the per-class timings used to size test batches (Rule 18), and any new runtime target in the runtime-target rule
+**And** `_bmad/custom/parallel.yaml` matches: `bootstrap` and `bootstrap_check` give a fresh epic worktree what the local checks need (the `web/` dependencies and the git-ignored IRIS reference folders) and leave `git status --short` empty, and `runtime_locks` cover the throwaway IRIS stacks while they run on a developer machine
+**And** the change that later moves the IRIS jobs onto the registered self-hosted runner updates the same entries
+
 ### Story 0.8: The demo-path test signs in and loads the page
 
 As the author,
