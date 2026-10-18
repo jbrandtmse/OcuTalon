@@ -948,7 +948,8 @@ So that `main` stays releasable and the image never leaks.
 **Given** a push or a pull request
 **When** CI runs
 **Then** jobs that don't need IRIS (the Angular build, lint, unit tests, the mock's tests) run on GitHub-hosted runners, and IRIS jobs run on the self-hosted runner labelled for OcuTalon: build the image on the runner, `docker compose up --wait` with the CI-only override in its own compose project, run the `%UnitTest` shards (one compose project per shard), then tear down (REL-4, AD-22)
-**And** until the self-hosted runner is registered, the same IRIS jobs run from one script on a developer machine against a throwaway compose project, never a developer instance
+**And** the self-hosted runner is registered before the build starts (two services, one IRIS stack per job at a time; Rule 21), so the IRIS jobs target it from this story on; the same IRIS jobs also run from one script on a developer machine against a throwaway compose project, never a developer instance, as the local recipe and the fallback while the runner is offline
+**And** the hosted jobs cache their npm dependencies and skip their own steps (never the whole workflow) when a push changes nothing they check, because hosted minutes are paid while the repository is private
 
 **Given** the CI-only compose override
 **When** it starts
@@ -973,9 +974,9 @@ So that `main` stays releasable and the image never leaks.
 **Given** this story's CI is merged
 **When** `/epic-cycle` next runs and its pre-flight reads CI with `gh`
 **Then** both workflows run on every push to the feature branch `feature/OCT_OcuTalon_MVP` and to the epic branches `OCT-epic*` (the names in `_bmad/custom/branch-naming.yaml`) and on every pull request, with no `cancel-in-progress` on those branches, so every pushed commit has its own run for the pipeline to resolve
-**And** the project-specific rules in `_bmad/custom/skill-rules.md` record the IRIS test recipe the pipeline runs: the script that runs the IRIS jobs in a throwaway compose project (Rule 19's fresh-environment recipe, and the stand-in until the self-hosted runner is registered), the command that runs one `%UnitTest` shard or class, the usual CI run time and the per-class timings used to size test batches (Rule 18), and any new runtime target in the runtime-target rule
+**And** the project-specific rules in `_bmad/custom/skill-rules.md` record the IRIS test recipe the pipeline runs: the script that runs the IRIS jobs in a throwaway compose project (Rule 19's fresh-environment recipe, and the fallback while the self-hosted runner is offline), the command that runs one `%UnitTest` shard or class, the usual CI run time and the per-class timings used to size test batches (Rule 18), and any new runtime target in the runtime-target rule
 **And** `_bmad/custom/parallel.yaml` matches: `bootstrap` and `bootstrap_check` give a fresh epic worktree what the local checks need (the `web/` dependencies and the git-ignored IRIS reference folders) and leave `git status --short` empty, and `runtime_locks` cover the throwaway IRIS stacks while they run on a developer machine
-**And** the change that later moves the IRIS jobs onto the registered self-hosted runner updates the same entries
+**And** a later change to the self-hosted runner (its services, labels or capacity) updates the same entries
 
 ### Story 0.8: The demo-path test signs in and loads the page
 
