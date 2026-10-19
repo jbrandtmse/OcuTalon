@@ -4,7 +4,7 @@ Rule 22.6: the Contest Planner relays owner-only and VETO WINDOW items. When its
 
 ## 2026-10-19 19:15 UTC: correction to the Story 0.6 VETO WINDOW item 2 (production recover)
 
-Status: pending (the Contest Planner session was not reachable at 19:15 UTC)
+Status: sent (the Contest Planner read it at origin 80abb60 on October 19; no veto)
 
 I said queued messages "stay Suspended, never discarded". That is inaccurate. Code review measured IRIS's recover on build 154:
 
@@ -27,7 +27,7 @@ Also from the 0.6 review:
 
 ## 2026-10-19 20:26 UTC: Story 0.7 (CI): one owner-only item and five VETO WINDOW items
 
-Status: pending (no Contest Planner session was listed at 20:26 UTC)
+Status: sent (the Contest Planner read it at origin 80abb60 on October 19; no veto on items 1-5; the CI-gate wording is with the owner)
 
 **Owner-only (Rule 22.4, `.claude/` is the owner's).** The CI gate in `/epic-cycle` reads one run per commit: `.claude/commands/epic-cycle.md`, "CI Is a Gate", uses `gh run list --branch … --commit <sha> … -L 1`. Story 0.7 adds two workflows, `ci` and `lane-a`, so every push has two runs and the gate sees only one of them.
 - Recommended wording: "list every run for the sha (`-L 20`) and require each workflow's run to conclude `success`".
