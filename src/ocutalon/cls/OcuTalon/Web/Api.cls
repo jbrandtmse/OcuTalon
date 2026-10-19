@@ -15,10 +15,6 @@ Class OcuTalon.Web.Api Extends OcuTalon.Web.Public.ApiBase
 
 Parameter UseSession = 1;
 
-Parameter CONTENTTYPE = "application/json";
-
-Parameter CHARSET = "utf-8";
-
 Parameter HandleCorsRequest = 0;
 
 Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
@@ -97,7 +93,7 @@ ClassMethod State() As %Status
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser($Username, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Write ..StateBody(session).%ToJSON()
+	Do ..StateBody(session).%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -111,7 +107,7 @@ ClassMethod Events() As %Status
 	}
 	Set session = ##class(OcuTalon.Data.Session).ForUser($Username, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Write ..EventsBody(session, +after, +afterInstance).%ToJSON()
+	Do ..EventsBody(session, +after, +afterInstance).%ToJSON()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -129,8 +125,9 @@ ClassMethod Pairing() As %Status
 }
 
 /// The snapshot of a session: the version, the instance zone, the session's epoch, each stream's last Seq, and
-/// the chat and rail sections (empty until Story 2.2 fills them).
-ClassMethod StateBody(session As OcuTalon.Data.Session) As %DynamicObject
+/// the chat and rail sections (empty until Story 2.2 fills them). instanceStream is the stream reported as instance:
+/// Live.Publish's instance stream unless the caller names another.
+ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
 	Quit {
 		"version": (..Version()),
@@ -138,7 +135,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session) As %DynamicObject
 		"epoch": (session.Epoch),
 		"streams": {
 			"session": (##class(OcuTalon.Live.Publish).LastSeq(session.Ref)),
-			"instance": (##class(OcuTalon.Live.Publish).LastSeq(##class(OcuTalon.Live.Publish).#INSTANCE))
+			"instance": (##class(OcuTalon.Live.Publish).LastSeq(instanceStream))
 		},
 		"chat": [],
 		"rail": {"approvals": [], "checks": [], "reminders": [], "decisions": []}
@@ -146,11 +143,12 @@ ClassMethod StateBody(session As OcuTalon.Data.Session) As %DynamicObject
 }
 
 /// The events after the two cursors: the session's own stream first, then the instance stream, each in Seq order
-/// and at most MAXEVENTS long, with the session's epoch.
-ClassMethod EventsBody(session As OcuTalon.Data.Session, after As %Integer, afterInstance As %Integer) As %DynamicObject
+/// and at most MAXEVENTS long, with the session's epoch. instanceStream is the stream served as instance:
+/// Live.Publish's instance stream unless the caller names another.
+ClassMethod EventsBody(session As OcuTalon.Data.Session, after As %Integer, afterInstance As %Integer, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
 	Set events = ##class(OcuTalon.Live.Event).Since(session.Ref, after, ##class(OcuTalon.Live.Event).#MAXEVENTS, "session")
-	Set instance = ##class(OcuTalon.Live.Event).Since(##class(OcuTalon.Live.Publish).#INSTANCE, afterInstance, ##class(OcuTalon.Live.Event).#MAXEVENTS, "instance")
+	Set instance = ##class(OcuTalon.Live.Event).Since(instanceStream, afterInstance, ##class(OcuTalon.Live.Event).#MAXEVENTS, "instance")
 	Set iterator = instance.%GetIterator()
 	While iterator.%GetNext(, .event) {
 		Do events.%Push(event)

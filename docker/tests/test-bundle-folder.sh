@@ -31,7 +31,7 @@ readme_password=ocutalon
 # host_sha256: the SHA-256 of stdin, with the tool that this host has.
 host_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum | cut -d' ' -f1; else shasum -a 256 | cut -d' ' -f1; fi; }
 
-# The web gateway keeps the answer to a URL, a 404 and a 200 alike, also after the file changes (measured October 19).
+# The web gateway keeps the answer to a URL, a 404 and a 200 alike, also after the file changes.
 # So every probe asks a URL that no earlier probe asked, by a counter in the query string, and its answer comes from
 # IRIS and not from the gateway.
 probes=0

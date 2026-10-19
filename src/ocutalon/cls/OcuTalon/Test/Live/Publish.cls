@@ -95,8 +95,36 @@ Method TestRefuses()
 	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
 }
 
-/// Two jobs publish 50 events each to one stream, started together: Seq runs 1 to 100 with no gap and no duplicate, and
-/// the rows' ids are in Seq order.
+/// Two references that differ only in case are two streams (Stream is exact-collated): each starts at Seq 1, and
+/// each reads only its own event.
+Method TestStreamsThatDifferOnlyInCase()
+{
+	For {
+		Set stream = ..NewStream()
+		Set twin = $ZConvert(stream, "U")
+		Quit:twin'=stream
+	}
+	Set ^OcuTalonTest("LivePublish", "streams", twin) = ""
+	Set first = ##class(OcuTalon.Live.Payload.Reminder).%New()
+	Set first.Ref = "ZzPub"_..Number_"c1"
+	Set second = ##class(OcuTalon.Live.Payload.Reminder).%New()
+	Set second.Ref = "ZzPub"_..Number_"c2"
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", first, .seq), "the first stream's event is published")
+	Do $$$AssertEquals(seq, 1, "as its Seq 1")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(twin, "reminder", second, .seq), "the upper-case twin's event is published")
+	Do $$$AssertEquals(seq, 1, "as the twin's own Seq 1")
+	For pair = $ListBuild(stream, "c1"), $ListBuild(twin, "c2") {
+		Set events = ##class(OcuTalon.Live.Event).Since($List(pair, 1), 0)
+		Set refs = ""
+		For i = 0:1:events.%Size() - 1 {
+			Set refs = refs_" "_events.%Get(i).payload.ref
+		}
+		Do $$$AssertEquals(refs, " ZzPub"_..Number_$List(pair, 2), "each stream reads only its own event")
+	}
+}
+
+/// Two jobs publish 50 events each to one stream, in lockstep so that every pair of publishes contends for the same
+/// Seq: Seq runs 1 to 100 with no gap and no duplicate, and the rows' ids are in Seq order.
 Method TestSeqUnderLoad()
 {
 	Set stream = ..NewStream()
@@ -114,6 +142,14 @@ Method TestSeqUnderLoad()
 		Hang 0.05
 	}
 	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "run", stream, "done")), 2, "both jobs finished")
+	// A job that is still running (the wait ran out) is told to stop and given time to, so that it publishes nothing
+	// after the clean-up.
+	Set ^OcuTalonTest("LivePublish", "run", stream, "stop") = 1
+	Set deadline = $ZHorolog + 15
+	While ($Get(^OcuTalonTest("LivePublish", "run", stream, "done")) < 2) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "run", stream, "lockstep lost"), 0), 0, "the two jobs stayed in step, round for round")
 	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "run", stream, "errors"), 0), 0, "no publish failed: "_$Get(^OcuTalonTest("LivePublish", "run", stream, "error", 1)))
 
 	Set rows = ..Rows(stream)
@@ -126,26 +162,42 @@ Method TestSeqUnderLoad()
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), 100, "LastSeq is 100")
 }
 
-/// The job body of TestSeqUnderLoad: waits for the go signal, publishes count reminders to stream and records how it
-/// ended.
+/// The job body of TestSeqUnderLoad: waits for the go signal, then publishes count reminders to stream, in lockstep
+/// with the other job: round i starts when both jobs have reached it, so that the two publishes of a round contend
+/// for the same Seq at the same moment. It records how it ended. A job that waits 10 seconds in vain for the other
+/// stops waiting and records the round in "lockstep lost", which the test asserts is absent. It ends at once when the
+/// test sets "stop".
 ClassMethod Burst(stream As %String, count As %Integer)
 {
-	Do $Increment(^OcuTalonTest("LivePublish", "run", stream, "ready"))
+	Set run = $Name(^OcuTalonTest("LivePublish", "run", stream))
+	Do $Increment(@run@("ready"))
 	Set deadline = $ZHorolog + 60
-	While '$Get(^OcuTalonTest("LivePublish", "run", stream, "go")) && ($ZHorolog < deadline) {
+	While '$Get(@run@("go")) && ($ZHorolog < deadline) {
 	}
 	Set errors = 0
+	Set waits = 1
 	For i = 1:1:count {
+		If $Get(@run@("stop")) Quit
+		Do $Increment(@run@("round", i))
+		If waits {
+			Set deadline = $ZHorolog + 10
+			While ($Get(@run@("round", i)) < 2) && ($ZHorolog < deadline) && '$Get(@run@("stop")) {
+			}
+			If ($Get(@run@("round", i)) < 2) && '$Get(@run@("stop")) {
+				Set waits = 0
+				Set @run@("lockstep lost") = i
+			}
+		}
 		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
 		Set payload.Ref = "ZzBurst"_$Job_"x"_i
 		Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload)
 		If $SYSTEM.Status.IsError(sc) {
 			Set errors = errors + 1
-			Set ^OcuTalonTest("LivePublish", "run", stream, "error", errors) = $SYSTEM.Status.GetErrorText(sc)
+			Set @run@("error", errors) = $SYSTEM.Status.GetErrorText(sc)
 		}
 	}
-	Do $Increment(^OcuTalonTest("LivePublish", "run", stream, "errors"), errors)
-	Do $Increment(^OcuTalonTest("LivePublish", "run", stream, "done"))
+	Do $Increment(@run@("errors"), errors)
+	Do $Increment(@run@("done"))
 }
 
 /// A publish that fails inside its transaction (the insert clashes with the unique index of a row that Publish
@@ -271,7 +323,7 @@ Method AssertRefused(sc As %Status, text As %String, stream As %String, rows As 
 	Do $$$AssertStatusNotOK(sc, what_" is refused")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ text, what_": the error names the problem: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertEquals($ListLength(..Rows(stream)), rows, what_" writes no row")
-	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), rows, what_" leaves LastSeq alone")
+	Do $$$AssertEquals($Select(stream = "": 0, 1: +$Get(^OcuTalonP.LiveEventC(stream))), rows, what_" leaves the stream's counter alone")
 }
 
 /// Deletes the rows and counters of every stream that this test recorded, in this or an earlier run.

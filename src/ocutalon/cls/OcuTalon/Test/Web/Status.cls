@@ -1,6 +1,6 @@
 /// Tests of the public status class (matrix row 19, the slot A part): the body for the public settings that are set
-/// and for none, the busy formula, the route and the authorisation, and the source of the class, which may reference
-/// only what AD-3 allows. The tests set the public settings that the body reads. OnBeforeAllTests saves them and
+/// and for none, the busy formula, the route and the authorisation, an error's answer, and the source of the class,
+/// which may reference only what AD-3 allows. The tests set the public settings that the body reads. OnBeforeAllTests saves them and
 /// OnAfterAllTests restores each one, so the slot's settings are as they were. The HTTP half is test-sign-in.sh's.
 Class OcuTalon.Test.Web.Status Extends %UnitTest.TestCase
 {
@@ -102,26 +102,22 @@ Method TestRouteAndAccess()
 	New %request, %response
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/public/")
 	Set %response = ##class(%CSP.Response).%New()
-	Set file = ##class(%File).TempFilename("json")
-	Set io = $IO
-	Open file:("NWS"):5
-	If '$Test Quit
-	Use file
-	Try {
-		Set sc = ##class(OcuTalon.Web.Public.Status).Show()
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	Use io
-	Close file
-	Set stream = ##class(%Stream.FileCharacter).%New()
-	Do stream.LinkToFile(file)
-	Set written = stream.Read(10000)
-	Kill stream
-	Do ##class(%File).Delete(file)
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, "OcuTalon.Web.Public.Status", "Show")
 	Do $$$AssertStatusOK(sc, "Show returns OK")
 	Do $$$AssertEquals(%response.GetHeader("Cache-Control"), "no-store", "Cache-Control: no-store")
 	Do $$$AssertEquals(written, ##class(OcuTalon.Web.Public.Status).Body().%ToJSON(), "Show writes the body")
+}
+
+/// An error is answered with its status line only: its cause is never written to the anonymous caller.
+Method TestErrorSendsNoCause()
+{
+	New %request, %response
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/public/")
+	Set %response = ##class(%CSP.Response).%New()
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, "OcuTalon.Web.Public.Status", "ReportHttpStatusCode", "500 Internal Server Error", $SYSTEM.Status.Error(5001, "zz-the-cause"))
+	Do $$$AssertStatusOK(sc, "ReportHttpStatusCode returns OK")
+	Do $$$AssertEquals(%response.Status, "500 Internal Server Error", "the status line")
+	Do $$$AssertEquals(written, "", "and no body, so the cause is not sent")
 }
 
 /// The public classes that the Web step's applications dispatch to before sign-in reference only what AD-3 allows

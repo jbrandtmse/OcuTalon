@@ -29,6 +29,17 @@ const BROWSER_HEADERS = { 'accept-language': 'en-US,en;q=0.9' };
 const STATE = '/ocutalon/api/v1/state';
 const EVENTS = '/ocutalon/api/v1/events';
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
+const BAD_CURSOR = 'The after and afterInstance values must be whole numbers of zero or more.';
+const MESSAGES = '/ocutalon/api/v1/messages';
+const PAIRING = '/ocutalon/api/v1/pairing';
+
+/** The three refusals of the browser envelope, with their texts. */
+const ENVELOPE_TEXT = {
+  not_json: "OcuTalon refused this request because it wasn't sent as JSON.",
+  no_request_header: "OcuTalon refused this request because it didn't come from the OcuTalon page.",
+  wrong_origin: 'OcuTalon refused this request because it came from another site.',
+} as const;
+
 const NOT_BUILT = "This part of OcuTalon isn't built yet.";
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
@@ -68,16 +79,31 @@ async function expectError(response: APIResponse, status: number, code: string, 
   else expect(body.error.message.length).toBeGreaterThan(10);
 }
 
-/** A state-changing call with a valid envelope; the options override one part of it. */
-function post(request: APIRequestContext, baseURL: string | undefined, path: string, headers: Record<string, string | undefined> = {}): Promise<APIResponse> {
+/** The origin of the stack under test: OCUTALON_URL, which the config also uses as baseURL. */
+function stackOrigin(): string {
+  return originOf(process.env['OCUTALON_URL']);
+}
+
+/** A call with the whole browser envelope; the headers override or (when undefined) remove one part of it. */
+function call(
+  request: APIRequestContext,
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  headers: Record<string, string | undefined> = {},
+): Promise<APIResponse> {
   const envelope: Record<string, string | undefined> = {
     'content-type': 'application/json',
     'x-ocutalon-request': '1',
-    origin: originOf(baseURL),
+    origin: stackOrigin(),
     ...headers,
   };
   const sent = Object.fromEntries(Object.entries(envelope).filter((entry): entry is [string, string] => entry[1] !== undefined));
-  return request.post(path, { headers: sent, data: '{}' });
+  return method === 'DELETE' ? request.delete(path, { headers: sent }) : request.fetch(path, { method, headers: sent, data: '{}' });
+}
+
+/** The "stream:seq" of each event, in the order served. */
+function ids(events: Array<Record<string, unknown>>): string[] {
+  return events.map((event) => `${String(event['stream'])}:${String(event['seq'])}`);
 }
 
 /** Row 13: the page loads the snapshot, and the snapshot is the seeded session's. */
@@ -100,8 +126,13 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(body['rail']).toEqual({ approvals: [], checks: [], reminders: [], decisions: [] });
 });
 
-/** Row 13: the first /state of a user with no session row creates it, as that unprivileged user. */
-test('row 13: the first /state of a user without a session row creates one, and a second call returns the same', async ({ request }) => {
+/**
+ * Rows 13 and 14 and AD-4: the first /state of a user with no session row creates it, as that unprivileged user, a
+ * second call returns the same session, and the user's poll holds the instance events and none of another user's
+ * session events. It is the only test that signs in as the first-call user, so its first call creates the row in any
+ * test order.
+ */
+test("rows 13 and 14: a user's first /state creates its session, and its poll holds the instance events and not another user's session events", async ({ request }) => {
   await signInOverHttp(request, FIRST_CALL.user, FIRST_CALL.password);
   const first = await request.get(STATE);
   expect(first.status(), await first.text()).toBe(200);
@@ -110,7 +141,13 @@ test('row 13: the first /state of a user without a session row creates one, and 
   expect(body.epoch, "not the README account's epoch").not.toBe(EPOCH);
   expect(body.streams.session).toBe(0);
   const second = (await (await request.get(STATE)).json()) as { epoch: string };
-  expect(second.epoch).toBe(body.epoch);
+  expect(second.epoch, 'a second call returns the same session').toBe(body.epoch);
+
+  const response = await request.get(`${EVENTS}?after=0&afterInstance=0`);
+  expect(response.status(), await response.text()).toBe(200);
+  const poll = (await response.json()) as { epoch: string; events: Array<Record<string, unknown>> };
+  expect(ids(poll.events), "the README account's two session events are not here").toEqual(['instance:1']);
+  expect(poll.epoch, "the user's own epoch, the same as /state's").toBe(body.epoch);
 });
 
 /** Row 14: the poll serves the seeded events, session stream first, and refuses a bad cursor. */
@@ -142,39 +179,112 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
   expect((await poll('?after=2&afterInstance=1')).events).toEqual([]);
   const partial = await poll('?after=1&afterInstance=1');
   expect(partial.epoch).toBe(EPOCH);
-  expect(partial.events.map((event) => `${String(event['stream'])}:${String(event['seq'])}`)).toEqual(['session:2']);
+  expect(ids(partial.events)).toEqual(['session:2']);
 
   for (const query of ['', '?after=0', '?afterInstance=0', '?after=-1&afterInstance=0', '?after=0&afterInstance=-1', '?after=x&afterInstance=0', '?after=0&afterInstance=1.5', '?after=&afterInstance=']) {
-    await expectError(await request.get(`${EVENTS}${query}`), 400, 'bad_cursor', 'The after and afterInstance values must be whole numbers of zero or more.');
+    await expectError(await request.get(`${EVENTS}${query}`), 400, 'bad_cursor', BAD_CURSOR);
   }
 });
 
-/** Row 15: a state-changing call needs the whole envelope. */
-test('row 15: a state-changing call without the browser envelope is refused with 403', async ({ request, baseURL }) => {
+/** Row 14: each cursor moves its own stream, whatever the other says, and the session's stream is always first. */
+test('row 14: the two cursors are independent, and the session stream is served before the instance stream', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages'), 501, 'not_built', NOT_BUILT);
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { 'content-type': 'text/plain' }), 403, 'not_json');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { 'x-ocutalon-request': undefined }), 403, 'no_request_header');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { 'x-ocutalon-request': '0' }), 403, 'no_request_header');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { origin: 'http://evil.example' }), 403, 'wrong_origin');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { origin: undefined }), 403, 'wrong_origin');
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/messages', { origin: originOf(baseURL).replace('http://', 'https://') }), 403, 'wrong_origin');
-  const read = await request.get(STATE);
-  expect(read.status(), 'a GET needs no envelope').toBe(200);
+  const poll = async (query: string): Promise<string[]> => {
+    const response = await request.get(`${EVENTS}${query}`);
+    expect(response.status(), query).toBe(200);
+    return ids(((await response.json()) as { events: Array<Record<string, unknown>> }).events);
+  };
+
+  expect(await poll('?after=2&afterInstance=0'), 'the session cursor at its end leaves the instance stream whole').toEqual(['instance:1']);
+  expect(await poll('?after=0&afterInstance=1'), 'the instance cursor at its end leaves the session stream whole').toEqual(['session:1', 'session:2']);
+  expect(await poll('?after=1&afterInstance=0'), 'a partial session cursor, session first').toEqual(['session:2', 'instance:1']);
+  expect(await poll('?after=001&afterInstance=00'), 'leading zeros are whole numbers').toEqual(['session:2', 'instance:1']);
+  expect(await poll('?after=999999999999999&afterInstance=999999999999999'), 'a cursor of 15 digits, past the last Seq, is an empty poll').toEqual([]);
+
+  for (const query of ['?after=0&afterInstance=1234567890123456', '?after=1234567890123456&afterInstance=0', '?after=%2B1&afterInstance=0', '?after=0&afterInstance=1e2', '?after=0x1&afterInstance=0']) {
+    await expectError(await request.get(`${EVENTS}${query}`), 400, 'bad_cursor', BAD_CURSOR);
+  }
+});
+
+/**
+ * Row 15: the browser envelope, one rule at a time. The checks run in the order not_json, no_request_header,
+ * wrong_origin, and each test breaks exactly the rule it names, so a rule that stops being checked fails its own
+ * test. One signed-in context serves them all, because none changes any state.
+ */
+test.describe('row 15: the browser envelope', () => {
+  let signedIn: APIRequestContext;
+
+  test.beforeAll(async ({ playwright }) => {
+    signedIn = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    await signInOverHttp(signedIn, README_ACCOUNT.user, README_ACCOUNT.password);
+  });
+
+  test.afterAll(async () => {
+    await signedIn.dispose();
+  });
+
+  test('the whole envelope is let through, with or without a charset', async () => {
+    await expectError(await call(signedIn, 'POST', MESSAGES), 501, 'not_built', NOT_BUILT);
+    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
+  });
+
+  test('only the Content-Type is wrong: not_json', async () => {
+    for (const type of ['text/plain', 'application/x-www-form-urlencoded', 'application/jsonx']) {
+      await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': type }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    }
+  });
+
+  test('only the X-OcuTalon-Request header is wrong: no_request_header', async () => {
+    for (const value of [undefined, '0', 'true', '11']) {
+      await expectError(await call(signedIn, 'POST', MESSAGES, { 'x-ocutalon-request': value }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+    }
+  });
+
+  test('only the Origin is wrong: wrong_origin', async () => {
+    const own = stackOrigin();
+    for (const origin of [undefined, 'http://evil.example', 'null', own.replace('http://', 'https://'), `${own}.evil.example`, `${own}0`]) {
+      await expectError(await call(signedIn, 'POST', MESSAGES, { origin }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+    }
+  });
+
+  test('with more than one rule broken, the first in the order names the refusal', async () => {
+    const evil = 'http://evil.example';
+    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined, origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', MESSAGES, { 'x-ocutalon-request': undefined, origin: evil }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+  });
+
+  test('every state-changing method is checked, and before the route is looked up', async () => {
+    const evil = 'http://evil.example';
+    await expectError(await call(signedIn, 'DELETE', PAIRING, { 'content-type': 'text/plain' }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'DELETE', PAIRING, { 'x-ocutalon-request': undefined }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+    await expectError(await call(signedIn, 'DELETE', PAIRING, { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+    await expectError(await call(signedIn, 'PUT', MESSAGES, { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+    await expectError(await call(signedIn, 'PATCH', MESSAGES, { 'x-ocutalon-request': undefined }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+    // A route that does not exist is refused for its envelope first, and is 404 only with a whole one.
+    await expectError(await call(signedIn, 'POST', '/ocutalon/api/v1/zz', { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+    await expectError(await call(signedIn, 'POST', '/ocutalon/api/v1/zz'), 404, 'not_found', NOT_FOUND);
+  });
+
+  test('a GET needs no envelope, whatever it carries', async () => {
+    const carried: Array<Record<string, string>> = [{}, { 'content-type': 'text/plain' }, { origin: 'http://evil.example' }, { 'x-ocutalon-request': '0' }];
+    for (const headers of carried) {
+      const response = await signedIn.get(STATE, { headers });
+      expect(response.status(), JSON.stringify(headers)).toBe(200);
+    }
+    await expectError(await signedIn.get('/ocutalon/api/v1/zz', { headers: { origin: 'http://evil.example' } }), 404, 'not_found', NOT_FOUND);
+  });
 });
 
 /** Row 16: every route that no story has built answers 501, and the pairing routes answer 404. */
-test('row 16: unbuilt routes answer 501 not_built, and the pairing routes 404', async ({ request, baseURL }) => {
+test('row 16: unbuilt routes answer 501 not_built, and the pairing routes 404', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
   for (const [, path] of UNBUILT) {
-    await expectError(await post(request, baseURL, path), 501, 'not_built', NOT_BUILT);
+    await expectError(await call(request, 'POST', path), 501, 'not_built', NOT_BUILT);
   }
-  await expectError(await post(request, baseURL, '/ocutalon/api/v1/pairing/code'), 404, 'not_found', NOT_FOUND);
-  const unpair = await request.delete('/ocutalon/api/v1/pairing', {
-    headers: { 'content-type': 'application/json', 'x-ocutalon-request': '1', origin: originOf(baseURL) },
-  });
-  await expectError(unpair, 404, 'not_found', NOT_FOUND);
+  await expectError(await call(request, 'POST', `${PAIRING}/code`), 404, 'not_found', NOT_FOUND);
+  await expectError(await call(request, 'DELETE', PAIRING), 404, 'not_found', NOT_FOUND);
 });
 
 /** Row 17: the other errors, signed in and signed out. */
@@ -192,11 +302,19 @@ test('row 17: 404, 405 and 401 are in the error shape', async ({ request, playwr
     expect(response.headers()['www-authenticate'], `${path} sends no challenge`).toBeUndefined();
     expect(response.headers()['content-type']).toContain('application/json');
   }
+  // Without a session the answer is 401, with the envelope whole or broken: the sign-in comes before every other check.
+  for (const headers of [{}, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined, origin: 'http://evil.example' }]) {
+    await expectError(await call(anonymous, 'POST', MESSAGES, headers), 401, 'signed_out', SIGNED_OUT);
+  }
+  await expectError(await call(anonymous, 'DELETE', PAIRING), 401, 'signed_out', SIGNED_OUT);
   await anonymous.dispose();
 });
 
-/** Row 18: a user without the OcuTalon user role is refused by the API, and the session stays open. */
-test('row 18: a trace-only user gets 403 no_role from the API', async ({ request }) => {
+/**
+ * Row 18: a user without the OcuTalon user role is refused by the API before the envelope and the route are looked
+ * at, and the refusal does not end the session, which the trace applications share.
+ */
+test('row 18: a trace-only user gets 403 no_role from the API, first, and stays signed in', async ({ request }) => {
   // A trace window's cookie is scoped to the trace application, so the API does not see it. The route that works
   // is the sign-in form's fields posted to the API itself.
   const signedIn = await request.post(STATE, { form: { IRISUsername: TRACE_ONLY.user, IRISPassword: TRACE_ONLY.password, IRISLogin: 'Sign in' } });
@@ -204,6 +322,14 @@ test('row 18: a trace-only user gets 403 no_role from the API', async ({ request
   await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   await expectError(await request.get(`${EVENTS}?after=0&afterInstance=0`), 403, 'no_role', NO_ROLE);
 
+  // Not 501, 404 or an envelope code: the role is judged before the envelope and the route.
+  await expectError(await call(request, 'POST', MESSAGES), 403, 'no_role', NO_ROLE);
+  await expectError(await call(request, 'POST', MESSAGES, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined, origin: 'http://evil.example' }), 403, 'no_role', NO_ROLE);
+  await expectError(await call(request, 'DELETE', PAIRING), 403, 'no_role', NO_ROLE);
+  await expectError(await request.get('/ocutalon/api/v1/zz'), 403, 'no_role', NO_ROLE);
+
+  // Every refusal above left the session open: it still answers, and the trace window still opens.
+  await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   const trace = await request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
   expect(await trace.text(), 'the session is not ended: the trace window still opens').toContain('Message Viewer');
 });

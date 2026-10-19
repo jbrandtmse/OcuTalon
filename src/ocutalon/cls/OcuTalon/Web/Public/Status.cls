@@ -1,7 +1,8 @@
 /// The dispatch class of the application /ocutalon/public (AD-13): GET /status, answered to anyone, with no
 /// session. It reports readiness, the next reset, busy, and the last reset's time and kind from the public
 /// settings, and always returns every key, null where a value is unset. Busy is true when the instance's licence
-/// connections reach the stored cap minus the stored reserve; the count is read without taking a connection.
+/// connections reach the stored cap minus the stored reserve; the count is read without taking a connection. An
+/// error is answered with its status line only, so its cause never reaches the anonymous caller.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP, dynamic objects, $SYSTEM.License, $SYSTEM.Status,
 /// its own package and OcuTalon.Data.Public.Settings (AD-3).
 Class OcuTalon.Web.Public.Status Extends %CSP.REST
@@ -25,6 +26,13 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 ClassMethod AccessCheck(Output authorized As %Boolean = 0) As %Status
 {
 	Set authorized = 1
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The status line of an error, with no body: the cause of an error is never sent to an anonymous caller.
+ClassMethod ReportHttpStatusCode(pHttpStatus, pSC As %Status = {$$$OK}) As %Status
+{
+	Set %response.Status = pHttpStatus
 	Quit $SYSTEM.Status.OK()
 }
 

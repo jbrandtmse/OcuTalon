@@ -42,7 +42,7 @@ Method TestPrivateRecords()
 	Do $$$AssertTrue(rows.%Size() >= 23, "the registry holds at least the 23 rows of the contracts so far")
 }
 
-/// Every persistent class in OcuTalon.Data and OcuTalon.Bridge.Data has a registry row.
+/// Every persistent class in OcuTalon.Data, OcuTalon.Live and OcuTalon.Bridge.Data has a registry row.
 Method TestEveryTableIsRegistered()
 {
 	Kill registered
@@ -51,7 +51,7 @@ Method TestEveryTableIsRegistered()
 		Set registered(row.class) = row.global
 	}
 	Set statement = ##class(%SQL.Statement).%New()
-	Do $$$AssertStatusOK(statement.%Prepare("SELECT ID FROM %Dictionary.CompiledClass WHERE (ID %STARTSWITH 'OcuTalon.Data.' OR ID %STARTSWITH 'OcuTalon.Bridge.Data.') AND ClassType = 'persistent'"), "the query is prepared")
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT ID FROM %Dictionary.CompiledClass WHERE (ID %STARTSWITH 'OcuTalon.Data.' OR ID %STARTSWITH 'OcuTalon.Live.' OR ID %STARTSWITH 'OcuTalon.Bridge.Data.') AND ClassType = 'persistent'"), "the query is prepared")
 	Set result = statement.%Execute()
 	Set count = 0
 	While result.%Next() {
@@ -59,7 +59,7 @@ Method TestEveryTableIsRegistered()
 		Set count = count + 1
 		Do $$$AssertTrue($Data(registered(class)), class_" has a registry row")
 	}
-	Do $$$AssertTrue(count >= 22, "OcuTalon.Data and OcuTalon.Bridge.Data hold at least the 22 tables of the first contracts")
+	Do $$$AssertTrue(count >= 23, "OcuTalon.Data, OcuTalon.Live and OcuTalon.Bridge.Data hold at least the 23 tables of the contracts so far")
 }
 
 /// No persistent OcuTalon class outside OcuTalon.Test projects an SQL reserved word as its table or a field.

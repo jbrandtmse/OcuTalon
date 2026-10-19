@@ -25,8 +25,8 @@ Parameter PERMITTED = "1(1""%CSP.Broker"",1""EnsPortal.VisualTrace"",1""EnsPorta
 /// The durable folder that holds the built Angular files, below the data directory.
 Parameter BUNDLEFOLDER = "csp/ocutalon-web/";
 
-/// The folder that earlier builds used, below the data directory. It is the default application's folder on the
-/// non-Health image, so OcuTalon's own files are removed from it and nothing else is.
+/// The default application's folder below the data directory, which the non-Health image's /csp/ocutalon serves
+/// without sign-in: OcuTalon's own files are removed from it, and nothing else is.
 Parameter OLDBUNDLEFOLDER = "csp/ocutalon/";
 
 /// The roles that /ocutalon and /ocutalon/api grant to every signed-in user, in MatchRoles form. They are the

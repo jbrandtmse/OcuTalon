@@ -1,9 +1,11 @@
 /// Tests of the REST skeleton's classes (matrix rows 9 to 12), called with stand-in request and response objects so
 /// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 12 routes,
 /// and the shape of every error. The HTTP rows are test-sign-in.sh's.
-/// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset). Their
+/// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
+/// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
-/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored.
+/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. Capture, Collect and Written are shared
+/// with the other web tests that call a class method and read what it wrote.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -36,13 +38,16 @@ Method OnAfterAllTests() As %Status
 }
 
 /// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, and empty chat and rail.
+/// A fixture session's stream stands in for the instance stream.
 Method TestStateBody()
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
 	Do $$$AssertStatusOK(sc, "the fixture session")
-	Set instanceBefore = ##class(OcuTalon.Live.Publish).LastSeq("instance")
+	Set instance = ##class(OcuTalon.Data.Session).ForUser("zzapistateinstance"_..Number, .sc)
+	Do $$$AssertStatusOK(sc, "the fixture session whose stream stands in for the instance stream")
 	Do ..PublishReminders(session.Ref, 3, "a")
-	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do ..PublishReminders(instance.Ref, 2, "b")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session, instance.Ref)
 	Set expectedVersion = ""
 	If ##class(%Dictionary.ClassDefinition).%ExistsId("%IPM.Storage.Module") {
 		Set module = $ClassMethod("%IPM.Storage.Module", "NameOpen", "ocutalon")
@@ -52,7 +57,7 @@ Method TestStateBody()
 	Do $$$AssertEquals(body.instanceZone, ##class(OcuTalon.Data.Time).Zone(), "instanceZone")
 	Do $$$AssertEquals(body.epoch, session.Epoch, "epoch is the session row's")
 	Do $$$AssertEquals(body.streams.session, 3, "streams.session is the session stream's last Seq")
-	Do $$$AssertEquals(body.streams.instance, instanceBefore, "streams.instance is the instance stream's last Seq")
+	Do $$$AssertEquals(body.streams.instance, 2, "streams.instance is the instance stream's last Seq")
 	Do $$$AssertEquals(body.%GetTypeOf("chat"), "array", "chat is an array")
 	Do $$$AssertEquals(body.chat.%Size(), 0, "chat is empty")
 	Do $$$AssertEquals(body.rail.%GetTypeOf("approvals")_body.rail.%GetTypeOf("checks")_body.rail.%GetTypeOf("reminders")_body.rail.%GetTypeOf("decisions"), "arrayarrayarrayarray", "rail has four arrays")
@@ -72,16 +77,19 @@ Method TestStateBody()
 }
 
 /// The poll returns a session's events after its cursor, 200 at most, in order, each in the envelope; another
-/// session's events never appear.
+/// session's events never appear. The instance stream has a cap of its own, counted from its own cursor, and comes
+/// after the session's events. A fixture session's stream with 205 events stands in for the instance stream.
 Method TestEventsBody()
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapievents"_..Number, .sc)
 	Set other = ##class(OcuTalon.Data.Session).ForUser("zzapiother"_..Number, .sc)
+	Set stream = ##class(OcuTalon.Data.Session).ForUser("zzapieventsinstance"_..Number, .sc).Ref
 	Do ..PublishReminders(session.Ref, 250, "m")
 	Do ..PublishReminders(other.Ref, 5, "o")
-	Set instance = ##class(OcuTalon.Live.Publish).LastSeq("instance")
+	Do ..PublishReminders(stream, 205, "i")
+	Set instance = 205
 
-	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 0, instance)
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 0, instance, stream)
 	Do $$$AssertEquals(body.epoch, session.Epoch, "epoch is set")
 	Do $$$AssertEquals(body.events.%Size(), 200, "the first poll returns 200 events")
 	Set prefix = "ZzApi"_..Number_"m"
@@ -100,17 +108,36 @@ Method TestEventsBody()
 	Do $$$AssertEquals(foreign, 0, "no other session's event appears")
 	Do $$$AssertEquals(malformed, 0, "each event is {seq, stream, ts, type, payload} with an object payload")
 
-	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 200, instance)
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 200, instance, stream)
 	Do $$$AssertEquals(body.events.%Size(), 50, "after 200, the other 50")
-	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 248, instance)
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 248, instance, stream)
 	Do $$$AssertEquals(body.events.%Size(), 2, "after 248, two events")
 	Do $$$AssertEquals(body.events.%Get(0).seq_","_body.events.%Get(1).seq, "249,250", "249 and 250")
 	Do $$$AssertEquals(body.events.%Get(0).payload.ref, prefix_"249", "and their payloads")
-	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 250, instance)
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 250, instance, stream)
 	Do $$$AssertEquals(body.events.%Size(), 0, "after 250, nothing")
-	Set body = ##class(OcuTalon.Web.Api).EventsBody(other, 0, instance)
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(other, 0, instance, stream)
 	Do $$$AssertEquals(body.events.%Size(), 5, "the other session sees its own 5")
 	Do $$$AssertEquals(body.epoch, other.Epoch, "with its own epoch")
+
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 10, instance, stream)
+	Do $$$AssertEquals(body.events.%Size(), 200, "after 10, the cap counts from the cursor: 200 events")
+	Do $$$AssertEquals(body.events.%Get(0).seq_","_body.events.%Get(199).seq, "11,210", "they are 11 to 210")
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 251, instance, stream)
+	Do $$$AssertEquals(body.events.%Size(), 0, "a cursor past the last Seq is an empty poll")
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 0, 999999999999999, stream)
+	Do $$$AssertEquals(body.events.%Size(), 200, "the instance cursor does not move the session's")
+	Do $$$AssertEquals(body.events.%Get(0).seq, 1, "the session's events still start at 1")
+
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 0, 0, stream)
+	Set events = body.events
+	Do $$$AssertEquals(events.%Size(), 400, "with both streams behind, 200 of each")
+	Do $$$AssertEquals(events.%Get(0).stream_":"_events.%Get(0).seq_" "_events.%Get(199).stream_":"_events.%Get(199).seq_" "_events.%Get(200).stream_":"_events.%Get(200).seq_" "_events.%Get(399).stream_":"_events.%Get(399).seq, "session:1 session:200 instance:1 instance:200", "the session's 200 first, then the instance stream's 200")
+	Do $$$AssertEquals(events.%Get(200).payload.ref, "ZzApi"_..Number_"i1", "the instance events are the stand-in stream's")
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(session, 250, 3, stream)
+	Set events = body.events
+	Do $$$AssertEquals(events.%Size(), 200, "the instance stream's cap counts from its own cursor")
+	Do $$$AssertEquals(events.%Get(0).stream_":"_events.%Get(0).seq_" "_events.%Get(199).stream_":"_events.%Get(199).seq, "instance:4 instance:203", "they are 4 to 203")
 }
 
 /// The browser envelope: exempt methods, the valid request, and each rule in its order.
@@ -141,6 +168,46 @@ Method TestEnvelopeError()
 	Do $$$AssertEquals($ClassMethod(api, "EnvelopeError", "POST", "application/json", "1", "http://h:1", "", 0), "wrong_origin", "no Host")
 	Do $$$AssertEquals($ClassMethod(api, "EnvelopeError", "POST", "text/plain", "", "", "h:1", 0), "not_json", "the Content-Type is judged before the header")
 	Do $$$AssertEquals($ClassMethod(api, "EnvelopeError", "POST", "application/json", "", "", "h:1", 0), "no_request_header", "and the header before the origin")
+}
+
+/// A signed-in user without the OcuTalon user role is refused before the envelope and the route are looked at: 403
+/// no_role with the sign-in page's text, whatever the method and the headers, and the session is not ended, because
+/// the trace applications share it. The test process holds no OcuTalon role, so the check refuses it; a process that
+/// holds the role is let through, and the test says so and stops.
+Method TestNoRoleIsRefusedFirstAndKeepsTheSession()
+{
+	If ##class(OcuTalon.Web.Public.Shell).HasRole() {
+		Do $$$LogMessage("skipped: this process holds the OcuTalon user role, which the check lets through")
+		Quit
+	}
+	Set text = ##class(OcuTalon.Web.Public.Login).#ERRORNOROLE
+	Set wanted = {"error": {"code": "no_role", "message": (text)}}.%ToJSON()
+	Set cases = $ListBuild($ListBuild("a GET with no envelope", "GET", "", "", "", ""), $ListBuild("a POST with the whole envelope", "POST", "application/json", 1, "http://h:1", "h:1"), $ListBuild("a POST with no envelope at all", "POST", "text/plain", "", "", "h:1"), $ListBuild("a DELETE with the wrong origin", "DELETE", "application/json", 1, "http://evil.example", "h:1"))
+	Set position = 0
+	While $ListNext(cases, position, row) {
+		Set label = $List(row, 1)
+		Set body = ..PreDispatch($List(row, 2), $List(row, 3), $List(row, 4), $List(row, 5), $List(row, 6), .response, .continue, .ended)
+		Do $$$AssertEquals(response.Status, "403 Forbidden", label_": 403")
+		Do $$$AssertEquals(body, wanted, label_": no_role with the sign-in page's text, not an envelope code")
+		Do $$$AssertEquals(continue, 0, label_": the dispatch stops")
+		Do $$$AssertEquals(ended, 0, label_": the session is not ended")
+	}
+}
+
+/// Every error text of the API is the plain-English one of the spec's table.
+Method TestErrorTexts()
+{
+	Set api = "OcuTalon.Web.Api"
+	Do $$$AssertEquals($Parameter(api, "MESSAGEBADCURSOR"), "The after and afterInstance values must be whole numbers of zero or more.", "bad_cursor")
+	Do $$$AssertEquals($Parameter("OcuTalon.Web.Public.ApiBase", "MESSAGESIGNEDOUT"), "You were signed out. Sign in again to continue.", "signed_out")
+	Do $$$AssertEquals($Parameter(api, "MESSAGENOTJSON"), "OcuTalon refused this request because it wasn't sent as JSON.", "not_json")
+	Do $$$AssertEquals($Parameter(api, "MESSAGENOHEADER"), "OcuTalon refused this request because it didn't come from the OcuTalon page.", "no_request_header")
+	Do $$$AssertEquals($Parameter(api, "MESSAGEWRONGORIGIN"), "OcuTalon refused this request because it came from another site.", "wrong_origin")
+	Do $$$AssertEquals($Parameter(api, "MESSAGENOTFOUND"), "OcuTalon has nothing at this address.", "not_found")
+	Do $$$AssertEquals($Parameter(api, "MESSAGENOTALLOWED"), "This address doesn't accept that kind of request.", "method_not_allowed")
+	Do $$$AssertEquals($Parameter(api, "MESSAGESERVERERROR"), "Something went wrong inside OcuTalon. Try again.", "server_error")
+	Do $$$AssertEquals($Parameter(api, "MESSAGENOTBUILT"), "This part of OcuTalon isn't built yet.", "not_built")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
 /// The URL map holds exactly the 12 routes, each with its call.
@@ -259,26 +326,80 @@ Method Call(method As %String, Output response, args...) As %String [ Private ]
 /// Calls a class method of Api with the %request and %response that the caller has set, and returns what it wrote.
 Method Run(method As %String, Output response, args...) As %String [ Private ]
 {
-	Set file = ##class(%File).TempFilename("json")
-	Set io = $IO
-	Open file:("NWS"):5
-	If '$Test Quit ""
-	Use file
-	Try {
-		Set sc = $ClassMethod("OcuTalon.Web.Api", method, args...)
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	Use io
-	Close file
+	Set body = ..Written(.sc, "OcuTalon.Web.Api", method, args...)
 	Set response = %response
-	Set stream = ##class(%Stream.FileCharacter).%New()
-	Do stream.LinkToFile(file)
-	Set body = stream.Read(100000)
-	Kill stream
-	Do ##class(%File).Delete(file)
 	Do $$$AssertStatusOK(sc, method_" returns OK")
 	Quit body
+}
+
+/// Runs OnPreDispatch for a stand-in request (see StubRequest.MakeCall) and returns the body that it wrote. continue
+/// is the dispatch flag that it left, and ended is the stand-in session's EndSession.
+Method PreDispatch(method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue, Output ended) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, contentType, header, origin, host)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ##class(%CSP.Session).%New("ZzApiTest", 0)
+	Set %response.ContentType = ""
+	Set continue = 1
+	Set sc = ..Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = ##class(OcuTalon.Web.Api).OnPreDispatch("/v1/messages", method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set body = ..Collect(.capture)
+	Set response = %response
+	Set ended = %session.EndSession
+	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Quit body
+}
+
+/// Calls a class method with the device sent to a temporary file, and returns what it wrote. sc is the method's
+/// status, or the error that it threw or that the capture met.
+ClassMethod Written(Output sc As %Status, class As %String, method As %String, args...) As %String
+{
+	Set sc = ..Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(class, method, args...)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Quit ..Collect(.capture)
+}
+
+/// Sends what the process writes to a temporary file until Collect; capture holds the file and the device to return
+/// to. An error when the file can't be opened, and then nothing is captured.
+ClassMethod Capture(Output capture) As %Status
+{
+	Kill capture
+	Set capture("io") = $IO
+	Set capture("file") = ##class(%File).TempFilename("out")
+	Open capture("file"):("NWS"):5
+	If '$Test Quit $SYSTEM.Status.Error(5001, "The temporary file "_capture("file")_" could not be opened")
+	Set capture("open") = 1
+	Use capture("file")
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Ends a Capture: returns to the earlier device, removes the file, and returns what was written, at most 100000
+/// characters.
+ClassMethod Collect(ByRef capture) As %String
+{
+	If '$Get(capture("open")) Quit ""
+	Use capture("io")
+	Close capture("file")
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Do stream.LinkToFile(capture("file"))
+	Set written = stream.Read(100000)
+	Kill stream
+	Do ##class(%File).Delete(capture("file"))
+	Kill capture
+	Quit written
 }
 
 /// Calls Events with the given cursors and a stand-in request, and returns the body that it wrote.

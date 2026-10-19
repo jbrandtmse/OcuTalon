@@ -1463,6 +1463,8 @@ So that I see my own conversation and status, and every change, as soon as it ha
 
 - DW-14: `ApiClient` sends the browser envelope on every state-changing call (an interceptor adds `Content-Type: application/json` and `X-OcuTalon-Request: 1`), starting with this story's `POST /api/v1/session/end`; a test shows the server's 403 `not_json` / `no_request_header` without it (ledger; routed by harvest 2026-10-19)
 
+- DW-15: `GET /state` and `GET /events` resolve the caller's session through `OcuTalon.Data.Ownership` from the CSP session (AD-4), replacing Epic 0's interim `Session.ForUser($Username)` lookup, so two visitors signed in with one shared account never see each other's events; a test signs in twice with one account and shows each poll holds only its own session's events (ledger; routed by cr 2026-10-19)
+
 ### Story 2.3: Route every command by verb, with origin checks
 
 As a security reviewer,

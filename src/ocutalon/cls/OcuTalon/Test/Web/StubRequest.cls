@@ -12,4 +12,19 @@ ClassMethod Make(application As %String) As OcuTalon.Test.Web.StubRequest
 	Quit request
 }
 
+/// A request with the parts that the API's browser-envelope check reads: the method, the Content-Type, the values
+/// of the X-OcuTalon-Request, Origin and Host headers (empty means the header is absent), and whether the
+/// connection is HTTPS. ContentType and Secure have setters that only this subclass may call.
+ClassMethod MakeCall(application As %String, method As %String, contentType As %String = "", header As %String = "", origin As %String = "", host As %String = "", secure As %Boolean = 0) As OcuTalon.Test.Web.StubRequest
+{
+	Set request = ..Make(application)
+	Set request.Method = method
+	Set request.ContentType = contentType
+	Set request.Secure = secure
+	If header '= "" Set request.CgiEnvs("HTTP_X_OCUTALON_REQUEST") = header
+	If origin '= "" Set request.CgiEnvs("HTTP_ORIGIN") = origin
+	If host '= "" Set request.CgiEnvs("HTTP_HOST") = host
+	Quit request
+}
+
 }
