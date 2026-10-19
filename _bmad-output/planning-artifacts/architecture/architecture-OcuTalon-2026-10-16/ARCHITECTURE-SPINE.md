@@ -1031,7 +1031,7 @@ flowchart LR
 | Class or API | Lane | Built in |
 | --- | --- | --- |
 | `OcuTalon.Msg.ItemDecision` (AD-30) | B | Epic 0 (Story 0.4) |
-| `OcuTalon.Msg.Catalog.Render(key, slots, channel)` (AD-32), called by every `*Out` operation and both lanes' render tests | B | implemented in Epic 0 (Story 0.4) |
+| `OcuTalon.Msg.Catalog.Render(key, slots, channel)` (AD-32), called by every `*Out` operation and both lanes' render tests | B | implemented in Epic 0 (Story 0.9 [AMENDED 2026-10-19, split for size, Rule 22]) |
 | `OcuTalon.Live.Payload.Incident` (AD-12), read by the web layer | A (its publisher, `IncidentManager`) | Epic 0 (Story 0.5) |
 | `OcuTalon.Data.Delivery.Record`, `.FindByApproval` (AD-14) | B | declared in Epic 0 (Story 0.4), implemented in Story 2.7 |
 | `OcuTalon.Core.Allowance.TryConsume`, `OcuTalon.Core.Trace.Join` (AD-20, AD-26) | B | Stories 2.4 and 2.9 |
