@@ -125,7 +125,7 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
 - **Rule:**
   - OCUTALON has a code database, a data database (messages and Interoperability state), a private database, and a small public database, `OCUTALON_PUBLIC`, with public Read. [ADOPTED: own namespace]
   - **The public database** holds only two packages and one global, through mappings in OCUTALON and OCUORDERS:
-    - `OcuTalon.Web.Public`: the login page and the public status endpoint;
+    - `OcuTalon.Web.Public`: the login page, the public status endpoint, the shell that dispatches `/ocutalon` (`Shell`, AD-13) and the generated sign-in assets (`SignInAssets`) [AMENDED 2026-10-18 — see Story 0.3's change log];
     - `OcuTalon.Data.Public`: the public-settings accessor;
     - the public settings global, `^OcuTalonPublic`.
 
@@ -342,7 +342,9 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
 - **Binds:** FR-12, FR-14, FR-15, FR-17, FR-45, NFR-9, NFR-25; UX sign-in and session handoff
 - **Prevents:** pages reachable without sign-in; cross-site requests acting for a signed-in user; arriving content running as script in the page; the demo's limits keyed to the proxy.
 - **Rule:**
-  - Two CSP applications share one CSP session: `/ocutalon` (the built Angular files, the WebSocket class and the login page from `OcuTalon.Web.Public`; `PermittedClasses` limited to those classes) and `/ocutalon/api` (`OcuTalon.Web.Api`, `%CSP.REST`, JSON, versioned `/v1`). Both have `SessionScope` strict and no CORS allow-list. Static files are served under CSP security.
+  - Two CSP applications share one CSP session: `/ocutalon` and `/ocutalon/api` (`OcuTalon.Web.Api`, `%CSP.REST`, JSON, versioned `/v1`). Both have `SessionScope` strict and no CORS allow-list. Static files are served under CSP security.
+    - **`/ocutalon` is a `%CSP.REST`-dispatched application** with password authentication, its `Path` the durable `csp/ocutalon/` folder (`ServeFiles` 3), and the dispatch class `OcuTalon.Web.Public.Shell` (in the public package, AD-3). The shell's `Login()` renders `OcuTalon.Web.Public.Login` for every request without a session and serves only the sign-in page's images. After sign-in it runs the user-role check and serves the built Angular files through `%CSP.StreamServer`. `PermittedClasses` applies to the trace applications only. The WebSocket (AD-12) is forwarded by the shell or moved to its own application, as its story decides.
+    - Why: on build 154 a password-only application serving built files answers 404 before sign-in, both for `/ocutalon/` and for every static file, and a dispatched application never shows its `LoginPage`. Story 0.3's probes confirmed the shell keeps `%CSP.Login`'s error codes, the original URL and the typed user name, the shared session with `/ocutalon/api`, the no-role sign-out and the group-wide `?IRISLogout=end` (author, October 18). [AMENDED 2026-10-18 — see Story 0.3's change log]
   - **One sign-in group.** `/ocutalon`, `/ocutalon/api` and OcuTalon's two trace applications, at the fixed paths `/ocutalon/trace/ocutalon/` and `/ocutalon/trace/ocuorders/` (AD-24; the OCUORDERS one exists only with demo mode on), share one dedicated sign-in group (`GroupById` `OcuTalon`, never `%ISCMgtPortal`).
     - One sign-in opens them all with no token passing, and signing out of one ends them all, without also signing the user in to the Management Portal (S7).
   - **The public application.** A third, unauthenticated application, `/ocutalon/public`, serves only `GET /status`: readiness, the next reset, busy, and the last reset's time and kind (`scheduled` or `unscheduled`; P32). Its dispatch class lives in `OcuTalon.Web.Public` (AD-3). It and the login page read only the public settings, through `OcuTalon.Data.Public.Settings` (AD-19).
@@ -897,6 +899,9 @@ How OcuTalon uses each AI Hub capability on build 154. **As is** means used unch
 | TypeScript (pinned; npm's default is now 7.x) | ~6.0.3 |
 | Node.js (build and CI only; never needed to run OcuTalon) | 24 LTS |
 | Playwright | 1.64.x |
+| Component library (Story 0.3, the Consistency Conventions' open choice) | the Angular CDK plus custom components; no component kit |
+| Icons (UX-DR10) | Lucide paths, vendored into `web/` (ISC, with Feather's MIT notice) |
+| Fonts (UX-DR15) | Inter v4.1, Montserrat v7.222 and JetBrains Mono v2.304 woff2 files, vendored into `web/` (OFL-1.1, licence texts kept) |
 | pdfplumber (step 6, through Embedded Python) | 0.11.10 |
 | python-docx (step 6, through Embedded Python) | 1.1.2 |
 | fastembed (Python package, memory vectors from step 3; S11) | 0.9.0 |
