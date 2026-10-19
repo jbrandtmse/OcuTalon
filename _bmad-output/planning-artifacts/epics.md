@@ -954,11 +954,9 @@ So that `main` stays releasable and the image never leaks.
 
 **Given** the CI-only compose override
 **When** it starts
-**Then** it adds one mock service that the Anthropic provider reaches through its `base_url`; the mock answers `POST /v1/messages` and `GET /v1/models/<id>`, rejects any request with `temperature`, `top_p` or `top_k` or an output cap under 4,000 tokens, and picks its scenario by a `[[mock:<name>]]` marker, then a guide prompt's exact text when the user message contains it (the message doesn't start with it, because the `Agent.Input` preamble comes first), then the agent's `MOCKKEY`, never by prompt wording (NFR-1, NFR-2, REL-4, AD-22)
-**And** its scenarios cover the `refusal` and `max_tokens` stop reasons, an empty reply, a provider error, the provider's "Invalid input" rejection, an answer held past the bridge timer, 429 and 529 with `Retry-After` under a per-test countdown set through its control endpoint, and a summarizer request recognised by `OCUTALON-COMPACTION-V1` at the start of its `system` text and answered in AI Hub's summary schema (plus one off-schema scenario), as Stories 1.6 to 1.9 need (AD-22)
-**And** each scenario is one JSON file, `ci/mock/scenarios/<A or B>/<name>.json`, with `name`, `match` (one of `marker`, `prompt` or `mockkey`, and, once Story 10.3 adds the Telegram scenarios, `telegram`: a Bot API method name such as `getUpdates` or `sendMessage`) and `replies` (each with `status`, `headers`, `delayMs`, `stopReason`, and `text`, `toolUse` or `body`; a `telegram` reply uses `status`, `headers`, `delayMs` and a Bot API `body`); Lane A adds scenarios only as files under `ci/mock/scenarios/A/`, and any new mock behaviour is asked of Lane B (AD-22, AD-33)
-**And** the override passes `OCUTALON_EVAL` through from the job's environment (default 0), so `EvalIn` is enabled only in Lane A's evaluation job, which sets it to 1 (AD-22)
+**Then** it passes `OCUTALON_EVAL` through from the job's environment (default 0), so `EvalIn` is enabled only in Lane A's evaluation job, which sets it to 1 (AD-22)
 **And** the judges' compose file stays free of mocks (CON-3)
+**And** its mock service for the model API, the scenarios and their file format are built in Story 0.11 [AMENDED 2026-10-19, split for size, Rule 22]
 
 **Given** the repository
 **When** the checks job runs
@@ -1032,6 +1030,23 @@ So that the demo path has a real production to watch and break, beside OcuTalon'
 **When** `OcuTalon.Install.Step.Demo` runs
 **Then** namespace OCUORDERS exists with its code and data databases and mappings, and `OcuTalon.Demo.Orders.Production` runs there with its message classes, a partner service and the real transform, which fails on the changed date format (a test sends one order in each format and finds only the changed one failing); `eval/` holds one recorded failure snapshot of a date-format batch, which Lane A's watch and diagnosis tests use until Epic 9 records more (FR-16, FR-56, AD-22)
 **And** with demo mode off, OCUORDERS doesn't exist
+
+### Story 0.11: The CI model mock answers every scenario the stories need
+
+[AMENDED 2026-10-19, split for size, Rule 22: these acceptance criteria moved here verbatim from Story 0.7.]
+
+As a developer in either build lane,
+I want the CI-only compose override to run one mock of the model API that answers by scenario,
+So that every IRIS test runs against a mocked model, never a real one, and each lane can add its own scenarios.
+
+**Acceptance Criteria:**
+
+**Given** the CI-only compose override
+**When** it starts
+**Then** it adds one mock service that the Anthropic provider reaches through its `base_url`; the mock answers `POST /v1/messages` and `GET /v1/models/<id>`, rejects any request with `temperature`, `top_p` or `top_k` or an output cap under 4,000 tokens, and picks its scenario by a `[[mock:<name>]]` marker, then a guide prompt's exact text when the user message contains it (the message doesn't start with it, because the `Agent.Input` preamble comes first), then the agent's `MOCKKEY`, never by prompt wording (NFR-1, NFR-2, REL-4, AD-22)
+**And** its scenarios cover the `refusal` and `max_tokens` stop reasons, an empty reply, a provider error, the provider's "Invalid input" rejection, an answer held past the bridge timer, 429 and 529 with `Retry-After` under a per-test countdown set through its control endpoint, and a summarizer request recognised by `OCUTALON-COMPACTION-V1` at the start of its `system` text and answered in AI Hub's summary schema (plus one off-schema scenario), as Stories 1.6 to 1.9 need (AD-22)
+**And** each scenario is one JSON file, `ci/mock/scenarios/<A or B>/<name>.json`, with `name`, `match` (one of `marker`, `prompt` or `mockkey`, and, once Story 10.3 adds the Telegram scenarios, `telegram`: a Bot API method name such as `getUpdates` or `sendMessage`) and `replies` (each with `status`, `headers`, `delayMs`, `stopReason`, and `text`, `toolUse` or `body`; a `telegram` reply uses `status`, `headers`, `delayMs` and a Bot API `body`); Lane A adds scenarios only as files under `ci/mock/scenarios/A/`, and any new mock behaviour is asked of Lane B (AD-22, AD-33)
+**And** the mock's tests run in the hosted CI jobs of Story 0.7, and the judges' compose file stays free of mocks (CON-3)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
