@@ -252,3 +252,144 @@ Each build runner has its own developer instance. The epic's `**Lane:**` line in
 - Story 0.7 adds the IRIS test recipe, the shard and class commands and the per-class timings to this section.
 
 Why: other instances on this machine use the same namespace names and similar credentials, so a misrouted call answers plausibly and without an error (Rule 13).
+
+## Rule 22 — Standing grant for unattended development (lead, orchestrator, runners and every stage, under `/epic-cycle`)
+
+The owner is often away. The pipeline runs without them, and a human round trip per story is not available. The Contest Planner session (SendMessage `to: "Contest Planner"`) is the owner's relay. It takes the owner-only items, batches them for the owner with a recommendation, quotes the owner's answers back, and checks every reported sha on origin.
+
+### 22.1 Decide and keep going
+
+- **Clarifications and decision sheets.** Decide every `## Clarification Needed`, every `escalated` and `decision-pending` ledger entry, and the epic-close decision sheet (Rule 17 item 5) yourself, with `by=merge_gate`, using the product defaults in 22.2. Report the decisions afterwards (22.6). Never sit waiting for input that can't arrive.
+- **Merging.** Merge each epic into the feature branch when CI is green on the exact head and the merge has no conflicts. Resolve conflicts yourself:
+  - when both sides' intent is plain, keep both (a union of entries, keys, imports or tests);
+  - when the conflict is a choice of behaviour, rule under 22.2 and log the ruling.
+- **Retrospectives.** Skip them. Log `epic_retro_skipped reason=owner_directed`.
+- **Pre-answered checkpoints (Rule 9).** A code-review or QA menu takes its recommended option. A model-tier offer to escalate, or to mix tiers, is declined. The retrospective is skipped.
+- **Dispatch.** Dispatch the next epics and stories per the dependency graph in `epics.md`. Don't stop between them for approval.
+- **Story splits.** An oversized story is split by you, at plan time or at review. Name the new story `N.<M+1>`, after the highest story number in the epic across `epics.md` and the sprint tracker. Re-record `epics_md_hash`, and add an `[AMENDED <date>, split for size, Rule 22]` marker.
+- **No idle slot.** When a slot would otherwise wait (on the other lane's merge, a parked question or a CI queue), it takes the next independent story in its own lane. Failing that, it takes ledger burn-down items: CI flakes first, then security, then the most frequent. It never touches the other lane's files (Rule 11).
+
+### 22.2 Product defaults for every call made alone
+
+1. **The demo path comes first.** Prefer the option that keeps UJ-1 real and the demo-path test green.
+2. **Never weaken a non-negotiable** (N1 to N15 in the scope brief, and every AD's "Prevents" line). In particular:
+   - no false all-clear;
+   - risky actions always wait for approval;
+   - every demo step is generated live, with no canned replies;
+   - no key or token in IRIS, a log, a commit or the trace;
+   - the AI Hub image never goes to any registry, cache or artifact;
+   - Claude Haiku 5.5 is the default, and no request sets temperature, top_p or top_k;
+   - MCP tools are governed like built-in tools.
+3. **Governed and honest.** When a choice trades safety for convenience, keep the safe behaviour and make it convenient. Text claims only what the product does. For example, tokens and cost are per turn and per decision, not per step.
+4. **The spine is the contract.** Follow `ARCHITECTURE-SPINE.md` over preference. Where it is silent, choose the simplest option consistent with it. A decision with architectural weight goes into the spine when you make it (Rule 20), marked `[AMENDED <date>, Story <id>, Rule 22 ruling]`.
+5. **Measure, don't guess.** Unknown platform behaviour gets a Task 0 that measures it on your slot or a throwaway. Anything not yet measured is labelled `(inference)`.
+6. **Smaller is better.** Split rather than stretch a story. Defer a non-demo AC to a later story in the same release rather than block.
+
+### 22.3 Decide now; the owner may veto before the next release
+
+For these, rule so the slot keeps moving, then send the Contest Planner an FYI marked `VETO WINDOW`:
+- security posture;
+- secrets and credentials;
+- privileges and roles, above all anything close to `%All` or any new grant to the demo, trace or public accounts;
+- data loss, or a change to how stored data is kept (storage definitions are append-only);
+- anything that weakens a guarantee in the PRD, the spine or the scope brief;
+- public-facing text: README, splash, About, Telegram texts, and anything near the OpenClaw not-affiliated note;
+- a new third-party dependency under a permissive licence (MIT, Apache-2.0, BSD, ISC), pinned to an exact version;
+- moving an AC to a later story within the same release.
+
+Each FYI states:
+- the question;
+- the ruling;
+- the alternatives rejected, and why;
+- why the ruling falls within this grant;
+- the commit sha;
+- what reversing it would take.
+
+If the owner vetoes, take the ruling out before the next release.
+
+### 22.4 Owner-only: park it with the Contest Planner, then continue with independent work
+
+- **Releases:** cutting, tagging, release pull requests, and anything that lands on `main`. Implementation never commits to `main`. Story 11.5's sequence already stops for the owner before each outward step.
+- **Anything outward-facing:**
+  - publishing to IPM or Open Exchange;
+  - posting anywhere, or filing bug reports with InterSystems;
+  - DNS, servers and the online demo host;
+  - Telegram bot settings and GitHub repository settings;
+  - making anything public.
+  Never push any image anywhere.
+- **Scope and product promises:**
+  - dropping scope from a release, or deferring it out of the release;
+  - changing what UJ-1 does or says;
+  - changing a number with product meaning (cost caps, allowances, timings, evaluation thresholds).
+- **Money, accounts and licences:**
+  - a dependency under a copyleft or unclear licence;
+  - any paid service or spending;
+  - accounts, keys and quota.
+- **`CLAUDE.md` and everything under `.claude/`:** report the wording you need to the Contest Planner; don't edit them.
+- **Containers you didn't start:**
+  - Never stop, remove, recreate or `down` `ocutalon-aihub-test`, any `ocupilot*` container or `iris-community-edition`.
+  - Slots follow Rule 21 only.
+  - Tear down only throwaway projects you started and can name from your own transcript.
+
+### 22.5 Stop conditions that survive this grant
+
+Stop only the affected slot, message the Contest Planner at once, and keep the other slot running:
+- a red CI head that isn't a known flake, and that you can't fix inside the story;
+- a merge conflict you can't resolve under 22.1;
+- runner liveness you can't establish;
+- a tooling need you can't meet, such as a slot that doesn't answer (Rule 21, `TOOLING:`);
+- a security incident: a secret in a commit, a log or the trace, or anything pushed somewhere public. Report it immediately and don't rewrite history without the owner.
+
+### 22.6 Logging and reporting
+
+- **Cycle log:**
+  - `orchestrator_ruling`, with the question, the choice, the rejected options and why, and `authority=standing_grant(Rule 22)`;
+  - `owner_decision`, with the owner's words quoted, as relayed;
+  - `hold_ordered` and `hold_complete`.
+- **Ledger:** trailers carry `by=merge_gate`, or `by=owner` for relayed decisions.
+- **Spine and `epics.md`:** `[AMENDED ...]` markers.
+- **Commit subjects** name the ruling, for example `chore(parallel): 2.4 ruling - <what was decided>`.
+- **At every epic close, send the Contest Planner one short report:**
+  - stories merged, each with its start and merge times in UTC (the Planner tracks pace against 3.5 stories per runner per day);
+  - rulings made, each with its sha;
+  - open VETO WINDOW items and parked owner-only items;
+  - CI health (reruns, flakes);
+  - anything the owner should know before the next release.
+- Every reported sha must be pushed to origin. The Contest Planner checks it there.
+
+### 22.7 When blocked
+
+- **Red CI.** CI is a gate. Push one code head and confirm its run by `headSha` before any further push. The next story's plan and spec stages may run while CI runs. A red head reopens its story. A known flake gets one ledger entry per root cause, with an `occurrence=` count, and a rerun.
+- **CI runner queue.** The two self-hosted services (Rule 21) can run two IRIS jobs at once. If a job queues for more than an hour, carry on locally with the next story's plan and implement. Never push the next story's code before the earlier head is green. If a head is blocked for more than about 6 hours, message the Contest Planner.
+- **Quota or usage limit: the hold protocol.** Start it at the first usage-limit warning, or at about 90% if you can see the figure. A usage-limit 429 counts too.
+  1. Start no new stage.
+  2. Make `WIP(hold)` commits by path, and push bookkeeping only.
+  3. Leave CI that's in flight running, and record which throwaways are still up.
+  4. Write one complete resume prompt per slot to `.worktrees/.coordination/prompts/e<epic>-resume-<date>-prompt.md`. It must not depend on chat history, and it contains:
+     - the role and the invocation;
+     - Rule 22 and the owner-fixed values below;
+     - the state, verified with git: the branch, the origin and local heads, each unpushed commit, the spec status, the slot's state and the ledger;
+     - the next steps, in order;
+     - "End only with `## Epic Runner Complete` or `## Clarification Needed`".
+  5. Log `hold_complete` with every sha.
+  6. Message the Contest Planner with the prompt paths and shas.
+- **API rate limits.** Retry with backoff. Only a usage-limit 429 is the quota case.
+- **Restarts.** Keep nothing you need after a restart in `/tmp`.
+
+### 22.8 Containment (restating Rule 18, because unattended runs wedge on it)
+
+- Every `Agent` call passes `run_in_background: false`, except the runner spawns.
+- Test and build calls run in the foreground with `timeout: 600000`, in batches of about 8 minutes.
+- Every agent returns exactly once.
+- Never `SendMessage` an agent whose call has returned. Spawn a fresh one, with the work written to a file.
+
+### 22.9 Owner-fixed decisions (don't re-derive or "fix" these)
+
+- One IPM package, `ocutalon`, with the bridge inside it.
+- Telegram is in Lane A, after Epic 11: 0.1.0 is cut at Epic 11, and Telegram ships as 0.1.1 before launch.
+- Polling is the release-1 contract; the WebSocket comes second.
+- Online-demo sessions resume until the reset (P10). The CSP session ends about 2 minutes after the page closes, or after 10 minutes idle.
+- Online-demo capacity is about 6 visitors per instance (P12), with "Demo busy" beyond that and no scale-out work.
+- The finish state appears only after an approved, resolved run (P24).
+- Claude Haiku 5.5 is the default model, with `max_tokens` 8,000 and no sampling parameters.
+- The demo allowance is 50 messages an hour per session, and 20 simulated emails an hour.
