@@ -981,6 +981,8 @@ So that `main` stays releasable and the image never leaks.
 **And** `_bmad/custom/parallel.yaml` matches: `bootstrap` and `bootstrap_check` give a fresh epic worktree what the local checks need (the `web/` dependencies and the git-ignored IRIS reference folders) and leave `git status --short` empty, and `runtime_locks` cover the throwaway IRIS stacks while they run on a developer machine
 **And** a later change to the self-hosted runner (its services, labels or capacity) updates the same entries
 
+- DW-11: The IRIS checks job also runs the load, compile and export round trip over every persistent class and fails when a class's compiled `Storage` block differs from its committed file (AD-5) (ledger; routed by harvest 2026-10-19)
+
 ### Story 0.8: The demo-path test signs in and loads the page
 
 As the author,
@@ -1013,6 +1015,8 @@ So that each lane renders notices and replies from the catalog without writing i
 **Then** the catalog classes `OcuTalon.Msg.Catalog.Core` and `.Watch` exist, with every release-1 and 0.1.1 catalog key and its fixed text from EXPERIENCE › Message Catalog and › Incidents and Approvals (answered statuses and Results), Telegram's pairing replies and press alerts (UX-DR109, UX-DR114) in `Catalog.Core`, and the item noun slot as `itemNoun: {"one", "other"}` (AD-29, AD-32)
 **And** `OcuTalon.Msg.Catalog.Render(key, slots, channel)` is implemented here, not a stub: the one catalog renderer every `*Out` operation calls and both lanes' render tests use, and a test renders every release-1 and 0.1.1 catalog key with fixture slots on each channel; it is Lane B's after Epic 0 (AD-29, AD-32)
 **And** a test compares the UX texts the public package keeps its own copies of (the sign-in page's, Story 0.3) with the catalog (AD-3)
+
+- DW-12: Task 0 measures, on a throwaway stack started with a compose-level `TZ`, that a production job's `OcuTalon.Data.Time.ToLocal` and `Zone()` use the container's zone; if they don't, the renderer passes the instance zone explicitly (AD-18) (ledger; routed by harvest 2026-10-19)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -1987,6 +1991,8 @@ So that I can check afterwards what OcuTalon did and who allowed it.
 **Given** a model key, an access token, a password and a Telegram chat id and display name passed in event data
 **When** the entries are read back
 **Then** none of them appears in any entry, because every entry passes `OcuTalon.Bridge.Redact` (FR-9, NFR-11, AD-17)
+
+- DW-10: When instance-wide auditing is off (an IPM install into an existing instance; build 154 ships it on), the `Audit` step says so plainly: a log warning and a recorded status that the security overview and the README can point to, so FR-9's "every action audited" never fails quietly; OcuTalon never changes the setting (AD-17) (ledger; routed by harvest 2026-10-19)
 
 ### Story 3.8: The online demo's settings, password guard and spending cap are ready
 

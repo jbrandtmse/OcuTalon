@@ -93,3 +93,10 @@
 2026-10-19T07:14:00Z	Epic 0	spine_updated	ad=AD-17,AD-3,conv reason=clarification by=lead story=0-4-the-cross-lane-message-and-data-contracts lint=ok note=audit_registration_by_Bridge.Installer,times_to_second,payload_camelCase,SQL_reserved_words,short-names.tsv
 2026-10-19T07:14:00Z	Story 0.4	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-2,AD-3,AD-5,AD-6,AD-11,AD-14,AD-15,AD-16,AD-17,AD-19,AD-20,AD-29,AD-30,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=true note=slot_A_classes_and_unique_Zz_fixtures;audit_events_on_throwaway_only model=claude-opus-5-5
 2026-10-19T07:14:01Z	Story 0.4	stage_spawned	stage=implement spawn_at=2026-10-19T07:14:01Z model=claude-sonnet-5-5 agent_name=0-4-implement-1 cycle_iteration=1
+2026-10-19T08:49:11Z	Story 0.4	dev_complete	spawn_at=2026-10-19T07:14:01Z model=claude-sonnet-5-5 build_sha=d7d3a55 baseline_revision=2d13b44 review_loop_iteration=0 followup_review_recommended=true deferred=3 loc_added=4991 loc_removed=15 files=72 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
+2026-10-19T08:49:11Z	Epic 0	ledger_routed_planned	story=3-7-every-action-and-governance-event-is-in-the-iris-audit-log entries=1 excess=0 by=harvest
+2026-10-19T08:49:11Z	Epic 0	ledger_routed_planned	story=0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model entries=1 excess=0 by=harvest
+2026-10-19T08:49:11Z	Epic 0	ledger_routed_planned	story=0-9-the-message-catalog-and-its-one-renderer entries=1 excess=0 by=harvest
+2026-10-19T08:49:11Z	Epic 0	owner_decision	source=Contest_Planner_relay quote="have_the_Audit_step_say_so_plainly_(a_log_warning,_plus_a_status_the_security_overview_and_README_can_point_to)_rather_than_pass_silently...Leave_the_setting_itself_alone" applied=DW-10_bullet_Story_3.7
+2026-10-19T08:49:11Z	Story 0.4	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
+2026-10-19T08:49:12Z	Story 0.4	stage_spawned	stage=qa spawn_at=2026-10-19T08:49:12Z model=claude-sonnet-5-5 agent_name=0-4-qa-1 cycle_iteration=1
