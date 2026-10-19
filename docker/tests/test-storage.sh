@@ -15,6 +15,10 @@
 #   - datalocation: the DataLocation of a class with a default global is that global plus D;
 #   - locations: its IdLocation, IndexLocation and StreamLocation are that global plus D, I and S, so that every global of
 #     the class stays under the private prefix (AD-3).
+#   - release-diff (AD-5, Story 0.7): each Storage block of a class at the highest earlier v* tag that is merged into HEAD (a tag
+#     on HEAD itself does not count) is a subsequence of the lines of the same class's block at HEAD, so a release only appends
+#     slots; a stored class that HEAD removed, a changed line and a shallow clone (which cannot show the tag) fail. With no
+#     earlier tag the rule prints `PASS release-diff: no release tag yet`. Its samples are synthetic git repositories.
 # Starts nothing: the checks read the files only. Each rule first runs on synthetic trees in a temporary folder, one that
 # keeps every rule and one that breaks only this rule, so a rule that can no longer flag anything fails.
 # A failing check prints file:line and the rule; the tree's own text is not printed.
@@ -293,6 +297,209 @@ rule prefix prefix-bridge prefix-outside prefix-unknown
 rule storage no-storage-persistent no-storage-message no-storage-process no-storage-body no-storage-stream no-storage-bpl no-storage-subprocess
 rule datalocation wrong-location no-storage-persistent
 rule locations wrong-id-location wrong-index-location wrong-stream-location
+
+# --- release-diff: the storage blocks only grow between releases ---
+
+# storage_blocks: the Storage blocks of a class file on stdin, from a line that starts a block to the closing brace, in order.
+storage_blocks() { awk '/^Storage /{p=1} p{print} p && /^\}/{p=0}'; }
+
+# slot_pairs: the slots of the Storage blocks on stdin, one line each: the data element, the slot line and the line after it
+# (the property the slot holds).
+slot_pairs() { awk '/^<Data name=/ { d = $0 } pending { print d "|" slot "|" $0; pending = 0; next } /^<Value name="/ { slot = $0; pending = 1 }'; }
+
+# is_subsequence <old> <new>: every line of the old file appears in the new file, in order.
+is_subsequence() { awk 'NR == FNR { a[++n] = $0; next } i < n && $0 == a[i + 1] { i++ } END { exit !(i == n) }' "$1" "$2"; }
+
+# release_diff <repository directory>: the verdict on that repository, one line each:
+#   NOTAG | TAG<TAB><tag> | SHALLOW | VIOLATION<TAB><file:line><TAB><what>
+release_diff() {
+  local dir=$1 head_tags tag path line
+  rd_git() { git -C "$dir" "$@"; }
+  if [ "$(rd_git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    printf 'SHALLOW\n'
+    return
+  fi
+  head_tags=$(rd_git tag --points-at HEAD)
+  # versionsort.suffix=- puts a pre-release (v1.0.0-rc1) before its release (v1.0.0), which git's default order puts after it.
+  tag=$(rd_git -c versionsort.suffix=- tag --merged HEAD --list 'v[0-9]*' --sort=-version:refname 2>/dev/null | grep -vxF -f <(printf '%s\n' "$head_tags") | head -n 1)
+  if [ -z "$tag" ]; then
+    printf 'NOTAG\n'
+    return
+  fi
+  printf 'TAG\t%s\n' "$tag"
+  rd_git grep -l '^Storage ' "$tag" -- 'src/*.cls' 2>/dev/null | sort | while IFS= read -r line; do
+    path=${line#"$tag":}
+    if ! rd_git cat-file -e "HEAD:$path" 2>/dev/null; then
+      printf 'VIOLATION\t%s:1\tthe stored class was removed since %s\n' "$path" "$tag"
+      continue
+    fi
+    rd_git show "$tag:$path" | storage_blocks > "$tmp/rd.old"
+    rd_git show "HEAD:$path" | storage_blocks > "$tmp/rd.new"
+    # A slot keeps its number and its property: an old line can also be found in order after a new slot was put before it.
+    slot_pairs < "$tmp/rd.old" | sort -u > "$tmp/rd.old.slots"
+    slot_pairs < "$tmp/rd.new" | sort -u > "$tmp/rd.new.slots"
+    if ! is_subsequence "$tmp/rd.old" "$tmp/rd.new" || [ -n "$(comm -23 "$tmp/rd.old.slots" "$tmp/rd.new.slots")" ]; then
+      printf 'VIOLATION\t%s:%s\ta Storage line of %s is changed or removed\n' "$path" "$(rd_git show "HEAD:$path" | grep -n '^Storage ' | head -n 1 | cut -d: -f1)" "$tag"
+    fi
+  done
+}
+
+# stored_class <Class> <slots>: a persistent class whose storage block has the slots 1..<slots>, each with its own value.
+stored_class() {
+  local n=1
+  printf 'Class %s Extends %%Persistent\n{\n\nProperty P1 As %%String;\n\nStorage Default\n{\n<Data name="XDefaultData">\n' "$1"
+  while [ "$n" -le "$2" ]; do printf '<Value name="%s">\n<Value>P%s</Value>\n</Value>\n' "$n" "$n"; n=$((n + 1)); done
+  printf '</Data>\n<DefaultData>XDefaultData</DefaultData>\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n'
+}
+
+rd_commit() { git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m "$2"; }
+rd_repo() { # rd_repo <name>: a repository with one stored class (slots 1 and 2) in the first commit
+  local d=$tmp/rd-$1
+  git init -q "$d"
+  mkdir -p "$d/src/ocutalon/cls/OcuTalon/Data"
+  stored_class OcuTalon.Data.A 2 > "$d/src/ocutalon/cls/OcuTalon/Data/A.cls"
+  rd_commit "$d" first
+  printf '%s\n' "$d"
+}
+A=src/ocutalon/cls/OcuTalon/Data/A.cls
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+
+rd_ok=1
+# rd_verdict <repository>: NOTAG, SHALLOW, VIOLATION or CLEAN (a tag was found and no block went wrong).
+rd_verdict() {
+  local out
+  out=$(release_diff "$1")
+  if printf '%s\n' "$out" | grep -q '^VIOLATION'; then echo VIOLATION
+  elif [ "$(printf '%s\n' "$out" | head -n 1)" = NOTAG ]; then echo NOTAG
+  elif [ "$(printf '%s\n' "$out" | head -n 1)" = SHALLOW ]; then echo SHALLOW
+  else echo CLEAN
+  fi
+}
+rd_expect() { # rd_expect <label> <repository> <verdict> [<text the violation lines must hold>]
+  local got
+  got=$(rd_verdict "$2")
+  if [ "$got" != "$3" ]; then
+    echo "FAIL release-diff: $1 (judged $got, wanted $3)"
+    rd_ok=0
+  elif [ -n "${4:-}" ] && ! release_diff "$2" | grep -q -- "$4"; then
+    echo "FAIL release-diff: $1 (the violation does not name $4)"
+    rd_ok=0
+  fi
+}
+
+# Append-only: a slot is appended, a stored class is added, a method is added: no violation.
+d=$(rd_repo appended)
+git -C "$d" tag v0.1.0
+stored_class OcuTalon.Data.A 3 > "$d/$A"
+stored_class OcuTalon.Data.B 1 > "$d/src/ocutalon/cls/OcuTalon/Data/B.cls"
+rd_commit "$d" second
+rd_expect "an appended slot and a new stored class are flagged" "$d" CLEAN
+if [ "$(release_diff "$d" | head -n 1)" != "$(printf 'TAG\tv0.1.0')" ]; then
+  echo "FAIL release-diff: the previous tag is not v0.1.0"
+  rd_ok=0
+fi
+# A change outside the block is none of this rule's business.
+sed 's/Property P1 As %String;/Property P1 As %String;\n\nProperty Zz As %String;/' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
+rd_commit "$d" third
+rd_expect "an edit outside the storage block is flagged" "$d" CLEAN
+
+d=$(rd_repo changed)
+git -C "$d" tag v0.1.0
+sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
+rd_commit "$d" second
+rd_expect "a changed value is not flagged" "$d" VIOLATION "$A:"
+
+d=$(rd_repo removed-slot)
+git -C "$d" tag v0.1.0
+stored_class OcuTalon.Data.A 1 > "$d/$A"
+rd_commit "$d" second
+rd_expect "a removed slot is not flagged" "$d" VIOLATION "$A:"
+
+d=$(rd_repo removed)
+git -C "$d" tag v0.1.0
+git -C "$d" rm -q "$A"
+rd_commit "$d" second
+rd_expect "a removed stored class is not flagged" "$d" VIOLATION "$A:1"
+
+d=$(rd_repo notag)
+rd_expect "a repository with no tag is not a no-op" "$d" NOTAG
+
+d=$(rd_repo tag-on-head)
+git -C "$d" tag v0.1.0
+rd_expect "a tag on HEAD itself is taken for the previous release" "$d" NOTAG
+
+d=$(rd_repo shallow-source)
+git -C "$d" tag v0.1.0
+stored_class OcuTalon.Data.A 3 > "$d/$A"
+rd_commit "$d" second
+git clone -q --depth 1 "file://$d" "$tmp/rd-shallow" 2>/dev/null
+rd_expect "a shallow clone is not refused" "$tmp/rd-shallow" SHALLOW
+
+# The highest tag by version, not by name: v0.10.0 follows v0.9.0, and the class that v0.10.0 adds is checked against it.
+d=$(rd_repo versions)
+git -C "$d" tag v0.9.0
+stored_class OcuTalon.Data.B 2 > "$d/src/ocutalon/cls/OcuTalon/Data/B.cls"
+rd_commit "$d" second
+git -C "$d" tag v0.10.0
+sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/src/ocutalon/cls/OcuTalon/Data/B.cls" > "$d/B.new" && mv "$d/B.new" "$d/src/ocutalon/cls/OcuTalon/Data/B.cls"
+rd_commit "$d" third
+rd_expect "the previous tag is chosen by version, not by name" "$d" VIOLATION "OcuTalon/Data/B.cls:"
+
+# A slot put before an existing one keeps every old line in order but moves the old property to a new number.
+d=$(rd_repo inserted-slot)
+git -C "$d" tag v0.1.0
+stored_class OcuTalon.Data.A 3 | sed -e 's#<Value>P2</Value>#<Value>PX</Value>#' -e 's#<Value>P3</Value>#<Value>P2</Value>#' > "$d/$A"
+rd_commit "$d" second
+rd_expect "a slot put before an existing one is not flagged" "$d" VIOLATION "$A:"
+
+# The previous release is a tag merged into HEAD: a higher tag on a branch that HEAD does not hold is not it.
+d=$(rd_repo unmerged-tag)
+git -C "$d" tag v0.1.0
+home_branch=$(git -C "$d" symbolic-ref --short HEAD)
+git -C "$d" checkout -q -b side
+sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
+rd_commit "$d" side
+git -C "$d" tag v0.2.0
+git -C "$d" checkout -q "$home_branch"
+stored_class OcuTalon.Data.A 3 > "$d/$A"
+rd_commit "$d" second
+rd_expect "a tag on an unmerged branch is taken for the previous release" "$d" CLEAN
+if [ "$(release_diff "$d" | head -n 1)" != "$(printf 'TAG\tv0.1.0')" ]; then
+  echo "FAIL release-diff: the previous tag is not the merged v0.1.0"
+  rd_ok=0
+fi
+
+# A pre-release sorts before its release: v1.0.0, not v1.0.0-rc1, is the previous release.
+d=$(rd_repo prerelease)
+git -C "$d" tag v1.0.0-rc1
+sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
+rd_commit "$d" release
+git -C "$d" tag v1.0.0
+stored_class OcuTalon.Data.A 3 | sed 's#<Value>P2</Value>#<Value>Q2</Value>#' > "$d/$A"
+rd_commit "$d" next
+rd_expect "a pre-release tag is taken for the previous release" "$d" CLEAN
+if [ "$(release_diff "$d" | head -n 1)" != "$(printf 'TAG\tv1.0.0')" ]; then
+  echo "FAIL release-diff: the previous tag is not v1.0.0"
+  rd_ok=0
+fi
+unset GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
+
+out=$(release_diff "$root")
+if [ "$rd_ok" -eq 0 ]; then
+  fails=$((fails + 1))
+  echo "FAIL release-diff: a sample is not judged as designed"
+elif [ "$(printf '%s\n' "$out" | head -n 1)" = NOTAG ]; then
+  echo "PASS release-diff: no release tag yet"
+elif [ "$(printf '%s\n' "$out" | head -n 1)" = SHALLOW ]; then
+  echo "FAIL release-diff: this is a shallow clone, which cannot show the previous release tag (fetch the full history and the tags)"
+  fails=$((fails + 1))
+elif printf '%s\n' "$out" | grep -q '^VIOLATION'; then
+  printf '%s\n' "$out" | sed -n 's/^VIOLATION\t\([^\t]*\)\t.*/  \1/p' | head -n 10
+  echo "FAIL release-diff: a Storage block changed other than by appending since $(printf '%s\n' "$out" | sed -n '1s/^TAG\t//p')"
+  fails=$((fails + 1))
+else
+  echo "PASS release-diff: the storage blocks only grew since $(printf '%s\n' "$out" | sed -n '1s/^TAG\t//p')"
+fi
 
 if [ "$fails" -ne 0 ]; then
   echo "test-storage: $fails rule(s) failed"

@@ -7,9 +7,12 @@
 *.tar.gz
 images/
 
-# IRIS source exported from the Early Access instance (InterSystems code): never publish
+# IRIS source exported from the Early Access instance (InterSystems code): never publish.
+# The anchored forms also ignore a symlink, which the worktree bootstrap makes (a pattern with a trailing slash does not).
 irislib/
 irissys/
+/irislib
+/irissys
 
 # Editor settings that can hold IRIS server passwords
 .vscode/settings.json

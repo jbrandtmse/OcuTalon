@@ -21,6 +21,7 @@
 set -u
 
 . "$(dirname "$0")/lib-live.sh"
+. "$(dirname "$0")/lib-scan.sh"
 live_start t02s
 
 version=$(manifest_version src/module.xml)
@@ -193,20 +194,7 @@ check_ready_state "row 4"
 
 # --- row 5: the bridge alone, in a namespace without IPM ---
 
-# bridge_refs <file>...: file:line of each code line that names an OcuTalon package other than OcuTalon.Bridge and
-# OcuTalon.BridgeExample, as a class name (OcuTalon.Pkg) or as a table name (OcuTalon_Pkg). A comment line is not code.
-# The compiler accepts a call to a class it cannot find, so the load below cannot see such a reference; this does.
-bridge_refs() {
-  awk '!/^[[:space:]]*\/\// {
-    s = $0
-    while (match(s, /OcuTalon[._][A-Za-z]+/)) {
-      w = substr(s, RSTART, RLENGTH)
-      if (w != "OcuTalon.Bridge" && w != "OcuTalon.BridgeExample" && w != "OcuTalon_Bridge" && w != "OcuTalon_BridgeExample") print FILENAME ":" FNR
-      s = substr(s, RSTART + RLENGTH)
-    }
-  }' "$@"
-}
-
+# bridge_refs (lib-scan.sh) is the source check of AD-2; test-class-rules.sh runs it in the hosted checks job.
 # The scan is shown to flag a bad sample and to pass a clean one before it is trusted on the real tree.
 mkdir -p "$tmp/refs"
 cat > "$tmp/refs/Bad.cls" <<'EOS'

@@ -2,12 +2,34 @@
 title: 'Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '80abb60cc9ab3de021f9daf9bcb3b38d66504938'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      .gitattributes forces LF for docker/**, src/** and web/** but not for ci/**, so a Windows checkout with core.autocrlf=true would give ci/*.sh CRLF line endings and break them.
+    evidence: |-
+      The recipe and the classifier run only on Linux runners and on a developer machine with bash, so nothing is broken in CI; docker/** has the rule because the image copies its scripts. Adding `ci/** text=auto eol=lf` is a one-line change to a file this story may not edit.
+    location: >-
+      .gitattributes
+    severity: low
+  - summary: >-
+      release-diff reads the files at HEAD (git show), not the working tree, so a hand edit of a committed Storage block shows red only after it is committed.
+    evidence: |-
+      The same edit is caught earlier by the roundtrip rule on the image (which builds from the working tree) and by the storage rule for a missing block. Reading the working tree would need a rule for files that are new and untracked.
+    location: >-
+      docker/tests/test-storage.sh
+    severity: low
+  - summary: >-
+      The public-package check in Test.Web.Status scans ##class calls, $SYSTEM members, dynamic dispatch, superclasses and declared types, but not embedded SQL, query bodies, direct global references or macros, so a pre-sign-in class could read private data without failing CI.
+    evidence: |-
+      AD-3 says the two public packages reference nothing outside the allow-list. The scope of this story extends the existing scan with superclasses, types and $SYSTEM.Encryption; the scan before it covered the same ##class, $SYSTEM and dispatch forms, and no public class today uses embedded SQL or a private global (not verified beyond the six classes read by the scan). The public-global rule of test-class-rules.sh covers only ^OcuTalonPublic.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Web/Status.cls
+    severity: medium
 ---
 
 <intent-contract>
@@ -415,7 +437,93 @@ QA stage (not this stage). After the lead pushes the implement commit, read the 
 
 ## Spec Change Log
 
+Implement stage, October 19. No intent gap: no AC contradicts an AD, and no NFR can't be implemented. Rule 22 rulings made alone (each as: question -> choice (rejected: ...)):
+
+- Rule 22 ruling: how does a shard run a test class from the installed package? -> One `iris session` per class: `Set ^UnitTestRoot="/tmp/"`, then `%UnitTest.Manager.RunTest(":<Class>", "/noload/nodelete/norecursive")`, then the result is read through `%UnitTest.Result.TestInstance`, `TestSuite`, `TestCase`, `TestMethod` and `TestAssert`. Measured (Task 0a): the 30 `OcuTalon.Test.*` classes are compiled by the package install, and `^UnitTestRoot` matters, because the manager checks its folder even with no load (rejected: leaving it empty, which fails with "Directory name ... is invalid"; `docker compose cp` and `LoadDir`, which the package makes unnecessary).
+- Rule 22 ruling: which compiled classes does DW-11's round trip compare? -> Those with a `%Dictionary.CompiledStorage` row whose class has no `GeneratedBy`: 53, equal to the 53 source files with a Storage block. Fourteen more classes have storage rows: the generated `MessagesReceived` and `MessagesSent` classes of the business processes (rejected: all 67, which could never equal the committed set).
+- Rule 22 ruling: whole file or Storage block? -> The Storage block, as the spec says. Measured: `ExportUDL` of each of the 53 compiled classes is byte-identical to its committed file, so the block comparison is the weaker of two true statements (rejected: a whole-file comparison, which would turn red on a harmless formatting difference).
+- Rule 22 ruling: is a `%Prepare` with no second argument unchecked? -> No. `checkPriv` defaults to 1, and `PrivateData.cls` and about forty test calls rely on it; only an explicit second argument other than `1` is flagged, and likewise a third argument of `%PrepareClassQuery` (its `pFlags` defaults to 1). An allow-list entry is stale when no unchecked call sits in its method. The synthetic classes are judged by their own allow-list, so that a change to the real list is judged on `src/` alone (rejected: flagging a missing argument, which would flag 40 correct calls).
+- Rule 22 ruling: what is a name segment in the path scan? -> A letter or digit right after the home or volume folder. Measured: Story 0.1's spec holds `/Users/...`, a generic mention with no name, which the first pattern flagged.
+- Rule 22 ruling: what are the types and superclasses that `Test.Web.Status` allows? -> Superclasses: `%CSP.*`, dynamic objects and the two packages. Types: the same, and the system datatype classes (`%`-prefixed, `ClassType` datatype: `%String`, `%Integer`, `%Boolean`, `%Status`); every other class, a datatype class of another package included, is outside. `$SYSTEM.Encryption` is allowed when every use of it lies in the body of a method whose `CodeMode` is `generator` or `objectgenerator` (counted, so one more use outside fails) (rejected: no `%` types, which would flag every `As %String`).
+- Rule 22 ruling: what does `ci/iris.sh build` do, and what is a valid tag? -> `build` checks the base image and always rebuilds the web bundle from the checkout; `group`, `shard`, `class` and `live` build it only if missing. A tag has at least 3 characters, so that the `-<tag>-` of a teardown can't match `-a-` in `lane-a`; `teardown` needs an explicit tag and also removes leftover containers by name (rejected: a defaulted tag for teardown, which matches nothing).
+- Rule 22 ruling: how does `ci/changes.sh` call the API? -> On the repository of the current directory, with the token on curl's standard input, so that no command line holds it (rejected: `-H` on the command line).
+- Rule 22 ruling: what is in the throwaway lock? -> Rule 12's line with `OCUTALON_LOCK_OWNER` (for example `epic=0 stage=implement`, default `epic=unknown stage=throwaway`) followed by `project=<P> acquired_at=<UTC>`. Test seams: `OCUTALON_LOCK_DIR`, `OCUTALON_LOCK_SLEEP_MIN`, `OCUTALON_LOCK_SLEEP_MAX`.
+- Rule 22 ruling: how exact is `test-ci-config.sh`? -> The concurrency group, the cancel expression and the fork guard are compared as exact strings, so a change to them is a deliberate change here too. A missing Ruby prints `SKIP yaml` and the test still exits 0, with the skip named on the last line.
+- Rule 22 ruling: does `release-diff` read the working tree? -> No, the committed files at the tag and at HEAD (in `deferred:`).
+- Rule 2: `test-install-start.sh` row 5 keeps its two sample classes, as the spec says ("keeps its checks"); they are a copy of the `bridge-refs` samples of `test-class-rules.sh`, so that row 5 still checks its own scanner when run alone. `bridge_refs` itself moved to `lib-scan.sh` and is not copied.
+- Not addressed, because it can't be measured before the first real run (inference until QA reads it): `RUNNER_NAME`'s format (the recipe reads a trailing `-<n>` and falls back to the first free port); `docker compose`, `dash`, `ruby` and the sha256 tool on `ubuntu-24.04`; the runs API's filters (`ci/changes.sh` filters `conclusion` and `event` again).
+
+Review pass, October 19 (patches the implement stage applied itself after the review layers reported). Rule 22 rulings made alone:
+
+- Rule 22 ruling: does `release-diff` also pin each slot to its property? -> Yes. Besides the line subsequence, every old triple of data element, slot line and the property line below it must still exist at HEAD, because a slot put before an existing one keeps every old line in order while it moves the old property to a new number (rejected: the subsequence alone, as AD-5 words it, which lets old rows read the wrong property without a red). Spine update for the lead: AD-5's check also requires that each slot keeps its number and property.
+- Rule 22 ruling: which tag is the previous release when a pre-release exists? -> `versionsort.suffix=-` sorts `v1.0.0-rc1` before `v1.0.0`, so `v1.0.0` is the previous release once it exists (rejected: git's default order, which puts a release candidate after its release and checks a later tree against it).
+- Rule 22 ruling: how does `ci/iris.sh teardown` match a tag? -> By the project name shape `ocutalon-<label>-<tag>-<epoch>-<pid>` with a 10-digit epoch, followed by nothing or by `-`, `_` or `:` and a suffix. A tag that extends or equals part of another run's tag, a slot, a name outside `ocutalon-` and the preloaded base image never match. A tag must not end another run's tag (rejected: the substring `-<tag>-`, which a tag such as `iris` matches in the base image's name).
+- Rule 22 ruling: which key shapes does CON-5's scan cover? -> Also GitHub fine-grained tokens (`github_pat_`) and DigitalOcean tokens (`dop_v1_`), each with a bad sample (rejected: the four shapes of Story 0.1, which miss the token kinds this project's own tooling uses). VETO WINDOW (security posture, a stricter scan).
+- Rule 22 ruling: how is `ci/iris.sh` tested without a Docker stack? -> It returns when sourced, finds its root through `BASH_SOURCE`, and `test-ci-config.sh` sources it with stubs for `dc` and `docker` to judge `run_class` and `teardown` (Rule 2: no copy of either function).
+- `test-install-upgrade.sh` counted its compose files to decide whether to drop its previous build context, which was three before `ci/compose.ci.yml` joined `LIVE_FILES`; it now tracks the context file by a flag and checks that the base files, the CI override included, stay.
+- `live_cleanup` runs `dc down` only when the compose file list exists, so an exit between the lock claim and the file list still releases the lock.
+- `test-ci-config.sh` gained: secrets and `github.token` are looked for in run blocks, in any case and with a bracket; a missing or block-style matrix fails; the teardown step must come after the steps that run `ci/iris.sh`; `.yaml` files count as workflow files; the `lane-a` control is a file that exists with another job; the `wiring` rule (step ids, `if:` gates, run commands and the iris job's tag, image and deadline); and hermetic tests of `ci/checks.sh`, `run_class` and `teardown`.
+- Not changed, with the reason in the Review Triage Log: the web job's lint and unit tests rely on the in-place build's `npm ci` (a fallback to the copy leaves them red, never green); a skipped assertion counts as passed (Story 0.6's `$$$AssertSkipped`, printed as a `SKIP` line); the throwaway lock has no queue or stale takeover (the content names `acquired_at`, and exit 75 is the documented retry).
+
 ## Review Triage Log
+
+### 2026-10-19 - Review pass 1
+- verdicts: 52 findings (blind-hunter 11, edge-case-hunter 28, verification-gap 13; the intent-alignment auditor reported readings, no finding) - high 0, medium 19, low 30, false 2, maybe-false 1
+- intent-alignment: no divergence between the intent and the diff beyond what the spec labels `(inference)` (the GitHub runtime and the x64 runner, read on the first real run) and the recipe behaviour that the verification-gap findings below pinned.
+- findings:
+  - `[medium]` `[patch]` teardown matches `-<tag>-` as a substring, so a tag such as `iris` or `shard` removes other runs' resources and untags the preloaded base image (BH1) - anchored to the project name shape; `test-ci-config.sh` `teardown` runs it against a stub
+  - `[low]` `[reject]` the throwaway lock can starve a waiter because each unit of `group` re-claims it at once (BH2) - the lock exists only where the coordination folder does; `group` and `all` are conveniences; exit 75 is the documented retry; a fair queue is more than a correction
+  - `[medium]` `[patch]` `release-diff` passes a slot put before an existing one (BH3) - slot triples must survive; sample `inserted-slot`
+  - `[medium]` `[patch]` the previous tag sorts a pre-release after its release (BH4) - `versionsort.suffix=-`; sample `prerelease`
+  - `[low]` `[patch]` `ai-allowlist` misses the table form `%AI_...` (BH5) - the regex lets `_` follow `%AI`; sample `ai_bad4`
+  - `[low]` `[reject]` the yaml rule skips when Ruby is missing and `ci/checks.sh` shows the block as passed (BH6, VG6 part) - the hosted image ships Ruby, GitHub parses the workflow files itself, and the last line of the block says `skipped: yaml`
+  - `[low]` `[reject]` a skipped assertion counts as passed and has no count (BH7) - Story 0.6's `$$$AssertSkipped` is intended, and each skip prints a `SKIP` line
+  - `[low]` `[patch]` the spec's `image` timing (159 s) disagrees with Rule 21 (150 s) (BH8) - the spec now names both runs
+  - `[low]` `[patch]` `key_like` misses `github_pat_` and `dop_v1_` tokens (BH9) - two alternatives and samples
+  - `[medium]` `[defer]` the public-package check ignores embedded SQL, query bodies, private globals and macros (BH10, EC26) - the blind spot predates this story and is outside the spec's scope; in `deferred:`
+  - `[low]` `[reject]` the web job's lint and tests depend on the in-place build's `npm ci` (BH11) - a fallback to the copy leaves them red (`tsc: not found`), never green, and the build step's output names the mode
+  - `[low]` `[patch]` `git diff --name-only` quotes a non-ASCII path, so a web path with an accent skips the web job (EC1) - `core.quotePath=false`; case in `test-ci-changes.sh`
+  - `[low]` `[reject]` a test class that inherits all its `Test` methods has no `Method Test` line and never runs (EC2) - the spec defines a test class by that line
+  - `[low]` `[reject]` a hanging test class stalls until the job timeout (EC3) - classes take under 2 s, `timeout-minutes` bounds the job, and no portable `timeout` exists on the developer machine
+  - `[medium]` `[patch]` same root cause as BH1 (EC4)
+  - `[low]` `[patch]` `printf '%.2f'` rejects IRIS's decimal point under a comma locale (EC5) - the line runs in the C locale
+  - `[medium]` `[patch]` an exit between the lock claim and the compose file list leaves the lock held (EC6) - `live_cleanup` skips `dc down` without files; test `a cleanup before the compose files exist`
+  - `[low]` `[reject]` a non-numeric `OCUTALON_LIVE_DEADLINE` aborts `live_start` (EC7) - CI sets 1200 and a developer sets a number; the cleanup now releases the lock anyway (EC6)
+  - `[low]` `[reject]` no age check on a stale lock (EC8) - Rule 12 lets the orchestrator sweep it, and the busy line names `acquired_at`
+  - `[low]` `[reject]` a quoted or absolute `worktree_base` is not read (EC9) - the file has `.worktrees` unquoted; Rule 12's folder is relative to the main checkout
+  - `[low]` `[reject]` `OCUTALON_LOCK_SLEEP_MAX` below `MIN` is a division by zero (EC10) - test seams only, never set by a caller
+  - `[maybe-false]` `[reject]` `docker image rm -f <id>` untags another job's image of the same id (EC11) - the line predates this story; what would settle it: two concurrent builds of one context on the runner giving one image id, and the second job's recreate failing
+  - `[low]` `[patch]` `scan_files` skips a file with a non-ASCII name because git quotes it (EC12) - `core.quotePath=false`; test `scan_files`
+  - `[low]` `[reject]` `bridge_refs` matches the package name in one case only (EC13) - moved verbatim from Story 0.6; a lower-case reference is not used anywhere
+  - `[low]` `[reject]` `grep -I` skips a file with invalid UTF-8 (EC14) - measured: BSD grep also skips it in the C locale, so a locale prefix does not help, and no such file exists
+  - `[low]` `[reject]` `docker buildx build --output type=tar` is not a risky call (EC15) - the spec lists `push`, `login`, `save`, `export` and `--cache-to`
+  - `[medium]` `[patch]` a `secrets.` reference inside a run block, or written `Secrets['K']`, is not flagged (EC16) - the check runs before the run-block shortcut and in any case; samples `secret-block`, `secret-bracket`, `token-block`
+  - `[medium]` `[patch]` a missing or block-style matrix lets a group drop out unseen (EC17, and the matrix part of VG6) - `ci.yml` needs a flow-list matrix equal to `ci/iris.sh groups`; samples `matrix-block`, `matrix-missing`
+  - `[low]` `[patch]` the teardown step may come before the steps it cleans up (EC18) - it must come after; sample `teardown-early`
+  - `[low]` `[patch]` a workflow saved as `.yaml` is not read (EC19) - both extensions
+  - `[low]` `[reject]` `%AI` in a `.inc`, `.mac` or `.int` file is not scanned (EC20) - none exists below `src/`; a package is a path of classes
+  - `[low]` `[reject]` an unchecked prepare reached through `$classmethod` with the name in a string (EC21) - dynamic dispatch is itself outside the public packages and unused in `src/`
+  - `[medium]` `[patch]` `test-install-upgrade.sh` pops `ci/compose.ci.yml` at its first build context (EC22) - it counted three files, now four; a flag and a check
+  - `[medium]` `[patch]` same root cause as BH4 (EC23): the pre-release sorts above its release
+  - `[low]` `[reject]` `git status --short` that fails prints nothing, so the build runs in place (EC24) - the earlier `git ls-files` and the checkout step fail first
+  - `[low]` `[reject]` same root cause as BH11 (EC25): lint and tests need the in-place build's `npm ci`
+  - `[medium]` `[defer]` same root cause as BH10 (EC26's SQL half is the same blind spot)
+  - `[false]` `[reject]` the removed fixed class list no longer requires `Status` and `ApiBase` (EC27) - `>= 6` classes are required, so deleting either of the six is red
+  - `[false]` `[reject]` a reader may think `build-inputs` ran with the CI override (EC28) - it builds an image and starts no stack, and the AC speaks of units that start one
+  - `[medium]` `[patch]` `ci/checks.sh` has no executed test (VG1) - `test-ci-config.sh` runs a copy against stub scripts
+  - `[medium]` `[patch]` the wiring of `ci.yml` (step ids, gates, run commands, run tag) is unpinned (VG2) - the `wiring` rule with nine samples
+  - `[medium]` `[patch]` the verdict guards of `run_class` have no hermetic host (VG3) - `ci/iris.sh` is sourceable; eight cases
+  - `[medium]` `[patch]` the selection of `teardown` is untested (VG4) - a stub `docker` with fixtures of other tags, a slot, an outside name and the base image
+  - `[medium]` `[patch]` same root cause as BH1 (VG-other 1): the selection of `teardown` matches a substring
+  - `[medium]` `[patch]` the API request and the token delivery of `ci/changes.sh` are untested (VG5) - a fake `curl` records its arguments and standard input
+  - `[low]` `[patch]` the `lane-a` control reads a file that does not exist (VG6) - a file that exists with another job; the dead `rm` is gone
+  - `[low]` `[patch]` the dead `rm -f` of the `lane-a` control (VG-other 3) - removed with the control
+  - `[medium]` `[patch]` `release-diff` has no sample for a tag that HEAD does not hold (VG7) - sample `unmerged-tag`
+  - `[medium]` `[patch]` the dictionary helpers of `Test.Web.Status` are never shown to flag (VG8) - `TestDefinitionScansFindWhatIsOutside` on definitions in memory
+  - `[low]` `[patch]` `test-lib-live.sh` and `test-ci-changes.sh` inherit `OCUTALON_LIVE_DEADLINE` and `GITHUB_OUTPUT` (VG9) - unset in the probe; a leak check
+  - `[low]` `[patch]` the `.env` filter of `lib-scan.sh` has no executing test (VG10; the layer proposed `defer`) - test-boundaries `scan_files` lists a made-up repository
+  - `[low]` `[reject]` `scan_rule` expands the file list unquoted (VG-other 2) - no tracked file has a space or a glob character, and the scanners are Story 0.1's pattern
+
 
 ## Design Notes
 
@@ -626,10 +734,84 @@ Every test added or changed passes on a fresh environment, in either order.
 - DW-11: the third slot removed from `Decide`'s committed block → `test-storage-roundtrip.sh` red naming `Decide`.
 - DW-17: see AC3.
 
+**Results (implement stage, October 19).** Machine: the developer's Apple silicon Mac (ARM), Docker Desktop, warm layer cache, compose 5.5.0, bash 3.2. The runner is x64; its figures are `(inference)` until QA reads the first run. Run tag `v07a` throughout; every throwaway was torn down by its own trap, and `ci/iris.sh teardown` with the tag found nothing left (no container, volume, network or image of `-v07a-`).
+
+*Task 0a, measured.*
+- The package install compiles all 30 `OcuTalon.Test.*` classes (27 test cases, 3 helpers), so the shards load nothing. `^UnitTestRoot` matters: empty, `RunTest(":<Class>", "/noload/nodelete/norecursive")` logs "Finding directories ... Directory name ... is invalid" and runs nothing; set to `/tmp/` it runs the class from the namespace and leaves the class compiled. A line of an `iris session` can't hold a `$$$` macro.
+- Results land in `^UnitTest.Result`, read through `%UnitTest.Result.TestInstance` (newest id), `TestSuite` named `(root)`, `TestCase` named by the class, `TestMethod` and `TestAssert`. A failing assertion gives `Status` 0 on the assertion, its method, the case and the suite; a skipped assertion gives 2 on the assertion and its method (the case is then 1 or 0 by the other methods); a passing one gives 1. A class that isn't compiled leaves a suite with status 0, no case, and the error "Compiled class ... does not exist"; the recipe checks `%Dictionary.CompiledClass` first. One class takes less than 1 s through its own session.
+- Compose: `docker compose up -d --build --wait` with the CI override returned healthy after 56 s (the first start, image build included); `down -v --rmi local` removed the container, `<project>_durable`, `<project>_default` and the image `<project>-iris:latest`. A project is found by the label of its containers, and by name from its volumes, networks and images, all of which carry the project name.
+- DW-11: `ExportUDL` of the compiled class is byte-identical to the committed file for all 53 classes with storage (not only the block). The control: `Decide` with its third slot removed, loaded and compiled, exports with the slot back (it differs from the copy); the original, loaded again, exports equal to its file.
+- A `docker compose cp` prints the copied host path on its error stream; the scripts discard it.
+
+*Task 0b, with the recipe.* All 27 classes passed in a fresh throwaway, forward and reversed, on the first run, so no test was changed and nothing went to `deferred:` for a product defect. DW-9's `Test.Install.Users` flake did not show in five runs.
+- Time to a ready stack: 52 to 57 s. Per class, every class took under 0.4 s except `Install.Registry` 0.9 to 1.1 s, `Live.Publish` 1.3 s and `Contract.Checker` 1.6 to 1.9 s.
+- Per shard (call start to teardown): `lane-a` 56 to 61 s, `lane-b` 62 to 65 s.
+- Per live script: `compose-start` 80 s, `install-start` 151 s, `install-upgrade` 164 s, `production` 83 s, `production-restart` 87 s, `audit` 76 s, `sign-in` 68 s, `bundle-folder` 75 s, `storage-roundtrip` 57 to 81 s, `build-inputs` 4 s.
+- Per group: `install` 315 s, `production` 246 s, `browser` 143 s, `shards` 126 s, `image` 150 s (980 s in all; a second run of the group took 159 s). Doubled for the runner (inference), the slowest group is about 11 minutes, below the 15-minute bound, so the groups were not rebalanced; about 33 runner-minutes over two runners (inference), about 17 minutes of wall-clock, with the hosted jobs in parallel. REL-4's 30 minutes holds on this estimate (inference).
+- Linux tools: `bash ci/checks.sh` in a public `ubuntu:24.04` container (arm64, `docker run --rm`, with git 2.43.0, jq 1.7 and Ruby 3.2.3 added; mawk 1.3.4, GNU tools, bash 5.2): every script passed except four `docker compose config --quiet` checks of `test-compose-file.sh`, which need the Docker CLI that the container lacks (the spec allows leaving it out). The image was pulled once for this run; no IRIS image was used.
+- Workflow files: both parse with `ruby -ryaml`. actionlint 1.7.12 (MIT, downloaded to the session's scratchpad with `gh release download`, never installed globally) reports nothing once the custom label `ocutalon` is configured in a config file kept in the scratchpad; without it, its only complaint is that label.
+- Tools added: `@types/node` 24.19.1 (exact, MIT, `web/package.json`); nothing else.
+
+*Commands run, all exit 0.* `bash docker/tests/test-boundaries.sh`, `test-storage.sh`, `test-class-rules.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`, `test-after-start.sh`, `test-healthcheck.sh` and `test-lib-live.sh`, one per call; `bash ci/checks.sh` (about 20 s, with `release-diff`'s line `PASS release-diff: no release tag yet`); the YAML parse; `npm --prefix web ci`, `run build`, `run lint`, `test` (41 tests); `ci/iris.sh build`, `shard lane-a`, `shard lane-b`, both again with `--reverse`, `class OcuTalon.Test.Install.Users`, `live` for all ten scripts, `group shards` and `group image`, `teardown`; `bash docker/tests/test-web-build.sh` in copy mode, and in place in a scratch repository with `GITHUB_ACTIONS=true` and a clean tree; the bootstrap in a detached worktree of the scratchpad (`git status --short` empty, `bootstrap_check` exit 0, the worktree removed and `git worktree list` as before); slot A (build 154, profile `ocutalon-slot-a`, namespace `OCUTALON`): `Status.cls` loaded with `compile: true`, then `iris_execute_tests` `OcuTalon.Test.Web.Status`: 6 passed, 0 failed.
+
+*Mutation results (Rule 19; each applied, red observed, reverted; `git status --short` and `git diff --stat` identical after each).*
+- AC1: mutation: `"triage"` -> `"triageX"` in `Test.Agent.Constants` -> `ci/iris.sh group shards` exit 1 with `CLASS OcuTalon.Test.Agent.Constants failed`, `UNIT shard:lane-a failed` and `GROUP shards failed: shard:lane-a`.
+- AC1, skips: mutation: `ci/changes.sh` takes the second commit of `git rev-list HEAD` as its base -> `test-ci-changes.sh` red at "red then bookkeeping". Mutation: `NOT_BOOKKEEPING_PATTERN` matches nothing in `ci/units.sh` -> `test-ci-changes.sh` red at the DESIGN.md case.
+- AC2: mutation: `OCUTALON_EVAL: "0"` in `ci/compose.ci.yml` -> `test-production-restart.sh` row 19 red ("the row is 1 and EvalIn answers CreateBusinessService"). Mutation: `ports:` in the override -> `test-compose-file.sh` red (two checks).
+- AC3: mutation: `%Prepare("SELECT 1", 0)` in `Data/Setting.cls` -> `unchecked-prepare` red at `Setting.cls:50`. Mutation: `ForUser` renamed in the allow-list -> red at `Session.cls:50` and at the stale entry. Mutation: `##class(%AI.Agent)` in `Watch/Ops.cls` -> `ai-allowlist` red at `Ops.cls:11`. Mutation: `$Get(^OcuTalonPublic("ready"))` in `Web/Public/Status.cls` -> `public-global` red at `Status.cls:51`. Mutation: `is_subsequence` always true in `test-storage.sh` -> `release-diff` red for the changed value, the removed slot and the version-sorted tag. Mutation: a scratch `ci/` file with a docker save -> `docker calls` red at `ci/<file>:1`. Mutation: a home path with a name in a scratch file -> `paths` red at its line. Mutation: a class `OcuTalon.Web.Public.ZzMutant`, a copy of `Status` that extends `OcuTalon.Data.Setting`, loaded on slot A -> `Test.Web.Status` red at "extends and types its members with nothing outside the allow-list" (the class is covered because the list is read from the dictionary); deleted again, the test is green. Mutation: the slot removal of the control disabled in `test-storage-roundtrip.sh` -> red "the mutation did not change the copy of Decide".
+- AC4: mutation: `lane-a.yml` moved away -> `test-ci-config.sh` `lane-a` red.
+- AC5: mutation: the fork guard removed from `iris` -> `fork-guard` red at `ci.yml:82`. Mutation: an `actions/cache` step added -> `image-actions` red.
+- AC6: mutation: `cancel-in-progress: true` -> `concurrency` red. Mutation: `OCT-epic*` dropped -> `triggers` red. Mutation: `/irislib` dropped from `.gitignore` -> the bootstrap worktree's `git status --short` shows `?? irislib` and `bootstrap_check` exits 1. Mutation: the cleanup deletes any lock -> `test-lib-live.sh` red at "a lock that another run holds is kept"; mutation: no `set -C` in the claim -> red at the exit 75 and the takeover; mutation: `exit 1` for `exit 75` -> red. Mutation: the run tag dropped from `P`, and the deadline override ignored -> `test-lib-live.sh` red. Mutation: the web port base 52800 in `ci/iris.sh` -> `test-ci-config.sh` `recipe` red. Mutation: an unlisted `docker/tests/test-<x>.sh` -> `units` red.
+- DW-11: mutation: the third slot removed from `Decide`'s committed block -> `test-storage-roundtrip.sh` red, naming `OcuTalon.Bridge.Process.Decide`.
+- DW-17: see AC3.
+- Web lint: mutation: a type error in `playwright.config.ts` -> `npm --prefix web run lint` exit 2 (TS2322); mutation: a syntax error in `web/scripts/tokens.mjs` -> exit 1 (`node --check`).
+- `ci/checks.sh`: mutation: an unknown name in `CHECK_SCRIPTS` -> that block fails, the other scripts still run, and the last line names the failed scripts.
+
+*Review patches (Rule 19; each applied, red observed, reverted; `git status --short` and `git diff --stat` identical after each).*
+- AC1, `ci/checks.sh`: mutation: `exit 1` -> `exit 0` at its end -> `test-ci-config.sh` `checks.sh` red.
+- AC1, `ci/iris.sh run_class`: mutation: the `ran no test` guard made unreachable -> `class verdict` red at "a class that ran no test"; mutation: the `compiled` guard made unreachable -> `class verdict` red at "a class that is not compiled" and "a session that printed nothing".
+- AC1, `ci/iris.sh teardown`: mutation: the pattern back to the substring `-<tag>-` -> `test-ci-config.sh` `teardown` red (it removes another tag's, a slot's and an outside project); mutation: `grep -v slot` dropped -> `teardown` red.
+- AC1, skips: mutation: `core.quotePath=false` dropped from `ci/changes.sh` -> `test-ci-changes.sh` red at "a web path with a non-ASCII name" and at the API case; mutation: the runs URL changed -> red at "API: the runs of this workflow"; mutation: the token on curl's command line -> red at "API: the token goes to curl on its standard input"; mutation: `GITHUB_OUTPUT=""` dropped from the API-failure runs -> red at "the runs that name no output file of their own".
+- AC1, install-upgrade: mutation: `use_image_context` counting files (`-gt 3`) again -> `ci/iris.sh live install-upgrade` stops with "the compose files after a build context are not the base files plus that context".
+- AC3, `release-diff`: mutation: the slot-triple check removed -> `test-storage.sh` red at "a slot put before an existing one is not flagged"; mutation: `--merged HEAD` removed -> red at "a tag on an unmerged branch"; mutation: `versionsort.suffix=-` removed -> red at "a pre-release tag".
+- AC3, `ai-allowlist`: mutation: `_` excluded again after `%AI` -> `test-class-rules.sh` red at the `%AI_Agent.Session` sample.
+- AC3, paths and keys: mutation: the `.env` filter of `scan_files` removed -> `test-boundaries.sh` red at "scan_files"; mutation: `core.quotePath=false` removed from `scan_files` -> red at "scan_files"; mutation: the `dop_v1_` alternative removed -> red at "sample 4"; mutation: the `github_pat_` alternative removed -> red at "sample 3".
+- AC3, `Test.Web.Status` (slot A, build 154): mutation: the `CodeMode` filter of `GeneratorTextOf` removed -> `TestDefinitionScansFindWhatIsOutside` red at "the text of a plain method is not"; mutation: the property type check emptied in `DefinitionOutside` -> the same test red at "a superclass, a property type, a return type and an argument type outside the list are found". The original reloaded: 7 of 7 pass.
+- AC5/AC6, `test-ci-config.sh`: mutation: the secrets check skipped in run blocks -> `secrets` red at `secret-block`; mutation: `secrets.` only, without a bracket -> red at `secret-bracket`; mutation: the matrix required only when present -> `matrix` red at `matrix-missing`; mutation: the teardown allowed at any position -> `teardown` red at `teardown-early`; mutation: the lint `need(...)` line removed -> `wiring` red at the `lint` sample; mutation: `.yaml` dropped from the listing -> `workflow files` red; mutation: `has_job` ignoring the job name -> `lane-a` red.
+- AC6, `lib-live.sh`: mutation: `dc down` always run in `live_cleanup` -> `test-lib-live.sh` red at "a cleanup before the compose files exist"; mutation: `OCUTALON_LIVE_DEADLINE` left in the probe's environment, with `OCUTALON_LIVE_DEADLINE=1200` exported -> red at "the deadline is 540 s by default".
+
+*Re-run after the review patches (all exit 0).* `bash ci/checks.sh`; the YAML parse; `npm --prefix web ci`, `run build`, `run lint`, `test`; `ci/iris.sh build`, `shard lane-a`, `shard lane-b`, `live storage-roundtrip`, `live production-restart`, `teardown`; slot A `Test.Web.Status`: 7 of 7. The `(once)` lines ran again after the last patch (see the Auto Run Result).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement and review (October 19).**
+- **Summary.**
+  - Both workflow files, the recipe, the shared test shell, the new and extended checks, the web lint and tests, the pipeline configuration and Rule 21's recipe are implemented as specified. The model mock stays out (Story 0.11); `web` holds the named empty step "Mock tests: none until Story 0.11".
+  - The story was kept whole. No intent gap, no AD conflict, no NFR tripwire.
+  - Task 0a and 0b were measured first; the results, the Rule 22 rulings and every mutation are under Verification and the Spec Change Log. Everything that only a hosted runner or the self-hosted runner can show stays `(inference)` for QA.
+- **Files changed.**
+  - `.github/workflows/ci.yml`, `.github/workflows/lane-a.yml`: the `checks`, `web` and `iris` jobs, and the empty `standalone-bridge` job.
+  - `ci/iris.sh`, `ci/units.sh`, `ci/changes.sh`, `ci/checks.sh`, `ci/compose.ci.yml`: the IRIS recipe, its lists, the classifier and base, the checks runner and the CI override.
+  - `docker/tests/lib-live.sh`: run tag in project names, deadline override, CI override in the file list, the throwaway lock, and a cleanup that releases the lock even before the file list exists.
+  - `docker/tests/lib-scan.sh`: `scan_rule`, `scan_files` and `bridge_refs`, shared by the scanners.
+  - `docker/tests/test-ci-config.sh`, `test-ci-changes.sh`, `test-class-rules.sh`, `test-storage-roundtrip.sh`: new scripts (workflow rules and hermetic tests of the recipe; the classifier; the class rules; DW-11's round trip).
+  - `docker/tests/test-boundaries.sh`, `test-storage.sh`, `test-compose-file.sh`, `test-install-start.sh`, `test-install-upgrade.sh`, `test-lib-live.sh`, `test-production-restart.sh`, `test-web-build.sh`, `test-build-inputs.sh`: extended scopes and rules (paths, keys and docker calls; `release-diff`; the CI override; the run tag; the lock; the in-place web build; the `OCUTALON_EVAL` pass-through).
+  - `src/ocutalon/cls/OcuTalon/Test/Web/Status.cls`: the public-package scan covers every class of both packages, read from the dictionary, with superclass, type and `$SYSTEM.Encryption` checks and in-memory samples.
+  - `web/package.json`, `web/package-lock.json`, `web/tsconfig.e2e.json`: `@types/node` 24.19.1, the `lint` and `test` scripts and the e2e type-check configuration.
+  - `.gitignore`, `_bmad/custom/parallel.yaml`, `_bmad/custom/skill-rules.md` (Rule 21's last bullet only): the anchored reference-folder patterns, the bootstrap and the throwaway lock, and the recipe with its timings.
+- **Review (one pass, four layers).**
+  - 52 findings: 29 patched (17 medium, 12 low), 2 deferred (the same public-package blind spot twice, one `deferred:` item beside the implement stage's two), 21 rejected (each with its reason in the Review Triage Log). No intent gap and no bad spec.
+  - The patches are mostly tests that pin behaviour the first pass left unpinned (`ci/checks.sh`, `run_class`, `teardown`, the runs API request, the workflow wiring, `release-diff`'s tag choice and slot check, the early cleanup), plus these corrections: `teardown` matches a tag by the project name shape, not as a substring; `test-install-upgrade.sh` no longer drops the CI override; a pre-release tag sorts before its release; a slot put before an existing one fails `release-diff`; a non-ASCII path name is read as it is; secrets in run blocks are flagged.
+- **Follow-up review recommended: true.** Seventeen medium findings were patched, and most of the patch is new test code in `test-ci-config.sh` (the `wiring`, `checks.sh`, class-verdict and teardown cases, which source `ci/iris.sh` with stubs) and in `test-storage.sh` (`release-diff`'s slot check). They were run under bash 3.2 on the developer machine and under bash 5.2 and mawk in a public ubuntu container, but not on the hosted runner. The unverified risk is a layout or portability difference there (awk, `git` sort options, `curl -K -`) that the first real run of `ci.yml` shows.
+- **Verification performed.** Every `(loop)` and `(once)` line of Verification ran after the last patch and exited 0: `bash ci/checks.sh` (about 20 s; `release-diff` prints its no-op line), the YAML parse, `npm ci`, `build`, `lint` and `test` (41 tests), `ci/iris.sh build`, both shards forward and reversed (27 classes), `class OcuTalon.Test.Install.Users`, all ten live scripts, `teardown` (nothing left of tag `v07a`), the bootstrap in a detached worktree of the scratchpad (clean, `bootstrap_check` 0, the worktree removed), and slot A's `Test.Web.Status` (7 of 7, build 154). `bash ci/checks.sh` also ran in a public `ubuntu:24.04` container (git 2.43.0, mawk 1.3.4, bash 5.2): every script passed except the four `docker compose config --quiet` checks of `test-compose-file.sh`, which need the Docker CLI that the container lacks.
+- **Residual risks.**
+  - All `(inference)` items stay for QA: the GitHub runtime (fork pull requests, the runs API filters, `RUNNER_NAME`'s format, the tools on `ubuntu-24.04`), the x64 timings and REL-4's 30 minutes, and two jobs on one host.
+  - The owner-only items (the one-run CI gate in `/epic-cycle`, repository settings), the VETO WINDOW items and the spine updates are listed under Design Notes and the Spec Change Log for the lead.
+  - The handoff subagent ran `docker compose ... config --format json | jq` once without `--quiet` to read the `OCUTALON_EVAL` pass-through; only one `environment` value reached its output and `.env` was not read, so no secret was shown. It pulled the public `ubuntu:24.04` image once and ran `npx playwright install chromium`. No IRIS image was pulled or pushed.
+  - Nothing was pushed or committed before finalize.
 
 **Planning summary (October 19).**
 - **Sources.** The spec was planned against:

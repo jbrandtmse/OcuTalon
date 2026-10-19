@@ -3,41 +3,125 @@
 # Sourced, not run: it defines functions and nothing else. A live test calls live_start first.
 #
 # live_start <label> sets, for the caller:
-#   P            a unique compose project name, ocutalon-<label>-<epoch>-<pid>
+#   P            a unique compose project name, ocutalon-<label>-<epoch>-<pid>, or ocutalon-<label>-<run tag>-<epoch>-<pid>
+#                when OCUTALON_RUN_TAG is set (lower-case letters, digits and hyphens, no "slot"): ci/iris.sh finds and removes
+#                the projects of one run by that tag
 #   root, tmp    the repository root (the working directory) and a private temporary directory
 #   base_image   the IRIS base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0)
 #   mgr          the manager directory in the container
 #   fails, cid   the failure count and the iris container's id
-#   deadline     the second (of $SECONDS) at which every wait gives up, 540 s after the start
-#   LIVE_FILES   the compose files of dc: the judges' file, a decoy key file and the throwaway override
+#   deadline     the second (of $SECONDS) at which every wait gives up: OCUTALON_LIVE_DEADLINE seconds (default 540) after
+#                the start, counted from the moment the throwaway lock is held
+#   LIVE_FILES   the compose files of dc: the judges' file, a decoy key file, the throwaway override and the CI override
 #   LIVE_IMAGES  extra image ids or names that the cleanup removes
-# and installs a cleanup trap that removes the project with its volume and images and the temporary directory.
+# and installs a cleanup trap that removes the project with its volume and images, releases the throwaway lock and removes
+# the temporary directory.
 # The project receives no keys (the decoy key file is dropped by the override) and publishes no host port,
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
+#
+# The throwaway lock (Rule 12) serializes throwaway stacks across the epic worktrees of one machine. It exists only when the
+# main checkout has the folder <worktree_base>/.coordination/locks (worktree_base from _bmad/custom/parallel.yaml, default
+# .worktrees); CI and a sequential run have none and take no lock. live_start claims throwaway-iris.lock there by an atomic
+# create before anything starts, with the content "<OCUTALON_LOCK_OWNER, default epic=unknown stage=throwaway> project=<P>
+# acquired_at=<UTC>", and prints "LOCK acquired". While another run holds it, it prints "LOCK waiting", tries again every 30 to
+# 90 s for up to OCUTALON_LOCK_WAIT seconds (default 240), and then exits 75 with "LOCK busy" naming the holder. The cleanup
+# deletes the lock only when its content is this run's, and prints "LOCK released"; a lock that another run took is kept.
+# OCUTALON_LOCK_DIR replaces the folder, and OCUTALON_LOCK_SLEEP_MIN and OCUTALON_LOCK_SLEEP_MAX replace the 30 and 90 s.
 
 live_start() {
   root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
   cd "$root" || exit 1
-  P="ocutalon-$1-$(date +%s)-$$"
+  case ${OCUTALON_RUN_TAG:-} in
+    *[!a-z0-9-]* | *slot*)
+      echo "FAIL OCUTALON_RUN_TAG '$OCUTALON_RUN_TAG' must match [a-z0-9-]+ and must not hold 'slot'"
+      exit 2
+      ;;
+  esac
+  P="ocutalon-$1-${OCUTALON_RUN_TAG:+$OCUTALON_RUN_TAG-}$(date +%s)-$$"
   base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
   mgr=/durable/iris/mgr
   fails=0
   cid=""
-  deadline=$((SECONDS + 540))
+  tmp=""
   LIVE_IMAGES=()
+  LIVE_FILES=()
+  LIVE_LOCK_FILE=""
+  LIVE_LOCK_CONTENT=""
+
+  live_lock_claim
+  trap live_cleanup EXIT
+  trap 'exit 130' INT TERM HUP
+  deadline=$((SECONDS + ${OCUTALON_LIVE_DEADLINE:-540}))
+
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-live.XXXXXX") || exit 1
 
   # A key source that only compose.throwaway.yml's env_file reset keeps out of the container.
   printf 'ANTHROPIC_API_KEY=decoy\nTELEGRAM_BOT_TOKEN=decoy\n' > "$tmp/decoy.env"
   printf 'services:\n  iris:\n    env_file:\n      - %s\n' "$tmp/decoy.env" > "$tmp/decoy.yml"
-  LIVE_FILES=("$root/docker-compose.yml" "$tmp/decoy.yml" "$root/docker/tests/compose.throwaway.yml")
-
-  trap live_cleanup EXIT
-  trap 'exit 130' INT TERM HUP
+  LIVE_FILES=("$root/docker-compose.yml" "$tmp/decoy.yml" "$root/docker/tests/compose.throwaway.yml" "$root/ci/compose.ci.yml")
 
   ensure_web_bundle || exit 1
+}
+
+# --- the throwaway lock ---
+
+# The folder of the coordination locks, or nothing when there is none. OCUTALON_LOCK_DIR replaces the derived folder.
+live_lock_dir() {
+  local common main base
+  if [ -n "${OCUTALON_LOCK_DIR:-}" ]; then
+    if [ -d "$OCUTALON_LOCK_DIR" ]; then printf '%s\n' "$OCUTALON_LOCK_DIR"; fi
+    return 0
+  fi
+  common=$(cd "$root" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P) || return 0
+  [ -n "$common" ] || return 0
+  main=$(dirname "$common")
+  base=$(sed -n 's/^worktree_base:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$root/_bmad/custom/parallel.yaml" 2>/dev/null | head -n 1)
+  if [ -d "$main/${base:-.worktrees}/.coordination/locks" ]; then
+    printf '%s\n' "$main/${base:-.worktrees}/.coordination/locks"
+  fi
+  return 0
+}
+
+# live_lock_claim: holds throwaway-iris.lock for project $P, or exits 75 when another run holds it for too long.
+live_lock_claim() {
+  local dir min max limit started pause
+  dir=$(live_lock_dir)
+  [ -n "$dir" ] || return 0
+  min=${OCUTALON_LOCK_SLEEP_MIN:-30}
+  max=${OCUTALON_LOCK_SLEEP_MAX:-90}
+  limit=${OCUTALON_LOCK_WAIT:-240}
+  started=$SECONDS
+  LIVE_LOCK_FILE="$dir/throwaway-iris.lock"
+  LIVE_LOCK_CONTENT="${OCUTALON_LOCK_OWNER:-epic=unknown stage=throwaway} project=$P acquired_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  while :; do
+    if (set -C; printf '%s\n' "$LIVE_LOCK_CONTENT" > "$LIVE_LOCK_FILE") 2>/dev/null; then
+      echo "LOCK acquired throwaway-iris project=$P"
+      return 0
+    fi
+    if [ $((SECONDS - started)) -ge "$limit" ]; then
+      echo "LOCK busy: throwaway-iris is held by '$(cat "$LIVE_LOCK_FILE" 2>/dev/null)' after $((SECONDS - started)) s"
+      LIVE_LOCK_FILE=""
+      exit 75
+    fi
+    echo "LOCK waiting: throwaway-iris is held by '$(cat "$LIVE_LOCK_FILE" 2>/dev/null)'"
+    pause=$((min + RANDOM % (max - min + 1)))
+    if [ "$pause" -gt $((limit - (SECONDS - started))) ]; then pause=$((limit - (SECONDS - started))); fi
+    if [ "$pause" -gt 0 ]; then sleep "$pause"; fi
+  done
+}
+
+# live_lock_release: deletes the lock when its content is this run's, and only then.
+live_lock_release() {
+  [ -n "${LIVE_LOCK_FILE:-}" ] || return 0
+  if [ "$(cat "$LIVE_LOCK_FILE" 2>/dev/null)" = "$LIVE_LOCK_CONTENT" ]; then
+    rm -f "$LIVE_LOCK_FILE"
+    echo "LOCK released throwaway-iris project=$P"
+  else
+    echo "LOCK kept: throwaway-iris is not held by project $P"
+  fi
+  LIVE_LOCK_FILE=""
 }
 
 # The tests' own compose files are added after the throwaway override.
@@ -148,9 +232,11 @@ live_track_image() {
 }
 
 live_cleanup() {
-  dc down -v --rmi local >/dev/null 2>&1
+  # An exit between the lock claim and the compose files has no stack to remove, and `dc` cannot expand an empty file list.
+  if [ "${#LIVE_FILES[@]}" -gt 0 ]; then dc down -v --rmi local >/dev/null 2>&1; fi
   if [ "${#LIVE_IMAGES[@]}" -gt 0 ]; then docker image rm -f "${LIVE_IMAGES[@]}" >/dev/null 2>&1; fi
-  rm -rf "$tmp"
+  live_lock_release
+  if [ -n "${tmp:-}" ]; then rm -rf "$tmp"; fi
 }
 
 pass() { echo "PASS $1"; }

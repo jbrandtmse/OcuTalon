@@ -8,6 +8,9 @@
 #     3rdpartylicenses.txt, and the font and icon licence texts under assets/licenses/.
 # It never touches the working tree it is run from, makes no commit, and removes its copy on every exit. It needs
 # Node 24.15 or later with npm, and network access or a warm npm cache. Takes about 1 to 2 minutes.
+# In place (Story 0.7): with OCUTALON_WEB_BUILD_IN_PLACE=1, and only when GITHUB_ACTIONS is true and `git status --short` of the
+# checkout is empty, the hosted web job builds in the checkout itself, which is a fresh clone, and runs the same checks on it
+# (npm's cache is the job's); in any other case it copies as above.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
@@ -30,51 +33,64 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-# --- the copy ---
+# --- the tree: a copy, or the checkout itself ---
 
-tree="$tmp/tree"
-mkdir -p "$tree"
-tree=$(cd "$tree" && pwd -P)
-copied=0
-while IFS= read -r -d '' f; do
-  if [ -f "$f" ]; then
-    mkdir -p "$tree/$(dirname "$f")"
-    cp "$f" "$tree/$f"
-    copied=$((copied + 1))
-  fi
-done < <(git ls-files -co --exclude-standard -z)
-if [ "$copied" -lt 50 ] || [ ! -f "$tree/web/package-lock.json" ] || [ -e "$tree/.env" ] || [ -e "$tree/web/node_modules" ]; then
-  echo "FAIL the copy is not a fresh checkout ($copied files)"
-  exit 1
+in_place=0
+if [ "${OCUTALON_WEB_BUILD_IN_PLACE:-0}" = 1 ] && [ "${GITHUB_ACTIONS:-}" = true ] && [ -z "$(git status --short)" ]; then
+  in_place=1
 fi
 
-# Every git command below names the copy; a command that ran in the working tree would be a defect of this script.
+# Every git command below names the tree; a command that ran in the working tree of a copy would be a defect of this script.
 # Only the repository's own ignore rules count: the user's global excludes file is switched off.
 copy_git() { git -c core.excludesFile=/dev/null -C "$tree" "$@"; }
-copy_git init -q >/dev/null 2>&1
-if [ "$(copy_git rev-parse --show-toplevel 2>/dev/null)" != "$tree" ]; then
-  echo "FAIL the copy is not a repository of its own"
-  exit 1
-fi
-copy_git add -A >/dev/null 2>&1
-staged=$(copy_git status --short | grep -vc '^A  ')
-if [ "$staged" -ne 0 ]; then
-  echo "FAIL the copy is not staged cleanly before the build"
-  copy_git status --short | grep -v '^A  ' | head -n 5
-  exit 1
+
+if [ "$in_place" -eq 1 ]; then
+  tree=$root
+  where="the checkout"
+  echo "INFO building in place: the checkout is clean"
+else
+  where="the copy"
+  tree="$tmp/tree"
+  mkdir -p "$tree"
+  tree=$(cd "$tree" && pwd -P)
+  copied=0
+  while IFS= read -r -d '' f; do
+    if [ -f "$f" ]; then
+      mkdir -p "$tree/$(dirname "$f")"
+      cp "$f" "$tree/$f"
+      copied=$((copied + 1))
+    fi
+  done < <(git ls-files -co --exclude-standard -z)
+  if [ "$copied" -lt 50 ] || [ ! -f "$tree/web/package-lock.json" ] || [ -e "$tree/.env" ] || [ -e "$tree/web/node_modules" ]; then
+    echo "FAIL the copy is not a fresh checkout ($copied files)"
+    exit 1
+  fi
+
+  copy_git init -q >/dev/null 2>&1
+  if [ "$(copy_git rev-parse --show-toplevel 2>/dev/null)" != "$tree" ]; then
+    echo "FAIL the copy is not a repository of its own"
+    exit 1
+  fi
+  copy_git add -A >/dev/null 2>&1
+  staged=$(copy_git status --short | grep -vc '^A  ')
+  if [ "$staged" -ne 0 ]; then
+    echo "FAIL the copy is not staged cleanly before the build"
+    copy_git status --short | grep -v '^A  ' | head -n 5
+    exit 1
+  fi
 fi
 
 # --- npm ci and the build ---
 
 if npm --prefix "$tree/web" ci --no-audit --no-fund > "$tmp/ci.log" 2>&1; then
-  pass "npm --prefix web ci succeeds on the copy"
+  pass "npm --prefix web ci succeeds on $where"
 else
   tail -n 15 "$tmp/ci.log"
   fail "npm --prefix web ci failed"
   exit 1
 fi
 if npm --prefix "$tree/web" run build > "$tmp/build.log" 2>&1; then
-  pass "npm --prefix web run build succeeds on the copy"
+  pass "npm --prefix web run build succeeds on $where"
 else
   tail -n 15 "$tmp/build.log"
   fail "npm --prefix web run build failed"

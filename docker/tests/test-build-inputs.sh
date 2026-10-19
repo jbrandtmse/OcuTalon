@@ -7,6 +7,7 @@
 #     docker/Dockerfile builds FROM (checked by a label that only that base carries);
 #   - the web bundle (Story 0.3, row 20): a build context without src/ocutalon/csp/ fails the build and says
 #     "web bundle missing: run npm --prefix web run build".
+# Its project and image names carry OCUTALON_RUN_TAG when it is set, like the live tests' (ci/iris.sh teardown finds them by it).
 # Needs the docker daemon with BuildKit and the base image ocutalon-iris-base:2026.3.0AI.154.0 (or IRIS_IMAGE).
 # Creates and removes its own files and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -16,7 +17,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 ensure_web_bundle || exit 1
 
-P="ocutalon-t01-bi-$(date +%s)-$$"
+P="ocutalon-t01-bi-${OCUTALON_RUN_TAG:+$OCUTALON_RUN_TAG-}$(date +%s)-$$"
 base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
 fails=0
 

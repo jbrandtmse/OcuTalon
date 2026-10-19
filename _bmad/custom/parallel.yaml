@@ -28,10 +28,17 @@ runtime_locks:
   - name: runtime
     stages: [smoke, qa, adr_verifications]   # add implement, or use [all-runtime] to include build-auto's test runs
     stale_minutes: 45
+  # docker/tests/lib-live.sh claims throwaway-iris.lock in the coordination folder while a throwaway IRIS stack runs, so that two
+  # epics never run two stacks at once on this machine. No stage holds it: stages is empty and the live scripts take it themselves.
+  - name: throwaway-iris
+    stages: []
+    stale_minutes: 20
 
 # Optional worktree bootstrap: untracked prerequisites a fresh checkout lacks (installed dependencies,
 # generated or reference trees). The orchestrator runs `bootstrap` in each new worktree after provisioning
 # and before the runner spawn; it must leave `git status --short` empty. The runner runs `bootstrap_check`
 # before its first stage spawn; a non-zero exit stops it with a TOOLING: clarification.
-# bootstrap: "npm ci"                             # example only; leave unset if a checkout is complete
-# bootstrap_check: "test -d node_modules"         # example only
+# Here: install the web dependencies, and link the two reference folders (CLAUDE.md; gitignored, read only) to the main checkout's
+# when the name is free and the folder exists. The anchored .gitignore patterns keep the links out of git status.
+bootstrap: 'npm --prefix web ci --no-audit --no-fund && main=$(dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)") && for d in irislib irissys; do if [ ! -e "$d" ] && [ ! -L "$d" ] && [ -d "$main/$d" ]; then ln -s "$main/$d" "$d"; fi; done'
+bootstrap_check: 'test -d web/node_modules/@angular/core && test -f irislib/%Library/DynamicObject.cls && test -d irissys/Security && test -z "$(git status --short)"'

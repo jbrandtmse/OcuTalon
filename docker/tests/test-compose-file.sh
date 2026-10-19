@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Static inspection of docker-compose.yml, docker-compose.dev.yml, docker/Dockerfile, .dockerignore and .env.example.
-# Starts no container. Prints one PASS or FAIL line per check; exits 0 only when every check passes.
+# Static inspection of docker-compose.yml, docker-compose.dev.yml, ci/compose.ci.yml, docker/Dockerfile, .dockerignore and
+# .env.example. Starts no container. Prints one PASS or FAIL line per check; exits 0 only when every check passes.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -38,6 +38,9 @@ only_service_is_iris() {
 
 no_mock() { ! code "$compose" | grep -qi 'mock'; }
 
+# The judges' file names no file of ci/ (CON-3).
+no_ci_reference() { ! code "$compose" | grep -qi 'ci/\|compose\.ci'; }
+
 no_forbidden_key() { # no non-comment line starts with the given key
   ! code "$compose" | grep -q "^[[:space:]]*$1:"
 }
@@ -71,6 +74,7 @@ health_timing() {
 
 check "compose: the only service is iris" only_service_is_iris
 check "compose: no non-comment line says mock" no_mock
+check "compose: no non-comment line names a file of ci/" no_ci_reference
 check "compose: no container_name" no_forbidden_key container_name
 check "compose: no image tag" no_forbidden_key image
 check "compose: no fixed volume or project name below the top level" \
@@ -197,6 +201,42 @@ check "dev: OCUTALON_DEV is \"1\" for the iris service" has_line "$dev" '^[[:spa
 check "dev: no non-comment line says mock" dev_no_mock
 check "dev: no container_name" dev_no_container_name
 check "dev: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$dev" config --quiet
+
+# --- ci/compose.ci.yml ---
+
+ci=ci/compose.ci.yml
+
+# The override holds the project name and OCUTALON_EVAL passed through from the environment (default 0), and nothing else.
+ci_file_is_exact() {
+  [ "$(code "$ci")" = 'name: ocutalon-ci
+services:
+  iris:
+    environment:
+      OCUTALON_EVAL: ${OCUTALON_EVAL:-0}' ]
+}
+
+# The services are iris, and a service named mock (Story 0.11) if one is added.
+ci_services_are_known() {
+  local names
+  names=$(awk '
+    /^services:/ { ins = 1; next }
+    /^[^ #]/ { ins = 0 }
+    ins && /^  [A-Za-z0-9_.-]+:/ { sub(/:.*/, ""); gsub(/ /, ""); print }
+  ' "$ci" | grep -v -x -e iris -e mock)
+  [ -z "$names" ]
+}
+
+ci_adds_no_port_file_or_key() {
+  ! code "$ci" | grep -qE '^[[:space:]]*(ports|env_file|volumes|command|image|container_name):|ANTHROPIC|TELEGRAM|API_KEY|_TOKEN'
+}
+
+check "ci: the file holds only the project name and OCUTALON_EVAL (default 0)" ci_file_is_exact
+check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'
+check "ci: the services are iris, and mock if there is one" ci_services_are_known
+check "ci: no port, env_file, volume, command, image or key variable" ci_adds_no_port_file_or_key
+check "ci: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$ci" config --quiet
+check "ci: config parses together with the judges' file and the throwaway override (--quiet)" \
+  docker compose -f "$compose" -f docker/tests/compose.throwaway.yml -f "$ci" config --quiet
 
 # --- .env.example ---
 

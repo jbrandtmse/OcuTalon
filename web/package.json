@@ -10,7 +10,9 @@
     "tokens": "node scripts/tokens.mjs",
     "payloads": "node scripts/payloads.mjs",
     "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/brand.mjs && ng build",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
+    "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@angular/cdk": "22.2.3",
@@ -28,6 +30,7 @@
     "@angular/cli": "22.2.3",
     "@angular/compiler-cli": "22.2.3",
     "@playwright/test": "1.64.1",
+    "@types/node": "24.19.1",
     "typescript": "6.0.3"
   }
 }

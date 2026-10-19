@@ -1,0 +1,27 @@
+# CI of Lane A (AD-29; Story 0.7): the standalone-bridge job runs on the self-hosted IRIS runner, behind the fork guard, and is
+# empty until Story 1.3 fills it. The evaluation job of Epic 9 joins this file. The rules of docker/tests/test-ci-config.sh apply.
+name: lane-a
+
+on:
+  push:
+    branches:
+      - main
+      - feature/OCT_OcuTalon_MVP
+      - "OCT-epic*"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  standalone-bridge:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ocutalon]
+    timeout-minutes: 10
+    steps:
+      - name: Empty until Story 1.3
+        run: echo "standalone-bridge is empty until Story 1.3 fills it."

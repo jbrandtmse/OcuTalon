@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Live test of the Production step across restarts (Story 0.6, matrix rows 19 and 20): builds the image and starts it in one
 # throwaway compose project with the after-start script active and no model key, then
-#   - row 19, the EvalIn switch: recreates the container with OCUTALON_EVAL=1 in its environment and then without it. With
-#     the variable the start ends ready with STEP Production OK, CreateBusinessService("EvalIn") succeeds and the System
-#     Default Setting row (OcuTalon.Production, EvalIn, any class, Enabled) is 1. Without it the service is refused as
-#     disabled and the row is 0;
+#   - row 19, the EvalIn switch (Story 0.7, row 14: the CI override passes OCUTALON_EVAL through): recreates the container with
+#     OCUTALON_EVAL=1 in the environment of `docker compose up`, with no extra compose file, and then without it. With the
+#     variable the start ends ready with STEP Production OK, CreateBusinessService("EvalIn") succeeds and the System Default
+#     Setting row (OcuTalon.Production, EvalIn, any class, Enabled) is 1. Without it the service is refused as disabled and the
+#     row is 0;
 #   - row 20, an unclean stop: kills the instance with docker kill -s KILL and starts the container again. The next start ends
 #     ready with STEP Production OK, the production is Running again, and every item runs as in the first start (the job
 #     check of test-production.sh, row 14). The kill leaves the production Troubled, and the step recovers it: before the
@@ -20,6 +21,7 @@ set -u
 
 . "$(dirname "$0")/lib-live.sh"
 live_start t06r
+unset OCUTALON_EVAL
 
 # check_start <label>: this start's log lists STEP Production OK and ends with RESULT OK.
 check_start() {
@@ -72,9 +74,7 @@ check_eval "first start, no variable" 0
 
 # --- row 19: OCUTALON_EVAL=1, then without it ---
 
-printf 'services:\n  iris:\n    environment:\n      OCUTALON_EVAL: "1"\n' > "$tmp/eval.yml"
-live_add_file "$tmp/eval.yml"
-if ! dc up -d >/dev/null 2>&1; then
+if ! OCUTALON_EVAL=1 dc up -d >/dev/null 2>&1; then
   die "row 19 recreate with OCUTALON_EVAL=1 failed"
 fi
 cid=$(dc ps -q iris)
@@ -85,7 +85,6 @@ fi
 check_start "row 19, OCUTALON_EVAL=1"
 check_eval "row 19, OCUTALON_EVAL=1" 1
 
-live_pop_file
 if ! dc up -d >/dev/null 2>&1; then
   die "row 19 recreate without OCUTALON_EVAL failed"
 fi

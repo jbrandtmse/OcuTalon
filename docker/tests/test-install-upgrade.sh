@@ -20,6 +20,7 @@ set -u
 
 . "$(dirname "$0")/lib-live.sh"
 live_start t02u
+base_files=${#LIVE_FILES[@]}
 
 v0=$(manifest_version src/module.xml)
 ipm_version=0.10.10
@@ -50,8 +51,13 @@ EOS
 # use_image_context <directory>: the next `up --build` builds from that directory.
 use_image_context() {
   printf 'services:\n  iris:\n    build:\n      context: %s\n      dockerfile: docker/Dockerfile\n' "$1" > "$tmp/context.yml"
-  if [ "${#LIVE_FILES[@]}" -gt 3 ]; then live_pop_file; fi
+  if [ "${context_added:-0}" = 1 ]; then live_pop_file; fi
   live_add_file "$tmp/context.yml"
+  context_added=1
+  # The base files, the CI override among them, stay, and the build context is added once.
+  if [ "${#LIVE_FILES[@]}" -ne $((base_files + 1)) ] || ! printf '%s\n' "${LIVE_FILES[@]}" | grep -q '/ci/compose\.ci\.yml$'; then
+    die "the compose files after a build context are not the base files plus that context"
+  fi
 }
 
 # recreate_with <directory>: builds the image from the directory and recreates the container from it.
