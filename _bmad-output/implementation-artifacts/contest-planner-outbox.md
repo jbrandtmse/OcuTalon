@@ -25,9 +25,9 @@ Also from the 0.6 review:
 - AD-3 now says business processes set no `DEFAULTGLOBAL`, because they store in `Ens.BusinessProcess`'s extent, and that they keep no private text in their properties.
 - Code review fixed two HIGHs in-pass: lane-shared test counts, and `TelegramIn` missing `STUB`.
 
-## 2026-10-19 20:45 UTC: Story 0.7 (CI): one owner-only item and five VETO WINDOW items
+## 2026-10-19 20:26 UTC: Story 0.7 (CI): one owner-only item and five VETO WINDOW items
 
-Status: pending (no Contest Planner session was listed at 20:45 UTC)
+Status: pending (no Contest Planner session was listed at 20:26 UTC)
 
 **Owner-only (Rule 22.4, `.claude/` is the owner's).** The CI gate in `/epic-cycle` reads one run per commit: `.claude/commands/epic-cycle.md`, "CI Is a Gate", uses `gh run list --branch … --commit <sha> … -L 1`. Story 0.7 adds two workflows, `ci` and `lane-a`, so every push has two runs and the gate sees only one of them.
 - Recommended wording: "list every run for the sha (`-L 20`) and require each workflow's run to conclude `success`".
