@@ -2,12 +2,34 @@
 title: 'Story 0.4: The cross-lane message and data contracts'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2d13b44847d41a0ae28614800b149cc60f34eaf4'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Nothing in the install or the audit writer reports that instance-wide auditing is off, so on such an instance the six events register and no entry is ever written.
+    evidence: |-
+      Bridge.Installer.AuditEvents, CheckAudit, Step.Audit and Bridge.Audit.Write never read Security.System AuditEnabled; only test-audit.sh row 10 asserts it, on the two images. OcuTalon must not change the setting (AD-17); whether to warn, show it in the security overview or refuse is a product call (FR-9, "no false all-clear").
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Installer.cls:31
+    severity: medium
+  - summary: >-
+      AC5 (every Storage Default block equals the compiler's output) is verified by a one-off load, compile and export, not by a check that runs in CI.
+    evidence: |-
+      test-storage.sh checks only that a Storage Default block exists and that its DataLocation is the global plus D. A later story that hand-edits a storage block, or leaves a class whose export differs from its file, fails no test. The spec scopes the round trip as (once); Story 0.7 owns the CI wiring.
+    location: >-
+      docker/tests/test-storage.sh
+    severity: medium
+  - summary: >-
+      Data.Time.ToLocal and Zone() read the process TZ, and no test runs them in a production job started with the container's TZ (AD-18).
+    evidence: |-
+      Row 8 sets the TZ of the test process. Whether a production job inherits the container's TZ is not measured (inference). It would be settled by a throwaway start with a compose-level TZ and a ToLocal call from a production job. If false in practice, reminders and catalog times show the wrong local time (Stories 0.9, 8.3).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Time.cls:15
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -188,7 +210,89 @@ Tests:
 
 ## Spec Change Log
 
+Rule 22 rulings made during implementation:
+- Rule 22 ruling: what the stub `Channel.Telegram.In` declares as `Parameter ADAPTER` -> `Ens.InboundAdapter`, with a do-nothing `OnProcessInput` (rejected: an adapterless service, because AD-14 has TelegramIn long-poll `getUpdates` through an inbound adapter; the Telegram epic replaces the value).
+- Rule 22 ruling: `test-install-start.sh` row 5 loaded all of `src/bridge/` into the plain namespace OCUPLAIN and expected it to compile -> it now loads only `OcuTalon/Bridge/Installer.cls` there and still expects the refusal that names the namespace (rejected: keeping the full load, which cannot compile there because the bridge's messages extend `Ens.Request` and `Ens.Response`, which a namespace without Interoperability lacks; and giving the messages another base, which contradicts AD-6 and the contract tables). The Interoperability half of row 5 still loads the whole bridge.
+- Rule 22 ruling: the five earlier test files `Test/Install/{Registry,Users}.cls` and `Test/Web/{Install,Shell,SignIn}.cls` carry a blank line after their `/// --- ... ---` section comment that the exporter drops -> the blank line is removed, so AC5's round trip (89 files) changes no tracked file (rejected: leaving them, which makes the round trip modify files of Stories 0.2 and 0.3).
+- Rule 22 ruling: `Boolean` properties -> `[ InitialExpression = 0 ]` (rejected: empty, because row 3 needs `Fallback` 0 on a new `Reply` and a JSON export should say `false`, not omit the key).
+- Rule 22 ruling: the names of the indexes -> `<Property>Index`, and the properties joined for a composite one (`ItemIdKindIndex`, `ApprovalRefChannelOwnerRefIndex`), `RefIndex` for `Ref` (rejected: opaque or numbered names, which the contract XData would not read well).
+- Rule 22 ruling: untyped names in the contract tables -> `OriginChannel` is Word, like `Channel`; `ItemId` is Ref everywhere, as the identifiers convention says (rejected: Name, which would let an id exceed 22 characters).
+- Rule 22 ruling: the contract XData of `Test.Contract` -> adds an optional `sql` key (`{"Input": "InputText"}`) and compares `%JSONFIELDNAME` beside MAXLEN, SCALE, MINVAL and MAXVAL; an empty value is written `KEY=` (rejected: leaving the SQL names and the JSON keys to a separate test each, which two classes would then have to keep in step with the property lists).
+- Rule 22 ruling: where row 4 reads the registry -> `Test.Data.Tables` carries the 22 rows as its `Registry` XData (slot A cannot read `src/short-names.tsv`; `test-storage.sh` keeps the file and the classes in step) and asserts that every persistent class in `OcuTalon.Data` and `OcuTalon.Bridge.Data` has a row (rejected: a registry class, per the Design Notes; and scanning every package, which would make Lane A's later tables edit a Lane B test).
+- Rule 22 ruling: the resolution check in row 4 -> compares where each class's own `DataLocation` and `IndexLocation` resolve with where the private sample `^OcuTalonP.Zz` resolves, which `PrivateData.Run()` proves is `OCUTALON_PRIVATE` (rejected: reading `Config.Databases`, which OCUTALON cannot see, or switching to `%SYS` in a test).
+- Rule 22 ruling: `Data.Time.ToLocal` accepts only the `Utc` form (`YYYY-MM-DDThh:mm:ssZ`) and gives `""` for anything else, a time without the `Z` included (rejected: reading a zone-less time as UTC, which hides a caller that forgot the zone).
+- Rule 22 ruling: `Bridge.Audit.Write` with a `data` that is not a dynamic object -> an error status (rejected: letting `<INVALID OREF>` escape from a business host).
+- Rule 22 ruling: the poll of row 11 stays at the default 120 s, with `OCUTALON_AUDIT_POLL` to override it: the row was readable after 53 s, 72 s (Health) and 66 s (non-Health) (rejected: a shorter poll, which the measured delay does not allow).
+
+Rule 22 rulings made at review (October 19):
+- Rule 22 ruling: `Bridge.Audit.Write` accepts only an instance of `%Library.DynamicObject` -> any other value (a string, a `%DynamicArray`, a stream) gets an error status that says the data must be a dynamic object, before anything is written (rejected: `$IsObject` alone, which let a non-dynamic object throw `<METHOD DOES NOT EXIST>` out of the audit writer).
+- Rule 22 ruling: the return of `Write` for an unregistered event stays the raw `0` of `$SYSTEM.Security.Audit` -> the Tasks fix the return value and the doc comment records the measurement (rejected: wrapping it in an error status that names the event, which changes specified behavior; reopen if Story 3.7's error text needs the event name).
+- Rule 22 ruling: `Data.Setting.Get("")` gives the default and `Seed("", ...)` returns an error status -> an empty key never reaches the per-process cache, where it would raise `<SUBSCRIPT>` (rejected: leaving it to callers).
+- Rule 22 ruling: `Install.Step.Audit` is tested on a disabled event, not only a deleted one -> `test-audit.sh` row 12 now has `Step.Audit.Run()` fail, naming `OcuTalon/Tool/Tool` and leaving it disabled, before `Bridge.Installer.Run()` re-enables it (rejected: leaving the "is disabled" branch unexercised).
+- Rule 22 ruling: `Test.Contract` also compares the full list of superclasses in order, whether the class is abstract (`"abstract": 1` in the contract; a class is not abstract unless it says so), and an initial value of 0 on every `%Boolean` property -> the contract tests pin the shapes the Rule 22 rulings above chose (rejected: the primary superclass only, and the `Reply.Fallback` check alone). A compiled `%String` without `MAXLEN` reports `50`, not `""`, so the existing `MAXLEN=` comparison already tells an unlimited string from a default one (measured on slot A).
+- Rule 22 ruling: the counts in `Test.Data.Tables` (22 registry rows, 22 tables, 45 persistent classes) become floors -> a later story that adds a persistent class edits its own XData, not a count in a shared test (rejected: exact counts, which make every later table a cross-lane edit).
+- Rule 22 ruling: `test-storage.sh` gains `registry-param` (a storage-bearing class that does not reach `Ens.Request` or `Ens.Response` must set `Parameter DEFAULTGLOBAL`, AD-3) and `scan` (the real-tree scan must read `src/short-names.tsv` and at least one class and end without an error) -> each has a bad sample (rejected: leaving the missing-parameter hole to the install check, which sees only classes that already use the private prefixes; and letting a lost registry file print six PASS lines).
+- Rule 22 ruling: the failure line of the row 11 poll states the budget the run's deadline left -> a truncated poll no longer reads as the full 120 s (rejected: extending the deadline, which the 600 s call cap does not allow).
+
 ## Review Triage Log
+
+### 2026-10-19 — Review pass
+- verdicts: 54 findings — high 0, medium 18, low 32, false 3, maybe-false 1
+- findings:
+  - `[medium]` `[patch]` Blind Hunter: `Bridge.Audit.Write` guards with `$IsObject` only, so a stream or `%DynamicArray` passes and `%ToJSON` throws — evidence: `Audit.cls` line 33 admits any object. Fixed: the guard compares `$ClassName(data)` with `%Library.DynamicObject`; `TestAuditApi` writes a string, a `%DynamicArray` and a stream and expects the error text (mutation: guard reduced to `$IsObject` -> sample 2 red and sample 3 throws).
+  - `[low]` `[reject]` Blind Hunter: the unregistered-event result of `Write` is a raw `0` and nothing asserts it — the Tasks fix the return value and Task 0 records it in the doc comment; `test-audit.sh` prints it as INFO; reopen_if Story 3.7 needs the event named in the error text.
+  - `[medium]` `[patch]` Blind Hunter: `CheckAudit`'s "is disabled" branch is never exercised — evidence: row 12 only deleted an event for `Step.Audit`. Fixed: row 12 runs `Step.Audit` on a disabled `OcuTalon/Tool/Tool` (mutation: `If exists && (event.Enabled || 'create) Continue` -> `test-audit.sh` row 12 red, 2 of 5 values differ).
+  - `[medium]` `[defer]` Blind Hunter: nothing in the install or `Write` path reports that instance-wide auditing is off — real; AD-17 and the spec bar OcuTalon from changing the setting and Task 0 only measured the images; surfacing it is a product call for the security overview / Story 3.7 (deferred, see `deferred:`).
+  - `[medium]` `[patch]` Blind Hunter: `TestSqlNames` pins 45 persistent classes — evidence: any later persistent class turns a shared Lane B test red. Fixed: floors (`>=`) in `Test.Data.Tables` (45, 22, 22).
+  - `[low]` `[patch]` Blind Hunter: `Bridge.Msg.Result` being abstract is not asserted — fixed: `"abstract": 1` in the contract, compared by `Test.Contract` (mutation: `[ Abstract ]` removed from `Result` -> `Test.Bridge.Contracts` `TestContracts` red).
+  - `[low]` `[patch]` Blind Hunter: `Bridge.Msg.DecisionPayload` has no `%JSON.Adaptor` coverage — fixed: the contract compares the full superclass list and `TestDecisionPayloadJson` imports and exports (mutation: `%XML.Adaptor` added to `Extends` -> `TestContracts` red). Dropping `%JSON.Adaptor` already fails the compile (`%JSONFIELDNAME` not declared).
+  - `[low]` `[patch]` Blind Hunter: the `Boolean` `InitialExpression = 0` ruling is tested only for `Reply` — fixed: `Test.Contract` asserts it on every `%Boolean` of every contract class (mutation: clause removed from `Live.Payload.Decision.Fallback` -> `Test.Msg.Contracts` `TestContracts` red).
+  - `[low]` `[patch]` Blind Hunter: `AgentStep.DurationMs` carries the turn-totals doc comment — fixed: the comment says the step.
+  - `[medium]` `[patch]` Blind Hunter: `test-storage.sh` does not require `DEFAULTGLOBAL` on a non-message persistent class — evidence: only the reverse direction (parameter with no row) was checked, and `PrivateData` sees only classes that already use the private prefixes. Fixed: rule `registry-param` with a bad sample (mutation: the rule removed -> `FAIL registry-param: the checker does not flag the sample no-param-new`).
+  - `[low]` `[reject]` Blind Hunter: the registry's `short` is not checked against the global's suffix — `wontfix-theoretical`: `short` has no consumer, and the uniqueness of short name, global and class is enforced; reopen_if a tool reads `short` to build a global.
+  - `[low]` `[patch]` Blind Hunter: the row 11 poll budget is shared with the build and start deadline — fixed: the failure line states the budget the deadline left (the poll itself is capped by the 600 s call limit).
+  - `[medium]` `[patch]` Edge Case Hunter: `Write` accepts any object — same root cause as the first Blind Hunter finding; fixed there.
+  - `[medium]` `[patch]` Edge Case Hunter: `Setting.Get("")` / `Seed("", ...)` raise `<SUBSCRIPT>` on `^||OcuTalon.Setting("")` — confirmed on slot A (red run, `<SUBSCRIPT>Get+5`). Fixed: `Get` gives the default, `Seed` returns an error status; `TestEmptyKey` (mutation: guard removed -> `TestEmptyKey` red).
+  - `[low]` `[reject]` Edge Case Hunter: two processes seeding one absent key lose on the unique index — `Seed` is the install-time writer and the after-start install runs one process; the fix adds a branch; reopen_if two processes seed at once.
+  - `[false]` `[reject]` Edge Case Hunter: `MAXLEN=` in the contract matches a property with no `MAXLEN` — measured on slot A: a plain `%String` property reports `MAXLEN` `50` (defined), a Long reports `""`, so a property that lost `MAXLEN = ""` fails the comparison.
+  - `[low]` `[reject]` Edge Case Hunter: `AssertMessageExtent` / `ReadContracts` throw instead of recording a failed assertion when a class or XData is missing — the method still ends red as an error; the guard adds branches to a test helper.
+  - `[low]` `[reject]` Edge Case Hunter: the installer ignores the lookup status of `Security.Events.Exists` — a failed lookup is followed by `Create`, which reports its own error; unlikely and the fix adds branches.
+  - `[low]` `[reject]` Edge Case Hunter: `AuditEvents` has no `Try`/`Catch` — the registry wraps every step and the standalone bridge install is run by an administrator; reopen_if the bridge's own listing installs without that.
+  - `[medium]` `[patch]` Edge Case Hunter: `test-storage.sh` does not require `DEFAULTGLOBAL` on a non-message persistent class — same root cause as the tenth Blind Hunter finding; fixed there.
+  - `[low]` `[reject]` Edge Case Hunter: the `abstract` pattern of `test-storage.sh` also matches `Abstract` inside a keyword value — theoretical: no class does; reopen_if one does.
+  - `[low]` `[reject]` Edge Case Hunter: `DecisionPayload` keeps `%JSONIGNORENULL` 0, so an empty string imports as `$c(0)` — Epic 1's checker (AD-8) owns the import and chooses the parameters; an empty outcome is an `invalid` fallback either way.
+  - `[low]` `[reject]` Edge Case Hunter: `Live.Payload.Decision` keeps `%JSONNULL` 0, so unset keys are omitted — Story 0.5 writes the TypeScript interface and the publisher and decides optional against null.
+  - `[low]` `[reject]` Edge Case Hunter: `Item.Sender` / `Subject` have no `TRUNCATE` — the contract tables fix them as `Line` (MAXLEN 1000); intake truncates before it sends.
+  - `[low]` `[reject]` Edge Case Hunter: enumerated properties have no `VALUELIST` or default — a Rule 22 ruling in this spec (plain `%String`; the values live in `Msg.Enum`).
+  - `[medium]` `[patch]` Edge Case Hunter: `TestSqlNames` pins 45 — same root cause as the fifth Blind Hunter finding; fixed there.
+  - `[low]` `[reject]` Edge Case Hunter: `Zone()` and `ToLocal` can disagree when TZ is invalid — the spec defines `Zone()` as TZ or `UTC`; an invalid TZ is theoretical.
+  - `[low]` `[reject]` Edge Case Hunter: a `Ref` in a unique index with the default string collation (`SQLUPPER`, inference) compares case-insensitively — about 110 of 128 random bits remain and no lookup is helped; the fix touches about 30 properties.
+  - `[low]` `[reject]` Edge Case Hunter: raw `0` from `Write` — same as the second Blind Hunter finding.
+  - `[false]` `[reject]` Verification Gap: the `Long`/`Json` unlimited `MAXLEN` is not pinned — disproved by the slot A measurement above (a default `%String` reports `50`).
+  - `[medium]` `[patch]` Verification Gap: the "Write matches a type exactly" assertion cannot fail — fixed: it asserts the error text names `'action'` (reasoned: a case-insensitive guard would otherwise pass).
+  - `[medium]` `[patch]` Verification Gap: the non-object branch of `Write` has no test — fixed with the three samples above.
+  - `[medium]` `[patch]` Verification Gap: the `CheckAudit` disabled branch has no test — fixed with the row 12 check above.
+  - `[low]` `[patch]` Verification Gap: `DecisionPayload` is compared on its primary superclass only and has no JSON round trip — fixed above.
+  - `[low]` `[patch]` Verification Gap: the `Boolean` initial value and the JSON `false` are pinned through `Reply.Fallback` only — fixed above.
+  - `[low]` `[patch]` Verification Gap: `Setting.Seed` writing `UpdatedAt` is not asserted — fixed: `TestSeedOnlyWritesAnAbsentKey` matches the `Utc` form.
+  - `[medium]` `[patch]` Verification Gap: the real-tree leg of `test-storage.sh` can pass without scanning anything — fixed: `check_tree` reports the `scan` rule when no class is listed or the scan exits non-zero, and `rows == 0` reports it too (mutation: the registry moved away -> `FAIL scan`, exit 1, where it printed six PASS lines).
+  - `[medium]` `[defer]` Verification Gap: AC5 (storage blocks equal the compiler's output) is verified by a one-off procedure, not a recurring check — real; the spec scopes AC5 as `(once)` and Story 0.7 owns the CI wiring (deferred, see `deferred:`).
+  - `[low]` `[patch]` Verification Gap: `NewBusy` "nothing else is set" is pinned for the listed fields only — fixed: `TestNewBusy` asserts every other flag is 0 and every other field empty (mutation: `NewBusy` sets `ToolsRun` -> `TestNewBusy` red).
+  - `[medium]` `[patch]` Verification Gap, other: the `Write` guard admits any object — same root cause as the first Blind Hunter finding.
+  - `[medium]` `[patch]` Verification Gap, other: hard-coded counts in `Test.Data.Tables` — same root cause as the fifth Blind Hunter finding.
+  - `[low]` `[patch]` Verification Gap, other: `TestNewBusy` does not check the status of its `%DeleteId` — fixed: asserted.
+  - `[low]` `[reject]` Verification Gap, other: no check of the AD-3 `%SYS` switch list or the AD-2 bridge boundary — neither an acceptance criterion nor an AD asks for one (AD-3 names a CI check for duplicate `DEFAULTGLOBAL` only), and `test-install-start.sh` row 5 compiles the bridge alone.
+  - `[false]` `[reject]` Verification Gap, other: rows with no `mutation:` line — Rule 19 asks for one demonstrated mutation per acceptance criterion, and AC1 to AC5 each have lines.
+  - `[low]` `[reject]` Intent Alignment: the contract oracle is a restatement in the test's XData — the spec asks for exactly that (a JSON XData of the subclass); the auditor compared the spec tables with the classes and the XData and found no mismatch.
+  - `[low]` `[reject]` Intent Alignment: row 4 compares destinations with the private sample instead of the literal `OCUTALON_PRIVATE` — `GetGlobalDest` returns a directory and `PrivateData.Run()` proves the sample resolves to the private database (Rule 22 ruling logged); the two proofs are equivalent.
+  - `[low]` `[reject]` Intent Alignment: the audit success path, read-back and registration are exercised only in `test-audit.sh` — the Matrix assigns rows 10 to 12 there.
+  - `[maybe-false]` `[defer]` Intent Alignment: `ToLocal` uses the process TZ while AD-18 says the container's TZ, and no test runs it in a production job — if true (medium), a reminder shows the wrong local time; settling it takes a throwaway start with a compose-level `TZ` and a `ToLocal` call from a production job (deferred, see `deferred:`).
+  - `[low]` `[reject]` Intent Alignment: slot A footprint beyond `Zz<n>` and `TelegramIncluded` — the Matrix rows 3 and 9 name the `Reply` save and `onlineDemo`; the test deletes the reply and restores the setting, and the process TZ is restored after every test.
+  - `[low]` `[reject]` Intent Alignment: five earlier test files lose one blank line and `test-install-start.sh` row 5 loads one class into the plain namespace — logged Rule 22 rulings; behavior unchanged and the refusal is still tested.
+  - `[medium]` `[defer]` Intent Alignment: storage blocks are checked against the compiler only by a one-off run — same root cause as the AC5 finding above.
+  - `[medium]` `[patch]` Intent Alignment: pinned counts of 45 and 22 — same root cause as the fifth Blind Hunter finding.
+  - `[low]` `[reject]` Intent Alignment: `test-audit.sh` also asserts `AuditEnabled` is 1 and that no seventh `OcuTalon` event exists — stricter than row 10 and harmless; AD-17 fixes six types.
+  - `[low]` `[patch]` Intent Alignment: the `AgentStep.DurationMs` comment — same root cause as the ninth Blind Hunter finding.
 
 ## Design Notes
 
@@ -413,7 +517,70 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC4: AC3's mutations, run on the non-Health image.
 - AC5: one storage block edited by hand → the round trip shows a diff.
 
+**Task 0 measurements** (October 19, build 154, ARM64):
+- Time zones (slot A, `OCUTALON`): `$SYSTEM.Process.TimeZone("America/New_York")` returned -1 (TZ was undefined), and in the same process `$SYSTEM.Util.GetEnviron("TZ")` then gave `America/New_York`, `$ZTIMEZONE` went from 0 to 300, and `$ZDATETIMEH("2026-11-01T05:30:00Z",3,7)` converted UTC to local time with daylight saving (05:30Z and 06:30Z on 2026-11-01 both gave 01:30; on 2026-03-08, 06:30Z gave 01:30 and 07:30Z gave 03:30). `$ZDATETIMEH(h,-3)` was not measured: `ToLocal` uses `$ZDATETIMEH(utc,3,7,,,,,,,"")`, whose error argument `""` makes `"junk"`, month 13 and 30 February give `""`. `TimeZone("")` restores the process (`GetEnviron("TZ")` is `""` again). So row 8's New York half runs on slot A. `$ZDATETIME($ZTIMESTAMP,3,7)` is not used for `NowUtc`, because a process zone would convert it again; `NowUtc` uses format 1 and appends `Z`.
+- Audit behaviour (throwaway projects): `$SYSTEM.Security.Audit("OcuTalon","Zz","Zz","x","...")` for an unregistered event returns `0` (no error text, no row); for a registered, enabled event, `Write` returns a success. A registered event writes at once after `Security.Events.Create`, with no restart. A written row became readable in `%SYS.Audit` after 53 s and 72 s on the Health image and 66 s on the non-Health image (each measured by polling about every 3 s), so the poll stays at 120 s.
+- Non-Health image: instance auditing is on by default on `iris-community:2026.3.0AI.154.0` (`Security.System` `AuditEnabled` is 1 after the first start, and nothing in OcuTalon's files sets it); `test-audit.sh` passed on it. No intent gap.
+
+**Mutations demonstrated** (Rule 19; each applied, red observed, reverted byte for byte with `cmp`):
+- mutation: AC1, `Reply.Busy` renamed `IsBusy` -> `Test.Bridge.Contracts` `TestContracts` and `TestNewBusy` red.
+- mutation: AC1, `expired` dropped from `INCIDENTOPENVARIANT` -> `Test.Msg.Contracts` `TestEnumerations` red.
+- mutation: AC1, `NewBusy` sets `Text` -> `Test.Bridge.Contracts` `TestNewBusy` red.
+- mutation: AC1, `NewRef` keeps the padding (`=` no longer removed) -> `Test.Bridge.Contracts` `TestNewRef` red.
+- mutation: AC1, `ToLocal` subtracts a fixed 5 hours -> `Test.Data.Time` `TestUnsetZone` and `TestNewYorkZone` red.
+- mutation: AC1, `CACHESECONDS` 0 -> `Test.Data.Setting` `TestSeededValueAndCache` and `TestCacheSeconds` red.
+- mutation: AC1, `Included()` returns 1 without the global -> `Test.Msg.Contracts` `TestTelegramIncluded` red.
+- mutation: AC1 (row 6), `Incident.Count` without `SqlFieldName = FailureCount` -> `Test.Data.Tables` `TestSqlNames` and `TestContracts` red.
+- mutation: AC2, `Incident`'s `DEFAULTGLOBAL` and storage globals set to `^OcuTalonZz.Incident` -> `test-storage.sh` red (`registry-class`, `prefix`, `datalocation`) and `Test.Data.Tables` `TestPrivateRecords` red (the data and index globals resolve outside the private database).
+- mutation: AC2, a registry row duplicated -> `test-storage.sh` red (`registry-duplicate`, naming the line).
+- mutation: AC3, `Run()` without `RegisterAudit()` -> `test-audit.sh` red at row 10 (`STEP Audit FAILED ... OcuTalon/Action/Action is not registered`; the start ends not ready).
+- mutation: AC3, `Write` uses source `OcuTalonZz` -> `test-audit.sh` red at row 11 (`Write` returns 0, no row within 120 s).
+- mutation: AC4, the two AC3 mutations on `iris-community:2026.3.0AI.154.0` -> `test-audit.sh` red both times, as on the Health image.
+- mutation: AC5, `Session`'s `CreatedAt` slot removed from its storage block by hand -> the export of the compiled class differs from the file (the compiler appends the slot again).
+- mutation: AC1, the class check dropped from `Write`'s guard (`$IsObject` alone) -> `Test.Bridge.Contracts` `TestAuditApi` red (a `%DynamicArray` is audited without the error text; a stream throws `<METHOD DOES NOT EXIST>`).
+- mutation: AC1, `[ Abstract ]` removed from `Bridge.Msg.Result` -> `Test.Bridge.Contracts` `TestContracts` red ("the class is not abstract").
+- mutation: AC1, `%XML.Adaptor` added to `Bridge.Msg.DecisionPayload`'s `Extends` -> `Test.Bridge.Contracts` `TestContracts` red (the superclass lists differ).
+- mutation: AC1, `NewBusy` sets `ToolsRun` -> `Test.Bridge.Contracts` `TestNewBusy` red ("ToolsRun is 0").
+- mutation: AC1, `InitialExpression = 0` removed from `Live.Payload.Decision.Fallback` -> `Test.Msg.Contracts` `TestContracts` red ("Fallback has no initial value 0").
+- mutation: AC1, the empty-key guard removed from `Setting.Get` -> `Test.Data.Setting` `TestEmptyKey` red (`<SUBSCRIPT>Get+5`).
+- mutation: AC3 (row 12), `CheckAudit` ignores a disabled event (`If exists && (event.Enabled || 'create) Continue`) -> `test-audit.sh` red at row 12 ("2 of 5 values differ": `Step.Audit` neither fails nor names the event).
+- mutation: AC2, the `registry-param` report removed from `test-storage.sh` -> its own bad sample fails ("the checker does not flag the sample no-param-new").
+- mutation: AC2, `src/short-names.tsv` moved away -> `test-storage.sh` red (`FAIL scan`, exit 1) where it printed six PASS lines; restored byte for byte.
+
+**Recorded runs** (final state, after the review patches): `Test.Msg.Contracts` 6/6, `Test.Bridge.Contracts` 5/5, `Test.Data.Tables` 5/5, `Test.Data.Time` 4/4, `Test.Data.Setting` 5/5, `Test.Install.PrivateData` 5/5, `Test.Install.Registry` 11/11 on slot A; `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`, `test-audit.sh` (Health, 49 s read-back, and non-Health, 53 s), `test-install-start.sh` and `test-install-upgrade.sh` exit 0; the round trip (load, compile, export) of the 89 classes under `OcuTalon` leaves all 89 files identical. Slot A afterwards: no `zz.` setting, no `Zz` class, no `Reply` row, `TZ` unset, `^OcuTalonTest("TelegramIncluded")` absent as before. No `ocutalon-t0*` container, volume or network remains.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 0.4 adds the cross-lane contracts on top of Stories 0.1 to 0.3: 16 bridge classes and 73 OcuTalon classes load and compile on slot A (89 classes under `OcuTalon`, all identical to their files after a load, compile and export round trip).
+- The bridge gets `Ids`, `Audit`, the `Msg` contracts and enumerations, six `Data` tables, and an `Installer` that registers the six `OcuTalon/<T>/<T>` audit events from its one `%SYS` method.
+- OcuTalon gets the message contracts, the ten command verbs, the 16 tables with `Setting` and the `Delivery` stubs, `Data.Time`, `Live.Payload.Decision` and `Channel.Telegram.In`.
+- The registry is `src/short-names.tsv`, checked by `test-storage.sh`. `Step.Audit` now checks the events.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/{Ids,Audit}.cls`, `Installer.cls` (modified: registers and checks the events), `Msg/*` (7 classes) and `Data/*` (6 tables): the bridge contracts.
+- `src/ocutalon/cls/OcuTalon/Msg/*` (6 messages, `Command`, `IncidentCommand`, `CommandResult`, `Enum`, 10 verbs), `Data/*` (16 tables, `Time`, `Setting`), `Live/Payload/Decision.cls`, `Channel/Telegram/In.cls`: the OcuTalon contracts.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Audit.cls` (modified: returns `CheckAudit()`), `src/short-names.tsv` (22 rows), `.gitattributes` (union merge for the registry).
+- `src/ocutalon/cls/OcuTalon/Test/{Contract,Msg/Contracts,Bridge/Contracts,Data/Tables,Data/Time,Data/Setting}.cls`: five test classes and the shared contract check.
+- `docker/tests/test-storage.sh` (new), `test-audit.sh` (new), `test-install-start.sh` (modified: row 5 loads only the installer into the plain namespace).
+- `Test/Install/{Registry,Users}.cls`, `Test/Web/{Install,Shell,SignIn}.cls`: one blank line each removed so the round trip changes no tracked file.
+
+**Review findings.** 54 findings from four layers: high 0, medium 18, low 32, false 3, maybe-false 1 (the rows are in the Review Triage Log).
+- Patched (7 medium groups, 8 low): `Write` accepts only a dynamic object; `Setting.Get`/`Seed` refuse an empty key; the "is disabled" branch of `Step.Audit` has a live test; the shared counts in `Test.Data.Tables` became floors; `test-storage.sh` requires `DEFAULTGLOBAL` on non-message persistent classes and can no longer pass without reading the registry; the "type exactly" assertion names the type; `Test.Contract` also pins the superclass list, abstractness and the `Boolean` initial value; `TestNewBusy` pins every other field; `Seed` asserts `UpdatedAt`; a `DecisionPayload` JSON test; the row 11 failure line states the budget; the `AgentStep.DurationMs` comment.
+- Deferred (3, in `deferred:`): instance auditing off is not reported; AC5 has no recurring check (Story 0.7); `ToLocal` is not run in a production job with the container's TZ.
+- Rejected with their reasons in the log: raw `0` from `Write` (spec-bound), a case-insensitive `Ref` collation, `%JSONNULL`/`%JSONIGNORENULL` choices (Stories 0.5 and Epic 1), `TRUNCATE` and `VALUELIST` on contract properties (spec-bound rulings), `Seed` concurrency, `Try`/`Catch` in the installer, test-helper robustness, the `short` against the global's suffix, an AD-3 `%SYS` switch check, and the descriptive intent-alignment divergences. Two findings were false: the Long/Json `MAXLEN` claim (a default `%String` reports 50, measured) and the "no `mutation:` line per row" claim.
+- Follow-up review recommended: `true`. Medium patches: 7 (the `Write` guard, `Setting` empty key, the disabled-branch test, the count floors, `registry-param`, the `scan` rule, the exact-type assertion). The risk no layer has seen is the patch hunks themselves: the awk rules in `test-storage.sh` and the stricter comparisons in `Test.Contract` were checked only by my own mutations, not by an independent read.
+
+**Verification performed.** All on the final tree, after the last patch.
+- Slot A (build 154, port 52790): the bridge and OcuTalon trees load and compile with 0 errors; `Test.Msg.Contracts` 6/6, `Test.Bridge.Contracts` 5/5, `Test.Data.Tables` 5/5, `Test.Data.Time` 4/4, `Test.Data.Setting` 5/5, `Test.Install.PrivateData` 5/5, `Test.Install.Registry` 11/11, one class per call. No `Zz` fixture, `zz.` setting or `Reply` row is left; the process TZ and `^OcuTalonTest("TelegramIncluded")` are as before.
+- Shell: `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh` exit 0.
+- Throwaway projects, one at a time: `test-audit.sh` exit 0 on the Health image (row read back after 49 s) and on `iris-community:2026.3.0AI.154.0` (53 s); `test-install-start.sh` and `test-install-upgrade.sh` exit 0. No `ocutalon-t0*` container, volume or network is left.
+- Round trip: 89 of 89 exported classes equal their files. The matrix rows 1 to 16 each map to a test that ran and passed; every acceptance criterion has demonstrated `mutation:` lines in `## Verification`.
+
+**Residual risks.**
+- The audit read-back takes 49 to 75 s against a 120 s poll, so a very slow runner could time out; the failure line now says how much budget the deadline left.
+- `Write` returns the bare `0` of `$SYSTEM.Security.Audit` for an unregistered event, which is a failing status with no text.
+- The Rule 22.3 VETO WINDOW item (security posture: the installer registers the audit events) stays open for the lead's FYI.
+- The five earlier test files lost one blank line each; please eyeball those one-line diffs.

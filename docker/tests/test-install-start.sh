@@ -11,7 +11,8 @@
 #   - row 3, the developer compose file: the package loaded again;
 #   - row 4, a public class deleted: the load forced by the public-class check, the class back in OCUTALON_PUBLIC;
 #   - row 5, the bridge alone: src/bridge/ loaded into an Interoperability namespace without IPM, and its installer run,
-#     and refused in a namespace without Interoperability.
+#     and refused in a namespace without Interoperability, where only the installer class is loaded because the
+#     bridge's messages need Ens.Request and Ens.Response.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
 # volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -220,7 +221,7 @@ check_session "row 5: the bridge installer refuses a namespace without Interoper
   "CHK|load|1
 CHK|refused|1
 CHK|names-namespace|1" \
-  'Write !,"CHK|load|",$SYSTEM.OBJ.LoadDir("/opt/ocutalon/src/bridge/cls","ck-d",.errors,1)' \
+  'Write !,"CHK|load|",$SYSTEM.OBJ.Load("/opt/ocutalon/src/bridge/cls/OcuTalon/Bridge/Installer.cls","ck-d")' \
   'Set sc=##class(OcuTalon.Bridge.Installer).Run() Write !,"CHK|refused|",$SYSTEM.Status.IsError(sc),!,"CHK|names-namespace|",($SYSTEM.Status.GetErrorText(sc)["OCUPLAIN")' \
   'Halt'
 

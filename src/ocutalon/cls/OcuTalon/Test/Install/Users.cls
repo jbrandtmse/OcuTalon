@@ -80,7 +80,6 @@ Method TestDeclarations()
 }
 
 /// --- fixtures ---
-
 /// Enabled|ChangePassword|PasswordNeverExpires|AccountNeverExpires|Roles|hash and salt of the password, or "<none>".
 Method Account(user As %String) As %String [ Private ]
 {

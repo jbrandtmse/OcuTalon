@@ -300,7 +300,6 @@ Method TestRun()
 }
 
 /// --- fixtures ---
-
 /// Runs Run() of the probe, whose order is the list, with its output in a temporary file. Returns the output
 /// (line ends as $Char(10)) and leaves the status of the run in sc.
 Method RunProbe(order As %List, Output sc As %Status) As %String [ Private ]

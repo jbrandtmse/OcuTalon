@@ -202,7 +202,6 @@ Method TestGrantTraceSql()
 }
 
 /// --- fixtures ---
-
 /// The table of the Design Notes for an application: expected(key) = value.
 ClassMethod Expected(name As %String, Output expected) [ Private ]
 {

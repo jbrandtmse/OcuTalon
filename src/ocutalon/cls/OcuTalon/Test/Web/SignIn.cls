@@ -164,7 +164,6 @@ Method TestNoStyleAttributeInSources()
 }
 
 /// --- helpers ---
-
 /// base64(SHA-256(text)), as a Content-Security-Policy source expression holds it.
 ClassMethod Hash(text As %String) As %String [ Private ]
 {

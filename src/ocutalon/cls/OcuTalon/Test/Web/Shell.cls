@@ -103,7 +103,6 @@ Method TestRedirect()
 }
 
 /// --- helpers ---
-
 /// Serves path through the shell with stand-in request and response objects, as the fixture application,
 /// and returns the body that was written. response is the response object; reached is 1 when the stream
 /// server was asked for a file. since, when given, is the request's If-Modified-Since header.
