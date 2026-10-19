@@ -1461,6 +1461,8 @@ So that I see my own conversation and status, and every change, as soon as it ha
 **When** the page loads
 **Then** the rail and the chat show static `sunken` skeletons shaped like their rows until data arrives, and after 10 seconds without data they are replaced by "Couldn't load your session." with **Retry** (UX-DR41, UX-DR89)
 
+- DW-14: `ApiClient` sends the browser envelope on every state-changing call (an interceptor adds `Content-Type: application/json` and `X-OcuTalon-Request: 1`), starting with this story's `POST /api/v1/session/end`; a test shows the server's 403 `not_json` / `no_request_header` without it (ledger; routed by harvest 2026-10-19)
+
 ### Story 2.3: Route every command by verb, with origin checks
 
 As a security reviewer,

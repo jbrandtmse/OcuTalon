@@ -118,3 +118,9 @@
 2026-10-19T10:50:25Z	Epic 0	spine_updated	ad=AD-12,AD-13,conv_REST reason=clarification by=lead story=0-5-live-events-and-the-rest-skeleton lint=ok
 2026-10-19T10:50:25Z	Story 0.5	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-3,AD-4,AD-12,AD-13,AD-15,AD-19,AD-23,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-5 addressed=1 declined=0 mutates_shared_runtime=true note=slot_A_unit_tests_own_fixtures;HTTP_browser_bundle_on_throwaway model=claude-opus-5-5
 2026-10-19T10:50:26Z	Story 0.5	stage_spawned	stage=implement spawn_at=2026-10-19T10:50:26Z model=claude-sonnet-5-5 agent_name=0-5-implement-1 cycle_iteration=1
+2026-10-19T12:44:11Z	Story 0.5	dev_complete	spawn_at=2026-10-19T10:50:26Z model=claude-sonnet-5-5 build_sha=de8096d baseline_revision=0e2fcb3 review_loop_iteration=0 followup_review_recommended=true deferred=1 files=60 nfr_tripwires=0 adr_violations_surfaced=1 cycle_iteration=1 note=ApiBase_ruling_for_401
+2026-10-19T12:44:11Z	Epic 0	orchestrator_ruling	question=DW-14_LOW_envelope_interceptor_disposition choice=routed_to_2.2_with_bullet rejected=wontfix-accepted(gap_certain_once_2.2_adds_POST_session/end) authority=standing_grant(Rule_22)
+2026-10-19T12:44:11Z	Epic 0	ledger_routed_planned	story=2-2-keep-the-session-and-load-its-snapshot-with-live-updates entries=1 excess=0 by=harvest
+2026-10-19T12:44:11Z	Epic 0	spine_updated	ad=AD-3,AD-13,AD-12 reason=clarification by=lead story=0-5-live-events-and-the-rest-skeleton lint=ok note=ApiBase,SQL_priv_check_off_for_own_rows,exact_collation,LastSeq_waits
+2026-10-19T12:44:11Z	Story 0.5	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
+2026-10-19T12:44:11Z	Story 0.5	stage_spawned	stage=qa spawn_at=2026-10-19T12:44:11Z model=claude-sonnet-5-5 agent_name=0-5-qa-1 cycle_iteration=1
