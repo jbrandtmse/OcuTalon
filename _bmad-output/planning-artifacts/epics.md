@@ -1401,6 +1401,8 @@ So that I can sign in and find every part of the page by sight or by keyboard.
 **And** the focus ring is 2px solid `focus` at a 2px offset with a `surface` halo, used for nothing else and never clipped; popovers are non-modal `role="dialog"` named by their heading, open on their first control and close on Esc, an outside press or focus leaving, returning focus to the trigger; tooltips are pointer-only, appear after 300 ms, stay while hovered, close on Esc without moving focus, and never hold the only copy of information (UX-DR33, UX-DR38, UX-DR40)
 **And** the component library is recorded as a Stack row in the spine in the same change, following the recommendation of the Angular CDK plus custom components styled from the `DESIGN.md` tokens (UX-DR152)
 
+- DW-4: A hash-route deep link such as `/ocutalon/#/x` is lost at sign-in, because the fragment never reaches the server; once this story adds the first routes, signing in at a route lands on that route (fix in `OcuTalon.Web.Public.Shell` and `web/src/signin/signin.js`) (ledger; routed by harvest 2026-10-19)
+
 ### Story 2.2: Keep the session and load its snapshot with live updates
 
 As a user,

@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-18'
 status: 'done'
 baseline_revision: '167a56ac02bdb05141d9dea0217a05d99ab6b873'
+baseline_commit: '167a56ac02bdb05141d9dea0217a05d99ab6b873'
 review_loop_iteration: 0
 followup_review_recommended: true
 context: ['{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/DESIGN.md']

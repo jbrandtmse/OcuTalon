@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-18-2026 20:01
+last_updated: 10-18-2026 22:10
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -38,7 +38,7 @@ development_status:
   epic-0: in-progress
   0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
   0-2-the-package-installs-and-upgrades-itself-at-every-start: done
-  0-3-sign-in-to-an-empty-ocutalon-page: in-progress
+  0-3-sign-in-to-an-empty-ocutalon-page: review
   0-4-the-cross-lane-message-and-data-contracts: backlog
   0-5-live-events-and-the-rest-skeleton: backlog
   0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or: backlog
