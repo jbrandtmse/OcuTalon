@@ -209,6 +209,43 @@ Tests:
 - Given `IRIS_IMAGE=iris-community:2026.3.0AI.154.0`, when `test-audit.sh` runs, then it passes.
 - Given the storage blocks in the files, when the trees are loaded, compiled and exported again on slot A, then no tracked file changes.
 
+### Review Findings
+
+Code review stage, October 19 (`bmad-code-review`, full mode; review tier full-opus, since `_bmad/custom/model-overrides.yaml` is absent; layers Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor all ran, none failed). 46 raw findings: high 0, medium 7, low 36, false 3. They group into 13 entries: 10 patched, 3 deferred, and 23 rejected (listed at the end). Rule 3: exempt, because the story is contracts, helpers and tests and has no user-facing surface. Lead's points: (1) cross-lane fidelity holds, checked against AD-6, AD-11/16, AD-14, AD-15, AD-29/33 and the Conventions enumeration row; the twelve `Msg.Enum` parameters match exactly; (2) private data holds: 22 rows with no duplicate short name, global or class, every storage global of every row is the global plus `D`/`D`/`I`/`S`, and `src/bridge/` references no other OcuTalon package; (3) audit holds: `Bridge.Installer` touches only the six `OcuTalon/<T>/<T>` events and never `AuditEnabled`. The redactor and the identity fields belong to Story 3.7, and `Write` now says so (patch below). DW-10 was not re-found, so it got no occurrence.
+
+- [x] [Review][Patch] (med, fix-risk low) "OcuTalon never changes instance-wide auditing" had no check that could fail: row 10's `audit-enabled|1` passes whatever the installer does, because both images default to on [docker/tests/test-audit.sh:120]. Fixed: a step switches auditing off in the throwaway, runs `Bridge.Installer.Run()` and `Step.Audit.Run()`, and expects it still off. Mutation recorded under Verification.
+- [x] [Review][Patch] (med, fix-risk low, Rule 2) The XData reader was copied into `Test.Contract.Ac.Read` and `Test.Contract.Checker.Read` (beside `Test.Contract.ReadContracts` and `Test.Data.Tables.Registry`), and `ORACLES` into both QA classes, with no stated reason [src/ocutalon/cls/OcuTalon/Test/Contract.cls:66]. Fixed: one `Read(xdataName, class)` and one `ORACLES` on `Test.Contract`; `ReadContracts` and `Registry` call it, and the two copies are gone.
+- [x] [Review][Patch] (low) The `test global` scanner stripped the allowed read in every file and skipped every `#` line, `#define` included, so a second product reader or a write through a macro passed it [docker/tests/test-boundaries.sh:62]. Fixed: the read is allowed only in `OcuTalon/Channel/Telegram/In.cls`, only comment lines are skipped, and there are bad samples 5 and 6. Mutations recorded.
+- [x] [Review][Patch] (low) The 60-second cache was checked only at ages near 0 and 61 s, so a 30 s window passed [src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls:53]. Fixed: an entry 59 s old still serves the old value. Mutation recorded.
+- [x] [Review][Patch] (low) "fallback is a boolean" asserted only `= 1`, which a JSON number also passes [src/ocutalon/cls/OcuTalon/Test/Msg/Contracts.cls:118]. Fixed: it asserts `%GetTypeOf` is `boolean`. Mutation recorded.
+- [x] [Review][Patch] (low) `Checker.RemoveFixtures` queried `%Dictionary.CompiledClass`, so a fixture whose compile failed stayed on slot A [src/ocutalon/cls/OcuTalon/Test/Contract/Checker.cls:234]. Fixed: it queries `%Dictionary.ClassDefinition`, which a planted uncompiled fixture confirmed.
+- [x] [Review][Patch] (low, Rule 14) Doc comments claimed more than the contract: `DecisionRef` called "the attention decision" on `Bridge.Msg.Result`, `AgentStep`, `Bridge.Data.Usage` and `Msg.Notification`, although AD-20 rows have four kinds; and `Delivery.Record` said "an approval message", although it records any outbound copy (AD-14) [src/bridge/cls/OcuTalon/Bridge/Msg/Result.cls:5]. Fixed: the comments now state each contract.
+- [x] [Review][Patch] (low, AD-17) `Bridge.Audit.Write` did not say that it writes the data unredacted, without the user, role, `SessionRef` and channel [src/bridge/cls/OcuTalon/Bridge/Audit.cls:24]. Fixed: its doc comment says so and puts the caller in charge of both. No caller exists before Story 3.7, which owns the redaction and the entry shapes.
+- [x] [Review][Patch] (low) The `Bridge.Installer.AuditEvents` comment "The only method that switches to %SYS" read as system-wide, but `Install.Step.*` methods switch too (AD-3) [src/bridge/cls/OcuTalon/Bridge/Installer.cls:30]. Fixed: "The class's only method".
+- [x] [Review][Patch] (low) The `(loop)` test list under Verification left out QA's three classes, which are the only pins for five mutations [spec Verification]. Fixed in the Verification commands; AC1's own wording is unchanged.
+- [x] [Review][Defer] (med) `Zone()` says `UTC` when TZ is unset while `ToLocal` converts with the OS zone, so on a non-UTC host outside the image the two disagree; `TestUnsetZone` sets TZ to "" rather than unsetting it [src/ocutalon/cls/OcuTalon/Data/Time.cls:24]. Deferred: same root cause as DW-12 (Data.Time's zone source), so an `occurrence` was added to DW-12, which is routed to 0.9.
+- [x] [Review][Defer] (med, fix-risk low, in-epic) `test-storage.sh`'s storage roots are only `%Persistent`, `Ens.Request` and `Ens.Response`, so an `Ens.BusinessProcess` or direct `Ens.MessageBody` subclass escapes the storage-block check [docker/tests/test-storage.sh:54]. Deferred: no such class exists yet; Story 0.6 adds the production-item stubs and decides their extents. Filed as DW-13, `routed owner=0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or`.
+- [x] [Review][Defer] (low) Spine wording lags this story's rulings. AD-23's step list still says the audit events are "registered through `OcuTalon.Bridge.Audit`" in the Audit step, although AD-17 as amended has `Bridge.Installer` register them and `Step.Audit` only checks. AD-32 still says `Catalog.Render` is "implemented in Epic 0, Story 0.4", although it moved to 0.9. Deferred: a Rule 20 spine edit for the lead, with no ledger entry.
+
+Rejected:
+- `false` New message classes escape a package-completeness check: every Epic 0 contract class is pinned through the epics AC list (`Ac.TestAcClassesAreCompiledAndPinned`); later messages belong to their owning lane (AD-33), and the floors ruling keeps them out of shared tests.
+- `false` `SetReminder` doesn't enforce "exactly one due form" on the message: Story 8.3's `ReminderOps` refuses with a `CommandResult` (epics L2885); a message-level check would turn that into a send error.
+- `false` Rows 2, 15 and 16 have no `mutation:` line: Rule 19 asks for one per AC, and AC1 and AC3 each have several.
+- `low` `Test.Contract` compares the SQL field name only where the contract names one, and never `SqlTableName`: unlikely, and the fix adds branches.
+- `low` `TestCrossLaneSignatures` accepts any trailing parameter: ObjectScript has no required parameters; unlikely, and the fix adds branches.
+- `low` The `TelegramIncluded` restore treats `$Data` 10 as defined: no writer creates subnodes.
+- `low` `Setting.Key` and the `Ref` indexes use the default string collation: product keys are lowercase and dotted, and refs keep about 110 random bits; changing collation changes index storage.
+- `low` A concurrent `Seed`, a concurrent `Create` race, a failed `Exists` lookup, no `Try`/`Catch` around `%SYS`: the implement-stage review already adjudicated these; the after-start install runs one process.
+- `low` `Write` returns the bare `0` for an unregistered event: spec-bound, Rule 22 ruling at the implement-stage review.
+- `low` `%ToJSON` past the 3.6 MB `EventData` limit: theoretical; real only if a caller audits multi-megabyte data (Story 3.7 owns the shapes).
+- `low` `iris_script` could retry a write that printed no `CHK` line and leave two rows: it would fail loudly, not pass falsely, and needs a session that ran the write but printed nothing.
+- `low` `test-storage.sh` doesn't resolve unqualified superclass names, and `xargs` could split past about 2,000 files: every `Extends` in `src/` is qualified, and the tree holds about 100 classes.
+- `low` The TZ restore leaves TZ "" rather than undefined: process-local, and the image is UTC.
+- `low` The `FormalSpec` parse mishandles `*x`/`&x` and commas inside defaults: none of the 12 pinned signatures has them.
+- `low` `TestPublicKey` writes `onlineDemo` on slot A: Matrix row 9 names it (spec-bound), and `OnAfterAllTests` restores it.
+- `low` The commit message counts 16 tables: history, not code; the 16 `OcuTalon.Data` tables are right.
+- `low` `Bridge.Data.Price` has one cache-write rate: the spine lists no Price columns, AD-20 records one `CacheWriteTokens` count, and Lane A owns Price and may append columns.
+
 ## Spec Change Log
 
 Rule 22 rulings made during implementation:
@@ -483,7 +520,7 @@ Two groups recur:
 **Commands:**
 - `(loop)` Check the target with `iris_server_info` (`server: ocutalon-slot-a`). Expected: build 154.
 - `(loop)` `iris_doc_load` with `server: ocutalon-slot-a`, `namespace: OCUTALON`, `compile: true`, `flags: "ck"`, as two calls: `src/bridge/cls/**/*.cls`, then `src/ocutalon/cls/**/*.cls`. Expected: 0 errors.
-- `(loop)` `iris_execute_tests` at class level, one call each, each waiting for the one before: `OcuTalon.Test.Msg.Contracts`, `OcuTalon.Test.Bridge.Contracts`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Data.Time`, `OcuTalon.Test.Data.Setting`, `OcuTalon.Test.Install.PrivateData`, `OcuTalon.Test.Install.Registry`. Expected: 0 failed; no `Zz` fixture or `zz.` setting left; `^OcuTalonTest("TelegramIncluded")` as it was before.
+- `(loop)` `iris_execute_tests` at class level, one call each, each waiting for the one before: `OcuTalon.Test.Msg.Contracts`, `OcuTalon.Test.Bridge.Contracts`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Data.Time`, `OcuTalon.Test.Data.Setting`, `OcuTalon.Test.Install.PrivateData`, `OcuTalon.Test.Install.Registry`, and QA's `OcuTalon.Test.Contract.Ac`, `OcuTalon.Test.Contract.Checker` and `OcuTalon.Test.Data.SettingValues`. Expected: 0 failed; no `Zz` fixture or `zz.` setting left; `^OcuTalonTest("TelegramIncluded")` as it was before.
 - `(loop)` One per call: `bash docker/tests/test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`. Expected: exit 0 each.
 - `(loop)` `bash docker/tests/test-audit.sh` (`timeout: 600000`). Expected: exit 0, with no `ocutalon-t04-*` project left.
 - `(loop)` `bash docker/tests/test-install-start.sh` (`timeout: 600000`). Expected: exit 0.
@@ -549,6 +586,53 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: AC2, `src/short-names.tsv` moved away -> `test-storage.sh` red (`FAIL scan`, exit 1) where it printed six PASS lines; restored byte for byte.
 
 **Recorded runs** (final state, after the review patches): `Test.Msg.Contracts` 6/6, `Test.Bridge.Contracts` 5/5, `Test.Data.Tables` 5/5, `Test.Data.Time` 4/4, `Test.Data.Setting` 5/5, `Test.Install.PrivateData` 5/5, `Test.Install.Registry` 11/11 on slot A; `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`, `test-audit.sh` (Health, 49 s read-back, and non-Health, 53 s), `test-install-start.sh` and `test-install-upgrade.sh` exit 0; the round trip (load, compile, export) of the 89 classes under `OcuTalon` leaves all 89 files identical. Slot A afterwards: no `zz.` setting, no `Zz` class, no `Reply` row, `TZ` unset, `^OcuTalonTest("TelegramIncluded")` absent as before. No `ocutalon-t0*` container, volume or network remains.
+
+**QA stage** (October 19; slot A build 154 and throwaway projects; nothing committed). The implement stage's matrix tests were read against the epics AC and the ADs, and the gaps below were closed. Each gap was first shown open: the mutation named was applied and the existing test for that area stayed green.
+
+Tests added (QA):
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` (QA): `OcuTalon.Test.Contract.Ac`, 6 tests. Names come from the epics AC and AD-6, AD-26 and AD-32, not from an oracle: every named property exists on its class, every AC class is compiled and has an entry in one of the three oracles, all four storage globals of every registry class are the registry global plus `D`, `D`, `I`, `S` and resolve to the private database, a new `Incident` has an empty `NoticedAt` and saves without it, the twelve cross-lane methods keep their parameter names, order and return type (`Delivery.Record` and `FindByApproval` are named by the AC), and the Telegram stub declares an adapter class.
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Checker.cls` (QA): `OcuTalon.Test.Contract.Checker`, 5 tests. It tests `Test.Contract.Compare` itself: a fixture class (unique `OcuTalon.Test.ZzContract<n><Kind>`, deleted before and after) passes its own contract and fails each of 27 single changes of the contract; and for each of the 47 real contract classes, dropping, renaming or retyping each property, changing each index, changing the superclasses and flipping the abstract flag is reported (well over 700 changes). The comparison is symmetric, so a class that loses or renames a property fails the same way.
+- `src/ocutalon/cls/OcuTalon/Test/Data/SettingValues.cls` (QA): `OcuTalon.Test.Data.SettingValues`, 2 tests. A seeded `0`, `007`, `false` and `0.50` are values, from the row and from the cache; the default argument is optional.
+
+Files changed (QA):
+- `docker/tests/test-boundaries.sh` (QA): rule `test global`, with four bad samples and a good one: `^OcuTalonTest` appears in no product text (outside the `OcuTalon/Test` classes and `docker/tests/`) except the one read in `Channel/Telegram/In.cls`, which is the AC's "only `OcuTalon.Test` classes set it".
+- `docker/tests/test-storage.sh` (QA): rule `locations`, with three bad samples: a class with a default global must have `IdLocation`, `IndexLocation` and `StreamLocation` equal to the global plus `D`, `I` and `S`. Before, only `DataLocation` was read, so a hand-edited block that moved the index, id or stream global out of the private prefix passed the script, and the id and stream globals passed `Test.Data.Tables` too.
+
+Gaps shown open before they were closed (the existing test stayed green):
+- `Delivery.FindByApproval(ownerRef, channel, approvalRef)` with its parameters swapped: `Test.Data.Tables` 5/5.
+- `Incident.NoticedAt` made `[ Required ]`: `Test.Data.Tables` 5/5.
+- `Setting.Get` that treats `0` as unset: `Test.Data.Setting` 5/5.
+- `Test.Contract.Compare` that skips the index comparison: `Test.Data.Tables` 5/5.
+- `Channel.Telegram.In` without its `Parameter ADAPTER`: `Test.Msg.Contracts` 6/6.
+- `OcuTalon.Msg.Tick` dropped from the `Test.Msg.Contracts` oracle: `Test.Msg.Contracts` 6/6.
+- `Setting`'s `IdLocation` and `StreamLocation` set to `^OcuTalonZz.*`: `Test.Data.Tables` 5/5. Its `IndexLocation` set to `^OcuTalonZz.SettingI`: the old `test-storage.sh` passed.
+
+Mutations demonstrated (QA, Rule 19; the class mutations were applied to a copy under the scratchpad and loaded on slot A, the others in the tree and restored with `cmp`; `git status --short` is the same before and after, and the final load, compile and export gave 92 of 92 files identical):
+- mutation: AC1, `Notification.ChatRef` renamed `ChatId` -> `Test.Msg.Contracts` `TestContracts` ("property ChatRef is missing; property ChatId is not in the contract") and `Test.Contract.Ac` `TestNamedPropertiesExist` red.
+- mutation: AC1, `Bridge.Data.Decision.TraceSessionId` renamed `TraceId` -> `Test.Data.Tables` `TestContracts` and `Test.Contract.Ac` `TestNamedPropertiesExist` red.
+- mutation: AC1, `Delivery.FindByApproval` parameters swapped -> `Test.Contract.Ac` `TestCrossLaneSignatures` red.
+- mutation: AC1, `Incident.NoticedAt` made `[ Required ]` -> `Test.Contract.Ac` `TestIncidentNoticeIsEmptyUntilTheNotice` red (ERROR #5659 on save).
+- mutation: AC1, `Setting.Get` treats `0` as unset -> `Test.Data.SettingValues` `TestValuesThatLookFalseOrNumericAreValues` red.
+- mutation: AC1, `Test.Contract.Compare` skips the index comparison -> `Test.Contract.Checker` `TestOracleDetectsEachKindOfDifference` and `TestEveryPinnedPartOfEveryContractIsDetected` red (all 47 classes with an index named).
+- mutation: AC1, `Channel.Telegram.In` loses `Parameter ADAPTER` -> `Test.Contract.Ac` `TestTelegramStubHasAnAdapter` red.
+- mutation: AC1, `OcuTalon.Msg.Tick` removed from the `Test.Msg.Contracts` oracle -> `Test.Contract.Ac` `TestAcClassesAreCompiledAndPinned` red ("OcuTalon.Msg.Tick has an entry in a contract oracle").
+- mutation: AC1, `Install.Step.Telegram.Run()` sets `^OcuTalonTest("TelegramIncluded")` -> `test-boundaries.sh` rule `test global` red (`Telegram.cls:8`).
+- mutation: AC2, `Setting`'s default global and storage globals moved to `^OcuTalonP.Settings`, still private but not its registry row -> `test-storage.sh` `registry-class` red (names the file) and `Test.Data.Tables` `TestPrivateRecords` red.
+- mutation: AC2, `Setting`'s `IdLocation` and `StreamLocation` set to `^OcuTalonZz.*` -> `Test.Contract.Ac` `TestEveryStorageGlobalIsPrivate` red and `test-storage.sh` `locations` red (names the file and both locations).
+- mutation: AC3, `Bridge.Audit.Write` passes an empty description -> `test-audit.sh` on the Health image red at row 11 only ("no such %SYS.Audit row within 120 s"; rows 10 and 12 pass).
+- mutation: AC4, `Bridge.Audit.TYPES` without `Tool`, on `iris-community:2026.3.0AI.154.0` -> `test-audit.sh` red at row 10 (the six events) and row 12.
+- mutation: AC5, the `RecordedAt` slot removed by hand from `Delivery`'s storage block -> the export of the compiled class differs from the edited file (the compiler adds the slot back) and equals the committed file.
+
+**QA runs** (final state, slot A, one class per call): `Test.Msg.Contracts` 6/6, `Test.Bridge.Contracts` 5/5, `Test.Data.Tables` 5/5, `Test.Data.Time` 4/4, `Test.Data.Setting` 5/5, `Test.Install.PrivateData` 5/5, `Test.Install.Registry` 11/11, `Test.Contract.Ac` 6/6, `Test.Contract.Checker` 5/5, `Test.Data.SettingValues` 2/2; the package run `OcuTalon.Test.Contract` finds both new classes (11/11). `test-storage.sh` and `test-boundaries.sh` exit 0. Slot A afterwards: no `Zz` class, no `Incident` row, no `zz.` setting, `TZ` unset, `^OcuTalonTest("TelegramIncluded")` absent as before. No `ocutalon-t04-*` container, volume, network or image remains.
+
+**Code review stage** (October 19; slot A build 154, port 52790, and throwaway projects; nothing committed). Mutations demonstrated for the pins this review added or tightened (Rule 19; class mutations applied to a copy under the scratchpad and loaded on slot A, script mutations in the tree and restored with `cmp`; `git status --short` the same before and after):
+- mutation: AC1 (row 9), `Setting.Get` keeps a cache entry for 30 s instead of `CACHESECONDS` -> `Test.Data.Setting` `TestSeededValueAndCache` red ("the old value is still read when the entry is 59 seconds old"); before this review every test stayed green on it.
+- mutation: AC1 (decision payload), `Live.Payload.Decision.Fallback` typed `%Integer` -> `Test.Msg.Contracts` `TestDecisionPayloadKeys` red ("fallback is a boolean"); the old `exported.fallback = 1` passed on it.
+- mutation: AC1 (Telegram global), `test_global` strips the allowed read in every file again -> `test-boundaries.sh` red ("the scanner does not flag sample 5", the read outside `Channel/Telegram/In.cls`).
+- mutation: AC1 (Telegram global), `test_global` skips every `#` line again -> `test-boundaries.sh` red ("the scanner does not flag sample 6", a write in a `#define`).
+- mutation: AC3 (AD-17 Never), `Bridge.Installer.AuditEvents` sets `Security.System` `AuditEnabled` to 1 after switching to `%SYS` -> `test-audit.sh` red only at the new check ("wanted 'CHK|audit-still-off|0', got 'CHK|audit-still-off|1'"); rows 10, 11 and 12 all passed on it, so the row 10 `audit-enabled|1` check alone could not catch it.
+
+**Code review runs** (final tree): `Test.Msg.Contracts` 6/6, `Test.Bridge.Contracts` 5/5, `Test.Data.Tables` 5/5, `Test.Data.Setting` 5/5, `Test.Contract.Ac` 6/6, `Test.Contract.Checker` 5/5, `Test.Data.SettingValues` 2/2, `Test.Data.Time` 4/4, `Test.Install.PrivateData` 5/5 on slot A, one class per call. `Checker` also removed a planted uncompiled `OcuTalon.Test.ZzContractOrphan1` definition, which the old `%Dictionary.CompiledClass` query left behind. `test-boundaries.sh` and `test-storage.sh` exit 0; `test-audit.sh` exit 0 on the Health image (row read back after 49 s, run 1:39). The load, compile and export round trip gives 92 of 92 files identical. Slot A afterwards: no `Zz` class or definition, no `zz.` setting, no `Zz` incident, no `Reply` row, `TZ` unset, `^OcuTalonTest("TelegramIncluded")` absent as before. No `ocutalon-t04-*` container, volume or network remains.
 
 ## Auto Run Result
 

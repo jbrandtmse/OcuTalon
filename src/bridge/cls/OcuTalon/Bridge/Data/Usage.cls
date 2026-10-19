@@ -5,7 +5,7 @@ Class OcuTalon.Bridge.Data.Usage Extends %Persistent
 /// The private global of the class's data and indexes, from src/short-names.tsv (AD-3).
 Parameter DEFAULTGLOBAL = "^OcuTalonBP.Usage";
 
-/// The Ref of the Decision row that holds the attention decision (AD-20).
+/// The Ref of the Decision row whose Decide call this agent turn served (AD-20).
 Property DecisionRef As %String(MAXLEN = 22);
 
 /// The item's Ref (AD-14).

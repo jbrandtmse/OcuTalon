@@ -2,7 +2,7 @@
 Class OcuTalon.Bridge.Msg.Result Extends Ens.Response [ Abstract ]
 {
 
-/// The Ref of the Decision row that holds the attention decision (AD-20).
+/// The Ref of the Decision row of this decision or reply, whatever its Kind (AD-20).
 Property DecisionRef As %String(MAXLEN = 22);
 
 /// The decision outcome: one of Msg.Enum OUTCOME.

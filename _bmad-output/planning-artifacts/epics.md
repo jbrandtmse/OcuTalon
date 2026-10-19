@@ -940,6 +940,8 @@ So that each lane replaces stubs with real items without editing the other lane'
 **Then** namespace OCUORDERS exists with its code and data databases and mappings, and `OcuTalon.Demo.Orders.Production` runs there with its message classes, a partner service and the real transform, which fails on the changed date format (a test sends one order in each format and finds only the changed one failing); `eval/` holds one recorded failure snapshot of a date-format batch, which Lane A's watch and diagnosis tests use until Epic 9 records more (FR-16, FR-56, AD-22)
 **And** with demo mode off, OCUORDERS doesn't exist
 
+- DW-13: `docker/tests/test-storage.sh` treats every persistent root this story's classes extend (`Ens.BusinessProcess`, `Ens.MessageBody`, `Ens.StreamContainer`, not only `%Persistent`, `Ens.Request` and `Ens.Response`) as a storage root, exempts the message and business-process extents from `DEFAULTGLOBAL` as AD-3 does, and has a bad sample for each (ledger; routed by cr 2026-10-19)
+
 ### Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock
 
 As the author,

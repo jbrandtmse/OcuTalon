@@ -23,7 +23,7 @@ Property ApprovalRef As %String(MAXLEN = 22);
 /// The incident's Ref, when there is one (AD-32).
 Property IncidentRef As %String(MAXLEN = 22);
 
-/// The Ref of the Decision row that holds the attention decision (AD-20).
+/// The Ref of the Decision row behind the notification, when a decision raised it (AD-20).
 Property DecisionRef As %String(MAXLEN = 22);
 
 Storage Default

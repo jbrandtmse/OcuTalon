@@ -5,7 +5,10 @@
 #   - no local machine path and no key-like string in a tracked file;
 #   - no image push and no registry sign-in;
 #   - `docker compose config` only with --quiet and `docker inspect` only with --format, because
-#     both print the values that env_file passes in (AD-22).
+#     both print the values that env_file passes in (AD-22);
+#   - the test-only global ^OcuTalonTest appears nowhere in the product (outside the OcuTalon/Test classes and
+#     docker/tests/) except in the one read of ^OcuTalonTest("TelegramIncluded") in Channel/Telegram/In.cls, so the
+#     judges' install never has it set (AD-29, Story 0.4).
 # Starts nothing. Each scanner first runs on a synthetic file that breaks its rule and on one that
 # keeps it, so a scanner that can no longer flag anything fails. A failing scan prints file:line only,
 # never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -51,6 +54,21 @@ risky_docker_calls() {
     { cur = cur $0
       if (cur ~ /\\$/) { sub(/\\$/, " ", cur); next }
       check(cur, FILENAME ":" FNR); cur = "" }
+  ' "$@"
+}
+
+# Product text that mentions the test-only global ^OcuTalonTest, other than the one allowed read in
+# OcuTalon/Channel/Telegram/In.cls. The OcuTalon/Test classes and the scripts of docker/tests/ are the tests and are
+# skipped, and so is a comment line; a preprocessor line such as #define is not a comment and is scanned.
+test_global() {
+  awk '
+    FILENAME ~ /^src\/.*\/OcuTalon\/Test\// || FILENAME ~ /^docker\/tests\// { next }
+    /^[ \t]*(\/\/|;|#([^A-Za-z]|$))/ { next }
+    {
+      line = $0
+      if (FILENAME ~ /OcuTalon\/Channel\/Telegram\/In\.cls$/) gsub(/\$Get\(\^OcuTalonTest\("TelegramIncluded"\)\)/, "", line)
+      if (line ~ /OcuTalonTest/) print FILENAME ":" FNR
+    }
   ' "$@"
 }
 
@@ -146,6 +164,21 @@ printf '%s compose convert\n' "$d" > "$tmp/docker.bad11"
   printf 'dc up -d\n'
 } > "$tmp/docker.good"
 
+printf 'ClassMethod Enable()\n{\n\tSet ^OcuTalonTest("TelegramIncluded") = 1\n}\n' > "$tmp/testglobal.bad1"
+printf 'ClassMethod Included()\n{\n\tQuit $Get(^OcuTalonTest("TelegramIncluded")) = 1\n\tSet ^OcuTalonTest("TelegramIncluded") = $Get(^OcuTalonTest("TelegramIncluded"))\n}\n' > "$tmp/testglobal.bad2"
+printf 'Set g = "^OcuTalonTest"\n' > "$tmp/testglobal.bad3"
+printf 'Kill ^OcuTalonTest\n' > "$tmp/testglobal.bad4"
+printf 'ClassMethod Run()\n{\n\tIf $Get(^OcuTalonTest("TelegramIncluded")) Quit 1\n}\n' > "$tmp/testglobal.bad5"
+printf '#define TgOn Set ^OcuTalonTest("TelegramIncluded") = 1\n' > "$tmp/testglobal.bad6"
+mkdir -p "$tmp/OcuTalon/Channel/Telegram"
+{
+  printf '/// The test-only global ^OcuTalonTest("TelegramIncluded") is set by the tests.\n'
+  printf '# ^OcuTalonTest is not set here\n'
+  printf '#; ^OcuTalonTest is not set here either\n'
+  printf 'ClassMethod Included() As %%Boolean\n{\n\tQuit $Get(^OcuTalonTest("TelegramIncluded")) = 1\n}\n'
+  printf 'Set ^OcuTalonP.Setting = 1\n'
+} > "$tmp/OcuTalon/Channel/Telegram/In.cls"
+
 scan_rule "ascii: only printable ASCII, spaces and tabs" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good"
 scan_rule "paths: no local machine path" local_path "$tmp/path.bad" "$tmp/path.good"
 scan_rule "keys: nothing key-like" key_like "$tmp/key.bad" "$tmp/key.good"
@@ -156,6 +189,21 @@ if [ -n "$(key_like "$tmp/key2.bad")" ]; then
 else
   echo "FAIL keys: the bot-token shape is not flagged"
   fails=$((fails + 1))
+fi
+
+# The scanner has more than one bad shape: a write, a write that hides behind the allowed read, a mention in a string,
+# a kill of the whole global, the allowed read outside Channel/Telegram/In.cls, and a write in a #define.
+testglobal_ok=1
+for n in 1 2 3 4 5 6; do
+  if [ -z "$(test_global "$tmp/testglobal.bad$n")" ]; then
+    echo "FAIL test global: the scanner does not flag sample $n"
+    fails=$((fails + 1))
+    testglobal_ok=0
+  fi
+done
+if [ "$testglobal_ok" -eq 1 ]; then
+  scan_rule "test global: ^OcuTalonTest is read only in Channel/Telegram/In.cls and set only by the tests" \
+    test_global "$tmp/testglobal.bad1" "$tmp/OcuTalon/Channel/Telegram/In.cls"
 fi
 
 controls_ok=1

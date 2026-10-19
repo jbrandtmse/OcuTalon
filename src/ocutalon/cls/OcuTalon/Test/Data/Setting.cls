@@ -41,7 +41,8 @@ Method TestCacheSeconds()
 	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "CACHESECONDS"), 60, "the cache lasts 60 seconds")
 }
 
-/// A seeded value is read; a changed row is not seen within 60 seconds, and is once the cache entry is 61 seconds old.
+/// A seeded value is read; a changed row is not seen while the cache entry is under 60 seconds old (59 included), and
+/// is once the entry is 61 seconds old.
 Method TestSeededValueAndCache()
 {
 	Set key = ..Key_".cache"
@@ -51,6 +52,10 @@ Method TestSeededValueAndCache()
 	Set row.Value = "second"
 	Do $$$AssertStatusOK(row.%Save(), "the row is changed")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "the old value is still read within 60 seconds")
+	Set cached = ^||OcuTalon.Setting(key)
+	Set $List(cached, 3) = $ZHorolog - 59
+	Set ^||OcuTalon.Setting(key) = cached
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "the old value is still read when the entry is 59 seconds old")
 	Set cached = ^||OcuTalon.Setting(key)
 	Set $List(cached, 3) = $ZHorolog - 61
 	Set ^||OcuTalon.Setting(key) = cached

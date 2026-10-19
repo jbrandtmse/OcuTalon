@@ -12,6 +12,9 @@ Class OcuTalon.Test.Contract Extends %UnitTest.TestCase [ Abstract ]
 /// The type parameters that a contract pins.
 Parameter COMPARED = "%JSONFIELDNAME,MAXLEN,MAXVAL,MINVAL,SCALE";
 
+/// The oracles that hold the contracts of Story 0.4: each has its contracts in an XData block named Contracts.
+Parameter ORACLES = "OcuTalon.Test.Msg.Contracts,OcuTalon.Test.Bridge.Contracts,OcuTalon.Test.Data.Tables";
+
 /// Asserts, for each class of the XData block of this class, that it has exactly its contract.
 Method AssertContract(xdataName As %String)
 {
@@ -62,7 +65,13 @@ Method AssertSqlNames(class As %String)
 /// The contracts of the XData block, as a dynamic object.
 ClassMethod ReadContracts(xdataName As %String) As %DynamicObject [ Private ]
 {
-	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||"_xdataName)
+	Quit ..Read(xdataName)
+}
+
+/// An XData block of JSON as a dynamic object: of this class, or of the class given.
+ClassMethod Read(xdataName As %String, class As %String = {$ClassName()}) As %DynamicAbstractObject [ Private ]
+{
+	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId(class_"||"_xdataName)
 	Quit ##class(%DynamicAbstractObject).%FromJSON(xdata.Data)
 }
 

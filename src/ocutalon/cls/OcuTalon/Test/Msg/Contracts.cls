@@ -115,7 +115,8 @@ Method TestDecisionPayloadKeys()
 	While $ListNext(expected, position, key) {
 		Do $$$AssertTrue($ListFind(found, key), "the payload exports the key "_key)
 	}
-	Do $$$AssertEquals(exported.fallback, 1, "fallback is a boolean")
+	Do $$$AssertEquals(exported.%GetTypeOf("fallback"), "boolean", "fallback is a boolean")
+	Do $$$AssertEquals(exported.fallback, 1, "fallback is true")
 	Do $$$AssertEquals(exported.traceHeaderId, 7, "traceHeaderId is the trace session id")
 }
 

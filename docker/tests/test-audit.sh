@@ -9,7 +9,9 @@
 #     Event Action, and the marker in its EventData and its description;
 #   - row 12, the structural events: with OcuTalon/Tool/Tool disabled, Install.Step.Audit.Run() fails naming it and leaves
 #     it disabled, and Bridge.Installer.Run() leaves six events, all enabled; with OcuTalon/MCP/MCP deleted,
-#     Install.Step.Audit.Run() fails naming it and creates nothing.
+#     Install.Step.Audit.Run() fails naming it and creates nothing;
+#   - instance-wide auditing (AD-17): with it switched off in the throwaway, Bridge.Installer.Run() and
+#     Install.Step.Audit.Run() succeed and leave it off.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume
 # and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check, and INFO lines for the measured audit behaviour; exits 0 only when all pass.
@@ -116,6 +118,16 @@ printf '%s\n' \
   'Halt' | iris_script OCUTALON > "$tmp/actual.row12b"
 printf 'CHK|deleted|1\nCHK|fails|1\nCHK|names|1\nCHK|created|0\n' > "$tmp/expected.row12b"
 compare_chk "row 12: with OcuTalon/MCP/MCP deleted, Step.Audit fails, naming it, and creates nothing" "$tmp/actual.row12b" "$tmp/expected.row12b"
+
+# --- instance-wide auditing is never changed (AD-17) ---
+
+printf '%s\n' \
+  'Zn "%SYS" Set p("AuditEnabled")=0 Write !,"CHK|audit-off|",##class(Security.System).Modify("SYSTEM",.p)' \
+  'Zn "OCUTALON" Write !,"CHK|run-off|",##class(OcuTalon.Bridge.Installer).Run(),!,"CHK|step-off|",##class(OcuTalon.Install.Step.Audit).Run()' \
+  'Zn "%SYS" Kill sp Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|audit-still-off|",$Get(sp("AuditEnabled"))' \
+  'Halt' | iris_script OCUTALON > "$tmp/actual.auditoff"
+printf 'CHK|audit-off|1\nCHK|run-off|1\nCHK|step-off|1\nCHK|audit-still-off|0\n' > "$tmp/expected.auditoff"
+compare_chk "AD-17: with instance-wide auditing off, Bridge.Installer.Run() and Step.Audit succeed and leave it off" "$tmp/actual.auditoff" "$tmp/expected.auditoff"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-audit: $fails check(s) failed (project $P)"

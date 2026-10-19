@@ -27,7 +27,7 @@ ClassMethod CheckAudit() As %Status
 	Quit ..AuditEvents(0)
 }
 
-/// The only method that switches to %SYS (AD-3): registers (create is true) or checks (create is false) the audit events.
+/// The class's only method that switches to %SYS (AD-3): registers (create is true) or checks (create is false) the audit events.
 ClassMethod AuditEvents(create As %Boolean) As %Status [ Private ]
 {
 	Set events = ##class(OcuTalon.Bridge.Audit).Events()

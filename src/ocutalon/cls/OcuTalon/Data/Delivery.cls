@@ -22,8 +22,9 @@ Property RecordedAt As %String(MAXLEN = 20);
 
 Index ApprovalRefChannelOwnerRefIndex On (ApprovalRef, Channel, OwnerRef);
 
-/// Records the delivery of an approval message. Not implemented yet: it returns an error status, so that
-/// a caller cannot mistake the stub for a recorded delivery (AD-14). Lane B implements it in Story 2.7.
+/// Records one session's copy of an outbound message and the approval request it carries, if any.
+/// Not implemented yet: it returns an error status, so that a caller cannot mistake the stub for a recorded delivery
+/// (AD-14). Lane B implements it in Story 2.7.
 ClassMethod Record(ownerRef As %String, channel As %String, channelMessageId As %String, approvalRef As %String) As %Status
 {
 	Quit $SYSTEM.Status.Error(5001, "OcuTalon.Data.Delivery.Record is not implemented yet (Story 2.7)")

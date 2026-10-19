@@ -87,8 +87,7 @@ Method TestDeliveryStubs()
 /// The registry rows of src/short-names.tsv that the tests check, as a dynamic array of {"short","global","class"}.
 ClassMethod Registry() As %DynamicArray [ Private ]
 {
-	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||Registry")
-	Quit ##class(%DynamicAbstractObject).%FromJSON(xdata.Data)
+	Quit ..Read("Registry")
 }
 
 XData Contracts [ MimeType = application/json ]

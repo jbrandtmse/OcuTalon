@@ -100,3 +100,12 @@
 2026-10-19T08:49:11Z	Epic 0	owner_decision	source=Contest_Planner_relay quote="have_the_Audit_step_say_so_plainly_(a_log_warning,_plus_a_status_the_security_overview_and_README_can_point_to)_rather_than_pass_silently...Leave_the_setting_itself_alone" applied=DW-10_bullet_Story_3.7
 2026-10-19T08:49:11Z	Story 0.4	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-10-19T08:49:12Z	Story 0.4	stage_spawned	stage=qa spawn_at=2026-10-19T08:49:12Z model=claude-sonnet-5-5 agent_name=0-4-qa-1 cycle_iteration=1
+2026-10-19T09:18:55Z	Story 0.4	qa_complete	spawn_at=2026-10-19T08:49:12Z model=claude-sonnet-5-5 tests=OcuTalon.Test.Contract.Ac,OcuTalon.Test.Contract.Checker,OcuTalon.Test.Data.SettingValues tests_added=3 tests_changed=2 mutations_demonstrated=14 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-10-19T09:18:55Z	Story 0.4	stage_spawned	stage=code-review spawn_at=2026-10-19T09:18:55Z model=claude-opus-5-5 agent_name=0-4-code-review-1 cycle_iteration=1
+2026-10-19T09:51:16Z	Story 0.4	cr_complete	spawn_at=2026-10-19T09:18:55Z model=claude-opus-5-5 resolved=10 fixed_at_source=10 by_design=0 wontfix_theoretical=0 routed=1 escalated=0 decision_pending=0 deferred=3 dismissed=23 high=0 med=4 low=9 rows=46 unresolved_high_med=1 clarifications=0 closing_sections_present=true review_tier=full-opus final_status=done cycle_iteration=1 note=reviewer_reported_rows=2_and_unresolved=0;corrected_from_its_own_text(46_raw;DW-13_routed_med)
+2026-10-19T09:51:16Z	Epic 0	report_error	fault=stage field=ledger_occurrence reported=DW-12 actual=DW-13 impact=none_restated_on_DW-12
+2026-10-19T09:51:16Z	Epic 0	ledger_routed_planned	story=0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or entries=1 excess=0 by=cr
+2026-10-19T09:51:16Z	Epic 0	spine_updated	ad=AD-23,AD-32 reason=clarification by=lead story=0-4-the-cross-lane-message-and-data-contracts lint=ok
+2026-10-19T09:51:16Z	Story 0.4	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
+2026-10-19T10:10:48Z	Story 0.4	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=throwaway_install_healthy_41s;STEP_Audit_OK;6_OcuTalon_events_enabled;NewRef_22_b64url_distinct;Incident_saved_NoticedAt_empty_in_OCUTALON_PRIVATE;Bridge.Audit.Write_OK model=claude-opus-5-5
+2026-10-19T10:10:48Z	Story 0.4	fresh_check	env=clean-checkout tests=23 result=pass order=forward,reverse note=13_bash_scripts+10_UnitTest_classes_54/54_each_order leftovers=none

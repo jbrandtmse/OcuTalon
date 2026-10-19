@@ -2,7 +2,7 @@
 Class OcuTalon.Bridge.Msg.AgentStep Extends Ens.Request
 {
 
-/// The Ref of the Decision row that holds the attention decision (AD-20).
+/// The Ref of the Decision row of the Decide call this step belongs to (AD-20).
 Property DecisionRef As %String(MAXLEN = 22);
 
 /// The step's position in the turn.

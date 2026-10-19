@@ -9,7 +9,9 @@
 #   - storage: a storage-bearing class has a Storage Default block. A class is storage-bearing when it is not abstract
 #     and its Extends chain, followed through src/, reaches %Persistent, %Library.Persistent, Ens.Request or
 #     Ens.Response. An abstract class carries whatever block the compiler gave it;
-#   - datalocation: the DataLocation of a class with a default global is that global plus D.
+#   - datalocation: the DataLocation of a class with a default global is that global plus D;
+#   - locations: its IdLocation, IndexLocation and StreamLocation are that global plus D, I and S, so that every global of
+#     the class stays under the private prefix (AD-3).
 # Starts nothing: the checks read the files only. Each rule first runs on synthetic trees in a temporary folder, one that
 # keeps every rule and one that breaks only this rule, so a rule that can no longer flag anything fails.
 # A failing check prints file:line and the rule; the tree's own text is not printed.
@@ -98,6 +100,27 @@ instorage && /<DataLocation>/ {
   dl[cname] = s
   next
 }
+instorage && /<IdLocation>/ {
+  s = $0
+  sub(/.*<IdLocation>/, "", s)
+  sub(/<\/IdLocation>.*/, "", s)
+  idl[cname] = s
+  next
+}
+instorage && /<IndexLocation>/ {
+  s = $0
+  sub(/.*<IndexLocation>/, "", s)
+  sub(/<\/IndexLocation>.*/, "", s)
+  il[cname] = s
+  next
+}
+instorage && /<StreamLocation>/ {
+  s = $0
+  sub(/.*<StreamLocation>/, "", s)
+  sub(/<\/StreamLocation>.*/, "", s)
+  sl[cname] = s
+  next
+}
 instorage && /^\}/ { instorage = 0 }
 END {
   for (i = 1; i <= rows; i++) {
@@ -110,6 +133,9 @@ END {
     want = (file[c] ~ /^src\/bridge\//) ? "^OcuTalonBP." : "^OcuTalonP."
     if (substr(dg[c], 1, length(want)) != want) report("prefix", dgline[c], "DEFAULTGLOBAL " dg[c] " of " c " must start with " want)
     if (c in st && dl[c] != dg[c] "D") report("datalocation", file[c], "DataLocation of " c " is not " dg[c] "D")
+    if (c in st && idl[c] != dg[c] "D") report("locations", file[c], "IdLocation of " c " is not " dg[c] "D")
+    if (c in st && il[c] != dg[c] "I") report("locations", file[c], "IndexLocation of " c " is not " dg[c] "I")
+    if (c in st && sl[c] != dg[c] "S") report("locations", file[c], "StreamLocation of " c " is not " dg[c] "S")
     if (!(c in st)) report("datalocation", file[c], "class " c " has a default global and no Storage Default block")
   }
   for (c in file) {
@@ -146,7 +172,7 @@ make_tree() {
 
 # persistent_class <class> <global>: the source of a persistent class with its default global and storage block.
 persistent_class() {
-  printf 'Class %s Extends %%Persistent\n{\n\nParameter DEFAULTGLOBAL = "%s";\n\nProperty Text As %%String;\n\nStorage Default\n{\n<Data name="XDefaultData">\n</Data>\n<DataLocation>%sD</DataLocation>\n<DefaultData>XDefaultData</DefaultData>\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' "$1" "$2" "$2"
+  printf 'Class %s Extends %%Persistent\n{\n\nParameter DEFAULTGLOBAL = "%s";\n\nProperty Text As %%String;\n\nStorage Default\n{\n<Data name="XDefaultData">\n</Data>\n<DataLocation>%sD</DataLocation>\n<DefaultData>XDefaultData</DefaultData>\n<IdLocation>%sD</IdLocation>\n<IndexLocation>%sI</IndexLocation>\n<StreamLocation>%sS</StreamLocation>\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' "$1" "$2" "$2" "$2" "$2" "$2"
 }
 
 # bad_tree <name> <expected file> <edit command...>: a copy of the good tree that the command breaks; the command runs in
@@ -183,6 +209,9 @@ bad_tree prefix-unknown "$BETA" sh -c "sed 's/OcuTalonP\./OcuTalonZz./g' $BETA >
 bad_tree no-storage-persistent "$BETA" edit "$BETA" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
 bad_tree no-storage-message "$GAMMA" edit "$GAMMA" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
 bad_tree wrong-location "$BETA" sh -c "sed 's#<DataLocation>^OcuTalonP.BetaD#<DataLocation>^OcuTalonP.BetaX#' $BETA > $BETA.new && mv $BETA.new $BETA"
+bad_tree wrong-id-location "$BETA" sh -c "sed 's#<IdLocation>^OcuTalonP.BetaD#<IdLocation>^OcuTalonP.BetaX#' $BETA > $BETA.new && mv $BETA.new $BETA"
+bad_tree wrong-index-location "$BETA" sh -c "sed 's#<IndexLocation>^OcuTalonP.BetaI#<IndexLocation>^OcuTalonZz.BetaI#' $BETA > $BETA.new && mv $BETA.new $BETA"
+bad_tree wrong-stream-location "$BETA" sh -c "sed 's#<StreamLocation>^OcuTalonP.BetaS#<StreamLocation>^OcuTalonP.BetaX#' $BETA > $BETA.new && mv $BETA.new $BETA"
 DELTA=src/ocutalon/cls/OcuTalon/Data/Delta.cls
 bad_tree no-param-new "$DELTA" sh -c "printf 'Class OcuTalon.Data.Delta Extends %%Persistent\n{\n\nProperty Text As %%String;\n\nStorage Default\n{\n<DataLocation>^OcuTalon.DeltaD</DataLocation>\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > $DELTA"
 bad_tree no-registry "$TSV" rm -f "$TSV"
@@ -232,6 +261,7 @@ rule scan no-registry no-classes
 rule prefix prefix-bridge prefix-outside prefix-unknown
 rule storage no-storage-persistent no-storage-message
 rule datalocation wrong-location no-storage-persistent
+rule locations wrong-id-location wrong-index-location wrong-stream-location
 
 if [ "$fails" -ne 0 ]; then
   echo "test-storage: $fails rule(s) failed"
