@@ -981,6 +981,8 @@ So that `main` stays releasable and the image never leaks.
 
 - DW-11: The IRIS checks job also runs the load, compile and export round trip over every persistent class and fails when a class's compiled `Storage` block differs from its committed file (AD-5) (ledger; routed by harvest 2026-10-19)
 
+- DW-17: The checks job fails on any `%Prepare` (or `%SQL.Statement` prepare) with the privilege check turned off outside an allow-list that names only `OcuTalon.Data.Session.ForUser`'s and `OcuTalon.Live.Event`'s queries (AD-13 as amended October 19) (ledger; routed by Contest Planner relay 2026-10-19)
+
 ### Story 0.8: The demo-path test signs in and loads the page
 
 As the author,
@@ -4027,6 +4029,8 @@ So that my conversation, pairing, orders and approval requests stay mine, althou
 **Then** the post-sign-in check ends the new CSP session and creates no session, and the splash shows the field error "Too many new sessions from your network this hour. You can start another at {time}." under **Sign in and start**, which stays enabled and marks no field; a resume from that address still works, because only creations count (FR-15, NFR-15, AD-13, UX-DR36, UX-DR95)
 **And** the address is the right-most `X-Forwarded-For` entry when the request comes from the proxy's address in settings, and the connection's address otherwise; `OcuTalon.Data.AddressCounter` stores it hashed with timestamps; sign-ins that don't come through the proxy, such as the probe's, are exempt (AD-13)
 **And** the counter's area declares a `Purge(daysToKeep)` that the purge task calls, deleting the counter's entries older than an hour (AD-27)
+
+- DW-16: Session resolution stays one method (`OcuTalon.Data.Ownership`, Story 2.2, DW-15), which this story extends with the per-sign-in / resume-cookie branch for the shared demo account; a test signs in twice with the shared account and gets two different sessions, each polling only its own events (FR-15, AD-4) (ledger; routed by Contest Planner relay 2026-10-19)
 
 ### Story 16.4: Leaving the page frees its place, and Sign out ends the session
 
