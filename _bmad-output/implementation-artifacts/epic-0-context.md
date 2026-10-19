@@ -10,12 +10,13 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
 - Story 0.1: The image builds and starts OcuTalon in its own namespace (done)
 - Story 0.2: The package installs and upgrades itself at every start (done)
-- Story 0.3: Sign in to an empty OcuTalon page
+- Story 0.3: Sign in to an empty OcuTalon page (done)
 - Story 0.4: The cross-lane message and data contracts
 - Story 0.5: Live events and the REST skeleton
 - Story 0.6: Every release-1 production item runs as a stub, beside the Orders production
 - Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock
 - Story 0.8: The demo-path test signs in and loads the page
+- Story 0.9: The message catalog and its one renderer
 
 ## Requirements & Constraints
 
@@ -23,7 +24,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 - **Roles and sign-in:**
   - The install creates the user and admin roles plus the trace role.
   - The README account (`ocutalon`/`ocutalon`) has a non-expiring password and no forced change, and the README says how to change it.
-  - No page or API answers without a session, except the login page and `/ocutalon/public/status`.
+  - No page or API answers without a session, except the login page (with its images) and `/ocutalon/public/status`.
 - **Secrets:**
   - Model keys and bot tokens come only from environment variables.
   - `.env` is git-ignored, and `.env.example` lists `ANTHROPIC_API_KEY` and `TELEGRAM_BOT_TOKEN` with no values.
@@ -51,18 +52,19 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 ### Governing rules (by AD id)
 
 - **AD-2 (one package, separable bridge):**
-  - OcuTalon ships one IPM package, `ocutalon`. `src/module.xml` lists the bridge's resources (`src/bridge/`: `OcuTalon.Bridge`, `OcuTalon.BridgeExample`) before everything else (`src/ocutalon/`), plus the Angular app's built bundle.
+  - OcuTalon ships one IPM package, `ocutalon`. `src/module.xml` lists the bridge's resources (`src/bridge/`: `OcuTalon.Bridge`, `OcuTalon.BridgeExample`) before everything else (`src/ocutalon/`), plus the Angular app's built bundle (through `FileCopy`).
   - `src/bridge/` also loads alone with `$SYSTEM.OBJ.LoadDir`, and `OcuTalon.Bridge.Installer` sets it up. OcuTalon's installer calls it as its first step.
   - CI fails if any `OcuTalon.Bridge` class references another `OcuTalon` package. CI also fails if any class outside `OcuTalon.Bridge`, `.BridgeExample`, `.Agent`, `.Tools`, `.Docs`, `.Memory`, `.Mcp`, `.Install` and `.Test` (matched as whole package names) references `%AI` or `EnsLib.AI`.
   - `OwnerRef` is exactly a `SessionRef`, `instance` or `eval`.
 - **AD-3 (namespaces and databases):**
   - OCUTALON has code, data, private and public (`OCUTALON_PUBLIC`, public Read) databases.
-  - The public database holds only `OcuTalon.Web.Public`, `OcuTalon.Data.Public` and `^OcuTalonPublic`. Those packages may reference only `%CSP` (including `%CSP.REST`), dynamic objects, `$SYSTEM.License`, `$SYSTEM.Status`, `$SYSTEM.Encryption` and each other.
+  - The public database holds only `OcuTalon.Web.Public` (the login page, the status endpoint, the `/ocutalon` dispatch class `Shell` and the generated `SignInAssets`), `OcuTalon.Data.Public` and `^OcuTalonPublic`.
+  - Those packages may reference only `%CSP` (including `%CSP.REST`), dynamic objects, `$SYSTEM.License`, `$SYSTEM.Status`, `$SYSTEM.Encryption` (only inside a compile-time generator) and each other. They keep their own copies of the UX texts they render, and a test compares those copies with the catalog (Story 0.9).
   - The status class overrides `%CSP.REST.AccessCheck`.
   - Global mappings put `OcuTalonP.*` and `OcuTalonBP.*` (written with the dot, so `^OcuTalonPublic` stays in the public database), `^AI.Agent.Session*` and `^IRIS.IF.*` in the private database.
   - Mappings come first: the databases and mappings exist before any class compiles.
   - `OcuTalon.Production` is not autostart on Docker.
-  - Only `OcuTalon.Install.*`, `OcuTalon.Bridge.Installer` (to `%SYS`) and `Install.Step.Demo` (to OCUORDERS) switch namespace in Epic 0's code, each in one method with `New $NAMESPACE`.
+  - Only `OcuTalon.Install.*`, `OcuTalon.Bridge.Installer` (to `%SYS`) and `Install.Step.Demo` (to OCUORDERS) switch namespace in Epic 0's product code, each in one method with `New $NAMESPACE`. Test classes also switch to `%SYS` for their fixtures; that was accepted (DW-7).
   - On the non-Health image, `Interop=1` only enables Interoperability: there is no Foundation production, and the default web application is `/csp/<ns>`. Nothing may depend on either.
 - **AD-5 (durable state):**
   - All state lives on the durable volume, and an install replaces only code.
@@ -92,7 +94,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
     The script always exits 0. A failure logs the failing step and writes no marker. It logs one `STEP <name> OK|FAILED` line per step and a final `RESULT OK <version>` to `/durable/ocutalon-after-start.log`, which is rewritten at each start.
   - **The health check** opens no IRIS session. It passes only when `iris qlist | grep -q '\^running'` succeeds and the ready marker equals the image's version. Its `start_period` is at least 10 minutes.
-  - **Static web files** go under the instance's durable data directory (`csp/ocutalon/`, through IPM's data-directory variable), never IPM's read-only CSP-directory variable.
+  - **Static web files** go under the instance's durable data directory, in its `csp/ocutalon-web/` folder (through IPM's data-directory variable), never IPM's read-only CSP-directory variable. Not `csp/ocutalon/`: the non-Health image's default application `/csp/ocutalon` serves that folder without sign-in. Story 0.3 shipped `csp/ocutalon/`, and Story 0.5 moves it (DW-5).
   - **Version check:** check the version inside the built image, because a cached build context can bake in stale sources.
   - **Private-data check:** every start ends by confirming that the private globals resolve to the private database.
   - **Step registry:**
@@ -104,14 +106,18 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
     - The task step creates each task once and leaves an existing task alone.
     - An IPM install calls `Registry.Run("ipm")`.
 - **AD-13 (web applications and sign-in):**
-  - `/ocutalon` (the built Angular files and the login page; `PermittedClasses` limited to those classes) and `/ocutalon/api` (`OcuTalon.Web.Api`, `%CSP.REST`, `/v1`) share one CSP session, with `SessionScope` strict and no CORS.
-  - Both, plus the trace applications, are in one sign-in group, `GroupById` `OcuTalon`, never `%ISCMgtPortal`.
+  - `/ocutalon` is a `%CSP.REST`-dispatched application with password authentication, `ServeFiles` 3 and the dispatch class `OcuTalon.Web.Public.Shell`. The shell's `Login()` renders `OcuTalon.Web.Public.Login` for every request without a session and serves only the sign-in images. After sign-in it runs the user-role check and serves the built Angular files through `%CSP.StreamServer`.
+  - `/ocutalon/api` (`OcuTalon.Web.Api`, `%CSP.REST`, `/v1`) shares `/ocutalon`'s CSP session, with `SessionScope` strict and no CORS.
+  - A third, unauthenticated application, `/ocutalon/public`, serves only `GET /status`. Its dispatch class is in `OcuTalon.Web.Public`, and it reads only the public settings.
+  - `PermittedClasses` applies to the trace applications only.
+  - `/ocutalon`, `/ocutalon/api` and the trace applications are in one sign-in group, `GroupById` `OcuTalon`, never `%ISCMgtPortal`.
   - `OcuTalonUser` holds no database resources directly; the applications grant them as application roles.
-  - The login page `OcuTalon.Web.Public.Login` is a `%CSP.Login` subclass loaded from `OCUTALON_PUBLIC`, with no Angular. It keeps the form contract: fields `IRISUsername`, `IRISPassword` and `IRISLogin`, `InsertHiddenFields`, and `OnPreHTTP` calling the superclass.
+  - The login page `OcuTalon.Web.Public.Login` is a `%CSP.Login` subclass loaded from `OCUTALON_PUBLIC`, with no Angular. It keeps the form contract: fields `IRISUsername`, `IRISPassword` and `IRISLogin`, `InsertHiddenFields`, and `OnPreHTTP` calling the superclass. It loads no script or file from an authenticated path.
   - The login page carries its styles inline, generated at build time, with no `style=` attributes. Its CSP header is `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`.
   - `InvalidLoginAction` stays 0. Upgrades compile in place, never delete-then-load.
   - Every state-changing call needs `Content-Type: application/json`, `X-OcuTalon-Request: 1` and a matching `Origin`, or it gets a 403.
   - The page sends the CSP `script-src 'self'`. Local sessions allow at least 8 hours idle.
+  - The WebSocket (AD-12, built second) is forwarded by the shell or moved to its own application, as its story decides.
 - **AD-24 (roles and trace applications):**
   - The roles are `OcuTalonUser`, `OcuTalonAdmin` and `OcuTalonTraceViewer`.
   - The trace role holds only:
@@ -135,7 +141,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - **Time conversion (AD-18):** `OcuTalon.Data.Time` is the only converter outside the bridge, and `OcuTalon.Bridge.Time` the only one inside it.
   - **Audit (AD-17):** `OcuTalon.Bridge.Audit` is the only audit writer, with source `OcuTalon` and types `Action`, `Approval`, `Pairing`, `Settings`, `MCP` and `Tool`. Tests read the audit log back by polling with a timeout, because some rows are written late.
   - **Extension bases (AD-31):** the bridge wraps every `OnEvent` call and never fails its caller. `Decide` runs `ReplyFilterClass` before recording anything.
-  - **Rendering (AD-32):** producers never render text. Only `*Out` operations render, through `Catalog.Render`, which uses `Data.Time`.
+  - **Rendering (AD-32):** producers never render text. Only `*Out` operations render, through `Catalog.Render` (implemented in Story 0.9), which uses `Data.Time`.
 - **AD-22 (testing and CI):**
   - `%UnitTest` classes live in `OcuTalon.Test.<Area>`, sharded by area, one compose project per shard.
   - The mock is reached through the Anthropic provider's `base_url` over plain HTTP on the compose network.
@@ -146,8 +152,8 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
 ### Cross-lane contract obligations (AD-29, AD-33)
 
-- **Contracts before code:** create every release-1 contract with its final names and types: properties, enumerations and storage. Cross-lane APIs are signatures with stub bodies. Only `Commands.Submit`, `Data.Public.Settings` and `Msg.Catalog.Render` are fully implemented. The full lists are in Stories 0.4 to 0.6.
-- **Catalog:** create every release-1 and 0.1.1 key, in `OcuTalon.Msg.Catalog.Core` (Lane B) or `.Watch` (Lane A). The item noun slot is `itemNoun: {"one", "other"}`.
+- **Contracts before code:** create every release-1 contract with its final names and types: properties, enumerations and storage. Cross-lane APIs are signatures with stub bodies. Only `Commands.Submit` (0.6), `Data.Public.Settings` (done in 0.2) and `Msg.Catalog.Render` (0.9) are fully implemented. The full lists are in Stories 0.4 to 0.6 and 0.9.
+- **Catalog (Story 0.9):** create every release-1 and 0.1.1 key, in `OcuTalon.Msg.Catalog.Core` (Lane B) or `.Watch` (Lane A). The item noun slot is `itemNoun: {"one", "other"}`.
 - **One owner each:** after Epic 0, each item, class, table and event type has one owning lane, and only that lane edits it. The other lane asks, and the owner appends. A new item, table or event type is added to the ownership tables in the same change.
 - **Lane A owns:** `OcuTalon.Bridge`, `.BridgeExample`, `.Agent`, `.Tools`, `.Watch`, `.Fix`, `.Checks`, `.Digest`, `.Eval` and `eval/`; the installer core (the registry, `docker/merge.cpf`, and the role, user, SSL, task, `Production` and `Public` steps); `ci/mock/scenarios/A/`; `release/`; and `.github/workflows/lane-a.yml`.
 - **Lane B owns:** `OcuTalon.Web` (with `.Web.Public`), `.Channel`, `.Core`, `.Schedule`, `.Demo`, `.Live`, `.Msg`, `.Data.Time`, `.Data.Setting`, `.Data.Ownership` and `.Data.Public`; `web/`, the rest of `docker/` and `ci/`, and `.github/workflows/ci.yml`; and the `Web` and `Demo` installer steps.
@@ -188,10 +194,10 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - Errors use the shape `{"error": {"code", "message"}}`, in plain English.
   - Unbuilt routes answer 501.
   - The live-event envelope is `{seq, stream, ts, type, payload}`.
-- **Persistent classes:** every one that isn't a message sets `Parameter DEFAULTGLOBAL = ^OcuTalonP.<Short>` (`^OcuTalonBP.<Short>` in the bridge), from the short-name registry that Epic 0 starts. CI fails on a duplicate. The compiler-generated `Storage` block is committed.
+- **Persistent classes:** every one that isn't a message sets `Parameter DEFAULTGLOBAL = ^OcuTalonP.<Short>` (`^OcuTalonBP.<Short>` in the bridge), from the short-name registry that Story 0.4 starts. CI fails on a duplicate. The compiler-generated `Storage` block is committed.
 - **Hosts and errors:** hosts log with `$$$LOGINFO`, `$$$LOGWARNING` and `$$$LOGERROR`. Code uses `%Status` throughout and `$$$ThrowOnError` inside methods. Plain English appears only at the channel edge. Never read globals directly for settings.
 - **Python:** only as `.py` resources under `src/ocutalon/python/`, never `[Language = python]`.
-- **Angular:** standalone components and signals, hash routing, one typed API client and one live-event service. Fonts and icons are bundled, never loaded from a CDN, with their licence notices kept. The Angular CDK plus custom components is the recommended library; whoever builds the web shell records the choice as a Stack row.
+- **Angular:** standalone components and signals, hash routing, one typed API client and one live-event service. Fonts and icons are bundled, never loaded from a CDN, with their licence notices kept.
 - **Tests:** `OcuTalon.Test.<Area>.<Subject>`, and Playwright under `web/e2e/` (demo path: `web/e2e/demo-path/`, one spec per UJ-1 step).
 - **Source tree:**
   - `src/module.xml`, `src/bridge/cls/OcuTalon/{Bridge,BridgeExample}/` and `src/ocutalon/cls/OcuTalon/...`;
@@ -207,6 +213,9 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 | Retag target | `ocutalon-iris-base:2026.3.0AI.154.0` |
 | IPM | 0.10.10, from a release file baked into the image |
 | Angular and Angular CDK | 22.2.x |
+| Component library | the Angular CDK plus custom components; no component kit |
+| Icons | Lucide paths, vendored into `web/` (ISC, with Feather's MIT notice) |
+| Fonts | Inter v4.1, Montserrat v7.222 and JetBrains Mono v2.304 woff2 files, vendored into `web/` (OFL-1.1, licence texts kept) |
 | TypeScript | ~6.0.3 |
 | Node.js (build and CI only) | 24 LTS |
 | Playwright | 1.64.x |
@@ -235,22 +244,13 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 
 ## UX & Interaction Patterns
 
-- **Sign-in page:**
-  - It shows the full logo at 320px (`logo/web/OcuTalon-Logo-light-640.png`, or `-dark-640.png` in the dark theme; the 1280 files on high-density screens).
-  - Then a card titled "Sign in to OcuTalon", with labels above the inputs (minimum `control-height-lg`, `rounded.xs`), a full-width primary **Sign in**, and the help line "Use the IRIS account your install created; the README lists it."
-  - Enter submits. A failure keeps the user name, clears the password and focuses the error, which sits under the button in the field-error style (`danger-ink`, `circle-alert`). The password has a show/hide toggle.
-- **Error texts:**
-  - Wrong credentials: "That user name and password didn't work."
-  - Missing role: "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it."
-- **App header** (on `header-bg`): from the left, the 28px mark (`logo/web/icon-192.png`), then the wordmark ("Ocu" in `ink`, "Talon" in `brand-orange`); both link home. Next is the static, unfocusable context badge: "Demo mode" with demo mode on locally, none when off. The account menu with Sign out sits on the right. The main page stays empty.
-- **Token stylesheet:**
-  - It is generated from `DESIGN.md`'s front matter (`colors`, `typography`, `rounded`, `spacing`, `components`) and covers every token group: neutrals, brand, action teal, attention orange, status pairs, utility, themes, contrast, type, spacing and layout, radius, elevation, motion, icons and brand.
-  - In the dark theme every `<name>` maps to `<name>-dark`, except the QR block, shadows, `brand-navy-dark` and the splash canvas.
-  - The build emits one stylesheet plus fonts under `/ocutalon/assets`, and the login page inlines styles generated from it.
-  - Fonts are Montserrat (700–800, for the wordmark and display titles), Inter and JetBrains Mono, all bundled. No text is under 12px.
-  - Icons come from a bundled outline set and are hidden from assistive technology.
-  - `prefers-reduced-motion` stops all animation.
-  - The focus ring is 2px solid `focus` at a 2px offset, with a `surface` halo.
+- **Built in Story 0.3:** the sign-in page and the app header. The full logo is at 320px above a card titled "Sign in to OcuTalon". The header shows the mark, the wordmark, the "Demo mode" badge (shown only with demo mode on locally) and the account menu with Sign out. The main page is empty, and Story 2.1 lays it out.
+- **Texts the public package keeps its own copies of** (Story 0.9's comparison with the catalog covers them):
+  - help line: "Use the IRIS account your install created; the README lists it."
+  - wrong credentials: "That user name and password didn't work."
+  - missing role: "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it."
+- **Token stylesheet:** generated from `DESIGN.md`'s front matter and covering every token group. In the dark theme every `<name>` maps to `<name>-dark`, except the QR block, shadows, `brand-navy-dark` and the splash canvas. No text is under 12px. Icons are hidden from assistive technology. `prefers-reduced-motion` stops all animation. The focus ring is 2px solid `focus` at a 2px offset, with a `surface` halo.
+- The sign-in page uses system font stacks, because `default-src 'none'` blocks font loads. The bundled fonts serve the Angular shell.
 
 ## Cross-Story Dependencies
 
@@ -267,9 +267,9 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - **Step order** (`Registry.Order()`, classes `OcuTalon.Install.Step.<Area>`; each story fills its own step without re-ordering):
     1. `Bridge.Installer`: stub; 0.4 to 0.6, then Epic 1.
     2. `Public`: the online-demo flag only; 3.8 adds its values.
-    3. `Roles`: the built composer; 0.3 adds the declarations.
-    4. `Users`: stub; 0.3.
-    5. `Web`: stub; 0.3.
+    3. `Roles`: built; 0.3 added the declarations.
+    4. `Users`: built in 0.3.
+    5. `Web`: built in 0.3; 0.5 adds `/ocutalon/public` and moves the bundle folder.
     6. `SSL`: stub; the first story that needs a client SSL configuration.
     7. `Tasks`: built; 1.11 and later areas declare.
     8. `Demo`: stub; 0.6.
@@ -281,27 +281,71 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
     14. `PrivateData`: built; it checks the private classes 0.4 adds first.
     15. `Ready` (`Public.Ready`): built.
   - **Structural or seed:** the public settings and the roles are rewritten every start; tasks are created once. The System Default Settings helper joins `OcuTalon.Install.Step` with Story 1.1.
-  - **`OcuTalon.Data.Public.Settings`** (implemented): its fixed keys are `onlineDemo`, `demoUser`, `demoPassword`, `readonlyUser`, `readonlyPassword`, `resetIntervalHours`, `resetAnchor`, `lastReset`, `lastResetKind`, `proxyAddress`, `connectionCap`, `connectionReserve` and `messageAllowance`, plus `ready`. Any other key is refused. Times are UTC ISO 8601 with `Z`. Defaults are the `Public` step's job (3.8), not the accessor's. Its consumers are 0.3's login page, 0.4's `Setting.Get` (which delegates to it) and 0.5's `/ocutalon/public/status` (`ready`, `NextReset`).
+  - **`OcuTalon.Data.Public.Settings`** (implemented): its fixed keys are `onlineDemo`, `demoUser`, `demoPassword`, `readonlyUser`, `readonlyPassword`, `resetIntervalHours`, `resetAnchor`, `lastReset`, `lastResetKind`, `proxyAddress`, `connectionCap`, `connectionReserve` and `messageAllowance`, plus `ready`. Any other key is refused. Times are UTC ISO 8601 with `Z`. Defaults are the `Public` step's job (3.8), not the accessor's. Its consumers are 0.4's `Setting.Get` (which delegates to it) and 0.5's `/ocutalon/public/status` (`ready`, `NextReset`). The login page reads no public setting yet; its first read is Story 16.2's splash on `onlineDemo`.
   - **Package layout:** `src/module.xml` (`ocutalon` 0.1.0) lists `OcuTalon.Bridge.PKG` from `src/bridge/cls`, then `OcuTalon.PKG` from `src/ocutalon/cls`. `.gitattributes` sets `src/** text=auto eol=lf`, so binaries under `src/` stay intact.
   - **`docker-compose.dev.yml`:** an override used as `-f docker-compose.yml -f docker-compose.dev.yml`. It is its own project, `ocutalon-dev`, with its own volume, sets `OCUTALON_DEV=1` and publishes the same web port.
   - **`docker/ipm/`:** the vendored IPM 0.10.10 release file (`zpm-0.10.10.xml`) and its `LICENSE`, shipped in `/opt/ocutalon/ipm/`. Story 10.2's README points to the notice.
   - **Tests:**
     - `%UnitTest` classes go under `src/ocutalon/cls/OcuTalon/Test/<Area>/`.
     - Bash tests are `docker/tests/test-*.sh`, each runnable alone and exiting 0 on success.
-    - The live ones share `docker/tests/lib-live.sh`: `live_start` gives a throwaway project with no host port and no keys, and cleans it up.
+    - The live ones share `docker/tests/lib-live.sh`: `live_start` gives a throwaway project with no keys, and cleans it up.
     - `test-compose-start.sh` forces `iris-main`'s merge by removing or editing the `*.last_merge` record and counts the `Merging /opt/ocutalon/merge.cpf` lines in `messages.log`.
     - Test-only path variables follow `healthcheck.sh`'s convention.
+- **Delivered so far: Story 0.3 (done).** Later stories build on these:
+  - **Roles and the README account:**
+    - The `Roles` step composes the `Users` and `Web` steps' `Grants()`. `OcuTalonUser` and `OcuTalonAdmin` hold nothing directly. `OcuTalonTraceViewer` holds AD-24's six resource grants plus `SELECT` on `Ens.MessageHeader`.
+    - The `ocutalon`/`ocutalon` account holds all three roles, with a non-expiring password and no forced change. It is written as seed, so a changed password survives later starts.
+    - `Users` and `Roles` are Lane A's; `Web`, `OcuTalon.Web.*` and `web/` are Lane B's.
+  - **The three web applications** (built by `OcuTalon.Install.Step.Web`):
+    - `/ocutalon` (dispatch `Shell`, `ServeFiles` 3, `Path` the bundle folder);
+    - `/ocutalon/api` (dispatch `Api`, no `Path`);
+    - `/ocutalon/trace/ocutalon/` (no dispatch class, `ServeFiles` 1, AD-24's seven permitted classes, no application roles).
+
+    All three use password authentication, `GroupById` `OcuTalon`, `SessionScope` 2, an 8-hour timeout, no `LoginPage`, empty CORS lists and `CSPZENEnabled` 1. On build 154, a value of 0 stops signed-in requests from reaching the dispatch class. The first two share `CookiePath` `/ocutalon/` and `MatchRoles` `%DB_OCUTALON_{CODE,DATA,PRIVATE}`, the merge's roles, so AD-24's role list is unchanged. `Step.Web` also has `BundleCheck`, which names the missing path, and `GrantTraceSql`.
+  - **`Web.TraceApp(namespace, .props)`** returns `/ocutalon/trace/<namespace in lower case>` and its properties. Story 0.6's `Demo` step builds the OCUORDERS application from it, and Story 4.1 adds or removes it as demo mode switches.
+  - **`OcuTalon.Web.Public.Shell`:**
+    - It adapts `%ZHSLIB.REST.AngularHandler`, which is HS-only and outside AD-3's allow-list, so it is not referenced.
+    - Without a session it renders `Login` and serves only `assets/brand/OcuTalon-Logo-{light,dark}-{640,1280}.png` and `assets/brand/favicon-32.png`.
+    - Signed in, it runs the role check and serves the bundle through `%CSP.StreamServer`, with 304 handling. A name that the stream server would resolve under `/csp/broker/` answers 404.
+    - Class and ZEN URLs under `/ocutalon/` answer the sign-in page without a session and 404 when signed in.
+  - **`OcuTalon.Web.Public.Login` and `SignInAssets`:** `SignInAssets.cls` is generated at build time and holds the sign-in CSS and script. The browser enforces them under compile-time hashes. Sign-in errors keep `%CSP.Login`'s error codes: any code other than the missing role shows the wrong-credentials text.
+    - The sign-in POST has no CSRF token, because a dispatched sign-in emits none. `form-action 'self'` and strict `SessionScope` are the mitigations. The wider cross-site sign-in risk is open as DW-6 (decision pending).
+    - Sign out uses `?IRISLogout=end`, which ends the whole group, until Story 2.2 moves it to the API.
+  - **`OcuTalon.Web.Api`:** a `%CSP.REST` class with an empty `UrlMap`. Story 0.5 fills the routes and adds the role check in `OnPreDispatch`.
+  - **The `web/` Angular shell:**
+    - `npm --prefix web run build` runs `scripts/tokens.mjs --check`, then `scripts/brand.mjs`, then `ng build`, and writes `src/ocutalon/csp/`. That folder is git-ignored on development branches, and Story 11.5 force-adds it at release. The Dockerfile refuses an image without it.
+    - IPM's `FileCopy` copies it into the durable data directory on install, upgrade and every `OCUTALON_DEV` load, and never prunes stale hashed files.
+    - `scripts/tokens.mjs` generates `src/styles/tokens.css` and `SignInAssets.cls` from `DESIGN.md`'s front matter, and `--check` fails when the committed output is stale. `scripts/brand.mjs` copies the brand images from `logo/web/` into `public/assets/brand/`; those copies are build output and not committed. The scripts' tests are `node --test` files under `web/scripts/`.
+    - The branch commits the sources, `package-lock.json`, the generated `tokens.css` and `SignInAssets.cls`, the vendored fonts, and the licences in `web/public/assets/licenses/`.
+  - **Browser tests:** `web/playwright.config.ts` and `signIn()` in `web/e2e/sign-in/helpers.ts`, which Story 0.8 reuses. The sign-in specs are under `web/e2e/sign-in/`.
+  - **`docker/tests/test-sign-in.sh`** runs the live test of rows 1 to 13. It sets `LIVE_REBUILD_WEB=1` before sourcing `lib-live.sh`, which rebuilds the bundle. It checks the security tables (`check_security`), then runs the Playwright sign-in specs.
+    - The throwaway stack publishes its web port on 127.0.0.1 only, on the first free port in 52800–52819 (or `OCUTALON_TEST_WEB_PORT`).
+    - It needs Node 24.15 or later and `npx --prefix web playwright install chromium`.
+    - Related tests: `test-web-build.sh`, `test-install-upgrade.sh`, and the `%UnitTest` classes `Test.Web.Shell` and `Test.Web.Install`.
 - **Developer slots:** both slots (`ocutalon-slot-a`, then `ocutalon-slot-b`) run 0.1's `merge.cpf`, copied to the slot's `config/`. Adjust a slot's mount or `ISC_DATA_DIRECTORY`, never the merge file. The slots use the base image without the after-start script: code goes in through the IRIS MCP tools, and installer steps are run explicitly. The after-start install and destructive tests run only in throwaway compose stacks and CI.
-- **0.3:** fills `Roles`' declarations and the `Users` and `Web` steps, and uses 0.1's web port and public package mappings. The OCUORDERS trace application and grants are created only by or after the `Demo` step (0.6).
-- **0.4:** its contracts feed 0.5 (live payloads and their TypeScript interfaces) and 0.6 (items, `Commands.Submit`, `Catalog.Render` callers).
-- **0.6 → 0.7:** 0.6's constants (`MOCKKEY`, tool names, compaction prefix) are what 0.7's mock keys on.
-- **0.7 → 0.8:** 0.7's checks gate everything above. 0.8 runs in 0.7's IRIS job and needs 0.3's sign-in and 0.5's `/state`.
+- **0.4:**
+  - It keeps the messages, data tables, enums, `Ids`, `Time`, `Setting.Get`, `Bridge.Audit` and the storage/`DEFAULTGLOBAL` short-name registry.
+  - Its contracts feed 0.5 (live payloads and their TypeScript interfaces), 0.6 (items and `Commands.Submit`) and 0.9 (`Data.Time`, which `Catalog.Render` uses).
+  - The Item's and `ItemDecision`'s optional `CatalogKey` and `Slots` name keys that 0.9 creates.
+- **0.5:**
+  - It fills `Api`'s `UrlMap` (every release-1 route, with unbuilt ones answering 501) and the role check in `OnPreDispatch`, and adds `/ocutalon/public` to the `Web` step.
+  - **DW-5:** it moves the bundle from the durable `csp/ocutalon/` folder to `csp/ocutalon-web/`. That changes `src/module.xml`'s `FileCopy` target, `Step.Web`'s `/ocutalon` `Path` and `BundleCheck`, and 0.3's tests (matrix row 14, `test-install-*.sh`). A live test on `iris-community:2026.3.0AI.154.0` pins both sides: `/csp/ocutalon/index.html` and `/csp/ocutalon/main-*.js` answer 404 without a session, and the bundle loads from the new folder through `/ocutalon/` after sign-in.
+- **0.6:** its `Demo` step calls `Web.TraceApp("OCUORDERS")` with demo mode on. Its constants (`MOCKKEY`, tool names, compaction prefix) are what 0.7's mock keys on.
 - **0.7 and CI:**
+  - 0.7's checks gate everything above.
   - The CI override extends 0.1's compose file. CI runs `docker/tests/test-*.sh` (the live ones on the IRIS runner) and the `%UnitTest` shards, plus the public-package and `^OcuTalonPublic` checks.
-  - 0.7 also updates `_bmad/custom/skill-rules.md` (the IRIS test recipe, shard command, timings) and `_bmad/custom/parallel.yaml` (bootstrap, runtime locks).
+  - From 0.3, CI also runs the web build, `tokens --check`, `node --test` and `test-sign-in.sh`, and the allow-list check covers `Shell`, `Login` and `SignInAssets`.
+  - 0.7 also updates `_bmad/custom/skill-rules.md` (the IRIS test recipe, shard command, timings) and `_bmad/custom/parallel.yaml` (bootstrap, including `web/`'s dependencies, and runtime locks).
   - CI must run on `feature/OCT_OcuTalon_MVP` and `OCT-epic*` with no `cancel-in-progress`.
-- **Epic 10 (from 0.1's compose file):** `install.sh` uses `IRIS_IMAGE`. The `env_file` with `required: false` needs Docker Compose 2.24 or later, so Story 10.1's `install.sh` refuses an older Compose and Story 10.2's README states the minimum. Story 10.2's README also carries the LAN-exposure warning for the published web port.
-- **Later epics:** Epic 1 (Lane A) and Epic 2 (Lane B) both start from Epic 0 and test against its stubs and the mock. Epic 15 derives `src/cpf/ocutalon.cpf` from `docker/merge.cpf` and calls `Registry.Run("ipm")`. Stub owners:
+- **0.8:** runs in 0.7's IRIS job. It reuses 0.3's `playwright.config.ts` and `signIn()` and needs 0.5's `/state`.
+- **0.9 (last story of Epic 0):**
+  - It builds `OcuTalon.Msg.Catalog.Core` and `.Watch` with every release-1 and 0.1.1 key, and implements `Catalog.Render(key, slots, channel)`, tested on every key and channel.
+  - It adds the test that compares the public package's copies of the sign-in texts (`Login`'s, Story 0.3) with the catalog.
+  - It is Lane B's after Epic 0.
+- **Epic 10 (from 0.1's compose file):** `install.sh` uses `IRIS_IMAGE`. The `env_file` with `required: false` needs Docker Compose 2.24 or later, so Story 10.1's `install.sh` refuses an older Compose and Story 10.2's README states the minimum. Story 10.2's README also carries the LAN-exposure warning for the published web port and the README account's password change.
+- **Later epics:** Epic 1 (Lane A) and Epic 2 (Lane B) both start from Epic 0 and test against its stubs and the mock. Epic 15 derives `src/cpf/ocutalon.cpf` from `docker/merge.cpf` and calls `Registry.Run("ipm")`. Owners of the stubs and 0.3 hand-offs:
+  - header, theme (`data-theme`), badge and About: Story 2.1
+  - `SessionEvents`, and Sign out through the API: Story 2.2
   - `BridgeSink`: Story 2.6
   - `Delivery`: Story 2.7
   - `Allowance` and `Trace.Join`: Stories 2.4 and 2.9
@@ -314,3 +358,4 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - the `lane-a.yml` bridge job: Story 1.3
   - Telegram `Included()` use: Story 10.3
   - the install script, completed: Epic 10
+  - the login splash, online-demo timeouts (120 s) and busy state: Stories 16.2, 16.4 and 16.5
