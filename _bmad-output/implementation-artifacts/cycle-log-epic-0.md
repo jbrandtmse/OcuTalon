@@ -53,3 +53,5 @@
 2026-10-19T01:13:57Z	Story 0.2	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 model=claude-opus-5-5
 2026-10-19T01:26:24Z	Story 0.2	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=throwaway_judges_compose:first_start_healthy_41s,15_steps_OK,RESULT_OK_0.1.0,Settings.Get(ready)=1;same-version_restart_healthy_7s_package_skipped model=claude-opus-5-5
 2026-10-19T01:26:24Z	Story 0.2	fresh_check	env=clean-checkout tests=13 result=pass order=forward,reverse note=10_bash_scripts_plus_3_UnitTest_classes_on_slot_A_21/21_each_order leftovers=none
+2026-10-19T01:26:36Z	Story 0.2	committed	sha=40009e1 submodules= ci=none run=none amendments=spine_AD-23_as_built
+2026-10-19T01:26:36Z	Story 0.2	story_cycle	plan_to_commit_min=271 implement_passes=1 reviews=1 rework=0 first_ci=none models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
