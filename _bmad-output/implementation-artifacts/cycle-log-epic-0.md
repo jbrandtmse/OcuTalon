@@ -109,3 +109,5 @@
 2026-10-19T09:51:16Z	Story 0.4	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
 2026-10-19T10:10:48Z	Story 0.4	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=throwaway_install_healthy_41s;STEP_Audit_OK;6_OcuTalon_events_enabled;NewRef_22_b64url_distinct;Incident_saved_NoticedAt_empty_in_OCUTALON_PRIVATE;Bridge.Audit.Write_OK model=claude-opus-5-5
 2026-10-19T10:10:48Z	Story 0.4	fresh_check	env=clean-checkout tests=23 result=pass order=forward,reverse note=13_bash_scripts+10_UnitTest_classes_54/54_each_order leftovers=none
+2026-10-19T10:10:51Z	Story 0.4	committed	sha=9fd6dfa submodules= ci=none run=none amendments=spine_AD-17,AD-3,AD-23,AD-32,conv;epics_split_0.9
+2026-10-19T10:10:51Z	Story 0.4	story_cycle	plan_to_commit_min=243 implement_passes=1 reviews=1 rework=0 first_ci=none models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
