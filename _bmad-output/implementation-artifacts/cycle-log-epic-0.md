@@ -136,3 +136,5 @@
 2026-10-19T14:20:39Z	Story 0.5	committed	sha=5504680 submodules= ci=none run=none amendments=spine_AD-12,AD-13,AD-3,conv_REST
 2026-10-19T14:20:39Z	Story 0.5	story_cycle	plan_to_commit_min=270 implement_passes=1 reviews=1 rework=0 first_ci=none models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
 2026-10-19T14:38:58Z	Epic 0	orchestrator_ruling	question=Story_0.6_oversized choice=split_demo_group(Demo_step,OCUORDERS,Orders_production,eval_snapshot)_into_new_Story_0.10_before_planning rejected=plan_0.6_whole(production_stubs+extension_classes+API_signatures+Submit+constants+a_second_namespace_with_a_real_production) authority=standing_grant(Rule_22) note=0.6_keeps_its_title_and_key_(DW-13_owner)
+2026-10-19T14:41:23Z	Epic 0	epic_context_compiled	sha=d7ad477 reason=planning_artifact_newer model=claude-opus-5-5
+2026-10-19T14:41:23Z	Story 0.6	stage_spawned	stage=plan spawn_at=2026-10-19T14:41:23Z model=claude-opus-5-5 agent_name=0-6-plan-1 cycle_iteration=1
