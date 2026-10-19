@@ -73,6 +73,13 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 	Quit session
 }
 
+/// The SessionRefs that receive what the owner owns, as a list, narrowed to the incident's recipients when incidentRef
+/// is set. Not implemented yet: it answers an empty list. Lane B implements it in Story 2.2.
+ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "") As %List
+{
+	Quit ""
+}
+
 Storage Default
 {
 <Data name="SessionDefaultData">

@@ -2,9 +2,10 @@
 title: 'Story 0.6: Every release-1 production item runs as a stub, beside the Orders production'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd127fb0a57fb2b4b1e7cd8d07e5477dcac09fac4'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
 deferred: []
@@ -293,7 +294,86 @@ Tests:
 
 ## Spec Change Log
 
+Implement stage, October 19. No change to the intent contract. Each ruling below is one the contract could not settle or got wrong; none touches an AD.
+
+- Rule 22 ruling: how does a test build the shadow instance of a stub item class (row 3)? -> `Ens.Host.GetShadowInstance("class||<class>")`, which makes the instance with config name 0 and runs no `OnInit`. (rejected: `%New("")`, which the contract names; it raises `<SUBSCRIPT>` at `initConfig+5^Ens.Host` on `^Ens.Runtime("ConfigItem","")`, measured on slot A for a process, an operation and a service.)
+- Rule 22 ruling: what does row 16 expect from the `Conversation` process? -> the measured answer: `<Ens>ErrBPTerminated`, whose text carries `ERROR #5003: Not implemented`; the operations (`SessionOps`, `TriageAgent`) answer code 5003 itself; every job survives. (rejected: code 5003 for the process: a business process wraps the failing handler in `ErrBPTerminated`.)
+- Rule 22 ruling: what does row 17 check in the log? -> an Error row (Type 2) for `CommandsIn` whose text holds "Not implemented" exists after the first `Submit`, not a new row per call. An adapterless service logs an error only when its text differs from the last one it reported, so a repeat writes no row (measured across three calls and two sessions). (rejected: a delta of one row per call.)
+- Rule 22 ruling: how is AC5 pinned? -> row 5 of `test-install-start.sh` gains a source check: no code line under `src/bridge/cls/` names an `OcuTalon` package, as a class (`OcuTalon.Pkg`) or as a table (`OcuTalon_Pkg`), other than `OcuTalon.Bridge` and `OcuTalon.BridgeExample` (comment lines are skipped). The check first runs on two synthetic classes, which it must flag exactly twice and not at all, and fails when it finds no class to scan. The mutation the contract names (a `Decide` method that calls `##class(OcuTalon.Core.BridgeSink).OnEvent(...)`) left row 5 green: the compiler accepts a call to a class it cannot find, so the load, the install and `other-classes` 0 all pass. (rejected: leaving the pin unfalsifiable; calling `Decide` at run time; a rule in `test-boundaries.sh`, which is not the pin the contract names.)
+- Rule 22 ruling: what does `Test.Data.Tables.TestSqlNames` do with the compiler-generated `...MessagesSent` and `...MessagesReceived` classes of a business process? -> it leaves them out (`GeneratedBy` is set; `%OpenId` refuses them as "a stub name"), and checks the process classes themselves. Without this, the first persistent process fails the 0.4 test. (rejected: counting them, which fails 14 assertions.)
+- Rule 22 ruling: where do `item_jobs` and the row 14 job check live? -> `docker/tests/lib-live.sh` (`item_jobs`, `check_items_run`), because `test-production.sh` (rows 14 and 18) and `test-production-restart.sh` (row 20 repeats row 14) both read jobs. The item list is `Test.Install.Production.Items()` (public), which the shell reads inside the container, so the ownership table has one copy in the tests. (rejected: a helper local to `test-production.sh`, which row 20 cannot use; a third copy of the table in shell.)
+- Rule 22 ruling: does `NotRunning()` count the production's own system items? -> yes, as the contract words it: every enabled item with a pool in the running production, `Ens.Actor` (pool 2), `Ens.Alarm`, `Ens.MonitorService` and `Ens.ScheduleHandler` included. Row 14 counts only the 25 items of the table. (rejected: limiting the step to the 38 definition items, which would let a dead scheduler pass.)
+- Rule 22 ruling: what does `Start` do with a Troubled or Suspended production of another name? -> it fails naming it and recovers or starts nothing (Rule 22.4: no other production is touched). The contract's table covers only a running one. (rejected: recovering it, then starting this one.)
+- Rule 22 ruling: what does `Context.Begin` do when a context is already set? -> it replaces it, and refuses an argument that is not a `Bridge.Msg.Request`; `Put` refuses a name that is not a field of `FIELDS`. (rejected: refusing a second `Begin`, which would block every later call of a process that an interrupted call left a context in.)
+
+Findings for the lead (no spec change): the contract's Design Notes cite `%New("")` for the shadow instance (see the first ruling). The Rule 20 spine updates the Design Notes list stand; add that `Conversation`-style processes answer `ErrBPTerminated` when a stub handler fails.
+
+Review pass, October 19. No change to the intent contract; no AD touched.
+
+- Rule 22 ruling: do the contract's three wording errors (row 3's `%New("")`, row 16's `Conversation` answer, AC5's load-only pin) stop the story? -> no. Each was measured, decided and logged above, and the code makes the intended behaviour real. The matrix wording is for the lead to correct (Rule 5, apply and report: a wrong API and a wrong expected value that the AC cites). (rejected: an `intent gap` HALT, because the product promise is unchanged and Rule 22.1 says to decide and keep going.)
+- Rule 22 ruling: does the step's "runs" check cover adapterless services? -> no, as the Tasks word it: `NotRunning()` checks the enabled items that have a pool; an adapterless service runs when it is enabled in the running production, and row 14's live check calls `CreateBusinessService` for each. (rejected: calling it inside the step, which the Tasks do not ask for.)
+- Rule 22 ruling: does `Context.Put` guard identity fields or the taint? -> no: it is a plain setter over `FIELDS`, as the Context ruling says; the gate that owns taint is Story 1.2's. Reopen if 1.2 finds a tool path that clears `Tainted`. (rejected: a one-way taint ratchet now, which would fix a rule that 1.2 owns.)
+- Patches made at review, all inside the story and each pinned (mutations below): the source check of row 5 (negative control, a floor of scanned classes, table names); row 20 confirms that the container started again after the kill; `test-production.sh` checks that the step fails naming another running production and leaves it running; `Submit` answers an error status, not `<UNDEFINED>`, when the origin or the command is left out; `Test.Install.Production` derives its stub count from the oracle, skips its not-running assertion where the production runs, and names a runner whose agent class does not exist; `Test.Bridge.Ext` covers an empty and a missing class in `Accessor.Check` and a second `Context.Begin`; `Test.Bridge.Api` pins the stub adapter's own `OnInit`; `Test.Agent.Constants` shows its `{{` detector flags a text that holds one; `Test.Data.Tables` shows the seven business processes are SQL-name checked; `test-storage.sh` gains a BPL sample and a subclass of a process; the class comment of the `Production` step lists the other-name cases.
+
 ## Review Triage Log
+
+### 2026-10-19 — Review pass
+- verdicts: 50 findings — high 0, medium 9, low 38, false 3, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` Both lanes edit one test literal (`stubs = 34`) whenever a stub is built — the count is now summed from the oracle's `stub` flags, so the owner edits only the item's own oracle row; the other counts (38, 35, 25, 10, 3) are the spec's published figures.
+    - `[low]` `[reject]` `Context.Put` accepts identity fields and lets `Tainted` return to 0 — the Context ruling makes `Put` a plain setter; no caller exists in this story and the gate is Story 1.2's; recorded in the Change Log with a reopen condition; a ratchet adds a branch for a rule 1.2 owns.
+    - `[low]` `[patch]` `NotRunning() = "... is not running"` and the log counts assume a stopped namespace — the `NotRunning` assertion is skipped where `OcuTalon.Production` runs (`$$$AssertSkipped`); the log and live-event counts stay, because Row 8/9 state that slot A runs no production.
+    - `[medium]` `[patch]` The row 5 source scan had no negative control, no scanned-file floor and a `//`-only comment rule — `test-install-start.sh` now runs the scan on a bad and a clean synthetic class, fails on zero classes, and matches table names; mutation recorded.
+    - `[medium]` `[patch]` Row 20 never confirms the kill restarted the container — `docker kill` must succeed and `started_at` must change; mutation (kill replaced by `true`) red.
+    - `[medium]` `[patch]` The `Start()` branches for another production had no test — `test-production.sh` stops `OcuTalon.Production`, starts a `ZzOther.Production`, and expects the step to fail naming it with the fixture still running; mutation (fall through to `RestartProduction`) red.
+    - `[low]` `[patch]` `Submit` throws `<UNDEFINED>` when the origin is left out — `$Get` guards on `command` and `origin`; `TestOmittedArguments` added; mutation red.
+    - `[low]` `[reject]` The step's "runs" for adapterless services is only "enabled" — this is the Tasks' own definition and a Rule 22 ruling (the live row 14 calls `CreateBusinessService` for each); putting it in the step would add a behaviour no AC asks for.
+    - `[low]` `[patch]` The step's class comment disagrees with the code on Suspended and Troubled under another name — comment rewritten to list the cases.
+    - `[low]` `[patch]` Stale bookkeeping in `## Auto Run Result` — rewritten at finalize.
+  - Edge Case Hunter
+    - `[medium]` `[patch]` carried: the kill's failure is discarded (`test-production-restart.sh:96`) — same fix as the row 20 entry above.
+    - `[medium]` `[patch]` carried: `find` returns no class and the scan passes — same fix as the scan entry above.
+    - `[low]` `[patch]` The scan misses the underscore table form `OcuTalon_Pkg` — the pattern is `OcuTalon[._][A-Za-z]+`, with `OcuTalon_Bridge` and `OcuTalon_BridgeExample` allowed; the control flags it.
+    - `[low]` `[patch]` carried: `Submit` with the origin or the command left out throws — same fix as above.
+    - `[low]` `[reject]` A job `Alive` with status `registered` can precede a failing `OnInit` — real in principle (`Ens.Job` registers before `%New`), but Task 0 saw every pooled job `dequeuing` 0.25 s after the start and row 21 fails reliably; excluding `registered` would fail on `Ens.MonitorService`, which stays `registered`; a second confirming poll adds a branch for no demonstrated case.
+    - `[low]` `[reject]` `UnresolvedRunners` compares the class name exactly — the Tasks say "the enabled `AgentRunner` items", and no subclass exists.
+    - `[low]` `[patch]` carried: the `NotRunning` assertion fails where the production runs — same guard as above.
+    - `[false]` `[reject]` The snake_case pattern `1.L` accepts any letters — `L` is lowercase only; measured on slot A: `set_reminder` matches, `setReminder` and `Set_reminder` do not.
+    - `[low]` `[reject]` Process, body and stream classes can set storage locations outside the private prefix — the same exemption already holds for the message classes (Story 0.4), no class does it, and `TestEveryStorageGlobalIsPrivate` passes on the real tree.
+    - `[low]` `[patch]` The `GeneratedBy` filter in `TestSqlNames` is wider than the compiler's process tables — `Test.Data.Tables` now asserts that each of the seven business processes is among the checked classes; mutation red.
+    - `[low]` `[reject]` `ClassFor` returns the base when the setting is absent from the item — row 2 requires exactly that for `ClassificationClass`, and a removed `HostSinkClass` or `ReplyFilterClass` setting turns `TestDefinition` (row 1) red; a configured class that is wrong is an error.
+    - `[false]` `[reject]` A Suspended production of another name fails the step instead of starting — `Ens.Director.StartProduction` itself refuses that case (`EnsErrProductionSuspendedMismatch`); a Stopped state reports an empty name (measured on slot A), so it is not affected; the step names the production.
+    - `[low]` `[reject]` `NotRunning` skips pool-0 items — the Tasks' definition; see the Blind Hunter entry above.
+  - Verification Gap
+    - `[medium]` `[patch]` The step's other-production outcomes have no test — see the `test-production.sh` entry above; the Troubled and Suspended names are refused by the same `Other` call, and a Suspended mismatch is IRIS's own refusal too.
+    - `[medium]` `[patch]` The stub adapter's "no AI Hub call at start" has no pin — `Test.Bridge.Api.TestStubAdapter` asserts the adapter extends AI Hub's adapter and owns `OnInit`; mutation (override removed) red.
+    - `[low]` `[patch]` The empty and missing class guards of `Accessor.Check` and `ResolveModel` are untested — both cases added to the probe and to `TestRunnerModels` (a fixture runner whose agent class does not exist); two mutations red.
+    - `[low]` `[patch]` `Context.Begin` replacing a context and resetting the taint is untested — a second `Begin` added to `TestContext`; mutation red.
+    - `[medium]` `[patch]` The AC5 boundary scan has no negative control — same fix as the scan entry above.
+    - `[low]` `[reject]` Row 20 does not assert that the Troubled branch ran — the AC4 mutation (Troubled branch replaced by an error) is red and Task 0 measured the kill leaving the production Troubled; a build that stopped leaving it Troubled would make the branch unexercised, and the spec already says how that reads; reopen if the Task 0 measurement changes on a new build.
+    - `[low]` `[reject]` AC3 rows 14, 15, 16 and 18 have no mutation line of their own — Rule 19 asks for one demonstrated mutation per AC, and AC3 has three plus the new one; `check_items_run` expects exact counts (25, 10, 3) and cannot pass on an empty scan.
+    - `[low]` `[reject]` AC6 / row 23 is a one-off manual export — the contract makes it a manual `(once)` Verification line; a standing export check belongs to Story 0.7's CI.
+    - `[medium]` `[patch]` The `{{` assertion on the agents' INSTRUCTIONS cannot fail today (empty text) — the detector is a helper that the test first shows to flag a text with `{{`; mutation red.
+    - `[low]` `[reject]` "BridgeSink writes no live event" cannot observe a sink that publishes valid input — the class has no members of its own, `Publish` refuses payloads that are not its own classes, and Story 2.6, which makes the sink publish, owns the assertion that rows appear.
+    - `[low]` `[patch]` Tests that rely on a stopped namespace — the `NotRunning` assertion is guarded (above); the remaining count comparisons are stated preconditions of rows 8 and 9 (slot A runs no production).
+    - `[low]` `[patch]` `test-storage.sh` has no sample for the BPL root and for a subclass of a process — `no-storage-bpl` and `no-storage-subprocess` added, and `SubProc` sits in the good tree; two mutations red.
+    - `[low]` `[patch]` carried: `TestSqlNames` does not show that the seven processes are checked — same assertion as above.
+    - `[false]` `[reject]` `test-bundle-folder.sh` runs the after-start script and may break with the production — run once on the patched tree: exit 0, no failing check.
+    - `[low]` `[patch]` The accepted-origins loop passes for `web_admin` even if `Submit` sets nothing — the loop now starts each command with an origin different from the one it submits; mutation red.
+    - `[low]` `[reject]` `UnresolvedRunners` of an unknown production returns "" — the step passes its own constant, and `StartProduction` fails first for a production that does not exist.
+  - Intent Alignment
+    - `[low]` `[reject]` D1: row 23 has no repeatable artifact — the contract makes it a manual `(once)` run; re-run and recorded in the review pass results (188 classes, 0 differences).
+    - `[low]` `[reject]` D2: row 3 (`%New("")`), row 16 (`Conversation`) and AC5 (load-only pin) differ from the contract's words — each is a measured Rule 22 ruling in the Change Log; the matrix wording is for the lead to correct.
+    - `[low]` `[reject]` D3: adapterless services are checked only in the live test — the Tasks' definition of `NotRunning()`; see above.
+    - `[low]` `[reject]` D4: a bad origin inside a context is not looked at — the Design Notes' Submit step 2 says so, and `TestOrigin` pins it.
+    - `[low]` `[reject]` D5: nothing flags a process that sets `DEFAULTGLOBAL` — the Tasks ask only for the exemption from `registry-param`; `registry-row` already requires a registry row for any class that sets one.
+    - `[low]` `[reject]` D6: `TelegramIn` has no `STUB` — the Tasks use Story 0.4's class as it is, and the oracle says `stub` 0.
+    - `[low]` `[reject]` D7: "a job never dies on a request" is sampled for four targets — the Matrix row 16 names exactly those four; row 3 covers the status of every stub class.
+    - `[low]` `[reject]` D8: the item and signature tables are test-held copies — the Tasks prescribe the oracle as a copy of the Design Notes table.
+    - `[low]` `[reject]` D9: the constants are declared but not consumed — the story has no consumer of the mock keys, tool names or prefix; 0.7 and Epic 1 are named in Consumed-by.
+    - `[low]` `[reject]` D10: extras beyond the contract (the `GeneratedBy` filter, `Context` validation, other-name refusals) — each is a logged ruling; the filter is now pinned (above), the refusals are now tested.
+    - `[low]` `[patch]` carried: D11, slot A tests depend on slot A state — same guard as above.
 
 ## Design Notes
 
@@ -567,6 +647,7 @@ Every command below finishes in one foreground call (`timeout: 600000` where not
 - `(once)` `bash docker/tests/test-install-upgrade.sh` (`timeout: 600000`). Expected: exit 0.
 - `(once)` `bash docker/tests/test-sign-in.sh` (`timeout: 600000`). Expected: exit 0.
 - `(once)` `bash docker/tests/test-audit.sh` (`timeout: 600000`). Expected: exit 0.
+- `(once)` `bash docker/tests/test-bundle-folder.sh` (`timeout: 600000`). Expected: exit 0. It runs the after-start script with the production, and restarts the container.
 - `(once)` `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 bash docker/tests/test-production.sh` (`timeout: 600000`). Expected: exit 0.
 - `(once)` On slot A, load and compile the trees, then export them (`iris_doc_export`, prefix `OcuTalon`) into a scratch folder. Expected: every file equals the tree byte for byte, the seven process storage blocks included.
 
@@ -607,17 +688,110 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC5: a method of `Bridge.Process.Decide` that calls `##class(OcuTalon.Core.BridgeSink).OnEvent(...)` → `test-install-start.sh` row 5 red, because the bridge no longer loads alone.
 - AC6: one slot removed by hand from `Decide`'s storage block → the export differs.
 
+### Task 0 results
+
+Measured October 19 on one throwaway built from the tree (Health image, no key; project `ocutalon-t06x-*`, torn down), and on slot A where noted.
+
+- **`Ens.Job:Enumerate` right after `StartProduction`** (30 rows): every process (`Decide`, `Conversation`, `Intake`, `ApprovalHold`, `IncidentManager`, `Checks`, `ReminderTimer`), operation, runner (`TriageAgent`, `DiagnosisAgent`, `ChatAgent` with the stub adapter), router (`OutcomeRouter`, `Notify`) and the Workflow operation (`OcuTalonApprovals`) shows `Mode` Background, `Status` `dequeuing`, `State` `Alive`. `Ens.MonitorService` shows `registered` and `Ens.ScheduleHandler` `running`. One item (`WebChatOut`) was still `starting` / `Starting` with no pid. No Alive row with a status other than these was seen. The predicate stays: an item with a pool runs when it has an Alive job whose status is not `error`, `halted` or `terminated` (a `Starting` row is not Alive).
+- **Time to every item with a job:** `StartProduction` returned in 0.055 s; the second poll, 0.25 s later, found every pooled item with an Alive job. The step took 1.1 s as a whole. Measured on the Health image; the non-Health image was not timed (inference: the same, the `test-production.sh` run passed there).
+- **`StartProduction` and the session device:** it writes two lines, `<time>:Ens.Director: Production 'OcuTalon.Production' starting...` and `... started.`. They land in the after-start transcript; `log_steps` keeps only `STEP` and `RESULT` lines, so they change nothing.
+- **System Default Setting `Enabled` for `EvalIn`:** with the row at 1, the next start (`Start` on the running production) gave `$$$ConfigIsEnabled("EvalIn")` 1 and `CreateBusinessService("EvalIn")` succeeded; with the row at 0 it gave 0 and `<Ens>ErrConfigDisabled: Configuration item 'EvalIn' is disabled`. The row decides at the next start, as the contract says.
+- **State the after-start step finds:** after `dc restart iris` (a graceful stop) it is Stopped: IRIS stops the production itself ("StopProduction initiated (Force flag: 1)") and does not start it, so the step starts it. After `docker kill -s KILL` and `dc start iris` it is Troubled (state 4, name `OcuTalon.Production`); IRIS's own start does not recover it, and the step recovered it and started it (`STEP Production OK`). The Troubled branch is exercised by row 20.
+- **`OnProcessInput` error through `CreateBusinessService` and `ProcessInput`:** it writes one Error row for `CommandsIn` (`ERROR #5003: Not implemented`), and only when the text differs from the last one the service reported: three calls in two sessions wrote one row. Row 17 checks that the row exists.
+- **Router with an empty rule set:** `SendRequestSync` to `OutcomeRouter` and to `Notify` answers OK with no response; the job id is unchanged.
+- **Stubs over the production:** `SessionOps` and `TriageAgent` answer code 5003 with no response; `Conversation` answers `<Ens>ErrBPTerminated` whose text carries `ERROR #5003: Not implemented`; each job id is unchanged one second later.
+- **For Story 1.2 (informational):** in a terminal session of the throwaway, with no key and no provider, `##class(OcuTalon.Agent.Triage).%New()` returns an object and `%Init()` returns OK.
+- **Slot A:** compiling `OcuTalon.Production` leaves `^Ens.Configuration("csp","LastProduction")` at `OCUTALONPKG.FoundationProduction` and `^Ens.AutoStart` empty. A shadow instance's stub handler (six classes tried) adds no `Ens_Util.Log` row (6 rows of `OcuTalon.*` classes before and after).
+- **An item that cannot start (row 21):** with a `WatchOps` whose `OnInit` fails, its job ends `last was: terminated` / `Dead`; `Start(15)` waits 15.2 s and fails with `these items do not run: WatchOps`; with the original compiled back, `Start(30)` takes 1.1 s and succeeds.
+
+### Results (implement stage, October 19)
+
+- Slot A: build 154 (`iris_server_info`, profile `ocutalon-slot-a`). Both trees load and compile with 0 errors (33 bridge classes, 155 classes of `ocutalon`).
+- `%UnitTest`, one class per call, all 0 failed: `Test.Install.Production` 4, `Test.Bridge.Ext` 3, `Test.Bridge.Api` 3, `Test.Agent.Constants` 3, `Test.Core.Commands` 3, `Test.Contract.Ac` 6 (43 signature rows), and the kept classes `Test.Contract.Checker` 5, `Test.Install.Registry` 11, `Test.Install.PrivateData` 5, `Test.Data.Tables` 5 (after the `TestSqlNames` change), `Test.Msg.Contracts` 6, `Test.Bridge.Contracts` 5, `Test.Live.Payloads` 4, `Test.Data.Session` 3. Once, `Test.Contract.Checker` and `Test.Install.Production` were sent in the same message, which the run rules forbid; both were green and independent.
+- Left behind on slot A: no `Zz` class or fixture production, no `^OcuTalonTest("BridgeExt",...)` child (only the counter), no extra System Default Setting row (`sdsrows` 0, no `EvalIn` row), `LastProduction` and `^Ens.AutoStart` as found.
+- Shell: `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-build-inputs.sh`, `test-lib-live.sh` exit 0.
+- Live, each in its own throwaway, torn down by its trap (none left): `test-production.sh` 14 checks passed in 69 s (Health) and passed once on `iris-community:2026.3.0AI.154.0` (53 s); `test-production-restart.sh` 11 checks passed in 74 s; `test-install-start.sh` (row 5 included, `other-classes` 0) passed; `test-install-upgrade.sh`, `test-sign-in.sh` (29 specs) and `test-audit.sh` passed. The STEP list and `expected_run` are unchanged.
+- Row 23: after the final load, the export of all 188 classes of `OcuTalon` into a scratch folder equals the tree byte for byte, the seven business-process stubs (`Decide`, `ApprovalHold`, `IncidentManager`, `Checks`, `Conversation`, `Intake`, `ReminderTimer`) included.
+
+### Mutations (Rule 19), demonstrated October 19
+
+Each was applied to the tree, loaded on slot A or built into a throwaway, run, and reverted from a saved copy; `git status --short` plus a hash of `src/` and `docker/` was identical before and after.
+
+- mutation: `WebChatIn` moved into lane A's region -> `Test.Install.Production.TestDefinition` red ("WebChatIn sits in the region of lane B") (AC1, row 1).
+- mutation: `ClassFor` returns the setting's base class instead of reading the item's setting -> `Test.Bridge.Ext.TestAccessorInAnotherJob` red (HostSinkClass, ReplyFilterClass, item and production cases) (row 2).
+- mutation: `SessionOps.OnMessage` answers OK -> `TestStubsAnswer` red ("SessionOps answers code 5003") (row 3).
+- mutation: `MODEL` removed from `Agent.Triage` -> `TestRunnerModels` red (row 4).
+- mutation: `EvalEnabled` accepts "true" -> `TestStepHelpers` red ("'true' does not enable") (row 5).
+- mutation: the `turn.step` builder writes `decisionref` -> `Test.Bridge.Ext.TestExtensionBases` red (row 6).
+- mutation: `Context.Active` returns 0 -> `TestContext` red (row 7).
+- mutation: `Submit` leaves the origin alone under a context -> `Test.Core.Commands.TestOrigin` red (row 8).
+- mutation: `Budget.State` without `resetsAt` -> `Test.Bridge.Api.TestNeutralValues` red (row 9).
+- mutation: `Answer` with `channel` and `action` swapped -> `Test.Contract.Ac.TestCrossLaneSignatures` red (row 10).
+- mutation: Chat's `MOCKKEY` set to `triage` -> `Test.Agent.Constants.TestAgents` red (row 11).
+- mutation: `Ens.BusinessProcess` dropped from the roots -> `test-storage.sh` `FAIL storage: the checker does not flag the sample no-storage-process`, exit 1 (AC2, row 12).
+- mutation: `Start` without the wait loop and the check, with row 21's fixture loaded -> `test-production.sh` row 21 red (`start-fails` 0), the other rows green (AC3).
+- mutation: `Start` that never calls `StartProduction` -> the first start ends `STEP Production FAILED ... is not running` and `test-production.sh` stops red at row 13 (AC3).
+- mutation: `Submit` targeting `CommandIn` -> `test-production.sh` row 17 red (3 of 4 values) (AC3).
+- mutation: `SetEval` not called -> `test-production-restart.sh` red at the first start and at both row 19 checks (AC4).
+- mutation: the Troubled branch replaced by an error -> `test-production-restart.sh` row 20 red: the start after the kill ends `STEP Production FAILED ... Troubled production not handled`. The kill does leave the production Troubled (Task 0), so the branch is exercised (AC4).
+- mutation: a `Decide` method that calls `##class(OcuTalon.Core.BridgeSink).OnEvent(...)` -> with the load check alone, `test-install-start.sh` stayed green (the compiler accepts the call); with the source check added to row 5, row 5 is red and names `Decide.cls:24` (AC5). Review pass: the scan function of the script, run on a copy of `Decide` that holds that method, names `Decide.cls:29`; it flags a synthetic class that names `OcuTalon.Core` as a class and `OcuTalon_Data` as a table exactly twice, passes a clean one, and sees the 33 classes of the tree.
+- mutation: the third slot removed from `Decide`'s storage block -> after load and compile on slot A the export of `Decide` differs from the mutated file (the compiler adds the slot back: lines 37-39) and equals the committed one (AC6, row 23).
+
+### Results (review pass, October 19)
+
+- After the patches: both trees load and compile with 0 errors (33 and 155 classes); the 14 `%UnitTest` classes pass, one class per call: `Test.Install.Production` 4, `Test.Bridge.Ext` 3, `Test.Bridge.Api` 4, `Test.Agent.Constants` 3, `Test.Core.Commands` 4, `Test.Contract.Ac` 6, `Test.Contract.Checker` 5, `Test.Install.Registry` 11, `Test.Install.PrivateData` 5, `Test.Data.Tables` 5, `Test.Msg.Contracts` 6, `Test.Bridge.Contracts` 5, `Test.Live.Payloads` 4, `Test.Data.Session` 3. Slot A is left as found: no `Zz` class, no `BridgeExt` child (only the counter), no System Default Setting row, `LastProduction` and `^Ens.AutoStart` unchanged.
+- Shell, exit 0: `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-build-inputs.sh`, `test-lib-live.sh`.
+- Live, one throwaway each, none left, exit 0: `test-production.sh` (Health, and once on `iris-community:2026.3.0AI.154.0`), `test-production-restart.sh`, `test-install-start.sh` (row 5: the control, 33 classes scanned, the bridge alone), `test-install-upgrade.sh`, `test-sign-in.sh` (29 specs), `test-audit.sh`, `test-bundle-folder.sh`. The STEP list is unchanged.
+- Row 23 again: the export of all 188 classes equals the tree byte for byte.
+
+### Mutations (Rule 19), review pass, October 19
+
+Each was applied, loaded on slot A or built into a throwaway, run, and reverted from a saved copy; the hash of `src/` and `docker/` and `git status --short` were identical before and after, apart from one intended fix to the `Write` order in `test-production.sh` made between two live runs (the seven slot A mutations were applied together and run one class per call).
+
+- mutation: `Submit` leaves a payload origin of `web_admin` alone -> `Test.Core.Commands.TestOrigin` red ("the origin web_admin is accepted and replaces the payload's") (row 8).
+- mutation: `Submit` without its `$Get` guards -> `TestOmittedArguments` red (`<UNDEFINED>` on `origin`) (row 8).
+- mutation: `Context.Begin` returns OK when a context is active -> `Test.Bridge.Ext.TestContext` red ("Current carries only the second request's fields") (row 7).
+- mutation: the "not compiled" line removed from `Accessor.Check` -> `TestAccessorInAnotherJob` red (the `checkMissing` case) (row 2).
+- mutation: the "agent class not compiled" line removed from `AgentRunner.ResolveModel` -> `Test.Install.Production.TestRunnerModels` red (`<CLASS DOES NOT EXIST>` for the runner whose agent class is missing) (row 4).
+- mutation: `Adapter.Agent` without its `OnInit` -> `Test.Bridge.Api.TestStubAdapter` red ("OnInit is the adapter's own") (AC3, the no-key start).
+- mutation: `HasTemplateToken` returns 0 -> `Test.Agent.Constants.TestAgents` red ("the detector flags a text with a {{ token") (row 11).
+- mutation: the reserved-word query leaves out `OcuTalon.Core.Intake` -> `Test.Data.Tables.TestSqlNames` red ("OcuTalon.Core.Intake is among the checked classes") (AC1, the persistent processes).
+- mutation: the `Ens.BusinessProcessBPL` root dropped -> `test-storage.sh` `FAIL storage: the checker does not flag the sample no-storage-bpl` (AC2, row 12).
+- mutation: the recursion of `process()` removed -> `test-storage.sh` `FAIL controls`, with `registry-param` naming `Core/SubProc.cls` (AC2, row 12).
+- mutation: `Start` falls through to `RestartProduction` when another production runs -> `test-production.sh` red at "another production: the step fails naming it and leaves it running" (`start-refused` 1|0), every other check green (AC3).
+- mutation: the `docker kill` of row 20 replaced by `true` -> `test-production-restart.sh` `FAIL row 20: the container did not start again after the kill` (AC4).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Planning summary (October 19).**
-- **Sources.** The spec is planned against:
-  - the committed `epic-0-context.md` (reused);
-  - Story 0.5's spec, for continuity;
-  - the spine, read by line range: AD-1, 2, 3, 5, 6, 7, 8, 11, 19, 20, 22, 23, 28, 29, 31 and 33, the Conventions, and the Structural Seed's production, ownership and event tables;
-  - `epics.md` (0.6, 0.7, 0.10, 1.1, 1.2, 2.3, 11.5 and 15.2, plus one subagent's sweep for API signatures).
-- **Slot A, read-only probes.** Build 154; no production is running; the key is set; `LastProduction` is the Foundation production; the error texts and reserved words are as above.
+- **Sources.** The spec was planned against the committed `epic-0-context.md`, Story 0.5's spec, the spine (AD-1, 2, 3, 5, 6, 7, 8, 11, 19, 20, 22, 23, 28, 29, 31 and 33, the Conventions and the Structural Seed's tables, by line range) and `epics.md` (0.6, 0.7, 0.10, 1.1, 1.2, 2.3, 11.5 and 15.2).
 - **Checks.** No intent gap; no AC contradicts an AD; no NFR tripwire.
-- **Split line.** It is named above, for the lead's ruling.
+
+**Implemented change.**
+- The production `OcuTalon.Production` holds the 38 release-1 items in two lane regions; 35 are enabled and `TelegramIn`, `TelegramOut` and `EvalIn` are off. Every unbuilt item is a `STUB` class that answers "not implemented" (5003), and the two routers' rule classes are stubs with an empty rule set.
+- The `Production` install step starts, recovers or restarts the production and waits until every enabled item with a pool has an alive job and every runner resolves a model. It writes the `EvalIn` System Default Setting row from `OCUTALON_EVAL` at every start, and never marks autostart.
+- The bridge gained its extension bases and `Ext.Accessor`, the no-AI-Hub-call adapter, `AgentRunner.ResolveModel`, `Context` (over `^||OcuTalonBP.Context`), `Compaction`, and the stub signatures of `Approval`, `Budget`, `Keys`, `Timeouts` and `ConfigStore`. `Core.Commands.Submit` is implemented; the other cross-lane APIs, the agents with `MOCKKEY`, `Tools.Names` and `BridgeSink` and `ReplyGuard` are signatures and constants.
+- DW-13: `test-storage.sh` also covers business processes, message bodies and stream containers.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/`: 17 new classes (`Adapter/Agent`, `Approval`, `Budget`, `Compaction`, `ConfigStore`, `Context`, `Keys`, `Timeouts`, `Ext/*` (4), `Operation/AgentRunner` and `Steps`, `Process/Decide` and `ApprovalHold`, `Service/ApprovalStart`).
+- `src/ocutalon/cls/OcuTalon/`: 40 new classes (`Production`, 31 item stub classes under `Channel`, `Core`, `Schedule`, `Demo`, `Watch`, `Eval`, `Fix`, `Checks`, `Digest`, the two `Core/Rule` classes, `Core/BridgeSink`, `Core/Commands`, `Checks/ReplyGuard`, `Agent/*` (4), `Tools/Names`, `Data/Ownership`), plus `Data/Session` (`Recipients`) and `Install/Step/Production` (filled in place).
+- Tests: five new classes (`Test/Install/Production`, `Test/Bridge/Ext`, `Test/Bridge/Api`, `Test/Agent/Constants`, `Test/Core/Commands`); `Test/Contract/Ac` (31 signature rows, floor 43); `Test/Data/Tables` (`TestSqlNames`).
+- `docker/tests/`: new `test-production.sh` and `test-production-restart.sh`; `lib-live.sh` (`item_jobs`, `check_items_run`); `test-storage.sh` (DW-13 and its samples); `test-install-start.sh` (row 5's source check).
+
+**Review findings breakdown.**
+- 50 findings from four layers: high 0, medium 9, low 38, false 3. 25 were patched, 25 rejected, none deferred or routed (`deferred:` stays empty); no `intent_gap` or `bad_spec`.
+- Patched (grouped by root cause; medium unless marked low): the row 5 scan lacked a control, a floor and table names (3 findings); row 20 did not confirm the kill; no test for the step with another production running; no pin for the stub adapter; the `{{` assertion could not fail; `Submit` threw on a left-out origin (low); the tests' stub count, not-running assertion, class-guard cases, second `Begin`, BPL and subclass samples, SQL-name coverage and origin loop (low); the step's class comment (low).
+- Rejected with their reasons are in the Review Triage Log. The ones the lead should know: the three false findings (the snake_case pattern, a Suspended other-name production, `test-bundle-folder.sh`); `Context.Put` stays a plain setter (Change Log, reopen if Story 1.2 finds a path that clears `Tainted`); the adapterless services' check stays in the live row 14 (the Tasks' definition); row 23 stays a manual `(once)` run.
+- Follow-up review recommended: true. Five medium entries were patched. The named risk: the patches are test and harness code that no independent layer has read (the source check and its control in `test-install-start.sh`, the other-production block in `test-production.sh`, the kill confirmation in `test-production-restart.sh`, and the new unit cases). Each was mutation-checked and the whole Verification list was re-run green.
+
+**Verification performed.** Slot A (build 154, profile `ocutalon-slot-a`): both trees load with 0 errors; 14 `%UnitTest` classes pass, one per call; the slot is left as found. Shell: `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-build-inputs.sh`, `test-lib-live.sh` exit 0. Live, one throwaway at a time and none left: `test-production.sh` (Health and community images), `test-production-restart.sh`, `test-install-start.sh`, `test-install-upgrade.sh`, `test-sign-in.sh`, `test-audit.sh` and `test-bundle-folder.sh` exit 0. Row 23: 188 exported classes equal the tree. Twelve review-pass mutations and the earlier 17 were applied, seen red and reverted (Verification). Task 0's measurements are recorded under Verification.
+
+**Residual risks and items for the lead.**
+- The matrix wording to correct (Rule 5, apply and report): row 3 names `%New("")` and should say `Ens.Host.GetShadowInstance("class||<class>")`; row 16 should say that `Conversation` answers `<Ens>ErrBPTerminated` carrying 5003; AC5's pin is the row 5 source check plus the load.
+- Rule 20 spine updates listed under Design Notes stand, with one addition: a business process whose stub handler fails answers `ErrBPTerminated`. The two VETO WINDOW items (`Submit` trusts the caller's origin; the step recovers a Troubled production) are still to be sent.
+- `test-bundle-folder.sh` also runs the after-start script; it is now on the Verification list as a `(once)` line.
+- An item whose `OnInit` fails after its job registers could pass one poll (Task 0 never saw it; the step re-checks nothing). Reopen if a real item shows it.

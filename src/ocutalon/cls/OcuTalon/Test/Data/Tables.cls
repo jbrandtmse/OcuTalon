@@ -62,18 +62,24 @@ Method TestEveryTableIsRegistered()
 	Do $$$AssertTrue(count >= 23, "OcuTalon.Data, OcuTalon.Live and OcuTalon.Bridge.Data hold at least the 23 tables of the contracts so far")
 }
 
-/// No persistent OcuTalon class outside OcuTalon.Test projects an SQL reserved word as its table or a field.
+/// No persistent OcuTalon class outside OcuTalon.Test projects an SQL reserved word as its table or a field. The classes
+/// that the compiler generates for a business process (its MessagesSent and MessagesReceived tables) are not opened by name
+/// and are left out; the process class itself is checked.
 Method TestSqlNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
-	Do $$$AssertStatusOK(statement.%Prepare("SELECT ID FROM %Dictionary.CompiledClass WHERE ID %STARTSWITH 'OcuTalon.' AND NOT ID %STARTSWITH 'OcuTalon.Test.' AND ClassType = 'persistent'"), "the query is prepared")
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT ID FROM %Dictionary.CompiledClass WHERE ID %STARTSWITH 'OcuTalon.' AND NOT ID %STARTSWITH 'OcuTalon.Test.' AND ClassType = 'persistent' AND (GeneratedBy IS NULL OR GeneratedBy = '')"), "the query is prepared")
 	Set result = statement.%Execute()
 	Set count = 0
 	While result.%Next() {
 		Set count = count + 1
+		Set checked(result.%GetData(1)) = 1
 		Do ..AssertSqlNames(result.%GetData(1))
 	}
 	Do $$$AssertTrue(count >= 45, "at least the 45 persistent classes of the first contracts are checked")
+	For process = "OcuTalon.Bridge.Process.Decide", "OcuTalon.Bridge.Process.ApprovalHold", "OcuTalon.Watch.IncidentManager", "OcuTalon.Checks.Process", "OcuTalon.Core.Conversation", "OcuTalon.Core.Intake", "OcuTalon.Schedule.ReminderTimer" {
+		Do $$$AssertTrue($Data(checked(process)), process_" is among the checked classes")
+	}
 }
 
 /// The Delivery stubs: Record is an error that says it is not implemented yet, and FindByApproval finds nothing.

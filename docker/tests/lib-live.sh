@@ -440,3 +440,34 @@ check_log() {
 
 # live_pop_file removes the compose file that live_add_file added last.
 live_pop_file() { unset 'LIVE_FILES[${#LIVE_FILES[@]}-1]'; }
+
+# --- the production's items (Story 0.6) ---
+
+# item_jobs <file>: the alive jobs of the running production, one line per item that has any: the item's name, a tab and
+# its job ids, comma-separated and in the order the production lists them.
+item_jobs() {
+  printf '%s\n' \
+    'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { If rs.Get("State")="Alive" { Set j(rs.Get("ConfigName"))=$Get(j(rs.Get("ConfigName")))_","_rs.Get("Job") } }' \
+    'Set n="" For { Set n=$Order(j(n)) Quit:n=""  Write !,"CHK|job|",n,"|",$Extract(j(n),2,*) }' \
+    'Halt' | iris_script OCUTALON | awk -F'|' '$1 == "CHK" && $2 == "job" { print $3 "\t" $4 }' | sort > "$1"
+}
+
+# check_items_run <label>: the job check of Story 0.6 (matrix row 14) on the running container, against the list of items in
+# OcuTalon.Test.Install.Production (Items):
+#   - each enabled item with a pool has an Alive job whose status is not error, halted or terminated;
+#   - each enabled adapterless service has no job, and CreateBusinessService succeeds for it;
+#   - each item the definition disables has no job.
+# The counts are those of the ownership table: 25 pooled items, 10 adapterless services and 3 disabled items.
+check_items_run() {
+  check_session "$1: every enabled item runs, the adapterless services answer, the disabled items have no job" OCUTALON \
+    "CHK|pooled|25|missing=
+CHK|adapterless|10|failing=
+CHK|disabled|3|running=" \
+    'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { Set any(rs.Get("ConfigName"))=1 If rs.Get("State")="Alive",$ListFind($ListFromString("error,halted,terminated"),rs.Get("Status"))=0 { Set alive(rs.Get("ConfigName"))=1 } }' \
+    'Set (np,ns,nd)=0,(mp,ms,md)="" Set it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator()' \
+    'While it.%GetNext(,.x) { Set n=x.name If x.enabled=0 { Set nd=nd+1 If $Data(any(n)) { Set md=md_" "_n } } ElseIf x.pool { Set np=np+1 If $Data(alive(n))=0 { Set mp=mp_" "_n } } Else { Set ns=ns+1 Set sc=##class(Ens.Director).CreateBusinessService(n,.svc) If $SYSTEM.Status.IsError(sc)||$Data(any(n)) { Set ms=ms_" "_n } } }' \
+    'Write !,"CHK|pooled|",np,"|missing=",$ZStrip(mp,"<W")' \
+    'Write !,"CHK|adapterless|",ns,"|failing=",$ZStrip(ms,"<W")' \
+    'Write !,"CHK|disabled|",nd,"|running=",$ZStrip(md,"<W")' \
+    'Halt'
+}

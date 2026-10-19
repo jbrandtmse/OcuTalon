@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Checks the short-name registry and the storage blocks of src/ (AD-3, AD-5; Story 0.4, matrix row 5):
+# Checks the short-name registry and the storage blocks of src/ (AD-3, AD-5; Story 0.4, matrix row 5; Story 0.6, DW-13):
 #   - registry-duplicate: no two rows of src/short-names.tsv share a short name, a global or a class;
 #   - registry-class: the class of every row sets Parameter DEFAULTGLOBAL to the row's global;
 #   - registry-row: every class that sets Parameter DEFAULTGLOBAL has a row;
-#   - registry-param: every storage-bearing class that is not a message sets Parameter DEFAULTGLOBAL;
+#   - registry-param: every storage-bearing class that is not a message, a message body, a stream container or a business
+#     process sets Parameter DEFAULTGLOBAL. Those four share the extents of Ens.Request, Ens.Response, Ens.MessageBody and
+#     Ens.BusinessProcess and set none;
 #   - scan: the scan of the real tree reads src/short-names.tsv and at least one class, and ends without an error;
 #   - prefix: a global starts with ^OcuTalonP., or with ^OcuTalonBP. under src/bridge/ and nowhere else;
 #   - storage: a storage-bearing class has a Storage Default block. A class is storage-bearing when it is not abstract
-#     and its Extends chain, followed through src/, reaches %Persistent, %Library.Persistent, Ens.Request or
-#     Ens.Response. An abstract class carries whatever block the compiler gave it;
+#     and its Extends chain, followed through src/, reaches %Persistent, %Library.Persistent, Ens.Request, Ens.Response,
+#     Ens.MessageBody, Ens.StreamContainer, Ens.BusinessProcess or Ens.BusinessProcessBPL. An abstract class carries
+#     whatever block the compiler gave it;
 #   - datalocation: the DataLocation of a class with a default global is that global plus D;
 #   - locations: its IdLocation, IndexLocation and StreamLocation are that global plus D, I and S, so that every global of
 #     the class stays under the private prefix (AD-3).
@@ -43,8 +46,18 @@ function message(c, depth,    n, i, parts, p) {
   n = split(ext[c], parts, ",")
   for (i = 1; i <= n; i++) {
     p = parts[i]
-    if (p == "Ens.Request" || p == "Ens.Response") return 1
+    if (p == "Ens.Request" || p == "Ens.Response" || p == "Ens.MessageBody" || p == "Ens.StreamContainer") return 1
     if (message(p, depth + 1)) return 1
+  }
+  return 0
+}
+function process(c, depth,    n, i, parts, p) {
+  if (depth > 20 || !(c in ext)) return 0
+  n = split(ext[c], parts, ",")
+  for (i = 1; i <= n; i++) {
+    p = parts[i]
+    if (p == "Ens.BusinessProcess" || p == "Ens.BusinessProcessBPL") return 1
+    if (process(p, depth + 1)) return 1
   }
   return 0
 }
@@ -52,6 +65,8 @@ function report(rule, where, detail) { printf "%s\t%s\t%s\n", rule, where, detai
 BEGIN {
   FS = "\t"
   roots["%Persistent"] = 1; roots["%Library.Persistent"] = 1; roots["Ens.Request"] = 1; roots["Ens.Response"] = 1
+  roots["Ens.MessageBody"] = 1; roots["Ens.StreamContainer"] = 1
+  roots["Ens.BusinessProcess"] = 1; roots["Ens.BusinessProcessBPL"] = 1
 }
 FILENAME ~ /short-names\.tsv$/ {
   if (FNR == 1 || $0 == "") next
@@ -140,7 +155,7 @@ END {
   }
   for (c in file) {
     if (!abs[c] && bears(c, 0) && !(c in st)) report("storage", file[c], "storage-bearing class " c " has no Storage Default block")
-    if (!abs[c] && bears(c, 0) && !message(c, 0) && !(c in hasdg)) report("registry-param", file[c], "storage-bearing class " c " does not set Parameter DEFAULTGLOBAL")
+    if (!abs[c] && bears(c, 0) && !message(c, 0) && !process(c, 0) && !(c in hasdg)) report("registry-param", file[c], "storage-bearing class " c " does not set Parameter DEFAULTGLOBAL")
   }
   if (rows == 0) report("scan", "src/short-names.tsv", "the registry has no rows")
 }
@@ -168,6 +183,12 @@ make_tree() {
   printf 'Class OcuTalon.Msg.Base Extends Ens.Request [ Abstract ]\n{\n\nProperty Text As %%String;\n\n}\n' > "$o/Msg/Base.cls"
   printf 'Class OcuTalon.Msg.Gamma Extends OcuTalon.Msg.Base\n{\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Msg/Gamma.cls"
   printf 'Class OcuTalon.Plain Extends (%%RegisteredObject, %%JSON.Adaptor)\n{\n\nProperty Text As %%String;\n\n}\n' > "$o/Plain.cls"
+  mkdir -p "$o/Core"
+  printf 'Class OcuTalon.Core.Proc Extends Ens.BusinessProcess\n{\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Core/Proc.cls"
+  printf 'Class OcuTalon.Msg.Body Extends Ens.MessageBody\n{\n\nProperty Text As %%String;\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Msg/Body.cls"
+  printf 'Class OcuTalon.Msg.Stream Extends Ens.StreamContainer\n{\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Msg/Stream.cls"
+  printf 'Class OcuTalon.Core.Bpl Extends Ens.BusinessProcessBPL\n{\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Core/Bpl.cls"
+  printf 'Class OcuTalon.Core.SubProc Extends OcuTalon.Core.Proc\n{\n\nStorage Default\n{\n<Type>%%Storage.Persistent</Type>\n}\n\n}\n' > "$o/Core/SubProc.cls"
 }
 
 # persistent_class <class> <global>: the source of a persistent class with its default global and storage block.
@@ -193,6 +214,11 @@ edit() { # edit <file> <awk program>: rewrites a file through awk
 BETA=src/ocutalon/cls/OcuTalon/Data/Beta.cls
 ALPHA=src/bridge/cls/OcuTalon/Bridge/Data/Alpha.cls
 GAMMA=src/ocutalon/cls/OcuTalon/Msg/Gamma.cls
+PROC=src/ocutalon/cls/OcuTalon/Core/Proc.cls
+BODY=src/ocutalon/cls/OcuTalon/Msg/Body.cls
+STREAM=src/ocutalon/cls/OcuTalon/Msg/Stream.cls
+BPL=src/ocutalon/cls/OcuTalon/Core/Bpl.cls
+SUBPROC=src/ocutalon/cls/OcuTalon/Core/SubProc.cls
 TSV=src/short-names.tsv
 
 make_tree "$tmp/good"
@@ -208,6 +234,11 @@ bad_tree prefix-outside "$BETA" sh -c "sed 's/OcuTalonP\./OcuTalonBP./g' $BETA >
 bad_tree prefix-unknown "$BETA" sh -c "sed 's/OcuTalonP\./OcuTalonZz./g' $BETA > $BETA.new && mv $BETA.new $BETA"
 bad_tree no-storage-persistent "$BETA" edit "$BETA" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
 bad_tree no-storage-message "$GAMMA" edit "$GAMMA" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
+bad_tree no-storage-process "$PROC" edit "$PROC" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
+bad_tree no-storage-body "$BODY" edit "$BODY" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
+bad_tree no-storage-stream "$STREAM" edit "$STREAM" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
+bad_tree no-storage-bpl "$BPL" edit "$BPL" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
+bad_tree no-storage-subprocess "$SUBPROC" edit "$SUBPROC" '/^Storage Default/ { skip = 1 } !skip { print } skip && /^\}/ { skip = 0 }'
 bad_tree wrong-location "$BETA" sh -c "sed 's#<DataLocation>^OcuTalonP.BetaD#<DataLocation>^OcuTalonP.BetaX#' $BETA > $BETA.new && mv $BETA.new $BETA"
 bad_tree wrong-id-location "$BETA" sh -c "sed 's#<IdLocation>^OcuTalonP.BetaD#<IdLocation>^OcuTalonP.BetaX#' $BETA > $BETA.new && mv $BETA.new $BETA"
 bad_tree wrong-index-location "$BETA" sh -c "sed 's#<IndexLocation>^OcuTalonP.BetaI#<IndexLocation>^OcuTalonZz.BetaI#' $BETA > $BETA.new && mv $BETA.new $BETA"
@@ -259,7 +290,7 @@ rule registry-row no-row
 rule registry-param no-param-new
 rule scan no-registry no-classes
 rule prefix prefix-bridge prefix-outside prefix-unknown
-rule storage no-storage-persistent no-storage-message
+rule storage no-storage-persistent no-storage-message no-storage-process no-storage-body no-storage-stream no-storage-bpl no-storage-subprocess
 rule datalocation wrong-location no-storage-persistent
 rule locations wrong-id-location wrong-index-location wrong-stream-location
 

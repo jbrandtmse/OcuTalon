@@ -11,9 +11,9 @@
 #     finds IPM recorded as 0.10.9 and installs the pinned 0.10.10;
 #   - row 3, the developer compose file: the package loaded again;
 #   - row 4, a public class deleted: the load forced by the public-class check, the class back in OCUTALON_PUBLIC;
-#   - row 5, the bridge alone: src/bridge/ loaded into an Interoperability namespace without IPM, and its installer run,
-#     and refused in a namespace without Interoperability, where only the installer class is loaded because the
-#     bridge's messages need Ens.Request and Ens.Response.
+#   - row 5, the bridge alone: no code under src/bridge/ names another package of OcuTalon, src/bridge/ loaded into an
+#     Interoperability namespace without IPM, and its installer run, and refused in a namespace without Interoperability,
+#     where only the installer class is loaded because the bridge's messages need Ens.Request and Ens.Response.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
 # volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -192,6 +192,58 @@ check_log "row 4" "$tmp/expected.row4"
 check_ready_state "row 4"
 
 # --- row 5: the bridge alone, in a namespace without IPM ---
+
+# bridge_refs <file>...: file:line of each code line that names an OcuTalon package other than OcuTalon.Bridge and
+# OcuTalon.BridgeExample, as a class name (OcuTalon.Pkg) or as a table name (OcuTalon_Pkg). A comment line is not code.
+# The compiler accepts a call to a class it cannot find, so the load below cannot see such a reference; this does.
+bridge_refs() {
+  awk '!/^[[:space:]]*\/\// {
+    s = $0
+    while (match(s, /OcuTalon[._][A-Za-z]+/)) {
+      w = substr(s, RSTART, RLENGTH)
+      if (w != "OcuTalon.Bridge" && w != "OcuTalon.BridgeExample" && w != "OcuTalon_Bridge" && w != "OcuTalon_BridgeExample") print FILENAME ":" FNR
+      s = substr(s, RSTART + RLENGTH)
+    }
+  }' "$@"
+}
+
+# The scan is shown to flag a bad sample and to pass a clean one before it is trusted on the real tree.
+mkdir -p "$tmp/refs"
+cat > "$tmp/refs/Bad.cls" <<'EOS'
+Class OcuTalon.Bridge.ZzBad
+{
+ClassMethod A()
+{
+	Do ##class(OcuTalon.Core.BridgeSink).OnEvent()
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM OcuTalon_Data.Session")
+}
+}
+EOS
+cat > "$tmp/refs/Ok.cls" <<'EOS'
+/// Names OcuTalon.Core.BridgeSink in a comment only.
+Class OcuTalon.Bridge.ZzOk
+{
+Parameter P = "OcuTalon_Bridge_Data.Decision";
+Parameter Q = "OcuTalon.BridgeExample.Host";
+}
+EOS
+if [ "$(bridge_refs "$tmp/refs/Bad.cls" | wc -l | tr -d ' ')" = 2 ] && [ -z "$(bridge_refs "$tmp/refs/Ok.cls")" ]; then
+  pass "row 5: the source check flags another package named as a class or as a table, and passes the bridge's own names and comments"
+else
+  fail "row 5: the source check does not flag the bad sample exactly twice, or flags the clean one"
+fi
+bridge_files=$(find src/bridge/cls -name '*.cls' | sort)
+if [ -z "$bridge_files" ]; then
+  fail "row 5: no class under src/bridge/cls/ was found to scan"
+else
+  refs=$(bridge_refs $bridge_files)
+  if [ -z "$refs" ]; then
+    pass "row 5: no code under src/bridge/ names an OcuTalon package other than the bridge's own ($(printf '%s\n' "$bridge_files" | wc -l | tr -d ' ') classes)"
+  else
+    printf '%s\n' "$refs" | head -n 10 | sed 's/^/  /'
+    fail "row 5: code under src/bridge/ names an OcuTalon package other than the bridge's own"
+  fi
+fi
 
 cat > "$tmp/ocubridget.cpf" <<'EOC'
 [Actions]

@@ -10,7 +10,8 @@
 ///   - TestIncidentNoticeIsEmptyUntilTheNotice: an incident saves without a notice time and reads it back empty, and
 ///     its open variant is stored beside its state;
 ///   - TestCrossLaneSignatures: the cross-lane methods keep their parameter names and order and their return type, which
-///     the other lane's callers rely on (Delivery.Record and FindByApproval are named by the AC);
+///     the other lane's callers rely on (Delivery.Record and FindByApproval are named by the AC; the cross-lane APIs of
+///     AD-29, the extension accessor and the extension bases of AD-31 are pinned from Story 0.6 on);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -157,7 +158,7 @@ Method TestCrossLaneSignatures()
 		Do $$$AssertEquals(..Join(prefix), ..Join(expected), id_" takes ("_signature.args_") in that order")
 		Do $$$AssertEquals(..FullName(method.ReturnType), ..FullName(signature.returns), id_" returns "_signature.returns)
 	}
-	Do $$$AssertTrue(count >= 12, "the signatures are read: "_count)
+	Do $$$AssertTrue(count >= 43, "the signatures are read: "_count)
 }
 
 /// The Telegram stub is an inbound service, and its adapter is a class (the Telegram epic replaces the value).
@@ -298,7 +299,38 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Setting", "method": "Seed", "args": "key,value", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Write", "args": "type,data,description", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Events", "args": "", "returns": "%List"},
- {"class": "OcuTalon.Channel.Telegram.In", "method": "Included", "args": "", "returns": "%Boolean"}
+ {"class": "OcuTalon.Channel.Telegram.In", "method": "Included", "args": "", "returns": "%Boolean"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "Raise", "args": "request,*ref", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "Answer", "args": "ref,action,channel,irisUser,sessionRef,*winner", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "Expire", "args": "ref", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "Cancel", "args": "ref", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "StartExecution", "args": "ref", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "FinishExecution", "args": "ref,result", "returns": "%Status"},
+ {"class": "OcuTalon.Agent.Input", "method": "Render", "args": "item", "returns": "%String"},
+ {"class": "OcuTalon.Checks.Render", "method": "Render", "args": "results,*rows", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Context", "method": "Begin", "args": "request,superSession", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Context", "method": "End", "args": "", "returns": ""},
+ {"class": "OcuTalon.Bridge.Context", "method": "Active", "args": "", "returns": "%Boolean"},
+ {"class": "OcuTalon.Bridge.Context", "method": "Current", "args": "", "returns": "OcuTalon.Bridge.Context"},
+ {"class": "OcuTalon.Bridge.Context", "method": "Put", "args": "name,value", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Budget", "method": "State", "args": "", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Bridge.Keys", "method": "Status", "args": "agent", "returns": "%Boolean"},
+ {"class": "OcuTalon.Bridge.Timeouts", "method": "Derive", "args": "timer", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Bridge.ConfigStore", "method": "Merge", "args": "entry,fields", "returns": "%Status"},
+ {"class": "OcuTalon.Data.Session", "method": "Recipients", "args": "ownerRef,incidentRef", "returns": "%List"},
+ {"class": "OcuTalon.Data.Ownership", "method": "TurnCost", "args": "turnRef", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Data.Ownership", "method": "RunCost", "args": "sessionRef,since", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Core.Commands", "method": "Submit", "args": "command,origin,*result", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "ClassFor", "args": "setting,production,item,*sc", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "Check", "args": "setting,class", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "OnEvent", "args": "type,ownerRef,payload", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "RefPayload", "args": "ref", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "TurnStepPayload", "args": "decisionRef,label", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "BudgetCappedPayload", "args": "day", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Bridge.Ext.ReplyFilter", "method": "Filter", "args": "text", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Ext.Classification", "method": "Classify", "args": "tool,arguments", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Operation.AgentRunner", "method": "ResolveModel", "args": "item,production", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Compaction", "method": "Prompt", "args": "", "returns": "%String"}
 ]
 }
 
