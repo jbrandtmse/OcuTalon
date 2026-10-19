@@ -10,7 +10,9 @@ Include Ensemble
 /// What it does with the production it finds:
 ///   - running, this production: restarts it, so every item gets its job again;
 ///   - running, Troubled or Suspended under another name: fails naming it, and stops, recovers and starts nothing;
-///   - Troubled (an unclean stop), this production: recovers it, which keeps its queued messages as Suspended, then starts it;
+///   - Troubled (an unclean stop), this production: recovers it, then starts it. Recovery puts the messages that were in
+///     progress back on their queues and keeps the queued ones for the start, marks queued synchronous messages Suspended,
+///     and discards the messages of private queues (Ens.Director);
 ///   - Stopped, or Suspended under this name: starts it.
 /// An item runs when it is enabled and, if it has a pool, has an alive job that is not in error. An adapterless service
 /// has pool size 0 and no job; it runs when it is enabled in the running production.
@@ -107,12 +109,13 @@ ClassMethod NotRunning() As %String
 	Quit missing
 }
 
-/// The enabled agent runner items of the production whose model does not resolve (AD-7), as a comma list.
+/// The enabled agent runner items of the production whose model does not resolve (AD-7), as a comma list. A production
+/// whose definition cannot be opened is named with the reason, so that no runner goes unchecked.
 ClassMethod UnresolvedRunners(production As %String) As %String
 {
 	Set unresolved = ""
 	Set config = ##class(Ens.Config.Production).%OpenId(production)
-	If '$IsObject(config) Quit ""
+	If '$IsObject(config) Quit production_" (its definition cannot be opened)"
 	For i = 1:1:config.Items.Count() {
 		Set item = config.Items.GetAt(i)
 		If item.ClassName '= ..#RUNNERCLASS Continue

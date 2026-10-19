@@ -82,8 +82,10 @@ Method TestOmittedArguments()
 }
 
 /// An object that is not a command is refused with an error that names the problem; so is a value that is not an object.
+/// The test starts with no context, and a refusal leaves none behind.
 Method TestRefusals()
 {
+	Do ##class(OcuTalon.Bridge.Context).End()
 	Set sc = ##class(OcuTalon.Core.Commands).Submit({"origin": "web_admin"}, "web_user", .result)
 	Do $$$AssertStatusNotOK(sc, "a dynamic object is refused")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Msg.Command", "the error names what Submit takes: "_$SYSTEM.Status.GetErrorText(sc))

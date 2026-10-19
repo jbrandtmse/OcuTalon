@@ -293,6 +293,71 @@ Tests:
 - Given the existing live scripts, when they run against the new tree, then row 22 holds: every check passes, the STEP list and `expected_run` are unchanged, and the bridge still loads alone.
 - Given the committed storage blocks of the seven business-process stubs, when the trees are loaded, compiled and exported again on slot A, then no tracked file changes (row 23).
 
+### Review Findings
+
+Code review, October 19 (`bmad-code-review`, full-opus tier; layers `blind-hunter`, `edge-case-hunter`, `verification-gap` and `acceptance-auditor`). The layers reported 47 findings, which group into 18 entries: 2 high, 4 medium and 12 low. 22 findings were rejected (appendix below). Each entry lists severity / fix-risk / footprint / spec-status (Rule 15).
+
+- [x] [Review][Patch] **The tests' copy of the production is not split by lane, and Epic 0's counts are literals in both lanes' files** [src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:338]
+  - high / med (a test refactor across five files, re-run on slot A and in two throwaways) / in-story / clear.
+  - Lane A's `Test.Install.Production` holds Lane B's 20 oracle rows. So when Lane B builds an item and deletes its `STUB`, or adds a setting, `TestStubsAnswer` or `TestDefinition` goes red until Lane B edits a Lane A class.
+  - The figures 38/35/25 (`TestDefinition`), 25/10/3 (`lib-live.sh` `check_items_run`) and 25 (`test-production.sh` row 18), and the "exactly three disabled" rule (`Test.Install.ProductionRules`), break whenever an item gains an adapter (`FailurePoller`, `StatusMonitor`) or a release cut disables one.
+  - This contradicts AD-29 ("each lane can start its first story without editing the other lane's files") and AD-33 ("only the owning lane edits a class").
+  - Fix: Lane B's rows move to `OcuTalon.Test.Core.ProductionItems`, and `Items()` merges both lanes' rows in definition order. The counts come from the oracle, and the disabled rule names the three items the spine keeps disabled.
+- [x] [Review][Patch] **`TelegramIn`'s class has no `STUB` and answers OK** [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:8]
+  - high / low / in-epic (Story 0.4's file; a HIGH is fixed now) / clear.
+  - AD-29 as amended for this story reads: "Every unbuilt production item answers 'not implemented' ... and carries `Parameter STUB = 1`". TelegramIn is unbuilt until the Telegram epic, so Story 11.5's check could not flag it. The oracle locked the gap in (`stub` 0).
+- [x] [Review][Defer] **AD-3 exempts only messages from `DEFAULTGLOBAL`, but the seven business processes set none, and `test-storage.sh` exempts them** [ARCHITECTURE-SPINE.md:138]
+  - medium / low / out-of-footprint (the spine) / spec-bound.
+  - The code follows the spec's Boundaries and this story's DW-13 bullet in `epics.md` ("exempts the message and business-process extents ... as AD-3 does"), and it is the only option that works: a subclass in `Ens.BusinessProcess`'s extent stores under `^Ens.BusinessProcessD`, whatever `DEFAULTGLOBAL` it sets.
+  - What is left is the spine's sentence, which Story 0.7's `DEFAULTGLOBAL` check will read. The spine also never says that a business process keeps no private text in its properties.
+  - Deferred: the fix is the lead's Rule 20 amendment of AD-3, ledgered as a DW-13 occurrence (owner: this story).
+- [x] [Review][Patch] **No test shows `Start` failing when a runner resolves no model** [src/ocutalon/cls/OcuTalon/Install/Step/Production.cls:76]
+  - medium / low / in-story / clear.
+  - The Tasks and AD-7 ("an install check ... fail[s] when any runner resolves no model") specify this branch. Deleting lines 76–78 left every test green.
+  - Fix: `test-production.sh` loads a fixture `Agent.Triage` with no `MODEL`, expects `Start(15)` to fail naming `TriageAgent`, then restores the class (the row 21 pattern).
+- [x] [Review][Patch] **No test reaches `Start`'s Suspended branches or its Troubled-under-another-name guard** [src/ocutalon/cls/OcuTalon/Install/Step/Production.cls:55]
+  - medium / low / in-story / clear.
+  - Row 20 leaves `^Ens.Suspended` naming the production, so the next clean stop and start goes through the Suspended branch, and nothing pins it.
+  - Fix: `test-production.sh` stops the production and sets the director's state globals in the throwaway. It expects a production Troubled or Suspended under another name to be refused, with nothing recovered or started, and one Suspended under this name to start. Each fake is removed afterwards.
+- [x] [Review][Patch] **`TestRefusals` asserts on context state that only `TestOrigin` could leave behind** [src/ocutalon/cls/OcuTalon/Test/Core/Commands.cls:94]
+  - medium (Rule 19 hermeticity) / low / in-story / clear.
+  - Fix: the test ends any context first, so its "no context is left behind" assertion checks the refusals themselves.
+- [x] [Review][Patch] (low) `check_clean_start`'s list of event-log rows never prints on a failure, because `compare_chk` returns 0 after `fail` [docker/tests/lib-live.sh:494]
+- [x] [Review][Patch] (low) The `FailurePoller` and `StatusMonitor` class comments call them adapterless services, but the spine gives both a polling adapter (AD-15 L403, AD-18 L472) [src/ocutalon/cls/OcuTalon/Watch/FailurePoller.cls:1]
+- [x] [Review][Patch] (low) The `test-storage.sh` header names `Ens.Request` and `Ens.Response` as extents, though they share `Ens.MessageBody`'s, and leaves out `Ens.StreamContainer`'s own [docker/tests/test-storage.sh:7]
+- [x] [Review][Patch] (low) The step's class comment says recovery "keeps its queued messages as Suspended". In fact `RecoverProduction` puts messages that were in progress back on their queues, keeps the asynchronous queues for the next start, marks queued synchronous messages Suspended and discards private-queue messages (Director.cls L392–452) [src/ocutalon/cls/OcuTalon/Install/Step/Production.cls:13]
+- [x] [Review][Patch] (low) `Accessor.ClassFor` and `AgentRunner.ResolveModel` say an empty production is "the active production", but `GetActiveProductionName` falls back to the suspended production, then the last one used (Director.cls L1666) [src/bridge/cls/OcuTalon/Bridge/Ext/Accessor.cls:13]
+- [x] [Review][Patch] (low) `Test.Install.Production`'s header says it writes one System Default Setting row, but `TestRunnerModels` also compiles a fixture production and writes and deletes a row of its own [src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:3]
+- [x] [Review][Patch] (low) The item-name parse takes the class name when `ClassName=` comes before `Name=` (`Name="` matches inside `ClassName="`) [src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:78]
+- [x] [Review][Patch] (low) Two assertions cannot fail: `$ListLength(keys) = 3`, and `checked = Items.Count()` from a loop with no exit (Rule 19) [src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls:30]
+- [x] [Review][Patch] (low) `TestSqlNames`' comment says it leaves out the process tables, but its filter leaves out every compiler-generated class [src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls:65]
+- [x] [Review][Patch] (low) `UnresolvedRunners` returns "" (all resolved) when the production's definition cannot be opened, so the step's model check fails open [src/ocutalon/cls/OcuTalon/Install/Step/Production.cls:115]
+- [x] [Review][Patch] (low) No test calls `ResolveModel` without a production, which is the form Story 1.2 will call [src/bridge/cls/OcuTalon/Bridge/Operation/AgentRunner.cls:26]
+- [x] [Review][Patch] (low) Row 16's "OutcomeRouter ... routes nothing" has no assertion: a rule that forwards would leave the check green [docker/tests/test-production.sh:92]
+
+Rejected:
+- `false` ECH: an enabled item with a pool that never gets a job (InProc, a schedule) makes the step fail. No item of the production is such an item, and the step fails loudly.
+- `false` ECH: `Submit` lets a caller with no context claim origin `tool`. That origin grants the least: AD-1's `CommandsIn` accepts only a safe subset from `tool`, and AD-1's governance test submits with `tool` on purpose.
+- `false` ECH: `Submit` rewrites the origin when the send fails. The origin it sets is the validated one, and the comment promises "keeps its origin" only for a refusal.
+- `false` AA: the two QA classes are untracked. Committing them is the lead's step, not a defect.
+- `low` BH: `ResolveModel` ignores `AgentClass` when `Model` is set, and the stub adapter skips AI Hub's `AgentClass` check. The Tasks define `ResolveModel` exactly this way, and the adapter's start refusals, including the `AgentClass` allow-list (AD-6), are Story 1.2's (the Never list).
+- `low` BH: the row 5 scan misses direct reads of `^OcuTalonP.` and `^OcuTalonTest` globals. AD-2's rule is about package references, the Conventions forbid reading globals directly, and no bridge code does it. Story 0.7 owns the CI boundary check.
+- `low` BH: `NotRunning` reports a failed job query as "every item down". It fails loudly, and no failing `Ens.Job:Enumerate` was shown.
+- `low` ECH: a job that is `registered` while `OnInit` runs counts as alive. This was already rejected at the implement review on Task 0's measurement: `Ens.MonitorService` stays `registered`.
+- `low` ECH: a pool above 1 counts as running with one live job. The Tasks define "runs" as "an Alive job", and no item in the table has a pool above 1.
+- `low` ECH: a subclass of `AgentRunner` escapes the model check. Already rejected: the Tasks name the class, and no subclass exists.
+- `low` ECH: a more specific `EvalIn` `Enabled` row would override the switch. Such a row exists only if someone makes it by hand, and the guard would add a branch.
+- `low` ECH: `Context.Put` can clear the taint. Already ruled (Change Log): Story 1.2 owns taint. Reopen if 1.2 finds a tool path that clears `Tainted`.
+- `low` ECH: a context left by an error between `Begin` and `End` makes a later `Submit` in that job use `tool`. Nothing in this story calls `Begin` outside tests, the stale context fails toward the most restricted origin, and Story 1.2's runner owns the `Begin`/`End` pairing.
+- `low` ECH: four starts share `lib-live`'s 540 s deadline. That deadline is the design since Story 0.2, the measured run took 81 s, and an overrun ends red.
+- `low` ECH: the row 5 scan flags a comment written as `#;`, `;` or `/* */`, and misses an upper-case schema name. The false positive fails loudly, and the missed case is unlikely. The CI boundary check is Story 0.7's.
+- `low` ECH: `test-storage.sh` has no root for other persistent `Ens` bases such as `EnsLib.MsgRouter.RoutingEngine`. No class under `src/` extends one.
+- `low` ECH: the scripts' "ends within about 9 minutes" claim. The waits do end at the deadline, and the same header has been in eight `lib-live` scripts since Story 0.2.
+- `low` AA: `ProductionRules.LaneOfClass` puts all of `OcuTalon.Data.` in Lane B. No item class is in `OcuTalon.Data`, and the helper is private.
+- `low` VG: slot A tests leave `Ens.Director` error rows in `Ens_Util.Log`: 97 today, one for each accepted `Submit`, whose send fails with no production running. No test reads them, and cleaning them up would mean deleting event-log rows on a shared slot. Reopen if a slot A test counts Type 2 rows outside the `OcuTalon.*` source classes.
+- `reject` VG: the QA classes are missing from the spec's `(loop)` list and AC1. The fix would edit the spec under review. Rule 8 discoverability holds (they are in `OcuTalon.Test.Install` and `OcuTalon.Test.Core`), and this review runs both and records the results.
+- `reject` VG: rows 14, 15, 16 and 18 have no `mutation:` line of their own. Rule 19 asks for one pinning mutation per AC, and AC3 has seven. The checks this review adds record their own.
+
 ## Spec Change Log
 
 Implement stage, October 19. No change to the intent contract. Each ruling below is one the contract could not settle or got wrong; none touches an AD.
@@ -761,6 +826,87 @@ Each was applied, loaded on slot A or built into a throwaway, run, and reverted 
 - mutation: the recursion of `process()` removed -> `test-storage.sh` `FAIL controls`, with `registry-param` naming `Core/SubProc.cls` (AC2, row 12).
 - mutation: `Start` falls through to `RestartProduction` when another production runs -> `test-production.sh` red at "another production: the step fails naming it and leaves it running" (`start-refused` 1|0), every other check green (AC3).
 - mutation: the `docker kill` of row 20 replaced by `true` -> `test-production-restart.sh` `FAIL row 20: the container did not start again after the kill` (AC4).
+
+### QA pass, October 19
+
+Tests added (QA):
+- `src/ocutalon/cls/OcuTalon/Test/Install/ProductionRules.cls` (QA, slot A): row 1 from the spine and not from the item oracle. One XData block; each item's region equals the lane that AD-29's package split gives its class (the Workflow operation and the two routers by the ownership table; a router by the package of its rule class, a runner by the package of its agent class); exactly `EvalIn`, `TelegramIn` and `TelegramOut` are disabled; an adapterless service has pool 0 and every other item a pool of at least 1; the two routers are routing engines whose rule classes extend `Ens.Rule.Definition` with the routing `RuleAssistClass`. Read-only: nothing is written.
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsContext.cls` (QA, slot A): row 8 across processes. While this process holds a context, a second job with none submits with the origin it names, a job with its own context submits with `tool`, and once it ends that context it submits with the origin it names again (an origin outside the enumeration is refused there); `Submit` leaves the context, its taint and its host data as it found them, for an accepted and a refused call. The child job reports through `^OcuTalonTest("CommandsContext",n,...)`, deleted afterwards; the counter is never reset.
+
+Tests changed (QA):
+- `docker/tests/lib-live.sh`: `check_no_key` (the iris container's environment holds no `ANTHROPIC_API_KEY` and no `TELEGRAM_BOT_TOKEN`; a count is printed, never a value) and `check_clean_start` (no Type 2 or 6 row in `Ens_Util.Log`, called before anything that fails on purpose).
+- `docker/tests/test-production.sh`: row 14 runs both helpers first; row 16 adds a sweep of every enabled stub with a pool (22, counted from `Test.Install.Production.Items()`): each answers `#5003: Not implemented` with no response, and keeps the job it had.
+- `docker/tests/test-production-restart.sh`: the first start runs both helpers; row 20 asserts that `^Ens.Suspended` is empty before the kill and names `OcuTalon.Production` after the next start.
+
+Checked, no test change: the oracle `XData Items` and `OcuTalon.Production` equal the spine's Production items table (L1004-1027) on all 38 names, classes, lanes and the three disabled items. The routers differ in form only: the spine lists the rule classes, the definition names them through `BusinessRuleName` (AD-29, October 19).
+
+Measured on build 154 (throwaway, Health image, no key):
+- A first start, a graceful restart and a kill each left `Ens_Util.Log` with no Type 2, 3 or 6 row, in every run (the three explorations and the runs of the new checks); the checks assert Types 2 and 6 only, so that a slow host that logs a warning does not fail them.
+- After `docker kill -s KILL` the state before the step is Troubled (4, `OcuTalon.Production`), in the normal after-start flow too: a copy of the step that recorded what it found saw `found|OcuTalon.Production|4`, then `RecoverProduction` returned OK, on two kills in a row. So row 20 exercises the Troubled branch (no longer an inference).
+- `RecoverProduction` leaves `^Ens.Suspended` holding the production's name; a clean stop leaves it empty (first start, graceful restart and recreate: empty), and `CleanProduction` kills it (Director.cls L1441).
+- `Job` from a test method starts in about 2 ms. The `duration` field of `iris_execute_tests` is in milliseconds.
+- Row 23 again: the export of all 190 classes of `OcuTalon` (188 and the two QA classes) equals the tree byte for byte.
+
+Mutations (Rule 19), QA pass:
+- mutation: `WebChatIn` and `WebChatOut` moved into lane A's region, and the oracle's lane for both set to A -> `Test.Install.ProductionRules.TestLanesFollowThePackageSplit` red ("WebChatIn sits in the region of lane B"); `Test.Install.Production` stays green, which is the case the new test exists for (AC1, row 1).
+- mutation: `Submit` ends the context after it sets the origin -> `Test.Core.CommandsContext.TestSubmitLeavesTheContext` red (AC1, row 8).
+- mutation: `Ens.StreamContainer` dropped from the roots of `test-storage.sh` -> `FAIL storage: the checker does not flag the sample no-storage-stream` (AC2, row 12).
+- mutation: `env_file: !reset []` removed from `compose.throwaway.yml`, so the decoy key reaches the container -> `test-production.sh` `FAIL row 14: the container holds '2' key variable(s)`, every other check green (AC3, the no-key start).
+- mutation: `OcuTalon.Watch.Ops.OnMessage` answers OK -> `test-production.sh` `FAIL row 16: every enabled stub with a pool (22) ...` naming `WatchOps` (`CHK|sweep|22|bad=WatchOps`); the four-target check of row 16 stays green (AC3, row 16).
+- mutation: the Troubled branch of `Start` calls `CleanProduction(0)` instead of `RecoverProduction()` -> `test-production-restart.sh` `FAIL row 20: the step recovered the Troubled production, and did not clean it` (wanted `OcuTalon.Production`, got empty); `STEP Production OK`, Running and the job check stay green (AC4, row 20).
+- mutation: a `Decide` method that calls `##class(OcuTalon.Core.BridgeSink).OnEvent(...)` -> `test-install-start.sh` `FAIL row 5: code under src/bridge/ names an OcuTalon package other than the bridge's own`; the load and `other-classes` checks stay green (AC5).
+- mutation: the third slot removed from `Decide`'s storage block -> after load and compile on slot A the export differs from the mutated file (the compiler adds lines 37-39 back) and equals the committed one (AC6, row 23).
+
+Every mutation was applied, run and reverted from a saved copy; the hash of `git status --short` plus every unignored file under `src/` and `docker/` was identical before and after each one.
+
+Results (QA pass): both trees load and compile with 0 errors (33 and 155 classes, then the two QA classes). The 16 `%UnitTest` classes pass one per call: `Test.Install.Production` 4, `Test.Install.ProductionRules` 5, `Test.Bridge.Ext` 3, `Test.Bridge.Api` 4, `Test.Agent.Constants` 3, `Test.Core.Commands` 4, `Test.Core.CommandsContext` 2, `Test.Contract.Ac` 6, `Test.Contract.Checker` 5, `Test.Install.Registry` 11, `Test.Install.PrivateData` 5, `Test.Data.Tables` 5, `Test.Msg.Contracts` 6, `Test.Bridge.Contracts` 5, `Test.Live.Payloads` 4, `Test.Data.Session` 3. `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-build-inputs.sh` and `test-lib-live.sh` exit 0. `test-production.sh` (Health 73 s, and `iris-community:2026.3.0AI.154.0` 49 s) and `test-production-restart.sh` (81 s) pass, no project left. Slot A is left as found: no `Zz` class, no System Default Setting row, `LastProduction` `OCUTALONPKG.FoundationProduction`, `^Ens.AutoStart` and `^Ens.Suspended` empty, no child entry under `^OcuTalonTest` (only the counters).
+
+Shared surfaces added: the counter `^OcuTalonTest("CommandsContext","n")`; `^Ens.Suspended` (read only, throwaways).
+
+### Code review, October 19
+
+Patches applied in the review (see `### Review Findings`).
+- Lane B's oracle rows now live in the new `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`, and `Test.Install.Production.Items()` merges both lanes' rows. The counts in `TestDefinition`, `check_items_run` and row 18 come from the oracle, and `ProductionRules.TestDisabledItems` names the three items that stay disabled.
+- `Channel.Telegram.In` carries `STUB` and answers "not implemented".
+- `test-production.sh` gains four checks:
+  - a runner with no model;
+  - Troubled or Suspended under another name, and Suspended under this name;
+  - `ResolveModel` with no production;
+  - `OutcomeRouter` sends nothing on.
+- `UnresolvedRunners` now fails closed on a definition it cannot open.
+- `TestRefusals` ends any context first.
+- Comment corrections, the item-name parse, and the deletion of two assertions that could not fail.
+
+Results:
+- Slot A (build 154, port 52790, profile `ocutalon-slot-a`): both trees load and compile with 0 errors (33 and 158 classes).
+- `%UnitTest`, one class per call, 0 failed: `Test.Install.Production` 4, `Test.Install.ProductionRules` 5, `Test.Agent.Constants` 3, `Test.Core.Commands` 4, `Test.Core.CommandsContext` 2, `Test.Data.Tables` 5, `Test.Msg.Contracts` 6, `Test.Contract.Ac` 6, `Test.Bridge.Ext` 3.
+- Slot A is left as found:
+  - no `Zz` class, and no System Default Setting row;
+  - `LastProduction` is `OCUTALONPKG.FoundationProduction`, `^Ens.AutoStart` is empty and `^Ens.Suspended` is undefined.
+  - Under `^OcuTalonTest` there is only `("ContractChecker","orphan") = 1`, which this review did not create and no class under `src/` writes; it is left in place.
+- Shell, exit 0: `test-storage.sh`, `test-boundaries.sh`, `test-lib-live.sh`, `test-compose-file.sh`, `test-build-inputs.sh`. The row 5 bridge scan, run locally, flags nothing across 33 classes.
+- Live, one throwaway at a time, each torn down by its trap, none left, exit 0:
+  - `test-production.sh`: 21 checks, 80 s;
+  - `test-production-restart.sh`: 15 checks, 75 s.
+- Measured on build 154 (throwaway): after the fixture production `ZzOther.Production` stops cleanly, `^Ens.Suspended` is still set (`$Data` 11), so the namespace reports Suspended. The new block removes it before it fakes each state.
+
+Mutations (Rule 19), code review pass. Each was applied, run and reverted. The slot A group was reverted from saved copies; the live group was reverted by exact inverse replacement. For both, the hash of `git status --short` plus every unignored file under `src/` and `docker/` was identical before and after.
+
+The four slot A mutations were applied together and run one class per call. Each turned a different assertion red.
+- mutation: `Test.Install.Production.Items()` without lane B's rows -> `TestDefinition` red ("the XData holds as many items as the oracle: 18") (AC1, row 1).
+- mutation: `TelegramOut` enabled in the definition -> `Test.Install.ProductionRules.TestDisabledItems` red ("TelegramIn, TelegramOut and EvalIn are disabled") (AC1, row 1).
+- mutation: `Parameter STUB` removed from `Channel.Telegram.In` -> `TestStubsAnswer` red ("TelegramIn: OcuTalon.Channel.Telegram.In carries STUB") (AC1, row 3).
+- mutation: `UnresolvedRunners` returns "" for a definition it cannot open -> `TestRunnerModels` red ("a production whose definition cannot be opened is not reported as resolved") (AC1, row 4).
+
+The six live mutations were built into one throwaway together. Each turned its own check red, and every other check stayed green except those that read the emptied oracle.
+- mutation: `Start` without its `UnresolvedRunners` check -> `test-production.sh` "the step fails naming a runner that resolves no model" red (AC3).
+- mutation: `Start` without the Troubled-under-another-name guard -> `troubled-other` red. The step recovered the faked production, and nothing reported it as another production (AC3).
+- mutation: `Suspended` dropped from `Start`'s Stopped branch -> `suspended-other` and `suspended-this` red (AC3).
+- mutation: `ResolveModel` without its active-production default -> row 15 red (`CHK|model|TriageAgent|`) (AC3).
+- mutation: `Core.Rule.Outcome` sends every message to `SessionOps` -> row 16 red (`router-sent` 1) (AC3).
+- mutation: the oracle empty (`Items()` returns `[]`) -> red at row 14 and at row 21's job check (`CHK|scanned|0`), and at the row 16 sweep ("0 stubs were tried") and row 18 ("0 items with a pool") (AC3).
+
+Shared surfaces changed: the item oracle is now split across `Test.Install.Production` (lane A) and `Test.Core.ProductionItems` (lane B), and no test holds a literal item count. The director's state globals `^Ens.Runtime` and `^Ens.Suspended` are faked in the throwaway only, and each fake is removed.
 
 ## Auto Run Result
 

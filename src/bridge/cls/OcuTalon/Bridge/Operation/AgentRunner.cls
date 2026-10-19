@@ -19,8 +19,9 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 
 /// The model that the runner item uses (AD-7): the Model setting of its adapter, on the item or in the System Default
 /// Settings; when that is empty, the MODEL parameter of the AgentClass setting if that class extends %AI.Agent;
-/// otherwise "". An empty production is the active production of the namespace. Reads the production definition, so no
-/// production needs to be running when the production is named, and calls nothing in AI Hub.
+/// otherwise "". An empty production is Ens.Director's active production: the running production, else the suspended
+/// one, else the last one used in the namespace. Reads the production definition, so no production needs to be running
+/// when the production is named, and calls nothing in AI Hub.
 ClassMethod ResolveModel(item As %String, production As %String = "") As %String
 {
 	If production = "" Set production = ##class(Ens.Director).GetActiveProductionName()

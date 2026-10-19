@@ -63,8 +63,8 @@ Method TestEveryTableIsRegistered()
 }
 
 /// No persistent OcuTalon class outside OcuTalon.Test projects an SQL reserved word as its table or a field. The classes
-/// that the compiler generates for a business process (its MessagesSent and MessagesReceived tables) are not opened by name
-/// and are left out; the process class itself is checked.
+/// that the compiler generates (GeneratedBy set, such as a business process's MessagesSent and MessagesReceived tables)
+/// are not opened by name and are left out; the class that generates them is checked.
 Method TestSqlNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()

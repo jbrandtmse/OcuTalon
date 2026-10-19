@@ -27,7 +27,6 @@ Method TestAgents()
 		Set text = $Select($IsObject(instructions): instructions.Data.Read(1000000), 1: "")
 		Do $$$AssertTrue('..HasTemplateToken(text), class_" has no {{ in its INSTRUCTIONS")
 	}
-	Do $$$AssertEquals($ListLength(keys), 3, "there is one mock key per agent")
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 

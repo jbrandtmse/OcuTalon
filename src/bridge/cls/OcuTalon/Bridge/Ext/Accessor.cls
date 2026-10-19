@@ -10,7 +10,8 @@ Parameter BASES = "HostSinkClass=OcuTalon.Bridge.Ext.HostSink,ReplyFilterClass=O
 
 /// The class that the setting names on the item of the production, or "" with an error in sc.
 /// The setting is read from the production definition and the System Default Settings, so no production needs to
-/// be running when the production is named. An empty production is the active production of the namespace.
+/// be running when the production is named. An empty production is Ens.Director's active production: the running
+/// production, else the suspended one, else the last one used in the namespace.
 /// The class is returned only when Check(setting, class) passes.
 ClassMethod ClassFor(setting As %String, production As %String = "", item As %String = "Decide", Output sc As %Status) As %String
 {

@@ -3,20 +3,27 @@
 # compose project with the after-start script active and no model key, then checks
 #   - row 13, the first start: the log lists STEP Production OK and ends with RESULT OK, Docker reports healthy, the
 #     production OcuTalon.Production is Running, and it is not the autostart production (AD-3);
-#   - row 14, the items: each of the 25 enabled items with a pool has an Alive job that is not in error, the 10 enabled
-#     adapterless services have no job and answer CreateBusinessService, TelegramIn, TelegramOut and EvalIn have no job,
+#   - row 14, the items: the container holds no model key and the start wrote no error or alert to the event log; each
+#     enabled item with a pool in the item oracle (OcuTalon.Test.Install.Production, Items) has an Alive job that is not in
+#     error, each enabled adapterless service has no job and answers CreateBusinessService, each disabled item has no job,
 #     and CreateBusinessService("EvalIn") is refused as disabled;
-#   - row 15, the accessor outside Decide: a terminal session reads the three extension classes from the active production;
+#   - row 15, outside Decide: a terminal session reads the three extension classes and a runner's model from the active
+#     production;
 #   - row 16, the stubs over the running production: a created CommandsIn service sends to SessionOps, Conversation,
 #     TriageAgent and OutcomeRouter. The operations answer code 5003, the process answers that it terminated because of
-#     5003, the router answers OK with nothing, and every target keeps the job it had;
+#     5003, the router answers OK with nothing and sends nothing on, and every target keeps the job it had; then the same
+#     for every enabled stub with a pool, so that no stub kills its job on a request;
 #   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context;
 #     an origin outside the enumeration is refused naming it; CommandsIn logs its error;
 #   - row 18, the Running branch: the Production step run on the running production starts every item with a pool again;
 #   - row 21, an item that cannot start: with a WatchOps whose OnInit fails the step fails naming WatchOps, and with the
 #     original class back it succeeds and WatchOps runs;
+#   - a runner with no model: with an agent class that has no MODEL the step fails naming the runner, and with the original
+#     class back it succeeds;
 #   - another production: with OcuTalon.Production stopped and a fixture production running, the step fails naming the
-#     fixture and leaves it running.
+#     fixture and leaves it running; with a production Troubled or Suspended under another name it fails naming it and
+#     recovers or starts nothing; with OcuTalon.Production Suspended it starts it. The Troubled and Suspended states are
+#     made by setting the director's state globals in the throwaway, and each is removed afterwards.
 # The project is unique, publishes no host port and receives no keys: the start is the no-key start of AD-23. An EXIT trap
 # removes the project with its volume and images. Every wait ends by an overall deadline, so even a failing run ends within
 # about 9 minutes.
@@ -67,6 +74,8 @@ CHK|autostart|" \
 
 # --- row 14: the items run ---
 
+check_no_key "row 14"
+check_clean_start "row 14"
 check_items_run "row 14"
 check_session "row 14: CreateBusinessService refuses EvalIn as disabled" OCUTALON \
   "CHK|evalin-refused|1|1" \
@@ -75,11 +84,13 @@ check_session "row 14: CreateBusinessService refuses EvalIn as disabled" OCUTALO
 
 # --- row 15: the accessor outside Decide ---
 
-check_session "row 15: a terminal session reads the extension classes of the active production" OCUTALON \
+check_session "row 15: a terminal session reads the extension classes and a runner's model from the active production" OCUTALON \
   "CHK|HostSinkClass|OcuTalon.Core.BridgeSink|1
 CHK|ReplyFilterClass|OcuTalon.Checks.ReplyGuard|1
-CHK|ClassificationClass|OcuTalon.Bridge.Ext.Classification|1" \
+CHK|ClassificationClass|OcuTalon.Bridge.Ext.Classification|1
+CHK|model|TriageAgent|claude-haiku-5-5" \
   'For s="HostSinkClass","ReplyFilterClass","ClassificationClass" { Set c=##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(s,,,.sc) Write !,"CHK|",s,"|",c,"|",$SYSTEM.Status.IsOK(sc) }' \
+  'Write !,"CHK|model|TriageAgent|",##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgent")' \
   'Halt'
 
 # --- row 16: the stubs over the running production ---
@@ -89,9 +100,15 @@ check_session "row 16: the stubs answer 'not implemented', and the router answer
   "CHK|sync|SessionOps|0|5003|1|0
 CHK|sync|Conversation|0|<Ens>ErrBPTerminated|1|0
 CHK|sync|TriageAgent|0|5003|1|0
-CHK|sync|OutcomeRouter|1||0|0" \
+CHK|sync|OutcomeRouter|1||0|0
+CHK|router-received|1
+CHK|router-sent|0" \
+  'Set q="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ?",q2="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName <> ?"' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,q,"CommandsIn","OutcomeRouter") Do rs.%Next() Set in0=rs.%GetData(1) Set rs=##class(%SQL.Statement).%ExecDirect(,q2,"OutcomeRouter","CommandsIn") Do rs.%Next() Set out0=rs.%GetData(1)' \
   'Set sc=##class(Ens.Director).CreateBusinessService("CommandsIn",.svc)' \
   'For t="SessionOps","Conversation","TriageAgent","OutcomeRouter" { Set req=##class(Ens.StringRequest).%New("x") Kill resp Set sc=svc.SendRequestSync(t,req,.resp,10) Write !,"CHK|sync|",t,"|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorCodes(sc),"|",($SYSTEM.Status.GetErrorText(sc)["#5003: Not implemented"),"|",$IsObject($Get(resp)) }' \
+  'Hang 2 Set rs=##class(%SQL.Statement).%ExecDirect(,q,"CommandsIn","OutcomeRouter") Do rs.%Next() Write !,"CHK|router-received|",(rs.%GetData(1)>in0)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,q2,"OutcomeRouter","CommandsIn") Do rs.%Next() Write !,"CHK|router-sent|",(rs.%GetData(1)-out0)' \
   'Halt'
 item_jobs "$tmp/jobs.16.after"
 targets='^(SessionOps|Conversation|TriageAgent|OutcomeRouter)'
@@ -102,6 +119,36 @@ else
   grep -E "$targets" "$tmp/jobs.16.before" | sed 's/^/  before: /'
   grep -E "$targets" "$tmp/jobs.16.after" | sed 's/^/  after:  /'
   fail "row 16: a target lost its job, or got a new one"
+fi
+
+# --- row 16, every stub with a pool ---
+
+iris_script OCUTALON > "$tmp/stubs.chk" <<'EOS'
+Set it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator() While it.%GetNext(,.x) { If x.stub,x.pool,x.enabled { Write !,"CHK|stub|",x.name } }
+Halt
+EOS
+sed -n 's/^CHK|stub|//p' "$tmp/stubs.chk" > "$tmp/stubs.names"
+stub_count=$(grep -c . "$tmp/stubs.names")
+item_jobs "$tmp/jobs.16s.before"
+check_session "row 16: every enabled stub with a pool ($stub_count) answers 'not implemented' and sends no response" OCUTALON \
+  "CHK|sweep|$stub_count|bad=" \
+  'Set sc=##class(Ens.Director).CreateBusinessService("CommandsIn",.svc)' \
+  'Set n=0,bad="" Set it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator()' \
+  'While it.%GetNext(,.x) { If x.stub,x.pool,x.enabled { Set n=n+1 Kill resp Set req=##class(Ens.StringRequest).%New("x") Set sc=svc.SendRequestSync(x.name,req,.resp,10) If $SYSTEM.Status.IsOK(sc)||($Find($SYSTEM.Status.GetErrorText(sc),"#5003: Not implemented")=0)||$IsObject($Get(resp)) { Set bad=bad_" "_x.name } } }' \
+  'Write !,"CHK|sweep|",n,"|bad=",$ZStrip(bad,"<W")' \
+  'Halt'
+item_jobs "$tmp/jobs.16s.after"
+moved=""
+while IFS= read -r name; do
+  [ -n "$name" ] || continue
+  before=$(awk -F'\t' -v n="$name" '$1 == n { print $2 }' "$tmp/jobs.16s.before")
+  after=$(awk -F'\t' -v n="$name" '$1 == n { print $2 }' "$tmp/jobs.16s.after")
+  if [ -z "$before" ] || [ "$before" != "$after" ]; then moved="$moved $name"; fi
+done < "$tmp/stubs.names"
+if [ "$stub_count" -gt 0 ] && [ -z "$moved" ]; then
+  pass "row 16: each of the $stub_count stubs keeps the job it had"
+else
+  fail "row 16: $stub_count stubs were tried; no job, or a different job, for:$moved"
 fi
 
 # --- row 17: Submit, live ---
@@ -143,7 +190,7 @@ while IFS= read -r name; do
     stale="$stale $name"
   fi
 done < "$tmp/pooled.names"
-if [ "$count" = 25 ] && [ -z "$stale" ]; then
+if [ "$count" -gt 0 ] && [ -z "$stale" ]; then
   pass "row 18: each of the $count items with a pool has new job ids"
 else
   fail "row 18: $count items with a pool were compared; no new job ids for:$stale"
@@ -184,6 +231,28 @@ CHK|watchops-runs|1" \
   'Halt'
 check_items_run "row 21: after the restore"
 
+# --- a runner that resolves no model ---
+
+cat > "$tmp/TriageNoModel.cls" <<'EOC'
+Class OcuTalon.Agent.Triage Extends %AI.Agent
+{
+
+Parameter MOCKKEY = "triage";
+
+}
+EOC
+dc exec -T iris sh -c 'cat > /tmp/TriageNoModel.cls' < "$tmp/TriageNoModel.cls"
+check_session "the step fails naming a runner that resolves no model, and succeeds once it resolves one" OCUTALON \
+  "CHK|fixture|1
+CHK|start-unresolved|1|1
+CHK|restored|1
+CHK|start-ok|1" \
+  'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/TriageNoModel.cls","ck-d")' \
+  'Set sc=##class(OcuTalon.Install.Step.Production).Start(15) Write !,"CHK|start-unresolved|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["resolve no model: TriageAgent")' \
+  'Write !,"CHK|restored|",$SYSTEM.OBJ.Load("/opt/ocutalon/src/ocutalon/cls/OcuTalon/Agent/Triage.cls","ck-d")' \
+  'Set sc=##class(OcuTalon.Install.Step.Production).Start(30) Write !,"CHK|start-ok|",$SYSTEM.Status.IsOK(sc)' \
+  'Halt'
+
 # --- another production is left alone ---
 
 cat > "$tmp/ZzOther.cls" <<'EOC'
@@ -213,6 +282,20 @@ CHK|other-stopped|1" \
   'Set sc=##class(OcuTalon.Install.Step.Production).Start(15) Write !,"CHK|start-refused|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["ZzOther.Production")' \
   'Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|other-state|",n,"|",s' \
   'Set sc=##class(Ens.Director).StopProduction(30) Write !,"CHK|other-stopped|",$SYSTEM.Status.IsOK(sc)' \
+  'Halt'
+
+# The director reports Troubled when ^Ens.Runtime is left without running jobs, and Suspended when only ^Ens.Suspended is
+# set (Ens.Director GetProductionStatus). The fixture's stop leaves ^Ens.Suspended set (measured on build 154), so the block
+# first removes it and checks that the namespace is Stopped; each fake is removed after its check.
+check_session "another production, Troubled or Suspended: the step fails naming it and recovers nothing; this one Suspended: it starts" OCUTALON \
+  "CHK|clean|2|0|0
+CHK|troubled-other|4|ZzOther.Production|1|1|0|ZzOther.Production
+CHK|suspended-other|3|ZzOther.Production|1|1|0|ZzOther.Production
+CHK|suspended-this|3|1||1" \
+  'Kill ^Ens.Suspended Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|clean|",s,"|",$Data(^Ens.Runtime),"|",$Data(^Ens.Suspended)' \
+  'Set ^Ens.Runtime("Name")="ZzOther.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(15) Set t=$SYSTEM.Status.GetErrorText(st) Write !,"CHK|troubled-other|",s,"|",n,"|",$SYSTEM.Status.IsError(st),"|",((t["ZzOther.Production")&&(t["stops no other production")),"|",$Data(^Ens.Suspended),"|",$Get(^Ens.Runtime("Name")) Kill ^Ens.Runtime,^Ens.Suspended' \
+  'Set ^Ens.Suspended="ZzOther.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(15) Set t=$SYSTEM.Status.GetErrorText(st) Write !,"CHK|suspended-other|",s,"|",n,"|",$SYSTEM.Status.IsError(st),"|",((t["ZzOther.Production")&&(t["stops no other production")),"|",##class(Ens.Director).IsProductionRunning(),"|",$Get(^Ens.Suspended) Kill ^Ens.Suspended' \
+  'Set ^Ens.Suspended="OcuTalon.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(30) Write !,"CHK|suspended-this|",s,"|",$SYSTEM.Status.IsOK(st),"|",##class(OcuTalon.Install.Step.Production).NotRunning(),"|",##class(Ens.Director).IsProductionRunning()' \
   'Halt'
 
 if [ "$fails" -ne 0 ]; then

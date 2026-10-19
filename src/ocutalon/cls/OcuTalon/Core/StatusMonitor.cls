@@ -1,4 +1,5 @@
-/// StatusMonitor, the adapterless service that watches the status of OcuTalon for the status rail (AD-14). A stub until Epic 2: it answers "not implemented".
+/// StatusMonitor, the service that watches the status of OcuTalon for the status rail (AD-12, AD-18). A stub until Epic 2:
+/// it has no adapter and no pool yet, and answers "not implemented"; its owner adds the polling adapter.
 Class OcuTalon.Core.StatusMonitor Extends Ens.BusinessService
 {
 

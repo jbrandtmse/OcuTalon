@@ -7,7 +7,11 @@
 #     disabled and the row is 0;
 #   - row 20, an unclean stop: kills the instance with docker kill -s KILL and starts the container again. The next start ends
 #     ready with STEP Production OK, the production is Running again, and every item runs as in the first start (the job
-#     check of test-production.sh, row 14). The kill leaves the production Troubled, and the step recovers it.
+#     check of test-production.sh, row 14). The kill leaves the production Troubled, and the step recovers it: before the
+#     kill ^Ens.Suspended, where RecoverProduction names the production it suspends, is empty, and after the next start it
+#     names OcuTalon.Production (measured on build 154: a clean stop and CleanProduction leave it empty, so a step that
+#     cleans the production instead of recovering it would lose its queued messages and fail this check).
+# The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -62,6 +66,8 @@ if ! wait_started_ready 400; then
 fi
 pass "the first start ended ready"
 check_start "first start"
+check_no_key "first start"
+check_clean_start "first start"
 check_eval "first start, no variable" 0
 
 # --- row 19: OCUTALON_EVAL=1, then without it ---
@@ -93,6 +99,10 @@ check_eval "row 19, no variable" 0
 
 # --- row 20: an unclean stop ---
 
+check_session "row 20: before the kill no production is suspended" OCUTALON \
+  "CHK|suspended|" \
+  'Write !,"CHK|suspended|",$Get(^Ens.Suspended)' \
+  'Halt'
 killed_start=$(started_at)
 docker kill -s KILL "$cid" >/dev/null 2>&1 || die "row 20 the kill failed"
 dc start iris >/dev/null 2>&1
@@ -107,6 +117,10 @@ else
   fail "row 20: the container did not start again after the kill"
 fi
 check_start "row 20"
+check_session "row 20: the step recovered the Troubled production, and did not clean it" OCUTALON \
+  "CHK|suspended|OcuTalon.Production" \
+  'Write !,"CHK|suspended|",$Get(^Ens.Suspended)' \
+  'Halt'
 check_session "row 20: the production is Running again" OCUTALON \
   "CHK|state|OcuTalon.Production|1" \
   'Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|state|",n,"|",s' \

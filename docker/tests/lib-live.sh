@@ -457,17 +457,43 @@ item_jobs() {
 #   - each enabled item with a pool has an Alive job whose status is not error, halted or terminated;
 #   - each enabled adapterless service has no job, and CreateBusinessService succeeds for it;
 #   - each item the definition disables has no job.
-# The counts are those of the ownership table: 25 pooled items, 10 adapterless services and 3 disabled items.
+# The items and their kinds come from the oracle, which each lane keeps for its own items, so no count is written here;
+# the check fails when the oracle names no item with a pool, or when the three kinds do not add up to the oracle.
 check_items_run() {
   check_session "$1: every enabled item runs, the adapterless services answer, the disabled items have no job" OCUTALON \
-    "CHK|pooled|25|missing=
-CHK|adapterless|10|failing=
-CHK|disabled|3|running=" \
+    "CHK|pooled|missing=
+CHK|adapterless|failing=
+CHK|disabled|running=
+CHK|scanned|1" \
     'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { Set any(rs.Get("ConfigName"))=1 If rs.Get("State")="Alive",$ListFind($ListFromString("error,halted,terminated"),rs.Get("Status"))=0 { Set alive(rs.Get("ConfigName"))=1 } }' \
-    'Set (np,ns,nd)=0,(mp,ms,md)="" Set it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator()' \
+    'Set (np,ns,nd)=0,(mp,ms,md)="" Set items=##class(OcuTalon.Test.Install.Production).Items(),it=items.%GetIterator()' \
     'While it.%GetNext(,.x) { Set n=x.name If x.enabled=0 { Set nd=nd+1 If $Data(any(n)) { Set md=md_" "_n } } ElseIf x.pool { Set np=np+1 If $Data(alive(n))=0 { Set mp=mp_" "_n } } Else { Set ns=ns+1 Set sc=##class(Ens.Director).CreateBusinessService(n,.svc) If $SYSTEM.Status.IsError(sc)||$Data(any(n)) { Set ms=ms_" "_n } } }' \
-    'Write !,"CHK|pooled|",np,"|missing=",$ZStrip(mp,"<W")' \
-    'Write !,"CHK|adapterless|",ns,"|failing=",$ZStrip(ms,"<W")' \
-    'Write !,"CHK|disabled|",nd,"|running=",$ZStrip(md,"<W")' \
+    'Write !,"CHK|pooled|missing=",$ZStrip(mp,"<W")' \
+    'Write !,"CHK|adapterless|failing=",$ZStrip(ms,"<W")' \
+    'Write !,"CHK|disabled|running=",$ZStrip(md,"<W")' \
+    'Write !,"CHK|scanned|",((np>0)&&((np+ns+nd)=items.%Size())),!,"CHK|counts|",np,"|",ns,"|",nd' \
     'Halt'
+}
+
+# check_no_key <label>: the iris container's environment holds no model key and no bot token. A start that succeeds in it is
+# a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a count is printed.
+check_no_key() {
+  local n
+  n=$(dc exec -T iris sh -c 'env | grep -c "^ANTHROPIC_API_KEY=\|^TELEGRAM_BOT_TOKEN="' 2>/dev/null | tr -d '\r')
+  if [ "$n" = 0 ]; then
+    pass "$1: the container holds no model key and no bot token"
+  else
+    fail "$1: the container holds '$n' key variable(s), so a start in it is not a start with no key"
+  fi
+}
+
+# check_clean_start <label>: the event log holds no error and no alert (Type 2 or 6). Call it right after a start and before
+# any check that makes a host or a director call fail on purpose, because those write error rows.
+check_clean_start() {
+  check_session "$1: the start wrote no error and no alert to the event log" OCUTALON \
+    "CHK|errors|0" \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE Type IN (2,6)") Do rs.%Next() Write !,"CHK|errors|",rs.%GetData(1)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 3 ConfigName,SUBSTRING(Text,1,120) FROM Ens_Util.Log WHERE Type IN (2,6) ORDER BY ID") While rs.%Next() { Write !,"CHK|row|",rs.%GetData(1),"|",rs.%GetData(2) }' \
+    'Halt'
+  grep -qx 'CHK|errors|0' "$tmp/actual.chk" || sed -n 's/^CHK|row|/  event log: /p' "$tmp/actual.chk"
 }

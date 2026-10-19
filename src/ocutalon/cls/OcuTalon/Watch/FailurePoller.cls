@@ -1,4 +1,5 @@
-/// FailurePoller, the adapterless service that picks up new failures of the watched production (AD-15). A stub until Epic 5: it answers "not implemented".
+/// FailurePoller, the service that picks up new failures of the watched production (AD-15). A stub until Epic 5: it has no
+/// adapter and no pool yet, and answers "not implemented"; its owner adds the polling adapter.
 Class OcuTalon.Watch.FailurePoller Extends Ens.BusinessService
 {
 

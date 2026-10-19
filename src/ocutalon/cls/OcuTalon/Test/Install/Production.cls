@@ -1,9 +1,12 @@
 /// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5). Nothing here
-/// starts, stops or updates a production: the tests compile nothing but their own fixture production, read the
-/// definition of OcuTalon.Production, call the stub handlers of shadow instances, and write the one System Default
-/// Setting row of the EvalIn switch, which the last test restores.
-///   - TestDefinition: the compiled XData holds exactly the 38 items of XData Items (the oracle, a copy of the ownership
-///     table), each between the markers of its lane, with the four markers once each in order and no item outside a region;
+/// starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
+/// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
+/// fixture production of their own with one System Default Setting row of its own, both deleted afterwards.
+/// The oracle is a copy of the ownership table, split by lane so that each lane edits only its own rows (AD-29, AD-33):
+/// lane A's rows are XData Items below, lane B's are in OcuTalon.Test.Core.ProductionItems, and Items() returns both in
+/// the order of the production. The counts the tests use come from the oracle.
+///   - TestDefinition: the compiled XData holds exactly the items of the oracle, each between the markers of its lane,
+///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule;
 ///   - TestRunnerModels: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, and
@@ -58,6 +61,17 @@ Method OnAfterAllTests() As %Status
 /// region. The production does not enable testing.
 Method TestDefinition()
 {
+	Set oracle = ..Items()
+	For lane = "A", "B" {
+		Set rows = $Case(lane, "A": ..Read("Items"), : ##class(OcuTalon.Test.Core.ProductionItems).Items())
+		Do $$$AssertTrue(rows.%Size() > 0, "the oracle holds rows of lane "_lane)
+		Set others = ""
+		Set iterator = rows.%GetIterator()
+		While iterator.%GetNext(, .row) {
+			If row.lane '= lane Set others = others _ " " _ row.name
+		}
+		Do $$$AssertEquals(others, "", "every row in lane "_lane_"'s part of the oracle names lane "_lane)
+	}
 	Set text = ..DefinitionText()
 	Do $$$AssertTrue(text '= "", "the ProductionDefinition block is read")
 	Set markers = $ListBuild("<!-- lane A: begin -->", "<!-- lane A: end -->", "<!-- lane B: begin -->", "<!-- lane B: end -->")
@@ -75,22 +89,20 @@ Method TestDefinition()
 		}
 		If $Extract(line, 1, 6) = "<Item " {
 			Set items = items + 1
-			Set name = $Piece($Piece(line, "Name=""", 2), """", 1)
+			Set name = $Piece($Piece(line, " Name=""", 2), """", 1)
 			If lane = "" Set outside = outside _ " " _ name
 			Set laneOf(name) = lane
 		}
 	}
 	Do $$$AssertEquals(order, "1234", "the four lane markers appear once each, in the order A begin, A end, B begin, B end")
 	Do $$$AssertEquals(outside, "", "no item sits outside a lane region")
-	Do $$$AssertEquals(items, 38, "the XData holds 38 items")
+	Do $$$AssertEquals(items, oracle.%Size(), "the XData holds as many items as the oracle: "_oracle.%Size())
 
 	Set production = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
 	Do $$$AssertTrue($IsObject(production), "the compiled production exists")
 	If '$IsObject(production) Quit
 	Do $$$AssertEquals(production.TestingEnabled, 0, "testing is not enabled")
-	Do $$$AssertEquals(production.Items.Count(), 38, "the compiled production holds 38 items")
-	Set oracle = ..Items()
-	Do $$$AssertEquals(oracle.%Size(), 38, "the oracle lists 38 items")
+	Do $$$AssertEquals(production.Items.Count(), oracle.%Size(), "the compiled production holds as many items as the oracle")
 	Set lanes = 0
 	Set iterator = oracle.%GetIterator()
 	While iterator.%GetNext(.position, .expected) {
@@ -103,16 +115,7 @@ Method TestDefinition()
 		Do $$$AssertEquals($Get(laneOf(expected.name)), expected.lane, expected.name_" sits in the region of lane "_expected.lane)
 		Set lanes = lanes + 1
 	}
-	Do $$$AssertEquals(lanes, 38, "every oracle item was compared")
-	Set enabled = 0
-	Set pooled = 0
-	Set iterator = oracle.%GetIterator()
-	While iterator.%GetNext(, .expected) {
-		If expected.enabled Set enabled = enabled + 1
-		If expected.enabled && expected.pool Set pooled = pooled + 1
-	}
-	Do $$$AssertEquals(enabled, 35, "35 items are enabled")
-	Do $$$AssertEquals(pooled, 25, "25 enabled items have a pool")
+	Do $$$AssertEquals(lanes, oracle.%Size(), "every oracle item was compared")
 }
 
 /// Row 3: every item class that carries STUB answers "not implemented" (code 5003) from the handler of a shadow
@@ -175,6 +178,7 @@ Method TestRunnerModels()
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("Zz"_..Number, ..#PRODUCTION), "", "an unknown item resolves nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(..#PRODUCTION), "", "no runner of the production is unresolved")
+	Do $$$AssertTrue(##class(OcuTalon.Install.Step.Production).UnresolvedRunners("Zz"_..Number_".NoSuchProduction") '= "", "a production whose definition cannot be opened is not reported as resolved")
 
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
 	Set sc = ..Create("FixtureProduction", fixture)
@@ -223,11 +227,17 @@ Method TestStepHelpers()
 	}
 }
 
-/// The oracle of XData Items as a dynamic array. The live tests of docker/tests/ read the same list in their container, so
-/// that the ownership table has one copy in the tests.
+/// The oracle as a dynamic array: lane A's rows of XData Items, then lane B's rows of OcuTalon.Test.Core.ProductionItems,
+/// in the order of the production. The live tests of docker/tests/ read the same list in their container, so that the
+/// ownership table has one copy in the tests.
 ClassMethod Items() As %DynamicArray
 {
-	Quit ..Read("Items")
+	Set items = ..Read("Items")
+	Set iterator = ##class(OcuTalon.Test.Core.ProductionItems).Items().%GetIterator()
+	While iterator.%GetNext(, .item) {
+		Do items.%Push(item)
+	}
+	Quit items
 }
 
 /// --- helpers ---
@@ -332,13 +342,13 @@ ClassMethod Read(xdataName As %String) As %DynamicAbstractObject [ Private ]
 	Quit ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||"_xdataName).Data)
 }
 
-/// The oracle: the items of the ownership table, in the order of the production. stub is 1 for an item class that must
-/// carry STUB (every unbuilt item; not the Telegram inbound stub of Story 0.4, which is used as it is, and not the
-/// stock classes). A setting is {"target","name","value"}.
+/// Lane A's rows of the oracle: the items of lane A's region, in the order of the production. Lane A edits these rows,
+/// and only these, when it builds, adds, disables or reconfigures one of its items. stub is 1 for an item class that must
+/// carry STUB (every unbuilt item; not the stock classes). A setting is {"target","name","value"}.
 XData Items [ MimeType = application/json ]
 {
 [
- {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
+ {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
@@ -355,27 +365,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "EvalSink", "class": "OcuTalon.Eval.Sink", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "Checks", "class": "OcuTalon.Checks.Process", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "WebChatIn", "class": "OcuTalon.Channel.WebChat.In", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "WebChatOut", "class": "OcuTalon.Channel.WebChat.Out", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "SimMailboxIn", "class": "OcuTalon.Channel.SimMailbox.In", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "SimMailboxOut", "class": "OcuTalon.Channel.SimMailbox.Out", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "SimPhoneOut", "class": "OcuTalon.Channel.SimPhone.Out", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "AnswersIn", "class": "OcuTalon.Core.AnswersIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "CommandsIn", "class": "OcuTalon.Core.CommandsIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "NoticesIn", "class": "OcuTalon.Core.NoticesIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "StatusMonitor", "class": "OcuTalon.Core.StatusMonitor", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "Conversation", "class": "OcuTalon.Core.Conversation", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "Intake", "class": "OcuTalon.Core.Intake", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "OutcomeRouter", "class": "EnsLib.MsgRouter.RoutingEngine", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "BusinessRuleName", "value": "OcuTalon.Core.Rule.Outcome"}]},
- {"lane": "B", "name": "Notify", "class": "EnsLib.MsgRouter.RoutingEngine", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "BusinessRuleName", "value": "OcuTalon.Core.Rule.Notify"}]},
- {"lane": "B", "name": "SessionOps", "class": "OcuTalon.Core.SessionOps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "SettingsOps", "class": "OcuTalon.Core.SettingsOps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "HeartbeatIn", "class": "OcuTalon.Schedule.HeartbeatIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "ReminderOps", "class": "OcuTalon.Schedule.ReminderOps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "ReminderTimer", "class": "OcuTalon.Schedule.ReminderTimer", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "BreakFeedIn", "class": "OcuTalon.Demo.BreakFeedIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "PartnerTrigger", "class": "OcuTalon.Demo.PartnerTrigger", "pool": 1, "enabled": 1, "stub": 1, "settings": []}
+ {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 1, "settings": []}
 ]
 }
 
