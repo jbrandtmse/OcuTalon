@@ -162,3 +162,5 @@
 2026-10-19T19:27:23Z	Story 0.6	committed	sha=323ace8 submodules= ci=none run=none amendments=spine_AD-1,AD-3,AD-22,AD-23,AD-29,AD-31;spec_rows_3_16_AC5
 2026-10-19T19:27:23Z	Story 0.6	story_cycle	plan_to_commit_min=300 implement_passes=1 reviews=1 rework=0 first_ci=none models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
 2026-10-19T19:28:13Z	Epic 0	orchestrator_ruling	question=Story_0.7_oversized choice=split_the_model_mock(service,scenarios,file_format)_into_new_Story_0.11_before_planning rejected=plan_0.7_whole(hosted_and_IRIS_workflows+local_recipe+checks_job_with_10+_checks+fork_protection+pipeline_config+a_mock_with_a_scenario_language) authority=standing_grant(Rule_22) note=0.7_keeps_title_key_DW-11_DW-17_and_the_override_OCUTALON_EVAL_passthrough
+2026-10-19T19:41:08Z	Epic 0	epic_context_compiled	sha=c81691f reason=planning_artifact_newer model=claude-opus-5-5
+2026-10-19T19:41:08Z	Story 0.7	stage_spawned	stage=plan spawn_at=2026-10-19T19:41:08Z model=claude-opus-5-5 agent_name=0-7-plan-1 cycle_iteration=1
