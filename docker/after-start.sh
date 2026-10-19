@@ -1,10 +1,11 @@
 #!/bin/bash
 # After-start script, run by `iris-main --after` once IRIS is up, as the IRIS user under OS authentication.
 # In this order it
-#   1. re-applies the image's CPF merge file, because iris-main applies it only at the first start and when
+#   1. deletes the ready marker, so that no health probe during this start sees the previous start's marker and
+#      any failure below leaves the container unhealthy (the image's CMD also deletes it before IRIS starts);
+#   2. re-applies the image's CPF merge file, because iris-main applies it only at the first start and when
 #      the file changes, so a mapping removed by hand would otherwise stay missing. `iris merge` itself does
 #      nothing for a file whose path has an unchanged `*.last_merge` record, so it merges a fresh copy;
-#   2. deletes the ready marker, so that any failure below leaves the container unhealthy;
 #   3. runs one IRIS session (after-start.cos) that clears readiness, installs IPM and the `ocutalon` package
 #      when the version gate says so, runs the installer-step registry and prints `RESULT OK <version>`;
 #   4. writes the ready marker, through a temporary file and a rename, only when that line names the image's version.
@@ -34,11 +35,16 @@ finish() {
 { : > "$log_file"; } 2>/dev/null
 say "AFTER-START begin $(stamp)"
 
-# 1. The merge, of a copy at a path that has no record. A failed merge leaves no marker, an old one included,
-# and starts no session.
+# 1. No marker from here on, an old one included, until the session has succeeded.
+drop_marker
+
+# 2. The merge, of a copy at a path that has no record. A failed merge starts no session.
 SECONDS=0
 merge_dir=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-merge.XXXXXX") || merge_dir=""
-if [ -n "$merge_dir" ] && cp "$merge_file" "$merge_dir/merge.cpf" 2>/dev/null; then
+if [ -z "$merge_dir" ]; then
+  merge_out="could not create a temporary directory in ${TMPDIR:-/tmp}"
+  merge_rc=1
+elif cp "$merge_file" "$merge_dir/merge.cpf" 2>/dev/null; then
   merge_out=$(iris merge IRIS "$merge_dir/merge.cpf" 2>&1)
   merge_rc=$?
 else
@@ -48,14 +54,10 @@ fi
 if [ -n "$merge_dir" ]; then rm -rf "$merge_dir"; fi
 log "$merge_out"
 if [ "$merge_rc" -ne 0 ]; then
-  drop_marker
   say "STEP merge FAILED exit $merge_rc"
   finish "not ready"
 fi
 say "STEP merge OK ${SECONDS}s"
-
-# 2. No marker from here on until the session has succeeded.
-drop_marker
 
 image_version=$(tr -d '\r' < "$version_file" 2>/dev/null)
 if [ -z "$image_version" ]; then
@@ -75,7 +77,10 @@ export OCUTALON_IMAGE_VERSION="$image_version"
 export OCUTALON_PUBLIC_CLASSES="$public_classes"
 
 # 3. The session. Its transcript is kept in the log without blank lines and lines that hold only a prompt.
-transcript=$(mktemp "${TMPDIR:-/tmp}/ocutalon-after-start.XXXXXX") || finish "not ready"
+transcript=$(mktemp "${TMPDIR:-/tmp}/ocutalon-after-start.XXXXXX") || {
+  say "STEP session FAILED could not create a temporary file in ${TMPDIR:-/tmp}"
+  finish "not ready"
+}
 SECONDS=0
 iris session IRIS -U '%SYS' < "$session_script" > "$transcript" 2>&1
 session_rc=$?

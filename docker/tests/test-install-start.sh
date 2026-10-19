@@ -5,7 +5,8 @@
 #     the readiness step, IPM installed in %SYS and mapped into OCUTALON only, the package loaded, one STEP
 #     line per installer step in the order of AD-23, and RESULT OK; readiness set, the online-demo flag off;
 #   - row 2, the same version with a mapping removed by hand: the mapping is back, the package skipped
-#     (its compile time unchanged), every step run again, data and private probes intact;
+#     (its compile time unchanged), every step run again, data and private probes intact; the same restart
+#     finds IPM recorded as 0.10.9 and installs the pinned 0.10.10;
 #   - row 3, the developer compose file: the package loaded again;
 #   - row 4, a public class deleted: the load forced by the public-class check, the class back in OCUTALON_PUBLIC;
 #   - row 5, the bridge alone: src/bridge/ loaded into an Interoperability namespace without IPM, and its installer run,
@@ -27,8 +28,6 @@ compile_time() {
   printf '%s\n' 'Write !,"CHK|compiled|",##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Install.Registry").TimeChanged' 'Halt' \
     | session_value OCUTALON compiled
 }
-
-marker() { dc exec -T iris cat /durable/ocutalon.ready 2>/dev/null | tr -d '\r\n'; }
 
 # The state that a ready start leaves, whatever the start was: the marker, Docker's verdict, the installed versions.
 check_ready_state() { # check_ready_state <label>
@@ -101,6 +100,9 @@ check_probes "before the restart"
 compiled_before=$(compile_time)
 check_session "row 2: the IRIS.IF.* mapping is removed" %SYS "CHK|deleted|1" \
   'Write !,"CHK|deleted|",##class(Config.MapGlobals).Delete("OCUTALON","IRIS.IF.*")' 'Halt'
+# The same restart also finds an older IPM recorded, which the session upgrades to the pinned release.
+check_session "row 2: IPM is recorded as 0.10.9" %SYS "CHK|ipm-recorded|1" \
+  'Set m=##class(%IPM.Storage.Module).NameOpen("zpm"),m.VersionString="0.10.9" Write !,"CHK|ipm-recorded|",m.%Save()' 'Halt'
 
 dc stop iris >/dev/null 2>&1
 dc start iris >/dev/null 2>&1
@@ -108,7 +110,7 @@ if ! wait_started_ready 200; then
   start_log | tail -n 20 | cut -c1-200
   die "row 2 the restart did not end ready within 200 s"
 fi
-expected_run "cleared" "present $ipm_version" "already mapped" "ok" "skipped $version" "$version" > "$tmp/expected.row2"
+expected_run "cleared" "installed $ipm_version (was 0.10.9)" "already mapped" "ok" "skipped $version" "$version" > "$tmp/expected.row2"
 check_log "row 2" "$tmp/expected.row2"
 check_ready_state "row 2"
 check_session "row 2: the merge brought the IRIS.IF.* mapping back" OCUTALON "CHK|dest|^$mgr/ocutalon_private/" \

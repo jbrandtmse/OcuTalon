@@ -114,6 +114,9 @@ restart_count() { docker inspect --format '{{.RestartCount}}' "$cid" 2>/dev/null
 
 script_exit() { dc exec -T iris /opt/ocutalon/healthcheck.sh >/dev/null 2>&1; echo $?; }
 
+# The ready marker's content, or "" when there is none.
+marker() { dc exec -T iris cat /durable/ocutalon.ready 2>/dev/null | tr -d '\r\n'; }
+
 # --- the after-start log (/durable/ocutalon-after-start.log) ---
 
 start_log() { dc exec -T iris cat /durable/ocutalon-after-start.log 2>/dev/null | tr -d '\r'; }
@@ -140,12 +143,14 @@ wait_started_log() {
   wait_until "$1" start_log_complete "$stamp"
 }
 
-# wait_started_ready <max seconds>: waits for this start's log to end, then for Docker to report `healthy`.
-# Returns 1 when either does not happen in time, or when the container started again in between.
+# wait_started_ready <max seconds>: waits for this start's log to end with `ready`, then for Docker to report
+# `healthy`. Returns 1 when either does not happen in time, when the start ended `not ready`, or when the
+# container started again in between.
 wait_started_ready() {
   local before after
   before=$(started_at)
   wait_started_log "$1" || return 1
+  start_log | tail -n 1 | grep -q '^AFTER-START end [0-9T:Z-]* ready ' || return 1
   wait_until 60 health_is_healthy || return 1
   after=$(started_at)
   [ "$before" = "$after" ]

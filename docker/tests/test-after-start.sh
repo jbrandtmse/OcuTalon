@@ -100,10 +100,11 @@ check() { # check <label> <command...>: passes when the command succeeds
   if "$@"; then pass "$label"; else fail "$label"; fi
 }
 
-# run_script <transcript> <merge exit> <session exit> <old marker text or NONE> [source directory]
+# run_script <transcript> <merge exit> <session exit> <old marker text or NONE> [source directory] [merge file]
 # Runs the script once. Leaves its exit status in $rc, its output in $tmp/stdout.
 run_script() {
   local src=${5:-$tmp/image/src}
+  local mergefile=${6:-$tmp/image/merge.cpf}
   rm -f "$tmp/calls" "$tmp/stdin" "$tmp/stdout" "$tmp/env-version" "$tmp/env-classes" "$tmp/merge-arg"
   : > "$tmp/calls"
   rm -f "$marker" "$marker".tmp.*
@@ -118,8 +119,9 @@ run_script() {
     FAKE_MERGE_RC="$2" FAKE_SESSION_RC="$3" \
     ANTHROPIC_API_KEY=canary-key-1f9d TELEGRAM_BOT_TOKEN=canary-token-7c2e \
     OCUTALON_VERSION_FILE="$tmp/image/version" OCUTALON_READY_MARKER="$marker" \
-    OCUTALON_MERGE_FILE="$tmp/image/merge.cpf" OCUTALON_SRC_DIR="$src" \
+    OCUTALON_MERGE_FILE="$mergefile" OCUTALON_SRC_DIR="$src" \
     OCUTALON_SESSION_SCRIPT="$tmp/image/after-start.cos" OCUTALON_AFTER_START_LOG="$log" \
+    TMPDIR="${run_tmpdir:-${TMPDIR:-/tmp}}" \
     "$bashbin" "$script" > "$tmp/stdout" 2>&1
   rc=$?
 }
@@ -151,7 +153,7 @@ check "success: the merge ran before the session" merge_before_session
 check "success: the merge ran on IRIS with a copy of the merge file, not the file itself (iris merge skips a file with an unchanged record)" \
   bash -c "grep -q '^merge IRIS ' '$tmp/calls' && grep -q '^merge-file-matches\$' '$tmp/calls' && [ \"\$(cat '$tmp/merge-arg')\" != '$tmp/image/merge.cpf' ]"
 check "success: the copy of the merge file is removed" bash -c "[ ! -e \"\$(cat '$tmp/merge-arg')\" ]"
-check "success: the old marker was still there at the merge (DW-1: merge first)" calls_have '^merge-saw-marker$'
+check "success: the old marker was gone before the merge, so no health probe during the merge sees it" calls_lack '^merge-saw-marker$'
 check "success: the marker was gone at the session" calls_lack '^session-saw-marker$'
 check "success: the session is IRIS in %SYS" calls_have "^session IRIS -U %SYS\$"
 check "success: the session reads the session script" cmp -s "$tmp/stdin" "$tmp/image/after-start.cos"
@@ -183,6 +185,23 @@ check "row 8 merge fails: its stale temporary files are removed" no_tmp_files
 check "row 8 merge fails: no session is started" calls_lack '^session '
 check "row 8 merge fails: the log names the merge and its exit status" log_has '^STEP merge FAILED exit 7$'
 check "row 8 merge fails: the log ends with the end line" test "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* not ready$/ok/p')" = ok
+
+# The merge file of the image cannot be read, so the copy that is merged cannot be made: the same outcome.
+run_script "$tmp/transcript.ok" 0 0 0.1.0 "$tmp/image/src" "$tmp/image/no-such-merge.cpf"
+check "row 8 merge file missing: exit 0" test "$rc" -eq 0
+check "row 8 merge file missing: the old marker is removed" no_marker
+check "row 8 merge file missing: no merge and no session is started" bash -c "! grep -q '^merge ' '$tmp/calls' && ! grep -q '^session ' '$tmp/calls'"
+check "row 8 merge file missing: the log names the merge" log_has '^STEP merge FAILED exit 1$'
+check "row 8 merge file missing: the log says which file could not be copied" log_has "could not copy $tmp/image/no-such-merge.cpf"
+
+# No temporary directory can be made for the copy: the same outcome, and the log names the directory.
+run_tmpdir="$tmp/no-such-tmp"
+run_script "$tmp/transcript.ok" 0 0 0.1.0
+run_tmpdir=""
+check "row 8 no temporary directory: exit 0, the old marker removed, no merge and no session" \
+  bash -c "[ $rc -eq 0 ] && [ ! -e '$marker' ] && ! grep -q '^merge ' '$tmp/calls' && ! grep -q '^session ' '$tmp/calls'"
+check "row 8 no temporary directory: the log names the merge and the directory" \
+  bash -c "grep -q '^STEP merge FAILED exit 1\$' '$log' && grep -q 'could not create a temporary directory in $tmp/no-such-tmp' '$log'"
 
 # --- row 9: the session gives no result ---
 

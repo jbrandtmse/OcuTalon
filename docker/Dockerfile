@@ -23,4 +23,6 @@ RUN version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' /opt/ocutalon/src/m
 USER 51773
 ENV ISC_DATA_DIRECTORY=/durable/iris \
     ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf
-CMD ["--after", "/opt/ocutalon/after-start.sh"]
+# iris-main deletes the ready marker before IRIS starts, so no health probe of this start sees the previous
+# start's marker, then runs the after-start script once IRIS is up.
+CMD ["--before", "rm -f /durable/ocutalon.ready", "--after", "/opt/ocutalon/after-start.sh"]

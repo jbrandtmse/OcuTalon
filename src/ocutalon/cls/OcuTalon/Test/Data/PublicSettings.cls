@@ -51,7 +51,7 @@ Method TestFixedKeysRoundTrip()
 	}
 }
 
-/// Row 11: a key that is not fixed is refused with an error status that names it, nothing is stored,
+/// Row 11: a key that is not fixed is refused by Set and Get with an error status that names it, Get gives "",
 /// and "ready" cannot be written through Set.
 Method TestRefusedKeys()
 {
@@ -61,7 +61,7 @@ Method TestRefusedKeys()
 	Set sc = $ClassMethod(accessor, "Set", "nosuch", "x")
 	Do $$$AssertStatusNotOK(sc, "Set of an unknown key is refused")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "nosuch", "the error names the key")
-	Do $$$AssertEquals($ClassMethod(accessor, "Get", "nosuch", .read), "", "nothing was stored under the unknown key")
+	Do $$$AssertEquals($ClassMethod(accessor, "Get", "nosuch", .read), "", "Get of an unknown key returns """"")
 	Do $$$AssertStatusNotOK(read, "Get of an unknown key gives an error status")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(read) [ "nosuch", "the Get error names the key")
 

@@ -20,8 +20,6 @@ live_start t02u
 v0=$(manifest_version src/module.xml)
 ipm_version=0.10.10
 
-marker() { dc exec -T iris cat /durable/ocutalon.ready 2>/dev/null | tr -d '\r\n'; }
-
 # make_image_context <directory> <version> [broken]: the build context of the working tree with the manifest's
 # first <Version> replaced, and, when asked, with an SSL step that returns an error.
 make_image_context() {

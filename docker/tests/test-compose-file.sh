@@ -103,8 +103,8 @@ check "dockerfile: runs as UID 51773" last_user_is_51773
 check "dockerfile: data and merge environment" \
   bash -c "grep -q 'ISC_DATA_DIRECTORY=/durable/iris' '$dockerfile' && grep -q 'ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf' '$dockerfile'"
 check "dockerfile: an empty version fails the build" has_line "$dockerfile" 'test -n "\$version"'
-check "dockerfile: CMD runs the after-start script through iris-main" \
-  has_line "$dockerfile" '^CMD \["--after", "/opt/ocutalon/after-start\.sh"\]$'
+check "dockerfile: CMD deletes the ready marker before IRIS starts, then runs the after-start script through iris-main" \
+  has_line "$dockerfile" '^CMD \["--before", "rm -f /durable/ocutalon\.ready", "--after", "/opt/ocutalon/after-start\.sh"\]$'
 check "dockerfile: the sources, the pinned IPM release and the scripts are copied" \
   bash -c "grep -q '^COPY src/ /opt/ocutalon/src/\$' '$dockerfile' && grep -q '^COPY docker/ipm/ /opt/ocutalon/ipm/\$' '$dockerfile' && grep -q '^COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\$' '$dockerfile'"
 check "dockerfile: the version comes from the copied manifest" has_line "$dockerfile" '/opt/ocutalon/src/module\.xml'
@@ -128,8 +128,17 @@ files_keep_lf() {
   done
 }
 
+# A binary under src/ (the committed web bundle's images and fonts) is detected, not forced to text.
+src_binaries_not_forced_text() {
+  local f
+  for f in src/ocutalon/csp/favicon.ico src/ocutalon/csp/media/font.woff2 src/ocutalon/cls/OcuTalon/Install/Registry.cls; do
+    [ "$(git check-attr text -- "$f" | sed 's/.*: //')" = auto ] || return 1
+  done
+}
+
 check "merge.cpf: four database directories, all relative" merge_directories_relative
 check "gitattributes: the copied and executed files keep LF" files_keep_lf
+check "gitattributes: files under src/ are text only when git detects text, so a binary is never rewritten" src_binaries_not_forced_text
 
 # --- .dockerignore ---
 

@@ -298,7 +298,7 @@ modes=$(dc exec -T iris find /opt/ocutalon -exec stat -c '%F|%n|%u|%a' {} + 2>/d
 bad_modes=$(printf '%s\n' "$modes" | awk -F'|' '
   { want = ($1 == "directory") ? 555 : 444
     if ($2 == "/opt/ocutalon/healthcheck.sh" || $2 == "/opt/ocutalon/after-start.sh") want = 555
-    if (($1 != "directory" && $1 != "regular file") || $3 != 0 || $4 != want) print $2 " is " $1 ", owner " $3 ", mode " $4 "; wanted owner 0, mode " want }')
+    if (($1 != "directory" && $1 != "regular file" && $1 != "regular empty file") || $3 != 0 || $4 != want) print $2 " is " $1 ", owner " $3 ", mode " $4 "; wanted owner 0, mode " want }')
 missing=""
 for f in version merge.cpf healthcheck.sh after-start.sh after-start.cos ipm/zpm-0.10.10.xml ipm/LICENSE \
   src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls; do

@@ -1,7 +1,8 @@
 /// Tests of the private-data check that ends every start (AD-3, AD-23): it passes on OCUTALON with its
-/// mappings, and it fails, naming the global, for a private-prefix global planted in OCUTALON_DATA and for a
-/// namespace without the private mappings. The planted globals are removed after each test and again in
-/// OnAfterAllTests, and the fixture classes are deleted in both OnBeforeAllTests and OnAfterAllTests.
+/// mappings, and it fails, naming the global, for a private-prefix global planted in OCUTALON_DATA, for a
+/// namespace without the private mappings and for a storage global that does not resolve to OCUTALON_PRIVATE.
+/// The planted globals are removed after each test and again in OnAfterAllTests, and the fixture classes are
+/// deleted in both OnBeforeAllTests and OnAfterAllTests.
 Class OcuTalon.Test.Install.PrivateData Extends %UnitTest.TestCase
 {
 
@@ -9,8 +10,9 @@ Class OcuTalon.Test.Install.PrivateData Extends %UnitTest.TestCase
 Parameter PLANTED = "OcuTalonP.ZzPlanted,OcuTalonBP.ZzPlanted,AI.Agent.SessionZzPlanted,IRIS.IF.ZzPlanted";
 
 /// The fixture classes that the tests compile: a class with a private default global, one with a global that
-/// is not private, and a subclass of the check that exposes its mapping confirmation.
-Parameter FIXTURES = "OcuTalon.Test.Install.ZzPrivateFixture,OcuTalon.Test.Install.ZzPublicFixture,OcuTalon.Test.Install.ZzPrivateProbe";
+/// is not private, a subclass of the check that exposes its mapping confirmation, and a subclass whose
+/// storage globals name a global of the data database.
+Parameter FIXTURES = "OcuTalon.Test.Install.ZzPrivateFixture,OcuTalon.Test.Install.ZzPublicFixture,OcuTalon.Test.Install.ZzPrivateProbe,OcuTalon.Test.Install.ZzStorageProbe";
 
 Method OnBeforeAllTests() As %Status
 {
@@ -77,9 +79,23 @@ Method TestMappingMismatchFails()
 	Set text = "Class "_probe_" Extends OcuTalon.Install.Step.PrivateData"_$Char(10)_"{"_$Char(10)_"ClassMethod CheckIn(namespace As %String) As %Status"_$Char(10)_"{"_$Char(10)_$Char(9)_"Quit ..Check(namespace, .storage)"_$Char(10)_"}"_$Char(10)_"}"
 	Do $$$AssertStatusOK(..Compile(probe, text), "the probe class compiles")
 	Do $$$AssertStatusOK($ClassMethod(probe, "CheckIn", $Namespace), "the mappings of "_$Namespace_" pass")
-	Set sc = $ClassMethod(probe, "CheckIn", "USER")
+	Set sc = $ClassMethod(probe, "CheckIn", "%SYS")
 	Do $$$AssertStatusNotOK(sc, "a namespace without the private mappings fails")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "not to OCUTALON_PRIVATE", "the error names the private database")
+	Do $SYSTEM.OBJ.Delete(probe, "-d")
+}
+
+/// Given OCUTALON, a storage global that resolves outside OCUTALON_PRIVATE fails the check from Run(), which
+/// names it. The global comes from a subclass whose StorageGlobals() lists a global of the data database.
+Method TestStorageGlobalMismatchFails()
+{
+	Set probe = "OcuTalon.Test.Install.ZzStorageProbe"
+	Do $SYSTEM.OBJ.Delete(probe, "-d")
+	Set text = "Class "_probe_" Extends OcuTalon.Install.Step.PrivateData"_$Char(10)_"{"_$Char(10)_"ClassMethod StorageGlobals(Output storage) As %Status"_$Char(10)_"{"_$Char(10)_$Char(9)_"Kill storage"_$Char(10)_$Char(9)_"Set storage(""OcuTalonZzNotPrivate"") = """_probe_""""_$Char(10)_$Char(9)_"Quit $SYSTEM.Status.OK()"_$Char(10)_"}"_$Char(10)_"}"
+	Do $$$AssertStatusOK(..Compile(probe, text), "the storage probe compiles")
+	Set sc = $ClassMethod(probe, "Run")
+	Do $$$AssertStatusNotOK(sc, "a storage global outside OCUTALON_PRIVATE fails the check")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "^OcuTalonZzNotPrivate", "the error names the storage global")
 	Do $SYSTEM.OBJ.Delete(probe, "-d")
 }
 

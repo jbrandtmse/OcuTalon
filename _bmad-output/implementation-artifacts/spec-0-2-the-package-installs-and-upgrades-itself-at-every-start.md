@@ -201,7 +201,57 @@ Where each row runs:
 - Given the accessor, when a fixed key is set, read, removed with `""`, and readiness is cleared and set, then each read returns what was stored, and the `Public` step writes `onlineDemo` 0 without `OCUTALON_ONLINE_DEMO` (`OcuTalon.Test.Data.PublicSettings`).
 - Given Story 0.1's tests, when they run against this story's tree, then all five pass with only the updates named above, and the judges' `docker-compose.yml` is byte-identical to its committed version.
 
+### Review Findings
+
+Code review 2026-10-18 (four layers, all at the session's tier). 39 rows from the layers plus 1 reviewer row; 15 entries survive triage: 0 high, 2 med, 13 low. Each entry lists severity / fix-risk / footprint / spec-status (Rule 15).
+
+- [x] [Review][Patch] A same-version restart can report `healthy` from the previous start's marker. The script dropped the marker only after `iris merge`, so a probe during the merge saw IRIS running and the old marker; a failed step then stayed `healthy` for about 30 s (3 probes), and `up --wait` could return before the steps ran. The epic's AC says the script "first deletes the ready marker". Fix: `drop_marker` before the merge, and `--before "rm -f /durable/ocutalon.ready"` in the CMD, so the marker is gone before IRIS can report running. The merge still precedes every install step (DW-1). [docker/after-start.sh:37-58, docker/Dockerfile:26] — med / low (two moved lines and one CMD argument; live-verified) / in-story / clear (spec Order line to be reworded by the lead)
+- [x] [Review][Patch] `src/** text eol=lf` forces text handling onto every file under `src/`, including the committed web bundle the spine puts at `src/ocutalon/csp/` (a PNG's signature holds CRLF), so a binary is corrupted on commit. Fix: `text=auto eol=lf`, which keeps LF for every text file, like `docker/**`. [.gitattributes:5] — med / low / in-story / clear (spec intent, LF, kept)
+- [x] [Review][Patch] Two failure paths do not name their cause. A failed `mktemp -d` was reported as "could not copy" the merge file, and a failed transcript `mktemp` ended with no `STEP` line. [docker/after-start.sh:40,78] — low / low / in-story / clear
+- [x] [Review][Patch] The two QA test scripts are mode 644, unlike every other `test-*.sh` (755). [docker/tests/test-lib-live.sh, docker/tests/test-pinned-sources.sh] — low / low / in-story / clear
+- [x] [Review][Patch] The two QA test scripts are missing from `## Verification` commands. [spec ## Verification] — low / low / in-story / clear
+- [x] [Review][Patch] The image-mode check rejects a zero-byte file under `src/`, because GNU `stat` prints `regular empty file`. [docker/tests/test-compose-start.sh:301,305] — low / low / in-story / clear
+- [x] [Review][Patch] The dev compose file's header does not say that it is its own project, with its own volume and the same web port. [docker-compose.dev.yml:1-2] — low / low / in-story / clear
+- [x] [Review][Patch] The header of `test-pinned-sources.sh` claims that every checker runs on breaking and keeping samples; only some do (Rule 14). [docker/tests/test-pinned-sources.sh:8-9] — low / low / in-story / clear
+- [x] [Review][Patch] No test makes `PrivateData`'s storage-global confirmation fail: `Run()` could stop passing the storage globals to `Check` and stay green. [src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls] — low / low / in-story / clear
+- [x] [Review][Patch] The IPM "older than 0.10.10" branch of the session has no test. [docker/tests/test-install-start.sh row 2] — low / low / in-story / clear
+- [x] [Review][Patch] `TestRoleNameRefused`'s "no role was created" cannot fail: the refused area sorts before the only area with grants, so nothing was composed before the refusal. [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls:111-121] — low / low / in-story / clear
+- [x] [Review][Patch] `TestRefusedKeys` labels an assertion "nothing was stored under the unknown key", which a refusing `Get` cannot observe; relabel it to what it checks. [src/ocutalon/cls/OcuTalon/Test/Data/PublicSettings.cls:54-64] — low / low / in-story / clear
+- [x] [Review][Patch] `TestMappingMismatchFails` relies on namespace `USER`; `%SYS` always exists and never maps the private globals. [src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls:80] — low / low / in-story / clear
+- [x] [Review][Patch] `wait_started_ready` accepted a start that ended `not ready` while Docker still reported `healthy`. Row 4's intermediate wait has no log check after it. [docker/tests/lib-live.sh:145-152] — low / low / in-story / clear
+- [x] [Review][Patch] Rule 2: `marker()` is copied in both live install tests; it belongs in `lib-live.sh` with the other shared helpers. [docker/tests/test-install-start.sh:31, docker/tests/test-install-upgrade.sh:23] — low / low / in-story / clear
+
+All 15 were applied in the review pass (mutations and runs are under `## Verification`, "Code review additions"). For the lead, text that now trails the code:
+- the intent's **Order** line and the Tasks list for `after-start.sh` still say "`iris merge` first, then `rm` the marker": the code now deletes the marker first (in the CMD's `--before` and again at the script's top), then merges, then clears readiness in the session. This matches the epic's AC ("first deletes the ready marker") and AD-23's numbered step 1, and keeps DW-1's merge before every install step;
+- the Tasks line `src/** text eol=lf` is now `text=auto eol=lf`, which keeps LF for every text file;
+- AD-23's DW-1 sentence: the copy keeps its intent. Verified live: `iris merge IRIS /opt/ocutalon/merge.cpf` logs `unchanged; skipping` and leaves a hand-removed `IRIS.IF.*` mapping missing, while the copy (in the container's `/tmp`, created by `mktemp -d`, owned by the IRIS user, byte-identical by `cp`, removed right after the merge) restores it, and `/durable/iris` keeps one `*.last_merge` record across starts.
+
+Rejected:
+- `false` — `*.last_merge` records pile up because the copy is merged from a new path at every start (blind, edge, verification-gap, auditor). A live probe found exactly one record, `^opt^ocutalon^merge.cpf.last_merge`, after a first start and two restarts and after merging a fixed-path copy: `iris merge` writes no record for the path it merges.
+- `false` — the three `%UnitTest` classes have no executed host (verification-gap). They run on slot A through the spec's `(loop)` `iris_execute_tests` commands; CI wiring is Story 0.7's AC.
+- `false` — a compose `command:` override drops the after-start script (edge). The spec mandates `CMD`, the judges' file sets no command, and the override is the documented test seam (`compose.no-after-start.yml`).
+- `low` — the Roles step keys role names case-sensitively, while IRIS does not (blind, edge). It needs two areas to spell one role in different case, and the fix adds normalization. reopen_if: two `Grants()` spell one role differently.
+- `low` — a downgrade (an older image on the volume) never becomes ready (blind, edge). It fails loudly with IPM's refusal under `STEP package FAILED`, no downgrade is promised, and the fix adds a branch.
+- `low` — `Declared` accepts a `%DynamicObject` whose values are objects (blind). Theoretical: a string or a flat object already errors naming the area.
+- `low` — the IPM load's success is not read back (edge). Theoretical: the file is pinned by sha256, and `ipm-map` calls `%IPM.Main` next.
+- `maybe-false` — a container killed mid-load leaves half-compiled code (edge). IPM's load runs in a transaction rolled back at recovery; if it happened, later steps fail loudly and `OCUTALON_DEV=1` recovers. Settle with a kill -9 during a live upgrade.
+- `low` — roles no longer declared keep their grants (edge). Theoretical: no version removes a role yet.
+- `low` — `iris_script` and `dc exec` have no per-call time limit (edge). No hang was shown, and a portable timeout needs a tool macOS lacks.
+- `low` — readiness stays `1` when the merge fails (edge, auditor). Spec-bound: row 8 starts no session after a failed merge, and readiness is cleared only through the accessor in the session.
+- `low` — the dev file publishes the same host port (edge). Spec-bound: the file holds only the name and `OCUTALON_DEV` (pinned); the header now says so.
+- `low` — AD-23's DW-1 sentence names the image's file, not the copy (auditor). The fix edits the spine, which is the lead's at story commit (Rule 20). The intent is kept: verified live that a direct merge of the image's file is skipped (`unchanged; skipping`) and the copy repairs the mapping.
+- `low` — no install check confirms where `^OcuTalonPublic` resolves (auditor). Story 0.1's live test pins its destination, the merge recreates the mapping at every start, and Story 15.2's AC adds it to the install checks.
+- `low` — row 1's "mapped into OCUTALON only" checks only `USER` (auditor). Row 5 catches a `%ALL` mapping; the Health image's HS namespaces map `%IPM` themselves (residual risk noted).
+- `low` — a source scan for namespace switching would flag the test fixture's XData (auditor). Theoretical until Story 0.7 designs that check.
+- `low` — `sha256sum`/`shasum` are outside the script tool list (auditor). The Stack row's pin needs a digest, and the script falls back between the two hosts' tools.
+
 ## Spec Change Log
+
+### 2026-10-19 -- As built, after code review (lead)
+- Order: the image's `CMD` deletes the marker with `iris-main --before`, before IRIS starts, and `after-start.sh` deletes it again at its top; then the merge (DW-1), readiness, IPM, package, steps, marker. The intent's "`iris merge` first, then clear the marker" is superseded by this order, which also matches the epic's "first deletes the ready marker".
+- The merge runs on a fresh temporary copy of the image's merge file, because build 154's `iris merge` skips a path whose `*.last_merge` record is unchanged.
+- `.gitattributes` uses `src/** text=auto eol=lf`, not `text eol=lf`, so committed binaries under `src/` stay intact.
+- AD-23 now records all three, plus the step contract this spec fixed under Design Notes.
 
 ## Review Triage Log
 
@@ -355,7 +405,7 @@ Spikes S1, S16 and S19.
 
 **Commands:**
 - `(loop)` `bash docker/tests/test-after-start.sh` -- expected: exit 0, PASS for rows 7 (shell side) to 10 and the order.
-- `(loop)` `bash docker/tests/test-healthcheck.sh`, `bash docker/tests/test-compose-file.sh`, `bash docker/tests/test-build-inputs.sh` and `bash docker/tests/test-boundaries.sh`, one per call -- expected: exit 0 each.
+- `(loop)` `bash docker/tests/test-healthcheck.sh`, `bash docker/tests/test-compose-file.sh`, `bash docker/tests/test-build-inputs.sh`, `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-lib-live.sh` and `bash docker/tests/test-pinned-sources.sh`, one per call -- expected: exit 0 each.
 - `(loop)` `bash docker/tests/test-compose-start.sh` (`timeout: 600000`) -- expected: exit 0 in under 9 minutes, with nothing named `ocutalon-t01-*` left behind.
 - `(loop)` `bash docker/tests/test-install-start.sh` (`timeout: 600000`) -- expected: exit 0 for rows 1–5 in under 9 minutes, with nothing named `ocutalon-t02s-*` left behind.
 - `(loop)` `bash docker/tests/test-install-upgrade.sh` (`timeout: 600000`) -- expected: exit 0 for rows 6–7 in under 9 minutes, with nothing named `ocutalon-t02u-*` left behind.
@@ -373,7 +423,7 @@ Spikes S1, S16 and S19.
 - Row 1: swap `Tasks` and `SSL` in `Order()`; `test-install-start.sh` should go red.
   - mutation: `"Web", "SSL", "Tasks", "Demo"` in `Registry.Order()` -> `test-install-start.sh` red (`row 1`, `row 2`, `row 3`, `row 4`: the log differs from the expected phases and steps)
 - Rows 2 and 8, DW-1: delete the `iris merge` call; `test-install-start.sh` (mapping not restored) and `test-after-start.sh` should go red.
-  - mutation: `merge_out=$(iris merge IRIS ...)` replaced by `merge_out=""` in `after-start.sh` -> `test-after-start.sh` red (7 checks: merge before session, merge on a copy, old marker present at the merge, and the four row 8 checks) and `test-install-start.sh` red (row 2: the restart ended with `PrivateData FAILED ... IRIS.IF.Zz`, so `row 2 the restart did not end ready within 200 s`)
+  - mutation: `merge_out=$(iris merge IRIS ...)` replaced by `merge_out=""` in `after-start.sh` -> `test-after-start.sh` red (6 checks: merge before session, merge on a copy, and the four row 8 checks; re-demonstrated at code review after the marker moved before the merge) and `test-install-start.sh` red (row 2: the restart ended with `PrivateData FAILED ... IRIS.IF.Zz`, so `row 2 the restart did not end ready within 200 s`)
   - mutation: `iris merge IRIS "$merge_file"` (the image's file itself) in place of the merge of the temporary copy in `after-start.sh` -> `test-install-start.sh` red (row 2: the restart ended with `PrivateData FAILED ... IRIS.IF.Zz`, so `row 2 the restart did not end ready within 200 s`; `iris merge` skips a path whose `*.last_merge` record is unchanged)
   - mutation: the failure leg of the marker write replaced by `finish "ready $image_version"` in `after-start.sh` -> `test-after-start.sh` red (`marker not writable: the log names the marker`, `marker not writable: the log ends not ready`)
 - Row 2: make the gate always load; red.
@@ -408,6 +458,53 @@ Spikes S1, S16 and S19.
   - mutation: the `!src` line deleted from `.dockerignore` -> `test-compose-file.sh` red (`dockerignore: every copied file or directory is allowed`) and `test-build-inputs.sh` red (`dockerignore: the build context differs from the files the Dockerfile copies`)
 - The dev file: `OCUTALON_DEV: "0"`; `test-compose-file.sh` should go red.
   - mutation: `OCUTALON_DEV: "0"` in `docker-compose.dev.yml` -> `test-compose-file.sh` red (`dev: the file holds only the project name and OCUTALON_DEV "1"`, `dev: OCUTALON_DEV is "1" for the iris service`)
+
+**QA additions (QA):** the QA pass (2026-10-18) closed weak or missing pins for Tasks bullets that no test covered. Each mutation below was applied, seen red, and reverted; a sha256 manifest of the tree (332 files) was byte-identical after every revert.
+- Test files created (QA):
+  - `docker/tests/test-pinned-sources.sh` -- static: the IPM release file and licence are the Stack row's files (size and sha256), the file's own VERSION is 0.10.10, the licence keeps its notice, `after-start.cos` names that file and version; `src/module.xml` has `<SourcesRoot>.</SourcesRoot>` and the bridge package as the first resource, then the product package, each package present in its directory.
+  - `docker/tests/test-lib-live.sh` -- hermetic (stubs for `dc`, `started_at` and `health_status`): `start_log_complete`, `wait_started_log` and `wait_started_ready` never accept a previous start's log, a log without its end line, an unhealthy container or a container that started again; `copy_build_context` copies exactly the Dockerfile's COPY set with directories expanded; `log_steps`, `manifest_version` and `bump_patch`.
+- Test files changed (QA):
+  - `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls` -- `TestOrder` pins the exact order of AD-23 (it pinned only the count and both ends); new `TestStepDefaults`, `TestPurgeTaskDefaults` (task name, 90 days by default) and `TestRun` (a probe subclass of the registry over fixture steps: one line per step, stop at the first failure, an exception is a failed step, a clean run).
+  - `docker/tests/test-after-start.sh` -- row 8's second leg: the merge file cannot be copied.
+- Mutations demonstrated in the QA pass (5 re-demonstrations of the implement pass's lines, 13 new):
+  - mutation: the `!src` line deleted from `.dockerignore` (AC 4, re-demonstrated) -> `test-compose-file.sh` red (`dockerignore: every copied file or directory is allowed`)
+  - mutation: the `OcuTalon.Install.Step.` prefix test deleted from `Registry.Areas` (AC 1, re-demonstrated) -> `OcuTalon.Test.Install.Registry:TestAreas` red (`a subclass outside OcuTalon.Install.Step is not`)
+  - mutation: `Set found = ""` in place of the first `$Order` over `OCUTALON_DATA`'s globals in `PrivateData.Check` (AC 2, re-demonstrated) -> `OcuTalon.Test.Install.PrivateData:TestPlantedGlobalFails` red (all four planted globals)
+  - mutation: `Set ^OcuTalonPublic(..#READY) = 0` in `Settings.SetReady` (AC 3, re-demonstrated) -> `OcuTalon.Test.Data.PublicSettings:TestReadiness` red (`ready is 1`)
+  - mutation: `at <= from` in place of `at < from` in `Settings.NextReset` (row 12, re-demonstrated) -> `OcuTalon.Test.Data.PublicSettings:TestNextReset` red (`at the anchor: the next slot`)
+  - mutation: `"Tasks", "SSL"` in place of `"SSL", "Tasks"` in `Registry.Order()` (row 1) -> `OcuTalon.Test.Install.Registry:TestOrder` red (`the order of AD-23`); the previous `TestOrder` stayed green under this swap, so only the live test saw it
+  - mutation: the `Quit` after the `STEP ... FAILED` line deleted from `Registry.Run` (row 7) -> `OcuTalon.Test.Install.Registry:TestRun` red (7 assertions: the failure is lost, the step after it runs)
+  - mutation: `Throw exception` in place of `Set sc = exception.AsStatus()` in `Registry.RunStep` (row 7) -> `OcuTalon.Test.Install.Registry:TestRun` red (`the throwing step is reported FAILED with its text`)
+  - mutation: `Quit [{"role":"OcuTalonZzDefault"}]` in place of `Quit []` in `Step.Grants` -> `OcuTalon.Test.Install.Registry:TestStepDefaults` red (`Grants declares nothing`)
+  - mutation: `InitialExpression = 9` in place of `90` in `Task.Purge.DaysToKeep` -> `OcuTalon.Test.Install.Registry:TestPurgeTaskDefaults` red (`DaysToKeep is 90 by default`, `the areas received 90 days`)
+  - mutation: one byte appended to `docker/ipm/zpm-0.10.10.xml` -> `test-pinned-sources.sh` red (`the release file is 1593780 bytes`, `the Stack row's file (sha256)`)
+  - mutation: the two `<Resource>` lines swapped in `src/module.xml` -> `test-pinned-sources.sh` red (`the first two resources are the bridge package, then the product package`)
+  - mutation: `Copyright (c) 2020` in `docker/ipm/LICENSE` -> `test-pinned-sources.sh` red (`the licence is the file of IPM v0.10.10 (sha256)`, `the licence keeps its copyright notice`)
+  - mutation: `ipmwant="0.10.11"` in `docker/after-start.cos` -> `test-pinned-sources.sh` red (`the session's file and wanted version agree`, `the wanted version is the pinned 0.10.10`)
+  - mutation: the begin-stamp comparison deleted from `start_log_complete` in `lib-live.sh` -> `test-lib-live.sh` red (3 checks: a previous start's complete log is accepted)
+  - mutation: `true` in place of `[ "$before" = "$after" ]` in `wait_started_ready` -> `test-lib-live.sh` red (`a container that started again meanwhile is not accepted`)
+  - mutation: `echo "$src"` in place of `find "${src%/}" -type f` in `copied_files` -> `test-lib-live.sh` red (`the copied files differ from the files the Dockerfile names`, `a copied file differs from its original`)
+  - mutation: `merge_rc=0` in place of `merge_rc=1` for the failed copy in `after-start.sh` -> `test-after-start.sh` red (3 checks of `row 8 merge file missing`)
+- Not pinned, with the reason (QA decisions):
+  - AC 4's "judges' `docker-compose.yml` is byte-identical" is a story-scoped fact, not a permanent test: a hash pin would break Story 0.3 and later whenever they legitimately touch the file. It holds: `git diff d917978..HEAD -- docker-compose.yml` is empty, and `test-compose-file.sh` pins its properties.
+  - `Registry.Run`'s refusal outside OCUTALON needs a second namespace that holds the package; phase 4 of `after-start.cos` always enters OCUTALON first, so it stays unreachable and unpinned (rejected in review too).
+  - Row 11's "nothing stored" for an unknown key cannot be read back through the accessor, which refuses that key; reading `^OcuTalonPublic` directly would break the rule that only `Settings` reaches it. The `ready` leg of the row reads back and is pinned.
+  - The AD-3 allow-list of the public packages and the `^OcuTalonPublic` single-accessor rule belong to Story 0.7's checks.
+
+**Code review additions (CR, 2026-10-18).** Each mutation below was applied, seen red and reverted; a sha256 manifest of the tree (332 files) and `git status --short` were identical afterwards, and slot A got back the unmutated class each time.
+- mutation: `drop_marker` moved from before the merge to after `STEP merge OK` in `after-start.sh` (the order before review) -> `test-after-start.sh` red (`the old marker was gone before the merge, so no health probe during the merge sees it`, and four row 8 checks)
+- mutation: `CMD ["--after", "/opt/ocutalon/after-start.sh"]` (no `--before`) in `docker/Dockerfile` -> `test-compose-file.sh` red (`dockerfile: CMD deletes the ready marker before IRIS starts, ...`). A throwaway probe showed that build 154's `iris-main` runs `--before "rm -f /durable/ocutalon.ready"` as a shell command line: the marker was gone after that start, and it was still there in the control start with `--after` alone.
+- mutation: `src/** text eol=lf` in `.gitattributes` -> `test-compose-file.sh` red (`gitattributes: files under src/ are text only when git detects text, ...`)
+- mutation: the `ready` end-line test deleted from `wait_started_ready` in `lib-live.sh` -> `test-lib-live.sh` red (`a start that ended not ready is not accepted, even while Docker still reports healthy`)
+- mutation: `merge_rc=0` in place of `merge_rc=1` for the failed copy in `after-start.sh` (re-demonstrated) -> `test-after-start.sh` red (3 checks of `row 8 merge file missing`)
+- mutation: `merge_out="could not copy $merge_file"` in place of the temporary-directory message in `after-start.sh` -> `test-after-start.sh` red (`row 8 no temporary directory: the log names the merge and the directory`)
+- mutation: `Quit ..Check($Namespace)` in place of `Quit ..Check($Namespace, .storage)` in `PrivateData.Run` (AC 2) -> `OcuTalon.Test.Install.PrivateData:TestStorageGlobalMismatchFails` red (`a storage global outside OCUTALON_PRIVATE fails the check`, `the error names the storage global`)
+- mutation: `If $$$ISERR(sc) Do ..Apply(.roles) Quit sc` in `Roles.Run` (apply what was composed despite the refusal) -> `OcuTalon.Test.Install.Registry:TestRoleNameRefused` red (`no role was created`)
+- mutation: `m.Version.Follows(FromString(ipmwant))` in place of `FromString(ipmwant).Follows(m.Version)` in `after-start.cos` (the IPM "older than" gate) -> `test-install-start.sh` red (`row 2`, `row 3`, `row 4`: the log differs; row 2 records IPM as 0.10.9 and expects `installed 0.10.10 (was 0.10.9)`)
+
+**Code review verification:** on the patched tree `test-after-start.sh` (55 checks), `test-lib-live.sh` (18), `test-pinned-sources.sh`, `test-compose-file.sh` (41), `test-boundaries.sh`, `test-healthcheck.sh` and `test-build-inputs.sh` pass; live `test-install-start.sh` (98 s, 31 checks, and 73 s with `IRIS_IMAGE=iris-community:2026.3.0AI.154.0`), `test-install-upgrade.sh` (102 s, 22) and `test-compose-start.sh` (66 s, 34) pass, each in its own throwaway project with nothing left behind. Slot A (build 154, port 52790): `PrivateData` 5/5, `Registry` 11/11, `PublicSettings` 5/5; no fixture class, role, task or `^OcuTalonTest` node remains.
+
+**QA verification:** `test-after-start.sh` (53 checks), `test-healthcheck.sh`, `test-compose-file.sh` (40), `test-boundaries.sh` (6 rules), `test-pinned-sources.sh` (14), `test-lib-live.sh` (17) and `test-build-inputs.sh` pass; live `test-install-start.sh`, `test-install-upgrade.sh` and `test-compose-start.sh` pass, each in its own throwaway project with nothing left behind. Slot A (build 154), after loading both globs: `PublicSettings` 5/5, `Registry` 11/11, `PrivateData` 4/4; no fixture class, role, task, planted global or `^OcuTalonTest` node remains, and `ready` and `onlineDemo` read as before.
 
 ## Auto Run Result
 

@@ -21,6 +21,10 @@ Property Role As %String;
 
 Property TaskName As %String;
 
+/// The probe: a subclass of the registry whose Order() is read from ^OcuTalonTest, so that Run() can be
+/// observed over fixture steps.
+Property Probe As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
@@ -31,6 +35,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..BadArea = "OcuTalon.Install.Step.ZzBad"_..Number
 	Set ..Role = "OcuTalonZzFixture"_..Number
 	Set ..TaskName = "OcuTalonZzFixture"_..Number
+	Set ..Probe = "OcuTalon.Test.Install.ZzRegistryProbe"_..Number
 	Set sc = ..Create("FixtureArea", ..Area, ..Number)
 	If $$$ISOK(sc) Set sc = ..Create("FixtureAbstract", ..Abstract, ..Number)
 	If $$$ISOK(sc) Set sc = ..Create("FixtureOutside", ..Outside, ..Number)
@@ -65,10 +70,11 @@ Method TestAreas()
 	Do $$$AssertTrue(sorted, "the areas are sorted by name")
 }
 
-/// The order is the fixed list of 15 steps, and every step in it exists.
+/// The order is the fixed list of 15 steps of AD-23, written out here, and every step in it exists.
 Method TestOrder()
 {
 	Set order = ##class(OcuTalon.Install.Registry).Order()
+	Do $$$AssertEquals($ListToString(order, ","), "Bridge.Installer,Public,Roles,Users,Web,SSL,Tasks,Demo,Provider,Audit,Telegram,Production,Reconcile,PrivateData,Ready", "the order of AD-23")
 	Do $$$AssertEquals($ListLength(order), 15, "fifteen steps")
 	Do $$$AssertEquals($ListGet(order, 1), "Bridge.Installer", "the bridge installer is first")
 	Do $$$AssertEquals($ListGet(order, 15), "Ready", "readiness is last")
@@ -102,10 +108,12 @@ Method TestRolesStep()
 }
 
 /// A role name that does not start with OcuTalon fails the step, which names the area, and changes nothing.
+/// The refused area sorts after the fixture, so the fixture's role is composed before the refusal and must not
+/// be applied.
 Method TestRoleNameRefused()
 {
 	Do ..RemoveRoles()
-	Set bad = ..BadArea
+	Set bad = "OcuTalon.Install.Step.ZzzBad"_..Number
 	Do ..Create("FixtureBad", bad, ..Number, "ZzNotOcuTalon", "OcuTalonZzFixture"_..Number_"Bad")
 	Set sc = ##class(OcuTalon.Install.Step.Roles).Run()
 	Do ..Delete(bad)
@@ -201,15 +209,136 @@ Method TestPurge()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", ..Number, "purge")), 8, "the other areas still ran")
 }
 
+/// The step contract does nothing by default: an area overrides only what it declares.
+Method TestStepDefaults()
+{
+	Set step = "OcuTalon.Install.Step"
+	Do $$$AssertEquals(##class(%Dictionary.CompiledClass).%OpenId(step).Abstract, 1, "the contract is abstract")
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "Run succeeds")
+	Do $$$AssertStatusOK($ClassMethod(step, "Reconcile"), "Reconcile succeeds")
+	Do $$$AssertStatusOK($ClassMethod(step, "Purge", 30), "Purge succeeds")
+	Set grants = $ClassMethod(step, "Grants")
+	Do $$$AssertTrue($IsObject(grants) && grants.%IsA("%Library.DynamicArray"), "Grants is a dynamic array")
+	Do $$$AssertEquals(grants.%Size(), 0, "Grants declares nothing")
+	Set tasks = $ClassMethod(step, "Tasks")
+	Do $$$AssertTrue($IsObject(tasks) && tasks.%IsA("%Library.DynamicArray"), "Tasks is a dynamic array")
+	Do $$$AssertEquals(tasks.%Size(), 0, "Tasks declares nothing")
+}
+
+/// The purge task: its name, and 90 days to keep unless the task says otherwise, which it passes to the areas.
+Method TestPurgeTaskDefaults()
+{
+	Set purge = "OcuTalon.Install.Task.Purge"
+	Do $$$AssertEquals($Parameter(purge, "TaskName"), "OcuTalon purge", "the task's name")
+	Do $$$AssertTrue($ClassMethod(purge, "%Extends", "%SYS.Task.Definition"), "a task definition")
+	Kill ^OcuTalonTest("Registry", ..Number, "purge")
+	Set definition = $ClassMethod(purge, "%New")
+	Do $$$AssertEquals(definition.DaysToKeep, 90, "DaysToKeep is 90 by default")
+	Do $$$AssertStatusOK(definition.OnTask(), "the purge task runs with its default")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", ..Number, "purge")), 90, "the areas received 90 days")
+}
+
+/// Run() writes one line per step and stops at the first step that fails or throws, and returns that failure.
+/// It is run over fixture steps by a subclass of the registry whose Order() names them.
+Method TestRun()
+{
+	Set number = ..Number
+	Set ok = "ZzRunOk"_number
+	Set fail = "ZzRunFail"_number
+	Set throw = "ZzRunThrow"_number
+	Set last = "ZzRunLast"_number
+	Set prefix = "OcuTalon.Install.Step."
+	Set okBody = "Quit $SYSTEM.Status.OK()"
+	Set sc = ..Create("FixtureRunStep", prefix_ok, number, , , okBody)
+	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_fail, number, , , "Quit $SYSTEM.Status.Error(5001, ""Step failed on purpose"")")
+	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_throw, number, , , "Throw ##class(%Exception.General).%New(""Step threw"", 5001, , ""Step threw on purpose"")")
+	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_last, number, , , okBody)
+	If $$$ISOK(sc) Set sc = ..Create("FixtureProbe", ..Probe, number)
+	Do $$$AssertStatusOK(sc, "the fixture steps and the probe compile")
+	If $$$ISERR(sc) Quit
+
+	Kill ^OcuTalonTest("Registry", number, "run")
+	Set text = ..RunProbe($ListBuild(ok, fail, last), .sc)
+	Do $$$AssertStatusNotOK(sc, "a failing step fails the run")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Step failed on purpose", "the run returns the step's failure")
+	Set line = ..Line(text, "STEP "_ok_" OK ")
+	Set seconds = $Piece(line, " ", 4)
+	Do $$$AssertTrue(($Piece(line, " ", 1, 3) = ("STEP "_ok_" OK")) && ($Extract(seconds, $Length(seconds)) = "s") && $IsValidNum($Extract(seconds, 1, $Length(seconds) - 1)), "the step before is reported OK with its time: "_line)
+	Do $$$AssertTrue(..Line(text, "STEP "_fail_" FAILED ") [ "Step failed on purpose", "the failing step is reported FAILED with its text")
+	Do $$$AssertTrue($Find(text, "STEP "_ok_" ") < $Find(text, "STEP "_fail_" "), "the lines come in the order of the steps")
+	Do $$$AssertTrue(text '[ last, "the step after the failure has no line")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_ok)), 1, "the step before ran once")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_fail)), 1, "the failing step ran once")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_last)), "", "the step after the failure did not run")
+
+	Kill ^OcuTalonTest("Registry", number, "run")
+	Set text = ..RunProbe($ListBuild(ok, throw, last), .sc)
+	Do $$$AssertStatusNotOK(sc, "a step that throws fails the run")
+	Do $$$AssertTrue(..Line(text, "STEP "_throw_" FAILED ") [ "Step threw", "the throwing step is reported FAILED with its text")
+	Do $$$AssertTrue(text '[ last, "the step after the exception has no line")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_last)), "", "the step after the exception did not run")
+
+	Kill ^OcuTalonTest("Registry", number, "run")
+	Set text = ..RunProbe($ListBuild(ok, last), .sc)
+	Do $$$AssertStatusOK(sc, "steps that succeed give a successful run")
+	Do $$$AssertTrue(text '[ "FAILED", "no step is reported FAILED")
+	Do $$$AssertTrue(($Find(text, "STEP "_ok_" OK ") > 0) && ($Find(text, "STEP "_ok_" OK ") < $Find(text, "STEP "_last_" OK ")), "both steps are reported OK, in order")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_ok)), 1, "the first step ran once")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_last)), 1, "the last step ran once")
+
+	Do ..Delete(..Probe)
+	For name = ok, fail, throw, last {
+		Do ..Delete(prefix_name)
+	}
+}
+
 /// --- fixtures ---
 
+/// Runs Run() of the probe, whose order is the list, with its output in a temporary file. Returns the output
+/// (line ends as $Char(10)) and leaves the status of the run in sc.
+Method RunProbe(order As %List, Output sc As %Status) As %String [ Private ]
+{
+	Set ^OcuTalonTest("Registry", ..Number, "order") = order
+	Set file = ##class(%File).TempFilename("txt")
+	Set io = $IO
+	Open file:("NWS"):5
+	If '$Test {
+		Set sc = $SYSTEM.Status.Error(5001, "The output file "_file_" could not be opened")
+		Quit ""
+	}
+	Use file
+	Try {
+		Set sc = $ClassMethod(..Probe, "Run", "TestRun")
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Use io
+	Close file
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Do stream.LinkToFile(file)
+	Set text = stream.Read(32000)
+	Kill stream
+	Do ##class(%File).Delete(file)
+	Quit $Replace(text, $Char(13), "")
+}
+
+/// The first line of text that holds what, or "".
+ClassMethod Line(text As %String, what As %String) As %String [ Private ]
+{
+	Set start = $Find(text, what)
+	If 'start Quit ""
+	Set begin = start - $Length(what)
+	Set end = $Find(text, $Char(10), start)
+	Quit $Extract(text, begin, $Select(end: end - 2, 1: $Length(text)))
+}
+
 /// Creates and compiles a class from an XData block of this class, with @CLASS@ replaced by the class name,
-/// @N@ by the fixture's number and @ROLE@ and @TASK@ by the arguments.
-Method Create(block As %String, className As %String, number As %Integer, role As %String = "", task As %String = "") As %Status [ Private ]
+/// @N@ by the fixture's number, @ROLE@ and @TASK@ by the arguments and @BODY@ by the body.
+Method Create(block As %String, className As %String, number As %Integer, role As %String = "", task As %String = "", body As %String = "") As %Status [ Private ]
 {
 	Set text = ##class(%Dictionary.CompiledXData).%OpenId($ClassName()_"||"_block).Data.Read(100000)
 	Set text = $Replace(text, $Char(13), "")
-	Set text = $Replace($Replace($Replace($Replace(text, "@CLASS@", className), "@N@", number), "@ROLE@", role), "@TASK@", task)
+	Set text = $Replace($Replace($Replace($Replace($Replace(text, "@CLASS@", className), "@N@", number), "@ROLE@", role), "@TASK@", task), "@BODY@", body)
 	Set sc = ##class(%Compiler.UDL.TextServices).SetTextFromString($Namespace, className, text, $Char(10))
 	If $$$ISOK(sc) Set sc = $SYSTEM.OBJ.Compile(className, "ck-d")
 	Quit sc
@@ -224,7 +353,7 @@ Method Delete(className As %String) [ Private ]
 ClassMethod Clean() [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
-	Do statement.%Prepare("SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Install.Step.Zz' OR Name %STARTSWITH 'OcuTalon.Test.Install.ZzOutside'")
+	Do statement.%Prepare("SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Install.Step.Zz' OR Name %STARTSWITH 'OcuTalon.Test.Install.ZzOutside' OR Name %STARTSWITH 'OcuTalon.Test.Install.ZzRegistryProbe'")
 	Set result = statement.%Execute()
 	While result.%Next() {
 		Do $SYSTEM.OBJ.Delete(result.%GetData(1), "-d")
@@ -332,6 +461,35 @@ ClassMethod Role(operation As %String, role As %String, resources As %String = "
 	If '##class(Security.Roles).Exists(role) Quit "<none>"
 	Do ##class(Security.Roles).Get(role, .properties)
 	Quit $Get(properties("Resources"))
+}
+
+}
+}
+
+/// A step for the registry's Run: it counts its runs and does what the body says.
+XData FixtureRunStep [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends OcuTalon.Install.Step
+{
+
+ClassMethod Run() As %Status
+{
+	Do $Increment(^OcuTalonTest("Registry", @N@, "run", "@CLASS@"))
+	@BODY@
+}
+
+}
+}
+
+/// A registry whose order is the list that the test stores.
+XData FixtureProbe [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends OcuTalon.Install.Registry
+{
+
+ClassMethod Order() As %List
+{
+	Quit $Get(^OcuTalonTest("Registry", @N@, "order"))
 }
 
 }
