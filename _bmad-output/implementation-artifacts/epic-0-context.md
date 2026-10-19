@@ -17,6 +17,7 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
 - Story 0.7: CI runs on hosted runners and the IRIS runner, with the model mock
 - Story 0.8: The demo-path test signs in and loads the page
 - Story 0.9: The message catalog and its one renderer
+- Story 0.10: The Orders demo production runs in OCUORDERS
 
 ## Requirements & Constraints
 
@@ -185,13 +186,13 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - `docker-compose.yml`: `name: ocutalon`, one service `iris` (`pull_policy: build`), `env_file` `.env` with `required: false`, volume `durable:/durable`, `start_period: 600s`.
 - **Delivered: Story 0.2.**
   - `docker/after-start.sh` (with `.cos`); `docker-compose.dev.yml` (project `ocutalon-dev`, `OCUTALON_DEV=1`); `src/module.xml` (`ocutalon` 0.1.0) lists `OcuTalon.Bridge.PKG` then `OcuTalon.PKG`.
-  - **Step order** (`Registry.Order()`, `OcuTalon.Install.Step.<Area>`; each story fills its own step without re-ordering): 1 `Bridge.Installer` (audit events; 0.6 as needed, then Epic 1); 2 `Public` (online-demo flag; 3.8 adds values); 3 `Roles` and 4 `Users` (built, 0.3); 5 `Web` (built, 0.3; 0.5 added `/ocutalon/public`, the new bundle folder and the old-folder cleanup); 6 `SSL` (stub; first story needing client SSL); 7 `Tasks` (built; 1.11 and later declare); 8 `Demo` (stub; 0.6); 9 `Provider` (stub; 1.1); 10 `Audit` (checks the events, naming a missing or disabled one; 3.7 with DW-10 extends it); 11 `Telegram` (stub; 12.1); 12 `Production` (stub that starts nothing; 0.6); 13 `Reconcile` (built); 14 `PrivateData` (built; `StorageGlobals`); 15 `Ready` (built).
+  - **Step order** (`Registry.Order()`, `OcuTalon.Install.Step.<Area>`; each story fills its own step without re-ordering): 1 `Bridge.Installer` (audit events; 0.6 as needed, then Epic 1); 2 `Public` (online-demo flag; 3.8 adds values); 3 `Roles` and 4 `Users` (built, 0.3); 5 `Web` (built, 0.3; 0.5 added `/ocutalon/public`, the new bundle folder and the old-folder cleanup); 6 `SSL` (stub; first story needing client SSL); 7 `Tasks` (built; 1.11 and later declare); 8 `Demo` (stub; 0.10); 9 `Provider` (stub; 1.1); 10 `Audit` (checks the events, naming a missing or disabled one; 3.7 with DW-10 extends it); 11 `Telegram` (stub; 12.1); 12 `Production` (stub that starts nothing; 0.6); 13 `Reconcile` (built); 14 `PrivateData` (built; `StorageGlobals`); 15 `Ready` (built).
   - Public settings, roles and audit events are structural; tasks are created once. The System Default Settings helper comes with 1.1.
   - **`Data.Public.Settings`:** a fixed key set (the online-demo, reset, proxy and connection keys plus `ready`); any other key is refused. Defaults are the `Public` step's job (3.8).
   - **Tests:** `%UnitTest` classes under `src/ocutalon/cls/OcuTalon/Test/<Area>/`. Bash tests are `docker/tests/test-*.sh`, each runnable alone, exit 0 on success; live ones use `docker/tests/lib-live.sh` (`live_start`: a throwaway project with no keys, cleaned up).
 - **Delivered: Story 0.3.**
   - The `ocutalon` account holds all three roles, as seed. The `Roles` step composes the `Users` and `Web` steps' `Grants()`; only `OcuTalonTraceViewer` holds grants directly.
-  - **`Step.Web`** builds every application from `Common` plus overrides (`CSPZENEnabled` 1 everywhere: 0 stops signed-in requests reaching the dispatch class on build 154); `/ocutalon` and `/ocutalon/api` share `CookiePath` `/ocutalon/`. `Web.TraceApp(namespace, .props)` returns `/ocutalon/trace/<namespace in lower case>` and its properties; 0.6's `Demo` step and 4.1 use it.
+  - **`Step.Web`** builds every application from `Common` plus overrides (`CSPZENEnabled` 1 everywhere: 0 stops signed-in requests reaching the dispatch class on build 154); `/ocutalon` and `/ocutalon/api` share `CookiePath` `/ocutalon/`. `Web.TraceApp(namespace, .props)` returns `/ocutalon/trace/<namespace in lower case>` and its properties; 0.10's `Demo` step and 4.1 use it.
   - **`Shell`** (adapting `%ZHSLIB.REST.AngularHandler` without referencing it, HS-only) renders `Login` without a session and serves only the brand images; signed in it runs `Shell.HasRole()` and serves the bundle. The sign-in POST has no CSRF token (DW-6). Sign out uses `?IRISLogout=end` until 2.2.
   - **`web/`:** `npm --prefix web run build` (`tokens.mjs --check`, `payloads.mjs --check`, `brand.mjs`, `ng build`) writes `src/ocutalon/csp/`, git-ignored on development branches and force-added at release (11.5); the Dockerfile refuses an image without it. IPM's `FileCopy` copies it to the durable `csp/ocutalon-web/` on every load and never prunes stale hashed files. `tokens.mjs` exports `emitOutputs(name, outputs, check)`, the write-or-check routine other generators reuse.
   - **Browser tests:** `web/playwright.config.ts` and `signIn()` in `web/e2e/sign-in/helpers.ts` (0.8 reuses both). `docker/tests/test-sign-in.sh` seeds a live stack and runs the Playwright specs (`LIVE_REBUILD_WEB=1`; port 52800–52819 or `OCUTALON_TEST_WEB_PORT`; Node 24.15+ and Playwright's chromium).
@@ -221,11 +222,10 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - **Tests:** `Test.Live.Publish`, `.Payloads`; `Test.Web.Api` (via `Test.Web.StubRequest`), `.Status`; `web/scripts/payloads.test.mjs`; `web/e2e/api/api.spec.ts`, run by `test-sign-in.sh` (which also creates the fixture user `ZzFirstCall`, user role, no session row); `docker/tests/test-bundle-folder.sh` (live, non-Health image: the old `/csp/ocutalon/` files 404 without a session, before and after a restart; the bundle loads through `/ocutalon/` after sign-in). Each probe uses a fresh URL: the web gateway caches answers, 404s included.
   - **Owner veto window (Rule 22.3), open:** the envelope and no-role rules, `/ocutalon/public`, API-created `Session` rows, old-bundle deletion, the API's error texts, `ApiBase` in the public database, the unchecked-privilege queries.
 - **Developer slots:** `ocutalon-slot-a` and `-b` run 0.1's `merge.cpf` on the base image without the after-start script: code goes in through the IRIS MCP tools, installer steps run explicitly, and IRIS can't read the repository. The after-start install and destructive tests run only in throwaway compose stacks and CI.
-- **0.6 (next):**
+- **0.6 (next; its demo-mode group moved to 0.10):**
   - **DW-13 (routed here):** `docker/tests/test-storage.sh` treats every persistent root this story's classes extend (`Ens.BusinessProcess`, `Ens.MessageBody`, `Ens.StreamContainer`, besides `%Persistent`, `Ens.Request`, `Ens.Response`) as a storage root, exempts the message and business-process extents from `DEFAULTGLOBAL` as AD-3 does, and has a bad sample for each.
   - The items use 0.4's messages; `TelegramIn` reuses `Channel.Telegram.In`; `Commands.Submit` sends the `Command` subclasses.
   - Its stub items are 0.5's publishers-to-be (through `Live.Publish`, outside a transaction). `Data.Ownership` (`TurnCost`, `RunCost`) is among its stubbed signatures; it doesn't replace `Session.ForUser` yet (2.2).
-  - Its `Demo` step reads demo mode through `Setting.Get` and its seed, and calls `Web.TraceApp("OCUORDERS")` with demo mode on.
   - Its constants (`MOCKKEY`, tool names, compaction prefix) are what 0.7's mock keys on.
 - **0.7 and CI:**
   - 0.7's checks gate everything above. The CI override extends 0.1's compose file. CI runs `docker/tests/test-*.sh` (the live ones, `test-audit.sh`, `test-sign-in.sh` and `test-bundle-folder.sh` among them, on the IRIS runner), the `%UnitTest` shards, the public-package and `^OcuTalonPublic` checks (allow-list over `Shell`, `Login`, `SignInAssets`, `Status`, `ApiBase`), and the registry and storage checks (`src/short-names.tsv`, `test-storage.sh`).
@@ -234,11 +234,14 @@ Epic 0 is the walking skeleton. A judge loads and retags the build 154 image, ru
   - 0.7 also updates `_bmad/custom/skill-rules.md` (IRIS test recipe, shard command, timings) and `_bmad/custom/parallel.yaml` (bootstrap with `web/`'s dependencies, runtime locks).
   - CI must run on `feature/OCT_OcuTalon_MVP` and `OCT-epic*` with no `cancel-in-progress`.
 - **0.8:** runs in 0.7's IRIS job; reuses 0.3's `playwright.config.ts` and `signIn()`, and waits for 0.5's `main[data-snapshot=loaded]`.
-- **0.9 (last story of Epic 0; Lane B's after):**
+- **0.9 (Lane B's after):**
   - `OcuTalon.Msg.Catalog.Core` and `.Watch` with every release-1 and 0.1.1 key, including those 0.4's `CatalogKey` and `Slots` name on `Item`, `ItemDecision`, `Notification` and `Outbound`.
   - `Catalog.Render(key, slots, channel)` on 0.4's `Data.Time`, tested on every key and channel.
   - The test comparing the public package's text copies (`Login`'s, and `ApiBase`'s 401 text) with the catalog.
-  - **DW-12:** Task 0 measures, on a throwaway stack started with a compose-level `TZ`, whether a production job's `Data.Time.ToLocal` and `Zone()` use the container's zone; if not, the renderer passes the instance zone explicitly (AD-18).
+  - **DW-12:** Task 0 measures, on a throwaway stack started with a compose-level `TZ`, whether a production job's `Data.Time.ToLocal` and `Zone()` use the container's zone; if not, the renderer passes the instance zone explicitly (AD-18). It needs only 0.6's production jobs, not 0.10.
+- **0.10 (last story of Epic 0):**
+  - Fills step 8, `Install.Step.Demo`, which reads demo mode through `Setting.Get` and its seed. Demo mode on: OCUORDERS (code and data databases, mappings), `OcuTalon.Demo.Orders.Production` running there (message classes, a partner service, the real transform failing on the changed date format) and the OCUORDERS trace application through `Web.TraceApp("OCUORDERS")`. Off: no OCUORDERS.
+  - `eval/` gets one recorded failure snapshot of a date-format batch, which Lane A's watch and diagnosis tests use until Epic 9.
 - **Epic 0's handoffs to Story 2.2 (outside Epic 0; not built here):**
   - **DW-14:** `ApiClient` sends the browser envelope on every state-changing call (an interceptor adds `Content-Type: application/json` and `X-OcuTalon-Request: 1`), starting with `POST /api/v1/session/end`, with a test of the server's 403s without it.
   - **DW-15:** `/state` and `/events` resolve the caller's session through `Data.Ownership` from the CSP session, replacing `Session.ForUser($Username)`, so two visitors on one shared account never see each other's events.
