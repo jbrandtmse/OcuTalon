@@ -12,6 +12,9 @@
 #   LIVE_IMAGES  extra image ids or names that the cleanup removes
 # and installs a cleanup trap that removes the project with its volume and images and the temporary directory.
 # The project publishes no host port and receives no keys: the decoy key file is dropped by the override.
+# A test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
+# live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
+# without it: see ensure_web_bundle.
 
 live_start() {
   root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -32,10 +35,102 @@ live_start() {
 
   trap live_cleanup EXIT
   trap 'exit 130' INT TERM HUP
+
+  ensure_web_bundle || exit 1
 }
 
 # The tests' own compose files are added after the throwaway override.
 live_add_file() { LIVE_FILES+=("$1"); }
+
+# --- the web bundle ---
+
+# The image copies src/ocutalon/csp/, the Angular bundle that npm --prefix web run build writes (ignored by git on
+# development branches). ensure_web_bundle installs the web dependencies when web/node_modules is missing and builds
+# the bundle when src/ocutalon/csp/index.html is missing, or always when LIVE_REBUILD_WEB is 1. It needs Node only
+# when it has to run npm, and then says so.
+ensure_web_bundle() {
+  local rebuild=${LIVE_REBUILD_WEB:-0}
+  if [ -d web/node_modules ] && [ -f src/ocutalon/csp/index.html ] && [ "$rebuild" != 1 ]; then
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo "FAIL web bundle: node and npm are not installed, and the bundle must be built (Node 24.15 or later, then npm --prefix web ci and npm --prefix web run build)"
+    return 1
+  fi
+  if [ ! -d web/node_modules ]; then
+    if ! npm --prefix web ci --no-audit --no-fund > "${TMPDIR:-/tmp}/ocutalon-npm-ci.$$.log" 2>&1; then
+      tail -n 15 "${TMPDIR:-/tmp}/ocutalon-npm-ci.$$.log"
+      rm -f "${TMPDIR:-/tmp}/ocutalon-npm-ci.$$.log"
+      echo "FAIL web bundle: npm --prefix web ci failed"
+      return 1
+    fi
+    rm -f "${TMPDIR:-/tmp}/ocutalon-npm-ci.$$.log"
+  fi
+  if [ ! -f src/ocutalon/csp/index.html ] || [ "$rebuild" = 1 ]; then
+    if ! npm --prefix web run build > "${TMPDIR:-/tmp}/ocutalon-npm-build.$$.log" 2>&1; then
+      tail -n 15 "${TMPDIR:-/tmp}/ocutalon-npm-build.$$.log"
+      rm -f "${TMPDIR:-/tmp}/ocutalon-npm-build.$$.log"
+      echo "FAIL web bundle: npm --prefix web run build failed"
+      return 1
+    fi
+    rm -f "${TMPDIR:-/tmp}/ocutalon-npm-build.$$.log"
+  fi
+  return 0
+}
+
+# --- the published web port ---
+
+# The ports that no test may publish: the judges' default, and the ports of the other instances and slots.
+LIVE_FORBIDDEN_PORTS="52773 1979 52779 8089 1990 1991 52790 52791 8090 8091"
+
+# 0 when something listens on 127.0.0.1:<port>.
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+# live_web_port: publishes the project's web port on 127.0.0.1 only. The port is OCUTALON_TEST_WEB_PORT when set,
+# otherwise the first port of 52800-52819 that nothing listens on. Sets web_port, and adds an override file
+# (ports: ["127.0.0.1:<port>:52773"]) after the other compose files. Returns 1, saying why, when the port is
+# outside 52800-52819, in use or forbidden, or no port is free.
+live_web_port() {
+  local port="" candidate forbidden
+  if [ -n "${OCUTALON_TEST_WEB_PORT:-}" ]; then
+    port=$OCUTALON_TEST_WEB_PORT
+    case $port in
+      '' | *[!0-9]*)
+        echo "FAIL live_web_port: OCUTALON_TEST_WEB_PORT '$port' is not a port number"
+        return 1
+        ;;
+    esac
+    for forbidden in $LIVE_FORBIDDEN_PORTS; do
+      if [ "$port" = "$forbidden" ]; then
+        echo "FAIL live_web_port: port $port belongs to the judges' stack, a slot or another instance; use 52800-52819"
+        return 1
+      fi
+    done
+    port=$((10#$port))
+    if [ "$port" -lt 52800 ] || [ "$port" -gt 52819 ]; then
+      echo "FAIL live_web_port: OCUTALON_TEST_WEB_PORT $port is outside 52800-52819"
+      return 1
+    fi
+    if port_in_use "$port"; then
+      echo "FAIL live_web_port: port $port is in use on 127.0.0.1"
+      return 1
+    fi
+  else
+    for candidate in $(seq 52800 52819); do
+      if ! port_in_use "$candidate"; then
+        port=$candidate
+        break
+      fi
+    done
+    if [ -z "$port" ]; then
+      echo "FAIL live_web_port: ports 52800-52819 are all in use on 127.0.0.1; free one, or set OCUTALON_TEST_WEB_PORT"
+      return 1
+    fi
+  fi
+  web_port=$port
+  printf 'services:\n  iris:\n    ports:\n      - "127.0.0.1:%s:52773"\n' "$port" > "$tmp/port.yml"
+  live_add_file "$tmp/port.yml"
+}
 
 dc() {
   local args=() f
@@ -156,6 +251,13 @@ wait_started_ready() {
   [ "$before" = "$after" ]
 }
 
+# container_sha256 <path>: the SHA-256 of a file in the iris container, or "" when it is missing.
+container_sha256() { dc exec -T iris sha256sum "$1" 2>/dev/null | tr -d '\r' | cut -d' ' -f1; }
+
+# container_tree_hashes <dir>: the SHA-256 and relative path of every file below a directory of the iris container,
+# sorted by path, one per line.
+container_tree_hashes() { dc exec -T iris sh -c "cd '$1' && find . -type f | sort | xargs sha256sum" 2>/dev/null | tr -d '\r'; }
+
 # --- the build context ---
 
 # The sources of the Dockerfile's COPY lines, as written (a trailing slash marks a directory).
@@ -221,6 +323,45 @@ check_session() {
 # session_value <namespace> <name> < script: the value of the CHK|<name>| line that the script prints.
 session_value() {
   iris_script "$1" | sed -n "s/^CHK|$2|//p" | head -n 1
+}
+
+# security_app_props <CSPZENEnabled> <CookiePath> <DispatchClass> <MatchRoles> <Path> <PermittedClasses> <ServeFiles>:
+# the properties string that check_security reads back for a web application, in the order of its key list; the
+# values every application shares are written here.
+security_app_props() {
+  printf 'AutheEnabled=32;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=OcuTalon;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=OCUTALON;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
+    "$1" "$2" "$3" "$4" "$5" "$6" "$7"
+}
+
+# check_security <label>: Story 0.3's matrix rows 1 and 2 on the running container, from the security tables.
+#   - OcuTalonUser and OcuTalonAdmin hold no resource; OcuTalonTraceViewer holds exactly Use on four Ens resources and
+#     Read on the OCUTALON data and code databases, and SQL SELECT on Ens.MessageHeader in OCUTALON;
+#   - user ocutalon holds the three roles, with a password that never expires, no forced change and an account that
+#     never expires, enabled; InvalidLoginAction is 0;
+#   - the three web applications have exactly the properties of the Web step, and no CORS list.
+check_security() {
+  local label=$1 permitted shell_props api_props trace_props
+  permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
+  shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon/ '' 3)
+  api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
+  trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
+  check_session "$label: roles, README account, sign-in policy and applications" %SYS \
+    "CHK|role-OcuTalonUser|
+CHK|role-OcuTalonAdmin|
+CHK|role-OcuTalonTraceViewer|%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%Ens_MessageContent:U,%Ens_MessageHeader:U,%Ens_MessageTrace:U,%Ens_Portal:U
+CHK|trace-sql-select|1
+CHK|user|OcuTalonAdmin,OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
+CHK|invalid-login-action|0
+CHK|app|/ocutalon|$shell_props
+CHK|app|/ocutalon/api|$api_props
+CHK|app|/ocutalon/trace/ocutalon|$trace_props" \
+    'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
+    'Write !,"CHK|trace-sql-select|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUTALON")' \
+    'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
+    'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
+    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
+    'For app="/ocutalon","/ocutalon/api","/ocutalon/trace/ocutalon" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
+    'Halt'
 }
 
 # Data and private probes: a global in OCUTALON_DATA and one in OCUTALON_PRIVATE, to show that a restart,

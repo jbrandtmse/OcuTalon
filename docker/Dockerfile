@@ -11,10 +11,12 @@ RUN mkdir -p /durable && chown 51773:51773 /durable
 COPY src/ /opt/ocutalon/src/
 COPY docker/ipm/ /opt/ocutalon/ipm/
 COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/
-# The image's version is the first <Version> of the manifest; an empty one fails the build.
+# The image's version is the first <Version> of the manifest; an empty one fails the build, and so does a source
+# tree without the web bundle that npm --prefix web run build writes.
 # Everything is root's and read-only: files 444, directories and the two scripts 555.
 RUN version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' /opt/ocutalon/src/module.xml | head -n 1)" \
  && test -n "$version" \
+ && { test -f /opt/ocutalon/src/ocutalon/csp/index.html || { echo "web bundle missing: run npm --prefix web run build" >&2; exit 1; }; } \
  && printf '%s\n' "$version" > /opt/ocutalon/version \
  && find /opt/ocutalon -type f -exec chmod 444 {} + \
  && find /opt/ocutalon -type d -exec chmod 555 {} + \

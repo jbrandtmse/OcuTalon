@@ -4,7 +4,9 @@
 #     (.env, irislib/, irissys/, .git, ...), the build context carries exactly the files that
 #     docker/Dockerfile copies;
 #   - IRIS_IMAGE: the image named in the environment of `docker compose build` is the image that
-#     docker/Dockerfile builds FROM (checked by a label that only that base carries).
+#     docker/Dockerfile builds FROM (checked by a label that only that base carries);
+#   - the web bundle (Story 0.3, row 20): a build context without src/ocutalon/csp/ fails the build and says
+#     "web bundle missing: run npm --prefix web run build".
 # Needs the docker daemon with BuildKit and the base image ocutalon-iris-base:2026.3.0AI.154.0 (or IRIS_IMAGE).
 # Creates and removes its own files and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -12,6 +14,7 @@ set -u
 . "$(dirname "$0")/lib-live.sh"
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
+ensure_web_bundle || exit 1
 
 P="ocutalon-t01-bi-$(date +%s)-$$"
 base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
@@ -20,7 +23,7 @@ fails=0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-bi.XXXXXX") || exit 1
 
 cleanup() {
-  docker image rm -f "$P-iris" "$P-base" >/dev/null 2>&1
+  docker image rm -f "$P-iris" "$P-base" "$P-nobundle" >/dev/null 2>&1
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -87,6 +90,23 @@ elif IRIS_IMAGE="$P-base" docker compose -p "$P" -f docker-compose.yml -f docker
 else
   tail -n 15 "$tmp/build.log"
   fail "IRIS_IMAGE: docker compose build failed on the labelled base"
+fi
+
+# --- the web bundle ---
+
+nobundle="$tmp/nobundle"
+copy_build_context "$nobundle"
+rm -rf "$nobundle/src/ocutalon/csp"
+if [ -f "$nobundle/src/ocutalon/csp/index.html" ] || [ ! -f "$nobundle/src/module.xml" ]; then
+  fail "web bundle: the control context is not a context without the bundle"
+elif docker build -q -f "$nobundle/docker/Dockerfile" --build-arg "IRIS_IMAGE=$base_image" -t "$P-nobundle" "$nobundle" > "$tmp/nobundle.log" 2>&1; then
+  docker image rm -f "$P-nobundle" >/dev/null 2>&1
+  fail "web bundle: an image was built from a context without src/ocutalon/csp/"
+elif grep -q 'web bundle missing: run npm --prefix web run build' "$tmp/nobundle.log"; then
+  pass "web bundle: a build context without src/ocutalon/csp/ fails with 'web bundle missing: run npm --prefix web run build'"
+else
+  tail -n 15 "$tmp/nobundle.log"
+  fail "web bundle: the build failed, but not with the missing-bundle message"
 fi
 
 if [ "$fails" -ne 0 ]; then

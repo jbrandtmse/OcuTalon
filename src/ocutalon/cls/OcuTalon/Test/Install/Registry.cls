@@ -25,9 +25,14 @@ Property TaskName As %String;
 /// observed over fixture steps.
 Property Probe As %String;
 
+/// The names of the OcuTalon roles that exist before any test runs: TestRolesStep runs the real Roles step,
+/// which creates the real roles, and deletes the ones that were not here.
+Property RolesBefore As %List;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
+	Set ..RolesBefore = ..OcuTalonRoles()
 	Set ..Number = $Increment(^OcuTalonTest("Registry", "n"))
 	Set ..Area = "OcuTalon.Install.Step.ZzFixture"_..Number
 	Set ..Abstract = ..Area_"Abstract"
@@ -45,6 +50,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ..RemoveRoles()
+	Do ..RemoveNewRoles()
 	Do ..RemoveTask(..TaskName)
 	Do ..Clean()
 	Quit $SYSTEM.Status.OK()
@@ -105,6 +111,7 @@ Method TestRolesStep()
 	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), "%DB_USER:RW,%Development:U,%Service_Terminal:U", "an extra grant was added by hand")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs again")
 	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), "%DB_USER:RW,%Development:U", "the role is back to exactly the declared set")
+	Do ..RemoveNewRoles()
 }
 
 /// A role name that does not start with OcuTalon fails the step, which names the area, and changes nothing.
@@ -359,6 +366,31 @@ ClassMethod Clean() [ Private ]
 		Do $SYSTEM.OBJ.Delete(result.%GetData(1), "-d")
 	}
 	Kill ^OcuTalonTest("Registry")
+}
+
+/// The OcuTalon roles that exist now, as a list of names.
+ClassMethod OcuTalonRoles() As %List [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set names = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Security.Roles WHERE Name %STARTSWITH 'OcuTalon'")
+	While result.%Next() {
+		Set names = names_$ListBuild(result.%GetData(1))
+	}
+	Quit names
+}
+
+/// Deletes every OcuTalon role that did not exist before the tests: the real roles that the Roles step creates.
+Method RemoveNewRoles() [ Private ]
+{
+	Set current = ..OcuTalonRoles()
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set position = 0
+	While $ListNext(current, position, role) {
+		If '$ListFind(..RolesBefore, role) Do ##class(Security.Roles).Delete(role)
+	}
 }
 
 Method RemoveRoles() [ Private ]

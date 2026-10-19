@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Live test of the upgrade at start (matrix rows 6 and 7): builds the image and starts it in one throwaway
+# Live test of the upgrade at start (matrix rows 6 and 7, and Story 0.3's row 15): builds the image and starts it in one throwaway
 # compose project, then recreates the container from images whose version is raised by a patch number
 #   - row 6, an upgrade in place: the installed version and the marker equal the new version, every step
-#     runs again, and the probes written under the old version are intact;
+#     runs again, and the probes written under the old version are intact; the README account keeps the password
+#     that was set by hand, with its flags, the durable index.html is the new image's, and the roles, the account
+#     and the three web applications are still as the first start made them (Story 0.3, row 15);
 #   - row 7, a step that fails: an image whose SSL step returns an error. The log names SSL as failed and no
 #     later step ran, there is no marker and readiness is empty, the container keeps running without a
 #     restart and Docker never reports healthy. The next good image reaches ready.
@@ -26,6 +28,8 @@ make_image_context() {
   copy_build_context "$1"
   awk -v v="$2" '!done && /<Version>/ { sub(/<Version>[^<]*<\/Version>/, "<Version>" v "</Version>"); done = 1 } { print }' \
     src/module.xml > "$1/src/module.xml"
+  # The bundle of each image differs, so that the durable copy must follow the upgrade.
+  printf '<!-- %s -->\n' "$2" >> "$1/src/ocutalon/csp/index.html"
   if [ "${3:-}" = broken ]; then
     cat > "$1/src/ocutalon/cls/OcuTalon/Install/Step/SSL.cls" <<'EOS'
 Class OcuTalon.Install.Step.SSL Extends OcuTalon.Install.Step
@@ -97,6 +101,43 @@ check_installed "first start" "$v0"
 set_probes
 check_probes "under $v0"
 
+# A digest of the README account's password hash, salt and flags: it changes when any of them does, and it is not
+# the hash itself.
+readme_fingerprint() {
+  printf '%s\n' \
+    'If ##class(Security.Users).Exists("ocutalon",.u) { Set s=u.Password_"|"_u.Salt_"|"_u.Enabled_"|"_u.ChangePassword_"|"_u.PasswordNeverExpires_"|"_u.AccountNeverExpires Write !,"CHK|fp|",$SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256,s)) } Else { Write !,"CHK|fp|<missing>" }' \
+    'Halt' | session_value %SYS fp
+}
+
+# --- row 15 (part 1): the README account's password is changed by hand under the first version ---
+
+fingerprint_first=$(readme_fingerprint)
+changed=$(printf '%s\n' \
+  'Kill p Set p("Password")="Zz-changed-by-hand-1"' \
+  'Write !,"CHK|changed|",##class(Security.Users).Modify("ocutalon",.p)' \
+  'Halt' | session_value %SYS changed)
+fingerprint_changed=$(readme_fingerprint)
+if [ "$changed" = 1 ] && [ -n "$fingerprint_first" ] && [ "$fingerprint_first" != "<missing>" ] \
+  && [ -n "$fingerprint_changed" ] && [ "$fingerprint_changed" != "<missing>" ] && [ "$fingerprint_changed" != "$fingerprint_first" ]; then
+  pass "row 15: the README account's password was changed by hand under $v0"
+else
+  fail "row 15: the README account's password could not be changed ('$changed')"
+fi
+index_first=$(container_sha256 /durable/iris/csp/ocutalon/index.html)
+
+# The roles and the web applications are structural (AD-19): a hand change to one of each is put back by the upgrade.
+drifted=$(printf '%s\n' \
+  'Kill p Set p("Timeout")=100,p("CorsAllowlist")="https://zz.example.com"' \
+  'Write !,"CHK|app|",##class(Security.Applications).Modify("/ocutalon/api",.p)' \
+  'Kill r Set r("Resources")=""' \
+  'Write !,"CHK|role|",##class(Security.Roles).Modify("OcuTalonTraceViewer",.r)' \
+  'Halt' | iris_script %SYS | sed -nE 's/^CHK\|(app|role)\|//p' | tr '\n' ' ')
+if [ "$drifted" = "1 1 " ]; then
+  pass "row 15: an application and the trace role were changed by hand under $v0"
+else
+  fail "row 15: the application and the trace role could not be changed by hand ('$drifted')"
+fi
+
 # --- row 6: an upgrade in place ---
 
 v1=$(bump_patch "$v0" 1)
@@ -115,6 +156,21 @@ if [ "$(health_status)" = healthy ] && [ "$(restart_count)" = 0 ]; then
 else
   fail "row 6: Docker reports '$(health_status)' after $(restart_count) restart(s), wanted healthy and 0"
 fi
+
+# --- row 15 (part 2): the account is as the hand left it, the bundle follows the upgrade, rows 1 and 2 hold again ---
+
+if [ -n "$fingerprint_changed" ] && [ "$(readme_fingerprint)" = "$fingerprint_changed" ]; then
+  pass "row 15: the README account's password hash, salt and flags are unchanged by the upgrade"
+else
+  fail "row 15: the upgrade changed the README account"
+fi
+index_now=$(container_sha256 /durable/iris/csp/ocutalon/index.html)
+if [ -n "$index_now" ] && [ "$index_now" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ] && [ "$index_now" != "$index_first" ]; then
+  pass "row 15: the durable index.html is the new image's, and not the first version's"
+else
+  fail "row 15: the durable index.html does not equal the new image's, or did not change"
+fi
+check_security "row 15 after the upgrade"
 
 # --- row 7: a step fails ---
 

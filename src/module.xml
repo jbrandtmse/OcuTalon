@@ -8,6 +8,7 @@
       <SourcesRoot>.</SourcesRoot>
       <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
+      <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon/"/>
     </Module>
   </Document>
 </Export>

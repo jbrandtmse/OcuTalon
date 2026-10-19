@@ -6,7 +6,12 @@
 #     the container's start and ends with the end line, and readiness counts only when that line says ready and
 #     Docker reports healthy for the same start, so a previous start's log or health is never taken for this one;
 #   - copy_build_context: exactly the files the Dockerfile's COPY lines name, a directory expanded to its files;
-#   - log_steps, bump_patch, manifest_version: the reductions the live tests compare.
+#   - log_steps, bump_patch, manifest_version: the reductions the live tests compare;
+#   - live_web_port: the first free port of 52800-52819 on 127.0.0.1, the OCUTALON_TEST_WEB_PORT override, a refusal
+#     of the ports of the judges' stack, the slots and the other instances, and a clear failure when no port is free
+#     (the ports in use are stubbed, nothing listens);
+#   - ensure_web_bundle: no Node is needed when the bundle and the dependencies are there, and its absence is named
+#     when they are not.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 10 s: the negative waits sleep 3 s each.
 set -u
 
@@ -160,6 +165,105 @@ if [ "$(manifest_version "$tmp/module.xml")" = 1.2.3 ] && [ "$(bump_patch 1.2.3 
   pass "versions: the first <Version> is the manifest's, and bump_patch raises only the patch number"
 else
   fail "versions: manifest_version or bump_patch is wrong"
+fi
+
+# --- live_web_port ---
+
+# The ports that the stub reports as in use, one per line; the real probe is replaced.
+used_ports="$tmp/used-ports"
+port_in_use() { grep -qx "$1" "$used_ports"; }
+LIVE_FILES=()
+web_port=""
+
+: > "$used_ports"
+unset OCUTALON_TEST_WEB_PORT
+live_web_port > "$tmp/port.out" 2>&1
+if [ "$web_port" = 52800 ] && [ "${#LIVE_FILES[@]}" -eq 1 ] && [ "${LIVE_FILES[0]}" = "$tmp/port.yml" ] \
+  && [ "$(cat "$tmp/port.yml")" = 'services:
+  iris:
+    ports:
+      - "127.0.0.1:52800:52773"' ]; then
+  pass "web port: with nothing listening it publishes 52800 on 127.0.0.1 only, in an override added to the compose files"
+else
+  fail "web port: expected 52800 and an override file ('$web_port', $(cat "$tmp/port.yml" 2>/dev/null | tr '\n' ' '))"
+fi
+
+printf '%s\n' 52800 52801 52803 > "$used_ports"
+LIVE_FILES=()
+live_web_port > "$tmp/port.out" 2>&1
+if [ "$web_port" = 52802 ]; then
+  pass "web port: it picks the first free port, not the first port above the busy ones"
+else
+  fail "web port: with 52800, 52801 and 52803 in use it picked '$web_port', wanted 52802"
+fi
+
+OCUTALON_TEST_WEB_PORT=52815
+live_web_port > "$tmp/port.out" 2>&1
+if [ "$web_port" = 52815 ] && grep -q '127.0.0.1:52815:52773' "$tmp/port.yml"; then
+  pass "web port: OCUTALON_TEST_WEB_PORT is honoured"
+else
+  fail "web port: the override gave '$web_port'"
+fi
+
+for refused in 52773 052773 52790 1979 8089 0 80 99999 52799 52820 abc 52x; do
+  OCUTALON_TEST_WEB_PORT=$refused
+  web_port=""
+  if live_web_port > "$tmp/port.out" 2>&1 || [ -n "$web_port" ]; then
+    fail "web port: the override '$refused' was accepted"
+  elif grep -q '^FAIL live_web_port' "$tmp/port.out"; then
+    pass "web port: the override '$refused' is refused with a message"
+  else
+    fail "web port: the override '$refused' was refused without a message"
+  fi
+done
+
+printf '%s\n' 52815 > "$used_ports"
+OCUTALON_TEST_WEB_PORT=52815
+web_port=""
+if live_web_port > "$tmp/port.out" 2>&1 || [ -n "$web_port" ]; then
+  fail "web port: the override 52815 was accepted while something listens on it"
+elif grep -q '^FAIL live_web_port.*in use' "$tmp/port.out"; then
+  pass "web port: an override that is in use is refused with a message"
+else
+  fail "web port: an override that is in use was refused without saying so"
+fi
+unset OCUTALON_TEST_WEB_PORT
+
+seq 52800 52819 > "$used_ports"
+web_port=""
+if live_web_port > "$tmp/port.out" 2>&1 || [ -n "$web_port" ]; then
+  fail "web port: it picked a port with all of 52800-52819 in use"
+elif grep -q 'all in use' "$tmp/port.out"; then
+  pass "web port: with no free port it fails and says so"
+else
+  fail "web port: with no free port it failed without saying why"
+fi
+
+in_range=0
+for forbidden in $LIVE_FORBIDDEN_PORTS; do
+  if [ "$forbidden" -ge 52800 ] && [ "$forbidden" -le 52819 ]; then in_range=1; fi
+done
+if [ "$in_range" -eq 0 ] && [ "$LIVE_FORBIDDEN_PORTS" = "52773 1979 52779 8089 1990 1991 52790 52791 8090 8091" ]; then
+  pass "web port: none of the ports of the judges' stack, the slots and the other instances is in 52800-52819"
+else
+  fail "web port: the forbidden ports are wrong, or one is in the range"
+fi
+
+# --- ensure_web_bundle ---
+
+mkdir -p "$tmp/nobin" "$tmp/empty-tree" "$tmp/full-tree/web/node_modules" "$tmp/full-tree/src/ocutalon/csp"
+: > "$tmp/full-tree/src/ocutalon/csp/index.html"
+out=$(cd "$tmp/empty-tree" && PATH="$tmp/nobin" ensure_web_bundle 2>&1)
+if [ $? -ne 0 ] && printf '%s' "$out" | grep -q 'node'; then
+  pass "web bundle: without the bundle and without Node it fails and names Node"
+else
+  fail "web bundle: expected a failure that names Node ($out)"
+fi
+out=$(cd "$tmp/full-tree" && LIVE_REBUILD_WEB=0 PATH="$tmp/nobin" ensure_web_bundle 2>&1)
+if [ $? -eq 0 ] && [ -z "$out" ]; then
+  pass "web bundle: with the bundle and the dependencies in place Node is not needed"
+else
+  fail "web bundle: expected success without Node ($out)"
 fi
 
 if [ "$fails" -ne 0 ]; then

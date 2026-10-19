@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Scans the files of docker/, the compose files, src/ and the repository-root files of the image for the
-# boundaries that no other test pins:
+# Scans the files of docker/, the compose files, src/, the text sources of web/ and the repository-root files of
+# the image for the boundaries that no other test pins:
 #   - ASCII only;
 #   - no local machine path and no key-like string in a tracked file;
 #   - no image push and no registry sign-in;
@@ -79,8 +79,21 @@ scan_rule() {
 
 # --- the files in scope: tracked or not yet ignored, so that a new file is scanned before it is committed ---
 
-files=$(git ls-files -co --exclude-standard -- docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes src | while IFS= read -r f; do
-  if [ -f "$f" ]; then echo "$f"; fi
+# From web/ only the text sources: the vendored fonts, images and licence texts are not scanned.
+in_scope() {
+  case $1 in
+    web/*)
+      case $1 in
+        *.ts | *.js | *.html | *.css | *.mjs | *.json) return 0 ;;
+      esac
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+files=$(git ls-files -co --exclude-standard -- docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes src web | while IFS= read -r f; do
+  if [ -f "$f" ] && in_scope "$f"; then echo "$f"; fi
 done)
 if [ -z "$files" ]; then
   echo "FAIL no files in scope"
@@ -90,14 +103,16 @@ fi
 # All of src/, the dev compose file, the scripts and the pinned IPM release are in scope.
 scope_ok=1
 for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalon/cls/OcuTalon/Install/Registry.cls \
-  docker-compose.dev.yml docker/after-start.sh docker/after-start.cos docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/lib-live.sh; do
+  docker-compose.dev.yml docker/after-start.sh docker/after-start.cos docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/lib-live.sh \
+  web/package.json web/package-lock.json web/angular.json web/src/index.html web/src/app/app.ts web/src/styles/tokens.css web/src/signin/signin.css \
+  web/scripts/tokens.mjs web/e2e/sign-in/helpers.ts web/src/signin/signin.js src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls; do
   if ! printf '%s\n' "$files" | grep -qx -- "$f"; then
     echo "  not scanned: $f"
     scope_ok=0
   fi
 done
 if [ "$scope_ok" -eq 1 ]; then
-  echo "PASS scope: src/, the dev compose file, the scripts and the IPM release are scanned"
+  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts and the IPM release are scanned"
 else
   echo "FAIL scope: a file that must be scanned is not"
   fails=$((fails + 1))

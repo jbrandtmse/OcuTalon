@@ -1,0 +1,140 @@
+/*
+  The sign-in page's rules. System fonts only: the page's Content-Security-Policy allows no font file.
+  Every var(--x) is a token from DESIGN.md; tokens.mjs inlines the ones used here, light and dark.
+  ASCII only.
+*/
+:root { color-scheme: light dark; }
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--splash-canvas-background); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--splash-canvas-background);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--type-body-font-size);
+  line-height: var(--type-body-line-height);
+}
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+.logo { display: block; width: 320px; max-width: 100%; height: auto; margin: 0 auto -4px; }
+.card {
+  width: var(--space-sign-in-card-width);
+  max-width: 100%;
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+}
+.card h1 {
+  margin: 0 0 var(--space-4);
+  color: var(--ink);
+  font-size: var(--type-display-lg-font-size);
+  font-weight: var(--type-display-lg-font-weight);
+  line-height: var(--type-display-lg-line-height);
+  letter-spacing: var(--type-display-lg-letter-spacing);
+}
+.field + .field { margin-top: var(--space-3); }
+.label {
+  display: block;
+  margin: 0 0 var(--space-1);
+  color: var(--ink);
+  font-size: var(--type-body-strong-font-size);
+  font-weight: var(--type-body-strong-font-weight);
+  line-height: var(--type-body-strong-line-height);
+}
+.input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--space-control-height-lg);
+  padding: 0 3px 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-xs);
+}
+.input.invalid { border-color: var(--danger-ink); }
+.input:focus-within,
+.error:focus,
+.toggle:focus-visible,
+.primary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.input input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-target-min);
+  height: var(--space-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--action-ink);
+  cursor: pointer;
+}
+.toggle[aria-pressed=true] { background: var(--action-soft); }
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--space-control-height);
+  margin-top: var(--space-3);
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: var(--action);
+  color: var(--on-action);
+  font: inherit;
+  font-weight: var(--type-body-strong-font-weight);
+  cursor: pointer;
+}
+.primary:hover { background: var(--action-hover); }
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 2px var(--space-1);
+  border-radius: var(--rounded-xs);
+  color: var(--danger-ink);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.error .icon { margin-top: 1px; }
+.help {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}

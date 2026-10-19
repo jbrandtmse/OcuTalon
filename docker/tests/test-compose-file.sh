@@ -108,6 +108,18 @@ check "dockerfile: CMD deletes the ready marker before IRIS starts, then runs th
 check "dockerfile: the sources, the pinned IPM release and the scripts are copied" \
   bash -c "grep -q '^COPY src/ /opt/ocutalon/src/\$' '$dockerfile' && grep -q '^COPY docker/ipm/ /opt/ocutalon/ipm/\$' '$dockerfile' && grep -q '^COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\$' '$dockerfile'"
 check "dockerfile: the version comes from the copied manifest" has_line "$dockerfile" '/opt/ocutalon/src/module\.xml'
+
+# A source tree without the web bundle fails the build, in the same RUN as the version and before the modes are set.
+bundle_guard_before_chmod() {
+  local guard chmod_at
+  guard=$(code "$dockerfile" | grep -n 'test -f /opt/ocutalon/src/ocutalon/csp/index\.html.*web bundle missing: run npm --prefix web run build.*exit 1' | head -n 1 | cut -d: -f1)
+  chmod_at=$(code "$dockerfile" | grep -n 'chmod 444' | head -n 1 | cut -d: -f1)
+  [ -n "$guard" ] && [ -n "$chmod_at" ] && [ "$guard" -lt "$chmod_at" ] \
+    && [ "$(code "$dockerfile" | awk -v g="$guard" 'NR < g && /^USER / { n++ } END { print n + 0 }')" -eq 1 ]
+}
+check "dockerfile: a tree without src/ocutalon/csp/index.html fails the build, before the modes are set and the last USER" bundle_guard_before_chmod
+check "module: the bundle is copied to the durable csp/ocutalon/ folder" \
+  grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon/"/>' src/module.xml
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
 check "after-start.sh: bash" test "$(head -n 1 docker/after-start.sh)" = '#!/bin/bash'
 
@@ -204,6 +216,28 @@ git_does_not_ignore() { git check-ignore -q --no-index "$1"; [ $? -eq 1 ]; }
 check "env.example: both keys, no values, nothing else" env_example_has_keys_without_values
 check "git: .env is ignored" git_ignores .env
 check "git: .env.example is not ignored" git_does_not_ignore .env.example
+
+# --- the web bundle and the web sources ---
+
+check "git: the built bundle src/ocutalon/csp/ is ignored" git_ignores src/ocutalon/csp/index.html
+check "git: the copied brand images are ignored" git_ignores web/public/assets/brand/icon-192.png
+check "git: the Playwright results are ignored" git_ignores web/test-results/x
+check "git: the Playwright report is ignored" git_ignores web/playwright-report/index.html
+check "git: node_modules is ignored" git_ignores web/node_modules/x
+check "git: the lock file is not ignored" git_does_not_ignore web/package-lock.json
+check "git: the generated token stylesheet is not ignored" git_does_not_ignore web/src/styles/tokens.css
+check "git: the generated sign-in assets are not ignored" git_does_not_ignore src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls
+check "git: the vendored fonts are not ignored" git_does_not_ignore web/public/assets/fonts/Inter-Regular.woff2
+
+# web/ keeps LF in every checkout, and a binary is detected, not forced to text.
+web_attributes() {
+  local f
+  for f in web/package.json web/angular.json web/src/main.ts web/scripts/tokens.mjs web/src/styles/tokens.css web/public/assets/fonts/Inter-Regular.woff2; do
+    [ "$(git check-attr eol -- "$f" | sed 's/.*: //')" = lf ] || return 1
+    [ "$(git check-attr text -- "$f" | sed 's/.*: //')" = auto ] || return 1
+  done
+}
+check "gitattributes: web/ is text only when git detects text, with LF" web_attributes
 
 if [ "$fails" -ne 0 ]; then
   echo "test-compose-file: $fails check(s) failed"

@@ -22,6 +22,10 @@ irissys/
 node_modules/
 dist/
 .angular/
+src/ocutalon/csp/
+web/public/assets/brand/
+web/test-results/
+web/playwright-report/
 
 # Python
 __pycache__/
