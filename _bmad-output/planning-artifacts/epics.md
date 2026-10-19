@@ -934,11 +934,7 @@ So that each lane replaces stubs with real items without editing the other lane'
 **Given** the constants the CI mock keys on
 **When** they are read
 **Then** each agent class has its `MOCKKEY` parameter, the built-in tool names are defined once, and the compaction prompt starts with `OCUTALON-COMPACTION-V1` (AD-20, AD-22)
-
-**Given** demo mode is on (the default for the Docker install)
-**When** `OcuTalon.Install.Step.Demo` runs
-**Then** namespace OCUORDERS exists with its code and data databases and mappings, and `OcuTalon.Demo.Orders.Production` runs there with its message classes, a partner service and the real transform, which fails on the changed date format (a test sends one order in each format and finds only the changed one failing); `eval/` holds one recorded failure snapshot of a date-format batch, which Lane A's watch and diagnosis tests use until Epic 9 records more (FR-16, FR-56, AD-22)
-**And** with demo mode off, OCUORDERS doesn't exist
+**And** the demo-mode group of this story's acceptance criteria (the `Demo` step, OCUORDERS and the Orders production) is built in Story 0.10 [AMENDED 2026-10-19, split for size, Rule 22]
 
 - DW-13: `docker/tests/test-storage.sh` treats every persistent root this story's classes extend (`Ens.BusinessProcess`, `Ens.MessageBody`, `Ens.StreamContainer`, not only `%Persistent`, `Ens.Request` and `Ens.Response`) as a storage root, exempts the message and business-process extents from `DEFAULTGLOBAL` as AD-3 does, and has a bad sample for each (ledger; routed by cr 2026-10-19)
 
@@ -1019,6 +1015,21 @@ So that each lane renders notices and replies from the catalog without writing i
 **And** a test compares the UX texts the public package keeps its own copies of (the sign-in page's, Story 0.3) with the catalog (AD-3)
 
 - DW-12: Task 0 measures, on a throwaway stack started with a compose-level `TZ`, that a production job's `OcuTalon.Data.Time.ToLocal` and `Zone()` use the container's zone; if they don't, the renderer passes the instance zone explicitly (AD-18) (ledger; routed by harvest 2026-10-19)
+
+### Story 0.10: The Orders demo production runs in OCUORDERS
+
+[AMENDED 2026-10-19, split for size, Rule 22: these acceptance criteria moved here verbatim from Story 0.6.]
+
+As a judge running the Docker install,
+I want demo mode to create the OCUORDERS namespace with a running Orders production whose transform fails on the changed date format,
+So that the demo path has a real production to watch and break, beside OcuTalon's own.
+
+**Acceptance Criteria:**
+
+**Given** demo mode is on (the default for the Docker install)
+**When** `OcuTalon.Install.Step.Demo` runs
+**Then** namespace OCUORDERS exists with its code and data databases and mappings, and `OcuTalon.Demo.Orders.Production` runs there with its message classes, a partner service and the real transform, which fails on the changed date format (a test sends one order in each format and finds only the changed one failing); `eval/` holds one recorded failure snapshot of a date-format batch, which Lane A's watch and diagnosis tests use until Epic 9 records more (FR-16, FR-56, AD-22)
+**And** with demo mode off, OCUORDERS doesn't exist
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
