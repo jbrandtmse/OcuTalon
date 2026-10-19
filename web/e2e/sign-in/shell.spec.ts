@@ -23,12 +23,18 @@ test('row 8: the README sign-in loads the shell', async ({ page }) => {
   await expect(page.locator('app-header .ocu')).toHaveCSS('color', 'rgb(16, 42, 69)');
   await expect(page.locator('app-header .talon')).toHaveCSS('color', 'rgb(222, 80, 52)');
 
-  await page.getByRole('button', { name: 'Account' }).click();
+  const home = page.locator('app-header a[href="#/"]');
+  await expect.soft(home.locator('img.mark'), 'the mark links to the main page').toHaveCount(1);
+  await expect.soft(home.locator('.wordmark'), 'the wordmark links to the main page').toHaveCount(1);
+
+  const account = page.getByRole('button', { name: 'Account' });
+  await expect.soft(account.locator('svg[aria-hidden=true]'), 'the chevron').toHaveCount(1);
+  await account.click();
   await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   const main = page.getByRole('main');
-  await expect(main.locator('> *')).toHaveCount(1);
+  await expect.soft(main.locator('*'), 'main holds the hidden heading and nothing else').toHaveCount(1);
   const heading = main.getByRole('heading', { level: 1 });
   await expect(heading).toHaveText('OcuTalon');
   const box = (await heading.boundingBox())!;
@@ -48,7 +54,10 @@ test('row 8: the README sign-in loads the shell', async ({ page }) => {
   expect(font.headers()['content-security-policy'], 'only index.html carries the page policy').toBeUndefined();
 });
 
-/** Row 8: a signed-in request for something that is not a file of the bundle is answered 404. */
+/**
+ * Row 8: a signed-in request for something that is not a file of the bundle is answered 404: a class or ZEN page
+ * name reaches the shell, not the class, and a name that only IRIS's /csp/broker/ holds is not served from there.
+ */
 test('row 8: a missing file, a directory and a path that leaves the folder answer 404', async ({ page }) => {
   await signInReadme(page);
   for (const path of [
@@ -56,6 +65,9 @@ test('row 8: a missing file, a directory and a path that leaves the folder answe
     '/ocutalon/assets/fonts/',
     '/ocutalon/assets/..%2findex.html',
     '/ocutalon/assets/fonts/..%5c..%5cindex.html',
+    '/ocutalon/EnsPortal.MessageViewer.zen',
+    '/ocutalon/%25CSP.Broker.cls',
+    '/ocutalon/zenutils.js',
   ]) {
     const response = await page.request.get(path);
     expect(response.status(), path).toBe(404);
@@ -149,6 +161,8 @@ test('row 10: the API and the trace application share the session', async ({ pag
 test('row 11: Sign out ends the shell, the API and the trace application', async ({ page }) => {
   await signInReadme(page);
   expect((await page.request.get('/ocutalon/api/v1/zz')).status()).toBe(404);
+  const open = await page.request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
+  expect(await open.text(), 'a trace session is open before Sign out').toContain('Message Viewer');
 
   await page.getByRole('button', { name: 'Account' }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();

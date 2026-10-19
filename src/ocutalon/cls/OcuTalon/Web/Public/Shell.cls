@@ -4,8 +4,8 @@
 ///   - A request without a session reaches Login(): one of the five sign-in images is streamed, and anything else
 ///     is answered with the sign-in page (OcuTalon.Web.Public.Login). No other file is served.
 ///   - A signed-in request is first checked for the role OcuTalonUser: without it the CSP session ends and the
-///     sign-in page shows the no-role message. With it, GET serves the files of the application's Path through
-///     %CSP.StreamServer, index.html with its own Content-Security-Policy and no caching.
+///     sign-in page shows the no-role message. With it, GET serves the files of the application's Path, and
+///     only those, through %CSP.StreamServer, index.html with its own Content-Security-Policy and no caching.
 ///   - The POST that signs in is answered with a redirect to the same URL and query, so the page that was asked
 ///     for is the page that loads.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP and its own package (AD-3).
@@ -82,7 +82,8 @@ ClassMethod Redirect(path As %String) As %Status
 }
 
 /// Streams one file of the application's Path. index.html gets the page policy (script-src 'self') and
-/// Cache-Control: no-cache; a missing file, a directory and a path that leaves the folder answer 404.
+/// Cache-Control: no-cache; a missing file, a directory and a path that leaves the folder answer 404. A name
+/// that the folder lacks is not served from IRIS's /csp/broker/ either, where the stream server looks next.
 ClassMethod Serve(path As %String) As %Status
 {
 	If (path [ "..") || ($Extract(path) = "/") || (path [ "\") {
@@ -92,6 +93,12 @@ ClassMethod Serve(path As %String) As %Status
 	Set %request.Data("FILE", 1) = %request.Application_path
 	If '##class(%CSP.StreamServer).OnPreHTTP() {
 		If %response.Status '= ..#HTTP304NOTMODIFIED Set %response.Status = ..#HTTP404NOTFOUND
+		Quit $SYSTEM.Status.OK()
+	}
+	If $ZConvert($Translate(%stream.Filename, "\", "/"), "L") [ "/csp/broker/" {
+		Set %stream = ""
+		Set %response.Status = ..#HTTP404NOTFOUND
+		Set %response.ContentType = ..#CONTENTTYPE
 		Quit $SYSTEM.Status.OK()
 	}
 	If path = "index.html" {

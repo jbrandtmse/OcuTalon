@@ -38,6 +38,7 @@ typography:
     fontWeight: '400'
     lineHeight: '1.5'
     letterSpacing: -0.01em
+    paragraphSpacing: '{spacing.1}'
 rounded:
   sm: 6px
 spacing:
@@ -199,6 +200,8 @@ describe('fixture front matter', () => {
     assert.equal(light.get('space-header'), '56px');
     assert.equal(light.get('box-border'), '1px solid #102A45');
     assert.equal(light.get('box-typography-font-size'), '14px');
+    assert.equal(light.get('type-body-paragraph-spacing'), '4px');
+    assert.equal(light.get('box-typography-paragraph-spacing'), '4px', 'a reference inside a typography token');
     assert.equal(light.get('box-icon'), 'circle-alert');
     assert.equal(light.get('box-shadow'), '0 1px 2px #00000040');
     assert.equal(light.has('box-shadow-dark'), false);

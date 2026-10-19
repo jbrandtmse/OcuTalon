@@ -165,7 +165,7 @@ else
   fail "row 15: the upgrade changed the README account"
 fi
 index_now=$(container_sha256 /durable/iris/csp/ocutalon/index.html)
-if [ -n "$index_now" ] && [ "$index_now" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ] && [ "$index_now" != "$index_first" ]; then
+if [ -n "$index_now" ] && [ -n "$index_first" ] && [ "$index_now" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ] && [ "$index_now" != "$index_first" ]; then
   pass "row 15: the durable index.html is the new image's, and not the first version's"
 else
   fail "row 15: the durable index.html does not equal the new image's, or did not change"

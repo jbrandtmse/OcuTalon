@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { expect, test, type Page } from '@playwright/test';
 
 import {
@@ -18,18 +15,12 @@ const WRONG_CREDENTIALS = "That user name and password didn't work.";
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
 
 /**
- * The name of the shell's main-*.js file. The bundle that was built into src/ocutalon/csp/ is the one the stack
- * serves, so its index.html names it; without that folder the shell is asked for it after a sign-in.
+ * The name of the main-*.js file that the stack serves, read from its own index.html after a sign-in in the page's
+ * context, so the name is never a local build's. The caller's other requests carry no session.
  */
 async function mainBundle(page: Page): Promise<string | undefined> {
-  const local = resolve(__dirname, '../../../src/ocutalon/csp/index.html');
-  let index: string;
-  if (existsSync(local)) {
-    index = readFileSync(local, 'utf8');
-  } else {
-    await signInReadme(page);
-    index = await (await page.request.get('/ocutalon/index.html')).text();
-  }
+  await signInReadme(page);
+  const index = await (await page.request.get('/ocutalon/index.html')).text();
   return /src="(main-[A-Za-z0-9]+\.js)"/.exec(index)?.[1];
 }
 
@@ -41,8 +32,19 @@ test.describe('without a session', () => {
   }) => {
     const main = await mainBundle(page);
     expect(main, 'the shell loads a main-*.js file').toBeTruthy();
+    const served = await page.request.get(`/ocutalon/${main}`);
+    expect(served.status(), `signed in, /ocutalon/${main} is served`).toBe(200);
+    expect(served.headers()['content-type'], `signed in, /ocutalon/${main} is served`).toContain('javascript');
 
-    for (const path of ['/ocutalon/', '/ocutalon/index.html', `/ocutalon/${main}`, '/ocutalon/x/y?a=1']) {
+    for (const path of [
+      '/ocutalon/',
+      '/ocutalon/index.html',
+      `/ocutalon/${main}`,
+      '/ocutalon/x/y?a=1',
+      '/ocutalon/EnsPortal.MessageViewer.zen',
+      '/ocutalon/%25CSP.Broker.cls',
+      '/ocutalon/OcuTalon.Web.Public.Login.cls',
+    ]) {
       await expectSignInPage(await request.get(path), path);
     }
   });

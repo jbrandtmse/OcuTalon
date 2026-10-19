@@ -248,7 +248,7 @@ export function tokenEntries(model, mode) {
       if (whole) {
         const t = model.typography.get(whole[1]);
         if (!t) throw new TokenError(model.file, own.line, `unresolved reference ${own.value}`);
-        for (const [tprop, tv] of t) out.push([`${comp}-${prop}-${kebab(tprop)}`, tv.value]);
+        for (const [tprop, tv] of t) out.push([`${comp}-${prop}-${kebab(tprop)}`, resolveText(model, tv.value, mode, tv.line)]);
       } else {
         out.push([`${comp}-${prop}`, resolveText(model, own.value, mode, own.line)]);
       }

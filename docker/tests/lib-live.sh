@@ -1,4 +1,5 @@
-# Helpers shared by the live tests (test-compose-start.sh, test-install-start.sh, test-install-upgrade.sh).
+# Helpers shared by the live tests (test-compose-start.sh, test-install-start.sh, test-install-upgrade.sh,
+# test-sign-in.sh) and by the static tests that need the build context or the web bundle.
 # Sourced, not run: it defines functions and nothing else. A live test calls live_start first.
 #
 # live_start <label> sets, for the caller:
@@ -11,8 +12,8 @@
 #   LIVE_FILES   the compose files of dc: the judges' file, a decoy key file and the throwaway override
 #   LIVE_IMAGES  extra image ids or names that the cleanup removes
 # and installs a cleanup trap that removes the project with its volume and images and the temporary directory.
-# The project publishes no host port and receives no keys: the decoy key file is dropped by the override.
-# A test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
+# The project receives no keys (the decoy key file is dropped by the override) and publishes no host port,
+# unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 

@@ -905,6 +905,8 @@ So that the page can load a snapshot and poll for updates from the first feature
 **When** the API class compiles
 **Then** every release-1 route exists, and the routes whose feature isn't built yet answer 501 with a plain-English message
 
+- DW-5: The web bundle moves from the durable `csp/ocutalon/` folder to `csp/ocutalon-web/` (AD-23 as amended October 19): `src/module.xml`'s `FileCopy` target, `OcuTalon.Install.Step.Web`'s `/ocutalon` `Path` and `BundleCheck`, and Story 0.3's tests (matrix row 14, `test-install-*.sh`) follow, so that on the non-Health image the namespace's default application `/csp/ocutalon` serves no bundle file without sign-in; a live test on `iris-community:2026.3.0AI.154.0` pins it (ledger; routed by merge_gate 2026-10-19)
+
 ### Story 0.6: Every release-1 production item runs as a stub, beside the Orders production
 
 As a developer in either build lane,

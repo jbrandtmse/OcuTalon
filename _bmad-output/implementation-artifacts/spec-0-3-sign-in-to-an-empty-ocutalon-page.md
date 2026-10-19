@@ -305,6 +305,54 @@ Tests:
 - Given the IRIS (non-Health) image, when `test-sign-in.sh` runs with `IRIS_IMAGE=iris-community:2026.3.0AI.154.0`, then it passes.
 - Given a fresh checkout, when `npm --prefix web ci`, `npm --prefix web run build` and `git status --short` run, then the tree is clean (bundle and brand copies ignored, generated files current).
 
+### Review Findings
+
+Code review, 2026-10-19 (`bmad-code-review`, four layers at the full-opus tier). 36 rows from the layers and 2 from the reviewer, grouped into 36 entries: high 0, medium 4, low 28, false 4. Patched 11, deferred 4 (ledger DW-5 to DW-8), rejected 21. Probes ran in throwaway projects (`ocutalon-t03crprobe-*` on `iris-community:2026.3.0AI.154.0`), torn down.
+
+- [x] [Review][Patch] Signed in, a name that the bundle lacks was served from IRIS's `/csp/broker/` (the stream server's fallback): `/ocutalon/zenutils.js` and `/ocutalon/x/y/cspxmlhttp.js` answered 200 [src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls:98] -- low. `Serve` answers 404 when the stream server resolved the name under `/csp/broker/`. Pinned in `Test.Web.Shell:TestAnswersNotFound` and the row 8 404 test.
+- [x] [Review][Patch] Nothing pinned that class and ZEN URLs under `/ocutalon/` reach the shell now that `CSPZENEnabled` is 1 [web/e2e/sign-in/sign-in.spec.ts:44, web/e2e/sign-in/shell.spec.ts:61] -- medium. Measured: 8 class and ZEN names answer the sign-in page without a session and 404 signed in, and 3 under `/ocutalon/api/` answer 401, then 404. Row 3 and the row 8 404 test now request some of them.
+- [x] [Review][Patch] The shell's 304 Not Modified branch, which answers every reload, had no test [src/ocutalon/cls/OcuTalon/Test/Web/Shell.cls] -- medium. Added `TestNotModified`.
+- [x] [Review][Patch] Row 3 took the `main-*.js` name from the local build, so it could pass on a name that the stack doesn't serve [web/e2e/sign-in/sign-in.spec.ts:21] -- medium (Rule 19 hermeticity). The name now comes from the served `index.html` after a sign-in, and that file must answer 200 JavaScript there.
+- [x] [Review][Patch] Row 11 never had a trace session open at Sign out [web/e2e/sign-in/shell.spec.ts:161] -- low. It now opens the viewer first. Measured: the open trace session ends at Sign out.
+- [x] [Review][Patch] `tokens.mjs` wrote a component's typography values without resolving references [web/scripts/tokens.mjs:251] -- low. They are now resolved like the `type-*` tokens, and a fixture assertion was added. The output for `DESIGN.md` is unchanged.
+- [x] [Review][Patch] `test-web-build.sh`'s clean-tree check honoured the user's global excludes file [docker/tests/test-web-build.sh:53] -- low.
+- [x] [Review][Patch] `shell-styles.test.mjs`'s header promised a per-source scope that the code doesn't apply, and its patterns skipped upper-case names [web/scripts/shell-styles.test.mjs:1,34] -- low.
+- [x] [Review][Patch] `lib-live.sh`'s header named three users and said that no port is published [docker/tests/lib-live.sh:1,15] -- low.
+- [x] [Review][Patch] Row 15's "did not change" check accepted an empty first hash [docker/tests/test-install-upgrade.sh:168] -- low.
+- [x] [Review][Patch] AC1's "STEP list unchanged" clause had no `mutation:` line [## Verification] -- low. Demonstrated (see Verification).
+- [x] [Review][Defer] On the non-Health image, the namespace's default application `/csp/ocutalon` serves the bundle folder without sign-in and without the shell's policy [src/module.xml:11] -- deferred: DW-5, `escalated`. Medium, fix-risk high. The folder is AD-23's, the application is the merge's (Story 0.1), and the frozen row 14 pins the path. Rule 22.3 security posture.
+- [x] [Review][Defer] Cross-site sign-in POSTs: the residual risk is wider than login CSRF [src/ocutalon/cls/OcuTalon/Web/Public/Login.cls:75] -- deferred: DW-6, `decision-pending`.
+- [x] [Review][Defer] Test classes switch to `%SYS`, which AD-3's list doesn't name [src/ocutalon/cls/OcuTalon/Test/] -- deferred: DW-7, `wontfix-accepted` (spine wording; nothing enforces the list yet).
+- [x] [Review][Defer] The `%SYS` fixture helpers are repeated in each new test class (Rule 2) [src/ocutalon/cls/OcuTalon/Test/] -- deferred: DW-8, `wontfix-accepted`.
+
+**Checked:**
+- **AD-24 posture, clean:**
+  - `OcuTalonUser` and `OcuTalonAdmin` hold nothing; the trace role holds its six grants plus SELECT on `Ens.MessageHeader`.
+  - `MatchRoles` is the table's `%DB_OCUTALON_{CODE,DATA,PRIVATE}`; no role holds `%All`, `%DB_IRISSYS` or `%Development`.
+  - `PermittedClasses` is AD-24's seven, and every CORS list is empty.
+- **AD-3 allow-list, clean.** The public package references only `%CSP.Login`, `%CSP.REST` and `%CSP.StreamServer` (with its `%stream`), `$SYSTEM.Status`, `$SYSTEM.Encryption` (inside the two generators only) and its own package.
+- **CSRF mitigations in place:** `form-action 'self'` and `SessionScope` 2.
+- **The `CSPZENEnabled` amendment:** with 0, measured on a throwaway, the sign-in POST and every signed-in request answer the gateway's 404.
+- **Licence texts:** OFL-1.1 with each project's copyright line (Inter, Montserrat, JetBrains Mono), and Lucide ISC with Feather's MIT notice. They are present in `web/public/assets/licenses/` and in the bundle.
+
+**Rejected:**
+- `false` Sign-in after Sign out loops through `?IRISLogout=end`. Measured: the form's action after Sign out is `/ocutalon/`, and signing in again serves the shell.
+- `false` Cookie-less requests pile up CSP sessions. Measured: the session count stayed at 5 after 11 cookie-less requests.
+- `false` The API's 401 carries `WWW-Authenticate: Basic`. Measured: no such header.
+- `false` AC3 and AC4 need a mutation per assertion, and rows 5, 6, 7 and 13 need their own. Rule 19 asks for one per AC, and AC3 and AC4 have theirs.
+- `low` `check_security` reads only `Resources`, and extra `GrantedRoles` or SQL grants added by hand survive: it takes a deliberate admin change, and the fix is revoke logic in Story 0.2's `Roles` step.
+- `low` `test-boundaries.sh` scans `web/` by an allow-list of extensions: specified as such, and no other text type exists there.
+- `low` A stale `node_modules`, or an old Node, is not detected: specified (`ensure_web_bundle` runs `npm ci` only when the folder is missing), and CI starts clean.
+- `low` A lost durable bundle at an unchanged version fails every start: rare, and `BundleCheck` names the path.
+- `low` `Api` has no role check: specified as Story 0.5's (Never list, Consumed-by).
+- `low` Disabled, expired or locked accounts get the wrong-credentials text: specified ("any other `Error:ErrorCode`").
+- `low` `?IRISLoginPage=0`, the deadline that starts before the bundle build, two concurrent runs picking one port, the minifiers, `darkDifferences` and the Playwright environment checks: ruled in the earlier triage, with nothing new.
+- `low` Space on the Sign out menu item closes the menu without signing out: Enter and a click work, and Story 2.2 replaces the item with an API call.
+- `low` `test-web-build.sh` has no deadline: the CI job's timeout bounds it.
+- `low` Application keys outside the table survive `Modify`: ruled in the earlier triage (only the table's keys are passed).
+- `low` `test-sign-in.sh` doesn't compare the passed count with 13: a deleted spec shows in the diff.
+- `low` `TestRolesStep` creates the real roles, against the frozen intent's "only `Zz` fixtures": the Tasks ask for it, and the fix would edit the spec.
+
 ## Spec Change Log
 
 ### 2026-10-18 -- Plan intent gap answered (lead, author decisions)
@@ -532,13 +580,56 @@ Recommended wording:
   - mutation: `Login.Show` runs `OnPreHTTP` only when `writeHeader` is 1 -> Playwright `row 12` red (the no-role answer has no Content-Security-Policy); reverted, tree unchanged.
 - AC3, row 8 served files:
   - mutation: `Shell.File` serves `index.html` for every path -> Playwright `row 8: a missing file, a directory and a path that leaves the folder answer 404` red, with `row 8` (the font answers the page's policy), `row 9` and `row 11` red; reverted, tree unchanged.
-  - Deleting the `..`/leading-slash/backslash guard in `Shell.Serve` leaves every test green: the CSP gateway and `%CSP.StreamServer` answer 404 for those paths themselves, so the guard is defence in depth and the 404 outcome is what the test pins.
+  - Deleting the `..`/leading-slash/backslash guard in `Shell.Serve` leaves every wire-level test green: the CSP gateway and `%CSP.StreamServer` answer 404 for those paths themselves, so the guard is defence in depth. The QA pass pins it at class level (see the QA mutation lines below).
 - AC6, generated files current:
   - mutation: one line appended to `web/src/styles/tokens.css` -> `npm --prefix web run build` exits 1 ("tokens.css is stale"); reverted, tree unchanged.
 - AC5 re-runs the AC2 to AC4 pinning tests on the non-Health base image, so their mutations above are its mutations.
 - Row 19, script path: `tokens.mjs` compares `resolve(process.argv[1])` instead of `realpathSync(process.argv[1])` -> `node --test web/scripts/` red ("runs when the script is reached through a symbolic link"); reverted, tree unchanged.
 - Boundaries scope: `*.js` removed from `in_scope` in `test-boundaries.sh` -> "scope" red ("not scanned: web/src/signin/signin.js"); reverted, tree unchanged.
 - `live_web_port` range: the range test of the override removed -> `test-lib-live.sh` red for `052773`, `0`, `80`, `99999`, `52799` and `52820`; reverted, tree unchanged.
+
+**QA additions (Rule 8, Rule 19):**
+
+Test files added or changed by QA, all discoverable by the default suites (`%UnitTest` package `OcuTalon.Test`, `node --test web/scripts/`, `docker/tests/test-*.sh`, Playwright `web/e2e/`):
+- `src/ocutalon/cls/OcuTalon/Test/Web/Shell.cls` (QA): `%UnitTest` on slot A. `Shell.Serve` and `Shell.Redirect` are called on the class with a stand-in request and response, against a fixture application `/zzshell<n>` over a temporary folder (removed in `OnAfterAllTests`): files and `index.html` headers, 404 for a missing file and a directory, the `..` guard, and the 303 with its query.
+- `src/ocutalon/cls/OcuTalon/Test/Web/StubRequest.cls` (QA): support class for `Test.Web.Shell`. `%CSP.Request` keeps the setter of `Application` private to its subclasses, so a test cannot name the application of a request without it.
+- `web/scripts/shell-styles.test.mjs` (QA): `node --test`; every `var(--name)` in `web/src/**/*.{ts,css}` is declared by `tokens.css`, `base.css` or the same source, so a misspelt token cannot silently drop a declaration.
+- `docker/tests/test-web-build.sh` (QA): AC6. It copies the files that git tracks or has not ignored into an empty directory, stages them in a repository of its own (no commit), runs `npm ci` and the build there, and expects `git status --short` unchanged, `<base href="/ocutalon/">`, no inline script, `main-*.js`, `styles-*.css`, `3rdpartylicenses.txt` and the four licence texts.
+- `web/e2e/sign-in/shell.spec.ts` (QA, changed): row 8 also checks, with soft expectations, that the mark and wordmark sit inside the link to `#/`, that the account trigger holds the chevron, and that `main` holds the hidden heading and no other element (it counted only direct children before).
+
+Commands added to the loop: `bash docker/tests/test-web-build.sh` (`timeout: 600000`, expected exit 0, about 10 s with a warm npm cache); `iris_execute_tests` for `OcuTalon.Test.Web.Shell` (expected 5 passed, no `/zzshell*` application left).
+
+Not pinned, by design: `InsertHiddenFields` and the superclass call in `Login.OnPreHTTP`. `InsertHiddenFields` wrote nothing for a stand-in session in the default mode and with `UseSessionCookie` 0 and 1 (measured on slot A; for a real request this is an inference), and the superclass `OnPreHTTP` only sets the CSRF token cookie when the application uses CSRF tokens, which the Design Notes leave off. Neither is observable until a story turns CSRF tokens on.
+
+**Mutations demonstrated in the QA pass (Rule 19; each applied, red observed, reverted, tree digest identical):**
+- AC1, rows 1-2: `%Ens_MessageContent` removed from `Web.Grants()` -> `test-sign-in.sh` "rows 1-2: roles, README account, sign-in policy and applications (1 of 9 values differ)" red.
+- AC1, row 14: `<FileCopy>` copies `ocutalon/csp/index.html` only -> `test-install-start.sh` "row 14: /durable/iris/csp/ocutalon/ differs from /opt/ocutalon/src/ocutalon/csp/" red (the `index.html` check stays green; with the `FileCopy` removed altogether, the Web step's `BundleCheck` fails the first start instead).
+- AC2, rows 3-4: `Shell.Login` streams every file under `assets/` -> Playwright `row 4` red (`icon-192.png` answers `image/png`, not the sign-in page).
+- AC3, row 11: the account menu's Sign out link goes to `/ocutalon/` -> Playwright `row 11` red (the title never becomes the sign-in page).
+- AC3, row 8 structure: a `<p>` added to `main`, the home link's `href` changed to `#/x`, and the chevron removed, together -> Playwright `row 8` red with all three soft failures (`main` holds 2 elements, no mark or wordmark in the link to `#/`, no chevron).
+- AC4, row 12: `Shell.OnPreDispatch` skips the role check -> Playwright `row 12` red (the sign-in answers 303 and serves the shell, not the no-role page).
+- AC5: the AC4 mutation with `IRIS_IMAGE=iris-community:2026.3.0AI.154.0` -> `test-sign-in.sh` red with `row 12` alone (12 of 13 pass); the clean tree on that image passes 13 of 13.
+- AC6: the `build` script also writes an unignored `web/build-note.txt` -> `test-web-build.sh` "git status --short after ci and build is not clean" red. A `<script>` with inline code added to `web/src/index.html` -> "index.html has an inline script, or no script" red.
+- AC6, ignore rules: the `web/public/assets/brand/` line removed from `.gitignore` -> `test-compose-file.sh` "git: the copied brand images are ignored" red; the `web/** text=auto eol=lf` line removed from `.gitattributes` -> "gitattributes: web/ is text only when git detects text, with LF" red.
+- Row 8, the `..` guard (the known gap): the guard deleted from `Shell.Serve` -> `OcuTalon.Test.Web.Shell:TestRefusesPathsThatLeaveTheFolder` red, on "never reaches the stream server" for all five paths. The status and body assertions of that test stay green, because the stream server answers 404 for these paths itself (measured on slot A): only the guard keeps `%request.Data("FILE")` unset, so that assertion is the one that pins it.
+- Row 8, served files: `Serve` answers a missing file or a directory with 200 -> `TestAnswersNotFound` red; `Serve` sets the page policy and `no-cache` on every file -> `TestServesFiles` red.
+- Row 13: `Shell.FullUrl` without its `$Translate` of line breaks -> `TestRedirect` red ("line breaks in the URL and the query are dropped").
+- Shell styles: `--space-header-height` misspelt in `header.ts` -> `shell-styles.test.mjs` "declares every property that is read" red, naming `app/header/header.ts: var(--space-header-hight)`.
+
+**Mutations demonstrated in the code-review pass (Rule 19; each applied, red observed, reverted, `git status --short` and `git diff` identical):**
+- AC1, the STEP list:
+  - mutation: swapped `"Users", "Web"` in `Registry.Order()` -> `test-install-start.sh` rows 1-4 "the log differs from the expected phases and steps" red; reverted, tree unchanged.
+- Row 8, served files only from the folder:
+  - mutation: the `/csp/broker/` guard deleted from `Shell.Serve` -> `OcuTalon.Test.Web.Shell:TestAnswersNotFound` red (`zenutils.js` and `sub/x/cspxmlhttp.js` answer 200 with a body); reverted, tree unchanged.
+- Row 8, the reload:
+  - mutation: `Shell.Serve` sets 404 for every refusal, 304 included -> `OcuTalon.Test.Web.Shell:TestNotModified` red (`index.html` and `inside.txt`); reverted, tree unchanged.
+- Row 19, typography references in components:
+  - mutation: `tokenEntries` writes a component's typography value unresolved -> `node --test web/scripts/` red ("names tokens as documented"); reverted, tree unchanged.
+- Shell styles, letter case:
+  - mutation: `var(--space-4)` written `var(--Space-4)` in `header.ts` -> `shell-styles.test.mjs` red, naming `app/header/header.ts: var(--Space-4)`; reverted, tree unchanged.
+- The assertions that this pass added to rows 3, 8 and 11 (the class and ZEN URLs, the served `main-*.js`, the trace session open at Sign out) sit under the AC2 and AC3 mutations above. The class and ZEN URLs have no code-level mutation, because the dispatch class receives every URL; the measured contrast is `CSPZENEnabled` 0, where a signed-in request never reaches the shell.
+
+Commands added to the loop in the code-review pass: none beyond the existing ones. `OcuTalon.Test.Web.Shell` now runs 5 tests.
 
 ## Auto Run Result
 
