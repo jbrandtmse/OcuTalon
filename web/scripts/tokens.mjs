@@ -390,23 +390,29 @@ export function generate(opts) {
   return { model, outputs: [[opts.cssOut, tokensCss], [opts.clsOut, assets]] };
 }
 
-function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  const { outputs } = generate(opts);
-  if (opts.check) {
+// Writes the generated files, or with check finds those that differ from their fresh output and exits 1.
+// name is the script's name in the messages and in the npm script that regenerates the files.
+export function emitOutputs(name, outputs, check) {
+  if (check) {
     const stale = outputs.filter(([file, text]) => !existsSync(file) || readFileSync(file, 'utf8') !== text);
     if (stale.length > 0) {
-      for (const [file] of stale) console.error(`tokens: ${relative(process.cwd(), file) || file} is stale: run npm --prefix web run tokens`);
+      for (const [file] of stale) console.error(`${name}: ${relative(process.cwd(), file) || file} is stale: run npm --prefix web run ${name}`);
       process.exit(1);
     }
-    console.log('tokens: generated files are current');
+    console.log(`${name}: generated files are current`);
     return;
   }
   for (const [file, text] of outputs) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, text);
-    console.log(`tokens: wrote ${relative(process.cwd(), file) || file}`);
+    console.log(`${name}: wrote ${relative(process.cwd(), file) || file}`);
   }
+}
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  const { outputs } = generate(opts);
+  emitOutputs('tokens', outputs, opts.check);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {

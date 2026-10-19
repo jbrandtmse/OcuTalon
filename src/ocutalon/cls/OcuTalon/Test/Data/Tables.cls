@@ -1,6 +1,7 @@
-/// Tests of the cross-lane table contracts (Story 0.4): every OcuTalon.Data and OcuTalon.Bridge.Data table has exactly its
-/// contract, its default global is its registry row's and resolves to the private database, no persistent class
-/// projects an SQL reserved word, and the Delivery stubs refuse and find nothing. The tests create no rows.
+/// Tests of the cross-lane table contracts (Story 0.4): every OcuTalon.Data and OcuTalon.Bridge.Data table, and the live
+/// event table, has exactly its contract, its default global is its registry row's and resolves to the private
+/// database, no persistent class projects an SQL reserved word, and the Delivery stubs refuse and find nothing. The
+/// tests create no rows.
 Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 {
 
@@ -38,7 +39,7 @@ Method TestPrivateRecords()
 		Do $$$AssertTrue($Data(storage(name_"D")), "StorageGlobals lists "_name_"D")
 		Do $$$AssertTrue($Data(storage(name_"I")), "StorageGlobals lists "_name_"I")
 	}
-	Do $$$AssertTrue(rows.%Size() >= 22, "the registry holds at least the 22 rows of the first contracts")
+	Do $$$AssertTrue(rows.%Size() >= 23, "the registry holds at least the 23 rows of the contracts so far")
 }
 
 /// Every persistent class in OcuTalon.Data and OcuTalon.Bridge.Data has a registry row.
@@ -223,12 +224,26 @@ XData Contracts [ MimeType = application/json ]
    "Ref": "%String(MAXLEN=22)",
    "TraceRef": "%String(MAXLEN=22)",
    "IrisUser": "%String(MAXLEN=128)",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "Epoch": "%String(MAXLEN=22)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
    "TraceRefIndex": "TraceRef unique",
    "IrisUserIndex": "IrisUser"
+  }
+ },
+ "OcuTalon.Live.Event": {
+  "super": "%Persistent",
+  "props": {
+   "Seq": "%Integer",
+   "Stream": "%String(MAXLEN=22)",
+   "Ts": "%String(MAXLEN=20)",
+   "Type": "%String(MAXLEN=32)",
+   "Payload": "%String(MAXLEN=)"
+  },
+  "indexes": {
+   "StreamSeqIndex": "Stream,Seq unique"
   }
  },
  "OcuTalon.Data.AddressCounter": {
@@ -565,6 +580,11 @@ XData Registry [ MimeType = application/json ]
   "short": "FixRun",
   "global": "^OcuTalonP.FixRun",
   "class": "OcuTalon.Data.FixRun"
+ },
+ {
+  "short": "LiveEvent",
+  "global": "^OcuTalonP.LiveEvent",
+  "class": "OcuTalon.Live.Event"
  }
 ]
 }

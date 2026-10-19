@@ -118,8 +118,8 @@ bundle_guard_before_chmod() {
     && [ "$(code "$dockerfile" | awk -v g="$guard" 'NR < g && /^USER / { n++ } END { print n + 0 }')" -eq 1 ]
 }
 check "dockerfile: a tree without src/ocutalon/csp/index.html fails the build, before the modes are set and the last USER" bundle_guard_before_chmod
-check "module: the bundle is copied to the durable csp/ocutalon/ folder" \
-  grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon/"/>' src/module.xml
+check "module: the bundle is copied to the durable csp/ocutalon-web/ folder" \
+  grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>' src/module.xml
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
 check "after-start.sh: bash" test "$(head -n 1 docker/after-start.sh)" = '#!/bin/bash'
 

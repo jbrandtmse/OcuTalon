@@ -1,7 +1,8 @@
-/// Tests of the Web step's declarations (matrix row 17): the application table, the trace application of a
-/// namespace, the trace role's grants, Apply, BundleCheck and the trace role's SQL privilege. The real
-/// applications, roles and user are never touched: Apply and the SQL grant run on fixtures (ZzWeb<n>), which
-/// OnAfterAllTests removes together with the fixture folder.
+/// Tests of the Web step's declarations (matrix rows 17, 20 and 21): the application table, the trace application of a
+/// namespace, the trace role's grants, Apply, BundleCheck, the removal of the old bundle's files and the trace
+/// role's SQL privilege. The real applications, roles, user and bundle folders are never touched: Apply and the SQL
+/// grant run on fixtures (ZzWeb<n>), and the bundle tests on folders under the fixture folder (zzbundle<n>), which
+/// OnAfterAllTests removes.
 Class OcuTalon.Test.Web.Install Extends %UnitTest.TestCase
 {
 
@@ -36,7 +37,7 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The application table of the Web step, key by key: three applications, every key passed, an empty CORS list.
+/// The application table of the Web step, key by key: four applications, every key passed, an empty CORS list.
 Method TestDefinitions()
 {
 	Set sc = ##class(OcuTalon.Install.Step.Web).Definitions(.apps)
@@ -48,8 +49,8 @@ Method TestDefinitions()
 		Quit:name=""
 		Set names = names_$Select(names = "": "", 1: ",")_name
 	}
-	Do $$$AssertEquals(names, "/ocutalon,/ocutalon/api,/ocutalon/trace/ocutalon", "the three applications")
-	For name = "/ocutalon", "/ocutalon/api", "/ocutalon/trace/ocutalon" {
+	Do $$$AssertEquals(names, "/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocutalon", "the four applications")
+	For name = "/ocutalon", "/ocutalon/api", "/ocutalon/public", "/ocutalon/trace/ocutalon" {
 		Kill expected
 		Do ..Expected(name, .expected)
 		Set key = ""
@@ -189,6 +190,99 @@ Method TestBundleCheck()
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).BundleCheck($Extract(..Directory, 1, $Length(..Directory) - 1)), "and without the trailing separator")
 }
 
+/// The step reads the new bundle folder, csp/ocutalon-web/, and only then cleans the old one: without the new
+/// folder's index.html the step fails, naming that path, and the old folder is untouched.
+Method TestPrepareReadsTheNewFolder()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#BUNDLEFOLDER, "csp/ocutalon-web/", "the bundle folder")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#OLDBUNDLEFOLDER, "csp/ocutalon/", "the old bundle folder")
+	Set data = ..Directory_"zzbundle"_..Number_"p/"
+	Do ..Seed(data_"csp/ocutalon/", "index.html", "<!doctype html><base href=""/ocutalon/"">")
+	Do ..Seed(data_"csp/ocutalon/", "main-AB12CD34.js", "old")
+	Set sc = ##class(OcuTalon.Install.Step.Web).Prepare(data)
+	Do $$$AssertStatusNotOK(sc, "the step fails without the new folder")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ (data_"csp/ocutalon-web/index.html"), "and names the new folder's index.html: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Tree(data_"csp/ocutalon/"), "index.html|main-AB12CD34.js", "the old folder is untouched")
+
+	Do ..Seed(data_"csp/ocutalon-web/", "index.html", "<!doctype html><base href=""/ocutalon/"">")
+	Set sc = ##class(OcuTalon.Install.Step.Web).Prepare($Extract(data, 1, $Length(data) - 1))
+	Do $$$AssertStatusOK(sc, "the step passes with the new folder, and a data directory without its closing separator")
+	Do $$$AssertEquals(..Tree(data_"csp/ocutalon/"), "", "and the old folder has lost OcuTalon's files")
+	Do $$$AssertTrue(##class(%File).DirectoryExists(data_"csp/ocutalon/"), "the old folder itself stays")
+	Do $$$AssertEquals(..Tree(data_"csp/ocutalon-web/"), "index.html", "the new folder is untouched")
+}
+
+/// Only OcuTalon's own files leave the old folder, and only when its index.html is OcuTalon's: index.html,
+/// 3rdpartylicenses.txt, the hashed top-level scripts and stylesheets, the assets that the new folder also holds, and
+/// the folders that this leaves empty. Anything else stays, and a second run changes nothing.
+Method TestRemoveOldBundle()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"/"
+	Set old = base_"old/"
+	Set new = base_"new/"
+	Do ..SeedBundle(new)
+	Do ..SeedBundle(old)
+	Do ..Seed(old, "zz-keep.txt", "keep")
+	Do ..Seed(old, "assets/zz/keep.txt", "keep")
+	Do ..Seed(old, "polyfills-QR34ST56.js", "old")
+	Do ..Seed(old, "main-AB12CD34.js.map", "old")
+	Do ..Seed(old, "main.js", "keep")
+	Do ..Seed(old, "app-AB12CD34.js", "keep")
+	Do ..Seed(old, "main-AB12CD34.json", "keep")
+	Do ..Seed(old, "Main-AB12CD34.js", "keep")
+	Do $$$AssertTrue(##class(%File).Exists(old_"assets/fonts/Inter-Regular.woff2"), "the old folder holds an asset that the new one also holds")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(old, new), "RemoveOldBundle")
+	Do $$$AssertEquals(..Tree(old), "Main-AB12CD34.js|app-AB12CD34.js|assets|assets/zz|assets/zz/keep.txt|main-AB12CD34.json|main.js|zz-keep.txt", "only what is not OcuTalon's remains")
+	Do $$$AssertEquals(..Tree(new), "3rdpartylicenses.txt|assets|assets/fonts|assets/fonts/Inter-Regular.woff2|chunk-EF56GH78.js|index.html|main-AB12CD34.js|styles-IJ90KL12.css", "the new folder is untouched")
+	Do $$$AssertTrue(##class(%File).Exists(new_"assets/fonts/Inter-Regular.woff2") && ##class(%File).Exists(new_"index.html"), "the new folder still holds its files")
+	Set before = ..Tree(old)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(old, new), "a second run")
+	Do $$$AssertEquals(..Tree(old), before, "changes nothing")
+
+	Set theirs = base_"theirs/"
+	Do ..SeedBundle(theirs)
+	Do ..Seed(theirs, "index.html", "<!doctype html><base href=""/other/"">")
+	Set before = ..Tree(theirs)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(theirs, new), "an index.html that isn't OcuTalon's")
+	Do $$$AssertEquals(..Tree(theirs), before, "removes nothing")
+
+	Set noindex = base_"noindex/"
+	Do ..Seed(noindex, "main-AB12CD34.js", "old")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(noindex, new), "a folder without an index.html")
+	Do $$$AssertEquals(..Tree(noindex), "main-AB12CD34.js", "removes nothing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(base_"missing/", new), "no old folder")
+	Do $$$AssertTrue('##class(%File).DirectoryExists(base_"missing/"), "and none is created")
+}
+
+/// An asset that only the old folder holds stays, with the folders above it; a file that can't be deleted gives an
+/// error status that names it, the files after it are left, and index.html with them, so that the next run removes
+/// the rest.
+Method TestRemoveOldBundleKeepsAndFails()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"k/"
+	Set old = base_"old/"
+	Set new = base_"new/"
+	Do ..SeedBundle(new)
+	Do ..SeedBundle(old)
+	Do ..Seed(old, "assets/fonts/zz-extra.woff2", "keep")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(old, new), "RemoveOldBundle")
+	Do $$$AssertEquals(..Tree(old), "assets|assets/fonts|assets/fonts/zz-extra.woff2", "an asset that is not in the new folder stays, with its folders")
+
+	Set stuck = base_"stuck/"
+	Do ..SeedBundle(stuck)
+	Do ##class(%File).Delete(stuck_"3rdpartylicenses.txt")
+	Do ##class(%File).CreateDirectoryChain(stuck_"3rdpartylicenses.txt/")
+	Set sc = ##class(OcuTalon.Install.Step.Web).RemoveOldBundle(stuck, new)
+	Do $$$AssertStatusNotOK(sc, "a file that can't be deleted is an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "3rdpartylicenses.txt", "and the error names it: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertTrue(##class(%File).Exists(stuck_"index.html"), "index.html stays, so the next start repeats the removal")
+	Do $$$AssertTrue(##class(%File).Exists(stuck_"main-AB12CD34.js"), "and so does the script after the stuck file")
+	Do ##class(%File).RemoveDirectory(stuck_"3rdpartylicenses.txt/")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveOldBundle(stuck, new), "the next run")
+	Do $$$AssertEquals(..Tree(stuck), "", "removes the rest of OcuTalon's files")
+}
+
 /// The trace role's SQL privilege is granted once, in the current namespace, to the role that is named.
 Method TestGrantTraceSql()
 {
@@ -202,6 +296,62 @@ Method TestGrantTraceSql()
 }
 
 /// --- fixtures ---
+/// Writes a file below dir, creating the folders on the way.
+ClassMethod Seed(dir As %String, relative As %String, text As %String) [ Private ]
+{
+	Set file = ##class(%File).NormalizeDirectory(dir)_relative
+	Do ##class(%File).CreateDirectoryChain(##class(%File).GetDirectory(file))
+	Set stream = ##class(%Stream.FileBinary).%New()
+	Do stream.LinkToFile(file)
+	Do stream.Write(text)
+	Do stream.%Save()
+}
+
+/// A bundle: OcuTalon's index.html and licences, hashed scripts and stylesheet, and one font.
+ClassMethod SeedBundle(dir As %String) [ Private ]
+{
+	Do ..Seed(dir, "index.html", "<!doctype html><html><head><base href=""/ocutalon/""></head></html>")
+	Do ..Seed(dir, "main-AB12CD34.js", "main")
+	Do ..Seed(dir, "chunk-EF56GH78.js", "chunk")
+	Do ..Seed(dir, "styles-IJ90KL12.css", "styles")
+	Do ..Seed(dir, "3rdpartylicenses.txt", "licences")
+	Do ..Seed(dir, "assets/fonts/Inter-Regular.woff2", "font")
+}
+
+/// The files and folders below dir, relative to it, sorted, joined by |.
+ClassMethod Tree(dir As %String) As %String [ Private ]
+{
+	Set dir = ##class(%File).NormalizeDirectory(dir)
+	Kill found
+	Do ..Walk(dir, "", .found)
+	Set tree = ""
+	Set path = ""
+	For {
+		Set path = $Order(found(path))
+		Quit:path=""
+		Set tree = tree_$Select(tree = "": "", 1: "|")_path
+	}
+	Quit tree
+}
+
+ClassMethod Walk(dir As %String, prefix As %String, ByRef found) [ Private ]
+{
+	Set rows = ##class(%ResultSet).%New("%File:FileSet")
+	Do rows.Execute(dir, "*", "Name", 1)
+	Kill entries
+	While rows.Next() {
+		Set entries($Increment(entries)) = $ListBuild(rows.Get("Name"), rows.Get("Type"))
+	}
+	Set i = ""
+	For {
+		Set i = $Order(entries(i), 1, entry)
+		Quit:i=""
+		Set name = prefix_##class(%File).GetFilename($List(entry, 1))
+		Set found(name) = ""
+		If $List(entry, 2) = "D" Do ..Walk(##class(%File).NormalizeDirectory($List(entry, 1)), name_"/", .found)
+	}
+}
+
 /// The table of the Design Notes for an application: expected(key) = value.
 ClassMethod Expected(name As %String, Output expected) [ Private ]
 {
@@ -227,12 +377,23 @@ ClassMethod Expected(name As %String, Output expected) [ Private ]
 		Set expected("PermittedClasses") = ..SevenClasses()
 		Quit
 	}
+	If name = "/ocutalon/public" {
+		Set expected("AutheEnabled") = 64
+		Set expected("GroupById") = ""
+		Set expected("DispatchClass") = "OcuTalon.Web.Public.Status"
+		Set expected("Path") = ""
+		Set expected("ServeFiles") = 0
+		Set expected("CookiePath") = "/ocutalon/public/"
+		Set expected("MatchRoles") = ""
+		Set expected("PermittedClasses") = ""
+		Quit
+	}
 	Set expected("CookiePath") = "/ocutalon/"
 	Set expected("MatchRoles") = ":%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE"
 	Set expected("PermittedClasses") = ""
 	If name = "/ocutalon" {
 		Set expected("DispatchClass") = "OcuTalon.Web.Public.Shell"
-		Set expected("Path") = $SYSTEM.Util.DataDirectory()_"csp/ocutalon/"
+		Set expected("Path") = $SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/"
 		Set expected("ServeFiles") = 3
 	} Else {
 		Set expected("DispatchClass") = "OcuTalon.Web.Api"

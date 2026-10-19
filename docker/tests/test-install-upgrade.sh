@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Live test of the upgrade at start (matrix rows 6 and 7, and Story 0.3's row 15): builds the image and starts it in one throwaway
-# compose project, then recreates the container from images whose version is raised by a patch number
+# Live test of the upgrade at start (matrix rows 6 and 7, Story 0.3's row 15 and Story 0.5's row 24): builds the image
+# and starts it in one throwaway compose project, then recreates the container from images whose version is raised by
+# a patch number
 #   - row 6, an upgrade in place: the installed version and the marker equal the new version, every step
 #     runs again, and the probes written under the old version are intact; the README account keeps the password
-#     that was set by hand, with its flags, the durable index.html is the new image's, and the roles, the account
-#     and the three web applications are still as the first start made them (Story 0.3, row 15);
+#     that was set by hand, with its flags, the durable csp/ocutalon-web/index.html is the new image's, and the
+#     roles, the account and the four web applications are still as the first start made them (Story 0.3, row 15;
+#     Story 0.5, row 24);
 #   - row 7, a step that fails: an image whose SSL step returns an error. The log names SSL as failed and no
 #     later step ran, there is no marker and readiness is empty, the container keeps running without a
 #     restart and Docker never reports healthy. The next good image reaches ready.
@@ -123,7 +125,7 @@ if [ "$changed" = 1 ] && [ -n "$fingerprint_first" ] && [ "$fingerprint_first" !
 else
   fail "row 15: the README account's password could not be changed ('$changed')"
 fi
-index_first=$(container_sha256 /durable/iris/csp/ocutalon/index.html)
+index_first=$(container_sha256 /durable/iris/csp/ocutalon-web/index.html)
 
 # The roles and the web applications are structural (AD-19): a hand change to one of each is put back by the upgrade.
 drifted=$(printf '%s\n' \
@@ -164,7 +166,7 @@ if [ -n "$fingerprint_changed" ] && [ "$(readme_fingerprint)" = "$fingerprint_ch
 else
   fail "row 15: the upgrade changed the README account"
 fi
-index_now=$(container_sha256 /durable/iris/csp/ocutalon/index.html)
+index_now=$(container_sha256 /durable/iris/csp/ocutalon-web/index.html)
 if [ -n "$index_now" ] && [ -n "$index_first" ] && [ "$index_now" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ] && [ "$index_now" != "$index_first" ]; then
   pass "row 15: the durable index.html is the new image's, and not the first version's"
 else

@@ -12,8 +12,8 @@ Class OcuTalon.Test.Contract Extends %UnitTest.TestCase [ Abstract ]
 /// The type parameters that a contract pins.
 Parameter COMPARED = "%JSONFIELDNAME,MAXLEN,MAXVAL,MINVAL,SCALE";
 
-/// The oracles that hold the contracts of Story 0.4: each has its contracts in an XData block named Contracts.
-Parameter ORACLES = "OcuTalon.Test.Msg.Contracts,OcuTalon.Test.Bridge.Contracts,OcuTalon.Test.Data.Tables";
+/// The oracles that hold the contracts of Stories 0.4 and 0.5: each has its contracts in an XData block named Contracts.
+Parameter ORACLES = "OcuTalon.Test.Msg.Contracts,OcuTalon.Test.Bridge.Contracts,OcuTalon.Test.Data.Tables,OcuTalon.Test.Live.Payloads";
 
 /// Asserts, for each class of the XData block of this class, that it has exactly its contract.
 Method AssertContract(xdataName As %String)

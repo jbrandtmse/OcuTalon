@@ -326,12 +326,13 @@ session_value() {
   iris_script "$1" | sed -n "s/^CHK|$2|//p" | head -n 1
 }
 
-# security_app_props <CSPZENEnabled> <CookiePath> <DispatchClass> <MatchRoles> <Path> <PermittedClasses> <ServeFiles>:
-# the properties string that check_security reads back for a web application, in the order of its key list; the
-# values every application shares are written here.
+# security_app_props <CSPZENEnabled> <CookiePath> <DispatchClass> <MatchRoles> <Path> <PermittedClasses> <ServeFiles>
+# [<AutheEnabled> [<GroupById>]]: the properties string that check_security reads back for a web application, in the
+# order of its key list; the values every application shares are written here. AutheEnabled defaults to 32 (password)
+# and GroupById to OcuTalon, the sign-in group.
 security_app_props() {
-  printf 'AutheEnabled=32;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=OcuTalon;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=OCUTALON;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
-    "$1" "$2" "$3" "$4" "$5" "$6" "$7"
+  printf 'AutheEnabled=%s;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=%s;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=OCUTALON;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
+    "${8:-32}" "$1" "$2" "$3" "${9-OcuTalon}" "$4" "$5" "$6" "$7"
 }
 
 # check_security <label>: Story 0.3's matrix rows 1 and 2 on the running container, from the security tables.
@@ -339,12 +340,14 @@ security_app_props() {
 #     Read on the OCUTALON data and code databases, and SQL SELECT on Ens.MessageHeader in OCUTALON;
 #   - user ocutalon holds the three roles, with a password that never expires, no forced change and an account that
 #     never expires, enabled; InvalidLoginAction is 0;
-#   - the three web applications have exactly the properties of the Web step, and no CORS list.
+#   - the four web applications have exactly the properties of the Web step, and no CORS list. The bundle folder is the
+#     durable csp/ocutalon-web/ (DW-5), and /ocutalon/public is outside the sign-in group, with no password.
 check_security() {
-  local label=$1 permitted shell_props api_props trace_props
+  local label=$1 permitted shell_props api_props public_props trace_props
   permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
-  shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon/ '' 3)
+  shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3)
   api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
+  public_props=$(security_app_props 1 /ocutalon/public/ OcuTalon.Web.Public.Status '' '' '' 0 64 '')
   trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
   check_session "$label: roles, README account, sign-in policy and applications" %SYS \
     "CHK|role-OcuTalonUser|
@@ -355,13 +358,14 @@ CHK|user|OcuTalonAdmin,OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
 CHK|invalid-login-action|0
 CHK|app|/ocutalon|$shell_props
 CHK|app|/ocutalon/api|$api_props
+CHK|app|/ocutalon/public|$public_props
 CHK|app|/ocutalon/trace/ocutalon|$trace_props" \
     'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
     'Write !,"CHK|trace-sql-select|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUTALON")' \
     'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
     'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
     'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
-    'For app="/ocutalon","/ocutalon/api","/ocutalon/trace/ocutalon" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
+    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
     'Halt'
 }
 

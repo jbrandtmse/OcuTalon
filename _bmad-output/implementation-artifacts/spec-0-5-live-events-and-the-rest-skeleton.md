@@ -2,12 +2,20 @@
 title: 'Story 0.5: Live events and the REST skeleton'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0e2fcb3c7034ec38f2dcf9f287ab177a7e803882'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      ApiClient has no support for the browser envelope: a non-GET call (a body-less DELETE included) needs Content-Type: application/json and X-OcuTalon-Request: 1, and Angular sends neither by default.
+    evidence: |-
+      The server refuses a state-changing call without both (403 not_json, 403 no_request_header); api.spec.ts sets the headers by hand. ApiClient has no POST or DELETE yet, so nothing is broken in this story; the first story that adds one (2.2's live-event service and the POST routes) must add an interceptor or helper.
+    location: >-
+      web/src/app/api/api-client.ts, web/src/app/app.config.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -280,7 +288,84 @@ Tests:
 
 ## Spec Change Log
 
+Implement pass, October 19 (unattended; every ruling is Rule 22, standing grant).
+
+- Rule 22 ruling: where does the API's 401 `signed_out` answer live? -> in a new abstract class `OcuTalon.Web.Public.ApiBase` (`%CSP.REST`, in the public package), which `OcuTalon.Web.Api` extends. `Api` has no `Login` of its own. Measured: a `Login` override in `Api` (OCUTALON_CODE) is never run for a request without a session, because that request runs as a user with no role and cannot read the code database's routine; the CSP server logs `ISCLOG: CSPServer Error displaying login page` and answers a bodiless `404 Not Found` page. (rejected: the override in `Api`, measured as above; the superclass's default `Login`, which answers a bodiless 401 and not the error shape.) The class references only `%CSP` and dynamic objects, and `Test.Web.Status` scans its source with `Status`'s. VETO WINDOW item (security posture: a new class in the pre-sign-in database; it only returns the static 401 body).
+- Rule 22 ruling: SQL privilege of the signed-in user on `Data.Session` and `Live.Event` -> `Session.ForUser` and `Live.Event.Since` prepare their two fixed queries with `%Prepare(text, 0)` (no privilege check at prepare). Measured: the README account gets SQLCODE -99 from a dynamic `SELECT` on either table, so `/v1/state` answered 500 (the cause is in `messages.log`). The query texts hold no user input; the user name and cursors are parameters. (rejected: granting SELECT on the two tables to `OcuTalonUser`, a new grant to a role, VETO WINDOW; walking the index globals by hand, which hard-codes the storage layout.) VETO WINDOW item (security posture).
+- Rule 22 ruling: row 18's route -> the CSP sign-in fields posted to `/ocutalon/api/v1/state`, as Task 0 measured (the trace-window cookie does not reach the API).
+- Rule 22 ruling: `Step.Web.Run` -> split into `Prepare(dataDirectory)` (`BundleCheck` of the new folder, then `RemoveOldBundle`) and the rest, so that rows 20 and 21 test what `Run` does to the files on a fixture data directory and never on the slot's real one. Rejected: a test that calls `Run` on slot A, which would Modify the real applications once the slot holds a bundle.
+- Rule 22 ruling: `tokens.mjs` -> exports `emitOutputs(name, outputs, check)`, the write-or-check routine; `payloads.mjs` imports it. Its messages are unchanged (the existing tokens tests pass).
+- Rule 22 ruling: `Live.Event.Stream` -> `COLLATION = "EXACT"`, because a reference is case-sensitive base64url and the default collation would treat two references that differ only in case as one stream. `Session.IrisUser` keeps the default collation, which is what `ForUser` needs.
+- Rule 22 ruling: row 3 -> the two jobs wait for a go signal and start together; without it the first job finished its 50 events before the second began and the no-lock mutation stayed green.
+- Rule 22 ruling: `test-bundle-folder.sh` probes -> each probe asks a URL of its own (a counter in the query string). Measured: the web gateway keeps the answer to a URL, 404 and 200 alike, also after the file is removed; a probe of the same URL before and after seeding or the restart would read the gateway and not IRIS. Row 23 itself is unchanged: the same two files, before seeding, seeded, and after the restart.
+- Rule 22 ruling: `/events` cursor -> a whole number of 1 to 15 digits; `bad_cursor` for anything else. The envelope compares the media type of `Content-Type` and the origin without regard to case, and allows parameters such as the charset.
+- Rule 22 ruling: `LiveItem<T>` in `api-types.ts` is distributive over the event types, so `LiveItem` (all types) is a discriminated union and `LiveItem<'reminder'>` is the spec's `{type, payload}`.
+- Task 0 order: the throwaway measurements ran after the IRIS classes existed, against a stack built from the tree, so that they exercised the real `Api`; nothing in them changed the design except the two findings above.
+
+Review pass, October 19 (Rule 22 rulings):
+- Rule 22 ruling: `Live.Publish.LastSeq` and a page's cursor -> `LastSeq` takes the stream's lock shared and waits for an open `Publish`, so `/state` never hands out a Seq that is not committed; it throws when the lock is not free in 5 seconds (a 500, not a wrong cursor). (rejected: writing the counter after the row is saved, which narrows the window and does not close it; reading with a lock-free retry.) The Seq contract of AD-12 is unchanged.
+- Rule 22 ruling: `Step.Web.RemoveOldBundle` -> `index.html`, the marker, is deleted last, so a run that stops early is repeated by the next start. The set of files deleted is unchanged.
+- Rule 22 ruling: the first-call path -> a fixture user `ZzFirstCall` (user role, no session row) is created by `test-sign-in.sh`, and `api.spec.ts` calls `/state` as that user; the README account's session is still made by the script, so the create branch needed a user of its own.
+- Rule 22 ruling: `ApiBase.Login` and `Accept-Language` -> no language guard (measured, see Verification); the anonymous requests of `api.spec.ts` rows 17 and 19 carry the header of a browser.
+
+Spine updates for the lead (Rule 20), in addition to those under Design Notes:
+- AD-3: the contents of `OcuTalon.Web.Public` gain `ApiBase`, the API's answer to a request without a session; the reason is that code which answers before sign-in must be in OCUTALON_PUBLIC.
+- AD-13: the API's 401 comes from `OcuTalon.Web.Public.ApiBase`; the signed-in user's queries on `Session` and `Live.Event` are prepared without the SQL privilege check, because the user holds no SQL privilege on OcuTalon's tables.
+- AD-12: `Live.Event.Stream` is exact-collated; `LastSeq` waits, under a shared lock on the stream, for an open `Publish`, so a snapshot's cursor is never ahead of the committed rows.
+
 ## Review Triage Log
+
+### 2026-10-19 - Review pass
+- verdicts: 43 findings - high 0, medium 9, low 22, false 12, maybe-false 0
+- patch groups (fixed in this pass): `RemoveOldBundle` order; `LastSeq` lock; `Publish` failure test; `ForUser` open status, concurrency test and unprivileged first call; allow-list scan case; generator guard; curl limit; two test clean-ups.
+- findings:
+  - Blind Hunter:
+    - `[medium]` `[patch]` `RemoveOldBundle` deletes its own marker (`index.html`) first, so a failed later delete leaves files that no later start removes - verified in `Web.cls`: a run that stops after `index.html` is gone is not repeated, the leftover scripts stay served by the default application. Fix applied: `index.html` is deleted last; `TestRemoveOldBundleKeepsAndFails` now asserts it stays, and that the next run removes the rest.
+    - `[medium]` `[patch]` `LastSeq` reads the counter with no lock while `Publish` raises it inside its open transaction - verified: global reads are dirty, so `/state` could hand out Seq N before event N commits and the page would never receive it. Fix applied: `LastSeq` takes the stream's lock shared (waits for an open publish; throws when the lock is not free in 5 s); `TestLastSeqWaitsForAnOpenPublish` pins it with a job that holds the lock.
+    - `[false]` `[reject]` `ApiBase.Login` drops the language guard of `%CSP.REST.Login` - measured on build 154 with the guard removed and `Accept-Language: en-US,en;q=0.9` on the anonymous requests of `api.spec.ts` row 17: the answer is still 401 `signed_out` with the body. The guard was not added; the header stays in the spec rows 17 and 19 as a browser-like probe.
+    - `[low]` `[patch]` `Session.ForUser` ignores the status of `%OpenId` - the row can vanish between the SELECT and the open; it returned "" with an OK status. Fix applied: the open's status is kept, and an empty result gives an error status (no pinning test: the vanished row cannot be made on purpose; a direct 3-line correction).
+    - `[medium]` `[patch]` the failure path inside `Publish`'s lock (rollback, counter, lock) is untested - same root cause as the verification gap below. Fix applied: `TestFailureLeavesNoGap`.
+    - `[low]` `[defer]` `ApiClient` has no support for the browser envelope (`Content-Type: application/json` and `X-OcuTalon-Request: 1` on non-GET calls, body-less DELETE included) - no POST exists in the client yet, so nothing is broken here; the first story that adds one fails loudly with 403 `not_json`. Deferred to the story that adds the first POST, which is 2.2's live-event service area.
+    - `[low]` `[reject]` the closed catalogs (`Status.CONDITIONS`, `WatchProgress.STAGES`, `Msg.Enum` values) are not enforced by `Publish` and are `string` in `payloads.ts` - spec-bound: `Publish` refuses a type outside the event table and a payload of another class, nothing more (Design Notes, Row 2), and the TypeScript mapping is the spec's; each catalog belongs to its publisher's story.
+    - `[low]` `[patch]` the source scan of the public classes is case-sensitive and misses dynamic dispatch - `##Class(` or `$system.` would pass. Fix applied: the scan upper-cases the source, and flags `$ClassMethod(` and `$Method(`; the test also feeds the scan a probe string.
+    - `[false]` `[reject]` `/v1/state` and `/v1/events` send no cache headers, and the gateway keeps one answer per URL - the gateway keeps the answer to a static file's URL; `api.spec.ts` asks `/v1/state` signed out (401), signed in (200) and as the trace-only user (403) on the same URL in one stack, and each gets its own answer.
+    - `[low]` `[reject]` DW-5 leaves the default `/csp/ocutalon` application unauthenticated - the DW-5 ruling (Design Notes) chose to move the bundle and remove OcuTalon's own files, and rejected touching the application; `test-bundle-folder.sh` observes the closure on the non-Health image.
+  - Edge Case Hunter:
+    - `[medium]` `[patch]` `RemoveOldBundle` deletes `index.html` first - same root cause as the first Blind Hunter finding.
+    - `[medium]` `[patch]` `LastSeq` and `Since` read while a publish is uncommitted - same root cause as the `LastSeq` finding. (`Since` reads a row only after its `%Save`, inside the same millisecond window as the commit; a rollback after a successful save is not a case this code reaches.)
+    - `[low]` `[patch]` `ForUser` ignores the `%OpenId` status - same root cause as the `ForUser` finding above.
+    - `[low]` `[reject]` an IRIS user name may be up to 160 characters while `IrisUser` is 128 - the contract (Row 8, `Test.Data.Tables`) fixes 128; no such user exists in the product, and widening the property changes a frozen contract for no reachable case.
+    - `[low]` `[reject]` behind a TLS-terminating proxy `%request.Secure` is 0 and every non-GET call gets 403 `wrong_origin` - spec-bound: the Design Notes ruling reads the scheme from `%request.Secure` and says that 16.3 adds the proxy's forwarded scheme.
+    - `[false]` `[reject]` cookie-less requests to `/ocutalon/public/status` each hold a licence connection for about ten seconds - AD-13 (spine L355, L375) records, from S16 and S13, that the sessionless status takes no connection; `InstanceConnections()` was 0 on every measurement here.
+    - `[low]` `[reject]` `Publish` does not check the values of closed lists, nor that a type goes to the right kind of stream - spec-bound, as above.
+    - `[low]` `[patch]` `payloads.mjs` silently skips an indented or lower-case `property` line - the field would be dropped from `payloads.ts` with `--check` green. Fix applied: such a line must match the property form or the generator exits 1 naming `file:line`; two fixtures in `payloads.test.mjs`.
+    - `[low]` `[patch]` the `curl` calls of `test-bundle-folder.sh` have no time limit - the header promises a 9-minute bound. Fix applied: `--max-time 30` on every call.
+    - `[low]` `[patch]` the allow-list scan is case-sensitive - same root cause as the Blind Hunter scan finding.
+    - `[low]` `[patch]` the cleanup is skipped when the old `index.html` is absent - the failed-run case is the `RemoveOldBundle` finding above (fixed by the order); a folder whose marker was deleted by hand is out of scope.
+  - Verification Gap:
+    - `[medium]` `[patch]` `Publish`'s failure path has no test - fix applied: `TestFailureLeavesNoGap` (a clashing row; error, no open transaction, counter unchanged, then Seq 1).
+    - `[medium]` `[patch]` `ForUser`'s lock has no concurrency test - fix applied: `TestConcurrentFirstCall` (two jobs, 20 users, in step).
+    - `[medium]` `[patch]` the create branch of `ForUser` never runs as the unprivileged signed-in user - fix applied: fixture user `ZzFirstCall` (user role, no session row) in `test-sign-in.sh`, and a first-call row in `api.spec.ts` (200, a 22-character epoch, the same epoch on the second call).
+    - `[low]` `[patch]` `TestBodyWithSettings` asserts `busy` false against the live connection count with a cap of 8 - fix applied: a cap of 100000.
+    - `[low]` `[patch]` four assertions of `TestFromRow` cannot fail (`Payload.Incident` has no such properties) - fix applied: removed; the other four keys stay.
+    - `[false]` `[reject]` the instance half of `StateBody` and `EventsBody` is only exercised over HTTP - `api.spec.ts` rows 13 and 14 pin `instance: 1` and `instance:1:status`, and the Rule 22 boundary forbids slot A tests from publishing on `instance`.
+    - `[low]` `[reject]` the Health 404 probes of `test-bundle-folder.sh` pass with or without the fix - the 200-to-404 transition is the `(once)` non-Health run, which ran green; the Health run pins the file listing.
+    - `[low]` `[patch]` `TestBadCursors` says "before any session is touched" and asserts nothing about it - fix applied: the claim is removed from its doc.
+    - `[low]` `[reject]` `ApiClient.events()` has no executed test host - there is no unit-test host under `web/src`; its consumer is Story 2.2.
+    - `[low]` `[reject]` the `loading` and `failed` values of `data-snapshot` are not observed - Row 13 pins `loaded`; the other two are one `signal` each.
+    - `[false]` `[reject]` pinning tests without a `mutation:` line - Rule 19 asks one demonstrated mutation per AC, and every AC has one; the tests added in this pass carry theirs.
+    - `[false]` `[reject]` `api.spec.ts` rows 13 and 14 need the events that `test-sign-in.sh` seeds - by design: `required()` fails loudly without them, and the stack is the test's own.
+    - `[low]` `[patch]` (Other findings) the `curl` calls have no time limit - same fix as above.
+  - Intent Alignment (divergences reported):
+    - `[false]` `[reject]` S1, DW-5 is observed on the non-Health image only when `IRIS_IMAGE` is set - the spec's `(once)` command sets it, and it ran green with the seeded 200 observed.
+    - `[medium]` `[patch]` S2, the cleanup keys on the marker it deletes first - same root cause as the first Blind Hunter finding.
+    - `[false]` `[reject]` S3, `ApiBase` is not in the intent text - it is in the Spec Change Log (a Rule 22 ruling) and in the spine updates for the lead; `TestSignedOut` and the anonymous HTTP checks pin it.
+    - `[false]` `[reject]` S4, row 18 signs in at the API itself - Task 0's own branch ("If not, row 18 uses a POST of the CSP sign-in fields"); measured.
+    - `[low]` `[reject]` S5, the unit test's version oracle is the same IPM lookup - `api.spec.ts` row 13 compares with the manifest's version over HTTP.
+    - `[false]` `[reject]` S6, rows 20 and 21 test `Prepare` - `Run` calls `Prepare`; the install and bundle-folder scripts run `Run` on the real data directory.
+    - `[false]` `[reject]` S7, row 14's marker is on the session events only - the instance event is identified by `condition`, which `api.spec.ts` asserts.
+    - `[low]` `[reject]` S8, `events()`, `EventsResponse`, `LiveEnvelope` and `PublicStatus` have no consumer in the page - the spec scopes the client to `state()` and `events()` and the types of the Design Notes; the consumer is Story 2.2.
+    - `[false]` `[reject]` S9, `ItemNoun` and `TraceTarget` are Lane B's - the Design Notes table says so ("shared and Lane B's").
 
 ## Design Notes
 
@@ -541,10 +626,98 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC5: `Step.Web` `Path` back to `csp/ocutalon/` → rows 22 and 24 red.
 - AC6: one slot removed by hand from `Session`'s storage block → the export differs.
 
+**Shared surfaces, additions:** the public database's classes (`Web.Public.Status`, `Web.Public.ApiBase`), which `after-start.sh` lists from the shipped files and the `public-classes` step checks; `Test.Contract.ORACLES` (now four oracles).
+
+**Results (implement pass, October 19).** Every command below ran on the final tree unless a note says otherwise.
+
+Task 0 (measured; throwaway Health stack built from the tree, `curl` with a cookie jar):
+- Trace-only user through the sign-in group: no. A user signed in at `/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen` holds the trace application's cookie (path `/ocutalon/trace/ocutalon/`) and `IRISSessionToken`, not the cookie the API reads, so `GET /ocutalon/api/v1/state` with that jar is a request without a session (401 `signed_out`). The route that works, and the one row 18 uses: a POST of `IRISUsername`, `IRISPassword` and `IRISLogin` to `/ocutalon/api/v1/state` gives 403 `no_role` with `ERRORNOROLE`'s text, and the session stays open (a later GET is 403 `no_role`, and the trace window opens).
+- `curl` sign-in: works. GET `/ocutalon/` (200, the sign-in form, no hidden input), POST of the three fields with the jar (303 to `/ocutalon/`), GET `/ocutalon/` serves the Angular `index.html`. Without a session `/ocutalon/<main>.js` is the sign-in page; signed in it is the script, byte for byte.
+- Overriding `Api.Login` and the group sign-in: an override inside `OcuTalon.Web.Api` breaks the request without a session (bodiless 404, see the Spec Change Log); the same override in the public superclass `ApiBase` answers 401 `signed_out` without `WWW-Authenticate`, and the group sign-in is kept: with the `CSPSESSIONID-...` cookie removed from the README jar (`CSPBrowserId` left), `GET /v1/zz` is 404 `not_found`, which is shell row 10's case.
+- `HTTP_HOST` is present (`127.0.0.1:<port>`): a POST with `Origin: http://127.0.0.1:<port>` and a valid envelope passes the origin check (501), another Origin or none gives 403 `wrong_origin`.
+- Slot A: `%JSONExportToString` omits an empty list (`items` is absent after `Clear()`), omits an empty string, and exports `false` for a `%Boolean` whose `InitialExpression` is 0.
+- Also measured: the README account gets SQLCODE -99 from a dynamic `SELECT` on `Data.Session` (see the ruling); the web gateway keeps the answer to a URL after the file changes; on the non-Health image the default application `/csp/ocutalon` (`Path` `/durable/iris/csp/ocutalon`, `ServeFiles` 2) serves a seeded `index.html` and `main-*.js` with 200 and no session (DW-5's exposure), until the restart removes them; on the Health image there is no such application and the same probes are 404.
+- `$TLevel` is 0 in a business host's `OnMessage` `(inference)`; not measurable before 0.6.
+
+Commands:
+- `(loop)` `iris_server_info` (slot A): build 154.
+- `(loop)` `iris_doc_load` with `compile: true`, `flags: "ck"`, bridge then ocutalon: 16 and 110 documents, 0 errors.
+- `(loop)` `iris_execute_tests`, one class per call, all 0 failed: Live.Publish 3, Live.Payloads 4, Data.Session 2, Web.Api 8, Web.Status 5, Web.Install 9, Web.Shell 5, Web.SignIn 9, Data.Tables 5, Msg.Contracts 6, Contract.Ac 6, Contract.Checker 5, Install.PrivateData 5, Install.Registry 11, Data.PublicSettings 5 tests. Afterwards slot A holds no session, event, counter, incident, `/zz` application or public setting that the tests made.
+- `(loop)` `node --test web/scripts/`: 40 tests pass (14 new, in `payloads.test.mjs`).
+- `(loop)` `npm --prefix web run build`: exit 0; `git status --short web/` is unchanged by the build.
+- `(loop)` `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`, `test-web-build.sh`: each exit 0.
+- `(loop)` `test-sign-in.sh`: exit 0 (21 Playwright tests: the 8 of `api.spec.ts` and Story 0.3's 13); no `ocutalon-t03-*` project left.
+- `(loop)` `test-bundle-folder.sh` (Health): exit 0.
+- `(loop)` `test-install-start.sh`: exit 0.
+- `(once)`, run because every `(loop)` command was green: `test-install-upgrade.sh` exit 0; `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 test-bundle-folder.sh` exit 0, with the seeded 200 observed before the restart; `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 test-sign-in.sh` exit 0.
+- `(once)` round trip on slot A: the trees were loaded and compiled again after the last mutation and exported (`iris_doc_export`, prefix `OcuTalon`, 126 classes) into a scratch folder: every file equals the tree byte for byte, the storage blocks of `Session` and `Live.Event` included, so no tracked file would change. (The export went to a scratch folder, not over the tree.)
+
+Mutations (Rule 19; each applied to a scratch copy loaded on slot A or the throwaway, or, where the live script builds from the tree, to the tree with a backup; reverted; `git status --short` and `git diff --stat` unchanged afterwards):
+- mutation: `Publish` without the lock (the `Lock` line removed) -> `Test.Live.Publish` `TestSeqUnderLoad` red ("Key not unique", fewer than 100 rows). With the first version of the test (the two jobs started one after the other) this mutation stayed green; the start barrier fixed that.
+- mutation: `watch.progress` dropped from `TYPES` -> `Test.Live.Payloads` `TestEventTable` red.
+- mutation: `Session.ForUser` never finds the row (always creates) -> `Test.Data.Session` `TestFindsOrCreates` red.
+- mutation: `EventsBody` passes cursor 0 to `Since` -> `Test.Web.Api` `TestEventsBody` red.
+- mutation: `EnvelopeError` without the Origin rule -> `Test.Web.Api` `TestEnvelopeError` red.
+- mutation: the `/v1/guide/markers` route removed -> `Test.Web.Api` `TestRoutes` red.
+- mutation: `IsBusy` with `>` -> `Test.Web.Status` `TestIsBusy` and `TestBodyWithSettings` red.
+- mutation: `RemoveOldBundle` without the marker check -> `Test.Web.Install` `TestRemoveOldBundle` red.
+- mutation: `Incident.ItemNoun`'s `%JSONFIELDNAME` set to `item_noun` -> `payloads.mjs` exits 1 naming `Incident.cls:27` (and `npm --prefix web run build` exits 1); `payloads.test.mjs` pins the same on a copy.
+- mutation: `Reminder.DueAt` renamed without regenerating -> `payloads.mjs --check` exits 1 ("payloads.ts is stale") and `test-web-build.sh` red ("npm --prefix web run build failed").
+- mutation: `StateBody` without `epoch` -> `api.spec.ts` row 13 red.
+- mutation: `Live.Event.Since` passes cursor 0 -> `api.spec.ts` row 14 red.
+- mutation: `OnPreDispatch` without the envelope check -> `api.spec.ts` row 15 red (the `text/plain` call answers 501, not 403).
+- mutation: `Status.AccessCheck` removed -> `api.spec.ts` row 19 red (not 200).
+- mutation: the Web step without `RemoveOldBundle`, non-Health image -> `test-bundle-folder.sh` row 23 red (200 for `index.html`, `main-*.js` and `3rdpartylicenses.txt` after the restart, and the old folder still holds the bundle).
+- mutation: the shell application's `Path` back to `csp/ocutalon/` -> `test-install-upgrade.sh` red at `check_security` (row 24). The `FileCopy` target back to `csp/ocutalon/` -> `test-install-start.sh` aborts at row 1, because `BundleCheck` refuses the start; row 22's own lines were not reached.
+- mutation: the slot for `TraceRef` removed from `Session`'s storage block -> the export differs (the compiler adds `TraceRef` as slot 7, where the committed block has slot 3); the tree was loaded again afterwards.
+
+Not done, or open:
+- AC5's row 22 mutation reaches the first-start abort, not row 22's own assertions.
+- The Task 0 results hold for build 154 as measured; the browser (Playwright Chromium) was used for rows 13 and the Story 0.3 specs, `curl` for the measurements above.
+
+**Results (review pass, October 19).** Every command ran on the final tree.
+- `(loop)` `iris_server_info` (slot A): build 154. `iris_doc_load` with `compile: true`, `flags: "ck"`: 16 and 110 documents, 0 errors.
+- `(loop)` `iris_execute_tests`, one class per call, all 0 failed: Live.Publish 5, Live.Payloads 4, Data.Session 3, Web.Api 8, Web.Status 5, Web.Install 9, Web.Shell 5, Web.SignIn 9, Data.Tables 5, Msg.Contracts 6, Contract.Ac 6, Contract.Checker 5, Install.PrivateData 5, Install.Registry 11, Data.PublicSettings 5 tests. Slot A holds no session, event, incident or counter afterwards.
+- `(loop)` `node --test web/scripts/`: 41 tests pass. `npm --prefix web run build`: exit 0, `git status --short` unchanged. `test-storage.sh`, `test-boundaries.sh`, `test-compose-file.sh`, `test-pinned-sources.sh`, `test-web-build.sh`: each exit 0.
+- `(loop)` `test-sign-in.sh`: exit 0, 22 Playwright tests (9 of `api.spec.ts`). `test-bundle-folder.sh` (Health): exit 0, 22 checks. `test-install-start.sh`: exit 0. No `ocutalon-t0*` project is left.
+- `(once)`, after the last patch: `test-install-upgrade.sh` exit 0; `IRIS_IMAGE=iris-community:2026.3.0AI.154.0 test-bundle-folder.sh` exit 0 with the seeded 200 observed for `index.html` and `main-*.js` before the restart; the same image with `test-sign-in.sh` exit 0 (22 passed).
+- `(once)` round trip: the trees were loaded and compiled on slot A, then exported (`iris_doc_export`, prefix `OcuTalon`, 126 classes) into a scratch folder: every file equals its file in the tree byte for byte, so the storage blocks of `Session` and `Live.Event` do not change.
+
+Mutations of the review pass (Rule 19; applied to the tree with a backup and loaded on slot A, or, for the live script, built from the tree; reverted; every file's checksum equals its backup afterwards):
+- mutation: `RemoveOldBundle` deletes `index.html` first (the old order) -> `Test.Web.Install` `TestRemoveOldBundleKeepsAndFails` red ("index.html stays, so the next start repeats the removal", "removes the rest of OcuTalon's files").
+- mutation: `LastSeq` without the shared lock -> `Test.Live.Publish` `TestLastSeqWaitsForAnOpenPublish` red ("the reader is still waiting while the publisher's transaction is open").
+- mutation: `Publish` without `If $TLevel > 0 TROLLBACK` -> `Test.Live.Publish` `TestFailureLeavesNoGap` red ("no transaction is left open").
+- mutation: `Session.ForUser` without its lock -> `Test.Data.Session` `TestConcurrentFirstCall` red. With the first version of the test (one user, two jobs) this mutation stayed green; the 20 users with a barrier before each fixed that.
+- mutation: the allow-list scan of `Test.Web.Status` without upper-casing the source -> `TestReferencesOnlyThePublicAllowList` red.
+- mutation: `payloads.mjs` reads only lines that start with `Property` in that case and column -> `payloads.test.mjs` "a property that is indented or not written as Property" red.
+- mutation: the create branch of `Session.ForUser` runs a `SELECT` on the table, prepared with the privilege check, before it creates the row -> `api.spec.ts` "row 13: the first /state of a user without a session row creates one" red (500); rows 13 and 14 of the README account stayed green, which is the gap that the new test closes. Measured with `test-sign-in.sh`.
+- measured, no mutation: `ApiBase.Login` without a language guard answers 401 `signed_out` with the body for a request that carries `Accept-Language: en-US,en;q=0.9` (`api.spec.ts` row 17 green with the guard removed), so the guard was not added.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implementation summary (October 19).**
+- Live events: `Live.Event` (private, exact-collated stream, unique `(Stream, Seq)`), `Live.Publish` (the 16-type table, per-stream counter under a lock held across insert and commit, refused inside a transaction; `LastSeq` waits for an open publish), 15 type classes and 10 part classes under `Live.Payload`, and `web/scripts/payloads.mjs` with the committed `web/src/app/live/payloads.ts` and `--check` in `npm run build`.
+- REST: `Data.Session` gains `Epoch` and `ForUser`; `Web.Api` has the 12 routes, the role check, the browser-envelope check, the error shape, a real `/state` and `/events`; the 401 `signed_out` comes from the new public `Web.Public.ApiBase`. The page loads the snapshot through `ApiClient` and sets `main[data-snapshot]`.
+- Public status and DW-5: `Web.Public.Status` and the `/ocutalon/public` application (four applications now); the bundle lives in `csp/ocutalon-web/`; `Step.Web` removes OcuTalon's own files from `csp/ocutalon/` at every start (`index.html` last).
+
+**Files changed.** `src/ocutalon/cls/OcuTalon/`: `Live/Event.cls`, `Live/Publish.cls`, 25 `Live/Payload/**` classes, `Data/Session.cls`, `Web/Api.cls`, `Web/Public/ApiBase.cls`, `Web/Public/Status.cls`, `Install/Step/Web.cls`, and the tests `Test/Live/{Publish,Payloads}.cls`, `Test/Data/Session.cls`, `Test/Web/{Api,Status,Install}.cls`, `Test/Data/Tables.cls`, `Test/Contract.cls`. `src/module.xml`, `src/short-names.tsv`. `web/`: `scripts/payloads.mjs`, `scripts/payloads.test.mjs`, `scripts/tokens.mjs` (exports `emitOutputs`), `package.json`, `src/app/{live,api}/`, `app.config.ts`, `app.ts`, `e2e/api/api.spec.ts`, `e2e/sign-in/sign-in.spec.ts`. `docker/tests/`: `lib-live.sh`, `test-sign-in.sh`, `test-install-start.sh`, `test-install-upgrade.sh`, `test-compose-file.sh`, `test-bundle-folder.sh` (new).
+
+**Review (one pass, four layers).** 43 findings: high 0, medium 9, low 22, false 12.
+- Patched (5 medium entries, 7 low entries): `RemoveOldBundle` now deletes `index.html` last; `LastSeq` waits under a shared lock for an open publish; tests for `Publish`'s failure path, `ForUser`'s lock under two jobs, and the first `/state` of a user with no session row (`ZzFirstCall`); `ForUser` keeps the status of `%OpenId`; the allow-list scan is case-insensitive and flags dynamic dispatch; the generator refuses an indented or lower-case property line; `--max-time` on the `curl` calls; the busy assertion no longer reads the live connection count; four vacuous assertions removed; one doc claim removed.
+- Deferred (1, low): the `ApiClient` envelope interceptor for the first POST (see `deferred:`).
+- Rejected with reasons (in the Review Triage Log): the language guard for `ApiBase.Login` (measured not needed), cache headers (measured), the licence-connection claim for the public status (AD-13, S16), the closed catalogs, the user-name length, the TLS-proxy origin, the default application, the descriptive divergences of the intent audit, and the coverage notes that the `(once)` runs or Rule 19's per-AC scope already answer.
+- Follow-up review recommended: true. Unverified risks: (1) `LastSeq` now waits on a lock, so a publisher that holds a stream's lock for more than 5 seconds makes `/state` answer 500; nothing in this story holds a lock that long, and the first publishers (2.x) should keep the publish call short and outside long transactions; (2) the three job-based tests (`TestSeqUnderLoad`, `TestLastSeqWaitsForAnOpenPublish`, `TestConcurrentFirstCall`) depend on `Job` start-up and `Hang`, with 60 to 120 second ceilings; they passed on every run here, and `TestConcurrentFirstCall`'s red was shown on a mutation but is a race, so it can in principle stay green against the no-lock mutation.
+
+**Verification performed.** See `## Verification`: the implement-pass results, the review-pass results, and the mutations. Every `(loop)` command and every `(once)` command is green on the final tree; the trees round-trip through slot A byte for byte.
+
+**Residual risks and items for the lead.**
+- Spine updates (Rule 20) are the lead's: the Design Notes list, and the Spec Change Log adds AD-3 (`ApiBase` in `OcuTalon.Web.Public`), AD-13 (the 401 from `ApiBase`; the signed-in user's two queries prepared without the SQL privilege check) and AD-12 (`Stream` exact-collated; `LastSeq` waits for an open publish).
+- VETO WINDOW items (Rule 22.3), for the FYI: the browser-envelope and no-role 403 rules; the unauthenticated `/ocutalon/public` application; `Session` rows created by the API; deleting old bundle files at start; the API's error texts; the new class `OcuTalon.Web.Public.ApiBase` in the pre-sign-in database (static 401 body only); `Session.ForUser` and `Live.Event.Since` prepared without the SQL privilege check (fixed query text, parameters only; no grant to `OcuTalonUser` was added).
+- The spec is oversized and has several goals; the Design Notes name the split line (0.5 and 0.10). It was implemented whole, as dispatched.
+- AC5's row 22 mutation (`FileCopy` target back to `csp/ocutalon/`) stops at the first-start abort of `BundleCheck`, not at row 22's own lines.
 
 **Planning summary (October 19).**
 - The spec is planned against the committed `epic-0-context.md`, Story 0.4's spec for continuity, the spine (AD-3, 4, 12, 13, 15, 19, 23, 29 and 33, the Conventions, the event table and the REST surface, read by line range), and `epics.md` (0.5, 0.8, 2.2, 16.5 and 16.8).

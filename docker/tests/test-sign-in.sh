@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Live test of Story 0.3, signing in to an empty OcuTalon page (matrix rows 1 to 13): rebuilds the web bundle, builds the
-# image and starts it in one throwaway compose project, then checks
-#   - rows 1 and 2, from the security tables: the roles, the README account, InvalidLoginAction and the three web
-#     applications (check_security);
-#   - rows 3 to 13 in a real browser, through the Playwright specs in web/e2e/sign-in/: what answers without a session,
-#     the sign-in page, a wrong password, the password toggle, the README sign-in, the tokens and fonts, one sign-in
-#     group, Sign out, a user without the OcuTalon user role, and a deep link.
+# Live test of Story 0.3, signing in to an empty OcuTalon page (matrix rows 1 to 13), and of Story 0.5, the REST skeleton
+# and the public status (matrix rows 13 to 19): rebuilds the web bundle, builds the image and starts it in one
+# throwaway compose project, then checks
+#   - rows 1 and 2 of Story 0.3, from the security tables: the roles, the README account, InvalidLoginAction and the
+#     four web applications (check_security);
+#   - rows 3 to 13 of Story 0.3 in a real browser, through the Playwright specs in web/e2e/sign-in/: what answers without
+#     a session, the sign-in page, a wrong password, the password toggle, the README sign-in, the tokens and fonts, one
+#     sign-in group, Sign out, a user without the OcuTalon user role, and a deep link;
+#   - rows 13 to 19 of Story 0.5, through web/e2e/api/api.spec.ts, on a stack that this script seeds: the README
+#     account's session gets two reminder events and the instance stream one status event, and the script passes what
+#     it read back (the version, the instance zone, the session's epoch and the marker of the texts) to the specs.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role user gets a random password that is passed by
-# environment variable and never printed. An EXIT trap removes the project with its volume and images. Every wait ends
-# by an overall deadline, so even a failing run ends within about 9 minutes.
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only and first-call users get random
+# passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
+# Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or
 # later, and the browser: npx --prefix web playwright install chromium.
@@ -22,6 +26,10 @@ live_web_port || exit 1
 
 noroleuser=ZzNoRole
 noropassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)"
+traceuser=ZzTraceOnly
+tracepassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)"
+firstuser=ZzFirstCall
+firstpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)"
 
 # --- build and start ---
 
@@ -44,21 +52,63 @@ pass "the first start ended ready"
 
 check_security "rows 1-2"
 
-# --- the user without a role (row 12) ---
+# --- the users without the OcuTalon user role (Story 0.3, row 12; Story 0.5, row 18) ---
 
-created=$(printf '%s\n' \
-  'Set pw=$SYSTEM.Util.GetEnviron("OCUTALON_T03_PW")' \
-  "Set sc=##class(Security.Users).Create(\"$noroleuser\",\"\",pw,\"no-role fixture\",\"OCUTALON\",\"\",\"\",0,1,\"t03 fixture\",1,\"\",\"\",,1,1)" \
-  'Write !,"CHK|norole-user|",$SYSTEM.Status.IsOK(sc)' \
-  'Halt' \
-  | OCUTALON_T03_PW="$noropassword" dc exec -T -e OCUTALON_T03_PW iris iris session IRIS -U %SYS 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|norole-user|.*\)$/\1/p' | tail -n 1)
-if [ "$created" = "CHK|norole-user|1" ]; then
+# create_fixture_user <name> <password> <roles> <comment>: a user of OCUTALON whose password reaches IRIS by environment
+# variable, so that it is never printed. Prints the CHK line.
+create_fixture_user() {
+  printf '%s\n' \
+    'Set pw=$SYSTEM.Util.GetEnviron("OCUTALON_T03_PW")' \
+    "Set sc=##class(Security.Users).Create(\"$1\",\"$3\",pw,\"$4\",\"OCUTALON\",\"\",\"\",0,1,\"t03 fixture\",1,\"\",\"\",,1,1)" \
+    'Write !,"CHK|fixture-user|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' \
+    | OCUTALON_T03_PW="$2" dc exec -T -e OCUTALON_T03_PW iris iris session IRIS -U %SYS 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|fixture-user|.*\)$/\1/p' | tail -n 1
+}
+
+created=$(create_fixture_user "$noroleuser" "$noropassword" "" "no-role fixture")
+if [ "$created" = "CHK|fixture-user|1" ]; then
   pass "the fixture user without roles is created"
 else
   die "the fixture user without roles could not be created ('$created')"
 fi
+created=$(create_fixture_user "$traceuser" "$tracepassword" "OcuTalonTraceViewer" "trace-only fixture")
+if [ "$created" = "CHK|fixture-user|1" ]; then
+  pass "the fixture user with the trace role alone is created"
+else
+  die "the fixture user with the trace role alone could not be created ('$created')"
+fi
 
-# --- rows 3 to 13: the browser ---
+created=$(create_fixture_user "$firstuser" "$firstpassword" "OcuTalonUser" "first-call fixture")
+if [ "$created" = "CHK|fixture-user|1" ]; then
+  pass "the fixture user with the user role and no session row is created"
+else
+  die "the fixture user with the user role could not be created ('$created')"
+fi
+
+# --- Story 0.5, rows 13 and 14: the seeded events ---
+
+# The README account's durable session, two reminder events on its stream, and one status event on the instance
+# stream. The script reads back the session's epoch and the instance zone.
+marker="zz-$P"
+seeded=$(printf '%s\n' \
+  'Set s=##class(OcuTalon.Data.Session).ForUser("ocutalon",.sc)' \
+  'Write !,"CHK|epoch|",s.Epoch' \
+  "For i=1,2 { Set p=##class(OcuTalon.Live.Payload.Reminder).%New() Set p.Ref=\"ZzE2E\"_i Set p.Text=\"$marker-\"_i Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,\"reminder\",p,.q) Write !,\"CHK|seq|\",i,\"|\",q }" \
+  'Set t=##class(OcuTalon.Live.Payload.Status).%New() Set t.Condition="noModelKey",t.Active=1 Set sc=##class(OcuTalon.Live.Publish).Publish("instance","status",t,.q) Write !,"CHK|instance-seq|",q' \
+  'Write !,"CHK|zone|",##class(OcuTalon.Data.Time).Zone()' \
+  'Halt' | iris_script OCUTALON)
+seeded_epoch=$(printf '%s\n' "$seeded" | sed -n 's/^CHK|epoch|//p')
+seeded_zone=$(printf '%s\n' "$seeded" | sed -n 's/^CHK|zone|//p')
+if [ -n "$seeded_epoch" ] && [ -n "$seeded_zone" ] \
+  && printf '%s\n' "$seeded" | grep -qx 'CHK|seq|1|1' && printf '%s\n' "$seeded" | grep -qx 'CHK|seq|2|2' \
+  && printf '%s\n' "$seeded" | grep -qx 'CHK|instance-seq|1'; then
+  pass "the README account's session got two events, and the instance stream one"
+else
+  printf '%s\n' "$seeded" | cut -c1-200
+  die "the events could not be seeded"
+fi
+
+# --- Story 0.3, rows 3 to 13, and Story 0.5, rows 13 to 19: the browser ---
 
 remaining=$((deadline - SECONDS))
 if [ "$remaining" -lt 60 ]; then
@@ -67,22 +117,30 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
+  OCUTALON_TRACEONLY_USER="$traceuser" \
+  OCUTALON_TRACEONLY_PASSWORD="$tracepassword" \
+  OCUTALON_FIRSTCALL_USER="$firstuser" \
+  OCUTALON_FIRSTCALL_PASSWORD="$firstpassword" \
+  OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
+  OCUTALON_E2E_ZONE="$seeded_zone" \
+  OCUTALON_E2E_EPOCH="$seeded_epoch" \
+  OCUTALON_E2E_MARKER="$marker" \
   OCUTALON_E2E_TIMEOUT_MS=$(((remaining - 20) * 1000)) \
   npm --prefix web run e2e > "$e2e_log" 2>&1
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "rows 3-13: the Playwright specs pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13 and Story 0.5's rows 13-19: the Playwright specs pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13: the Playwright specs failed (exit $e2e_status)"
+  fail "rows 3-13 and Story 0.5's rows 13-19: the Playwright specs failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

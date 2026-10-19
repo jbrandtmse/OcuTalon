@@ -4,7 +4,8 @@
 #   - row 1, a fresh volume: healthy, the marker equal to the image's version, and a log that lists the merge,
 #     the readiness step, IPM installed in %SYS and mapped into OCUTALON only, the package loaded, one STEP
 #     line per installer step in the order of AD-23, and RESULT OK; readiness set, the online-demo flag off; the web
-#     bundle in the durable csp/ocutalon/ folder, byte for byte as the image holds it (Story 0.3, row 14);
+#     bundle in the durable csp/ocutalon-web/ folder, byte for byte as the image holds it, and none in csp/ocutalon/
+#     (Story 0.3, row 14; Story 0.5, row 22);
 #   - row 2, the same version with a mapping removed by hand: the mapping is back, the package skipped
 #     (its compile time unchanged), every step run again, data and private probes intact; the same restart
 #     finds IPM recorded as 0.10.9 and installs the pinned 0.10.10;
@@ -85,20 +86,25 @@ else
   fail "row 1: the container's output holds no STEP summary line"
 fi
 
-# --- row 14: the web bundle is installed byte for byte ---
+# --- row 14 and Story 0.5's row 22: the web bundle is installed byte for byte, in csp/ocutalon-web/ ---
 
 image_tree=$(container_tree_hashes /opt/ocutalon/src/ocutalon/csp)
-durable_tree=$(container_tree_hashes /durable/iris/csp/ocutalon)
+durable_tree=$(container_tree_hashes /durable/iris/csp/ocutalon-web)
 if [ -n "$image_tree" ] && [ "$image_tree" = "$durable_tree" ]; then
-  pass "row 14: /durable/iris/csp/ocutalon/ holds the image's bundle, byte for byte ($(printf '%s\n' "$image_tree" | wc -l | tr -d ' ') files)"
+  pass "row 14: /durable/iris/csp/ocutalon-web/ holds the image's bundle, byte for byte ($(printf '%s\n' "$image_tree" | wc -l | tr -d ' ') files)"
 else
-  fail "row 14: /durable/iris/csp/ocutalon/ differs from /opt/ocutalon/src/ocutalon/csp/"
+  fail "row 14: /durable/iris/csp/ocutalon-web/ differs from /opt/ocutalon/src/ocutalon/csp/"
 fi
-if [ -n "$(container_sha256 /durable/iris/csp/ocutalon/index.html)" ] \
-  && [ "$(container_sha256 /durable/iris/csp/ocutalon/index.html)" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ]; then
+if [ -n "$(container_sha256 /durable/iris/csp/ocutalon-web/index.html)" ] \
+  && [ "$(container_sha256 /durable/iris/csp/ocutalon-web/index.html)" = "$(container_sha256 /opt/ocutalon/src/ocutalon/csp/index.html)" ]; then
   pass "row 14: index.html is byte-identical to the image's"
 else
   fail "row 14: index.html differs from the image's, or is missing"
+fi
+if [ -z "$(container_sha256 /durable/iris/csp/ocutalon/index.html)" ]; then
+  pass "row 22: /durable/iris/csp/ocutalon/index.html is absent"
+else
+  fail "row 22: /durable/iris/csp/ocutalon/index.html exists"
 fi
 
 # IPM is installed in %SYS, and mapped into OCUTALON only: no other user namespace maps %IPM.

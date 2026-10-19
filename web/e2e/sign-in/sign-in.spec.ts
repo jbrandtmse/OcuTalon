@@ -63,7 +63,8 @@ test.describe('without a session', () => {
 
     const api = await request.get('/ocutalon/api/v1/zz');
     expect(api.status()).toBe(401);
-    expect(await api.text()).toBe('');
+    expect(api.headers()['www-authenticate'], 'no challenge, so no browser opens its own password prompt').toBeUndefined();
+    expect(await api.json()).toEqual({ error: { code: 'signed_out', message: 'You were signed out. Sign in again to continue.' } });
 
     const trace = await request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
     const body = await trace.text();
