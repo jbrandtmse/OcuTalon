@@ -15,13 +15,13 @@ The demo-path unit (`live:demo-path`, Story 0.8) times the first start of the re
 | UTC date | Commit | Host and Docker engine | build s | ready s | Source |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-20 | `a375972` plus the Story 0.8 working tree (the implement stage; the lead commits) | Apple silicon laptop, Docker Desktop, engine aarch64 (server 29.7.2) | 1 | 53 | `ci/iris.sh live demo-path`, first local run; three more runs the same hour gave ready 47, 53 and 47 |
-| | | | | | QA: this story's head on the x64 runner (engine x86_64), from the `ci` run's `iris (browser)` log |
+| 2026-10-20 | `fcdd9e9` (Story 0.8's head) | self-hosted x64 runner `ocutalon-ci-2` (Rule 21), Docker engine x86_64, two jobs at once | 0 | 150 | `ci` run 39359136309, job `iris (browser)`, line `FIRST-START engine=x86_64 build=0s ready=150s`; no `WARN` line |
 | | | | | | Lead: Epic 0's merge head on the x64 runner, at the epic close. **This row is the README's figure.** |
 
-Until an x64 row exists: about 3 minutes `(inference)`, from Story 0.7's ready stack of 174 s on the runner (first real run, run 39338702672).
+Story 0.8's x64 figure is measured: `ready` 150 s (about 2.5 minutes), well under the 720 s threshold. Its `iris (browser)` job took 8 min 43 s (the `browser` group 505 s: `live:demo-path` 161 s, `live:sign-in` 173 s, `live:bundle-folder` 171 s), and the whole `ci` run 23 min 39 s from creation to the last job. `build` is 0 s because the runner's layer cache already held every layer, so it is not quoted. The README's figure is the row for Epic 0's merge head (the lead's, at the epic close); this row is the earlier reading it is compared with.
 
 How to read a figure: `gh run list --commit <sha>`, then `gh run view <ci run> --log | grep -E 'FIRST-START|WARN first start|STEP [1-6] |DEMO-PATH|UNIT live:demo-path|GROUP browser'`. Add the `iris (browser)` job's duration and the run's wall-clock beside the row.
 
 ## The rule
 
-A ready time over about 12 minutes is raised to the author through the Contest Planner. The author decides on AD-23's code-in-image option (moving the compiled code database into the image, which is a spine update). It is a decision, not a test failure, so the unit warns and still runs the specs. A start that is not ready within the unit's wait (900 s, and never beyond the run's deadline) fails the unit instead, and the log names the seconds waited.
+A ready time over about 12 minutes is raised to the author through the Contest Planner. The author decides on AD-23's code-in-image option (moving the compiled code database into the image, which is a spine update). It is a decision, not a test failure, so the unit warns and still runs the specs. A start that is not ready within the unit's wait (up to 900 s for the start's log and up to 60 s more for the health check, never beyond the run's deadline) fails the unit instead, and the log names the seconds waited.

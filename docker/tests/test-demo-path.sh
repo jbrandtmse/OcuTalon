@@ -12,8 +12,8 @@
 # The stack holds only what the first start creates: no fixture user, no seeded event, no rebuilt bundle (ci/iris.sh build made
 # it), no model key. No test sends a model request. The project is unique and publishes its web port only on 127.0.0.1, on the
 # first free port of 52800-52819 (or OCUTALON_TEST_WEB_PORT). An EXIT trap removes the project with its volume and images.
-# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI); the first start waits at most
-# 900 s of it.
+# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI); within it, the first start
+# waits up to 900 s for the start's log to end ready and up to 60 s more for Docker to report healthy.
 # Prints one PASS or FAIL line per check; exits 0 only when every check passes.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or later,
 # and the browser: npx --prefix web playwright install chromium.

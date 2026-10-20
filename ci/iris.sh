@@ -12,7 +12,7 @@
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
 #   ci/iris.sh class <Class>              the same for one test class
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
-#                                         and, for a browser unit (BROWSER_UNITS of ci/units.sh: demo-path and sign-in), installs Chromium
+#                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>)

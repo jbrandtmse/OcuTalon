@@ -3422,6 +3422,8 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the author runs the sequence on it before the real 0.1.0 cut
 **Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Story 11.6 runs the real 0.1.0 cut through it (REL-1, REL-3, REL-7)
 
+- DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
+
 ### Story 11.6: A hands-on pass with real keys finds and fixes what the tests missed before 0.1.0
 
 As the author,

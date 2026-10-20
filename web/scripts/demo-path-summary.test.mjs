@@ -1,7 +1,7 @@
 // Tests of the demo-path summary (demo-path-summary.mjs): synthetic reports in the shape of Playwright 1.64.1's JSON report
 // (a skip's text in annotations[].description, a tag without its @, one top-level suite per spec file), the command line's
-// exit codes, and the real config and specs through Playwright (--list, and a run of the skipped tests): no browser starts and
-// no stack is needed.
+// exit codes, and the real specs through Playwright (a run of the skipped tests, with its results in a scratch folder): no
+// browser starts and no stack is needed. The listing of the real config is playwright-projects.test.mjs's.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -326,67 +326,33 @@ describe('no usable report', () => {
   });
 });
 
-// --- the real config and the real specs, through Playwright: no browser starts ---
+// --- the real specs, through Playwright: no browser starts ---
 
-/** The environment of a Playwright run: the API specs fail at load unless their variables are set, so a listing sets dummies. */
+/** The environment of a Playwright run: no report and no stack, whatever the shell holds. */
 function playwrightEnv() {
   const env = { ...process.env, OCUTALON_E2E_TIMEOUT_MS: '120000' };
   delete env.OCUTALON_E2E_JSON;
   delete env.OCUTALON_URL;
-  for (const name of ['VERSION', 'ZONE', 'EPOCH', 'MARKER']) env[`OCUTALON_E2E_${name}`] = 'unused';
-  for (const name of ['TRACEONLY', 'FIRSTCALL']) {
-    env[`OCUTALON_${name}_USER`] = 'unused';
-    env[`OCUTALON_${name}_PASSWORD`] = 'unused';
-  }
   return env;
 }
-
-/** The npm script that selects each project, as the unit scripts run it. */
-const SCRIPT_OF = { chromium: 'e2e', 'demo-path': 'e2e:demo-path' };
-
-/** The report of listing a project's tests through its npm script (what the unit scripts run), without starting a browser. */
-function listedReport(project) {
-  const run = spawnSync('npm', ['--silent', '--prefix', webDir, 'run', SCRIPT_OF[project], '--', '--list', '--reporter=json'], {
-    cwd: webDir,
-    env: playwrightEnv(),
-    encoding: 'utf8',
-  });
-  assert.equal(run.status, 0, run.stdout.slice(0, 500) + run.stderr.slice(0, 2000));
-  return JSON.parse(run.stdout);
-}
-
-describe('the real config, through the npm scripts', () => {
-  it('lists no demo-path test through the e2e script, which keeps the sign-in and API specs', () => {
-    const files = listedReport('chromium').suites.map((suite) => suite.file);
-    assert.deepEqual(files.filter((name) => name.startsWith('demo-path/')), []);
-    assert.ok(files.some((name) => name.startsWith('sign-in/')), files.join(' '));
-    assert.ok(files.some((name) => name.startsWith('api/')), files.join(' '));
-  });
-
-  it('lists every step spec through the e2e:demo-path script, and nothing that maps to no step', () => {
-    const files = listedReport('demo-path').suites.map((suite) => suite.file);
-    for (const [i, id] of STEPS.entries()) {
-      assert.ok(files.includes(`demo-path/0${i + 1}-${id}.spec.ts`), `0${i + 1}-${id}.spec.ts is listed: ${files.join(' ')}`);
-    }
-    assert.deepEqual(files.filter((name) => stepOfFile(name).error), []);
-  });
-
-  it('reports the floor test of step 1 with the tag floor, the form that the summary reads', () => {
-    const page = listedReport('demo-path').suites.find((suite) => suite.file === 'demo-path/01-page.spec.ts');
-    const tagged = page.specs.filter((entry) => entry.tags.includes('floor'));
-    assert.deepEqual(tagged.map((entry) => entry.title), ['signs in with the README account and loads the page snapshot']);
-  });
-});
 
 describe('the real specs, run without their floor test', () => {
   it('skip every unbuilt part with a story, so that each step reads skipped', () => {
     const json = join(work, 'real-specs.json');
-    const run = spawnSync(process.execPath, [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor'], {
-      cwd: webDir,
-      env: { ...playwrightEnv(), OCUTALON_E2E_JSON: json },
-      encoding: 'utf8',
-    });
+    const run = spawnSync(
+      process.execPath,
+      [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, 'real-specs-results')],
+      {
+        cwd: webDir,
+        env: { ...playwrightEnv(), OCUTALON_E2E_JSON: json },
+        encoding: 'utf8',
+      },
+    );
     assert.equal(run.status, 0, run.stdout.slice(0, 500) + run.stderr.slice(0, 2000));
+    // The list reporter runs beside the JSON report, so the unit's log names each skipped test.
+    const printed = run.stdout.replace(/\u001b\[[0-9;]*m/g, '');
+    assert.match(printed, /^\s*-\s+\d+ \[demo-path\] \u203a /m, printed.slice(0, 500));
+    assert.match(printed, /^\s*\d+ skipped$/m, printed.slice(0, 500));
     const { lines, failures } = summarizeFile(json);
     assert.deepEqual(failures, ['step 1 page has no @floor test']);
     for (const [i, id] of STEPS.entries()) {

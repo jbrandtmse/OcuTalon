@@ -8,7 +8,8 @@ import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
  * status event on the instance stream, and passes what it read back: the manifest's version, the instance zone, the
  * session's epoch and the marker of the seeded texts (reminders `<marker>-1` and `<marker>-2`). It also creates the
  * trace-only user ZzTraceOnly and ZzFirstCall, a user with the user role and no session row. Every variable is
- * required, and the specs fail without it.
+ * required: a test that reads one fails without it. Each is read every time a test uses it, never at import, so that
+ * listing the specs (`playwright test --list`) needs none of them.
  */
 function required(name: string): string {
   const value = process.env[name];
@@ -16,12 +17,27 @@ function required(name: string): string {
   return value;
 }
 
-const VERSION = required('OCUTALON_E2E_VERSION');
-const ZONE = required('OCUTALON_E2E_ZONE');
-const EPOCH = required('OCUTALON_E2E_EPOCH');
-const MARKER = required('OCUTALON_E2E_MARKER');
-const TRACE_ONLY = { user: required('OCUTALON_TRACEONLY_USER'), password: required('OCUTALON_TRACEONLY_PASSWORD') };
-const FIRST_CALL = { user: required('OCUTALON_FIRSTCALL_USER'), password: required('OCUTALON_FIRSTCALL_PASSWORD') };
+/** What test-sign-in.sh read back from the seeded stack. */
+const SEEDED = {
+  get version(): string {
+    return required('OCUTALON_E2E_VERSION');
+  },
+  get zone(): string {
+    return required('OCUTALON_E2E_ZONE');
+  },
+  get epoch(): string {
+    return required('OCUTALON_E2E_EPOCH');
+  },
+  get marker(): string {
+    return required('OCUTALON_E2E_MARKER');
+  },
+  get traceOnly(): { user: string; password: string } {
+    return { user: required('OCUTALON_TRACEONLY_USER'), password: required('OCUTALON_TRACEONLY_PASSWORD') };
+  },
+  get firstCall(): { user: string; password: string } {
+    return { user: required('OCUTALON_FIRSTCALL_USER'), password: required('OCUTALON_FIRSTCALL_PASSWORD') };
+  },
+};
 
 /** What a browser always sends, and what a request without a session must still be answered with. */
 const BROWSER_HEADERS = { 'accept-language': 'en-US,en;q=0.9' };
@@ -118,9 +134,9 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
 
   const body = (await answered[0].json()) as Record<string, unknown>;
   expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail']);
-  expect(body['version']).toBe(VERSION);
-  expect(body['instanceZone']).toBe(ZONE);
-  expect(body['epoch']).toBe(EPOCH);
+  expect(body['version']).toBe(SEEDED.version);
+  expect(body['instanceZone']).toBe(SEEDED.zone);
+  expect(body['epoch']).toBe(SEEDED.epoch);
   expect(body['streams']).toEqual({ session: 2, instance: 1 });
   expect(body['chat']).toEqual([]);
   expect(body['rail']).toEqual({ approvals: [], checks: [], reminders: [], decisions: [] });
@@ -133,12 +149,12 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
  * test order.
  */
 test("rows 13 and 14: a user's first /state creates its session, and its poll holds the instance events and not another user's session events", async ({ request }) => {
-  await signInOverHttp(request, FIRST_CALL.user, FIRST_CALL.password);
+  await signInOverHttp(request, SEEDED.firstCall.user, SEEDED.firstCall.password);
   const first = await request.get(STATE);
   expect(first.status(), await first.text()).toBe(200);
   const body = (await first.json()) as { epoch: string; streams: { session: number; instance: number } };
   expect(body.epoch).toMatch(/^[A-Za-z0-9_-]{22}$/);
-  expect(body.epoch, "not the README account's epoch").not.toBe(EPOCH);
+  expect(body.epoch, "not the README account's epoch").not.toBe(SEEDED.epoch);
   expect(body.streams.session).toBe(0);
   const second = (await (await request.get(STATE)).json()) as { epoch: string };
   expect(second.epoch, 'a second call returns the same session').toBe(body.epoch);
@@ -160,7 +176,7 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
   };
 
   const all = await poll('?after=0&afterInstance=0');
-  expect(all.epoch).toBe(EPOCH);
+  expect(all.epoch).toBe(SEEDED.epoch);
   expect(all.events.map((event) => `${String(event['stream'])}:${String(event['seq'])}:${String(event['type'])}`)).toEqual([
     'session:1:reminder',
     'session:2:reminder',
@@ -172,13 +188,13 @@ test('row 14: /events serves the seeded events by cursor', async ({ request }) =
     expect(typeof event['payload'], 'payload is an object').toBe('object');
     expect(String(event['ts'])).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   }
-  expect((all.events[0]['payload'] as { text: string }).text).toBe(`${MARKER}-1`);
-  expect((all.events[1]['payload'] as { text: string }).text).toBe(`${MARKER}-2`);
+  expect((all.events[0]['payload'] as { text: string }).text).toBe(`${SEEDED.marker}-1`);
+  expect((all.events[1]['payload'] as { text: string }).text).toBe(`${SEEDED.marker}-2`);
   expect(all.events[2]['payload']).toMatchObject({ condition: 'noModelKey', active: true });
 
   expect((await poll('?after=2&afterInstance=1')).events).toEqual([]);
   const partial = await poll('?after=1&afterInstance=1');
-  expect(partial.epoch).toBe(EPOCH);
+  expect(partial.epoch).toBe(SEEDED.epoch);
   expect(ids(partial.events)).toEqual(['session:2']);
 
   for (const query of ['', '?after=0', '?afterInstance=0', '?after=-1&afterInstance=0', '?after=0&afterInstance=-1', '?after=x&afterInstance=0', '?after=0&afterInstance=1.5', '?after=&afterInstance=']) {
@@ -317,7 +333,7 @@ test('row 17: 404, 405 and 401 are in the error shape', async ({ request, playwr
 test('row 18: a trace-only user gets 403 no_role from the API, first, and stays signed in', async ({ request }) => {
   // A trace window's cookie is scoped to the trace application, so the API does not see it. The route that works
   // is the sign-in form's fields posted to the API itself.
-  const signedIn = await request.post(STATE, { form: { IRISUsername: TRACE_ONLY.user, IRISPassword: TRACE_ONLY.password, IRISLogin: 'Sign in' } });
+  const signedIn = await request.post(STATE, { form: { IRISUsername: SEEDED.traceOnly.user, IRISPassword: SEEDED.traceOnly.password, IRISLogin: 'Sign in' } });
   await expectError(signedIn, 403, 'no_role', NO_ROLE);
   await expectError(await request.get(STATE), 403, 'no_role', NO_ROLE);
   await expectError(await request.get(`${EVENTS}?after=0&afterInstance=0`), 403, 'no_role', NO_ROLE);
