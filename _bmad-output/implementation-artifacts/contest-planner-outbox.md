@@ -49,7 +49,7 @@ The time budget is at risk: about 28 minutes against REL-4's 30 (inference). If 
 
 ## 2026-10-20: owner decisions of October 20 applied (shas for verification)
 
-Status: pending. No session named "Contest Planner" was listed, so this is written here, as the owner directed; it was also sent to the `contests-b0` session.
+Status: sent (the Contest Planner verified both shas on origin/OCT-epic0 on October 20 and closed all seven decisions). No session named "Contest Planner" was listed when it was written, so it went here, as the owner directed, and to the `contests-b0` session.
 
 The owner gave seven decisions directly in the Epic 0 lead's session. Each is logged as `owner_decision` with the owner's words in `cycle-log-epic-0.md`. Both commits are on `origin/OCT-epic0`:
 
