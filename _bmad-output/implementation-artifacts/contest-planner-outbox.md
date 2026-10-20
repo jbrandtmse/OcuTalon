@@ -46,3 +46,23 @@ Status: sent (the Contest Planner read it at origin 80abb60 on October 19; no ve
 5. **Kept whole.** Story 0.7 stays one story. Its spec is 61 KB, about the size of 0.6's at planning (58 KB), which passed in one implement pass. The planner's split line (the new class rules into a 0.12) is the fallback if implement does not converge.
 
 The time budget is at risk: about 28 minutes against REL-4's 30 (inference). If the first real run exceeds 30 minutes, the lead rebalances the groups. Changing the 30-minute figure, or moving checks off epic pushes, would be the owner's call.
+
+## 2026-10-20: owner decisions of October 20 applied (shas for verification)
+
+Status: pending. No session named "Contest Planner" was listed, so this is written here, as the owner directed; it was also sent to the `contests-b0` session.
+
+The owner gave seven decisions directly in the Epic 0 lead's session. Each is logged as `owner_decision` with the owner's words in `cycle-log-epic-0.md`. Both commits are on `origin/OCT-epic0`:
+
+- **The CI-gate fix (decision 6): `80e8f46`.**
+  - `.claude/commands/epic-cycle.md` only: the three gate reads (at `committed`, the runner's `ci:` claim, the merge precondition), the resolution points and `ci_green_verified`.
+  - Each now lists every run for the sha (`-L 20`), groups the runs by workflow, and requires each expected workflow's latest run to succeed.
+  - Nothing else under `.claude/` changed.
+- **Decisions 1, 2, 3, 5 and 7 recorded: `85503df`.**
+  1. The count-of-one, late-press and sign-in-label texts are in `EXPERIENCE.md`, and AD-32 notes them. DW-41 is routed to the burn-down, which adds them to the catalog and removes the gap fields.
+  2. Demo mode off keeps a foreign or other-production OCUORDERS: a warning, a status note on removing it by hand, and the start finishes with the ready marker. This is in AD-3, and DW-42 is routed to the burn-down.
+  3. No plain-image CI run: DW-36 is closed as accepted. NFR-21 reinstates the P15 wording ("supported, verified on ARM64"), the ARCHITECTURE-NOTES P15 row says so, and an AC bullet under Story 10.2 carries it.
+  5. `x-ocutalon-mockkey` is sent only with the CI-only `OCUTALON_MOCK_KEY_HEADER=1`, which only `ci/compose.ci.yml` sets, and never from `OCUTALON_MODEL_BASE_URL` alone. This is in AD-19, AD-22 and the DW-39 bullet under 1.1. Story 0.11's QA and review add the setting and pin it.
+  7. REL-4 is 35 minutes, in the PRD, `epics.md` (REL-4 and the Epic 9 line) and Rule 21's budget line. DW-21 is closed as accepted; a run still over 35 after a rebalance goes to you, and the fix is a third runner service.
+  - Decision 4 (the `node:24.15.0-slim` image is accepted) needed no file change.
+
+CI: the hold head `71cd7cc` is green on both workflows (ci 29m39s, under the new 35). `85503df`'s runs are in flight.
