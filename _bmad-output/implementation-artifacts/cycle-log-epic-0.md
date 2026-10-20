@@ -310,3 +310,4 @@
 2026-10-20T23:17:50Z	Story 0.12	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-3,AD-18,AD-19,AD-23,AD-24,AD-29,AD-32,AD-33 decision_dependency=owner_only_parked(status_note_wording) sections_created=none owned_ledger=DW-9,DW-41,DW-42 addressed=3 declined=0 mutates_shared_runtime=true note=slot_A_unit_tests;Demo_step_only_in_throwaways model=claude-opus-5-5
 2026-10-20T23:17:50Z	Epic 0	spine_updated	ad=AD-3,AD-18,AD-23,AD-32,seed_table reason=clarification by=lead story=0-12-epic-0-burn-down lint=ok note=one_form,keep_path_access_removal,demoKept,Warn/WARN_line,StatusMark.Record/Get
 2026-10-20T23:17:50Z	Epic 0	planner_message_sent	to=Contest_Planner topic=0.12_owner-only_status_note_wording_and_VETO_FYIs(keep_path_access_removal,reused_sentences)
+2026-10-20T23:17:51Z	Story 0.12	stage_spawned	stage=implement spawn_at=2026-10-20T23:17:51Z model=claude-sonnet-5-5 agent_name=0-12-implement-1 cycle_iteration=1
