@@ -239,6 +239,8 @@ Where the rows run:
 
 ## Tasks & Acceptance
 
+- [ ] [Owner decision 5, October 20; added by the lead after implement] `ci/compose.ci.yml` gives `iris` the explicit CI-only setting `OCUTALON_MOCK_KEY_HEADER: "1"` beside `OCUTALON_MODEL_BASE_URL`, and `test-compose-file.sh` pins it there and its absence from the judges' compose file. Story 1.1's `Provider` step adds `x-ocutalon-mockkey` only when it is on (DW-39); `OCUTALON_MODEL_BASE_URL` alone never adds the header, and online-demo traffic never carries it (AD-19 as amended).
+
 **Execution:**
 
 **1. The mock (Lane B, `ci/mock/`).** ES modules, ASCII, Node's standard library only (`node:http`, `node:fs`, `node:path`, `node:url`, `node:child_process` in tests). Each module opens with a contract comment.

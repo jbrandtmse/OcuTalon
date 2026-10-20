@@ -201,7 +201,7 @@ Timing bounds over real networks are measured in the clean-machine rehearsal and
 - REL-1: `main` moves only through a release pull request with every check green; unfinished features are kept off the demo path; a release branch is never changed after its cut.
 - REL-2: An automated test of the demo path's web route, with the mocked model and, from 0.1.1, mocked Telegram, runs on every pull request and every push to `main`; a failure blocks the release.
 - REL-3: One scripted sequence covers the version bump, the built web bundle (committed on the release branch so a Docker install needs no Node.js), the clean-machine rehearsal, the online demo update and draft release notes; the author's hands-on time per release is at most 15 minutes, not counting CI or the REL-7 hands-on pass.
-- REL-4: A full CI run takes at most 30 minutes; tests against a live IRIS run on a dedicated runner and everything else on hosted runners; the model and Telegram are mocked, with the model mock serving the shipped Anthropic provider path; the AI Hub image never enters CI caches or artifacts, and fork pull requests never run on the IRIS runner.
+- REL-4: A full CI run takes at most 35 minutes [AMENDED 2026-10-20, owner decision 7]; tests against a live IRIS run on a dedicated runner and everything else on hosted runners; the model and Telegram are mocked, with the model mock serving the shipped Anthropic provider path; the AI Hub image never enters CI caches or artifacts, and fork pull requests never run on the IRIS runner.
 - REL-5: On every push the evaluation harness runs against the mocked model; on each release candidate the evaluation set and the demo incident gate run on Claude Haiku 5.5 against SM-1, SM-2, NFR-3 and NFR-4; a candidate below target is run twice more and passes if two of three runs meet target, otherwise the release is blocked unless the author overrides it with the reason in the release notes.
 - REL-6: Each release passes the demo path, an install on a clean machine, and an in-place upgrade from the previous release.
 - REL-7: Each build step ends with a hands-on pass using real keys, and fixes for what it finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram on iOS, Android and desktop clients (P29). Later passes include Telegram on those clients.
@@ -1085,7 +1085,7 @@ So that the demo path needs no other model configuration and my key is never sto
 **Then** it finds none, because the placeholder is resolved only inside AI Hub's provider (NFR-11, AD-19)
 **And** the Config Store merge method (the AD-29 cross-lane API) merges only the fields it is given into an existing entry and never writes a key; `SettingsOps`, its caller, then restarts the affected runner items so the change applies (AD-19, AD-29)
 
-- DW-39: Whenever `OCUTALON_MODEL_BASE_URL` is set, the `Provider` step adds the request header `x-ocutalon-mockkey`, the agent class's `MOCKKEY`, to each runner's `http_config.custom_headers`, so the CI mock picks the agent's default script; with the variable unset, no such header is sent (AD-19, AD-22, Story 0.11) (ledger; routed by planning 2026-10-20)
+- DW-39: The `Provider` step adds the request header `x-ocutalon-mockkey`, the agent class's `MOCKKEY`, to each runner's `http_config.custom_headers` only when the explicit CI-only setting `OCUTALON_MOCK_KEY_HEADER=1` is on, which only `ci/compose.ci.yml` sets; `OCUTALON_MODEL_BASE_URL` alone never adds it, and online-demo traffic never carries it, which a test checks (AD-19, AD-22, Story 0.11) (ledger; routed by planning 2026-10-20) [AMENDED 2026-10-20, owner decision 5]
 
 ### Story 1.2: Agent runners send every request under the model rules
 
@@ -3184,6 +3184,7 @@ So that I can try it without help and trust that it claims only what the release
 **And** it names no other model provider and no Telegram setup yet, because other providers arrive with step 2 and the Telegram section with Epic 12, so it never claims more than the release ships (FR-58)
 
 - DW-3: The judges' compose file publishes the web port on every host interface by the author's decision (AD-23); the README warns that the Management Portal is reachable from the LAN until the default and README-account passwords are changed, and tells the judge plainly to change the README account's password after the first sign-in (DW-6) (ledger; routed by spec_gate 2026-10-18)
+- The README says OcuTalon runs on the plain IRIS (non-Health) AI Hub build 154 image, supported and verified on ARM64; CI tests only the IRIS for Health image (NFR-21, P15 wording) [AMENDED 2026-10-20, owner decision 3]
 
 ### Story 10.3: The session side of Telegram is ready and stays off
 
@@ -3279,7 +3280,7 @@ So that every README claim happens on the product's real items in about two minu
 
 **Given** the coda
 **When** the test presses "Sample: newsletter" and "Sample: suspicious request"
-**Then** the newsletter is decided Ignore with nothing on the phone, the suspicious request leads to no approval request, resend or setting change, and the whole test keeps a full CI run within 30 minutes (NFR-14, REL-4, UX-DR105)
+**Then** the newsletter is decided Ignore with nothing on the phone, the suspicious request leads to no approval request, resend or setting change, and the whole test keeps a full CI run within 35 minutes [AMENDED 2026-10-20, owner decision 7] (NFR-14, REL-4, UX-DR105)
 
 **Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
 **When** it reaches a decision

@@ -127,6 +127,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-20T00:40:42Z status=escalated owner=burndown by=cr note=install split makes 6 groups (AD-22 says five), worst case 31.5 min; real fixes: one stack for both shards, or a third runner (spend)
 - 2026-10-20T01:30:58Z occurrence=0-8-the-demo-path-test-signs-in-and-loads-the-page note=demo-path unit adds about 3 runner-minutes to browser; worst-case bound grows about 1.5 min
 - 2026-10-20T13:15:52Z occurrence=0-10-the-orders-demo-production-runs-in-ocuorders note=install 13:49 at 916ff92; QA+cr fixtures add ~0.6-1.4 min x64 (inference); chain ~26-27 of 30 min
+- 2026-10-20T18:15:26Z status=wontfix-accepted owner=burndown by=owner note=owner decision 7: REL-4 is 35 minutes; rebalance first; reopen_if=a ci run on an epic head exceeds 35 minutes after rebalancing (then a third runner service via the Contest Planner)
 
 ### DW-22: The spine lags two Story 0.7 implement rulings: AD-3 does not allow system datatype classes as types, and AD-5 lacks the slot-keeps-its-number-and-property rule
 - source: spec-0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model.md | severity: med | fix-risk: low | footprint: in-story
@@ -211,6 +212,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: high | footprint: in-epic
 - evidence: CI and ci/iris.sh hold only the Health base; 0.10 Task 0 step 4's hand run is the only evidence; deleting that removal keeps every check green
 - 2026-10-20T10:54:10Z status=escalated owner=burndown by=harvest note=needs the non-Health base on the runner (a runner change) or a local-only recipe run; lead decides at the decision sheet
+- 2026-10-20T18:15:26Z status=wontfix-accepted owner=burndown by=owner note=owner decision 3: no plain-image CI run; IRIS for Health is the tested image; README says plain IRIS supported, verified on ARM64; reopen_if=the owner asks for a plain-image CI run
 
 ### DW-37: Demo.Orders() and Demo.System() branches reached only from a foreign or partial state (a foreign OCUORDERS production, RecoverProduction, the start timeout, another database directory, a mapping Modify, a directory with no CPF entry) have no test
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: med | footprint: in-story
@@ -228,8 +230,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 0.11 Rule 22 ruling; Install.Step.Provider is Lane A's only provider writer (AD-19) and is built in 1.1
 - 2026-10-20T14:30:01Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=planning note=1.1's Provider step writes http_config.custom_headers x-ocutalon-mockkey=<the agent class's MOCKKEY> only with OCUTALON_MODEL_BASE_URL set
+- 2026-10-20T18:15:26Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=owner note=owner decision 5: header only when OCUTALON_MOCK_KEY_HEADER=1 (CI-only), never from OCUTALON_MODEL_BASE_URL alone; online demo never carries it
 
 ### DW-40: Test.Contract.Mock's guard failure path (OCUTALON_MODEL_BASE_URL not the mock's) has no automated run: CI always runs under the mock's value
 - source: _bmad-output/implementation-artifacts/spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestBaseUrlGuard pins CheckBaseUrl on seven values; the consequence was shown by hand in throwaway v11a
 - 2026-10-20T17:00:03Z status=open owner=0-11-the-ci-model-mock-answers-every-scenario-the-stories-need by=harvest note=adjudicate at 0.11's gate
+
+### DW-41: Owner decision 1 (October 20): add the count-of-one, late-press and sign-in-label texts now fixed in EXPERIENCE.md to Catalog.Core and Catalog.Watch and remove the matching gap fields
+- source: owner decision 1, 2026-10-20 (EXPERIENCE.md, Results) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: nine gap keys plus answered.alreadyApproved's gap (Test.Msg.Catalog Gaps list); the sign-in labels sit outside the catalog and Test.Web.PublicTexts
+- 2026-10-20T18:15:26Z status=routed owner=burndown by=owner note=burn-down: catalog entries with count-of-one forms picked by count; Gaps list emptied for these keys; PublicTexts compares the three labels
+
+### DW-42: Owner decision 2 (October 20): with demo mode off, an OCUORDERS that OcuTalon didn't create or that holds any production other than the Orders demo is left in place with a logged warning and a status note on removing it by hand, and the start finishes with the ready marker
+- source: owner decision 2, 2026-10-20 (Story 0.10 review item) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 0.10's code review made the off path fail the start (STEP Demo FAILED, no ready marker) in that case
+- 2026-10-20T18:15:26Z status=routed owner=burndown by=owner note=burn-down: Install.Step.Demo off path keeps and warns instead of failing; test-install-start.sh's stopped-foreign fixture expects the warning, the note and the ready marker
