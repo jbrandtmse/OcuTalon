@@ -188,3 +188,5 @@
 2026-10-20T00:54:55Z	Story 0.7	fresh_check	env=clean-checkout tests=checks.sh(11_scripts)+web(ci,lint,41_tests)+shards(lane-a_9,lane-b_18) result=pass order=forward,reverse note=one_throwaway_per_call leftovers=none
 2026-10-20T00:55:18Z	Story 0.7	committed	sha=4fd9b04 submodules= ci=pending run=39350452992(ci),39350453058(lane-a) amendments=spine_AD-3,AD-5,AD-13,AD-22,AD-29,stack;skill-rules_Rule_21_recipe_and_timings;parallel.yaml_bootstrap_and_lock;.gitignore;.gitattributes
 2026-10-20T00:55:18Z	Story 0.7	story_cycle	plan_to_commit_min=314 implement_passes=1 reviews=1 rework=0 first_ci=success(39338702672,27m37s) models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-10-20T01:10:04Z	Epic 0	epic_context_compiled	sha=aaa5ce9 reason=planning_artifact_newer model=claude-opus-5-5
+2026-10-20T01:10:04Z	Story 0.8	stage_spawned	stage=plan spawn_at=2026-10-20T01:10:04Z model=claude-opus-5-5 agent_name=0-8-plan-1 cycle_iteration=1
