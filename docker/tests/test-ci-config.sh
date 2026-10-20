@@ -16,8 +16,9 @@
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
-#   - wiring: ci.yml runs ci/checks.sh, each script of WEB_SCRIPTS, lint and unit tests, ci/iris.sh build and group, each gated by the
-#     classifier's web or iris output, reads only step ids that exist, and sets the run tag, the image and the deadline of the iris job;
+#   - wiring: ci.yml runs ci/checks.sh, each script of WEB_SCRIPTS (the web build and the mock's tests, the step "Mock tests" among
+#     them), lint and unit tests, ci/iris.sh build and group, each gated by the classifier's web or iris output, reads only step ids
+#     that exist, and sets the run tag, the image and the deadline of the iris job;
 #   - units: every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or one group; every Test/<Area>/
 #     folder of either source tree is in exactly one shard; every class with a Method Test... sits directly in an area folder;
 #   - demo-path (Story 0.8): live:demo-path is a unit of exactly one IRIS group and docker/tests/test-demo-path.sh exists, every name
@@ -25,6 +26,8 @@
 #     with a code line, not a comment, that runs the Playwright npm script is in BROWSER_UNITS;
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
+#   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
+#     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -456,14 +459,15 @@ function need_skip(job, cond,    key, kk, found) {
   }
   if (!found) bad(job ": no step has the condition '" cond "'")
 }
-# need_named <job> <name> <text in its run line>: the job has a step of that name, with no condition, whose run line holds the text.
-function need_named(job, name, hold,    key, kk, found) {
+# need_named <job> <name> <text in its run line> <if text>: the job has a step of that name, with exactly that condition, whose
+# run line holds the text.
+function need_named(job, name, hold, cond,    key, kk, found) {
   found = 0
   for (key in snames) {
     split(key, kk, SUBSEP)
-    if (kk[1] == job && snames[key] == name && ifs[key] == "" && index(runs[key], hold) > 0) found = 1
+    if (kk[1] == job && snames[key] == name && ifs[key] == cond && index(runs[key], hold) > 0) found = 1
   }
-  if (!found) bad(job ": no step '" name "' runs a line that holds '" hold "'")
+  if (!found) bad(job ": no step '" name "' runs a line that holds '" hold "' with the condition '" cond "'")
 }
 BEGIN { FS = "\t" }
 { kind = $1; ln = $2; job = $3; st = $4; text = $5 }
@@ -487,7 +491,7 @@ END {
   need("web", "npm --prefix web run lint", web)
   need("web", "npm --prefix web test", web)
   need_skip("web", "steps.changes.outputs.web != 'true'")
-  need_named("web", "Mock tests: none until Story 0.11", "No mock test runs here yet")
+  need_named("web", "Mock tests", "bash docker/tests/test-mock.sh", web)
   need("iris", "bash ci/changes.sh ci.yml", "")
   need("iris", "bash ci/iris.sh build", iris)
   need("iris", "bash ci/iris.sh group ${{ matrix.group }}", iris)
@@ -519,7 +523,7 @@ wiring_bad checks '$0 == "        run: bash ci/checks.sh" { print "        run: 
 wiring_bad lint '$0 == "        run: npm --prefix web run lint" { print "        run: echo lint"; next } { print }'
 wiring_bad test '$0 == "        run: npm --prefix web test" { print "        run: echo test"; next } { print }'
 wiring_bad group '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: echo group"; next } { print }'
-wiring_bad mock 'index($0, "      - name: \"Mock tests: none until Story 0.11\"") == 1 { print "      - name: Mock tests"; next } { print }'
+wiring_bad mock '$0 == "        run: bash docker/tests/test-mock.sh" { print "        run: echo mock"; next } { print }'
 wiring_ok=1
 for n in id iris-gate web-gate skip-step tag checks lint test group mock; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
@@ -842,8 +846,9 @@ recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON
 recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
-# A browser unit installs Chromium before its script runs. A stub docker lets the preflight pass, and a stub npx that records its
-# arguments and fails ends the run before the unit's script starts.
+# A browser unit installs Chromium before its script runs. A stub docker lets the preflight pass (it answers every `image inspect`,
+# the base image's and the mock image's, so nothing is pulled), and a stub npx that records its arguments and fails ends the run
+# before the unit's script starts.
 mkdir -p "$tmp/chromium-bin"
 printf '#!/bin/sh\n[ "$1" = image ] && exit 0\nexit 1\n' > "$tmp/chromium-bin/docker"
 printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$tmp/chromium.args" > "$tmp/chromium-bin/npx"
@@ -860,6 +865,72 @@ if [ -z "$recipe_fail" ]; then
 else
   printf '%s\n' "$recipe_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
   echo "FAIL recipe: ci/iris.sh does not refuse, or does not choose the port, as designed"
+  fails=$((fails + 1))
+fi
+
+# --- ci/iris.sh preflight: the mock's image is pulled up to 3 times when it is missing, and never when it is present ---
+
+# The image that ci/compose.ci.yml pins for the mock.
+mock_ref=$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(node:[^[:space:]]*\)[[:space:]]*$/\1/p' ci/compose.ci.yml)
+
+# preflight_run <mock image present: 1|0> <the pull that succeeds: n, or 99 for none> <OCUTALON_PULL_PAUSE> <function and arguments...>:
+# runs the function of a sourced ci/iris.sh with a stub docker, which answers the base image and records every pull, and a stub sleep.
+# Sets pf_rc and pf_out, and pf_pulls, pf_composes, pf_sleeps and pf_refs from the calls.
+preflight_run() {
+  local present=$1 succeed_on=$2 pause=$3
+  shift 3
+  pf_calls=$tmp/pf-calls
+  : > "$pf_calls"
+  (
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME IRIS_IMAGE
+    . ci/iris.sh
+    OCUTALON_PULL_PAUSE=$pause
+    docker() {
+      case $1 in
+        image)
+          case ${!#} in ocutalon-iris-base:*) return 0 ;; esac
+          [ "$present" = 1 ]
+          ;;
+        pull)
+          echo "pull $2" >> "$pf_calls"
+          [ "$(grep -c '^pull ' "$pf_calls")" -ge "$succeed_on" ]
+          ;;
+        *) echo "docker $1" >> "$pf_calls" ;;
+      esac
+    }
+    sleep() { echo "sleep $1" >> "$pf_calls"; }
+    "$@"
+  ) > "$tmp/pf-out" 2>&1
+  pf_rc=$?
+  pf_out=$(cat "$tmp/pf-out")
+  pf_pulls=$(grep -c '^pull ' "$pf_calls")
+  pf_composes=$(grep -c '^docker ' "$pf_calls")
+  pf_sleeps=$(sed -n 's/^sleep //p' "$pf_calls" | tr '\n' ' ')
+  pf_refs=$(sed -n 's/^pull //p' "$pf_calls" | sort -u)
+}
+pf_ok=1
+pf_fail() { echo "FAIL preflight: $1"; pf_ok=0; }
+[ -n "$mock_ref" ] || pf_fail "ci/compose.ci.yml names no node image for the mock"
+preflight_run 0 3 0 preflight
+{ [ "$pf_rc" -eq 0 ] && [ "$pf_pulls" -eq 3 ] && [ "$pf_refs" = "$mock_ref" ]; } || pf_fail "a missing image whose third pull succeeds gave exit $pf_rc after $pf_pulls pull(s) of '$pf_refs'; wanted exit 0 after 3 pulls of the pinned image"
+preflight_run 0 1 0 preflight
+{ [ "$pf_rc" -eq 0 ] && [ "$pf_pulls" -eq 1 ]; } || pf_fail "a missing image whose first pull succeeds gave exit $pf_rc after $pf_pulls pull(s); wanted exit 0 after 1"
+preflight_run 1 99 0 preflight
+{ [ "$pf_rc" -eq 0 ] && [ "$pf_pulls" -eq 0 ]; } || pf_fail "a present image gave exit $pf_rc after $pf_pulls pull(s); wanted exit 0 and no pull"
+preflight_run 0 99 7 run_classes shard-lane-a lane-a OcuTalon.Test.Nothing
+{ [ "$pf_rc" -eq 1 ] && [ "$pf_pulls" -eq 3 ] && [ "$pf_composes" -eq 0 ] && [ "$pf_sleeps" = "7 21 " ] \
+  && ! printf '%s\n' "$pf_out" | grep -q '^STACK ' \
+  && printf '%s\n' "$pf_out" | grep -qF "FAIL the mock image $mock_ref could not be pulled after 3 tries (Docker Hub); no stack was started"; } \
+  || pf_fail "pulls that always fail gave exit $pf_rc, $pf_pulls pull(s), $pf_composes docker call(s) besides inspect and pull, pauses '$pf_sleeps'; wanted the FAIL line, exit 1, 3 pulls, no stack and pauses '7 21 '"
+# The pause between tries: 10 s when the variable is unset or empty or not a number, read in decimal, and tripled after each try.
+for pc in ':10 30 ' 'abc:10 30 ' '08:8 24 '; do
+  preflight_run 0 99 "${pc%%:*}" preflight
+  { [ "$pf_rc" -eq 1 ] && [ "$pf_pulls" -eq 3 ] && [ "$pf_sleeps" = "${pc#*:}" ]; } \
+    || pf_fail "OCUTALON_PULL_PAUSE='${pc%%:*}' gave exit $pf_rc, $pf_pulls pull(s), pauses '$pf_sleeps'; wanted exit 1, 3 pulls and pauses '${pc#*:}'"
+done
+if [ "$pf_ok" -eq 1 ]; then
+  echo "PASS preflight: a missing mock image is pulled by its pinned reference up to 3 times with growing pauses, the FAIL line and exit 1 come before any stack, and a present image is not pulled"
+else
   fails=$((fails + 1))
 fi
 
@@ -972,6 +1043,7 @@ others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792
   . ci/iris.sh
   calls="$tmp/teardown-calls"
   : > "$calls"
+  : > "$tmp/teardown-compose-args"
   docker() {
     case "$1" in
       ps)
@@ -985,10 +1057,10 @@ others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792
       image)
         if [ "$2" = ls ]; then
           for n in $mine1 $others; do printf '%s-iris:latest\n' "$n"; done
-          printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0
+          printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0 node:24.15.0-slim
         else echo "image $4" >> "$calls"; fi
         ;;
-      compose) echo "compose $3" >> "$calls" ;;
+      compose) echo "compose $3" >> "$calls"; echo "$*" >> "$tmp/teardown-compose-args" ;;
       rm) echo "rm $4" >> "$calls" ;;
     esac
   }
@@ -998,9 +1070,23 @@ others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792
 removed=$(cat "$tmp/teardown-removed")
 want=$(printf '%s\n' "compose $mine1" "compose $mine2" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "volume ${mine1}_durable" | sort)
 if [ "$removed" = "$want" ]; then
-  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image"
+  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image"
 else
   echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'"
+  fails=$((fails + 1))
+fi
+
+# Each project comes down with the CI override among its files and with `down -v --rmi local --remove-orphans`: the volumes and
+# the images built for the project go, and a pulled public image such as the mock's stays.
+down_ok=1
+[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 2 ] || down_ok=0
+while IFS= read -r line; do
+  case $line in *" -f "*"/ci/compose.ci.yml down -v --rmi local --remove-orphans") ;; *) down_ok=0 ;; esac
+done < "$tmp/teardown-compose-args"
+if [ "$down_ok" -eq 1 ]; then
+  echo "PASS teardown: each project comes down with the CI override, -v and --rmi local, so a pulled image stays"
+else
+  echo "FAIL teardown: a project did not come down with 'down -v --rmi local --remove-orphans' and the CI override: $(tr '\n' ';' < "$tmp/teardown-compose-args")"
   fails=$((fails + 1))
 fi
 

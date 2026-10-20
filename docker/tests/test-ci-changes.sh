@@ -104,6 +104,12 @@ paths_case "the UX design documents run web and iris (DESIGN.md is not bookkeepi
 paths_case "logo/** runs web and iris" true true logo/mark.svg
 paths_case "ci/** runs web and iris" true true ci/iris.sh
 paths_case "the web build script runs web and iris" true true docker/tests/test-web-build.sh
+paths_case "a mock scenario runs web and iris (ci/**)" true true ci/mock/scenarios/A/refusal.json
+paths_case "the mock's test script runs web and iris" true true docker/tests/test-mock.sh
+paths_case "an agent class runs web and iris (the mock's tests read its MOCKKEY)" true true src/ocutalon/cls/OcuTalon/Agent/Chat.cls
+paths_case "the tool names run web and iris (the mock's tests read them)" true true src/ocutalon/cls/OcuTalon/Tools/Names.cls
+paths_case "the compaction prompt runs web and iris (the mock's tests read its PREFIX)" true true src/bridge/cls/OcuTalon/Bridge/Compaction.cls
+paths_case "another tools class runs iris only" false true src/ocutalon/cls/OcuTalon/Tools/Result.cls
 paths_case "the workflow runs web and iris" true true .github/workflows/ci.yml
 paths_case "the root .gitignore runs web and iris (the web build's clean checkout depends on it)" true true .gitignore
 paths_case "the root .gitattributes runs web and iris" true true .gitattributes

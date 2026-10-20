@@ -1,0 +1,19 @@
+{
+  "name": "diagnosis",
+  "match": {
+    "mockkey": "diagnosis"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "read_failed_messages",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "{\"causeCategory\":\"data_format_change\",\"elementAtFault\":\"OrderDate\",\"fixKind\":\"repair_resend\",\"reasons\":[\"The CI mock read the failed messages.\"],\"confidence\":0.8}"
+    }
+  ]
+}

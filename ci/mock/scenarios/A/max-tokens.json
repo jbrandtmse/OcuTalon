@@ -1,0 +1,13 @@
+{
+  "name": "max-tokens",
+  "match": {
+    "marker": "max-tokens"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "max_tokens",
+      "text": "This reply stops at the output cap before its answ"
+    }
+  ]
+}

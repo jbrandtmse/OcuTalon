@@ -206,16 +206,36 @@ check "dev: config parses together with the judges' file (--quiet)" docker compo
 
 ci=ci/compose.ci.yml
 
-# The override holds the project name and OCUTALON_EVAL passed through from the environment (default 0), and nothing else.
+# The override is exactly the model mock's wiring (Story 0.11): the project name; the iris service with OCUTALON_EVAL passed
+# through from the environment (default 0), OCUTALON_MODEL_BASE_URL and the read-only log volume; the mock service from the
+# public node image pinned by digest, with ci/mock mounted read-only; and the named volume mock-log. Nothing else.
 ci_file_is_exact() {
   [ "$(code "$ci")" = 'name: ocutalon-ci
 services:
   iris:
     environment:
-      OCUTALON_EVAL: ${OCUTALON_EVAL:-0}' ]
+      OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
+      OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
+    volumes:
+      - mock-log:/opt/ocutalon/mock-log:ro
+  mock:
+    image: node:24.15.0-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
+    pull_policy: missing
+    command: ["node", "/mock/server.mjs", "--log-dir", "/log"]
+    volumes:
+      - ./ci/mock:/mock:ro
+      - mock-log:/log
+    healthcheck:
+      test: ["CMD", "node", "/mock/health.mjs"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    stop_grace_period: 2s
+volumes:
+  mock-log:' ]
 }
 
-# The services are iris, and a service named mock (Story 0.11) if one is added.
+# The services are iris, and a service named mock (Story 0.11).
 ci_services_are_known() {
   local names
   names=$(awk '
@@ -226,14 +246,41 @@ ci_services_are_known() {
   [ -z "$names" ]
 }
 
-ci_adds_no_port_file_or_key() {
-  ! code "$ci" | grep -qE '^[[:space:]]*(ports|env_file|volumes|command|image|container_name):|ANTHROPIC|TELEGRAM|API_KEY|_TOKEN'
+# The non-comment lines of one service block of the CI file (the lines below `  <service>:` up to the next service).
+ci_block() {
+  code "$ci" | awk -v want="$1" '
+    /^[^ ]/ { ins = 0 }
+    /^services:/ { ins = 1; next }
+    ins && /^  [A-Za-z0-9_.-]+:/ { cur = $1; sub(/:$/, "", cur); next }
+    ins && cur == want { print }
+  '
 }
 
-check "ci: the file holds only the project name and OCUTALON_EVAL (default 0)" ci_file_is_exact
+ci_adds_no_port_or_publishing_key() {
+  ! code "$ci" | grep -qE '^[[:space:]]*(ports|env_file|container_name|build|privileged|network_mode|extra_hosts):'
+}
+
+ci_adds_no_key_variable() { ! code "$ci" | grep -qE 'ANTHROPIC|TELEGRAM|API_KEY|_TOKEN'; }
+
+# image: appears once, in the mock block, as node:<x.y.z>-slim@sha256:<64 hex>.
+ci_image_is_the_pinned_node() {
+  [ "$(code "$ci" | grep -cE '^[[:space:]]*image:')" -eq 1 ] \
+    && [ "$(ci_block mock | grep -cE '^[[:space:]]*image:[[:space:]]*node:[0-9]+\.[0-9]+\.[0-9]+-slim@sha256:[0-9a-f]{64}[[:space:]]*$')" -eq 1 ]
+}
+
+# command: appears only in the mock block.
+ci_command_only_in_mock() {
+  [ "$(code "$ci" | grep -cE '^[[:space:]]*command:')" -eq 1 ] \
+    && [ "$(ci_block mock | grep -cE '^[[:space:]]*command:')" -eq 1 ]
+}
+
+check "ci: the file is exactly the mock's wiring (project name, iris variable and log volume, mock service, log volume)" ci_file_is_exact
 check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'
 check "ci: the services are iris, and mock if there is one" ci_services_are_known
-check "ci: no port, env_file, volume, command, image or key variable" ci_adds_no_port_file_or_key
+check "ci: no ports, env_file, container_name, build, privileged, network_mode or extra_hosts" ci_adds_no_port_or_publishing_key
+check "ci: no key variable anywhere" ci_adds_no_key_variable
+check "ci: image appears once, in the mock block, as node:<x.y.z>-slim pinned by a sha256 digest" ci_image_is_the_pinned_node
+check "ci: command appears only in the mock block" ci_command_only_in_mock
 check "ci: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$ci" config --quiet
 check "ci: config parses together with the judges' file and the throwaway override (--quiet)" \
   docker compose -f "$compose" -f docker/tests/compose.throwaway.yml -f "$ci" config --quiet

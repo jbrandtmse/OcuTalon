@@ -1,0 +1,12 @@
+{
+  "name": "triage",
+  "match": {
+    "mockkey": "triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock keeps this item for the digest.\"],\"confidence\":0.5}"
+    }
+  ]
+}

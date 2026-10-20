@@ -1,0 +1,12 @@
+{
+  "name": "empty",
+  "match": {
+    "marker": "empty"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": ""
+    }
+  ]
+}

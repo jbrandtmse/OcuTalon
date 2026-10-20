@@ -2,12 +2,20 @@
 title: 'Story 0.11: The CI model mock answers every scenario the stories need'
 type: 'feature'
 created: '2026-10-20'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4089a09bba089622cb3bf7a56e8bffe8d4003cb8'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The failing path of the Rule 21 guard (OCUTALON_MODEL_BASE_URL is not the mock's) has no automated test: every provider test of Test.Contract.Mock then fails with row 23's text and no provider is built, but only a run under another value shows it, and CI always runs under the mock's.
+    evidence: |-
+      TestBaseUrlGuard pins CheckBaseUrl on seven values, and the mutation "CheckBaseUrl accepts any value" turns it red. The consequence was shown by hand in the v11a throwaway with `dc exec -e OCUTALON_MODEL_BASE_URL=https://api.anthropic.com/v1/` and with `http://mock:8080/v1`: the four provider tests failed with the text, TestBaseUrlGuard passed, and the mock's log gained 0 lines. An in-process test cannot change the process environment (%SYSTEM.Util has GetEnviron and no SetEnviron).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls (OnBeforeAllTests, Guard, Provider)
+    severity: low
 ---
 
 <intent-contract>
@@ -468,7 +476,64 @@ If the key travels in a header other than `x-api-key`, the 401 rule follows that
 
 ## Spec Change Log
 
+Implement stage, October 20. Each ruling is one the standing grant (Rule 22) lets the stage make; the measurements behind them are under Verification, "Task 0 measurements". Neither tripwire of Task 0 fired: AI Hub reaches `http://mock:8080/v1/` over the compose network, and `custom_headers` arrive (`x-ocutalon-mockkey` is among the POST's header names and picked the scenario `triage`). The key travels in `x-api-key`, so the 401 rule needed no ruling.
+
+- Rule 22 ruling: when AI Hub makes the model lookup -> Task 0.2 measured it at the first `Chat` of a process for a model (not at `%Init`, not at `CreateSession`), concurrent with the first POST, and cached per model id for the rest of the process (five chats in one process: one lookup for `claude-haiku-5-5`, one for `claude-sonnet-5-5`). So row 19 reads "the new log lines hold a 200 `GET /v1/models/claude-haiku-5-5`" from the log since the class began (`ClassMark`, set in `OnBeforeAllTests`), and the POST's fields from the log since the test's own mark; a test that runs after another that chatted with the same model would otherwise find no lookup. Consumers that assert on the lookup (1.2, 1.3, 1.8, 1.9) must do the same, and must find the lookup and the POST by method and path, because their order in the log varies. (rejected: calling `provider.GetModel` explicitly, which would not test AI Hub's own start path; a model id of its own per test, which row 19 forbids.)
+- Rule 22 ruling: the log's `request` object -> the body with every other top-level key verbatim (`model`, `max_tokens`, `output_config`, ...), `messages` verbatim, `system` as `{chars, cacheControl}` (`null` when the body has none; the cache control is that of the last block that has one) and `tools` as `[{name, cacheControl}]` (`[]` when none), because Consumed-by 1.2 and 1.8 read `request.output_config`. (rejected: only the three keys row 14 names.)
+- Rule 22 ruling: the log fields that row 14 names but does not fix -> `id` is the integer request number (the `<n>` of `msg_mock_<n>`, `req_mock_<n>` and `toolu_mock_<n>_<i>`); `/_mock/` calls are neither numbered nor logged, because the 2 s health check would flood the log; the model lookup logs `scenario` "model"; `marker` is the full marker without brackets (`refusal:t-1`); `step` is `k`; `countdown` is the remaining count after this request, `null` for an unarmed marker; `selectedBy` is `marker`, `prompt`, `mockkey` or `summarizer` (a `summary-*` variant is `marker`); `rejected` is a short reason (`no-key`, `sampling`, `max_tokens`, `stream`, `not-json`, `messages`, `no-scenario`, `bad-marker`, `unknown-marker`, `ambiguous-prompt`, `not-found`) on every request that the mock turns away by its own rules, the 401, the 404s and the 500s of selection included, and `null` otherwise.
+- Rule 22 ruling: a `mockkey` scenario's name as a marker -> a marker picks only a scenario whose match is `marker`: `[[mock:triage]]` is a 500 "no scenario named triage", and `POST /_mock/countdown` for it is a 400. (rejected: any name picking any scenario, which would let a marker stand in for a missing header.)
+- Rule 22 ruling: loader strictness beyond row 15 -> also refused: a `toolUse` reply with an error status; an unknown reply field; a `headers` value that is not a string; a `body` that is not an object or a list; a mock key with white space; a file at the top of the scenarios folder (a dotfile excepted) and a folder inside `A/` or `B/`. Each would leave a scenario unserved or meaningless. (rejected: ignoring them.)
+- Rule 22 ruling: row 14's leak test -> the request that looks for a leaked key sends a plain dummy `x-api-key`, because the redaction would hide a key-like value that the code logged by mistake (the mutation "log the x-api-key value" stayed green while the test used a key-like key); a second request with a key-like key covers the redaction as well.
+- Rule 22 ruling: row 19's agent -> `%AI.Agent` with `Model` read from `OcuTalon.Agent.Triage` and that class's `MOCKKEY` in the header, not an instance of `OcuTalon.Agent.Triage`, so that Story 1.1's instructions and toolsets don't change what this test sends. (rejected: `OcuTalon.Agent.Triage.%New(provider)`.)
+- Rule 22 ruling: what `preflight` prints -> `PULL the mock image <ref> (try n of 3)` before each pull, and the last 3 lines of Docker's output before the FAIL line; the pauses are `OCUTALON_PULL_PAUSE` (default 10) and then three times that, and a value that is not a number counts as 10. Every subcommand that starts a stack already called `preflight` (`run_classes`, `cmd_live`, `cmd_group`, `cmd_build`), so no call was added. (rejected: silent pulls.)
+- Shared surfaces updated, not on the spec's list (Rule 19): `docker/tests/test-compose-start.sh` (its owner and mode walk over `/opt/ocutalon` now prunes `/opt/ocutalon/mock-log` as it prunes `eval`, and a new check says the image holds no such folder; the first run of `live compose-start` failed there) and `docker/tests/test-demo-path-gate.sh` (its scratch tree copies `ci/compose.ci.yml`, which `preflight` reads; the first `bash ci/checks.sh` failed there). `docker/tests/lib-live.sh` is unchanged, as predicted: the mock lives in the fourth file and `up --wait` covers its health check.
+- Found by a mutation (Rule 19): the hermetic `preflight` case stayed green when `preflight` returned 0 after three failed pulls, because its stub wrote its call log to `$tmp`, which `live_start` rebinds, and the case did not look at what ran next. The stub now writes to its own variable, and the case also requires that no `STACK` line is printed.
+- Task 0's scratch script started the stack with `dc up -d --build --wait` (as `run_classes` does) and left it up for the probes; `live_first_start` is covered by the `live compose-start` and `live demo-path` runs, which passed.
+
 ## Review Triage Log
+
+### 2026-10-20 — Review pass
+- verdicts: 39 findings — high 0, medium 10, low 24, false 5, maybe-false 0
+- findings (layer: BH blind-hunter, EC edge-case-hunter, VG verification-gap, IA intent-alignment):
+  - `[medium]` `[patch]` BH1: the hosted tests pin the committed scenario set (16 scenarios, three mock keys, 11 tool names, 17 after an added file), so a Lane A or Lane B file turns the web job red — real: `scenarios.test.mjs` and `constants.test.mjs` compared literals, and AC5 says Lane A adds only files. Patched: the tests check for the story's named scenarios and derive counts from the loaded tree (`committed + 1`).
+  - `[low]` `[reject]` BH2: a failed stack start does not show the mock's output — real but an invalid scenario file turns the hosted tests red before any IRIS job (AC5), and the fix adds a log branch to `run_classes`.
+  - `[low]` `[reject]` BH3: status 1xx, 204, 205 and 304 load but cannot be delivered with a body — row 15 fixes the range at 100-599, and no scenario needs such a reply; changing it alters specified behavior.
+  - `[medium]` `[patch]` BH4: `toolUse` lists, `body` replies and a replacing reply header have no server test, and `server.mjs`'s argument failures have none — the first three are real (Story 1.5 needs the list form) and are patched with the row 9 shapes test; the argument failures are low and rejected (the compose command line is fixed; no matrix row).
+  - `[low]` `[patch]` BH5: the class comment says every test fails off the mock while `TestBaseUrlGuard` passes — real; the comment now says every test except `TestBaseUrlGuard`.
+  - `[low]` `[reject]` BH6: `OCUTALON_PULL_PAUSE` is missing from the header that `usage()` prints — it is a test seam documented at `preflight`, and a developer meets the default only.
+  - `[low]` `[reject]` EC1: an invalid header name or value with `delayMs` above 0 makes `writeHead` throw in the timer — needs a scenario author to write an invalid header and a delay together; the fix adds validation branches.
+  - `[low]` `[reject]` EC2: status 1xx/204/304 with a body — same as BH3.
+  - `[low]` `[reject]` EC3: a scenarios folder with no `.json` file starts healthy with zero scenarios — the committed set is checked by name in the hosted tests, so it cannot happen unnoticed.
+  - `[low]` `[reject]` EC4: a `mockkey` with characters a header cannot carry loads but is never selected — mock keys are agent constants that `constants.test.mjs` ties to the classes.
+  - `[false]` `[reject]` EC5: a user message with `tool_result` blocks and text resets the turn step — AI Hub's tool-result message carries no text (the recorded requests of the spike prototype, and Task 0.2's `chat` script reaching its second reply through AI Hub).
+  - `[low]` `[reject]` EC6: `appendFileSync` failing after the countdown decrement spends an armed failure — needs a full or vanished disk on a throwaway; wontfix-theoretical.
+  - `[low]` `[patch]` EC7: `OCUTALON_PULL_PAUSE=08` aborts the retry loop in octal arithmetic — real (mutation run: exit 1 after one pull, no FAIL line); patched with `pause=$((10#$pause))` and three cases (unset or empty, `abc`, `08`).
+  - `[low]` `[reject]` EC8: AI Hub's own summarizer request may hit the NFR checks before the summarizer branch — AD-20 gives it a cap of 8,192 and no sampling, the order is the spec's, and the summarizer through AI Hub is Story 1.9's test.
+  - `[low]` `[patch]` EC9: `TestBaseUrlGuard` passes under any URL — same as BH5.
+  - `[false]` `[reject]` EC10: a spawned `server.mjs` binds all interfaces — the spec requires it (the compose network); the in-process servers of the tests bind 127.0.0.1.
+  - `[low]` `[reject]` EC11: duplicates involving a defective file are reported only after the file is fixed — cosmetic; the file's own defects are all listed at once.
+  - `[medium]` `[patch]` VG1: nothing tests that teardown keeps the pinned node image (AC1's third bullet) — real: `--rmi local` to `--rmi all` stayed green. Patched: the teardown stub lists `node:24.15.0-slim` and records the `down` arguments, and a new check requires the CI override, `-v` and `--rmi local`.
+  - `[medium]` `[patch]` VG2: the reply rule for an armed countdown is pinned only for two replies at step 0 — real: `Math.min(1 + k, last)` to `Math.min(1, last)` stayed green. Patched: a three-reply fixture driven at steps 0 to 5, unarmed and armed (row 11).
+  - `[medium]` `[patch]` VG3: loader rules with no failing fixture (unknown reply field, `toolUse` shapes, `headers`, `body`, `text`, white space in a mock key, an empty match value, a file that is not an object) — real: deleting the unknown-field check stayed green. Patched: 12 rows in `DEFECTS`.
+  - `[medium]` `[patch]` VG4: the two spawned-server tests go red only by hanging — real: removing `fail(problems)` left the child listening and the test waiting. Patched: `helpers.mjs` has `exitWithin` (a bounded wait that names the output), waits on `close`, and each test kills its child in `finally`.
+  - `[low]` `[patch]` VG5: the preflight pause default and the non-numeric fallback are never observed — real: the default 10 to 0 stayed green. Patched with the three cases of EC7.
+  - `[medium]` `[patch]` VG6: five of the seven redaction alternatives are never exercised — real: deleting the `gh[pousr]_` entry stayed green. Patched: one run-time sample per alternative in row 14. A drift check against `test-boundaries.sh` was not added, since it would put that script in `WEB_INPUT_PATTERN`; the comment names the source.
+  - `[low]` `[defer]` VG7: AC7's refusal path (`OnBeforeAllTests`, `Guard()`, `Provider`'s throw) is checked by hand only, because IRIS cannot set its own environment — already in `deferred:` from the implement stage.
+  - `[medium]` `[patch]` VG-other-1: tests tied to the committed scenario set — same as BH1.
+  - `[low]` `[patch]` VG-other-2: the spawned-server tests read stdio after `exit` — fixed with VG4 (`close`).
+  - `[medium]` `[patch]` VG-other-3: row 14's "a key-like `x-api-key` is not logged" assertion could not fail, because redaction hides the value — real (Rule 19). Patched: it asserts the line's `keyLength` and that the line holds no `[redacted]`, which a logged key-like value would add.
+  - `[low]` `[reject]` VG-other-4: `Mock.cls`'s model-lookup assertion needs a fresh IRIS process per class — by design: the Spec Change Log ruling records it, `run_class` starts a session per class, and consumers are told.
+  - `[medium]` `[patch]` VG-other-5: `build()`'s `body` and `toolUse` list branches have no test — same as BH4.
+  - `[low]` `[reject]` VG-other-6: `health.mjs` has no hosted test — it runs as the healthcheck in every throwaway, and `up --wait` fails when it fails.
+  - `[low]` `[patch]` VG-other-7: the mutation lines of AC1, AC5 and AC7 cover one bullet each — lines added for the teardown bullet and the server's start refusal (below); AC7's remainder is the deferred item.
+  - `[low]` `[defer]` IA1: row 23's environment path is exercised through `CheckBaseUrl` only — same as VG7.
+  - `[low]` `[reject]` IA2: row 19 reads the model lookup from the log since the class began — by design: the Spec Change Log ruling (the lookup comes once per process).
+  - `[false]` `[reject]` IA3: `Provider` checks the environment but passes the constant `BASEURL` — Task 6 specifies exactly that, and the check requires the two to be equal.
+  - `[low]` `[reject]` IA4: row 12's hang-up is tested with a stub request and response — it drives `handle()` and emits `close` as Node does; the concurrent-request half uses a real server.
+  - `[low]` `[reject]` IA5: row 10's summarizer shape never comes from AI Hub — rows 19-23 define the IRIS side, and Story 1.9 is the summarizer's consumer.
+  - `[low]` `[reject]` IA6: of the default scripts only `triage` runs through AI Hub — rows 19-22 define it; Task 0.2 ran a `chat` turn with a tool use through AI Hub.
+  - `[false]` `[reject]` IA7: container start, healthcheck, PID 1 and volume permissions are shown only by throwaway runs — those runs were made (`class`, both shards, `compose-start`, `production`, `install-upgrade`, `demo-path`).
+  - `[false]` `[reject]` IA8: choices the intent leaves open (control calls unlogged, a `mockkey` scenario named as a marker is a 500, the pull amending 0.7's wording, `WEB_INPUT_PATTERN`) — descriptive, all logged as Rule 22 rulings; the hard-coded key set is BH1.
 
 ## Design Notes
 
@@ -736,7 +801,111 @@ Every test added or changed passes on a fresh environment, in either order.
   - check the summarizer after the markers → row 10 red;
   - log the `x-api-key` value → row 14 red, and `TestDefaultScriptByMockKey`'s no-key-in-the-file assertion red.
 
+### Mutations observed (implement stage, October 20)
+
+Each was applied, observed red, reverted, and `git status --short`, `git diff --stat` and the SHA-256 of every changed or new file were compared with a snapshot taken just before: byte-identical every time. The hosted ones run against the files of the working tree; the IRIS ones ran in a throwaway tagged v11a (`Test.Contract.Mock` loaded and run in it, the mock restarted after each change).
+
+- mutation: AC1: dropped `./ci/mock:/mock:ro` from `ci/compose.ci.yml` → `test-compose-file.sh` FAIL "ci: the file is exactly the mock's wiring"; and `ci/iris.sh class OcuTalon.Test.Contract.Mock` → "container ... mock-1 exited (1)", "FAIL OcuTalon.Test.Contract.Mock: the stack did not become ready".
+- mutation: AC2: `MOCKKEY_HEADER` of `mock.mjs` changed to `x-mock-key` → `server.test.mjs` row 8 red; in the throwaway `TestDefaultScriptByMockKey` red with "API error: [api_error] CI mock: no scenario: no marker, no guide prompt and no known mock key".
+- mutation: AC3: added a `  mock:` service to `docker-compose.yml` → `test-compose-file.sh` FAIL "compose: no non-comment line says mock".
+- mutation: AC4: dropped `mock` from `WEB_SCRIPTS` → `test-ci-config.sh` FAIL "units: the test scripts, the shards and the areas" (the wiring rule stays green, because `ci.yml` still has the step); dropped the `Compaction` alternative from `WEB_INPUT_PATTERN` → `test-ci-changes.sh` FAIL "classifier: the compaction prompt runs web and iris", and `constants.test.mjs` red at "row 16: every file that these tests read matches WEB_INPUT_PATTERN".
+- mutation: AC5: `if (type === 'telegram') {` of the loader changed to `if (false) {` → `scenarios.test.mjs` red at "row 15: the reserved telegram match is refused".
+- mutation: AC6: `preflight` changed to `return 0` after the third failed pull → `test-ci-config.sh` FAIL "preflight: pulls that always fail gave exit 1, 3 pull(s), 5 docker call(s) ...; wanted the FAIL line, exit 1, 3 pulls, no stack" (the first version of the case stayed green; see the Spec Change Log).
+- mutation: AC7: `CheckBaseUrl` changed to accept any value (`Quit $$$OK`) → `TestBaseUrlGuard` red on every refusal it expects ("'' is refused", "'http://mock:8080/v1' is refused", and the rest).
+- mutation: AC8: removed the SIGTERM handler from `server.mjs` → `server.test.mjs` row 18 red (the child ends by the signal, not with status 0).
+- mutation: key rows: `if (sampling.length > 0) {` changed to `if (false) {` → row 3 red, and `TestSamplingAndCapRefused` red ("a sampling parameter raises a provider error", "which says Invalid input", "and names temperature", and the log check).
+- mutation: key rows: `countdowns.set(label, remaining - 1)` changed to leave the count → row 11 red, and `TestCountdownAndRetryAfterCap` red ("Rate limit exceeded: CI mock: rate limited for 30 seconds").
+- mutation: key rows: the summarizer check made to yield to a non-summary marker of the transcript → row 10 red.
+- mutation: key rows: `x-api-key`'s value added to the log entry → row 14 red, and `TestDefaultScriptByMockKey` red at "the log file never holds the key".
+
+### Task 0 measurements (implement stage, October 20; throwaways tagged v11a, one at a time)
+
+The scratch scripts (outside the repository) started one throwaway with `ci/compose.ci.yml` through `ci/iris.sh`'s functions (`preflight`, `live_start`, then `dc up -d --build --wait`), left it up, probed it with `iris_script OCUTALON`, `dc exec` and the mock's log, and `ci/iris.sh teardown` removed it. Provider settings are those of Task 0.2 (dummy key, `http://mock:8080/v1/`, the full retry block, `x-ocutalon-mockkey: triage`). Measured on the developer machine (Apple silicon, Docker 29.7.2, Node 26.8.1 on the host, 24.15.0 in the image).
+
+1. **The image.** `docker image inspect --format '{{index .RepoDigests 0}}' node:24.15.0-slim` reads `node@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d`, the digest of the Code Map. `docker image inspect --format '{{.Id}}'` of the full pinned reference succeeds locally, so `preflight` pulled nothing. In the stack: the mock container's `Config.Image` is the pinned reference, it is healthy when `up --wait` returns (51 s, the IRIS start), publishes no port (`PortBindings` is `{}`), mounts `./ci/mock` at `/mock` with `rw=false` and the volume at `/log` rw, runs `node /mock/server.mjs --log-dir /log` as PID 1 and uid 0 on Node v24.15.0. The `iris` container has `OCUTALON_MODEL_BASE_URL=http://mock:8080/v1/`, 0 key variables, no published port, and the volume at `/opt/ocutalon/mock-log` with `rw=false` (`touch` there fails with "Read-only file system"). Teardown removed the containers, the volume and the network and kept the image (2.2 s).
+2. **One turn from IRIS.**
+   - The model lookup comes with the first `Chat` of the process for that model, concurrent with the POST (their order in the log varies): `%Init` made no request, and the lookup arrived after `CreateSession` had returned and 1 ms before the POST `(inference: the first Chat sends it)`. Within one process, five agents with new providers sent one lookup for `claude-haiku-5-5` and one for `claude-sonnet-5-5`: the lookup is cached per model id.
+   - The POST's `headerNames`: `x-api-key`, `anthropic-version`, `content-type`, `accept`, `anthropic-beta`, `x-ocutalon-mockkey`, `host`, `content-length`; the lookup's are the same without `content-length`. `keyLength` 20. `x-ocutalon-mockkey` arrived, and the scenario `triage` was picked by `mockkey`. A capture listener inside the mock container (port 8081, not the mock) showed `anthropic-version: 2023-06-01` and `anthropic-beta: prompt-caching-2024-07-31`.
+   - The body's top-level keys: `max_tokens`, `messages`, `model`, plus `system` when the agent has a system prompt, plus `temperature` when `extra_params` holds it (it is merged at the top level); no `stream`, no `tools` without tools, no `metadata`. The user message is one text block.
+   - `system` is a string for a 27-character prompt, and one text block with `cache_control` `{"type":"ephemeral"}` for a 29,200-character prompt.
+   - `GetStats().model_context_size` is 1000000 (`{"current_context_tokens":50,"model_context_size":1000000,...,"total_interactions":1}`); `Extra.finish_reason` is `end_turn`; a `refusal` scenario gives `finish_reason` `refusal` with no exception.
+   - With no tool registered, a `Chat` with the `chat` default script sent two POSTs (the `list_productions` tool use, then one for the text) and returned "The CI mock looked at the productions." `(inference: AI Hub gave the unknown tool an error result itself and sent it back as the second request's tool_result)`
+3. **Error texts** (the exception's `Name` is `<%AICore>ProviderError`; each case sent one POST, so no 400, 401, 500 or 529 was retried):
+   - 400, sampling: `ERROR <%AICore>ProviderError: Provider 'anthropic' error: Invalid input: CI mock: sampling parameters are not allowed (NFR-1): temperature`;
+   - 400, cap: `... Invalid input: CI mock: max_tokens must be an integer of at least 4000 (NFR-2), got 3999`;
+   - 401: `... error: API error: Authentication failed: CI mock: the request has no x-api-key header`;
+   - 500: `... error: API error: [api_error] CI mock: no scenario: no marker, no guide prompt and no known mock key`;
+   - 529 (`Retry-After: 1`): `... error: Rate limit exceeded: CI mock: overloaded.`
+4. **An empty key.** With `api_key` "" the provider is created and the request is sent, with an empty `x-api-key` header (the name is in `headerNames`, `keyLength` 0). The mock answered 401 to the POST and to the model lookup, and AI Hub raised the 401 text above; nothing was refused before sending. For Story 1.6: an unresolved key placeholder fails at the first `Chat`, as "Authentication failed", after a request.
+5. **The log file.** As `irisowner` (uid 51773), `%Stream.FileCharacter` `LinkToFile` and `ReadLine($ZUtil(96,39))` read the file (mode 0644, root's); a chat with a 55,092-character input made a line of 55,625 characters that came back whole and parsed with the input intact.
+6. **The back-off cap.** `long-retry-after` armed with 1, the full retry block: the `Chat` took 2.0057 s and returned "Answered after a capped wait."; the log shows the 429 at :53.171 and the 200 at :55.175; `Remaining` was 0 afterwards. S18 measured about 2 s.
+7. **Time.**
+   - `ci/iris.sh shard lane-b` with the mock: 65.3 s wall-clock (the SHARD line says 63 s; READY at 51 s), reversed 65.4 s; Rule 21's baseline is 64 s, and the new class took 2.05 s, so the shard is within 10 s of the baseline plus the class. `shard lane-a` 56.0 s, 9 classes. `ci/iris.sh class OcuTalon.Test.Contract.Mock` 56.0 s (READY 52 s).
+   - The teardown of a held stack, `ci/iris.sh teardown`: 2.2 s (the mock exits on SIGTERM; `stop_grace_period` is 2 s and was not used). A shard's own cleanup adds about 2 s.
+   - `live demo-path` printed `FIRST-START engine=aarch64 build=1s ready=53s` (53 s before).
+   - The hosted tests: 58 tests in 1.9 s of node time, about 2 s for `bash docker/tests/test-mock.sh`, on the host and in the pinned image.
+
+### Implement stage results (October 20)
+
+- `bash docker/tests/test-mock.sh`: exit 0, 58 tests. In the pinned image, `docker run --rm --network none -v "$PWD:/repo:ro" -w /repo node:24.15.0-slim@sha256:4e6b70dd... bash docker/tests/test-mock.sh`: exit 0 on Node v24.15.0, 58 tests. Both orders with `--test-concurrency=1`: exit 0 (58 tests each).
+- `bash ci/checks.sh`: exit 0, all 12 scripts.
+- Slot A (`server: ocutalon-slot-a`, `namespace: OCUTALON`, build 154, port 52790): `iris_doc_load` of `Test/Contract/Mock.cls` with flags `ck`: no error or warning (twice, the second time on the final file). Nothing else ran on a slot.
+- `ci/iris.sh build`: exit 0 (preflight found the image). `ci/iris.sh class OcuTalon.Test.Contract.Mock`: passed, 5 test methods, no SKIP. `shard lane-b`: 24 classes passed, forward and `--reverse`. `shard lane-a`: 9 classes passed (the existing SKIP of `Install.Production` `TestStepHelpers` is unchanged). `teardown` after each: nothing of `-v11a-` left, and the pinned image still inspects.
+- Live units with the mock present, each exit 0: `compose-start` (after the fix of its `/opt/ocutalon` walk), `production`, `install-upgrade`, `demo-path` (`FIRST-START engine=aarch64 build=1s ready=53s`), and also `build-inputs`, `storage-roundtrip`, `production-restart`, `audit`, `install-start`, `sign-in` and `bundle-folder`. `check_no_key` held in all of them.
+- AC7 by hand in the throwaway: `OcuTalon.Test.Contract.Mock` run with `OCUTALON_MODEL_BASE_URL` set to `https://api.anthropic.com/v1/` and to `http://mock:8080/v1`: the four provider tests failed with "OCUTALON_MODEL_BASE_URL is not http://mock:8080/v1/: this class runs in throwaways and CI only (Rule 21)", `TestBaseUrlGuard` passed, and the mock's log gained 0 lines (see `deferred:`).
+
+### Review patch pass (October 20)
+
+The patches of the review are tests, a one-line fix in `ci/iris.sh` and a comment, so Task 0's measurements stand. Each new or changed pinning test was shown red against a mutation (applied, observed, reverted; `git status --short`, `git diff --stat` and the SHA-256 of every changed or new file were identical to a snapshot taken before each one).
+
+- mutation: AC1 (teardown keeps the pulled image): `--rmi local` changed to `--rmi all` in `cmd_teardown` of `ci/iris.sh` → `test-ci-config.sh` FAIL "teardown: a project did not come down with 'down -v --rmi local --remove-orphans' and the CI override".
+- mutation: AC5 (an invalid file stops the mock at start): `if (problems.length > 0) fail(problems);` of `server.mjs` removed → `scenarios.test.mjs` row 15 "the server lists every problem on stderr and exits 1" red after its 8 s bound, with "the server was still running after 8000 ms" and the output, and no child left running.
+- mutation: AC5 (the loader names the rule): the unknown-reply-field check of `scenarios.mjs` made inert → `scenarios.test.mjs` "row 15: a reply with an unknown field is refused, naming the file and the rule" red.
+- mutation: AC6 (the pause): `pause=$((10#$pause))` of `preflight` removed → `test-ci-config.sh` FAIL "preflight: OCUTALON_PULL_PAUSE='08' gave exit 1, 1 pull(s), pauses '08 '"; the default `10` changed to `0` → FAIL "OCUTALON_PULL_PAUSE='' gave exit 1, 3 pull(s), pauses '0 0 '".
+- mutation: row 11 (the reply rule of an armed countdown): `Math.min(1 + k, last)` changed to `Math.min(1, last)` in `pickReply` → `server.test.mjs` "row 11: an armed countdown answers the first reply while it counts, then the reply of the turn step plus one" red.
+- mutation: row 9 (a toolUse list): `build()` made to answer the first item of a list only → `server.test.mjs` "row 9: a toolUse list gives one block per item, a body reply is sent as written, and a reply header replaces a default one" red.
+- mutation: row 14 (redaction): the `gh[pousr]_` alternative of `KEY_LIKE` deleted → `server.test.mjs` row 14 red at "each key-like alternative is redacted".
+
+Results after the patches:
+- `bash docker/tests/test-mock.sh`: exit 0, 72 tests (58, plus 12 loader rows, the shapes test and the steps test), on the host, in the pinned `node:24.15.0-slim` (Node v24.15.0, `--network none`), and in both file orders with `--test-concurrency=1`.
+- `bash ci/checks.sh`: exit 0, all 12 scripts.
+- Slot A `iris_doc_load` of `Test/Contract/Mock.cls`, flags `ck`: no error or warning. `ci/iris.sh build`: exit 0. `class OcuTalon.Test.Contract.Mock`: passed, no `SKIP`. `shard lane-b`: 24 classes passed in 66 s, and with `--reverse` 24 classes in 65 s. `shard lane-a`: 9 classes. `live compose-start`, `production`, `install-upgrade` and `demo-path` (`FIRST-START engine=aarch64 build=1s ready=53s`): each exit 0. `teardown`: nothing of `-v11a-` left, and the pinned image inspects.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 0.11 adds the CI model mock and wires it into every throwaway.
+- `ci/mock/` is a Node 24 service with no dependencies. It answers `POST /v1/messages` and `GET /v1/models/<id>`, rejects sampling parameters and a cap under 4,000, and picks a scenario by marker, then guide prompt, then `x-ocutalon-mockkey`. It answers summarizer requests in AI Hub's schema, keeps a per-marker countdown behind a control endpoint, and logs header names and the key's length only.
+- Sixteen scenario files sit under `ci/mock/scenarios/A/` (the three default scripts and the marker scenarios of Stories 1.6 to 1.9), and `B/` holds a `.gitkeep`.
+- `ci/compose.ci.yml` adds the `mock` service (the digest-pinned `node:24.15.0-slim`, `ci/mock` mounted read-only, no port) and the `mock-log` volume that `iris` reads at `/opt/ocutalon/mock-log`; `ci/iris.sh` `preflight` pulls the image once per machine with up to 3 tries.
+- 72 hosted node tests run through `docker/tests/test-mock.sh` in the `web` job; `OcuTalon.Test.Contract.Mock` (5 tests) drives AI Hub's Anthropic provider at the mock and rides shard `lane-b`.
+- Neither Task 0 tripwire fired: AI Hub reaches the mock over the compose network, and `custom_headers` arrive. The measurements are under Verification.
+
+**Files changed.**
+- `ci/mock/mock.mjs`, `scenarios.mjs`, `server.mjs`, `health.mjs`: the handler, the scenario loader, the entry point and the container health check.
+- `ci/mock/scenarios/A/*.json` (16 files) and `B/.gitkeep`: the scenarios.
+- `ci/mock/test/scenarios.test.mjs`, `server.test.mjs`, `constants.test.mjs` and `helpers.mjs`: the hosted tests and their spawned-server helper.
+- `docker/tests/test-mock.sh`: the web job's wrapper.
+- `ci/compose.ci.yml`, `ci/iris.sh`, `ci/units.sh`, `.github/workflows/ci.yml`: the service and volume, the image pull, the web scripts and input pattern, the "Mock tests" step.
+- `docker/tests/test-compose-file.sh`, `test-ci-config.sh`, `test-ci-changes.sh`: the pins of the new form, the preflight and teardown cases, and the classifier rows.
+- `docker/tests/test-compose-start.sh`, `test-demo-path-gate.sh`: the owner and mode walk skips `mock-log`, and the gate's scratch tree copies `ci/compose.ci.yml` (found by the first runs; logged in the Spec Change Log).
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls`: the Integration test and its helpers.
+- `_bmad/custom/skill-rules.md`: Rule 21's three items (the mock image pull, 33 classes, the web job's mock tests).
+
+**Review findings.** 39 findings from four layers, all in `## Review Triage Log`.
+- **Patched (11 entries, 8 of them medium):** the hosted tests no longer pin the committed scenario set; `toolUse` list, `body` reply and header replacement are tested; the armed-countdown reply rule is tested with three replies; 12 loader defect rows; bounded waits, `close` and a kill in the spawned-server tests; a falsifiable key-like `x-api-key` check and a sample per redaction alternative; the teardown keeps-the-image check; the preflight pause read in decimal and its default and fallback cases; the `Mock.cls` comment; mutation lines for the new pins.
+- **Deferred (1, low, already in `deferred:`):** AC7's refusal path is checked by hand only, since IRIS cannot set its own environment.
+- **Rejected, with reasons on their rows:**
+  - BH2 (mock output on a failed start; the hosted tests catch a bad file first), BH3 and EC2 (status 1xx/204/304, which row 15's range allows), BH6 (the pause knob is documented at `preflight`), EC1 (an invalid header with a delay), EC3 (an empty scenarios folder), EC4 (a header-unsafe mock key), EC6 (a full disk), EC8 (the summarizer through AI Hub is 1.9's), EC11 (cosmetic ordering of duplicate reports), VG-other-4 (the lookup needs a fresh process, by ruling), VG-other-6 (`health.mjs` is run by every healthcheck), IA2, IA4, IA5 and IA6 (the test surface the spec's rows 10, 12, 19 and 22 define);
+  - false: EC5 (AI Hub's tool-result message carries no text), EC10 (the spec requires all interfaces), IA3, IA7 and IA8 (the spec or the throwaway runs settle them).
+
+**Follow-up review recommended: true.** Eight medium entries were patched (two or more), all in new test code that only its author has read since the patch: `ci/mock/test/helpers.mjs`, the shapes and steps tests, the 12 `DEFECTS` rows, the redaction samples and the teardown and preflight cases of `test-ci-config.sh`. Each is shown red by a mutation above. The unverified risk is a test that passes for the wrong reason, not product code.
+
+**Verification performed.** The `(loop)` lines and the `(once)` lines of `## Verification` ran after the last patch, as listed under "Review patch pass". The IRIS-side mutations of the implement stage (the dropped mount, `x-mock-key`, `CheckBaseUrl`) were not repeated, because `Mock.cls` changed in a comment only. The first CI run on the self-hosted runner is the platform evidence and is the lead's.
+
+**Residual risks.**
+- The first CI run pulls `node:24.15.0-slim` on the runner once `(inference)`; a Docker Hub failure is an infra red with the `FAIL the mock image` line.
+- Stories 1.2, 1.3, 1.8 and 1.9 that assert on the model lookup must read it from a class-level log mark and find it by method and path (the lookup comes at a process's first `Chat` and is cached).
+- Rule 21's timing rows are QA's, after the first CI run.

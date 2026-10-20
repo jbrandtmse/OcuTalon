@@ -1,0 +1,19 @@
+{
+  "name": "rate-limited",
+  "match": {
+    "marker": "rate-limited"
+  },
+  "replies": [
+    {
+      "status": 429,
+      "headers": {
+        "Retry-After": "1"
+      },
+      "text": "CI mock: rate limited."
+    },
+    {
+      "status": 200,
+      "text": "Answered after the rate limit."
+    }
+  ]
+}

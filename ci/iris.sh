@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The IRIS test recipe (Story 0.7): runs the IRIS units on the CI runner and on a developer machine, piece by piece or by group,
 # always in throwaway compose projects (docker/tests/lib-live.sh) with the CI override (ci/compose.ci.yml). It never names a
-# developer instance or a slot, and it never pulls, pushes, saves or caches an image: the base image must already be on the machine.
+# developer instance or a slot, and it never pushes, saves or caches an image. The IRIS base image is never pulled: it must already
+# be on the machine. The mock's public image (Story 0.11; node, pinned by digest) is pulled once per machine by preflight and kept.
 #
 #   ci/iris.sh list                       the check scripts, the web scripts, the shards and the groups with their units
 #   ci/iris.sh groups                     the group names, one per line (the matrix of .github/workflows/ci.yml)
@@ -20,7 +21,7 @@
 # OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, at least 3 characters, no "slot") names the run: the pieces of one run
 # share it and `teardown` needs it. It defaults to local-<epoch>-<pid>, which makes each call its own run. In CI the web port of
 # the browser units is 52810 plus the number at the end of RUNNER_NAME (the first free port otherwise).
-# Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image or a failed start.
+# Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
@@ -30,7 +31,7 @@ cd "$root" || exit 1
 . "$root/docker/tests/lib-live.sh"
 
 usage() {
-  sed -n '2,24p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,25p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
 }
 
 # --- the run tag and the web port ---
@@ -59,13 +60,47 @@ setup_tag() {
   fi
 }
 
-# The base image must be on the machine: it is never pulled.
+# The image: line of the mock service in ci/compose.ci.yml, read with awk (never `docker compose config`).
+mock_image() {
+  awk '
+    /^[^ #]/ { ins = 0 }
+    /^services:/ { ins = 1; next }
+    ins && /^  [A-Za-z0-9_.-]+:/ { cur = $1; sub(/:$/, "", cur); next }
+    ins && cur == "mock" && $1 == "image:" { print $2; exit }
+  ' "$root/ci/compose.ci.yml"
+}
+
+# Runs before any stack starts. The IRIS base image must be on the machine: it is never pulled. The mock's image is public, pinned
+# by digest and pulled once per machine, kept by every teardown: when it is missing, preflight pulls it up to 3 times, pausing
+# OCUTALON_PULL_PAUSE seconds (default 10) and then three times that between the tries, and fails before any stack starts when
+# every try fails (Docker Hub's anonymous limit or an outage). A present image is never pulled.
 preflight() {
-  local image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
+  local image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0} ref pause try=1 out=""
   if ! docker image inspect --format '{{.Id}}' "$image" >/dev/null 2>&1; then
     echo "FAIL the base image $image is not on this machine (or Docker is not running): load it first, it is never pulled"
     exit 1
   fi
+  ref=$(mock_image)
+  if [ -z "$ref" ]; then
+    echo "FAIL ci/compose.ci.yml names no image for the mock service; no stack was started"
+    exit 1
+  fi
+  if docker image inspect --format '{{.Id}}' "$ref" >/dev/null 2>&1; then return 0; fi
+  pause=${OCUTALON_PULL_PAUSE:-10}
+  case $pause in '' | *[!0-9]*) pause=10 ;; esac
+  pause=$((10#$pause))
+  while [ "$try" -le 3 ]; do
+    echo "PULL the mock image $ref (try $try of 3)"
+    if out=$(docker pull "$ref" 2>&1); then return 0; fi
+    if [ "$try" -lt 3 ]; then
+      sleep "$pause"
+      pause=$((pause * 3))
+    fi
+    try=$((try + 1))
+  done
+  printf '%s\n' "$out" | tail -n 3
+  echo "FAIL the mock image $ref could not be pulled after 3 tries (Docker Hub); no stack was started"
+  exit 1
 }
 
 # --- the test classes ---

@@ -1,5 +1,6 @@
 # CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of five
 # groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# The `web` job builds and tests the web app and runs the model mock's node tests (docker/tests/test-mock.sh, Story 0.11).
 # docker/tests/test-ci-config.sh pins the rules of this file: permissions, triggers, concurrency, pinned actions, runners,
 # the fork guard, no secrets, no image cache or upload, the teardown step, and that the matrix equals `ci/iris.sh groups`.
 name: ci
@@ -70,8 +71,9 @@ jobs:
       - name: Unit tests
         if: steps.changes.outputs.web == 'true'
         run: npm --prefix web test
-      - name: "Mock tests: none until Story 0.11"
-        run: echo "No mock test runs here yet. The model mock and its tests are Story 0.11, which replaces this step."
+      - name: Mock tests
+        if: steps.changes.outputs.web == 'true'
+        run: bash docker/tests/test-mock.sh
       - name: Skipped
         if: steps.changes.outputs.web != 'true'
         run: echo "web skipped, base $BASE, reason $REASON"

@@ -6,7 +6,7 @@
 CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate"
 
 # The scripts of the hosted `web` job.
-WEB_SCRIPTS="web-build"
+WEB_SCRIPTS="web-build mock"
 
 # The %UnitTest shards, each a union of whole areas (OcuTalon.Test.<Area>), aligned with the lanes of AD-29.
 SHARDS="lane-a lane-b"
@@ -40,10 +40,12 @@ group_units() {
 BROWSER_UNITS="demo-path sign-in"
 
 # The paths whose change makes the web job run (ci/changes.sh): the web sources, the Live payload classes and the generated
-# sign-in assets that the web build reads or writes, the UX design documents, the logo, the CI recipe and the scripts that
-# build the web, the workflow itself, and the root .gitignore and .gitattributes, which decide whether the build leaves the
-# checkout clean and how git checks out the files it reads.
-WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
+# sign-in assets that the web build reads or writes, the UX design documents, the logo, the CI recipe (which holds the model
+# mock and its scenarios) and the scripts that build the web and run the mock's tests, the files that the mock's tests read
+# (the agent classes' MOCKKEY, the tool names, the compaction prefix and the example agent of the bridge), the workflow itself,
+# and the root .gitignore and .gitattributes, which decide whether the build leaves the checkout clean and how git checks
+# out the files it reads.
+WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
 
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'

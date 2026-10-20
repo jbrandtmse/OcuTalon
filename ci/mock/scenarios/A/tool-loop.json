@@ -1,0 +1,15 @@
+{
+  "name": "tool-loop",
+  "match": {
+    "marker": "tool-loop"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_productions",
+        "input": {}
+      }
+    }
+  ]
+}

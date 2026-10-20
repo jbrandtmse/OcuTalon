@@ -4,7 +4,7 @@
 # web/scripts/demo-path-summary.mjs and the real ci/iris.sh group in a scratch copy of the tree, with the stack replaced: the
 # parts of lib-live.sh that need Docker (live_start, live_web_port, live_first_start, dc, start_log) are redefined after the real
 # file is sourced, `npm` copies a prepared Playwright JSON report and exits with a chosen code, `docker` answers only
-# `image inspect`, and the other units of the browser group are stubs; `npx`, `npm` and the stub units append each call to one
+# `image inspect` (the preflight reads the mock's image from the copy of ci/compose.ci.yml), and the other units of the browser group are stubs; `npx`, `npm` and the stub units append each call to one
 # sequence, and an unexpected `docker` or `npm` call fails the run that made it. It checks that
 #   - the unit exits 0 only when Playwright and the step summary both pass, prints the FIRST-START line before the STEP lines and
 #     the Playwright log indented, never reads a skipped step as passed, waits 900 s for the first start (so a start ready after
@@ -48,7 +48,7 @@ tree="$tmp/tree"
 log="$tmp/log"
 out="$tmp/out"
 mkdir -p "$tree/ci" "$tree/docker/tests" "$tree/web/node_modules" "$tree/src/ocutalon/csp" "$tree/bin" "$log" "$tmp/reports"
-cp ci/iris.sh ci/units.sh "$tree/ci/"
+cp ci/iris.sh ci/units.sh ci/compose.ci.yml "$tree/ci/"
 cp docker/tests/lib-live.sh "$tree/docker/tests/lib-live-real.sh"
 cp docker/tests/test-demo-path.sh "$tree/docker/tests/test-demo-path.sh"
 ln -s "$repo/web/scripts" "$tree/web/scripts"

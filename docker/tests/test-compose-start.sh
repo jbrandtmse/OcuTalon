@@ -293,10 +293,11 @@ fi
 
 # --- the image's own files: owned by root, so the IRIS user can neither change nor re-mode them ---
 # Directories 555, the two scripts that run 555, every other file 444. The listing is `type|path|owner|mode`.
-# The evaluation set that the throwaway override mounts read-only at /opt/ocutalon/eval (Story 0.10) is not the image's: it is
-# left out of the listing, and the image itself is checked to hold no such folder.
+# The evaluation set that the throwaway override mounts read-only at /opt/ocutalon/eval (Story 0.10) and the model mock's request
+# log that the CI override mounts read-only at /opt/ocutalon/mock-log (Story 0.11) are not the image's: they are left out of the
+# listing, and the image itself is checked to hold neither folder.
 
-modes=$(dc exec -T iris find /opt/ocutalon -path /opt/ocutalon/eval -prune -o -exec stat -c '%F|%n|%u|%a' {} + 2>/dev/null | tr -d '\r' | sort)
+modes=$(dc exec -T iris find /opt/ocutalon \( -path /opt/ocutalon/eval -o -path /opt/ocutalon/mock-log \) -prune -o -exec stat -c '%F|%n|%u|%a' {} + 2>/dev/null | tr -d '\r' | sort)
 bad_modes=$(printf '%s\n' "$modes" | awk -F'|' '
   { want = ($1 == "directory") ? 555 : 444
     if ($2 == "/opt/ocutalon/healthcheck.sh" || $2 == "/opt/ocutalon/after-start.sh") want = 555
@@ -317,6 +318,12 @@ if docker run --rm --entrypoint sh "$P-iris" -c 'test ! -e /opt/ocutalon/eval' >
   pass "the image holds no /opt/ocutalon/eval: the evaluation set is mounted by the throwaway override only"
 else
   fail "the image holds /opt/ocutalon/eval, or the image could not be inspected"
+fi
+
+if docker run --rm --entrypoint sh "$P-iris" -c 'test ! -e /opt/ocutalon/mock-log' >/dev/null 2>&1; then
+  pass "the image holds no /opt/ocutalon/mock-log: the mock's request log is mounted by the CI override only"
+else
+  fail "the image holds /opt/ocutalon/mock-log, or the image could not be inspected"
 fi
 
 # --- restarts ---
