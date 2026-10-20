@@ -46,7 +46,7 @@ development_status:
   0-8-the-demo-path-test-signs-in-and-loads-the-page: done
   0-9-the-message-catalog-and-its-one-renderer: done
   0-10-the-orders-demo-production-runs-in-ocuorders: done
-  0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: backlog
+  0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: in-progress
   epic-0-retrospective: optional
 
   epic-1: backlog

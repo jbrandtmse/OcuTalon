@@ -272,3 +272,4 @@
 2026-10-20T14:30:26Z	Epic 0	spine_updated	ad=AD-19,AD-22,stack reason=clarification by=lead story=0-11-the-ci-model-mock-answers-every-scenario-the-stories-need lint=ok note=mock_as_built,x-ocutalon-mockkey,log_volume,file_format,node_image_row
 2026-10-20T14:30:26Z	Epic 0	ledger_routed_planned	story=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor entries=1 excess=0 by=planning dw=DW-39
 2026-10-20T14:30:26Z	Epic 0	planner_message_sent	to=contests-b0(Contest_Planner) topic=0.11_owner-only_node_image_licences_and_VETO_FYIs(image,mockkey_header,request_log)
+2026-10-20T14:30:26Z	Story 0.11	stage_spawned	stage=implement spawn_at=2026-10-20T14:30:26Z model=claude-sonnet-5-5 agent_name=0-11-implement-1 cycle_iteration=1
