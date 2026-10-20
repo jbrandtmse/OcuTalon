@@ -209,3 +209,5 @@
 2026-10-20T03:36:04Z	Epic 0	ledger_routed_planned	story=11-5-one-scripted-sequence-cuts-a-release entries=1 excess=0 by=adjudication dw=DW-27
 2026-10-20T03:37:51Z	Story 0.8	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=ci/checks.sh_pass;live_demo-path:FIRST-START_aarch64_ready=53s,STEP_1_partly_skipped_floor_1_of_1,12_skipped_each_naming_its_story;teardown_left_nothing model=claude-opus-5-5
 2026-10-20T03:41:00Z	Story 0.8	fresh_check	env=clean-checkout tests=checks.sh+web(ci,lint,75_tests)+live_sign-in(29_passed)+live_demo-path result=pass order=reverse_of_group(sign-in_then_demo-path) note=one_throwaway_per_call leftovers=none
+2026-10-20T03:41:20Z	Story 0.8	committed	sha=a630b83 submodules= ci=pending run=39365579762(ci),39365579858(lane-a) amendments=spine_AD-22,AD-23,conv;skill-rules_Rule_21;epics.md_DW-27_under_11.5;epic-0-readme-notes.md
+2026-10-20T03:41:20Z	Story 0.8	story_cycle	plan_to_commit_min=151 implement_passes=1 reviews=1 rework=0 first_ci=success(39359136309,23m39s) models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
