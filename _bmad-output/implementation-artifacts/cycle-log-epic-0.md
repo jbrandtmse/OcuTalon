@@ -251,3 +251,7 @@
 2026-10-20T10:54:32Z	Epic 0	ledger_routed_planned	story=5-2-new-failures-are-picked-up-within-seconds entries=1 excess=0 by=harvest dw=DW-35
 2026-10-20T10:54:32Z	Epic 0	planner_message_received	from=contests-b0(Contest_Planner) topic=0.10_items_1-4 result=no_veto note=over_30min_after_rebalance_goes_to_owner_with_measured_times(raise_budget_or_third_runner)
 2026-10-20T10:54:32Z	Story 0.10	stage_spawned	stage=qa spawn_at=2026-10-20T10:54:32Z model=claude-sonnet-5-5 agent_name=0-10-qa-1 cycle_iteration=1
+2026-10-20T12:17:11Z	Story 0.10	ci_resolved	story=0.10 run=39411120021 result=success head=916ff92 workflows=ci:success,lane-a:success(run=39411119914) resolved_at=qa wall_clock=25m22s note=FIRST-START_x86_64_ready=177s;eval_mount_readable_on_runner
+2026-10-20T12:17:11Z	Story 0.10	qa_complete	spawn_at=2026-10-20T10:54:32Z model=claude-sonnet-5-5 tests=docker/tests/test-install-start.sh tests_added=0 tests_changed=1 mutations_demonstrated=23 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1 note=DW-37_foreign-state_fixtures_in_rows_3_and_4;settle_scheduler_moved_to_lib-live(Rule_2);QA_wrote_DW-37_trailer_itself
+2026-10-20T12:17:11Z	Story 0.10	adr_verifications_complete	result=none_required
+2026-10-20T12:17:11Z	Story 0.10	stage_spawned	stage=code-review spawn_at=2026-10-20T12:17:11Z model=claude-opus-5-5 agent_name=0-10-code-review-1 cycle_iteration=1
