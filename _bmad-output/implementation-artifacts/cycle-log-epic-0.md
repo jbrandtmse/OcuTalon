@@ -273,3 +273,5 @@
 2026-10-20T14:30:26Z	Epic 0	ledger_routed_planned	story=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor entries=1 excess=0 by=planning dw=DW-39
 2026-10-20T14:30:26Z	Epic 0	planner_message_sent	to=contests-b0(Contest_Planner) topic=0.11_owner-only_node_image_licences_and_VETO_FYIs(image,mockkey_header,request_log)
 2026-10-20T14:30:26Z	Story 0.11	stage_spawned	stage=implement spawn_at=2026-10-20T14:30:26Z model=claude-sonnet-5-5 agent_name=0-11-implement-1 cycle_iteration=1
+2026-10-20T17:00:04Z	Story 0.11	dev_complete	spawn_at=2026-10-20T14:30:26Z model=claude-sonnet-5-5 build_sha=edd2ec0 baseline_revision=4089a09 review_loop_iteration=0 followup_review_recommended=true deferred=1 files=38 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 ci=pending(pushed_with_the_hold_head) note=Task_0_no_tripwire;harvested_DW-40_open
+2026-10-20T17:00:42Z	Epic 0	hold_complete	reason=user_quota_switch_accounts code_head=edd2ec0 last_green=c510e15 story_0.11=review(QA_next) throwaways_up=none ci_in_flight=pushed_with_this_head prompt=.worktrees/.coordination/prompts/e0-resume-2026-10-20-prompt.md
