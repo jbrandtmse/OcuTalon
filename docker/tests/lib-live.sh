@@ -21,6 +21,16 @@
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
+# The first start, timed (Story 0.8; AD-23). Only the demo-path unit uses these; the other live scripts keep their inline starts.
+#   first_start_report <build s> <ready s> <engine>   prints "FIRST-START engine=<engine> build=<b>s ready=<r>s", and when
+#                the ready time is over 720 s (12 minutes) also "WARN first start <r> s is over 12 minutes: raise it to the author (AD-23)"
+#   live_first_start <max s>   builds the image (dc build, tracked for the cleanup), starts it without building (dc up -d --no-build),
+#                sets cid, waits for a ready, healthy start (up to <max s> for the start's log to end ready, then up to 60 s for
+#                Docker to report healthy; both end at the run's deadline), sets first_build_s (the build, which uses this
+#                machine's layer cache) and first_ready_s (from the start until Docker reports healthy), and prints
+#                first_start_report with the engine's architecture (docker info). Returns 1, saying which step failed and
+#                after how many seconds, when one does.
+#
 # The throwaway lock (Rule 12) serializes throwaway stacks across the epic worktrees of one machine. It exists only when the
 # main checkout has the folder <worktree_base>/.coordination/locks (worktree_base from _bmad/custom/parallel.yaml, default
 # .worktrees); CI and a sequential run have none and take no lock. live_start claims throwaway-iris.lock there by an atomic
@@ -240,6 +250,14 @@ live_track_image() {
   if [ -n "$id" ]; then LIVE_IMAGES+=("$id"); fi
 }
 
+# first_start_report <build s> <ready s> <engine>: see the header.
+first_start_report() {
+  echo "FIRST-START engine=$3 build=${1}s ready=${2}s"
+  if [ "$2" -gt 720 ]; then
+    echo "WARN first start $2 s is over 12 minutes: raise it to the author (AD-23)"
+  fi
+}
+
 live_cleanup() {
   # An exit between the lock claim and the compose files has no stack to remove, and `dc` cannot expand an empty file list.
   if [ "${#LIVE_FILES[@]}" -gt 0 ]; then dc down -v --rmi local >/dev/null 2>&1; fi
@@ -345,6 +363,41 @@ wait_started_ready() {
   wait_until 60 health_is_healthy || return 1
   after=$(started_at)
   [ "$before" = "$after" ]
+}
+
+# live_first_start <max s>: see the header. Needs live_start. The ready time starts when the built image is started and ends
+# when this start's log ends `ready` and Docker reports `healthy`, which needs the after-start install and the ready marker.
+live_first_start() {
+  local max=$1 begun=$SECONDS up_at engine
+  if ! dc build > "$tmp/first-build.log" 2>&1; then
+    tail -n 30 "$tmp/first-build.log"
+    echo "first start: the image build failed after $((SECONDS - begun)) s"
+    return 1
+  fi
+  live_track_image
+  first_build_s=$((SECONDS - begun))
+  if ! docker image inspect --format '{{.Id}}' "$P-iris" >/dev/null 2>&1; then
+    echo "first start: the build left no image $P-iris after $((SECONDS - begun)) s, so the start would build it again"
+    return 1
+  fi
+  up_at=$SECONDS
+  if ! dc up -d --no-build > "$tmp/first-up.log" 2>&1; then
+    tail -n 30 "$tmp/first-up.log"
+    echo "first start: docker compose up failed after $((SECONDS - up_at)) s"
+    return 1
+  fi
+  cid=$(dc ps -q iris)
+  if [ -z "$cid" ]; then
+    echo "first start: no iris container in project $P after $((SECONDS - up_at)) s"
+    return 1
+  fi
+  if ! wait_started_ready "$max"; then
+    echo "first start: not ready after waiting $((SECONDS - up_at)) s (the log is waited for at most $max s and the health for 60 s more, both until the run's deadline)"
+    return 1
+  fi
+  first_ready_s=$((SECONDS - up_at))
+  engine=$(docker info --format '{{.Architecture}}' 2>/dev/null)
+  first_start_report "$first_build_s" "$first_ready_s" "${engine:-unknown}"
 }
 
 # container_sha256 <path>: the SHA-256 of a file in the iris container, or "" when it is missing.

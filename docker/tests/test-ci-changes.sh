@@ -8,6 +8,8 @@
 #     base, and both flags true, on a pull request, with no run, with no green run in the history, with a run that is not a
 #     push, and when the answer cannot be read or holds no run list;
 #   - row 11, red and then bookkeeping: C0 green, C1 code and red, B1 bookkeeping only: B1's base is C0, so B1 runs;
+#   - a push to main (Story 0.8, REL-2): no base, web and iris true and a reason that names main, although a green base and only
+#     bookkeeping changed; every call of the script sets GITHUB_REF itself, so the ref of the job that runs this test never leaks in;
 #   - row 12, a skipped job: web and iris are false, the reason names the base, and the four outputs are also appended to
 #     $GITHUB_OUTPUT; an output file that cannot be written fails the script.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -54,6 +56,9 @@ runs() {
   jq -n --args '{workflow_runs: [$ARGS.positional[] | split(":") | {conclusion: .[0], head_sha: .[1], event: (.[2] // "push")}]}' "$@" > "$file"
 }
 
+# The ref of the push that classify simulates: a feature branch, so that no case depends on the environment's GITHUB_REF.
+classify_ref=refs/heads/OCT-epic0
+
 # classify <runs file or -> <event> [extra arguments]: runs the script in the repository; the four outputs are in out_*.
 classify() {
   local runs_file=$1 event=$2
@@ -61,8 +66,8 @@ classify() {
   : > "$tmp/github-output"
   (
     cd "$repo" || exit 1
-    GITHUB_EVENT_NAME=$event GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$tmp/github-output" OCUTALON_CI_RUNS_FILE=$runs_file \
-      bash "$changes" ci.yml "$@"
+    GITHUB_EVENT_NAME=$event GITHUB_REF=$classify_ref GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$tmp/github-output" \
+      OCUTALON_CI_RUNS_FILE=$runs_file bash "$changes" ci.yml "$@"
   ) > "$tmp/stdout" 2> "$tmp/stderr"
   rc=$?
   out_base=$(sed -n 's/^base=//p' "$tmp/stdout")
@@ -178,6 +183,19 @@ runs "$tmp/green-b1.json" "success:$b1" "success:$c2"
 classify "$tmp/green-b1.json" push
 expect "bookkeeping after a green bookkeeping commit: nothing changed that matters, so both skip" "$b1" false false
 
+# --- a push to main runs everything (REL-2), whatever a green run says ---
+
+classify_ref=refs/heads/main
+classify "$tmp/green-b1.json" push
+expect "push to main: with a green base and only bookkeeping changed, no base and everything runs" "" true true
+if printf '%s\n' "$out_reason" | grep -q 'main'; then pass "push to main: the reason names main"; else fail "push to main: the reason '$out_reason' does not name main"; fi
+classify_ref=refs/heads/maintenance
+classify "$tmp/green-b1.json" push
+expect "push to another branch whose name starts with main: the skip rule applies as before" "$b1" false false
+classify_ref=refs/heads/OCT-epic0
+classify "$tmp/green-b1.json" push
+expect "push to a feature branch with the same base and paths: both skip" "$b1" false false
+
 # --- row 12: the outputs ---
 
 classify "$tmp/green-b1.json" push
@@ -194,7 +212,7 @@ export GITHUB_OUTPUT="$tmp/leaked-output"
 : > "$GITHUB_OUTPUT"
 (
   cd "$repo" || exit 1
-  GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REPOSITORY="" GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
+  GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY="" GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
 if grep -qx 'web=true' "$tmp/stdout" && grep -qx 'iris=true' "$tmp/stdout" && grep -qx 'base=' "$tmp/stdout"; then
   pass "API failure: with no repository to ask, everything runs"
@@ -203,7 +221,7 @@ else
 fi
 (
   cd "$repo" || exit 1
-  GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REPOSITORY=o/r GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
+  GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY=o/r GITHUB_API_URL="http://127.0.0.1:9" bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
 if grep -qx 'web=true' "$tmp/stdout" && grep -qx 'iris=true' "$tmp/stdout" && grep -qx 'base=' "$tmp/stdout"; then
   pass "API failure: an API that does not answer fails open, and everything runs"
@@ -221,7 +239,7 @@ unset GITHUB_OUTPUT
 # An output file that cannot be written fails the step: an empty output would leave the gates empty, and an empty gate skips.
 (
   cd "$repo" || exit 1
-  GITHUB_OUTPUT="$tmp" GITHUB_EVENT_NAME=pull_request bash "$changes" ci.yml
+  GITHUB_OUTPUT="$tmp" GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/heads/OCT-epic0 bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
 rc=$?
 if [ "$rc" -ne 0 ] && grep -q '^FAIL ci/changes.sh: cannot append to GITHUB_OUTPUT' "$tmp/stdout"; then
@@ -249,7 +267,7 @@ chmod +x "$tmp/bin/curl"
 (
   cd "$repo" || exit 1
   PATH="$tmp/bin:$PATH" CURL_ARGS="$tmp/curl.args" CURL_STDIN="$tmp/curl.stdin" CURL_ANSWER="$tmp/green-b1.json" \
-    GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REPOSITORY=o/r GITHUB_API_URL=https://api.example.invalid GH_TOKEN=tok-for-the-test \
+    GITHUB_OUTPUT="" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY=o/r GITHUB_API_URL=https://api.example.invalid GH_TOKEN=tok-for-the-test \
     bash "$changes" ci.yml
 ) > "$tmp/stdout" 2>/dev/null
 if grep -qx 'https://api.example.invalid/repos/o/r/actions/workflows/ci.yml/runs?event=push&status=success&per_page=100' "$tmp/curl.args" \

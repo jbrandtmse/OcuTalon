@@ -12,6 +12,7 @@
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
 #   ci/iris.sh class <Class>              the same for one test class
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
+#                                         and, for a browser unit (BROWSER_UNITS of ci/units.sh: demo-path and sign-in), installs Chromium
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>)
@@ -29,7 +30,7 @@ cd "$root" || exit 1
 . "$root/docker/tests/lib-live.sh"
 
 usage() {
-  sed -n '2,23p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,24p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
 }
 
 # --- the run tag and the web port ---
@@ -287,9 +288,9 @@ cmd_live() {
   setup_tag
   echo "PORT the web port of the browser units: ${OCUTALON_TEST_WEB_PORT:-auto}"
   preflight
-  if [ "$name" = sign-in ]; then
-    npx --prefix web playwright install chromium || exit 1
-  fi
+  case " $BROWSER_UNITS " in
+    *" $name "*) npx --prefix web playwright install chromium || exit 1 ;;
+  esac
   bash "docker/tests/test-$name.sh"
 }
 

@@ -4,7 +4,8 @@
 # throwaway compose project, then checks
 #   - rows 1 and 2 of Story 0.3, from the security tables: the roles, the README account, InvalidLoginAction and the
 #     four web applications (check_security);
-#   - rows 3 to 13 of Story 0.3 in a real browser, through the Playwright specs in web/e2e/sign-in/: what answers without
+#   - rows 3 to 13 of Story 0.3 in a real browser, through the Playwright project chromium, which is every spec under web/e2e/
+#     except web/e2e/demo-path/ (that folder is the demo-path unit's, test-demo-path.sh): what answers without
 #     a session, the sign-in page, a wrong password, the password toggle, the README sign-in, the tokens and fonts, one
 #     sign-in group, Sign out, a user without the OcuTalon user role, and a deep link;
 #   - rows 13 to 19 of Story 0.5, through web/e2e/api/api.spec.ts, on a stack that this script seeds: the README
@@ -134,13 +135,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "rows 3-13 and Story 0.5's rows 13-19: the Playwright specs pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13 and Story 0.5's rows 13-19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13 and Story 0.5's rows 13-19: the Playwright specs failed (exit $e2e_status)"
+  fail "rows 3-13 and Story 0.5's rows 13-19: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

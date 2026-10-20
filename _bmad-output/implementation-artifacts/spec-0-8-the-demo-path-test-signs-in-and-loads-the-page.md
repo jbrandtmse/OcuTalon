@@ -2,12 +2,27 @@
 title: 'Story 0.8: The demo-path test signs in and loads the page'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
-followup_review_recommended: false
+baseline_revision: 'a375972151fec7213227b11611ed1e83b73057a2'
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      api.spec.ts reads eight sign-in unit variables at import, so `npm --prefix web run e2e -- --list` exits 1 with no test listed unless they are set.
+    evidence: |-
+      Measured in Task 0: `Error: OCUTALON_E2E_VERSION must be set by docker/tests/test-sign-in.sh`, `Total: 0 tests in 0 files`. The `chromium` project is only listed or run with the variables set (the unit sets them; demo-path-summary.test.mjs sets dummies). Deferring the reads into the tests would change Story 0.5's spec file.
+    location: >-
+      web/e2e/api/api.spec.ts
+    severity: low
+  - summary: >-
+      On a developer machine the run deadline (540 s) ends the first-start wait before the 720 s WARN threshold can be reached; only CI (deadline 1200 s) can print the WARN line.
+    evidence: |-
+      live_first_start waits at most 900 s but wait_until stops at the run's deadline, as the spec fixes ("900 s, bounded by the run's deadline"). A local first start measured 47 to 53 s, so the gap shows only on a host about ten times slower than this one.
+    location: >-
+      docker/tests/test-demo-path.sh
+    severity: low
 ---
 
 <intent-contract>
@@ -268,7 +283,59 @@ Where each row runs:
 
 ## Spec Change Log
 
+Implement stage, October 19 and 20:
+- Rule 22 ruling: how does the `chromium` project's `--list` check run, when `api.spec.ts` throws at load without the sign-in unit's variables? -> The check sets the eight variables to a dummy word, in the Verification line and in `demo-path-summary.test.mjs`. (rejected: changing `api.spec.ts` to read them inside its tests, which is Story 0.5's file and widens this story; accepting the bare command's empty listing, which would pass with a broken `testIgnore`.) The bare command's exit 1 is in `deferred:`.
+- Rule 22 ruling: should `live_first_start` check the tag of the built image? -> Yes: it returns 1, naming `<project>-iris`, when the image is missing after `dc build`, so Task 0's measured tag is checked on every run, and a start that would build again can never put the build inside `ready`. (rejected: relying on `live_track_image`, which skips a missing image without a word.)
+- Rule 22 ruling: which verdict does a step with no spec file in the report get? -> `failed`, with 0 passed and 0 skipped, and a `FAIL step <n> <id> has no 0<n>-<id>.spec.ts in the report` line. (rejected: a fifth verdict `missing`, because the spec fixes four.)
+- Rule 22 ruling: what does a failed floor test print? -> One line, `FAIL floor test "<title>" (<file>) failed|timed out|was interrupted|did not run|was skipped`, instead of the generic failed-test line as well. (rejected: two lines for the same test.) A floor test skipped with no story prints that line and the no-story line, which are different failures.
+- Rule 22 ruling: which file maps a test to its step? -> The top-level suite's `file`, because the report gives a `notBuilt` test the `file` of its declaration, `demo-path/not-built.ts`, in `specs[].file` (measured, Task 0). (rejected: `specs[].file`, which would map twelve parts to no step.)
+
 ## Review Triage Log
+
+### 2026-10-19 — Review pass
+- verdicts: 37 findings — high 0, medium 6, low 31, false 0, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` Rule 21's timing sums still read 980 s and 143 s without `demo-path`, and REL-4's margin was not re-checked — the sums now read "203 s with its 60 s" and "1040 s with `demo-path`". The margin is the spec's own `(inference)` (Design Notes, time budget), settled by QA's x64 run.
+    - `[low]` `[patch]` The AD-23 WARN cannot print locally (540 s deadline) and the notes file said the unit "still runs the specs" — the notes now state the band: a start not ready within 900 s, and never beyond the run's deadline, fails the unit and names the seconds (matrix row 10). The local gap is already a `deferred:` item.
+    - `[medium]` `[patch]` `cmd_live`'s Chromium install for `BROWSER_UNITS` has no hermetic test (the missing-image recipe case exits at the preflight) — `test-ci-config.sh` now runs `live <unit>` for each browser unit with a stub `docker` and a recording `npx`, and fails when `playwright install chromium` was not called (mutation recorded).
+    - `[low]` `[reject]` The Playwright-script rule of `test-ci-config.sh` matches one literal spelling — the spec defines the rule as that command (`npm --prefix web run e2e`); a future spelling is a theoretical drift, and a script that skipped `BROWSER_UNITS` fails loudly on a host with no Chromium.
+    - `[low]` `[patch]` `live_first_start`'s no-container and unknown-engine branches have no check — two probes added to `test-lib-live.sh` (mutations recorded).
+    - `[low]` `[patch]` The real report's `@floor` tag form is checked only on a hand-written report — `demo-path-summary.test.mjs` now lists the real specs with `--reporter=json` and asserts the floor test carries the tag `floor` (mutation recorded).
+    - `[low]` `[reject]` The `06-trace` placeholder says "already signed in", which Story 11.1 limits to the online demo — the title is the spec's Task text and PRD UJ-1 step 6 (FR-59) verbatim; the story that turns it on writes the real expectation.
+    - `[low]` `[patch]` The notes file claims "never typed in by hand" while its one filled row was copied from a local run — reworded to "read from the output of a unit, with its source beside it". The row's commit (`a375972` plus the working tree) cannot name a commit that does not exist before finalize; "ready" as the judge's wait is the spec's ruling; the blank x64 rows are QA's and the lead's by design.
+  - Edge Case Hunter
+    - `[low]` `[reject]` A first start past 900 s or past the deadline fails with no WARN and no figure — matrix row 10 fixes this (FAIL naming the seconds waited); the notes file now says so.
+    - `[low]` `[reject]` The `demo-path` rule's subshell could die with its status ignored and pass — it takes renaming `IRIS_GROUPS`, which fails the units rule and `ci/iris.sh` first; theoretical.
+    - `[low]` `[reject]` The rule matches only the literal Playwright command — same as the Blind Hunter's fourth finding.
+    - `[low]` `[patch]` `testIgnore: '**/demo-path/**'` matches the absolute path, so a checkout under a folder named `demo-path` would list nothing in `chromium` — anchored to `**/e2e/demo-path/**`; the listing tests and the `testIgnore` mutation still hold.
+    - `[low]` `[patch]` `wait_started_ready` can spend `max` on the log and 60 s more on health, but the header and the failure message said "at most max" — both now say so.
+    - `[low]` `[patch]` Rule 21's timing sums (same root as the Blind Hunter's first finding) — fixed there.
+    - `[low]` `[patch]` The `live_first_start` header says every failure names its seconds, and the missing-image branch printed none — the branch now prints them.
+    - `[low]` `[patch]` `live_first_start` "waits up to max" understates the wait by up to 60 s — same fix as the fifth finding.
+    - `[low]` `[patch]` The notes file's "still runs the specs" claim over-reaches — fixed with the Blind Hunter's second finding.
+    - `[low]` `[patch]` Rule 21's per-group sums leave out `demo-path` — fixed with the Blind Hunter's first finding.
+  - Verification Gap
+    - `[medium]` `[patch]` The `e2e` npm script's `--project=chromium` is pinned by no test (the listing tests called the Playwright CLI directly) — they now list through `npm run e2e` and `npm run e2e:demo-path`; dropping `--project=chromium` from the script turns the e2e test red (mutation recorded).
+    - `[medium]` `[patch]` `cmd_live`'s Chromium install is never executed by a hermetic test — fixed with the Blind Hunter's third finding.
+    - `[medium]` `[patch]` The Integration AC "a failure fails the build" had no observed red — the `(once)` run was made: with the `app.ts` mutation, `group browser` exits 1 with `UNIT live:demo-path failed` and `GROUP browser failed: live:demo-path live:sign-in`; reverted, `build`, and a green `group browser` (recorded under Verification).
+    - `[medium]` `[patch]` The same AC's `mutation:` line said "not run" — now written from the run above.
+    - `[low]` `[reject]` The clauses "a missing step spec" and "an unknown spec file" and rows 8 and 9 have no mutation of their own — Rule 19 asks one demonstrated mutation per AC, not per clause; AC1, skipped steps has three, and the hermetic tests for these clauses are in the summary's file.
+    - `[low]` `[reject]` The floor test's four assertions after `data-snapshot` were never seen to fail — one mutation per AC, not per assertion (Rule 19); the AC's pin is the snapshot assertion.
+    - `[low]` `[reject]` The feature-branch case in `test-ci-changes.sh` repeats the case above it — a control that the explicit ref `refs/heads/OCT-epic0` is not `main`; redundant, not wrong.
+    - `[low]` `[patch]` The `demo-path` rule's group-count line is masked: `-ne 1` to `-gt 1` leaves every bad sample flagged by another line — each bad sample must now draw its own violation text (mutation recorded).
+    - `[low]` `[reject]` `test-demo-path.sh` sets no `LIVE_REBUILD_WEB` — a recorded Rule 22 ruling (Design Notes); CI builds first and the Verification commands run `build` first.
+    - `[low]` `[reject]` The `main` cases of `test-ci-changes.sh` reuse the commit graph of the case above — the file's existing pattern; each case sets its own runs, event and ref.
+    - `[low]` `[reject]` A bash 3.2 `SECONDS` tick inside the stubbed probe could be off by one — 0 mismatches in 3,000 probes on bash 3.2, exact on bash 5 (CI); `reopen_if` an off-by-one second is seen in `test-lib-live.sh`.
+    - `[low]` `[reject]` `test-demo-path.sh` has no test host but the live run — the same as every live unit; its pieces (`lib-live.sh`, the summary, the config) each have one.
+    - `[low]` `[reject]` `StoryId` accepts `4.7e1`, which the summary's regex rejects — the type is the spec's; such a skip fails loudly ("names no story").
+    - `[low]` `[reject]` A test marked `test.fail()` would read as failed while Playwright exits 0 — no spec uses it; the direction is a false red, never a false green.
+  - Intent Alignment Auditor (divergences)
+    - `[low]` `[reject]` Rows 1 to 3 and 10 run end to end only in the live unit, and row 3 was never failed for real — the live unit is the spec's test for them; the `app.ts` mutation fails row 2, and row 3 takes the same floor path.
+    - `[low]` `[reject]` A bare `playwright test` runs both projects — by design: the npm scripts select the project, and every unit runs them.
+    - `[medium]` `[patch]` Row 13's Chromium install is not asserted — fixed with the Blind Hunter's third finding.
+    - `[low]` `[reject]` Row 12's workflow gate is not checked — `ci.yml` is unchanged, and Story 0.7's wiring rule pins its gates to the classifier's outputs.
+    - `[low]` `[reject]` The order of the `browser` group's units is not asserted — the spec's `demo-path` rule lists three checks; the `(once)` group run prints the order.
 
 ## Design Notes
 
@@ -375,7 +442,7 @@ Every command finishes inside one foreground call. Docker, npm and Playwright ca
 **Commands:**
 - `(loop)` `npm --prefix web run lint`. Expected: exit 0.
 - `(loop)` `npm --prefix web test`. Expected: exit 0, with the summary's tests among them.
-- `(loop)` `npm --prefix web run e2e -- --list`. Expected: no line names `demo-path/`.
+- `(loop)` `npm --prefix web run e2e -- --list`. Expected: no line names `demo-path/`. `api.spec.ts` throws at load without the sign-in unit's variables, so the bare command exits 1 and lists nothing (measured, Task 0). Set `OCUTALON_E2E_VERSION`, `OCUTALON_E2E_ZONE`, `OCUTALON_E2E_EPOCH`, `OCUTALON_E2E_MARKER`, `OCUTALON_TRACEONLY_USER`, `OCUTALON_TRACEONLY_PASSWORD`, `OCUTALON_FIRSTCALL_USER` and `OCUTALON_FIRSTCALL_PASSWORD` to any non-empty word, as `demo-path-summary.test.mjs` does: exit 0, `Total: 29 tests in 3 files`, none under `demo-path/`.
 - `(loop)` `npm --prefix web run e2e:demo-path -- --list`. Expected: the 13 tests of the six step specs, and nothing else.
 - `(loop)` One call each, expected exit 0: `bash docker/tests/test-lib-live.sh`, `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-ci-changes.sh`.
 - `(loop)` `bash ci/checks.sh`. Expected: exit 0.
@@ -423,10 +490,87 @@ Every test added or changed passes on a fresh environment, in either order.
   - the threshold in `first_start_report` raised to 900 → `test-lib-live.sh` red at the 721 s case;
   - `engine=` dropped from the line → `test-lib-live.sh` red.
 
+**Task 0 results** (implement stage, October 19 and 20; Playwright 1.64.1; measured unless marked `(inference)`):
+- **Where a skip's text lands.** In both `tests[].annotations` and `tests[].results[].annotations`, as `{type: "skip", description: "Story 2.5 turns this on", location}`.
+  - `test.skip()` with no text gives `description: null`; a declared `test.skip('t', fn)` gives `type: "skip"` and `description: null`; `test.fixme(true, 'because')` gives `type: "fixme"` and the text.
+  - A test that never ran (the global timeout) has `status: "skipped"`, no annotation, and an empty or skipped `results`.
+- **A tag.** `specs[].tags` holds `["floor"]`, without the `@`. The summary strips a leading `@` anyway.
+- **File and nesting.** `suites[].file` is `demo-path/01-page.spec.ts`, relative to the config's `testDir`, with `/`. There is one top-level suite per spec file, and a `describe` block is a nested `suites[]` entry (same `file`) that holds the specs. `specs[].file` is the file of the test's declaration, so a `notBuilt` test has `demo-path/not-built.ts`: the summary maps by the top-level suite's file. A test's `status` is `expected`, `skipped` or `unexpected`; a result's is `passed`, `skipped`, `failed` or `timedOut` (`interrupted` is `(inference)`, handled as a failure).
+- **`errors` and `stats`.**
+  - A spec that failed to load: `errors: [{message: "SyntaxError: <path>/97-broken.spec.ts: Unexpected token (2:6) ...", location}]`, `suites: []`, every `stats` count 0, Playwright exit 1.
+  - The global timeout (`OCUTALON_E2E_TIMEOUT_MS=500`): two `errors` ("Timed out waiting 0.5s for the test suite to run", and the same for the teardown), every test skipped with no annotation, `stats.skipped` 13, exit 1.
+  - `stats` is `{startTime, duration, expected, skipped, unexpected, flaky}`.
+- **The list reporter** prints one line for each skipped test, `-   2 [demo-path] > e2e/demo-path/not-built.ts:12:7 > the chat panel and the composer` (the location of `notBuilt`'s `test()` call, no skip text), then `12 skipped` and `1 passed`. With `OCUTALON_URL=http://127.0.0.1:9`, Chromium refuses the port (`net::ERR_UNSAFE_PORT`), so the floor test failed at `page.goto` and not on a refused connection; the outcome is the same (exit 1, 12 skipped).
+- **The projects.**
+  - `npm --prefix web run e2e -- --list` alone: `Error: OCUTALON_E2E_VERSION must be set by docker/tests/test-sign-in.sh`, `Total: 0 tests in 0 files`, exit 1 (see the Spec Change Log).
+  - With the variables set: exit 0, `Total: 29 tests in 3 files` (api, shell, sign-in), none under `demo-path/`.
+  - `npm --prefix web run e2e:demo-path -- --list`: exit 0, `Total: 13 tests in 2 files` (the floor test in `01-page.spec.ts` and the 12 declared in `not-built.ts`).
+  - `testIgnore: '**/demo-path/**'` settles the glob.
+- **The split start** (the first local `ci/iris.sh live demo-path`, and a scratch throwaway that ran only `dc build` and `dc up -d --no-build`).
+  - After `dc build`, the image `<project>-iris` exists and `live_track_image` tracked it. `live_first_start` checks it on every run.
+  - `dc up -d --no-build` printed only Network, Volume and Container lines, none with "build", and took 0 s.
+  - `docker info --format '{{.Architecture}}'` printed `aarch64`.
+  - The first run printed `FIRST-START engine=aarch64 build=1s ready=53s`, and the whole `live demo-path` call took 60 s. Three more runs the same hour: ready 47, 53 and 47 s, calls of 54 to 60 s. `build` is 0 to 1 s because every layer was cached.
+  - No `LOCK` line was printed in any run: this checkout is the main checkout and has no `.worktrees/.coordination/locks/` folder.
+
+**Mutations demonstrated** (implement stage; after each revert `git status --short`, `git diff --stat` and the checksum of every changed or new file equalled the values before):
+- AC1, sign-in and the snapshot: mutation: `this.snapshotState.set('failed')` in place of `'loaded'` in `web/src/app/app.ts`, then `ci/iris.sh build` → `live demo-path` exit 1, red at the floor test (`Expected "loaded", Received "failed"`): `STEP 1 page: failed, 0 passed, 4 skipped, 1 failed`, `FAIL floor test "signs in with the README account and loads the page snapshot" (01-page.spec.ts) failed`, `FAIL the demo path: Playwright exit 1, the step summary exit 1`. Reverted, `build` again, and a green `live demo-path` after it.
+- AC1, a failure fails the build: mutation: the same `app.ts` change, then `ci/iris.sh build` and `group browser` (review pass) → exit 1: `STEP 1 page: failed`, `UNIT live:demo-path failed 71s`, `UNIT live:sign-in failed 68s`, `UNIT live:bundle-folder passed 66s`, `GROUP browser failed: live:demo-path live:sign-in (205s)`. Reverted (the tree checksum equalled the one before), `build` again, and a green `group browser`: the three units `passed`, `GROUP browser passed (190s)`.
+- AC1, skipped steps:
+  - mutation: `notBuilt`'s skip text `turns this on` without `Story ${story} ` → `demo-path-summary.test.mjs` red (1 of 30 tests: "the real specs, run without their floor test"), and `live demo-path` exit 1 with 12 `FAIL <file> "<title>": its skip names no story` lines (Playwright itself exited 0);
+  - mutation: `verdictOf` returning `passed` for a step with skipped tests and none passed → `demo-path-summary.test.mjs` red (8 of 30 tests, among them "reads steps 2 to 6 as skipped, and no step as passed");
+  - mutation: `test.skip();` as the first line of the floor test → `live demo-path` exit 1: `STEP 1 page: skipped, 0 passed, 5 skipped`, `FAIL floor test ... was skipped` and the no-story line; Playwright exited 0.
+- AC1, every pull request and every push to `main`:
+  - mutation: the push-to-`main` rule removed from `ci/changes.sh` → `test-ci-changes.sh` red at "push to main: with a green base and only bookkeeping changed, no base and everything runs" and "push to main: the reason names main";
+  - mutation: `live:demo-path` moved from `browser` to `CHECK_SCRIPTS` → `test-ci-config.sh` red at `demo-path` ("live:demo-path is in 0 groups", "the browser unit 'demo-path' is not a live unit of a group") and at `recipe` (`live demo-path` exits 2).
+- AC1, the sign-in unit keeps its specs (the listing tests run `npm run e2e` and `npm run e2e:demo-path`, as the unit scripts do):
+  - mutation: `testIgnore` removed from the `chromium` project → `demo-path-summary.test.mjs` red at "lists no demo-path test through the e2e script, which keeps the sign-in and API specs" (1 of 31);
+  - mutation: `--project=chromium` dropped from the `e2e` script in `web/package.json` → the same test red (1 of 31).
+- AC2:
+  - mutation: the threshold in `first_start_report` raised from 720 to 900 → `test-lib-live.sh` red at "first start report: 721 s adds the WARN line..." (as "721 s gave ...") and "live_first_start: a start that is ready after 721 s still succeeds, with the WARN line";
+  - mutation: `engine=` dropped from the `FIRST-START` line → `test-lib-live.sh` red at 5 checks, among them "first start report: one FIRST-START line with the engine, the build and the ready seconds, and no WARN".
+
+**Mutations demonstrated in the review pass** (each applied, observed red, reverted; the checksum of the tree, tracked diff and untracked files, equalled the one before):
+- AC1, every pull request and every push to `main` (Row 13, Chromium before each browser unit): mutation: `cmd_live` installing Chromium for `sign-in` only → `test-ci-config.sh` red at `recipe` ("ci/iris.sh live demo-path does not install Chromium before the unit's script").
+- AC1, every unit has a home: mutation: the group-count test `-ne 1` weakened to `-gt 1` in the `demo-path` rule → `test-ci-config.sh` red at `demo-path` (the sample d-none no longer draws "live:demo-path is in 0 groups, wanted 1").
+- AC1, the floor: mutation: `{ tag: '@floor' }` removed from the floor test → `demo-path-summary.test.mjs` red at "reports the floor test of step 1 with the tag floor, the form that the summary reads" (and the real-specs test, which then runs the floor test without a stack).
+- AC2: mutation: `${engine:-unknown}` replaced by `${engine}` in `live_first_start` → `test-lib-live.sh` red at "an unnamed engine was not printed as unknown"; mutation: the no-container check removed → red at "a start with no container was not reported".
+
+**Implement-stage runs** (all from the repository root; tag `v08a`, owner `epic=0 stage=implement`):
+- `(loop)` in order, each in its own call, exit 0: `npm --prefix web run lint`; `npm --prefix web test` (71 tests, 30 of them in the summary's file); `e2e -- --list` (exit 0 with the dummy variables, 29 tests, none under `demo-path/`); `e2e:demo-path -- --list` (13 tests); `bash docker/tests/test-lib-live.sh`; `bash docker/tests/test-ci-config.sh`; `bash docker/tests/test-ci-changes.sh`; `bash ci/checks.sh`; `ci/iris.sh build`; `ci/iris.sh live demo-path` (exit 0, `FIRST-START engine=aarch64 build=1s ready=53s`, `STEP 1 page: partly skipped, 1 passed, 4 skipped (...)`, steps 2 to 6 `skipped`, the `DEMO-PATH` line); `ci/iris.sh live sign-in` (exit 0, 29 passed); `ci/iris.sh teardown` (no container, volume, network or image of `-v08a-` left).
+- Also: `docker/tests/test-boundaries.sh` and `docker/tests/test-web-build.sh` (exit 0), and `ci/checks.sh` again after the last edit (exit 0).
+- Review pass, after the last patch: the `(loop)` lines again, each in its own call, exit 0 (`npm --prefix web test` 72 tests; `e2e:demo-path -- --list` 13 tests; `ci/checks.sh`; `live demo-path` with `FIRST-START engine=aarch64 build=0s ready=53s`; `live sign-in` 29 passed; `teardown` clean).
+- Review pass, `(once)`, one per call, exit as expected: `group browser` with the `app.ts` mutation (exit 1, above) and without it (exit 0, `GROUP browser passed`); the reverse order, `live sign-in` then `live demo-path` (exit 0 each, `FIRST-START engine=aarch64 build=1s ready=46s`); `GITHUB_REF=refs/heads/main bash docker/tests/test-ci-changes.sh` (exit 0, 46 checks passed); `teardown` after each (nothing of `-v08a-` left).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement and review (October 19 and 20).**
+- **Summary.**
+  - The six step specs, `notBuilt`, the `demo-path` Playwright project, the step summary with its tests, `live:demo-path`, the split first start with its `FIRST-START` line, the `browser` group's new order, the `BROWSER_UNITS` Chromium install, the push-to-`main` rule, the `demo-path` rule of `test-ci-config.sh`, Rule 21's recipe bullet and the notes file are implemented as specified.
+  - Task 0 was measured first (Verification); the report shape, `errors` on a load failure and on the global timeout, and the `--list` of both projects shaped the summary and its tests. No intent gap, no AD conflict, no NFR tripwire.
+  - Five Rule 22 rulings are in the Spec Change Log, two low items in `deferred:`.
+- **Files changed.**
+  - Web: `web/playwright.config.ts` (two projects; `testIgnore` anchored at `e2e/demo-path`), `web/package.json` (`e2e` selects `chromium`; `e2e:demo-path`), `web/e2e/demo-path/` (`not-built.ts` and the `01-page` to `06-trace` specs), `web/scripts/demo-path-summary.mjs` and `web/scripts/demo-path-summary.test.mjs`.
+  - Shell and recipe: `docker/tests/test-demo-path.sh` (new), `docker/tests/lib-live.sh` (`first_start_report`, `live_first_start`), `docker/tests/test-lib-live.sh`, `docker/tests/test-sign-in.sh` (header and PASS text), `docker/tests/test-ci-config.sh`, `docker/tests/test-ci-changes.sh`, `ci/units.sh`, `ci/iris.sh`, `ci/changes.sh`.
+  - Pipeline: `_bmad/custom/skill-rules.md` (Rule 21's CI recipe bullet only), `_bmad-output/implementation-artifacts/epic-0-readme-notes.md` (new).
+- **Review findings (37 from four layers; the triage log has every row).**
+  - Patched, high 0 and medium 3 entries (6 findings; the entries are the Chromium install, the `e2e` script's project, and the unobserved red of "a failure fails the build"):
+    - `test-ci-config.sh` runs `live <unit>` for each browser unit with a stub `docker` and a recording `npx`;
+    - the listing tests in `demo-path-summary.test.mjs` go through `npm run e2e` and `npm run e2e:demo-path`, and check the floor test's tag in the real listing;
+    - the `(once)` run of `group browser` with the `app.ts` mutation was made and recorded.
+  - Patched, low: each bad sample of the `demo-path` rule must draw its own violation; two branches of `live_first_start` are probed; its header, its two messages and the notes file's two claims state what they do; `testIgnore` is anchored at `e2e/demo-path`; Rule 21's timing sums include `demo-path`.
+  - Deferred: none new; the two items from the implement pass stay in `deferred:`.
+  - Rejected, all low, each with its reason in the triage log: the literal spelling of the Playwright rule (the spec defines it), the `06-trace` placeholder text (the spec's own), mutations per clause (Rule 19 asks one per AC), a `LIVE_REBUILD_WEB` (a recorded ruling), the bash 3.2 `SECONDS` tick (0 of 3,000 probes; exact on bash 5), and five others.
+- **Follow-up review recommendation: true.** Three medium entries were patched. The unverified risk: the two new hermetic tests (the stubbed `docker`/`npx` Chromium check in `test-ci-config.sh`, and the `npm` spawn in `demo-path-summary.test.mjs`) were written in this pass and ran green and red here (macOS, bash 3.2, Node 24) but not yet on the hosted Ubuntu `checks` and `web` jobs.
+- **Verification performed.** Every `(loop)` line ran in its own call after the last patch and exited 0; the `(once)` lines ran once after it (Verification, "Implement-stage runs"); every mutation above went red as predicted and was reverted with the tree checksum unchanged. One slip: the reverse-order `live demo-path` and a `teardown` were sent in one message; the teardown reported 0 projects removed, the unit exited 0, and nothing of the tag was left.
+- **Residual risks.**
+  - Everything about the x64 runner stays `(inference)` until a real run prints it: the `FIRST-START engine=x86_64` figure, the `iris (browser)` job's duration, and REL-4's 30 minutes (Design Notes, time budget).
+  - The 720 s `WARN` can print only where the deadline allows it (CI, 1200 s); locally the 540 s deadline ends the wait first (`deferred:`).
+  - The skipped tests' list lines name `not-built.ts`, not their spec file; the `STEP` lines carry the story and the title.
+  - Nothing was pushed.
 
 **Planning summary (October 19).**
 - **Sources.** The plan was made from:

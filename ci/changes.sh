@@ -8,9 +8,10 @@
 #   iris=<true|false> a path outside the pipeline's bookkeeping changed since the base
 #   reason=<text>
 # A skip only repeats a verdict that a green run reached on the same inputs, so a skip never turns a red into a green: on a
-# pull request, with no such commit, and on any API error there is no base, and web and iris are both true.
-# It reads GITHUB_EVENT_NAME, GITHUB_REPOSITORY, GITHUB_API_URL (default https://api.github.com) and GH_TOKEN (the job's
-# read-only token), and uses git, curl and jq only. Test seams: OCUTALON_CI_RUNS_FILE is read in place of the runs API's
+# pull request, on a push to main (REL-2 runs the demo path on every one of them), with no such commit, and on any API error
+# there is no base, and web and iris are both true.
+# It reads GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_REPOSITORY, GITHUB_API_URL (default https://api.github.com) and GH_TOKEN (the
+# job's read-only token), and uses git, curl and jq only. Test seams: OCUTALON_CI_RUNS_FILE is read in place of the runs API's
 # answer, and --paths-from names a file of changed paths in place of `git diff --name-only <base> HEAD`.
 set -u
 
@@ -56,6 +57,9 @@ everything() { emit "" true true "$1: everything runs"; }
 event=${GITHUB_EVENT_NAME:-}
 if [ "$event" != push ]; then
   everything "event '${event:-none}' is not a push"
+fi
+if [ "${GITHUB_REF:-}" = refs/heads/main ]; then
+  everything "push to main"
 fi
 
 # The runs of this workflow that concluded success on a push, newest first.

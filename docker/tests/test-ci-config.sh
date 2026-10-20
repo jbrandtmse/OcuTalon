@@ -20,6 +20,9 @@
 #     classifier's web or iris output, reads only step ids that exist, and sets the run tag, the image and the deadline of the iris job;
 #   - units: every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or one group; every Test/<Area>/
 #     folder of either source tree is in exactly one shard; every class with a Method Test... sits directly in an area folder;
+#   - demo-path (Story 0.8): live:demo-path is a unit of exactly one IRIS group and docker/tests/test-demo-path.sh exists, every name
+#     of BROWSER_UNITS (the live units that need Playwright's Chromium) is a live unit of a group, and every docker/tests/test-*.sh
+#     with a code line, not a comment, that runs the Playwright npm script is in BROWSER_UNITS;
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
@@ -649,6 +652,100 @@ else
   fails=$((fails + 1))
 fi
 
+# --- demo-path: the demo-path unit and the browser units ---
+
+# The command that a live script runs to drive Playwright, assembled here so that this file never matches its own rule.
+e2e_run='npm --prefix web run '
+e2e_run="${e2e_run}e2e"
+
+# demo_path_violations <repository directory>: one line per violation of the demo-path rule in that tree.
+demo_path_violations() {
+  (
+    cd "$1" || exit 1
+    . ./ci/units.sh
+    n=0
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        if [ "$u" = live:demo-path ]; then n=$((n + 1)); fi
+      done
+    done
+    if [ "$n" -ne 1 ]; then echo "ci/units.sh: live:demo-path is in $n groups, wanted 1"; fi
+    [ -f docker/tests/test-demo-path.sh ] || echo "docker/tests/test-demo-path.sh does not exist"
+    if [ -z "${BROWSER_UNITS:-}" ]; then echo "ci/units.sh: BROWSER_UNITS is empty"; fi
+    for b in ${BROWSER_UNITS:-}; do
+      n=0
+      for g in $IRIS_GROUPS; do
+        for u in $(group_units "$g"); do
+          if [ "$u" = "live:$b" ]; then n=$((n + 1)); fi
+        done
+      done
+      if [ "$n" -eq 0 ]; then echo "ci/units.sh: the browser unit '$b' is not a live unit of a group"; fi
+    done
+    for f in docker/tests/test-*.sh; do
+      [ -f "$f" ] || continue
+      name=${f#docker/tests/test-}
+      name=${name%.sh}
+      if grep -v '^[[:space:]]*#' "$f" | grep -qF -- "$e2e_run"; then
+        printf '%s\n' ${BROWSER_UNITS:-} | grep -qx -- "$name" || echo "$f: it runs Playwright, but $name is not in BROWSER_UNITS"
+      fi
+    done
+  )
+}
+
+mkdemo() { # mkdemo <dir> <BROWSER_UNITS> <groups line>: a tree with the good layout; the arguments break it
+  local d=$1
+  mkdir -p "$d/ci" "$d/docker/tests"
+  cat > "$d/ci/units.sh" <<EOU
+IRIS_GROUPS="g1 g2"
+group_units() { case \$1 in g1) echo "${3:-live:demo-path live:x}" ;; g2) echo "live:y" ;; esac; }
+BROWSER_UNITS="$2"
+EOU
+  printf '#!/usr/bin/env bash\n%s:demo-path\n' "$e2e_run" > "$d/docker/tests/test-demo-path.sh"
+  printf '#!/usr/bin/env bash\n  %s\n' "$e2e_run" > "$d/docker/tests/test-x.sh"
+  printf '#!/usr/bin/env bash\n# it does not run %s\n  # nor does this, for %s\n' "$e2e_run" "$e2e_run" > "$d/docker/tests/test-y.sh"
+}
+mkdemo "$tmp/d-good" "demo-path x"
+mkdemo "$tmp/d-two" "demo-path x" "live:demo-path live:x"; sed 's/g2) echo "live:y"/g2) echo "live:y live:demo-path"/' "$tmp/d-two/ci/units.sh" > "$tmp/d-two/ci/units.new"; mv "$tmp/d-two/ci/units.new" "$tmp/d-two/ci/units.sh"
+mkdemo "$tmp/d-none" "demo-path x" "live:x"
+mkdemo "$tmp/d-no-script" "demo-path x"; rm "$tmp/d-no-script/docker/tests/test-demo-path.sh"
+mkdemo "$tmp/d-unknown" "demo-path x zz"
+mkdemo "$tmp/d-unlisted" "demo-path"
+mkdemo "$tmp/d-empty" ""
+mkdemo "$tmp/d-demo-unlisted" "x"
+
+ok=1
+if [ -n "$(demo_path_violations "$tmp/d-good")" ]; then
+  echo "FAIL demo-path: the rule flags the good tree ($(demo_path_violations "$tmp/d-good" | head -n 3 | tr '\n' ';'))"
+  ok=0
+fi
+# Each bad sample must draw its own violation, so that no other violation of the same sample can stand in for it.
+for pair in "d-two|live:demo-path is in 2 groups, wanted 1" "d-none|live:demo-path is in 0 groups, wanted 1" \
+  "d-no-script|docker/tests/test-demo-path.sh does not exist" "d-unknown|the browser unit 'zz' is not a live unit of a group" \
+  "d-unlisted|docker/tests/test-x.sh: it runs Playwright, but x is not in BROWSER_UNITS" "d-empty|BROWSER_UNITS is empty" \
+  "d-demo-unlisted|docker/tests/test-demo-path.sh: it runs Playwright, but demo-path is not in BROWSER_UNITS"; do
+  s=${pair%%|*}
+  want=${pair#*|}
+  got=$(demo_path_violations "$tmp/$s")
+  case $got in
+    *"$want"*) ;;
+    *)
+      echo "FAIL demo-path: the sample $s does not draw '$want' (got: $(printf '%s' "$got" | head -n 3 | tr '\n' ';'))"
+      ok=0
+      ;;
+  esac
+done
+hits=$(demo_path_violations "$root")
+if [ -n "$hits" ]; then
+  printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+  ok=0
+fi
+if [ "$ok" -eq 1 ]; then
+  echo "PASS demo-path: live:demo-path is a unit of exactly one group, every browser unit is a live unit, and every script that runs Playwright is a browser unit"
+else
+  echo "FAIL demo-path: the demo-path unit and the browser units"
+  fails=$((fails + 1))
+fi
+
 # --- the test classes of a shard: a non-abstract class with a Method Test... directly in an area folder ---
 
 # discovered <tree> <area>...: the classes that ci/iris.sh (sourced, which then runs nothing) takes for the test classes of those
@@ -744,6 +841,20 @@ recipe 0 "auto" OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
+# A browser unit installs Chromium before its script runs. A stub docker lets the preflight pass, and a stub npx that records its
+# arguments and fails ends the run before the unit's script starts.
+mkdir -p "$tmp/chromium-bin"
+printf '#!/bin/sh\n[ "$1" = image ] && exit 0\nexit 1\n' > "$tmp/chromium-bin/docker"
+printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$tmp/chromium.args" > "$tmp/chromium-bin/npx"
+chmod +x "$tmp/chromium-bin/docker" "$tmp/chromium-bin/npx"
+for browser_unit in $(. ./ci/units.sh && printf '%s' "$BROWSER_UNITS"); do
+  : > "$tmp/chromium.args"
+  recipe 1 "PORT the web port" PATH="$tmp/chromium-bin:$PATH" OCUTALON_RUN_TAG=abc-1 -- live "$browser_unit"
+  if [ "$(cat "$tmp/chromium.args")" != "--prefix web playwright install chromium" ]; then
+    recipe_fail="$recipe_fail [ci/iris.sh live $browser_unit does not install Chromium before the unit's script]"
+  fi
+done
 if [ -z "$recipe_fail" ]; then
   echo "PASS recipe: bad tags, units and a missing base image are refused, and the web port follows the runner's number"
 else

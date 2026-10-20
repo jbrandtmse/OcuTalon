@@ -29,12 +29,15 @@ group_units() {
   case $1 in
     install) echo "live:install-start live:install-upgrade" ;;
     production) echo "live:production live:production-restart live:audit" ;;
-    browser) echo "live:sign-in live:bundle-folder" ;;
+    browser) echo "live:demo-path live:sign-in live:bundle-folder" ;;
     shards) echo "shard:lane-a shard:lane-b" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start" ;;
     *) return 1 ;;
   esac
 }
+
+# The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
+BROWSER_UNITS="demo-path sign-in"
 
 # The paths whose change makes the web job run (ci/changes.sh): the web sources, the Live payload classes and the generated
 # sign-in assets that the web build reads or writes, the UX design documents, the logo, the CI recipe and the scripts that

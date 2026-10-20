@@ -10,6 +10,9 @@
 #   - live_web_port: the first free port of 52800-52819 on 127.0.0.1, the OCUTALON_TEST_WEB_PORT override, a refusal
 #     of the ports of the judges' stack, the slots and the other instances, and a clear failure when no port is free
 #     (the ports in use are stubbed, nothing listens);
+#   - first_start_report and live_first_start (Story 0.8): the FIRST-START line's format, the WARN line only over 720 s, and the
+#     order of the start with `dc`, `docker` and `wait_started_ready` stubbed: build, then the image check, then `up -d --no-build`,
+#     then the wait; a failed step returns 1 and names its seconds, and starts nothing after it;
 #   - ensure_web_bundle: no Node is needed when the bundle and the dependencies are there, and its absence is named
 #     when they are not;
 #   - live_start (Story 0.7): the project name carries OCUTALON_RUN_TAG, a bad or short tag is refused with exit 2, the
@@ -255,6 +258,136 @@ if [ "$in_range" -eq 0 ] && [ "$LIVE_FORBIDDEN_PORTS" = "52773 1979 52779 8089 1
   pass "web port: none of the ports of the judges' stack, the slots and the other instances is in 52800-52819"
 else
   fail "web port: the forbidden ports are wrong, or one is in the range"
+fi
+
+# --- first_start_report and live_first_start (Story 0.8) ---
+
+out=$(first_start_report 12 57 aarch64)
+if [ "$out" = "FIRST-START engine=aarch64 build=12s ready=57s" ]; then
+  pass "first start report: one FIRST-START line with the engine, the build and the ready seconds, and no WARN"
+else
+  fail "first start report: the line is '$out'"
+fi
+out=$(first_start_report 30 720 x86_64)
+if [ "$out" = "FIRST-START engine=x86_64 build=30s ready=720s" ]; then
+  pass "first start report: 720 s is not over 12 minutes, so no WARN"
+else
+  fail "first start report: 720 s gave '$out'"
+fi
+out=$(first_start_report 30 721 x86_64)
+if [ "$out" = "FIRST-START engine=x86_64 build=30s ready=721s
+WARN first start 721 s is over 12 minutes: raise it to the author (AD-23)" ]; then
+  pass "first start report: 721 s adds the WARN line after the FIRST-START line"
+else
+  fail "first start report: 721 s gave '$out'"
+fi
+
+# first_start_probe <failing dc subcommand, or ->: live_first_start with stubs. `dc` and `docker` record their calls in
+# $tmp/first-calls; the stubs set SECONDS, so that the build ends at 30 s and the start (the `up` and the wait together) takes the
+# seconds in $FIRST_READY, or the wait fails after 100 s when FIRST_READY is "never". The probe prints the calls, the output, the
+# exit code, cid and the two figures.
+first_calls="$tmp/first-calls"
+first_start_probe() {
+  (
+    FAILING=$1
+    P=ocutalon-t08x-1-1
+    cid=""
+    first_build_s=""
+    first_ready_s=""
+    : > "$first_calls"
+    dc() {
+      echo "dc $*" >> "$first_calls"
+      [ "$FAILING" != "$1" ] || return 1
+      case $1 in
+        build) SECONDS=30 ;;
+        up) SECONDS=32 ;;
+        ps) echo cid-of-the-first-start ;;
+      esac
+    }
+    docker() {
+      case $1 in
+        info)
+          echo engine-query >> "$first_calls"
+          [ "$FAILING" != info ] || return 1
+          echo x86_64
+          ;;
+        image)
+          echo image-check >> "$first_calls"
+          [ "$FAILING" != image ]
+          ;;
+      esac
+    }
+    live_track_image() { echo track >> "$first_calls"; }
+    wait_started_ready() {
+      echo "wait $1" >> "$first_calls"
+      if [ "$FIRST_READY" = never ]; then
+        SECONDS=130
+        return 1
+      fi
+      SECONDS=$((30 + FIRST_READY))
+    }
+    SECONDS=0
+    live_first_start 900
+    echo "RC=$?"
+    echo "CID=$cid BUILD=$first_build_s READY=$first_ready_s"
+  ) 2>&1
+}
+calls_of() { tr '\n' '|' < "$first_calls"; }
+
+FIRST_READY=200 out=$(first_start_probe -)
+if printf '%s\n' "$out" | grep -qx 'FIRST-START engine=x86_64 build=30s ready=200s' && printf '%s\n' "$out" | grep -qx 'RC=0' \
+  && printf '%s\n' "$out" | grep -qx 'CID=cid-of-the-first-start BUILD=30 READY=200' && ! printf '%s\n' "$out" | grep -q '^WARN' \
+  && [ "$(calls_of)" = "dc build|track|image-check|dc up -d --no-build|dc ps -q iris|wait 900|engine-query|" ]; then
+  pass "live_first_start: it builds, then checks the image, then starts without building, then waits, and prints the figures from the start's own seconds"
+else
+  fail "live_first_start: wrong order or figures ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=721 out=$(first_start_probe -)
+if printf '%s\n' "$out" | grep -qx 'FIRST-START engine=x86_64 build=30s ready=721s' \
+  && printf '%s\n' "$out" | grep -qx 'WARN first start 721 s is over 12 minutes: raise it to the author (AD-23)' && printf '%s\n' "$out" | grep -qx 'RC=0'; then
+  pass "live_first_start: a start that is ready after 721 s still succeeds, with the WARN line"
+else
+  fail "live_first_start: a slow start did not warn and succeed ($(printf '%s' "$out" | tr '\n' '|'))"
+fi
+FIRST_READY=never out=$(first_start_probe -)
+if printf '%s\n' "$out" | grep -qx 'RC=1' && printf '%s\n' "$out" | grep -q 'not ready after waiting 100 s' && ! printf '%s\n' "$out" | grep -q '^FIRST-START' \
+  && [ "$(calls_of)" = "dc build|track|image-check|dc up -d --no-build|dc ps -q iris|wait 900|" ]; then
+  pass "live_first_start: a start that never ends ready returns 1, names the seconds it waited and prints no figure"
+else
+  fail "live_first_start: a failed wait was not reported ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=200 out=$(first_start_probe build)
+if printf '%s\n' "$out" | grep -qx 'RC=1' && printf '%s\n' "$out" | grep -q 'the image build failed after' && [ "$(calls_of)" = "dc build|" ]; then
+  pass "live_first_start: a failed build returns 1 and starts nothing"
+else
+  fail "live_first_start: a failed build was not reported ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=200 out=$(first_start_probe image)
+if printf '%s\n' "$out" | grep -qx 'RC=1' && printf '%s\n' "$out" | grep -q 'the build left no image ocutalon-t08x-1-1-iris' \
+  && [ "$(calls_of)" = "dc build|track|image-check|" ]; then
+  pass "live_first_start: a build that leaves no image returns 1, because starting it would build again"
+else
+  fail "live_first_start: a build without an image was not reported ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=200 out=$(first_start_probe up)
+if printf '%s\n' "$out" | grep -qx 'RC=1' && printf '%s\n' "$out" | grep -q 'docker compose up failed after' \
+  && [ "$(calls_of)" = "dc build|track|image-check|dc up -d --no-build|" ]; then
+  pass "live_first_start: a failed start returns 1 and does not wait"
+else
+  fail "live_first_start: a failed start was not reported ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=200 out=$(first_start_probe ps)
+if printf '%s\n' "$out" | grep -qx 'RC=1' && printf '%s\n' "$out" | grep -q 'no iris container in project ocutalon-t08x-1-1 after' \
+  && [ "$(calls_of)" = "dc build|track|image-check|dc up -d --no-build|dc ps -q iris|" ]; then
+  pass "live_first_start: a start with no iris container returns 1 and does not wait"
+else
+  fail "live_first_start: a start with no container was not reported ($(printf '%s' "$out" | tr '\n' '|'); calls $(calls_of))"
+fi
+FIRST_READY=200 out=$(first_start_probe info)
+if printf '%s\n' "$out" | grep -qx 'FIRST-START engine=unknown build=30s ready=200s' && printf '%s\n' "$out" | grep -qx 'RC=0'; then
+  pass "live_first_start: an engine that docker info cannot name is printed as unknown, and the start still succeeds"
+else
+  fail "live_first_start: an unnamed engine was not printed as unknown ($(printf '%s' "$out" | tr '\n' '|'))"
 fi
 
 # --- ensure_web_bundle ---
