@@ -12,10 +12,12 @@
 //   {"name": "<kebab-case, the file's name>", "match": {"marker"|"prompt"|"mockkey": "<value>"}, "replies": [<reply>, ...]}
 //   reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "stopReason": "<API value>",
 //           and exactly one of "text": "<string>", "toolUse": {"name", "input"} or a list of them, "body": {...}}
+//   headers: valid HTTP names and string values, never Content-Length or Transfer-Encoding, which the mock sets itself.
 // A marker scenario's marker is its name. The match type telegram is reserved for Story 10.3 and refused.
 // This module reads files and holds no state.
 
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 
 export const FOLDERS = ['A', 'B'];
@@ -24,21 +26,21 @@ export const SCENARIO_FIELDS = ['name', 'match', 'replies'];
 export const REPLY_FIELDS = ['status', 'headers', 'delayMs', 'stopReason', 'text', 'toolUse', 'body'];
 export const REPLY_BODY_FIELDS = ['text', 'toolUse', 'body'];
 export const STOP_REASONS = ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal'];
-export const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The grammar of a scenario name and of a marker's test key, as regular expression source; every pattern below is built
+// from these two.
+const NAME_SOURCE = '[a-z0-9]+(?:-[a-z0-9]+)*';
+const KEY_SOURCE = '[A-Za-z0-9_-]{1,64}';
+export const NAME_PATTERN = new RegExp(`^${NAME_SOURCE}$`);
 export const NAME_MAX = 64;
-export const KEY_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const KEY_PATTERN = new RegExp(`^${KEY_SOURCE}$`);
 export const MARKER_OPEN = '[[mock:';
 export const MIN_STATUS = 100;
 export const MAX_STATUS = 599;
 export const MAX_DELAY_MS = 600000;
+export const FRAMING_HEADERS = ['content-length', 'transfer-encoding'];
 
-const MARKER_BODY = /^([a-z0-9]+(?:-[a-z0-9]+)*)(?::([A-Za-z0-9_-]{1,64}))?\]\]/;
-const LABEL = /^([a-z0-9]+(?:-[a-z0-9]+)*)(?::([A-Za-z0-9_-]{1,64}))?$/;
-
-// The marker text [[mock:<name>]] or [[mock:<name>:<key>]], as the grammar writes it.
-export function markerText(label) {
-  return `${MARKER_OPEN}${label}]]`;
-}
+const MARKER_BODY = new RegExp(`^(${NAME_SOURCE})(?::(${KEY_SOURCE}))?\\]\\]`);
+const LABEL = new RegExp(`^(${NAME_SOURCE})(?::(${KEY_SOURCE}))?$`);
 
 // parseLabel('<name>[:<key>]'): {name, key, label}, or null when the text is not a marker without its brackets.
 export function parseLabel(text) {
@@ -72,7 +74,8 @@ export function isSummaryVariant(name) {
   return typeof name === 'string' && name.startsWith('summary-');
 }
 
-function isObject(v) {
+// isObject(v): true for a plain JSON object, false for null, a list or any other value.
+export function isObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
@@ -114,6 +117,17 @@ function checkReply(reply, where, bad) {
   if (reply.headers !== undefined) {
     if (!isObject(reply.headers) || !Object.values(reply.headers).every((v) => typeof v === 'string')) {
       bad(`${where}: headers must be an object of strings`);
+    } else {
+      for (const [name, value] of Object.entries(reply.headers)) {
+        try {
+          http.validateHeaderName(name);
+          http.validateHeaderValue(name, value);
+        } catch {
+          bad(`${where}: the header ${JSON.stringify(name)} is not a valid HTTP header name and value`);
+          continue;
+        }
+        if (FRAMING_HEADERS.includes(name.toLowerCase())) bad(`${where}: the header ${name} is set by the mock, never by a scenario`);
+      }
     }
   }
   if (reply.delayMs !== undefined && (!Number.isInteger(reply.delayMs) || reply.delayMs < 0 || reply.delayMs > MAX_DELAY_MS)) {

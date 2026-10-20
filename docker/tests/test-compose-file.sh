@@ -207,8 +207,9 @@ check "dev: config parses together with the judges' file (--quiet)" docker compo
 ci=ci/compose.ci.yml
 
 # The override is exactly the model mock's wiring (Story 0.11): the project name; the iris service with OCUTALON_EVAL passed
-# through from the environment (default 0), OCUTALON_MODEL_BASE_URL and the read-only log volume; the mock service from the
-# public node image pinned by digest, with ci/mock mounted read-only; and the named volume mock-log. Nothing else.
+# through from the environment (default 0), OCUTALON_MODEL_BASE_URL, the CI-only switch OCUTALON_MOCK_KEY_HEADER (owner
+# decision 5) and the read-only log volume; the mock service from the public node image pinned by digest, with ci/mock mounted
+# read-only; and the named volume mock-log. Nothing else.
 ci_file_is_exact() {
   [ "$(code "$ci")" = 'name: ocutalon-ci
 services:
@@ -216,6 +217,7 @@ services:
     environment:
       OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
       OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
+      OCUTALON_MOCK_KEY_HEADER: "1"
     volumes:
       - mock-log:/opt/ocutalon/mock-log:ro
   mock:
@@ -274,7 +276,23 @@ ci_command_only_in_mock() {
     && [ "$(ci_block mock | grep -cE '^[[:space:]]*command:')" -eq 1 ]
 }
 
-check "ci: the file is exactly the mock's wiring (project name, iris variable and log volume, mock service, log volume)" ci_file_is_exact
+# The CI-only switch of owner decision 5: the iris block sets OCUTALON_MOCK_KEY_HEADER to "1", once, and nothing else in the
+# file mentions it.
+ci_sets_mock_key_header_for_iris() {
+  [ "$(code "$ci" | grep -c 'OCUTALON_MOCK_KEY_HEADER')" -eq 1 ] \
+    && [ "$(ci_block iris | grep -cx '      OCUTALON_MOCK_KEY_HEADER: "1"')" -eq 1 ]
+}
+
+# Only ci/compose.ci.yml sets the switch (owner decision 5): the file must exist and must not name it, so no surface that ships
+# or that a developer starts without the CI override carries the mock-key header (the online demo never does).
+mock_key_header_absent() { [ -f "$1" ] && ! grep -q 'OCUTALON_MOCK_KEY_HEADER' "$1"; }
+
+check "ci: the file is exactly the mock's wiring (project name, iris variables and log volume, mock service, log volume)" ci_file_is_exact
+check "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER to \"1\", once, and no other line names it" ci_sets_mock_key_header_for_iris
+for f in "$compose" "$dev" "$dockerfile" .env.example docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
+  docker/tests/compose.throwaway.yml docker/tests/lib-live.sh; do
+  check "judges: $f does not name OCUTALON_MOCK_KEY_HEADER (only ci/compose.ci.yml sets it)" mock_key_header_absent "$f"
+done
 check "ci: top-level name ocutalon-ci" has_line "$ci" '^name:[[:space:]]*ocutalon-ci[[:space:]]*$'
 check "ci: the services are iris, and mock if there is one" ci_services_are_known
 check "ci: no ports, env_file, container_name, build, privileged, network_mode or extra_hosts" ci_adds_no_port_or_publishing_key
@@ -284,6 +302,8 @@ check "ci: command appears only in the mock block" ci_command_only_in_mock
 check "ci: config parses together with the judges' file (--quiet)" docker compose -f "$compose" -f "$ci" config --quiet
 check "ci: config parses together with the judges' file and the throwaway override (--quiet)" \
   docker compose -f "$compose" -f docker/tests/compose.throwaway.yml -f "$ci" config --quiet
+check "ci: config parses together with the judges' file and docker-compose.dev.yml (--quiet)" \
+  docker compose -f "$compose" -f "$dev" -f "$ci" config --quiet
 
 # --- .env.example ---
 

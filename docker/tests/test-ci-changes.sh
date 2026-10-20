@@ -109,6 +109,7 @@ paths_case "the mock's test script runs web and iris" true true docker/tests/tes
 paths_case "an agent class runs web and iris (the mock's tests read its MOCKKEY)" true true src/ocutalon/cls/OcuTalon/Agent/Chat.cls
 paths_case "the tool names run web and iris (the mock's tests read them)" true true src/ocutalon/cls/OcuTalon/Tools/Names.cls
 paths_case "the compaction prompt runs web and iris (the mock's tests read its PREFIX)" true true src/bridge/cls/OcuTalon/Bridge/Compaction.cls
+paths_case "a bridge example class runs web and iris (the mock's tests read its MOCKKEY)" true true src/bridge/cls/OcuTalon/BridgeExample/Agent/Echo.cls
 paths_case "another tools class runs iris only" false true src/ocutalon/cls/OcuTalon/Tools/Result.cls
 paths_case "the workflow runs web and iris" true true .github/workflows/ci.yml
 paths_case "the root .gitignore runs web and iris (the web build's clean checkout depends on it)" true true .gitignore

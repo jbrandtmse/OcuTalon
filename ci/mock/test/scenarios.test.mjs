@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { findMarkers, loadScenarios, MATCH_TYPES, NAME_PATTERN, parseLabel, REPLY_FIELDS, STOP_REASONS } from '../scenarios.mjs';
+import { findMarkers, KEY_PATTERN, loadScenarios, MATCH_TYPES, NAME_PATTERN, parseLabel, REPLY_FIELDS, STOP_REASONS } from '../scenarios.mjs';
 import { spawnServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +79,10 @@ const DEFECTS = [
   ['a text that is not a string', { 'A/good.json': { ...GOOD, replies: [reply({ text: 5 })] } }, ['A/good.json', 'text is not a string']],
   ['a body that is not an object or a list', { 'A/good.json': { ...GOOD, replies: [reply({ body: 'x' })] } }, ['A/good.json', 'body is not a JSON object or list']],
   ['headers that are not strings', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { a: 1 } })] } }, ['A/good.json', 'headers must be an object of strings']],
+  ['a header name that is not an HTTP token', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', delayMs: 5, headers: { 'Retry After': '1' } })] } }, ['A/good.json', 'is not a valid HTTP header name and value']],
+  ['a header value with a line break', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { 'Retry-After': '1\r\nX-Other: 2' } })] } }, ['A/good.json', 'is not a valid HTTP header name and value']],
+  ['a Content-Length header', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { 'Content-Length': '5' } })] } }, ['A/good.json', 'is set by the mock, never by a scenario']],
+  ['a Transfer-Encoding header', { 'A/good.json': { ...GOOD, replies: [reply({ text: 'x', headers: { 'transfer-encoding': 'chunked' } })] } }, ['A/good.json', 'is set by the mock, never by a scenario']],
   ['an empty toolUse list', { 'A/good.json': { ...GOOD, replies: [reply({ toolUse: [] })] } }, ['A/good.json', 'toolUse is an empty list']],
   ['a toolUse input that is not an object', { 'A/good.json': { ...GOOD, replies: [reply({ toolUse: { name: 'a', input: 5 } })] } }, ['A/good.json', 'a toolUse input is not an object']],
   ['a toolUse with an unknown field', { 'A/good.json': { ...GOOD, replies: [reply({ toolUse: { name: 'a', arguments: {} } })] } }, ['A/good.json', 'a toolUse has the unknown field "arguments"']],
@@ -91,6 +95,13 @@ const DEFECTS = [
   ['a file next to the folders', { 'good.json': GOOD }, ['good.json', 'only the folders A and B']],
   ['a folder inside A', { 'A/sub': null }, ['A/sub', 'a folder inside A/']],
   ['a file that is not JSON', { 'A/good.json': '{ not json' }, ['A/good.json', 'not valid JSON']],
+  ['a name of 65 characters', { [`A/${'a'.repeat(65)}.json`]: { ...GOOD, name: 'a'.repeat(65), match: { marker: 'a'.repeat(65) } } }, [`A/${'a'.repeat(65)}.json`, 'kebab-case']],
+  ['no name', { 'A/good.json': { match: GOOD.match, replies: GOOD.replies } }, ['A/good.json', 'kebab-case']],
+  ['no match', { 'A/good.json': { name: 'good', replies: GOOD.replies } }, ['A/good.json', 'exactly one key']],
+  ['no replies', { 'A/good.json': { name: 'good', match: GOOD.match } }, ['A/good.json', 'replies must be a non-empty list']],
+  ['replies that are not a list', { 'A/good.json': { ...GOOD, replies: { status: 200, text: 'x' } } }, ['A/good.json', 'replies must be a non-empty list']],
+  ['the reserved telegram match under B', { 'B/getupdates.json': { name: 'getupdates', match: { telegram: 'getUpdates' }, replies: [{ status: 200, body: { ok: true } }] } }, ['B/getupdates.json', 'reserved for Story 10.3']],
+  ['a prompt scenario with an empty prompt', { 'B/guide.json': { name: 'guide', match: { prompt: '' }, replies: [reply({ text: 'x' })] } }, ['B/guide.json', 'match prompt is not a non-empty string']],
 ];
 
 // The scenarios of Story 0.11: the three default scripts and the marker scenarios of Stories 1.6 to 1.9. Lane A and Lane B add
@@ -129,7 +140,33 @@ test('row 15: valid files, dotfiles and the two folders load; every problem is l
     assert.equal(problems.length >= 3, true, JSON.stringify(problems));
     for (const file of ['A/one.json', 'A/three.json', 'C']) assert.ok(problems.some((p) => p.includes(file)), file);
   });
-  assert.equal(loadScenarios(path.join(os.tmpdir(), 'ocu-mock-no-such-folder')).problems.length, 1);
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-gone-'));
+  try {
+    assert.equal(loadScenarios(path.join(parent, 'no-such-folder')).problems.length, 1);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('row 15: the limits of the format are inclusive, and every API stop reason is accepted', () => {
+  const limit = (name, reply0) => [`A/${name}.json`, { name, match: { marker: name }, replies: [reply0] }];
+  const longName = 'a'.repeat(64);
+  const files = Object.fromEntries([
+    limit('status-low', { status: 100, text: 'x' }),
+    limit('status-high', { status: 599, text: 'x' }),
+    limit('delay-none', reply({ text: 'x', delayMs: 0 })),
+    limit('delay-max', reply({ text: 'x', delayMs: 600000 })),
+    limit(longName, reply({ text: 'x' })),
+    limit('empty-text', reply({ text: '' })),
+    limit('body-list', reply({ body: [1, 2] })),
+    limit('tool-list', reply({ toolUse: [{ name: 'a' }, { name: 'b', input: { all: true } }] })),
+    ...STOP_REASONS.map((r, i) => limit(`stop-${i}`, reply({ text: 'x', stopReason: r }))),
+  ]);
+  withTree(files, (dir) => {
+    const { scenarios, problems } = loadScenarios(dir);
+    assert.deepEqual(problems, []);
+    assert.equal(scenarios.all.length, Object.keys(files).length);
+  });
 });
 
 test('row 15: the server lists every problem on stderr and exits 1, and serves nothing', async () => {
@@ -173,6 +210,8 @@ test('row 15: the format constants and the marker grammar', () => {
   assert.deepEqual(STOP_REASONS, ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal']);
   for (const ok of ['a', 'refusal', 'long-retry-after', 'a1-b2']) assert.ok(NAME_PATTERN.test(ok), ok);
   for (const bad of ['', 'Refusal', 'a_b', '-a', 'a-', 'a--b', 'a b']) assert.equal(NAME_PATTERN.test(bad), false, bad);
+  for (const ok of ['t-1', 'A_z-9', 'k'.repeat(64)]) assert.ok(KEY_PATTERN.test(ok), ok);
+  for (const bad of ['', 'a b', 'a:b', 'k'.repeat(65)]) assert.equal(KEY_PATTERN.test(bad), false, bad);
   assert.deepEqual(findMarkers('x [[mock:refusal]] y'), [{ ok: true, name: 'refusal', key: null, label: 'refusal' }]);
   assert.deepEqual(findMarkers('[[mock:rate-limited:t-3_A]]'), [{ ok: true, name: 'rate-limited', key: 't-3_A', label: 'rate-limited:t-3_A' }]);
   assert.equal(findMarkers('[[mock:Refusal]]')[0].ok, false);

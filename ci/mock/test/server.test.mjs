@@ -12,7 +12,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { createMock } from '../mock.mjs';
+import { createMock, redact } from '../mock.mjs';
 import { loadScenarios } from '../scenarios.mjs';
 import { spawnServer } from './helpers.mjs';
 
@@ -28,6 +28,19 @@ const user = (content) => ({ role: 'user', content });
 const assistant = (content) => ({ role: 'assistant', content });
 const request = (messages, extra = {}) => ({ model: MODEL, max_tokens: 8000, messages, ...extra });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// waitUntil(predicate, what, ms): resolves once predicate() holds, polling every 5 ms; rejects naming what after ms.
+async function waitUntil(predicate, what, ms = 2000) {
+  const until = Date.now() + ms;
+  while (!predicate()) {
+    if (Date.now() > until) throw new Error(`${what}: not seen within ${ms} ms`);
+    await sleep(5);
+  }
+}
+
+// AD-5: the bridge timer stays at or under 110 seconds. AD-8: the retry block's back-off cap is 2000 ms.
+const BRIDGE_TIMER_MAX_MS = 110000;
+const BACKOFF_CAP_MS = 2000;
 
 const SLOW = { name: 'slow-fixture', match: { marker: 'slow-fixture' }, replies: [{ status: 200, delayMs: 300, text: 'Slow answer.' }] };
 const GUIDE_ONE = { name: 'guide-one', match: { prompt: 'Guide prompt one: summarize the open incidents.' }, replies: [{ status: 200, text: 'Guide one answer.' }] };
@@ -68,21 +81,24 @@ async function withServer(opts, fn) {
   const tree = makeTree(opts.files, opts.omit);
   const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-log-'));
   const logFile = path.join(logDir, 'requests.jsonl');
-  const { scenarios, problems } = loadScenarios(tree);
-  assert.deepEqual(problems, []);
-  const lines = [];
-  const mock = createMock({ scenarios, logDir, out: { write: (s) => lines.push(s) } });
-  const server = http.createServer((req, res) => {
-    mock.handle(req, res);
-  });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const readLog = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+  let server = null;
   try {
+    const { scenarios, problems } = loadScenarios(tree);
+    assert.deepEqual(problems, []);
+    const lines = [];
+    const mock = createMock({ scenarios, logDir, out: { write: (s) => lines.push(s) } });
+    server = http.createServer((req, res) => {
+      mock.handle(req, res);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const readLog = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
     await fn({ base, mock, lines, logFile, readLog });
   } finally {
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    if (server !== null) {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
     fs.rmSync(tree, { recursive: true, force: true });
     fs.rmSync(logDir, { recursive: true, force: true });
   }
@@ -116,6 +132,27 @@ async function getJson(url, headers = {}) {
 async function arm(base, marker, remaining) {
   const res = await fetch(`${base}/_mock/countdown`, { method: 'POST', body: JSON.stringify({ marker, remaining }) });
   return { status: res.status, json: await res.json() };
+}
+
+// fakeCall(body): a request and a response that record their writes, for a test that drives handle() under its own timers.
+function fakeCall(body) {
+  const req = Readable.from([JSON.stringify(body)]);
+  Object.assign(req, { method: 'POST', url: '/v1/messages', headers: { 'x-api-key': KEY } });
+  const res = Object.assign(new EventEmitter(), {
+    destroyed: false,
+    writableEnded: false,
+    calls: [],
+    payload: null,
+    writeHead() {
+      this.calls.push('writeHead');
+    },
+    end(text) {
+      this.payload = text;
+      this.calls.push('end');
+      this.writableEnded = true;
+    },
+  });
+  return { req, res };
 }
 
 test('row 1: the model lookup returns the model object for any id', async () => {
@@ -485,10 +522,10 @@ test('row 11: an armed countdown answers the first reply while it counts, then t
 });
 
 test('row 12: a reply with delayMs waits on a timer while other requests are answered; a hung-up client gets no write', async () => {
-  await withServer({ files: { 'A/slow-fixture.json': SLOW } }, async ({ base }) => {
+  await withServer({ files: { 'A/slow-fixture.json': SLOW } }, async ({ base, lines }) => {
     const started = Date.now();
     const slow = post(base, request([user('[[mock:slow-fixture]]')])).then((r) => ({ r, at: Date.now() }));
-    await sleep(30);
+    await waitUntil(() => lines.some((l) => JSON.parse(l).scenario === 'slow-fixture'), 'the log line of the held request');
     const fast = await post(base, request([user('[[mock:refusal]]')]));
     const fastAt = Date.now();
     assert.equal(fast.status, 200);
@@ -504,20 +541,7 @@ test('row 12: a reply with delayMs waits on a timer while other requests are ans
     for (const hangUp of [true, false]) {
       const lines = [];
       const mock = createMock({ scenarios, logDir: null, out: { write: (s) => lines.push(s) } });
-      const req = Readable.from([JSON.stringify(request([user('[[mock:slow-fixture]]')]))]);
-      Object.assign(req, { method: 'POST', url: '/v1/messages', headers: { 'x-api-key': KEY } });
-      const res = Object.assign(new EventEmitter(), {
-        destroyed: false,
-        writableEnded: false,
-        calls: [],
-        writeHead() {
-          this.calls.push('writeHead');
-        },
-        end() {
-          this.calls.push('end');
-          this.writableEnded = true;
-        },
-      });
+      const { req, res } = fakeCall(request([user('[[mock:slow-fixture]]')]));
       await mock.handle(req, res);
       assert.equal(lines.length, 1, 'the log line is written before the delay');
       if (hangUp) {
@@ -609,9 +633,12 @@ test('row 14: one stdout line and one file line per request, written before the 
     assert.equal((await fetch(`${base}/_mock/health`)).status, 200);
     assert.equal(readLog().length, 2, '/_mock/ requests are not logged');
 
-    const pending = post(base, request([user('[[mock:slow-fixture]]')]));
-    await sleep(100);
-    assert.equal(readLog().length, 3, 'the file line is there while the reply waits');
+    let answered = false;
+    const pending = post(base, request([user('[[mock:slow-fixture]]')])).then(() => {
+      answered = true;
+    });
+    await waitUntil(() => readLog().length === 3, 'the file line of the held request, within its 300 ms hold', 250);
+    assert.equal(answered, false, 'the file line is there while the reply waits');
     assert.equal(lines.length, 3, 'and so is the stdout line');
     assert.equal(readLog()[2].scenario, 'slow-fixture');
     await pending;
@@ -701,4 +728,261 @@ test('row 18: SIGTERM ends server.mjs with status 0 within a second, with a repl
     s.child.kill('SIGKILL');
     fs.rmSync(tree, { recursive: true, force: true });
   }
+});
+
+test('rows 2 to 5: the checks run in the stated order, and a rejected request runs no scenario, spends no countdown and is logged with the marker it carries', async () => {
+  await withServer({}, async ({ base, readLog }) => {
+    const mockkey = { 'x-ocutalon-mockkey': 'triage' };
+    const label = 'rate-limited:t-order';
+    const marked = user(`go [[mock:${label}]]`);
+    await arm(base, label, 2);
+    const rejected = async (body, key = KEY) => {
+      const r = await post(base, body, mockkey, key);
+      return { r, line: readLog().pop() };
+    };
+    for (const body of ['{not json', request([marked], { stream: true, temperature: 0.5, max_tokens: 10 })]) {
+      const { r, line } = await rejected(body, null);
+      assert.equal(r.status, 401, 'the key is checked before the body');
+      assert.equal(line.rejected, 'no-key');
+      assert.equal(line.marker, typeof body === 'string' ? null : label, 'a refused request is logged with the marker it carries');
+    }
+    const steps = [
+      ['not-json', '{not json', null],
+      ['stream', request([marked], { stream: true, messages: [], temperature: 0.5, max_tokens: 10 }), null],
+      ['messages', request([], { temperature: 0.5, max_tokens: 10 }), null],
+      ['sampling', request([marked], { temperature: 0.5, max_tokens: 10 }), label],
+      ['max_tokens', request([marked], { max_tokens: 10 }), label],
+    ];
+    for (const [reason, body, carried] of steps) {
+      const { r, line } = await rejected(body);
+      assert.equal(r.status, 400, reason);
+      assert.equal(line.rejected, reason, `a body that breaks this rule and every later one is rejected for ${reason}`);
+      assert.equal(line.scenario, null, reason);
+      assert.equal(line.countdown, null, reason);
+      assert.equal(line.marker, carried, `${reason}: the marker the request carries`);
+    }
+    const unknown = await post(base, request([user('go [[mock:no-such-scenario:t-order]]')]), mockkey);
+    assert.equal(unknown.status, 500);
+    assert.equal(readLog().pop().marker, 'no-such-scenario:t-order', 'a marker that names no scenario is logged too');
+    const remaining = async () => (await getJson(`${base}/_mock/countdown?marker=${label}`)).json;
+    assert.deepEqual(await remaining(), { marker: label, remaining: 2 }, 'no rejection spent the countdown');
+    assert.equal((await post(base, request([marked]))).status, 429);
+    assert.deepEqual(await remaining(), { marker: label, remaining: 1 });
+  });
+});
+
+test('rows 3 and 4: a summarizer request is held to the same rules, and needs no mock key', async () => {
+  await withServer({}, async ({ base, readLog }) => {
+    const system = 'OCUTALON-COMPACTION-V1 compress the transcript';
+    const ask = (extra) => post(base, request([user('Transcript of the earlier turns.')], { system, ...extra }));
+    const sampled = await ask({ temperature: 0 });
+    assert.equal(sampled.status, 400);
+    assert.ok(sampled.json.error.message.includes('temperature') && sampled.json.error.message.includes('NFR-1'));
+    assert.equal(readLog().pop().rejected, 'sampling');
+    const low = await ask({ max_tokens: 3999 });
+    assert.equal(low.status, 400);
+    assert.ok(low.json.error.message.includes('NFR-2'));
+    assert.equal(readLog().pop().rejected, 'max_tokens');
+    for (const cap of [4000, 8192]) {
+      const r = await ask({ max_tokens: cap });
+      assert.equal(r.status, 200, String(cap));
+      const line = readLog().pop();
+      assert.equal(line.scenario, 'summary', String(cap));
+      assert.equal(line.selectedBy, 'summarizer', String(cap));
+      assert.equal(line.maxTokens, cap);
+    }
+  });
+});
+
+test('row 6: the first marker wins whatever its key; summary-* markers are skipped for the next marker, a guide prompt or the mock key; a first marker that fails ends the selection', async () => {
+  await withServer({ files: { 'B/guide-one.json': GUIDE_ONE } }, async ({ base, readLog }) => {
+    const triage = { 'x-ocutalon-mockkey': 'triage' };
+    const last = () => readLog().pop();
+
+    const keyed = await post(base, request([user('[[mock:refusal:t-1]] and [[mock:empty:t-2]] and [[mock:provider-error]]')]));
+    assert.equal(keyed.json.stop_reason, 'refusal');
+    assert.equal(last().marker, 'refusal:t-1');
+
+    const skipped = await post(base, request([user('[[mock:summary-off-schema:t-3]] then [[mock:refusal]]')]), triage);
+    assert.equal(skipped.json.stop_reason, 'refusal', 'a summary-* marker does not end the search');
+    assert.equal(last().marker, 'refusal');
+    assert.equal(last().selectedBy, 'marker');
+
+    await post(base, request([user(`[[mock:summary-off-schema]] ${GUIDE_ONE.match.prompt}`)]), triage);
+    assert.equal(last().scenario, 'guide-one');
+    assert.equal(last().selectedBy, 'prompt');
+
+    const unnamed = await post(base, request([user('[[mock:summary-off-schema]] [[mock:summary-no-such]]')]), triage);
+    assert.equal(unnamed.status, 200, 'a summary-* marker is skipped even when it names no scenario');
+    assert.equal(last().scenario, 'triage');
+    assert.equal(last().selectedBy, 'mockkey');
+
+    for (const first of ['[[mock:Bad Name]]', '[[mock:no-such-scenario]]', '[[mock:triage]]']) {
+      const r = await post(base, request([user(`${first} [[mock:refusal]]`)]), triage);
+      assert.equal(r.status, 500, first);
+      assert.notEqual(last().rejected, null, first);
+    }
+    const laterBad = await post(base, request([user('[[mock:refusal]] [[mock:Bad Name]]')]), triage);
+    assert.equal(laterBad.json.stop_reason, 'refusal', 'a marker after the winning one is never read');
+  });
+});
+
+test('row 7: a guide prompt is read from the newest user message with text, a tool step included, and from no other place', async () => {
+  await withServer({ files: { 'B/guide-one.json': GUIDE_ONE } }, async ({ base, readLog }) => {
+    const prompt = GUIDE_ONE.match.prompt;
+    const triage = { 'x-ocutalon-mockkey': 'triage' };
+    const use = assistant([{ type: 'tool_use', id: 'toolu_g', name: 'check_status', input: {} }]);
+    const result = (text) => user([{ type: 'tool_result', tool_use_id: 'toolu_g', content: text }]);
+    const places = {
+      'an older user message': request([user(prompt), assistant('ok'), user('something else')]),
+      'the system text': request([user('plain')], { system: prompt }),
+      'an assistant message': request([user('plain'), assistant(prompt), user('more')]),
+      'a tool result': request([user('plain'), use, result(prompt)]),
+    };
+    for (const [place, body] of Object.entries(places)) {
+      const r = await post(base, body, triage);
+      assert.equal(r.status, 200, place);
+      assert.equal(readLog().pop().scenario, 'triage', place);
+    }
+    const step = await post(base, request([user(`Agent.Input preamble.\n\n${prompt}`), use, result('ok')]));
+    assert.equal(step.json.content[0].text, 'Guide one answer.');
+    const line = readLog().pop();
+    assert.equal(line.scenario, 'guide-one');
+    assert.equal(line.selectedBy, 'prompt');
+    assert.equal(line.step, 1, 'the step counts the assistant messages after the newest user text');
+    const blocks = await post(base, request([user([{ type: 'text', text: 'Agent.Input preamble.' }, { type: 'text', text: prompt }])]));
+    assert.equal(blocks.json.content[0].text, 'Guide one answer.');
+  });
+});
+
+test('row 10: the summarizer prefix is exact and leads the system text; a summarizer request ignores a guide prompt, the mock key and a marker in its system text', async () => {
+  await withServer({ files: { 'B/guide-one.json': GUIDE_ONE } }, async ({ base, readLog }) => {
+    const triage = { 'x-ocutalon-mockkey': 'triage' };
+    const last = () => readLog().pop();
+    for (const system of ['ocutalon-compaction-v1 compress', 'OCUTALON-COMPACTION-V2 compress', 'compress. OCUTALON-COMPACTION-V1']) {
+      const r = await post(base, request([user('Transcript')], { system }), triage);
+      assert.equal(r.status, 200, system);
+      assert.equal(last().scenario, 'triage', `${system} is not a summarizer request`);
+    }
+    const summarizer = 'OCUTALON-COMPACTION-V1 compress the transcript';
+    await post(base, request([user(`Transcript quoting a guide prompt: ${GUIDE_ONE.match.prompt}`)], { system: summarizer }), { 'x-ocutalon-mockkey': 'chat' });
+    assert.equal(last().scenario, 'summary');
+    assert.equal(last().selectedBy, 'summarizer');
+    await post(base, request([user('Transcript')], { system: `${summarizer} [[mock:summary-off-schema]] [[mock:refusal]]` }), triage);
+    assert.equal(last().scenario, 'summary', 'markers in the system text are not read');
+  });
+});
+
+test('row 11: two keys of one scenario and its unkeyed marker count down independently', async () => {
+  await withServer({}, async ({ base, mock }) => {
+    const a = 'rate-limited:t-a';
+    const b = 'rate-limited:t-b';
+    await arm(base, a, 1);
+    await arm(base, b, 2);
+    const ask = async (label) => (await post(base, request([user(`[[mock:${label}]]`)]))).status;
+    const seen = [];
+    for (const label of [a, b, a, b, b]) seen.push(await ask(label));
+    assert.deepEqual(seen, [429, 429, 200, 429, 200]);
+    for (let i = 0; i < 3; i++) assert.equal(await ask('rate-limited'), 429, 'the unkeyed marker is not armed by the keyed ones');
+    assert.deepEqual([...mock.countdowns.keys()].sort(), [a, b]);
+    assert.equal(mock.countdowns.get(a), 0);
+    assert.equal(mock.countdowns.get(b), 0);
+  });
+});
+
+test('row 13: the retry scenarios send their Retry-After while armed and answer after it, and a long Retry-After exceeds the back-off cap', async () => {
+  await withServer({}, async ({ base }) => {
+    const cases = [
+      ['rate-limited', 429, 'rate_limit_error', '1', 'Answered after the rate limit.'],
+      ['overloaded', 529, 'overloaded_error', '1', 'Answered after the overload.'],
+      ['long-retry-after', 429, 'rate_limit_error', '30', 'Answered after a capped wait.'],
+    ];
+    for (const [name, status, type, retryAfter, text] of cases) {
+      const label = `${name}:t-retry`;
+      await arm(base, label, 1);
+      const first = await post(base, request([user(`[[mock:${label}]]`)]));
+      assert.equal(first.status, status, name);
+      assert.equal(first.json.error.type, type, name);
+      assert.equal(first.headers.get('retry-after'), retryAfter, name);
+      const second = await post(base, request([user(`[[mock:${label}]]`)]));
+      assert.equal(second.status, 200, name);
+      assert.equal(second.json.content[0].text, text, name);
+      assert.equal(second.headers.get('retry-after'), null, name);
+      if (name === 'long-retry-after') assert.ok(Number(retryAfter) * 1000 > BACKOFF_CAP_MS, 'S18: the wait that AI Hub caps');
+    }
+  });
+});
+
+test('row 13: held-past-timer holds its reply past the bridge timer, and the request is logged before the hold', async (t) => {
+  const { scenarios, problems } = loadScenarios(COMMITTED);
+  assert.deepEqual(problems, []);
+  const held = scenarios.byName.get('held-past-timer').replies;
+  assert.equal(held.length, 1);
+  assert.equal(held[0].status, 200);
+  assert.ok(held[0].delayMs > BRIDGE_TIMER_MAX_MS, `a hold of ${held[0].delayMs} ms must outlast the bridge timer`);
+  const lines = [];
+  const mock = createMock({ scenarios, logDir: null, out: { write: (s) => lines.push(s) } });
+  const { req, res } = fakeCall(request([user('[[mock:held-past-timer]]')]));
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await mock.handle(req, res);
+  assert.equal(lines.length, 1, 'the log line comes before the hold');
+  assert.equal(JSON.parse(lines[0]).scenario, 'held-past-timer');
+  t.mock.timers.tick(held[0].delayMs - 1);
+  assert.deepEqual(res.calls, [], 'nothing is written before the hold ends');
+  t.mock.timers.tick(1);
+  assert.deepEqual(res.calls, ['writeHead', 'end']);
+  assert.equal(JSON.parse(res.payload).content[0].text, 'This reply arrives after the bridge timer.');
+});
+
+test('row 17: the path and the method are checked before the key, so no 404 needs one', async () => {
+  await withServer({}, async ({ base, readLog }) => {
+    const routes = [
+      ['POST', '/messages'],
+      ['GET', '/v1/messages'],
+      ['PUT', '/v1/messages'],
+      ['DELETE', '/v1/messages'],
+      ['POST', '/v1/models/claude-haiku-5-5'],
+      ['GET', '/v1/models'],
+      ['GET', '/v1/models/'],
+      ['GET', '/v1/models/a/b'],
+      ['GET', '/'],
+      ['POST', '/_mock/health'],
+      ['GET', '/_mock/nothing'],
+      ['DELETE', '/_mock/countdown'],
+    ];
+    for (const [method, route] of routes) {
+      const res = await fetch(`${base}${route}`, { method, body: method === 'POST' || method === 'PUT' ? '{}' : undefined });
+      const json = await res.json();
+      assert.equal(res.status, 404, `${method} ${route}`);
+      assert.equal(json.error.type, 'not_found_error', `${method} ${route}`);
+    }
+    const logged = readLog();
+    assert.equal(logged.length, routes.filter(([, route]) => !route.startsWith('/_mock/')).length, '/_mock/ requests are not logged');
+    for (const line of logged) {
+      assert.equal(line.status, 404);
+      assert.equal(line.rejected, 'not-found');
+      assert.equal(line.keyLength, 0);
+    }
+  });
+});
+
+test('row 14: redact replaces each key-like shape from its shortest length and leaves a shape that is one short', () => {
+  const run = (c, n) => c.repeat(n);
+  const shapes = [
+    ['an Anthropic key', 'sk-' + 'ant-' + run('a', 8), 'sk-' + 'ant-' + run('a', 7)],
+    ['a bot token', run('1', 8) + ':' + run('A', 35), run('1', 7) + ':' + run('A', 35)],
+    ['a bot token with a short tail', run('1', 10) + ':' + run('A', 35), run('1', 10) + ':' + run('A', 34)],
+    ['a GitHub personal token', 'gh' + 'p_' + run('a', 20), 'gh' + 'p_' + run('a', 19)],
+    ['a GitHub fine-grained token', 'github_' + 'pat_' + run('a', 20), 'github_' + 'pat_' + run('a', 19)],
+    ['a DigitalOcean token', 'dop_' + 'v1_' + run('a', 20), 'dop_' + 'v1_' + run('a', 19)],
+    ['an AWS access key', 'AK' + 'IA' + run('A', 16), 'AK' + 'IA' + run('A', 15)],
+    ['a private key header', '-----' + 'BEGIN PRIVATE KEY', '-----' + 'BEGIN PUBLIC KEY'],
+  ];
+  for (const [what, key, near] of shapes) {
+    assert.equal(redact(`before ${key} after`), 'before [redacted] after', what);
+    assert.equal(redact(`before ${near} after`), `before ${near} after`, `${what}, one short`);
+  }
+  for (const letter of ['p', 'o', 'u', 's', 'r']) assert.equal(redact('gh' + `${letter}_` + run('a', 20)), '[redacted]', `gh${letter}_`);
+  assert.equal(redact('dop_' + 'v1_' + run('g', 20)), 'dop_' + 'v1_' + run('g', 20), 'only hexadecimal digits follow dop_v1_');
+  assert.equal(redact('no secret here'), 'no secret here');
 });

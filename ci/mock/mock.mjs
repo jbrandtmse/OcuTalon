@@ -24,11 +24,13 @@
 // The log: one JSON line per request outside /_mock/, to out (stdout) and, with logDir, to logDir/requests.jsonl, written
 // synchronously before the reply and before any delay. It holds header names, the x-api-key length and, in the file, the
 // request with system text and tools reduced to size and names. It never holds a header value or a key; key-like text
-// is replaced by [redacted]. A reply with delayMs waits on a timer that a hung-up client cancels.
+// is replaced by [redacted]. Its marker is the label of the marker that the request carries, as selection reads it, on a
+// refused request too, so a test finds every request of its own marker. A reply with delayMs waits on a timer that a
+// hung-up client cancels.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { findMarkers, isSummaryVariant, parseLabel } from './scenarios.mjs';
+import { findMarkers, isObject, isSummaryVariant, parseLabel } from './scenarios.mjs';
 
 export const SUMMARIZER_PREFIX = 'OCUTALON-COMPACTION-V1';
 export const MOCKKEY_HEADER = 'x-ocutalon-mockkey';
@@ -130,8 +132,25 @@ function summarizeTools(tools) {
   }));
 }
 
+// readMarker(body): the marker that selection reads, {summarizer, at, text, marker}. at and text are the newest user message
+// with text and its text. For a summarizer request marker is the last summary-* marker of that text, or null. For any other
+// request it is the first marker of that text that does not parse or is not summary-*, or null: a parsed marker is
+// {ok: true, name, key, label}, one that does not parse {ok: false, snippet}.
+function readMarker(body) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const at = newestTextIndex(messages);
+  const text = at === -1 ? '' : userText(messages[at]);
+  const found = findMarkers(text);
+  if (systemText(body.system).startsWith(SUMMARIZER_PREFIX)) {
+    const variants = found.filter((m) => m.ok && isSummaryVariant(m.name));
+    return { summarizer: true, at, text, marker: variants.length > 0 ? variants[variants.length - 1] : null };
+  }
+  const marker = found.find((m) => !m.ok || !isSummaryVariant(m.name));
+  return { summarizer: false, at, text, marker: marker === undefined ? null : marker };
+}
+
 function summarizeRequest(body) {
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) return null;
+  if (!isObject(body)) return null;
   const { messages, system, tools, ...rest } = body;
   return {
     ...rest,
@@ -192,7 +211,7 @@ export function createMock({ scenarios, logDir, out }) {
       } catch {
         data = null;
       }
-      if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+      if (!isObject(data)) {
         sendJson(res, 400, errorBody(400, 'CI mock: the countdown body is not a JSON object'));
         return;
       }
@@ -229,12 +248,9 @@ export function createMock({ scenarios, logDir, out }) {
   // select(body, headers): {scenario, selectedBy, label, k} or {fail: {message, rejected}}.
   function select(body, headers) {
     const messages = body.messages;
-    const at = newestTextIndex(messages);
-    const text = at === -1 ? '' : userText(messages[at]);
-    if (systemText(body.system).startsWith(SUMMARIZER_PREFIX)) {
-      const variants = findMarkers(text).filter((m) => m.ok && isSummaryVariant(m.name));
-      if (variants.length > 0) {
-        const m = variants[variants.length - 1];
+    const { summarizer, at, text, marker: m } = readMarker(body);
+    if (summarizer) {
+      if (m) {
         const scenario = markerScenario(m.name);
         if (!scenario) return { fail: { message: `CI mock: no scenario named ${m.name} for the marker ${m.label}`, rejected: 'unknown-marker' } };
         return { scenario, selectedBy: 'marker', label: m.label, k: 0 };
@@ -243,10 +259,9 @@ export function createMock({ scenarios, logDir, out }) {
       if (!scenario) return { fail: { message: 'CI mock: no summary scenario for the summarizer request', rejected: 'no-scenario' } };
       return { scenario, selectedBy: 'summarizer', label: null, k: 0 };
     }
-    const k = at === -1 ? 0 : messages.slice(at + 1).filter((m) => m && m.role === 'assistant').length;
-    for (const m of findMarkers(text)) {
+    const k = at === -1 ? 0 : messages.slice(at + 1).filter((x) => x && x.role === 'assistant').length;
+    if (m) {
       if (!m.ok) return { fail: { message: `CI mock: the marker "[[mock:${m.snippet}" does not parse; use [[mock:<name>]] or [[mock:<name>:<key>]]`, rejected: 'bad-marker' } };
-      if (isSummaryVariant(m.name)) continue;
       const scenario = markerScenario(m.name);
       if (!scenario) return { fail: { message: `CI mock: no scenario named ${m.name} for the marker [[mock:${m.label}]]`, rejected: 'unknown-marker' } };
       return { scenario, selectedBy: 'marker', label: m.label, k };
@@ -343,7 +358,8 @@ export function createMock({ scenarios, logDir, out }) {
       } catch {
         body = null;
       }
-      const isObj = body !== null && typeof body === 'object' && !Array.isArray(body);
+      const isObj = isObject(body);
+      const carried = isObj ? readMarker(body).marker : null;
       const entry = {
         ts: new Date().toISOString(),
         id: n,
@@ -352,7 +368,7 @@ export function createMock({ scenarios, logDir, out }) {
         status: null,
         scenario: null,
         selectedBy: null,
-        marker: null,
+        marker: carried && carried.ok ? carried.label : null,
         step: null,
         countdown: null,
         headerNames: Object.keys(headers).map((h) => h.toLowerCase()),

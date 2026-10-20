@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-20'
 status: 'done'
 baseline_revision: '4089a09bba089622cb3bf7a56e8bffe8d4003cb8'
+baseline_commit: 4089a09bba089622cb3bf7a56e8bffe8d4003cb8
 review_loop_iteration: 0
 followup_review_recommended: true
 context: []
@@ -239,7 +240,7 @@ Where the rows run:
 
 ## Tasks & Acceptance
 
-- [ ] [Owner decision 5, October 20; added by the lead after implement] `ci/compose.ci.yml` gives `iris` the explicit CI-only setting `OCUTALON_MOCK_KEY_HEADER: "1"` beside `OCUTALON_MODEL_BASE_URL`, and `test-compose-file.sh` pins it there and its absence from the judges' compose file. Story 1.1's `Provider` step adds `x-ocutalon-mockkey` only when it is on (DW-39); `OCUTALON_MODEL_BASE_URL` alone never adds the header, and online-demo traffic never carries it (AD-19 as amended).
+- [x] [Owner decision 5, October 20; added by the lead after implement; done in QA, October 20, see Verification "QA stage"] `ci/compose.ci.yml` gives `iris` the explicit CI-only setting `OCUTALON_MOCK_KEY_HEADER: "1"` beside `OCUTALON_MODEL_BASE_URL`, and `test-compose-file.sh` pins it there and its absence from the judges' compose file. Story 1.1's `Provider` step adds `x-ocutalon-mockkey` only when it is on (DW-39); `OCUTALON_MODEL_BASE_URL` alone never adds the header, and online-demo traffic never carries it (AD-19 as amended).
 
 **Execution:**
 
@@ -332,6 +333,7 @@ Where the rows run:
       environment:
         OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
         OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
+        OCUTALON_MOCK_KEY_HEADER: "1"
       volumes:
         - mock-log:/opt/ocutalon/mock-log:ro
     mock:
@@ -476,6 +478,39 @@ If the key travels in a header other than `x-api-key`, the 401 rule follows that
 - **AC7 (slot A never sends).** Given an IRIS whose `OCUTALON_MODEL_BASE_URL` isn't `http://mock:8080/v1/`, when `OcuTalon.Test.Contract.Mock` runs, then every test fails with row 23's text, and no provider is built. (Rule 21)
 - **AC8 (REL-4).** Given the mock in every throwaway, when a stack is torn down, then the mock adds no wait, because it exits on SIGTERM (row 18). On the developer machine, `shard lane-b`'s wall-clock stays within 10 s of the 64 s baseline plus the new class's own time. (REL-4)
 
+### Review Findings
+
+Code review, October 20 (`bmad-code-review`, tier `full-opus`; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 51 rows, 13 entries after grouping: 0 high, 5 medium, 8 low). Each entry gives severity / fix-risk / Rule 15 disposition. All patches are in-story, with fix-risk low.
+
+- [x] [Review][Patch] A refused request was logged with `marker: null`, so 1.6's "never sent" check (no log line carries the test's marker) passed for a request that reached the mock and got a 401, 400 or selection 500. Now one `readMarker` serves selection and the log, and every request is logged with the marker it carries [ci/mock/mock.mjs:139, :362]. med / low / fixed.
+- [x] [Review][Patch] `TestDefaultScriptByMockKey` took the first POST after its mark, and `TestSamplingAndCapRefused` took every POST after its mark, so another client of the mock (a production runner from 1.1 on) breaks them. They now pick their own lines: by a `NewRef()` reference in the request text, and by their own `refusal:<NewRef>` marker. The class comment states the rule for consumers [src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls:130, :201]. med (Rule 19) / low / fixed.
+- [x] [Review][Patch] `TestGuardRefusesOtherEnvironments` built a provider in every environment, against AC7's "no provider is built" and the class comment. The unguarded build is removed; the provider tests already show the mock's URL builds one [Mock.cls:110]. med / low / fixed.
+- [x] [Review][Patch] Rows 12 and 14 waited a fixed 30 ms and 100 ms instead of for the mock's signal. They now wait for the held request's log line: row 14 within the 300 ms hold, and it checks the reply is still pending [ci/mock/test/server.test.mjs:524, :640]. med (Rule 19) / low / fixed.
+- [x] [Review][Patch] Row 15 relied on `<tmpdir>/ocu-mock-no-such-folder` being absent. It now uses a missing child of its own `mkdtemp` folder [ci/mock/test/scenarios.test.mjs:143]. med (Rule 19) / low / fixed.
+- [x] [Review][Patch] The loader accepted header names and values that Node cannot send, and `Content-Length` and `Transfer-Encoding`. With `delayMs`, `writeHead` would throw in the timer and end the mock mid-shard, against AC5's "an invalid one stops the mock at start". It now refuses them with Node's own validators, with 4 defect rows [ci/mock/scenarios.mjs:123]. low / low / fixed.
+- [x] [Review][Patch] `ProviderFor`'s use of the switch and of a given `httpConfig` had no test. A private `ProviderSettings` now builds the settings, and `TestMockKeyHeaderSwitch` checks them by value: the header only with the switch on, the dummy key and `BASEURL`, and a given config copied with its headers kept [Mock.cls:315]. low / low / fixed.
+- [x] [Review][Patch] (Rule 2) The name and key grammar was spelled in four regular expressions, `markerText` was an unused export, and `mock.mjs` repeated `isObject` inline three times. The grammar now has one source, `markerText` is deleted, `isObject` is exported, and `KEY_PATTERN` gets test cases [ci/mock/scenarios.mjs:31, :78]. low / low / fixed.
+- [x] [Review][Patch] No test pinned `WEB_INPUT_PATTERN`'s `BridgeExample` alternative. There is now a classifier row for it [docker/tests/test-ci-changes.sh:112]. low / low / fixed.
+- [x] [Review][Patch] AC3's "both parse with the CI override" did not cover `docker-compose.dev.yml`. There is now a parse check of the judges' file, the dev file and `ci/compose.ci.yml` [docker/tests/test-compose-file.sh:305]. low / low / fixed.
+- [x] [Review][Patch] `withServer` asserted on the committed set before its `try`, so a broken scenario left its temporary folders behind. The assertion now sits inside the `try` [server.test.mjs:80]. low / low / fixed.
+- [x] [Review][Patch] The constants test read `MOCKKEY` only in the form `Parameter MOCKKEY = "x";`, so a typed declaration would skip its agent silently. It now also accepts `As <type>` [ci/mock/test/constants.test.mjs:46]. low / low / fixed.
+- [x] [Review][Defer] The spine's AD-22 "mock as built" names neither `/_mock/countdown` nor the reply rule, which Design Notes listed among the spine updates [ARCHITECTURE-SPINE.md, AD-22]. Deferred because the fix edits the spine, which is the lead's to edit (Rule 20). DW-43 is `wontfix-accepted`, with `reopen_if`. low / low.
+
+Rejected (no ledger entry):
+- Spec text predating owner decision 5 (BH, AA): Design Notes L545, L578 and L581, the VETO WINDOW FYI L643, Consumed-by 1.1 L649-652, the spine-update list L709, and Task 4's exact compose form. The fix edits the spec under review. The code and the binding texts follow decision 5: the spine's AD-19 and AD-22, epics.md's DW-39 bullet, DW-39's last trailer and L243 here. The lead may correct those lines.
+- Spec L735, "REL-4's 30" (AA). The fix edits the spec; the measured section and Rule 21 use 35.
+- Status 100-199 loads but cannot be delivered (BH, EC). Spec-bound, by-design: row 15 fixes 100-599.
+- `ERROR_TYPES` lacks 402 and 504 (BH, EC). Spec-bound: Task 1 fixes the mapping with "anything else `api_error`", and a `body` reply sends any shape.
+- `Provider` refuses on the base URL only, not on the switch (AA). By-design: Task 6 and decision 5's task make the switch govern the header, and with the switch off every test of the class fails first, through `MissingReason`.
+- Row 13's back-off comparison reads the table's value (VG). False: line 886 ties the received header to that value, and the suggested "2" turns line 891 red (2000 is not above 2000).
+- `TestDefaultScriptByMockKey` reads a lookup another test may have caused (VG). By-design, per the Spec Change Log ruling: the lookup comes once per process.
+- A tool-result message with text resets the step (EC), and the summarizer reads only the newest message (EC). False on the spike's recorded requests and Task 0.2.
+- Arming `summary` is never consumed (EC). False in effect: `summary` has one reply.
+- `KEY_LIKE` drift from `key_like` (BH, EC), a PEM key body logged (BH, EC), the mock's logs not shown on a failed start (BH), the spawned server binding all interfaces (BH), and no fetch time limit (VG). Low: unlikely in use, and each fix adds a test, a parameter or a branch.
+- `health.mjs`'s failing branch (VG), and a countdown cleared only on success (VG; the key is unique). Low.
+- A one-character guide prompt (EC), the fixed list of decision-5 absence pins (AA; a ban across the tree would also catch 1.1's reader), and the duplicate test helpers and log readers (AA). Low.
+- A full disk after the countdown (EC), an unbounded body (EC), a stalled pull (EC), a pause of 19 digits (EC), and a partial last log line (EC). Theoretical; each needs a failing disk, a hostile client or concurrent writes during a read.
+
 ## Spec Change Log
 
 Implement stage, October 20. Each ruling is one the standing grant (Rule 22) lets the stage make; the measurements behind them are under Verification, "Task 0 measurements". Neither tripwire of Task 0 fired: AI Hub reaches `http://mock:8080/v1/` over the compose network, and `custom_headers` arrive (`x-ocutalon-mockkey` is among the POST's header names and picked the scenario `triage`). The key travels in `x-api-key`, so the 401 rule needed no ruling.
@@ -571,10 +606,10 @@ So `rate-limited` unarmed answers 429 every time, AI Hub's retries included, bec
   - Teardown keeps the image (`--rmi local` skips it, and the tag pattern never matches `node:`).
   - `preflight` pulls it once, with 3 tries.
   - A pull failure (Docker Hub's anonymous limit or an outage) fails the job before any stack starts, with one line naming Docker Hub. It is an `infra` red: ledgered once, as a CI flake, and rerun (Rule 22.7).
-  - Whether the runner already holds the image is unknown, and it may not be read over SSH; the first CI run pulls it `(inference)`.
+  - Whether the runner already holds the image is unknown, and it may not be read over SSH; the first CI run pulls it `(inference)`. Settled in QA: the first run pulled it, about 8 to 10 s (Verification, "CI evidence").
 
 *How a request picks its scenario:*
-- Rule 22 ruling: **How the `MOCKKEY` reaches the mock** → the request header `x-ocutalon-mockkey`. The `Provider` step (1.1) adds it to each agent entry's `http_config.custom_headers` whenever `OCUTALON_MODEL_BASE_URL` is set. (Rejected:
+- Rule 22 ruling: **How the `MOCKKEY` reaches the mock** → the request header `x-ocutalon-mockkey`. The `Provider` step (1.1) adds it to each agent entry's `http_config.custom_headers` only when the CI-only setting `OCUTALON_MOCK_KEY_HEADER=1` is on, which only `ci/compose.ci.yml` sets; `OCUTALON_MODEL_BASE_URL` alone never adds it. [AMENDED 2026-10-20 by the lead, owner decision 5] (Rejected:
   - reading the system prompt, which is selection by wording;
   - the model id, which is the same for all three agents;
   - a new environment variable, which is not an AD-19 home.)
@@ -639,7 +674,7 @@ So `rate-limited` unarmed answers 429 every time, AI Hub's retries included, bec
 
 **VETO WINDOW FYIs (Rule 22.3):**
 - **The image.** A new third-party runtime image (Node.js, MIT), pinned by digest.
-- **The mock-key header.** 1.1 will send `x-ocutalon-mockkey` wherever `OCUTALON_MODEL_BASE_URL` is set, the online demo's gateway included. It is a public constant and reveals nothing.
+- **The mock-key header.** 1.1 sends `x-ocutalon-mockkey` only when `OCUTALON_MOCK_KEY_HEADER=1` is on, which only the CI override sets, so online-demo traffic never carries it. [AMENDED 2026-10-20 by the lead, owner decision 5]
 - **The log.** Request bodies are kept in CI throwaways' log volume, with key-like text redacted, and the volume is removed at teardown.
 
 **Integration ACs (Rule 1):** AC2. The consumer is AI Hub's Anthropic provider in IRIS. The effects are the scenario replies and the logged requests, which rows 19–23 assert.
@@ -647,7 +682,7 @@ So `rate-limited` unarmed answers 429 every time, AI Hub's retries included, bec
 **Consumed-by (Rule 2):**
 - **1.1:**
   - The `Provider` step writes `base_url` from `OCUTALON_MODEL_BASE_URL`.
-  - It adds `x-ocutalon-mockkey`, the agent's `MOCKKEY`, to `http_config.custom_headers`.
+  - It adds `x-ocutalon-mockkey`, the agent's `MOCKKEY`, to `http_config.custom_headers` only when `OCUTALON_MOCK_KEY_HEADER=1` is on (DW-39). [AMENDED 2026-10-20 by the lead, owner decision 5]
   - From then on every runner in a throwaway reaches the mock.
 - **1.2:**
   - the default scripts `triage`, `diagnosis` and `chat`;
@@ -705,7 +740,7 @@ So `rate-limited` unarmed answers 429 every time, AI Hub's retries included, bec
 - **AD-22 "What the mock serves":** add the 401 for a missing key, the 400s for streaming and for a body that isn't JSON, and the 404 for every other path except `/_mock/`.
 - **AD-22 "How a request picks its scenario":**
   - the marker grammar with an optional test key, the first marker winning, and `summary-*` markers excluded;
-  - the `MOCKKEY` in `x-ocutalon-mockkey`, added by the `Provider` step whenever `OCUTALON_MODEL_BASE_URL` is set;
+  - the `MOCKKEY` in `x-ocutalon-mockkey`, added by the `Provider` step only when the CI-only `OCUTALON_MOCK_KEY_HEADER=1` is on; [AMENDED 2026-10-20 by the lead, owner decision 5]
   - no default reply (a 500);
   - the reply rule.
 - **AD-22 "Summaries":** `summary`, plus `summary-*` variants picked by the transcript's last `summary-*` marker.
@@ -727,7 +762,7 @@ So `rate-limited` unarmed answers 429 every time, AI Hub's retries included, bec
 - **AD-19 "Endpoint overrides":** the `x-ocutalon-mockkey` sentence.
 - **Stack, a new row:** "CI model mock runtime (Story 0.11; CI and developer throwaways only, never shipped) | Node.js 24.15.0 in `node:24.15.0-slim@sha256:4e6b70dd…` (Node.js MIT; the Debian bookworm-slim base packages under their own licences)".
 
-**Time budget (REL-4; inference until Task 0.7 and the first CI run measure it):**
+**Time budget (REL-4; inference until Task 0.7 and the first CI run measure it; measured in QA, see Verification "CI evidence"):**
 - **Per throwaway.** One more container from a local image, about 0.5–1 s, alongside IRIS's 52–57 s start (ARM) or 150–177 s (x64). `run_classes`' `--wait` covers the health check, about 2 s, inside IRIS's start. Teardown is unchanged: the mock exits on SIGTERM, and `down` stops the containers in parallel. Across 12 throwaways that is about 0 s of wall-clock.
 - **The first runner run.** One pull, about 75 MB compressed for amd64, taking about 10–30 s; then it is cached.
 - **New work.** The `lane-b` shard gains `Test.Contract.Mock`: about 3–5 s on ARM with its 2 s back-off, about 10–15 s on x64. The `web` job gains about 5 s.
@@ -760,7 +795,7 @@ Every command finishes inside one foreground call (`timeout: 600000`). The envir
 - `(loop)` **Slot A load.** `iris_doc_load` of the new class, with no error or warning.
 - `(loop)` **Build.** `bash ci/iris.sh build`, with the environment above. Expected: exit 0; `preflight` finds the image, or pulls it.
 - **Throwaway units**, each `(loop)` with the same environment, one call each:
-  - `bash ci/iris.sh class OcuTalon.Test.Contract.Mock`. Expected: `CLASS OcuTalon.Test.Contract.Mock passed`, 5 tests, no `SKIP`.
+  - `bash ci/iris.sh class OcuTalon.Test.Contract.Mock`. Expected: `CLASS OcuTalon.Test.Contract.Mock passed`, 7 tests (5 at implement, 2 added in QA), no `SKIP`.
   - `bash ci/iris.sh shard lane-b`. Expected: exit 0, 24 classes passed.
   - `bash ci/iris.sh teardown`. Expected: nothing of `-v11a-` is left, and `docker image inspect --format '{{.Id}}'` of the pinned reference still succeeds.
 - `(once)` **The pinned image.** `docker run --rm --network none -v "$PWD:/repo:ro" -w /repo node:24.15.0-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d bash docker/tests/test-mock.sh`. Expected: exit 0 on Node v24.15.0.
@@ -873,6 +908,97 @@ Results after the patches:
 - `bash ci/checks.sh`: exit 0, all 12 scripts.
 - Slot A `iris_doc_load` of `Test/Contract/Mock.cls`, flags `ck`: no error or warning. `ci/iris.sh build`: exit 0. `class OcuTalon.Test.Contract.Mock`: passed, no `SKIP`. `shard lane-b`: 24 classes passed in 66 s, and with `--reverse` 24 classes in 65 s. `shard lane-a`: 9 classes. `live compose-start`, `production`, `install-upgrade` and `demo-path` (`FIRST-START engine=aarch64 build=1s ready=53s`): each exit 0. `teardown`: nothing of `-v11a-` left, and the pinned image inspects.
 
+### QA stage (October 20)
+
+Runtime: slot A (`server: ocutalon-slot-a`, `namespace: OCUTALON`, build 154) took `iris_doc_load` of `Test/Contract/Mock.cls` with flags `ck` (no error or warning, twice) and nothing else. Every IRIS run was `ci/iris.sh` in a throwaway tagged `v11q` (`OCUTALON_LOCK_OWNER='epic=0 stage=qa'`), one at a time, each cleaning up after itself; `teardown` found nothing left, and the pinned node image still inspects.
+
+**Owner decision 5 (the task).**
+- `ci/compose.ci.yml` sets `OCUTALON_MOCK_KEY_HEADER: "1"` under `iris`, beside `OCUTALON_MODEL_BASE_URL`; its header comment says this file is the only place that sets it.
+- `docker/tests/test-compose-file.sh`:
+  - `ci_file_is_exact` holds the new line;
+  - a named check says the `iris` block sets it to `"1"`, once, and no other line of the file names it;
+  - one check per surface says it does not name the variable: the judges' `docker-compose.yml` and `docker-compose.dev.yml`, `docker/Dockerfile`, `.env.example`, `docker/merge.cpf`, `healthcheck.sh`, `after-start.sh` and `after-start.cos`, and `docker/tests/compose.throwaway.yml` and `lib-live.sh` (the existing case-insensitive "says mock" checks already caught the two compose files; the others are new, and an `ENV` line in the Dockerfile is the path that would put the header on the online demo).
+- `Test.Contract.Mock`:
+  - `Provider` builds its `custom_headers` through `CustomHeaders(mockKey, switch)`, which adds `x-ocutalon-mockkey` only when the variable is the string `1` and the mock key is not empty;
+  - `OnBeforeAllTests` takes its reason from `MissingReason(baseUrl, switch)`, the base URL first, then "OCUTALON_MOCK_KEY_HEADER is not 1: this class runs in throwaways and CI only, where ci/compose.ci.yml sets it (owner decision 5)";
+  - `TestMockKeyHeaderSwitch` pins `CheckMockKeyFlag` (accepts `1` and nothing else) and `CustomHeaders`.
+- The `Provider` step itself stays Story 1.1's (DW-39).
+- End to end, in the throwaway: the final tree passes, so the variable reaches IRIS and `TestDefaultScriptByMockKey` sees `x-ocutalon-mockkey` among the header names; with the line removed from the override, the four provider tests fail with the switch's text and the value tests stay green.
+
+**Tests added or extended (QA).** No new test file: each test sits beside the rows it extends, so the discoverability of the implement stage's files carries over (`node --test ci/mock/test/*.test.mjs` through `test-mock.sh`; shard `lane-b`; `ci/checks.sh`).
+- `ci/mock/test/server.test.mjs` (QA, +10): `rows 2 to 5` (the checks run in the stated order; a rejected request runs no scenario and spends no countdown), `rows 3 and 4` (a summarizer request is held to the same rules and needs no mock key), `row 6` (the first marker wins; `summary-*` markers are skipped for the next marker, a guide prompt or the mock key; a first marker that fails ends the selection), `row 7` (a guide prompt is read from the newest user message with text only), `row 10` (the prefix is exact and leads the system text; a summarizer request ignores a guide prompt, the mock key and a marker in its system text), `row 11` (two keys of one scenario and the unkeyed marker count down independently), `row 13` twice (the retry scenarios send their `Retry-After`, and a long one exceeds the 2,000 ms cap; `held-past-timer` holds past the 110 s bridge timer, under mock timers), `row 14` (`redact` at each shape's shortest length) and `row 17` (path and method before the key). The row 12 test now builds its fake request and response with the shared `fakeCall`.
+- `ci/mock/test/scenarios.test.mjs` (QA, +8): the limits are inclusive (status 100 and 599, `delayMs` 0 and 600000, a 64-character name, every API stop reason, a `toolUse` list, a `body` list, empty text), and seven defect rows (a 65-character name, no name, no match, no replies, replies that are not a list, `telegram` under `B/`, an empty prompt).
+- `docker/tests/test-ci-config.sh` (QA, +1 case): `docker/tests/test-mock.sh`, run with a stub `node`, passes `--test` every file of `ci/mock/test/` and exits with node's status, so a red mock test turns the `web` step red.
+- `docker/tests/test-compose-file.sh` (QA, +11 checks): the decision 5 pins above.
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls` (QA, +2 tests, 7 in all): `TestMockKeyHeaderSwitch`, and `TestGuardRefusesOtherEnvironments` (AC7): `MissingReason` gives the reason for each pair of values of the two variables, and `ProviderFor` throws, building nothing, for any base URL but the mock's. Both check values, so they pass under any environment, like `TestBaseUrlGuard`. The deferred item narrows to the two `GetEnviron` reads of `OnBeforeAllTests` and `Provider`, which only a run under another value shows (the switch's was shown by the mutation of the second IRIS run below).
+
+**Gaps found and closed.**
+- Rejections: the order (key, JSON, stream, messages, sampling, cap), that a rejection spends no countdown, that a summarizer request is not exempt (NFR-1 and NFR-2), and the method of each route had no test.
+- Selection: the `summary-*` skip to the next marker or the prompt, the first marker with an unparseable one after it, and the prompt read from the newest message only had none.
+- Summarizer: the exact prefix, and that a transcript's guide prompt, the mock key and a system-text marker do not fire.
+- Countdown: independence of two keys of one scenario and of the unkeyed marker.
+- `Retry-After` and the hold: the committed `rate-limited`, `overloaded`, `long-retry-after` and `held-past-timer` files were never read by a hosted test; `delayMs` 120000 could have become 12000 unseen.
+- Loader: the inclusive limits, the 64-character name, and `telegram` outside `A/`.
+- Log: the redaction regexes were tested at one length each.
+- AC4: nothing showed that `test-mock.sh` exits with node's status.
+- AC7: only the string check was tested, not that every test fails or that no provider is built.
+- Decision 5: the pins above.
+
+**Mutations (QA).** Each was applied, observed red, reverted, and `git status --short`, `git diff --stat` and the SHA-256 of every changed or new file were identical to a snapshot taken just before. The first IRIS run applied three mutations that fail disjoint tests, and the third applied two that fail different assertions of one test.
+- mutation: AC1: the `:ro` of the log volume dropped from `iris` in `ci/compose.ci.yml` → `test-compose-file.sh` FAIL "ci: the file is exactly the mock's wiring".
+- mutation: AC2: `Retry-After` of `long-retry-after.json` changed from 30 to 1 → in the throwaway `TestCountdownAndRetryAfterCap` FAIL "the wait was capped by max_backoff_ms (2000), not Retry-After (30): 1.010434 s"; and `server.test.mjs` "row 13: the retry scenarios send their Retry-After ..." red.
+- mutation: AC2 and the task: the `OCUTALON_MOCK_KEY_HEADER` line removed from `ci/compose.ci.yml` → in the throwaway `TestDefaultScriptByMockKey`, `TestMarker`, `TestSamplingAndCapRefused` and `TestCountdownAndRetryAfterCap` FAIL with the switch's text (`TestBaseUrlGuard`, `TestMockKeyHeaderSwitch` and `TestGuardRefusesOtherEnvironments` stay green); and `test-compose-file.sh` FAIL on the exact form and "ci: the iris service sets OCUTALON_MOCK_KEY_HEADER".
+- mutation: AC3: a line `OCUTALON_X: mock` added to `docker-compose.dev.yml` → `test-compose-file.sh` FAIL "dev: no non-comment line says mock" and "dev: the file holds only the project name and OCUTALON_DEV".
+- mutation: AC4: `|| true` appended to the `node --test` line of `docker/tests/test-mock.sh` → `test-ci-config.sh` FAIL "mock wrapper: a node that exits 3 gave exit 0".
+- mutation: AC5: `reply.delayMs > MAX_DELAY_MS` changed to `>=` in `scenarios.mjs` → `scenarios.test.mjs` "row 15: the limits of the format are inclusive ..." red; `data.name.length > NAME_MAX` changed to `NAME_MAX + 1` → "row 15: a name of 65 characters is refused ..." red; `if (type === 'telegram') {` changed to `if (type === 'telegram' && folder === 'A') {` → "row 15: the reserved telegram match under B is refused ..." red (the `A/` case stays green).
+- mutation: AC6: the `return 0` of `preflight`'s present-image branch changed to `true` → `test-ci-config.sh` FAIL "preflight: a present image gave exit 1 after 3 pull(s); wanted exit 0 and no pull".
+- mutation: AC7: `CheckBaseUrl` made to accept any value (`If (url = ..#BASEURL) || 1 Quit $$$OK`) → in the throwaway `TestBaseUrlGuard` FAIL on every refusal; the `$$$ThrowStatus` of `ProviderFor` removed → `TestGuardRefusesOtherEnvironments` FAIL "no provider is built for ''" and for the other two URLs; the two checks of `MissingReason` swapped → the same test FAIL "and the base URL is named before the switch".
+- mutation: AC8: the SIGTERM handler of `server.mjs` made to exit with 1 → `server.test.mjs` "row 18: SIGTERM ends server.mjs with status 0 ..." red.
+- mutation: the task: an `ENV OCUTALON_MOCK_KEY_HEADER=1` line added to `docker/Dockerfile` → `test-compose-file.sh` FAIL "judges: docker/Dockerfile does not name OCUTALON_MOCK_KEY_HEADER" and nothing else; `CustomHeaders` made to ignore the switch → in the throwaway `TestMockKeyHeaderSwitch` FAIL "with the switch '...', no header is added" for each refused value.
+- mutation: rows 2 to 5: the sampling check made to run only when `max_tokens` is valid → "rows 2 to 5: the checks run in the stated order ..." red (row 3 stays green).
+- mutation: rows 3 and 4: the sampling check skipped for a summarizer request → "rows 3 and 4: a summarizer request is held to the same rules ..." red.
+- mutation: row 6: `if (isSummaryVariant(m.name)) continue;` changed to `break` → "row 6: the first marker wins whatever its key ..." red (the older row 6 test stays green).
+- mutation: row 7: the guide prompt searched in every user message → "row 7: a guide prompt is read from the newest user message with text ..." red.
+- mutation: row 10: the summarizer prefix test changed from `startsWith` to `includes` → "row 10: the summarizer prefix is exact and leads the system text ..." red (and the older row 10 test).
+- mutation: row 11: the countdown keyed by the marker's name instead of its full label → "row 11: two keys of one scenario and its unkeyed marker count down independently" red (and the two older row 11 tests).
+- mutation: row 13: `delayMs` of `held-past-timer.json` changed from 120000 to 12000 → "row 13: held-past-timer holds its reply past the bridge timer ..." red.
+- mutation: row 14: `{8,}` of the `sk-ant-` expression changed to `{9,}` → "row 14: redact replaces each key-like shape from its shortest length ..." red; `AKIA[0-9A-Z]{16}` changed to `{17}` → that test and the older row 14 test red.
+- mutation: row 17: `isModel` made to ignore the method → "row 17: the path and the method are checked before the key ..." red.
+
+`mutations_demonstrated=27`: 21 on the hosted tier and 6 on the IRIS side, 25 distinct changes (the `Retry-After` and the removed switch line were run on both tiers).
+
+**Results.**
+- `bash docker/tests/test-mock.sh`: exit 0, 90 tests (72, plus 10 in `server.test.mjs` and 8 in `scenarios.test.mjs`), on the host (Node 26.8.1), in the pinned image (`docker run --rm --network none`, Node v24.15.0), and in both file orders with `--test-concurrency=1`.
+- `bash ci/checks.sh`: exit 0, all 12 scripts, including `compose-file` (the new checks), `ci-config` (the wrapper case) and `boundaries` (ASCII, local paths, key-like text).
+- `ci/iris.sh class OcuTalon.Test.Contract.Mock`: passed, 7 tests, 2.06 s, no `SKIP`; `shard lane-b`: 24 classes passed in 64 s (the baseline); `teardown`: nothing of `-v11q-` left.
+
+**CI evidence (the `ci` run of the hold head `71cd7cc`, which contains `edd2ec0`; run 39462430218, x64, two jobs at once).** It settles the `(inference)` items of the plan.
+- **Wall-clock** 29 min 39 s (17:00:48Z to 17:30:27Z), against 35 minutes (owner decision 7), 5 min 21 s to spare; it would have held the old 30 by 21 s. Per job: `checks` 35 s and `web` 27 s (hosted); `install` 14 min 8 s, `production` 12 min 4 s, `browser` 9 min 26 s, `image` 7 min 59 s, `shards` 6 min 20 s (49 min 57 s of runner time).
+- **The image pull.** `production` and `image` started first, both at 17:00:57Z, and each printed `PULL the mock image ... (try 1 of 3)` and went on, with no retry. Their `ci/iris.sh build` step took 20.5 s and 21.5 s; the same step took 11.3 s, 11.7 s and 13.5 s in `install`, `browser` and `shards`, which found the image present (no `PULL` line). So the pull cost about 8 to 10 s, once per machine `(inference: Docker's output is not printed, and both jobs pulled at once)`; the plan guessed 10 to 30 s.
+- **`Test.Contract.Mock` on x64:** `CLASS OcuTalon.Test.Contract.Mock passed 2.33s`, no `SKIP` (5 tests then); the plan guessed 10 to 15 s, the developer machine takes 2.05 s. `lane-b` printed `READY lane-b 154s` and `SHARD lane-b passed (24 classes) 183s`, `lane-a` `READY lane-a 159s` and `9 classes 167s`.
+- **The mock tests on the hosted job:** Node v24.22.0, 72 tests passed in 2.3 s of node time (the step took about 2.4 s); the plan guessed about 5 s.
+- **Units:** `install-start` 470 s, `install-upgrade` 357 s, `production` 242 s, `production-restart` 246 s, `audit` 205 s, `demo-path` 174 s (`FIRST-START engine=x86_64 build=1s ready=160s`), `sign-in` 187 s, `bundle-folder` 184 s, `storage-roundtrip` 231 s, `build-inputs` 7 s, `compose-start` 209 s.
+- **The mock's cost** is not measurable on the runner: a ready stack took 154 to 160 s against 150 to 177 s in the earlier runs, and the same group varied by up to two minutes between runs. Most of the 4 minutes more than the run before (25 min 22 s) is the dispatch order, with the longest group last, and runner variance `(inference)`.
+- **Dispatch and rebalance.** Order: `production` and `image`, then `shards` (after `image`), `browser` (after `production`) and `install` (after `shards`). `install`, the longest group, started last, so the chain `image`, `shards`, `install` set the wall-clock (28 min 27 s of job time), and the other runner stood idle for the last 7 minutes. The run on `85503df` (39473272054), read while it was still running and not waited for, dispatched `shards` and `install` first and `production` last (it started at 18:35:00Z), so the order differs run to run. No regrouping was applied: with these durations, the 120 dispatch orders on two runners give 26 min 52 s at best, 29 min 13 s on average and 33 min 7 s at worst for the five groups as they are (a 60 s gap between jobs; 30 s and 2 s give the same picture). The three regroupings tried that keep five groups (for example `install-upgrade` to `shards` and `audit` to `image`) lower the worst case by 1 min 13 s to 1 min 27 s and raise the average by 36 s to 1 min 23 s, because five jobs on two runners always leave one runner with three. The worst case holds REL-4 by 1 min 53 s; the fix for a longer run is Rule 21's third runner service.
+
+### Code review (October 20)
+
+The review's patches are listed under Tasks & Acceptance, "Review Findings". For each mutation below I applied it, saw the named tests go red and reverted it. Afterwards `git status --short`, `git diff --stat` and the SHA-256 of all 12 changed files matched a snapshot taken before the mutations, byte for byte. The IRIS runs used throwaways tagged `v11r` (`OCUTALON_LOCK_OWNER='epic=0 stage=code-review'`), one at a time.
+- mutation: AC2 (re-run on the changed test): `MOCKKEY_HEADER` of `mock.mjs` set to `x-mock-key` → in the throwaway, `TestDefaultScriptByMockKey` red with "API error: [api_error] CI mock: no scenario: no marker, no guide prompt and no known mock key".
+- mutation: AC2 (refused requests carry their marker): the log entry's `marker` set to `null` before selection → `server.test.mjs` "rows 2 to 5: ... is logged with the marker it carries" red; in the throwaway, `TestSamplingAndCapRefused` red, "the log shows both requests as rejected with 400".
+- mutation: decision 5 (the provider's settings): `ProviderSettings` given `CustomHeaders($Get(mockKey), "1")` → in the throwaway, `TestMockKeyHeaderSwitch` red, "with the switch '', the provider's settings carry no header" and the same for '0'. These three IRIS mutations ran in one class run and failed three different tests; `TestMarker`, `TestCountdownAndRetryAfterCap`, `TestBaseUrlGuard` and `TestGuardRefusesOtherEnvironments` stayed green.
+- mutation: AC5 (header validity): the `validateHeaderName` and `validateHeaderValue` calls of `scenarios.mjs` removed → the row 15 defect rows "a header name that is not an HTTP token" and "a header value with a line break" red. The framing check made inert → "a Content-Length header" and "a Transfer-Encoding header" red.
+- mutation: row 15 (one grammar source): `KEY_SOURCE` narrowed to `{1,63}` → "row 15: the format constants and the marker grammar" red.
+- mutation: row 14 (the log before the hold): a held reply logged when it is sent → row 12, row 14, row 18 and "row 13: held-past-timer ..." red.
+- mutation: AC4 (the classifier): the `BridgeExample` alternative deleted from `WEB_INPUT_PATTERN` → `test-ci-changes.sh` FAIL "classifier: a bridge example class runs web and iris".
+
+Results after the patches:
+- `bash docker/tests/test-mock.sh`: exit 0, 94 tests (90, plus 4 defect rows). Also 94 on Node v24.15.0 in the pinned image (`--network none`), and in both file orders with `--test-concurrency=1`.
+- `bash ci/checks.sh`: exit 0, all 12 scripts.
+- Slot A (`ocutalon-slot-a`, `OCUTALON`, build 154, port 52790): `iris_doc_load` of `Test/Contract/Mock.cls`, flags `ck`, compiled with no error. Nothing else ran there.
+- `ci/iris.sh build`: exit 0. `shard lane-b`: 24 classes passed in 64 s (READY 52 s, 66 s wall-clock); `Test.Contract.Mock` passed, 7 tests, 2.04 s, no `SKIP`. `teardown`: nothing of `-v11r-` was left, and the pinned node image still inspects.
+- REL-4: unchanged. The class takes 2.04 s, as before, and the hosted step stays at about 2 s.
+
 ## Auto Run Result
 
 Status: done
@@ -908,6 +1034,6 @@ Blocking condition: none
 **Verification performed.** The `(loop)` lines and the `(once)` lines of `## Verification` ran after the last patch, as listed under "Review patch pass". The IRIS-side mutations of the implement stage (the dropped mount, `x-mock-key`, `CheckBaseUrl`) were not repeated, because `Mock.cls` changed in a comment only. The first CI run on the self-hosted runner is the platform evidence and is the lead's.
 
 **Residual risks.**
-- The first CI run pulls `node:24.15.0-slim` on the runner once `(inference)`; a Docker Hub failure is an infra red with the `FAIL the mock image` line.
+- The first CI run pulls `node:24.15.0-slim` on the runner once `(inference)`; a Docker Hub failure is an infra red with the `FAIL the mock image` line. Settled in QA: it pulled once, on its first try, and later jobs found it present.
 - Stories 1.2, 1.3, 1.8 and 1.9 that assert on the model lookup must read it from a class-level log mark and find it by method and path (the lookup comes at a process's first `Chat` and is cached).
 - Rule 21's timing rows are QA's, after the first CI run.

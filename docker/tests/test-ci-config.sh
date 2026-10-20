@@ -28,6 +28,8 @@
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
 #     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
+#   - mock wrapper (Story 0.11): docker/tests/test-mock.sh runs node --test on every file of ci/mock/test/ and exits with node's
+#     status (a stub node answers), so a red mock test turns the web job's step red;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
@@ -930,6 +932,34 @@ for pc in ':10 30 ' 'abc:10 30 ' '08:8 24 '; do
 done
 if [ "$pf_ok" -eq 1 ]; then
   echo "PASS preflight: a missing mock image is pulled by its pinned reference up to 3 times with growing pauses, the FAIL line and exit 1 come before any stack, and a present image is not pulled"
+else
+  fails=$((fails + 1))
+fi
+
+# --- docker/tests/test-mock.sh: the web job's step is red when a mock test is red ---
+
+# A stub node first on the PATH answers --version and exits with the given status for anything else, printing its arguments.
+# The wrapper must run every test file of ci/mock/test/ and must exit with that status.
+mock_stub=$tmp/mock-wrapper-stub
+mkdir -p "$mock_stub"
+mock_files=$(ls ci/mock/test/*.test.mjs | tr '\n' ' ')
+mock_ok=1
+for rc in 0 3; do
+  printf '#!/bin/sh\ncase "$1" in --version) echo v24.0.0; exit 0 ;; esac\necho "stub node $*"\nexit %s\n' "$rc" > "$mock_stub/node"
+  chmod +x "$mock_stub/node"
+  mock_out=$(PATH="$mock_stub:$PATH" bash docker/tests/test-mock.sh 2>&1)
+  mock_rc=$?
+  if [ "$mock_rc" -ne "$rc" ]; then
+    echo "FAIL mock wrapper: a node that exits $rc gave exit $mock_rc"
+    mock_ok=0
+  fi
+  if [ "$(printf '%s\n' "$mock_out" | sed -n 's/^stub node --test //p')" != "${mock_files% }" ]; then
+    echo "FAIL mock wrapper: it ran '$(printf '%s\n' "$mock_out" | sed -n 's/^stub node //p')', not node --test on every file of ci/mock/test/"
+    mock_ok=0
+  fi
+done
+if [ "$mock_ok" -eq 1 ]; then
+  echo "PASS mock wrapper: docker/tests/test-mock.sh runs node --test on every test file of ci/mock/test/ and exits with node's status"
 else
   fails=$((fails + 1))
 fi

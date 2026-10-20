@@ -43,7 +43,7 @@ function readAll() {
     ...listClasses(path.join(ROOT, 'src/bridge/cls/OcuTalon/BridgeExample')),
   ];
   for (const full of sources) {
-    const m = /^Parameter MOCKKEY = "([^"]*)";/m.exec(read(full));
+    const m = /^Parameter MOCKKEY(?:\s+As\s+[^=;]+?)?\s*=\s*"([^"]*)"\s*;/m.exec(read(full));
     if (m) agents.push({ file: rel(full), key: m[1] });
   }
   const names = {};
