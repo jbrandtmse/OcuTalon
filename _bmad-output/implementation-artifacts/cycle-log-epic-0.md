@@ -191,3 +191,6 @@
 2026-10-20T01:10:04Z	Epic 0	epic_context_compiled	sha=aaa5ce9 reason=planning_artifact_newer model=claude-opus-5-5
 2026-10-20T01:10:04Z	Story 0.8	stage_spawned	stage=plan spawn_at=2026-10-20T01:10:04Z model=claude-opus-5-5 agent_name=0-8-plan-1 cycle_iteration=1
 2026-10-20T01:30:20Z	Story 0.7	ci_resolved	story=0.7 run=39350452992 result=success head=4fd9b04 workflows=ci:success,lane-a:success(run=39350453058) resolved_at=next_plan wall_clock=24m12s
+2026-10-20T01:30:58Z	Story 0.8	story_created	spawn_at=2026-10-20T01:10:04Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-0-8-the-demo-path-test-signs-in-and-loads-the-page.md build_status=ready-for-dev epic_context=reused warnings=none cycle_iteration=1
+2026-10-20T01:30:58Z	Story 0.8	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-13,AD-22,AD-23,AD-29,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=throwaways_only;DW-21_occurrence;x64_figure_from_CI_log model=claude-opus-5-5
+2026-10-20T01:30:58Z	Epic 0	spine_updated	ad=AD-22,AD-23,conv reason=clarification by=lead story=0-8-the-demo-path-test-signs-in-and-loads-the-page lint=ok note=demo-path_unit,step_summary,@floor,push_to_main_runs_all,FIRST-START_source
