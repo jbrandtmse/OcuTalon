@@ -223,3 +223,4 @@
 2026-10-20T05:25:34Z	Epic 0	ledger_routed_planned	story=2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat,12-6-chat-and-get-notifications-in-the-paired-telegram-chat entries=2 excess=0 by=harvest dw=DW-29,DW-30
 2026-10-20T05:25:34Z	Epic 0	spine_updated	ad=AD-18 reason=clarification by=lead story=0-9-the-message-catalog-and-its-one-renderer lint=ok note=DW-12_measured:production_jobs_inherit_the_container_TZ
 2026-10-20T05:25:34Z	Epic 0	orchestrator_ruling	question=Rule_21_per-class_timing_omits_Msg.Catalog(0.68s) choice=lead_adds_it_to_Rule_21s_timing_clause rejected=leave_stale authority=standing_grant(Rule_22)
+2026-10-20T05:25:40Z	Story 0.9	stage_spawned	stage=qa spawn_at=2026-10-20T05:25:40Z model=claude-sonnet-5-5 agent_name=0-9-qa-1 cycle_iteration=1
