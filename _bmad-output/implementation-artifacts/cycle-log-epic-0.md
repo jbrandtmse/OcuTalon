@@ -240,3 +240,4 @@
 2026-10-20T07:01:52Z	Epic 0	planner_message_sent	to=contests-b0(Contest_Planner) topic=0.9_VETO_FYI_punctuation_before_template_period;0.9_committed_status
 2026-10-20T07:17:37Z	Epic 0	epic_context_compiled	sha=8a46289 reason=planning_artifact_newer model=claude-opus-5-5
 2026-10-20T07:17:37Z	Story 0.10	stage_spawned	stage=plan spawn_at=2026-10-20T07:17:37Z model=claude-opus-5-5 agent_name=0-10-plan-1 cycle_iteration=1
+2026-10-20T08:03:42Z	Story 0.9	ci_resolved	story=0.9 run=39383869195 result=success head=4c469bd workflows=ci:success,lane-a:success(run=39383869203) resolved_at=next_plan wall_clock=23m27s note=DW-28_fix_confirmed_iris(production)_green
