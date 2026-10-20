@@ -197,3 +197,4 @@
 2026-10-20T01:30:59Z	Story 0.8	stage_spawned	stage=implement spawn_at=2026-10-20T01:30:59Z model=claude-sonnet-5-5 agent_name=0-8-implement-1 cycle_iteration=1
 2026-10-20T02:29:17Z	Story 0.8	dev_complete	spawn_at=2026-10-20T01:30:59Z model=claude-sonnet-5-5 build_sha=fcdd9e9 baseline_revision=a375972 review_loop_iteration=0 followup_review_recommended=true deferred=2 files=23 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 ci=pending run=39359136309(ci),39359136280(lane-a) note=harvested_DW-25,DW-26_open
 2026-10-20T02:29:17Z	Story 0.8	protocol_violation	fault=implement rule=22.8 what=reverse-order_live_demo-path_and_teardown_sent_in_one_message reported=self impact=none(unit_exit_0;teardown_removed_nothing;no_leftovers)
+2026-10-20T02:29:24Z	Story 0.8	stage_spawned	stage=qa spawn_at=2026-10-20T02:29:24Z model=claude-sonnet-5-5 agent_name=0-8-qa-1 cycle_iteration=1
