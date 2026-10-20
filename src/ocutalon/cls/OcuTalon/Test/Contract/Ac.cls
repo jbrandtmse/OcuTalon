@@ -12,7 +12,7 @@
 ///   - TestCrossLaneSignatures: the cross-lane methods keep their parameter names and order and their return type, which
 ///     the other lane's callers rely on (Delivery.Record and FindByApproval are named by the AC; the cross-lane APIs of
 ///     AD-29, the extension accessor and the extension bases of AD-31 are pinned from Story 0.6 on, and the catalog renderer
-///     of AD-32 and Data.Time.ForMessage from Story 0.9);
+///     of AD-32 and Data.Time.ForMessage from Story 0.9, and the Orders partner's Send from Story 0.10);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -159,7 +159,7 @@ Method TestCrossLaneSignatures()
 		Do $$$AssertEquals(..Join(prefix), ..Join(expected), id_" takes ("_signature.args_") in that order")
 		Do $$$AssertEquals(..FullName(method.ReturnType), ..FullName(signature.returns), id_" returns "_signature.returns)
 	}
-	Do $$$AssertTrue(count >= 47, "the signatures are read: "_count)
+	Do $$$AssertTrue(count >= 48, "the signatures are read: "_count)
 }
 
 /// The Telegram stub is an inbound service, and its adapter is a class (the Telegram epic replaces the value).
@@ -335,7 +335,8 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Bridge.Compaction", "method": "Prompt", "args": "", "returns": "%String"},
  {"class": "OcuTalon.Msg.Catalog", "method": "Render", "args": "key,slots,channel,*sc", "returns": "%String"},
  {"class": "OcuTalon.Msg.Catalog", "method": "RenderAt", "args": "key,slots,channel,now,onlineDemo,*sc", "returns": "%String"},
- {"class": "OcuTalon.Msg.Catalog", "method": "Entry", "args": "key,*sc", "returns": "%DynamicObject"}
+ {"class": "OcuTalon.Msg.Catalog", "method": "Entry", "args": "key,*sc", "returns": "%DynamicObject"},
+ {"class": "OcuTalon.Demo.Orders.Partner", "method": "Send", "args": "count,dateFormat,traceRef,orderDate", "returns": "%Status"}
 ]
 }
 

@@ -15,7 +15,7 @@ SHARDS="lane-a lane-b"
 shard_areas() {
   case $1 in
     lane-a) echo "Agent Bridge Install" ;;
-    lane-b) echo "Contract Core Data Live Msg Web" ;;
+    lane-b) echo "Contract Core Data Demo Live Msg Web" ;;
     *) return 1 ;;
   esac
 }

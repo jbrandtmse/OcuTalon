@@ -10,6 +10,9 @@
 #   - row 7, a step that fails: an image whose SSL step returns an error. The log names SSL as failed and no
 #     later step ran, there is no marker and readiness is empty, the container keeps running without a
 #     restart and Docker never reports healthy. The next good image reaches ready.
+# The Demo step rides on these starts and adds none (Story 0.10): at the first start an order in the changed format is sent into
+# the Orders production in OCUORDERS and left in its errored status, and after row 6's upgrade and the next good image the
+# order's header is still there, the demo.mode row's UpdatedAt is unchanged, and the production runs again.
 # The upgrade images are built from a copy of the build context in a temporary directory, through an override
 # that names it, so the working tree is never changed. The project is unique, publishes no host port and
 # receives no keys. An EXIT trap removes the project with its volume and images. Every wait ends by an overall
@@ -92,6 +95,38 @@ CHK|ready|1" \
     'Halt'
 }
 
+# orders_probe: sends one order in MM/DD/YYYY into OCUORDERS, tagged with a 22-character reference derived from the project name,
+# waits for its errored header (status 8) at OrdersFromPartner, and records the header's id and the demo.mode row's UpdatedAt.
+orders_probe() {
+  probe_ref=$(printf '%s' "$P" | tail -c 22)
+  probe_id=$(printf '%s\n' \
+    "Set sc=##class(OcuTalon.Demo.Orders.Partner).Send(1,\"MM/DD/YYYY\",\"$probe_ref\",\"2026-10-16\")" \
+    "Set id=\"\",t=\$ZHorolog+60 For { Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ID FROM Ens.MessageHeader WHERE SuperSession = ? AND TargetConfigName = ? AND Status = 8\",\"$probe_ref\",\"OrdersFromPartner\") If rs.%Next() { Set id=rs.%Get(\"ID\") } Quit:(id'=\"\")||(\$ZHorolog>t)  Hang 1 }" \
+    'Write !,"CHK|probe|",id' \
+    'Halt' | session_value OCUORDERS probe)
+  probe_updated=$(printf '%s\n' \
+    'Write !,"CHK|updated|",##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode").UpdatedAt' \
+    'Halt' | session_value OCUTALON updated)
+  if [ -n "$probe_id" ] && [ -n "$probe_updated" ]; then
+    pass "the orders probe: header $probe_id errored at OrdersFromPartner, demo.mode written $probe_updated"
+  else
+    fail "the orders probe could not be recorded (header '$probe_id', demo.mode written '$probe_updated')"
+  fi
+}
+
+# check_orders_probe <label>: the probe order's errored header is still in OCUORDERS, the demo.mode row has the UpdatedAt it
+# had at the first start, and both pooled items of the Orders production have an alive job.
+check_orders_probe() {
+  local label=$1
+  check_session "$label: the probe order's errored header is still in OCUORDERS" OCUORDERS \
+    "CHK|header|$probe_id|OrdersFromPartner|8|$probe_ref" \
+    "Set h=##class(Ens.MessageHeader).%OpenId(\"$probe_id\") Write !,\"CHK|header|\",\$Select(\$IsObject(h):h.%Id()_\"|\"_h.TargetConfigName_\"|\"_h.Status_\"|\"_h.SuperSession,1:\"<missing>\")" \
+    'Halt'
+  check_session "$label: demo.mode was not rewritten" OCUTALON "CHK|updated|$probe_updated" \
+    'Write !,"CHK|updated|",##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode").UpdatedAt' 'Halt'
+  check_orders_jobs "$label"
+}
+
 # --- the first start, from the working tree's version ---
 
 if ! dc up -d --build > "$tmp/up.log" 2>&1; then
@@ -108,6 +143,7 @@ fi
 check_installed "first start" "$v0"
 set_probes
 check_probes "under $v0"
+orders_probe
 
 # A digest of the README account's password hash, salt and flags: it changes when any of them does, and it is not
 # the hash itself.
@@ -159,6 +195,7 @@ expected_run "cleared" "present $ipm_version" "already mapped" "ok" "loaded (ver
 check_log "row 6" "$tmp/expected.row6"
 check_installed "row 6" "$v1"
 check_probes "row 6 after the upgrade"
+check_orders_probe "row 6"
 if [ "$(health_status)" = healthy ] && [ "$(restart_count)" = 0 ]; then
   pass "row 6: Docker reports healthy, with no restart"
 else
@@ -242,6 +279,7 @@ if ! wait_started_ready 200; then
 fi
 check_installed "row 7 the next good image" "$v3"
 check_probes "row 7 after the next good image"
+check_orders_probe "row 7 after the next good image"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-install-upgrade: $fails check(s) failed (project $P)"

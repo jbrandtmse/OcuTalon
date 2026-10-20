@@ -475,45 +475,51 @@ session_value() {
 }
 
 # security_app_props <CSPZENEnabled> <CookiePath> <DispatchClass> <MatchRoles> <Path> <PermittedClasses> <ServeFiles>
-# [<AutheEnabled> [<GroupById>]]: the properties string that check_security reads back for a web application, in the
-# order of its key list; the values every application shares are written here. AutheEnabled defaults to 32 (password)
-# and GroupById to OcuTalon, the sign-in group.
+# [<AutheEnabled> [<GroupById> [<NameSpace>]]]: the properties string that check_security reads back for a web application, in
+# the order of its key list; the values every application shares are written here. AutheEnabled defaults to 32 (password),
+# GroupById to OcuTalon, the sign-in group, and NameSpace to OCUTALON.
 security_app_props() {
-  printf 'AutheEnabled=%s;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=%s;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=OCUTALON;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
-    "${8:-32}" "$1" "$2" "$3" "${9-OcuTalon}" "$4" "$5" "$6" "$7"
+  printf 'AutheEnabled=%s;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=%s;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=%s;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
+    "${8:-32}" "$1" "$2" "$3" "${9-OcuTalon}" "$4" "${10:-OCUTALON}" "$5" "$6" "$7"
 }
 
 # check_security <label>: Story 0.3's matrix rows 1 and 2 on the running container, from the security tables.
 #   - OcuTalonUser and OcuTalonAdmin hold no resource; OcuTalonTraceViewer holds exactly Use on four Ens resources and
-#     Read on the OCUTALON data and code databases, and SQL SELECT on Ens.MessageHeader in OCUTALON;
+#     Read on the OCUTALON and OCUORDERS data and code databases, and SQL SELECT on Ens.MessageHeader in OCUTALON and in
+#     OCUORDERS (the Demo step's, Story 0.10: the check assumes demo mode on);
 #   - user ocutalon holds the three roles, with a password that never expires, no forced change and an account that
 #     never expires, enabled; InvalidLoginAction is 0;
-#   - the four web applications have exactly the properties of the Web step, and no CORS list. The bundle folder is the
+#   - the four web applications have exactly the properties of the Web step, the OCUORDERS trace application has the
+#     same properties as OCUTALON's in its own namespace, and no application has a CORS list. The bundle folder is the
 #     durable csp/ocutalon-web/ (DW-5), and /ocutalon/public is outside the sign-in group, with no password.
 check_security() {
-  local label=$1 permitted shell_props api_props public_props trace_props
+  local label=$1 permitted shell_props api_props public_props trace_props orders_props
   permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
   shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3)
   api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
   public_props=$(security_app_props 1 /ocutalon/public/ OcuTalon.Web.Public.Status '' '' '' 0 64 '')
   trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
+  orders_props=$(security_app_props 1 /ocutalon/trace/ocuorders/ '' '' '' "$permitted" 1 32 OcuTalon OCUORDERS)
   check_session "$label: roles, README account, sign-in policy and applications" %SYS \
     "CHK|role-OcuTalonUser|
 CHK|role-OcuTalonAdmin|
-CHK|role-OcuTalonTraceViewer|%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%Ens_MessageContent:U,%Ens_MessageHeader:U,%Ens_MessageTrace:U,%Ens_Portal:U
+CHK|role-OcuTalonTraceViewer|%DB_OCUORDERS_CODE:R,%DB_OCUORDERS_DATA:R,%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%Ens_MessageContent:U,%Ens_MessageHeader:U,%Ens_MessageTrace:U,%Ens_Portal:U
 CHK|trace-sql-select|1
+CHK|trace-sql-select-orders|1
 CHK|user|OcuTalonAdmin,OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
 CHK|invalid-login-action|0
 CHK|app|/ocutalon|$shell_props
 CHK|app|/ocutalon/api|$api_props
 CHK|app|/ocutalon/public|$public_props
-CHK|app|/ocutalon/trace/ocutalon|$trace_props" \
+CHK|app|/ocutalon/trace/ocutalon|$trace_props
+CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
     'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
     'Write !,"CHK|trace-sql-select|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUTALON")' \
+    'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
     'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
     'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
     'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
-    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
+    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
     'Halt'
 }
 
@@ -591,13 +597,13 @@ live_pop_file() { unset 'LIVE_FILES[${#LIVE_FILES[@]}-1]'; }
 
 # --- the production's items (Story 0.6) ---
 
-# item_jobs <file>: the alive jobs of the running production, one line per item that has any: the item's name, a tab and
-# its job ids, comma-separated and in the order the production lists them.
+# item_jobs <file> [<namespace>]: the alive jobs of the running production of the namespace (default OCUTALON), one line per item
+# that has any: the item's name, a tab and its job ids, comma-separated and in the order the production lists them.
 item_jobs() {
   printf '%s\n' \
     'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { If rs.Get("State")="Alive" { Set j(rs.Get("ConfigName"))=$Get(j(rs.Get("ConfigName")))_","_rs.Get("Job") } }' \
     'Set n="" For { Set n=$Order(j(n)) Quit:n=""  Write !,"CHK|job|",n,"|",$Extract(j(n),2,*) }' \
-    'Halt' | iris_script OCUTALON | awk -F'|' '$1 == "CHK" && $2 == "job" { print $3 "\t" $4 }' | sort > "$1"
+    'Halt' | iris_script "${2:-OCUTALON}" | awk -F'|' '$1 == "CHK" && $2 == "job" { print $3 "\t" $4 }' | sort > "$1"
 }
 
 # check_items_run <label>: the job check of Story 0.6 (matrix row 14) on the running container, against the list of items in
@@ -644,4 +650,220 @@ check_clean_start() {
     'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 3 ConfigName,SUBSTRING(Text,1,120) FROM Ens_Util.Log WHERE Type IN (2,6) ORDER BY ID") While rs.%Next() { Write !,"CHK|row|",rs.%GetData(1),"|",rs.%GetData(2) }' \
     'Halt'
   grep -qx 'CHK|errors|0' "$tmp/actual.chk" || sed -n 's/^CHK|row|/  event log: /p' "$tmp/actual.chk"
+}
+
+# --- demo mode and the surfaces of the Demo step (Story 0.10) ---
+
+# set_demo_mode <0|1>: writes the demo.mode row in OCUTALON through Data.Setting's object API, with UpdatedAt from Data.Time, so
+# that the next start's Demo step reads the value. A test-only writer: the product's writer is SettingsOps (Story 4.1). Passes on
+# CHK|demo-mode|1, the status of the save.
+set_demo_mode() {
+  local out
+  out=$(printf '%s\n' \
+    'Set row=##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode") If $IsObject(row)=0 { Set row=##class(OcuTalon.Data.Setting).%New() Set row.Key="demo.mode" }' \
+    "Set row.Value=\"$1\",row.UpdatedAt=##class(OcuTalon.Data.Time).NowUtc()" \
+    'Write !,"CHK|demo-mode|",row.%Save()' \
+    'Halt' | iris_script OCUTALON)
+  if [ "$out" = "CHK|demo-mode|1" ]; then
+    pass "demo.mode set to $1"
+  else
+    fail "demo.mode could not be set to $1 (got '$out')"
+  fi
+}
+
+# demo_surfaces <file> [--wide]: writes the sorted surfaces that the Demo step creates or could leave behind, read in %SYS, one
+# line each:
+#   ns|<name>|<globals>|<routines>          db|<name>|<directory>              res|<name>|<public permission>
+#   role|<name>                             roleres|<role>|<resource:permission>
+#   app|<name>|<namespace>|<AutheEnabled>   userrole|<user>|<role>
+#   sqlpriv|<namespace>|<object>|<privilege>|<grantee>
+#   map|<namespace>|pkg|<name>|<database>   map|<namespace>|glo|<name>|<database>   (every namespace)
+#   ens|<namespace>, ensrun|<namespace>     from ^%SYS("Ensemble","InstalledNamespace" and "RunningNamespace")
+#   hs|<namespace>                          from ^%SYS("HealthShare","Instances")
+#   dir|<entry>                             the folders below the manager directory whose name starts with ocu (any case)
+#   cspdir|<entry>                          two levels below <data>csp/, the entries that start with ocu
+# --wide (the Task 0 measurements only) lists every folder below the manager directory and below <data>csp/, and adds
+# cpf|<line> for the lines of the [Namespaces], [Databases] and [Map.*] sections of the instance's CPF file. The folder lines are
+# limited to ocu* otherwise, so that the folders IRIS itself creates and removes cannot make a comparison flaky.
+demo_surfaces() {
+  local file=$1 wide=0
+  if [ "${2:-}" = --wide ]; then wide=1; fi
+  printf '%s\n' \
+    'Set wide='"$wide"',mgr=$SYSTEM.Util.ManagerDirectory(),dat=$SYSTEM.Util.DataDirectory()' \
+    'Set rs=##class(%ResultSet).%New("Config.Namespaces:List") Do rs.Execute() While rs.Next() { Write !,"CHK|ns|",rs.Get("Namespace"),"|",rs.Get("Globals"),"|",rs.Get("Routines") Set nsl(rs.Get("Namespace"))="" }' \
+    'Set rs=##class(%ResultSet).%New("Config.Databases:List") Do rs.Execute() While rs.Next() { Write !,"CHK|db|",rs.Get("Name"),"|",rs.Get("Directory") }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name,PublicPermission FROM Security.Resources") While rs.%Next() { Write !,"CHK|res|",rs.%Get("Name"),"|",rs.%Get("PublicPermission") }' \
+    'Set rs=##class(%ResultSet).%New("Security.Roles:ListAll") Do rs.Execute("*") While rs.Next() { Set r=rs.Get("Name") Write !,"CHK|role|",r Kill p Set sc=##class(Security.Roles).Get(r,.p) Set rr=$Get(p("Resources")) For i=1:1:$Length(rr,",") { If $Length($Piece(rr,",",i))>0 { Write !,"CHK|roleres|",r,"|",$Piece(rr,",",i) } } }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name,NameSpace,AutheEnabled FROM Security.Applications") While rs.%Next() { Write !,"CHK|app|",rs.%Get("Name"),"|",rs.%Get("NameSpace"),"|",rs.%Get("AutheEnabled") }' \
+    'Set rs=##class(%ResultSet).%New("Security.Users:List") Do rs.Execute("*") While rs.Next() { Set ur=rs.Get("Roles") For i=1:1:$Length(ur,",") { If $Length($Piece(ur,",",i))>0 { Write !,"CHK|userrole|",rs.Get("Name"),"|",$Piece(ur,",",i) } } }' \
+    'Set rs=##class(%ResultSet).%New("Security.SQLPrivileges:List") Do rs.Execute() While rs.Next() { Write !,"CHK|sqlpriv|",rs.Get("Namespace"),"|",rs.Get("SQLObject"),"|",rs.Get("Privilege"),"|",rs.Get("Grantee") }' \
+    'Set n="" For { Set n=$Order(nsl(n)) Quit:n=""  Set rs=##class(%ResultSet).%New("Config.MapPackages:List") Do rs.Execute(n) While rs.Next() { Write !,"CHK|map|",n,"|pkg|",rs.Get("Name"),"|",rs.Get("Database") } Set rs=##class(%ResultSet).%New("Config.MapGlobals:List") Do rs.Execute(n) While rs.Next() { Write !,"CHK|map|",n,"|glo|",rs.Get("Name"),"|",rs.Get("Database") } }' \
+    'Set k="" For { Set k=$Order(^%SYS("Ensemble","InstalledNamespace",k)) Quit:k=""  Write !,"CHK|ens|",k }' \
+    'Set k="" For { Set k=$Order(^%SYS("Ensemble","RunningNamespace",k)) Quit:k=""  Write !,"CHK|ensrun|",k }' \
+    'Set k="" For { Set k=$Order(^%SYS("HealthShare","Instances",k)) Quit:k=""  Write !,"CHK|hs|",k }' \
+    'Set rs=##class(%ResultSet).%New("%File:FileSet") Do rs.Execute(mgr,"*","Name",1) While rs.Next() { Set e=##class(%File).GetFilename(rs.Get("Name")) If rs.Get("Type")="D" { If (wide=1)||($ZConvert($Extract(e,1,3),"L")="ocu") Write !,"CHK|dir|",e } }' \
+    'Set rs=##class(%ResultSet).%New("%File:FileSet") Do rs.Execute(dat_"csp/","*","Name",1) While rs.Next() { Set e=##class(%File).GetFilename(rs.Get("Name")) If rs.Get("Type")="D" { If (wide=1)||($ZConvert($Extract(e,1,3),"L")="ocu") { Write !,"CHK|cspdir|",e } Set r2=##class(%ResultSet).%New("%File:FileSet") Do r2.Execute(rs.Get("Name"),"*","Name",1) While r2.Next() { Set e2=##class(%File).GetFilename(r2.Get("Name")) If r2.Get("Type")="D" { If (wide=1)||($ZConvert($Extract(e2,1,3),"L")="ocu") Write !,"CHK|cspdir|",e,"/",e2 } } } }' \
+    'If wide=1 { Set stream=##class(%Stream.FileCharacter).%New() Set sc=stream.LinkToFile($Piece($ZU(86),"*",1)) Set sec="" While stream.AtEnd=0 { Set l=stream.ReadLine() If $Extract(l)="[" { Set sec=l } If (sec="[Namespaces]")||(sec="[Databases]")||($Extract(sec,1,5)="[Map.") { Write !,"CHK|cpf|",l } } }' \
+    'Halt' | iris_script %SYS | sed 's/^CHK|//' | LC_ALL=C sort > "$file"
+}
+
+# compare_surfaces <label> <expected file> <actual file> [--drop-orders]: the two demo_surfaces files are equal. With
+# --drop-orders every line that names ocuorders (any case) is removed from the expected file first, and the actual file must hold
+# no such line: the surfaces of a start without OCUORDERS equal those of a start with it, less what OCUORDERS owns.
+compare_surfaces() {
+  local label=$1 expected=$2 actual=$3 drop=${4:-} want="$tmp/surfaces.want" left
+  if [ -n "$drop" ] && [ "$drop" != --drop-orders ]; then
+    fail "$label: compare_surfaces does not know '$drop'"
+    return 1
+  fi
+  if [ ! -s "$expected" ] || [ ! -s "$actual" ]; then
+    fail "$label: a surfaces file is empty (the IRIS session printed nothing)"
+    return 1
+  fi
+  if [ "$drop" = --drop-orders ]; then
+    grep -vi 'ocuorders' "$expected" > "$want"
+    left=$(grep -ci 'ocuorders' "$actual")
+    if [ "$left" -gt 0 ]; then
+      grep -i 'ocuorders' "$actual" | head -n 10 | sed 's/^/  left behind: /'
+      fail "$label: $left surface line(s) still name OCUORDERS"
+      return 1
+    fi
+  else
+    cp "$expected" "$want"
+  fi
+  if diff "$want" "$actual" > "$tmp/surfaces.diff" 2>&1; then
+    pass "$label ($(wc -l < "$actual" | tr -d ' ') surface lines equal)"
+  else
+    sed 's/^/  /' "$tmp/surfaces.diff" | head -n 20
+    fail "$label: the surfaces differ ($(grep -c '^[<>]' "$tmp/surfaces.diff") lines)"
+  fi
+}
+
+# check_orders_jobs <label>: OrdersFromPartner and OrdersToWarehouse each have an alive job in OCUORDERS, and the adapterless
+# PartnerOrdersIn has none. The jobs of the system items of Interoperability (Ens.*) are not the production's.
+check_orders_jobs() {
+  local label=$1 names
+  item_jobs "$tmp/orders.jobs" OCUORDERS
+  names=$(awk -F'\t' '$1 !~ /^Ens\./ { print $1 }' "$tmp/orders.jobs" | sort | tr '\n' ' ')
+  if [ "$names" = 'OrdersFromPartner OrdersToWarehouse ' ]; then
+    pass "$label: OrdersFromPartner and OrdersToWarehouse have an alive job, and PartnerOrdersIn has none"
+  else
+    fail "$label: the alive jobs of the Orders production are '$names', not OrdersFromPartner and OrdersToWarehouse"
+  fi
+}
+
+# check_demo_on <label>: Story 0.10's row 1 on the running container, after a start with demo mode on:
+#   - demo.mode is 1 and the Demo step owns OCUORDERS;
+#   - the namespace OCUORDERS has the globals database OCUORDERS_DATA and the routines database OCUORDERS_CODE, at
+#     <mgr>/ocuorders_data/ and <mgr>/ocuorders_code/, whose resources %DB_OCUORDERS_CODE and %DB_OCUORDERS_DATA give no
+#     public permission;
+#   - in OCUORDERS, OcuTalon.Demo.Orders resolves to OCUTALON_CODE, OcuTalon.Web.Public, OcuTalon.Data.Public and the global
+#     ^OcuTalonPublic resolve to OCUTALON_PUBLIC;
+#   - Interoperability is enabled, and no HealthShare mapping or instance marker exists for OCUORDERS;
+#   - the Orders production runs with OrdersFromPartner and OrdersToWarehouse alive;
+#   - /ocutalon/trace/ocuorders has the properties of the trace application, the Interoperability portal application of the
+#     namespace (/csp/ocuorders) asks for a password (AutheEnabled 32), and the trace role holds Read on the OCUORDERS
+#     databases and SQL SELECT on Ens.MessageHeader in OCUORDERS;
+#   - the start's log holds STEP Demo OK.
+check_demo_on() {
+  local label=$1 permitted orders_props
+  permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
+  orders_props=$(security_app_props 1 /ocutalon/trace/ocuorders/ '' '' '' "$permitted" 1 32 OcuTalon OCUORDERS)
+  check_session "$label: demo mode is on and the Demo step owns OCUORDERS" OCUTALON \
+    "CHK|demo-mode|1
+CHK|owned|1" \
+    'Write !,"CHK|demo-mode|",##class(OcuTalon.Data.Setting).Get("demo.mode")' \
+    'Write !,"CHK|owned|",##class(OcuTalon.Install.Step.Demo).Owned()' \
+    'Halt'
+  check_session "$label: OCUORDERS, its databases, resources, mappings, Interoperability and trace grants" %SYS \
+    "CHK|ns|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
+CHK|db-code|$mgr/ocuorders_code/
+CHK|db-data|$mgr/ocuorders_data/
+CHK|res-code|0
+CHK|res-data|0
+CHK|dest-orders|^$mgr/ocutalon_code/
+CHK|dest-web-public|^$mgr/ocutalon_public/
+CHK|dest-data-public|^$mgr/ocutalon_public/
+CHK|dest-global-public|^$mgr/ocutalon_public/
+CHK|interop|1
+CHK|hs-instance|0
+CHK|hs-maps|0
+CHK|trace-role-orders|%DB_OCUORDERS_CODE:R,%DB_OCUORDERS_DATA:R
+CHK|trace-sql-select-orders|1
+CHK|portal-authe|32
+CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
+    'Set sc=##class(Config.Namespaces).Get("OCUORDERS",.n) Write !,"CHK|ns|OCUORDERS|",$Get(n("Globals")),"|",$Get(n("Routines"))' \
+    'Set sc=##class(Config.Databases).Get("OCUORDERS_CODE",.d) Write !,"CHK|db-code|",$Get(d("Directory"))' \
+    'Set sc=##class(Config.Databases).Get("OCUORDERS_DATA",.d) Write !,"CHK|db-data|",$Get(d("Directory"))' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT PublicPermission FROM Security.Resources WHERE Name = ?","%DB_OCUORDERS_CODE") Write !,"CHK|res-code|",$Select(rs.%Next():rs.%GetData(1),1:"<missing>")' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT PublicPermission FROM Security.Resources WHERE Name = ?","%DB_OCUORDERS_DATA") Write !,"CHK|res-data|",$Select(rs.%Next():rs.%GetData(1),1:"<missing>")' \
+    'Write !,"CHK|dest-orders|",##class(%SYS.Namespace).GetRoutineDest("OCUORDERS","OcuTalon.Demo.Orders.Production.1","INT")' \
+    'Write !,"CHK|dest-web-public|",##class(%SYS.Namespace).GetRoutineDest("OCUORDERS","OcuTalon.Web.Public.Shell.1","INT")' \
+    'Write !,"CHK|dest-data-public|",##class(%SYS.Namespace).GetRoutineDest("OCUORDERS","OcuTalon.Data.Public.Settings.1","INT")' \
+    'Write !,"CHK|dest-global-public|",##class(%SYS.Namespace).GetGlobalDest("OCUORDERS","^OcuTalonPublic")' \
+    'Write !,"CHK|interop|",##class(%Library.EnsembleMgr).IsEnsembleNamespace("OCUORDERS")' \
+    'Set n=$Data(^%SYS("HealthShare","Instances","OCUORDERS")) Write !,"CHK|hs-instance|",n' \
+    'Set n=0 For m="HS","HSMOD","SchemaMap","%pkg.isc" { Set n=n+##class(Config.MapPackages).Exists("OCUORDERS",m) } Write !,"CHK|hs-maps|",n' \
+    'Set ok=##class(Security.Roles).Get("OcuTalonTraceViewer",.p) Set want=$ListBuild("%DB_OCUORDERS_CODE:R","%DB_OCUORDERS_DATA:R"),have="" For i=1:1:$Length($Get(p("Resources")),",") { If $ListFind(want,$Piece(p("Resources"),",",i)) { Set have=have_$Select(have="":"",1:",")_$Piece(p("Resources"),",",i) } } Write !,"CHK|trace-role-orders|",have' \
+    'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
+    'Kill p Set sc=##class(Security.Applications).Get("/csp/ocuorders",.p) Write !,"CHK|portal-authe|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("AutheEnabled")),1:"<missing>")' \
+    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
+    'Kill p Set sc=##class(Security.Applications).Get("/ocutalon/trace/ocuorders",.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|/ocutalon/trace/ocuorders|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>")' \
+    'Halt'
+  check_session "$label: the Orders production runs in OCUORDERS" OCUORDERS \
+    "CHK|running|OcuTalon.Demo.Orders.Production" \
+    'Set r=##class(Ens.Director).IsProductionRunning(.name) Write !,"CHK|running|",$Select(r:name,1:"<not running>")' \
+    'Halt'
+  check_orders_jobs "$label"
+  if start_log | grep -qx 'STEP Demo OK [0-9.]*s'; then
+    pass "$label: the log holds STEP Demo OK"
+  else
+    fail "$label: the log holds no STEP Demo OK line"
+  fi
+}
+
+# check_demo_off <label>: Story 0.10's row 3 on the running container, after a start with demo mode off: demo.mode is 0, and
+# OCUORDERS, both databases with their directories, their resources, its mappings, its Interoperability markers and role, every
+# web application of the namespace, the trace role's OCUORDERS grants and every SQL privilege of the namespace are gone.
+check_demo_off() {
+  local label=$1
+  check_session "$label: demo mode is off" OCUTALON "CHK|demo-mode|0" \
+    'Write !,"CHK|demo-mode|",##class(OcuTalon.Data.Setting).Get("demo.mode")' 'Halt'
+  check_session "$label: OCUORDERS and everything it owned are gone" %SYS \
+    "CHK|ns|0
+CHK|db-code|0
+CHK|db-data|0
+CHK|dir-code|0
+CHK|dir-data|0
+CHK|res-code|0
+CHK|res-data|0
+CHK|role-prodprivs|0
+CHK|apps|0
+CHK|trace-role-orders|0
+CHK|sqlpriv|0
+CHK|maps|0
+CHK|ens|0
+CHK|ensrun|0
+CHK|portal-dir|0" \
+    'Write !,"CHK|ns|",##class(Config.Namespaces).Exists("OCUORDERS")' \
+    'Write !,"CHK|db-code|",##class(Config.Databases).Exists("OCUORDERS_CODE")' \
+    'Write !,"CHK|db-data|",##class(Config.Databases).Exists("OCUORDERS_DATA")' \
+    'Write !,"CHK|dir-code|",##class(%File).DirectoryExists($SYSTEM.Util.ManagerDirectory()_"ocuorders_code")' \
+    'Write !,"CHK|dir-data|",##class(%File).DirectoryExists($SYSTEM.Util.ManagerDirectory()_"ocuorders_data")' \
+    'Write !,"CHK|res-code|",##class(Security.Resources).Exists("%DB_OCUORDERS_CODE")' \
+    'Write !,"CHK|res-data|",##class(Security.Resources).Exists("%DB_OCUORDERS_DATA")' \
+    'Write !,"CHK|role-prodprivs|",##class(Security.Roles).Exists("%EnsRole_ProdPrivs_OCUORDERS")' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Security.Applications WHERE NameSpace = ?","OCUORDERS") Do rs.%Next() Write !,"CHK|apps|",rs.%GetData(1)' \
+    'Set ok=##class(Security.Roles).Get("OcuTalonTraceViewer",.p) Write !,"CHK|trace-role-orders|",($Get(p("Resources"))["OCUORDERS")' \
+    'Set rs=##class(%ResultSet).%New("Security.SQLPrivileges:List") Do rs.Execute() Set n=0 While rs.Next() { If rs.Get("Namespace")="OCUORDERS" { Set n=n+1 } } Write !,"CHK|sqlpriv|",n' \
+    'Set rs=##class(%ResultSet).%New("Config.MapPackages:List") Do rs.Execute("OCUORDERS") Set n=0 While rs.Next() { Set n=n+1 } Write !,"CHK|maps|",n' \
+    'Write !,"CHK|ens|",$Data(^%SYS("Ensemble","InstalledNamespace","OCUORDERS"))' \
+    'Write !,"CHK|ensrun|",$Data(^%SYS("Ensemble","RunningNamespace","OCUORDERS"))' \
+    'Write !,"CHK|portal-dir|",##class(%File).DirectoryExists($SYSTEM.Util.DataDirectory()_"csp/ocuorders")' \
+    'Halt'
+  if start_log | grep -qx 'STEP Demo OK [0-9.]*s'; then
+    pass "$label: the log holds STEP Demo OK"
+  else
+    fail "$label: the log holds no STEP Demo OK line"
+  fi
 }

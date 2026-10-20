@@ -14,6 +14,13 @@
 #   - row 5, the bridge alone: no code under src/bridge/ names another package of OcuTalon, src/bridge/ loaded into an
 #     Interoperability namespace without IPM, and its installer run, and refused in a namespace without Interoperability,
 #     where only the installer class is loaded because the bridge's messages need Ens.Request and Ens.Response.
+# The Demo step rides on these restarts and adds none (Story 0.10): demo mode is on at the first start (the image has its version
+# file), switched off before row 2's restart, still off at row 3's recreate, and switched on before row 4's recreate. The checks
+#   - row 1: OCUORDERS, its databases, resources, mappings, Interoperability, production and trace grants exist (check_demo_on),
+#     and the surfaces of the instance are recorded;
+#   - row 2: all of it is gone (check_demo_off), and the surfaces equal row 1's less every line that names OCUORDERS;
+#   - row 3: still gone, and the step does nothing;
+#   - row 4: recreated, with the same surfaces as row 1.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
 # volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -118,6 +125,9 @@ CHK|ipm-mapped-user|0" \
   'Write !,"CHK|ipm-mapped-user|",##class(Config.MapPackages).Exists("USER","%IPM")' \
   'Halt'
 
+check_demo_on "row 1"
+demo_surfaces "$tmp/surfaces.row1"
+
 # --- row 2: the same version, with a mapping removed by hand ---
 
 set_probes
@@ -128,6 +138,8 @@ check_session "row 2: the IRIS.IF.* mapping is removed" %SYS "CHK|deleted|1" \
 # The same restart also finds an older IPM recorded, which the session upgrades to the pinned release.
 check_session "row 2: IPM is recorded as 0.10.9" %SYS "CHK|ipm-recorded|1" \
   'Set m=##class(%IPM.Storage.Module).NameOpen("zpm"),m.VersionString="0.10.9" Write !,"CHK|ipm-recorded|",m.%Save()' 'Halt'
+# The same restart also finds demo mode switched off.
+set_demo_mode 0
 
 dc stop iris >/dev/null 2>&1
 dc start iris >/dev/null 2>&1
@@ -146,6 +158,9 @@ if [ "$(compile_time)" = "$compiled_before" ] && [ -n "$compiled_before" ]; then
 else
   fail "row 2: the compile time of OcuTalon.Install.Registry changed from '$compiled_before' to '$(compile_time)'"
 fi
+check_demo_off "row 2"
+demo_surfaces "$tmp/surfaces.row2"
+compare_surfaces "row 2: nothing else changes" "$tmp/surfaces.row1" "$tmp/surfaces.row2" --drop-orders
 
 # --- row 3: the developer compose file reloads the package ---
 
@@ -168,10 +183,12 @@ if [ -n "$compiled_before" ] && [ -n "$after" ] && [ "$after" != "$compiled_befo
 else
   fail "row 3: the compile time of OcuTalon.Install.Registry is '$after' after the dev start, it was '$compiled_before'"
 fi
+check_demo_off "row 3"
 live_pop_file
 
 # --- row 4: a public class deleted ---
 
+set_demo_mode 1
 if ! dc up -d >/dev/null 2>&1; then
   die "row 4 recreate without the dev file failed"
 fi
@@ -179,6 +196,9 @@ cid=$(dc ps -q iris)
 if ! wait_started_ready 200; then
   die "row 4 the start without the dev file did not end ready within 200 s"
 fi
+check_demo_on "row 4"
+demo_surfaces "$tmp/surfaces.row4"
+compare_surfaces "row 4: recreated as at the first start" "$tmp/surfaces.row1" "$tmp/surfaces.row4"
 check_session "row 4: the public class is deleted" OCUTALON "CHK|deleted|1" \
   'Write !,"CHK|deleted|",$SYSTEM.OBJ.Delete("OcuTalon.Data.Public.Settings","-d")' 'Halt'
 dc stop iris >/dev/null 2>&1

@@ -74,7 +74,7 @@ Method TestEveryParameterIsClassified()
 	}
 	Do $$$AssertEquals(counts("compared"), 8, "8 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 3, "3 labels are not in the UX")
-	Do $$$AssertEquals(counts("notText"), 18, "18 parameters are not texts")
+	Do $$$AssertEquals(counts("notText"), 19, "19 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
 	Set stale = ""
@@ -139,7 +139,7 @@ XData Classified [ MimeType = application/json ]
   "OcuTalon.Web.Public.Shell": ["CONTENTTYPE", "ROLE", "UseSession"],
   "OcuTalon.Web.Public.SignInAssets": ["CSS", "SCRIPT"],
   "OcuTalon.Web.Public.Status": ["CONTENTTYPE", "HandleCorsRequest", "UseSession"],
-  "OcuTalon.Data.Public.Settings": ["KEYS", "READY"]
+  "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY"]
  }
 }
 }

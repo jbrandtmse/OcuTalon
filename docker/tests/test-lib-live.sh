@@ -15,6 +15,8 @@
 #     then the wait; a failed step returns 1 and names its seconds, and starts nothing after it;
 #   - ensure_web_bundle: no Node is needed when the bundle and the dependencies are there, and its absence is named
 #     when they are not;
+#   - compare_surfaces (Story 0.10): equal surfaces pass, with or without --drop-orders; a line that does not name OCUORDERS and is
+#     gone or new, an OCUORDERS line left behind, an empty file and an unknown option fail;
 #   - live_start (Story 0.7): the project name carries OCUTALON_RUN_TAG, a bad or short tag is refused with exit 2, the
 #     deadline follows OCUTALON_LIVE_DEADLINE (default 540 s), and the compose files end with the throwaway and CI overrides;
 #   - the throwaway lock: claimed atomically with Rule 12's content and "LOCK acquired", waited for with "LOCK waiting" and
@@ -644,6 +646,38 @@ else
   fail "lock: the folder is '$from_worktree' from the worktree and '$from_main' from the main checkout, wanted '$want' (none: '$none')"
 fi
 unset GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
+
+# --- compare_surfaces (Story 0.10): the verdict of "nothing else changes" ---
+
+# check_verdict <label> <PASS|FAIL> <compare_surfaces arguments...>: the verdict that compare_surfaces gives, with its own pass and
+# fail replaced so that a failing verdict does not fail this test.
+check_verdict() {
+  local label=$1 want=$2 got
+  shift 2
+  got=$( ( pass() { echo "VERDICT PASS"; }; fail() { echo "VERDICT FAIL"; }; compare_surfaces verdict "$@" ) 2>&1 | grep '^VERDICT ' | tr '\n' ' ')
+  if [ "$got" = "VERDICT $want " ]; then
+    pass "compare_surfaces: $label"
+  else
+    fail "compare_surfaces: $label (wanted $want, got '$got')"
+  fi
+}
+surf="$tmp/surf"
+mkdir -p "$surf"
+printf '%s\n' 'app|/a|USER|32' 'db|OCUORDERS_DATA|/m/ocuorders_data/' 'ns|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE' 'role|R' > "$surf/with"
+printf '%s\n' 'app|/a|USER|32' 'role|R' > "$surf/without"
+printf '%s\n' 'app|/a|USER|32' > "$surf/lost"
+printf '%s\n' 'app|/a|USER|32' 'role|R' 'role|Extra' > "$surf/extra"
+printf '%s\n' 'app|/a|USER|32' 'role|R' 'app|/csp/ocuorders|OCUORDERS|32' > "$surf/left"
+: > "$surf/empty"
+check_verdict "the same surfaces less every OCUORDERS line pass" PASS "$surf/with" "$surf/without" --drop-orders
+check_verdict "a line that does not name OCUORDERS and is gone fails" FAIL "$surf/with" "$surf/lost" --drop-orders
+check_verdict "a line that does not name OCUORDERS and is new fails" FAIL "$surf/with" "$surf/extra" --drop-orders
+check_verdict "an OCUORDERS line left behind fails" FAIL "$surf/with" "$surf/left" --drop-orders
+check_verdict "equal surfaces pass without --drop-orders" PASS "$surf/with" "$surf/with"
+check_verdict "surfaces that differ fail without --drop-orders" FAIL "$surf/with" "$surf/without"
+check_verdict "an empty actual file fails" FAIL "$surf/with" "$surf/empty" --drop-orders
+check_verdict "an empty expected file fails" FAIL "$surf/empty" "$surf/without"
+check_verdict "an unknown option fails" FAIL "$surf/with" "$surf/without" --drop-everything
 
 if [ "$fails" -ne 0 ]; then
   echo "test-lib-live: $fails check(s) failed"

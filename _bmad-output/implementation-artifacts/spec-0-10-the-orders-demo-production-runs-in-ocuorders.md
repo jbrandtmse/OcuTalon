@@ -2,12 +2,34 @@
 title: 'Story 0.10: The Orders demo production runs in OCUORDERS'
 type: 'feature'
 created: '2026-10-20'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e674ae3656a49c95cf8c67d1557cc2e3200d3a4d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      A failed order's header has Status 8 (Error), IsError 0 and an empty ErrorStatus, and its error text exists only as the event-log row inside the "Terminating BP" wrapper, where the spec's matrix row 10 said IsError 1 and GetErrorText with the bare sentence.
+    evidence: |-
+      Measured in a throwaway (Task 0.3b): IsError and ErrorStatus are set only on error response headers (Ens.MessageHeader NewErrorResponse), and the partner sends asynchronously. The event-log row (Type 2, ConfigName OrdersFromPartner) reads "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'. > ERROR #5001: ...". The Rule 22 ruling is in the Spec Change Log; the spine and epics.md do not mention IsError. Lane A's reader (Stories 5.1, 5.2, 5.4 and the fallback line of 6.1) must key on Status 8 and the event log, parse the sentence out of the wrapper, and the matrix row 10 wording of this spec should be restated by the lead.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Demo/Orders/Translator.cls
+    severity: medium
+  - summary: >-
+      The non-Health image path of the Demo step (the ENSTEMP and SECONDARY databases, and the SECONDARY resource and role that the off path removes) has no run in the repository or in CI.
+    evidence: |-
+      CI and ci/iris.sh hold only the Health base image and never pull; the only evidence is the hand run of Task 0 step 4 recorded under Verification (W2' equals W0' and W3' equals W1' after the removal was added). Deleting the removal of those objects keeps every repository check green on the Health image.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls (System, off path)
+    severity: medium
+  - summary: >-
+      The branches of Demo.Orders() and Demo.System() that run only from a foreign or partial state have no test: a foreign production in OCUORDERS, RecoverProduction, the start-timeout error, a database entry with another directory, a mapping Modify, and the cleanup of a directory that has no CPF entry.
+    evidence: |-
+      Rows 1 to 8 start only from everything absent or everything present, and a search of the test trees and docker/tests for these error texts finds nothing. Deleting the foreign-production guard keeps rows 1 to 8 green. The fixtures need a foreign state in an existing row of the install scripts (the spec forbids new restarts and units), in the style of test-production.sh's ZzOther.Production.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls (Orders, System)
+    severity: medium
 ---
 
 <intent-contract>
@@ -539,7 +561,71 @@ Where the rows run ("script row" means a row of a live script, not of this matri
 
 ## Spec Change Log
 
+Implement stage, October 20. Each ruling is one the standing grant (Rule 22) lets the stage make; the measurements behind them are under Verification, "Task 0 measurements".
+
+- Rule 22 ruling: what the "errored header" of rows 10, 13 and 14 (AC3, AC5, AC8) is -> a PartnerOrder that fails in `Translator` ends in header `Status` 8 (Error) at `OrdersFromPartner`, with `IsError` 0 and an empty `ErrorStatus`; the error text is the event-log row of `Type` 2 (Error) for that item and session, "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: ..." (the transform's sentence appears twice). `IsError` and `ErrorStatus` are set only on error response headers (`NewErrorResponse`), and the partner sends asynchronously with no response. Tests assert `Status` 8 and the sentence in the log; the snapshot records `status` "Error", `isError` as the header holds it (false) and `error` as that log text; `Projection` compares all three. (rejected: a synchronous partner call, which would put the error on a response header but block `Send` per order and change the async contract of the Tasks; a custom response from `Translator`, which is not the "real transform error" of the story.) Consumers: Story 5.1/5.4's reader must key on `Status` and the event log, not `IsError`, and parse the first sentence out of "due to error: ERROR #5001: ...".
+- Rule 22 ruling: the destination strings of `Owned()` and of the live checks -> `"^"_directory` (one caret), as `%SYS.Namespace.GetGlobalDest` and `GetRoutineDest` return them for a local database (measured: `^/durable/iris/mgr/ocutalon_data/`), not the `"^^"_directory` the Tasks wrote. (rejected: `"^^"`, which no destination ever equals.)
+- Rule 22 ruling: how the production gets its definition in OCUORDERS -> `Orders(1)` calls `Ens.Config.Production.LoadFromClass(PRODUCTION)` before `StartProduction` whenever the production is not running, because the class is compiled in OCUTALON and `StartProduction` refuses a name with no `Ens.Config.Production` row in its namespace (`Ens.Director` L15). The row therefore follows the class after an upgrade. (inference: `StartProduction` was not run without it.) (rejected: leaving the row to whatever compiled it, which no namespace but OCUTALON does.) Side effect measured: compiling the Orders production in OCUTALON also registers an `Ens.Config.Production` row there; `OcuTalon.Production` stays the running production.
+- Rule 22 ruling: calling this class from the two switching methods -> neither `System` (in %SYS) nor `Orders` (in OCUORDERS) can call any method of `OcuTalon.Install.Step.Demo` while there: measured `<CLASS DOES NOT EXIST>` in both, and `Security.*`, `Config.*` and `SYS.*` do not exist in OCUTALON. So the directories and the other `Web`/`Settings` constants are read before the switch (parameters compile inline), and `System` goes back to the caller's namespace for its one pure call, `WithOrders`, and returns to %SYS. (rejected: a second copy of `WithOrders` inside `System`, which tests would not pin; the rule held in a string parameter and `XECUTE`d; a third switching method.)
+- Rule 22 ruling: how the step names the public global when it maps it -> `OcuTalon.Data.Public.Settings` gains `Parameter GLOBALNAME = "OcuTalonPublic"` and `System` reads it, because the class rule `public-global` (AD-19) allows that name on a code line of `src/` only in that class. `Test.Web.PublicTexts` classifies the new parameter (19 not-text parameters, was 18). (rejected: assembling the name from two strings in the step, which dodges the rule; relaxing the rule.)
+- Rule 22 ruling: what Task 0.6 turned into -> the portal application `/csp/ocuorders` has `AutheEnabled` 32 on both images, so the on path sets nothing (no VETO WINDOW item for it). The one leftover found was on the non-Health image: the resource `%DB_OCUORDERS_DATASECONDARY` and its same-named role, left by the first `System(0)`. `System(0)` now deletes the resource and role of every owned database it removes (`%DB_` plus the database's name, for names that start with OCUORDERS); with that, W2 equals W0 and W3 equals W1 byte for byte on both images. The tripwires (i), (ii) and (iii) did not fire.
+- Rule 22 ruling: a seed that cannot be written -> `Mode()` throws the seed's error, so `Run` fails and nothing is removed; reading "off" because the row could not be written would delete the demo. (rejected: returning 0.)
+- Rule 22 ruling: Row 1's check of the production's jobs -> `check_orders_jobs` ignores the jobs of the Interoperability system items (`Ens.Actor`, `Ens.Alarm`, `Ens.MonitorService`, `Ens.ScheduleHandler`), which every Interop namespace runs, and requires exactly `OrdersFromPartner` and `OrdersToWarehouse` besides them. The upgrade probe's "IsError 1" is "Status 8" (first ruling).
+- Rule 22 ruling: the lists of the SQL privileges and the applications to delete -> read with `%SQL.Statement` filtered by `Namespace`/`NameSpace` (the privilege table holds about 50,000 rows on the Health image, which `Security.SQLPrivileges:List` would scan at every start with demo mode off); privileges are deleted with `Security.SQLPrivileges.%DeleteId`, which the measurements show works.
+- Test and fixture changes the spec did not list, each forced by a shared surface: `docker/tests/test-compose-start.sh` leaves the mounted `/opt/ocutalon/eval` out of its image-files listing and asserts that the built image holds no such folder; `Test.Demo.Orders.TestTransformFailsOnTheChangedFormat` does not assert that no `WarehouseOrder` is built, because a DTL with `create='new'` builds the target before its first assignment; `Snapshot(traceRef, batch)` takes the batch as an optional second argument, so that `source.batch` is the recorded batch.
+- The `(loop)` row "`ci/iris.sh class OcuTalon.Test.Demo.Production`, 6 tests passing" holds (it also fails all 6 with row 15's text where OCUORDERS is absent: measured in a throwaway with demo mode off). `Test.Demo.Production` is not run on slot A, as the Verification targets say.
+
 ## Review Triage Log
+
+### 2026-10-20 — Review pass
+- verdicts: 44 findings — high 0, medium 6, low 30, false 8, maybe-false 0
+- groups (shared root cause): G1 E11+I1 (the errored header has no IsError); G2 B4+V1 (compare_surfaces diff branch unpinned); G3 B8+E6+E7+V5 (upstream header not waited for); G4 B2+E5 (foreign OCUORDERS_* names on the off path); G5 V3+I8 (state-machine branches from a foreign or partial state untested); G6 V2+I6 (non-Health image has no repo run); G7 B1+E12 (doc comments misplace the error text)
+- findings (Blind Hunter B1-B10, Edge Case Hunter E1-E14, Verification Gap V1-V8, Intent Alignment I1-I12, in the order the layers reported):
+  - `[low]` `[patch]` B1 Translator and Transform comments say the failed header shows the error text / its first sentence names the date — the text is the event-log row inside the "Terminating BP" wrapper; both comments rewritten to say so (G7).
+  - `[low]` `[reject]` B2 `System(0)` deletes `%DB_OCUORDERS_*` resources and roles without an ownership check when the namespace is absent — needs a hand-made database with exactly these names and no OCUORDERS namespace; off-path Task 7 deletes the step's resources unconditionally; the guard would add a branch for a state not shown (G4).
+  - `[low]` `[reject]` B3 `Run` has no lock — no caller in this story runs it twice at once; `SettingsOps` (4.1) owns the write and the rerun, and the Design Notes already hand 4.1 the DW-28 race.
+  - `[medium]` `[patch]` B4 no hermetic test for the new `lib-live.sh` helpers — `compare_surfaces` decides AC6's "nothing else changes"; nine cases added to `docker/tests/test-lib-live.sh` (equal, gone line, new line, OCUORDERS line left, plain equal, plain differing, empty actual, empty expected, unknown option), mutation recorded (G2).
+  - `[low]` `[reject]` B5 `demo_surfaces --wide` is unused — the spec requires the variant for Task 0 (spec-bound, `by-design`), and Task 0 used it.
+  - `[low]` `[reject]` B6 `Partner.Send` builds the orders twice — the spec has `Send` validate through `Orders` and `OnProcessInput` build; at most 2 x 1000 small objects, negligible.
+  - `[low]` `[reject]` B7 snapshot field types differ (`headerId` string, `sessionId` number, `enabled` 1) — no named harm today; the Design Notes let 5.4 adopt or rename the format when it fixes the payload, and a change means re-recording the file.
+  - `[low]` `[patch]` B8 the tests assert the upstream header's status without waiting for it — `WaitCount(..., "OrdersFromPartner", 9, 1)` added to `TestOneOrderInEachFormat` and `TestRepairedCopyGoesThrough` (G3).
+  - `[false]` `[reject]` B9 the step hard-codes `/opt/ocutalon/version` while the scripts honour `OCUTALON_VERSION_FILE` — only the hermetic script tests set it, with no IRIS behind them; no Docker start sets it; the spec's Rule 22 ruling fixes the path.
+  - `[low]` `[patch]` B10 `record-eval.sh` checks `jq` and `case.json` after `live_start` — both checks moved before it.
+  - `[low]` `[patch]` E1 a 22-letter accented trace reference passes the `U`/`L` pattern — `Partner.Orders` now uses `$Match(ref, "^[A-Za-z0-9_-]{22}$")`; `TestBatch` gets a 22 x `$Char(233)` case, mutation recorded.
+  - `[low]` `[reject]` E2 production states other than Running, Troubled, Suspended and Stopped are not handled — NetworkStopped, Backup and shard states cannot occur on a single Docker instance (`wontfix-theoretical`).
+  - `[low]` `[reject]` E3 a killed `EnableNamespace` leaves a half-enabled namespace that is never repaired — needs a kill inside a call that takes about one second; a rerun of the step with `IsEnsembleNamespace` true is the documented idempotence (`wontfix-theoretical`).
+  - `[low]` `[reject]` E4 a pre-existing `%DB_OCUORDERS_*` resource with public permission is kept — the spec creates a resource only when absent; a hand-made resource is outside what the step owns.
+  - `[low]` `[reject]` E5 a foreign `OCUORDERS_*` database loses its resource when demo mode is off — same as B2 (G4).
+  - `[low]` `[patch]` E6 `TestOneOrderInEachFormat` reads the upstream header without a wait — fixed with B8 (G3).
+  - `[low]` `[patch]` E7 `TestRepairedCopyGoesThrough` reads the resent header without a wait — fixed with B8 (G3).
+  - `[low]` `[reject]` E8 `failed.id` on an empty header hides the timeout — the preceding assertion already reports "the order fails" as the failure; the test is red either way.
+  - `[low]` `[reject]` E9 `Snapshot` with an empty body class aborts — every failure it reads is a `PartnerOrder` header (`TargetConfigName` and `Status 8` filter), so the class is never empty (`wontfix-theoretical`).
+  - `[low]` `[reject]` E10 `Record` appends to an existing file — `record-eval.sh` calls it once in a fresh throwaway, where `/tmp/ocutalon-snapshot.json` does not exist; `reopen_if` a second caller of `Record` appears.
+  - `[medium]` `[defer]` E11 the upgrade probe and the tests assert `Status` 8 where the matrix says `IsError` 1 — the platform sets `IsError` and `ErrorStatus` only on error response headers, and the partner sends asynchronously (G1; deferred item 1; the Rule 22 ruling is in the Spec Change Log).
+  - `[low]` `[patch]` E12 the Translator comment claims the header shows the error text — fixed with B1 (G7).
+  - `[false]` `[reject]` E13 `Owned()` compares one caret where the Tasks wrote two — the code matches the measured destination (`^<dir>`); the Tasks text was wrong and the Rule 22 ruling for it is logged.
+  - `[low]` `[patch]` E14 nothing pins the portal application's `AutheEnabled` — `check_demo_on` now pins `CHK|portal-authe|32` for `/csp/ocuorders` (Task 0.6 measured 32), run under the AC1 mutation below.
+  - `[medium]` `[patch]` V1 the `compare_surfaces` mutations went red only through the OCUORDERS-leftover branch — the `diff` branch is now covered hermetically and its mutation (the `diff` replaced by a no-op) goes red at three checks (G2).
+  - `[medium]` `[defer]` V2 the non-Health path (`ENSTEMP` and `SECONDARY` databases, their resource and role) has no repository run — CI holds only the Health base image and never pulls (deferred item 2; Task 0 measured it by hand).
+  - `[medium]` `[defer]` V3 the foreign-production refusal, `RecoverProduction`, the start-timeout error, a database entry with another directory, a mapping `Modify` and the cleanup of a directory without a CPF entry have no test — the fixtures need a foreign state in the `install` scripts' rows, and the spec forbids new restarts and units (deferred item 3).
+  - `[low]` `[reject]` V4 `Translator.OnRequest`'s wrong-class branch is untested — a business process needs a configured instance to construct; `reopen_if` S8's resend can put another body class at `OrdersFromPartner`.
+  - `[low]` `[patch]` V5 the status read without a wait (race) — fixed with B8 (G3).
+  - `[low]` `[patch]` V6 AC1's recorded mutation went red at the "start ended ready" check, not at `check_demo_on` — a second AC1 mutation (the `OcuTalon.Web.Public` mapping aimed at `OCUTALON_CODE`, the step still OK) goes red at `check_demo_on` rows 1 and 4; the other listed clauses need no mutation of their own (one per AC, Rule 19).
+  - `[low]` `[reject]` V7 `Record` and `record-eval.sh` run in no CI unit — by design (the spec: not a unit); both ran in this pass and pass.
+  - `[low]` `[reject]` V8 `test-boundaries.sh` does not ASCII-scan `eval/` — the scan scopes are the spec's; `record-eval.sh` refuses a non-ASCII or absolute-path snapshot, and `case.json` and the recorded `snapshot.json` were checked ASCII with no path.
+  - `[medium]` `[defer]` I1 header `Status` and the event log stand where the matrix says `IsError` and `GetErrorText` — same root cause as E11 (G1, deferred item 1); neither the spine nor `epics.md` mentions `IsError` or `ErrorStatus`, so no AD or AC is contradicted; the Rule 22 ruling authorizes the measured behaviour.
+  - `[low]` `[reject]` I2 row 14's check is a containment of the sentence in the wrapped log text — follows the ruling; row 16 pins the exact text at the transform.
+  - `[low]` `[reject]` I3 row 9's `errorText` is empty for both orders — `Status` 9 against 8 is asserted beside it.
+  - `[false]` `[reject]` I4 row 6 "does nothing" read as the net effect — `TestPlan` pins `Plan(0,0,0)` as "remove", a no-op when nothing exists, which is the spec's Plan.
+  - `[false]` `[reject]` I5 row 2's demo checks sit at row 4's recreate, not at its final stop and start — the Live checks list puts them there, and the upgrade script's v1 and v3 starts assert the production runs again.
+  - `[low]` `[reject]` I6 the automated runs use the Health image only — same as V2 (G6).
+  - `[false]` `[reject]` I7 `record-eval.sh` starts a stack — the spec adds it as a non-unit script; no CI unit, group or `ci.yml` change.
+  - `[low]` `[reject]` I8 no test drives `Run` against a foreign OCUORDERS or an `Orders(1)` timeout — same as V3 (G5); `Plan`'s refusal text is pinned by `TestPlan`.
+  - `[false]` `[reject]` I9 `check_security` is shared with `test-sign-in.sh` — the spec lists `test-sign-in.sh` as a user of the updated pin, and it passed.
+  - `[false]` `[reject]` I10 files outside the intent's list (`test-compose-start.sh`, `Data/Public/Settings.cls`, `Test/Web/PublicTexts.cls`, `skill-rules.md`) — each is a forced shared-surface change logged in the Spec Change Log; none is on the Never list.
+  - `[false]` `[reject]` I11 `System` assigns `$NAMESPACE` back to the caller's namespace for one pure call — exactly two methods use `New $NAMESPACE`; the Rule 22 ruling is logged.
+  - `[low]` `[patch]` I12 `Test.Demo.Production` gives row 15's "does not exist" text when OCUORDERS exists but the production does not run — the two causes now have their own messages; row 15's text stays for the missing namespace.
+- patches applied: 8 entries (G7, G2, G3, B10, E1, E14, V6, I12), all low except G2 (medium); the `(loop)` lines and the `(once)` lines of `## Verification` were run again after them.
 
 ## Design Notes
 
@@ -782,9 +868,81 @@ Every test added or changed passes on a fresh environment, in either order.
 - **AC8:** the transform's error text changed to "…was not valid" → `TestSnapshotIsReadableAndCurrent` red at the projection comparison. One character changed in `case.json`'s expectation → red at the case fields.
 - **AC9:** `Send`'s `traceRef` renamed → `Test.Contract.Ac` red at `TestCrossLaneSignatures`.
 
+### Task 0 measurements (implement stage, October 20; throwaways tagged v10a, one at a time)
+
+Everything below was measured in a throwaway of this tree unless it is marked `(inference)`. W0, W1, W2 and W3 are `demo_surfaces --wide` listings; "byte-equal" is `cmp` on the two files.
+
+- **Baselines.** Health image (`ocutalon-iris-base:2026.3.0AI.154.0`), Demo step still a stub: W0 = 52,652 lines (51,752 without `--wide`); first start ready in 47 s. Non-Health image (`iris-community:2026.3.0AI.154.0`, via `IRIS_IMAGE`; W0' from a git archive of the committed tree): W0' = 1,154 lines; ready in 32 s.
+- **3a, the first start with demo mode on, Health image.** `STEP Demo OK 1.3s` (it includes enabling Interoperability, the trace application and the production start with its items alive); the whole start was ready in 53 s (W0: 47 s). OCUORDERS got no HealthShare artefact: no `HS`, `HSMOD`, `SchemaMap`, `%pkg.isc` or `HS.Local` mapping, no `^%SYS("HealthShare","Instances","OCUORDERS")`, no `hs|` line (so tripwire (i) did not fire; the production runs). W1 minus W0 is 409 lines, every one naming OCUORDERS apart from the `cpf|` mapping lines of `--wide`: 2 applications (`/csp/ocuorders`, `AutheEnabled` 32, `Path` `<data>csp/ocuorders`; `/ocutalon/trace/ocuorders`, 32), 2 databases at `<mgr>ocuorders_code/` and `<mgr>ocuorders_data/`, those 2 directories and the folder `csp/ocuorders`, the namespace (globals OCUORDERS_DATA, routines OCUORDERS_CODE), 2 resources (public permission 0), 3 roles (`%DB_OCUORDERS_CODE` and `%DB_OCUORDERS_DATA`, each RW on its own resource, and `%EnsRole_ProdPrivs_OCUORDERS`), the trace role's 2 resources, the `ens|` and `ensrun|` markers, 125 mapping lines (the 4 of row 1, `Ens`, `EnsLib`, `EnsPortal`, `CSPX.Dashboard` and the routine `Ens*` to ENSLIB, and the namespace's global mappings), 131 `cpf|` lines and 134 `sqlpriv|` rows (133 of the `%EnsRole_*` roles, 1 of `OcuTalonTraceViewer`).
+- **3b, one order in each format** (`Partner.Send(1, ...)` in OCUORDERS). In YYYY-MM-DD: the PartnerOrder header (`PartnerOrdersIn` to `OrdersFromPartner`) `Status` 9 (Completed), `IsError` 0; then a WarehouseOrder header (`OrdersFromPartner` to `OrdersToWarehouse`) `Status` 9; one session; `SuperSession` = the reference. In MM/DD/YYYY: one PartnerOrder header, `Status` 8 (Error), `IsError` 0, `ErrorStatus` empty, a different session, `SuperSession` = the reference, and no WarehouseOrder. The event log holds one row of `Type` 2 (Error), `ConfigName` OrdersFromPartner, `SourceClass` Ens.Actor, `SourceMethod` MessageHeaderHandler, text "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: ..." (see the first ruling of the Spec Change Log). `SELECT COUNT(*) FROM OcuTalon_Demo_Orders.PartnerOrder` works in OCUORDERS (2 rows after the two orders; WarehouseOrder 1). Compiling the Orders production in OCUTALON registers an `Ens.Config.Production` row there (`OcuTalon.Production` stays the running one). A method of `OcuTalon.Install.Step.Demo` cannot be called after `$NAMESPACE` is OCUORDERS (`<CLASS DOES NOT EXIST>`); `OcuTalon.Demo.Orders.*` resolves. The same holds for %SYS (scratch class on slot A, deleted) and `Security.*` does not exist in OCUTALON.
+- **3c, off then on, Health image.** `demo.mode` 0 and a restart: `STEP Demo OK 3.7s`, W2 byte-equal to W0 (52,652 lines, `cpf|`, `dir|` and `cspdir|` lines included). `demo.mode` 1 and a restart: `STEP Demo OK 2.0s`, W3 byte-equal to W1 (53,061 lines). No leftover; tripwire (ii) did not fire. Anything outside the listing, such as other `^%SYS` nodes, was not compared `(inference: none)`.
+- **3d, the comparison route (Health image).** `Config.Namespaces.Create` with `Interop=1` for a scratch ZZINTEROP took 10.3 s (the Demo step: 1.3 s) and installed a Foundation: `^%SYS("HealthShare","Instances","ZZINTEROP")`, the `HS`, `HSMOD`, `SchemaMap` and `%pkg.isc` mappings, 4 applications (`/csp/healthshare/zzinterop` with `AutheEnabled` 8224, `.../bulkfhir` with 64 and no sign-in, `.../bulkfhir/api` and `.../services` with 32), 20,660 `sqlpriv|` rows for the namespace. Against W1 the listing gained 9 namespaces (ZZINTEROP and 8 more), 21 databases (the 2 scratch ones included), 28 applications, 87 roles, 207 resources, 1,121 mapping lines and 71,020 `sqlpriv|` rows. That is why the step uses `EnableNamespace(..., 0, , 1)`.
+- **4, the non-Health image.** W1' = 1,512 lines; `STEP Demo OK 1.4s`; ready in 29 s (W0': 32 s). Besides row 1's objects, `EnableNamespace` creates `OCUORDERS_DATAENSTEMP` at `<mgr>ocuorders_data/ocuorders_dataenstemp/` and `OCUORDERS_DATASECONDARY` at `<mgr>ocuorders_data/ocuorders_datasecondary/`, and the resource and same-named role `%DB_OCUORDERS_DATASECONDARY`. The first `System(0)` left that resource, role and role-resource (W2' differed from W0' in those 3 lines); with the removal added: off `STEP Demo OK 5.4s`, W2' byte-equal to W0'; on again 1.7 to 2.7 s, W3' byte-equal to W1'.
+- **5, the mount.** In a throwaway, `/opt/ocutalon/eval/orders-date-format/{case.json,snapshot.json}` have the same SHA-256 as the repository's files, `touch` there answers "Read-only file system", and a container run from the built image alone has no `/opt/ocutalon/eval`.
+- **6.** No setting for the portal application (`AutheEnabled` 32 on both images). The leftover of step 4 is removed in `System(0)` and is a line of `demo_surfaces` (`res|`, `role|`, `roleres|`).
+
+### Results (implement stage; local developer machine, Apple silicon, warm layer cache)
+
+- **Slot A** (build 154, `OCUTALON`): `iris_doc_load` of `src/ocutalon/cls` with `ck`: 174 classes, no error or warning. Passing, one class per call: `Test.Demo.Orders` 5 of 5, `Test.Demo.Step` 6 of 6, `Test.Contract.Ac` 6 of 6, `Test.Data.Setting` 5 of 5, `Test.Web.Install` 9 of 9, `Test.Install.Registry` 11 of 11. Slot A holds no OCUORDERS and no `demo.mode` row afterwards.
+- `bash ci/checks.sh`: exit 0 (about 32 s), after the recording. `ci/iris.sh build`: exit 0.
+- **Throwaway units:** `class OcuTalon.Test.Demo.Production` passed (6 tests, 2 s in the class, 54 s with the stack); `live install-start` passed in 170 s (2:49.9; 151 s on October 19); `live install-upgrade` passed in 168 s (2:48.3; 164 s); `live sign-in` passed in 65 s; `shard lane-b` passed, 23 classes, 61 s; `shard lane-a` passed, 9 classes, 54 s; `shard lane-b --reverse` and `shard lane-a --reverse` passed (61 s, 54 s); `live production` 90 s, `live storage-roundtrip` 67 s (56 storage blocks equal their files, the 3 new classes among them), `live compose-start` 73 s, `live demo-path` 61 s with `FIRST-START engine=aarch64 build=1s ready=52s` (0.8: 47 to 53 s) all passed. `ci/iris.sh teardown` for the tag left nothing.
+- **REL-4.** The `install` group takes about 338 s here against 315 s before (+23 s: the demo-on and demo-off checks, the surface listings, the orders probe, and `STEP Demo` 1.3 to 5.4 s per start). On the x64 runner, at the 2.4 to 3.9 factor of Rule 21, that is about +55 to +90 s for the group `(inference)`, so `iris (install)` of 12 to 13 minutes goes to about 13 to 14.5 minutes `(inference)`; the other groups pay only `STEP Demo` and the 6 s of a first start per stack `(inference)`.
+
+- **Review pass, second run after the patches** (same machine): slot A load of the 8 `Demo.Orders` and 3 `Test.Demo` classes with `ck`, no warning, `Test.Demo.Orders` 5 of 5; `bash ci/checks.sh` exit 0 (including `test-lib-live.sh` with its nine new `compare_surfaces` checks); `class OcuTalon.Test.Demo.Production` passed (53 s with the stack); `live install-start` 163 s, 56 PASS lines; `live install-upgrade` 168 s, 34 PASS lines (the `install` group about 331 s against 315 s before this story: +16 s locally); `live sign-in` 64 s; `shard lane-b` 61 s, 23 classes. `(once)`: `record-eval.sh` 56 s (50 failures, ASCII, no path), `live production` 82 s, `live storage-roundtrip` 63 s, `live compose-start` 68 s, `live demo-path` 60 s (`FIRST-START engine=aarch64 build=1s ready=53s`), `shard lane-a` 54 s (9 classes; one pre-existing SKIP in `Test.Install.Production.TestStepHelpers`, which this story does not touch), `shard lane-b --reverse` 61 s, `shard lane-a --reverse` 57 s; `ci/iris.sh teardown` for tag v10a left nothing.
+
+### Mutations demonstrated (Rule 19; each applied, red observed, reverted, and the file byte-identical with `git status --short` and `git diff --stat` unchanged)
+
+- mutation: AC1 - the `OcuTalon.Demo.Orders` mapping removed from the four in `System(1)` -> `live install-start` red at row 1: `STEP Demo FAILED ERROR #5809: Object to Load not found, class '%Dictionary.CompiledClass', ID 'OcuTalon.Demo.Orders.Production'`, the start ends "not ready", so the script stops at "row 1 the first start did not end ready" before `check_demo_on` (the step fails earlier than the check the plan expected).
+- mutation: AC2 - `Mode()` writes the default into the row at every run instead of leaving it -> `live install-start` red at `check_demo_off "row 2"` (15 of 15 values, OCUORDERS back) and at "row 2: nothing else changes" (278 lines name OCUORDERS), and `Test.Demo.Step` red at `TestMode` (the values '1', '2' and 'yes' are not kept).
+- mutation: AC3 - `Transform.OrderDate` also accepts a `MM/DD/YYYY` date -> `Test.Demo.Orders` red at `TestTransformFailsOnTheChangedFormat`, and `Test.Demo.Production` red at `TestOneOrderInEachFormat` ("the bad order fails at OrdersFromPartner").
+- mutation: AC4 - `Partner.Orders` keeps the first batch's `DateFormat` in a global and reuses it -> `Test.Demo.Production` red at `TestPartnerKeepsNoState` ("all 3 orders of the first batch fail").
+- mutation: AC5 - `Warehouse.OnMessage` returns an error -> `Test.Demo.Production` red at `TestRepairedCopyGoesThrough` ("the repaired copy reaches the warehouse"), and at `TestOneOrderInEachFormat`.
+- mutation: AC6 - `System(0)` does not delete the namespace's web applications -> `live install-start` red at "row 2: nothing else changes" (`app|/csp/ocuorders|OCUORDERS|32` and `app|/ocutalon/trace/ocuorders|OCUORDERS|32` left behind) and at `check_demo_off "row 2"` (apps 2, not 0).
+- mutation: AC7 - `Plan` takes the "create" branch for an existing namespace it does not own -> `Test.Demo.Step` red at `TestPlan` ("on 1, exists 1, owned 0 is error"); `Owned()` always returns 1 -> red at `TestOwned`.
+- mutation: AC8 - the transform's error text changed to "The order date was not valid." -> `Test.Demo.Production` red at `TestSnapshotIsReadableAndCurrent` ("a fresh recording has the committed snapshot's projection"); one character of `case.json`'s expectation changed ("OrderDatf") -> red at the same test ("the expected element at fault is OrderDate").
+- mutation: AC9 - `Partner.Send`'s `traceRef` renamed `ref` -> `Test.Contract.Ac` red at `TestCrossLaneSignatures` ("takes (count,dateFormat,traceRef,orderDate) in that order").
+- mutation: AC1 (review pass) - the `OcuTalon.Web.Public` mapping of `System(1)` aimed at `OCUTALON_CODE`, the step itself still OK -> `live install-start` red at `check_demo_on` in row 1 and in row 4 ("1 of 16 values differ": `dest-web-public`); the new `portal-authe` line of `check_demo_on` is part of the 16.
+- mutation: AC4 (review pass) - `Partner.Orders` checks the trace reference with the letters pattern `?22(1U,1L,1N,1"-",1"_")` instead of `$Match(ref, "^[A-Za-z0-9_-]{22}$")` -> `Test.Demo.Orders` red at `TestBatch` ("bad batch 9 is refused naming its value" and "bad batch 9 builds no order": 22 x `$Char(233)`).
+- mutation: AC6 (review pass) - `compare_surfaces`'s `diff` replaced by a no-op -> `test-lib-live.sh` red at three checks (a line gone, a line new, and surfaces that differ without `--drop-orders`); before this the recorded AC6 mutations went red only through the "OCUORDERS line left behind" branch.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage only (October 20; halted after planning, as dispatched). No code, test or configuration was written, and nothing was committed. The spec passed the READY-FOR-DEVELOPMENT gate.
+**Summary.** The Demo step now creates and removes OCUORDERS at every start, by the demo-mode setting `demo.mode`. The Orders production runs there: a simulated partner, a business process with a real DTL transform, and a warehouse operation. An order dated `MM/DD/YYYY` fails in the transform with a real IRIS error, and one dated `YYYY-MM-DD` goes through. One recorded 50-order failure is committed under `eval/orders-date-format/` and mounted read-only into throwaways. The on, off and upgrade checks ride on the `install` group's two live scripts with no new restart.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls`: the Demo step (`Run`, `Plan`, `Mode`, `DefaultMode`, `WithOrders`, `Directory`, `Owned`, `System`, `Orders`).
+- `src/ocutalon/cls/OcuTalon/Demo/Orders/{PartnerOrder,WarehouseOrder,Batch,Partner,Transform,Translator,Warehouse,Production}.cls`: the Orders production (new).
+- `src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls`: `Parameter GLOBALNAME`, for the `public-global` class rule.
+- `src/ocutalon/cls/OcuTalon/Test/Demo/{Orders,Step,Production}.cls`: the new `Test.Demo` area (slot A and `lane-b`; the production tests run in throwaways).
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls`, `Test/Web/PublicTexts.cls`: the `Partner.Send` signature with the floor 48; the 19th non-text parameter.
+- `docker/tests/lib-live.sh`: `set_demo_mode`, `demo_surfaces`, `compare_surfaces`, `check_demo_on`, `check_demo_off`, `check_orders_jobs`; `security_app_props`, `check_security` and `item_jobs` extended.
+- `docker/tests/test-install-start.sh`, `test-install-upgrade.sh`: the demo-on, demo-off, surfaces and orders-probe checks on the existing restarts.
+- `docker/tests/test-lib-live.sh`: hermetic cases for `compare_surfaces` (review patch).
+- `docker/tests/compose.throwaway.yml`: the read-only `./eval` mount at `/opt/ocutalon/eval`.
+- `docker/tests/record-eval.sh`: the recorder of the snapshot (new; not a CI unit).
+- `docker/tests/test-boundaries.sh`, `test-compose-start.sh`: the `eval/` files in the must-scan list; the image-files listing leaves the mount out and asserts the image holds none.
+- `eval/orders-date-format/case.json`, `snapshot.json`: the evaluation case and its recorded snapshot (new).
+- `ci/units.sh`: `Demo` joins `lane-b`. `_bmad/custom/skill-rules.md`: Rule 21's class count (32: 9 in `lane-a`, 23 in `lane-b`).
+
+**Review findings.** 44 findings from four layers: high 0, medium 6, low 30, false 8.
+- Patches applied (8 entries): the Translator and Transform comments say where the error text lives; hermetic `compare_surfaces` cases in `test-lib-live.sh`; the two tests wait for the upstream header; `record-eval.sh` checks its tools before it starts a stack; the trace reference is checked with an ASCII regex; `check_demo_on` pins the portal application's `AutheEnabled` 32; AC1's second mutation; separate messages for a missing namespace and a production that does not run.
+- Deferred (3, in the frontmatter `deferred:` list): the errored-header ruling for Lane A's reader (medium); the missing repository run of the non-Health path (medium); the untested foreign-state branches of `Orders` and `System` (medium).
+- Rejected (low or false, each with its reason in the Review Triage Log): the foreign-name resource deletion on the off path, the missing lock, `--wide` unused, the double order build in `Send`, the snapshot field types, the version-file override, theoretical production states, a half-enabled namespace, a pre-existing public resource, the empty-header and the existing-file cases, the `^^` text of the Tasks, `Translator`'s wrong-class branch, the executed host of `Record`, the ASCII scan scope of `eval/`, and the intent-alignment readings.
+- Follow-up review recommended: `false` (one medium entry was patched, no high).
+
+**Verification performed** (local developer machine, Apple silicon; commands and timings are under `## Verification`, "Results"):
+- Slot A: `src/ocutalon/cls` loaded with `ck`, no error or warning; `Test.Demo.Orders` 5, `Test.Demo.Step` 6, `Test.Contract.Ac` 6, `Test.Data.Setting` 5, `Test.Web.Install` 9 and `Test.Install.Registry` 11 passing, one class per call; slot A holds no OCUORDERS and no `demo.mode` row.
+- `bash ci/checks.sh` exit 0, three times (after the handoff, after the patches, after the recording).
+- Throwaways of tag v10a, one at a time: `class Test.Demo.Production`, `live install-start` (163 s), `live install-upgrade` (168 s), `live sign-in`, `shard lane-b` (23 classes), then `record-eval.sh`, `live production`, `live storage-roundtrip`, `live compose-start`, `live demo-path` (`FIRST-START ... ready=53s`), `shard lane-a`, `shard lane-b --reverse` and `shard lane-a --reverse`, all passing; `ci/iris.sh teardown` left nothing.
+- Task 0 was measured on both images (Health and non-Health); none of its three tripwires fired.
+- Mutations: one per AC, plus three in the review pass, each red and reverted byte-identical.
+
+**Residual risks.**
+- **Lane A's reader.** A failed order's header has `Status` 8, `IsError` 0 and no `ErrorStatus`; the error text is the event-log row, wrapped as "Terminating BP ... due to error: ...". Matrix row 10 of this spec says `IsError` 1, which the platform cannot give with an asynchronous partner. The lead should restate row 10 and hand the finding to Stories 5.1, 5.2 and 5.4 (deferred item 1).
+- **REL-4.** The `install` group grows by about 16 to 23 s locally; at Rule 21's x64 factor that is about +40 to +90 s (inference). Every first start also pays the OCUORDERS creation. The first CI run measures it.
+- **Eval mount on the x64 runner.** Not measured: the mounted files must be readable by the IRIS user, and a restrictive umask on the checked-out `eval/` files would turn `TestSnapshotIsReadableAndCurrent` red.
+- **Non-Health image.** Verified by hand only (deferred item 2).
+- **Veto window items (Rule 22.3), for the Contest Planner.** The error text and the three item names (public-facing text); demo mode off deletes `OCUORDERS_DATA` and its orders (data loss, as AD-3 and AD-23 direct); the portal application `/csp/ocuorders` answers with a password only (`AutheEnabled` 32), so no setting was needed.

@@ -11,6 +11,9 @@ Parameter KEYS = "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword
 /// The readiness key: read with Get, written only by ClearReady and SetReady.
 Parameter READY = "ready";
 
+/// The name of the global, without the caret: what a mapping names (the Demo step maps it into OCUORDERS, AD-3).
+Parameter GLOBALNAME = "OcuTalonPublic";
+
 /// Returns the stored value of a fixed key, or of "ready". No default is applied: a key that was never set,
 /// or was removed, reads as "". Any other key gives an error status in sc and "".
 ClassMethod Get(key As %String, Output sc As %Status) As %String

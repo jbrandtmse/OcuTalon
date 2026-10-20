@@ -114,7 +114,8 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
     scope_ok=0
   fi
 done
-for f in CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml; do
+for f in CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml \
+  eval/orders-date-format/case.json eval/orders-date-format/snapshot.json; do
   if ! printf '%s\n' "$all_files" | grep -qx -- "$f"; then
     echo "  not scanned for paths and keys: $f"
     scope_ok=0
