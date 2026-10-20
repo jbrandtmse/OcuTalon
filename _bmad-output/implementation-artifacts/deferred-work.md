@@ -55,6 +55,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: fresh_check 0.3 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Account() reads object.Password_object.Salt via Security.Users.Exists(user,.object); fixture name is always ZzUsers1 because Clean() kills the counter (inference: stale object or read-after-create timing)
 - 2026-10-19T06:31:36Z status=routed owner=burndown by=harvest note=fresh-check flake, priority: make the hash read deterministic (unique fixture name per run, re-open the object); product path proven by Playwright README sign-in
+- 2026-10-20T19:34:14Z status=routed owner=0-12-epic-0-burn-down by=burndown note=chartered into Story 0.12 (Epic 0 burn-down)
 
 ### DW-10: Nothing reports that instance-wide auditing is off, so on such an instance (an IPM install into an existing instance) the six events register and no entry is ever written
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -242,11 +243,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: owner decision 1, 2026-10-20 (EXPERIENCE.md, Results) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: nine gap keys plus answered.alreadyApproved's gap (Test.Msg.Catalog Gaps list); the sign-in labels sit outside the catalog and Test.Web.PublicTexts
 - 2026-10-20T18:15:26Z status=routed owner=burndown by=owner note=burn-down: catalog entries with count-of-one forms picked by count; Gaps list emptied for these keys; PublicTexts compares the three labels
+- 2026-10-20T19:34:14Z status=routed owner=0-12-epic-0-burn-down by=burndown note=chartered into Story 0.12 (Epic 0 burn-down)
 
 ### DW-42: Owner decision 2 (October 20): with demo mode off, an OCUORDERS that OcuTalon didn't create or that holds any production other than the Orders demo is left in place with a logged warning and a status note on removing it by hand, and the start finishes with the ready marker
 - source: owner decision 2, 2026-10-20 (Story 0.10 review item) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 0.10's code review made the off path fail the start (STEP Demo FAILED, no ready marker) in that case
 - 2026-10-20T18:15:26Z status=routed owner=burndown by=owner note=burn-down: Install.Step.Demo off path keeps and warns instead of failing; test-install-start.sh's stopped-foreign fixture expects the warning, the note and the ready marker
+- 2026-10-20T19:34:14Z status=routed owner=0-12-epic-0-burn-down by=burndown note=chartered into Story 0.12 (Epic 0 burn-down)
 
 ### DW-43: The spine's AD-22 'mock as built' names neither the countdown endpoint (/_mock/countdown) nor the reply rule that 0.11's Design Notes listed as spine updates
 - source: spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: low | fix-risk: low | footprint: out-of-footprint

@@ -1048,6 +1048,21 @@ So that every IRIS test runs against a mocked model, never a real one, and each 
 **And** each scenario is one JSON file, `ci/mock/scenarios/<A or B>/<name>.json`, with `name`, `match` (one of `marker`, `prompt` or `mockkey`, and, once Story 10.3 adds the Telegram scenarios, `telegram`: a Bot API method name such as `getUpdates` or `sendMessage`) and `replies` (each with `status`, `headers`, `delayMs`, `stopReason`, and `text`, `toolUse` or `body`; a `telegram` reply uses `status`, `headers`, `delayMs` and a Bot API `body`); Lane A adds scenarios only as files under `ci/mock/scenarios/A/`, and any new mock behaviour is asked of Lane B (AD-22, AD-33)
 **And** the mock's tests run in the hosted CI jobs of Story 0.7, and the judges' compose file stays free of mocks (CON-3)
 
+
+### Story 0.12: Epic 0 burn-down
+
+[AMENDED 2026-10-20, chartered by the burn-down gate, Rule 17 and Rule 22: DW-41 spans both lanes' catalog classes, which only Epic 0 may edit together (AD-29), and the owner directed DW-41 and DW-42 on October 20.]
+
+As the author,
+I want Epic 0's remaining ledger work closed before the lanes split,
+So that each lane starts from a catalog, a Demo step and a test suite that need no cross-lane edit.
+
+**Acceptance Criteria:**
+
+- DW-41: The catalog holds the owner's count-of-one, late-press and sign-in-label texts from EXPERIENCE.md ("Forms for a count of one, the late press, and the sign-in labels", October 20): `Catalog.Render` picks the count-of-one form by its count slot, the matching `gap` fields and `Gaps` entries are removed, `answered.*` gains the rejected and by-user late-press keys, and the sign-in labels "User name", "Password" and "Show password" are catalog texts that `Test.Web.PublicTexts` compares with the public package's copies (AD-3, AD-32; owner decision 1) (ledger; routed by burndown 2026-10-20)
+- DW-42: With demo mode off, an OCUORDERS that OcuTalon didn't create, or that holds any production other than the Orders demo, is left in place: the `Demo` step logs a warning naming what it kept, records a status note saying how to remove it by hand, and the start finishes normally with the ready marker written; `test-install-start.sh`'s stopped-foreign and foreign-namespace fixtures assert the warning, the note and the ready marker (AD-3 as amended; owner decision 2) (ledger; routed by burndown 2026-10-20)
+- DW-9: `OcuTalon.Test.Install.Users:TestEnsureCreates` no longer reads an empty password hash after the create (a unique fixture name per run, and a read that waits for the committed object), or the flake is closed on evidence of a fresh-environment run of `lane-a` forward and reversed with no recurrence (Rule 19) (ledger; routed by burndown 2026-10-20)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
