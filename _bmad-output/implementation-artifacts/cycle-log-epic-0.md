@@ -224,3 +224,7 @@
 2026-10-20T05:25:34Z	Epic 0	spine_updated	ad=AD-18 reason=clarification by=lead story=0-9-the-message-catalog-and-its-one-renderer lint=ok note=DW-12_measured:production_jobs_inherit_the_container_TZ
 2026-10-20T05:25:34Z	Epic 0	orchestrator_ruling	question=Rule_21_per-class_timing_omits_Msg.Catalog(0.68s) choice=lead_adds_it_to_Rule_21s_timing_clause rejected=leave_stale authority=standing_grant(Rule_22)
 2026-10-20T05:25:40Z	Story 0.9	stage_spawned	stage=qa spawn_at=2026-10-20T05:25:40Z model=claude-sonnet-5-5 agent_name=0-9-qa-1 cycle_iteration=1
+2026-10-20T05:55:58Z	Story 0.9	ci_red_classified	run=39374739457 class=flake test=test-production.sh:another_production(ZzOther_StopProduction_timeout) dw=DW-28 occurrence=2 action=rerun_failed_jobs_once note=both_occurrences_since_0.9_extended_the_script;CR_to_investigate_root_cause
+2026-10-20T05:56:17Z	Story 0.9	qa_complete	spawn_at=2026-10-20T05:25:40Z model=claude-sonnet-5-5 tests=OcuTalon.Test.Msg.Catalog,OcuTalon.Test.Data.Time tests_added=0 tests_changed=2 mutations_demonstrated=16 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1 note=independent_UX_text_extraction_matched;ci_red_flake_DW-28_reported
+2026-10-20T05:56:17Z	Story 0.9	adr_verifications_complete	result=none_required
+2026-10-20T05:56:17Z	Story 0.9	stage_spawned	stage=code-review spawn_at=2026-10-20T05:56:17Z model=claude-opus-5-5 agent_name=0-9-code-review-1 cycle_iteration=1
