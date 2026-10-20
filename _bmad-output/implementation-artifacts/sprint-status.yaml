@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-20-2026 08:05
+last_updated: 10-20-2026 10:54
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model: done
   0-8-the-demo-path-test-signs-in-and-loads-the-page: done
   0-9-the-message-catalog-and-its-one-renderer: done
-  0-10-the-orders-demo-production-runs-in-ocuorders: in-progress
+  0-10-the-orders-demo-production-runs-in-ocuorders: review
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: backlog
   epic-0-retrospective: optional
 

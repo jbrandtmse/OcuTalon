@@ -2354,6 +2354,8 @@ So that the incident notice can reach me in about half a minute.
 **When** the poller runs
 **Then** the batch reaches `IncidentManager` scoped to that session; pickup within 15 seconds (typically under 3) is measured in the clean-machine rehearsal, not asserted in CI (FR-23, NFR-7, AD-15, UX-DR102, UX-DR150)
 
+- DW-35: The poller and the evidence read a failed Orders message by its header `Status` 8 (Error) and its event-log row, because on build 154 an asynchronous send leaves `IsError` 0 and `ErrorStatus` empty; the failure sentence is parsed out of the "Terminating BP" wrapper (measured in Story 0.10; 5.4 and 6.1's fallback line read it the same way) (ledger; routed by harvest 2026-10-20)
+
 ### Story 5.3: Same-cause failures become one incident by the settle rule
 
 As a user,
