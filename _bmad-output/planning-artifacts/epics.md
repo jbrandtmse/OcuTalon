@@ -1759,6 +1759,8 @@ So that I know why decisions use fixed rules or checks are late, and what to do 
 **Then** with the online-demo flag set, the unclosable danger banner reads "The online demo has used today's model allowance. Decisions use fixed rules until {time}." with "Install it yourself" linking to the README; on any other install, the unclosable warning banner reads "OcuTalon has reached today's cost limit of {cap}. Decisions use fixed rules until {time}.", without the "Budgets" action until the settings page exists; the composer stays usable, and decisions fall back with "today's cost limit has been reached" (FR-4, UX-DR97, UX-DR111)
 **And** neither a local install that is still starting nor the online demo before launch gets a page state of its own (UX-DR100)
 
+- DW-29: A banner's `{time}` shows as a page time in the browser's zone, as the UX's banner table says, not as `Catalog.Render`'s message time in the instance zone (AD-32, Story 0.9's renderer) (ledger; routed by harvest 2026-10-20)
+
 ### Story 2.11: Push live events over a WebSocket on local installs
 
 As a user on a local install,
@@ -3621,6 +3623,8 @@ So that I can follow and steer it from my own phone.
 **Given** a Telegram turn, a pairing and several notices have run
 **When** a test searches the production messages, Visual Trace, the agent steps, the event log and the IRIS audit log
 **Then** none holds the chat's Telegram id or display name; only the `Pairing` row does (FR-15, FR-3, FR-9, AD-4)
+
+- DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
 
 ### Story 12.7: Approve or reject from Telegram, and every copy shows who answered
 
