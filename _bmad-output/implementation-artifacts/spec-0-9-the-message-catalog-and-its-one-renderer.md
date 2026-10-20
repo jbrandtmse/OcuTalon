@@ -2,9 +2,10 @@
 title: 'Story 0.9: The message catalog and its one renderer'
 type: 'feature'
 created: '2026-10-19'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3586ae5022a994fb7a4c88c05b5c751b15dbdcd9'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -340,7 +341,61 @@ Fixture context, unless a row says otherwise:
 
 ## Spec Change Log
 
+Implement stage (October 19 and 20). These Rule 22 rulings and clarifications settle points the spec left open; none changes an AC, an AD or an NFR.
+- Rule 22 ruling: which slots does `incident.laterRequest` declare, given "the same slots" as `incident.withFix`? -> the slots its text uses: `count`, `itemNoun`, `time`, `fixSummary`, `field`, `before`, `after` and `resendCount`, with no `cause`, because the entry rule is that `text` and `web` use exactly the declared slots and the later request's text has no `{cause}`. A producer may still pass `cause`; an undeclared slot is ignored (row 11, pinned by `TestExtraSlots`). (rejected: declaring `cause` without using it, which breaks the placeholder rule that `TestEntries` pins.)
+- Rule 22 ruling: what does a cost of 0 show? -> "<$0.0001", by the rule "under $0.0001 shows <$0.0001" (rejected: "$0.00", which the UX does not give).
+- Rule 22 ruling: what do `ForMessage` and `RenderAt` do with an unreadable `now`? -> `ForMessage(utc, now)` returns "" for a non-empty `now` that is not a UTC time, and `RenderAt` returns "" with an error naming the clock; an empty `now` is the current time in both. (rejected: ignoring a bad `now`, which would show a time relative to the wrong day.)
+- Rule 22 ruling: what exactly does a string slot lose? -> Tab, line feed, vertical tab, form feed, carriage return, NEL, no-break space and the Unicode line and paragraph separators become spaces; the other control characters are removed; runs of spaces become one; the ends are trimmed; one trailing period goes where the text continues with ".". A `channel` or `fallbackReason` value is case-sensitive, and both forms of a `noun` are checked even though one is used. (rejected: a regular-expression pass, which needs the same three steps and more code.)
+- Rule 22 ruling: where does a test set the process zone? -> `OnBeforeOneTest` of `Test.Msg.Catalog` sets America/New_York before every test, and `OnAfterOneTest` and `OnAfterAllTests` restore it (rejected: a line at the top of each of the 13 tests).
+- Clarification (Code Map, "own parameters of the public classes"): the abbreviations "U" and "H" are `UseSession` and `HandleCorsRequest`. Read from the class dictionary, `Shell` has `CONTENTTYPE`, `ROLE` and `UseSession`, and `Status` has `CONTENTTYPE`, `HandleCorsRequest` and `UseSession`. The count of 18 non-text parameters is unchanged.
+- Clarification (Task 0, "the unit's other checks"): the live unit's other checks stay green with the zone set (see Verification, Task 0), apart from two older checks that failed once in the first run and were not reproduced.
+
+Review pass (October 19). Rule 22 rulings that settle points the review found open; none changes an AC, an AD or an NFR.
+- Rule 22 ruling: which cost tier applies near a boundary? -> the tier of the amount as shown, so 0.99996 is "$1.00" and 0.009996 is "$0.010" (rejected: the tier of the unrounded amount, which shows "$1.000" and "$0.0100", forms the Formats rule gives no amount).
+- Rule 22 ruling: what if a string slot is only a period where the text continues with a period? -> an error naming the slot, because the slot is empty once that period goes (rejected: rendering a blank slot, which is the partial text row 10 forbids).
+- Rule 22 ruling: which more characters does a string slot lose? -> the Unicode space separators (U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000) become spaces; the zero-width space, the bidirectional controls (U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069), the word joiner and the byte order mark go. The zero-width joiner and non-joiner stay, because removing them would break emoji and some scripts. (rejected: a general category test, which needs a table the platform does not give.)
+- Rule 22 ruling: can `Render` throw? -> No. It wraps its own reads of the clock and the flag, and an omitted argument is empty, so every failure is "" with an error (rejected: leaving the reads outside the Try, which let a missing channel raise `<UNDEFINED>`).
+
 ## Review Triage Log
+
+### 2026-10-19 — Review pass
+- verdicts: 35 findings — high 0, medium 5, low 29, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter: banner times render as message times, while the UX says banner times are page times — the intent fixes it (row 2: every other key renders as on the message channels; the Rule 22 ruling "page times are the web app's"), so the fix is a spec edit; Story 2.10 decides how a banner shows its time (residual risk).
+  - `[low]` `[reject]` Blind Hunter: " ET" and the "at"-to-"on" rule live in Render, not in `ForMessage`, so a time inside a `text` slot must repeat them — the spec puts both in Render and leaves `checks.*` times to Story 5.7 through `Data.Time`; a public helper is new surface.
+  - `[low]` `[reject]` Blind Hunter: the "at"-to-"on" rule reads the rendered text, so a slot ending in "at" before a dated time would be rewritten — no shipped template puts a slot right before " {time}" (all 79 read), so nothing reaches it; theoretical.
+  - `[low]` `[patch]` Blind Hunter: the cost tier is picked before rounding ("$1.000", "$0.0100") — patched: the tier is that of the amount as shown (`Catalog.Cost`), pinned in `TestCost` with 0.99996, 0.99949, 0.009996 and 0.009949.
+  - `[low]` `[reject]` Blind Hunter: Rule 21's timing sentence ("every class takes under 0.4 s") is now out of date — the instruction allows only the class count to change there, and the sentence is October 19's measurement; `Test.Msg.Catalog` took 0.67 s in the shard (residual risk).
+  - `[low]` `[reject]` Blind Hunter: `sentence` is not checked for a time, the groups slot and the rendered length have no limit — the spec asks Render for neither; the producers, `ReplyGuard` and `TelegramOut` own the limits (Design Notes, Consumed-by 5.4, 5.7, 12.x).
+  - `[low]` `[reject]` Blind Hunter: `Test.Msg.Catalog` pins Lane A's 22 Watch keys, so a Lane A key edits a Lane B test — the spec's Tests section requires the exact key sets and fixtures, and Epic 0 creates every key (AD-29).
+  - `[low]` `[reject]` Blind Hunter: purity has no test, and the error paths of `ReadEntries` and `Find` have none — no AC pins purity; the shipped classes cannot reach those paths, and a key in both classes fails `TestEntries` through the prefix check; theoretical.
+  - `[low]` `[reject]` Blind Hunter: `slots` is typed `%String` though objects are accepted — the spec fixes the signature; ObjectScript passes an object reference through a `%String` parameter unchanged (the tests do), and `Test.Contract.Ac` pins names and return types only.
+  - `[medium]` `[patch]` Edge Case Hunter: a text or sentence slot that is only "." renders blank with a status OK, against "an empty string slot is an error" — patched: the empty check also runs after the trailing period goes; `TestErrors` pins `cause`, `fixSummary` and `after`.
+  - `[low]` `[patch]` Edge Case Hunter: Unicode spaces, zero-width characters and bidirectional controls survive the string cleaning — patched in `Catalog.Clean` (the Spec Change Log lists the characters); `TestStringSlots` cases 8 and 9.
+  - `[low]` `[patch]` Edge Case Hunter: `Render` reads the clock and the flag outside its Try and raises `<UNDEFINED>` for an omitted argument — patched: `Render` has its own Try/Catch and `$Get` of its arguments; `TestErrors` renders with no channel.
+  - `[low]` `[patch]` Edge Case Hunter: the cost rounds across a tier edge — the same defect as the Blind Hunter's; patched once.
+  - `[low]` `[reject]` Edge Case Hunter: no length limit on groups or on the rendered text — the same claim as the Blind Hunter's.
+  - `[low]` `[reject]` Edge Case Hunter: the DW-12 probe is keyed by `$Job` only — the fixture's `OnInit` runs only when the production starts the item, in the item's own job; another writer would have to call that `OnInit`; the check also fails closed when there is no entry.
+  - `[low]` `[reject]` Edge Case Hunter: an item job could exit between `item_jobs` and the `/proc` read — the read follows row 14's check that every enabled item runs, on a production just started, and fails closed; it passed in the four runs of this story (the earlier flake was in other checks).
+  - `[medium]` `[patch]` Edge Case Hunter (claim): "an empty value is an error" does not hold for ".", the same defect as the lone-period finding above — patched once.
+  - `[low]` `[reject]` Edge Case Hunter (claim): `sentence` ("with no time") is not enforced — the same claim as the Blind Hunter's.
+  - `[medium]` `[patch]` Verification Gap: the empty-`now` default of `ForMessage` is pinned only by assertions that an identity default also satisfies — patched: `TestForMessage` renders a time two days back with an empty `now` and expects a weekday form; the mutation line is under Verification.
+  - `[medium]` `[patch]` Verification Gap: `TestExtraSlots` compares two renders and asserts neither — patched: both renders are asserted OK and the first equals the fixture's text.
+  - `[medium]` `[patch]` Verification Gap: a string slot of only "." renders blank — the same defect as above; patched once.
+  - `[low]` `[patch]` Verification Gap: cost rounding across tier edges is not pinned — the same defect as above; the new `TestCost` cases pin it.
+  - `[low]` `[reject]` Verification Gap: AC3's, AC4's and AC1's recorded mutations do not cover every row or rule — Rule 19 asks for one demonstrated mutation per AC, and each of AC1 to AC7 has one; the patched pins have their own lines.
+  - `[low]` `[reject]` Verification Gap: the DW-12 shell checks depend on row 21's order, do not intersect the probe jobs with `Ens.Job` and cannot show which path supplied `TZ` — they fail closed, the probe is the production's own `OnInit`, and AC6 asks for exactly these two observations.
+  - `[false]` `[reject]` Verification Gap: wall-clock and shared-state use in the tests — no bad outcome is claimed; the clock tests allow a midnight crossing and the flag and the zone are restored.
+  - `[low]` `[reject]` Intent Alignment: rows 1 to 11 run through `RenderAt`, and `Render` itself only in row 13 and the public-text comparison — the Rule 22 ruling makes `RenderAt` the testable form; `Render` is `RenderAt` plus the clock and the flag, which row 13 pins.
+  - `[low]` `[reject]` Intent Alignment: the expected texts are a second hand-copied XData, and no test reads EXPERIENCE.md — the spec calls for that XData; the catalog was also compared with the spec's key tables by script (79 keys, no difference).
+  - `[low]` `[reject]` Intent Alignment: the unit tests set the zone with `$SYSTEM.Process.TimeZone`, and the `TZ` path is only in the live script — row 15 puts that observation in `ci/iris.sh live production`.
+  - `[low]` `[reject]` Intent Alignment: the producer side of the handoff is the test itself — row 12 is written that way; no producer exists before Epic 2.
+  - `[low]` `[reject]` Intent Alignment: the public copies are compared as class parameters, not as the rendered page — row 14 says so, and `Test.Web.SignIn.TestTexts` pins the page.
+  - `[low]` `[reject]` Intent Alignment: banner times are message times, not page times — the same claim as the Blind Hunter's first.
+  - `[low]` `[reject]` Intent Alignment: the UX's literal "Orders" became a `{production}` slot with no `gap` — the Design Notes carry the Rule 22 ruling and its VETO WINDOW FYI, and the nine `gap` keys are fixed by the spec.
+  - `[low]` `[reject]` Intent Alignment: the time inside `checks.notEverything*`'s `whatFailed` never passes through `Data.Time` here — the Design Notes give it to Story 5.7.
+  - `[low]` `[reject]` Intent Alignment: `{limit} messages` has no singular — the limit is a fixed allowance that is never 1, and the UX gives no form.
+  - `[low]` `[reject]` Intent Alignment: purity, the flag read only through `Settings.Get` and the no-reference rules have no assertion in this diff — existing static rules (`public-global`, `bridge-refs`) and `Test.Web.Status` hold the references; purity is the same claim as the Blind Hunter's eighth.
 
 ## Design Notes
 
@@ -509,7 +564,86 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC6: `live_add_file "$tmp/compose.tz.yml"` removed → `live production` red at both DW-12 checks.
 - AC7: Render's `channel` parameter renamed → `Test.Contract.Ac` red at `TestCrossLaneSignatures`.
 
+**Review-pass pins (Rule 19; each applied, run red, reverted; `git status --short`, `git diff --stat` and the checksums of the five touched files were identical afterwards):**
+- mutation: AC3, row 9 - the tier re-pick removed from `Catalog.Cost` -> `Test.Msg.Catalog` red at `TestCost` ("the cost 0.99996 shows as $1.00", "the cost 0.009996 shows as $0.010").
+- mutation: AC3, row 10 - the empty check after the period strip removed from `Catalog.SlotText` -> `TestErrors` red (`cause`, `fixSummary` and `after` as a lone period).
+- mutation: AC3, row 6 - `Catalog.Clean` back to its first list (no Unicode spaces, no zero-width characters) -> `TestStringSlots` red at string cases 8 and 9.
+- mutation: AC3, row 10 - `Render` without its Try/Catch -> `TestErrors` red (`<UNDEFINED>` on the omitted channel).
+- mutation: AC3, row 4 - the empty `now` of `ForMessage` defaulting to `utc` -> `Test.Data.Time` red at `TestForMessage` (the two new weekday cases; the older assertions stayed green).
+- mutation: AC3, row 11 - the text of `incident.laterRequest` changed ("causes") -> `TestExtraSlots` red at "the later request renders the fixture's text" (and `TestEveryKeyOnEveryChannel`).
+
+**Implement-stage results (October 19 and 20).**
+
+*Task 0, DW-12 (measured in a throwaway of project tag `v09a` with the compose-level `TZ: America/New_York`, build 154 base image, arm64):*
+- Each of the 30 alive item jobs of the production has `TZ=America/New_York` in `/proc/<job>/environ`. Every job id that the production lists is an operating-system process id, because each `/proc/<job>/environ` existed.
+- The probe in the item's own production job (the row-21 `WatchOps` fixture's `OnInit`, jobs 3199 and 3201 in one run and 3213 and 3215 in another) recorded `Zone()` = `America/New_York`, `ToLocal("2026-01-15T17:00:00Z")` = `2026-01-15T12:00:00` (EST), `ToLocal("2026-07-15T16:00:00Z")` = `2026-07-15T12:00:00` (EDT) and `GetEnviron("TZ")` = `America/New_York`.
+- Without the compose file (the AC6 mutation), the jobs have no `TZ` and the probe records `UTC`, `2026-01-15T17:00:00`, `2026-07-15T16:00:00` and an empty `TZ`. So a job inherits the container's zone from the environment and nothing else sets it. The contingency (HALT `blocked`, `intent gap`) does not apply.
+- The unit ran three times with the file. The first run (before the catalog existed) failed two of its older checks, "another production: the step fails naming it and leaves it running" (the fixture production's `StopProduction(30)` returned an error) and "another production, Troubled or Suspended" (its IRIS session then printed nothing). The second run (the same script) and the final run (the finished tree) passed every check, and the same two checks passed in the run without the file. `(inference)` a timing flake of those two older checks under load, not a zone effect, because the same script passed twice with the zone set; it was not reproduced and is not explained.
+
+*Commands run (slot A `ocutalon-slot-a`, namespace OCUTALON, build 154; throwaway tag `v09a`, `OCUTALON_LOCK_OWNER='epic=0 stage=implement'`):*
+- `iris_doc_load` of `src/bridge/cls` (33 classes) and `src/ocutalon/cls` (163 classes) with flags `ck`: no error and no warning.
+- `iris_execute_tests`, one class per call, all passing: `Test.Msg.Catalog` (13 tests, 1,430 assertions), `Test.Data.Time` (5), `Test.Web.PublicTexts` (2), `Test.Contract.Ac` (6, 47 signatures), `Test.Web.SignIn` (9), `Test.Web.Status` (7), `Test.Msg.Contracts` (6), `Test.Data.PublicSettings` (5).
+- `bash ci/checks.sh`: exit 0 (all 12 scripts).
+- `ci/iris.sh build`: built. `ci/iris.sh live production`: exit 0 with the two DW-12 PASS lines. `ci/iris.sh shard lane-b`: exit 0, `SHARD lane-b passed (20 classes) 58s`, with `CLASS OcuTalon.Test.Msg.Catalog passed 0.67s` and `CLASS OcuTalon.Test.Web.PublicTexts passed 0.04s`. `ci/iris.sh teardown`: 0 projects, containers, volumes, networks and images of the tag left. The `(once)` lines were not run.
+
+*Mutations (Rule 19; each applied, run red, reverted, and `git status --short`, `git diff --stat` and the file's checksum compared with their values before the mutation: byte-identical):*
+- mutation: AC1 - `result.allThrough` removed from `Catalog.Watch` -> `Test.Msg.Catalog` red at `TestEntries` ("Watch holds exactly its 22 keys", "the keys with a gap are exactly the 9 listed") and at `TestEveryKeyOnEveryChannel`.
+- mutation: AC2 - `RenderAt` always choosing `text` -> red at `TestEveryKeyOnEveryChannel` for the web fixtures of `incident.withFix`, `incident.laterRequest`, `answered.approved` and `answered.approvedBy`. The noun's forms swapped -> red at row 1 (every key with a noun), `TestNoun`, `TestStringSlots`, `TestExtraSlots` and `TestNotificationHandoff`.
+- mutation: AC3 - the weekday window of `ForMessage` widened from 6 to 7 days -> `Test.Data.Time` red at `TestForMessage` ("seven days before", "seven days ahead"). The " ET" suffix dropped -> `Test.Msg.Catalog` red at row 1 for every key with a time, and at `TestTimesAndLocalInstall`, `TestRenderReadsClockAndFlag`, `TestGroups` and `TestCost`.
+- mutation: AC4 - `RenderAt` taking JSON-text `slots` as the object without parsing -> `TestNotificationHandoff` red ("the slots must be a JSON object").
+- mutation: AC5 - "lists" changed to "list" in `Login.HELP` -> `Test.Web.PublicTexts` red at `TestCopiesEqualTheCatalog`. A new `Parameter` on `ApiBase` -> red at `TestEveryParameterIsClassified` ("every own parameter is classified").
+- mutation: AC6 - `live_add_file "$tmp/compose.tz.yml"` removed -> `live production` red at both DW-12 checks (30 jobs with no `TZ`; the probe in `UTC` with unconverted times); every other check green in that run.
+- mutation: AC7 - the `channel` parameter of `Render` renamed -> `Test.Contract.Ac` red at `TestCrossLaneSignatures` ("Render takes (key,slots,channel,*sc) in that order").
+
+**Review-stage results (October 19 and 20; patched tree).**
+- Slot A (`ocutalon-slot-a`, build 154, namespace OCUTALON): both bases loaded with `ck`, no error or warning; `iris_execute_tests`, one class per call, all passing: `Test.Msg.Catalog` (13), `Test.Data.Time` (5), `Test.Web.PublicTexts` (2), `Test.Contract.Ac` (6), `Test.Web.SignIn` (9), `Test.Web.Status` (7), `Test.Msg.Contracts` (6), `Test.Data.PublicSettings` (5).
+- `bash ci/checks.sh`: exit 0.
+- Throwaway tag `v09a`, one stack at a time: `ci/iris.sh build` exit 0; `live production` exit 0 (23 PASS lines, both DW-12 lines, the probe in two item jobs at `America/New_York`, 12:00:00 in January and in July); `shard lane-b` exit 0 (20 classes, `Test.Msg.Catalog` 0.68 s, `Test.Web.PublicTexts` 0.04 s); `teardown` left nothing.
+- The `(once)` lines: `shard lane-a` (9 classes), `shard lane-b --reverse` (20 classes) and `shard lane-a --reverse` (9 classes) all exit 0; the only SKIP is the existing `Install.Production.TestStepHelpers`; `teardown` left nothing of `-v09a-`.
+- The catalog texts were also compared by script with the spec's key tables: 57 Core keys and 22 Watch keys, no difference.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The message catalog and its one renderer are in place, and DW-12 is measured and pinned.
+- `OcuTalon.Msg.Catalog` renders any of the 79 keys on `web`, `phone`, `mailbox` and `telegram` through `Render` and `RenderAt`, reads the two catalog classes through `Entry` on every call, and returns the whole text or `""` with a plain-English error status.
+- `OcuTalon.Msg.Catalog.Core` (57 keys) and `.Watch` (22 keys) hold the texts as XData, with the nine gapped keys marked.
+- `Data.Time.ForMessage` formats message times by the local date.
+- `Test.Web.PublicTexts` compares the public package's eight sign-in copies with the catalog and classifies all 29 own parameters.
+- `test-production.sh` starts its stack with `TZ: America/New_York` and checks that every item job holds it and that the item's own production job converts in it. Task 0 found that a production job inherits the container's zone, so the DW-12 contingency did not apply.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog.cls`, `Msg/Catalog/Core.cls`, `Msg/Catalog/Watch.cls`: new, the renderer and the two catalogs.
+- `src/ocutalon/cls/OcuTalon/Data/Time.cls`: `ForMessage` and the English day and month names.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`, `Test/Web/PublicTexts.cls`: new tests; `Test/Data/Time.cls` (`TestForMessage`) and `Test/Contract/Ac.cls` (four signatures, floor 47): extended.
+- `docker/tests/test-production.sh`: the compose-level `TZ`, the `/proc/<job>/environ` check and the time probe in row 21's fixture.
+- `_bmad/custom/skill-rules.md`: Rule 21's class count, 29 classes (9 in `lane-a`, 20 in `lane-b`).
+- This spec: the Spec Change Log, the Review Triage Log, the Verification results and the mutation lines.
+
+**Review findings.** 35 findings from four layers: high 0, medium 5, low 29, false 1.
+- Patched (10 findings, which are 6 root causes: 3 medium and 3 low; the fixes are in `Catalog.Cost`, `Catalog.SlotText`, `Catalog.Clean`, `Catalog.Render`, `Test.Data.Time.TestForMessage` and `Test.Msg.Catalog`):
+  - a string slot that is only a period no longer renders blank (it is an error), medium;
+  - the empty-`now` default of `ForMessage` is now pinned, medium;
+  - `TestExtraSlots` now asserts both renders, medium;
+  - the cost tier follows the amount as shown ("$1.00" for 0.99996), low;
+  - Unicode spaces, bidirectional controls and zero-width characters are cleaned from string slots, and `Render` never throws, low.
+- Deferred: none (`deferred:` is empty).
+- Rejected, each with its reason in the Review Triage Log: 25 findings (24 low and 1 false), among them these four, each with a one-line reason:
+  - banner times as message times: fixed by the intent (row 2) and the Rule 22 ruling, so the fix would be a spec edit;
+  - the length of a rendered text and the `sentence` "no time" rule: the producers, `ReplyGuard` and `TelegramOut` own them;
+  - the lane coupling of `Test.Msg.Catalog`: the spec's Tests section requires the exact key sets;
+  - Rule 21's old timing sentence: only the class count may change there.
+
+**Follow-up review recommended: true.** Three medium entries were patched. The unverified risk: the patched `Catalog.Clean` code-point sets and `Catalog.Cost` re-pick are pinned by tests I wrote, and no independent reviewer has read the patched lines.
+
+**Verification.** All `(loop)` and `(once)` lines are in the Verification section: slot A load and eight classes, `ci/checks.sh`, `live production` with both DW-12 lines, `shard lane-b`, the fresh-environment check of `lane-a` and `lane-b` forward and reverse, and the teardown, all green. Task 0's values and the mutation lines are there too.
+
+**Residual risks.**
+- Banner times with a `{time}` render as message times, while the UX says banner times are page times in the browser's zone. Story 2.10 decides how a banner gets its time; the Rule 22 ruling and its VETO WINDOW FYI are in the Design Notes.
+- Nothing limits the length of a rendered text. A Telegram message is capped at 4,096 characters, so `TelegramOut` (Story 12.x) and the incident producers must keep notices under it, with `errorSummary` at the UX's 80 characters.
+- Rule 21's sentence that every class takes under 0.4 s is out of date: `Test.Msg.Catalog` takes 0.68 s in the shard. Only the class count was allowed to change.
+- The first live run with the zone set failed two older checks ("another production") once, and the same script passed in three further runs. `(inference)` a timing flake; not reproduced.
+- `incident.laterRequest` declares no `cause` slot, because its text has no `{cause}`; a producer may still pass one, and it is ignored.
+- The spine updates listed under "Spine updates for the lead" (AD-32, AD-29, AD-18, Conventions) are the lead's, per Rule 20.

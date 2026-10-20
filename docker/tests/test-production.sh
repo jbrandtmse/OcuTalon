@@ -18,6 +18,11 @@
 #   - row 18, the Running branch: the Production step run on the running production starts every item with a pool again;
 #   - row 21, an item that cannot start: with a WatchOps whose OnInit fails the step fails naming WatchOps, and with the
 #     original class back it succeeds and WatchOps runs;
+#   - DW-12, the container's time zone (Story 0.9): the stack starts with the compose-level TZ America/New_York, so that
+#     (1) after row 14 every alive item job holds TZ=America/New_York in /proc/<job>/environ, and (2) after row 21 the
+#     WatchOps fixture's OnInit, which runs in the item's own production job, has recorded Data.Time.Zone() as
+#     America/New_York and ToLocal as 12:00:00 for 17:00Z in January (EST) and for 16:00Z in July (EDT), with TZ read from the
+#     job's environment; the probe is ^OcuTalonTest("TimeProbe", job), killed after the check;
 #   - a runner with no model: with an agent class that has no MODEL the step fails naming the runner, and with the original
 #     class back it succeeds;
 #   - another production: with OcuTalon.Production stopped and a fixture production running, the step fails naming the
@@ -33,6 +38,10 @@ set -u
 
 . "$(dirname "$0")/lib-live.sh"
 live_start t06
+
+# DW-12: the whole stack runs in a US zone, so that the checks see what a production job does with the container's TZ.
+printf 'services:\n  iris:\n    environment:\n      TZ: America/New_York\n' > "$tmp/compose.tz.yml"
+live_add_file "$tmp/compose.tz.yml"
 
 version=$(manifest_version src/module.xml)
 
@@ -81,6 +90,24 @@ check_session "row 14: CreateBusinessService refuses EvalIn as disabled" OCUTALO
   "CHK|evalin-refused|1|1" \
   'Set sc=##class(Ens.Director).CreateBusinessService("EvalIn",.svc) Write !,"CHK|evalin-refused|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["is disabled")' \
   'Halt'
+
+# --- DW-12: the container's zone reaches every item job ---
+
+tz_wanted=America/New_York
+item_jobs "$tmp/jobs.tz"
+tz_jobs=$(awk -F'\t' '{ print $2 }' "$tmp/jobs.tz" | tr ',' ' ')
+# $tz_jobs is split on purpose: one argument per job id.
+# shellcheck disable=SC2086
+dc exec -T iris sh -c 'for j in "$@"; do printf "%s=%s\n" "$j" "$(tr "\0" "\n" < "/proc/$j/environ" 2>/dev/null | sed -n "s/^TZ=//p")"; done' sh $tz_jobs \
+  | tr -d '\r' > "$tmp/jobs.tz.env"
+tz_count=$(grep -c . "$tmp/jobs.tz.env")
+tz_bad=$(grep -vxE "[0-9]+=$tz_wanted" "$tmp/jobs.tz.env" | tr '\n' ' ')
+if [ "$tz_count" -gt 0 ] && [ -z "$tz_bad" ]; then
+  pass "DW-12: each of the $tz_count alive item jobs holds TZ=$tz_wanted in /proc/<job>/environ"
+else
+  sed 's/^/  job=TZ: /' "$tmp/jobs.tz.env" | head -n 20
+  fail "DW-12: $tz_count alive item jobs were read; no TZ=$tz_wanted in /proc/<job>/environ for: ${tz_bad:-none}"
+fi
 
 # --- row 15: the accessor outside Decide ---
 
@@ -206,6 +233,7 @@ Parameter STUB = 1;
 
 Method OnInit() As %Status
 {
+	Set ^OcuTalonTest("TimeProbe", $Job) = $ListBuild(##class(OcuTalon.Data.Time).Zone(), ##class(OcuTalon.Data.Time).ToLocal("2026-01-15T17:00:00Z"), ##class(OcuTalon.Data.Time).ToLocal("2026-07-15T16:00:00Z"), $SYSTEM.Util.GetEnviron("TZ"))
 	Quit $SYSTEM.Status.Error(5001, "fixture: OnInit fails on purpose")
 }
 
@@ -230,6 +258,16 @@ CHK|watchops-runs|1" \
   'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() Set up=0 While rs.Next() { If rs.Get("ConfigName")="WatchOps",rs.Get("State")="Alive" { Set up=1 } } Write !,"CHK|watchops-runs|",up' \
   'Halt'
 check_items_run "row 21: after the restore"
+
+# --- DW-12: an item's own production job converts in the container's zone ---
+
+check_session "DW-12: the item's own production job reports Zone() America/New_York, EST in January and EDT in July" OCUTALON \
+  "CHK|probe|1|bad=" \
+  'Set n=0,bad="",j="" For { Set j=$Order(^OcuTalonTest("TimeProbe",j),1,v) Quit:j=""  Set n=n+1,ok=($ListToString(v,"|")="America/New_York|2026-01-15T12:00:00|2026-07-15T12:00:00|America/New_York") Write !,"CHK|probe-value|",j,"|",$ListToString(v,"|") If ok=0 { Set bad=bad_" "_j } }' \
+  'Write !,"CHK|probe|",(n>0),"|bad=",$ZStrip(bad,"<W")' \
+  'Kill ^OcuTalonTest("TimeProbe")' \
+  'Halt'
+sed -n 's/^CHK|probe-value|/  DW-12 probe in job /p' "$tmp/actual.chk" | head -n 6
 
 # --- a runner that resolves no model ---
 
