@@ -11,7 +11,7 @@
 #   ci/iris.sh shard <name> [--reverse]   one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
 #   ci/iris.sh class <Class>              the same for one test class
-#   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag
+#   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>)
@@ -34,19 +34,12 @@ usage() {
 
 # --- the run tag and the web port ---
 
-tag_ok() {
-  case $1 in
-    '' | *[!a-z0-9-]* | *slot*) return 1 ;;
-  esac
-  [ "${#1}" -ge 3 ]
-}
-
 setup_tag() {
   if [ -z "${OCUTALON_RUN_TAG:-}" ]; then
     OCUTALON_RUN_TAG="local-$(date +%s)-$$"
   fi
-  if ! tag_ok "$OCUTALON_RUN_TAG"; then
-    echo "FAIL OCUTALON_RUN_TAG '$OCUTALON_RUN_TAG' must match [a-z0-9-]+, be at least 3 characters and not hold 'slot'"
+  if ! live_tag_ok "$OCUTALON_RUN_TAG"; then
+    echo "FAIL OCUTALON_RUN_TAG '$OCUTALON_RUN_TAG' $LIVE_TAG_RULE"
     exit 2
   fi
   export OCUTALON_RUN_TAG
@@ -85,7 +78,7 @@ is_test_case() {
   grep -q '^Method Test' "$1" || return 1
   awk '/^Class / { collecting = 1 }
        collecting && /^\{/ { exit abstract }
-       collecting && /\[[^]]*Abstract/ { abstract = 1 }
+       collecting && /[[,][ \t]*Abstract[ \t]*[],]/ { abstract = 1 }
        END { exit abstract }' "$1"
 }
 
@@ -107,8 +100,11 @@ all_areas() {
 
 # --- one test class in the running throwaway ---
 
-# class_script <class>: the IRIS session that runs one test class from the installed package and prints its result as CHK lines.
-# ^UnitTestRoot must name an existing folder, because the manager checks the root even for a run with no load.
+# class_script <class>: the IRIS session that runs one test class from the installed package and prints its result as CHK lines:
+# one case line per class, an error line for a failed case or method that has an error text, and an assert line for every assertion
+# that did not pass (failed or skipped) in every method. Each Write carries its own postcondition, so a condition gates only that
+# Write and never the loops after it. ^UnitTestRoot must name an existing folder, because the manager checks the root even for a run
+# with no load.
 class_script() {
   printf '%s\n' \
     'Set ^UnitTestRoot="/tmp/"' \
@@ -117,21 +113,16 @@ class_script() {
     "Do ##class(%UnitTest.Manager).RunTest(\":$1\",\"/noload/nodelete/norecursive\")" \
     'Set id=$Order(^UnitTest.Result(""),-1) Set inst="" If id>before Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id)' \
     'Write !,"CHK|new|",$IsObject(inst)' \
-    'If $IsObject(inst) { Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Write !,"CHK|case|",tc.Name,"|",tc.Status,"|",tc.Duration,"|",tc.TestMethods.Count() If tc.Status=0,tc.ErrorDescription'"'"'="" Write !,"CHK|error|",tc.Name,"|",$Translate(tc.ErrorDescription,$Char(13,10),"  ") Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  If tm.Status=0,tm.ErrorDescription'"'"'="" Write !,"CHK|error|",tm.Name,"|",$Translate(tm.ErrorDescription,$Char(13,10),"  ") Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  If ta.Status'"'"'=1 Write !,"CHK|assert|",ta.Status,"|",tm.Name,"|",$Translate(ta.Description,$Char(13,10),"  ") } } } } }' \
+    'If $IsObject(inst) { Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Write !,"CHK|case|",tc.Name,"|",tc.Status,"|",tc.Duration,"|",tc.TestMethods.Count()  Write:(tc.Status=0)&&(tc.ErrorDescription'"'"'="") !,"CHK|error|",tc.Name,"|",$Translate(tc.ErrorDescription,$Char(13,10),"  ")  Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  Write:(tm.Status=0)&&(tm.ErrorDescription'"'"'="") !,"CHK|error|",tm.Name,"|",$Translate(tm.ErrorDescription,$Char(13,10),"  ")  Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  Write:ta.Status'"'"'=1 !,"CHK|assert|",ta.Status,"|",tm.Name,"|",$Translate(ta.Description,$Char(13,10),"  ") } } } } }' \
     'Halt'
 }
 
 # run_class <class>: prints "CLASS <class> passed|failed <s>s" and, indented, each failed or skipped assertion and each error.
 # Returns 1 when the class is not compiled, left no result, ran no test or failed.
 run_class() {
-  local class=$1 out="" try=1 started=$SECONDS
+  local class=$1 out started=$SECONDS
   local compiled="" casename="" status="" dur="" methods="" details="" verdict kind a b c d desc
-  while :; do
-    out=$(class_script "$class" | dc exec -T iris iris session IRIS -U OCUTALON 2>&1 | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
-    if printf '%s\n' "$out" | grep -q '^CHK|compiled|' || [ "$try" -ge 2 ]; then break; fi
-    try=$((try + 1))
-    sleep 5
-  done
+  out=$(class_script "$class" | iris_script OCUTALON)
   while IFS='|' read -r _ kind a b c d; do
     case $kind in
       compiled) compiled=$a ;;
@@ -269,7 +260,7 @@ cmd_shard() {
 
 cmd_class() {
   local class=${1:-}
-  if [ -z "$class" ] || ! test_classes $(all_areas) | grep -qx -- "$class"; then
+  if [ -z "$class" ] || ! test_classes $(all_areas) | grep -qxF -- "$class"; then
     echo "unknown test class '$class': it must be a non-abstract class with a Method Test... in a Test/<Area>/ folder"
     exit 2
   fi
@@ -294,6 +285,7 @@ cmd_live() {
     exit 2
   fi
   setup_tag
+  echo "PORT the web port of the browser units: ${OCUTALON_TEST_WEB_PORT:-auto}"
   preflight
   if [ "$name" = sign-in ]; then
     npx --prefix web playwright install chromium || exit 1
@@ -353,8 +345,8 @@ cmd_teardown() {
     echo "teardown needs OCUTALON_RUN_TAG: the tag of the run to remove"
     exit 2
   fi
-  if ! tag_ok "$tag"; then
-    echo "FAIL OCUTALON_RUN_TAG '$tag' must match [a-z0-9-]+, be at least 3 characters and not hold 'slot'"
+  if ! live_tag_ok "$tag"; then
+    echo "FAIL OCUTALON_RUN_TAG '$tag' $LIVE_TAG_RULE"
     exit 2
   fi
   pattern="^ocutalon-[a-z0-9-]+-$tag-[0-9]{10}-[0-9]+([-_:]|\$)"

@@ -11,12 +11,14 @@
 #     its export must differ from the copy (the compiler gives the slot back), and the original, loaded again, must export equal
 #     to its file. A comparison that cannot see a difference would pass anything.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and images.
-# Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
+# Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
+# throwaway lock is held), so even a failing run ends soon after it.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
 . "$(dirname "$0")/lib-live.sh"
+. "$(dirname "$0")/lib-scan.sh"
 live_start t07rt
 
 decide_class=OcuTalon.Bridge.Process.Decide
@@ -35,12 +37,8 @@ if ! wait_started_ready 400; then
 fi
 pass "the first start ended ready"
 
-# The Storage blocks of a class file: from a line that starts a block to its closing brace.
-dc exec -T iris sh -c 'cat > /tmp/rt-blocks.awk' <<'EOA'
-/^Storage / { p = 1 }
-p { print }
-p && /^\}/ { p = 0 }
-EOA
+# The Storage blocks of a class file (STORAGE_BLOCKS_AWK of lib-scan.sh, the program that test-storage.sh runs too).
+printf '%s\n' "$STORAGE_BLOCKS_AWK" | dc exec -T iris sh -c 'cat > /tmp/rt-blocks.awk'
 
 # blocks_state <file a> <file b>: in the container, SAME when the Storage blocks of the two files are identical, DIFF when they
 # differ, EMPTY when the first has no block, and MISSING when a file cannot be read.

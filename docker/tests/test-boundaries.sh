@@ -11,7 +11,7 @@
 # And in every file that git tracks or has not ignored (the pipeline's folders and the agent files included, a binary skipped,
 # .env and .env.<x> other than .env.example never read), CON-5:
 #   - no local machine path: a home or volume folder with a name below it, a /private/tmp, /private/var or /private/etc path,
-#     or a Windows user folder with a name below it;
+#     a macOS per-user temporary folder (/var/folders/<x>, the form TMPDIR takes), or a Windows user folder with a name below it;
 #   - no key-like string.
 # Starts nothing. Each scanner first runs on a synthetic file that breaks its rule and on one that
 # keeps it, so a scanner that can no longer flag anything fails. A failing scan prints file:line only,
@@ -31,7 +31,7 @@ trap 'rm -rf "$tmp"' EXIT
 non_ascii() { LC_ALL=C grep -nH '[^[:print:][:space:]]' "$@" | cut -d: -f1,2; }
 
 local_path() {
-  { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
+  { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|(^|[^A-Za-z0-9_.])/va[r]/folders/[A-Za-z0-9_]|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
     grep -nHIE '/hom[e]/[A-Za-z]' "$@" | grep -v '/home/irisowner'
   } | cut -d: -f1,2
 }
@@ -137,6 +137,7 @@ printf 'cd %s%s/Data/x\n' "/Volu" "mes" > "$tmp/path.bad2"
 printf 'cd %s%s/var/folders/x\n' "/priv" "ate" > "$tmp/path.bad3"
 printf 'cd C:%s%s\\someone\\x\n' '\' "Users" > "$tmp/path.bad4"
 printf 'cd %s%s/someone/x\n' "/ho" "me" > "$tmp/path.bad5"
+printf 'TMPDIR=%s%s/ab/cd1234/T/\n' "/var/fol" "ders" > "$tmp/path.bad6"
 {
   printf 'cd /durable/iris and /home/irisowner\n'
   printf 'a generic home folder is %s%s/<name>/ or %s%s/ alone\n' "/Us" "ers" "/Volu" "mes"
@@ -188,9 +189,10 @@ mkdir -p "$tmp/OcuTalon/Channel/Telegram"
 
 scan_rule "ascii: only printable ASCII, spaces and tabs" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good" "$files"
 
-# The path scanner has more than one bad shape: a home folder, a volume, a private folder, a Windows user folder and a Linux home.
+# The path scanner has more than one bad shape: a home folder, a volume, a private folder, a Windows user folder, a Linux home and a
+# macOS per-user temporary folder.
 paths_ok=1
-for n in 2 3 4 5; do
+for n in 2 3 4 5 6; do
   if [ -z "$(local_path "$tmp/path.bad$n")" ]; then
     echo "FAIL paths: the scanner does not flag sample $n"
     fails=$((fails + 1))
@@ -225,6 +227,17 @@ if [ "$listed" = ".env.example a.txt caf$(printf '\303\251').txt " ]; then
   echo "PASS scan_files: a file with a non-ASCII name is listed, and .env and .env.local are not"
 else
   echo "FAIL scan_files: the list is wrong (${listed:-empty})"
+  fails=$((fails + 1))
+fi
+
+# scan_rule hands a file whose name holds a space or a glob character to the scanner as one file, so its lines are scanned.
+mkdir -p "$tmp/spaced"
+printf 'k=%s%s\n' "sk-ant-" "aaaaaaaaaaaaaaaa" > "$tmp/spaced/a key [1].txt"
+spaced=$(fails=0; scan_rule "spaced" key_like "$tmp/key.bad" "$tmp/key.good" "$tmp/spaced/a key [1].txt"; echo "FAILS=$fails")
+if printf '%s\n' "$spaced" | grep -q 'a key \[1\]\.txt:1' && printf '%s\n' "$spaced" | grep -qx 'FAILS=1'; then
+  echo "PASS scan_rule: a file whose name holds a space or a glob character is scanned"
+else
+  echo "FAIL scan_rule: a file whose name holds a space or a glob character is not scanned"
   fails=$((fails + 1))
 fi
 

@@ -10,21 +10,23 @@
 #   - persist-credentials: every checkout sets persist-credentials: false;
 #   - runners: ubuntu-24.04 or [self-hosted, ocutalon];
 #   - fork-guard: every self-hosted job carries the job-level guard that keeps a fork's pull request off the IRIS runner;
-#   - secrets: no secrets reference (a run block, any case or a bracket included), and github.token only as GH_TOKEN;
+#   - secrets: no secrets reference (a run block, any case, a bracket or the whole context, as in toJSON(secrets), included), and
+#     github.token only as GH_TOKEN (the whole github context, which holds the token, counts as a use of it);
 #   - image-actions: no docker/* action and no actions/cache anywhere, and no upload-artifact in a self-hosted job;
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
-#   - wiring: ci.yml runs ci/checks.sh, the web build, lint and unit tests, ci/iris.sh build and group, each gated by the
+#   - wiring: ci.yml runs ci/checks.sh, each script of WEB_SCRIPTS, lint and unit tests, ci/iris.sh build and group, each gated by the
 #     classifier's web or iris output, reads only step ids that exist, and sets the run tag, the image and the deadline of the iris job;
 #   - units: every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or one group; every Test/<Area>/
 #     folder of either source tree is in exactly one shard; every class with a Method Test... sits directly in an area folder;
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
-#   - checks.sh, class verdict, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh run_class tells a
-#     pass, a skip, a failure, an error, a class not compiled, no result and no test apart, and teardown removes what carries its
-#     tag and nothing else (ci/iris.sh is sourced with a stub for dc and docker);
+#   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
+#     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
+#     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else (ci/iris.sh
+#     is sourced with a stub for dc, docker and run_classes);
 #   - yaml: ruby -ryaml parses each file (SKIP, and never a PASS, when Ruby is missing).
 # A failing rule prints file:line and its name, never the text of the file. Prints one PASS or FAIL line per rule; exits 0
 # only when none fails.
@@ -69,8 +71,9 @@ BEGIN { job = ""; step = 0; sec = ""; sub2 = ""; inblock = 0 }
   ind = RLENGTH
   text = substr(line, ind + 1)
   low = tolower(text)
-  if (low ~ /secrets[.[]/) emit("secret", FNR, text)
-  if (low ~ /github\.token|github\[[^]]*token/) emit("token", FNR, text)
+  # A whole context inside an expression, such as toJSON(secrets) or toJSON(github), counts as a use of every value it holds.
+  if (low ~ /secrets[.[]/ || low ~ /[$][{][{]([^}]*[^a-z0-9_.-])?secrets([^a-z0-9_.[-]|$)/) emit("secret", FNR, text)
+  if (low ~ /github\.token|github\[[^]]*token/ || low ~ /[$][{][{]([^}]*[^a-z0-9_.-])?github([^a-z0-9_.[-]|$)/) emit("token", FNR, text)
   if (inblock) {
     if (ind > blockind) { emit("step:runline", FNR, text); next }
     inblock = 0
@@ -106,6 +109,7 @@ BEGIN { job = ""; step = 0; sec = ""; sub2 = ""; inblock = 0 }
       if (key == "runs-on") emit("job:runs-on", FNR, val)
       else if (key == "if") emit("job:if", FNR, val)
       else if (key == "permissions") emit("job:permissions", FNR, val)
+      else if (key == "continue-on-error") emit("job:coe", FNR, val)
       next
     }
     if (sub2 == "permissions" && ind == 6) { emit("job:permissions:entry", FNR, key ": " val); next }
@@ -117,6 +121,8 @@ BEGIN { job = ""; step = 0; sec = ""; sub2 = ""; inblock = 0 }
         stepsub = ""
         if (key == "uses") emit("step:uses", FNR, val)
         else if (key == "id") emit("step:id", FNR, val)
+        else if (key == "name") emit("step:name", FNR, val)
+        else if (key == "continue-on-error") emit("step:coe", FNR, val)
         else if (key == "if") emit("step:if", FNR, val)
         else if (key == "run") {
           if (val ~ /^[|>]/) { inblock = 1; blockind = 8; emit("step:run", FNR, "") }
@@ -178,12 +184,13 @@ kind == "job:runs-on" {
   else bad(ln, "runners")
 }
 kind == "job:if" { jobif[job] = text }
+kind == "job:coe" || kind == "step:coe" { bad(ln, "never-skipped") }
 kind == "step:uses" {
   usesline[job, st] = ln
   if (text ~ /^docker:/) bad(ln, "pins")
   else if (text !~ /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.\/-]+@[0-9a-f]+ # v[0-9]+\.[0-9]+\.[0-9]+$/ || text !~ /@[0-9a-f][0-9a-f]* #/) bad(ln, "pins")
   else { sha = text; sub(/^[^@]*@/, "", sha); sub(/ .*$/, "", sha); if (length(sha) != 40) bad(ln, "pins") }
-  action = text; sub(/@.*$/, "", action)
+  action = tolower(text); sub(/@.*$/, "", action)
   if (action ~ /^docker\// || action ~ /^actions\/cache($|\/)/) bad(ln, "image-actions")
   if (action ~ /upload-artifact$/) { uploads[job] = uploads[job] " " ln }
   if (action == "actions/checkout") { checkout[job, st] = ln }
@@ -212,6 +219,7 @@ END {
       n = split(uploads[j], u, " ")
       for (i = 1; i <= n; i++) bad(u[i], "image-actions")
     }
+    if ((j in hosted) && jobif[j] != "") bad(jobs[j], "never-skipped")
     if (j in jobblock && !(j in jobcontents)) bad(jobs[j], "permissions")
     if (j in runsiris) {
       ok = 0
@@ -337,6 +345,8 @@ make_bad token-other '$0 == "          GH_TOKEN: ${{ github.token }}" { print " 
 make_bad secret-block '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: |"; print "          echo ${{ secrets.KEY }}"; print "          bash ci/iris.sh group ${{ matrix.group }}"; next } { print }'
 make_bad secret-bracket '{ print } $0 == "          GH_TOKEN: ${{ github.token }}" { print "          OTHER: ${{ Secrets['"'"'KEY'"'"'] }}" }'
 make_bad token-block '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: |"; print "          echo ${{ github.token }}"; print "          bash ci/iris.sh group ${{ matrix.group }}"; next } { print }'
+make_bad secret-context '{ print } $0 == "          GH_TOKEN: ${{ github.token }}" { print "          ALL: ${{ toJSON(secrets) }}" }'
+make_bad token-context '{ print } $0 == "          GH_TOKEN: ${{ github.token }}" { print "          CTX: ${{ toJSON(github) }}" }'
 make_bad persist-true 'sub(/persist-credentials: false/, "persist-credentials: true") { print; next } { print }'
 make_bad persist-missing '$0 == "          persist-credentials: false" { next } { print }'
 make_bad teardown-no-always '$0 == "        if: always()" { next } { print }'
@@ -346,6 +356,12 @@ insert_after image-docker "      - name: Run" "        uses: docker/login-action
 insert_after image-cache "      - name: Run" "        uses: actions/cache@$sha # v4.0.0"
 insert_after image-cache-restore "      - name: Run" "        uses: actions/cache/restore@$sha # v4.0.0"
 insert_after image-upload "      - name: Run" "        uses: actions/upload-artifact@$sha # v4.0.0"
+insert_after image-docker-upper "      - name: Run" "        uses: Docker/Login-Action@$sha # v3.0.0"
+insert_after image-cache-upper "      - name: Run" "        uses: Actions/Cache@$sha # v4.0.0"
+insert_after image-upload-upper "      - name: Run" "        uses: Actions/Upload-Artifact@$sha # v4.0.0"
+make_bad skip-hosted-job '$0 == "  hosted:" { print; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
+make_bad coe-job '$0 == "    runs-on: ubuntu-24.04" { print; print "    continue-on-error: true"; next } { print }'
+make_bad coe-step '$0 == "      - name: What changed" { print; print "        continue-on-error: true"; next } { print }'
 make_bad matrix-extra 'sub(/group: \[install, production\]/, "group: [install, production, other]") { print; next } { print }'
 make_bad matrix-block '$0 == "        group: [install, production]" { print "        group:"; print "          - install"; print "          - production"; next } { print }'
 make_bad matrix-missing '$0 == "    strategy:" { skip = 4 } skip > 0 { skip--; next } { print }'
@@ -407,8 +423,10 @@ rule pins "every action is owner/repo@<40 hex> with a version comment, and no do
 rule persist-credentials "every checkout sets persist-credentials: false" persist-true persist-missing
 rule runners "ubuntu-24.04 or [self-hosted, ocutalon]" runner-latest runner-label
 rule fork-guard "every self-hosted job keeps a fork's pull request off the IRIS runner" fork-guard-missing fork-guard-weak
-rule secrets "no secrets reference (a run block, any case or a bracket included), and github.token only as GH_TOKEN" secret-ref token-other secret-block secret-bracket token-block
-rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job" image-docker image-cache image-cache-restore image-upload
+rule secrets "no secrets reference (a run block, any case, a bracket or the whole context included), and github.token only as GH_TOKEN" secret-ref token-other secret-block secret-bracket token-block secret-context token-context
+rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job, whatever the case of the name" \
+  image-docker image-cache image-cache-restore image-upload image-docker-upper image-cache-upper image-upload-upper
+rule never-skipped "no hosted job has a job-level if, and no job or step ignores a failure with continue-on-error" skip-hosted-job coe-job coe-step
 rule teardown "every job that runs ci/iris.sh has an if: always() step that runs ci/iris.sh teardown" teardown-no-always teardown-missing teardown-early
 rule matrix "the group list of ci.yml is ci/iris.sh groups" matrix-extra matrix-order matrix-block matrix-missing
 
@@ -435,8 +453,18 @@ function need_skip(job, cond,    key, kk, found) {
   }
   if (!found) bad(job ": no step has the condition '" cond "'")
 }
+# need_named <job> <name> <text in its run line>: the job has a step of that name, with no condition, whose run line holds the text.
+function need_named(job, name, hold,    key, kk, found) {
+  found = 0
+  for (key in snames) {
+    split(key, kk, SUBSEP)
+    if (kk[1] == job && snames[key] == name && ifs[key] == "" && index(runs[key], hold) > 0) found = 1
+  }
+  if (!found) bad(job ": no step '" name "' runs a line that holds '" hold "'")
+}
 BEGIN { FS = "\t" }
 { kind = $1; ln = $2; job = $3; st = $4; text = $5 }
+kind == "step:name" { snames[job, st] = unq(text) }
 kind == "step:run" { runs[job, st] = text }
 kind == "step:if" { ifs[job, st] = text }
 kind == "step:id" { ids[job, text] = 1 }
@@ -450,10 +478,13 @@ END {
   iris = "steps.changes.outputs.iris == 'true'"
   need("checks", "bash ci/checks.sh", "")
   need("web", "bash ci/changes.sh ci.yml", "")
-  need("web", "bash docker/tests/test-web-build.sh", web)
+  nw = split(webscripts, ws, " ")
+  if (nw == 0) bad("ci/units.sh: WEB_SCRIPTS is empty")
+  for (i = 1; i <= nw; i++) need("web", "bash docker/tests/test-" ws[i] ".sh", web)
   need("web", "npm --prefix web run lint", web)
   need("web", "npm --prefix web test", web)
   need_skip("web", "steps.changes.outputs.web != 'true'")
+  need_named("web", "Mock tests: none until Story 0.11", "No mock test runs here yet")
   need("iris", "bash ci/changes.sh ci.yml", "")
   need("iris", "bash ci/iris.sh build", iris)
   need("iris", "bash ci/iris.sh group ${{ matrix.group }}", iris)
@@ -468,7 +499,9 @@ END {
   }
 }
 EOA
-wf_wiring() { wf_facts "$1" | awk -f "$tmp/wiring.awk" | sort -u; }
+# wf_wiring <workflow file> [<web scripts>]: the web job must run each script of WEB_SCRIPTS (ci/units.sh), or of the list given.
+web_scripts=$(. ./ci/units.sh && printf '%s' "$WEB_SCRIPTS")
+wf_wiring() { wf_facts "$1" | awk -v webscripts="${2-$web_scripts}" -f "$tmp/wiring.awk" | sort -u; }
 
 ci_yml=.github/workflows/ci.yml
 wiring_bad() { # wiring_bad <name> <awk program>: a copy of ci.yml that the program rewrites
@@ -483,16 +516,24 @@ wiring_bad checks '$0 == "        run: bash ci/checks.sh" { print "        run: 
 wiring_bad lint '$0 == "        run: npm --prefix web run lint" { print "        run: echo lint"; next } { print }'
 wiring_bad test '$0 == "        run: npm --prefix web test" { print "        run: echo test"; next } { print }'
 wiring_bad group '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: echo group"; next } { print }'
+wiring_bad mock 'index($0, "      - name: \"Mock tests: none until Story 0.11\"") == 1 { print "      - name: Mock tests"; next } { print }'
 wiring_ok=1
-for n in id iris-gate web-gate skip-step tag checks lint test group; do
+for n in id iris-gate web-gate skip-step tag checks lint test group mock; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
     echo "FAIL wiring: the rule does not flag the sample $n"
     wiring_ok=0
   fi
 done
+# A script of WEB_SCRIPTS that no step of the web job runs, and an empty list.
+for extra in "$web_scripts zz-web" ""; do
+  if [ -z "$(wf_wiring "$ci_yml" "$extra")" ]; then
+    echo "FAIL wiring: the rule does not flag the web scripts '$extra'"
+    wiring_ok=0
+  fi
+done
 hits=$(wf_wiring "$ci_yml" | sed "s#^[0-9]*\twiring\t#  $ci_yml: #")
 if [ "$wiring_ok" -eq 1 ] && [ -z "$hits" ]; then
-  echo "PASS wiring: ci.yml runs the checks, the lint and the unit tests, the build and each group, gated by the classifier's web and iris outputs"
+  echo "PASS wiring: ci.yml runs the checks, each script of WEB_SCRIPTS, the lint and the unit tests, the build and each group, gated by the classifier's web and iris outputs"
 else
   printf '%s\n' "$hits" | head -n 10
   echo "FAIL wiring: ci.yml does not run what its jobs are for, or a sample is not flagged"
@@ -608,6 +649,65 @@ else
   fails=$((fails + 1))
 fi
 
+# --- the test classes of a shard: a non-abstract class with a Method Test... directly in an area folder ---
+
+# discovered <tree> <area>...: the classes that ci/iris.sh (sourced, which then runs nothing) takes for the test classes of those
+# areas in the tree below <tree>, one per line in name order.
+discovered() {
+  local tree=$1
+  shift
+  ( . "$root/ci/iris.sh"; cd "$tree" && test_classes "$@" )
+}
+# tc_class <tree> <Class> <declaration tail> <body lines...>: src/<ocutalon|bridge>/cls/... holding one class; the tree is the
+# second argument's prefix, bridge or ocutalon.
+tc_class() {
+  local tree=$1 class=$2 tail=$3 file
+  shift 3
+  file="$tree/src/${TC_SRC:-ocutalon}/cls/$(printf '%s' "$class" | tr . /).cls"
+  mkdir -p "$(dirname "$file")"
+  { printf 'Class %s Extends %%UnitTest.TestCase%s\n{\n' "$class" "$tail"; printf '%s\n' "$@"; printf '}\n'; } > "$file"
+}
+tc="$tmp/tc"
+tc_class "$tc" OcuTalon.Test.Alpha.One "" 'Method TestOne()' '{' '}'
+TC_SRC=bridge tc_class "$tc" OcuTalon.Test.Alpha.Two "" 'Method TestTwo()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.Base " [ Abstract ]" 'Method TestInherited()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.BaseTwo " [ ProcedureBlock, Abstract ]" 'Method TestInheritedToo()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.Helper "" 'ClassMethod Make()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.Sub.Deep "" 'Method TestDeep()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.HasAbstractMethod "" 'Method TestWithAbstractMember()' '{' '}' 'Method Hook() [ Abstract ]' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.NotAbstract " [ Not Abstract ]" 'Method TestConcrete()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Alpha.Depends " [ DependsOn = OcuTalon.Test.AbstractBase ]" 'Method TestDepends()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Beta.Zed "" 'Method TestZed()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Beta.Abc "" 'Method TestAbc()' '{' '}'
+tc_class "$tc" OcuTalon.Test.Gamma.Other "" 'Method TestOther()' '{' '}'
+got=$(discovered "$tc" Alpha Beta | tr '\n' ' ')
+want="OcuTalon.Test.Alpha.Depends OcuTalon.Test.Alpha.HasAbstractMethod OcuTalon.Test.Alpha.NotAbstract OcuTalon.Test.Alpha.One OcuTalon.Test.Alpha.Two OcuTalon.Test.Beta.Abc OcuTalon.Test.Beta.Zed "
+ok=1
+if [ "$got" != "$want" ]; then
+  echo "FAIL test classes: a synthetic tree gave '$got', wanted '$want' (abstract classes, helpers, sub-folders and other areas are out; both source trees, Not Abstract and a DependsOn that names Abstract are in, in name order)"
+  ok=0
+fi
+# The real tree: every class that ci/iris.sh takes is a concrete class with a test method, and every concrete class with a test
+# method that sits directly in an area folder is taken.
+want_real=$(for f in $(grep -l '^Method Test' src/*/cls/OcuTalon/Test/*/*.cls); do
+  if ! grep -m 1 '^Class ' "$f" | grep -q 'Abstract'; then printf '%s\n' "$f" | sed -e 's#^src/[^/]*/cls/##' -e 's#\.cls$##' -e 's#/#.#g'; fi
+done | LC_ALL=C sort | tr '\n' ' ')
+got_real=$(bash ci/iris.sh classes | tr '\n' ' ')
+if [ -z "$got_real" ] || [ "$got_real" != "$want_real" ]; then
+  echo "FAIL test classes: ci/iris.sh classes gives '$got_real', a plain search gives '$want_real'"
+  ok=0
+fi
+shards_real=$( (. ci/units.sh; for s in $SHARDS; do bash ci/iris.sh classes "$s"; done) | LC_ALL=C sort | tr '\n' ' ')
+if [ "$shards_real" != "$got_real" ]; then
+  echo "FAIL test classes: the classes of the shards together are not the classes of every shard"
+  ok=0
+fi
+if [ "$ok" -eq 1 ]; then
+  echo "PASS test classes: a non-abstract class with a Method Test... directly in an area folder is taken, nothing else is, and the shards hold them all"
+else
+  fails=$((fails + 1))
+fi
+
 # --- the recipe's refusals and its web port ---
 
 # recipe <expected exit> <expected text or -> <env assignments...> -- <ci/iris.sh arguments...>
@@ -630,6 +730,8 @@ recipe 2 "must match" OCUTALON_RUN_TAG=ab -- build
 recipe 2 "needs OCUTALON_RUN_TAG" -- teardown
 recipe 2 "unknown shard" -- shard nope
 recipe 2 "unknown test class" -- class OcuTalon.Test.Nope
+recipe 2 "unknown test class" -- class OcuTalon.Test.Install.User.
+recipe 2 "unknown test class" -- class '.*'
 recipe 2 "unknown live unit" -- live nosuch
 recipe 2 "unknown group" -- group nosuch
 recipe 2 - -- nosuchcommand
@@ -640,6 +742,8 @@ recipe 0 "auto" RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "auto" RUNNER_NAME=somerunner OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "auto" OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 if [ -z "$recipe_fail" ]; then
   echo "PASS recipe: bad tags, units and a missing base image are refused, and the web port follows the runner's number"
 else
@@ -718,6 +822,30 @@ verdict_case "a session that printed nothing" 1 "" "^CLASS $cls failed" "not com
 if [ "$verdict_ok" -eq 1 ]; then
   echo "PASS class verdict: a pass, a skip and a failed class, an error, a class not compiled, no result, no test and an empty session are told apart"
 else
+  fails=$((fails + 1))
+fi
+
+# --- ci/iris.sh shard: the classes run in name order, and in the reverse order with --reverse ---
+
+# shard_order <arguments of cmd_shard...>: the title and the classes that cmd_shard hands to run_classes, which is a stub.
+shard_order() {
+  (
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME
+    . ci/iris.sh
+    run_classes() { shift; printf '%s\n' "TITLE $1"; shift; printf '%s\n' "$@"; }
+    cmd_shard "$@"
+  )
+}
+forward=$(bash ci/iris.sh classes lane-a)
+backward=$(printf '%s\n' "$forward" | LC_ALL=C sort -r)
+got_forward=$(shard_order lane-a)
+got_backward=$(shard_order lane-a --reverse)
+if [ "$(printf '%s\n' "$forward" | wc -l | tr -d ' ')" -ge 2 ] && [ "$forward" != "$backward" ] \
+  && [ "$got_forward" = "$(printf '%s\n' "TITLE lane-a" "$forward")" ] \
+  && [ "$got_backward" = "$(printf '%s\n' "TITLE lane-a (reversed)" "$backward")" ]; then
+  echo "PASS shard order: a shard runs its classes in name order, and in the reverse order with --reverse"
+else
+  echo "FAIL shard order: the classes of 'shard lane-a' or 'shard lane-a --reverse' are not in name order or its reverse"
   fails=$((fails + 1))
 fi
 

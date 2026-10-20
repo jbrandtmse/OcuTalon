@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-19'
 status: 'done'
 baseline_revision: '80abb60cc9ab3de021f9daf9bcb3b38d66504938'
+baseline_commit: 80abb60cc9ab3de021f9daf9bcb3b38d66504938
 review_loop_iteration: 0
 followup_review_recommended: true
 context: []
@@ -435,6 +436,65 @@ QA stage (not this stage). After the lead pushes the implement commit, read the 
 - **DW-17.** Given `src/`, when `test-class-rules.sh` runs, then only `Session.ForUser`'s and `Live.Event.Since`'s unchecked prepares pass, and any other unchecked prepare or a stale allow-list entry fails, naming `file:line`.
 - **Every test class.** Given a fresh throwaway with the installed package, when each shard runs forward and reversed, then all 27 test classes pass (row 19).
 
+### Review Findings
+
+Code review, October 19 (`bmad-code-review`, tier `full-opus`; layers `blind-hunter`, `edge-case-hunter`, `verification-gap` and `acceptance-auditor`). 56 rows reported, 31 entries after grouping: high 0, med 12, low 19. Each entry gives severity / fix-risk / footprint / disposition (Rule 15). Rule 3: exempt, because this is CI and test tooling with no user-facing surface; the runtime evidence is run 39338702672 and this pass's throwaway runs (Verification). Rule 6: no AC contradicts an amended AD. The product holds AD-2 and AD-3 in the forms that the checks missed (no `EnsLib_AI_` anywhere; the public classes reach only their allow-list), so those are gaps in the checks.
+
+Patches (all applied in this pass):
+- [x] [Review][Patch] The shard session's legacy `If` gated the loops after it on the same line, so a skipped assertion never printed its `SKIP` line (run 39338702672 prints none under `Test.Install.Production`, which skips in a throwaway) [ci/iris.sh:116] - med / low / in-story / fixed: each `Write` carries its own postcondition. A class whose methods all skip still passes (Story 0.6's ruling), now with its `SKIP` lines.
+- [x] [Review][Patch] The web skip ignored the root `.gitignore` and `.gitattributes`, which decide whether the web build leaves the checkout clean, so a skip could turn a red into a green [ci/units.sh:43] - med / low / in-story / fixed, with three classifier cases.
+- [x] [Review][Patch] `WEB_SCRIPTS` had no consumer: `wiring` pinned one hard-coded script, so a script added to the list passed `units` and never ran [docker/tests/test-ci-config.sh:481] - med / low / in-story / fixed: the web job must run each script of the list.
+- [x] [Review][Patch] Rule 2: `run_class` repeated the session loop of `iris_script` (`docker/tests/lib-live.sh`) [ci/iris.sh:122] - med / low / in-story / fixed: it calls `iris_script`.
+- [x] [Review][Patch] Rule 2: the run-tag check was copied into `ci/iris.sh` and `docker/tests/lib-live.sh` and had diverged (`live_start` accepted `ab`, which `teardown` refuses) [docker/tests/lib-live.sh:36] - med / low / in-story / fixed: one `live_tag_ok` and `LIVE_TAG_RULE`.
+- [x] [Review][Patch] `ai-allowlist` missed every SQL table name of `EnsLib.AI` (`EnsLib_AI_<Sub>`) [docker/tests/test-class-rules.sh:58] - med / low / in-story / fixed, with a sample.
+- [x] [Review][Patch] `shard --reverse` was unpinned: a reverse that did nothing stayed green [docker/tests/test-ci-config.sh:828] - med / low / in-story / fixed: the `shard order` check.
+- [x] [Review][Patch] Rule 19: "without the folder no lock is taken" depended on whether this machine has a coordination folder, and its `ls` half could not fail [docker/tests/test-lib-live.sh:502] - med / low / in-story / fixed: it runs against a synthetic main checkout that has the folder.
+- [x] [Review][Patch] A self-check of the test harness in `test-ci-changes.sh` was labelled as a behaviour of `ci/changes.sh` [docker/tests/test-ci-changes.sh:215] - low / low / in-story / relabelled.
+- [x] [Review][Patch] The `secrets` rule missed whole contexts, such as `toJSON(secrets)` and `toJSON(github)` [docker/tests/test-ci-config.sh:74] - low / low / in-story / fixed, with two samples.
+- [x] [Review][Patch] `ci/iris.sh class` matched the name as a regular expression, so `OcuTalon.Test.Install.User.` passed the guard and started a stack [ci/iris.sh:263] - low / low / in-story / fixed (`grep -F`), with two refusal cases.
+- [x] [Review][Patch] `public-global` flagged any non-code file below `src/`, so the planned `src/cpf/ocutalon.cpf` (AD-29) would turn `checks` red [docker/tests/test-class-rules.sh:67] - low / low / in-story / fixed: code files only, with a CPF sample.
+- [x] [Review][Patch] `bridge_refs` read `;` and `#;` comment lines as code [docker/tests/lib-scan.sh:61] - low / low / in-story / fixed.
+- [x] [Review][Patch] `is_test_case` took `[ Not Abstract ]`, or a `DependsOn` that names `Abstract...`, for an abstract class, so such a test class never ran [ci/iris.sh:81] - low / low / in-story / fixed, with two samples.
+- [x] [Review][Patch] The path scan missed the macOS temporary folder `/var/folders/<x>` that `TMPDIR` names [docker/tests/test-boundaries.sh:34] - low / low / in-story / fixed, with a sample.
+- [x] [Review][Patch] `scan_rule` and the prepare scan split the file list at spaces and expanded globs, so such a file was never scanned for keys [docker/tests/lib-scan.sh:40] - low / low / in-story / fixed, with a check.
+- [x] [Review][Patch] The lock's `acquired_at` was stamped before the wait, up to 4 minutes early [docker/tests/lib-live.sh:106] - low / low / in-story / fixed.
+- [x] [Review][Patch] Nothing pinned that the deadline counts from the moment the lock is held [docker/tests/test-lib-live.sh:385] - low / low / in-story / fixed: one check pins it and `acquired_at`.
+- [x] [Review][Patch] `ci/changes.sh` ignored a failed write to `GITHUB_OUTPUT`, and an empty output skips every gated step [ci/changes.sh:47] - low / low / in-story / fixed: exit 1, with a check.
+- [x] [Review][Patch] Two figures were wrong: the round trip's "about 9 minutes" (CI's deadline is 1200 s), and Rule 21's "2.4 to 3.9 times" counted `build-inputs` (1.75) [docker/tests/test-storage-roundtrip.sh:14] - low / low / in-story / fixed.
+- [x] [Review][Patch] Rule 21 never told a stage to set `OCUTALON_LOCK_OWNER`, so every real lock would read `epic=unknown` [_bmad/custom/skill-rules.md:253] - low / low / in-story / fixed (Rule 21's entry only).
+- [x] [Review][Patch] Rule 19: AC1 (the runners; no green ancestor; an API failure) and AC2 (no `ci/` reference) had no `mutation:` line - low / low / in-story / closed under Verification.
+- [x] [Review][Patch] Rule 2: the Storage block program was copied between `test-storage.sh` and `test-storage-roundtrip.sh` [docker/tests/lib-scan.sh:103] - low / low / in-story / fixed: `STORAGE_BLOCKS_AWK`.
+- [x] [Review][Patch] Rule 2: the bridge-refs samples were copied between `test-class-rules.sh` and row 5 of `test-install-start.sh` [docker/tests/lib-scan.sh:73] - low / low / in-story / fixed: `bridge_ref_samples`.
+- [x] [Review][Patch] DW-18: `.gitattributes` had no LF rule for `ci/**` [.gitattributes:5] - low / low / in-story / fixed; the lead adjudicates DW-18.
+- [x] [Review][Patch] `test-sign-in.sh` (Story 0.3) printed `tr: write error: Broken pipe` on the runner [docker/tests/test-sign-in.sh:28] - low / low / in-epic / fixed (QA's note).
+
+Deferred and closed:
+- [x] [Review][Defer] The public-package check misses embedded SQL, query bodies, globals, macros, `XECUTE` and `@` indirection, `$PROPERTY`, projections and includes [src/ocutalon/cls/OcuTalon/Test/Web/Status.cls] - deferred: pre-existing scope (the third `deferred:` item, which had no ledger entry); med / high / in-story / DW-20 `escalated` owner=burndown.
+- [x] [Review][Defer] REL-4's 30 minutes holds only by dispatch order: the worst schedule of the five groups on two runners is about 32 minutes [ci/units.sh:24] - deferred: med / high / in-story / DW-21 `escalated` owner=burndown. QA's `install` split makes six groups (AD-22 and AC1 say five) and moves the worst case only to about 31.5 minutes.
+- [x] [Review][Defer] The spine lags two implement-stage rulings: AD-3 does not allow system datatype classes as types, and AD-5 lacks the rule that a slot keeps its number and property - deferred: the Rule 20 write is the lead's; med / low / in-story / DW-22 `routed` to this story's ledger adjudication.
+- [x] [Review][Defer] A push to a branch with an open same-repository pull request starts two IRIS matrices [.github/workflows/ci.yml:7] - `by-design` (the spec's triggers); med / med / in-story / DW-23.
+- [x] [Review][Defer] `unchecked-prepare` flags `%PrepareClassQuery(..., 3)` and `$$$YES`, which are checked calls [docker/tests/test-class-rules.sh:118] - `by-design` (the spec's "not 1"), fails closed; low / low / in-story / DW-24.
+
+Rejected (18):
+- `group` reports a busy lock (exit 75) as a failed unit: low; `group` is a convenience, Rule 21 runs one piece per call, and the `LOCK busy` line names the holder.
+- A generator that writes a runtime `$SYSTEM.Encryption` call into its output passes the public-package check: low; no class does it, and the fix needs string-literal parsing.
+- A test class whose test methods are all inherited never runs: the spec defines a test class by its `Method Test` line (pass 1).
+- A hanging class stalls the shard: adjudicated in pass 1.
+- A runner crash leaves a project that no later job removes: low and theoretical; a sweep of other runs' projects could remove a running job's stack.
+- A job-level `container:` or `services:` image is not checked: low; no registry holds the IRIS image, and the rule covers what the spec names.
+- `grep -I` skips a file with NUL bytes or invalid UTF-8: adjudicated in pass 1.
+- `OCUTALON_EVAL` set in the caller's environment or `.env` reaches the throwaway: low; it fails loudly in `test-production.sh`, and only on a developer machine.
+- An in-place build requested on a dirty checkout falls back to the copy: adjudicated in pass 1; it ends red, never green.
+- `release-diff` passes when tags were not fetched or git fails: low; the `checks` job fetches every tag, and a clone without tags cannot be told from a repository without one offline.
+- The runs list is one page of 100, and a re-run clears its run's conclusion: false as a defect; both fail open, because the base is always a green ancestor.
+- `test-class-rules.sh` writes its bad samples literally: false; its rules scan only `src/` and `docker/after-start.cos`, so it holds nothing its own scanners flag.
+- `test-ci-config.sh` lists workflow files by glob, not `scan_files`: low and theoretical; an ignored workflow file is never pushed.
+- `rule()` and `expect_rule()` re-implement `scan_rule`: false; they judge workflow facts, not files.
+- The path-to-class `sed` is repeated in the round trip: low; it is one line, run on container output.
+- `undici-types` arrives with `@types/node`: false as a finding; it is a transitive dependency of the named one (MIT).
+- A missing Ruby prints `SKIP`: adjudicated in pass 1.
+- A failed case also prints IRIS's roll-up texts as `ERROR` lines: low; the lines are true.
+
 ## Spec Change Log
 
 Implement stage, October 19. No intent gap: no AC contradicts an AD, and no NFR can't be implemented. Rule 22 rulings made alone (each as: question -> choice (rejected: ...)):
@@ -697,6 +757,7 @@ Every command finishes in one foreground call. Docker and npm calls pass `timeou
 - `_bmad/custom/parallel.yaml`;
 - `.gitignore`;
 - `ci/units.sh`'s lists, which `test-ci-config.sh` compares with `ci.yml`;
+- `CHECK_SCRIPTS`, which now ends with `bootstrap` (QA);
 - the scopes and samples of `test-boundaries.sh` and `test-storage.sh`;
 - `Test.Web.Status`'s class list;
 - in throwaways, `^UnitTest.Result`;
@@ -781,6 +842,98 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC6, `lib-live.sh`: mutation: `dc down` always run in `live_cleanup` -> `test-lib-live.sh` red at "a cleanup before the compose files exist"; mutation: `OCUTALON_LIVE_DEADLINE` left in the probe's environment, with `OCUTALON_LIVE_DEADLINE=1200` exported -> red at "the deadline is 540 s by default".
 
 *Re-run after the review patches (all exit 0).* `bash ci/checks.sh`; the YAML parse; `npm --prefix web ci`, `run build`, `run lint`, `test`; `ci/iris.sh build`, `shard lane-a`, `shard lane-b`, `live storage-roundtrip`, `live production-restart`, `teardown`; slot A `Test.Web.Status`: 7 of 7. The `(once)` lines ran again after the last patch (see the Auto Run Result).
+
+*QA stage, October 19 (Rule 19, and the first real run of `7cf38e3`).* Runs read: `ci` 39338702672 and `lane-a` 39338702584, both `headSha` `7cf38e3e8383025db1945b31904f9b82dfb384b5`, both `success`. `gh run list --commit 7cf38e3` shows exactly one `ci` and one `lane-a` run, both on `push` to `OCT-epic0` (AC1). No job is red, no annotation or warning on any job. Nothing was pushed, re-run or dispatched.
+
+*Test files created or changed by QA (QA).*
+- `docker/tests/test-bootstrap.sh` (QA, new, in `CHECK_SCRIPTS` as `bootstrap`): runs the `bootstrap` and `bootstrap_check` lines of `_bmad/custom/parallel.yaml`, unchanged, in a linked worktree of a synthetic repository that has the real `.gitignore` (`npm` is a stub that makes the dependency folder). Matrix row 17 and AC6 had only a manual `(once)` check.
+- `docker/tests/test-ci-config.sh` (QA): the rule `never-skipped`; `image-actions` matches action names in lower case; the named mock-test step in the `wiring` rule; `test classes` (discovery of the shard classes); two `recipe` cases for the `PORT` line.
+- `docker/tests/test-lib-live.sh` (QA): `live_start` with a lock folder.
+- `ci/iris.sh` (QA): `live <name>` prints `PORT the web port of the browser units: <port|auto>` first. `ci/units.sh` (QA): `bootstrap` joins `CHECK_SCRIPTS`.
+
+*Gaps closed.* Each was first shown unpinned: the mutation was applied and the matching test stayed green.
+- Row 18, `live_start`'s lock: every lock check called `live_lock_claim` directly, so `live_start` without its `live_lock_claim` call stayed green. Now `live_start` is run with a lock folder: the lock is held when the first thing after the claim runs, names the project, the exit trap deletes it, and a lock that another run holds gives exit 75 before anything starts and stays as it was.
+- AC1 (row 2), jobs never skipped: a job-level `if:` on the hosted `checks` job, and `continue-on-error: true` on a job or a step, stayed green; the `wiring` rule did not hold the named mock-test step either. Now `never-skipped` flags all of them, and `wiring` requires the step.
+- AC5: `uses: Actions/Cache@<sha>` (and `Docker/...`, `Actions/Upload-Artifact`) in the `iris` job stayed green, because GitHub reads an action name without regard to case. Now the name is lower-cased before `image-actions` matches it.
+- Row 4, the definition of a test class: nothing ran `ci/iris.sh classes`, and the real tree has no abstract class with a `Method Test`, so the abstract check could be removed unseen (a later abstract base with a test method would then run as a test, or a concrete class would drop out). Now a synthetic tree (abstract with one or two class keywords, a helper, a sub-folder, a class whose method is abstract, both source trees, name order) and the real tree (against a plain search, and the two shards together against `classes`) are compared.
+- Row 17, the bootstrap: see `test-bootstrap.sh` above. It has two controls (a `.gitignore` that does not name the folders, and a main checkout without them), a second run, and a folder that is already there.
+- `RUNNER_NAME` and the web port: the browser units never printed the port. `ci/iris.sh live` now prints it, and `test-ci-config.sh` pins the line (52812 for `ocutalon-ci-2`, `auto` without a runner name), so the next run shows it.
+
+*Local checks that held without a change* (read, then mutation where noted): the red-then-bookkeeping case and the base (row 11: the second green ancestor, or `HEAD~1`, as base turns `test-ci-changes.sh` red at "red then bookkeeping" and at other checks); a pull request never skips; the fork guard and `image-actions` on every self-hosted job; every `docker/tests/test-*.sh` in exactly one place and every `Test/<Area>/` in exactly one shard; `teardown` and its fixtures of other tags, a slot, an outside name and the base image; DW-11's round trip with its control; DW-17's allow-list with a stale entry; `release-diff`'s `PASS release-diff: no release tag yet` (printed on the hosted runner too).
+
+*The first real run.*
+- `ci`: created 22:59:39 UTC, last job done 23:27:16, wall-clock 27 min 37 s (1657 s). REL-4's 30 minutes holds, with 2 min 23 s to spare.
+- Per job (`startedAt` to `completedAt`, from `gh run view 39338702672 --json jobs`):
+
+| Job | Runner | Start | End | Duration |
+|---|---|---|---|---|
+| `checks` | hosted `ubuntu-24.04` (image 20261012.334.1) | 22:59:43 | 23:00:06 | 23 s |
+| `web` | hosted | 22:59:42 | 23:00:11 | 29 s |
+| `iris (production)` | `ocutalon-ci-1` | 22:59:42 | 23:12:39 | 12 min 57 s |
+| `iris (image)` | `ocutalon-ci-2` | 22:59:42 | 23:07:41 | 7 min 59 s |
+| `iris (shards)` | `ocutalon-ci-2` | 23:07:49 | 23:14:34 | 6 min 45 s |
+| `iris (install)` | `ocutalon-ci-1` | 23:12:41 | 23:27:16 | 14 min 35 s |
+| `iris (browser)` | `ocutalon-ci-2` | 23:15:36 | 23:23:01 | 7 min 25 s |
+
+- The five `iris` jobs add up to 2981 s (about 50 runner-minutes). The slowest groups are `install` and `production`. The matrix order is not the dispatch order: production and image started first, then shards, install and browser. Install and browser waited 13 and 16 minutes for a runner, and `ocutalon-ci-2` stood idle from 23:23:01 while `ocutalon-ci-1` ran `install` until 23:27:16.
+- Units (the `UNIT` lines): `install-start` 466 s, `install-upgrade` 388 s, `production` 271 s, `production-restart` 245 s, `audit` 237 s, `sign-in` 207 s, `bundle-folder` 216 s, `storage-roundtrip` 255 s, `compose-start` 192 s, `build-inputs` 7 s, `shard:lane-a` 190 s, `shard:lane-b` 193 s. Groups (the `GROUP` lines): install 854 s, production 753 s, browser 424 s, shards 383 s, image 454 s.
+- A stack was ready after 174 s in both shards (57 s on the developer machine, 3.1 times). The units took 2.4 to 3.9 times their ARM figures (`compose-start` 2.4, `install-upgrade` 2.4, `production-restart` 2.8, `bundle-folder` 2.9, `sign-in` 3.0, `lane-b` 3.0, `audit` 3.1, `install-start` 3.1, `lane-a` 3.1, `production` 3.3, `storage-roundtrip` 3.9). So the estimate "about twice" (inference) was low; the figure is about three times with two jobs at once, and a run with one job at a time was not measured.
+- All 27 test classes passed in a fresh throwaway on the runner (`shards`: 9 in `lane-a`, 18 in `lane-b`); the slowest are `Contract.Checker` 6.80 s, `Install.Registry` 4.11 s, `Live.Publish` 1.51 s. DW-9's `Install.Users` flake did not show (0.24 s, passed).
+- `lane-a`: `standalone-bridge` took 4 s, but the run took 8 min 9 s, because its job waited for a runner that the `ci` jobs held.
+- Every `iris` job ended with `TEARDOWN tag <run>-1-<group>: 0 project(s) removed, 0 leftover ...`: each unit's own trap had removed its project, and no job removed another job's.
+- The `web` job's setup-node saved an npm package cache (hosted job, no image). No self-hosted job ran a cache or upload step.
+
+*The `(inference)` items the run settles.*
+- `RUNNER_NAME`'s format: settled (run 39338702672, "Set up job" of every `iris` job). The runners are `ocutalon-ci-1` and `ocutalon-ci-2`, on machine `ocutalon-ci`, so a trailing `-<n>` exists and the recipe's port is 52811 and 52812. The port itself was not printed in this run (the browser units passed on `ocutalon-ci-2`, which both a number and "first free" would do); the `PORT` line shows it from the next run.
+- `docker compose`, `dash`, `ruby` and the sha256 tool on `ubuntu-24.04`: settled (job `checks`, hosted image 20261012.334.1). `docker compose` is there (`compose: config parses (--quiet)`), `ruby` too (`yaml: ruby -ryaml parses 2 workflow file(s)`), the sha256 tool too (`sha256: the checker reads the known digest of 'abc'`, and the two `ipm` digests), and `test-healthcheck.sh` passes its six rows under the image's `dash` or `sh`. Every other script of `CHECK_SCRIPTS` passed under the image's bash and awk (`git version 2.55.0`).
+- The runs API's filters and the skip base: settled. In the `What changed` step of every job that has one (`web` and the five `iris` jobs) the request `event=push&status=success&per_page=100` with the job's read-only token was accepted and answered with a run list that held no success: `reason=no green push run of ci.yml: everything runs`. Against the real answer for the green `lane-a` run (a read-only call from the developer machine), `ci/changes.sh lane-a.yml` printed `base=7cf38e3e8383...`, `web=false`, `iris=false` and `reason=4 path(s) changed since the green run of 7cf38e3e8383` for the two bookkeeping commits after it. So `head_sha`, `conclusion` and `event` are the real field names. A skip on `ci.yml` itself first happens on the next push, and shows the same lines.
+- Two jobs on one host: settled (jobs `iris (production)` on `ocutalon-ci-1` and `iris (image)` on `ocutalon-ci-2`, 22:59:43 to 23:07:41, each with its stack). Project names, tags and volumes differed, both jobs were green, and each teardown found nothing of its own left and removed nothing of the other's. Install on `-1` overlapped shards and browser on `-2` the same way.
+- The x64 timings: settled, see above.
+
+*Findings.* None red. Observations:
+- `docker/tests/test-sign-in.sh` (Story 0.3) prints three `tr: write error: Broken pipe` lines when it makes its passwords (`tr ... < /dev/urandom | head -c 24`), because the runner's shell ignores SIGPIPE. The passwords are right and the unit passed; not changed (outside this story's files).
+- The REL-4 margin is thin, and it depends on the dispatch order: with the same job sizes and the order shards, browser, image, production, install, the run would take about 29 to 30 minutes. Not rebalanced, since the run is under 30 minutes (the spec leaves that to a run that is over). A rebalance that stays a pure regrouping of `ci/units.sh` (and the matrix line of `ci.yml`, which `test-ci-config.sh` compares with `ci/iris.sh groups`): split `install` into `install-start` (466 s) and `install-upgrade` (388 s), which leaves `production` (753 s) as the largest. A change of design would save more: both shards start a stack of 174 s, and one stack for both would save about 3 minutes of runner time.
+
+*QA mutations (Rule 19; each applied, red observed, reverted; `git status --short` and `git diff --stat` identical after each; the pinning tests are the ones named).*
+- AC1, jobs: mutation: `if: github.event_name == 'push'` added to the hosted `checks` job -> `test-ci-config.sh` `never-skipped` red at `ci.yml:25`. Mutation: `continue-on-error: true` on the `Checks` step -> `never-skipped` red at `ci.yml:36`. Mutation: the `Mock tests` step removed -> `wiring` red.
+- AC1, skips: mutation: the pull request check of `ci/changes.sh` made `if false` -> `test-ci-changes.sh` red at "a pull request has no base and runs everything" and "the reason names the event". Mutation (row 11): the second green ancestor, and `HEAD~1`, as the base -> `test-ci-changes.sh` red at "red then bookkeeping" (26 and 23 failed checks).
+- AC2: mutation: `ports:` added to `ci/compose.ci.yml` -> `test-compose-file.sh` red at "the file holds only the project name and OCUTALON_EVAL" and "no port, env_file, volume, command, image or key variable".
+- AC3: mutation: a scratch `ci/` file with a docker save -> `test-boundaries.sh` `docker calls` red at `ci/<file>:2`.
+- AC4: mutation: `lane-a.yml` moved away -> `test-ci-config.sh` `lane-a` red.
+- AC5: mutation: `uses: Actions/Cache@<sha> # v4.0.0` added to the `iris` job -> `test-ci-config.sh` `image-actions` red at `ci.yml:121` (green before the QA change).
+- AC6: mutation: `/irislib` dropped from `.gitignore` -> `test-bootstrap.sh` red (`bootstrap_check` exit 1, `?? irislib`). Mutation: the links removed from the `bootstrap` line -> red (five checks). Mutation: the `live_lock_claim` call removed from `live_start` -> `test-lib-live.sh` red at both `live_start` lock checks (green before the QA change). Mutation: the claim moved after the bundle check -> red at both. Mutation: the exit trap no longer releases the lock -> red at the `live_start` check and "a cleanup before the compose files exist". Mutation: the `PORT` line removed from `ci/iris.sh` -> `test-ci-config.sh` `recipe` red.
+- DW-11: mutation: the third slot removed from the committed block of `Bridge.Process.Decide` -> `ci/iris.sh live storage-roundtrip` red, "differs: OcuTalon.Bridge.Process.Decide(DIFF)" (66 s on the developer machine; the control then stops, as its copy is already mutated).
+- DW-17: mutation: `ForUser` renamed in `ALLOW_UNCHECKED` -> `test-class-rules.sh` `unchecked-prepare` red at `Session.cls:50` and at the stale entry.
+- Every test class: mutation: `"triage"` -> `"triageX"` in `Test.Agent.Constants` -> `ci/iris.sh shard lane-a` exit 1, `CLASS OcuTalon.Test.Agent.Constants failed` and `SHARD lane-a failed (1 of 9 classes)`.
+- Row 4: mutation: the abstract check of `is_test_case` disabled -> `test-ci-config.sh` `test classes` red (synthetic tree); mutation: the body scanned for `Abstract` (the stop at the first `{` removed) -> `test classes` red (synthetic tree and real tree).
+- Slot A (`ocutalon-slot-a`, build 154, `OCUTALON`): `OcuTalon.Test.Web.Status` 7 of 7 passed (AC3, public packages), the class unchanged since the implement stage.
+- After the last QA change: `bash ci/checks.sh` (11 scripts) passed on the developer machine (bash 3.2). `test-bootstrap.sh`, `test-lib-live.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `test-class-rules.sh` also passed in a public `ubuntu:24.04` container (git 2.43.0, mawk 1.3.4, bash 5.2, Ruby; the checkout mounted read-only; no IRIS image).
+
+*Code review, October 19 (Rule 19; the reviewer's patches and the missing lines).* Machine: the developer's Apple silicon Mac, bash 3.2, BSD awk; no slot was used.
+- Commands, all exit 0: `bash ci/checks.sh` (11 scripts, about 29 s, `PASS release-diff: no release tag yet`), then `test-ci-config.sh`, `test-ci-changes.sh`, `test-class-rules.sh`, `test-boundaries.sh` and `test-lib-live.sh`, one per call. Throwaways with tag `cr07a`, one at a time: `ci/iris.sh shard lane-a` (9 classes passed, 60 s, with `SKIP TestStepHelpers: OcuTalon.Production runs in this namespace, so NotRunning cannot say that it does not` under `Test.Install.Production`, a line that run 39338702672 never printed), `live storage-roundtrip` (53 classes, the control red as designed), `live install-start` (36 checks, row 5 on the shared samples) and `live sign-in` (7 checks). Then `teardown` found nothing of `cr07a` left.
+- Not run here: mawk and GNU awk, because only BSD awk is on this machine. The new awk patterns are POSIX bracket expressions (inference until the lead's push runs them on `ubuntu-24.04`).
+- Mutations: each was applied, observed red and restored, with `git diff` and `git status --short` checked identical by hash.
+  - Class session: the state before the fix is run 39338702672 (the legacy `If` form), where `Test.Install.Production` skips and prints no `SKIP` line.
+  - mutation: `.gitignore` dropped from `WEB_INPUT_PATTERN` -> `test-ci-changes.sh` red at "the root .gitignore runs web and iris".
+  - mutation: the `WEB_SCRIPTS` loop of `wiring` back to the one hard-coded script -> `test-ci-config.sh` `wiring` red at "the web scripts 'web-build zz-web'".
+  - mutation: `_` excluded again after `EnsLib_AI` -> `test-class-rules.sh` red at the `ZzEnsTable` sample.
+  - mutation: the `sort -r` of `--reverse` replaced by `:` -> `test-ci-config.sh` `shard order` red.
+  - mutation: `OCUTALON_LOCK_DIR` naming no folder falls through to the derived folder -> `test-lib-live.sh` red at "when OCUTALON_LOCK_DIR names no folder no lock is taken".
+  - mutation: the deadline set before the lock claim -> `test-lib-live.sh` red at "after a wait for the lock" (97 s of 100 left). Mutation: the lock content stamped once before the wait -> red at the same check (`acquired_at` before the 2 s stamp).
+  - mutation: the length rule dropped from `live_tag_ok` -> `test-lib-live.sh` red at "the run tag 'ab' is refused", and `test-ci-config.sh` `recipe` red at `OCUTALON_RUN_TAG=ab ... build`.
+  - mutation: the whole-context alternatives dropped from the `secrets` facts -> `test-ci-config.sh` `secrets` red at `secret-context`, and at `token-context` for the `github` one.
+  - mutation: `grep -qxF` back to `grep -qx` in `cmd_class` -> `test-ci-config.sh` `recipe` red at `class OcuTalon.Test.Install.User.` (exit 1, wanted 2).
+  - mutation: `public_global` scans non-code files again -> `test-class-rules.sh` red at the `ocutalon.cpf` sample.
+  - mutation: `bridge_refs` skips `//` lines only -> `test-class-rules.sh` `bridge-refs` red at `Ok.cls`.
+  - mutation: the abstract test of `is_test_case` back to any `Abstract` in the brackets -> `test-ci-config.sh` `test classes` red (the synthetic tree loses `Depends` and `NotAbstract`).
+  - mutation: the `/var/folders` alternative dropped -> `test-boundaries.sh` red at "the scanner does not flag sample 6".
+  - mutation: `scan_rule` splits the list at spaces again -> `test-boundaries.sh` red at "scan_rule: a file whose name holds a space or a glob character is not scanned".
+  - mutation: `emit` ignores a failed append -> `test-ci-changes.sh` red at "an output file that cannot be written".
+  - AC1, the runners: mutation: `runs-on: ubuntu-latest` for `web` -> `test-ci-config.sh` `runners` red at `ci.yml:39`.
+  - AC1, the skips with no green ancestor: mutation: HEAD taken as the base when no green ancestor exists -> `test-ci-changes.sh` red at "a green commit outside HEAD's history is no base".
+  - AC1, the skips on an API failure: mutation: the API failure emits `web` and `iris` false -> `test-ci-changes.sh` red at "an API that does not answer fails open".
+  - AC2, no `ci/` reference: mutation: a line naming `ci/compose.ci.yml` added to `docker-compose.yml` -> `test-compose-file.sh` red at "compose: no non-comment line names a file of ci/".
+- The `cmd_class` mutation let `ci/iris.sh class OcuTalon.Test.Install.User.` pass the guard inside `recipe` and start a real `ocutalon-class-local-*` throwaway, because the base image is on this machine. Its own trap removed it, and nothing of it was left. On a hosted runner the missing base image ends such a run at `preflight`.
 
 ## Auto Run Result
 

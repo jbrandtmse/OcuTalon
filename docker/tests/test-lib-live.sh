@@ -12,12 +12,15 @@
 #     (the ports in use are stubbed, nothing listens);
 #   - ensure_web_bundle: no Node is needed when the bundle and the dependencies are there, and its absence is named
 #     when they are not;
-#   - live_start (Story 0.7): the project name carries OCUTALON_RUN_TAG, a bad tag is refused with exit 2, the deadline
-#     follows OCUTALON_LIVE_DEADLINE (default 540 s), and the compose files end with the throwaway and CI overrides;
+#   - live_start (Story 0.7): the project name carries OCUTALON_RUN_TAG, a bad or short tag is refused with exit 2, the
+#     deadline follows OCUTALON_LIVE_DEADLINE (default 540 s), and the compose files end with the throwaway and CI overrides;
 #   - the throwaway lock: claimed atomically with Rule 12's content and "LOCK acquired", waited for with "LOCK waiting" and
 #     taken when the holder lets go, given up with exit 75 naming the holder, released with "LOCK released" only when it is
-#     this run's, a foreign lock kept, no lock without the folder, and the folder derived from the main checkout.
-# Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 10 s: the negative waits sleep 3 s each.
+#     this run's, a foreign lock kept, no lock when OCUTALON_LOCK_DIR names no folder (also where the main checkout has one),
+#     and the folder derived from the main checkout; and through live_start itself: the lock is held when the first thing after
+#     the claim runs, names the project, is deleted by the exit trap, a lock that another run holds makes live_start exit 75
+#     before anything starts, and after a wait for the lock the deadline and acquired_at count from the moment it is held.
+# Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 15 s: the waits sleep 3 s each.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -298,7 +301,7 @@ if printf '%s\n' "$out" | grep -Eq '^P=ocutalon-t07x-abc-1-shards-[0-9]+-[0-9]+$
 else
   fail "live_start: the project name with a tag is wrong ($(printf '%s' "$out" | grep '^P='))"
 fi
-for bad in Upper_Case has-slot-in-it 'a b'; do
+for bad in Upper_Case has-slot-in-it 'a b' ab; do
   out=$(start_probe OCUTALON_RUN_TAG="$bad" OCUTALON_LOCK_DIR="$tmp/no-such-folder")
   if printf '%s\n' "$out" | grep -q '^RC=2$' && ! printf '%s\n' "$out" | grep -q '^P='; then
     pass "live_start: the run tag '$bad' is refused with exit 2"
@@ -325,6 +328,65 @@ if printf '%s\n' "$out" | grep -qx 'FILES=4 compose.throwaway.yml compose.ci.yml
 else
   fail "live_start: the compose files are not the judges' file, the decoy, the throwaway override and the CI override"
 fi
+
+# --- live_start and the throwaway lock: claimed before anything starts, released by the exit trap ---
+
+# start_lock_probe <env assignments...>: live_start with a lock folder of its own. The web bundle check is stubbed to say whether the
+# lock was held when it ran, which is the first thing that live_start does after the claim.
+startlock="$tmp/start-locks"
+mkdir -p "$startlock"
+start_lock_probe() {
+  (
+    unset OCUTALON_LIVE_DEADLINE OCUTALON_LOCK_WAIT OCUTALON_LOCK_OWNER OCUTALON_LOCK_SLEEP_MIN OCUTALON_LOCK_SLEEP_MAX
+    export OCUTALON_RUN_TAG=abc-1 OCUTALON_LOCK_DIR="$startlock" "$@"
+    ensure_web_bundle() {
+      if [ -f "$startlock/throwaway-iris.lock" ]; then echo "BUNDLE lock-held"; else echo "BUNDLE no-lock"; fi
+    }
+    live_start t07z
+    echo "HELD=$(cat "$startlock/throwaway-iris.lock" 2>/dev/null)"
+    echo "P=$P"
+    echo "LEFT=$((deadline - SECONDS))"
+  ) 2>&1
+  echo "RC=$?"
+}
+out=$(start_lock_probe OCUTALON_LOCK_OWNER='epic=0 stage=qa')
+p_name=$(printf '%s\n' "$out" | sed -n 's/^P=//p')
+if printf '%s\n' "$out" | grep -q "^LOCK acquired throwaway-iris project=$p_name\$" && printf '%s\n' "$out" | grep -qx 'BUNDLE lock-held' \
+  && printf '%s\n' "$out" | grep -Eq "^HELD=epic=0 stage=qa project=$p_name acquired_at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z\$" \
+  && printf '%s\n' "$out" | grep -q "^LOCK released throwaway-iris project=$p_name\$" && printf '%s\n' "$out" | grep -qx 'RC=0' \
+  && [ -n "$p_name" ] && [ ! -e "$startlock/throwaway-iris.lock" ]; then
+  pass "live_start: it claims the lock before anything starts, names its project in it, and the exit trap deletes it"
+else
+  fail "live_start: the lock was not claimed before the bundle check, did not name the project, or was left behind ($(printf '%s' "$out" | tr '\n' '|'); left: $(ls "$startlock" | tr '\n' ' '))"
+fi
+foreign='epic=9 stage=qa project=ocutalon-foreign-9-9 acquired_at=2026-10-19T00:00:00Z'
+echo "$foreign" > "$startlock/throwaway-iris.lock"
+out=$(start_lock_probe OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1)
+if printf '%s\n' "$out" | grep -qx 'RC=75' && printf '%s\n' "$out" | grep -q '^LOCK busy.*project=ocutalon-foreign-9-9' \
+  && ! printf '%s\n' "$out" | grep -q '^BUNDLE' && ! printf '%s\n' "$out" | grep -q '^P=' && [ "$(cat "$startlock/throwaway-iris.lock")" = "$foreign" ]; then
+  pass "live_start: while another run holds the lock it exits 75 before anything starts and leaves that lock as it was"
+else
+  fail "live_start: it did not give up with exit 75 before the bundle check, or it touched the lock of another run ($(printf '%s' "$out" | tr '\n' '|'))"
+fi
+rm -f "$startlock/throwaway-iris.lock"
+
+# A run that waits for the lock: its deadline and its acquired_at count from the moment it holds the lock, not from its start.
+# The holder lets go after 3 s; a stamp taken after 2 s must not be later than acquired_at.
+echo "$foreign" > "$startlock/throwaway-iris.lock"
+( sleep 2; date -u +%Y-%m-%dT%H:%M:%SZ > "$tmp/stamp-2s"; sleep 1; rm -f "$startlock/throwaway-iris.lock" ) &
+releaser=$!
+out=$(start_lock_probe OCUTALON_LIVE_DEADLINE=100 OCUTALON_LOCK_WAIT=20 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1)
+wait "$releaser"
+left=$(printf '%s\n' "$out" | sed -n 's/^LEFT=//p')
+acquired=$(printf '%s\n' "$out" | sed -n 's/^HELD=.* acquired_at=//p')
+stamp=$(cat "$tmp/stamp-2s" 2>/dev/null)
+if printf '%s\n' "$out" | grep -q '^LOCK waiting' && printf '%s\n' "$out" | grep -qx 'RC=0' && [ -n "$left" ] && [ "$left" -ge 99 ] \
+  && [ -n "$acquired" ] && [ -n "$stamp" ] && ! [[ "$acquired" < "$stamp" ]]; then
+  pass "live_start: after a wait for the lock, the deadline and acquired_at count from the moment the lock is held"
+else
+  fail "live_start: after a wait the deadline leaves '$left' s of 100, or acquired_at '$acquired' is before '$stamp' ($(printf '%s' "$out" | tr '\n' '|'))"
+fi
+rm -f "$startlock/throwaway-iris.lock"
 
 # --- the throwaway lock ---
 
@@ -417,13 +479,6 @@ else
 fi
 rm -f "$lockfile"
 
-export OCUTALON_LOCK_DIR="$tmp/no-such-folder"
-out=$(live_lock_claim; echo "FILE=[$LIVE_LOCK_FILE]")
-if [ -z "$(ls "$lockdir")" ] && [ "$out" = "FILE=[]" ]; then
-  pass "lock: without the folder no lock is taken and nothing is printed"
-else
-  fail "lock: a lock was taken, or something was printed, without the folder ($out)"
-fi
 unset OCUTALON_LOCK_DIR
 
 # The folder comes from the main checkout, also when the run is in one of its worktrees.
@@ -441,6 +496,13 @@ mkdir -p "$main/.worktrees/.coordination/locks"
 from_worktree=$(live_lock_dir)
 root=$main
 from_main=$(live_lock_dir)
+# OCUTALON_LOCK_DIR naming a folder that does not exist means no lock, even where the main checkout has its own folder.
+out=$(OCUTALON_LOCK_DIR="$tmp/no-such-folder" P=ocutalon-nofolder-5-5; live_lock_claim; echo "FILE=[$LIVE_LOCK_FILE]")
+if [ "$out" = "FILE=[]" ] && [ -z "$(ls "$main/.worktrees/.coordination/locks")" ]; then
+  pass "lock: when OCUTALON_LOCK_DIR names no folder no lock is taken, not even in the main checkout's folder, and nothing is printed"
+else
+  fail "lock: a lock was taken, or something was printed, when OCUTALON_LOCK_DIR named no folder ($out; $(ls "$main/.worktrees/.coordination/locks" | tr '\n' ' '))"
+fi
 root=$saved_root
 want=$(cd "$main/.worktrees/.coordination/locks" && pwd -P)
 if [ -z "$none" ] && [ "$from_worktree" = "$want" ] && [ "$from_main" = "$want" ]; then

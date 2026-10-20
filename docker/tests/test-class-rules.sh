@@ -2,11 +2,12 @@
 # The class rules of src/ that need no IRIS (Story 0.7; AD-2, AD-13, AD-19; DW-17). Starts nothing: the rules read files only.
 #   - bridge-refs (AD-2): no class of OcuTalon.Bridge or OcuTalon.BridgeExample names another OcuTalon package, as a class
 #     (OcuTalon.Pkg) or as a table (OcuTalon_Pkg);
-#   - ai-allowlist (AD-2): %AI (also as a table name, %AI_...), EnsLib.AI and EnsLib_AI appear in code only in the whole packages OcuTalon.Bridge,
+#   - ai-allowlist (AD-2): %AI and EnsLib.AI (also as table names, %AI_... and EnsLib_AI_...) appear in code only in the whole packages OcuTalon.Bridge,
 #     OcuTalon.BridgeExample, OcuTalon.Agent, OcuTalon.Tools, OcuTalon.Docs, OcuTalon.Memory, OcuTalon.Mcp, OcuTalon.Install and
 #     OcuTalon.Test (a package matches by whole name, not by prefix);
 #   - public-global (AD-19): OcuTalonPublic appears on a code line of src/ and docker/after-start.cos only in
-#     OcuTalon/Data/Public/Settings.cls;
+#     OcuTalon/Data/Public/Settings.cls; a code line is a line of a .cls, .cos, .inc, .mac or .int file, so a configuration file
+#     that maps the global (a CPF file) is not one;
 #   - unchecked-prepare (AD-13, DW-17): outside the methods of ALLOW_UNCHECKED, no %Prepare whose second argument is not 1,
 #     no %PrepareClassQuery whose third argument is not 1, and no %ExecDirectNoPriv or %ExecDirectNoPrivNoAudit, even when the
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
@@ -54,7 +55,7 @@ ai_refs() {
     /^[ \t]*(\/\/|;|#;|##;)/ { next }
     {
       low = tolower($0)
-      if (low ~ /(^|[^a-z0-9_])%ai([^a-z0-9]|$)/ || low ~ /enslib[._]ai([^a-z0-9_]|$)/) print FILENAME ":" FNR
+      if (low ~ /(^|[^a-z0-9_])%ai([^a-z0-9]|$)/ || low ~ /enslib[._]ai([^a-z0-9]|$)/) print FILENAME ":" FNR
     }
   ' "$@"
 }
@@ -63,7 +64,7 @@ public_global() {
   awk '
     FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/); exempt = (FILENAME ~ /OcuTalon\/Data\/Public\/Settings\.cls$/) }
     exempt { next }
-    code && /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
     /OcuTalonPublic/ { print FILENAME ":" FNR }
   ' "$@"
 }
@@ -160,8 +161,6 @@ unchecked_prepares() {
 
 # --- the synthetic classes ---
 
-cls_dir() { mkdir -p "$tmp/$1"; }
-
 # A class file: write_class <dir> <Class> <body lines...>; the body goes between the braces.
 write_class() {
   local dir=$1 name=$2 file
@@ -193,25 +192,7 @@ expect_clean() { # expect_clean <rule> <scanner> <file>
 
 # --- bridge-refs ---
 
-cls_dir refs
-cat > "$tmp/refs/Bad.cls" <<'EOS'
-Class OcuTalon.Bridge.ZzBad
-{
-ClassMethod A()
-{
-	Do ##class(OcuTalon.Core.BridgeSink).OnEvent()
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM OcuTalon_Data.Session")
-}
-}
-EOS
-cat > "$tmp/refs/Ok.cls" <<'EOS'
-/// Names OcuTalon.Core.BridgeSink in a comment only.
-Class OcuTalon.Bridge.ZzOk
-{
-Parameter P = "OcuTalon_Bridge_Data.Decision";
-Parameter Q = "OcuTalon.BridgeExample.Host";
-}
-EOS
+bridge_ref_samples "$tmp/refs"
 samples_ok=1
 expect_flagged "bridge-refs" bridge_refs "$tmp/refs/Bad.cls" 2
 expect_clean "bridge-refs" bridge_refs "$tmp/refs/Ok.cls"
@@ -226,6 +207,7 @@ ai_bad1=$(write_class ai/src/ocutalon/cls OcuTalon/Watch/ZzBad 'ClassMethod A()'
 ai_bad2=$(write_class ai/src/ocutalon/cls OcuTalon/Agents/ZzBad 'ClassMethod A()' '{' '	Set a = "EnsLib.AI.Thing"' '}')
 ai_bad3=$(write_class ai/src/ocutalon/cls OcuTalon/ZzBad 'Property T As %String(VALUELIST = ",EnsLib_AI");' 'ClassMethod B()' '{' '	Set a = ##class(%ai.agent).%New()' '}')
 ai_bad4=$(write_class ai/src/ocutalon/cls OcuTalon/Watch/ZzTable 'ClassMethod A()' '{' '	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM %AI_Agent.Session")' '}')
+ai_bad5=$(write_class ai/src/ocutalon/cls OcuTalon/Watch/ZzEnsTable 'ClassMethod A()' '{' '	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM EnsLib_AI_Messages.Request")' '}')
 ai_good5=$(write_class ai/src/ocutalon/cls OcuTalon/Bridge/ZzNested/Ok 'ClassMethod A()' '{' '	Quit ##class(%AI.Agent).%New()' '}')
 ai_good1=$(write_class ai/src/ocutalon/cls OcuTalon/Agent/ZzOk 'ClassMethod A()' '{' '	Set a = ##class(%AI.Agent).%New()' '}')
 ai_good2=$(write_class ai/src/ocutalon/cls OcuTalon/Test/Web/ZzOk 'ClassMethod A()' '{' '	Set a = ##class(EnsLib.AI.Thing).%New()' '}')
@@ -233,7 +215,7 @@ ai_good3=$(write_class ai/src/ocutalon/cls OcuTalon/Watch/ZzComment '/// Mention
 ai_good4=$(write_class ai/src/ocutalon/cls OcuTalon/Watch/ZzWords 'ClassMethod A()' '{' '	Set a = "%AIX and MyEnsLib.AIs and BrAIn"' '}')
 # OcuTalon/Agents is not the package OcuTalon.Agent (a whole name, not a prefix); OcuTalon.Bridge.ZzNested belongs to OcuTalon.Bridge.
 samples_ok=1
-for f in "$ai_bad1" "$ai_bad2" "$ai_bad3" "$ai_bad4"; do expect_flagged "ai-allowlist" ai_refs "$f"; done
+for f in "$ai_bad1" "$ai_bad2" "$ai_bad3" "$ai_bad4" "$ai_bad5"; do expect_flagged "ai-allowlist" ai_refs "$f"; done
 expect_flagged "ai-allowlist" ai_refs "$ai_bad3" 2
 for f in "$ai_good1" "$ai_good2" "$ai_good3" "$ai_good4" "$ai_good5"; do expect_clean "ai-allowlist" ai_refs "$f"; done
 if [ "$samples_ok" -eq 1 ]; then
@@ -250,12 +232,14 @@ printf 'Class OcuTalon.Data.Public.Settings\n{\nClassMethod A()\n{\n\tQuit $Get(
 printf 'Class OcuTalon.Watch.Other\n{\n/// Reads ^OcuTalonPublic through Settings.\nClassMethod A()\n{\n\t// ^OcuTalonPublic\n\tQuit 1\n}\n}\n' > "$pg_dir/Watch/Other.cls"
 printf 'Set g = "^OcuTalonPublic"\n' > "$tmp/pg/after-start.cos"
 printf 'Set g = 1\n; ^OcuTalonPublic in a comment\n' > "$tmp/pg/ok.cos"
+printf '[Actions]\nCreateMapGlobal:Name=OcuTalonPublic,Namespace=OCUTALON,From=OCUTALON\n' > "$tmp/pg/ocutalon.cpf"
 samples_ok=1
 expect_flagged "public-global" public_global "$pg_dir/Web/Public/Status.cls" 1
 expect_flagged "public-global" public_global "$tmp/pg/after-start.cos" 1
 expect_clean "public-global" public_global "$pg_dir/Data/Public/Settings.cls"
 expect_clean "public-global" public_global "$pg_dir/Watch/Other.cls"
 expect_clean "public-global" public_global "$tmp/pg/ok.cos"
+expect_clean "public-global" public_global "$tmp/pg/ocutalon.cpf"
 if [ "$samples_ok" -eq 1 ]; then
   scan_rule "public-global: ^OcuTalonPublic only in OcuTalon/Data/Public/Settings.cls" public_global \
     "$pg_dir/Web/Public/Status.cls" "$pg_dir/Data/Public/Settings.cls" "$(scan_files src docker/after-start.cos | grep -v '^src/ocutalon/csp/')"
@@ -345,7 +329,13 @@ if [ "$(STALE=1 unchecked_prepares "$up_good_allowed1" "$up_good_allowed2" "$up_
 fi
 ALLOW_UNCHECKED=$real_allow
 if [ "$samples_ok" -eq 1 ]; then
-  hits=$(STALE=1 unchecked_prepares $(scan_files src docker/after-start.cos | grep -E '\.(cls|cos|inc|mac|int)$') | name_stale)
+  # The file list is split at newlines only, with no pattern expansion (as scan_rule does).
+  hits=$(
+    IFS='
+'
+    set -f
+    STALE=1 unchecked_prepares $(scan_files src docker/after-start.cos | grep -E '\.(cls|cos|inc|mac|int)$') | name_stale
+  )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
     echo "FAIL unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"

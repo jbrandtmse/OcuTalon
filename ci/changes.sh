@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The classifier of the web and iris jobs (Story 0.7): decides which jobs run their steps, and from what base.
 #   usage: ci/changes.sh <workflow file name, e.g. ci.yml> [--paths-from <file>]
-# It prints, and appends to $GITHUB_OUTPUT when that is set, four lines:
+# It prints, and appends to $GITHUB_OUTPUT when that is set (exit 1 when it cannot), four lines:
 #   base=<sha>      the newest commit of HEAD's history whose push run of this workflow concluded success (HEAD itself on a
 #                   re-run of a green run), or nothing
 #   web=<true|false>  a web input changed since the base (WEB_INPUT_PATTERN of ci/units.sh)
@@ -42,7 +42,11 @@ emit() { # emit <base> <web> <iris> <reason>
   local line
   for line in "base=$1" "web=$2" "iris=$3" "reason=$4"; do
     echo "$line"
-    if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "$line" >> "$GITHUB_OUTPUT"; fi
+    # An output that cannot be written would leave the job's gates empty, and an empty gate skips: that is a failure.
+    if [ -n "${GITHUB_OUTPUT:-}" ] && ! echo "$line" >> "$GITHUB_OUTPUT"; then
+      echo "FAIL ci/changes.sh: cannot append to GITHUB_OUTPUT"
+      exit 1
+    fi
   done
   exit 0
 }

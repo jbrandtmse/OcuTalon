@@ -9,7 +9,7 @@
 #     push, and when the answer cannot be read or holds no run list;
 #   - row 11, red and then bookkeeping: C0 green, C1 code and red, B1 bookkeeping only: B1's base is C0, so B1 runs;
 #   - row 12, a skipped job: web and iris are false, the reason names the base, and the four outputs are also appended to
-#     $GITHUB_OUTPUT.
+#     $GITHUB_OUTPUT; an output file that cannot be written fails the script.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
@@ -100,6 +100,9 @@ paths_case "logo/** runs web and iris" true true logo/mark.svg
 paths_case "ci/** runs web and iris" true true ci/iris.sh
 paths_case "the web build script runs web and iris" true true docker/tests/test-web-build.sh
 paths_case "the workflow runs web and iris" true true .github/workflows/ci.yml
+paths_case "the root .gitignore runs web and iris (the web build's clean checkout depends on it)" true true .gitignore
+paths_case "the root .gitattributes runs web and iris" true true .gitattributes
+paths_case "a .gitignore below the root runs iris only" false true docs/.gitignore
 paths_case "another public class runs iris only" false true src/ocutalon/cls/OcuTalon/Web/Public/Status.cls
 paths_case "a live test helper runs iris only" false true docker/tests/lib-live.sh
 paths_case "the second workflow runs iris only" false true .github/workflows/lane-a.yml
@@ -209,11 +212,23 @@ else
 fi
 
 if [ ! -s "$tmp/leaked-output" ]; then
-  pass "API failure: the runs that name no output file of their own write to none"
+  pass "harness: the runs above set GITHUB_OUTPUT empty, so an output file of the environment (the checks job's own) stays empty"
 else
-  fail "API failure: a run wrote to the job's output file named in the environment"
+  fail "harness: a run above wrote to the output file named in the environment"
 fi
 unset GITHUB_OUTPUT
+
+# An output file that cannot be written fails the step: an empty output would leave the gates empty, and an empty gate skips.
+(
+  cd "$repo" || exit 1
+  GITHUB_OUTPUT="$tmp" GITHUB_EVENT_NAME=pull_request bash "$changes" ci.yml
+) > "$tmp/stdout" 2>/dev/null
+rc=$?
+if [ "$rc" -ne 0 ] && grep -q '^FAIL ci/changes.sh: cannot append to GITHUB_OUTPUT' "$tmp/stdout"; then
+  pass "outputs: an output file that cannot be written fails the step"
+else
+  fail "outputs: an output file that cannot be written did not fail the step (exit $rc)"
+fi
 
 # --- the diff names a path with a non-ASCII name as it is, not quoted, so it still counts as a web input ---
 

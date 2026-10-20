@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build"
@@ -38,8 +38,9 @@ group_units() {
 
 # The paths whose change makes the web job run (ci/changes.sh): the web sources, the Live payload classes and the generated
 # sign-in assets that the web build reads or writes, the UX design documents, the logo, the CI recipe and the scripts that
-# build the web, and the workflow itself.
-WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|\.github/workflows/ci\.yml$)'
+# build the web, the workflow itself, and the root .gitignore and .gitattributes, which decide whether the build leaves the
+# checkout clean and how git checks out the files it reads.
+WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
 
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'

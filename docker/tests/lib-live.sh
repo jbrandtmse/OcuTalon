@@ -4,8 +4,8 @@
 #
 # live_start <label> sets, for the caller:
 #   P            a unique compose project name, ocutalon-<label>-<epoch>-<pid>, or ocutalon-<label>-<run tag>-<epoch>-<pid>
-#                when OCUTALON_RUN_TAG is set (lower-case letters, digits and hyphens, no "slot"): ci/iris.sh finds and removes
-#                the projects of one run by that tag
+#                when OCUTALON_RUN_TAG is set (LIVE_TAG_RULE: lower-case letters, digits and hyphens, at least 3 characters,
+#                no "slot"): ci/iris.sh finds and removes the projects of one run by that tag
 #   root, tmp    the repository root (the working directory) and a private temporary directory
 #   base_image   the IRIS base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0)
 #   mgr          the manager directory in the container
@@ -30,15 +30,23 @@
 # deletes the lock only when its content is this run's, and prints "LOCK released"; a lock that another run took is kept.
 # OCUTALON_LOCK_DIR replaces the folder, and OCUTALON_LOCK_SLEEP_MIN and OCUTALON_LOCK_SLEEP_MAX replace the 30 and 90 s.
 
+# The rule of a run tag, shared with ci/iris.sh: at least 3 characters, so that the -<tag>- of a teardown cannot match a short
+# word of a label such as the a of lane-a.
+LIVE_TAG_RULE="must match [a-z0-9-]+, be at least 3 characters and not hold 'slot'"
+live_tag_ok() { # live_tag_ok <tag>: 0 when the tag keeps LIVE_TAG_RULE
+  case $1 in
+    '' | *[!a-z0-9-]* | *slot*) return 1 ;;
+  esac
+  [ "${#1}" -ge 3 ]
+}
+
 live_start() {
   root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
   cd "$root" || exit 1
-  case ${OCUTALON_RUN_TAG:-} in
-    *[!a-z0-9-]* | *slot*)
-      echo "FAIL OCUTALON_RUN_TAG '$OCUTALON_RUN_TAG' must match [a-z0-9-]+ and must not hold 'slot'"
-      exit 2
-      ;;
-  esac
+  if [ -n "${OCUTALON_RUN_TAG:-}" ] && ! live_tag_ok "$OCUTALON_RUN_TAG"; then
+    echo "FAIL OCUTALON_RUN_TAG '$OCUTALON_RUN_TAG' $LIVE_TAG_RULE"
+    exit 2
+  fi
   P="ocutalon-$1-${OCUTALON_RUN_TAG:+$OCUTALON_RUN_TAG-}$(date +%s)-$$"
   base_image=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
   mgr=/durable/iris/mgr
@@ -94,8 +102,9 @@ live_lock_claim() {
   limit=${OCUTALON_LOCK_WAIT:-240}
   started=$SECONDS
   LIVE_LOCK_FILE="$dir/throwaway-iris.lock"
-  LIVE_LOCK_CONTENT="${OCUTALON_LOCK_OWNER:-epic=unknown stage=throwaway} project=$P acquired_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   while :; do
+    # acquired_at is the time of this try, so that a lock taken after a wait does not look older than it is.
+    LIVE_LOCK_CONTENT="${OCUTALON_LOCK_OWNER:-epic=unknown stage=throwaway} project=$P acquired_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     if (set -C; printf '%s\n' "$LIVE_LOCK_CONTENT" > "$LIVE_LOCK_FILE") 2>/dev/null; then
       echo "LOCK acquired throwaway-iris project=$P"
       return 0

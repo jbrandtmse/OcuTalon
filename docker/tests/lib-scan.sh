@@ -1,5 +1,6 @@
-# Helpers shared by the static scanners (test-boundaries.sh, test-class-rules.sh, test-install-start.sh row 5).
-# Sourced, not run: it defines functions and nothing else. The caller keeps the counter `fails`.
+# Helpers shared by the static scanners (test-boundaries.sh, test-class-rules.sh, test-install-start.sh row 5) and by the two
+# Storage block checks (test-storage.sh, test-storage-roundtrip.sh).
+# Sourced, not run: it defines functions and one variable, STORAGE_BLOCKS_AWK, and nothing else. The caller keeps the counter `fails`.
 #
 # A scanner prints file:line for each offending line of the files it is given, and never the text of the line.
 # scan_rule first runs a scanner on a sample that breaks the rule and on one that keeps it, so that a scanner that can no
@@ -36,7 +37,13 @@ scan_rule() {
     fails=$((fails + 1))
     return
   fi
-  hits=$("$scanner" $list)
+  # The list is split at newlines only, with no pattern expansion, so a file name with a space or a glob character is one file.
+  hits=$(
+    IFS='
+'
+    set -f
+    "$scanner" $list
+  )
   if [ -n "$hits" ]; then
     echo "$hits" | head -n 10 | sed 's/^/  /'
     echo "FAIL $label"
@@ -47,10 +54,11 @@ scan_rule() {
 }
 
 # bridge_refs <file>...: file:line of each code line that names an OcuTalon package other than OcuTalon.Bridge and
-# OcuTalon.BridgeExample, as a class name (OcuTalon.Pkg) or as a table name (OcuTalon_Pkg). A comment line is not code.
-# The compiler accepts a call to a class it cannot find, so loading the bridge alone cannot see such a reference; this does.
+# OcuTalon.BridgeExample, as a class name (OcuTalon.Pkg) or as a table name (OcuTalon_Pkg). A comment line (//, ///, ; and #;)
+# is not code. The compiler accepts a call to a class it cannot find, so loading the bridge alone cannot see such a reference;
+# this does.
 bridge_refs() {
-  awk '!/^[[:space:]]*\/\// {
+  awk '!/^[[:space:]]*(\/\/|;|#;|##;)/ {
     s = $0
     while (match(s, /OcuTalon[._][A-Za-z]+/)) {
       w = substr(s, RSTART, RLENGTH)
@@ -59,3 +67,39 @@ bridge_refs() {
     }
   }' "$@"
 }
+
+# bridge_ref_samples <dir>: writes the samples of bridge_refs into the folder: Bad.cls names another package twice, once as a class
+# and once as a table; Ok.cls names only the bridge's own packages, and another package only in comments.
+bridge_ref_samples() {
+  mkdir -p "$1"
+  cat > "$1/Bad.cls" <<'EOS'
+Class OcuTalon.Bridge.ZzBad
+{
+ClassMethod A()
+{
+	Do ##class(OcuTalon.Core.BridgeSink).OnEvent()
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM OcuTalon_Data.Session")
+}
+}
+EOS
+  cat > "$1/Ok.cls" <<'EOS'
+/// Names OcuTalon.Core.BridgeSink in a comment only.
+Class OcuTalon.Bridge.ZzOk
+{
+Parameter P = "OcuTalon_Bridge_Data.Decision";
+Parameter Q = "OcuTalon.BridgeExample.Host";
+ClassMethod A()
+{
+	; OcuTalon.Core.BridgeSink in a comment
+	#; OcuTalon_Data.Session in a comment
+	Quit 1
+}
+}
+EOS
+}
+
+# The awk program of a class file's Storage blocks: from a line that starts a block to its closing brace, in order. test-storage.sh
+# runs it on the host and test-storage-roundtrip.sh in the container, so both read the same lines as the block.
+STORAGE_BLOCKS_AWK='/^Storage / { p = 1 }
+p { print }
+p && /^\}/ { p = 0 }'

@@ -195,26 +195,9 @@ check_ready_state "row 4"
 # --- row 5: the bridge alone, in a namespace without IPM ---
 
 # bridge_refs (lib-scan.sh) is the source check of AD-2; test-class-rules.sh runs it in the hosted checks job.
-# The scan is shown to flag a bad sample and to pass a clean one before it is trusted on the real tree.
-mkdir -p "$tmp/refs"
-cat > "$tmp/refs/Bad.cls" <<'EOS'
-Class OcuTalon.Bridge.ZzBad
-{
-ClassMethod A()
-{
-	Do ##class(OcuTalon.Core.BridgeSink).OnEvent()
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT 1 FROM OcuTalon_Data.Session")
-}
-}
-EOS
-cat > "$tmp/refs/Ok.cls" <<'EOS'
-/// Names OcuTalon.Core.BridgeSink in a comment only.
-Class OcuTalon.Bridge.ZzOk
-{
-Parameter P = "OcuTalon_Bridge_Data.Decision";
-Parameter Q = "OcuTalon.BridgeExample.Host";
-}
-EOS
+# The scan is shown to flag a bad sample and to pass a clean one (bridge_ref_samples of lib-scan.sh) before it is trusted on the
+# real tree.
+bridge_ref_samples "$tmp/refs"
 if [ "$(bridge_refs "$tmp/refs/Bad.cls" | wc -l | tr -d ' ')" = 2 ] && [ -z "$(bridge_refs "$tmp/refs/Ok.cls")" ]; then
   pass "row 5: the source check flags another package named as a class or as a table, and passes the bridge's own names and comments"
 else

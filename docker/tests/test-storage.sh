@@ -27,6 +27,7 @@ set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
+. "$root/docker/tests/lib-scan.sh"
 
 fails=0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-st.XXXXXX") || exit 1
@@ -300,8 +301,8 @@ rule locations wrong-id-location wrong-index-location wrong-stream-location
 
 # --- release-diff: the storage blocks only grow between releases ---
 
-# storage_blocks: the Storage blocks of a class file on stdin, from a line that starts a block to the closing brace, in order.
-storage_blocks() { awk '/^Storage /{p=1} p{print} p && /^\}/{p=0}'; }
+# storage_blocks: the Storage blocks of a class file on stdin (STORAGE_BLOCKS_AWK of lib-scan.sh).
+storage_blocks() { awk "$STORAGE_BLOCKS_AWK"; }
 
 # slot_pairs: the slots of the Storage blocks on stdin, one line each: the data element, the slot line and the line after it
 # (the property the slot holds).
