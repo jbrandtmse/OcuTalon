@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-20'
 status: 'done'
 baseline_revision: 'e674ae3656a49c95cf8c67d1557cc2e3200d3a4d'
+baseline_commit: e674ae3656a49c95cf8c67d1557cc2e3200d3a4d
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -559,6 +560,40 @@ Where the rows run ("script row" means a row of a live script, not of this matri
 - **AC8, the snapshot (Integration AC; consumer 5.4; AD-22).** Given the committed `eval/orders-date-format/`, when `Test.Demo.Production` reads it inside a throwaway at `/opt/ocutalon/eval`, then it holds the recorded 50-order failure and its expectation. Its projection equals a fresh recording's. Both files pass the key and path scans, and `test-boundaries.sh` must scan them (row 14).
 - **AC9, the contract.** Given `Test.Contract.Ac` and `Test.Demo.Orders`, when they run, then `Partner.Send` keeps its parameters and return type, and the two message classes keep their contracts and the `Ens.MessageBody` extent (row 19).
 
+### Review Findings
+
+Code review (stage `code-review`, October 20). Diff: `git diff e674ae3` to the working tree, QA's uncommitted changes included. Tier `full-opus`, four layers (Blind Hunter B1-B12, Edge Case Hunter E1-E6, Verification Gap V1-V7, Acceptance Auditor A1-A7): 32 rows, 27 entries after grouping. Entries: high 0, med 4, low 21, false 2. 11 patched, 1 deferred (routed), 15 rejected. Each entry gives severity, fix-risk, footprint and spec-status (Rule 15).
+
+- [x] [Review][Patch] **A4: the off path deleted a stopped foreign production defined in OCUORDERS.** The Tasks say "Another production in OCUORDERS is an error". The code refused only a Running, Troubled or Suspended one, because `GetProductionStatus` names no stopped production. A user's production compiled into the demo namespace was therefore deleted with it (data loss). `Orders(0)` now refuses when `Ens_Config.Production` holds any other production, with "The production <name> is in namespace OCUORDERS, so the Demo step leaves it alone.". A new fixture in row 4's window stops the foreign production, then checks the refusal and that nothing is removed. QA's Troubled fixture no longer stops it a second time. Severity med; fix-risk low (one query in the method's own namespace, refused before anything is stopped or removed); in-story; spec-clear. [src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls:461, docker/tests/test-install-start.sh:421]
+- [x] [Review][Patch] **V1: no test ran the off path while the Orders production runs.** Row 2's `dc stop` stops the production first, so deleting `StopProduction` from `Orders(0)` kept every check green. The case is Story 4.1's runtime switch. A new fixture in row 4's window switches demo mode off while the production runs, then checks `run` OK, OCUORDERS gone, no `RunningNamespace` marker and no process in OCUORDERS. It then switches the mode on again and checks the production starts. Severity med; fix-risk low (test only); in-story; spec-clear. [docker/tests/test-install-start.sh:469]
+- [x] [Review][Patch] **V3: QA's fixtures were not self-contained (Rule 19).** The foreign-off fixture inherited demo mode 0 from the IPM fixture's reseed, the partial-state fixture inherited mode 1 from the foreign-on fixture, and the timeout fixture assumed the production that the Troubled fixture restarted. Each now sets its own mode (`set_demo_mode 0` at L287, `set_demo_mode 1` at L311) or asserts its precondition (`CHK|pre|1|OcuTalon.Demo.Orders.Production`, L452). Severity med; fix-risk low; in-story; spec-clear. [docker/tests/test-install-start.sh:287]
+- [x] [Review][Patch] **B3: nothing pinned "the Orders production is not autostart" (the Never list).** `check_demo_on` now asserts `CHK|autostart|` (empty `^Ens.AutoStart` in OCUORDERS) in rows 1 and 4. Severity low; fix-risk low; in-story. [docker/tests/lib-live.sh:822]
+- [x] [Review][Patch] **V4: the good order's `errorText = ""` assertion could not fail.** `IsError` is never set on an asynchronous request, so the value was "" for every header. It is replaced by a check that the good order's session logs no Type 2 row at `OrdersFromPartner`. Severity low; fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls:96]
+- [x] [Review][Patch] **B11: no test accepted the upper bound of 1000.** With `count >= MAXCOUNT` every test stayed green. `TestBatch` now accepts a batch of 1000 with 1000 orders. Severity low; fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Demo/Orders.cls:76]
+- [x] [Review][Patch] **B12: `Test.Demo.Production`'s comments misstated where it switches namespace.** The class doc said only private methods switch, and `Snapshot` said it "Runs in OCUORDERS". Both are now accurate (Rule 14). Severity low; fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls:15]
+- [x] [Review][Patch] **B6: `Run()` throws when the seed cannot be written, but its contract said it returns a status.** `Run` and `Mode` now say that a failed seed throws and that `Registry.RunStep` reports it as a failed step (Rule 14; Story 4.1's direct caller must catch it). Severity low; fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls:54]
+- [x] [Review][Patch] **E5: `record-eval.sh`'s header claimed "no absolute path" while its check refuses only home folders.** The header now states what the script refuses, and that `test-boundaries.sh` scans the committed file for every local machine path. The committed file holds no absolute path at all (checked). Severity low; fix-risk low; in-story. [docker/tests/record-eval.sh:7]
+- [x] [Review][Patch] **B1: the 27 s of the x64 first start (177 s against 150 s) were attributed to OCUORDERS as fact.** That rests on one run each, on two runner services, and the CI log has no `STEP Demo` seconds. The readme notes, Rule 21's third-run entry and this Verification now mark the share `(inference)` (Rule 22.2.5). Severity low; fix-risk low; in-epic bookkeeping. [_bmad-output/implementation-artifacts/epic-0-readme-notes.md:24]
+- [x] [Review][Defer] **B4+A1: OCUTALON holds a never-running "Orders" production row.** Compiling `OcuTalon.Demo.Orders.Production` in OCUTALON registers an `Ens.Config.Production` row there (description "Orders") at every install, demo mode on or off. Measured in the Spec Change Log; on slot A, `%ExistsId` is 1 in OCUTALON. Story 5.1 matches "Orders" by display name across every readable namespace, so it would find this phantom too. The fix belongs to 5.1's reader (key on each namespace's own production, `GetProductionStatus`). [src/ocutalon/cls/OcuTalon/Demo/Orders/Production.cls:1] — deferred: DW-38, `routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop`. Severity med; fix-risk low; out-of-footprint (Lane A's reader); spec-clear.
+
+**Rejected** (one line each; verdict and why):
+- B2+A6 (low): the frontmatter `deferred:` list and the Auto Run Result predate QA and CI. The fix is an edit of the spec's frozen build-auto record; the ledger holds the live state (DW-35 routed, DW-36 escalated, DW-37 resolved-by this story).
+- B5 (low, `wontfix-theoretical`): the routine half of `Owned()` has no case of its own. It becomes real only for an OCUORDERS on the step's data database with a foreign routine database, a hand edit of the demo namespace, and a test needs a namespace that a slot may not hold.
+- B7 (low, `by-design`): `Projection` drops `source`. The Tasks list the kept fields, and the fresh `source` is built from the same literals that `Record` passes.
+- B8 (low, `wontfix-theoretical`): the on path creates its resources and code database before it finds a foreign CPF entry `OCUORDERS_CODE`. QA pins that the next off start cleans it, and the case needs a hand-made entry with the step's exact name.
+- B9+E2 (low, `wontfix-theoretical`): an orphaned `<data>csp/ocuorders/` with no application is never removed. It needs a failed `RemoveDirectoryTree` or a hand deletion, and an unconditional removal would delete a folder the step cannot prove it created.
+- B10 (low, `wontfix-accepted`, reopen_if the upgrade probe goes red in CI with no cause): the probe drops `Send`'s status. It is diagnostics only, and the check stays red.
+- E1+E6 (low, `wontfix-theoretical`): `StopProduction` does nothing for a Troubled production, so a runtime switch-off while Troubled leaves `^%SYS("Ensemble","RunningNamespace","OCUORDERS")` until the next IRIS start, which kills it. It is reached only by Story 4.1's runtime switch, and a start never meets it.
+- E3 (low, `wontfix-theoretical`): a `SendRequestAsync` failure halfway through a batch. It needs a broken queue of a configured adapterless process, and 4.3 and 7.4 own retries.
+- E4+A5 (low, `wontfix-theoretical`): `check_demo_off` counts only package mappings. Task 0 measured W2 = W0 byte for byte with the CPF `[Map.*]` lines, so `Config.Namespaces.Delete` leaves no global mapping.
+- V2 (low, `wontfix-theoretical`): the dead-status filter of the item wait is untested, and `check_orders_jobs` does not apply it. An Alive job in error is not reachable for the adapterless Orders items, and the predicate is the stated copy of 0.6's.
+- V5 (low): clause-level pins with no mutation of their own. Rule 19 asks for one mutation per AC, and AC1, AC2, AC6 and AC7 each have one.
+- V6 (low, `by-design`): `Orders(0)` stops without `settle_scheduler`. Design Notes hand the stop-right-after-start race (DW-28) to 4.1, a start always finds the production stopped, and a refused stop removes nothing.
+- V7 (false): `Record` and `record-eval.sh` have no CI run. The spec makes the script a non-unit.
+- A2 (low, `wontfix-theoretical`): the off path deletes `%DB_OCUORDERS_CODE` and `%DB_OCUORDERS_DATA` and their roles even when a foreign database of that name uses them. It needs a database named exactly so, at another directory, while OCUORDERS is absent (a namespace that exists and is foreign is left alone). It fails closed: access narrows to `%All`, and nothing is exposed.
+- A3 (low, `wontfix-theoretical`): there is no guard for a Foundation installed by hand into the step's own OCUORDERS. The step never installs one (`EnableNamespace(..., 1)`, measured).
+- A7 (false): the second change to `skill-rules.md` is the lead's Rule 21 timings entry, not a defect.
+
 ## Spec Change Log
 
 Implement stage, October 20. Each ruling is one the standing grant (Rule 22) lets the stage make; the measurements behind them are under Verification, "Task 0 measurements".
@@ -904,6 +939,100 @@ Everything below was measured in a throwaway of this tree unless it is marked `(
 - mutation: AC1 (review pass) - the `OcuTalon.Web.Public` mapping of `System(1)` aimed at `OCUTALON_CODE`, the step itself still OK -> `live install-start` red at `check_demo_on` in row 1 and in row 4 ("1 of 16 values differ": `dest-web-public`); the new `portal-authe` line of `check_demo_on` is part of the 16.
 - mutation: AC4 (review pass) - `Partner.Orders` checks the trace reference with the letters pattern `?22(1U,1L,1N,1"-",1"_")` instead of `$Match(ref, "^[A-Za-z0-9_-]{22}$")` -> `Test.Demo.Orders` red at `TestBatch` ("bad batch 9 is refused naming its value" and "bad batch 9 builds no order": 22 x `$Char(233)`).
 - mutation: AC6 (review pass) - `compare_surfaces`'s `diff` replaced by a no-op -> `test-lib-live.sh` red at three checks (a line gone, a line new, and surfaces that differ without `--drop-orders`); before this the recorded AC6 mutations went red only through the "OCUORDERS line left behind" branch.
+
+### QA pass (October 20; DW-37 and the gap check; throwaways tagged v10q, one at a time; local developer machine, Apple silicon, warm layer cache)
+
+No product class and no test class changed. The new tests are shell checks inside rows 3 and 4 of an existing unit, `live:install-start`, so they run in the `install` group with no new stack, restart, unit or group (REL-4). Each fixture builds its own foreign or partial state, calls the step's `Run()` in OCUTALON the way the after-start does, checks the answer and what the step did and did not touch, and removes its state again. Fixture names are the `Zz` and `OCUFOREIGN` ones, which no product object carries.
+
+**Files (QA).**
+- (QA) `docker/tests/test-install-start.sh`: two blocks. Row 3's window (demo mode off, OCUORDERS absent):
+  - `Test.Demo.Production` run through `%UnitTest.Manager` fails every test with row 15's text and skips none;
+  - the seed is 1 on Docker (`DefaultMode()` with the image's version file) and 0 for a step whose version file is absent (the IPM case, a subclass `ZzOcuNoVersion.Demo`), which creates nothing;
+  - a foreign OCUORDERS (namespace `OCUORDERS` on databases `OCUFOREIGN_CODE` and `OCUFOREIGN_DATA`) is left exactly as it was with demo mode off and refused with row 7's text with it on;
+  - a database entry `OCUORDERS_CODE` with another directory stops the step with the stated text and is kept; the next off start removes the partial state, a code database file with no CPF entry included;
+  - the surfaces after all of it equal row 2's.
+
+  Row 4's window (OCUORDERS present):
+  - a package mapping that names another database is modified back;
+  - a real foreign production (`ZzOcuForeign.Production`, loaded into OCUORDERS) refuses both the on path and the off path with the stated text, and nothing is stopped, started or removed (and `Test.Demo.Production` fails with "The Orders production does not run in OCUORDERS");
+  - a Troubled Orders production (the director's state global names it, no job runs) is recovered and started;
+  - a production whose items do not all run within the wait is an error naming the item (a subclass `ZzOcuFast.Demo` waits 3 s; a pool on the adapterless `PartnerOrdersIn` in the running configuration gives it no job).
+- (QA) `docker/tests/lib-live.sh`: `settle_scheduler` (the wait for `Ens.ScheduleHandler` before a stop, DW-28) moved here from `test-production.sh`, so that both scripts share it (Rule 2).
+- (QA) `docker/tests/test-production.sh`: its local copy of `settle_scheduler` removed; `live:production` passes (81 s).
+
+**Shared surfaces (QA).** `settle_scheduler` (lib-live.sh, test-production.sh, test-install-start.sh). The `install` group's time: `live:install-start` 3:00 (180 s) against 2:50 before, about +10 to 17 s here.
+
+**What was checked and found already pinned.**
+- `/csp/ocuorders` requires a password: `check_demo_on` pins `AutheEnabled` 32 from the security tables, in rows 1 and 4. An HTTP request was not added: the throwaways publish no port, and an unauthenticated request cannot tell 32 from 64 on an EnsPortal page (it has no `%Ens_Portal` privilege either way), so the table is the pin.
+- The seed on Docker: row 1's `check_demo_on` (demo.mode 1 and OCUORDERS created on a fresh volume); the IPM side is now also run end to end (above).
+- `Test.Demo.Production` fails and never skips without OCUORDERS: the hand measurement of the implement stage is now a check in row 3's window.
+- `test-compose-start.sh` asserts that the image holds no `/opt/ocutalon/eval` (`docker run` of the built image alone).
+- The snapshot holds no secret and no local path: `test-boundaries.sh` scans both `eval/` files for paths and keys and must find them in its scan list; `record-eval.sh` refuses a non-ASCII or absolute-path snapshot.
+- The non-Health image (DW-36): `live:install-start` with `IRIS_IMAGE=iris-community:2026.3.0AI.154.0`, once, passes all checks (2:17; surfaces of 913 lines equal at row 2 and 1,167 at row 4). It is not a CI unit: the runner holds the Health base only.
+
+**Mutations (QA).** Each applied to the working tree, red observed, reverted, and the tree byte-identical (`git status --short` and `git diff --stat` unchanged, `git diff --quiet` on `src/`, `eval/`, `docker/Dockerfile` and `.dockerignore`). `mutations_demonstrated=23`.
+- mutation: DW-37 (AC1, AC6) - the foreign-production guard of `Orders` switched off (`If 0 && ...`) -> `live install-start` red at "demo mode on refuses OCUORDERS while another production runs there, and starts nothing" and at "demo mode off refuses to remove OCUORDERS while another production runs there, and removes nothing" (the namespace was deleted under the running foreign production); the next session printed nothing.
+- mutation: AC7 - `Plan` takes the "create" branch for a foreign namespace (`If 0 && exists && 'owned`) -> `live install-start` red at "demo mode on refuses a foreign OCUORDERS with the stated text and touches nothing (matrix row 7)" (and at the partial-state checks that follow, because the step made the entry `OCUORDERS_CODE` in the foreign namespace).
+- mutation: AC2 - `Mode()` seeds the constant 1 instead of `DefaultMode()` -> `live install-start` red at "demo.mode: the seed is 1 on Docker, and 0 with no version file (IPM), which creates nothing (matrix row 6)" (the row holds 1 and OCUORDERS exists).
+- mutation: DW-37 - `RecoverProduction` skipped for a Troubled production -> red at "a Troubled Orders production is recovered and started, and its items run (matrix row 2)" (`Run` fails), at the timeout check after it, and at row 4's restart, which did not end ready.
+- mutation: DW-37 - the mapping `Modify` skipped -> red at "a package mapping of OCUORDERS that names another database is modified back (matrix row 2)" (the destination stays `ocutalon_code`).
+- mutation: DW-37 - the loop that removes a database file with no CPF entry quits at once -> red at "demo mode off removes the partial state, a code database file with no CPF entry included, ... (matrix row 3)", at `check_demo_off` ("dir-code" 1) and at "row 3: the foreign and partial states leave nothing behind" (`dir|ocuorders_code`).
+- mutation: DW-37 - the start-timeout error replaced by `Quit $$$OK` -> red at "a production whose items do not all run within the wait is an error naming the item (matrix row 1)".
+- mutation: row 15 - `Test.Demo.Production`'s `Guard()` marks the test skipped instead of failed -> red at both runs of the class in `test-install-start.sh` ("every test ... fails with the reason, and none is skipped", 3 of 4 values).
+- mutation: AC1 - the Demo step sets `AutheEnabled` 64 on `/csp/ocuorders` -> `check_demo_on` red in rows 1 and 4 (`portal-authe` 64, wanted 32).
+- mutation: AC6 - the deletion of the namespace's SQL privileges, of its Interoperability marker and of its `%EnsRole_ProdPrivs_` role each skipped (one run) -> `check_demo_off` red in rows 2, 3 and 3-after (`sqlpriv` 133, `ens` 1, `role-prodprivs` 1) and "row 2: nothing else changes" (135 lines left that name OCUORDERS).
+- mutation: DW-36 - the removal of the non-Health `%DB_OCUORDERS_DATASECONDARY` resource and role skipped, on the non-Health image -> `live install-start` red at "row 2: nothing else changes" (`res|`, `role|` and `roleres|` left behind).
+- mutation: AC8 - the transform's error text changed to "was not valid" -> `class OcuTalon.Test.Demo.Production` red at `TestOneOrderInEachFormat` (the event log) and at `TestSnapshotIsReadableAndCurrent` ("a fresh recording has the committed snapshot's projection").
+- mutation: AC8 - `OrdersToWarehouse` given `PoolSize="2"` -> only `TestSnapshotIsReadableAndCurrent` is red in that class, at the projection comparison (the committed snapshot is stale as soon as the production's items change).
+- mutation: AC8 - a path below a home folder in `snapshot.json`, and a key-like string in `case.json` -> `test-boundaries.sh` red at "paths" (`snapshot.json:6`) and "keys" (`case.json:12`); the folder `eval/orders-date-format` renamed -> red at "scope: a file that must be scanned is not".
+- mutation: AC8 / image - `eval/` copied into the image (`!eval` in `.dockerignore`, `COPY eval/` in the Dockerfile) -> `live compose-start` red at exactly one check, "the image holds /opt/ocutalon/eval, or the image could not be inspected".
+- mutation: AC3 - `Transform.OrderDate` also accepts `MM/DD/YYYY` -> `class Test.Demo.Production` red at `TestOneOrderInEachFormat`, `TestPartnerKeepsNoState`, `TestRepairedCopyGoesThrough` and `TestSnapshotIsReadableAndCurrent` (the implement stage's mutation, run again).
+- mutation: AC4 - `Partner.Orders` keeps the first date format it sees in a global -> `class Test.Demo.Production` red at `TestPartnerKeepsNoState` (run again).
+- mutation: AC5 - `Warehouse.OnMessage` returns an error -> red at `TestRepairedCopyGoesThrough` ("the repaired copy reaches the warehouse"), `TestOneOrderInEachFormat` and `TestPartnerKeepsNoState` (run again).
+- mutation: AC9 - `Partner.Send`'s `traceRef` renamed `ref` -> `class OcuTalon.Test.Contract.Ac` red at `TestCrossLaneSignatures` (run again, in a throwaway).
+
+**Results (QA).** `live install-start` on the final tree, Health image: all checks passed, 3:00. Non-Health image: all checks passed, 2:17. `live production` 81 s, `bash ci/checks.sh` exit 0 (39 s). `ci/iris.sh teardown` for tag v10q left nothing. Slot A: not touched by QA (no class changed); `iris_server_info` showed build 154 and no OCUORDERS.
+
+**CI of the build commit `916ff92` (the `ci` run 39411120021 and `lane-a` 39411119914, both `headSha` `916ff9251dd57c4499afe1da2fd2f5aad139d80b`, both success).**
+- Wall-clock 25 min 22 s (created 10:53:36Z, last job done 11:18:58Z), against 23 min 39 s (Story 0.8's head) and 22 to 24 minutes before: REL-4's 30 minutes holds with 4 min 38 s to spare. Per job: `checks` 34 s and `web` 26 s (hosted); `iris (install)` 13 min 49 s, `iris (production)` 10 min 29 s, `iris (browser)` 9 min 40 s, `iris (image)` 6 min 0 s and `iris (shards)` 6 min 0 s, about 46 runner-minutes in all (43 before).
+- The `install` group took 806 s (`live:install-start` 452 s, `live:install-upgrade` 354 s), against 12 min 21 s for the job before. The longest chain is `install` then `production` on one runner (13 min 49 s + 10 min 29 s + 1 min of start-up), which sets the wall-clock. The QA fixtures add about 10 to 17 s locally to `live:install-start`, so about 25 to 70 s on the runner `(inference)`; the next run measures it, and 30 minutes is not at risk at that size.
+- `FIRST-START engine=x86_64 build=1s ready=177s` (job `iris (browser)` on `ocutalon-ci-1`; no `WARN`), against 150 s for Story 0.8's head. The first start now also creates OCUORDERS and starts its production (6 s more on the developer machine), but the job log has no `STEP Demo` seconds, so how much of the 27 s that is, against runner variance between two single runs on two runner services, is `(inference)`. The figure is in `epic-0-readme-notes.md`.
+- The read-only `eval/` mount was readable by the IRIS user on the runner: `OcuTalon.Test.Demo.Production` passed in the `lane-b` shard (2.68 s), `TestSnapshotIsReadableAndCurrent` included; `lane-a` passed 9 classes (one pre-existing SKIP in `Test.Install.Production.TestStepHelpers`), `lane-b` 23 classes.
+- No job was red, so there was nothing to patch, and no rebalance was applied or proposed (the run is under 30 minutes).
+
+### Code review pass (October 20; throwaways tagged v10r, one at a time; local developer machine, Apple silicon, warm layer cache)
+
+**Patches** (the findings are under `### Review Findings`):
+- `Install.Step.Demo.Orders(0)` refuses any other production defined in OCUORDERS (A4).
+- Comment contracts in `Demo.cls`, `Test.Demo.Production` and `record-eval.sh`.
+- In `test-install-start.sh`: the stopped-foreign fixture, the off-while-running fixture, and explicit modes and a precondition in QA's fixtures.
+- `check_demo_on` pins `^Ens.AutoStart` empty.
+- `TestOneOrderInEachFormat` checks the good session's event log.
+- `TestBatch` accepts 1000.
+- `(inference)` labels for the 177 s share.
+
+**Shared surfaces:**
+- `check_demo_on`, which only `test-install-start.sh` calls;
+- `Install.Step.Demo`'s off path, which every start with demo mode off runs.
+
+**Results:**
+- **Slot A** (build 154, port 52790, `OCUTALON`): `Demo.cls` and the three `Test.Demo` classes loaded with `ck`, with no warning. `Test.Demo.Orders` passed 5 of 5 and `Test.Demo.Step` 6 of 6, one class per call.
+- `bash ci/checks.sh`: exit 0, 33 s.
+- **Throwaways:**
+  - `live install-start` (Health image): exit 0, 87 PASS lines, 184 s (QA: 180 s).
+  - `live install-start` with `IRIS_IMAGE=iris-community:2026.3.0AI.154.0`: exit 0, 87 PASS lines, 134 s. Its surfaces are 913 lines at rows 2 and 3 and 1,167 at row 4, so the new production query works on the non-Health image too.
+  - `live install-upgrade`: exit 0, 34 PASS lines, 167 s.
+  - `class OcuTalon.Test.Demo.Production`: passed, 55 s with the stack.
+  - `shard lane-b`: 23 classes, 63 s. `shard lane-b --reverse`: 23 classes, 63 s.
+  - `ci/iris.sh teardown` for tag v10r left nothing.
+- **REL-4:** this pass adds about 4 s locally to `live:install-start`, about 10 to 16 s on the runner `(inference)`. DW-21 carries the occurrence.
+
+**Mutations (code review).** Each was applied, observed red and reverted, and the tree was byte-identical afterwards (`git status --short` and `git diff --stat` unchanged).
+- mutation: A4 (AC6, AC7) - the new check of `Orders(0)` switched off (`If 0 && rs.%Next()`) -> `live install-start` red at "demo mode off refuses to remove OCUORDERS while another production is defined there, stopped, and removes nothing". The step returned OK and deleted OCUORDERS with the foreign production, and the Troubled fixture after it printed nothing.
+- mutation: B3 (the Never list's "not autostart") - `Orders(1)` also calls `Ens.Director.SetAutoStart(production)`, applied in the same run as A4 because their red checks are disjoint -> `check_demo_on` red in rows 1 and 4 ("the Orders production runs in OCUORDERS, and is not autostart": `autostart` `OcuTalon.Demo.Orders.Production`, wanted empty).
+- mutation: V1 (AC6, the runtime switch) - the stop of `Orders(0)` switched off (`If 0 && (name = production) && ...`) -> `live install-start` red only at "demo mode off while the Orders production runs stops it and removes OCUORDERS, with no job left there". The step returned OK under the running production, and the check of what is left printed nothing.
+- mutation: V4 (AC3, row 9's "no error") - `Translator.OnRequest` logs an error for every order that transforms -> `class OcuTalon.Test.Demo.Production` red only at `TestOneOrderInEachFormat` ("the good order's session logs no error at OrdersFromPartner").
+- mutation: B11 (AC4, row 12's bound) - `Partner.Orders` refuses `count >= MAXCOUNT` instead of `>` -> `Test.Demo.Orders` red at `TestBatch` on slot A ("a batch of 1000, the most, is accepted"). The original was then reloaded into slot A.
 
 ## Auto Run Result
 

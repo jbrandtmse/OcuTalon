@@ -309,11 +309,7 @@ XData ProductionDefinition
 }
 EOC
 dc exec -T iris sh -c 'cat > /tmp/ZzOther.cls' < "$tmp/ZzOther.cls"
-# A production's start returns before Ens.ScheduleHandler has taken the start's request, and the handler's UpdateProduction
-# then waits for the runtime lock that StopProduction holds until its own timeout, so a stop right after a start fails with
-# ErrProductionNotQuiescent or ErrJobsNotStopped (DW-28, measured on build 154). This line ends once the handler's queue is
-# empty and its job is Alive, dequeuing and has no active message, or after 10 s, and sets settled to 1 or 0.
-settle_scheduler='For k=1:1:100 { Set busy=(##class(Ens.Queue).GetCount("Ens.ScheduleHandler")>0),seen=0,rs=##class(%ResultSet).%New("Ens.Job:Enumerate"),x=rs.Execute() While rs.Next() { If rs.Get("ConfigName")="Ens.ScheduleHandler" { Set seen=1 Set:((rs.Get("State")="Alive")&&(rs.Get("Status")="dequeuing")&&(rs.Get("ActiveMessage")=""))=0 busy=1 } } Quit:seen&&(busy=0)  Hang 0.1 } Set settled=(seen&&(busy=0))'
+# settle_scheduler (lib-live.sh) ends each stop's wait for Ens.ScheduleHandler (DW-28).
 check_session "another production: the step fails naming it and leaves it running" OCUTALON \
   "CHK|settled|1
 CHK|stopped|1

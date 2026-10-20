@@ -51,7 +51,8 @@ Parameter STOPSECONDS = 30;
 Parameter DEADSTATUSES = "error,halted,terminated";
 
 /// Applies the mode: "create" makes the demo and starts its production, "remove" removes it, "leave" and "error" do
-/// nothing (see Plan). The seed is written before the plan is made.
+/// nothing (see Plan). The seed is written before the plan is made; a seed that cannot be written throws its error (Mode),
+/// which Install.Registry's RunStep reports as a failed step.
 ClassMethod Run() As %Status
 {
 	Set action = ..Plan(..Mode(), ##class(%SYS.Namespace).Exists(..#NAMESPACE), ..Owned(), .sc)
@@ -92,8 +93,8 @@ ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output s
 }
 
 /// 1 when demo mode is on. Seeds the setting with DefaultMode() when the row is absent, drops this process's cache entry of
-/// it (Seed does), and reads it: the mode is on only for the value "1". A seed that fails is an error, so that a row that
-/// cannot be written never switches demo mode off.
+/// it (Seed does), and reads it: the mode is on only for the value "1". A seed that fails throws its status, so that a row
+/// that cannot be written never switches demo mode off.
 ClassMethod Mode() As %Boolean
 {
 	$$$ThrowOnError(##class(OcuTalon.Data.Setting).Seed(..#MODEKEY, ..DefaultMode()))
@@ -389,8 +390,9 @@ ClassMethod System(on As %Boolean) As %Status [ Private ]
 ///     definition of its own); another production that is running, Troubled or Suspended is an error and nothing is stopped.
 ///     Then it polls once a second, up to WAITSECONDS, until the production runs and every enabled item with a pool has an
 ///     alive job that is not in error, halted or terminated.
-///   - off: a running or Troubled production of this name is stopped (STOPSECONDS, forced); another one that is not stopped
-///     is an error and nothing is stopped.
+///   - off: another production that is not stopped, or any other production defined in the namespace, is an error, and
+///     nothing is stopped or removed; otherwise a running or Troubled production of this name is stopped (STOPSECONDS,
+///     forced).
 ClassMethod Orders(on As %Boolean) As %Status [ Private ]
 {
 	Set ns = ..#NAMESPACE
@@ -456,6 +458,9 @@ ClassMethod Orders(on As %Boolean) As %Status [ Private ]
 		If missing '= "" Quit $$$ERROR($$$GeneralError, production_" did not finish starting in "_wait_" s: "_missing)
 		Quit $$$OK
 	}
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Name FROM Ens_Config.Production WHERE Name <> ?", production)
+	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the productions of "_ns_": "_rs.%Message)
+	If rs.%Next() Quit $$$ERROR($$$GeneralError, "The production "_rs.%Get("Name")_" is in namespace "_ns_", so the Demo step leaves it alone.")
 	If (name = production) && ((state = $$$eProductionStateRunning) || (state = $$$eProductionStateTroubled)) {
 		Set sc = ##class(Ens.Director).StopProduction(stop, 1)
 		If $$$ISERR(sc) Quit sc

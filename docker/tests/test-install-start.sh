@@ -21,6 +21,16 @@
 #   - row 2: all of it is gone (check_demo_off), and the surfaces equal row 1's less every line that names OCUORDERS;
 #   - row 3: still gone, and the step does nothing;
 #   - row 4: recreated, with the same surfaces as row 1.
+# Story 0.10's QA pass (DW-37) adds the states that only a foreign or partial start reaches, as fixtures inside rows 3 and 4 with no
+# restart: each builds its own state, calls the step's Run() in OCUTALON, checks the answer and the state, and removes the state.
+#   - row 3, OCUORDERS absent and demo mode off: Test.Demo.Production fails every test with the reason and skips none (matrix
+#     row 15); the seed is 1 where the image's version file exists and 0 without it (row 6); a foreign OCUORDERS is left alone when
+#     off and refused when on (row 7); a database entry OCUORDERS_CODE with another directory stops the step, and the next
+#     off start removes the partial state, a database file with no CPF entry included; the surfaces equal row 2's;
+#   - row 4, OCUORDERS present: a drifted package mapping is modified back; a foreign production refuses both the on and the off
+#     path, and the off path again once it is stopped, and nothing is stopped, started or removed; a Troubled Orders production
+#     is recovered and started; a production whose items do not run within the wait is an error that names the item; demo mode
+#     switched off while the Orders production runs stops it and removes OCUORDERS, and switched on again recreates it.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its
 # volume and images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -186,6 +196,143 @@ fi
 check_demo_off "row 3"
 live_pop_file
 
+# --- Story 0.10, QA (DW-37; matrix rows 3, 6, 7 and 15): the states the Demo step meets only from a foreign or partial start ---
+#
+# Demo mode is off here and OCUORDERS is gone, so each fixture starts from nothing, builds its own foreign or partial state, calls
+# the step's Run() the way the after-start does (in OCUTALON), checks the answer and what the step did and did not touch, and
+# removes its state again. No fixture restarts the container. The surfaces at the end of the block equal row 2's.
+# demo_run is the ObjectScript that calls the step and returns to the session's own namespace; fixture names are the Zz and
+# OCUFOREIGN ones, which no product object carries.
+
+demo_run='Set home=$Namespace,$Namespace="OCUTALON" Set sc=##class(OcuTalon.Install.Step.Demo).Run() Set $Namespace=home'
+
+# fixture_class <name> < class text: puts a fixture class into the container's /tmp, where a session loads it.
+fixture_class() {
+  dc exec -T iris sh -c "cat > /tmp/$1.cls" || die "the fixture class $1 could not be copied into the container"
+}
+
+# foreign_state <label>: the ObjectScript lines (for %SYS) that print CHK|<label>|<globals>/<routines>|<six flags>|<package
+# mappings>|<Interoperability marker>|<trace role names OCUORDERS>|<web applications>, the state of the namespace OCUORDERS and of
+# everything the step would create for it: the flags are the CPF entries OCUORDERS_CODE and OCUORDERS_DATA, their resources and
+# their directories.
+foreign_state() {
+  printf '%s\n' \
+    'Set mgr=$SYSTEM.Util.ManagerDirectory() Kill p Set sc=##class(Config.Namespaces).Get("OCUORDERS",.p) Set fp=$Get(p("Globals"))_"/"_$Get(p("Routines"))_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_##class(Config.Databases).Exists("OCUORDERS_DATA")_##class(Security.Resources).Exists("%DB_OCUORDERS_CODE")_##class(Security.Resources).Exists("%DB_OCUORDERS_DATA")_##class(%File).DirectoryExists(mgr_"ocuorders_code")_##class(%File).DirectoryExists(mgr_"ocuorders_data")' \
+    'Set rs=##class(%ResultSet).%New("Config.MapPackages:List") Do rs.Execute("OCUORDERS") Set maps=0 While rs.Next() { Set maps=maps+1 } Set ok=##class(Security.Roles).Get("OcuTalonTraceViewer",.q)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Security.Applications WHERE NameSpace = ?","OCUORDERS") Do rs.%Next()' \
+    "Write !,\"CHK|$1|\",fp,\"|\",maps,\"|\",\$Data(^%SYS(\"Ensemble\",\"InstalledNamespace\",\"OCUORDERS\")),\"|\",(\$Get(q(\"Resources\"))[\"OCUORDERS\"),\"|\",rs.%GetData(1)"
+}
+
+# production_class_fails <label> <reason>: runs OcuTalon.Test.Demo.Production through %UnitTest.Manager in the container, the way
+# ci/iris.sh class does, and checks that every test failed, none was skipped, and each failed with <reason>.
+production_class_fails() {
+  check_session "$1" OCUTALON \
+    "CHK|ran|1
+CHK|all-failed|1
+CHK|none-skipped|1
+CHK|each-names-reason|1" \
+    'Set old=$Get(^UnitTestRoot),^UnitTestRoot="/tmp/",before=$Order(^UnitTest.Result(""),-1)' \
+    'Do ##class(%UnitTest.Manager).RunTest(":OcuTalon.Test.Demo.Production","/noload/nodelete/norecursive")' \
+    'Set id=$Order(^UnitTest.Result(""),-1),(n,bad,skip,why)=0 Write !,"CHK|ran|",(id>before)' \
+    'Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id) Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  Set n=n+1 Set:tm.Status=0 bad=bad+1 Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  Set:ta.Status=2 skip=skip+1 Set:(ta.Status=0)&&(ta.Description="'"$2"'") why=why+1 } } } }' \
+    'Write !,"CHK|all-failed|",((n>0)&&(bad=n)),!,"CHK|none-skipped|",(skip=0),!,"CHK|each-names-reason|",((n>0)&&(why=n))' \
+    'Do ##class(%UnitTest.Result.TestInstance).%DeleteId(id) If old="" { Kill ^UnitTestRoot } Else { Set ^UnitTestRoot=old }' \
+    'Halt'
+}
+
+# Matrix row 15: with OCUORDERS missing, the end-to-end tests fail, with the reason, and are never skipped.
+production_class_fails "with no OCUORDERS every test of Test.Demo.Production fails with the reason, and none is skipped (matrix row 15)" \
+  "OCUORDERS does not exist: this class runs in throwaways and CI only (Rule 21)"
+
+# Matrix row 6, on Docker and on IPM: the image has its version file, so the seed is 1; a step whose version file is absent (the IPM case,
+# made by a subclass that names a file that does not exist) seeds 0 into a missing row and creates nothing.
+fixture_class ZzOcuNoVersion <<'EOC'
+Class ZzOcuNoVersion.Demo Extends OcuTalon.Install.Step.Demo
+{
+
+Parameter VERSIONFILE = "/tmp/zz-ocu-no-version-file";
+
+}
+EOC
+check_session "demo.mode: the seed is 1 on Docker (the image's version file), and 0 with no version file (IPM), which creates nothing (matrix row 6)" OCUTALON \
+  "CHK|docker-seed|1|1
+CHK|fixture|1
+CHK|ipm-seed|0
+CHK|row-deleted|1
+CHK|ipm-run|1
+CHK|ipm-row|0
+CHK|ipm-nothing|0|0|0
+CHK|fixture-removed|1" \
+  'Write !,"CHK|docker-seed|",##class(OcuTalon.Install.Step.Demo).DefaultMode(),"|",##class(%File).Exists(##class(OcuTalon.Install.Step.Demo).#VERSIONFILE)' \
+  'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/ZzOcuNoVersion.cls","ck-d")' \
+  'Write !,"CHK|ipm-seed|",##class(ZzOcuNoVersion.Demo).DefaultMode()' \
+  'Set row=##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode") Write !,"CHK|row-deleted|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.Setting).%DeleteId(row.%Id()))' \
+  'Set sc=##class(ZzOcuNoVersion.Demo).Run() Write !,"CHK|ipm-run|",$SYSTEM.Status.IsOK(sc)' \
+  'Set row=##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode") Write !,"CHK|ipm-row|",$Select($IsObject(row):row.Value,1:"<absent>")' \
+  'Set $Namespace="%SYS" Write !,"CHK|ipm-nothing|",##class(Config.Namespaces).Exists("OCUORDERS"),"|",##class(Security.Resources).Exists("%DB_OCUORDERS_CODE"),"|",##class(%File).DirectoryExists($SYSTEM.Util.ManagerDirectory()_"ocuorders_code") Set $Namespace="OCUTALON"' \
+  'Write !,"CHK|fixture-removed|",$SYSTEM.OBJ.Delete("ZzOcuNoVersion.Demo","-d")' \
+  'Halt'
+
+# Matrix row 7: a foreign OCUORDERS, one whose databases the step did not create, is left alone when demo mode is off and refused (and
+# left alone) when it is on.
+check_session "a foreign OCUORDERS is built, and the step does not own it (matrix row 7)" %SYS "CHK|built|1
+CHK|owned|0
+CHK|before|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
+  'Set mgr=$SYSTEM.Util.ManagerDirectory()' \
+  'For n="CODE","DATA" { Set dir=mgr_"ocuforeign_"_$ZConvert(n,"L")_"/" Set ok=##class(%File).CreateDirectoryChain(dir) Set sc=##class(SYS.Database).CreateDatabase(dir) Kill p Set p("Directory")=dir Set sc2=##class(Config.Databases).Create("OCUFOREIGN_"_n,.p) Set built(n)=(ok&&$SYSTEM.Status.IsOK(sc)&&$SYSTEM.Status.IsOK(sc2)) }' \
+  'Kill p Set p("Globals")="OCUFOREIGN_DATA",p("Routines")="OCUFOREIGN_CODE" Set sc=##class(Config.Namespaces).Create("OCUORDERS",.p) Write !,"CHK|built|",(built("CODE")&&built("DATA")&&$SYSTEM.Status.IsOK(sc))' \
+  'Set $Namespace="OCUTALON" Write !,"CHK|owned|",##class(OcuTalon.Install.Step.Demo).Owned() Set $Namespace="%SYS"' \
+  "$(foreign_state before)" \
+  'Halt'
+set_demo_mode 0
+check_session "demo mode off leaves a foreign OCUORDERS exactly as it was (matrix row 7)" %SYS \
+  "CHK|run|1|
+CHK|off|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  "$(foreign_state off)" \
+  'Halt'
+set_demo_mode 1
+check_session "demo mode on refuses a foreign OCUORDERS with the stated text and touches nothing (matrix row 7); the fixture is removed again" %SYS \
+  "CHK|run|0|ERROR #5001: Namespace OCUORDERS exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone.
+CHK|on|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0
+CHK|removed|1|1|1|1|1|1|1
+CHK|gone|/|000000|0|0|0|0" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  "$(foreign_state on)" \
+  'Set mgr=$SYSTEM.Util.ManagerDirectory(),gone=##class(Config.Namespaces).Delete("OCUORDERS")' \
+  'For n="CODE","DATA" { Set dir=mgr_"ocuforeign_"_$ZConvert(n,"L")_"/" Set gone=gone_"|"_##class(Config.Databases).Delete("OCUFOREIGN_"_n) Set gone=gone_"|"_##class(SYS.Database).DeleteDatabase(dir) Set gone=gone_"|"_##class(%File).RemoveDirectoryTree(dir) }' \
+  'Write !,"CHK|removed|",gone' \
+  "$(foreign_state gone)" \
+  'Halt'
+
+# Matrix rows 1 and 3, a partial start: the database entry OCUORDERS_CODE names another directory, so the step stops after it has made
+# its resources and its code database file, and says which entry is wrong; a later start with demo mode off removes that partial
+# state, a database file that has no entry in the CPF included, and leaves the entry that is not the step's own.
+set_demo_mode 1
+check_session "a database entry OCUORDERS_CODE with another directory stops the step with the stated text, and the entry is kept (matrix row 1)" %SYS \
+  "CHK|entry|1
+CHK|run|0|ERROR #5001: The database OCUORDERS_CODE exists with the directory $mgr/ocuforeign_code/, not $mgr/ocuorders_code/, so the Demo step cannot use it.
+CHK|entry-kept|$mgr/ocuforeign_code/
+CHK|partial|0|1|0" \
+  'Set mgr=$SYSTEM.Util.ManagerDirectory() Kill p Set p("Directory")=mgr_"ocuforeign_code/" Write !,"CHK|entry|",$SYSTEM.Status.IsOK(##class(Config.Databases).Create("OCUORDERS_CODE",.p))' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Kill p Set sc=##class(Config.Databases).Get("OCUORDERS_CODE",.p) Write !,"CHK|entry-kept|",$Get(p("Directory"))' \
+  'Write !,"CHK|partial|",##class(Config.Namespaces).Exists("OCUORDERS"),"|",##class(%File).Exists(mgr_"ocuorders_code/IRIS.DAT"),"|",##class(%File).DirectoryExists(mgr_"ocuorders_data")' \
+  'Halt'
+set_demo_mode 0
+check_session "demo mode off removes the partial state, a code database file with no CPF entry included, and keeps the entry that is not its own (matrix row 3)" %SYS \
+  "CHK|run|1
+CHK|cleaned|0|0|0|0|1
+CHK|entry-removed|1" \
+  'Set mgr=$SYSTEM.Util.ManagerDirectory()' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+  'Write !,"CHK|cleaned|",##class(%File).Exists(mgr_"ocuorders_code/IRIS.DAT"),"|",##class(%File).DirectoryExists(mgr_"ocuorders_code"),"|",##class(Security.Resources).Exists("%DB_OCUORDERS_CODE"),"|",##class(Security.Resources).Exists("%DB_OCUORDERS_DATA"),"|",##class(Config.Databases).Exists("OCUORDERS_CODE")' \
+  'Write !,"CHK|entry-removed|",##class(Config.Databases).Delete("OCUORDERS_CODE")' \
+  'Halt'
+check_demo_off "row 3 after the foreign and partial states"
+demo_surfaces "$tmp/surfaces.row3"
+compare_surfaces "row 3: the foreign and partial states leave nothing behind" "$tmp/surfaces.row2" "$tmp/surfaces.row3"
+
 # --- row 4: a public class deleted ---
 
 set_demo_mode 1
@@ -199,6 +346,141 @@ fi
 check_demo_on "row 4"
 demo_surfaces "$tmp/surfaces.row4"
 compare_surfaces "row 4: recreated as at the first start" "$tmp/surfaces.row1" "$tmp/surfaces.row4"
+
+# --- Story 0.10, QA (DW-37; matrix rows 1, 2, 3, 7 and 15): the branches of the step that a start with the namespace and the production
+# --- already in place reaches only from a foreign or broken state ---
+#
+# OCUORDERS and its production are fresh here. Each fixture breaks one thing, calls Run() (demo_run, above), checks the answer and
+# the state, and puts the state back, so the production runs again at the end (check_orders_jobs) and row 4's restart follows
+# as before. The foreign production and the subclasses are loaded from /tmp and deleted again.
+
+fixture_class ZzOcuForeign <<'EOC'
+Class ZzOcuForeign.Production Extends Ens.Production
+{
+
+XData ProductionDefinition
+{
+<Production Name="ZzOcuForeign.Production" TestingEnabled="false" LogGeneralTraceEvents="false">
+  <ActorPoolSize>1</ActorPoolSize>
+</Production>
+}
+
+}
+EOC
+fixture_class ZzOcuFast <<'EOC'
+Class ZzOcuFast.Demo Extends OcuTalon.Install.Step.Demo
+{
+
+Parameter WAITSECONDS = 3;
+
+}
+EOC
+
+# A mapping of the namespace that drifted to another database is put back, and the running production is left alone.
+check_session "a package mapping of OCUORDERS that names another database is modified back (matrix row 2)" %SYS \
+  "CHK|broken|1|^$mgr/ocutalon_code/
+CHK|run|1
+CHK|healed|^$mgr/ocutalon_public/" \
+  'Kill p Set p("Database")="OCUTALON_CODE" Set sc=##class(Config.MapPackages).Modify("OCUORDERS","OcuTalon.Data.Public",.p) Write !,"CHK|broken|",$SYSTEM.Status.IsOK(sc),"|",##class(%SYS.Namespace).GetRoutineDest("OCUORDERS","OcuTalon.Data.Public.Settings.1","INT")' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+  'Write !,"CHK|healed|",##class(%SYS.Namespace).GetRoutineDest("OCUORDERS","OcuTalon.Data.Public.Settings.1","INT")' \
+  'Halt'
+
+# Another production runs in OCUORDERS: the step refuses it, with demo mode on and with demo mode off, stops nothing, starts
+# nothing, and removes nothing. (The Orders production is stopped first, once Ens.ScheduleHandler has taken its start.)
+check_session "a foreign production runs in OCUORDERS and the Orders production is stopped (fixture)" OCUORDERS \
+  "CHK|settled|1
+CHK|stopped|1
+CHK|fixture|1
+CHK|foreign-started|1
+CHK|foreign-state|ZzOcuForeign.Production|1" \
+  "$settle_scheduler"' Write !,"CHK|settled|",settled' \
+  'Set sc=##class(Ens.Director).StopProduction(30,1) Write !,"CHK|stopped|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|stop-error|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/ZzOcuForeign.cls","ck-d")' \
+  'Set sc=##class(Ens.Director).StartProduction("ZzOcuForeign.Production") Write !,"CHK|foreign-started|",$SYSTEM.Status.IsOK(sc)' \
+  'Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|foreign-state|",n,"|",s' \
+  'Halt'
+sed -n 's/^CHK|stop-error|/  the Orders production did not stop: /p' "$tmp/actual.chk"
+check_session "demo mode on refuses OCUORDERS while another production runs there, and starts nothing (matrix rows 1 and 7)" OCUTALON \
+  "CHK|run|0|ERROR #5001: The production ZzOcuForeign.Production is in namespace OCUORDERS and is not stopped, so the Demo step leaves it alone.
+CHK|state|ZzOcuForeign.Production|1" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Set $Namespace="OCUORDERS" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|state|",n,"|",s' \
+  'Halt'
+production_class_fails "with another production running in OCUORDERS every test of Test.Demo.Production fails with the reason, and none is skipped (matrix row 15)" \
+  "The Orders production does not run in OCUORDERS"
+set_demo_mode 0
+check_session "demo mode off refuses to remove OCUORDERS while another production runs there, and removes nothing (matrix rows 3 and 7)" OCUTALON \
+  "CHK|run|0|ERROR #5001: The production ZzOcuForeign.Production is in namespace OCUORDERS and is not stopped, so the Demo step leaves it alone.
+CHK|kept|1|1|1|ZzOcuForeign.Production|1" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Set $Namespace="%SYS" Set kept=##class(Config.Namespaces).Exists("OCUORDERS")_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_"|"_##class(Config.Databases).Exists("OCUORDERS_DATA") Set $Namespace="OCUORDERS" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|kept|",kept,"|",n,"|",s' \
+  'Halt'
+
+# The foreign production stopped: it is still defined in OCUORDERS, so demo mode off still refuses and removes nothing.
+check_session "demo mode off refuses to remove OCUORDERS while another production is defined there, stopped, and removes nothing (matrix rows 3 and 7)" OCUTALON \
+  "CHK|settled|1
+CHK|foreign-stopped|1|2
+CHK|run|0|ERROR #5001: The production ZzOcuForeign.Production is in namespace OCUORDERS, so the Demo step leaves it alone.
+CHK|kept|1|1|1|1" \
+  'Set $Namespace="OCUORDERS" '"$settle_scheduler"' Write !,"CHK|settled|",settled' \
+  'Set sc=##class(Ens.Director).StopProduction(30,1) Set sc2=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|foreign-stopped|",$SYSTEM.Status.IsOK(sc),"|",s Write:$SYSTEM.Status.IsError(sc) !,"CHK|stop-error|",$SYSTEM.Status.GetErrorText(sc) Set $Namespace="OCUTALON"' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Set $Namespace="%SYS" Set kept=##class(Config.Namespaces).Exists("OCUORDERS")_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_"|"_##class(Config.Databases).Exists("OCUORDERS_DATA") Set $Namespace="OCUORDERS" Write !,"CHK|kept|",kept,"|",##class(Ens.Config.Production).%ExistsId("ZzOcuForeign.Production")' \
+  'Halt'
+sed -n 's/^CHK|stop-error|/  the foreign production did not stop: /p' "$tmp/actual.chk"
+set_demo_mode 1
+
+# The foreign production is removed. The Orders production is then left Troubled (the director's state global names it and no
+# job runs, as after a crash), and the step recovers and starts it.
+check_session "the foreign production is removed, and the Orders production is left Troubled (fixture)" OCUORDERS \
+  "CHK|foreign-removed|1|0
+CHK|troubled|OcuTalon.Demo.Orders.Production|4" \
+  'Write !,"CHK|foreign-removed|",$SYSTEM.OBJ.Delete("ZzOcuForeign.Production","-d"),"|",##class(Ens.Config.Production).%ExistsId("ZzOcuForeign.Production")' \
+  'Set ^Ens.Runtime("Name")="OcuTalon.Demo.Orders.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|troubled|",n,"|",s' \
+  'Halt'
+check_session "a Troubled Orders production is recovered and started, and its items run (matrix row 2)" OCUTALON \
+  "CHK|run|1
+CHK|running|1|OcuTalon.Demo.Orders.Production" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+  'Set $Namespace="OCUORDERS" Write !,"CHK|running|",##class(Ens.Director).IsProductionRunning(.n),"|",n' \
+  'Halt'
+
+# A production that does not finish starting is an error that names the item: a pool is set on the adapterless PartnerOrdersIn in
+# the running configuration, so that it has no job; the subclass waits 3 s instead of the step's 60.
+check_session "a production whose items do not all run within the wait is an error naming the item (matrix row 1)" OCUTALON \
+  "CHK|pre|1|OcuTalon.Demo.Orders.Production
+CHK|fixture|1
+CHK|run|0|ERROR #5001: OcuTalon.Demo.Orders.Production did not finish starting in 3 s: these items do not run: PartnerOrdersIn
+CHK|restored|1
+CHK|fixture-removed|1" \
+  'Set $Namespace="OCUORDERS" Write !,"CHK|pre|",##class(Ens.Director).IsProductionRunning(.n),"|",n Set $Namespace="OCUTALON"' \
+  'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/ZzOcuFast.cls","ck-d")' \
+  'Set $Namespace="OCUORDERS" Set ^Ens.Runtime("ConfigItem","PartnerOrdersIn","PoolSize")=1 Set $Namespace="OCUTALON"' \
+  'Set sc=##class(ZzOcuFast.Demo).Run() Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Set $Namespace="OCUORDERS" Set ^Ens.Runtime("ConfigItem","PartnerOrdersIn","PoolSize")=0 Set $Namespace="OCUTALON"' \
+  "$demo_run"' Write !,"CHK|restored|",$SYSTEM.Status.IsOK(sc)' \
+  'Write !,"CHK|fixture-removed|",$SYSTEM.OBJ.Delete("ZzOcuFast.Demo","-d")' \
+  'Halt'
+
+# Demo mode switched off while the Orders production runs (Story 4.1's switch, with no restart): the step stops the production
+# and removes OCUORDERS, and no job is left there; switched on again, it creates OCUORDERS and starts the production.
+set_demo_mode 0
+check_session "demo mode off while the Orders production runs stops it and removes OCUORDERS, with no job left there (matrix row 3)" OCUTALON \
+  "CHK|pre|1|OcuTalon.Demo.Orders.Production
+CHK|settled|1
+CHK|run|1|
+CHK|gone|0|0|0" \
+  'Set $Namespace="OCUORDERS" Write !,"CHK|pre|",##class(Ens.Director).IsProductionRunning(.n),"|",n '"$settle_scheduler"' Write !,"CHK|settled|",settled Set $Namespace="OCUTALON"' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Set $Namespace="%SYS" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.ProcessQuery WHERE NameSpace = ?","OCUORDERS") Do rs.%Next() Write !,"CHK|gone|",##class(Config.Namespaces).Exists("OCUORDERS"),"|",$Data(^%SYS("Ensemble","RunningNamespace","OCUORDERS")),"|",rs.%GetData(1) Set $Namespace="OCUTALON"' \
+  'Halt'
+set_demo_mode 1
+check_session "demo mode on again creates OCUORDERS and starts the Orders production (matrix row 5)" OCUTALON \
+  "CHK|run|1|" \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  'Halt'
+check_orders_jobs "row 4 after the foreign and broken states"
 check_session "row 4: the public class is deleted" OCUTALON "CHK|deleted|1" \
   'Write !,"CHK|deleted|",$SYSTEM.OBJ.Delete("OcuTalon.Data.Public.Settings","-d")' 'Halt'
 dc stop iris >/dev/null 2>&1

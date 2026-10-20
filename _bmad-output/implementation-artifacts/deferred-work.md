@@ -126,6 +126,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Run 39338702672 took 27 min 37 s; install started fourth after a 13 min queue. List scheduling of its measured jobs gives 27.1 min at best and about 32 min at worst; a push with an open PR also starts a second matrix.
 - 2026-10-20T00:40:42Z status=escalated owner=burndown by=cr note=install split makes 6 groups (AD-22 says five), worst case 31.5 min; real fixes: one stack for both shards, or a third runner (spend)
 - 2026-10-20T01:30:58Z occurrence=0-8-the-demo-path-test-signs-in-and-loads-the-page note=demo-path unit adds about 3 runner-minutes to browser; worst-case bound grows about 1.5 min
+- 2026-10-20T13:15:52Z occurrence=0-10-the-orders-demo-production-runs-in-ocuorders note=install 13:49 at 916ff92; QA+cr fixtures add ~0.6-1.4 min x64 (inference); chain ~26-27 of 30 min
 
 ### DW-22: The spine lags two Story 0.7 implement rulings: AD-3 does not allow system datatype classes as types, and AD-5 lacks the slot-keeps-its-number-and-property rule
 - source: spec-0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model.md | severity: med | fix-risk: low | footprint: in-story
@@ -215,3 +216,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: rows 1-8 start from all-absent or all-present; deleting the foreign-production guard keeps them green
 - 2026-10-20T10:54:10Z status=open owner=0-10-the-orders-demo-production-runs-in-ocuorders by=harvest note=QA adds foreign-state fixtures inside existing install-script rows, in the style of ZzOther.Production
+- 2026-10-20T12:14:11Z status=resolved-by:0-10-the-orders-demo-production-runs-in-ocuorders by=qa note=foreign-state fixtures in test-install-start.sh rows 3 and 4; foreign-production guard mutation red; see spec Verification QA pass
+- 2026-10-20T13:21:23Z status=resolved-by:0-10-the-orders-demo-production-runs-in-ocuorders owner=0-10-the-orders-demo-production-runs-in-ocuorders by=adjudication note=QA fixtures cover all six branches (verified in code review); CR added the stopped-foreign and off-while-running fixtures
+
+### DW-38: Compiling OcuTalon.Demo.Orders.Production in OCUTALON registers an Ens.Config.Production row there (description Orders) at every install, demo mode on or off, so a cross-namespace match of Orders by display name finds a second, never-running Orders production in OCUTALON
+- source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 0.10 Spec Change Log ruling 3 measured it; on slot A (no OCUORDERS) Ens.Config.Production.%ExistsId(OcuTalon.Demo.Orders.Production) in OCUTALON is 1; 5.1 matches by display name across every readable namespace (FR-23)
+- 2026-10-20T13:15:44Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=cr note=5.1's Watch.Reader match keys on each namespace's own production (GetProductionStatus), or OCUORDERS only for Orders

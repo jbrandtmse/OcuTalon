@@ -3,7 +3,7 @@
 ///   - TestMessageContracts: PartnerOrder and WarehouseOrder have exactly their contracts and share the Ens.MessageBody extent;
 ///   - TestTransformAcceptsTheExpectedFormat and TestTransformFailsOnTheChangedFormat: the DTL's Transform, called in
 ///     OCUTALON with no production, converts a YYYY-MM-DD order date and fails with the error text for anything else;
-///   - TestBatch: Partner.Orders builds the orders of a batch, in the batch's format, and refuses a bad batch with an error
+///   - TestBatch: Partner.Orders builds the orders of a batch of 1 to 1000, in the batch's format, and refuses a bad batch with an error
 ///     that names the value, building nothing;
 ///   - TestProductionDefinition: the compiled definition of OcuTalon.Demo.Orders.Production holds exactly the three items,
 ///     read through %XML.Reader as an Ens.Config.Production.
@@ -71,6 +71,10 @@ Method TestBatch()
 	Do $$$AssertEquals(orders(6).OrderDate, "2026-10-16", "the expected format keeps the date as it is")
 	Do $$$AssertEquals(orders(6).Sku, $List(skus, 1), "the sixth order starts the Sku cycle again")
 	Do $$$AssertEquals(orders(6).Quantity, 2, "the sixth order has quantity 2")
+
+	Set batch = ..NewBatch(1000, "YYYY-MM-DD", "2026-10-16", "")
+	Do $$$AssertStatusOK(##class(OcuTalon.Demo.Orders.Partner).Orders(batch, .orders), "a batch of 1000, the most, is accepted")
+	Do $$$AssertEquals($Get(orders), 1000, "the batch of 1000 holds 1000 orders")
 
 	Set before = $ZDATE($HOROLOG, 3)
 	Set batch = ..NewBatch(1, "YYYY-MM-DD", "", "")

@@ -4,7 +4,8 @@
 # host port), waits for a ready start, and has OcuTalon.Test.Demo.Production.Record send one real batch of 50 orders (order
 # date MM/DD/YYYY, written 2026-10-16) into the Orders production, wait for its 50 failures at OrdersFromPartner and write the
 # reader snapshot of them. The file is passed through jq, so it is written pretty-printed, and replaced only when it holds the
-# 50 failures; it is ASCII and holds no absolute path. An EXIT trap removes the project with its volume and images.
+# 50 failures, is ASCII and names no home folder (test-boundaries.sh scans the committed file for every local machine path).
+# An EXIT trap removes the project with its volume and images.
 # Rerun it whenever TestSnapshotIsReadableAndCurrent reports that a fresh recording differs from the committed one because the
 # production changed, then commit the file. Story 9.4's Eval.Record replaces this script.
 # Prints the number of failures it recorded; exits 0 only when the snapshot was written.

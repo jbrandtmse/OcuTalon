@@ -2326,6 +2326,8 @@ So that a background check starts or stops without any configuration.
 **Then** starting and stopping a watch are safe but not read-only, so they run in a user's turn without approval and are denied in an untrusted or tainted turn, and listing productions is read-only (FR-7, NFR-14, AD-10)
 **And** an injected "stop watching" in an untrusted item stops nothing (NFR-14, AD-22)
 
+- DW-38: Matching a production by its display name finds only productions registered in their own namespace, so the never-running `OcuTalon.Demo.Orders.Production` row that compiling the package leaves in OCUTALON (description "Orders") is never offered as the Orders production (measured in Story 0.10) (ledger; routed by code review 2026-10-20)
+
 ### Story 5.2: New failures are picked up within seconds
 
 As a user,

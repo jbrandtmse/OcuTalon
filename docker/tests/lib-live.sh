@@ -652,6 +652,15 @@ check_clean_start() {
   grep -qx 'CHK|errors|0' "$tmp/actual.chk" || sed -n 's/^CHK|row|/  event log: /p' "$tmp/actual.chk"
 }
 
+# --- a stop right after a start (DW-28) ---
+
+# A production's start returns before Ens.ScheduleHandler has taken the start's request, and the handler's UpdateProduction
+# then waits for the runtime lock that StopProduction holds until its own timeout, so a stop right after a start fails with
+# ErrProductionNotQuiescent or ErrJobsNotStopped (DW-28, measured on build 154). settle_scheduler is an ObjectScript line, for
+# check_session and iris_script, that ends once the handler's queue is empty and its job is Alive, dequeuing and has no active
+# message, or after 10 s, and sets settled to 1 or 0. It runs in the namespace of the production that is about to be stopped.
+settle_scheduler='For k=1:1:100 { Set busy=(##class(Ens.Queue).GetCount("Ens.ScheduleHandler")>0),seen=0,rs=##class(%ResultSet).%New("Ens.Job:Enumerate"),x=rs.Execute() While rs.Next() { If rs.Get("ConfigName")="Ens.ScheduleHandler" { Set seen=1 Set:((rs.Get("State")="Alive")&&(rs.Get("Status")="dequeuing")&&(rs.Get("ActiveMessage")=""))=0 busy=1 } } Quit:seen&&(busy=0)  Hang 0.1 } Set settled=(seen&&(busy=0))'
+
 # --- demo mode and the surfaces of the Demo step (Story 0.10) ---
 
 # set_demo_mode <0|1>: writes the demo.mode row in OCUTALON through Data.Setting's object API, with UpdatedAt from Data.Time, so
@@ -760,7 +769,7 @@ check_orders_jobs() {
 #   - in OCUORDERS, OcuTalon.Demo.Orders resolves to OCUTALON_CODE, OcuTalon.Web.Public, OcuTalon.Data.Public and the global
 #     ^OcuTalonPublic resolve to OCUTALON_PUBLIC;
 #   - Interoperability is enabled, and no HealthShare mapping or instance marker exists for OCUORDERS;
-#   - the Orders production runs with OrdersFromPartner and OrdersToWarehouse alive;
+#   - the Orders production runs with OrdersFromPartner and OrdersToWarehouse alive, and OCUORDERS has no autostart production;
 #   - /ocutalon/trace/ocuorders has the properties of the trace application, the Interoperability portal application of the
 #     namespace (/csp/ocuorders) asks for a password (AutheEnabled 32), and the trace role holds Read on the OCUORDERS
 #     databases and SQL SELECT on Ens.MessageHeader in OCUORDERS;
@@ -810,9 +819,11 @@ CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
     'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
     'Kill p Set sc=##class(Security.Applications).Get("/ocutalon/trace/ocuorders",.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|/ocutalon/trace/ocuorders|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>")' \
     'Halt'
-  check_session "$label: the Orders production runs in OCUORDERS" OCUORDERS \
-    "CHK|running|OcuTalon.Demo.Orders.Production" \
+  check_session "$label: the Orders production runs in OCUORDERS, and is not autostart" OCUORDERS \
+    "CHK|running|OcuTalon.Demo.Orders.Production
+CHK|autostart|" \
     'Set r=##class(Ens.Director).IsProductionRunning(.name) Write !,"CHK|running|",$Select(r:name,1:"<not running>")' \
+    'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' \
     'Halt'
   check_orders_jobs "$label"
   if start_log | grep -qx 'STEP Demo OK [0-9.]*s'; then

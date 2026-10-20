@@ -12,9 +12,10 @@
 ///     fresh recording has the same projection as the committed one.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in the private class methods below, each of which calls only classes that resolve there
-/// (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) and returns plain values or dynamic objects. Every test makes its references
-/// before it switches, and OnAfterAllTests deletes the headers, bodies and event-log rows of the references of the run.
+/// Switching to OCUORDERS happens only in Snapshot and the private class methods below, each of which calls only classes that
+/// resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain values or dynamic objects.
+/// Every test makes its references before it switches, and OnAfterAllTests deletes the headers, bodies and event-log rows of the
+/// references of the run.
 Class OcuTalon.Test.Demo.Production Extends %UnitTest.TestCase
 {
 
@@ -81,7 +82,6 @@ Method TestOneOrderInEachFormat()
 		Set header = headers.%Get(i)
 		Do $$$AssertEquals(header.superSession, good, "header "_header.id_" carries the caller's reference")
 		Do $$$AssertEquals(header.status, 9, "header "_header.id_" is completed")
-		Do $$$AssertEquals(header.errorText, "", "header "_header.id_" has no error")
 		Set sessions = header.sessionId
 		If header.target = "OrdersFromPartner" {
 			Do $$$AssertEquals(header.bodyClass, "OcuTalon.Demo.Orders.PartnerOrder", "the order reaches the transform")
@@ -93,6 +93,7 @@ Method TestOneOrderInEachFormat()
 		}
 	}
 	Set goodSession = sessions
+	Do $$$AssertEquals(..ErrorTexts(goodSession).%Size(), 0, "the good order's session logs no error at OrdersFromPartner")
 
 	Set headers = ..Headers(bad)
 	Do $$$AssertEquals(headers.%Size(), 1, "the bad order has one header: nothing reaches the warehouse")
@@ -462,7 +463,7 @@ ClassMethod RemoveMessages(refs As %DynamicArray) As %Status [ Private ]
 ///     settings whose name holds Credentials, Password, Token or Key (any case) left out;
 ///   - trace: the headers of the first failure's session, in order: headerId, type, sourceConfigName, targetConfigName,
 ///     bodyClass, status, isError, timeCreated.
-/// Runs in OCUORDERS.
+/// Call it in OCUTALON: it switches to OCUORDERS itself, after it has read this class's parameters.
 ClassMethod Snapshot(traceRef As %String, batch As %DynamicObject = "") As %DynamicObject
 {
 	Set snapshot = {"format": "ocutalon.readerSnapshot/1"}
