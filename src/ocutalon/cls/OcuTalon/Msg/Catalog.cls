@@ -1,5 +1,5 @@
-/// The one renderer of the message catalog (AD-32). Producers set a catalog key and JSON slots; only an *Out operation, the
-/// press answer of TelegramIn and the web app's notice cards render, and they render here.
+/// The one renderer of the message catalog (AD-32). Producers never render text: they set a catalog key and JSON slots, and
+/// every text made from the catalog is rendered here.
 /// The texts live in the XData block Entries of OcuTalon.Msg.Catalog.Core (Lane B) and OcuTalon.Msg.Catalog.Watch (Lane A),
 /// one JSON object whose names are the keys <prefix>.<name>. An entry is
 ///   {"text": the text, "web": the page wording when it differs, "slots": {"<name>": "<type>"}, "source": ..., "gap": ...}
@@ -13,9 +13,11 @@
 ///   fallbackReason a Msg.Enum FALLBACKREASON value, as the text of its fallbackReason.* key;
 ///   groups         a non-empty array of {itemName, count, errorSummary, firstAt}, one line per group;
 ///   cost           US dollars of 0 or more, as the UX's Formats rule says.
-/// A string slot is trimmed, loses its control characters (the bidirectional controls and the zero-width space among them),
-/// and has each whitespace run, line breaks and Unicode spaces included, collapsed to one space; one trailing period goes where
-/// the text continues with a period, and a value left empty by that is an error. The text is filled in one pass, so a slot's value
+/// A string slot is trimmed, loses its control characters (the bidirectional controls, the zero-width space and the other
+/// invisible format characters that Clean lists among them; the zero-width joiner and non-joiner stay), and has each whitespace
+/// run, line breaks and Unicode spaces included, collapsed to one space. Where the text continues with a period, one trailing
+/// period of the value goes, and a value left empty by that is an error; a value that ends with "?", "!" or U+2026 there keeps
+/// its mark and the text's period goes. The text is filled in one pass, so a slot's value
 /// is never read as a placeholder or a line, and nothing is escaped: the output is plain text for Telegram and for Angular's
 /// text binding. A slot that the entry does not declare is ignored.
 /// The channels are web, phone, mailbox and telegram; the others of Msg.Enum CHANNEL are refused until their step adds them.
@@ -114,21 +116,23 @@ ClassMethod Fill(context As %String, template As %String, types As %DynamicObjec
 		If close = 0 Do ..Fail(context_": the text has a '{' without a '}'")
 		Set out = out_$Extract(template, position, open - 2)
 		Set name = $Extract(template, open, close - 2)
-		Set piece = ..SlotText(context, name, types, values, now, onlineDemo, $Extract(template, close), .dated)
+		Set piece = ..SlotText(context, name, types, values, now, onlineDemo, $Extract(template, close), .dated, .ended)
 		Set size = $Length(out)
 		If dated && ($Extract(out, size - 2, size) = "at ") && ((size = 3) || ($Extract(out, size - 3) = " ")) {
 			Set out = $Extract(out, 1, size - 3)_"on "
 		}
 		Set out = out_piece
-		Set position = close
+		Set position = close + ended
 	}
 	Quit out
 }
 
-/// The text of one slot by its declared type; dated is 1 for a time that carries a weekday or a date.
-ClassMethod SlotText(context As %String, name As %String, types As %DynamicObject, values As %DynamicObject, now As %String, onlineDemo As %Boolean, following As %String, Output dated As %Boolean) As %String [ Private ]
+/// The text of one slot by its declared type; dated is 1 for a time that carries a weekday or a date, and ended is 1 when the
+/// following period of the text is to be skipped, because the value already ends its sentence with "?", "!" or U+2026.
+ClassMethod SlotText(context As %String, name As %String, types As %DynamicObject, values As %DynamicObject, now As %String, onlineDemo As %Boolean, following As %String, Output dated As %Boolean, Output ended As %Boolean) As %String [ Private ]
 {
 	Set dated = 0
+	Set ended = 0
 	If 'types.%IsDefined(name) Do ..Fail(context_": the text uses {"_name_"}, which the entry does not declare as a slot")
 	Set type = types.%Get(name)
 	If type = "time" {
@@ -143,10 +147,12 @@ ClassMethod SlotText(context As %String, name As %String, types As %DynamicObjec
 	If (type = "text") || (type = "sentence") {
 		Set value = ..Clean(..Value(context, name, values, "string"))
 		If value = "" Do ..Fail(context_": the slot '"_name_"' is empty")
-		If (following = ".") && ($Extract(value, $Length(value)) = ".") {
+		Set last = $Extract(value, $Length(value))
+		If (following = ".") && (last = ".") {
 			Set value = $Extract(value, 1, $Length(value) - 1)
 			If value = "" Do ..Fail(context_": the slot '"_name_"' is empty")
 		}
+		If (following = ".") && ((last = "?") || (last = "!") || (last = $Char(8230))) Set ended = 1
 		Quit value
 	}
 	If type = "noun" Quit ..Noun(context, name, types, values)
@@ -227,12 +233,14 @@ ClassMethod Value(context As %String, name As %String, values As %DynamicObject,
 	Quit values.%Get(name)
 }
 
-/// A string slot: whitespace, line breaks and Unicode spaces become one space, the other control characters, the bidirectional
-/// controls and the zero-width characters go, and the ends are trimmed.
+/// A string slot: whitespace, line breaks and Unicode spaces become one space; the other control characters, the bidirectional
+/// controls (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069), the zero-width space, the Mongolian vowel separator,
+/// the word joiner, the invisible operators U+2061 to U+2064, the interlinear annotation marks and the byte order mark go; the
+/// zero-width joiner and non-joiner stay; and the ends are trimmed.
 ClassMethod Clean(value As %String) As %String [ Private ]
 {
 	Set value = $Translate(value, $Char(9, 10, 11, 12, 13, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288), $Justify("", 24))
-	Set value = $Translate(value, $Char(8203, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8288, 8294, 8295, 8296, 8297, 65279))
+	Set value = $Translate(value, $Char(1564, 6158, 8203, 8206, 8207, 8234, 8235, 8236, 8237, 8238, 8288, 8289, 8290, 8291, 8292, 8294, 8295, 8296, 8297, 65279, 65529, 65530, 65531))
 	Set value = $ZStrip(value, "*C")
 	Quit $ZStrip($ZStrip(value, "<>W"), "=W")
 }
@@ -287,8 +295,7 @@ ClassMethod Find(key As %String) As %DynamicObject [ Private ]
 	Quit entry
 }
 
-/// The XData block Entries of a catalog class as a dynamic object. This is a stated copy of Test.Contract.Read, because
-/// product code does not depend on OcuTalon.Test.
+/// The XData block Entries of a catalog class as a dynamic object; throws when the class has no such block or it is not JSON.
 ClassMethod ReadEntries(class As %String) As %DynamicObject [ Private ]
 {
 	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId(class_"||Entries")

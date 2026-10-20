@@ -4,7 +4,8 @@
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
-///     web text where that differs.
+///     web text where that differs;
+///   - Characters: the code points that a string slot turns into a space, removes or keeps.
 /// The fixture context is the process zone America/New_York, now 2026-10-16T18:20:00Z (Friday 14:20 EDT) and the online-demo
 /// flag on, passed to RenderAt. The process zone is set before each test and restored after it. TestRenderReadsClockAndFlag
 /// changes the public setting onlineDemo and puts it back, and TestNotificationHandoff saves one Notification row and deletes
@@ -177,27 +178,29 @@ Method TestNoun()
 }
 
 /// Row 6: a string slot is trimmed, loses control characters, collapses whitespace and line breaks to one space, and drops one
-/// trailing period before a period of the text; its braces and line breaks cannot inject a placeholder or a line.
+/// trailing period before a period of the text, whose period goes instead after a final "?", "!" or U+2026; its braces and line
+/// breaks cannot inject a placeholder or a line.
 Method TestStringSlots()
 {
 	Set tail = " None of my fixes applies to this, so I'm not proposing one. Nothing was changed."
 	Set base = {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "groups": [{"itemName": "A", "count": 1, "errorSummary": "b", "firstAt": "2026-10-16T18:12:00Z"}]}
 	Set head = "50 orders failed since 14:12 ET. "
-	Set cases = $ListBuild($ListBuild("The partner changed"_$Char(10)_"its   date"_$Char(9)_"format."_$Char(13, 10), "The partner changed its date format"))
-	Set cases = cases_$ListBuild($ListBuild("  The partner changed its date format  ", "The partner changed its date format"))
-	Set cases = cases_$ListBuild($ListBuild("Date"_$Char(1)_" format"_$Char(7)_".", "Date format"))
-	Set cases = cases_$ListBuild($ListBuild("Bad {count} cause", "Bad {count} cause"))
-	Set cases = cases_$ListBuild($ListBuild("Bad {cause} cause.", "Bad {cause} cause"))
+	Set cases = $ListBuild($ListBuild("The partner changed"_$Char(10)_"its   date"_$Char(9)_"format."_$Char(13, 10), "The partner changed its date format."))
+	Set cases = cases_$ListBuild($ListBuild("  The partner changed its date format  ", "The partner changed its date format."))
+	Set cases = cases_$ListBuild($ListBuild("Date"_$Char(1)_" format"_$Char(7)_".", "Date format."))
+	Set cases = cases_$ListBuild($ListBuild("Bad {count} cause", "Bad {count} cause."))
+	Set cases = cases_$ListBuild($ListBuild("Bad {cause} cause.", "Bad {cause} cause."))
 	Set cases = cases_$ListBuild($ListBuild("x"_$Char(10, 10)_"Approve?", "x Approve?"))
-	Set cases = cases_$ListBuild($ListBuild("Ends with three..."_$Char(10), "Ends with three.."))
-	Set cases = cases_$ListBuild($ListBuild("The partner"_$Char(8239)_"changed"_$Char(8195, 8195)_"its"_$Char(12288)_"date format", "The partner changed its date format"))
-	Set cases = cases_$ListBuild($ListBuild("Date"_$Char(8203)_"s"_$Char(8238)_" format"_$Char(8297)_$Char(65279), "Dates format"))
+	Set cases = cases_$ListBuild($ListBuild("Ends with three..."_$Char(10), "Ends with three..."))
+	Set cases = cases_$ListBuild($ListBuild("The partner"_$Char(8239)_"changed"_$Char(8195, 8195)_"its"_$Char(12288)_"date format", "The partner changed its date format."))
+	Set cases = cases_$ListBuild($ListBuild("Date"_$Char(8203)_"s"_$Char(8238)_" format"_$Char(8297)_$Char(65279), "Dates format."))
+	Set cases = cases_$ListBuild($ListBuild("Date"_$Char(1564)_"s"_$Char(6158)_" for"_$Char(8289)_"mat"_$Char(65529), "Dates format."))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $ListGet(cases, i)
 		Do base.%Set("cause", $List(case, 1))
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.noFix", base, "telegram", ..#NOW, 1, .sc)
 		Do $$$AssertStatusOK(sc, "string case "_i_" renders")
-		Do $$$AssertEquals($Piece(text, "Failures:", 1), head_$List(case, 2)_"."_tail_$Char(10, 10), "string case "_i_" is cleaned")
+		Do $$$AssertEquals($Piece(text, "Failures:", 1), head_$List(case, 2)_tail_$Char(10, 10), "string case "_i_" is cleaned")
 	}
 	Set reason = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": "It mentions a deadline today."}, "phone", ..#NOW, 1, .sc)
 	Do $$$AssertEquals(reason, "Mail from Dana"_$Char(10)_"Why now: It mentions a deadline today.", "'Why now:' keeps the reason's own period")
@@ -207,6 +210,14 @@ Method TestStringSlots()
 	Do $$$AssertEquals(reminder, "Reminder: Call the vendor.", "a reminder with no period gets the text's period")
 	Set reminder = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": "Call the vendor."}, "phone", ..#NOW, 1, .sc)
 	Do $$$AssertEquals(reminder, "Reminder: Call the vendor.", "a reminder with a period keeps one")
+	For ending = "?", "!", $Char(8230) {
+		Set reminder = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": ("Did you call the vendor"_ending)}, "phone", ..#NOW, 1, .sc)
+		Do $$$AssertEquals(reminder, "Reminder: Did you call the vendor"_ending, "a reminder ending with U+"_$ZHex($Ascii(ending))_" takes no period after it")
+	}
+	Set reminder = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": "Is it due? Call the vendor"}, "phone", ..#NOW, 1, .sc)
+	Do $$$AssertEquals(reminder, "Reminder: Is it due? Call the vendor.", "a mark inside the value keeps the text's period")
+	Set reason = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": "Is it due today?"}, "phone", ..#NOW, 1, .sc)
+	Do $$$AssertEquals(reason, "Mail from Dana"_$Char(10)_"Why now: Is it due today?", "a value at the end of the text keeps its mark")
 }
 
 /// Row 7: one line per group, in order, with the same time forms as any message time.
@@ -334,7 +345,7 @@ Method TestErrors()
 	Do ..AssertRefused("itemNoun that is text", key, ..WithSlot(good, "itemNoun", "orders"), "telegram", "'itemNoun'", "object")
 	Do ..AssertRefused("itemNoun that is an array", key, ..WithSlot(good, "itemNoun", ["order", "orders"]), "telegram", "'itemNoun'", "object")
 	Do ..AssertRefused("itemNoun that is null", key, ..WithSlot(good, "itemNoun", "", "null"), "telegram", "'itemNoun'", "object")
-	Do ..AssertRefused("a noun with no count slot", "press.approved", {"itemNoun": {"one": "order", "other": "orders"}}, "telegram", "'count'", "press.approved")
+	Do ..AssertRefused("a noun with no count value", "press.approved", {"itemNoun": {"one": "order", "other": "orders"}}, "telegram", "'count'", "press.approved")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, good, "telegram", "garbage", 1, .sc)
 	Do $$$AssertTrue((text = "") && $$$ISERR(sc) && ($SYSTEM.Status.GetErrorText(sc) [ "clock 'garbage'") && ($SYSTEM.Status.GetErrorText(sc) [ key), "a clock that is not a time gives an empty text and an error naming it")
 }
@@ -403,7 +414,7 @@ Method TestNotificationHandoff()
 }
 
 /// Row 13: Render reads the clock and the online-demo flag itself: " ET" follows the flag, and the text equals RenderAt for a
-/// clock read just before or just after the call.
+/// clock read just before or just after the call. RenderAt with an empty clock reads the current time the same way.
 Method TestRenderReadsClockAndFlag()
 {
 	For flag = 1, 0 {
@@ -411,14 +422,227 @@ Method TestRenderReadsClockAndFlag()
 		Set before = ##class(OcuTalon.Data.Time).NowUtc()
 		Set slots = {"time": (before)}.%ToJSON()
 		Set text = ##class(OcuTalon.Msg.Catalog).Render("answered.expired", slots, "telegram", .sc)
+		Set noClock = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.expired", slots, "telegram", "", flag, .scNoClock)
 		Set after = ##class(OcuTalon.Data.Time).NowUtc()
 		Set first = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.expired", slots, "telegram", before, flag, .scFirst)
 		Set second = ##class(OcuTalon.Msg.Catalog).RenderAt("answered.expired", slots, "telegram", after, flag, .scSecond)
 		Do $$$AssertStatusOK(sc, "Render with the flag "_flag_" succeeds")
 		Do $$$AssertTrue((text = first) || (text = second), "Render equals RenderAt for the clock and the flag "_flag_": "_text)
+		Do $$$AssertStatusOK(scNoClock, "RenderAt with an empty clock succeeds with the flag "_flag)
+		Do $$$AssertTrue((noClock = first) || (noClock = second), "RenderAt with an empty clock uses the current time: "_noClock)
 		Do $$$AssertEquals($Find(text, " ET") > 0, flag, "ET is present exactly when the flag is "_flag)
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedFlag)
+}
+
+/// Row 2: exactly four keys have a page wording, in the catalog and in the fixtures, and it is the text without the closing
+/// " Approve?" (the incident notices) or without the final period (the approved statuses).
+Method TestWebWording()
+{
+	Kill inCatalog, inFixtures
+	For class = "OcuTalon.Msg.Catalog.Core", "OcuTalon.Msg.Catalog.Watch" {
+		Set iterator = ..Read("Entries", class).%GetIterator()
+		While iterator.%GetNext(.key, .entry) {
+			If 'entry.%IsDefined("web") Continue
+			Set inCatalog(key) = ""
+			If key [ "incident." {
+				Do $$$AssertEquals($Length(entry.text, " Approve?"), 2, key_" asks to approve once")
+				Do $$$AssertEquals(entry.web, $Replace(entry.text, " Approve?", ""), key_" web wording is the text without ' Approve?'")
+			} Else {
+				Do $$$AssertEquals($Extract(entry.text, $Length(entry.text)), ".", key_" ends its message text with a period")
+				Do $$$AssertEquals(entry.web, $Extract(entry.text, 1, $Length(entry.text) - 1), key_" web wording is the text without the final period")
+			}
+		}
+	}
+	Set iterator = ..Read("Fixtures").%GetIterator()
+	While iterator.%GetNext(.key, .fixture) {
+		If fixture.%IsDefined("web") Set inFixtures(key) = ""
+	}
+	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.withFix"
+	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly four catalog entries have a web wording")
+	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly four fixtures have a web text")
+}
+
+/// The characters of the texts: ASCII apart from U+2026 in banner.reconnecting and U+00B7 in signIn.title, which are the UX's
+/// own, and no control character other than the line feed, no double space and no space at an end or around a line break.
+Method TestTypography()
+{
+	Kill found
+	For class = "OcuTalon.Msg.Catalog.Core", "OcuTalon.Msg.Catalog.Watch" {
+		Set iterator = ..Read("Entries", class).%GetIterator()
+		While iterator.%GetNext(.key, .entry) {
+			For field = "text", "web" {
+				If 'entry.%IsDefined(field) Continue
+				Set text = entry.%Get(field)
+				Set problem = ""
+				For i = 1:1:$Length(text) {
+					Set code = $Ascii(text, i)
+					If code > 126 {
+						Set found(key_":"_code) = ""
+					} ElseIf ((code < 32) && (code '= 10)) || (code = 127) {
+						Set problem = problem_" control character "_code
+					}
+				}
+				If text [ "  " Set problem = problem_" double space"
+				If (text '= $ZStrip(text, "<>W")) Set problem = problem_" space at an end"
+				If (text [ (" "_$Char(10))) || (text [ ($Char(10)_" ")) Set problem = problem_" space at a line break"
+				Do $$$AssertEquals(problem, "", key_" "_field_" has clean characters")
+			}
+		}
+	}
+	Do $$$AssertEquals(..Names(.found), "banner.reconnecting:8230,signIn.title:183", "the only characters beyond ASCII are U+2026 and U+00B7")
+}
+
+/// Row 5: the form of the item noun follows the count slot alone, for every key that has a noun: the singular for 1, the
+/// plural for 0, 2 and any other count.
+Method TestNounForms()
+{
+	Set keys = 0
+	Set iterator = ..Read("Fixtures").%GetIterator()
+	While iterator.%GetNext(.key, .fixture) {
+		If 'fixture.slots.%IsDefined("itemNoun") Continue
+		Set keys = keys + 1
+		For count = 0, 1, 2, 3, 10, 50 {
+			Set slots = ..WithSlot(fixture.slots, "itemNoun", {"one": "uno", "other": "varios"})
+			Do slots.%Set("count", count, "number")
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, "telegram", ..#NOW, 1, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders with the count "_count)
+			Set picked = $Select(count = 1: "uno", 1: "varios")
+			Set other = $Select(count = 1: "varios", 1: "uno")
+			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
+		}
+	}
+	Do $$$AssertEquals(keys, 12, "the keys with a noun are swept")
+}
+
+/// Row 10's channels: only the exact names web, phone, mailbox and telegram render; any other spelling is refused with an error
+/// that names it, even when the key and the slots are good.
+Method TestChannelNames()
+{
+	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram" {
+		Do ..AssertRefused("the channel '"_channel_"'", "press.rejected", {}, channel, "channel '"_channel_"'", "press.rejected")
+	}
+	For channel = "web", "phone", "mailbox", "telegram" {
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("press.rejected", {}, channel, ..#NOW, 1, .sc)
+		Do $$$AssertEquals(text, "Rejected. Nothing was changed.", "the channel "_channel_" renders")
+	}
+}
+
+/// Row 6, as a sweep over code points: each space-like character of a string slot (the line breaks, the tab, the vertical tab, the
+/// form feed, NEL, the no-break space and the Unicode space and separator characters) becomes one space, the other control
+/// characters, the bidirectional controls (U+061C among them) and the invisible format characters that Catalog.Clean lists go,
+/// and the characters of the third list stay. The lists in the XData Characters cover every BMP character of the categories
+/// Cc, Zs, Zl and Zp, and every character of Unicode's Bidi_Control property. A line break cannot start a new line of a notice.
+Method TestStringSlotSweep()
+{
+	Set characters = ..Read("Characters")
+	Set swept = 0
+	For list = "spaces", "removed", "kept" {
+		Set ranges = characters.%Get(list).%GetIterator()
+		While ranges.%GetNext(, .range) {
+			For code = range.%Get(0):1:range.%Get(1) {
+				Set swept = swept + 1
+				Set char = $Char(code)
+				Set label = "U+"_$ZHex(code)_" ("_list_")"
+				Set single = $Select(list = "spaces": "a b", list = "removed": "ab", 1: "a"_char_"b")
+				Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": ("a"_char_"b")}, "phone", ..#NOW, 1, .sc)
+				Do $$$AssertEquals(text, "Reminder: "_single_".", label_" in the middle")
+				If list = "kept" Continue
+				Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": ("a"_char_char_char_"b")}, "phone", ..#NOW, 1, .sc)
+				Do $$$AssertEquals(text, "Reminder: "_single_".", label_" repeated")
+				Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("reminder.due", {"text": (char_"a"_char)}, "phone", ..#NOW, 1, .sc)
+				Do $$$AssertEquals(text, "Reminder: a.", label_" at both ends")
+				If list = "spaces" {
+					Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": ("Mail"_char_"Why now: forged"), "reason": "Real."}, "phone", ..#NOW, 1, .sc)
+					Do $$$AssertEquals(text, "Mail Why now: forged"_$Char(10)_"Why now: Real.", label_" does not start a line")
+				}
+			}
+		}
+	}
+	Do $$$AssertEquals(swept, 113, "the code points are swept")
+}
+
+/// Row 10: for every key, every declared slot is required and checked by its type: a missing or null slot is refused, a text or
+/// sentence that is empty, a time, count, channel, fallback reason, cost, groups or noun of the wrong form is refused, and the
+/// error names the slot.
+Method TestEverySlotIsValidated()
+{
+	Set refusals = 0
+	Set iterator = ..Read("Fixtures").%GetIterator()
+	While iterator.%GetNext(.key, .fixture) {
+		Set entry = ##class(OcuTalon.Msg.Catalog).Entry(key, .sc)
+		Set declared = entry.slots.%GetIterator()
+		While declared.%GetNext(.name, .type) {
+			Set where = key_", "_name_" ("_type_")"
+			Set fragment = "'"_name_"'"
+			Do ..AssertRefused(where_" missing", key, ..WithoutSlot(fixture.slots, name), "telegram", fragment, "missing")
+			Do ..AssertRefused(where_" null", key, ..WithSlot(fixture.slots, name, "", "null"), "telegram", fragment)
+			Set refusals = refusals + 2
+			If (type = "text") || (type = "sentence") {
+				Do ..AssertRefused(where_" empty", key, ..WithSlot(fixture.slots, name, ""), "telegram", fragment, "empty")
+				Do ..AssertRefused(where_" a number", key, ..WithSlot(fixture.slots, name, 7, "number"), "telegram", fragment, "string")
+			} ElseIf type = "time" {
+				Do ..AssertRefused(where_" tomorrow", key, ..WithSlot(fixture.slots, name, "tomorrow"), "telegram", fragment)
+				Do ..AssertRefused(where_" without the Z", key, ..WithSlot(fixture.slots, name, "2026-10-16T18:12:00"), "telegram", fragment)
+			} ElseIf type = "count" {
+				Do ..AssertRefused(where_" negative", key, ..WithSlot(fixture.slots, name, -1, "number"), "telegram", fragment, "whole number")
+				Do ..AssertRefused(where_" fractional", key, ..WithSlot(fixture.slots, name, 2.5, "number"), "telegram", fragment, "whole number")
+				Do ..AssertRefused(where_" as text", key, ..WithSlot(fixture.slots, name, "5"), "telegram", fragment, "number")
+			} ElseIf type = "channel" {
+				Do ..AssertRefused(where_" email", key, ..WithSlot(fixture.slots, name, "email"), "telegram", fragment, "email")
+			} ElseIf type = "fallbackReason" {
+				Do ..AssertRefused(where_" unknown", key, ..WithSlot(fixture.slots, name, "melted"), "telegram", fragment, "melted")
+			} ElseIf type = "cost" {
+				Do ..AssertRefused(where_" negative", key, ..WithSlot(fixture.slots, name, -1, "number"), "telegram", fragment)
+			} ElseIf type = "groups" {
+				Do ..AssertRefused(where_" empty", key, ..WithSlot(fixture.slots, name, []), "telegram", fragment)
+			} ElseIf type = "noun" {
+				Do ..AssertRefused(where_" with one form", key, ..WithSlot(fixture.slots, name, {"one": "order"}), "telegram", fragment, "'other'")
+			}
+		}
+	}
+	Do $$$AssertTrue(refusals >= 198, "the slots are swept: "_refusals)
+}
+
+/// Row 3: on a local install no time shows " ET": a key with a time or groups slot renders as its fixture without the " ET" suffixes, on
+/// the page and on the message channels, and a key with neither renders as its fixture, whatever the flag (a text slot may hold
+/// an " ET" of its own).
+Method TestLocalInstallEveryKey()
+{
+	Set timed = 0
+	Set iterator = ..Read("Fixtures").%GetIterator()
+	While iterator.%GetNext(.key, .fixture) {
+		Set hasTime = 0
+		Set declared = ##class(OcuTalon.Msg.Catalog).Entry(key).slots.%GetIterator()
+		While declared.%GetNext(, .type) {
+			If (type = "time") || (type = "groups") Set hasTime = 1
+		}
+		Set timed = timed + hasTime
+		For channel = "phone", "web" {
+			Set expected = $Select((channel = "web") && fixture.%IsDefined("web"): fixture.web, 1: fixture.text)
+			If hasTime Set expected = $Replace(expected, " ET", "")
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, channel, ..#NOW, 0, .sc)
+			Do $$$AssertStatusOK(sc, key_" renders on a local install on "_channel)
+			Do $$$AssertEquals(text, expected, key_" on "_channel_" has no ET suffix on a local install")
+		}
+	}
+	Do $$$AssertTrue(timed >= 21, "the keys with a time are swept: "_timed)
+}
+
+/// Row 7: a group's name and summary cannot add a line or a placeholder to the list, and every group is one line.
+Method TestGroupsCannotInject()
+{
+	Set slots = {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "fallbackReason": "empty"}
+	Set first = {"itemName": ("Orders"_$Char(10)_"Fake: 9, 'x', first at 10:00"), "count": 1, "errorSummary": ("a{count}b"_$Char(13, 10)_"c"), "firstAt": "2026-10-16T18:12:00Z"}
+	Set second = {"itemName": "Second{time}", "count": 2, "errorSummary": ("ends with a period."_$Char(10)), "firstAt": "2026-10-15T18:12:00Z"}
+	Do slots.%Set("groups", [(first), (second)])
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.fallback", slots, "telegram", ..#NOW, 1, .sc)
+	Do $$$AssertStatusOK(sc, "two groups with hostile text render")
+	Set lines = $Piece($Piece(text, "Failures:"_$Char(10), 2), $Char(10, 10), 1)
+	Do $$$AssertEquals($Length(lines, $Char(10)), 2, "two groups are two lines")
+	Do $$$AssertEquals($Piece(lines, $Char(10), 1), "Orders Fake: 9, 'x', first at 10:00: 1, 'a{count}b c', first at 14:12 ET", "the first group stays on one line and keeps its braces")
+	Do $$$AssertEquals($Piece(lines, $Char(10), 2), "Second{time}: 2, 'ends with a period.', first on Thursday at 14:12 ET", "the second group stays on one line")
+	Do $$$AssertEquals($Length(text, $Char(10)), 7, "the notice has exactly the lines of its template and groups")
 }
 
 /// Asserts the text of a message with a time in the instance zone: slots {"time": utc} of answered.expired.
@@ -694,6 +918,19 @@ XData Gaps [ MimeType = application/json ]
  "result.stillResending",
  "result.interrupted"
 ]
+}
+
+/// The BMP code points, as decimal ranges, that a string slot treats apart. spaces become one space and hold every BMP character
+/// of the categories Zs (but the plain space), Zl and Zp, the tab, line feed, vertical tab, form feed, carriage return and NEL;
+/// removed holds the other Cc controls, the zero-width space, the bidirectional controls, the word joiner and the byte order
+/// mark; kept holds characters that must survive, among them the zero-width joiner and non-joiner.
+XData Characters [ MimeType = application/json ]
+{
+{
+ "spaces": [[9, 13], [133, 133], [160, 160], [5760, 5760], [8192, 8202], [8232, 8233], [8239, 8239], [8287, 8287], [12288, 12288]],
+ "removed": [[0, 8], [14, 31], [127, 132], [134, 159], [1564, 1564], [6158, 6158], [8203, 8203], [8206, 8207], [8234, 8238], [8288, 8292], [8294, 8297], [65279, 65279], [65529, 65531]],
+ "kept": [[173, 173], [233, 233], [8204, 8205], [8217, 8217], [8230, 8230], [20013, 20013]]
+}
 }
 
 /// The plain-words text of each Msg.Enum FALLBACKREASON value; invalid and unusable share the generic reason.

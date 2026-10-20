@@ -3918,6 +3918,8 @@ So that one package gives me a working OcuTalon in my existing instance.
 **Then** it writes `docs/install-ipm.md` with: the two commands (first in any namespace, then in OCUTALON) with their expected output; that the first run ends early by design; the `iris merge` alternative, followed by `zpm "enable -map -ns OCUTALON"` and then the install command in OCUTALON; that demo mode is off, with the command to switch it on; that the model key comes from `ANTHROPIC_API_KEY` in the instance's environment and that without it decisions use fixed rules; and the README account with how to change its password (FR-14, FR-38, FR-57, FR-58, AD-23)
 **And** this story needs no Lane B action: Lane B's Story 16.10 adds the README's IPM section from that file (FR-58, AD-29)
 
+- DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
+
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
 As an admin,

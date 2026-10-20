@@ -6,9 +6,9 @@
 ///     other &name; entity fails);
 ///   - notInUx: a text that the UX does not quote, so the catalog has no key for it;
 ///   - notText: a parameter that is not a text.
-/// TestEveryParameterIsClassified reads the classes and their own parameters from the class dictionary, so a new parameter, a
-/// removed one or a parameter in two lists fails, and a new text cannot skip the comparison. Test.Web.SignIn.TestTexts keeps
-/// pinning the page's literals.
+/// TestEveryParameterIsClassified takes the classes from Test.Web.Status.PublicClasses and their own parameters from the class
+/// dictionary, so a new parameter, a removed one, a parameter in two lists or a public class that is not compiled fails, and a
+/// new text cannot skip the comparison. Test.Web.SignIn.TestTexts keeps pinning the page's literals.
 Class OcuTalon.Test.Web.PublicTexts Extends OcuTalon.Test.Contract
 {
 
@@ -37,15 +37,14 @@ Method TestCopiesEqualTheCatalog()
 Method TestEveryParameterIsClassified()
 {
 	Kill actual, listed
-	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT Name FROM %Dictionary.CompiledClass WHERE Name %STARTSWITH 'OcuTalon.Web.Public.' OR Name %STARTSWITH 'OcuTalon.Data.Public.' ORDER BY Name")
-	Do $$$AssertStatusOK(sc, "the public classes are listed")
-	Set rows = statement.%Execute()
+	Set publicClasses = ##class(OcuTalon.Test.Web.Status).PublicClasses()
 	Set classes = 0
-	While rows.%Next() {
-		Set class = rows.%GetData(1)
+	Set position = 0
+	While $ListNext(publicClasses, position, class) {
 		Set classes = classes + 1
 		Set compiled = ##class(%Dictionary.CompiledClass).%OpenId(class)
+		Do $$$AssertTrue($IsObject(compiled), class_" is compiled")
+		Continue:'$IsObject(compiled)
 		Set key = ""
 		For {
 			Set parameter = compiled.Parameters.GetNext(.key)

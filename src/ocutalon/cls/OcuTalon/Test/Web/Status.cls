@@ -214,8 +214,9 @@ Method TestDefinitionScansFindWhatIsOutside()
 }
 
 /// --- helpers ---
-/// The classes of the two public packages, from the class dictionary, as a list.
-ClassMethod PublicClasses() As %List [ Private ]
+/// The classes of the two public packages, from the class dictionary, as a list; Test.Web.PublicTexts classifies their
+/// parameters from it.
+ClassMethod PublicClasses() As %List
 {
 	Set classes = ""
 	Set statement = ##class(%SQL.Statement).%New()

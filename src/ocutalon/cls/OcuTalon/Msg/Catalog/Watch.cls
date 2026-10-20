@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane A produces (AD-29, AD-32): the production state
 /// changes, the watch tool's answers, the agent's no-commands answer, the checks' reserved sentences (AD-28), the incident
-/// notices and the results of a resend. Lane A adds its keys here from Epic 0 on; Epic 0 created every release-1 and 0.1.1 key.
+/// notices and the results of a resend. Epic 0 created every release-1 and 0.1.1 key; after Epic 0, Lane A adds its keys here.
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
 Class OcuTalon.Msg.Catalog.Watch
@@ -63,7 +63,7 @@ XData Entries [ MimeType = application/json ]
  "checks.everythingElsePassed": {
   "text": "Everything else I checked passed.",
   "slots": {},
-  "source": "EXPERIENCE Message Catalog / Conversation / Asked whether everything is fine, with checks that could not run"
+  "source": "EXPERIENCE Voice and Tone / Reserved sentences / after a check that failed or was not checked, for the rest"
  },
  "checks.allPassed": {
   "text": "Everything I checked passed.",

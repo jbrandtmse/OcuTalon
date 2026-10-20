@@ -28,7 +28,9 @@
 #   - another production: with OcuTalon.Production stopped and a fixture production running, the step fails naming the
 #     fixture and leaves it running; with a production Troubled or Suspended under another name it fails naming it and
 #     recovers or starts nothing; with OcuTalon.Production Suspended it starts it. The Troubled and Suspended states are
-#     made by setting the director's state globals in the throwaway, and each is removed afterwards.
+#     made by setting the director's state globals in the throwaway, and each is removed afterwards. Each stop in the block
+#     first waits, up to 10 s, until Ens.ScheduleHandler has finished the start's request (DW-28), and a failed stop
+#     prints its error.
 # The project is unique, publishes no host port and receives no keys: the start is the no-key start of AD-23. An EXIT trap
 # removes the project with its volume and images. Every wait ends by an overall deadline, so even a failing run ends within
 # about 9 minutes.
@@ -307,24 +309,34 @@ XData ProductionDefinition
 }
 EOC
 dc exec -T iris sh -c 'cat > /tmp/ZzOther.cls' < "$tmp/ZzOther.cls"
+# A production's start returns before Ens.ScheduleHandler has taken the start's request, and the handler's UpdateProduction
+# then waits for the runtime lock that StopProduction holds until its own timeout, so a stop right after a start fails with
+# ErrProductionNotQuiescent or ErrJobsNotStopped (DW-28, measured on build 154). This line ends once the handler's queue is
+# empty and its job is Alive, dequeuing and has no active message, or after 10 s, and sets settled to 1 or 0.
+settle_scheduler='For k=1:1:100 { Set busy=(##class(Ens.Queue).GetCount("Ens.ScheduleHandler")>0),seen=0,rs=##class(%ResultSet).%New("Ens.Job:Enumerate"),x=rs.Execute() While rs.Next() { If rs.Get("ConfigName")="Ens.ScheduleHandler" { Set seen=1 Set:((rs.Get("State")="Alive")&&(rs.Get("Status")="dequeuing")&&(rs.Get("ActiveMessage")=""))=0 busy=1 } } Quit:seen&&(busy=0)  Hang 0.1 } Set settled=(seen&&(busy=0))'
 check_session "another production: the step fails naming it and leaves it running" OCUTALON \
-  "CHK|stopped|1
+  "CHK|settled|1
+CHK|stopped|1
 CHK|fixture|1
 CHK|other-started|1
 CHK|start-refused|1|1
 CHK|other-state|ZzOther.Production|1
+CHK|other-settled|1
 CHK|other-stopped|1" \
-  'Set sc=##class(Ens.Director).StopProduction(30) Write !,"CHK|stopped|",$SYSTEM.Status.IsOK(sc)' \
+  "$settle_scheduler"' Write !,"CHK|settled|",settled' \
+  'Set sc=##class(Ens.Director).StopProduction(30) Write !,"CHK|stopped|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|stop-error|",$SYSTEM.Status.GetErrorText(sc)' \
   'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/ZzOther.cls","ck-d")' \
   'Set sc=##class(Ens.Director).StartProduction("ZzOther.Production") Write !,"CHK|other-started|",$SYSTEM.Status.IsOK(sc)' \
   'Set sc=##class(OcuTalon.Install.Step.Production).Start(15) Write !,"CHK|start-refused|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["ZzOther.Production")' \
   'Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|other-state|",n,"|",s' \
-  'Set sc=##class(Ens.Director).StopProduction(30) Write !,"CHK|other-stopped|",$SYSTEM.Status.IsOK(sc)' \
+  "$settle_scheduler"' Write !,"CHK|other-settled|",settled' \
+  'Set sc=##class(Ens.Director).StopProduction(30) Write !,"CHK|other-stopped|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|stop-error|",$SYSTEM.Status.GetErrorText(sc)' \
   'Halt'
+sed -n 's/^CHK|stop-error|/  another production: the stop failed: /p' "$tmp/actual.chk"
 
 # The director reports Troubled when ^Ens.Runtime is left without running jobs, and Suspended when only ^Ens.Suspended is
-# set (Ens.Director GetProductionStatus). The fixture's stop leaves ^Ens.Suspended set (measured on build 154), so the block
-# first removes it and checks that the namespace is Stopped; each fake is removed after its check.
+# set (Ens.Director GetProductionStatus). A stop that leaves a message queued leaves ^Ens.Suspended set (Ens.Director
+# StopProduction), so the block first removes it and checks that the namespace is Stopped; each fake is removed after its check.
 check_session "another production, Troubled or Suspended: the step fails naming it and recovers nothing; this one Suspended: it starts" OCUTALON \
   "CHK|clean|2|0|0
 CHK|troubled-other|4|ZzOther.Production|1|1|0|ZzOther.Production
