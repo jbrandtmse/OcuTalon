@@ -265,3 +265,4 @@
 2026-10-20T13:32:41Z	Story 0.10	story_cycle	plan_to_commit_min=375 implement_passes=1 reviews=1 rework=0 first_ci=success(39411120021,25m22s) models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
 2026-10-20T13:48:10Z	Epic 0	epic_context_compiled	sha=1592df7 reason=planning_artifact_newer model=claude-opus-5-5
 2026-10-20T13:48:10Z	Story 0.11	stage_spawned	stage=plan spawn_at=2026-10-20T13:48:10Z model=claude-opus-5-5 agent_name=0-11-plan-1 cycle_iteration=1
+2026-10-20T14:29:27Z	Story 0.10	ci_resolved	story=0.10 run=39431259986 result=success head=c510e15 workflows=ci:success,lane-a:success(run=39431260104) resolved_at=next_plan wall_clock=27m06s note=REL-4_margin_2m54s;install_group_14m44s
