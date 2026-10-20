@@ -1085,6 +1085,8 @@ So that the demo path needs no other model configuration and my key is never sto
 **Then** it finds none, because the placeholder is resolved only inside AI Hub's provider (NFR-11, AD-19)
 **And** the Config Store merge method (the AD-29 cross-lane API) merges only the fields it is given into an existing entry and never writes a key; `SettingsOps`, its caller, then restarts the affected runner items so the change applies (AD-19, AD-29)
 
+- DW-39: Whenever `OCUTALON_MODEL_BASE_URL` is set, the `Provider` step adds the request header `x-ocutalon-mockkey`, the agent class's `MOCKKEY`, to each runner's `http_config.custom_headers`, so the CI mock picks the agent's default script; with the variable unset, no such header is sent (AD-19, AD-22, Story 0.11) (ledger; routed by planning 2026-10-20)
+
 ### Story 1.2: Agent runners send every request under the model rules
 
 As a production developer,
