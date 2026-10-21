@@ -70,3 +70,8 @@
 2026-10-21T19:00:31Z	Story 32.2	runtime_lock_released	lock=runtime stage=smoke
 2026-10-21T19:00:31Z	Story 32.2	fresh_check	env=worktree-hermetic(both_scripts_build_their_own_scratch_repos) tests=2 result=pass order=forward,reverse
 2026-10-21T19:00:54Z	Story 32.2	rule21_recorded	file=_bmad/custom/skill-rules.md bullet=Skips_(Story_32.2) category=decide(recipe_facts) ad22=unchanged(its_job-level_skip_sentence_already_holds_per_group)
+2026-10-21T19:01:16Z	Story 32.2	committed	sha=b5eeb26 submodules= ci=pending runs=39657913372,39657913346 amendments=none footprint_extensions=docker/tests/test-ci-changes.sh,docker/tests/test-ci-config.sh
+2026-10-21T19:01:16Z	Epic 32	ci_expected_rechecked	reason=push_changed_.github/workflows sha=b5eeb26 expected=.github/workflows/ci.yml,.github/workflows/lane-a.yml ci=gh
+2026-10-21T19:01:16Z	Story 32.2	story_cycle	plan_to_commit_min=161 implement_passes=1 reviews=1 rework=0 plans=1 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus-5-5
+2026-10-21T19:04:18Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(spine) model=claude-opus-5-5 lines=71
+2026-10-21T19:04:18Z	Story 32.3	stage_spawned	stage=plan spawn_at=2026-10-21T19:04:18Z model=claude-opus-5-5 agent_name=32-3-every-iris-job-finishes-in-about-ten-minutes-plan-1 cycle_iteration=1
