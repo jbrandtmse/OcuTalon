@@ -309,3 +309,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: moving live:audit back to production, or into install-fresh, leaves matrix, groups, units and recipe green (g-moved is that tree)
 - 2026-10-21T16:04:19Z status=by-design owner=32-1-the-install-group-runs-as-two-jobs by=cr note=Design Notes item 3: a whole-unit rebalance needs no test edit; the lead's per-unit CI times and AC 5's Rule 21 record name audit's group
+
+### DW-55: IRIS jobs on ocutalon-ci-c run 1.4 to 3 times as long as on ocutalon-ci-b and miss the 400 s first-start limit, and the job holding install-start runs over 10 minutes on either host
+- source: spec-32-3-every-iris-job-finishes-in-about-ten-minutes.md (lead CI check) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 39633794167: install-upgrade 19:18 on ci-c, raw 1.33x the mean, grouping 1.21x; run 39657913372: six stacks on ci-c, 9 units of two runs failed a start limit; run 39675383146 (no other run): every IRIS job on ci-c failed or crawled (first start ready 449-557 s against 150-250 s on ci-b), twice; install-start 550-681 s even on ci-b
+- 2026-10-21T21:49:22Z status=decision-pending owner=burndown by=lead note=human=CI capacity: fix, resize or cap ocutalon-ci-c; a ~10 min job needs faster hosts
