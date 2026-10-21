@@ -1,7 +1,7 @@
-/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5). Nothing here
-/// starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
+/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1). Nothing
+/// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
 /// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
-/// fixture production of their own with one System Default Setting row of its own, both deleted afterwards.
+/// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
 /// The oracle is a copy of the ownership table, split by lane so that each lane edits only its own rows (AD-29, AD-33):
 /// lane A's rows are XData Items below, lane B's are in OcuTalon.Test.Core.ProductionItems, and Items() returns both in
 /// the order of the production. The counts the tests use come from the oracle.
@@ -9,12 +9,14 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule;
-///   - TestRunnerModels: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, and
-///     UnresolvedRunners names exactly the enabled runners with no model in a fixture production;
-///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval writes the row, and NotRunning names the production when
-///     it does not run.
+///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
+///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
+///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
+///     whose agent class has a MODEL and no other, and never overwrites a row;
+///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
+///     production when it does not run.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
-/// OnBeforeAllTests and OnAfterAllTests delete every such class, and the EvalIn row is put back as it was found.
+/// OnBeforeAllTests and OnAfterAllTests delete every such class with its rows, and the EvalIn row is put back as it was found.
 Class OcuTalon.Test.Install.Production Extends %UnitTest.TestCase
 {
 
@@ -166,24 +168,17 @@ Method TestStubsAnswer()
 	}
 }
 
-/// Row 4: the three runner items resolve claude-haiku-5-5 and an unknown item resolves nothing; the runners of the
-/// production leave nothing unresolved. In a fixture production, UnresolvedRunners names the enabled runners whose
-/// model does not resolve and no others: a runner with a Model setting, a runner whose agent class carries MODEL, a
-/// disabled runner and an item of another class are left out; a runner whose agent class does not exist is named; a
-/// System Default Setting that enables the disabled runner brings it in.
+/// Row 4: in a fixture production, UnresolvedRunners names the enabled runners whose model does not resolve and no others: a
+/// runner with a Model setting, a runner whose agent class carries MODEL, a disabled runner and an item of another class are
+/// left out; a runner whose agent class does not exist is named; a System Default Setting that enables the disabled runner
+/// brings it in. An unknown item of the fixture resolves nothing.
 Method TestRunnerModels()
 {
-	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
-		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, ..#PRODUCTION), "claude-haiku-5-5", item_" resolves claude-haiku-5-5")
-	}
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("Zz"_..Number, ..#PRODUCTION), "", "an unknown item resolves nothing")
-	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(..#PRODUCTION), "", "no runner of the production is unresolved")
-	Do $$$AssertTrue(##class(OcuTalon.Install.Step.Production).UnresolvedRunners("Zz"_..Number_".NoSuchProduction") '= "", "a production whose definition cannot be opened is not reported as resolved")
-
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
 	Set sc = ..Create("FixtureProduction", fixture)
 	Do $$$AssertStatusOK(sc, "the fixture production compiles")
 	If $$$ISERR(sc) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("Zz"_..Number, fixture), "", "an unknown item resolves nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzModelSet", fixture), "claude-sonnet-5-5", "a Model setting of the adapter is the model")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzAgentModel", fixture), "claude-haiku-5-5", "the MODEL of the agent class is the model when the setting is empty")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzNoModel", fixture), "", "a runner whose agent class has no MODEL resolves nothing")
@@ -199,6 +194,41 @@ Method TestRunnerModels()
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(fixture), "ZzNoModel,ZzMissingClass,ZzOffNoModel", "a runner enabled by a System Default Setting counts")
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(fixture_"||ZzOffNoModel||*||Enabled")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(fixture), "ZzNoModel,ZzMissingClass", "and no longer once the setting is gone")
+}
+
+/// Runners lists the five runners of the fixture production in order, each with its agent class and its enabled flag, and not
+/// the item of another class; SeedModels writes the Model row of ZzAgentModel, whose agent class has MODEL claude-haiku-5-5,
+/// and no row for ZzModelSet (it has a Model setting), ZzNoModel and ZzOffNoModel (no MODEL) or ZzMissingClass (no class). A
+/// second run leaves the row as it is, also when it holds another model, and a runner that has a row is left alone.
+Method TestSeedModels()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set sc = ..Create("FixtureProduction", fixture)
+	Do $$$AssertStatusOK(sc, "the fixture production compiles")
+	If $$$ISERR(sc) Quit
+	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(fixture, .runners)
+	Do $$$AssertStatusOK(sc, "Runners reads the fixture production")
+	Do $$$AssertEquals(runners, 5, "it lists five runners")
+	Set listed = ""
+	For i = 1:1:runners {
+		Set listed = listed _ $Select(listed = "": "", 1: ";") _ $ListToString(runners(i), "|")
+	}
+	Do $$$AssertEquals(listed, "ZzNoModel|%AI.Agent|1;ZzModelSet|%AI.Agent|1;ZzAgentModel|OcuTalon.Agent.Triage|1;ZzMissingClass|OcuTalon.Test.Install.ZzNoSuchAgent|1;ZzOffNoModel|%AI.Agent|0", "each with its agent class and its enabled flag")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Production).Runners("Zz"_..Number_".NoSuchProduction", .none), "a production that cannot be opened is an error")
+	Do $$$AssertEquals(+$Get(none), 0, "and has no runner")
+
+	Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs")
+	Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-haiku-5-5", "only ZzAgentModel gets a row, with the MODEL of its agent class")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzModelSet", fixture), "claude-sonnet-5-5", "ZzModelSet keeps its own model")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(fixture), "ZzNoModel,ZzMissingClass", "the runners without a MODEL stay unresolved")
+
+	Set id = fixture_"||ZzAgentModel||*||Model"
+	Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+	Set row.SettingValue = "claude-sonnet-5-5"
+	Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to another model")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs again")
+	Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-sonnet-5-5", "the existing row is kept as it is")
 }
 
 /// Row 5: EvalEnabled is 1 only for "1"; SetEval writes the System Default Setting row (production, EvalIn, any class,
@@ -219,6 +249,20 @@ Method TestStepHelpers()
 	Do ..RestoreRow()
 	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%ExistsId(id), ..RowFound, "the row is as it was found")
 	If ..RowFound Do $$$AssertEquals(..ValueOf(id), ..RowValue, "with the value it had")
+
+	Set production = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set rowId = production_"||ZzItem||*||ZzSetting"
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(production, "ZzItem", "ZzSetting", "one", "first"), "WriteDefault creates a row")
+	Do $$$AssertEquals(..ValueOf(rowId), "one", "the row holds the value")
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(rowId).Description, "first", "and the description")
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(rowId).HostClassName, "*", "for any class")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(production, "ZzItem", "ZzSetting", "two", "second"), "WriteDefault changes the row it finds")
+	Do $$$AssertEquals(..ValueOf(rowId), "two", "the row holds the new value")
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(rowId).Description, "second", "and the new description")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName = 'ZzSetting'", production)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "and there is still one row")
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(rowId)
 
 	If ##class(Ens.Director).IsProductionRunning(.running), running = ..#PRODUCTION {
 		Do $$$AssertSkipped("OcuTalon.Production runs in this namespace, so NotRunning cannot say that it does not")
@@ -273,6 +317,17 @@ Method RestoreRow() [ Private ]
 	} ElseIf ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
 		Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
 	}
+}
+
+/// The Model rows of a production as item=value, separated by semicolons, in the order of the items.
+ClassMethod ModelRows(production As %String) As %String [ Private ]
+{
+	Set rows = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemName, SettingValue FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName = 'Model' ORDER BY ItemName", production)
+	While result.%Next() {
+		Set rows = rows _ $Select(rows = "": "", 1: ";") _ result.%GetData(1) _ "=" _ result.%GetData(2)
+	}
+	Quit rows
 }
 
 /// The ProductionDefinition block of OcuTalon.Production as text, lines separated by a line feed.

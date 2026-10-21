@@ -4,7 +4,6 @@
 ///   - TestApprovalStubs: Raise, Expire, Cancel, StartExecution and FinishExecution; Answer answers not_found with an
 ///     empty winner;
 ///   - TestNeutralValues: Budget.State, Keys.Status, Timeouts.Derive, Agent.Input.Render and Checks.Render.Render;
-///   - TestConfigStore: Merge is an error that says it is not implemented yet;
 ///   - TestStubAdapter: the runners' adapter extends AI Hub's outbound agent adapter and overrides its OnInit, which builds
 ///     the agent at start, so that a runner starts with no model key.
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
@@ -39,12 +38,6 @@ Method TestNeutralValues()
 	Do $$$AssertEquals(key, "", "Checks.Render.Render gives an empty catalog key")
 	Do $$$AssertTrue($IsObject(rows), "and rows")
 	Do $$$AssertEquals(rows.%ToJSON(), "[]", "which are empty")
-}
-
-/// The Config Store merge is an error that says it is not implemented yet.
-Method TestConfigStore()
-{
-	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.ConfigStore).Merge("zzentry", {"a": 1}), "OcuTalon.Bridge.ConfigStore.Merge")
 }
 
 /// The runners' adapter is a subclass of AI Hub's outbound agent adapter whose OnInit is its own (AI Hub's builds the agent

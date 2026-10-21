@@ -1,19 +1,16 @@
 /// Tests of the constants that the CI mock keys on (Story 0.6, matrix row 11): the agents' mock keys and models, the names
 /// of the built-in tools and the first line and keys of the compaction prompt. Nothing is written anywhere and no model is
 /// called.
-///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY, and its INSTRUCTIONS
-///     carry no template token;
+///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY (the template-token check
+///     on the INSTRUCTIONS is in OcuTalon.Test.Agent.Instructions);
 ///   - TestToolNames: the eleven release-1 tool names are distinct snake_case values, and RELEASE1 lists exactly them;
 ///   - TestCompactionPrompt: the prompt is ASCII, starts with the prefix and names the seven keys of the summary.
 Class OcuTalon.Test.Agent.Constants Extends %UnitTest.TestCase
 {
 
-/// MOCKKEY is triage, diagnosis and chat, one per agent; each agent extends %AI.Agent and has MODEL claude-haiku-5-5; no
-/// agent has a {{ token in its INSTRUCTIONS (Story 1.1 writes them, and the detector is checked on a text that has one).
+/// MOCKKEY is triage, diagnosis and chat, one per agent; each agent extends %AI.Agent and has MODEL claude-haiku-5-5.
 Method TestAgents()
 {
-	Do $$$AssertTrue(..HasTemplateToken("Hello {{name}}"), "the detector flags a text with a {{ token")
-	Do $$$AssertTrue('..HasTemplateToken("Hello name"), "and passes a text without one")
 	Set keys = ""
 	Set expected = $ListBuild("OcuTalon.Agent.Triage", "triage", "OcuTalon.Agent.Diagnosis", "diagnosis", "OcuTalon.Agent.Chat", "chat")
 	For i = 1:2:5 {
@@ -23,9 +20,6 @@ Method TestAgents()
 		Do $$$AssertEquals($Parameter(class, "MODEL"), "claude-haiku-5-5", class_" has MODEL claude-haiku-5-5")
 		Do $$$AssertEquals($Parameter(class, "MOCKKEY"), $List(expected, i + 1), class_" has MOCKKEY "_$List(expected, i + 1))
 		Set keys = keys _ $ListBuild($Parameter(class, "MOCKKEY"))
-		Set instructions = ##class(%Dictionary.CompiledXData).%OpenId(class_"||INSTRUCTIONS")
-		Set text = $Select($IsObject(instructions): instructions.Data.Read(1000000), 1: "")
-		Do $$$AssertTrue('..HasTemplateToken(text), class_" has no {{ in its INSTRUCTIONS")
 	}
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
@@ -76,13 +70,6 @@ Method TestCompactionPrompt()
 	For key = "user_goals", "constraints", "decisions", "facts_learned", "tool_actions", "open_questions", "next_steps" {
 		Do $$$AssertTrue(prompt [ ("""" _ key _ """"), "the prompt names "_key)
 	}
-}
-
-/// --- helpers ---
-/// 1 when the text holds an unfilled template token.
-ClassMethod HasTemplateToken(text As %String) As %Boolean [ Private ]
-{
-	Quit text [ "{{"
 }
 
 }

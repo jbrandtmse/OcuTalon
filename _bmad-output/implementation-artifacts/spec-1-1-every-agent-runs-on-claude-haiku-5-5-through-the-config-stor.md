@@ -2,13 +2,28 @@
 title: 'Story 1.1: Every agent runs on Claude Haiku 5.5 through the Config Store'
 type: 'feature'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9808cd92ac6f427bbb800ab463641c26e361e31b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-7, AD-19, AD-22 and AD-23)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Merge accepts any @{env:NAME} placeholder, any base_url, any header and any secret:// reference, so the caller that takes fields from a user must validate them.
+    evidence: |-
+      Merge refuses only an api_key that is not one @{env:NAME} placeholder and any other @{ (AD-19, decision 10, veto U-2). A call such as {"api_key":"@{env:SOME_OTHER_VARIABLE}","base_url":"http://other.invalid/v1/"} passes, a secret:// string passes, and AI Hub's @{config:} lookup resolves both (%AI.Utils.ConfigStore.Lookup reads with resolveSecrets 1). Story 17.3's model-change API is the first caller that may pass user input.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls:Merge
+    severity: medium
+  - summary: >-
+      ci/checks.sh fails its boundaries block on _bmad-output/implementation-artifacts/cycle-log-epic-1.md:1, which holds a local path.
+    evidence: |-
+      The line is in the runner's bookkeeping commit 9808cd9 (state=/Users/.../.coordination/unattended), so it is outside this story's diff; test-boundaries.sh scans every tracked file for local paths, so the hosted checks job goes red on the next push until the log line is changed.
+    location: >-
+      _bmad-output/implementation-artifacts/cycle-log-epic-1.md:1
+    severity: medium
 ---
 
 <intent-contract>
@@ -247,8 +262,71 @@ deferred: []
 ## Spec Change Log
 
 - 2026-10-21, lead (Epic 1 runner), after the plan's intent-gap HALT: applied the orchestrator's ruling. Added the task "The Lane B fixture", the narrowed exception on the contended-path "Never" line, the mutation row for `start-unresolved`, and the veto-window rulings on decisions 10 and 13 (U-2, U-3); status reset to `ready-for-dev` (no re-plan: the rest of the plan met the READY-FOR-DEVELOPMENT standard).
+- 2026-10-21, implement pass: recorded Task 0's measured facts, the mutation lines and decisions 14 to 25 in the sections outside the intent contract. No change to the intent, the tasks or the acceptance criteria.
 
 ## Review Triage Log
+
+### 2026-10-21 - Review pass
+- verdicts: 58 findings - high 0, medium 8, low 48, false 2, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` BH: `TestBadOverrides` asserts `before '= ""`, which `State()` makes always true - `State()` starts every line with a line feed and the entry name; patched to assert each entry and row is non-empty, and the mutation "checks no longer stop Apply" went red on the 'writes nothing' lines.
+  - `[low]` `[patch]` BH: `TestToolsets` counts names without tallying each, and Chat's empty toolset is unasserted - patched with a per-name tally and a Chat assertion; mutation Chat TOOLSETS set went red.
+  - `[low]` `[patch]` BH: `TestDiagnosis` pins only 'read-only' - patched with 'Never change anything', 'must approve' and 'data, never instructions'; mutation (sentence reworded) went red.
+  - `[medium]` `[defer]` BH: `Merge` judges only the field named `api_key` and `@{`, so a placeholder can name any variable, `base_url` is unchecked and a literal credential in a header passes - the rule is AD-19's and decision 10's (veto U-2); the exposure exists only when a caller passes user input, so the validation is Story 17.3's (deferred item, shared with the `secret://` finding); the overclaiming class comment was replaced.
+  - `[low]` `[reject]` BH: `Merge` is not limited to AI.LLM names - the spec fixes the rule (fewer than three dotted parts become AI.LLM.<name>) and lists the refusals; the caller is trusted bridge code, and an area check would add a guard the spec does not ask for.
+  - `[low]` `[patch]` BH: the base-URL pattern accepts a user name, a query and a fragment, and the error echoes the value - patched (pattern, error text, tests); mutation went red.
+  - `[low]` `[reject]` BH: `WriteRunner`'s skip-or-fail branches are untested, and two runners with one last class-name part would share an entry - the branches are decision 16, not an AC, and a test needs a public `WriteRunner` or a production argument; the production has three distinct classes and the name rule is the spec's (wontfix-theoretical).
+  - `[low]` `[reject]` BH: `SeedModels` has no test for a disabled runner with a MODEL or a default row of another specificity - the matrix row is covered by `TestSeedModels` (item setting, `*` row, kept row); `getModifiedSettingValue` resolves rows by the item's class; a runner without a row still resolves through its class MODEL.
+  - `[low]` `[reject]` BH: the spec record contradicts itself (status, Auto Run Result, red `boundaries`, the SKIP) - Auto Run Result is rewritten at finalize; the `boundaries` failure is the HEAD commit's cycle log, untouched by this diff; the SKIP is Story 0.6's, recorded under Results.
+  - `[false]` `[reject]` BH: `Restart` can return before the restart took effect - `TempStopConfigItem` runs `UpdateProduction` (pDoUpdate 1, `Ens/Director.cls` TempStopConfigItem) with the production-update timeout, so it is synchronous; a missed deadline fails the next `NotRunning` assertion; green in every run.
+  - `[medium]` `[defer]` EH: a merged string starting `secret://` passes the `@{` scan and AI Hub's `@{config:}` lookup resolves it (`%AI.Utils.ConfigStore.Lookup` reads with resolveSecrets 1) - same root cause as the Merge finding above: AD-19 has MCP entries hold `secret://` through the same method, so the refusal belongs to the Story 17.3 API for LLM entries.
+  - `[low]` `[reject]` EH: no area or type check on the entry name - duplicate of the Merge-scope finding above.
+  - `[low]` `[reject]` EH: no lock between `GetDetails` and `Modify` - only the install step and the admin API write entries; concurrent writers are theoretical (wontfix-theoretical).
+  - `[low]` `[reject]` EH: the Provider step rewrites an entry whole, so a Merge change reverts at the next start - spec-bound: decision 4 and AD-19's structural values; Story 17.3 must make `model_provider` and `api_key` seed values (by-design).
+  - `[low]` `[reject]` EH: an error status from `GetAdapterSettingValue` is treated as absent in `SeedModels` - `Runners` lists the items of the opened production, and the lookup errors only for a missing item or production (wontfix-theoretical).
+  - `[low]` `[patch]` EH: the URL pattern accepts user name, query and fragment, and the error echoes the value - same root cause as the base-URL finding above; patched.
+  - `[low]` `[reject]` EH: the CA path is not checked for being absolute, non-empty or readable - the matrix row says 'names an existing file' and fails on a missing one; stricter guards go beyond the row.
+  - `[low]` `[reject]` EH: two runners with one last class-name part share an entry - duplicate of the collision finding above (wontfix-theoretical).
+  - `[low]` `[reject]` EH: an enabled runner with an unusable class found mid-loop leaves earlier entries rewritten - they hold their correct values, the step fails and writes no ready marker; harmless.
+  - `[low]` `[reject]` EH: `KeyScan` list fetch errors end the scan without 'could not be read' - local tables; the controls show each store is read (wontfix-theoretical).
+  - `[low]` `[reject]` EH: a class whose source cannot be read is skipped by the template scan - the scan asserts more than 50 sources were read; one unreadable compiled class is theoretical.
+  - `[low]` `[patch]` EH: the template-call scanner is case-sensitive - patched with a case-blind compare and a test row; mutation went red.
+  - `[medium]` `[defer]` EH (claim): only the field named `api_key` is guarded, so the class comment overclaimed - comment replaced with the exact contract (patched); the validation is the deferred Story 17.3 item.
+  - `[low]` `[patch]` EH (claim): `##;` comment lines are not skipped as in `test-class-rules.sh` - patched with the case fix.
+  - `[low]` `[patch]` EH (claim): the Lane B `start-ok` proves only `IsOK(Run())`, so decision 21 overclaimed - decision 21 reworded; the grant allows one added CHK line, not a second; the seed is pinned by `Test.Agent.Models`.
+  - `[low]` `[patch]` EH (claim): the toolset tally lets a duplicate plus a missing name pass - duplicate of the tally finding above; patched.
+  - `[medium]` `[patch]` VG: the CA-file override never goes through `Apply`/`Run` - added `TestApplyCaFile` (stored entry equals `Details` for the file, tls block, flags false, entries put back); mutation went red.
+  - `[low]` `[reject]` VG: `WriteRunner`'s skip-or-fail branch is untested - duplicate of the branches finding above.
+  - `[medium]` `[patch]` VG: the seed-before-start order is unpinned - `TestAppliedAtStart` added; the first attempt, inside `TestRunnersResolve`, stayed green under the swap because `TestModelChange` updates the production first, so it moved to a method that sorts first; mutation went red.
+  - `[low]` `[patch]` VG: the Lane B `start-ok` does not prove the re-seed - duplicate of the decision-21 finding above; reworded.
+  - `[low]` `[patch]` VG: `Merge`'s `resolveSecrets` 0 is unpinned - added `TestKeepsSecretReference` (an unresolvable `secret://` field survives a merge); mutation (resolveSecrets 1) went red.
+  - `[low]` `[patch]` VG: Chat having no toolset is unasserted - duplicate of the tally finding above; patched.
+  - `[low]` `[reject]` VG: seeding a disabled runner that has a MODEL is unpinned - the runner still resolves through its class MODEL; closing it needs another fixture runner.
+  - `[low]` `[reject]` VG: `Find`'s unreadable-store path is never exercised - it needs a seam that fakes an unreadable store, which the spec does not ask for.
+  - `[medium]` `[patch]` VG (Rule 19): the `before '= ""` assertion cannot fail - duplicate of the first finding above; patched.
+  - `[low]` `[reject]` VG (Rule 19): `+$Get(none) = 0` can pass if `Runners` never sets the array - the preceding assertion proves the error; harmless.
+  - `[low]` `[reject]` VG (Rule 19): AC1 lacks mutation lines for the template half, Triage's empty toolset, ReadOnly and non-empty instructions - Rule 19 asks one demonstrated mutation per AC, and AC1 has two.
+  - `[low]` `[patch]` VG (Rule 19): AC3's `TestEntryBeforeSetting` line recorded its red in the start log, not in the test - closed in this pass: the mutation 'row first while the production runs' turned the test red, and the line is rewritten; `TestBadOverrides` has its line too.
+  - `[low]` `[reject]` VG (Rule 19): AC5's 'job applies sonnet' clause has no line - the AC's line (`ResolveModel` ignores the setting) is recorded; the clause is asserted in the same test.
+  - `[low]` `[reject]` VG (Rule 19): AC7's `TestExpansionSeesMerge`, `TestMergePlaceholder`, `TestMissingEntry` and the non-`api_key` refusals have no lines - one mutation per AC is recorded (`TestMerge`, `TestMergeRefused`).
+  - `[low]` `[reject]` VG (Rule 19): `Test.Install.Provider` relies on the entries the start wrote - spec-bound: `TestEntries` is defined as the after-start entries; the class header says throwaway only (by-design).
+  - `[low]` `[reject]` VG (Rule 19): `Test.Agent.Models` needs the seeded rows and restarts a live item - spec-bound, throwaway only (by-design).
+  - `[low]` `[reject]` VG (Rule 19): `Test.Agent.KeyScan` needs the CI mock and rewrites the instance-wide entries - spec-bound; it fails with the reason where the mock is missing (by-design).
+  - `[low]` `[reject]` VG (Rule 19): `TestDetails` calls `KeyScan.SetEnv` - Rule 2 prefers the one helper to a copy.
+  - `[low]` `[patch]` VG (other): decision 21 says the Lane B `start-ok` proves the re-seed - duplicate of the decision-21 finding above; reworded.
+  - `[low]` `[reject]` VG (other): the command expects 'no SKIP' and the shard prints one - the SKIP is Story 0.6's `TestStepHelpers` (Rule 21 notes in specs 0.10 and 0.12 record it); recorded under Results.
+  - `[medium]` `[defer]` VG (other): `ci/checks.sh` `boundaries` is red on `cycle-log-epic-1.md:1` - the line is the lead's bookkeeping commit (a local path), outside this diff and outside this story's paths; deferred out-of-footprint so the lead fixes its log before CI runs the `checks` job.
+  - `[false]` `[reject]` VG (other): the `SeedModels` comment says 'any specificity' but only the director's lookup is used - `GetItemSettingValue` passes the item's class to `getModifiedSettingValue`, which reads System Default Settings by that class and by `*`, so the claim holds.
+  - `[low]` `[reject]` IA: entry shapes are asserted at `Details`, and the stored shapes only for the CI environment - `TestEntries` compares stored entries with `Details`; the CA shape is now stored by `TestApplyCaFile`; the judges' shape has no stack without the mock override.
+  - `[low]` `[reject]` IA: the key comes from the test process, not `.env` through the container - spec-bound: Task 0 and decision 13; the runner's own use of the key is Story 1.2.
+  - `[low]` `[reject]` IA: `KeyScan` sets `agent.Model` by hand - spec-bound: the task says `Model` = `ResolveModel`.
+  - `[low]` `[reject]` IA: the no-sampling-parameters Never is enforced by the mock - the story builds no request of its own; the mock rejects the three fields.
+  - `[low]` `[reject]` IA: Diagnosis and Chat keys are exercised as header values only - the matrix row sends one chat through Triage's `ProviderConfig`.
+  - `[low]` `[reject]` IA: instructions and toolsets are read as class text and parameters - AD-7 makes them declarative; the tool manager is run on the parameter.
+  - `[low]` `[patch]` IA: the entry-before-row order is observed in the start log, not in `TestEntryBeforeSetting` - closed by the mutation recorded under Verification (the test goes red with row-first while the production runs).
+  - `[low]` `[reject]` IA: seeding decides through the director's resolver, and 'no ready marker' is unchecked - the Registry stops at its first failing step (its own test); the resolver is decision 8.
+  - `[low]` `[reject]` IA: `Merge` is tested on throwaway entries only - spec-bound: the tests use their own entry; 'never restarts' holds by absence of a restart call.
+  - `[low]` `[reject]` IA: the diff makes `Apply`, `CheckBaseUrl`, `CheckCaFile`, `EntryName`, `Runners`, `SeedModels`, `AgentModel`, `WriteDefault` and the `KeyScan` helpers public - decisions 14 and 20 record why.
 
 ## Design Notes
 
@@ -277,6 +355,18 @@ deferred: []
 11. Diagnosis's instructions give only the role in this story; its payload shape comes with Story 5.4, which has not built `DiagnosisPayload` yet.
 12. The fixture tool methods live in the companion `%AI.Tool` class `WatchFixture`, the layout the S4 spike proved.
 13. The key scan sets a fake key that does not look like a key, through embedded Python, in the test process only. No callback runs there, and Task 0 measures that it works.
+14. `Provider.Run()` reads the three environment variables and calls `Provider.Apply(baseUrl, caFile, mockKeyFlag)`, which does the work, so that a bad base URL and a missing CA file are tested without changing the process environment. `CheckBaseUrl`, `CheckCaFile` and `EntryName` are public for the same reason.
+15. A base URL is valid when it matches `^(?i:https?)://[^/\s]+/([^\s]*/)?v1/\z`: the scheme in any case, a host, any path without white space, and the last segment `/v1/`. An empty value is no override.
+16. The Provider step writes an entry and a row for every runner whose AgentClass is a compiled `%AI.Agent` subclass, enabled or not. A runner with no usable class is skipped when disabled and fails the step by name when enabled. `SeedModels` seeds every runner whose class has a MODEL, enabled or not.
+17. `Merge` also refuses `@{` in a field name and in an array element, refuses an `api_key` that is null, not a string or not exactly one placeholder, replaces arrays whole, adds a nested object that the entry lacks (a null inside it removes nothing), and names the path of the refused field and never its value. A short name and its full name `AI.LLM.<name>` name the same entry; an empty name names no entry.
+18. `Create` gives each entry a description that says the step writes it at every start; `Modify` leaves the description as it is.
+19. `OcuTalon.Tools.Watch` declares `DependsOn = OcuTalon.Tools.WatchFixture`, because the toolset's generator reads the methods that its tools name when the module compiles from scratch.
+20. `Test.Agent.KeyScan.SetEnv`, `UnsetEnv` and `HasEnv` are public, and `Test.Install.Provider.TestDetails` calls them to show that a key in the environment changes nothing in the details. `KeyScan.Find` lists a store that cannot be read as "could not be read", so that an unreadable store never counts as clean, and the test shows that Find sees an entry, a session, a setting row, an item setting and an event-log row by searching for values that they hold.
+21. Triage declares `Parameter TOOLSETS = ""`; Chat declares none and inherits the empty one, as the task says. The Lane B fixture runs the Production step's `Run()` for the healthy start; that check proves the healthy path (`start-ok`) and not the seeding, which `Test.Agent.Models` pins (`TestAppliedAtStart`, `TestRunnersResolve`).
+22. A base URL is also refused when it holds a user name, a query or a fragment (`@`, `?`, `#`), and the error names the variable and never holds the value, so a URL that carries a credential is neither stored in an entry nor written to the install log.
+23. `Merge` guards only the field named `api_key` and the `@{` marker. It does not judge which variable a placeholder names, `base_url`, headers, `secret://` references or a literal credential in another field, because AD-19 lets the same method edit entries that hold `secret://` references legitimately. The class comment says so, and validating values that come from a user is Story 17.3's (deferred item).
+24. `Test.Agent.Models.TestAppliedAtStart` sorts before `TestModelChange` on purpose: that test updates the production and refreshes every item, which would hide a seed written after the start. The test passes in either order and pins the order only when it runs first.
+25. `Test.Bridge.ConfigStore.TestKeepsSecretReference` pins the Never "no `GetDetails` with `resolveSecrets` = 1" at `Merge`: a resolving read of an unresolvable `secret://` reference fails.
 
 **Integration ACs (Rule 1):**
 - The key-scan test: AI Hub's provider reads the entry and the `ProviderConfig` setting, and the mock records the header, the base URL and the resolved key's length.
@@ -366,6 +456,39 @@ deferred: []
 | `Merge` accepts a literal `api_key` | `TestMergeRefused` |
 | `Start` no longer fails on an unresolved runner | `live production`, its `start-unresolved` line |
 
+**Measured facts (Task 0, `ocutalon-slot-a`, namespace `OCUTALON`, `iris_server_info` showed build 154U; process-local only):**
+- (a) Passed. After `Set os = ##class(%SYS.Python).Import("os")` and `os.environ.__setitem__("OCUTALON_TASK0_PROBE", ...)`, both `$SYSTEM.Util.GetEnviron("OCUTALON_TASK0_PROBE")` and `##class(%AI.Utils.SettingStore).Expand("@{env:OCUTALON_TASK0_PROBE}")` returned the value in the same process. After `os.environ.pop`, `GetEnviron` returned "". The key scan therefore needs no Lane B change.
+- (b) Passed. `OcuTalon.Tools.Watch` and `WatchFixture` compile together on the slot. A fresh `%AI.ToolMgr` accepts `RegisterToolSet("OcuTalon.Tools.Watch")`, and `%Discover()` lists exactly `read_event_log`, `read_failed_messages` and `read_item_settings`, each with `metadata.ReadOnly` = `"1"` and `requires_auth` false. `ExecuteTool` returns `{"timing":...,"value":"{\"items\":[]}"}`. A first IPM compile in a throwaway showed that `Watch` must declare `DependsOn = OcuTalon.Tools.WatchFixture`: its generator reads the methods that the tools name.
+
+**Mutations demonstrated (Rule 19).** Each was applied to the code under test, run in a throwaway of tag `e1s1a`, and reverted; after each revert `git status --short`, `git diff` and the hashes of the untracked files were identical to their values before the mutation.
+- mutation: Diagnosis `TOOLSETS` set to "" -> `Test.Agent.Instructions.TestToolsets` went red ("Diagnosis has OcuTalon.Tools.Watch only" and the discovery of the three tools)
+- mutation: `{{x}}` added to Chat's INSTRUCTIONS -> `Test.Agent.Instructions.TestNoTemplates` went red ("OcuTalon.Agent.Chat has no {{ in its INSTRUCTIONS")
+- mutation: `"confidence"` renamed in Triage's INSTRUCTIONS -> `Test.Agent.Instructions.TestTriage` went red ("the instructions name the field confidence")
+- mutation: "I can't run commands." reworded to "I cannot run commands." in Chat's INSTRUCTIONS -> `Test.Agent.Instructions.TestChat` went red ("the instructions hold the sentence of the catalog")
+- mutation: header added for the base URL alone (condition `(flag = "1") || (baseUrl '= "")`) -> `Test.Install.Provider.TestDetails` went red (the eight base-URL-alone assertions)
+- mutation: `api_key` taken from `GetEnviron("ANTHROPIC_API_KEY")` when it is set -> `Test.Install.Provider.TestDetails` went red ("a key in the environment", "and the details hold no key") and `Test.Agent.KeyScan` went red ("the expansion leaves the key as the placeholder", "the fake key is in no entry, saved session, setting or event-log row"). The form that always reads the variable fails the fresh start instead (the descriptor requires an api_key), so the conditional form kept the stack up.
+- mutation: `Create` used instead of `Modify` -> `Test.Install.Provider.TestRerun` went red ("Run() modifies the existing entries => ERROR #26415: Configuration already exists: AI.LLM.OcuTalonTriage"); `TestEntryBeforeSetting` and `KeyScan` went red as well
+- mutation: the ProviderConfig row written before its entry, while the production runs (in a fresh start the row-first order fails the after-start log instead: `STEP Provider FAILED ... SettingLookupFailed: SettingStore lookup failed for @{config:OcuTalonTriage}`, and the stack never becomes ready) -> `Test.Install.Provider.TestEntryBeforeSetting` went red ("Run() writes both again => SettingLookupFailed", "the entry is back", "and so is the row")
+- mutation: `RebuildRegistry()` removed -> `live install-start` went red (`STEP Provider FAILED ... ERROR #26414: No descriptor found for AI.LLM`, "the first start did not end ready")
+- mutation: guard removed so that SeedModels overwrites an existing `Model` row -> `Test.Install.Production.TestSeedModels` went red ("the existing row is kept as it is")
+- mutation: `SeedModels` not called by `Run()` -> `Test.Agent.Models.TestRunnersResolve` went red ("TriageAgent has a Model row", and the same for the other two runners); `TestModelChange` went red as well
+- mutation: `ResolveModel` ignores the setting -> `Test.Agent.Models.TestModelChange` went red ("ResolveModel gives claude-sonnet-5-5"); `Test.Install.Production.TestRunnerModels` and `TestSeedModels` went red as well
+- mutation: `Merge` writes `fields` instead of the merged details -> `Test.Bridge.ConfigStore.TestMerge` went red ("Required field missing: model_provider")
+- mutation: `Merge` accepts a literal `api_key` (the api_key branch of the refusal scan switched off) -> `Test.Bridge.ConfigStore.TestMergeRefused` went red ("case 1 is refused" and the cases after it)
+- mutation: `Start` no longer fails on an unresolved runner -> `live production` went red, on the `start-unresolved` line (wanted `CHK|start-unresolved|1|1`)
+
+**Mutations of the review pass (Rule 19; same method, each reverted with the `git diff` hash against the baseline identical).**
+- mutation: `Apply` passes "" for the CA file to `WriteRunner` -> `Test.Install.Provider.TestApplyCaFile` went red ("OcuTalonTriage is the entry of Details for the file")
+- mutation: the base-URL pattern allows a user name, a query and a fragment, and the error text echoes the URL -> `Test.Install.Provider.TestBadOverrides` went red (the user-name, query and fragment URLs "is refused", and "and not the URL")
+- mutation: the base URL and CA file checks no longer stop `Apply` before the writes -> `Test.Install.Provider.TestBadOverrides` went red (both "and writes nothing" lines); `TestEntries` went red after it, on the entries it left
+- mutation: `Production.Run()` seeds the models after `Start` -> `Test.Agent.Models.TestAppliedAtStart` went red (the three runners "applies claude-haiku-5-5 as started"); the same assertion inside `TestRunnersResolve` had stayed green, because `TestModelChange` updates the production first
+- mutation: Chat gets `TOOLSETS = "OcuTalon.Tools.Watch"` -> `Test.Agent.Instructions.TestToolsets` went red ("Chat has no toolset")
+- mutation: Diagnosis's "Never change anything." reworded to "Change nothing." -> `Test.Agent.Instructions.TestDiagnosis` went red ("and that it never changes anything")
+- mutation: the template-call scanner compares in the case of the source -> `Test.Agent.Instructions.TestNoTemplates` went red ("the call scanner is blind to case")
+- mutation: `Merge` reads with `resolveSecrets` 1 -> `Test.Bridge.ConfigStore.TestKeepsSecretReference` went red ("Merge reads it without resolving the reference => ERROR #26220: Error using secret ...")
+
+**Results on the unmutated tree (final pass, after the last patch; tag `e1s1a`, one stack at a time, `ci/iris.sh teardown` left nothing):** `bash ci/checks.sh`: every block passes except `boundaries`, whose one failure is `_bmad-output/implementation-artifacts/cycle-log-epic-1.md:1`, a local path in the HEAD commit's cycle log (outside this story; deferred). `ci/iris.sh build`: exit 0. `shard lane-a`, forward (65 s) and `--reverse` (74 s): 14 of 14 classes passed, the five new ones and `Test.Bridge.ConfigStore` included; the one SKIP is `Test.Install.Production.TestStepHelpers`' existing skip of the `NotRunning` check while the production runs (Story 0.6; the "no SKIP" in the command holds only when that production does not run). Once: `bash docker/tests/test-mock.sh` 94 of 94; `shard lane-b` 24 of 24, `Test.Contract.Mock` included (forward only; the lead runs `--reverse`); `live install-start` 94 PASS (about 196 s), `install-upgrade` 34 PASS (about 172 s), `compose-start` 36 PASS (about 74 s), `production` 23 PASS (the check "a runner that resolves no model" with its five values), `production-restart` 15 PASS, `demo-path` passed with the `@floor` test (about 64 s, `FIRST-START engine=aarch64 build=0s ready=56s`). Task 0 and the slot: only process-local calls and `iris_doc_load` compiles on `ocutalon-slot-a`.
+
 ## Clarification Record
 
 **Resolved 2026-10-21 by the orchestrator's ruling (`category=decide`, logged in `cycle-log-parallel.md`):** option (a), the fixture edit is granted to Lane A as a footprint extension of this story, inside the "a runner that resolves no model" check only (the task "The Lane B fixture"). The plan's question, kept as asked:
@@ -383,7 +506,28 @@ deferred: []
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan pass (superseded by the ruling above): blocked on an intent gap: Story 1.1 needs a change in the contended Lane B path docker/tests/test-production.sh. Its check "a runner that resolves no model" (lines 274-295) expects Production.Start(15) to fail for an OcuTalon.Agent.Triage with no MODEL. Once the AC seeds the runner's Model System Default Setting (OcuTalon.Production||TriageAgent||*||Model = claude-haiku-5-5) at the first start, the runner resolves through that row and live:production goes red. Keeping it green from Lane A alone would contradict AD-7 and AD-19, under which the setting wins over the class parameter. Needed: inside that check, delete that row before Start(15) (about 2 lines). Recommendation: the orchestrator grants Lane A this edit as a footprint extension of Story 1.1 and sets the spec to ready-for-dev; the rest of the spec meets the READY-FOR-DEVELOPMENT standard.
+**Implemented.** Story 1.1: the three agents have static instructions and toolsets (Diagnosis gets the read-only fixture `OcuTalon.Tools.Watch` with `WatchFixture`); the Provider step writes one `AI.LLM.OcuTalon<Agent>` entry per runner (placeholder key, no model, overrides from the environment, including DW-39's mock-key header only for `OCUTALON_MOCK_KEY_HEADER=1`) and then each runner's `ProviderConfig` row; the Production step seeds each runner's `Model` row where absent; `OcuTalon.Bridge.ConfigStore.Merge` is implemented; tests prove that a key in the environment is stored nowhere.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Agent/{Triage,Diagnosis,Chat}.cls`: INSTRUCTIONS and TOOLSETS.
+- `src/ocutalon/cls/OcuTalon/Tools/{Watch,WatchFixture}.cls` (new): the read-only fixture toolset.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls`: `Run`, `Apply`, `Details`, the override checks, `WriteRunner`.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Production.cls`: `Runners`, `WriteDefault`, `SeedModels`, `AgentModel`; `Run` seeds before `Start`.
+- `src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls`: `Merge`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/{Instructions,Models,KeyScan}.cls`, `Test/Bridge/ConfigStore.cls`, `Test/Install/Provider.cls` (new); `Test/Agent/Constants.cls`, `Test/Bridge/Api.cls`, `Test/Install/Production.cls` (updated for the new shape).
+- `docker/tests/test-production.sh`: the granted Lane B fixture edit inside the check "a runner that resolves no model" only (deletes the seeded row, one added CHK line, `Run()` for the healthy start).
+- This spec: Task 0 facts, mutation lines, decisions 14 to 25, the triage log, the deferred list.
+
+**Review.** Four layers reported 58 findings: high 0, medium 8, low 48, false 2. Patches applied (18 rows, 9 root causes): the always-true precondition in `TestBadOverrides`; the toolset tally and Chat's empty toolset; Diagnosis's instruction assertions; the base-URL pattern (no user name, query or fragment) and an error text without the value; `TestApplyCaFile`; `TestAppliedAtStart` (the seed-before-start order); `TestKeepsSecretReference` (`resolveSecrets` 0); the case-blind template scan with `##;` comments; the corrected class comment of `Merge` and decision 21. Deferred (2 items): the validation of values a user supplies, owned by Story 17.3 (`Merge` judges only `api_key` and `@{`), and the red `boundaries` check on the lead's cycle log. Rejected: 36 rows, each with its reason in the triage log (spec-bound, theoretical or guard-only lows, and the 2 false).
+
+**Follow-up review recommended: true.** Three medium entries were patched. The unverified risk: `TestAppliedAtStart` pins the seed order only when it runs before `TestModelChange` (it does, by name; the class passes in either order but then pins nothing), and the stricter base-URL pattern was exercised against the mock's URL and the test rows only, not against an operator's real proxy address.
+
+**Verification.** See the Results paragraph under `## Verification`: `ci/checks.sh` red only on the pre-existing cycle-log line; `build`, `shard lane-a` forward and reversed, `shard lane-b`, `test-mock.sh`, and the six live units all passed; 23 mutations demonstrated, each reverted with the tree hash unchanged.
+
+**Residual risks.**
+- `ci/checks.sh` `boundaries` fails on `cycle-log-epic-1.md:1` (the lead's bookkeeping commit holds a local path), so the hosted `checks` job goes red on the next push until the lead changes that line.
+- `Merge` leaves the choice of key variable, `base_url`, headers and `secret://` references to its caller (Story 17.3).
+- `shard lane-b --reverse` was not run in this pass (the lead's fresh-environment check).
