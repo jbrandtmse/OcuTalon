@@ -7,7 +7,7 @@
 #   ci/iris.sh list                       the check scripts, the web scripts, the shards and the groups with their units
 #   ci/iris.sh groups                     the group names, one per line (the matrix of .github/workflows/ci.yml)
 #   ci/iris.sh classes [shard]            the test classes of a shard (of every shard), one per line, in name order
-#   ci/iris.sh port                       the web port that the browser units would publish: 5281<n> in CI, or auto
+#   ci/iris.sh port                       the web port that the browser units would publish: 52810 + n (runners 0 to 9), 52819 - n (10 to 19), or auto
 #   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout
 #   ci/iris.sh shard <name> [--reverse]   one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
@@ -20,7 +20,10 @@
 #   ci/iris.sh all                        every group in turn
 # OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, at least 3 characters, no "slot") names the run: the pieces of one run
 # share it and `teardown` needs it. It defaults to local-<epoch>-<pid>, which makes each call its own run. In CI the web port of
-# the browser units is 52810 plus the number at the end of RUNNER_NAME (the first free port otherwise).
+# the browser units follows the number n at the end of RUNNER_NAME: 52810 + n for n from 0 to 9 and 52819 - n for n from 10 to 19
+# (52809 down to 52800), so runners 1 to 19 never share a port on one host. Otherwise (n of 20 or more, no number, no RUNNER_NAME, as
+# on a developer machine) the browser units probe for the first free port of 52800-52819, which a fixed-port runner of the same host
+# may be about to publish. A set OCUTALON_TEST_WEB_PORT always wins.
 # Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
@@ -31,7 +34,7 @@ cd "$root" || exit 1
 . "$root/docker/tests/lib-live.sh"
 
 usage() {
-  sed -n '2,25p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,28p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
 }
 
 # --- the run tag and the web port ---
@@ -52,7 +55,11 @@ setup_tag() {
         case $n in
           '' | *[!0-9]*) ;;
           *)
-            if [ $((10#$n)) -le 9 ]; then export OCUTALON_TEST_WEB_PORT=$((52810 + 10#$n)); fi
+            if [ $((10#$n)) -le 9 ]; then
+              export OCUTALON_TEST_WEB_PORT=$((52810 + 10#$n))
+            elif [ $((10#$n)) -le 19 ]; then
+              export OCUTALON_TEST_WEB_PORT=$((52819 - 10#$n))
+            fi
             ;;
         esac
         ;;
