@@ -1470,6 +1470,8 @@ So that I can sign in and find every part of the page by sight or by keyboard.
 
 - DW-4: A hash-route deep link such as `/ocutalon/#/x` is lost at sign-in, because the fragment never reaches the server; once this story adds the first routes, signing in at a route lands on that route (fix in `OcuTalon.Web.Public.Shell` and `web/src/signin/signin.js`) (ledger; routed by harvest 2026-10-19)
 
+- DW-47: The sign-in deep-link test (0.3's row 13) is stable on the runner: the page stays on the deep-link URL after sign-in, or the test waits for the shell's own navigation before it checks the URL (flake seen once in run 39534434817; same area as DW-4) (ledger; routed by harvest 2026-10-21)
+
 ### Story 2.2: Keep the session and load its snapshot with live updates
 
 As a user,
