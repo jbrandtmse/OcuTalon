@@ -1,0 +1,127 @@
+/*
+  The app's global rules. The custom properties come from tokens.css, which tokens.mjs generates from DESIGN.md.
+  Fonts are bundled files under /ocutalon/assets/fonts, never a CDN (UX-DR15).
+*/
+@import '@angular/cdk/overlay-prebuilt.css';
+
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/ocutalon/assets/fonts/Montserrat-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/ocutalon/assets/fonts/Montserrat-ExtraBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/ocutalon/assets/fonts/Inter-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/ocutalon/assets/fonts/Inter-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/ocutalon/assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+}
+
+:root {
+  color-scheme: light;
+  --font-display: var(--type-wordmark-font-family), 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: var(--type-body-font-family), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--type-mono-font-family), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme=dark] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--type-body-font-size);
+  font-weight: var(--type-body-font-weight);
+  line-height: var(--type-body-line-height);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* No text is smaller than 12px: the smallest type token is 12px, and the browser's relative sizes are clamped to it. */
+small,
+sub,
+sup {
+  font-size: max(12px, 0.857em);
+}
+
+/* UX-DR33: the focus ring is 2px solid, 2px off, with a surface halo that fills the offset; nothing else uses it. */
+:focus-visible {
+  outline: var(--focus-ring-outline);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* UX-DR14: with reduced motion, nothing animates or transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

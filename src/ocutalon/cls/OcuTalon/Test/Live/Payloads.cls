@@ -1,0 +1,519 @@
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 25 payload
+/// and part classes that Story 0.5 adds, every JSON key, and the incident payload with its nested shapes and its
+/// FromRow builder. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
+Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
+{
+
+/// The event table of the spine: each type and the short name of its payload class.
+Parameter EXPECTED = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check";
+
+/// The run's number.
+Property Number As %Integer;
+
+Method OnBeforeAllTests() As %Status
+{
+	Do ..Clean()
+	Set ..Number = $Increment(^OcuTalonTest("LivePayloads", "n"))
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnAfterAllTests() As %Status
+{
+	Do ..Clean()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Publish's TYPES is exactly the spine's 16 types, each mapped to its class, and the direct classes of
+/// OcuTalon.Live.Payload are exactly those 16, each a %RegisteredObject and %JSON.Adaptor.
+Method TestEventTable()
+{
+	Set expected = $ListFromString(..#EXPECTED)
+	Do $$$AssertEquals($ListLength(expected), 16, "the spine has 16 types")
+	Do $$$AssertEquals($Length($Parameter("OcuTalon.Live.Publish", "TYPES"), ","), 16, "TYPES holds 16 pairs")
+	Do $$$AssertEquals($Parameter("OcuTalon.Live.Publish", "TYPES"), ..#EXPECTED, "TYPES is the spine's event table")
+	Set position = 0
+	While $ListNext(expected, position, pair) {
+		Set type = $Piece(pair, ":", 1)
+		Set class = "OcuTalon.Live.Payload."_$Piece(pair, ":", 2)
+		Do $$$AssertEquals(##class(OcuTalon.Live.Publish).PayloadClass(type), class, type_" maps to "_class)
+		Set wanted(class) = ""
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).PayloadClass("zz.type"), "", "an unknown type maps to nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).PayloadClass(""), "", "an empty type maps to nothing")
+
+	Set statement = ##class(%SQL.Statement).%New()
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT ID FROM %Dictionary.CompiledClass WHERE ID %STARTSWITH 'OcuTalon.Live.Payload.'"), "the query is prepared")
+	Set result = statement.%Execute()
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If $Length(class, ".") '= 4 Continue
+		Set found(class) = ""
+		Do $$$AssertTrue($ClassMethod(class, "%Extends", "%RegisteredObject") && $ClassMethod(class, "%Extends", "%JSON.Adaptor"), class_" is a %RegisteredObject and a %JSON.Adaptor")
+		Set compiled = ##class(%Dictionary.CompiledClass).%OpenId(class)
+		Do $$$AssertEquals(..FullNames(compiled.Super), "%Library.RegisteredObject,%JSON.Adaptor", class_" extends exactly those two")
+	}
+	Set class = ""
+	For {
+		Set class = $Order(wanted(class))
+		Quit:class=""
+		Do $$$AssertTrue($Data(found(class)), class_" is in the package")
+	}
+	Set class = ""
+	For {
+		Set class = $Order(found(class))
+		Quit:class=""
+		Do $$$AssertTrue($Data(wanted(class)), class_" is one of the 16")
+	}
+}
+
+/// Every payload and part class has exactly its contract, every JSON key is the property name with a lower-case
+/// first letter, and the two closed lists are the spine's.
+Method TestContracts()
+{
+	Do ..AssertContract("Contracts")
+	Set classes = 0
+	Set iterator = ..Read("Contracts").%GetIterator()
+	While iterator.%GetNext(.class) {
+		Set classes = classes + 1
+		Set key = ""
+		For {
+			Set property = ##class(%Dictionary.CompiledClass).%OpenId(class).Properties.GetNext(.key)
+			Quit:key=""
+			If ..Inherited(property.Origin) Continue
+			Set name = property.Name
+			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
+		}
+	}
+	Do $$$AssertEquals(classes, 25, "the contracts hold the 25 new classes")
+	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
+	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
+}
+
+/// A fully set incident payload exports the AC's keys, nested as the contracts give.
+Method TestIncidentPayload()
+{
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).%New()
+	Set payload.Ref = "ZzPay"_..Number
+	Set payload.State = "awaiting_approval"
+	Set payload.OpenVariant = "fallback"
+	Set payload.Count = 9
+	Set payload.NoticeCount = 7
+	Set payload.FirstAt = "2026-10-19T10:00:00Z"
+	Set payload.LastAt = "2026-10-19T10:00:30Z"
+	Set payload.ItemNoun = ##class(OcuTalon.Live.Payload.Part.ItemNoun).%New()
+	Set payload.ItemNoun.One = "order"
+	Set payload.ItemNoun.Other = "orders"
+	Set payload.Cause = "A bad field"
+	Set payload.FixSummary = "Fix the field"
+	Set payload.CauseCategory = "data"
+	Set payload.Element = "OrderIn"
+	Set payload.Fallback = 1
+	Set payload.FallbackReason = "timeout"
+	Set payload.DecisionRef = "ZzDec"_..Number
+	For i = 1:1:2 {
+		Set group = ##class(OcuTalon.Live.Payload.Part.IncidentGroup).%New()
+		Set group.ItemName = "Item "_i
+		Set group.Count = i
+		Set group.ErrorSummary = "Error "_i
+		Set group.FirstAt = "2026-10-19T10:00:0"_i_"Z"
+		Do payload.Groups.Insert(group)
+	}
+	Set request = ##class(OcuTalon.Live.Payload.Part.IncidentRequest).%New()
+	Set request.Ref = "ZzReq"_..Number
+	Set request.State = "done"
+	Set request.Result = ##class(OcuTalon.Live.Payload.Part.IncidentRequestResult).%New()
+	Set request.Result.Total = 6
+	Set request.Result.Resent = 5
+	Set request.Result.Completed = 3
+	Set request.Result.FailedAgain = 2
+	Set request.Result.Skipped = 1
+	Set request.Result.Interrupted = 0
+	Set request.Result.Reason = "none"
+	Do payload.Requests.Insert(request)
+	Set payload.Evidence = ##class(OcuTalon.Live.Payload.Part.IncidentEvidence).%New()
+	Set payload.Evidence.SampleHeaderId = 4711
+	Set payload.Evidence.SampleError = "Sample error"
+	For i = 1:1:2 {
+		Set item = ##class(OcuTalon.Live.Payload.Part.IncidentEvidenceItem).%New()
+		Set item.ItemName = "Item "_i
+		Set item.Count = i
+		Set item.FirstAt = "2026-10-19T10:00:0"_i_"Z"
+		Set item.LastAt = "2026-10-19T10:00:1"_i_"Z"
+		Do payload.Evidence.Items.Insert(item)
+	}
+	Set payload.TraceTargets = ##class(OcuTalon.Live.Payload.Part.IncidentTraceTargets).%New()
+	For name = "Diagnosis", "Sample", "FirstFailure" {
+		Set target = ##class(OcuTalon.Live.Payload.Part.TraceTarget).%New()
+		Set target.TraceHeaderId = $Length(name)
+		Set target.TraceNamespace = "OCUORDERS"
+		Set $Property(payload.TraceTargets, name) = target
+	}
+
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.ref, "ZzPay"_..Number, "ref")
+	Do $$$AssertEquals(object.openVariant, "fallback", "openVariant")
+	Do $$$AssertEquals(object.noticeCount, 7, "noticeCount")
+	Do $$$AssertEquals(object.count, 9, "count")
+	Do $$$AssertEquals(object.firstAt, "2026-10-19T10:00:00Z", "firstAt")
+	Do $$$AssertEquals(object.itemNoun.one, "order", "itemNoun.one")
+	Do $$$AssertEquals(object.itemNoun.other, "orders", "itemNoun.other")
+	Do $$$AssertEquals(object.fixSummary, "Fix the field", "fixSummary")
+	Do $$$AssertEquals(object.causeCategory, "data", "causeCategory")
+	Do $$$AssertEquals(object.fallback, 1, "fallback is true")
+	Do $$$AssertEquals(object.%GetTypeOf("fallback"), "boolean", "fallback is a JSON boolean")
+	Do $$$AssertEquals(object.fallbackReason, "timeout", "fallbackReason")
+	Do $$$AssertEquals(object.decisionRef, "ZzDec"_..Number, "decisionRef")
+	Do $$$AssertEquals(object.groups.%Size(), 2, "two groups")
+	Do $$$AssertEquals(object.groups.%Get(1).errorSummary, "Error 2", "groups[1].errorSummary")
+	Do $$$AssertEquals(object.requests.%Size(), 1, "one request")
+	Do $$$AssertEquals(object.requests.%Get(0).state, "done", "requests[0].state")
+	Do $$$AssertEquals(object.requests.%Get(0).result.failedAgain, 2, "requests[0].result.failedAgain")
+	Do $$$AssertEquals(object.requests.%Get(0).result.interrupted, 0, "requests[0].result.interrupted")
+	Do $$$AssertEquals(object.evidence.sampleHeaderId, 4711, "evidence.sampleHeaderId")
+	Do $$$AssertEquals(object.evidence.items.%Size(), 2, "two evidence items")
+	Do $$$AssertEquals(object.evidence.items.%Get(1).lastAt, "2026-10-19T10:00:12Z", "evidence.items[1].lastAt")
+	Do $$$AssertEquals(object.traceTargets.firstFailure.traceHeaderId, 12, "traceTargets.firstFailure.traceHeaderId")
+	Do $$$AssertEquals(object.traceTargets.diagnosis.traceNamespace, "OCUORDERS", "traceTargets.diagnosis.traceNamespace")
+	Do $$$AssertEquals(object.traceTargets.sample.traceHeaderId, 6, "traceTargets.sample.traceHeaderId")
+}
+
+/// FromRow copies every row-backed field of a Data.Incident row, reads the item noun from its JSON, and leaves
+/// groups, requests, evidence and traceTargets absent. A row without an item noun, or with a broken one, gives
+/// no itemNoun.
+Method TestFromRow()
+{
+	Set row = ##class(OcuTalon.Data.Incident).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = "ZzPay"_..Number
+	Set row.Namespace = "OCUORDERS"
+	Set row.Production = "Zz.Production"
+	Set row.State = "open"
+	Set row.OpenVariant = "no_fix"
+	Set row.Count = 12
+	Set row.NoticeCount = 10
+	Set row.FirstAt = "2026-10-19T09:00:00Z"
+	Set row.LastAt = "2026-10-19T09:01:00Z"
+	Set row.ItemNoun = {"one": "claim", "other": "claims"}.%ToJSON()
+	Set row.Cause = "A cause"
+	Set row.CauseCategory = "config"
+	Set row.Element = "ClaimsIn"
+	Set row.FixSummary = "A fix"
+	Set row.Fallback = 1
+	Set row.FallbackReason = "model_error"
+	Set row.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.TraceHeaderId = 99
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row is saved")
+
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(row)
+	Do $$$AssertEquals($ClassName(payload), "OcuTalon.Live.Payload.Incident", "FromRow builds an incident payload")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "it exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.ref, row.Ref, "ref")
+	Do $$$AssertEquals(object.state, "open", "state")
+	Do $$$AssertEquals(object.openVariant, "no_fix", "openVariant")
+	Do $$$AssertEquals(object.count, 12, "count")
+	Do $$$AssertEquals(object.noticeCount, 10, "noticeCount")
+	Do $$$AssertEquals(object.firstAt, "2026-10-19T09:00:00Z", "firstAt")
+	Do $$$AssertEquals(object.lastAt, "2026-10-19T09:01:00Z", "lastAt")
+	Do $$$AssertEquals(object.cause, "A cause", "cause")
+	Do $$$AssertEquals(object.fixSummary, "A fix", "fixSummary")
+	Do $$$AssertEquals(object.causeCategory, "config", "causeCategory")
+	Do $$$AssertEquals(object.element, "ClaimsIn", "element")
+	Do $$$AssertEquals(object.fallback, 1, "fallback")
+	Do $$$AssertEquals(object.fallbackReason, "model_error", "fallbackReason")
+	Do $$$AssertEquals(object.decisionRef, row.DecisionRef, "decisionRef")
+	Do $$$AssertEquals(object.itemNoun.one, "claim", "itemNoun.one")
+	Do $$$AssertEquals(object.itemNoun.other, "claims", "itemNoun.other")
+	For key = "groups", "requests", "evidence", "traceTargets" {
+		Do $$$AssertEquals(object.%IsDefined(key), 0, key_" is not in the payload")
+	}
+
+	Set row.ItemNoun = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "no item noun in the row gives none")
+	Set row.ItemNoun = "not json"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "a broken item noun gives none")
+}
+
+/// --- helpers ---
+/// Deletes every fixture incident row.
+ClassMethod Clean() [ Private ]
+{
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Incident WHERE OwnerRef %STARTSWITH 'ZzPay'")
+	Do statement.%Execute()
+}
+
+XData Contracts [ MimeType = application/json ]
+{
+{
+ "OcuTalon.Live.Payload.Approval": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Kind": "%String(%JSONFIELDNAME=kind,MAXLEN=32)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "IncidentRef": "%String(%JSONFIELDNAME=incidentRef,MAXLEN=22)",
+   "ToolName": "%String(%JSONFIELDNAME=toolName,MAXLEN=128)",
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)",
+   "DryRun": "OcuTalon.Live.Payload.Part.DryRun(%JSONFIELDNAME=dryRun)",
+   "RaisedAt": "%String(%JSONFIELDNAME=raisedAt,MAXLEN=20)",
+   "ExpiresAt": "%String(%JSONFIELDNAME=expiresAt,MAXLEN=20)",
+   "AnsweredAction": "%String(%JSONFIELDNAME=answeredAction,MAXLEN=32)",
+   "AnsweredChannel": "%String(%JSONFIELDNAME=answeredChannel,MAXLEN=32)",
+   "AnsweredBy": "%String(%JSONFIELDNAME=answeredBy,MAXLEN=128)",
+   "AnsweredAt": "%String(%JSONFIELDNAME=answeredAt,MAXLEN=20)",
+   "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
+   "FinishedAt": "%String(%JSONFIELDNAME=finishedAt,MAXLEN=20)",
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.BreakFeedProgress": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "StartedAt": "%String(%JSONFIELDNAME=startedAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.ChatMessage": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "ClientId": "%String(%JSONFIELDNAME=clientId,MAXLEN=128)",
+   "Channel": "%String(%JSONFIELDNAME=channel,MAXLEN=32)",
+   "FromGuide": "%Boolean(%JSONFIELDNAME=fromGuide)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
+   "ReplyText": "%String(%JSONFIELDNAME=replyText,MAXLEN=)",
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Check": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Kind": "%String(%JSONFIELDNAME=kind,MAXLEN=32)",
+   "Namespace": "%String(%JSONFIELDNAME=namespace,MAXLEN=128)",
+   "Production": "%String(%JSONFIELDNAME=production,MAXLEN=128)",
+   "DisplayName": "%String(%JSONFIELDNAME=displayName,MAXLEN=128)",
+   "Stopped": "%Boolean(%JSONFIELDNAME=stopped)",
+   "NextDueAt": "%String(%JSONFIELDNAME=nextDueAt,MAXLEN=20)",
+   "LastRunAt": "%String(%JSONFIELDNAME=lastRunAt,MAXLEN=20)",
+   "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
+   "Finding": "%String(%JSONFIELDNAME=finding,MAXLEN=1000)",
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.GuideState": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "RunEpoch": "%Integer(%JSONFIELDNAME=runEpoch)",
+   "Step": "%Integer(%JSONFIELDNAME=step)",
+   "Finished": "%Boolean(%JSONFIELDNAME=finished)"
+  }
+ },
+ "OcuTalon.Live.Payload.Incident": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "OpenVariant": "%String(%JSONFIELDNAME=openVariant,MAXLEN=32)",
+   "Count": "%Integer(%JSONFIELDNAME=count)",
+   "NoticeCount": "%Integer(%JSONFIELDNAME=noticeCount)",
+   "FirstAt": "%String(%JSONFIELDNAME=firstAt,MAXLEN=20)",
+   "LastAt": "%String(%JSONFIELDNAME=lastAt,MAXLEN=20)",
+   "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)",
+   "Cause": "%String(%JSONFIELDNAME=cause,MAXLEN=1000)",
+   "FixSummary": "%String(%JSONFIELDNAME=fixSummary,MAXLEN=1000)",
+   "CauseCategory": "%String(%JSONFIELDNAME=causeCategory,MAXLEN=32)",
+   "Element": "%String(%JSONFIELDNAME=element,MAXLEN=128)",
+   "Fallback": "%Boolean(%JSONFIELDNAME=fallback)",
+   "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)",
+   "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
+   "Groups": "list Of OcuTalon.Live.Payload.Part.IncidentGroup(%JSONFIELDNAME=groups)",
+   "Requests": "list Of OcuTalon.Live.Payload.Part.IncidentRequest(%JSONFIELDNAME=requests)",
+   "Evidence": "OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME=evidence)",
+   "TraceTargets": "OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFIELDNAME=traceTargets)"
+  }
+ },
+ "OcuTalon.Live.Payload.Mailbox": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Direction": "%String(%JSONFIELDNAME=direction,MAXLEN=32)",
+   "ItemId": "%String(%JSONFIELDNAME=itemId,MAXLEN=22)",
+   "Sender": "%String(%JSONFIELDNAME=sender,MAXLEN=1000)",
+   "Subject": "%String(%JSONFIELDNAME=subject,MAXLEN=1000)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
+   "Unread": "%Boolean(%JSONFIELDNAME=unread)",
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Notification": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Kind": "%String(%JSONFIELDNAME=kind,MAXLEN=32)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
+   "WhyNow": "%String(%JSONFIELDNAME=whyNow,MAXLEN=1000)",
+   "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
+   "IncidentRef": "%String(%JSONFIELDNAME=incidentRef,MAXLEN=22)",
+   "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
+   "DueAt": "%String(%JSONFIELDNAME=dueAt,MAXLEN=20)",
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Pairing": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Paired": "%Boolean(%JSONFIELDNAME=paired)",
+   "DisplayName": "%String(%JSONFIELDNAME=displayName,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Phone": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Direction": "%String(%JSONFIELDNAME=direction,MAXLEN=32)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
+   "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Reminder": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=1000)",
+   "DueAt": "%String(%JSONFIELDNAME=dueAt,MAXLEN=20)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "Late": "%Boolean(%JSONFIELDNAME=late)",
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Reset": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "NextReset": "%String(%JSONFIELDNAME=nextReset,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Status": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Condition": "%String(%JSONFIELDNAME=condition,MAXLEN=32)",
+   "Active": "%Boolean(%JSONFIELDNAME=active)",
+   "Slots": "OcuTalon.Live.Payload.Part.StatusSlots(%JSONFIELDNAME=slots)"
+  }
+ },
+ "OcuTalon.Live.Payload.TurnStep": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
+   "Label": "%String(%JSONFIELDNAME=label,MAXLEN=1000)"
+  }
+ },
+ "OcuTalon.Live.Payload.WatchProgress": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Stage": "%String(%JSONFIELDNAME=stage,MAXLEN=32)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.DryRun": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Affected": "%Integer(%JSONFIELDNAME=affected)",
+   "Resend": "%Integer(%JSONFIELDNAME=resend)",
+   "LeftOut": "%Integer(%JSONFIELDNAME=leftOut)",
+   "Field": "%String(%JSONFIELDNAME=field,MAXLEN=128)",
+   "Before": "%String(%JSONFIELDNAME=before,MAXLEN=1000)",
+   "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
+   "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentEvidence": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "SampleHeaderId": "%Integer(%JSONFIELDNAME=sampleHeaderId)",
+   "SampleError": "%String(%JSONFIELDNAME=sampleError,MAXLEN=1000)",
+   "Items": "list Of OcuTalon.Live.Payload.Part.IncidentEvidenceItem(%JSONFIELDNAME=items)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentEvidenceItem": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "ItemName": "%String(%JSONFIELDNAME=itemName,MAXLEN=128)",
+   "Count": "%Integer(%JSONFIELDNAME=count)",
+   "FirstAt": "%String(%JSONFIELDNAME=firstAt,MAXLEN=20)",
+   "LastAt": "%String(%JSONFIELDNAME=lastAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentGroup": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "ItemName": "%String(%JSONFIELDNAME=itemName,MAXLEN=128)",
+   "Count": "%Integer(%JSONFIELDNAME=count)",
+   "ErrorSummary": "%String(%JSONFIELDNAME=errorSummary,MAXLEN=1000)",
+   "FirstAt": "%String(%JSONFIELDNAME=firstAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentRequest": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
+   "Result": "OcuTalon.Live.Payload.Part.IncidentRequestResult(%JSONFIELDNAME=result)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentRequestResult": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Total": "%Integer(%JSONFIELDNAME=total)",
+   "Resent": "%Integer(%JSONFIELDNAME=resent)",
+   "Completed": "%Integer(%JSONFIELDNAME=completed)",
+   "FailedAgain": "%Integer(%JSONFIELDNAME=failedAgain)",
+   "Skipped": "%Integer(%JSONFIELDNAME=skipped)",
+   "Interrupted": "%Integer(%JSONFIELDNAME=interrupted)",
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.IncidentTraceTargets": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Diagnosis": "OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME=diagnosis)",
+   "Sample": "OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME=sample)",
+   "FirstFailure": "OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME=firstFailure)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.ItemNoun": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "One": "%String(%JSONFIELDNAME=one,MAXLEN=128)",
+   "Other": "%String(%JSONFIELDNAME=other,MAXLEN=128)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.StatusSlots": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Limit": "%Integer(%JSONFIELDNAME=limit)",
+   "Cap": "%Numeric(%JSONFIELDNAME=cap,SCALE=6)",
+   "Time": "%String(%JSONFIELDNAME=time,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.TraceTarget": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+  }
+ }
+}
+}
+
+}

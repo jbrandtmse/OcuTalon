@@ -1,0 +1,10 @@
+# Developer override: reloads the package at every start. Use it with
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# It is its own compose project, ocutalon-dev, with its own volume, and it publishes the same web port as the
+# judges' stack, so stop that stack first or set OCUTALON_WEB_PORT.
+name: ocutalon-dev
+
+services:
+  iris:
+    environment:
+      OCUTALON_DEV: "1"

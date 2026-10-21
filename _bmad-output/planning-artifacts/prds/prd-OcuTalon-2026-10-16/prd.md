@@ -1195,7 +1195,7 @@ Timing bounds over real networks are measured in the clean-machine rehearsal and
 
 ### 5.6 Platform and capacity
 
-- **NFR-21: Build 154.** OcuTalon runs on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). It also runs on the IRIS (non-Health) AI Hub build 154 image. That image differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace, so whatever runs on IRIS for Health runs on it, and it needs no separate verification before 1.0.0. The platform's side of the demo path was checked on it on October 17. The README says it is supported on that basis.
+- **NFR-21: Build 154.** OcuTalon runs on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). It also runs on the IRIS (non-Health) AI Hub build 154 image. That image differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace, so whatever runs on IRIS for Health runs on it, and it needs no separate verification before 1.0.0. The platform's side of the demo path was checked on it on October 17. The README says it is supported, verified on ARM64 (the P15 wording, reinstated); CI tests only the IRIS for Health image [AMENDED 2026-10-20, owner decision 3].
 - **NFR-22: Docker hosts.** The `docker compose up` install works on the host platforms the AI Hub image supports, verified on macOS and Linux. `[ASSUMPTION]`
 - **NFR-23: Concurrent demo load.** One online-demo instance serves as many concurrent sessions as its IRIS Community licence allows: about 6 signed-in visitors, or about 3 running the demo path with Visual Trace open, because each trace window holds one more connection (FR-15, P28). Beyond that, visitors see that the demo is busy, never an error page. Requests rate-limited by the model provider are retried with back-off before the fallback route is taken (FR-4).
 
@@ -1287,7 +1287,7 @@ From release 1 on, the author can cut a release on demand or daily. That cadence
   - One scripted sequence covers the version bump, the built web bundle (committed on the release branch, so a Docker install needs no Node.js), the clean-machine rehearsal, the online demo update and the draft release notes.
   - The author's hands-on time for a release is at most 15 minutes, not counting CI or the REL-7 hands-on pass. `[ASSUMPTION: 15 minutes]`
 - **REL-4: Sharded, fast CI.**
-  - **Speed:** a full CI run takes at most 30 minutes of wall-clock time.
+  - **Speed:** a full CI run takes at most 35 minutes of wall-clock time (raised from 30; if a run exceeds it after the test groups are rebalanced, a third self-hosted runner service is added on the CI host) [AMENDED 2026-10-20, owner decision 7].
   - **Where tests run:** tests against a live IRIS instance run on a dedicated runner, and everything that doesn't need IRIS runs on hosted runners.
   - **Mocks:** the model and Telegram are mocked. The model mock serves the same provider path the product ships with (Anthropic), so tests of refusals and of sampling parameters cover the real path.
   - **Protecting the image and the runner:** the AI Hub image never enters CI caches or artifacts, and pull requests from forks never run on the IRIS runner.

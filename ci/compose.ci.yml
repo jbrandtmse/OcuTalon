@@ -1,0 +1,35 @@
+# The CI-only compose override (AD-22, CON-3). lib-live.sh layers it after docker/tests/compose.throwaway.yml in every
+# throwaway project; the judges' docker-compose.yml names neither this file nor a mock.
+# It passes OCUTALON_EVAL through from the environment of docker compose (default 0), and adds the model mock (Story 0.11):
+# the service mock runs ci/mock/server.mjs (Node's standard library, no build) from the public node image pinned by digest,
+# with ci/mock mounted read-only. It publishes no port. The iris service reaches it at OCUTALON_MODEL_BASE_URL (AD-19) over
+# plain HTTP on the compose network, and reads its request log from the volume mock-log, mounted read-only. The override adds
+# no env_file and no key variable, so a start in it is a start with no key. ci/iris.sh pulls the mock's image once per machine.
+# OCUTALON_MOCK_KEY_HEADER is the CI-only switch (AD-19, owner decision 5) that makes the Provider step send the agent's
+# MOCKKEY in x-ocutalon-mockkey: this file is the only place that sets it, so no other start carries that header.
+name: ocutalon-ci
+
+services:
+  iris:
+    environment:
+      OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
+      OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
+      OCUTALON_MOCK_KEY_HEADER: "1"
+    volumes:
+      - mock-log:/opt/ocutalon/mock-log:ro
+  mock:
+    image: node:24.15.0-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
+    pull_policy: missing
+    command: ["node", "/mock/server.mjs", "--log-dir", "/log"]
+    volumes:
+      - ./ci/mock:/mock:ro
+      - mock-log:/log
+    healthcheck:
+      test: ["CMD", "node", "/mock/health.mjs"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    stop_grace_period: 2s
+
+volumes:
+  mock-log:

@@ -244,11 +244,173 @@ Each build runner has its own developer instance. The epic's `**Lane:**` line in
 | B | `ocutalon-slot-b` | `ocutalon-slot-b` | 1991 / 52791 |
 
 - **What a slot is.** The build 154 base image on durable storage, with namespace `OCUTALON` created by the CPF merge file in the slot's `config/` folder: until Story 0.1 an interim one (Interoperability on, one code and one data database, `%Service_CallIn` enabled), from Story 0.1 a copy of `docker/merge.cpf`. It does not run the after-start script and has no `ocutalon` package installed: load and compile code into it with the IRIS MCP tools (`iris_doc_load`), and run installer steps or tests there explicitly. The after-start installer and the IPM install run in throwaway compose projects and in CI (the spine's environment table). Its health check is `iris qlist | grep -q '\^running'`, so `docker compose up -d --wait` returns once IRIS is up.
-- **Recreating a slot.** Story 0.1 recreates both slots from empty data with `docker/merge.cpf` (its acceptance criteria say how). After that, a story that changes `docker/merge.cpf` copies it into its own slot's `config/` folder and restarts that slot (the merge reapplies at every start), and the other lane's runner does the same for its slot at its next epic start. Otherwise no agent stops, wipes or recreates a slot (Rule 13).
+- **Recreating a slot.** Story 0.1 recreates both slots from empty data with `docker/merge.cpf` (its acceptance criteria say how). After that, a story that changes `docker/merge.cpf` copies it into its own slot's `config/` folder and restarts that slot (`iris-main` applies a changed merge file at start, after IRIS is up, so wait until the slot's `iris-data/iris/*.last_merge` matches `config/merge.cpf` before checking; slots run no after-start script, so an unchanged file is not re-merged), and the other lane's runner does the same for its slot at its next epic start. Otherwise no agent stops, wipes or recreates a slot (Rule 13).
 - **Name the target on every call.** Pass `server` and `namespace` (`OCUTALON`, or `OCUORDERS` once it exists) on every MCP call; the profiles default to `HSCUSTOM`. Before a stage's first call, check the target's identity with `iris_server_info` (build 154, the profile's port).
 - **No other target.** No other IRIS instance, container or MCP profile on this machine is a build or test target. If your slot doesn't answer, stop with a `TOOLING:` clarification; never fall back to another instance. If two epics of the same lane ever run at once, the second stops with a clarification.
 - **Throwaway stacks for destructive work.** A destructive test (one that deletes or replaces namespaces, databases, security objects or data it did not create, or stops the instance) runs in a throwaway compose project (`docker compose -p <unique name>`), never on a slot (AD-22). Keep at most one throwaway IRIS stack per runner at a time, because the Docker VM's memory is shared with other long-running containers, and tear down only the projects you started.
 - **The CI runner.** Two self-hosted runner services, `ocutalon-ci-1` and `ocutalon-ci-2`, labelled `self-hosted, Linux, X64, ocutalon`, share one x64 Linux host (4 vCPU, 8 GB memory plus 8 GB swap) and run as a user with Docker but without sudo. The base image is preloaded there as `ocutalon-iris-base:2026.3.0AI.154.0`: jobs build from it and never pull, push or cache it. Node 24 and Playwright 1.64.1's system packages are installed; a job installs the browser itself (`npx playwright install chromium`). Each job runs at most one IRIS stack at a time, so the two services can run two jobs at once (measured October 18 with the base image: about 1.5 GiB per stack, about 2 minutes to a ready Interoperability namespace on a first start). The repository secret `ANTHROPIC_API_KEY` holds the real key for release-candidate runs. Jobs that don't need IRIS run on GitHub-hosted runners, whose minutes are paid while the repository is private.
-- Story 0.7 adds the IRIS test recipe, the shard and class commands and the per-class timings to this section.
+- **The CI recipe (Story 0.7).** Two workflows run per push: `ci` (the hosted `checks` and `web` jobs and the `iris` matrix on the runner) and `lane-a`. `ci/iris.sh` is the one recipe for the IRIS units, on the runner and on a developer machine. It always uses throwaway projects from `docker/tests/lib-live.sh` with the CI override `ci/compose.ci.yml`, and never a slot or another instance. `ci/units.sh` holds the one list of the check scripts, the shards and the groups.
+  - **Commands.** Set one `OCUTALON_RUN_TAG` for the run (lower-case letters, digits and hyphens, at least 3 characters, no `slot`), then one piece per call: `ci/iris.sh build`; `ci/iris.sh shard lane-a`, `ci/iris.sh shard lane-b`, `ci/iris.sh class <Class>` (for example `OcuTalon.Test.Install.Users`) and `ci/iris.sh live <name>` (`compose-start`, `install-start`, `install-upgrade`, `production`, `production-restart`, `audit`, `demo-path`, `sign-in`, `bundle-folder`, `build-inputs`, `storage-roundtrip`); then `ci/iris.sh teardown` with the same tag, which removes only the projects (`ocutalon-<label>-<tag>-<epoch>-<pid>`), containers, volumes, networks and images of that tag (use a tag that does not end another run's tag). Under `/epic-cycle`, also set `OCUTALON_LOCK_OWNER='epic=<N> stage=<stage>'`: wherever the main checkout has `.worktrees/.coordination/locks/`, `lib-live.sh` holds `throwaway-iris.lock` while a stack runs, and that value names the owner in it (Rule 12); log its `LOCK` lines. `ci/iris.sh list` prints the units, `groups` the group names, and `group <name>` and `all` run groups. The base image must already be on the machine; it is never pulled. The mock's image, `node:24.15.0-slim` pinned by digest, is pulled once per machine by `preflight` (up to 3 tries), and teardown keeps it.
+  - **Fresh-environment check (Rule 19).** Run `ci/iris.sh shard lane-a` and `ci/iris.sh shard lane-b` forward, then both again with `--reverse`, one per call. Each starts a fresh throwaway and prints one `CLASS <name> passed|failed <s>s` line per test class (33 classes: 9 in `lane-a`, 24 in `lane-b`), with each failed or skipped assertion under it (`FAIL` or `SKIP`), and exits 1 when a class fails, runs no test or is not compiled. A class runs through `%UnitTest.Manager` with `/noload/nodelete/norecursive` from the installed package, after `^UnitTestRoot` is set to an existing folder of the throwaway, because the manager checks that folder even with no load. A new `Test.<Area>` must join a shard in `ci/units.sh`, or `test-ci-config.sh` fails.
+  - **Hosted checks.** `bash ci/checks.sh` runs every static and hermetic script of `CHECK_SCRIPTS` (it needs bash, git, jq, Node and the Docker CLI; `demo-path-gate` runs the step summary on the hosted image's Node, because the `checks` job sets up none) and prints one block per script. The hosted `web` job also runs `docker/tests/test-mock.sh`, the model mock's node tests (`WEB_SCRIPTS` of `ci/units.sh`).
+  - **Groups** (the matrix of `ci.yml`): `install` (install-start, install-upgrade), `production` (production, production-restart, audit), `browser` (demo-path, sign-in, bundle-folder), `shards` (lane-a, lane-b) and `image` (storage-roundtrip, build-inputs, compose-start). `image` is the IRIS checks job of AD-5. In CI each unit runs in its own project, and the web port of the browser units is 52810 plus the runner's number.
+  - **Timings, measured October 19 on the developer machine (Apple silicon, ARM, Docker Desktop, warm layer cache); the runner is x64 and about three times as slow with two jobs at once (the first real run, below).** A ready stack takes 52 to 57 s (image build and first start). Per test class, every class takes under 0.4 s except `Install.Registry` (1.0 s), `Live.Publish` (1.3 s; slot A's history shows 4.4 s on average and one run of 125 s), `Msg.Catalog` (1.9 s after QA, Story 0.9) and `Contract.Checker` (1.9 s). Per shard, from the call's start to its teardown: `lane-a` 61 s and `lane-b` 64 s, almost all of it the stack start. Per live script: `compose-start` 80 s, `install-start` 151 s, `install-upgrade` 164 s, `production` 83 s, `production-restart` 87 s, `audit` 76 s, `demo-path` 60 s (the browser already installed; its first start printed `FIRST-START engine=aarch64 build=1s ready=53s`), `sign-in` 68 s (the browser already installed), `bundle-folder` 75 s, `storage-roundtrip` 66 s and `build-inputs` 4 s (layers cached). Per group: `install` 315 s, `production` 246 s, `browser` 143 s (before `demo-path` joined it; 203 s with its 60 s; on the runner 505 s with it, below), `shards` 126 s and `image` 150 s, 980 s in all (1040 s with `demo-path`); on the runner (below) the slowest group took about 15 minutes and the five groups about 50 runner-minutes. `bash ci/checks.sh` takes about 20 s.
+  - **REL-4's budget is 35 minutes from October 20 (owner decision 7; it was 30, and the run figures below were measured against 30).** When a run is long, rebalance the groups in `ci/units.sh` first; a run still over 35 minutes goes to the Contest Planner, and the fix is a third self-hosted runner service on the CI host.
+  - **First real run (October 19, QA; the `ci` run of commit `7cf38e3`, run 39338702672, x64, two jobs at once).** Wall-clock 27 min 37 s from creation to the last job, so REL-4's 30 minutes holds with 2 min 23 s to spare. Per job: `checks` 23 s and `web` 29 s (hosted); `iris (install)` 14 min 35 s, `iris (production)` 12 min 57 s, `iris (image)` 7 min 59 s, `iris (browser)` 7 min 25 s and `iris (shards)` 6 min 45 s, about 50 runner-minutes in all. The matrix order is not the dispatch order: production and image started first, then shards, install and browser, the last two after waiting 13 and 16 minutes for a runner, and one runner stood idle for the last 4 minutes. A ready stack took 174 s (57 s on the developer machine). Per live script that starts a stack, 2.4 to 3.9 times the ARM figure: `install-start` 466 s, `install-upgrade` 388 s, `production` 271 s, `production-restart` 245 s, `audit` 237 s, `sign-in` 207 s, `bundle-folder` 216 s, `storage-roundtrip` 255 s, `compose-start` 192 s and `build-inputs` 7 s. Per shard 190 s and 193 s, all 27 classes passed, none over 7 s (`Contract.Checker` 6.8 s, `Install.Registry` 4.1 s). The `lane-a` run waited 8 minutes for a runner, its empty job took 4 s. No rebalance was applied, because the run is under 30 minutes.
+  - **Second real run, with `demo-path` in the `browser` group (October 20, QA; the `ci` run of commit `fcdd9e9`, run 39359136309, x64, two jobs at once).** Wall-clock 23 min 39 s from creation to the last job, against 27 min 37 s and 24 min 12 s before, so REL-4's 30 minutes holds with 6 min 21 s to spare. Per job: `checks` 29 s and `web` 28 s (hosted); `iris (install)` 12 min 21 s, `iris (production)` 10 min 13 s, `iris (browser)` 8 min 43 s, `iris (image)` 6 min 2 s and `iris (shards)` 5 min 40 s, about 43 runner-minutes in all. The `browser` group took 505 s (`live:demo-path` 161 s, `live:sign-in` 173 s, `live:bundle-folder` 171 s), 2 min 15 s more than the 6 min 28 s job before `demo-path` joined it. The dispatch order was production, image, browser, install, shards; the last runner stood idle for the last 2 minutes. The unit printed `FIRST-START engine=x86_64 build=0s ready=150s` (no `WARN`; the layers were cached, so `build` is 0 s), and its floor test passed in 0.5 s. No rebalance was applied, because the run is under 30 minutes.
+  - **Third real run, with Story 0.10's OCUORDERS in every first start (October 20, QA; the `ci` run of commit `916ff92`, run 39411120021, x64, two jobs at once).** Wall-clock 25 min 22 s from creation to the last job, against 23 min 39 s before, so REL-4's 30 minutes holds with 4 min 38 s to spare. Per job: `checks` 34 s and `web` 26 s (hosted); `iris (install)` 13 min 49 s, `iris (production)` 10 min 29 s, `iris (browser)` 9 min 40 s, `iris (image)` 6 min 0 s and `iris (shards)` 6 min 0 s, about 46 runner-minutes in all (43 before). The `install` group took 806 s (`live:install-start` 452 s, `live:install-upgrade` 354 s); `install` and `production` ran back to back on one runner and set the wall-clock. The unit printed `FIRST-START engine=x86_64 build=1s ready=177s` (no `WARN`; 150 s before; the first start now also creates OCUORDERS and starts its production, which took 6 s more on the developer machine, so how much of the 27 s is the story's and how much runner variance is `(inference)`). `Test.Demo.Production` passed in the `lane-b` shard (2.68 s), so the read-only `eval/` mount was readable on the runner. QA's foreign-state fixtures in `live:install-start` add about 10 to 17 s on the developer machine, so about 25 to 70 s on the runner `(inference)`. No rebalance was applied, because the run is under 30 minutes.
+  - **Fourth real run, with the model mock in every start (October 20, QA; the `ci` run of the hold head `71cd7cc`, run 39462430218, x64, two jobs at once).** Wall-clock 29 min 39 s from creation to the last job, so REL-4's 35 minutes holds with 5 min 21 s to spare (the old 30 would have held by 21 s; the run before took 25 min 22 s). Per job: `checks` 35 s and `web` 27 s (hosted); `iris (install)` 14 min 8 s, `iris (production)` 12 min 4 s, `iris (browser)` 9 min 26 s, `iris (image)` 7 min 59 s and `iris (shards)` 6 min 20 s, about 50 runner-minutes in all (46 before). Per unit: `install-start` 470 s, `install-upgrade` 357 s, `production` 242 s, `production-restart` 246 s, `audit` 205 s, `demo-path` 174 s (`FIRST-START engine=x86_64 build=1s ready=160s`), `sign-in` 187 s, `bundle-folder` 184 s, `storage-roundtrip` 231 s, `build-inputs` 7 s and `compose-start` 209 s; `shard lane-a` 167 s (9 classes) and `lane-b` 183 s (24 classes).
+    - **What the mock costs.** `production` and `image` started first and each pulled the node image on its first try, at the same time; their `ci/iris.sh build` step took 20.5 s and 21.5 s against 11.3 to 13.5 s in the three jobs that found it present, so the pull cost about 8 to 10 s, once per machine `(inference: Docker's output is not printed)`. `Test.Contract.Mock` took 2.33 s on the runner (2.05 s on the developer machine), with no skip. `docker/tests/test-mock.sh` ran 72 tests in the `web` job in 2.3 s of node time (Node 24.22.0). A ready stack took 154 to 160 s, within the 150 to 177 s of the earlier runs, so the mock's own cost per stack is not measurable on the runner.
+    - **Why the run was longer.** The dispatch order was production and image, then shards, browser and install, so `install`, the longest group, started last, after `image` and `shards` on one runner (28 min 27 s of job time in a chain), and the other runner stood idle for the last 7 minutes. The next run (on `85503df`) dispatched `shards` and `install` first and `production` last, so the order differs from run to run. Over the 120 possible orders on two runners, the five groups as they stand take 26 min 52 s at best, 29 min 13 s on average and 33 min 7 s at worst. Regrouping the units inside five groups (for example `install-upgrade` to `shards` and `audit` to `image`) lowers the worst case by about 1 min 15 s and raises the average by 36 s to 1 min 23 s, because five jobs on two runners always leave one runner with three, so no regrouping was applied. The worst case holds 35 minutes by 1 min 53 s; the fix for a longer run is the third runner service.
+  - **Fifth real run, with Story 0.12's keep fixtures in `install-start` (October 20, QA; the `ci` run of the build commit `294f81f`, run 39523373710, x64, two jobs at once; `lane-a` run 39523373715 passed).** Wall-clock 28 min 7 s from creation to the last job (00:46:51Z to 01:14:58Z), so REL-4's 35 minutes holds with 6 min 53 s to spare (the run before took 29 min 39 s). Per job: `checks` 42 s and `web` 7 s (hosted); `iris (install)` 13 min 54 s, `iris (production)` 10 min 47 s, `iris (browser)` 9 min 39 s, `iris (image)` 7 min 4 s and `iris (shards)` 5 min 58 s, 47 min 22 s of runner time (about 50 before). Per unit: `install-start` 461 s, `install-upgrade` 353 s, `production` 245 s, `production-restart` 211 s, `audit` 168 s, `demo-path` 165 s (`FIRST-START engine=x86_64 build=1s ready=153s`), `sign-in` 179 s, `bundle-folder` 188 s, `storage-roundtrip` 233 s, `build-inputs` 6 s and `compose-start` 161 s; `shard lane-a` 159 s (9 classes) and `lane-b` 179 s (24 classes).
+    - **What the story cost.** `install-start` took 461 s against 470 s in the run before, so the 8 sessions and the `LoadFromClass` that its plan priced at +35 to +45 s on the runner are lost in runner variance `(inference)`; the `install` group took 13 min 54 s against 14 min 8 s. QA added one fixture role and one session to the script after this run's commit (about 5 s on ARM `(inference)`), which the next run will include.
+    - **Dispatch and rebalance.** `image` and `production` started first; `shards`, `browser` and `install` then waited 8 min 14 s, 11 min 51 s and 14 min 13 s for a runner, so `install` ran last for the second time and the chain `image`, `shards`, `install` (27 min 59 s) set the wall-clock, while the other runner stood idle for the last 6 min 37 s. No regrouping was applied, because the run is under 35 minutes. Over the 120 dispatch orders on two runners, with this run's job durations and a 60 s gap, the five groups take 25 min 41 s at best, 28 min 3 s on average and 32 min 37 s at worst (31 min 37 s with a 30 s gap and 30 min 41 s with 2 s); no order exceeds 35 minutes, and the worst case holds REL-4 by 2 min 23 s.
 
 Why: other instances on this machine use the same namespace names and similar credentials, so a misrouted call answers plausibly and without an error (Rule 13).
+
+## Rule 22 — Standing grant for unattended development (lead, orchestrator, runners and every stage, under `/epic-cycle`)
+
+The owner is often away. The pipeline runs without them, and a human round trip per story is not available. The Contest Planner session (SendMessage `to: "Contest Planner"`) is the owner's relay. It takes the owner-only items, batches them for the owner with a recommendation, quotes the owner's answers back, and checks every reported sha on origin.
+
+### 22.1 Decide and keep going
+
+- **Clarifications and decision sheets.** Decide every `## Clarification Needed`, every `escalated` and `decision-pending` ledger entry, and the epic-close decision sheet (Rule 17 item 5) yourself, with `by=merge_gate`, using the product defaults in 22.2. Report the decisions afterwards (22.6). Never sit waiting for input that can't arrive.
+- **Merging.** Merge each epic into the feature branch when CI is green on the exact head and the merge has no conflicts. Resolve conflicts yourself:
+  - when both sides' intent is plain, keep both (a union of entries, keys, imports or tests);
+  - when the conflict is a choice of behaviour, rule under 22.2 and log the ruling.
+- **Retrospectives.** Skip them. Log `epic_retro_skipped reason=owner_directed`.
+- **Pre-answered checkpoints (Rule 9).** A code-review or QA menu takes its recommended option. A model-tier offer to escalate, or to mix tiers, is declined. The retrospective is skipped.
+- **Dispatch.** Dispatch the next epics and stories per the dependency graph in `epics.md`. Don't stop between them for approval.
+- **Story splits.** An oversized story is split by you, at plan time or at review. Name the new story `N.<M+1>`, after the highest story number in the epic across `epics.md` and the sprint tracker. Re-record `epics_md_hash`, and add an `[AMENDED <date>, split for size, Rule 22]` marker.
+- **No idle slot.** When a slot would otherwise wait (on the other lane's merge, a parked question or a CI queue), it takes the next independent story in its own lane. Failing that, it takes ledger burn-down items: CI flakes first, then security, then the most frequent. It never touches the other lane's files (Rule 11).
+
+### 22.2 Product defaults for every call made alone
+
+1. **The demo path comes first.** Prefer the option that keeps UJ-1 real and the demo-path test green.
+2. **Never weaken a non-negotiable** (N1 to N15 in the scope brief, and every AD's "Prevents" line). In particular:
+   - no false all-clear;
+   - risky actions always wait for approval;
+   - every demo step is generated live, with no canned replies;
+   - no key or token in IRIS, a log, a commit or the trace;
+   - the AI Hub image never goes to any registry, cache or artifact;
+   - Claude Haiku 5.5 is the default, and no request sets temperature, top_p or top_k;
+   - MCP tools are governed like built-in tools.
+3. **Governed and honest.** When a choice trades safety for convenience, keep the safe behaviour and make it convenient. Text claims only what the product does. For example, tokens and cost are per turn and per decision, not per step.
+4. **The spine is the contract.** Follow `ARCHITECTURE-SPINE.md` over preference. Where it is silent, choose the simplest option consistent with it. A decision with architectural weight goes into the spine when you make it (Rule 20), marked `[AMENDED <date>, Story <id>, Rule 22 ruling]`.
+5. **Measure, don't guess.** Unknown platform behaviour gets a Task 0 that measures it on your slot or a throwaway. Anything not yet measured is labelled `(inference)`.
+6. **Smaller is better.** Split rather than stretch a story. Defer a non-demo AC to a later story in the same release rather than block.
+
+### 22.3 Decide now; the owner may veto before the next release
+
+For these, rule so the slot keeps moving, then send the Contest Planner an FYI marked `VETO WINDOW`:
+- security posture;
+- secrets and credentials;
+- privileges and roles, above all anything close to `%All` or any new grant to the demo, trace or public accounts;
+- data loss, or a change to how stored data is kept (storage definitions are append-only);
+- anything that weakens a guarantee in the PRD, the spine or the scope brief;
+- public-facing text: README, splash, About, Telegram texts, and anything near the OpenClaw not-affiliated note;
+- a new third-party dependency under a permissive licence (MIT, Apache-2.0, BSD, ISC), pinned to an exact version;
+- moving an AC to a later story within the same release.
+
+Each FYI states:
+- the question;
+- the ruling;
+- the alternatives rejected, and why;
+- why the ruling falls within this grant;
+- the commit sha;
+- what reversing it would take.
+
+If the owner vetoes, take the ruling out before the next release.
+
+### 22.4 Owner-only: park it with the Contest Planner, then continue with independent work
+
+- **Releases:** cutting, tagging, release pull requests, and anything that lands on `main`. Implementation never commits to `main`. Story 11.5's sequence already stops for the owner before each outward step.
+- **Anything outward-facing:**
+  - publishing to IPM or Open Exchange;
+  - posting anywhere, or filing bug reports with InterSystems;
+  - DNS, servers and the online demo host;
+  - Telegram bot settings and GitHub repository settings;
+  - making anything public.
+  Never push any image anywhere.
+- **Scope and product promises:**
+  - dropping scope from a release, or deferring it out of the release;
+  - changing what UJ-1 does or says;
+  - changing a number with product meaning (cost caps, allowances, timings, evaluation thresholds).
+- **Money, accounts and licences:**
+  - a dependency under a copyleft or unclear licence;
+  - any paid service or spending;
+  - accounts, keys and quota.
+- **`CLAUDE.md` and everything under `.claude/`:** report the wording you need to the Contest Planner; don't edit them.
+- **Containers you didn't start:**
+  - Never stop, remove, recreate or `down` `ocutalon-aihub-test`, any `ocupilot*` container or `iris-community-edition`.
+  - Slots follow Rule 21 only.
+  - Tear down only throwaway projects you started and can name from your own transcript.
+
+### 22.5 Stop conditions that survive this grant
+
+Stop only the affected slot, message the Contest Planner at once, and keep the other slot running:
+- a red CI head that isn't a known flake, and that you can't fix inside the story;
+- a merge conflict you can't resolve under 22.1;
+- runner liveness you can't establish;
+- a tooling need you can't meet, such as a slot that doesn't answer (Rule 21, `TOOLING:`);
+- a security incident: a secret in a commit, a log or the trace, or anything pushed somewhere public. Report it immediately and don't rewrite history without the owner.
+
+### 22.6 Logging and reporting
+
+- **Cycle log:**
+  - `orchestrator_ruling`, with the question, the choice, the rejected options and why, and `authority=standing_grant(Rule 22)`;
+  - `owner_decision`, with the owner's words quoted, as relayed;
+  - `hold_ordered` and `hold_complete`.
+- **Ledger:** trailers carry `by=merge_gate`, or `by=owner` for relayed decisions.
+- **Spine and `epics.md`:** `[AMENDED ...]` markers.
+- **Commit subjects** name the ruling, for example `chore(parallel): 2.4 ruling - <what was decided>`.
+- **At every epic close, send the Contest Planner one short report:**
+  - stories merged, each with its start and merge times in UTC (the Planner tracks pace against 3.5 stories per runner per day);
+  - rulings made, each with its sha;
+  - open VETO WINDOW items and parked owner-only items;
+  - CI health (reruns, flakes);
+  - anything the owner should know before the next release.
+- Every reported sha must be pushed to origin. The Contest Planner checks it there.
+
+### 22.7 When blocked
+
+- **Red CI.** CI is a gate. Push one code head and confirm its run by `headSha` before any further push. The next story's plan and spec stages may run while CI runs. A red head reopens its story. A known flake gets one ledger entry per root cause, with an `occurrence=` count, and a rerun.
+- **CI runner queue.** The two self-hosted services (Rule 21) can run two IRIS jobs at once. If a job queues for more than an hour, carry on locally with the next story's plan and implement. Never push the next story's code before the earlier head is green. If a head is blocked for more than about 6 hours, message the Contest Planner.
+- **Quota or usage limit: the hold protocol.** Start it at the first usage-limit warning, or at about 90% if you can see the figure. A usage-limit 429 counts too.
+  1. Start no new stage.
+  2. Make `WIP(hold)` commits by path, and push bookkeeping only.
+  3. Leave CI that's in flight running, and record which throwaways are still up.
+  4. Write one complete resume prompt per slot to `.worktrees/.coordination/prompts/e<epic>-resume-<date>-prompt.md`. It must not depend on chat history, and it contains:
+     - the role and the invocation;
+     - Rule 22 and the owner-fixed values below;
+     - the state, verified with git: the branch, the origin and local heads, each unpushed commit, the spec status, the slot's state and the ledger;
+     - the next steps, in order;
+     - "End only with `## Epic Runner Complete` or `## Clarification Needed`".
+  5. Log `hold_complete` with every sha.
+  6. Message the Contest Planner with the prompt paths and shas.
+- **API rate limits.** Retry with backoff. Only a usage-limit 429 is the quota case.
+- **Restarts.** Keep nothing you need after a restart in `/tmp`.
+
+### 22.8 Containment (restating Rule 18, because unattended runs wedge on it)
+
+- Every `Agent` call passes `run_in_background: false`, except the runner spawns.
+- Test and build calls run in the foreground with `timeout: 600000`, in batches of about 8 minutes.
+- Every agent returns exactly once.
+- Never `SendMessage` an agent whose call has returned. Spawn a fresh one, with the work written to a file.
+
+### 22.9 Owner-fixed decisions (don't re-derive or "fix" these)
+
+- One IPM package, `ocutalon`, with the bridge inside it.
+- Telegram is in Lane A, after Epic 11: 0.1.0 is cut at Epic 11, and Telegram ships as 0.1.1 before launch.
+- Polling is the release-1 contract; the WebSocket comes second.
+- Online-demo sessions resume until the reset (P10). The CSP session ends about 2 minutes after the page closes, or after 10 minutes idle.
+- Online-demo capacity is about 6 visitors per instance (P12), with "Demo busy" beyond that and no scale-out work.
+- The finish state appears only after an approved, resolved run (P24).
+- Claude Haiku 5.5 is the default model, with `max_tokens` 8,000 and no sampling parameters.
+- The demo allowance is 50 messages an hour per session, and 20 simulated emails an hour.
+
+## Rule 23 — Plan during CI (lead, orchestrator and runners, under `/epic-cycle`)
+
+CI resolves before the next implement spawn, not before the next plan spawn. The next story's plan and spec stages may run while the previous code head's CI runs. The next implement, and any push of new code, waits until that head is green on every workflow.
+
+Why: the owner's decision of October 20, relayed by the Contest Planner (OcuPilot's Rule 28, proven there). Waiting for CI before planning idles the pipeline for a whole run per story, while the gate that matters, no new code on an unresolved head, is kept.

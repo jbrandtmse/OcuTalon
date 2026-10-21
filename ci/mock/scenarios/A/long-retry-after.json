@@ -1,0 +1,19 @@
+{
+  "name": "long-retry-after",
+  "match": {
+    "marker": "long-retry-after"
+  },
+  "replies": [
+    {
+      "status": 429,
+      "headers": {
+        "Retry-After": "30"
+      },
+      "text": "CI mock: rate limited for 30 seconds."
+    },
+    {
+      "status": 200,
+      "text": "Answered after a capped wait."
+    }
+  ]
+}

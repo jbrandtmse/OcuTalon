@@ -1,0 +1,6 @@
+# Test-only override for the Story 0.1 live test: iris-main runs a command that does nothing in place of the
+# after-start script, so no marker is written and only iris-main applies the merge file. It keeps that test's
+# rows (a missing marker gives `starting`, and the counts of `Merging` lines) valid.
+services:
+  iris:
+    command: ["--after", "/bin/true"]

@@ -1,0 +1,124 @@
+# CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of five
+# groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# The `web` job builds and tests the web app and runs the model mock's node tests (docker/tests/test-mock.sh, Story 0.11).
+# docker/tests/test-ci-config.sh pins the rules of this file: permissions, triggers, concurrency, pinned actions, runners,
+# the fork guard, no secrets, no image cache or upload, the teardown step, and that the matrix equals `ci/iris.sh groups`.
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - feature/OCT_OcuTalon_MVP
+      - "OCT-epic*"
+  pull_request:
+
+permissions:
+  contents: read
+
+# A push never queues behind, or cancels, another push: its group holds its own run id. A pull request cancels its own
+# superseded run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Checks
+        run: bash ci/checks.sh
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: What changed
+        id: changes
+        run: bash ci/changes.sh ci.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Set up Node
+        if: steps.changes.outputs.web == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Web build
+        if: steps.changes.outputs.web == 'true'
+        run: bash docker/tests/test-web-build.sh
+        env:
+          OCUTALON_WEB_BUILD_IN_PLACE: "1"
+      - name: Lint
+        if: steps.changes.outputs.web == 'true'
+        run: npm --prefix web run lint
+      - name: Unit tests
+        if: steps.changes.outputs.web == 'true'
+        run: npm --prefix web test
+      - name: Mock tests
+        if: steps.changes.outputs.web == 'true'
+        run: bash docker/tests/test-mock.sh
+      - name: Skipped
+        if: steps.changes.outputs.web != 'true'
+        run: echo "web skipped, base $BASE, reason $REASON"
+        env:
+          BASE: ${{ steps.changes.outputs.base }}
+          REASON: ${{ steps.changes.outputs.reason }}
+
+  iris:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ocutalon]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [install, production, browser, shards, image]
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}
+      OCUTALON_LIVE_DEADLINE: "1200"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: What changed
+        id: changes
+        run: bash ci/changes.sh ci.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Build the web bundle
+        if: steps.changes.outputs.iris == 'true'
+        run: bash ci/iris.sh build
+      - name: Run the group
+        if: steps.changes.outputs.iris == 'true'
+        run: bash ci/iris.sh group ${{ matrix.group }}
+      - name: Skipped
+        if: steps.changes.outputs.iris != 'true'
+        run: echo "iris ${{ matrix.group }} skipped, base $BASE, reason $REASON"
+        env:
+          BASE: ${{ steps.changes.outputs.base }}
+          REASON: ${{ steps.changes.outputs.reason }}
+      - name: Tear down
+        if: always()
+        run: bash ci/iris.sh teardown

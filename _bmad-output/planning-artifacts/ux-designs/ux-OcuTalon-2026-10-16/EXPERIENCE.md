@@ -684,6 +684,23 @@ On the page an answered status is a status line without a final period unless it
 
 Each approved request has its own result, shown as a band in that request's card (Component Patterns › Result notice). In the web app, every result is followed by the audit line "Recorded in the IRIS audit log."
 
+
+**Forms for a count of one, the late press, and the sign-in labels (the owner's decision, October 20, 2026; added to the catalog by Epic 0's burn-down).** These replace the plural-only texts that the catalog marked as gaps.
+
+| Where | When | Text |
+| --- | --- | --- |
+| Dry run | resend count = 1 | "I'll resend 1 repaired copy; the original stays unchanged." (in place of "I'll resend {resend count} repaired copies; the originals stay unchanged.") |
+| All went through | count = 1 | "The {item noun, one} went through." For example, "The order went through." |
+| Some failed again | failed again = 1 | "... 1 failed again ({fail reason}). I won't retry it without a new approval." |
+| Some skipped | skipped = 1 | "... 1 had changed since the dry run, so I skipped it; it needs a new approval." |
+| Some failed again and some skipped | skipped = 1 | "... so I skipped it." The rest is unchanged: "any of them" stays, since there are always at least two. |
+| Still running after the wait | completed = 1 | "Still resending: 1 of {count} {item noun} has gone through so far. I'll tell you when it's done." |
+| Cut off by a restart | remaining = 1 | "The other one needs a new approval." |
+| Already answered (a late press) | rejected | "Already answered: rejected from {channel} at {time}." |
+| Already answered, with a user | a local install with more than one user | "Already answered: approved by {user} from {channel} at {time}." and "Already answered: rejected by {user} from {channel} at {time}." |
+| Sign-in page labels | always | "User name", "Password" and "Show password" are catalog texts. |
+| Demo mode off, OCUORDERS kept (the `demoKept` status note; the README and the security overview carry the same sentence) | OCUORDERS was not created by OcuTalon, or holds another production | "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (the owner's approval through the Contest Planner, October 21; the after-start `WARN Demo` line keeps Story 0.10's sentence) |
+
 ## Message Catalog
 
 These are the texts OcuTalon sends or shows outside the body of model-written replies, apart from those held in Incidents and Approvals. Telegram and the simulated phone share each text exactly. Messages are plain text with no Markdown (addendum §8). Routing follows Foundation › Channel routing.

@@ -29,21 +29,25 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-18-2026 06:43
+last_updated: 10-21-2026 04:55
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-0: backlog
-  0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: backlog
-  0-2-the-package-installs-and-upgrades-itself-at-every-start: backlog
-  0-3-sign-in-to-an-empty-ocutalon-page: backlog
-  0-4-the-cross-lane-message-and-data-contracts: backlog
-  0-5-live-events-and-the-rest-skeleton: backlog
-  0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or: backlog
-  0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model: backlog
-  0-8-the-demo-path-test-signs-in-and-loads-the-page: backlog
+  epic-0: in-progress
+  0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
+  0-2-the-package-installs-and-upgrades-itself-at-every-start: done
+  0-3-sign-in-to-an-empty-ocutalon-page: done
+  0-4-the-cross-lane-message-and-data-contracts: done
+  0-5-live-events-and-the-rest-skeleton: done
+  0-6-every-release-1-production-item-runs-as-a-stub-beside-the-or: done
+  0-7-ci-runs-on-hosted-runners-and-the-iris-runner-with-the-model: done
+  0-8-the-demo-path-test-signs-in-and-loads-the-page: done
+  0-9-the-message-catalog-and-its-one-renderer: done
+  0-10-the-orders-demo-production-runs-in-ocuorders: done
+  0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
+  0-12-epic-0-burn-down: done
   epic-0-retrospective: optional
 
   epic-1: backlog
@@ -57,7 +61,6 @@ development_status:
   1-8-conversations-survive-restarts: backlog
   1-9-no-model-request-goes-over-100-000-tokens: backlog
   1-10-the-chat-agent-sets-lists-and-cancels-reminders: backlog
-  1-11-old-messages-and-records-are-purged-on-schedule: backlog
   1-12-items-saved-for-the-digest-are-kept-for-it: backlog
   epic-1-retrospective: optional
 
@@ -72,7 +75,7 @@ development_status:
   2-8-show-the-status-rail: backlog
   2-9-open-anything-in-visual-trace: backlog
   2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: backlog
-  2-11-push-live-events-over-a-websocket-on-local-installs: backlog
+  2-11-say-plainly-when-the-page-loses-contact: backlog
   2-12-meet-the-accessibility-and-responsive-floor: backlog
   epic-2-retrospective: optional
 
@@ -82,7 +85,7 @@ development_status:
   3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: backlog
   3-4-each-risky-action-becomes-one-approval-request-held-in-iris: backlog
   3-5-the-first-answer-wins-and-unanswered-requests-expire: backlog
-  3-6-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
+  3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing: backlog
   3-7-every-action-and-governance-event-is-in-the-iris-audit-log: backlog
   3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: backlog
   epic-3-retrospective: optional
@@ -119,7 +122,7 @@ development_status:
   7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: backlog
   7-3-approved-repairs-are-re-checked-and-resent: backlog
   7-4-ocutalon-reports-how-many-orders-went-through: backlog
-  7-5-mixed-unfinished-and-interrupted-resends-say-how-far-they-go: backlog
+  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: backlog
   epic-7-retrospective: optional
 
   epic-8: backlog
@@ -181,16 +184,13 @@ development_status:
   epic-15-retrospective: optional
 
   epic-16: backlog
-  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: backlog
   16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: backlog
-  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: backlog
   16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: backlog
   16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: backlog
   16-6-a-probe-checks-the-demo-every-15-minutes: backlog
-  16-7-the-demo-host-is-adapted-for-the-launch: backlog
   16-8-the-page-counts-down-to-the-reset-and-waits-it-out: backlog
   16-9-allowances-cap-messages-model-cost-and-simulated-emails: backlog
-  16-10-sessions-stay-isolated-under-load-and-the-readme-leads-to-th: backlog
+  16-10-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur: backlog
   epic-16-retrospective: optional
 
   epic-17: backlog
@@ -284,3 +284,23 @@ development_status:
   28-2-fade-unused-memories-and-merge-duplicates-nightly: backlog
   28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: backlog
   epic-28-retrospective: optional
+
+  epic-29: backlog
+  29-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: backlog
+  29-2-signing-in-opens-a-session-this-browser-resumes-until-the-re: backlog
+  29-3-the-demo-host-is-adapted-for-the-launch: backlog
+  29-4-sessions-stay-isolated-under-load: backlog
+  epic-29-retrospective: optional
+
+  epic-30: backlog
+  30-1-long-conversations-are-compacted-under-the-limit: backlog
+  30-2-old-messages-and-records-are-purged-on-schedule: backlog
+  30-3-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
+  30-4-a-stopped-production-or-a-disabled-item-is-reported-once: backlog
+  30-5-mixed-and-unfinished-resends-say-how-far-they-got: backlog
+  epic-30-retrospective: optional
+
+  epic-31: backlog
+  31-1-push-live-events-over-a-websocket-on-local-installs: backlog
+  31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv: backlog
+  epic-31-retrospective: optional

@@ -1,0 +1,13 @@
+{
+  "name": "held-past-timer",
+  "match": {
+    "marker": "held-past-timer"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 120000,
+      "text": "This reply arrives after the bridge timer."
+    }
+  ]
+}

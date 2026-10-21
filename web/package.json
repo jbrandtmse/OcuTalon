@@ -1,0 +1,37 @@
+{
+  "name": "ocutalon-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OcuTalon's Angular app: built into src/ocutalon/csp/ and served from the instance's data directory.",
+  "engines": {
+    "node": "^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "tokens": "node scripts/tokens.mjs",
+    "payloads": "node scripts/payloads.mjs",
+    "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/brand.mjs && ng build",
+    "e2e": "playwright test --project=chromium",
+    "e2e:demo-path": "playwright test --project=demo-path",
+    "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@angular/cdk": "22.2.3",
+    "@angular/common": "22.2.3",
+    "@angular/compiler": "22.2.3",
+    "@angular/core": "22.2.3",
+    "@angular/forms": "22.2.3",
+    "@angular/platform-browser": "22.2.3",
+    "@angular/router": "22.2.3",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "22.2.3",
+    "@angular/cli": "22.2.3",
+    "@angular/compiler-cli": "22.2.3",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.1",
+    "typescript": "6.0.3"
+  }
+}

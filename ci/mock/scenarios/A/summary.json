@@ -1,0 +1,12 @@
+{
+  "name": "summary",
+  "match": {
+    "marker": "summary"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"user_goals\":\"Keep the Orders production healthy.\",\"constraints\":[],\"decisions\":[\"The CI mock summarized the earlier turns.\"],\"facts_learned\":[\"check_status (toolu_mock_1) returned the CI mock's fixed status.\"],\"tool_actions\":[{\"tool\":\"check_status\",\"input_summary\":\"no arguments\",\"result_summary\":\"the CI mock's fixed status\",\"state_change\":\"none\"}],\"open_questions\":[],\"next_steps\":[]}"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+  <Document name="ocutalon.ZPM">
+    <Module>
+      <Name>ocutalon</Name>
+      <Version>0.1.0</Version>
+      <Packaging>module</Packaging>
+      <SourcesRoot>.</SourcesRoot>
+      <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
+      <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
+      <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+    </Module>
+  </Document>
+</Export>
