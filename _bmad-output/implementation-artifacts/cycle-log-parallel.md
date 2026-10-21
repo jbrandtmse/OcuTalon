@@ -50,3 +50,4 @@
 2026-10-21T22:12:12Z	Epic 2	worktree_provisioned	worktree=.worktrees/epic-2 branch=OCT-epic2 from=feature submodules=none
 2026-10-21T22:12:27Z	Epic 2	worktree_bootstrapped	epic=2 result=ok check=ok head=1f05542
 2026-10-21T22:12:27Z	Epic 2	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b retro_review=own run_in_background=true
+2026-10-21T22:15:08Z	Epic 1-16,29-32	ci_capacity_changed	by=Contest_Planner(owner_delegation) services=10(ci-b_3-8,ci-c_9-12) disabled=ocutalon-ci-13,ocutalon-ci-14 reason=ci-c_disk_35pct_slower(319_vs_485_MB/s) recorded=Rule_21_measured_fact(decide)
