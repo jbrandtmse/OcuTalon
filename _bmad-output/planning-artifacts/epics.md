@@ -543,14 +543,14 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 
 ## Epic List
 
-Epics are numbered in dispatch order, except Epics 29 to 31 (below). Two `/epic-cycle` runners work in parallel after Epic 0: Lane A ("platform and agent core") and Lane B ("experience"), with package and folder ownership fixed by the architecture (AD-29, AD-33). Each epic names the epic it depends on: the previous epic in its own lane, plus any cross-lane merge point. Each lane's epics test against Epic 0's contracts and the CI mock rather than the other lane's unfinished code; the end-to-end demo path is proven in Epic 11. Release 1 (0.1.0) is Epics 0 to 11, the floor. Telegram (Epic 12) moved to Lane A on October 17 (the author's decision, ahead of the lane checkpoint): it is built after Epic 11 and ships as 0.1.1, the very next release, before the online demo goes public (PRD §7.2). The 1.0.0 kit is Epics 13 to 16 and 29. Epics 17 to 28 outline build steps 2 to 7, in the cut-line order.
+Epics are numbered in dispatch order, except Epics 29 to 32 (below). Two `/epic-cycle` runners work in parallel after Epic 0: Lane A ("platform and agent core") and Lane B ("experience"), with package and folder ownership fixed by the architecture (AD-29, AD-33). Each epic names the epic it depends on: the previous epic in its own lane, plus any cross-lane merge point. Each lane's epics test against Epic 0's contracts and the CI mock rather than the other lane's unfinished code; the end-to-end demo path is proven in Epic 11. Release 1 (0.1.0) is Epics 0 to 11, the floor. Telegram (Epic 12) moved to Lane A on October 17 (the author's decision, ahead of the lane checkpoint): it is built after Epic 11 and ships as 0.1.1, the very next release, before the online demo goes public (PRD §7.2). The 1.0.0 kit is Epics 13 to 16 and 29. Epics 17 to 28 outline build steps 2 to 7, in the cut-line order.
 
 **The October 20 rebalance** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]. The demo path comes first, and the online demo lands by November 1; 0.1.0 and Telegram's 0.1.1 follow, around November 3 to 4, so 0.1.0 is no longer due October 30. Three epics were added at the end of the list, and each lane dispatches them where its order below puts them:
 
 - **Epic 29** (Lane A), the online demo's platform side: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, as Stories 29.1 to 29.4. Lane B keeps the rest of Epic 16.
 - **Epic 30** (Lane A) and **Epic 31** (Lane B), post-demo hardening: the parts of the demo-path epics' stories that the owner moved after the demo path. They stay in the plan and land before 1.0.0.
 - **Lane A's order:** 1, 3, 5, 7, 29, 9, 11, 12, 30, then 13, 14, 15 and its step epics.
-- **Lane B's order:** 2, 4, 6, 8, 10, 16, 31, then its step epics.
+- **Lane B's order:** 32, 2, 4, 6, 8, 10, 16, 31, then its step epics. [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: Epic 32 (CI throughput) comes first; it was 2, 4, 6, 8, 10, 16, 31.]
 - **Waiting on the other lane.** Inside the online demo, the cross-lane needs are story-level edges between Epics 16 and 29. While a story waits on one, its lane takes the next story that doesn't depend on it (Rule 22.1): Lane A takes Epic 9's stories, and Lane B takes Story 31.1.
 
 ### Epic 0: OcuTalon installs, starts and lets you sign in
@@ -570,7 +570,7 @@ Every item OcuTalon receives gets exactly one attention decision from an AI Hub 
 ### Epic 2: Chat with OcuTalon on a live web page
 
 A signed-in user chats with OcuTalon in the browser and sees each reply with its decision, cost details and trace link, plus live lists of recent decisions, background checks, reminders and pending approvals, updated without a reload; a message the user writes is always answered, and the conversation is still there after a restart.
-**Lane:** B. **Depends on:** Epic 0.
+**Lane:** B. **Depends on:** Epic 32 (lane order). [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: was Epic 0.]
 **FRs covered:** FR-1 (outcome routing and notification fan-out), FR-2 (cost in chat details), FR-6 (history), FR-12, FR-14 (local sign-in, complete), FR-38 (no-key banner).
 **Also covers:** NFR-8, NFR-9, NFR-24, NFR-25; AD-1, AD-4, AD-12, AD-13, AD-14, AD-32; UX-DR17 to UX-DR42 (release-1 parts; the splash is Epic 16), UX-DR51 to UX-DR54, UX-DR57 to UX-DR70, UX-DR88 to UX-DR100 (release-1 states), UX-DR118 to UX-DR135, UX-DR137 to UX-DR140 (UX-DR55, 56 and 136 are Epic 12's). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 2.11's WebSocket moved to Epic 31, and polling stays release 1's live path.]
 
@@ -775,6 +775,13 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 **Lane:** B. **Depends on:** Epic 16 (lane order only: Story 31.1 needs nothing from it, so Lane B may take it while a Story 16.x waits on its Lane A edge); story-level: Story 31.2's real path needs Story 30.3 (the replay's `approval.result`), and its tests use fixture `approval.*` events until then.
 **FRs covered:** FR-8 (tool-call approvals on the phone and in the paired chat), FR-12 (the WebSocket on local installs).
 **Also covers:** NFR-9; AD-12, AD-13, AD-31, AD-32; UX-DR91, UX-DR149.
+
+### Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
+
+[AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: a new epic, first in Lane B's order.] Each push's IRIS work is about 46 runner-minutes in five groups, and the `install` group alone takes about 14 minutes. With both lanes pushing, two runner services queue the jobs for up to 28 minutes, past REL-4's 35-minute budget. This epic shortens the longest job, and skips the IRIS groups a push can't affect. Together with the owner's larger CI host, a typical push gets its verdict in about ten minutes.
+**Lane:** B. **Depends on:** Epic 0.
+**FRs covered:** none (delivery).
+**Also covers:** REL-4, REL-2; AD-22.
 
 ## Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -6271,3 +6278,65 @@ So that a tool call is answered the same way as a fix.
 **When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
 **Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
 **And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+
+## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
+
+[AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: a new epic, first in Lane B's order.] Each push's IRIS work is about 46 runner-minutes in five groups, and the `install` group alone takes about 14 minutes. With both lanes pushing, two runner services queue the jobs for up to 28 minutes, past REL-4's 35-minute budget. This epic shortens the longest job, and skips the IRIS groups a push can't affect. Together with the owner's larger CI host, a typical push gets its verdict in about ten minutes.
+
+### Story 32.1: The install group runs as two jobs
+
+As the author,
+I want the `install` IRIS group split into two groups that run as separate jobs,
+So that no IRIS job runs much longer than the others, and CI's wall-clock time falls when runners are free.
+
+**Acceptance Criteria:**
+
+**Given** `ci/units.sh`
+**When** the IRIS groups are listed
+**Then** `install` is replaced by two groups, `install-fresh` (`live:install-start`) and `install-upgrade` (`live:install-upgrade`). `IRIS_GROUPS` and the matrix in `.github/workflows/ci.yml` list both, and `docker/tests/test-ci-config.sh` still proves that the workflow and `units.sh` agree (REL-4, AD-22).
+
+**Given** a push that runs every IRIS group, with at least as many free runner services as groups
+**When** CI runs
+**Then** no IRIS job runs longer than about 10 minutes. The run's wall-clock time is recorded and compared with the last full run before the split.
+**And** if one group still runs much longer than the rest, its units are rebalanced across groups (a unit moves whole, never split) until no job exceeds about 10 minutes, and each move is recorded.
+
+**Given** the two new groups
+**When** each runs on its own throwaway stack
+**Then** neither depends on the other's leftovers. Each starts from its own fresh compose project, and run in either order, each passes alone (Rule 19).
+
+**Given** Rule 21's CI section in `_bmad/custom/skill-rules.md`
+**When** the story is done
+**Then** it records the new group list, the measured per-group times and the CI capacity: two hosts, `ocutalon-ci` (4 vCPU / 8 GB, services 1–2) and `ocutalon-ci-b` (8 vCPU / 16 GB, services 3–8), 8 runner services in all. This replaces Rule 21's "two services share one host" with measured facts only.
+
+### Story 32.2: An IRIS group runs only when something it tests changed
+
+As the author,
+I want each IRIS group to skip its steps when a push changes nothing it tests,
+So that small or one-lane pushes don't spend runner time on groups they can't affect, and CI's verdict comes sooner.
+
+**Acceptance Criteria:**
+
+**Given** `ci/units.sh`
+**When** the IRIS groups are defined
+**Then** each group declares its input pattern, in the same style as `WEB_INPUT_PATTERN`:
+- the files its units test;
+- the product code they run;
+- the image and compose inputs they build from;
+- `ci/`;
+- the workflow itself.
+**And** `ci/changes.sh` decides, per group, whether the push changed anything that matches.
+**And** the `browser` group (the demo path) treats any product source change as its input, so the demo-path test never skips when product code changed (REL-2).
+
+**Given** a push whose changes match none of a group's inputs, compared with the newest commit on the same branch whose push run succeeded
+**When** CI runs
+**Then** that group's job starts and skips its own steps, never the workflow's, and concludes `success` with a log line naming the reason ("no input changed since <sha>"). The workflow still runs, so the kit's CI gate sees every workflow conclude.
+
+**Given** a pull request, a missing or unknown base, a force push, or any error reading the base or the changes
+**When** CI runs
+**Then** every group runs in full. A skip never turns a red into a green: a group whose base run wasn't a success runs in full.
+
+**Given** the change detection
+**When** `docker/tests/test-ci-changes.sh` runs in the hosted `checks` job
+**Then** it covers each group's pattern with at least one changed path that runs the group and one that skips it, including:
+- a web-only change that skips `install-fresh`, `install-upgrade`, `production` and `image`, but runs `browser`;
+- a change under `ci/` that runs every group.
