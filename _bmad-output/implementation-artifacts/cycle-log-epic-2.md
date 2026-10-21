@@ -13,3 +13,4 @@
 2026-10-21T22:16:14Z	Epic 2	sprint_planning_complete	gate=PASS in_sync=true warnings=2_title_headings basis=launch_gate_143ff70(epic_2_block_unchanged_since) model=claude-opus-5-5
 2026-10-21T22:16:14Z	Epic 2	retro_review_skipped	reason=no_retro(epics_0_and_32_skipped)_no_closable_ledger(all_16_owned_by_planned_stories_of_epic_2,in-flight_epic_1_or_later_epics;none_by_burndown,none,0-x_or_32-x)_open_action_item_human_owned(epic-32-retro-item-1,DW-55,U-8,left_alone) model=claude-opus-5-5
 2026-10-21T22:20:52Z	Epic 2	epic_context_compiled	reason=initial model=claude-opus-5-5 lines=171
+2026-10-21T22:21:31Z	Story 2.1	stage_spawned	stage=plan spawn_at=2026-10-21T22:21:31Z model=claude-opus-5-5 agent_name=2-1-lay-out-the-main-page-frame-plan-1 cycle_iteration=1
