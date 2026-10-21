@@ -344,3 +344,8 @@
 2026-10-21T03:43:29Z	Epic 0	model_tier_checkpoint	result=keep evidence=12_stories;implement(Sonnet)_converged_in_one_pass_on_every_story;reworks:0.9(a_test_race_found_by_CI_and_fixed_in_review),0.12(owner_product_text,not_tier);CR_HIGHs:2_(both_fixed);no_model-overrides.yaml applied=n/a(Rule_22:_no_escalation)
 2026-10-21T03:43:29Z	Epic 0	epic_retro_skipped	reason=owner_directed(Rule_22)
 2026-10-21T03:43:29Z	Epic 0	decision_sheet_recorded	entries=1 decided_by=merge_gate(Rule_22) DW-20=wontfix-accepted(reopen_if_a_public_class_uses_a_form_the_check_misses) veto_window=security_posture(FYI_to_Contest_Planner) sweep=every_non-terminal_entry_owned_by_a_named_story_outside_Epic_0
+2026-10-21T04:11:07Z	Story 0.12	ci_resolved	story=0.12 run=39540054243 result=failure head=fae0f9e job=iris(browser) test=sign-in.spec.ts_row_13
+2026-10-21T04:11:07Z	Story 0.12	ci_red_classified	run=39540054243 class=story test=sign-in.spec.ts_row_13 note=second_red_in_three_runs(811102f_attempt_1,fae0f9e);cause=a_race_with_the_routers_initial_replaceState(withHashLocation,base_href=/ocutalon/);first_red_commit=811102f(0.12);test_defect_from_0.3,fixed_in_Epic_0
+2026-10-21T04:11:07Z	Epic 0	merge_gate_blocked	reason=ci_red run=39540054243 job=iris(browser) head=fae0f9e
+2026-10-21T04:11:07Z	Story 0.12	rework_opened	reason=CI_story_red_DW-47 task=[CI]_sign-in_row_13_race cycle_iteration=3
+2026-10-21T04:11:07Z	Story 0.12	stage_spawned	stage=implement spawn_at=2026-10-21T04:11:07Z model=claude-sonnet-5-5 agent_name=0-12-implement-3 cycle_iteration=3

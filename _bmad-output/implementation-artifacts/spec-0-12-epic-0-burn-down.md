@@ -2,7 +2,7 @@
 title: 'Story 0.12: Epic 0 burn-down'
 type: 'feature'
 created: '2026-10-20'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5047cd2e90c8e651aa58e05854e94a160c092c60'
 baseline_commit: 5047cd2e90c8e651aa58e05854e94a160c092c60
 review_loop_iteration: 0
@@ -184,6 +184,8 @@ Where the rows run:
   - The never-reset counter pattern: `Test.Msg.Catalog`'s `^OcuTalonTest("MsgCatalog","n")`, L34 and L44.
 
 ## Tasks & Acceptance
+
+- [ ] [CI] iris (browser): `web/e2e/sign-in/sign-in.spec.ts` row 13 ("sign-in at a deep link redirects to that URL, which serves the shell") failed on run 39534434817 attempt 1 (head 811102f) and run 39540054243 (head fae0f9e): `toHaveURL(/\/ocutalon\/index\.html\?x=1$/)` received `/ocutalon/#/`. Cause (lead's diagnosis, confirm it): the shell boots Angular with `withHashLocation()` and `<base href="/ocutalon/">`, and the router's initial navigation calls `history.replaceState` with `#/`, which resolves against the base to `/ocutalon/#/`; the assertion reads a transient pre-boot URL and passes only when Playwright checks before Angular boots. Fix the TEST, not the product: keep the 303 location check, then assert that the document navigation to `/ocutalon/index.html?x=1` answered 200 with the shell (`<app-root`), and the title; drop the post-boot URL assertion. Prove it: a mutation that breaks the redirect target turns row 13 red, and `ci/iris.sh live sign-in` passes repeatedly (three runs). DW-47. https://github.com/jbrandtmse/OcuTalon/actions/runs/39540054243
 
 - [x] [Rework, DW-44 (code review's HIGH); the owner's approval through the Contest Planner, October 21] The `demoKept` status note gains a `how` field holding exactly "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.", with `{what was kept}` filled from the same facts the note's kept sentence names (EXPERIENCE.md, the owner forms table). Write it as ASCII with escapes where needed. `test-install-start.sh`'s `kept_note` check pins the exact sentence for both keep fixtures, and a mutation that drops or alters it goes red. The after-start `WARN Demo` line keeps Story 0.10's sentence. No other change.
 
