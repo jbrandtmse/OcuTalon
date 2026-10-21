@@ -2,9 +2,9 @@
 title: 'Story 0.12: Epic 0 burn-down'
 type: 'feature'
 created: '2026-10-20'
-status: 'in-progress'
-baseline_revision: '5047cd2e90c8e651aa58e05854e94a160c092c60'
-baseline_commit: 5047cd2e90c8e651aa58e05854e94a160c092c60
+status: 'done'
+baseline_revision: '191d6ccb94559685c80d451c3b553a858ffbcea4'
+baseline_commit: 191d6ccb94559685c80d451c3b553a858ffbcea4
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -185,7 +185,7 @@ Where the rows run:
 
 ## Tasks & Acceptance
 
-- [ ] [CI] iris (browser): `web/e2e/sign-in/sign-in.spec.ts` row 13 ("sign-in at a deep link redirects to that URL, which serves the shell") failed on run 39534434817 attempt 1 (head 811102f) and run 39540054243 (head fae0f9e): `toHaveURL(/\/ocutalon\/index\.html\?x=1$/)` received `/ocutalon/#/`. Cause (lead's diagnosis, confirm it): the shell boots Angular with `withHashLocation()` and `<base href="/ocutalon/">`, and the router's initial navigation calls `history.replaceState` with `#/`, which resolves against the base to `/ocutalon/#/`; the assertion reads a transient pre-boot URL and passes only when Playwright checks before Angular boots. Fix the TEST, not the product: keep the 303 location check, then assert that the document navigation to `/ocutalon/index.html?x=1` answered 200 with the shell (`<app-root`), and the title; drop the post-boot URL assertion. Prove it: a mutation that breaks the redirect target turns row 13 red, and `ci/iris.sh live sign-in` passes repeatedly (three runs). DW-47. https://github.com/jbrandtmse/OcuTalon/actions/runs/39540054243
+- [x] [CI] iris (browser): `web/e2e/sign-in/sign-in.spec.ts` row 13 ("sign-in at a deep link redirects to that URL, which serves the shell") failed on run 39534434817 attempt 1 (head 811102f) and run 39540054243 (head fae0f9e): `toHaveURL(/\/ocutalon\/index\.html\?x=1$/)` received `/ocutalon/#/`. Cause (lead's diagnosis, confirm it): the shell boots Angular with `withHashLocation()` and `<base href="/ocutalon/">`, and the router's initial navigation calls `history.replaceState` with `#/`, which resolves against the base to `/ocutalon/#/`; the assertion reads a transient pre-boot URL and passes only when Playwright checks before Angular boots. Fix the TEST, not the product: keep the 303 location check, then assert that the document navigation to `/ocutalon/index.html?x=1` answered 200 with the shell (`<app-root`), and the title; drop the post-boot URL assertion. Prove it: a mutation that breaks the redirect target turns row 13 red, and `ci/iris.sh live sign-in` passes repeatedly (three runs). DW-47. https://github.com/jbrandtmse/OcuTalon/actions/runs/39540054243
 
 - [x] [Rework, DW-44 (code review's HIGH); the owner's approval through the Contest Planner, October 21] The `demoKept` status note gains a `how` field holding exactly "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.", with `{what was kept}` filled from the same facts the note's kept sentence names (EXPERIENCE.md, the owner forms table). Write it as ASCII with escapes where needed. `test-install-start.sh`'s `kept_note` check pins the exact sentence for both keep fixtures, and a mutation that drops or alters it goes red. The after-start `WARN Demo` line keeps Story 0.10's sentence. No other change.
 
@@ -417,6 +417,13 @@ Rejected (no ledger entry):
 Lead, after code review (October 21):
 - Correction: the review-pass ruling that rejected "calling `Clean()` mid-class" is superseded by QA's `TestCleanKeepsTheCounter`, which does exactly that on purpose to pin DW-9's never-reset counter; the test creates and removes its own state, so it stays.
 - DW-44 (code review's HIGH, the note had no how-to sentence) is decided: the owner approved the sentence through the Contest Planner on October 21, and the rework task above adds it.
+
+**CI pass rulings** (Rule 22; DW-47, the sign-in row 13 race):
+- Rule 22 ruling: **What row 13 asserts in place of the address bar** -> the form's POST answers 303 with `Location` equal to `/ocutalon/index.html?x=1` (kept), and the GET document navigation to that URL, which follows the 303, answered 200 with a body that holds `<app-root`; then the title `OcuTalon`. The post-boot URL assertion is dropped. (Rejected: reading the shell with a separate `page.request.get`, which proves the URL serves the shell but not that the redirect led to it; a URL assertion that tolerates `/ocutalon/#/`, which only restates Angular's router.)
+- Rule 22 ruling: **How the two waits are ordered** -> the navigation wait is registered before the click, next to the POST wait, with a no-op `catch` so that it cannot become an unhandled rejection; the 303 and its `Location` are asserted first, then the navigation response. A wrong `Location` therefore fails with the mismatch itself and not with a 30 s timeout of the navigation wait. (Rejected: `Promise.all` over both waits and the click, which reports a wrong `Location` as a timeout.)
+- Rule 22 ruling: **The two product mutations run apart** -> one live run for a `Location` without the query and one for `index.html` answering 404 when it has a query. Both fail row 13, at different assertions, and the first would stop the test before the second assertion is reached. (Rejected: both in one run.)
+- Rule 22 ruling: **The lead's diagnosis is confirmed by a measurement, then removed** -> a temporary `console.log` of `page.url()` in row 13 (one live run, removed before the mutation runs) read `http://127.0.0.1:52800/ocutalon/index.html?x=1` at the title and `http://127.0.0.1:52800/ocutalon/#/` once `app-header` was in the page. The shell is `withHashLocation()` under `<base href="/ocutalon/">` (`web/src/app/app.config.ts`, `web/src/index.html`), so the old `toHaveURL` passed only when it ran before the router's first `replaceState`.
+
 ## Review Triage Log
 
 ### 2026-10-20 — Review pass
@@ -480,6 +487,22 @@ Lead, after code review (October 21):
   - `[low]` `[reject]` Intent Alignment 4: the foreign case (verbatim databases against functional ones) — same root cause as Blind Hunter 1.
   - `[low]` `[reject]` Intent Alignment 5: the matrix rows 11 and 12, the `kept_note` description of Design Notes and the AD-3 spine-update entry still give the four-field mark — the fix is to edit the spec, and the rows are in the frozen intent block; the code, its comments and the live script give the five fields.
   - `[false]` `[reject]` Intent Alignment 6: the note may pass the `Value` limit of 1000 — the longest note (a 220-character production name, not stopped, and 30-character database names) is 891 characters.
+
+### 2026-10-21 — Review pass (CI pass, DW-47)
+- verdicts: 12 findings — high 0, medium 0, low 10, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter 1: DW-47 is still `open` in the ledger and `epics.md` still lists it under Story 2.1 — ledger writes are the lead's (Rule 15 (a), Rule 17 (2): adjudication against the delivered scope) and `epics.md` is on the intent's list of files left unchanged; reported to the lead under Residual risks.
+  - `[low]` `[reject]` Blind Hunter 2: nothing asserts the browser's final location after sign-in — spec-bound: the task says to drop the post-boot URL assertion, and DW-4 (Story 2.1) is where a landing on a hash route gets its assertion.
+  - `[low]` `[patch]` Blind Hunter 3: the two mutations leave the `<app-root` and title assertions unexercised — applied a third mutation (`Serve` answers 200 with a stub body that lacks `<app-root` for `index.html` with a query), observed row 13 red at the `<app-root` assertion alone, reverted with a tree digest equal, and wrote the `mutation:` line in `## Verification`.
+  - `[low]` `[reject]` Blind Hunter 4: "None known" sits beside a named risk, and the `endsWith(target)` predicate is looser than the exact `Location` check — the wording is corrected in Finalize's Residual risks (a fix that edits the spec is not a finding's fix); the predicate cannot reach a wrong match, because the wait is registered after `goto`, the test makes one navigation, and the `Location` is asserted exactly, so a stricter predicate adds a guard to a test that has no way to fail on it.
+  - `[low]` `[reject]` Edge Case Hunter 1: the predicate does not check `redirectedFrom()` — same root cause as Blind Hunter 4.
+  - `[low]` `[patch]` Verification Gap 1: `<app-root` and the title have no recorded mutation — same root cause as Blind Hunter 3; the title assertion is not mutated apart (see Verification Gap 2).
+  - `[low]` `[reject]` Verification Gap 2: the title assertion no longer discriminates alone — the task says to keep the title check, `<app-root` is the assertion that discriminates the shell, and `isNavigationRequest()` ties the response to the committed document.
+  - `[low]` `[reject]` Verification Gap 3: row 13 depends on `README_ACCOUNT` and never signs out — unchanged by this diff (the old row 13 did the same), and the throwaway stack is removed after the run, so no session survives.
+  - `[low]` `[reject]` Verification Gap 4: the new wait relies on its registration order — same root cause as Blind Hunter 4; the spec's residual-risk note names it.
+  - `[low]` `[reject]` Verification Gap 5: the evidence is from the ARM machine only — stated under Residual risks; the next x64 `iris (browser)` job is the check, and nothing in this checkout can run it.
+  - `[false]` `[reject]` Intent Alignment 1: the diff implements the reopen's `[CI]` task, which the intent contract does not name — the dispatch's task, outside the contract by design; the contract block and every file it lists are untouched.
+  - `[false]` `[reject]` Intent Alignment 2: `Shell.cls`, under `OcuTalon.Web.Public.*`, was changed during verification — the three mutations were restored byte-identical (tree digest equal, `git diff --quiet HEAD -- src`), so the diff holds no change to it.
 
 ## Design Notes
 
@@ -843,6 +866,25 @@ Runtime:
 - **Teardown.** `bash ci/iris.sh teardown` left 0 projects, containers, volumes, networks and images for `-v12e-`.
 - **Mutations.** None was re-run. The patches change a comment and two line prefixes, and the rework's four mutation lines (alter, fill, drop, `Warn(what)`) still cover every clause of the task. They were checked against the comparator: `compare_chk` matches whole lines with `grep -qxF`, and `kept_note` prints `how` as its seventh field.
 
+### CI pass, DW-47 (same checkout, tag `v12f`, `OCUTALON_LOCK_OWNER='epic=0 stage=implement'`)
+
+Runtime: the live unit ran only through `ci/iris.sh live sign-in` in throwaways of tag `v12f`, one at a time, each followed by `ci/iris.sh teardown` in its own call (every teardown: 0 projects, containers, volumes, networks and images left). Slot A was not used. No push, commit or `gh` call. The only file changed beside this spec is `web/e2e/sign-in/sign-in.spec.ts`; the two mutations touched `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls`, which was restored from a copy taken before them and equals HEAD (`cmp` against the copy, and `git diff --quiet HEAD -- src`).
+
+**Results.**
+- **The fix.** Row 13 keeps the 303 and its `Location`, then asserts that the GET navigation to `/ocutalon/index.html?x=1` answered 200 with `<app-root` in its body, and the title. The post-boot URL assertion is gone.
+- **Hosted checks.** `bash ci/checks.sh` printed "checks: all scripts passed"; `npm --prefix web run lint` (`tsc -p tsconfig.e2e.json`) reported no error.
+- **The live unit, three clean runs.** `bash ci/iris.sh live sign-in` exit 0 three times in a row, each "29 passed" with row 13 green (137 ms, 133 ms and 134 ms) and "test-sign-in: all checks passed". A fourth run, with the temporary diagnostic of the ruling above, also passed.
+
+**Mutations** (Rule 19; each applied, run, observed red and reverted).
+- mutation: `Shell.Redirect` writes `Location` from `%request.URL` and so drops the query -> `live sign-in` red at row 13 alone (28 passed, 1 failed), at `expect(location.pathname + location.search).toBe(target)`: expected `/ocutalon/index.html?x=1`, received `/ocutalon/index.html`; reverted.
+- mutation: `Shell.Serve` answers 404 for `index.html` when the request has a query string -> `live sign-in` red at row 13 alone (28 passed, 1 failed), at "the redirect target answers 200": expected 200, received 404; reverted.
+- mutation: `Shell.Serve` answers 200 with a body that lacks `<app-root` for `index.html` when the request has a query string -> `live sign-in` red at row 13 alone (28 passed, 1 failed), at "the redirect target serves the shell": expected substring `<app-root`, received the stub body; reverted. (Review pass, tag `v12g`. The `Location` and the 200 assertions pass under this mutation, so only the `<app-root` assertion can be the red one.) Before and after, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal, `git diff --quiet HEAD -- src` held, and `ci/iris.sh teardown` left nothing.
+
+**Re-run on the build-auto side** (tag `v12g`, after the handoff returned; one throwaway at a time, `ci/iris.sh teardown` after each: 0 left).
+- `npm --prefix web run lint`, `bash ci/checks.sh` and `bash ci/iris.sh build`: exit 0.
+- `bash ci/iris.sh live sign-in`, three calls: exit 0 each, 29 passed each, row 13 green (143, 144 and 145 ms).
+- The `Shell.Serve` 404 mutation again (a fresh `if` at the top of `Serve`): `live sign-in` exit 1, row 13 alone red at "the redirect target answers 200" (expected 200, received 404; 28 passed, 1 failed); reverted. A SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal before and after, and `git diff --quiet HEAD -- src` held.
+
 ## Auto Run Result
 
 Status: done
@@ -925,3 +967,35 @@ Blocking condition: none
 - **The foreign case.** The owner's sentence names OCUORDERS_CODE and OCUORDERS_DATA also when the kept OCUORDERS is a foreign one on other databases (they are in the note's `globals` and `routines`). The lead may ask the owner through the Contest Planner whether that case needs its own sentence; the change would be one line of `System` and `foreign_how`.
 - **REL-4.** The five note checks add one field to existing lines, so the live script's runtime does not change `(inference)`; the next CI run measures it.
 - The `[Review][Decision]` entry about the missing how-to sentence under `### Review Findings` stays unchecked for the lead to close.
+
+**CI pass, DW-47 (sign-in row 13; this pass only).**
+
+*Summary of the implemented change.* `web/e2e/sign-in/sign-in.spec.ts` row 13 no longer reads the address bar after the shell boots: Angular's hash router (`withHashLocation()` under `<base href="/ocutalon/">`) rewrites it to `/ocutalon/#/`, which made the old `toHaveURL` race the boot. It asserts the 303 and its `Location`, then that the GET document navigation to `/ocutalon/index.html?x=1` answered 200 with `<app-root` in its body, then the title. The product is unchanged.
+
+*Files changed.*
+- `web/e2e/sign-in/sign-in.spec.ts`: row 13.
+- This spec: the `[CI]` task ticked, the CI pass rulings, the `### CI pass, DW-47` block under Verification, the triage entry and this result.
+
+*Review findings breakdown.* 12 findings from the four layers: high 0, medium 0, low 10, false 2.
+- **Patched (1 entry, 2 rows):** the `<app-root` assertion had no mutation; a third mutation (a 200 stub body without `<app-root`) turned row 13 red at that assertion alone, and its `mutation:` line is in `## Verification`.
+- **Deferred:** none.
+- **Rejected, each with its reason in the triage log:**
+  - spec-bound: no final-location assertion (the task drops it; DW-4 in Story 2.1 owns a landing assertion), the title check kept by the task;
+  - lead-owned or outside the intent: the DW-47 ledger entry and the Story 2.1 bullet;
+  - unreachable in a test that makes one navigation: the looser `endsWith` predicate, the registration order and the missing `redirectedFrom()` check;
+  - unchanged by this diff: the account and session of row 13, the ARM-only evidence;
+  - descriptive, no defect: the intent audit's scope observation and the restored `Shell.cls`.
+
+*Follow-up review recommendation:* `false`. One low entry was patched, and no high or medium.
+
+*Verification performed.*
+- The lead's diagnosis was measured: `/ocutalon/index.html?x=1` at the title and `/ocutalon/#/` after the boot (a temporary `console.log`, removed).
+- `npm --prefix web run lint`, `bash ci/checks.sh` and `bash ci/iris.sh build`: exit 0.
+- `bash ci/iris.sh live sign-in`: exit 0 and 29 of 29 passed in each of three clean runs from the handoff and three more from this stage's side.
+- Three product mutations each turned row 13 red alone and were reverted with the tree digest equal: `Location` without the query, `index.html` with a query answering 404, and `index.html` with a query answering a 200 stub body.
+- Every throwaway of tags `v12f` and `v12g` was torn down. Slot A was not used. Nothing was pushed.
+
+*Residual risks.*
+- **The runner has not run it yet.** The fix is proven on the ARM developer machine; the next x64 `iris (browser)` CI job is the check of it, since the red was seen only there.
+- **A bounded wait.** The navigation wait matches a GET navigation whose URL ends with the target and is registered after `page.goto`, so a later row that signs in at the same target would need its own wait.
+- **For the lead (bookkeeping, not this build's to write).** The ledger entry DW-47 is still `open` with `owner=0-12-epic-0-burn-down`, and its Story 2.1 bullet in `epics.md` still asks 2.1 for "the page stays on the deep-link URL after sign-in, or the test waits for the shell's own navigation". This pass closed the test race with the second option, so the entry can close `resolved-by:0-12-epic-0-burn-down` and the bullet can go. The browser's landing on a deep link stays with DW-4 (Story 2.1).

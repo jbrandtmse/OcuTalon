@@ -175,17 +175,29 @@ test('row 12: a user without the user role sees the message and holds no session
   expect(violations).toEqual([]);
 });
 
-/** Row 13: signing in at a deep link lands on it. */
+/**
+ * Row 13: signing in at a deep link lands on it. The proof is the server's 303 and the document navigation it
+ * leads to, not the address bar: the shell boots Angular with hash routing under <base href="/ocutalon/">, and the
+ * router's first navigation rewrites the page's URL to /ocutalon/#/, so a URL read after the boot is not the target.
+ */
 test('row 13: sign-in at a deep link redirects to that URL, which serves the shell', async ({ page }) => {
-  await page.goto('/ocutalon/index.html?x=1');
+  const target = '/ocutalon/index.html?x=1';
+  await page.goto(target);
   await page.getByLabel('User name').fill(README_ACCOUNT.user);
   await page.getByLabel('Password', { exact: true }).fill(README_ACCOUNT.password);
-  const answered = page.waitForResponse((response) => response.request().method() === 'POST');
+  const answered = page.waitForResponse((r) => r.request().method() === 'POST');
+  const landed = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && r.request().isNavigationRequest() && r.url().endsWith(target),
+  );
+  // The 303 is asserted first, so a wrong Location names itself; this keeps the unused wait from rejecting unhandled.
+  landed.catch(() => undefined);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   const response = await answered;
   expect(response.status()).toBe(303);
   const location = new URL((await response.headerValue('location'))!, page.url());
-  expect(location.pathname + location.search).toBe('/ocutalon/index.html?x=1');
-  await expect(page).toHaveURL(/\/ocutalon\/index\.html\?x=1$/);
+  expect(location.pathname + location.search).toBe(target);
+  const shell = await landed;
+  expect(shell.status(), 'the redirect target answers 200').toBe(200);
+  expect(await shell.text(), 'the redirect target serves the shell').toContain('<app-root');
   await expect(page).toHaveTitle('OcuTalon');
 });
