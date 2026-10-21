@@ -57,3 +57,4 @@
 2026-10-21T22:42:40Z	Epic 1-16,29-32	report_error	fault=orchestrator field=inbox_resolved(a5402dd) reported=U-2..U-7_resolved actual=the_resolve_was_refused(answers_existed);resolved_with_their_answer_refs_in_b7d44d3 impact=none
 2026-10-21T22:42:40Z	Epic 1-16,29-32	inbox_resolved	item=U-8 kind=report applied_by=orchestrator note=ci-c_capped_by_the_Contest_Planner
 2026-10-21T23:09:26Z	Epic 1-16,29-32	hold_ordered	reason=owner:weekly_quota_97pct_switch_accounts source=owner_direct dispatch=stopped
+2026-10-21T23:48:30Z	Epic 1	runner_ended	reason=hold head=8cca33e(local) origin=98a1fc2 unpushed=8cca33e,70ca4dd,c080868,9c87cfc,7fc5765,0ec1813,9626f3f,4790bfd(c080868=story_1.2_implement_before_smoke;7_bookkeeping) hold_patch=patches/epic-1/1-2-...-code-review.patch tree=clean stories_done=1(1.1) note=bookkeeping_left_unpushed_with_the_unsmoked_code_commit_per_normal_push_rules(accepted)
