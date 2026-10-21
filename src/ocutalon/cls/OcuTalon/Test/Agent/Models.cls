@@ -10,8 +10,9 @@ Include Ensemble
 ///   - TestRunnersResolve: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, each runner has a
 ///     Model row with claude-haiku-5-5, and the step's own check, Production.UnresolvedRunners, names no runner;
 ///   - TestModelChange: one change of DiagnosisAgent's Model row to claude-sonnet-5-5 and a restart of that item make both
-///     ResolveModel and the runtime setting of the item sonnet, with the item's job alive; the row is then put back, the item
-///     restarted again, and both read claude-haiku-5-5.
+///     ResolveModel and the runtime setting of the item sonnet, with the item's job alive; a diagnose Request then reaches the CI
+///     mock with the model claude-sonnet-5-5, a cap of 8000 and the effort high (Story 1.2, AC3), with the keys pointed at the
+///     CI mock key variable and put back; the row is then put back, the item restarted again, and both read claude-haiku-5-5.
 /// The row and the item are put back as they were found, also when an assertion fails.
 Class OcuTalon.Test.Agent.Models Extends %UnitTest.TestCase
 {
@@ -115,6 +116,7 @@ Method TestModelChange()
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, ..#PRODUCTION), ..#OTHERMODEL, "ResolveModel gives "_..#OTHERMODEL)
 		Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Model")), ..#OTHERMODEL, "the item applies "_..#OTHERMODEL)
 		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "every item of the production runs, so the job of "_item_" is alive")
+		Do ..AssertRequestUses(..#OTHERMODEL)
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the change runs without an exception")
 	}
@@ -134,20 +136,44 @@ Method TestModelChange()
 /// 1 when OcuTalon.Production runs. Otherwise the test fails with the reason, and quits.
 Method Running() As %Boolean [ Private ]
 {
-	If ##class(Ens.Director).IsProductionRunning(.running), running = ..#PRODUCTION Quit 1
-	Do $$$AssertTrue(0, ..#PRODUCTION_" does not run: this class runs in throwaways and CI only, after the Production step has started it (Rule 21)")
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason = "" Quit 1
+	Do $$$AssertTrue(0, reason)
 	Quit 0
 }
 
 /// Stops the item temporarily and starts it again, each through the director, and waits until every item runs.
 Method Restart(name As %String) [ Private ]
 {
-	Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(name, 1), "the item "_name_" is stopped")
-	Do $$$AssertStatusOK(##class(Ens.Director).TempStopConfigItem(name, 0), "and started again")
-	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While (##class(OcuTalon.Install.Step.Production).NotRunning() '= "") && ($ZHorolog < deadline) {
-		Hang 1
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Restart(name), "the item "_name_" is stopped and started again")
+}
+
+/// Points the keys of the runners at the CI mock key variable, sends one diagnose Request to the changed runner, and asserts what
+/// the mock logged for it: the model, the cap and the effort of the runner. The keys are put back, also when an assertion fails.
+Method AssertRequestUses(model As %String) [ Private ]
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).GuardReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
 	}
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys(), "the entries of the runners are pointed at the CI mock key variable")
+		Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).Ask(..#CHANGED, "diagnose", "user", "Why did the messages of the Orders production fail?", .reply, .requests)
+		Do $$$AssertStatusOK(sc, "the diagnose Request to "_..#CHANGED_" is answered")
+		Do $$$AssertTrue($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"), "with a Reply")
+		Do $$$AssertTrue(requests.%Size() > 0, "the mock's log holds the requests of the Request: "_requests.%Size())
+		Set iterator = requests.%GetIterator()
+		While iterator.%GetNext(.position, .logged) {
+			Do $$$AssertEquals(logged.model, model, "request "_(position + 1)_" names "_model)
+			Do $$$AssertEquals(logged.maxTokens, 8000, "request "_(position + 1)_" has a cap of 8000")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Effort(logged), "high", "request "_(position + 1)_" asks for the effort high")
+			Do $$$AssertEquals(logged.status, 200, "request "_(position + 1)_" is accepted")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the request runs without an exception")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(), "the entries of the runners are put back")
 }
 
 }

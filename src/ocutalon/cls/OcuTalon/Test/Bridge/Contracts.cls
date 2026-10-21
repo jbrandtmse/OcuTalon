@@ -1,4 +1,5 @@
-/// Tests of the bridge's message contracts and shared helpers (Story 0.4): every OcuTalon.Bridge.Msg class has
+/// Tests of the bridge's message contracts and shared helpers (Story 0.4; Story 1.2 adds Reply.FinishReason and the ToolInventory
+/// request): every OcuTalon.Bridge.Msg class has
 /// exactly its contract, a busy reply is only busy, NewRef gives 22-character base64url references, and the audit
 /// writer's API names the six events and refuses any other type. Nothing is written to the audit log.
 Class OcuTalon.Test.Bridge.Contracts Extends OcuTalon.Test.Contract
@@ -177,8 +178,13 @@ XData Contracts [ MimeType = application/json ]
    "ToolsRun": "%Boolean",
    "SessionBroken": "%Boolean",
    "Busy": "%Boolean",
-   "HostData": "%String(MAXLEN=)"
+   "HostData": "%String(MAXLEN=)",
+   "FinishReason": "%String(MAXLEN=32)"
   }
+ },
+ "OcuTalon.Bridge.Msg.ToolInventory": {
+  "super": "Ens.Request",
+  "props": {}
  },
  "OcuTalon.Bridge.Msg.DecisionPayload": {
   "super": "%RegisteredObject,%JSON.Adaptor",

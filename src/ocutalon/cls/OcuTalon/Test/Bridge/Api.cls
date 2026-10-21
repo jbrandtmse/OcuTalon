@@ -5,7 +5,8 @@
 ///     empty winner;
 ///   - TestNeutralValues: Budget.State, Keys.Status, Timeouts.Derive, Agent.Input.Render and Checks.Render.Render;
 ///   - TestStubAdapter: the runners' adapter extends AI Hub's outbound agent adapter and overrides its OnInit, which builds
-///     the agent at start, so that a runner starts with no model key.
+///     the agent at start, so that a runner starts with no model key (the adapter builds the agent on the first request instead),
+///     and the runner class carries no STUB.
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
 {
 
@@ -41,7 +42,7 @@ Method TestNeutralValues()
 }
 
 /// The runners' adapter is a subclass of AI Hub's outbound agent adapter whose OnInit is its own (AI Hub's builds the agent
-/// at start and needs a model key), and the runner item names it as its adapter.
+/// at start and needs a model key), and the runner item names it as its adapter. The runner class carries no STUB.
 Method TestStubAdapter()
 {
 	Set adapter = "OcuTalon.Bridge.Adapter.Agent"
@@ -50,6 +51,7 @@ Method TestStubAdapter()
 	Do $$$AssertTrue($IsObject(method), "OnInit is compiled in the adapter")
 	If $IsObject(method) Do $$$AssertEquals(method.Origin, adapter, "OnInit is the adapter's own, not AI Hub's")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Operation.AgentRunner", "ADAPTER"), adapter, "the runner item names the adapter")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Operation.AgentRunner", "STUB"), "", "and the runner class carries no STUB")
 }
 
 /// --- helpers ---

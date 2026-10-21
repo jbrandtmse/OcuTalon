@@ -8,6 +8,10 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The key the CI mock reads to pick this agent's scenario (AD-22).
 Parameter MOCKKEY = "chat";
 
+/// The ceiling on the iterations of one turn (AD-7): AI Hub's own property. The runner puts it in the session config, and a
+/// turn that reaches it is unusable (AD-8). Chat has no EFFORT: it asks the model for its default effort.
+Property MaxIterations As %Integer [ InitialExpression = 4 ];
+
 /// The static system prompt. It holds no template token (AD-7). The sentence for a request to run a command is the text of
 /// the catalog key agent.noCommands, and a test compares the two.
 XData INSTRUCTIONS [ MimeType = text/markdown ]

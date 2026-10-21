@@ -172,21 +172,11 @@ ClassMethod Needle() As %String [ Private ]
 	Quit "%AI.Utils." _ "Template"
 }
 
-/// 1 when a line of the text that is not a comment holds the name of the AI Hub template class, in any case. A comment line
-/// starts, after white space, with //, ///, ;, #; or ##;, as in docker/tests/test-class-rules.sh.
+/// 1 when a code line of the text holds the name of the AI Hub template class, in any case (Test.Bridge.Source: a comment line
+/// starts, after white space, with //, ///, ;, #; or ##;, as in docker/tests/test-class-rules.sh).
 ClassMethod HasTemplateCall(text As %String) As %Boolean [ Private ]
 {
-	Set needle = ..Needle()
-	Set found = 0
-	For i = 1:1:$Length(text, $Char(10)) {
-		Set line = $ZStrip($Piece(text, $Char(10), i), "<W")
-		If ($Extract(line, 1, 2) = "//") || ($Extract(line) = ";") || ($Extract(line, 1, 2) = "#;") || ($Extract(line, 1, 3) = "##;") Continue
-		If $ZConvert(line, "L") [ $ZConvert(needle, "L") {
-			Set found = 1
-			Quit
-		}
-	}
-	Quit found
+	Quit ##class(OcuTalon.Test.Bridge.Source).Matches(text, ..Needle(), 1)
 }
 
 }

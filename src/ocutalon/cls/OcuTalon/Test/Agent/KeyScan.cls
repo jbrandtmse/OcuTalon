@@ -35,7 +35,7 @@ Parameter AGENT = "OcuTalon.Agent.Triage";
 /// A key in the environment reaches the mock with its length, and no entry, session, setting or event-log row holds it.
 Method TestKeyIsStoredNowhere()
 {
-	Set reason = ..GuardReason()
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).GuardReason()
 	If reason '= "" {
 		Do $$$AssertTrue(0, reason)
 		Quit
@@ -72,12 +72,12 @@ Method TestKeyIsStoredNowhere()
 		Set sessionId = session.%Id()
 
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
-		Set post = ..FindRequest(entries, ref)
+		Set post = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequest(entries, ref)
 		Do $$$AssertTrue($IsObject(post), "the log holds the request")
 		If $IsObject(post) {
 			Do $$$AssertEquals(post.keyLength, $Length(fake), "the key's length is the fake key's")
-			Do $$$AssertTrue(..Has(post.headerNames, "x-api-key"), "the key traveled in x-api-key")
-			Do $$$AssertTrue(..Has(post.headerNames, "x-ocutalon-mockkey"), "the mock key traveled in x-ocutalon-mockkey")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Agent.RunnerFixture).Has(post.headerNames, "x-api-key"), "the key traveled in x-api-key")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Agent.RunnerFixture).Has(post.headerNames, "x-ocutalon-mockkey"), "the mock key traveled in x-ocutalon-mockkey")
 			Do $$$AssertEquals(post.selectedBy, "mockkey", "the script was picked by the mock key")
 			Do $$$AssertEquals(post.scenario, "triage", "the script is triage")
 			Do $$$AssertEquals(post.model, "claude-haiku-5-5", "the request names claude-haiku-5-5")
@@ -215,45 +215,6 @@ ClassMethod FindSessions(value As %String) As %List [ Private ]
 }
 
 /// --- helpers ---
-/// "" when the test may run: OCUTALON_MODEL_BASE_URL is the mock's base URL and OCUTALON_MOCK_KEY_HEADER is 1. Otherwise the
-/// reason, from Test.Contract.Mock.
-ClassMethod GuardReason() As %String [ Private ]
-{
-	Set sc = ##class(OcuTalon.Test.Contract.Mock).CheckBaseUrl($SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"))
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	Set sc = ##class(OcuTalon.Test.Contract.Mock).CheckMockKeyFlag($SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER"))
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	Quit ""
-}
-
-/// The request of the log with this reference in its text, or "".
-ClassMethod FindRequest(entries As %DynamicArray, ref As %String) As %DynamicObject [ Private ]
-{
-	Set request = ""
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), ref) {
-			Set request = entry
-			Quit
-		}
-	}
-	Quit request
-}
-
-/// 1 when the dynamic array of names holds the name.
-ClassMethod Has(names As %DynamicArray, name As %String) As %Boolean [ Private ]
-{
-	Set has = 0
-	Set iterator = names.%GetIterator()
-	While iterator.%GetNext(, .value) {
-		If value = name {
-			Set has = 1
-			Quit
-		}
-	}
-	Quit has
-}
-
 /// Sets an environment variable of this process (a helper that other test classes may call).
 ClassMethod SetEnv(name As %String, value As %String) [ Language = python ]
 {

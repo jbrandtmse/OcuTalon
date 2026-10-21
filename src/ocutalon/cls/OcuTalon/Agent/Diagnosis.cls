@@ -12,6 +12,10 @@ Parameter MOCKKEY = "diagnosis";
 /// The read-only watch tools (AD-7).
 Parameter TOOLSETS = "OcuTalon.Tools.Watch";
 
+/// The seed of the Effort setting of the runner that runs this agent (AD-7, AD-19): the Production install step writes it when
+/// the runner has none, and the setting is then the settings page's. Nothing else reads this parameter.
+Parameter EFFORT = "high";
+
 /// The static system prompt. It holds no template token (AD-7).
 XData INSTRUCTIONS [ MimeType = text/markdown ]
 {

@@ -1,4 +1,4 @@
-/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1). Nothing
+/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
 /// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
@@ -8,7 +8,8 @@
 ///   - TestDefinition: the compiled XData holds exactly the items of the oracle, each between the markers of its lane,
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
-///     new log row; the two rule classes carry STUB and hold a rule set with no rule;
+///     new log row; the two rule classes carry STUB and hold a rule set with no rule. The three agent runners carry no STUB,
+///     so the oracle marks them "stub": 0;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -17,6 +18,11 @@
 ///     its adapter, for every item of that class, for every item and class, or under the name Adapter:Model, keeps SeedModels
 ///     from writing a Model row for it, and SeedModels of a production whose definition cannot be opened is an error that
 ///     writes nothing (a test writes no row for any other production);
+///   - TestSeedEfforts: SeedEfforts writes the Effort row of the runner whose agent class has an EFFORT and no other, and never
+///     overwrites a row, and the agents of the product seed low (Triage), high (Diagnosis) and nothing (Chat);
+///   - TestSeedAllowList: SeedAllowList writes one AgentAllowList row for every item, holding the distinct AgentClass values of the
+///     runners in order, and writes nothing when a runner resolves a list from an item row, or when a row exists; a production that
+///     cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
@@ -289,6 +295,98 @@ Method TestSeedSpecificity()
 	Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row afterwards")
 }
 
+/// SeedEfforts writes the Effort row of ZzAgentModel, whose agent class (Triage) has EFFORT low, and no row for the runners whose
+/// agent class has none (%AI.Agent) or does not exist. A second run leaves the row as it is, also when it holds another effort, and
+/// a runner that has an item row of its own is left alone. The agents of the product seed low, high and nothing.
+Method TestSeedEfforts()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set sc = ..Create("FixtureProduction", fixture)
+	Do $$$AssertStatusOK(sc, "the fixture production compiles")
+	If $$$ISERR(sc) Quit
+	Set step = "OcuTalon.Install.Step.Production"
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "OcuTalon.Agent.Triage"), "low", "Triage has the EFFORT low")
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "OcuTalon.Agent.Diagnosis"), "high", "Diagnosis has the EFFORT high")
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "OcuTalon.Agent.Chat"), "", "Chat has none")
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "%AI.Agent"), "", "%AI.Agent has none")
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "OcuTalon.Test.Install.ZzNoSuchAgent"), "", "a class that does not exist has none")
+	Do $$$AssertEquals($ClassMethod(step, "AgentEffort", "Ens.StringRequest"), "", "and neither has a class that is not an %AI.Agent")
+	Do ..DeleteRows(fixture, "Effort")
+	Try {
+		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "", "the fixture production has no Effort row")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedEfforts", fixture), "SeedEfforts runs")
+		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "ZzAgentModel=low", "only ZzAgentModel gets a row, with the EFFORT of its agent class")
+		Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(fixture_"||ZzAgentModel||*||Effort").HostClassName, "*", "for any class")
+
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(fixture_"||ZzAgentModel||*||Effort")
+		Set row.SettingValue = "medium"
+		Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to another effort")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedEfforts", fixture), "SeedEfforts runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "ZzAgentModel=medium", "the existing row is kept as it is")
+
+		Do ..DeleteRows(fixture, "Effort")
+		Set row = ##class(Ens.Config.DefaultSettings).%New()
+		Set row.ProductionName = fixture
+		Set row.ItemName = "*"
+		Set row.HostClassName = "*"
+		Set row.SettingName = "Effort"
+		Set row.SettingValue = "high"
+		Do $$$AssertStatusOK(row.%Save(), "a row of the production gives every runner an effort")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedEfforts", fixture), "SeedEfforts runs with it")
+		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "*=high", "and writes no row of its own")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteRows(fixture, "Effort")
+	Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "", "the fixture production has no Effort row afterwards")
+}
+
+/// SeedAllowList writes one AgentAllowList row for every item, holding the distinct AgentClass values of the five runners of the
+/// fixture production in their order. A second run leaves the row as it is, also when it holds another list. It writes nothing when
+/// a runner has a list of its own, and an error for a production that cannot be opened.
+Method TestSeedAllowList()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set sc = ..Create("FixtureProduction", fixture)
+	Do $$$AssertStatusOK(sc, "the fixture production compiles")
+	If $$$ISERR(sc) Quit
+	Set step = "OcuTalon.Install.Step.Production"
+	Do ..DeleteRows(fixture, "AgentAllowList")
+	Try {
+		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "", "the fixture production has no AgentAllowList row")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedAllowList", fixture), "SeedAllowList runs")
+		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "*=%AI.Agent,OcuTalon.Agent.Triage,OcuTalon.Test.Install.ZzNoSuchAgent", "one row for every item, with the distinct agent classes of the runners")
+		For item = "ZzNoModel", "ZzAgentModel", "ZzOffNoModel" {
+			Do $$$AssertEquals(##class(Ens.Director).GetAdapterSettingValue(fixture_"||"_item, "AgentAllowList", .status), "%AI.Agent,OcuTalon.Agent.Triage,OcuTalon.Test.Install.ZzNoSuchAgent", item_" resolves the list")
+		}
+
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(fixture_"||*||*||AgentAllowList")
+		Set row.SettingValue = "OcuTalon.Agent.Triage"
+		Do $$$AssertStatusOK(row.%Save(), "the row is set to another list")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedAllowList", fixture), "SeedAllowList runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "*=OcuTalon.Agent.Triage", "the existing row is kept as it is")
+
+		Do ..DeleteRows(fixture, "AgentAllowList")
+		Set row = ##class(Ens.Config.DefaultSettings).%New()
+		Set row.ProductionName = fixture
+		Set row.ItemName = "ZzModelSet"
+		Set row.HostClassName = "*"
+		Set row.SettingName = "AgentAllowList"
+		Set row.SettingValue = "%AI.Agent"
+		Do $$$AssertStatusOK(row.%Save(), "a runner gets a list of its own")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedAllowList", fixture), "SeedAllowList runs with it")
+		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "ZzModelSet=%AI.Agent", "and writes no row of its own, because that runner resolves a list")
+
+		Set missing = "OcuTalon.Test.Install.ZzNoSuchProd"_..Number
+		Do $$$AssertStatusNotOK($ClassMethod(step, "SeedAllowList", missing), "SeedAllowList of a production that cannot be opened is an error")
+		Do $$$AssertEquals(..SettingRows(missing, "AgentAllowList"), "", "and writes no row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteRows(fixture, "AgentAllowList")
+	Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "", "the fixture production has no AgentAllowList row afterwards")
+}
+
 /// Row 5: EvalEnabled is 1 only for "1"; SetEval writes the System Default Setting row (production, EvalIn, any class,
 /// Enabled) with 1, then with 0, and says in its description that the step writes it; NotRunning says that
 /// OcuTalon.Production is not running when it does not run.
@@ -388,6 +486,23 @@ ClassMethod ModelRows(production As %String) As %String [ Private ]
 	Quit rows
 }
 
+/// The rows of a production for a setting as item=value, separated by semicolons, in the order of the items.
+ClassMethod SettingRows(production As %String, setting As %String) As %String [ Private ]
+{
+	Set rows = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemName, SettingValue FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName = ? ORDER BY ItemName", production, setting)
+	While result.%Next() {
+		Set rows = rows _ $Select(rows = "": "", 1: ";") _ result.%GetData(1) _ "=" _ result.%GetData(2)
+	}
+	Quit rows
+}
+
+/// Deletes the rows of a production for a setting.
+ClassMethod DeleteRows(production As %String, setting As %String) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName = ?", production, setting)
+}
+
 /// Deletes the Model and Adapter:Model rows of a production.
 ClassMethod DeleteModelRows(production As %String) [ Private ]
 {
@@ -472,9 +587,9 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}]},
- {"lane": "A", "name": "DiagnosisAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Diagnosis"}]},
- {"lane": "A", "name": "ChatAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Chat"}]},
+ {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}]},
+ {"lane": "A", "name": "DiagnosisAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Diagnosis"}]},
+ {"lane": "A", "name": "ChatAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Chat"}]},
  {"lane": "A", "name": "AgentSteps", "class": "OcuTalon.Bridge.Operation.Steps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "OcuTalonApprovals", "class": "EnsLib.Workflow.Operation", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "FailurePoller", "class": "OcuTalon.Watch.FailurePoller", "pool": 0, "enabled": 1, "stub": 1, "settings": []},

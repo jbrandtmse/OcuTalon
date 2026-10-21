@@ -23,6 +23,9 @@ Property Busy As %Boolean [ InitialExpression = 0 ];
 /// JSON a tool may fill, such as check rows (AD-6).
 Property HostData As %String(MAXLEN = "");
 
+/// The provider's stop reason from Response.Extra, such as refusal or max_tokens; empty when it reports none (AD-8).
+Property FinishReason As %String(MAXLEN = 32);
+
 /// A reply that says the conversation was busy: Busy is true and nothing else is set (AD-6).
 /// Decide answers a refused turn with it and never signals busy with an error status.
 ClassMethod NewBusy() As Reply
@@ -56,6 +59,9 @@ Storage Default
 </Value>
 <Value name="7">
 <Value>HostData</Value>
+</Value>
+<Value name="8">
+<Value>FinishReason</Value>
 </Value>
 </Data>
 <DefaultData>ReplyDefaultData</DefaultData>

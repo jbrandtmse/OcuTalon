@@ -8,7 +8,9 @@ Include Ensemble
 /// definition, so the definition stays as the class says and a recompile drops nothing. It then seeds the Model row of
 /// each agent runner that has no model: the value is the MODEL parameter of the runner's agent class, written only when
 /// no item setting and no System Default Setting holds a model, so a model chosen later is never overwritten (AD-7, AD-19).
-/// The step never saves the production and never enables an item through the director.
+/// In the same way it seeds the Effort row of each runner whose agent class has an EFFORT parameter and that has no effort,
+/// and one AgentAllowList row for every item, holding the AgentClass values of the runners, when no runner resolves an
+/// allow-list (AD-6, AD-19). The step never saves the production and never enables an item through the director.
 /// What it does with the production it finds:
 ///   - running, this production: restarts it, so every item gets its job again;
 ///   - running, Troubled or Suspended under another name: fails naming it, and stops, recovers and starts nothing;
@@ -39,13 +41,17 @@ Parameter RUNNERCLASS = "OcuTalon.Bridge.Operation.AgentRunner";
 /// The job statuses that mean a job does not run.
 Parameter DEADSTATUSES = "error,halted,terminated";
 
-/// Writes the EvalIn switch from the environment, seeds the Model of the runners that have none, then starts the
-/// production and waits for it.
+/// Writes the EvalIn switch from the environment, seeds the Model and the Effort of the runners that have none and the
+/// allow-list of the agent classes, then starts the production and waits for it.
 ClassMethod Run() As %Status
 {
 	Set sc = ..SetEval(..EvalEnabled($SYSTEM.Util.GetEnviron("OCUTALON_EVAL")))
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..SeedModels(..#PRODUCTION)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..SeedEfforts(..#PRODUCTION)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..SeedAllowList(..#PRODUCTION)
 	If $$$ISERR(sc) Quit sc
 	Quit ..Start(..#WAITSECONDS)
 }
@@ -159,25 +165,76 @@ ClassMethod UnresolvedRunners(production As %String) As %String
 /// class has no MODEL gets no row, and when it is enabled the start then fails naming it.
 ClassMethod SeedModels(production As %String) As %Status
 {
+	Quit ..SeedRunnerRows(production, "Model", "MODEL", "Seeded by the Production install step when the runner has no model, with the MODEL of its agent class; the step never overwrites it.")
+}
+
+/// Writes the Effort row (production, runner, any class, Effort) for each runner that has no effort (AD-7, AD-19), in the
+/// way SeedModels writes the Model row: the value is the EFFORT parameter of the runner's agent class. A runner that has an
+/// effort keeps it, and a runner whose agent class has no EFFORT gets no row, so it asks the model for its default effort.
+ClassMethod SeedEfforts(production As %String) As %Status
+{
+	Quit ..SeedRunnerRows(production, "Effort", "EFFORT", "Seeded by the Production install step when the runner has no effort, with the EFFORT of its agent class; the step never overwrites it.")
+}
+
+/// Writes the row (production, runner, any class, setting) for each runner that has no value for the setting: the runner's
+/// item setting and every System Default Setting row of any specificity are empty, and the value is the parameter of the
+/// runner's agent class, which is non-empty. This is the loop of SeedModels and SeedEfforts.
+ClassMethod SeedRunnerRows(production As %String, setting As %String, parameter As %String, description As %String) As %Status [ Private ]
+{
 	Set sc = ..Runners(production, .runners)
 	For i = 1:1:runners {
 		If $$$ISERR(sc) Quit
 		Set item = $List(runners(i), 1)
-		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item, "Model", .status)
+		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item, setting, .status)
 		If $$$ISOK(status) && (current '= "") Continue
-		Set model = ..AgentModel($List(runners(i), 2))
-		If model = "" Continue
-		Set sc = ..WriteDefault(production, item, "Model", model, "Seeded by the Production install step when the runner has no model, with the MODEL of its agent class; the step never overwrites it.")
+		Set value = ..AgentParameter($List(runners(i), 2), parameter)
+		If value = "" Continue
+		Set sc = ..WriteDefault(production, item, setting, value, description)
 	}
 	Quit sc
+}
+
+/// Writes one AgentAllowList row for every item of the production (item *, any class) (AD-6, AD-19) when no runner resolves a
+/// value for the setting: the value is the distinct AgentClass values of the runners, in the order of the runners and
+/// comma-separated. A runner that has a value, from its item setting or from any row, keeps it: the settings page owns the
+/// list from then on, and a developer adds an agent class to it there. No row is written when no runner has an agent class.
+ClassMethod SeedAllowList(production As %String) As %Status
+{
+	Set sc = ..Runners(production, .runners)
+	If $$$ISERR(sc) Quit sc
+	Set classes = ""
+	Set resolved = 0
+	For i = 1:1:runners {
+		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_$List(runners(i), 1), "AgentAllowList", .status)
+		If $$$ISOK(status) && (current '= "") {
+			Set resolved = 1
+			Quit
+		}
+		Set agentClass = $List(runners(i), 2)
+		If (agentClass '= "") && '$ListFind(classes, agentClass) Set classes = classes _ $ListBuild(agentClass)
+	}
+	If resolved || (classes = "") Quit $$$OK
+	Quit ..WriteDefault(production, "*", "AgentAllowList", $ListToString(classes, ","), "Seeded by the Production install step when no runner has an allow-list, with the AgentClass of each runner; the step never overwrites it.")
 }
 
 /// The MODEL parameter of an agent class: "" when the class does not exist or does not extend %AI.Agent.
 ClassMethod AgentModel(agentClass As %String) As %String
 {
+	Quit ..AgentParameter(agentClass, "MODEL")
+}
+
+/// The EFFORT parameter of an agent class: "" when the class does not exist, does not extend %AI.Agent or has none.
+ClassMethod AgentEffort(agentClass As %String) As %String
+{
+	Quit ..AgentParameter(agentClass, "EFFORT")
+}
+
+/// A parameter of an agent class: "" when the class does not exist or does not extend %AI.Agent.
+ClassMethod AgentParameter(agentClass As %String, name As %String) As %String [ Private ]
+{
 	If (agentClass = "") || '##class(%Dictionary.CompiledClass).%ExistsId(agentClass) Quit ""
 	If '$ClassMethod(agentClass, "%Extends", "%AI.Agent") Quit ""
-	Quit $Parameter(agentClass, "MODEL")
+	Quit $Parameter(agentClass, name)
 }
 
 /// 1 only for the text "1": OCUTALON_EVAL switches evaluation on, and anything else leaves it off.
