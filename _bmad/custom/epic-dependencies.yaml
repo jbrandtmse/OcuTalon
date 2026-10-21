@@ -1,0 +1,94 @@
+# OcuTalon's approved epic dependency graph for /epic-cycle (orchestrator mode). Kit-owned run file: the
+# orchestrator re-records epics_md_hash for structurally exempt edits only; any other change is re-approved by the owner.
+#
+# Approved by the owner at the unattended launch of 2026-10-21 (AskUserQuestion: the graph, the online-demo fix
+# "Stories 29.1 and 29.2 back to Epic 16", and "Story 16.10 to Epic 31 as Story 31.3"); the lane orders, Epic 29's lane,
+# Story 31.4 and Epic 30's dependencies were then worked out with the Contest Planner, as the owner directed ("Work it
+# out with the planner"), with the owner's words relayed: "Bring Epic 16 forward, we need the demo as early as practicle."
+#
+# Dispatch rules on top of depends_on (the orchestrator enforces them):
+#   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
+#   - Within a lane, epics dispatch in `lanes.<L>.order`: the next one starts once every earlier epic of the lane has
+#     merged or ended parked, stopped or waiting (dispatch.yaml state waiting or held_merge), and its own depends_on
+#     have merged. An epic marked fill_ahead may start out of order while the next epic in order is not yet eligible.
+#   - story_waits are story-level needs on another epic's merge: the runner sets that story aside (doctrine U14,
+#     waiting_on) and continues with independent work; it is re-dispatched once that epic has merged.
+#   - Epic 11 may change either lane's files (AD-29): its stories that touch files of the in-flight Lane B epic wait
+#     until that epic merges (contended paths).
+epics_md_hash: "4e69108d1679c862549bf480d6dbb56fd108df97857f20ef8e7cf512f45e42c0"
+analyzed_by: claude-opus-5-5
+approved: true
+approved_at: "2026-10-21"
+
+lanes:
+  A: {slot: ocutalon-slot-a, order: [1, 3, 5, 7, 9, 11, 12, 30, 13, 14, 15]}
+  B: {slot: ocutalon-slot-b, order: [32, 2, 4, 6, 16, 29, 8, 10, 31]}
+
+# Footprints (AD-29, AD-33). Lane-wide; each epic's own spec names its files.
+footprints:
+  lane_a: &lane_a
+    - src/bridge/**
+    - src/ocutalon/cls/OcuTalon/{Agent,Tools,Watch,Fix,Checks,Digest,Eval}/**
+    - src/ocutalon/cls/OcuTalon/Install/**            # installer core; Install/Step/Web.cls is Lane B's
+    - src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+    - src/ocutalon/cls/OcuTalon/Test/{Agent,Bridge,Install,Tools,Watch,Fix,Checks,Digest,Eval}/**
+    - src/cpf/**
+    - docker/merge.cpf
+    - eval/**
+    - ci/mock/scenarios/A/**
+    - release/**
+    - docs/**
+    - .github/workflows/lane-a.yml
+  lane_a_from_epic_12:                                 # Telegram moves to Lane A from Epic 12 on
+    - src/ocutalon/cls/OcuTalon/Channel/Telegram/**
+    - web/src/app/rail/telegram-card/**
+    - web/e2e/demo-path/telegram-*.spec.ts
+  lane_b: &lane_b
+    - src/ocutalon/cls/OcuTalon/{Web,Channel,Core,Schedule,Demo,Live,Msg}/**   # minus Lane A's exceptions above
+    - src/ocutalon/cls/OcuTalon/Install/Step/Web.cls
+    - src/ocutalon/cls/OcuTalon/Data/{Time,Setting,Ownership}.cls
+    - src/ocutalon/cls/OcuTalon/Data/Public/**
+    - src/ocutalon/cls/OcuTalon/Test/{Contract,Core,Data,Demo,Live,Msg,Web}/**
+    - src/ocutalon/csp/**
+    - web/**
+    - docker/**                                        # except docker/merge.cpf
+    - ci/**                                            # except ci/mock/scenarios/A/
+    - docker-compose.yml
+    - docker-compose.dev.yml
+    - README.md
+    - .github/workflows/ci.yml
+  # Shared by region or entry: each lane edits only its own part, and these are not contended.
+  # A conflict on them at integrate-forward is a plain union (both sides kept).
+  shared_by_region:
+    - src/ocutalon/cls/OcuTalon/Production.cls         # the lane's own XData region only (CI checks the markers)
+    - ci/units.sh                                      # the lane's own shard and group entries only
+    - src/ocutalon/cls/OcuTalon/Data/*.cls             # by AD-33's ownership table, class by class
+    - src/module.xml
+  epic_29_exception:                                   # AD-29: Lane B's Story 29.4 may change these Lane A files
+    - release/**                                       # the online demo's load test, beside the rehearsal
+
+epics:
+  epic-1:  {lane: A, depends_on: [], submodules: [], paths_hint: *lane_a}
+  epic-3:  {lane: A, depends_on: [epic-1], submodules: [], paths_hint: *lane_a}
+  epic-5:  {lane: A, depends_on: [epic-3, epic-2], submodules: [], paths_hint: *lane_a}        # epic-2: Session.Recipients
+  epic-7:  {lane: A, depends_on: [epic-5], submodules: [], paths_hint: *lane_a}
+  epic-9:  {lane: A, depends_on: [epic-7, epic-2], submodules: [], paths_hint: *lane_a}        # epic-2: Intake to EvalSink
+  epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: [either lane's files, AD-29]}
+  epic-12: {lane: A, depends_on: [epic-11], submodules: [], paths_hint: *lane_a,
+            story_waits: {"12.7": epic-16}}        # 12.7 turns on Story 16.3's Telegram-card check
+  epic-30: {lane: A, depends_on: [epic-1, epic-3, epic-5, epic-7], submodules: [], paths_hint: *lane_a, fill_ahead: true}   # its stories came from 1.9, 1.11, 3.6, 5.6, 7.5
+  epic-13: {lane: A, depends_on: [epic-30], submodules: [], paths_hint: *lane_a}               # 13.2 needs 30.3
+  epic-14: {lane: A, depends_on: [epic-13], submodules: [], paths_hint: *lane_a}
+  epic-15: {lane: A, depends_on: [epic-14], submodules: [], paths_hint: *lane_a}
+  epic-32: {lane: B, depends_on: [], submodules: [], paths_hint: [ci/**, .github/workflows/ci.yml]}
+  epic-2:  {lane: B, depends_on: [epic-32], submodules: [], paths_hint: *lane_b}
+  epic-4:  {lane: B, depends_on: [epic-2], submodules: [], paths_hint: *lane_b}
+  epic-6:  {lane: B, depends_on: [epic-4], submodules: [], paths_hint: *lane_b}
+  epic-8:  {lane: B, depends_on: [epic-6, epic-1], submodules: [], paths_hint: *lane_b}        # epic-1: the reminder tools; 8.4 turns on 16.4's cancel path
+  epic-10: {lane: B, depends_on: [epic-8], submodules: [], paths_hint: *lane_b}
+  epic-16: {lane: B, depends_on: [epic-6, epic-3], submodules: [], paths_hint: *lane_b}        # epic-3: Story 3.8; 16.4 uses a ReminderOps double until 8.4
+  epic-29: {lane: B, depends_on: [epic-16, epic-3], submodules: [], paths_hint: [web/e2e/demo-path/**, epic_29_exception],
+            note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing depends on Epic 29's merge."}
+  epic-31: {lane: B, depends_on: [epic-10], submodules: [], paths_hint: *lane_b,
+            story_waits: {"31.3": epic-15, "31.4": [epic-12, epic-29]},   # 31.3 was 16.10; 31.4 holds 29.4's paired-chat cases
+            note: "Story 31.3's measurement after launch needs the launched online demo (the owner's) and parks; Story 31.2 uses fixtures until 30.3."}
