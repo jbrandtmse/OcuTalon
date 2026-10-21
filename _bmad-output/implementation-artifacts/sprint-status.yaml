@@ -64,8 +64,8 @@ development_status:
   1-12-items-saved-for-the-digest-are-kept-for-it: backlog
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-lay-out-the-main-page-frame: ready-for-dev
+  epic-2: in-progress
+  2-1-lay-out-the-main-page-frame: in-progress
   2-2-keep-the-session-and-load-its-snapshot-with-live-updates: backlog
   2-3-route-every-command-by-verb-with-origin-checks: backlog
   2-4-answer-every-chat-message-through-the-turn-pipeline: backlog
