@@ -256,3 +256,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spec Design Notes 'Spine updates for the lead' list 'the countdown's endpoint and rule' and 'the reply rule'; AD-22 (spine L576-601) has neither; mock.mjs's header and Test.Contract.Mock's Arm/Remaining document both
 - 2026-10-20T19:23:41Z status=wontfix-accepted owner=0-11-the-ci-model-mock-answers-every-scenario-the-stories-need by=cr note=reopen_if=a Lane A plan or test needs /_mock/countdown or the reply rule and AD-22 lacks both; lead may add them
 - 2026-10-20T19:26:26Z status=resolved-by:0-11-the-ci-model-mock-answers-every-scenario-the-stories-need owner=0-11-the-ci-model-mock-answers-every-scenario-the-stories-need by=adjudication note=AD-22 now names /_mock/countdown and the reply rule (Rule 20)
+
+### DW-44: The demoKept note does not say how to remove a kept OCUORDERS by hand (owner decision 2, AD-3), and the parked sentence is tracked nowhere
+- source: spec-0-12-epic-0-burn-down.md (code review, acceptance-auditor) | severity: high | fix-risk: low | footprint: in-story
+- evidence: Owner (cycle log L280): 'show a status note saying how to remove it by hand'; AD-3 L142 says the same. Demo.cls L356 writes {text,namespace,globals,routines}, text = 0.10's kept sentence; the spec parked the how-to sentence for the Contest Planner, but no outbox item or ledger row carries it
+- 2026-10-21T02:03:59Z status=decision-pending owner=0-12-epic-0-burn-down by=cr note=lead rules under 22.3: draft the how-to sentence (VETO FYI), rework adds a how field (Demo.cls L356) + kept_note check
+- 2026-10-21T02:07:36Z status=open owner=0-12-epic-0-burn-down by=owner note=owner approved the how-to sentence via the Contest Planner (Oct 21); rework adds the how field and pins it

@@ -15,7 +15,8 @@
 #     Interoperability namespace without IPM, and its installer run, and refused in a namespace without Interoperability,
 #     where only the installer class is loaded because the bridge's messages need Ens.Request and Ens.Response.
 # The Demo step rides on these restarts and adds none (Story 0.10): demo mode is on at the first start (the image has its version
-# file), switched off before row 2's restart, still off at row 3's recreate, and switched on before row 4's recreate. The checks
+# file), switched off before row 2's restart, still off at row 3's recreate, switched on before row 4's recreate, and switched off
+# again before row 4's last restart. The checks
 #   - row 1: OCUORDERS, its databases, resources, mappings, Interoperability, production and trace grants exist (check_demo_on),
 #     and the surfaces of the instance are recorded;
 #   - row 2: all of it is gone (check_demo_off), and the surfaces equal row 1's less every line that names OCUORDERS;
@@ -32,8 +33,9 @@
 #     next off start removes the partial state, a database file with no CPF entry included, and the mark; the surfaces equal row 2's;
 #   - row 4, OCUORDERS present: a drifted package mapping is modified back; a foreign production refuses the on path, and the off
 #     path keeps the namespace with a warning and the note, running or only defined and stopped, and removes only OcuTalon's access
-#     (the trace application, the trace role's OCUORDERS grants and SQL privileges), with nothing stopped, started or removed; a
-#     Troubled Orders production is recovered and started, which clears the mark; a production whose items do not run within the
+#     (the trace application, the trace role's OCUORDERS grants and SQL privileges), with nothing stopped, started or removed (each
+#     keep fixture seeds a fixture role ZzOcuGrantee with its own SQL privilege in OCUORDERS, which the keep leaves, and removes it
+#     again); a Troubled Orders production is recovered and started, which clears the mark; a production whose items do not run within the
 #     wait is an error that names the item; demo mode switched off while the Orders production runs stops it and removes
 #     OCUORDERS, and switched on again recreates it. The last restart has demo mode off and the foreign production defined and
 #     stopped: it ends ready, with the WARN line, the note, OCUORDERS and the definition kept, and OcuTalon's access gone.
@@ -216,22 +218,39 @@ kept_note() {
 }
 
 # own_access <label>: the ObjectScript lines (for OCUTALON) that print CHK|<label>|<trace application /ocutalon/trace/ocuorders exists>|
-# <the trace role names OCUORDERS>|<the trace role's SQL privileges in OCUORDERS>, OcuTalon's own access to the namespace (AD-24).
+# <the trace role names OCUORDERS>|<the trace role's SQL privilege rows in OCUORDERS>|<the trace role may SELECT Ens.MessageHeader
+# in OCUORDERS>, OcuTalon's own access to the namespace (AD-24); the last field is the privilege as SQL checks it, not the row.
 own_access() {
   printf '%s\n' \
     'Set $Namespace="%SYS" Set ok=##class(Security.Roles).Get("OcuTalonTraceViewer",.q) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Security.SQLPrivileges WHERE Namespace = ? AND Grantee = ?","OCUORDERS","OcuTalonTraceViewer") Do rs.%Next()' \
-    "Write !,\"CHK|$1|\",##class(Security.Applications).Exists(\"/ocutalon/trace/ocuorders\"),\"|\",(\$Get(q(\"Resources\"))[\"OCUORDERS\"),\"|\",rs.%GetData(1) Set \$Namespace=\"OCUTALON\""
+    "Write !,\"CHK|$1|\",##class(Security.Applications).Exists(\"/ocutalon/trace/ocuorders\"),\"|\",(\$Get(q(\"Resources\"))[\"OCUORDERS\"),\"|\",rs.%GetData(1),\"|\",\$SYSTEM.SQL.Security.CheckPrivilege(\"OcuTalonTraceViewer\",1,\"Ens.MessageHeader\",\"s\",\"OCUORDERS\") Set \$Namespace=\"OCUTALON\""
 }
 
 # inside_state <variable>: the ObjectScript lines (for OCUTALON) that set the variable to a fingerprint of what the keep mode must
-# leave in OCUORDERS: its globals and routines databases with their resources and files, its package mappings, its
-# Interoperability marker and role, its web applications but OcuTalon's trace application, and its portal folder.
+# leave in OCUORDERS: its globals and routines databases with their resources and files, its package and global mappings with
+# their databases, its Interoperability marker and role, its web applications but OcuTalon's trace application, and its portal
+# folder.
 inside_state() {
   printf '%s\n' \
     'Set $Namespace="%SYS" Set mgr=$SYSTEM.Util.ManagerDirectory() Kill p Set sc=##class(Config.Namespaces).Get("OCUORDERS",.p) Set st=$Get(p("Globals"))_"/"_$Get(p("Routines"))_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_##class(Config.Databases).Exists("OCUORDERS_DATA")_##class(Security.Resources).Exists("%DB_OCUORDERS_CODE")_##class(Security.Resources).Exists("%DB_OCUORDERS_DATA")_##class(%File).Exists(mgr_"ocuorders_code/IRIS.DAT")_##class(%File).Exists(mgr_"ocuorders_data/IRIS.DAT")' \
-    'Set rs=##class(%ResultSet).%New("Config.MapPackages:List") Do rs.Execute("OCUORDERS") Set maps=0 While rs.Next() { Set maps=maps+1 }' \
+    'Set maps="" For q="Config.MapPackages:List","Config.MapGlobals:List" { Set rs=##class(%ResultSet).%New(q) Do rs.Execute("OCUORDERS") While rs.Next() { Set maps=maps_","_rs.Get("Name")_">"_rs.Get("Database") } }' \
     'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE NameSpace = ? AND Name <> ? ORDER BY Name","OCUORDERS","/ocutalon/trace/ocuorders") Set apps="" While rs.%Next() { Set apps=apps_","_rs.%GetData(1) }' \
     "Set $1=st_\"|\"_maps_\"|\"_\$Data(^%SYS(\"Ensemble\",\"InstalledNamespace\",\"OCUORDERS\"))_\"|\"_##class(Security.Roles).Exists(\"%EnsRole_ProdPrivs_OCUORDERS\")_\"|\"_apps_\"|\"_##class(%File).DirectoryExists(\$SYSTEM.Util.DataDirectory()_\"csp/ocuorders\") Set \$Namespace=\"OCUTALON\""
+}
+
+# foreign_grant <seed|count|remove>: the ObjectScript lines (for OCUTALON) for a fixture role ZzOcuGrantee that holds SQL SELECT on
+# Ens.MessageHeader in OCUORDERS, a privilege that is not OcuTalon's own and that the keep mode must leave. seed creates the role and
+# the grant and prints CHK|grantee-seed|<role created>|<grant status OK>; count prints CHK|grantee|<its privileges in OCUORDERS>; remove
+# revokes the grant, deletes the role and prints CHK|grantee-removed|<revoked>|<role deleted>|<privileges left>.
+foreign_grant() {
+  case $1 in
+    seed) printf '%s\n' \
+      'Set $Namespace="%SYS" Set rc=##class(Security.Roles).Create("ZzOcuGrantee","OcuTalon test fixture","") Set $Namespace="OCUORDERS" Set gc=$SYSTEM.SQL.Security.GrantPrivilege("SELECT","Ens.MessageHeader","TABLE","ZzOcuGrantee") Write !,"CHK|grantee-seed|",$SYSTEM.Status.IsOK(rc),"|",$SYSTEM.Status.IsOK(gc) Set $Namespace="OCUTALON"' ;;
+    count) printf '%s\n' \
+      'Set $Namespace="%SYS" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Security.SQLPrivileges WHERE Namespace = ? AND Grantee = ?","OCUORDERS","ZzOcuGrantee") Do rs.%Next() Write !,"CHK|grantee|",rs.%GetData(1) Set $Namespace="OCUTALON"' ;;
+    remove) printf '%s\n' \
+      'Set $Namespace="OCUORDERS" Set vc=$SYSTEM.SQL.Security.RevokePrivilege("SELECT","Ens.MessageHeader","TABLE","ZzOcuGrantee") Set $Namespace="%SYS" Set dc=##class(Security.Roles).Delete("ZzOcuGrantee") Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Security.SQLPrivileges WHERE Grantee = ?","ZzOcuGrantee") Do rs.%Next() Write !,"CHK|grantee-removed|",$SYSTEM.Status.IsOK(vc),"|",$SYSTEM.Status.IsOK(dc),"|",rs.%GetData(1) Set $Namespace="OCUTALON"' ;;
+  esac
 }
 
 # check_kept_log <label> <sentence>: in the start's log, the line right after STEP Demo OK is exactly WARN Demo <sentence>, and it is
@@ -295,7 +314,8 @@ live_pop_file
 # The foreign OCUORDERS of row 3's recreate is still here, with demo mode off. Each fixture starts from the state before it, builds
 # its own foreign or partial state, calls the step's Run() the way the after-start does (in OCUTALON), checks the answer and what
 # the step did and did not touch, and removes its state again. No fixture restarts the container. The surfaces at the end of the
-# block equal row 2's. The helpers (demo_run, fixture_class, foreign_state, kept_note, own_access) are defined above.
+# block equal row 2's. The helpers (demo_run, fixture_class, foreign_state, kept_note, own_access, inside_state, foreign_grant and
+# check_kept_log) are defined above.
 
 # production_class_fails <label> <reason>: runs OcuTalon.Test.Demo.Production through %UnitTest.Manager in the container, the way
 # ci/iris.sh class does, and checks that every test failed, none was skipped, and each failed with <reason>.
@@ -318,11 +338,12 @@ CHK|each-names-reason|1" \
 # and the note, and refused (and left alone, the mark as it was) when it is on.
 set_demo_mode 0
 check_session "demo mode off keeps a foreign OCUORDERS exactly as it was, warns, and records the note (matrix rows 7 and 11)" OCUTALON \
-  "CHK|run|1|
+  "CHK|cleared|1|
+CHK|run|1|
 CHK|warn|1|$foreign_sentence
 CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE
 CHK|off|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
-  'Set cleared=##class(OcuTalon.Data.StatusMark).Record("demoKept","")' \
+  'Set cleared=##class(OcuTalon.Data.StatusMark).Record("demoKept","") Write !,"CHK|cleared|",$SYSTEM.Status.IsOK(cleared),"|",##class(OcuTalon.Data.StatusMark).Get("demoKept")' \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
   'Set w=##class(OcuTalon.Install.Step).TakeWarnings() Write !,"CHK|warn|",$ListLength(w),"|",$ListGet(w,1)' \
   "$(kept_note)" \
@@ -330,17 +351,17 @@ CHK|off|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
   "$(foreign_state off)" \
   'Halt'
 set_demo_mode 1
-check_session "demo mode on refuses a foreign OCUORDERS with the stated text and touches nothing (matrix row 7); the fixture is removed again" %SYS \
-  "CHK|run|0|ERROR #5001: Namespace OCUORDERS exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone.
+check_session "demo mode on refuses a foreign OCUORDERS with the stated text, touches nothing and leaves the mark as it was (matrix row 7); the fixture is removed again" %SYS \
+  "CHK|seeded|1
+CHK|run|0|ERROR #5001: Namespace OCUORDERS exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone.
 CHK|on|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0
-CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE
+CHK|mark-left|stale
 CHK|removed|1|1|1|1|1|1|1
 CHK|gone|/|000000|0|0|0|0" \
+  'Set $Namespace="OCUTALON" Write !,"CHK|seeded|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("demoKept","stale")) Set $Namespace="%SYS"' \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
   "$(foreign_state on)" \
-  'Set $Namespace="OCUTALON"' \
-  "$(kept_note)" \
-  'Set $Namespace="%SYS"' \
+  'Set $Namespace="OCUTALON" Write !,"CHK|mark-left|",##class(OcuTalon.Data.StatusMark).Get("demoKept") Set x=##class(OcuTalon.Data.StatusMark).Record("demoKept","") Set $Namespace="%SYS"' \
   'Set mgr=$SYSTEM.Util.ManagerDirectory(),gone=##class(Config.Namespaces).Delete("OCUORDERS")' \
   'For n="CODE","DATA" { Set dir=mgr_"ocuforeign_"_$ZConvert(n,"L")_"/" Set gone=gone_"|"_##class(Config.Databases).Delete("OCUFOREIGN_"_n) Set gone=gone_"|"_##class(SYS.Database).DeleteDatabase(dir) Set gone=gone_"|"_##class(%File).RemoveDirectoryTree(dir) }' \
   'Write !,"CHK|removed|",gone' \
@@ -499,14 +520,18 @@ production_class_fails "with another production running in OCUORDERS every test 
   "The Orders production does not run in OCUORDERS"
 set_demo_mode 0
 check_session "demo mode off keeps OCUORDERS while another production runs there: it warns, records the note, removes OcuTalon's own access only, and stops and deletes nothing (matrix rows 3, 7 and 13)" OCUTALON \
-  "CHK|own-before|1|1|1
+  "CHK|own-before|1|1|1|1
+CHK|grantee-seed|1|1
 CHK|run|1|
 CHK|warn|1|$running_sentence
 CHK|note|$running_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
-CHK|own|0|0|0
+CHK|own|0|0|0|0
 CHK|inside|1|1
-CHK|kept|1|1|1|ZzOcuForeign.Production|1" \
+CHK|grantee|1
+CHK|kept|1|1|1|ZzOcuForeign.Production|1
+CHK|grantee-removed|1|1|0" \
   "$(own_access own-before)" \
+  "$(foreign_grant seed)" \
   "$(inside_state inBefore)" \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
   'Set w=##class(OcuTalon.Install.Step).TakeWarnings() Write !,"CHK|warn|",$ListLength(w),"|",$ListGet(w,1)' \
@@ -514,21 +539,28 @@ CHK|kept|1|1|1|ZzOcuForeign.Production|1" \
   "$(own_access own)" \
   "$(inside_state inAfter)" \
   'Write !,"CHK|inside|",(inBefore=inAfter),"|",(inAfter["/csp/ocuorders")' \
-  'Set $Namespace="%SYS" Set kept=##class(Config.Namespaces).Exists("OCUORDERS")_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_"|"_##class(Config.Databases).Exists("OCUORDERS_DATA") Set $Namespace="OCUORDERS" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|kept|",kept,"|",n,"|",s' \
+  "$(foreign_grant count)" \
+  'Set $Namespace="%SYS" Set kept=##class(Config.Namespaces).Exists("OCUORDERS")_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_"|"_##class(Config.Databases).Exists("OCUORDERS_DATA") Set $Namespace="OCUORDERS" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|kept|",kept,"|",n,"|",s Set $Namespace="OCUTALON"' \
+  "$(foreign_grant remove)" \
   'Halt'
 
-# The foreign production stopped: it is still defined in OCUORDERS, so demo mode off still keeps the namespace, with the other sentence.
-check_session "demo mode off keeps OCUORDERS while another production is defined there, stopped: it warns, records the note, removes OcuTalon's own access only, and deletes nothing (matrix rows 3, 7 and 12)" OCUTALON \
+# The foreign production stopped: it is still defined in OCUORDERS, so demo mode off still keeps the namespace, with the other
+# sentence. OcuTalon's own access was removed by the keep above, and stays removed; the fixture role is seeded again for this run.
+check_session "demo mode off keeps OCUORDERS while another production is defined there, stopped: it warns, records the note, leaves OcuTalon's access removed and another grantee's privilege in place, and deletes nothing (matrix rows 3, 7 and 12)" OCUTALON \
   "CHK|settled|1
 CHK|foreign-stopped|1|2
+CHK|grantee-seed|1|1
 CHK|run|1|
 CHK|warn|1|$defined_sentence
 CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
-CHK|own|0|0|0
+CHK|own|0|0|0|0
 CHK|inside|1|1
-CHK|kept|1|1|1|1|1" \
+CHK|grantee|1
+CHK|kept|1|1|1|1|1
+CHK|grantee-removed|1|1|0" \
   'Set $Namespace="OCUORDERS" '"$settle_scheduler"' Write !,"CHK|settled|",settled' \
   'Set sc=##class(Ens.Director).StopProduction(30,1) Set sc2=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|foreign-stopped|",$SYSTEM.Status.IsOK(sc),"|",s Write:$SYSTEM.Status.IsError(sc) !,"CHK|stop-error|",$SYSTEM.Status.GetErrorText(sc) Set $Namespace="OCUTALON"' \
+  "$(foreign_grant seed)" \
   "$(inside_state inBefore)" \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
   'Set w=##class(OcuTalon.Install.Step).TakeWarnings() Write !,"CHK|warn|",$ListLength(w),"|",$ListGet(w,1)' \
@@ -536,7 +568,9 @@ CHK|kept|1|1|1|1|1" \
   "$(own_access own)" \
   "$(inside_state inAfter)" \
   'Write !,"CHK|inside|",(inBefore=inAfter),"|",(inAfter["/csp/ocuorders")' \
+  "$(foreign_grant count)" \
   'Set $Namespace="%SYS" Set kept=##class(Config.Namespaces).Exists("OCUORDERS")_"|"_##class(Config.Databases).Exists("OCUORDERS_CODE")_"|"_##class(Config.Databases).Exists("OCUORDERS_DATA") Set $Namespace="OCUORDERS" Write !,"CHK|kept|",kept,"|",##class(Ens.Config.Production).%ExistsId("ZzOcuForeign.Production"),"|",##class(Ens.Config.Production).%ExistsId("OcuTalon.Demo.Orders.Production")' \
+  "$(foreign_grant remove)" \
   'Halt'
 sed -n 's/^CHK|stop-error|/  the foreign production did not stop: /p' "$tmp/actual.chk"
 set_demo_mode 1
@@ -550,11 +584,13 @@ CHK|troubled|OcuTalon.Demo.Orders.Production|4" \
   'Set ^Ens.Runtime("Name")="OcuTalon.Demo.Orders.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|troubled|",n,"|",s' \
   'Halt'
 check_session "a Troubled Orders production is recovered and started, and its items run; the run clears the note (matrix rows 2 and 15)" OCUTALON \
-  "CHK|run|1
+  "CHK|seeded|1
+CHK|run|1
 CHK|warn|0|
 CHK|note|<absent>
-CHK|own|1|1|1
+CHK|own|1|1|1|1
 CHK|running|1|OcuTalon.Demo.Orders.Production" \
+  'Write !,"CHK|seeded|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("demoKept","stale"))' \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
   'Set w=##class(OcuTalon.Install.Step).TakeWarnings() Write !,"CHK|warn|",$ListLength(w),"|",$ListGet(w,1)' \
   "$(kept_note)" \
@@ -585,11 +621,13 @@ set_demo_mode 0
 check_session "demo mode off while the Orders production runs stops it and removes OCUORDERS, with no job left there (matrix row 3)" OCUTALON \
   "CHK|pre|1|OcuTalon.Demo.Orders.Production
 CHK|settled|1
+CHK|seeded|1
 CHK|run|1|
 CHK|warn|0|
 CHK|note|<absent>
 CHK|gone|0|0|0" \
   'Set $Namespace="OCUORDERS" Write !,"CHK|pre|",##class(Ens.Director).IsProductionRunning(.n),"|",n '"$settle_scheduler"' Write !,"CHK|settled|",settled Set $Namespace="OCUTALON"' \
+  'Write !,"CHK|seeded|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("demoKept","stale"))' \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
   'Set w=##class(OcuTalon.Install.Step).TakeWarnings() Write !,"CHK|warn|",$ListLength(w),"|",$ListGet(w,1)' \
   "$(kept_note)" \
@@ -606,7 +644,7 @@ check_session "row 4: the public class is deleted" OCUTALON "CHK|deleted|1" \
 # The last restart has demo mode off and the foreign production defined in OCUORDERS and stopped: LoadFromClass defines it (it adds
 # its definition to the namespace) and starts nothing, so the Orders production keeps running until the restart.
 check_session "row 4: OcuTalon's access to OCUORDERS is whole, and the foreign production is defined there and not started (fixture before the last restart)" OCUTALON \
-  "CHK|own-before|1|1|1
+  "CHK|own-before|1|1|1|1
 CHK|fixture|1
 CHK|defined|1|1
 CHK|not-foreign-running|1" \
@@ -629,7 +667,7 @@ check_ready_state "row 4"
 check_kept_log "row 4" "$defined_sentence"
 check_session "row 4: the last start kept OCUORDERS and the foreign definition, recorded the note, and removed OcuTalon's own access only (matrix row 12)" OCUTALON \
   "CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
-CHK|own|0|0|0
+CHK|own|0|0|0|0
 CHK|kept|1|1|1|1|1" \
   "$(kept_note)" \
   "$(own_access own)" \

@@ -699,6 +699,7 @@ Each approved request has its own result, shown as a band in that request's card
 | Already answered (a late press) | rejected | "Already answered: rejected from {channel} at {time}." |
 | Already answered, with a user | a local install with more than one user | "Already answered: approved by {user} from {channel} at {time}." and "Already answered: rejected by {user} from {channel} at {time}." |
 | Sign-in page labels | always | "User name", "Password" and "Show password" are catalog texts. |
+| Demo mode off, OCUORDERS kept (the `demoKept` status note; the README and the security overview carry the same sentence) | OCUORDERS was not created by OcuTalon, or holds another production | "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (the owner's approval through the Contest Planner, October 21; the after-start `WARN Demo` line keeps Story 0.10's sentence) |
 
 ## Message Catalog
 

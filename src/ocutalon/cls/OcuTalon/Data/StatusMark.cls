@@ -16,8 +16,8 @@ Property RecordedAt As %String(MAXLEN = 20);
 
 Index MarkIndex On Mark [ Unique ];
 
-/// Creates or replaces the row of the mark, with the value and RecordedAt (UTC, to the second). An empty value deletes the
-/// row, and a mark that has none is an error status that names the empty mark.
+/// Creates or replaces the row of the mark, with the value and RecordedAt (UTC, to the second), which a replace stamps
+/// again. An empty value deletes the row; an empty mark name is an error status that says the mark is empty.
 ClassMethod Record(mark As %String, value As %String) As %Status
 {
 	If $Get(mark) = "" Quit $SYSTEM.Status.Error(5001, "A status mark needs a name: the mark is empty")

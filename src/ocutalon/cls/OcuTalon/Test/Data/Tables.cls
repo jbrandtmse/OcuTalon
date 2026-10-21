@@ -104,6 +104,12 @@ Method TestStatusMarkRecord()
 	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, "v"), "Record creates the row")
 	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "v", "Get reads the value")
+	Set row = $ClassMethod(class, "MarkIndexOpen", mark)
+	If $IsObject(row) {
+		Set row.RecordedAt = "2000-01-01T00:00:00Z"
+		Do $$$AssertStatusOK(row.%Save(), "the row's RecordedAt is set back to 2000, so the replace below must stamp it again")
+	}
+	Kill row
 	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, "w"), "Record replaces the value")
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "w", "Get reads the new value")
@@ -112,7 +118,7 @@ Method TestStatusMarkRecord()
 	Set recorded = $Select($IsObject(row): row.RecordedAt, 1: "")
 	Set shaped = (recorded ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z")
 	Do $$$AssertTrue(shaped, "RecordedAt is UTC to the second: "_recorded)
-	Do $$$AssertTrue(((recorded = before) || (recorded ] before)) && ((recorded = after) || (after ] recorded)), "RecordedAt is the time of the call: "_recorded)
+	Do $$$AssertTrue(((recorded = before) || (recorded ] before)) && ((recorded = after) || (after ] recorded)), "RecordedAt is the time of the last call, a replace included: "_recorded)
 	Kill row
 	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, ""), "Record with an empty value succeeds")
 	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "", "Get is empty after an empty value")

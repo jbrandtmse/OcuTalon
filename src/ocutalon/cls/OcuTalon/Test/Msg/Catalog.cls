@@ -535,7 +535,8 @@ Method TestNounForms()
 /// renders the owner's exact text on the four channels (the page wording for the two incident notices). With the slot at 0 or 2
 /// it renders the entry's own text, which holds the plural fragment. The resend count of the dry runs is refused when it is
 /// missing, null, negative, fractional or text, and the slot of every form is refused as the text 1 and as true, the values
-/// that would select the form if the slot were compared without being validated. TestEntries' rules for a one form (Problems) are shown to name each fault in a
+/// that would select the form if the slot were compared without being validated. The form belongs to its own slot only: with that slot at 2 and every other count slot at 1
+/// the entry's own text is rendered, without the form's marker. TestEntries' rules for a one form (Problems) are shown to name each fault in a
 /// copy of a real entry.
 Method TestCountOfOneForms()
 {
@@ -565,6 +566,14 @@ Method TestCountOfOneForms()
 				Do $$$AssertTrue(text [ fragment, key_" with "_form.slot_" at "_count_" on "_channel_" holds '"_fragment_"'")
 			}
 		}
+		Set slots = ..WithSlot(form.slots, form.slot, 2, "number")
+		Set declared = ##class(OcuTalon.Msg.Catalog).Entry(key, .entrySc).slots.%GetIterator()
+		While declared.%GetNext(.name, .type) {
+			If (type = "count") && (name '= form.slot) Set slots = ..WithSlot(slots, name, 1, "number")
+		}
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots, "telegram", ..#NOW, 1, .sc)
+		Do $$$AssertStatusOK(sc, key_" renders with "_form.slot_" at 2 and every other count at 1")
+		Do $$$AssertTrue((text '= "") && (text '[ form.singular), key_" does not use the form when only another count is 1: no '"_form.singular_"' in '"_text_"'")
 		Do ..AssertRefused(key_" "_form.slot_" as the text 1", key, ..WithSlot(form.slots, form.slot, "1"), "telegram", "'"_form.slot_"'", "number")
 		Do ..AssertRefused(key_" "_form.slot_" as true", key, ..WithSlot(form.slots, form.slot, 1, "boolean"), "telegram", "'"_form.slot_"'", "number")
 	}
@@ -1040,8 +1049,9 @@ XData Gaps [ MimeType = application/json ]
 }
 
 /// The 8 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
-/// is the exact text on the message channels and web the page wording where it differs, and plural is the fragment that the
-/// entry's own text keeps for any other count ({n} stands for the slot's value).
+/// is the exact text on the message channels and web the page wording where it differs, plural is the fragment that the
+/// entry's own text keeps for any other count ({n} stands for the slot's value) and singular a fragment of the form's text that the
+/// entry's own text never holds.
 XData OneForms [ MimeType = application/json ]
 {
 {
@@ -1050,50 +1060,58 @@ XData OneForms [ MimeType = application/json ]
   "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend it", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 1},
   "text": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
   "web": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
-  "plural": "I'll resend {n} repaired copies; the originals stay unchanged."
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
  },
  "incident.laterRequest": {
   "slot": "resendCount",
   "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend it", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 1},
   "text": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
   "web": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
-  "plural": "I'll resend {n} repaired copies; the originals stay unchanged."
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
  },
  "result.allThrough": {
   "slot": "count",
   "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}},
   "text": "The order went through.",
-  "plural": "All {n} orders went through."
+  "plural": "All {n} orders went through.",
+  "singular": "The order went through."
  },
  "result.failedAgain": {
   "slot": "failedAgain",
   "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 49, "failedAgain": 1, "failReason": "the order date still wasn't accepted"},
   "text": "49 of 50 orders went through. 1 failed again (the order date still wasn't accepted). I won't retry it without a new approval.",
-  "plural": "I won't retry them"
+  "plural": "I won't retry them",
+  "singular": "I won't retry it"
  },
  "result.skipped": {
   "slot": "skipped",
   "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 49, "skipped": 1},
   "text": "49 of 50 orders went through. 1 had changed since the dry run, so I skipped it; it needs a new approval.",
-  "plural": "so I skipped them; they need"
+  "plural": "so I skipped them; they need",
+  "singular": "so I skipped it; it needs"
  },
  "result.failedAndSkipped": {
   "slot": "skipped",
   "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 47, "failedAgain": 2, "failReason": "the order date still wasn't accepted", "skipped": 1},
   "text": "47 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval.",
-  "plural": "so I skipped them. I won't"
+  "plural": "so I skipped them. I won't",
+  "singular": "so I skipped it. I won't"
  },
  "result.stillResending": {
   "slot": "completed",
   "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 1},
   "text": "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done.",
-  "plural": "orders have gone through"
+  "plural": "orders have gone through",
+  "singular": "has gone through"
  },
  "result.interrupted": {
   "slot": "remaining",
   "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 49, "remaining": 1},
   "text": "The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval.",
-  "plural": "The other {n} need a new approval."
+  "plural": "The other {n} need a new approval.",
+  "singular": "The other one needs a new approval."
  }
 }
 }

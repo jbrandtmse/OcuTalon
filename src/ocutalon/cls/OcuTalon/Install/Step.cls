@@ -1,13 +1,14 @@
 /// The contract of an installer step (AD-23). A class under OcuTalon.Install.Step.<Area> extends this class,
-/// and the registry (OcuTalon.Install.Registry) discovers it. Every method does nothing by default, so an
+/// and the registry (OcuTalon.Install.Registry) discovers it. These methods do nothing by default, so an
 /// area overrides only what it declares:
 ///   - Run() is the step itself, called once per start in the registry's fixed order, if the area is in the order;
 ///   - Grants() declares roles and what they hold, which the Roles step composes;
 ///   - Reconcile() re-arms the area's waiters and rows, which the Reconcile step calls;
 ///   - Tasks() declares scheduled tasks, which the Tasks step creates once;
-///   - Purge() removes the area's old records for the purge task (AD-27);
-///   - Warn(text) records a warning of the running step, which the registry prints after the step's own line as
-///     WARN <step> <text>; outside the registry the warnings stay with the caller until it takes them with TakeWarnings().
+///   - Purge() removes the area's old records for the purge task (AD-27).
+/// Warn(text) and TakeWarnings() are shared helpers that an area calls and never overrides: Warn records a warning of the
+/// running step, which the registry prints after the step's own line as WARN <step> <text>; outside the registry the
+/// warnings stay with the caller until it takes them with TakeWarnings().
 Class OcuTalon.Install.Step [ Abstract ]
 {
 
