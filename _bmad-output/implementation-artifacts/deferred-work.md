@@ -236,6 +236,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.11 Rule 22 ruling; Install.Step.Provider is Lane A's only provider writer (AD-19) and is built in 1.1
 - 2026-10-20T14:30:01Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=planning note=1.1's Provider step writes http_config.custom_headers x-ocutalon-mockkey=<the agent class's MOCKKEY> only with OCUTALON_MODEL_BASE_URL set
 - 2026-10-20T18:15:26Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=owner note=owner decision 5: header only when OCUTALON_MOCK_KEY_HEADER=1 (CI-only), never from OCUTALON_MODEL_BASE_URL alone; online demo never carries it
+- 2026-10-21T18:39:25Z status=resolved-by:1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=adjudication note=Provider.Details adds x-ocutalon-mockkey only for OCUTALON_MOCK_KEY_HEADER=1; pinned by TestDetails, ProviderEnv TestBaseUrlAlone/TestFlagAlone/TestCiEnvironment
 
 ### DW-40: Test.Contract.Mock's guard failure path (OCUTALON_MODEL_BASE_URL not the mock's) has no automated run: CI always runs under the mock's value
 - source: _bmad-output/implementation-artifacts/spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: low | fix-risk: low | footprint: in-story
@@ -291,8 +292,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Merge refuses only a non-placeholder api_key and any other @{ (AD-19, decision 10, U-2); {"api_key":"@{env:X}","base_url":"http://other.invalid/v1/"} passes and @{config:} resolves both; Story 17.3 is the first caller taking user input
 - 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=deferred by 1.1 implement; adjudicate at 1.1's gate (likely route to 17-3 with the residual)
+- 2026-10-21T18:26:41Z occurrence=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor
+- 2026-10-21T18:39:25Z status=routed owner=17-3-run-each-agent-on-a-supported-provider by=adjudication note=residual: 17.3's model-change API must validate env var name, base_url, headers, model, secret:// before Merge (1.1 checks api_key, @{ only)
 
 ### DW-53: cycle-log-epic-1.md line 1 held a local absolute path (state=), which test-boundaries.sh flags in every tracked file, so the hosted checks job would go red on the next push
 - source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: runner bookkeeping commit 9808cd9 (line from 13:54Z); found by 1.1 implement's ci/checks.sh run
 - 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=lead bookkeeping defect, fixed by the lead before any push
+- 2026-10-21T18:39:25Z status=resolved-by:1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=adjudication note=lead corrected cycle-log line 1 to a relative state= path in cb4a11c; test-boundaries.sh PASS paths (QA and CR runs)
+
+### DW-54: Test.Agent.KeyScan's FindRequest and Has copy Test.Contract.Mock's private Find and Has, though Story 1.1's spec says to call Mock and not copy it
+- source: spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: KeyScan.cls FindRequest and Has repeat Mock.cls Find and Has (about 436-461) line for line; Mock's are Private and Lane B's (Test.Contract), so Lane A cannot call them or edit them (Rule 2)
+- 2026-10-21T18:26:38Z status=escalated owner=burndown by=cr note=decision sheet: Lane B makes Mock.Find and Mock.Has public, then KeyScan calls them and drops its copies

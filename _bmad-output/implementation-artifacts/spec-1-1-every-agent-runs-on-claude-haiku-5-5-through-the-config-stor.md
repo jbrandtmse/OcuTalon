@@ -260,6 +260,58 @@ deferred:
 - Given a fake key in the environment, when a request goes from TriageAgent's `ProviderConfig` to the mock and the session is saved, then the mock saw a key of the fake key's length, and `KeyScan.Find` finds the key in no entry, saved session, setting or event-log row. This is the integration AC: the consumer is AI Hub's provider.
 - Given an existing entry, when `Merge` runs, then only the given fields change, and a literal key or a non-key `@{` is refused. This is the integration AC: the consumer is AI Hub's `@{config:}` expansion.
 
+### Review Findings
+
+Code review, 2026-10-21. Tier full-opus, with four layers: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor. The layers reported 34 rows and the reviewer added 2. They group into 14 entries (high 0, medium 4, low 10), and 17 rows were rejected. Fix-risk and footprint are given with each entry.
+
+- [x] [Review][Patch] The model tests in `Test.Install.Production` depend on method order. `TestSeedModels` leaves `ZzAgentModel`'s row at `claude-sonnet-5-5`, so `TestRunnerModels`' haiku assertion and `TestSeedModels`' "no Model row" precondition hold only because `TestRunnerModels` sorts first. Medium, Rule 19 hermeticity. Fix-risk low (cleanup lines in a test); in-story. [src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:207]
+- [x] [Review][Patch] `Test.Agent.Models.TestAppliedAtStart` pins the order "seed before start" only when it runs before `TestModelChange`, and only against the state the after-start left. It is to become self-contained: delete the three rows, call the step's `Run()`, then assert. Decision 24 then no longer applies. Medium, Rule 19. Fix-risk low (the live production check calls the same `Run()`); in-story. [src/ocutalon/cls/OcuTalon/Test/Agent/Models.cls:38]
+- [x] [Review][Patch] Rule 2 copies. `Test.Install.ProviderEnv`'s `EntryJson`, `Row` and `Restore` copy `Test.Install.Provider`'s `EntryJson`, `Row`, `RestoreEntry` and `RestoreRow`, and that `RestoreRow` copies `Install.Step.Production.WriteDefault`. Medium. Fix-risk low (test helpers with the same behaviour); in-story. [src/ocutalon/cls/OcuTalon/Test/Install/ProviderEnv.cls:284]
+- [x] [Review][Patch] The Provider step keeps whatever read and edit resources an existing entry has, though the entries keep the default `%Admin_ConfigStore` ones (Always). `TestEntries` checks them with a contains test. Low. Fix-risk low (two arguments on two calls); in-story. [src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls:130]
+- [x] [Review][Patch] The Lane B line `CHK|row-deleted|1` prints 1 whether or not the start seeded the row. Low. Fix-risk low (one line inside the granted check); in-story (grant). [docker/tests/test-production.sh:292]
+- [x] [Review][Patch] No test shows that the running runners apply their `ProviderConfig`. Low. Fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Agent/Models.cls:44]
+- [x] [Review][Patch] `TestApplyCaFile`'s precondition `before '= ""` cannot fail, because `State()` always starts with a line feed. Low. Fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls:144]
+- [x] [Review][Patch] `TestDetails`' `checked = 8` counts loop passes, so it cannot fail. Low. Fix-risk low; in-story. [src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls:73]
+- [x] [Review][Patch] `KeyScan`'s class comment says `Find` names every store that holds the value, but it scans the five stores AC6 names, not the audit log, the journal or the runtime settings. Low. The gap in the scan is theoretical while no writer can put a key into an entry. Fix-risk low (comment); in-story. [src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls:13]
+- [x] [Review][Patch] `SeedModels`' comment says a runner whose class has no `MODEL` fails the start, but only an enabled one does. Low. Fix-risk low (comment); in-story. [src/ocutalon/cls/OcuTalon/Install/Step/Production.cls:159]
+- [x] [Review][Patch] The Provider step's comments say a bad override writes nothing, but `RebuildRegistry` has already run by then; what holds is that no entry or row is written. Low. Fix-risk low (comment); in-story. [src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls:15]
+- [x] [Review][Patch] `URLPATTERN`'s comment says nothing in a base URL can carry a credential, but a path segment can. Low. Fix-risk low (comment); in-story. [src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls:43]
+- [x] [Review][Defer] `KeyScan.FindRequest` and `Has` copy `Test.Contract.Mock`'s private `Find` and `Has`, though the Code Map says to call Mock and not copy it. Medium, Rule 2. Fix-risk low; out-of-footprint (Lane B must make the two helpers public). [src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls:225] — deferred: DW-54, `escalated owner=burndown`, for the decision sheet.
+- [x] [Review][Defer] `Merge` accepts a `model` field, which AD-7 says no entry holds. Low: the runtime ignores the field and the next start removes it. [src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls:33] — deferred: same root cause as DW-52 (Merge judges only `api_key` and `@{`, and its caller validates the rest); an `occurrence=` line was appended.
+
+**Rejected (17):**
+- BH `TestTriage` skips a `DecisionPayload` property that has no `%JSONFIELDNAME`. Low: unlikely, and the fix adds branches. The payload is a frozen Epic 0 contract that `Test.Contract.Ac` pins.
+- BH: the Provider tests assume that item = `<Agent>Agent`. Low, theoretical: the production is fixed, and the spec names the runners.
+- EH `Merge` accepts an entry of any area. Spec-bound: the spec's name rule and decision 17.
+- EH: there is no lock between `GetDetails` and `Modify`. Theoretical: `SettingsOps` is the one run-time writer.
+- EH: a `Merge` change reverts at the next start. Spec-bound (by-design): decision 4 and AD-19.
+- EH: the seeded `Model` is not refreshed when an agent's `MODEL` changes in a later release. Spec-bound: under AD-19 a seed is written only when absent, and `SettingsOps` owns it after that.
+- EH: when a later runner fails, the earlier entries are already rewritten. False: those entries hold this environment's correct values, the step fails, and no ready marker is written.
+- EH: two agent classes that share their last name part share one entry. Theoretical: the production has three distinct classes.
+- EH: `OCUTALON_EXTRA_CA_FILE` can name a directory. Low: unlikely, and the fix adds a guard; only CI and the demo deployment set the variable.
+- EH: the `$ZHorolog` deadline in `Models.Restart` does not time out across midnight. Low, theoretical: it needs a wait that straddles midnight and an item that never runs, and the same pattern is the project's convention (`Production.Start`, the Demo step, Lane B tests).
+- EH: the `List` query of `KeyScan.FindEntries` would drop an entry the user cannot read. Theoretical: the tests run with `%All`.
+- EH: `TestNoTemplates` misses a reference built in a macro or a string. Low: unlikely, and the fix adds complexity; `test-class-rules.sh`' `%AI` allow-list also guards.
+- EH: the real-production asserts were removed from `Test.Install.Production`. Spec-bound: the task moves them to `Test.Agent.Models`, which runs in the lane-a shard.
+- VG: decision 15 still gives the old base-URL pattern. Rejected because the fix would edit the spec under review; decision 22 supersedes it.
+- VG: AC1's template-call clause has only a mutation of the scanner. Rule 19 asks one mutation per AC, and AC1 has two against the code under test.
+- AA: AD-19's "the registry marks every value" is built nowhere. False: the project marks each value's class in the writing step's class comment (Roles, Web, Users, Tasks, Public, `Bridge.Installer`), and this story's steps follow that.
+- AA: the spec record contradicts itself on `boundaries`. Rejected because the fix would edit the spec; DW-53 fixed the log line, and QA's later results supersede the earlier ones.
+
+**Rule checks.**
+- Rule 3 is met. `Test.Agent.KeyScan` sends a real HTTP request through AI Hub's provider to the CI mock and asserts status 200, the headers and the key's length, and `live install-start` and `live production` run the real start.
+- Rule 6: no AD mismatch was found. The resources finding is the spec's Always, not an AD Rule, and AD-19's structural and seed classes hold.
+- Rule 1: the Integration ACs are AC6 and AC7.
+- Rule 5: there is no NFR workaround.
+
+**Results after the patches (tag `e1s1r`, one stack at a time, teardown left nothing).**
+- `bash ci/checks.sh`: all 12 blocks passed.
+- `ci/iris.sh build`: done.
+- `shard lane-a`: 15 of 15 classes passed. The one SKIP is the existing `TestStepHelpers` skip (Story 0.6).
+- `live production`: passed, with the check "a runner that resolves no model" printing `CHK|row-deleted|1|1`.
+- Compiles on `ocutalon-slot-a` (build 154U) used `iris_doc_load` with flags `ck` only.
+- The two mutations are recorded under `## Verification`.
+
 ## Spec Change Log
 
 - 2026-10-21, lead (Epic 1 runner), after the plan's intent-gap HALT: applied the orchestrator's ruling. Added the task "The Lane B fixture", the narrowed exception on the contended-path "Never" line, the mutation row for `start-unresolved`, and the veto-window rulings on decisions 10 and 13 (U-2, U-3); status reset to `ready-for-dev` (no re-plan: the rest of the plan met the READY-FOR-DEVELOPMENT standard).
@@ -488,7 +540,26 @@ deferred:
 - mutation: the template-call scanner compares in the case of the source -> `Test.Agent.Instructions.TestNoTemplates` went red ("the call scanner is blind to case")
 - mutation: `Merge` reads with `resolveSecrets` 1 -> `Test.Bridge.ConfigStore.TestKeepsSecretReference` went red ("Merge reads it without resolving the reference => ERROR #26220: Error using secret ...")
 
+**Tests added by QA (Rule 8: each sits directly in an area folder of the lane-a shard, so `ci/iris.sh` discovers it; no `ci/units.sh` edit).**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Install/ProviderEnv.cls` (new; throwaway only): `Provider.Run()` from the process environment, one test per matrix row (judges' install, flag alone, base URL alone with the flag unset, `0`, `true`, ` 1` and `1 `, CI, CA file, bad base URL and missing CA file through `Run()`), with the expected entries written out as JSON text, plus the descriptions of a created entry and of the rows. Each test puts the three variables, the entries and the rows back and asserts that it did.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` (a test and a helper added): `TestSeedSpecificity` and `DeleteModelRows`, on the existing fixture production.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Bridge/ConfigStore.cls` (two tests added): `TestMergeRefusedAmongValidFields` and `TestMergeKeyNameCharacters`.
+
+**Mutations of the QA pass (Rule 19; each applied to the code under test, run in a throwaway of tag `e1s1q`, reverted with `git checkout` of that file, and the hash of the tree without the lead's cycle log identical before and after).**
+- mutation: `Apply` defaults an empty base URL to the mock's URL (AC3, the judges' install and the flag-alone rows) -> `Test.Install.ProviderEnv.TestJudgesInstall` went red (the three entries), as did `TestFlagAlone` and `TestCaFileFromEnvironment`; every other class of the lane-a shard stayed green, `Test.Install.Provider` and `Test.Agent.KeyScan` included, because the CI environment always sets the base URL
+- mutation: `Run()` reads the CA file from the variable `OCUTALON_EXTRA_CA_FILES` (AC3, the CA-file row) -> `Test.Install.ProviderEnv.TestCaFileFromEnvironment` went red (the entries of both runs) and `TestBadEnvironment` went red ("Run() fails for a CA file that does not exist"); every other class stayed green
+- mutation: the description of `Create` in `WriteRunner` emptied (the Provider task's description clause) -> `Test.Install.ProviderEnv.TestDescriptions` went red ("the entry that was created says that the step writes it at every start")
+- mutation: `SeedModels` takes the item's own `Model` setting and the row (production, item, any class, `Model`) as the only evidence of a model (AC4, the Model seed row, "any default row") -> `Test.Install.Production.TestSeedSpecificity` went red for the row of the adapter class, the row for every item of that class, the row for every item and class, and the row named `Adapter:Model` ("is the only row, so the runner is not seeded"); `TestSeedModels` and `Test.Agent.Models` stayed green
+- mutation: `Merge`'s refusal scan stops after the first key of an object (AC7, "Merge refused") -> `Test.Bridge.ConfigStore.TestMergeRefusedAmongValidFields` went red in all ten cases (refused field after valid ones, the entry changed); `TestMergeRefused` stayed green, because each of its cases puts the refused field first
+- mutation: the placeholder pattern of `Merge` allows `.` and `-` in the variable name (AC7, "not exactly one `@{env:NAME}`") -> `Test.Bridge.ConfigStore.TestMergeKeyNameCharacters` went red (`@{env:A-B}` and `@{env:A.B}` were accepted); `TestMergeRefused` stayed green
+
+**Mutations of the code review (Rule 19).** Method: tag `e1s1r`, one build for both mutations, one class per throwaway. Each mutation was reverted by copying the saved files back. Before and after, `git status --short`, the hash of `git diff` without the lead's cycle log, and the hash of the untracked file were identical.
+- mutation: `Production.Run()` seeds the models after `Start` (AC4) -> `Test.Agent.Models.TestAppliedAtStart` went red ("TriageAgent applies claude-haiku-5-5 as the step started it", and the same for DiagnosisAgent and ChatAgent); its ProviderConfig assertions stayed green. The test now deletes the three rows and runs the step itself, so this line holds in either method order. It replaces the review pass's line for `TestAppliedAtStart`, and decision 24 no longer applies.
+- mutation: the Provider step's `Modify` keeps the entry's resources (the Always rule on the default `%Admin_ConfigStore` read and edit resources) -> `Test.Install.Provider.TestRerun` went red ("and the read and edit resources are the default again").
+
 **Results on the unmutated tree (final pass, after the last patch; tag `e1s1a`, one stack at a time, `ci/iris.sh teardown` left nothing):** `bash ci/checks.sh`: every block passes except `boundaries`, whose one failure is `_bmad-output/implementation-artifacts/cycle-log-epic-1.md:1`, a local path in the HEAD commit's cycle log (outside this story; deferred). `ci/iris.sh build`: exit 0. `shard lane-a`, forward (65 s) and `--reverse` (74 s): 14 of 14 classes passed, the five new ones and `Test.Bridge.ConfigStore` included; the one SKIP is `Test.Install.Production.TestStepHelpers`' existing skip of the `NotRunning` check while the production runs (Story 0.6; the "no SKIP" in the command holds only when that production does not run). Once: `bash docker/tests/test-mock.sh` 94 of 94; `shard lane-b` 24 of 24, `Test.Contract.Mock` included (forward only; the lead runs `--reverse`); `live install-start` 94 PASS (about 196 s), `install-upgrade` 34 PASS (about 172 s), `compose-start` 36 PASS (about 74 s), `production` 23 PASS (the check "a runner that resolves no model" with its five values), `production-restart` 15 PASS, `demo-path` passed with the `@floor` test (about 64 s, `FIRST-START engine=aarch64 build=0s ready=56s`). Task 0 and the slot: only process-local calls and `iris_doc_load` compiles on `ocutalon-slot-a`.
+
+**Results of the QA pass (tag `e1s1q`, one stack at a time, `ci/iris.sh teardown` removed nothing left over).** `bash ci/checks.sh`: all 12 blocks passed, `boundaries` included. `ci/iris.sh build`: exit 0. `shard lane-a` forward (63 s) and `--reverse` (58 s): 15 of 15 classes passed, `Test.Install.ProviderEnv` among them; the one SKIP is the existing `TestStepHelpers` skip (Story 0.6). Compiles on `ocutalon-slot-a` (build 154U) with `iris_doc_load` flags `ck` only; no test ran there.
 
 ## Clarification Record
 

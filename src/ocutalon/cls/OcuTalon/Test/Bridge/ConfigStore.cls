@@ -6,7 +6,11 @@
 ///   - TestMergeRefused: a literal api_key at any depth, an api_key that is not exactly one @{env:NAME}, an @{ in any other
 ///     string (value, array element or field name), and fields that are not a dynamic object are refused with a text that says
 ///     why and holds no value, and the entry stays unchanged after each;
+///   - TestMergeRefusedAmongValidFields: a refused field that follows valid fields, at the top level and inside an object, an
+///     array or a field name, refuses the whole call, and the valid fields are not written either;
 ///   - TestMergePlaceholder: api_key @{env:OPENAI_API_KEY} is accepted, because Story 17.3 sends that form;
+///   - TestMergeKeyNameCharacters: an api_key placeholder names a variable of letters, digits and underscores only; a hyphen, a
+///     dot, a colon, a dollar sign, a letter outside ASCII, a line end or a space around the placeholder is refused;
 ///   - TestMissingEntry: a missing entry is an error that names it, and nothing is created;
 ///   - TestKeepsSecretReference: an entry that holds a secret:// reference is merged without resolving the reference, so the
 ///     reference stays what is stored (Merge reads with resolveSecrets 0);
@@ -126,12 +130,63 @@ Method TestMergeRefused()
 	Do $$$AssertEquals(..EntryDetails().%ToJSON(), before, "the entry is unchanged after all of them")
 }
 
+/// A refused field that comes after valid fields refuses the whole call: the entry is the same after each, so none of the valid
+/// fields is written, and the error holds no value.
+Method TestMergeRefusedAmongValidFields()
+{
+	Set name = ..EntryName()
+	Set before = ..EntryDetails().%ToJSON()
+	Set cases = []
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "api_key": "plain-literal-value-1"})
+	Do cases.%Push({"api_key": "@{env:OPENAI_API_KEY}", "base_url": "@{env:HOME}"})
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "api_key": "@{env:A}@{env:B}"})
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "note": "x @{wallet:plain-literal-value-2} y"})
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "@{env:HOME}": "1"})
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "count": 2, "extra": ["fine", "@{config:plain-literal-value-3}"]})
+	Do cases.%Push({"http_config": {"custom_headers": {"a": "1"}, "api_key": "plain-literal-value-4"}})
+	Do cases.%Push({"http_config": {"request_timeout_secs": 5, "custom_headers": {"a": "1", "b": "@{env:HOME}"}}})
+	Do cases.%Push({"http_config": {"custom_headers": {"a": "1"}, "@{x": "1"}})
+	Do cases.%Push({"base_url": "http://ok.invalid/v1/", "http_config": {"tls": {"ca_certificates": ["fine", "@{env:HOME}"]}}})
+	For i = 1:1:cases.%Size() {
+		Set fields = cases.%Get(i - 1)
+		Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(name, fields)
+		Do $$$AssertStatusNotOK(sc, "case "_i_" is refused: "_fields.%ToJSON())
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertTrue(text [ "refuses the fields", "case "_i_" says why: "_text)
+		Do $$$AssertTrue(text '[ "plain-literal-value", "case "_i_" holds no value in the error")
+		Do $$$AssertEquals(..EntryDetails().%ToJSON(), before, "case "_i_" leaves the entry unchanged, valid fields included")
+	}
+}
+
 /// api_key @{env:OPENAI_API_KEY} is accepted: it is the form that Story 17.3 sends.
 Method TestMergePlaceholder()
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"api_key": "@{env:OPENAI_API_KEY}"}), "a placeholder is accepted")
 	Do $$$AssertEquals(..EntryDetails()."api_key", "@{env:OPENAI_API_KEY}", "and stored as the literal placeholder")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"http_config": {"api_key": "@{env:Some_Key_2}"}}), "also at a depth")
+}
+
+/// The variable that an api_key placeholder names has letters, digits and underscores only: other characters, a line end or a
+/// space around the placeholder make it a refused api_key, and the entry is unchanged.
+Method TestMergeKeyNameCharacters()
+{
+	Set name = ..EntryName()
+	For variable = "A", "a1_B2", "_x", "9", "ANTHROPIC_API_KEY" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": ("@{env:" _ variable _ "}")}), "the variable '"_variable_"' is accepted")
+		Do $$$AssertEquals(..EntryDetails()."api_key", "@{env:" _ variable _ "}", "and stored as the placeholder")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": "@{env:ANTHROPIC_API_KEY}"}), "the key is put back to the start value")
+	Set before = ..EntryDetails().%ToJSON()
+	Set refused = $ListBuild("@{env:A-B}", "@{env:A.B}", "@{env:A:B}", "@{env:A$B}", "@{env:A/B}", "@{env:A"_$Char(233)_"}", "@{env:A}"_$Char(10), "@{env:A}"_$Char(13, 10), $Char(10)_"@{env:A}", " @{env:A}", "@{env:A} ", "@{ env:A}", "@{env: A}", "@{env:A")
+	Set position = 0
+	Set n = 0
+	While $ListNext(refused, position, value) {
+		Set n = n + 1
+		Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": (value)})
+		Do $$$AssertStatusNotOK(sc, "the api_key of case "_n_" ("_$Length(value)_" characters) is refused")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "refuses the fields", "and the error says why")
+		Do $$$AssertEquals(..EntryDetails().%ToJSON(), before, "and the entry is unchanged")
+	}
 }
 
 /// A missing entry is an error that names it, and Merge creates nothing.

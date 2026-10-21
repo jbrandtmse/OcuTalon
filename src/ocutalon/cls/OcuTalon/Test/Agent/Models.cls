@@ -1,10 +1,12 @@
 Include Ensemble
 
 /// Tests of the runners' models in a production that the Production step started (Story 1.1; AD-7, AD-19). THIS CLASS RUNS IN
-/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the Model rows that the Production step seeded at the start, and it
-/// restarts one runner item of the running production. Where the production does not run, the tests fail with that reason.
-///   - TestAppliedAtStart: the running items of the three runners apply claude-haiku-5-5 as the Production step started them,
-///     so the step seeded the rows before it started the production;
+/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the Model rows that the Production step seeded at the start, it runs the
+/// Production step again, which restarts the production, and it restarts one runner item. Where the production does not run,
+/// the tests fail with that reason.
+///   - TestAppliedAtStart: with the three Model rows deleted, the Production step's Run() seeds them and restarts the
+///     production, and the running items of the three runners then apply claude-haiku-5-5 and their ProviderConfig, so the
+///     step seeds the rows before it starts the production;
 ///   - TestRunnersResolve: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, each runner has a
 ///     Model row with claude-haiku-5-5, and the step's own check, Production.UnresolvedRunners, names no runner;
 ///   - TestModelChange: one change of DiagnosisAgent's Model row to claude-sonnet-5-5 and a restart of that item make both
@@ -32,16 +34,44 @@ Parameter CHANGED = "DiagnosisAgent";
 /// The longest to wait for the item to run again, in seconds.
 Parameter WAITSECONDS = 30;
 
-/// The running items apply the default model as the step started them: the step seeded the rows before it started the
-/// production, so no update of the production was needed. The name of this test sorts before TestModelChange, whose update
-/// of the production would refresh every item; run after it, the test still passes.
+/// The Production step seeds the Model rows before it starts the production. With the three rows deleted, Run() writes them
+/// again and restarts the production, and the running items apply the default model, which they would not if the rows were
+/// written after the start. Each item also applies its ProviderConfig row. The rows must hold the default model when the test
+/// starts, so that the seed puts them back as they were found; a run that fails leaves them seeded again.
 Method TestAppliedAtStart()
 {
 	If '..Running() Quit
 	Set runners = $ListFromString(..#RUNNERS)
+	Set found = 1
 	Set position = 0
 	While $ListNext(runners, position, item) {
-		Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Model")), ..#DEFAULTMODEL, item_" applies "_..#DEFAULTMODEL_" as started")
+		Set id = ..#PRODUCTION_"||"_item_"||*||Model"
+		Set found = ##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = ..#DEFAULTMODEL)
+		Do $$$AssertTrue(found, item_" has a Model row with "_..#DEFAULTMODEL_" before the test")
+		If 'found Quit
+	}
+	If 'found Quit
+	Try {
+		Set position = 0
+		While $ListNext(runners, position, item) {
+			Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||Model"), "the Model row of "_item_" is deleted")
+		}
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).Run(), "the Production step seeds the rows and restarts the production")
+		Set position = 0
+		While $ListNext(runners, position, item) {
+			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Model")), ..#DEFAULTMODEL, item_" applies "_..#DEFAULTMODEL_" as the step started it")
+			Set config = ##class(Ens.Director).GetAdapterSettingValue(..#PRODUCTION_"||"_item, "ProviderConfig", .status)
+			Do $$$AssertTrue(config ? 1"@{config:OcuTalon"1.A1"}", item_"'s ProviderConfig names its entry: "_config)
+			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "ProviderConfig")), config, item_" applies its ProviderConfig")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(..#PRODUCTION), "the rows are seeded where a failed run left none")
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set id = ..#PRODUCTION_"||"_item_"||*||Model"
+		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = ..#DEFAULTMODEL), "the Model row of "_item_" holds "_..#DEFAULTMODEL_" again")
 	}
 }
 

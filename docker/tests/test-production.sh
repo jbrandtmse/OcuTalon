@@ -284,12 +284,12 @@ EOC
 dc exec -T iris sh -c 'cat > /tmp/TriageNoModel.cls' < "$tmp/TriageNoModel.cls"
 check_session "the step fails naming a runner that resolves no model, and succeeds once it resolves one" OCUTALON \
   "CHK|fixture|1
-CHK|row-deleted|1
+CHK|row-deleted|1|1
 CHK|start-unresolved|1|1
 CHK|restored|1
 CHK|start-ok|1" \
   'Write !,"CHK|fixture|",$SYSTEM.OBJ.Load("/tmp/TriageNoModel.cls","ck-d")' \
-  'Do ##class(Ens.Config.DefaultSettings).%DeleteId("OcuTalon.Production||TriageAgent||*||Model") Write !,"CHK|row-deleted|",(##class(Ens.Config.DefaultSettings).%ExistsId("OcuTalon.Production||TriageAgent||*||Model")=0)' \
+  'Set id="OcuTalon.Production||TriageAgent||*||Model",seeded=##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id) Write !,"CHK|row-deleted|",seeded,"|",(##class(Ens.Config.DefaultSettings).%ExistsId(id)=0)' \
   'Set sc=##class(OcuTalon.Install.Step.Production).Start(15) Write !,"CHK|start-unresolved|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["resolve no model: TriageAgent")' \
   'Write !,"CHK|restored|",$SYSTEM.OBJ.Load("/opt/ocutalon/src/ocutalon/cls/OcuTalon/Agent/Triage.cls","ck-d")' \
   'Set sc=##class(OcuTalon.Install.Step.Production).Run() Write !,"CHK|start-ok|",$SYSTEM.Status.IsOK(sc)' \

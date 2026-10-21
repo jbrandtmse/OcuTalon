@@ -13,7 +13,7 @@
 ///     with the default read and edit resources, and its ProviderConfig row is @{config:OcuTalon<Agent>}, which expands to
 ///     the entry with the key still a placeholder;
 ///   - TestRerun: stale fields in an entry (a model, a base URL, a header, a typed key) are gone after Run(), which modifies
-///     the entry where a create would fail;
+///     the entry where a create would fail, and empty read and edit resources are the default ones again;
 ///   - TestEntryBeforeSetting: with an entry and its row deleted, Run() writes both, and the row can only be written after the
 ///     entry, because the setting's validation expands @{config:}.
 Class OcuTalon.Test.Install.Provider Extends %UnitTest.TestCase
@@ -57,20 +57,28 @@ Method TestDetails()
 	// An agent class with no MOCKKEY gets no header.
 	Do ..Expect("an agent class that does not exist", ..Pure("OcuTalon.Agent.ZzNoSuchAgent", ..#MOCKURL, "", "1"), "{""model_provider"":""anthropic"",""api_key"":""@{env:ANTHROPIC_API_KEY}"",""base_url"":"""_..#MOCKURL_"""}")
 
-	// Never a model, and never anything but the literal placeholder, whatever the overrides are.
-	Set checked = 0
+	// Never a model, and never anything but the literal placeholder, whatever the overrides are; each combination of the
+	// overrides gives its own entry.
+	Kill seen
 	For url = "", ..#MOCKURL {
 		For file = "", "/opt/ca/extra.pem" {
 			For flag = "", "1" {
 				Set details = ..Pure(triage, url, file, flag)
-				Set checked = checked + 1
+				Set seen(details.%ToJSON()) = ""
 				Do $$$AssertTrue('details.%IsDefined("model"), "no model: "_url_" "_file_" "_flag)
 				Do $$$AssertEquals(details."api_key", ..#PLACEHOLDER, "the key is the literal placeholder: "_url_" "_file_" "_flag)
 				Do $$$AssertEquals($Length(details.%ToJSON(), "@{"), 2, "and the only @{ is the placeholder's: "_url_" "_file_" "_flag)
 			}
 		}
 	}
-	Do $$$AssertEquals(checked, 8, "eight combinations of the overrides were built")
+	Set distinct = 0
+	Set json = ""
+	For {
+		Set json = $Order(seen(json))
+		Quit:json=""
+		Set distinct = distinct + 1
+	}
+	Do $$$AssertEquals(distinct, 8, "the eight combinations of the overrides give eight different entries")
 
 	// The key's value is never read: with a key in the environment the entry still holds the placeholder.
 	Set fake = "ocutalon-details-"_##class(OcuTalon.Bridge.Ids).NewRef()
@@ -118,10 +126,7 @@ Method TestBadOverrides()
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ file, "and the path")
 
 	Set before = ..State()
-	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
-		Do $$$AssertTrue(..EntryJson("OcuTalon"_$Extract(item, 1, $Length(item) - 5)) '= "", "the entry of "_item_" exists before the runs")
-		Do $$$AssertTrue(..Row(item) '= "", "and so does its ProviderConfig row")
-	}
+	Do ..AssertWritten("before the runs")
 	Set sc = $ClassMethod(provider, "Apply", "http://host/v2/", "", "1")
 	Do $$$AssertStatusNotOK(sc, "the step fails for a bad base URL")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OCUTALON_MODEL_BASE_URL", "naming the variable")
@@ -141,7 +146,7 @@ Method TestApplyCaFile()
 	Set flag = $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER")
 	Set file = ##class(%File).TempFilename("pem")
 	Set before = ..State()
-	Do $$$AssertTrue(before '= "", "the state is read before the run")
+	Do ..AssertWritten("before the run")
 	Try {
 		Do $$$AssertStatusOK($ClassMethod(provider, "Apply", url, file, flag), "Apply accepts a CA file that exists")
 		For class = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat" {
@@ -183,11 +188,7 @@ Method TestEntries()
 		Do $$$AssertEquals(details.%ToJSON(), ..ForEnv(class).%ToJSON(), fqn_" is the entry of Details for this environment")
 		Do $$$AssertTrue('details.%IsDefined("model"), fqn_" has no model")
 		Do $$$AssertEquals(details."api_key", ..#PLACEHOLDER, fqn_" holds the literal placeholder")
-		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Get(fqn, .entry), fqn_" is opened")
-		If $IsObject($Get(entry)) {
-			Do $$$AssertTrue(entry.ReadResource [ "%Admin_ConfigStore", fqn_" keeps the default read resource: "_entry.ReadResource)
-			Do $$$AssertTrue(entry.EditResource [ "%Admin_ConfigStore", fqn_" keeps the default edit resource: "_entry.EditResource)
-		}
+		Do $$$AssertEquals(..Resources(fqn), "%Admin_ConfigStore %Admin_ConfigStore", fqn_" has the default read and edit resources")
 		Set row = ..Row(item)
 		Do $$$AssertEquals(row, "@{config:"_name_"}", item_"'s ProviderConfig row names the entry")
 		Set expanded = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(row))
@@ -196,7 +197,8 @@ Method TestEntries()
 	Do $$$AssertEquals(names, "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat", "the entries are those of the three agents, in the order of the runners")
 }
 
-/// Stale fields in the Triage entry are gone after Run(): the entry is modified, where a create would fail.
+/// Stale fields in the Triage entry are gone after Run(): the entry is modified, where a create would fail, and gets the
+/// default read and edit resources again.
 Method TestRerun()
 {
 	Set fqn = "AI.LLM.OcuTalonTriage"
@@ -205,21 +207,26 @@ Method TestRerun()
 	Do $$$AssertTrue(found, "the Triage entry exists")
 	If 'found Quit
 	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).GetDetails(fqn, .snapshot, 0, 0), "the entry is read")
+	Set resources = ..Resources(fqn)
 	Try {
 		Set stale = {}.%FromJSON(snapshot.%ToJSON())
 		Do stale.%Set("model", "claude-opus-stale")
 		Do stale.%Set("base_url", "http://stale.invalid/v1/")
 		Do stale.%Set("api_key", "ocutalon-stale-typed-value")
 		Do stale.%Set("http_config", {"custom_headers": {"x-ocutalon-mockkey": "stale"}})
-		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Modify(fqn, stale), "stale fields are written into the entry")
+		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Modify(fqn, stale, , , "", ""), "stale fields and empty resources are written into the entry")
 		Do $$$AssertTrue(..EntryJson("OcuTalonTriage") [ "claude-opus-stale", "the entry now holds the stale model")
+		Do $$$AssertEquals(..Resources(fqn), " ", "and anyone may read and edit it")
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "Run() modifies the existing entries")
 		Do $$$AssertEquals(..EntryJson("OcuTalonTriage"), expected, "and the details are exactly the computed object again")
+		Do $$$AssertEquals(..Resources(fqn), "%Admin_ConfigStore %Admin_ConfigStore", "and the read and edit resources are the default again")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
+	Do ##class(%ConfigStore.Configuration).Modify(fqn, , , , $Piece(resources, " ", 1), $Piece(resources, " ", 2))
 	Do ..RestoreEntry("OcuTalonTriage", snapshot)
 	Do $$$AssertEquals(..EntryJson("OcuTalonTriage"), snapshot.%ToJSON(), "the entry is as it was found")
+	Do $$$AssertEquals(..Resources(fqn), resources, "with the resources it had")
 }
 
 /// With the Triage entry and its row deleted, Run() writes both. The row is validated against the entry, so it only saves
@@ -271,18 +278,34 @@ Method Expect(label As %String, actual As %DynamicObject, json As %String) [ Pri
 }
 
 /// The details of an entry of AI.LLM as JSON text, or "" when there is no such entry.
-ClassMethod EntryJson(name As %String) As %String [ Private ]
+ClassMethod EntryJson(name As %String) As %String
 {
 	If $$$ISERR(##class(%ConfigStore.Configuration).GetDetails("AI.LLM."_name, .details, 0, 0)) Quit ""
 	Quit details.%ToJSON()
 }
 
+/// The read and edit resources of an entry, separated by a space, or "" when there is no such entry.
+ClassMethod Resources(fqn As %String) As %String [ Private ]
+{
+	If $$$ISERR(##class(%ConfigStore.Configuration).Get(fqn, .entry)) Quit ""
+	Quit entry.ReadResource_" "_entry.EditResource
+}
+
 /// The value of the ProviderConfig row of a runner, or "" when there is none.
-ClassMethod Row(item As %String) As %String [ Private ]
+ClassMethod Row(item As %String) As %String
 {
 	Set id = ..#PRODUCTION_"||"_item_"||*||ProviderConfig"
 	If '##class(Ens.Config.DefaultSettings).%ExistsId(id) Quit ""
 	Quit ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue
+}
+
+/// Asserts that each runner's entry and its ProviderConfig row exist.
+Method AssertWritten(when As %String) [ Private ]
+{
+	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
+		Do $$$AssertTrue(..EntryJson("OcuTalon"_$Extract(item, 1, $Length(item) - 5)) '= "", "the entry of "_item_" exists "_when)
+		Do $$$AssertTrue(..Row(item) '= "", "and so does its ProviderConfig row")
+	}
 }
 
 /// Every entry and row that the step writes, as one text.
@@ -296,30 +319,21 @@ ClassMethod State() As %String [ Private ]
 	Quit state
 }
 
-/// Puts an entry back as it was found: modified when it exists, created otherwise.
-ClassMethod RestoreEntry(name As %String, details As %DynamicObject) [ Private ]
+/// Puts an entry back as it was found: its details modified when it exists, created with the description otherwise.
+ClassMethod RestoreEntry(name As %String, details As %DynamicObject, description As %String = "")
 {
 	If '$IsObject($Get(details)) Quit
 	If ##class(%ConfigStore.Configuration).Exists("AI.LLM."_name) {
 		Do ##class(%ConfigStore.Configuration).Modify("AI.LLM."_name, details)
 	} Else {
-		Do ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details)
+		Do ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details, "", description)
 	}
 }
 
-/// Puts a ProviderConfig row back as it was found.
-ClassMethod RestoreRow(id As %String, value As %String, description As %String) [ Private ]
+/// Puts the System Default Setting row (production||item||*||setting) back with its value and description.
+ClassMethod RestoreRow(id As %String, value As %String, description As %String)
 {
-	Set row = $Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id), 1: ##class(Ens.Config.DefaultSettings).%New())
-	If 'row.%Id() {
-		Set row.ProductionName = $Piece(id, "||", 1)
-		Set row.ItemName = $Piece(id, "||", 2)
-		Set row.HostClassName = "*"
-		Set row.SettingName = $Piece(id, "||", 4)
-	}
-	Set row.SettingValue = value
-	Set row.Description = description
-	Do row.%Save()
+	Do ##class(OcuTalon.Install.Step.Production).WriteDefault($Piece(id, "||", 1), $Piece(id, "||", 2), $Piece(id, "||", 4), value, description)
 }
 
 }

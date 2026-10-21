@@ -156,7 +156,7 @@ ClassMethod UnresolvedRunners(production As %String) As %String
 /// runner's item setting and every System Default Setting row of any specificity are empty, and its agent class extends
 /// %AI.Agent and has a MODEL parameter, which is the value. A runner that has a model keeps it, whether the value came
 /// from the definition or from a row, so a model that the settings page chose is never overwritten. A runner whose agent
-/// class has no MODEL gets no row, and the start then fails naming it.
+/// class has no MODEL gets no row, and when it is enabled the start then fails naming it.
 ClassMethod SeedModels(production As %String) As %Status
 {
 	Set sc = ..Runners(production, .runners)

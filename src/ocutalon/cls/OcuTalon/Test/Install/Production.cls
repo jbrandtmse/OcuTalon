@@ -13,6 +13,10 @@
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
 ///     whose agent class has a MODEL and no other, and never overwrites a row;
+///   - TestSeedSpecificity: a row of the production that gives a runner with a MODEL its model, for the runner and the class of
+///     its adapter, for every item of that class, for every item and class, or under the name Adapter:Model, keeps SeedModels
+///     from writing a Model row for it, and SeedModels of a production whose definition cannot be opened is an error that
+///     writes nothing (a test writes no row for any other production);
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
@@ -168,16 +172,17 @@ Method TestStubsAnswer()
 	}
 }
 
-/// Row 4: in a fixture production, UnresolvedRunners names the enabled runners whose model does not resolve and no others: a
-/// runner with a Model setting, a runner whose agent class carries MODEL, a disabled runner and an item of another class are
-/// left out; a runner whose agent class does not exist is named; a System Default Setting that enables the disabled runner
-/// brings it in. An unknown item of the fixture resolves nothing.
+/// Row 4: in a fixture production with no Model row, UnresolvedRunners names the enabled runners whose model does not resolve
+/// and no others: a runner with a Model setting, a runner whose agent class carries MODEL, a disabled runner and an item of
+/// another class are left out; a runner whose agent class does not exist is named; a System Default Setting that enables the
+/// disabled runner brings it in. An unknown item of the fixture resolves nothing.
 Method TestRunnerModels()
 {
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
 	Set sc = ..Create("FixtureProduction", fixture)
 	Do $$$AssertStatusOK(sc, "the fixture production compiles")
 	If $$$ISERR(sc) Quit
+	Do ..DeleteModelRows(fixture)
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("Zz"_..Number, fixture), "", "an unknown item resolves nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzModelSet", fixture), "claude-sonnet-5-5", "a Model setting of the adapter is the model")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzAgentModel", fixture), "claude-haiku-5-5", "the MODEL of the agent class is the model when the setting is empty")
@@ -199,13 +204,15 @@ Method TestRunnerModels()
 /// Runners lists the five runners of the fixture production in order, each with its agent class and its enabled flag, and not
 /// the item of another class; SeedModels writes the Model row of ZzAgentModel, whose agent class has MODEL claude-haiku-5-5,
 /// and no row for ZzModelSet (it has a Model setting), ZzNoModel and ZzOffNoModel (no MODEL) or ZzMissingClass (no class). A
-/// second run leaves the row as it is, also when it holds another model, and a runner that has a row is left alone.
+/// second run leaves the row as it is, also when it holds another model, and a runner that has a row is left alone. The
+/// fixture production has no Model row when the test starts and when it ends.
 Method TestSeedModels()
 {
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
 	Set sc = ..Create("FixtureProduction", fixture)
 	Do $$$AssertStatusOK(sc, "the fixture production compiles")
 	If $$$ISERR(sc) Quit
+	Do ..DeleteModelRows(fixture)
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(fixture, .runners)
 	Do $$$AssertStatusOK(sc, "Runners reads the fixture production")
 	Do $$$AssertEquals(runners, 5, "it lists five runners")
@@ -217,18 +224,69 @@ Method TestSeedModels()
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Production).Runners("Zz"_..Number_".NoSuchProduction", .none), "a production that cannot be opened is an error")
 	Do $$$AssertEquals(+$Get(none), 0, "and has no runner")
 
-	Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row")
-	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs")
-	Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-haiku-5-5", "only ZzAgentModel gets a row, with the MODEL of its agent class")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzModelSet", fixture), "claude-sonnet-5-5", "ZzModelSet keeps its own model")
-	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(fixture), "ZzNoModel,ZzMissingClass", "the runners without a MODEL stay unresolved")
+	Try {
+		Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs")
+		Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-haiku-5-5", "only ZzAgentModel gets a row, with the MODEL of its agent class")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("ZzModelSet", fixture), "claude-sonnet-5-5", "ZzModelSet keeps its own model")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).UnresolvedRunners(fixture), "ZzNoModel,ZzMissingClass", "the runners without a MODEL stay unresolved")
 
-	Set id = fixture_"||ZzAgentModel||*||Model"
-	Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
-	Set row.SettingValue = "claude-sonnet-5-5"
-	Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to another model")
-	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs again")
-	Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-sonnet-5-5", "the existing row is kept as it is")
+		Set id = fixture_"||ZzAgentModel||*||Model"
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+		Set row.SettingValue = "claude-sonnet-5-5"
+		Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to another model")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs again")
+		Do $$$AssertEquals(..ModelRows(fixture), "ZzAgentModel=claude-sonnet-5-5", "the existing row is kept as it is")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteModelRows(fixture)
+	Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row afterwards")
+}
+
+/// A runner whose agent class has a MODEL is seeded when no row gives it a model, and is left alone when a row of the
+/// production gives it one: for its item and the class of its adapter, for every item of that class, for every item and class,
+/// or under the name Adapter:Model. The row is then the only row that SeedModels leaves, and it is the model the runner
+/// resolves. A production that cannot be opened is an error and gets no row.
+Method TestSeedSpecificity()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set sc = ..Create("FixtureProduction", fixture)
+	Do $$$AssertStatusOK(sc, "the fixture production compiles")
+	If $$$ISERR(sc) Quit
+	Set adapter = $Parameter("OcuTalon.Bridge.Operation.AgentRunner", "ADAPTER")
+	Do $$$AssertTrue(adapter '= "", "the runner class names its adapter class: "_adapter)
+	Set item = "ZzAgentModel"
+	Do ..DeleteModelRows(fixture)
+	Try {
+		Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs with no row")
+		Do $$$AssertEquals(..ModelRows(fixture), item_"=claude-haiku-5-5", "and seeds the runner with the MODEL of its agent class")
+		Do ..DeleteModelRows(fixture)
+		Set variants = $ListBuild($ListBuild(item, adapter, "Model"), $ListBuild("*", adapter, "Model"), $ListBuild("*", "*", "Model"), $ListBuild(item, "*", "Adapter:Model"))
+		Set position = 0
+		While $ListNext(variants, position, variant) {
+			Set label = "a row for item '"_$List(variant, 1)_"', class '"_$List(variant, 2)_"', setting '"_$List(variant, 3)_"'"
+			Set row = ##class(Ens.Config.DefaultSettings).%New()
+			Set row.ProductionName = fixture
+			Set row.ItemName = $List(variant, 1)
+			Set row.HostClassName = $List(variant, 2)
+			Set row.SettingName = $List(variant, 3)
+			Set row.SettingValue = "claude-sonnet-5-5"
+			Do $$$AssertStatusOK(row.%Save(), label_" is saved")
+			Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, fixture), "claude-sonnet-5-5", label_" gives the runner its model")
+			Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(fixture), "SeedModels runs")
+			Do $$$AssertEquals(..ModelRows(fixture), $Select($List(variant, 3) = "Model": $List(variant, 1)_"=claude-sonnet-5-5", 1: ""), label_" is the only row, so the runner is not seeded")
+			Do ..DeleteModelRows(fixture)
+		}
+		Set missing = "OcuTalon.Test.Install.ZzNoSuchProd"_..Number
+		Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Production).SeedModels(missing), "SeedModels of a production that cannot be opened is an error")
+		Do $$$AssertEquals(..ModelRows(missing), "", "and writes no row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteModelRows(fixture)
+	Do $$$AssertEquals(..ModelRows(fixture), "", "the fixture production has no Model row afterwards")
 }
 
 /// Row 5: EvalEnabled is 1 only for "1"; SetEval writes the System Default Setting row (production, EvalIn, any class,
@@ -328,6 +386,12 @@ ClassMethod ModelRows(production As %String) As %String [ Private ]
 		Set rows = rows _ $Select(rows = "": "", 1: ";") _ result.%GetData(1) _ "=" _ result.%GetData(2)
 	}
 	Quit rows
+}
+
+/// Deletes the Model and Adapter:Model rows of a production.
+ClassMethod DeleteModelRows(production As %String) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName IN ('Model', 'Adapter:Model')", production)
 }
 
 /// The ProductionDefinition block of OcuTalon.Production as text, lines separated by a line feed.

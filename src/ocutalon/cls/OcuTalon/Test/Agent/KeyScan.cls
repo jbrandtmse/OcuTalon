@@ -10,8 +10,10 @@
 ///     that TriageAgent resolves, and the session is saved. The mock logs a key of the fake key's length, the mock-key header,
 ///     the script triage picked by the mock key, and the model; Find on the fake key names no store; Find on values that the
 ///     stores do hold names their stores, so that the scan is shown to see what it scans. The session is deleted.
-/// Find(value) is the scan that other stories reuse: it names every store that holds the value. SetEnv, UnsetEnv and HasEnv
-/// are the helpers that set, remove and test an environment variable of the process, for the tests that need a key there.
+/// Find(value) is the scan that other stories reuse: it names each of the stores it scans that holds the value (the stores
+/// are listed at Find; the audit log, the journal and the jobs' runtime settings are not among them). SetEnv, UnsetEnv and
+/// HasEnv are the helpers that set, remove and test an environment variable of the process, for the tests that need a key
+/// there.
 Class OcuTalon.Test.Agent.KeyScan Extends %UnitTest.TestCase
 {
 

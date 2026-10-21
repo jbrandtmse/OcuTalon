@@ -4,7 +4,8 @@
 /// An entry holds the provider, the key placeholder @{env:ANTHROPIC_API_KEY} and the endpoint overrides of the environment,
 /// and never a model (the model is the runner's Model setting, AD-7) and never a key: the placeholder stays unresolved
 /// through the Config Store and AI Hub's provider resolves it. No code here reads the key's value.
-/// Every value the step writes is structural: it is rewritten whole at every start, so a stale field disappears.
+/// Every value the step writes is structural: it is rewritten whole at every start, so a stale field disappears, and every
+/// entry gets the Config Store's default read and edit resource, %Admin_ConfigStore, again.
 /// The overrides, read from the environment at every start (AD-19, DW-39):
 ///   - OCUTALON_MODEL_BASE_URL: becomes base_url; it must be http(s)://host/... with no user name, query or fragment, and end
 ///     with /v1/;
@@ -12,9 +13,9 @@
 ///   - OCUTALON_MOCK_KEY_HEADER: only the text 1 adds the header x-ocutalon-mockkey, with the MOCKKEY of the agent class,
 ///     to custom_headers of http_config; the base URL alone never adds it.
 /// The order of a run: RebuildRegistry first (a fresh instance has no descriptor for AI.LLM until then), the overrides
-/// are checked (a bad one fails the step and nothing is written), then for each runner its entry is written (Modify when
-/// it exists, Create otherwise), checked to exist, and only then is its ProviderConfig row written, because the row's
-/// validation expands @{config:}.
+/// are checked (a bad one fails the step, and no entry or row is written), then for each runner its entry is written
+/// (Modify when it exists, Create otherwise), checked to exist, and only then is its ProviderConfig row written, because
+/// the row's validation expands @{config:}.
 Class OcuTalon.Install.Step.Provider Extends OcuTalon.Install.Step
 {
 
@@ -39,8 +40,11 @@ Parameter CAFILEVARIABLE = "OCUTALON_EXTRA_CA_FILE";
 /// The environment variable of the mock-key header switch.
 Parameter MOCKKEYVARIABLE = "OCUTALON_MOCK_KEY_HEADER";
 
+/// The read and edit resource of every entry: the Config Store's default (AD-19).
+Parameter ENTRYRESOURCE = "%Admin_ConfigStore";
+
 /// An ICU pattern of a base URL: http or https, a host with no user name, any path with no query or fragment, and a last
-/// segment /v1/. Nothing in it can carry a credential into an entry.
+/// segment /v1/. It keeps a user name and password, a query and a fragment out of an entry; it does not judge the path.
 Parameter URLPATTERN = "^(?i:https?)://[^/\s@?#]+/([^\s@?#]*/)?v1/\z";
 
 /// Writes the entries and the ProviderConfig rows from the environment of the process.
@@ -51,7 +55,7 @@ ClassMethod Run() As %Status
 
 /// The run of the step for given values of the three environment variables: RebuildRegistry, the checks of the overrides,
 /// and then, for each runner, its entry and its ProviderConfig row. Fails at the first error; a failed check of an
-/// override writes nothing.
+/// override writes no entry and no row.
 ClassMethod Apply(baseUrl As %String, caFile As %String, mockKeyFlag As %String) As %Status
 {
 	Set sc = ##class(%ConfigStore.DescriptorManager).RebuildRegistry()
@@ -115,8 +119,8 @@ ClassMethod EntryName(agentClass As %String) As %String
 	Quit ..#NAMEPREFIX_$Piece(agentClass, ".", $Length(agentClass, "."))
 }
 
-/// Writes one runner's entry, checks that it exists, and then writes the runner's ProviderConfig row. A runner that is
-/// disabled and has no usable agent class gets neither; an enabled one fails the step by name.
+/// Writes one runner's entry with the default resources, checks that it exists, and then writes the runner's ProviderConfig
+/// row. A runner that is disabled and has no usable agent class gets neither; an enabled one fails the step by name.
 ClassMethod WriteRunner(production As %String, item As %String, agentClass As %String, enabled As %Boolean, baseUrl As %String, caFile As %String, mockKeyFlag As %String) As %Status [ Private ]
 {
 	If (agentClass = "") || '##class(%Dictionary.CompiledClass).%ExistsId(agentClass) || '$ClassMethod(agentClass, "%Extends", "%AI.Agent") {
@@ -127,9 +131,9 @@ ClassMethod WriteRunner(production As %String, item As %String, agentClass As %S
 	Set fqn = ..#ENTRYPREFIX_name
 	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag)
 	If ##class(%ConfigStore.Configuration).Exists(fqn) {
-		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details)
+		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details, , , ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)
 	} Else {
-		Set sc = ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details, "", "Written by the Provider install step at every start; do not edit.")
+		Set sc = ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details, "", "Written by the Provider install step at every start; do not edit.", ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)
 	}
 	If $$$ISERR(sc) Quit sc
 	If '##class(%ConfigStore.Configuration).Exists(fqn) {
