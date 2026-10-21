@@ -6381,15 +6381,17 @@ So that small or one-lane pushes don't spend runner time on groups they can't af
 
 ### Story 32.3: Every IRIS job finishes in about ten minutes
 
-[AMENDED 2026-10-21, Story 32.1 plan, unattended ruling (a split, decide): split from Story 32.1's second criterion. It waits for the owner's decision on how the ceiling is met, because the plan measured that it cannot be met by moving whole units on the current runner hosts: on run 39594299887, with five IRIS stacks on `ocutalon-ci-b`, `live:install-start` alone took 681 s, so the job that holds it takes about 12 minutes whatever the grouping.]
+[AMENDED 2026-10-21, Story 32.1 plan, unattended ruling (a split, decide): split from Story 32.1's second criterion. It waits for the owner's decision on how the ceiling is met, because the plan measured that it cannot be met by moving whole units on the current runner hosts: on run 39594299887, with five IRIS stacks on `ocutalon-ci-b`, `live:install-start` alone took 681 s, so the job that holds it takes about 12 minutes whatever the grouping.] [AMENDED 2026-10-21, owner decision U-1, relayed by the Contest Planner quoting the owner: "a": the ceiling is restated as a balance rule. No IRIS job runs more than about 25% over the mean of the six, each job's time, runner and host are recorded, and a slowest job over about 10 minutes goes to the owner as a CI-capacity item. The title is kept. The story read: "I want no IRIS job to run longer than about 10 minutes when runners are free", and its criterion "no IRIS job runs longer than about 10 minutes".]
 
 As the author,
-I want no IRIS job to run longer than about 10 minutes when runners are free,
-So that CI's verdict comes in about ten minutes.
+I want no IRIS job to run much longer than the others, with every job's time on record,
+So that one slow group doesn't hold up CI's verdict, and a slow runner host shows up as a capacity item rather than a silent wait.
 
 **Acceptance Criteria:**
 
-**Given** a push that runs every IRIS group, with at least as many free runner services as groups, after Story 32.1's split and rebalance
+**Given** a push that runs every IRIS group, after Story 32.1's split and rebalance
 **When** CI runs
-**Then** no IRIS job runs longer than about 10 minutes, and each job's time, runner and host are recorded (REL-4, AD-22).
+**Then** no IRIS job runs more than about 25% over the mean of the six IRIS jobs, and each job's time, runner and host are recorded (REL-4, AD-22).
 **And** a unit still moves whole between groups and is never split.
+**And** if the slowest IRIS job runs over about 10 minutes, its measured times go to the owner as a CI-capacity item, as owner decision 9 does for REL-4's 35 minutes.
+- DW-49: `ci/iris.sh` gives the browser units a fixed web port (52810 + n) only for runners 1 to 9, so on `ocutalon-ci-10` to `-14` two concurrent browser jobs can probe and pick the same free port (ledger; routed by adjudication 2026-10-21)
