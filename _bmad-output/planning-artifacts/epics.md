@@ -227,7 +227,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 
 **Two build lanes (AD-29, AD-33)**
 
-- Lane A, "platform and agent core": `OcuTalon.Bridge`, `.BridgeExample`, `.Agent`, `.Tools`, `.Watch`, `.Fix`, `.Checks`, `.Digest`, later `.Memory`, `.Docs`, `.Mcp`; `OcuTalon.Eval` and `eval/`; the installer's core (step registry, `docker/merge.cpf`, the package's CPF resource and its map-and-stop step, the role, user, SSL, task, `Production`, `Reconcile` and `Public` steps, the purge task); `ci/mock/scenarios/A/`; `release/` (the scripted release sequence, the upgrade-in-place harness and the release records, `release/records/<version>/`); `.github/workflows/lane-a.yml`; from Epic 12, `OcuTalon.Channel.Telegram` (`TelegramIn`, `TelegramOut`), the rail's Telegram card (`web/src/app/rail/telegram-card/`), the spec files `web/e2e/demo-path/telegram-*.spec.ts`, the README's Telegram section and the Telegram mock scenarios under `ci/mock/scenarios/A/`; the bridge guide, the security overview and `docs/install-ipm.md`.
+- Lane A, "platform and agent core": `OcuTalon.Bridge`, `.BridgeExample`, `.Agent`, `.Tools`, `.Watch`, `.Fix`, `.Checks`, `.Digest`, later `.Memory`, `.Docs`, `.Mcp`; `OcuTalon.Eval` and `eval/`; the installer's core (step registry, `docker/merge.cpf`, the package's CPF resource and its map-and-stop step, the role, user, SSL, task, `Production`, `Reconcile` and `Public` steps, the purge task); `ci/mock/scenarios/A/`; `release/` (the scripted release sequence, the upgrade-in-place harness and the release records, `release/records/<version>/`); `.github/workflows/lane-a.yml`; from Epic 12, `OcuTalon.Channel.Telegram` (`TelegramIn`, `TelegramOut`), the rail's Telegram card (`web/src/app/rail/telegram-card/`), the spec files `web/e2e/demo-path/telegram-*.spec.ts`, the README's Telegram section and the Telegram mock scenarios under `ci/mock/scenarios/A/`; the bridge guide, the security overview and `docs/install-ipm.md`. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] In Epic 29, Lane A also changes the Lane B files that Stories 29.1 to 29.4 name, under AD-29's Epic 29 exception, and those files stay Lane B's.
 - Lane B, "experience": `OcuTalon.Web` (including `.Web.Public`), `.Channel` (except `.Channel.Telegram` from Epic 12), `.Core`, `.Schedule`, `.Demo`, `.Live`, `.Msg`, `.Data.Time`, `.Data.Setting`, `.Data.Ownership`, `.Data.Public`; `web/` (except, from Epic 12, the rail's Telegram card under `web/src/app/rail/telegram-card/` and the `web/e2e/demo-path/telegram-*.spec.ts` spec files), `docker/` (except `merge.cpf`), the rest of `ci/` (`.github/workflows/ci.yml` and the mock service), the install script and the README (except its Telegram section); the web-applications installer step; the demo host's repository files (maintenance page, busy page, probe).
 - One owner per production item, class, table and live-event type (AD-33). `OcuTalon.Test.<Area>`, `OcuTalon.Install.Step.<Area>` and `OcuTalon.Live.Payload.<Type>` follow their area's lane. A lane that needs a property on the other's contract asks, and the owner appends it. New items, tables or event types update the spine's ownership tables in the same change.
 - Both lanes merge story branches into one integration branch with the demo-path test green; release pull requests to `main` are cut from it. Epic 0 enables every release-1 stub item except `TelegramIn`, `TelegramOut` and `EvalIn`; before a release cut, the owning lane disables, in its own region, any item whose story hasn't merged (Story 11.5 refuses a candidate with an enabled item that answers "not implemented").
@@ -281,7 +281,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 **Online demo (AD-13, AD-25, AD-27)**
 
 - Topology: a TLS reverse proxy (access gate, path allow-list, password-change guard, `X-Forwarded-For` handling, busy and maintenance pages) in front of IRIS with no general internet, a durable volume reset to a golden copy, and an outbound gateway holding the real model key and the demo bot's token, allowing only the model API, Telegram and allow-listed MCP servers.
-- Capacity floor only: about 6 signed-in visitors per instance; busy beyond that; the probe and proxy log busy refusals per day. The demo-host adaptation is a tracked story in the 1.0.0 kit epic, due November 1; creating the server and DNS stay the author's actions.
+- Capacity floor only: about 6 signed-in visitors per instance; busy beyond that; the probe and proxy log busy refusals per day. The demo-host adaptation is a tracked story in the 1.0.0 kit, Lane A's Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner], due November 1; creating the server and DNS stay the author's actions.
 - Retention: two standard `Ens.Util.Tasks.Purge` tasks (7 days, type `messages` with `optionalMessageLimitToConfigItems` and `BodiesToo`, for heartbeat and check messages; 90 days, type `all` with `KeepIntegrity` and `BodiesToo`, for messages, business-process instances, rule logs, the event log, I/O logs, host monitor data and managed alerts), `OcuTalon.Bridge.Purge`, and `OcuTalon.Install.Task.Purge` calling each area's `Purge(daysToKeep)`; all three tasks run daily at 03:00 instance time.
 
 **CI, testing and the evaluation set (AD-22)**
@@ -485,14 +485,14 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-5: Epic 1 (configured entirely by production settings, works without OcuTalon's channels); Epic 13 (guide, example production, standalone install)
 - FR-6: Epic 1 (AI sessions and conversation links survive restarts); Epic 2 (session history on the page); Epic 11 (the container-restart test)
 - FR-7: Epic 3 (safe and risky classification, untrusted content limits); Epic 22 (MCP tools)
-- FR-8: Epic 3 (approval requests, fixed targets, first answer wins, expiry); Epic 6 (answering from the web chat and simulated phone); Epic 12 (Telegram buttons)
+- FR-8: Epic 3 (approval requests, fixed targets, first answer wins, expiry); Epic 6 (answering from the web chat and simulated phone); Epic 12 (Telegram buttons); Epic 30 (the approved tool-call replay); Epic 31 (tool-call approvals on the phone and in the paired chat) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-9: Epic 3 (audit trail)
 - FR-10: Epic 1 (no shell tools, tool inventory test); Epic 9 (evaluation case: asked to run a command, no tool is called); Epic 14 (documented in the security overview); Epic 22 (the admin guide's rule; in the README from step 5, Story 24.1)
 - FR-11: Epic 0 (admin and user roles created); Epic 3 (service user, trace role, step 1 role rules); Epic 26 (approver and viewer roles, bridge backstop); Epic 25 (role screens and the answer check)
-- FR-12: Epic 2 (the web app); Epic 4 (demo-mode panels)
+- FR-12: Epic 2 (the web app); Epic 4 (demo-mode panels); Epic 31 (the WebSocket on local installs) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-13: Epic 4 (simulated phone and mailbox)
-- FR-14: Epic 0 (local sign-in, first cut); Epic 2 (local sign-in complete); Epic 16 (online demo splash and resume until reset)
-- FR-15: Epic 16 (session isolation and load)
+- FR-14: Epic 0 (local sign-in, first cut); Epic 2 (local sign-in complete); Epic 16 (online demo splash, leaving and signing out); Epic 29 (resume until reset, Story 29.2) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+- FR-15: Epic 29 (session isolation and load, Stories 29.2 and 29.4); Epic 16 (busy, allowances) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-16: Epic 4 (demo mode and Break the feed)
 - FR-17: Epic 18 (settings page)
 - FR-18: Epic 12 (pairing by QR code); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
@@ -500,9 +500,9 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-20: Epic 12 (conversation, notifications and approvals in Telegram); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
 - FR-21: Epic 12 (Telegram optional); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
 - FR-22: Epic 12 (one poller per bot); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
-- FR-23: Epic 5 (watch a production from the chat)
+- FR-23: Epic 5 (watch a production from the chat); Epic 30 (the stopped-production and disabled-item findings) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-24: Epic 5 (incident, settle rule, diagnosis, states, dismissal from the chat); Epic 6 (incident cards, Show details, dismiss); Epic 7 (awaiting approval, fixing, resolved)
-- FR-25: Epic 7 (repair and resend with dry run); Epic 6 (the dry run as shown)
+- FR-25: Epic 7 (repair and resend with dry run); Epic 6 (the dry run as shown); Epic 30 (the mixed and still-running results) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-26: Epic 23 (reroute, suspend and resume, roll back)
 - FR-27: Epic 23 (linking failures to setting changes)
 - FR-28: Epic 23 (when to page and escalate); Epic 24 (on-call configuration, delivering pages, the escalation timer, acknowledgements)
@@ -510,14 +510,14 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-30: Epic 23 (incident summaries, sent to the session's channels); Epic 25 (listed in the history)
 - FR-31: Epic 28 (drafted transform change, Could)
 - FR-32: Epic 8 (heartbeat)
-- FR-33: Epic 5 (production watch); Epic 8 (checks on the page); Epic 22 (source polls); Epic 23 (queue backlog and SQL query watch, Could); Epic 24 (SQL watch set-up)
+- FR-33: Epic 5 (production watch); Epic 30 (the stopped-production and disabled-item findings) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]; Epic 8 (checks on the page); Epic 22 (source polls); Epic 23 (queue backlog and SQL query watch, Could); Epic 24 (SQL watch set-up)
 - FR-34: Epic 1 (the chat agent's reminder tools); Epic 8 (reminders)
 - FR-35: Epic 17 (daily digest)
 - FR-36: Epic 17 (what "checked" means)
 - FR-37: Epic 5 (chat rule); Epic 17 (digest rule); Epic 22 (the unreachable-source test)
 - FR-38: Epic 1 (default model, no-key start); Epic 2 (no-key banner)
 - FR-39: Epic 17 (model per agent); Epic 18 (in the settings page, and the README's provider section)
-- FR-40: Epic 17 (budgets); Epic 18 (in the settings page); Epic 3 (the online demo's $20 cap and gateway spend, Story 3.8); Epic 16 (online-demo caps)
+- FR-40: Epic 17 (budgets); Epic 18 (in the settings page); Epic 3 (the online demo's $20 cap and gateway spend, Story 3.8); Epic 16 (online-demo caps); Epic 29 (the gateway's cap, Story 29.3) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-41: Epic 19 (memory with hybrid search)
 - FR-42: Epic 19 (retrieval and citations); Epic 20 (adding documents); Epic 26 (PDF and Word)
 - FR-43: Epic 28 (memory fading, Could)
@@ -536,14 +536,22 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-56: Epic 0 (own namespace)
 - FR-57: Epic 15 (IPM package)
 - FR-58: Epic 10 (step 1 README); Epic 16 (completed for 1.0.0)
-- FR-59: Epic 3 (the online demo's public settings and password guard, Story 3.8); Epic 16 (online demo); Epic 22 (the gateway's MCP allow-list from step 4)
+- FR-59: Epic 3 (the online demo's public settings and password guard, Story 3.8); Epic 29 (the public accounts and the demo host) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]; Epic 16 (online demo); Epic 22 (the gateway's MCP allow-list from step 4)
 - FR-60: Epic 11 (upgrade in place, from 0.1.1)
 - FR-61: Epic 14 (security overview)
 - FR-62: Epic 9 (evaluation set); Epic 17 (digest cases); Epic 23 (setting-change incidents)
 
 ## Epic List
 
-Epics are numbered in dispatch order. Two `/epic-cycle` runners work in parallel after Epic 0: Lane A ("platform and agent core") and Lane B ("experience"), with package and folder ownership fixed by the architecture (AD-29, AD-33). Each epic names the epic it depends on: the previous epic in its own lane, plus any cross-lane merge point. Each lane's epics test against Epic 0's contracts and the CI mock rather than the other lane's unfinished code; the end-to-end demo path is proven in Epic 11. Release 1 (0.1.0) is Epics 0 to 11, the floor, due October 30 and no later than November 1. Telegram (Epic 12) moved to Lane A on October 17 (the author's decision, ahead of the lane checkpoint): it is built after Epic 11 and ships as 0.1.1, the very next release, before the online demo goes public (PRD §7.2). The 1.0.0 kit is Epics 13 to 16. Epics 17 to 28 outline build steps 2 to 7, in the cut-line order.
+Epics are numbered in dispatch order, except Epics 29 to 31 (below). Two `/epic-cycle` runners work in parallel after Epic 0: Lane A ("platform and agent core") and Lane B ("experience"), with package and folder ownership fixed by the architecture (AD-29, AD-33). Each epic names the epic it depends on: the previous epic in its own lane, plus any cross-lane merge point. Each lane's epics test against Epic 0's contracts and the CI mock rather than the other lane's unfinished code; the end-to-end demo path is proven in Epic 11. Release 1 (0.1.0) is Epics 0 to 11, the floor. Telegram (Epic 12) moved to Lane A on October 17 (the author's decision, ahead of the lane checkpoint): it is built after Epic 11 and ships as 0.1.1, the very next release, before the online demo goes public (PRD §7.2). The 1.0.0 kit is Epics 13 to 16 and 29. Epics 17 to 28 outline build steps 2 to 7, in the cut-line order.
+
+**The October 20 rebalance** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]. The demo path comes first, and the online demo lands by November 1; 0.1.0 and Telegram's 0.1.1 follow, around November 3 to 4, so 0.1.0 is no longer due October 30. Three epics were added at the end of the list, and each lane dispatches them where its order below puts them:
+
+- **Epic 29** (Lane A), the online demo's platform side: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, as Stories 29.1 to 29.4. Lane B keeps the rest of Epic 16.
+- **Epic 30** (Lane A) and **Epic 31** (Lane B), post-demo hardening: the parts of the demo-path epics' stories that the owner moved after the demo path. They stay in the plan and land before 1.0.0.
+- **Lane A's order:** 1, 3, 5, 7, 29, 9, 11, 12, 30, then 13, 14, 15 and its step epics.
+- **Lane B's order:** 2, 4, 6, 8, 10, 16, 31, then its step epics.
+- **Waiting on the other lane.** Inside the online demo, the cross-lane needs are story-level edges between Epics 16 and 29. While a story waits on one, its lane takes the next story that doesn't depend on it (Rule 22.1): Lane A takes Epic 9's stories, and Lane B takes Story 31.1.
 
 ### Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -557,21 +565,21 @@ A judge or developer runs one image build and `docker compose up`, gets OcuTalon
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
 **Lane:** A. **Depends on:** Epic 0.
 **FRs covered:** FR-1 (the decision), FR-2, FR-3, FR-4 (step 1 part), FR-5 (configuration by production settings), FR-6 (bridge side), FR-10, FR-34 (the chat agent's reminder tools), FR-38.
-**Also covers:** NFR-1 to NFR-6, NFR-11, NFR-19 (retention tasks), NFR-20; AD-27; AD-6 to AD-9, AD-20, AD-26, AD-30, AD-31.
+**Also covers:** NFR-1 to NFR-6, NFR-11, NFR-20; AD-6 to AD-9, AD-20, AD-26, AD-30, AD-31. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 1.9's compaction and Story 1.11's purge tasks (NFR-19's retention tasks, AD-27) moved to Epic 30.]
 
 ### Epic 2: Chat with OcuTalon on a live web page
 
 A signed-in user chats with OcuTalon in the browser and sees each reply with its decision, cost details and trace link, plus live lists of recent decisions, background checks, reminders and pending approvals, updated without a reload; a message the user writes is always answered, and the conversation is still there after a restart.
 **Lane:** B. **Depends on:** Epic 0.
 **FRs covered:** FR-1 (outcome routing and notification fan-out), FR-2 (cost in chat details), FR-6 (history), FR-12, FR-14 (local sign-in, complete), FR-38 (no-key banner).
-**Also covers:** NFR-8, NFR-9, NFR-24, NFR-25; AD-1, AD-4, AD-12, AD-13, AD-14, AD-32; UX-DR17 to UX-DR42 (release-1 parts; the splash is Epic 16), UX-DR51 to UX-DR54, UX-DR57 to UX-DR70, UX-DR88 to UX-DR100 (release-1 states), UX-DR118 to UX-DR135, UX-DR137 to UX-DR140 (UX-DR55, 56 and 136 are Epic 12's).
+**Also covers:** NFR-8, NFR-9, NFR-24, NFR-25; AD-1, AD-4, AD-12, AD-13, AD-14, AD-32; UX-DR17 to UX-DR42 (release-1 parts; the splash is Epic 16), UX-DR51 to UX-DR54, UX-DR57 to UX-DR70, UX-DR88 to UX-DR100 (release-1 states), UX-DR118 to UX-DR135, UX-DR137 to UX-DR140 (UX-DR55, 56 and 136 are Epic 12's). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 2.11's WebSocket moved to Epic 31, and polling stays release 1's live path.]
 
 ### Epic 3: Nothing risky happens without a yes, and everything is audited
 
 Every action is classified safe or risky by fixed rules the model and arriving content can't change; each risky action becomes one IRIS Workflow approval request fixed to exact targets, answered once (first answer wins), expiring after 24 hours and surviving restarts; every action and governance event is written to the IRIS audit log; roles and the service user decide who may do what.
 **Lane:** A. **Depends on:** Epic 1.
 **FRs covered:** FR-7, FR-8 (the approval request and its rules), FR-9, FR-11 (step 1: roles, service user, trace role), FR-40 (the online demo's $20 cap and gateway spend, Story 3.8), FR-59 (the online demo's public settings and password guard, Story 3.8).
-**Also covers:** NFR-12, NFR-13, NFR-14; AD-10, AD-11, AD-17, AD-24.
+**Also covers:** NFR-12, NFR-13, NFR-14; AD-10, AD-11, AD-17, AD-24. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 3.6's approved tool-call replay moved to Epic 30; a risky tool call is still held for approval here.]
 
 ### Epic 4: The demo page: guide, simulated phone and mailbox, and Break the feed
 
@@ -583,7 +591,7 @@ With demo mode on, the page shows the demo guide with one-click prompts, a label
 ### Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
-**Lane:** A. **Depends on:** Epic 3 (lane order) and Epic 2 (`Session.Recipients`, `Intake` receiving check findings).
+**Lane:** A. **Depends on:** Epic 3 (lane order) and Epic 2 (`Session.Recipients`). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the need for `Intake` receiving check findings went with Story 5.6's stopped-production and disabled-item findings to Story 30.4.]
 **FRs covered:** FR-23, FR-24 (incident, diagnosis, settle rule, states), FR-33 (production watch), FR-37 (chat rule).
 **Also covers:** NFR-7 (the pipeline's share); AD-15, AD-18 (checks), AD-28; UX-DR155 (the no-fix notice's text).
 
@@ -592,14 +600,14 @@ A user asks in plain words to watch a production; new failures are picked up wit
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
 **Lane:** B. **Depends on:** Epic 4.
 **FRs covered:** FR-8 (answering from the web chat and simulated phone), FR-24 (incident cards and dismiss), FR-25 (the dry run as shown).
-**Also covers:** NFR-9; AD-11 (AnswersIn), AD-32; UX-DR71 to UX-DR79, UX-DR155, UX-DR156.
+**Also covers:** NFR-9; AD-11 (AnswersIn), AD-32; UX-DR71 to UX-DR79, UX-DR155, UX-DR156. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 6.3's tool-call notifications moved to Epic 31.]
 
 ### Epic 7: Approve the fix and the orders go through
 
 For a data-format cause, OcuTalon proposes repair and resend with a dry run that changes nothing; after approval it re-checks each target, resends repaired copies, keeps the originals and reports how many went through, for up to at least 500 messages, and never retries a failed resend without a new approval.
 **Lane:** A. **Depends on:** Epic 5 (lane order).
 **FRs covered:** FR-24 (awaiting approval, fixing, resolved), FR-25.
-**Also covers:** NFR-13; AD-16, AD-17; UX-DR156 (the later approval request).
+**Also covers:** NFR-13; AD-16, AD-17; UX-DR156 (the later approval request). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 7.5's mixed and still-running results moved to Epic 30; its interrupted-run safety rule stays here.]
 
 ### Epic 8: Heartbeat and reminders, on time and surviving restarts
 
@@ -611,7 +619,7 @@ A heartbeat runs every minute and runs the due background checks, each visible w
 ### Epic 9: Quality is measured: the evaluation set
 
 A recorded evaluation set (at least 20 items across all four outcomes, injection cases including the suspicious-request email, the all-clear cases and at least 10 recorded incidents including the demo's) scores decisions and causes, records cost and the largest request, runs against the mock on every push and on Claude Haiku 5.5 for each release candidate, and gates the release with the 10-run demo-incident check.
-**Lane:** A. **Depends on:** Epic 7 (lane order) and Epic 2 (`Intake` sending evaluation decisions to `EvalSink`).
+**Lane:** A. **Depends on:** Epic 29 (lane order only: Epic 9's stories need nothing beyond Epic 7, so Lane A takes them while a Story 29.x waits on its Lane B edge) and Epic 2 (`Intake` sending evaluation decisions to `EvalSink`). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 7 (lane order).]
 **FRs covered:** FR-10 (evaluation case: asked to run a command, no tool is called), FR-62.
 **Also covers:** NFR-3, NFR-4, NFR-14 (injection cases), REL-5; AD-22.
 
@@ -639,7 +647,7 @@ A user scans the page's QR code to pair their Telegram private chat with their s
 ### Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.
-**Lane:** A. **Depends on:** Epic 12 (lane order).
+**Lane:** A. **Depends on:** Epic 30 (lane order; Story 13.2 needs Story 30.3, the approved tool-call replay). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 12 (lane order).]
 **FRs covered:** FR-5 (guide, example production, standalone install).
 **Also covers:** AD-2, AD-31; the 1.0.0 kit.
 
@@ -659,10 +667,10 @@ An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with i
 
 ### Epic 16: Anyone can try the online demo
 
-A visitor opens the online demo with no install and no key, signs in from the splash screen, gets an isolated session that lasts until the next reset (resumed from the same browser), sees the reset countdown, the busy state when the demo is full and the demo's allowances, and opens Visual Trace from the page; the demo host's proxy, gateway, resets and monitoring probe are adapted (the demo-host story, due November 1), and busy refusals are logged per day.
-**Lane:** B. **Depends on:** Epic 10 (lane order) and Epic 3 (Story 3.8: the online demo's public settings, password guard and spending cap); inside the epic, story-level only: Story 16.2 needs Story 11.1 (its demo-path run), Story 16.7 needs Story 11.5 (the demo update hook), and Story 16.10 needs Story 15.2 (the README's IPM text) and Story 11.1 (its demo-path run).
-**FRs covered:** FR-14 (online demo), FR-15, FR-40 (online-demo caps), FR-58 (completed for 1.0.0), FR-59.
-**Also covers:** NFR-15, NFR-23; AD-4 (resume cookie), AD-13, AD-24 (trace accounts), AD-25, AD-27; UX-DR24 to UX-DR27, UX-DR87, UX-DR107, online-demo state rows; the 1.0.0 kit.
+A visitor opens the online demo with no install and no key, signs in from the splash screen, sees the reset countdown, the busy state when the demo is full and the demo's allowances, and leaves or signs out cleanly; the busy and maintenance pages and the monitoring probe are ready for the demo host, busy refusals are logged per day, and the README leads to the demo. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test moved to Lane A's Epic 29 (Stories 29.1 to 29.4): the public settings and accounts, the session a browser resumes until the reset, the demo host, and isolation under load.]
+**Lane:** B. **Depends on:** Epic 10 (lane order) and Epic 3 (Story 3.8: the online demo's public settings, password guard and spending cap); story-level only, on Lane A's Epic 29: Story 16.2 needs Story 29.1 (the public settings and accounts), and Story 16.4 needs Story 29.2 (the session a browser resumes, with the post-sign-in check that Stories 16.5 and 16.8 build on); and Story 16.10 needs Story 15.2 (the README's IPM text). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 16.2 no longer waits for Story 11.1, because its online-demo run follows the web run's steps, which Story 11.1 turns on, and runs only its splash sign-in until then; Story 16.7's edge to Story 11.5 and Story 16.10's to Story 11.1 went with them to Epic 29.]
+**FRs covered:** FR-14 (the splash, leaving and signing out), FR-15 (busy, allowances), FR-40 (online-demo caps), FR-58 (completed for 1.0.0), FR-59 (the splash's published details, the probe).
+**Also covers:** NFR-15, NFR-23; AD-13, AD-25 (the busy and maintenance pages, the probe); UX-DR24 to UX-DR27, UX-DR87, UX-DR107, online-demo state rows; the 1.0.0 kit. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: AD-4 (the resume cookie), AD-24 (the trace accounts) and AD-27 (the address counter's purge) moved with Stories 16.1 and 16.3 to Epic 29.]
 
 ### Epic 17: A daily digest you can trust, and model choice with budgets (step 2)
 
@@ -674,7 +682,7 @@ Once a day OcuTalon sends a short digest with the vital signs, a coverage list w
 ### Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
-**Lane:** B. **Depends on:** Epic 16, Story 17.1 (the step 2 contracts) and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence).
+**Lane:** B. **Depends on:** Epic 31 (lane order; [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 16]), Story 17.1 (the step 2 contracts) and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence).
 **FRs covered:** FR-17, FR-39 (in the settings page, and the README's provider section), FR-40 (in the settings page).
 **Also covers:** AD-19 (SettingsOps); UX-DR141 to UX-DR143 (settings, the digest card, Got it).
 
@@ -746,6 +754,27 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 **Lane:** A. **Depends on:** Epic 26.
 **FRs covered:** FR-31, FR-43, FR-51.
 **Also covers:** AD-21 (MCP server), AD-24.
+
+### Epic 29: The online demo's platform side
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, renumbered 29.1 to 29.4.] The online demo's start values and public accounts are in place, each browser's sign-in opens a session it resumes until the reset, the demo host is adapted for the launch, and sessions stay isolated under load, so the online demo lands by November 1. Lane A builds these four stories after its demo-path epics and before Epics 9, 11 and 12. The files they change stay Lane B's, under AD-29's Epic 29 exception; Lane B builds the rest of the online demo in Epic 16.
+**Lane:** A. **Depends on:** Epic 7 (lane order) and Epic 3 (Story 3.8: the online demo's public settings, password guard and spending cap); story-level only, on Lane B's Epic 16 (which follows Lane B's Epic 10): Story 29.2 needs Story 16.2 (the splash it signs in from); Story 29.3 needs Stories 16.5 and 16.6 (the busy and maintenance pages and the probe the host serves and runs); Story 29.4 needs Story 16.2 (the REL-2 online-demo run) and Story 16.5 (the busy text). Story 29.3 doesn't wait for Story 11.5, which Story 16.7 did: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. Story 29.4 doesn't wait for Story 11.1: its online-demo run follows the web run's steps, which Story 11.1 turns on.
+**FRs covered:** FR-14 (the session a browser resumes until the reset), FR-15 (isolation and load), FR-40 (the gateway's daily cost cap, Story 29.3), FR-59 (the public settings and accounts, the demo host).
+**Also covers:** NFR-15, NFR-23; AD-4 (resume cookie), AD-13, AD-24 (trace accounts), AD-25 (the demo host), AD-27 (the address counter's purge), AD-29 (its Epic 29 exception); UX-DR87 (the Visual Trace menu's credential rows), UX-DR95; the 1.0.0 kit.
+
+### Epic 30: Lane A post-demo hardening
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane A's demo-path stories moved after the demo path.] Long conversations are compacted before they reach the request-size limit, old messages and records are purged on schedule, an approved tool call is replayed exactly once with no model, a stopped production or a disabled item is reported once, and a mixed or still-running resend says how far it got. Each part lands before 1.0.0.
+**Lane:** A. **Depends on:** Epic 12 (lane order). Each story builds on the story it was moved from (Stories 1.9, 1.11, 3.6, 5.6 and 7.5), all earlier in Lane A.
+**FRs covered:** FR-8 (the approved tool-call replay), FR-23 and FR-33 (the stopped-production and disabled-item findings), FR-25 (the mixed and still-running results).
+**Also covers:** NFR-3 (compaction), NFR-13, NFR-19 (retention tasks); AD-8, AD-10, AD-11, AD-16, AD-18, AD-20, AD-27.
+
+### Epic 31: Lane B post-demo hardening
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane B's demo-path stories moved after the demo path.] On a local install the page gets live events over a WebSocket, with polling as the fallback, and a risky tool call's approval request reaches the simulated phone and the paired chat with Approve and Reject and is edited in place when answered. Each part lands before 1.0.0.
+**Lane:** B. **Depends on:** Epic 16 (lane order only: Story 31.1 needs nothing from it, so Lane B may take it while a Story 16.x waits on its Lane A edge); story-level: Story 31.2's real path needs Story 30.3 (the replay's `approval.result`), and its tests use fixture `approval.*` events until then.
+**FRs covered:** FR-8 (tool-call approvals on the phone and in the paired chat), FR-12 (the WebSocket on local installs).
+**Also covers:** NFR-9; AD-12, AD-13, AD-31, AD-32; UX-DR91, UX-DR149.
 
 ## Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -1331,24 +1360,13 @@ So that every request stays at the cheaper price tier and long conversations kee
 **Given** a `turn`
 **When** Decide estimates its first request (system prompt, tool schemas, history and the new input)
 **Then** above 40,000 tokens it flags the turn for compaction, and a request still over the request-size limit (100,000 tokens, a host setting) takes the `too_large` fallback and is never sent (NFR-3, FR-4, AD-8, AD-20)
+**And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] the flag is read by the compaction in Story 30.1; until it merges, a flagged turn is sent as it is when it fits under the limit, and the size check, the `too_large` fallback and the tool-result cap below stay in this story
 
-**Given** a turn flagged for compaction
-**When** the runner compacts it in its own job before `Chat`
-**Then** it calls `ForkAndSummarize` with a cut that keeps the last user turn whole (computed from `GetContext()` outside any callback; with no older history there is no compaction) and the compaction prompt starting `OCUTALON-COMPACTION-V1`, which asks for AI Hub's summary schema with every tool result in `facts_learned`; it switches the link to the fork only after checking that the first non-system message is a user message and that every tool result follows its tool call, then saves the fork; `Summarize` in place is never used (AD-20)
-
-**Given** `ForkAndSummarize` throws, or the check fails (a mock scenario answers off-schema)
-**When** the runner compacts
-**Then** it uses a fresh AI session seeded with a code-written summary of the stored user and assistant texts, and the compaction failure never becomes the turn's fallback reason (AD-8, AD-20)
-
-**Given** a compaction
-**When** it runs
-**Then** the summarizer uses the runner's provider with effort `low`, a 20-second request timeout and no retries; Decide adds those 20 seconds to the turn's timer, staying at or under 110 seconds; and a `Usage` row with agent `compaction` and `Estimated` true prices the summarized text at about 4 characters a token at the summarizer model's rate (AD-5, AD-20)
-**And** a live smoke test, kept for release-candidate runs on the real model, makes three turns across jobs, a compaction and a tool change with Claude 5.5's thinking-history rule forced, and every turn passes (AD-20)
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the compaction criteria (`ForkAndSummarize` and its guarded switch, the fresh-session fallback, the summarizer's limits and the live smoke test) and the long-conversation check moved to Story 30.1.]
 
 **Given** built-in tools that return through the shared base `OcuTalon.Tools.Result`
 **When** results come back within one model step
 **Then** each is cut, and says it was cut, so that together they pass at most 10,000 tokens to the model, with the step's running total kept in the bridge context and reset at each `OnMessage`; a tool returns a dynamic object or plain text, never a pre-encoded JSON string (NFR-3, AD-10)
-**And** a mock conversation long enough to compact records a largest request under 100,000 tokens (NFR-3)
 
 **Given** a turn for each agent
 **When** its first model request is recorded by the mock
@@ -1384,26 +1402,7 @@ So that reminders work the way I would ask a person, from any channel I chat on.
 **When** the tool tests run against the mock
 **Then** every command carries origin `tool`, the session's `SessionRef` and its `IdempotencyKey`, a re-sent turn submits the same keys, each tool call is an agent step in Visual Trace, and a refusal from the test double reaches the reply as the owner's plain-English reason (FR-3, FR-34, AD-1, AD-9)
 
-### Story 1.11: Old messages and records are purged on schedule
-
-As the author,
-I want heartbeat and check messages, and old decisions, incidents and traces, purged on a schedule,
-So that OcuTalon's databases don't grow without limit while the records people need are kept.
-
-**Acceptance Criteria:**
-
-**Given** a first start or an upgrade
-**When** the installer core's task step runs
-**Then** it registers two `Ens.Util.Tasks.Purge` tasks: one of type `messages` keeps 7 days for the heartbeat and check items (`HeartbeatIn` and `Checks`, through `optionalMessageLimitToConfigItems`, with `BodiesToo`), and the other, of type `all`, keeps 90 days for everything else (messages, business-process instances, rule logs, the event log, I/O logs, host monitor data and managed alerts; VDocs aren't used) with `KeepIntegrity` and `BodiesToo`; and it registers `OcuTalon.Install.Task.Purge`, which calls `OcuTalon.Bridge.Purge(daysToKeep)` and every area's `Purge(daysToKeep)` declaration; all three run daily at 03:00 instance time and come from the Lane A area's `Tasks()` declaration, and a second start still leaves one of each (NFR-19, AD-23, AD-27)
-**And** `OcuTalon.Bridge.Purge(daysToKeep)` keeps decisions and usage for that many days and deletes AI sessions that no conversation link has pointed to for a day, and a test with a fixture area declaration finds its `Purge(daysToKeep)` called with the task's `DaysToKeep` (NFR-19, AD-27)
-
-**Given** the retention periods
-**When** the task step creates the tasks
-**Then** the day counts are task properties written only at creation (the two purge tasks' `NumberOfDaysToKeep`, 7 and 90, and `OcuTalon.Install.Task.Purge`'s `DaysToKeep`, 90, which it passes on), so an upgrade keeps a value an admin changed in the Task Manager and no purge reads `OcuTalon.Data.Setting` (NFR-19, AD-2, AD-27)
-
-**Given** fixture records older and newer than each retention period
-**When** the purge tasks run
-**Then** only the records past their period are gone, business-process instances, rule logs and event-log entries included, audit entries are untouched (they follow the instance's own audit retention), and history reads from OcuTalon's and the bridge's tables, not from purged messages (NFR-19, AD-27)
+**Story 1.11 moved to Story 30.2**, whole and verbatim, in Lane A's post-demo hardening epic (Epic 30) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
 ### Story 1.12: Items saved for the digest are kept for it
 
@@ -1690,7 +1689,7 @@ So that I see at a glance what OcuTalon is doing for me.
 **Given** the bridge reports `approval.raised`, `approval.answered`, `approval.expired`, `approval.cancelled` or `approval.result`
 **When** `BridgeSink` handles it
 **Then** it reads the `ApprovalRequest` row through the ownership API and publishes an `approval` event to the owning session's stream, or to each session `Session.Recipients` returns for an `instance` incident (AD-4, AD-31)
-**And** tests call `BridgeSink.OnEvent` with each `approval.*` type and fixture `ApprovalRequest` rows, so they need none of Lane A's approval code; the real path turns on when Stories 3.4 to 3.6 merge (AD-29, AD-31)
+**And** tests call `BridgeSink.OnEvent` with each `approval.*` type and fixture `ApprovalRequest` rows, so they need none of Lane A's approval code; the real path turns on when Stories 3.4 and 3.5 merge, and for a replayed tool call's `approval.result` when Story 30.3 does [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was "Stories 3.4 to 3.6"] (AD-29, AD-31)
 **And** the rail shows one row per pending request with a 3px `attention` bar, the action and its raised and expiry times ("Repair and resend 50 orders" / "Raised 14:13 · expires tomorrow at 14:13"); a request that is answered, expires or is cancelled leaves within one live update, and if its row had focus, focus moves to the section heading (FR-8, FR-12, UX-DR52, UX-DR131)
 
 **Given** the session's background checks
@@ -1778,29 +1777,23 @@ So that I know why decisions use fixed rules or checks are late, and what to do 
 
 - DW-29: A banner's `{time}` shows as a page time in the browser's zone, as the UX's banner table says, not as `Catalog.Render`'s message time in the instance zone (AD-32, Story 0.9's renderer) (ledger; routed by harvest 2026-10-20)
 
-### Story 2.11: Push live events over a WebSocket on local installs
+### Story 2.11: Say plainly when the page loses contact
 
-As a user on a local install,
-I want new messages pushed to the page as they happen, with polling only as the fallback,
-So that updates arrive at once, and I'm told plainly when the page loses contact.
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: retitled from "Push live events over a WebSocket on local installs". The WebSocket criteria moved to Story 31.1, and polling stays release 1's live path. This story keeps the reconnecting banners, which polling needs.]
+
+As a user,
+I want to be told plainly when the page loses contact with OcuTalon, and to get what I missed when it's back,
+So that I know new messages may be delayed.
 
 **Acceptance Criteria:**
 
-**Given** a signed-in session on a local or IPM install
-**When** the page opens the WebSocket `/ocutalon/OcuTalon.Web.Live.cls` (a `%CSP.WebSocket` class)
-**Then** the server checks `Origin` before it accepts, serves only a signed-in session, waits on the session's `$SYSTEM.Event` resource and one instance resource, which `Live.Publish` signals after each commit, and sends each new event in the same envelope `{seq, stream, ts, type, payload}` after the client's cursors (AD-12, AD-13)
-
-**Given** the page's live-event service
-**When** it starts
-**Then** on a local or IPM install it receives events over the WebSocket and applies them through the same idempotent path as polling; with the online-demo flag set it never opens the WebSocket and only polls; if the socket closes or fails, it switches to polling silently and reconnects in the background (FR-12, AD-12, UX-DR91, UX-DR149)
-
-**Given** neither the WebSocket nor polling has answered
+**Given** neither the WebSocket nor polling has answered (until Story 31.1 adds the WebSocket, polling alone [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner])
 **When** 10 seconds pass
 **Then** the closable info banner "Reconnecting… New messages may be delayed." appears, and at 30 seconds the unclosable danger banner "Can't reach OcuTalon. Retrying every 10 seconds." replaces it; on recovery the missed content loads into place (reloading the snapshot if a stream's `seq` skipped) and the banners clear (UX-DR14, UX-DR91, UX-DR116)
 
 **Given** the CI demo-path environment
-**When** the WebSocket tests run
-**Then** an event published while the socket is open reaches the page through it; with the socket blocked, polling still delivers it; and with the server unreachable, the two banners appear in order, with the page's clock controlled by the test; the 2-second delivery bound is measured in the rehearsal (NFR-9, AD-12)
+**When** the connection tests run [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the WebSocket half of this criterion moved to Story 31.1]
+**Then** with the server unreachable, the two banners appear in order, with the page's clock controlled by the test (NFR-9, AD-12)
 
 ### Story 2.12: Meet the accessibility and responsive floor
 
@@ -1986,13 +1979,15 @@ So that two answers can never both act and an old request can't be approved by s
 
 **Given** a `TaskResponse` reaches ApprovalHold
 **When** it handles the response
-**Then** it acts only if the row already shows that answer; on approval, rejection or expiry it sends `ApprovalOutcome` to the row's `ResultTarget`, except that an approved `tool_call` gets the replay instead (Story 3.6, AD-11), a rejection runs nothing, and `HostSinkClass` receives `approval.answered`, `approval.expired` or `approval.cancelled` with the `Ref` (FR-8, NFR-13, AD-11, AD-31)
+**Then** it acts only if the row already shows that answer; on approval, rejection or expiry it sends `ApprovalOutcome` to the row's `ResultTarget`, except that an approved `tool_call` gets the replay instead (Story 30.3, AD-11; until it merges, an approved `tool_call` gets neither and runs nothing [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 3.6]), a rejection runs nothing, and `HostSinkClass` receives `approval.answered`, `approval.expired` or `approval.cancelled` with the `Ref` (FR-8, NFR-13, AD-11, AD-31)
 
-### Story 3.6: An approved tool call runs exactly once, with no model
+### Story 3.6: A risky tool call waits for approval and runs nothing
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: retitled from "An approved tool call runs exactly once, with no model". The approved tool-call replay moved to Story 30.3; this story keeps the hold.]
 
 As a production developer,
-I want a risky tool call in a user's turn held for approval and, once approved, replayed exactly as it was raised,
-So that my own risky tools work through the bridge and never run without a yes.
+I want a risky tool call in a user's turn held for approval,
+So that my own risky tools never run without a yes.
 
 **Acceptance Criteria:**
 
@@ -2000,22 +1995,11 @@ So that my own risky tools work through the bridge and never run without a yes.
 **When** the gate decides the call
 **Then** it calls `Approval.Raise` with kind `tool_call` holding the exact call, through a synchronous round trip to `ApprovalStartIn` from inside `%CanExecute`, and denies the call with the sentence the model relays, "held for your approval; nothing was run", written to read well after AI Hub's own denial prefix (FR-7, FR-8, NFR-13, AD-10)
 
-**Given** that request is approved
-**When** ApprovalHold handles the outcome
-**Then** it sends a `tool` request carrying the approval `Ref` through `Decide` to the runner of the agent that made the call; the runner calls `StartExecution`, sets a context with provenance `user`, the `Ref` and a process-private grant, calls `..Agent.ToolManager.ExecuteTool` through the whole policy chain, and records `FinishExecution`; no model request is made (FR-8, AD-6, AD-10, AD-30)
-
-**Given** a live grant
-**When** the gate sees the replayed call
-**Then** it consumes the grant at the first call whose name, hash of canonical arguments (sorted keys) and source match the row, and denies a replay with no live grant, which `ExecuteTool` raises as `ToolAccessDenied` (AD-10)
-**And** the story confirms whether `metadata.origin_class` arrives on a replay on build 154; if it doesn't, the source comes from the stored row alone (AD-10)
-
-**Given** the replay finishes
-**When** ApprovalHold receives its result
-**Then** `HostSinkClass` receives `approval.result` with the `Ref`, so the caller's next turn can carry a code-written note naming the tool, done or failed, and the time, never the tool's result text (AD-10, AD-30, AD-31)
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the replay criteria (the approved request's `tool` request, the live grant, `approval.result`, and the exactly-once test) moved to Story 30.3.]
 
 **Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
 **When** they run
-**Then** the risky test tool never runs without an approved request, a rejected or expired request runs nothing, and an approved request runs the call exactly once even when the answer or the replay is repeated (FR-7, NFR-13)
+**Then** the risky test tool never runs without an approved request, and a rejected or expired request runs nothing (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: "an approved request runs the call exactly once" moved to Story 30.3]
 
 ### Story 3.7: Every action and governance event is in the IRIS audit log
 
@@ -2036,10 +2020,11 @@ So that I can check afterwards what OcuTalon did and who allowed it.
 **Given** the Approval API and the tool-call replay
 **When** `Answer`, `Expire`, `Cancel`, `StartExecution` or `FinishExecution` changes a row, or an approved call runs
 **Then** each change and each action run is written to the audit log (FR-9, AD-11, AD-17)
+**And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] an approved call first runs with Story 30.3's replay, which checks its action entry; this story writes the entries for every Approval API change
 
-**Given** a test answers an approval request and replays its approved test tool
+**Given** a test answers an approval request [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: replaying its approved test tool and finding the action entry moved to Story 30.3]
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late
-**Then** it finds the approval entry and the action entry, each with time, IRIS user and session; the read-back helper in `OcuTalon.Test.Bridge` is reusable by later audit tests (FR-9, AD-17)
+**Then** it finds the approval entry, with time, IRIS user and session; the read-back helper in `OcuTalon.Test.Bridge` is reusable by later audit tests (FR-9, AD-17)
 
 **Given** a model key, an access token, a password and a Telegram chat id and display name passed in event data
 **When** the entries are read back
@@ -2051,7 +2036,7 @@ So that I can check afterwards what OcuTalon did and who allowed it.
 
 As the author,
 I want the online demo's public settings, its password guard and its daily spending cap in place from Lane A early,
-So that Lane B's online-demo epic can be built and the demo host story can make November 1.
+So that the online-demo epics (Lane A's Epic 29 and Lane B's Epic 16) can be built and the demo host story (Story 29.3) can make November 1. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was "Lane B's online-demo epic".]
 
 **Acceptance Criteria:**
 
@@ -2455,7 +2440,7 @@ So that I'm never asked twice about the same failures and a new problem opens a 
 **When** its state changes
 **Then** the change follows AD-15's transition table in `IncidentManager` over `open` (with its fallback, no-fix, rejected and expired variants), `awaiting_approval`, `fixing`, `resolved` and `closed`, including the rule for overlapping requests, refusing any other move (for example `dismiss` while awaiting approval or fixing), and each change publishes the incident's full current view as an `incident` event; a unit test covers every row of the table and every refused move (FR-24, AD-12, AD-15, UX-DR72, UX-DR73)
 **And** when approval requests overlap, the table's rows apply: in `fixing`, a later request approved stays `fixing` and its `Execute` waits for the running fix's final `FixResult` (one fix runs at a time per incident); in `fixing`, a later request rejected or expired stays `fixing`; in `awaiting_approval`, a request rejected or expired while another is still pending stays `awaiting_approval`; and in `fixing`, a final `FixResult` while an approved request waits stays `fixing`, and `IncidentManager` sends the earliest waiting request's `Execute`; the unit test covers each of these rows (FR-8, FR-24, AD-15)
-**And** this story creates the Fix area's messages `OcuTalon.Fix.Msg.Execute` (`ApprovalRef`) and `OcuTalon.Fix.Msg.FixResult` (`ApprovalRef`, `IncidentRef`, `Final`, `Total`, `Resent`, `Completed`, `FailedAgain`, `Skipped`, `Interrupted`, `Reason`), so its unit test drives every row with them; Stories 7.3 to 7.5 build their senders and handlers (AD-15, AD-16)
+**And** this story creates the Fix area's messages `OcuTalon.Fix.Msg.Execute` (`ApprovalRef`) and `OcuTalon.Fix.Msg.FixResult` (`ApprovalRef`, `IncidentRef`, `Final`, `Total`, `Resent`, `Completed`, `FailedAgain`, `Skipped`, `Interrupted`, `Reason`), so its unit test drives every row with them; Stories 7.3 to 7.5 and 30.5 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] build their senders and handlers (AD-15, AD-16)
 **And** the latest request's outcome is the outcome that arrived last: a finished fix (`resolved`), or a rejection or an expiry (`open`); a cancelled request sends no `ApprovalOutcome`, and the incident stays as it is (a fix request is cancelled only when its session ends on the online demo, and the reset clears that session's incidents) (FR-24, AD-15)
 
 **Given** an open or resolved incident
@@ -2477,14 +2462,16 @@ So that I'm never asked twice about the same failures and a new problem opens a 
 **Then** a new incident opens with its own `Ref` and its own notice (FR-24, UX-DR74)
 
 **Given** incidents closed longer ago than `daysToKeep` (90 by default)
-**When** `OcuTalon.Install.Task.Purge` calls the Watch area's `Purge(daysToKeep)` declaration
+**When** `OcuTalon.Install.Task.Purge` calls the Watch area's `Purge(daysToKeep)` declaration (the task arrives with Story 30.2; until it merges, the test calls the declaration directly [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner])
 **Then** incidents closed longer ago than `daysToKeep` and their failure groups are deleted, and younger incidents stay (NFR-19, AD-27)
 
 ### Story 5.6: The production watch runs on every heartbeat
 
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the stopped-production and disabled-item findings moved to Story 30.4; this story keeps the heartbeat's check runs, their rows and `closeQuiet`.]
+
 As a user,
-I want each watched production's state checked every minute and only new findings reported,
-So that a stopped production or a disabled item reaches me once, and I can see when each check last ran.
+I want each watched production's state checked every minute,
+So that I can see when each check last ran and what it found.
 
 **Acceptance Criteria:**
 
@@ -2501,10 +2488,7 @@ So that a stopped production or a disabled item reaches me once, and I can see w
 **Then** the `check` event carries the check's name, schedule, last run, result and trace target to its latest run, for the page's background-check row (FR-33, AD-12, UX-DR53, UX-DR139)
 **And** `Checks`, the `check` event's single publisher, also publishes a watch's event when `WatchOps` starts or stops it, so a new watch shows at once and a stopped one leaves (FR-23, FR-33, AD-33)
 
-**Given** the watched production stopped, or one of its items was disabled, since the last run
-**When** the check finds it
-**Then** the finding becomes one Item sent to `Intake`, whose `CatalogKey` and `Slots` are the production state-change key from `OcuTalon.Msg.Catalog.Watch` and its slots ("The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."), which `Intake` copies to the `ItemDecision` so `OutcomeRouter`'s notification uses them (Story 2.7), and the same finding is never sent again (FR-23, FR-33, AD-14, AD-30, AD-32, UX-DR112)
-**And** a test sends two Ticks after stopping a test production and finds exactly one finding Item (FR-33)
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the criterion that turns a stopped production or a disabled item into one finding Item for `Intake`, and its two-Tick test, moved to Story 30.4. Until it merges, the check still records each run's result on its row, and sends no finding Item.]
 
 **Given** incidents that aren't closed
 **When** `Checks` runs
@@ -2631,9 +2615,7 @@ So that I can approve from the phone and trust that one answer settles the reque
 **And** the answer is announced in the places it didn't take focus; CI checks against the mock on every run that the answered status shows on the page within 2 seconds and on the phone within 5 seconds, that every copy shows the first answer and that no copy accepts a second, and the rehearsal measures the same bounds over real networks (FR-8, NFR-9, P30, UX-DR132)
 **And** the REL-2 specs for UJ-1's incident and approval steps (the incident card and the phone's notice, then Approve on the simulated phone) run against fixtures for Lane A's raise, answer and result paths; Epic 11 turns them on end to end (REL-2, AD-29, UX-DR101)
 
-**Given** an approval of kind `tool_call`
-**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
-**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the `tool_call` criterion (`BridgeSink` sending a tool call's `approval`, `answered` and `result` notifications through `NoticesIn`) moved to Story 31.2, in Lane B's hardening epic, because `BridgeSink` and `NoticesIn` are Lane B's. A fix request's notifications are `IncidentManager`'s (Stories 7.2 to 7.4).]
 
 **Given** the Approval requests section of the rail
 **When** I press a pending request's row
@@ -2646,6 +2628,7 @@ So that I can approve from the phone and trust that one answer settles the reque
 **Given** a `Notification` that `BridgeSink` sends for an approval, an answer or a result
 **When** `NoticesIn` (`OcuTalon.Core.NoticesIn`, an adapterless service, a real item, not a stub) receives it, asynchronously
 **Then** it joins the turn's own thread through the bridge context's `ThreadSessionId` when there is one, forwards the notification to `Notify`, and a test with a fixture notification finds it delivered on each of the session's channels (AD-26, AD-31, AD-32)
+**And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] `BridgeSink`'s own sends through `NoticesIn` arrive with Story 31.2 (a tool call's notifications) and Story 16.9 (the daily-cap message)
 
 ### Story 6.4: Close the loop with results, rejections, expiry, fallbacks and Dismiss
 
@@ -2658,7 +2641,7 @@ So that I always know the outcome and can start a new run.
 **Given** a request's fix finished
 **When** its final `FixResult` arrives and the `incident` event's `Requests` list that request's `Result`
 **Then** that request's approval request card shows its result band: `result-success` with "All 50 orders went through.", or `result-partial` with "48 of 50 orders went through. 2 failed again (the order date still wasn't accepted). I won't retry them without a new approval." or "47 of 50 orders went through. 3 had changed since the dry run, so I skipped them; they need a new approval.", with "Recorded in the IRIS audit log." beneath and, on the last request's band only, a ghost Dismiss at its right end (DESIGN › Result notice), and the incident's state chip follows AD-15's transition table (Resolved unless another request is pending or waits to run); the result is announced, and the same result text reaches the phone through a `result` notification (FR-8, FR-25, AD-15, UX-DR73, UX-DR79, UX-DR132)
-**And** the band also renders Story 7.5's three results from their catalog keys: some failed again and some skipped (`result-partial`), still resending (shown while the incident stays Fixing, then replaced by the final result) and cut off by a restart (`result-partial`, the incident Resolved), and Story 7.3's couldn't-start result, "Nothing was resent: {reason}. Nothing was changed." (fixture "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."), with the texts in EXPERIENCE.md › Incidents and Approvals › Results (FR-25, P16, AD-16, UX-DR79)
+**And** the band also renders the three results of Stories 30.5 and 7.5 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was "Story 7.5's three results"; the mixed and still-resending results moved to Story 30.5] from their catalog keys: some failed again and some skipped (`result-partial`), still resending (shown while the incident stays Fixing, then replaced by the final result) and cut off by a restart (`result-partial`, the incident Resolved), and Story 7.3's couldn't-start result, "Nothing was resent: {reason}. Nothing was changed." (fixture "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."), with the texts in EXPERIENCE.md › Incidents and Approvals › Results (FR-25, P16, AD-16, UX-DR79)
 
 **Given** an incident with more than one approval request (a later request, Story 7.2)
 **When** the `incident` event's `Requests` list its requests, each with its `Ref`, `State` and `Result` (Story 0.5's fields)
@@ -2770,7 +2753,7 @@ So that the broken orders are delivered without the originals being touched or a
 **Given** a pending fix request
 **When** it is approved and `ApprovalHold` sends `ApprovalOutcome` to `IncidentManager`
 **Then** the incident moves to fixing, an `answered` notification carrying the request's `ApprovalRef` and `IncidentRef` gives "Approved from {channel} at {time}", and `IncidentManager` sends `FixExecutor` an `OcuTalon.Fix.Msg.Execute` request that carries only the `ApprovalRef`; while another fix of the incident runs, the `Execute` waits for that fix's final `FixResult` (FR-8, FR-24, AD-11, AD-15, AD-16, AD-32, UX-DR73, UX-DR76)
-**And** `OcuTalon.Fix.Msg.Execute` and `OcuTalon.Fix.Msg.FixResult` are the classes Story 5.5 created; this story and Stories 7.4 and 7.5 build their senders and handlers (`IncidentManager` sends `Execute` and handles `FixResult`; `FixExecutor` handles `Execute` and sends `FixResult`) and add no property to either (AD-15, AD-16)
+**And** `OcuTalon.Fix.Msg.Execute` and `OcuTalon.Fix.Msg.FixResult` are the classes Story 5.5 created; this story and Stories 7.4, 7.5 and 30.5 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] build their senders and handlers (`IncidentManager` sends `Execute` and handles `FixResult`; `FixExecutor` handles `Execute` and sends `FixResult`) and add no property to either (AD-15, AD-16)
 
 **Given** an `Execute` request
 **When** `FixExecutor` handles it
@@ -2820,21 +2803,17 @@ So that I know the outcome of what I approved and nothing is retried behind my b
 **When** one approval request covers them and is approved
 **Then** the dry run counts 500, the one request holds all 500 fixed targets, and the result reports 500 resent and 500 completed, in a test that runs at exactly 500 messages (FR-25)
 
-### Story 7.5: Mixed, unfinished and interrupted resends say how far they got
+### Story 7.5: A resend cut short by a restart says how far it got
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: retitled from "Mixed, unfinished and interrupted resends say how far they got". The mixed and still-running results moved to Story 30.5; the interrupted-run safety rule stays here.]
 
 As a user,
-I want a resend that is partly failed and partly skipped, still running, or cut short by a restart to tell me exactly how far it got,
+I want a resend cut short by a restart to tell me exactly how far it got,
 So that I never think a fix finished when it didn't, and nothing is resent behind my back.
 
 **Acceptance Criteria:**
 
-**Given** an approved repair in which some copies fail again and some targets are skipped
-**When** `FixExecutor` sends `FixResult`
-**Then** it carries both counts, that partial result is its request's result as the incident moves per AD-15's transition table, and the `result` notification uses the mixed-result catalog key in `OcuTalon.Msg.Catalog.Watch`, with the resent, completed, failed-again and skipped counts as slots (FR-8, FR-25, AD-16, AD-32)
-
-**Given** copies still running when `FixExecutor`'s 60-second wait ends
-**When** the wait ends
-**Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the mixed-result criterion and the still-running criterion moved to Story 30.5.]
 
 **Given** a `FixRun` still running when IRIS stopped (a test leaves a `FixRun` row running, then runs the `Reconcile` step)
 **When** the `Reconcile` step calls the Fix area's `Reconcile()` declaration at the next start
@@ -3052,6 +3031,7 @@ So that decisions, untrusted content, the no-false-all-clear rule and the no-she
 **Given** `eval/`
 **When** its item cases are counted
 **Then** there are at least 20, with at least three expecting each of Ignore, Digest, Tell now and Act, drawn from the release-1 sources of items that don't come from the user (simulated-mailbox emails and production-watch findings) (FR-1, FR-62)
+**And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] the production-watch findings themselves arrive with Story 30.4, so until then their cases are recorded Items in the shape a finding takes, the production state-change catalog key from `OcuTalon.Msg.Catalog.Watch` and its slots
 **And** they include the three sample emails with the exact sender, subject and body given in E › Demo Mode and the Online Demo › Simulated devices and sample emails (UX-DR86)
 
 **Given** the suspicious-request sample email as an injection case
@@ -3122,7 +3102,7 @@ So that no release ships with the demo incident or decision quality below target
 **Given** a finished release-candidate run
 **When** its results are kept
 **Then** the report is saved with the release candidate and gives, in that result file, the summary the release notes use (Story 11.4's generator reads it): the scores, the held-out scores, the mean and maximum decision cost and the largest request (FR-62, REL-8)
-**And** the same run executes the bridge's live smoke test of thinking history: three turns across jobs, a compaction through the guarded path and a tool change, with the rule forced (AD-20)
+**And** the same run executes the bridge's live smoke test of thinking history: three turns across jobs, a compaction through the guarded path and a tool change, with the rule forced (AD-20) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the smoke test arrives with the compaction in Story 30.1, so a candidate cut before it merges runs without it]
 
 ## Epic 10: Install in one command, with a README that gets a judge running
 
@@ -3280,7 +3260,7 @@ So that every README claim happens on the product's real items in about two minu
 **Given** every release-1 floor epic (0 to 10) merged into the integration branch, and the IRIS CI job running OcuTalon with the CI override (mocked model)
 **When** the REL-2 Playwright test runs on a pull request or a push to `main`
 **Then** every UJ-1 step spec under `web/e2e/demo-path/` except Telegram's is turned on and passes in order: sign-in; the watch step shows the Act strip with its reasons and trace link, the "Orders production" check row and an active Break the feed; the reminder step shows the reminder row; Break the feed leads to one incident card awaiting approval in the chat and on the simulated phone, with the headline, cause, evidence line, dry run, Approve and Reject, "Approval requests (1)" in the rail, and the reminder landing in the chat and on the phone during the wait (REL-2, FR-16, FR-23, FR-24, FR-34, UX-DR101)
-**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10 (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
+**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
 
 **Given** the incident awaiting approval
 **When** the test presses Approve on the simulated phone
@@ -3695,6 +3675,7 @@ So that I can approve the fix from my own phone and see the result there.
 **Given** every Telegram story merged
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` returns 1, so `/state` shows the rail's Telegram card (Story 2.8), the pairing endpoints answer, and with a token set the Telegram installer step enables `TelegramIn` and `TelegramOut` (Story 12.1's one switch), in the same change that adds the README's Telegram section (creating a bot with BotFather, turning groups off for it, setting `TELEGRAM_BOT_TOKEN` in `.env` and restarting OcuTalon, and that each OcuTalon needs its own bot), which the card's "How to set it up" link and the "Set up a bot" banner link open, so the link never points at a missing section and Story 10.2's README link check covers it from this change on (FR-21, FR-22, FR-58, UX-DR98)
+**And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, because Lane A's Epic 29 now runs before this epic] this story also turns on the online demo's Telegram cases that Epic 29 leaves off: Story 29.2's check that the rail's Telegram card shows a resumed session's pairing, and Story 29.4's paired-chat cases (FR-14, FR-15, FR-20, AD-29)
 
 ## Epic 13: Any production can use the bridge
 
@@ -3979,39 +3960,9 @@ So that the IPM install is as durable as the Docker one.
 
 ## Epic 16: Anyone can try the online demo
 
-A visitor opens the online demo with no install and no key, signs in from the splash screen, gets an isolated session that lasts until the next reset (resumed from the same browser), sees the reset countdown, the busy state when the demo is full and the demo's allowances, and opens Visual Trace from the page; the demo host's proxy, gateway, resets and monitoring probe are adapted (the demo-host story, due November 1), and busy refusals are logged per day.
+A visitor opens the online demo with no install and no key, signs in from the splash screen, sees the reset countdown, the busy state when the demo is full and the demo's allowances, and leaves or signs out cleanly; the busy and maintenance pages and the monitoring probe are ready for the demo host, busy refusals are logged per day, and the README leads to the demo. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test moved to Lane A's Epic 29 (Stories 29.1 to 29.4): the public settings and accounts, the session a browser resumes until the reset, the demo host, and isolation under load. Lane B builds the rest here, after Epic 10.]
 
-### Story 16.1: The online demo's settings arrive at start, and its public accounts are safe to publish
-
-As a developer in Lane B,
-I want the online demo's start values in the public settings, its two public accounts guarded against password changes and limited to what they're for, and the read-only credentials in the page's Visual Trace menu,
-So that every later story in this epic builds on real settings and accounts, and a local or IPM install stays exactly as it is.
-
-**Acceptance Criteria:**
-
-**Given** the demo host's deployment sets AD-19's online-demo environment variables (configured outside this repository), which Story 3.8's `Public` step writes through `OcuTalon.Data.Public.Settings` at every start, right after `OcuTalon.Bridge.Installer` and before any other installer step, with readiness cleared until it sets readiness last (AD-23)
-**When** the container starts and the installer steps after `Public` (the user step and the Web step among them), the splash, the status endpoint and the session code read them
-**Then** they read every public value (the flag, the published accounts, the reset interval (4 hours by default), anchor, last reset and its kind, the proxy address, the connection cap (8) and reserve (2), and the per-session message allowance (50 an hour)) only through `OcuTalon.Data.Public.Settings`, whose `NextReset` gives the next reset from the interval and anchor; `OcuTalon.Data.Setting.Get` delegates those keys to it, and no other class references the global (FR-59, AD-13, AD-19, AD-25, UX-DR153)
-**And** the `Public` step and its writes are Lane A's (Story 3.8), and the accessor is Lane B's, built in Epic 0 (Story 0.2); the message allowance is one of AD-19's public settings because the splash shows it, and every reader gets it from there (AD-19, AD-29)
-**And** with the online-demo flag set, the `Public` step writes `Decide`'s three budget host settings at every start, before `Production` starts, so the items start with them: `DailyCostCapUSD` ($20 from `OCUTALON_DAILY_COST_CAP_USD`), and today's gateway spend as `GatewaySpendUSD` with its instance-zone date `GatewaySpendDate`; `OcuTalon.Bridge.Budget.State()` and `Decide`'s precheck read them through the bridge's settings accessor and add the gateway spend, so IRIS's own precheck and banner engage before the gateway refuses; both are Lane A's, built in Story 3.8 (FR-40, NFR-15, AD-19, AD-20, AD-23)
-
-**Given** the demo and read-only accounts that the user step creates when the online-demo flag is set, with their published, non-expiring passwords and no forced change
-**When** anyone tries to change either password through any page OcuTalon serves, or through a sign-in request sent straight to an OcuTalon application in each of the forms spike S17 tested (current and legacy field names, query string, percent-encoded names, multipart, chunked, GET or POST)
-**Then** the online demo's password-validation routine refuses every value but the account's published password, compares the user name without regard to case, and still lets the installer set the published value; no page OcuTalon serves offers a password change (FR-59, AD-13, AD-24)
-**And** the routine is installed by Lane A's user step only when the online-demo flag is set, as Story 3.8 builds it (AD-29)
-
-**Given** the read-only account
-**When** it signs in at OcuTalon's trace applications, `/ocutalon/trace/ocutalon/` and `/ocutalon/trace/ocuorders/`
-**Then** it opens Visual Trace and the message viewer in both namespaces and is refused everything else: starting, stopping or changing a production or its items, resending a message, SQL, and the security, settings and credential pages; at `/ocutalon` it gets the "no OcuTalon role" message instead of the page (FR-59, AD-24, UX-DR151)
-
-**Given** the demo account signed in on the page
-**When** a test presses a trace link and "Open my conversation in Visual Trace"
-**Then** Visual Trace opens in a new tab at the link's target, already signed in, with no second sign-in, through the shared sign-in group and the demo account's `OcuTalonTraceViewer` role (FR-59, AD-13, AD-24, UX-DR140, UX-DR148, UX-DR151)
-**And** the Visual Trace menu's popover adds, below "Open my conversation in Visual Trace", the read-only credential rows from the snapshot: a label, the value in `mono` and the copy buttons "Copy Visual Trace user name" and "Copy Visual Trace password", which confirm with "Copied" or say "Couldn't copy. Select the text and copy it yourself." and select the value (FR-59, UX-DR39, UX-DR87)
-
-**Given** a local Docker or IPM install, which gets no start values
-**When** it starts
-**Then** the online-demo flag stays off, neither public account exists, no password-validation routine is set, the daily cost cap stays off (`DailyCostCapUSD` is a seed value of 0, and the two gateway values aren't written), the public settings hold no credentials, and the sign-in page, the Visual Trace menu and the trace popover behave exactly as before (FR-14, FR-40, UX-DR17, UX-DR140)
+**Story 16.1 moved to Story 29.1**, whole and verbatim, in Lane A's Epic 29, the online demo's platform side [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
 ### Story 16.2: The splash screen shows the demo and its sign-in details
 
@@ -4046,40 +3997,7 @@ So that I can start in seconds and know not to type anything personal.
 **Then** only the splash and `/ocutalon/public/status` answer, the API answers 401, and the trace applications answer only with a sign-in page; with the flag off, the login page still renders the local sign-in page unchanged (FR-14, AD-13, UX-DR26)
 **And** the fixed-string test checks every splash text, the public package's own copies of those texts match the catalog, and the REL-2 demo-path test gains an online-demo run, started with test start values, that signs in from the splash with the published credentials; the online-demo run's later steps follow the web run's steps, which Story 11.1 turns on, and until then only the splash sign-in runs (REL-2, AD-3, UX-DR117)
 
-### Story 16.3: Signing in opens a session this browser resumes until the reset
-
-As a judge,
-I want my sign-in to open a session of my own that this browser picks up again until the next reset,
-So that my conversation, pairing, orders and approval requests stay mine, although every visitor uses the same demo account.
-
-**Acceptance Criteria:**
-
-**Given** the online demo and a browser without a resume cookie
-**When** the visitor signs in from the splash
-**Then** `OnLogin` in `OcuTalon.Web.SessionEvents` creates an `OcuTalon.Data.Session` row with a new `SessionRef`, `TraceRef` and epoch, records the new CSP session on it, and sets the resume cookie with `%response.SetCookie(<name>, ref, <next reset as an RFC 1123 GMT date>, "/ocutalon/", "", 1, 1, "Strict")`: HttpOnly, Secure, `SameSite=Strict`, path `/ocutalon/`, expiring at the next reset (FR-14, AD-4)
-**And** the reference is 16 random bytes, base64url-encoded to 22 characters; the row stores only its SHA-256; and the main page opens on a fresh session's empty chat (FR-14, AD-4, UX-DR89)
-
-**Given** a session with a conversation, a paired chat (a fixture pairing, since Telegram is 0.1.1's, Epic 12), demo orders and a pending approval request
-**When** the same browser signs in again before the next reset, after its CSP session ended
-**Then** `OnLogin` finds the row by the reference's hash and attaches the new CSP session to it instead of creating one, the page loads that conversation, orders and approval request, with skeletons until the data arrives, and `/state` returns the fixture pairing; the check that the rail's Telegram card shows it is off until Story 16.10 turns it on (FR-14, AD-4, AD-29, UX-DR89, UX-DR152)
-**And** new CSP sessions are recognised in the session events, never by a changed `%session.SessionId`; the trace applications don't attach; and a visitor arriving from another site, whose first page load carries no cookie, still resumes on the sign-in POST, so the splash never depends on the cookie (AD-4)
-
-**Given** a cookie whose session row doesn't exist (an unscheduled reset restored the golden copy before the cookie expired), or a browser that never signed in
-**When** the visitor signs in
-**Then** a fresh session is created and a new cookie set (FR-14, AD-4)
-**And** the resume reference never appears in a production message, log, live event or audit entry: a test signs in, resumes, and searches each of them (AD-4)
-
-**Given** two browsers signed in with the same demo account
-**When** each reads the snapshot, polls and sends commands
-**Then** each gets its own session, because `OcuTalon.Data.Ownership` resolves the caller's `SessionRef` from the CSP session attached in `OnLogin`, never from the IRIS user name, and no endpoint accepts a `SessionRef` from the client; a local or IPM install keeps one durable session per IRIS user (FR-15, AD-4, AD-13)
-
-**Given** one client address has created 5 sessions in the past hour (a product setting this story seeds)
-**When** it signs in once more without a resumable cookie
-**Then** the post-sign-in check ends the new CSP session and creates no session, and the splash shows the field error "Too many new sessions from your network this hour. You can start another at {time}." under **Sign in and start**, which stays enabled and marks no field; a resume from that address still works, because only creations count (FR-15, NFR-15, AD-13, UX-DR36, UX-DR95)
-**And** the address is the right-most `X-Forwarded-For` entry when the request comes from the proxy's address in settings, and the connection's address otherwise; `OcuTalon.Data.AddressCounter` stores it hashed with timestamps; sign-ins that don't come through the proxy, such as the probe's, are exempt (AD-13)
-**And** the counter's area declares a `Purge(daysToKeep)` that the purge task calls, deleting the counter's entries older than an hour (AD-27)
-
-- DW-16: Session resolution stays one method (`OcuTalon.Data.Ownership`, Story 2.2, DW-15), which this story extends with the per-sign-in / resume-cookie branch for the shared demo account; a test signs in twice with the shared account and gets two different sessions, each polling only its own events (FR-15, AD-4) (ledger; routed by Contest Planner relay 2026-10-19)
+**Story 16.3 moved to Story 29.2**, whole and verbatim with its DW-16 item, in Lane A's Epic 29 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
 ### Story 16.4: Leaving the page frees its place, and Sign out ends the session
 
@@ -4180,43 +4098,7 @@ So that a broken online demo is noticed and repaired without waiting for a judge
 **Then** they produce each outcome: a normal run (healthy); a lowered cap (`busy`); a mock scenario answering with the gateway's HTTP 403 "daily cost cap reached" (`capped`); a wrong password (`auth_failed`); and the `Conversation` item disabled (`no_decision`); and the reset stub runs only after the second counted failure in a row (FR-59, REL-4)
 **And** the probe's files hold no host name, address, key or credential, which come from the demo host's configuration (NFR-11, CON-5)
 
-### Story 16.7: The demo host is adapted for the launch
-
-As the author,
-I want the demo host's proxy, gateway, resets and monitoring set up as the architecture describes,
-So that the online demo is ready by November 1 for its November 2 to 4 launch, with the key protected and resets that never roll back a release.
-
-**Acceptance Criteria:**
-
-**Given** the demo host's TLS reverse proxy
-**When** requests arrive
-**Then** before the launch its access gate admits only the visitors the author allows; it overwrites `X-Forwarded-For` and passes WebSocket upgrades; it allows only `/ocutalon/*` (the application, its sign-in and the trace applications under `/ocutalon/trace/`) and the static `/csp/broker/` files the trace pages load; and it blocks the webhook path, every password-change page and the rest of `/csp/*`, `/api/*` and `/ui/*`, so no MCP endpoint is reachable (FR-59, AD-24, AD-25, UX-DR100)
-
-**Given** the proxy's password guard, a body-inspecting filter in front of IRIS
-**When** a request reaches an IRIS path
-**Then** it URL-decodes field names in the query string and the body, rejects multipart and chunked bodies, accepts a sign-in POST only as a bounded `application/x-www-form-urlencoded` body whose fields are exactly `IRISSessionToken`, `IRISUsername`, `IRISPassword` and `IRISLogin`, and refuses any field anywhere whose decoded name matches `(IRIS|Cache)(Old|Repeat)?Password` in any letter case (FR-59, AD-13, AD-25)
-**And** all eleven password-change forms of spike S17 are blocked, while sign-in, the page, the JSON API, polling, the trace pages and the broker files keep working (FR-59, AD-25)
-
-**Given** IRIS is down for a reset, or answers HTTP 503 at the cap
-**When** a visitor's request arrives
-**Then** the proxy serves the maintenance page from Story 16.5 during resets and its busy page in place of a 503 for every request under `/ocutalon/` except `/ocutalon/api/`, and logs each busy page it serves and each response carrying IRIS's busy marker header `X-OcuTalon-Busy: 1`, so busy refusals are counted per day beside the probe's count (FR-14, NFR-23, AD-25, UX-DR27, UX-DR95)
-
-**Given** the IRIS container and the outbound gateway on the demo host
-**When** they run
-**Then** IRIS has no general internet (a request to any other public address fails), its time zone is US Eastern so message times read like "14:12 ET", it holds only a dummy model key and a dummy bot token, and it reaches the gateway through the AD-19 endpoint overrides (FR-12, FR-59, NFR-15, AD-19, UX-DR123)
-**And** the gateway answers only the model API (`POST /v1/messages` and `GET /v1/models/<id>`) and the Telegram API, swaps in the real model key and the demo bot's real token (rewriting the Telegram path `/bot<dummy>/`), applies rate and path limits, and enforces the $20 daily cost cap from each response's usage, refusing over it with HTTP 403 and the fixed text "daily cost cap reached"; the demo's bot is used by no other instance, and the real key also has a provider-side spend limit (FR-22, FR-40, FR-59, NFR-15, AD-8, AD-20, AD-25)
-**And** the route for Telegram's file-download path, with the same token swap, is a later addition that step 6's file story (Story 26.2) brings to the demo host's configuration, not part of this story or of release 1 (FR-54, AD-25)
-
-**Given** the reset schedule, every 4 hours by default, which the author can change
-**When** a scheduled reset, or an unscheduled one triggered by the probe, runs
-**Then** it restores the golden copy of the durable volume (no sessions, pairings, approval requests, live events or CSP sessions, without the ready marker and with readiness cleared), so every session ends with nothing run; it refuses a golden copy whose OcuTalon version differs from the image's (the update's own restore excepted, below); and at start it sets exactly AD-19's online-demo environment variables (the flag, the published accounts, the reset interval, anchor, last reset and its kind, the proxy address, the connection cap and reserve, the per-session message allowance, the daily cost cap, and today's gateway spend with its date), an unscheduled reset leaving the schedule unchanged (FR-15, FR-59, AD-4, AD-19, AD-20, AD-25)
-**And** the host provides the two commands Story 11.5's release hook calls over SSH, as AD-25 fixes them: `ocutalon-demo status` prints one JSON object with `runningVersion`, `goldenVersion`, `lastReset` (UTC ISO 8601), `lastResetKind` (`scheduled` or `unscheduled`), `nextReset` (UTC ISO 8601), `pendingVersion` (or null) and `access` (`restricted` or `public`); and `ocutalon-demo update <version>` builds the image for tag `v<version>` from the `git bundle` of that release tag that the release hook copies to the host over SSH (no registry, and no repository access on the host) before the reset boundary, then refreshes the golden copy at that boundary (restore it, start it on the new image so it upgrades in place with no visitor data, wait for ready and check that the upgraded copy reports `<version>`, stop IRIS cleanly and capture the new golden copy, start from it); the first golden copy comes from a fresh install, and access stays restricted until the launch (FR-59, REL-10, CON-1, AD-25)
-**And** before the launch (`access` restricted) `update` runs at once, blocks until ready and prints `{"result": "updated", "version": "<version>"}`; after it, `update` prints `{"result": "scheduled", "at": "<nextReset>"}` and runs at that reset, and until the boundary resets use the current image and golden copy; a non-zero exit prints one line with the reason; the update's own restore is exempt from the version refusal, checking instead that the golden copy holds the previous version; and the update finishes within the reset window (at most 15 minutes) (REL-10, AD-25)
-
-**Given** the adapted host
-**When** it runs
-**Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
-**And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
+**Story 16.7 moved to Story 29.3**, whole and verbatim, in Lane A's Epic 29 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
 ### Story 16.8: The page counts down to the reset and waits it out
 
@@ -4261,7 +4143,7 @@ So that the demo stays affordable and available, and I always know what still wo
 **When** it sends another from the web chat
 **Then** `WebChatIn` calls `OcuTalon.Core.Allowance.TryConsume(SessionRef, Channel, Text)` synchronously, under a per-session lock, before queueing a turn, and gets back allowed, `retryAt` and a first-refusal flag; on a refusal `TryConsume` itself records the refused message as a `Turn` with no decision, `WebChatIn` queues nothing and no model is called; `POST /api/v1/messages` answers 429 with `retryAt`; and `Conversation` never checks the allowance again (FR-40, NFR-15, AD-20)
 **And** a fixture `TryConsume` call with channel `telegram` is refused the same way (the refused `Turn` recorded by `TryConsume` itself and the first-refusal flag set), which needs no Epic 12 code; `TelegramIn`'s side is Story 12.6's (FR-40, AD-20)
-**And** a message from Telegram counts in the same window through the same call, which Lane A's `TelegramIn` makes with its own refusal handling (Story 12.6); the limit is the public setting from Story 16.1, and a local or IPM install has no message allowance (FR-40, FR-20, AD-20)
+**And** a message from Telegram counts in the same window through the same call, which Lane A's `TelegramIn` makes with its own refusal handling (Story 12.6); the limit is the public setting from Story 29.1 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.1], and a local or IPM install has no message allowance (FR-40, FR-20, AD-20)
 
 **Given** the first refused message in a window
 **When** the allowance is used up and `TryConsume` returns its first-refusal flag
@@ -4271,7 +4153,7 @@ So that the demo stays affordable and available, and I always know what still wo
 **When** the page shows it
 **Then** the unclosable danger banner "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}." with "Install it yourself" (README) heads the banner stack; the composer and the demo guide's prompt buttons become `aria-disabled` with that reason visible and linked by `aria-describedby`; Break the feed, Approve and Reject keep working; and at `retryAt` the banner clears and the controls return (FR-40, AD-12, UX-DR45, UX-DR68, UX-DR96, UX-DR104, UX-DR116, UX-DR121, UX-DR133)
 
-**Given** the online demo's daily cost cap of $20, with the gateway's spend that the `Public` step writes at start into `Decide`'s host settings (Story 16.1) counted by `OcuTalon.Bridge.Budget.State()`
+**Given** the online demo's daily cost cap of $20, with the gateway's spend that the `Public` step writes at start into `Decide`'s host settings (Story 29.1 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.1]) counted by `OcuTalon.Bridge.Budget.State()`
 **When** the day's spend reaches the cap by IRIS's own count, or the gateway refuses first with HTTP 403 "daily cost cap reached"
 **Then** in the first case `Budget.State()` reports the cap reached, so release 1's online-demo daily-cap banner shows and decisions fall back with `daily_cap` before any request is sent; in the second, each refused decision falls back with `daily_cap` and is never re-sent, and the bridge records the day as capped, so `Budget.State()` reports it too (Story 1.4); and in both, Break the feed, Approve and Reject keep working (FR-4, FR-40, AD-8, AD-20, UX-DR97, UX-DR111)
 **And** the first time the cap is reached in a day, the bridge fires `budget.capped` once (Story 1.4), with `ownerRef` `instance` and payload `{day}` (the instance-zone date), and, only with the online-demo flag set, `OcuTalon.Core.BridgeSink` sends each session with activity (open, and its user has sent a chat message, pressed Break the feed or answered a request since it began) the daily-cap allowance message once, a `Notification` of kind `allowance` through `NoticesIn` to the chat and the paired chat, pointing to the local install; a session that first becomes active later gets it with its first `daily_cap` fallback, which `BridgeSink` sees in `decision.recorded`; the `Session` row records the day it was sent (EXPERIENCE.md › Message Catalog › Conversation, P16 accepted October 17; FR-40, AD-20, AD-31, AD-32)
@@ -4286,37 +4168,25 @@ So that the demo stays affordable and available, and I always know what still wo
 **Then** the 51st message from the web chat and from Telegram, the allowance message sent once, the 21st simulated email, and the daily cap reached both through `Budget.State()` and through the mock's 403 all behave as above, and an approval still completes while both caps hold, tested with a fixture approval request answered through `OcuTalon.Bridge.Approval.Answer` (FR-40, AD-11, AD-20)
 **And** the Telegram cases use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off, like the approval's real Lane A path, until Story 16.10 turns them on (FR-20, AD-29)
 
-### Story 16.10: Sessions stay isolated under load, and the README leads to the demo
+### Story 16.10: The README leads to the demo, and the launched demo is measured
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: retitled from "Sessions stay isolated under load, and the README leads to the demo". Its isolation and load-test criteria moved to Story 29.4, in Lane A's Epic 29; this story keeps the README, the About and finish-state links, the turn-on of Story 16.4's and Story 16.9's Telegram cases, and the measurement after launch, which need Lane A's Epics 12 to 15]
 
 As a judge,
-I want my run on the online demo kept apart from every other visitor's, even when the demo is full, and the README to send me straight to it,
-So that what I see is my own work, and I can try OcuTalon in two minutes from the README.
+I want the README to send me straight to the online demo,
+So that I can try OcuTalon in two minutes from the README.
 
 **Acceptance Criteria:**
-
-**Given** two browsers signed in with the same demo account on a test stack with the online-demo start values, the CI mock and mocked Telegram, each watching the Orders production
-**When** session A presses Break the feed
-**Then** the incident, its notification and its approval request appear only in A's chat, simulated phone, status rail and paired chat, and B gets no incident, notification, approval request or phone message, and no change to its guide or Break the feed state (FR-15, FR-16, AD-4, UX-DR104, UX-DR107)
-**And** each session's conversation, simulated mailbox, background checks, reminders, pairing and demo orders stay its own throughout, and the REL-2 demo-path test's online-demo run turns on its trace step and this second visitor (FR-15, REL-2)
-
-**Given** A's pending approval request
-**When** B tries to see or answer it, through `/state`, polling, `POST /api/v1/approvals/:ref/answer` with A's reference, or a button press from B's paired chat
-**Then** B never sees it, B's answer is refused and changes nothing, and A can still answer it from any of A's channels (FR-8, FR-15, AD-4, AD-11)
-
-**Given** a run with a paired mock Telegram chat whose display name, user name, chat id and phone number are known
-**When** every OCUTALON and OCUORDERS message body and header from the run is searched
-**Then** none of those values appears, nor the visitor's IRIS user name; production messages carry only the `SessionRef` and the internal chat reference, which is what the shared Visual Trace shows (FR-15, NFR-11, AD-4, UX-DR107)
-**And** the paired-chat cases use 0.1.1's Telegram channel (Epic 12, Lane A), and this story also turns on Story 16.3's check that the rail's Telegram card shows a resumed session's pairing, and Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths (`WatchOps` stopping a signed-out session's watches; the approval that completes while both caps hold) (FR-14, FR-20, FR-40, AD-29)
-
-**Given** the demo host adapted in Story 16.7, before the launch, with the real model
-**When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
-**Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
 
 **Given** the README for 1.0.0
 **When** a judge opens it
 **Then** "Try it in two minutes" is at the top, with the online demo link the author gives and a note that the sign-in details are on the splash screen; it names the read-only Visual Trace account and says that trace links on the demo open it without a second sign-in; it carries the IPM install section, which this story adds from `docs/install-ipm.md`, the file Lane A's Story 15.2 writes; and the rest of FR-58's list covers what 1.0.0 ships and claims nothing it doesn't (FR-57, FR-58, FR-59)
 **And** the About dialog gains the bridge developer guide and security overview links, and the demo guide's finish state its "Use the same bridge in your own production ↗" link, at the paths Stories 13.3 and 14.2 supply, once both have merged (FR-5, FR-61, UX-DR28, UX-DR47)
 **And** it keeps the BMAD Method and Claude Code credits and the not-affiliated note, is plain English with no class name or error code outside its developer sections, names no private infrastructure detail, and every link in it resolves (FR-58, CON-2, CON-5)
+
+**Given** 0.1.1's Telegram channel (Epic 12, Lane A) and Lane A's real paths merged [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: split from the paired-chat criterion that moved to Story 29.4]
+**When** this story's tests run
+**Then** it turns on Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths (`WatchOps` stopping a signed-out session's watches; the approval that completes while both caps hold) (FR-14, FR-20, FR-40, AD-29)
 
 **Given** the online demo after launch
 **When** the measurement runs 20 times each
@@ -6103,3 +5973,301 @@ So that I can check status and history from my own tools without opening a new w
 **When** step 7's release is prepared
 **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)
 
+## Epic 29: The online demo's platform side
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, renumbered 29.1 to 29.4.] The online demo's start values and public accounts are in place, each browser's sign-in opens a session it resumes until the reset, the demo host is adapted for the launch, and sessions stay isolated under load, so the online demo lands by November 1. Lane A builds these four stories after its demo-path epics and before Epics 9, 11 and 12. The files they change stay Lane B's, under AD-29's Epic 29 exception; Lane B builds the rest of the online demo in Epic 16.
+
+### Story 29.1: The online demo's settings arrive at start, and its public accounts are safe to publish
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.1, renumbered, whole and verbatim, except that its persona and its "So that" now name the online demo instead of Lane B's epic. Lane A builds it in the Lane B files it names, under AD-29's Epic 29 exception]
+
+As a developer of the online demo,
+I want the online demo's start values in the public settings, its two public accounts guarded against password changes and limited to what they're for, and the read-only credentials in the page's Visual Trace menu,
+So that every later online-demo story, in this epic and in Epic 16, builds on real settings and accounts, and a local or IPM install stays exactly as it is.
+
+**Acceptance Criteria:**
+
+**Given** the demo host's deployment sets AD-19's online-demo environment variables (configured outside this repository), which Story 3.8's `Public` step writes through `OcuTalon.Data.Public.Settings` at every start, right after `OcuTalon.Bridge.Installer` and before any other installer step, with readiness cleared until it sets readiness last (AD-23)
+**When** the container starts and the installer steps after `Public` (the user step and the Web step among them), the splash, the status endpoint and the session code read them
+**Then** they read every public value (the flag, the published accounts, the reset interval (4 hours by default), anchor, last reset and its kind, the proxy address, the connection cap (8) and reserve (2), and the per-session message allowance (50 an hour)) only through `OcuTalon.Data.Public.Settings`, whose `NextReset` gives the next reset from the interval and anchor; `OcuTalon.Data.Setting.Get` delegates those keys to it, and no other class references the global (FR-59, AD-13, AD-19, AD-25, UX-DR153)
+**And** the `Public` step and its writes are Lane A's (Story 3.8), and the accessor is Lane B's, built in Epic 0 (Story 0.2); the message allowance is one of AD-19's public settings because the splash shows it, and every reader gets it from there (AD-19, AD-29)
+**And** with the online-demo flag set, the `Public` step writes `Decide`'s three budget host settings at every start, before `Production` starts, so the items start with them: `DailyCostCapUSD` ($20 from `OCUTALON_DAILY_COST_CAP_USD`), and today's gateway spend as `GatewaySpendUSD` with its instance-zone date `GatewaySpendDate`; `OcuTalon.Bridge.Budget.State()` and `Decide`'s precheck read them through the bridge's settings accessor and add the gateway spend, so IRIS's own precheck and banner engage before the gateway refuses; both are Lane A's, built in Story 3.8 (FR-40, NFR-15, AD-19, AD-20, AD-23)
+
+**Given** the demo and read-only accounts that the user step creates when the online-demo flag is set, with their published, non-expiring passwords and no forced change
+**When** anyone tries to change either password through any page OcuTalon serves, or through a sign-in request sent straight to an OcuTalon application in each of the forms spike S17 tested (current and legacy field names, query string, percent-encoded names, multipart, chunked, GET or POST)
+**Then** the online demo's password-validation routine refuses every value but the account's published password, compares the user name without regard to case, and still lets the installer set the published value; no page OcuTalon serves offers a password change (FR-59, AD-13, AD-24)
+**And** the routine is installed by Lane A's user step only when the online-demo flag is set, as Story 3.8 builds it (AD-29)
+
+**Given** the read-only account
+**When** it signs in at OcuTalon's trace applications, `/ocutalon/trace/ocutalon/` and `/ocutalon/trace/ocuorders/`
+**Then** it opens Visual Trace and the message viewer in both namespaces and is refused everything else: starting, stopping or changing a production or its items, resending a message, SQL, and the security, settings and credential pages; at `/ocutalon` it gets the "no OcuTalon role" message instead of the page (FR-59, AD-24, UX-DR151)
+
+**Given** the demo account signed in on the page
+**When** a test presses a trace link and "Open my conversation in Visual Trace"
+**Then** Visual Trace opens in a new tab at the link's target, already signed in, with no second sign-in, through the shared sign-in group and the demo account's `OcuTalonTraceViewer` role (FR-59, AD-13, AD-24, UX-DR140, UX-DR148, UX-DR151)
+**And** the Visual Trace menu's popover adds, below "Open my conversation in Visual Trace", the read-only credential rows from the snapshot: a label, the value in `mono` and the copy buttons "Copy Visual Trace user name" and "Copy Visual Trace password", which confirm with "Copied" or say "Couldn't copy. Select the text and copy it yourself." and select the value (FR-59, UX-DR39, UX-DR87)
+
+**Given** a local Docker or IPM install, which gets no start values
+**When** it starts
+**Then** the online-demo flag stays off, neither public account exists, no password-validation routine is set, the daily cost cap stays off (`DailyCostCapUSD` is a seed value of 0, and the two gateway values aren't written), the public settings hold no credentials, and the sign-in page, the Visual Trace menu and the trace popover behave exactly as before (FR-14, FR-40, UX-DR17, UX-DR140)
+
+### Story 29.2: Signing in opens a session this browser resumes until the reset
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.3, renumbered, whole and verbatim with its DW-16 item, except that Story 12.7 now turns on its Telegram-card check. Lane A builds it in the Lane B files it names, under AD-29's Epic 29 exception; it needs Lane B's Story 16.2 (the splash)]
+
+As a judge,
+I want my sign-in to open a session of my own that this browser picks up again until the next reset,
+So that my conversation, pairing, orders and approval requests stay mine, although every visitor uses the same demo account.
+
+**Acceptance Criteria:**
+
+**Given** the online demo and a browser without a resume cookie
+**When** the visitor signs in from the splash
+**Then** `OnLogin` in `OcuTalon.Web.SessionEvents` creates an `OcuTalon.Data.Session` row with a new `SessionRef`, `TraceRef` and epoch, records the new CSP session on it, and sets the resume cookie with `%response.SetCookie(<name>, ref, <next reset as an RFC 1123 GMT date>, "/ocutalon/", "", 1, 1, "Strict")`: HttpOnly, Secure, `SameSite=Strict`, path `/ocutalon/`, expiring at the next reset (FR-14, AD-4)
+**And** the reference is 16 random bytes, base64url-encoded to 22 characters; the row stores only its SHA-256; and the main page opens on a fresh session's empty chat (FR-14, AD-4, UX-DR89)
+
+**Given** a session with a conversation, a paired chat (a fixture pairing, since Telegram is 0.1.1's, Epic 12), demo orders and a pending approval request
+**When** the same browser signs in again before the next reset, after its CSP session ended
+**Then** `OnLogin` finds the row by the reference's hash and attaches the new CSP session to it instead of creating one, the page loads that conversation, orders and approval request, with skeletons until the data arrives, and `/state` returns the fixture pairing; the check that the rail's Telegram card shows it is off until Story 12.7 turns it on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.10] (FR-14, AD-4, AD-29, UX-DR89, UX-DR152)
+**And** new CSP sessions are recognised in the session events, never by a changed `%session.SessionId`; the trace applications don't attach; and a visitor arriving from another site, whose first page load carries no cookie, still resumes on the sign-in POST, so the splash never depends on the cookie (AD-4)
+
+**Given** a cookie whose session row doesn't exist (an unscheduled reset restored the golden copy before the cookie expired), or a browser that never signed in
+**When** the visitor signs in
+**Then** a fresh session is created and a new cookie set (FR-14, AD-4)
+**And** the resume reference never appears in a production message, log, live event or audit entry: a test signs in, resumes, and searches each of them (AD-4)
+
+**Given** two browsers signed in with the same demo account
+**When** each reads the snapshot, polls and sends commands
+**Then** each gets its own session, because `OcuTalon.Data.Ownership` resolves the caller's `SessionRef` from the CSP session attached in `OnLogin`, never from the IRIS user name, and no endpoint accepts a `SessionRef` from the client; a local or IPM install keeps one durable session per IRIS user (FR-15, AD-4, AD-13)
+
+**Given** one client address has created 5 sessions in the past hour (a product setting this story seeds)
+**When** it signs in once more without a resumable cookie
+**Then** the post-sign-in check ends the new CSP session and creates no session, and the splash shows the field error "Too many new sessions from your network this hour. You can start another at {time}." under **Sign in and start**, which stays enabled and marks no field; a resume from that address still works, because only creations count (FR-15, NFR-15, AD-13, UX-DR36, UX-DR95)
+**And** the address is the right-most `X-Forwarded-For` entry when the request comes from the proxy's address in settings, and the connection's address otherwise; `OcuTalon.Data.AddressCounter` stores it hashed with timestamps; sign-ins that don't come through the proxy, such as the probe's, are exempt (AD-13)
+**And** the counter's area declares a `Purge(daysToKeep)` that the purge task calls, deleting the counter's entries older than an hour (AD-27)
+
+- DW-16: Session resolution stays one method (`OcuTalon.Data.Ownership`, Story 2.2, DW-15), which this story extends with the per-sign-in / resume-cookie branch for the shared demo account; a test signs in twice with the shared account and gets two different sessions, each polling only its own events (FR-15, AD-4) (ledger; routed by Contest Planner relay 2026-10-19)
+
+### Story 29.3: The demo host is adapted for the launch
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.7, renumbered, whole and verbatim. It needs Lane B's Stories 16.5 and 16.6 (the pages and the probe), and no longer waits for Story 11.5: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. The host's deployment stays outside this repository, and the host itself is the owner's (Rule 22.4)]
+
+As the author,
+I want the demo host's proxy, gateway, resets and monitoring set up as the architecture describes,
+So that the online demo is ready by November 1 for its November 2 to 4 launch, with the key protected and resets that never roll back a release.
+
+**Acceptance Criteria:**
+
+**Given** the demo host's TLS reverse proxy
+**When** requests arrive
+**Then** before the launch its access gate admits only the visitors the author allows; it overwrites `X-Forwarded-For` and passes WebSocket upgrades; it allows only `/ocutalon/*` (the application, its sign-in and the trace applications under `/ocutalon/trace/`) and the static `/csp/broker/` files the trace pages load; and it blocks the webhook path, every password-change page and the rest of `/csp/*`, `/api/*` and `/ui/*`, so no MCP endpoint is reachable (FR-59, AD-24, AD-25, UX-DR100)
+
+**Given** the proxy's password guard, a body-inspecting filter in front of IRIS
+**When** a request reaches an IRIS path
+**Then** it URL-decodes field names in the query string and the body, rejects multipart and chunked bodies, accepts a sign-in POST only as a bounded `application/x-www-form-urlencoded` body whose fields are exactly `IRISSessionToken`, `IRISUsername`, `IRISPassword` and `IRISLogin`, and refuses any field anywhere whose decoded name matches `(IRIS|Cache)(Old|Repeat)?Password` in any letter case (FR-59, AD-13, AD-25)
+**And** all eleven password-change forms of spike S17 are blocked, while sign-in, the page, the JSON API, polling, the trace pages and the broker files keep working (FR-59, AD-25)
+
+**Given** IRIS is down for a reset, or answers HTTP 503 at the cap
+**When** a visitor's request arrives
+**Then** the proxy serves the maintenance page from Story 16.5 during resets and its busy page in place of a 503 for every request under `/ocutalon/` except `/ocutalon/api/`, and logs each busy page it serves and each response carrying IRIS's busy marker header `X-OcuTalon-Busy: 1`, so busy refusals are counted per day beside the probe's count (FR-14, NFR-23, AD-25, UX-DR27, UX-DR95)
+
+**Given** the IRIS container and the outbound gateway on the demo host
+**When** they run
+**Then** IRIS has no general internet (a request to any other public address fails), its time zone is US Eastern so message times read like "14:12 ET", it holds only a dummy model key and a dummy bot token, and it reaches the gateway through the AD-19 endpoint overrides (FR-12, FR-59, NFR-15, AD-19, UX-DR123)
+**And** the gateway answers only the model API (`POST /v1/messages` and `GET /v1/models/<id>`) and the Telegram API, swaps in the real model key and the demo bot's real token (rewriting the Telegram path `/bot<dummy>/`), applies rate and path limits, and enforces the $20 daily cost cap from each response's usage, refusing over it with HTTP 403 and the fixed text "daily cost cap reached"; the demo's bot is used by no other instance, and the real key also has a provider-side spend limit (FR-22, FR-40, FR-59, NFR-15, AD-8, AD-20, AD-25)
+**And** the route for Telegram's file-download path, with the same token swap, is a later addition that step 6's file story (Story 26.2) brings to the demo host's configuration, not part of this story or of release 1 (FR-54, AD-25)
+
+**Given** the reset schedule, every 4 hours by default, which the author can change
+**When** a scheduled reset, or an unscheduled one triggered by the probe, runs
+**Then** it restores the golden copy of the durable volume (no sessions, pairings, approval requests, live events or CSP sessions, without the ready marker and with readiness cleared), so every session ends with nothing run; it refuses a golden copy whose OcuTalon version differs from the image's (the update's own restore excepted, below); and at start it sets exactly AD-19's online-demo environment variables (the flag, the published accounts, the reset interval, anchor, last reset and its kind, the proxy address, the connection cap and reserve, the per-session message allowance, the daily cost cap, and today's gateway spend with its date), an unscheduled reset leaving the schedule unchanged (FR-15, FR-59, AD-4, AD-19, AD-20, AD-25)
+**And** the host provides the two commands Story 11.5's release hook calls over SSH, as AD-25 fixes them: `ocutalon-demo status` prints one JSON object with `runningVersion`, `goldenVersion`, `lastReset` (UTC ISO 8601), `lastResetKind` (`scheduled` or `unscheduled`), `nextReset` (UTC ISO 8601), `pendingVersion` (or null) and `access` (`restricted` or `public`); and `ocutalon-demo update <version>` builds the image for tag `v<version>` from the `git bundle` of that release tag that the release hook copies to the host over SSH (no registry, and no repository access on the host) before the reset boundary, then refreshes the golden copy at that boundary (restore it, start it on the new image so it upgrades in place with no visitor data, wait for ready and check that the upgraded copy reports `<version>`, stop IRIS cleanly and capture the new golden copy, start from it); the first golden copy comes from a fresh install, and access stays restricted until the launch (FR-59, REL-10, CON-1, AD-25)
+**And** before the launch (`access` restricted) `update` runs at once, blocks until ready and prints `{"result": "updated", "version": "<version>"}`; after it, `update` prints `{"result": "scheduled", "at": "<nextReset>"}` and runs at that reset, and until the boundary resets use the current image and golden copy; a non-zero exit prints one line with the reason; the update's own restore is exempt from the version refusal, checking instead that the golden copy holds the previous version; and the update finishes within the reset window (at most 15 minutes) (REL-10, AD-25)
+
+**Given** the adapted host
+**When** it runs
+**Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
+**And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
+
+### Story 29.4: Sessions stay isolated under load
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, its isolation and load-test criteria, verbatim, except that the demo host is now Story 29.3's and Story 12.7 turns on the paired-chat cases. Story 16.10 keeps the README, the links, Story 16.4's and Story 16.9's Telegram cases and the measurement after launch. Lane A builds this story in the Lane B files it names, under AD-29's Epic 29 exception, with the load test in `release/`; it needs Lane B's Stories 16.2 and 16.5]
+
+As a judge,
+I want my run on the online demo kept apart from every other visitor's, even when the demo is full,
+So that what I see is my own work.
+
+**Acceptance Criteria:**
+
+**Given** two browsers signed in with the same demo account on a test stack with the online-demo start values, the CI mock and mocked Telegram, each watching the Orders production
+**When** session A presses Break the feed
+**Then** the incident, its notification and its approval request appear only in A's chat, simulated phone, status rail and paired chat, and B gets no incident, notification, approval request or phone message, and no change to its guide or Break the feed state (FR-15, FR-16, AD-4, UX-DR104, UX-DR107)
+**And** each session's conversation, simulated mailbox, background checks, reminders, pairing and demo orders stay its own throughout, and the REL-2 demo-path test's online-demo run turns on its trace step and this second visitor (FR-15, REL-2)
+
+**Given** A's pending approval request
+**When** B tries to see or answer it, through `/state`, polling, `POST /api/v1/approvals/:ref/answer` with A's reference, or a button press from B's paired chat
+**Then** B never sees it, B's answer is refused and changes nothing, and A can still answer it from any of A's channels (FR-8, FR-15, AD-4, AD-11)
+
+**Given** a run with a paired mock Telegram chat whose display name, user name, chat id and phone number are known
+**When** every OCUTALON and OCUORDERS message body and header from the run is searched
+**Then** none of those values appears, nor the visitor's IRIS user name; production messages carry only the `SessionRef` and the internal chat reference, which is what the shared Visual Trace shows (FR-15, NFR-11, AD-4, UX-DR107)
+**And** the paired-chat cases use 0.1.1's Telegram channel (Epic 12, Lane A) and stay off until Story 12.7 turns them on, with Story 29.2's check that the rail's Telegram card shows a resumed session's pairing (FR-14, FR-20, AD-29) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Epic 29 runs before Epic 12, so Story 12.7 turns these on; Story 16.4's and Story 16.9's Telegram cases stay with Story 16.10]
+
+**Given** the demo host adapted in Story 29.3 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.7], before the launch, with the real model
+**When** the load runs through the real proxy in two cases, 6 scripted visitors without Visual Trace and then 3 with Visual Trace open, each visitor signing in from its own client address (separate driver hosts or source addresses the author provides; nothing bypasses the per-address counter) and running the demo path
+**Then** in each case every incident notice arrives within NFR-7's 60 seconds, rate-limited model requests are retried with back-off before any fallback, one more visitor sees the busy text and never an error page, and the results go into the 1.0.0 release notes; these are measured, not asserted in sharded CI (FR-15, NFR-7, NFR-23, P28)
+
+## Epic 30: Lane A post-demo hardening
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane A's demo-path stories moved after the demo path.] Long conversations are compacted before they reach the request-size limit, old messages and records are purged on schedule, an approved tool call is replayed exactly once with no model, a stopped production or a disabled item is reported once, and a mixed or still-running resend says how far it got. Each part lands before 1.0.0.
+
+### Story 30.1: Long conversations are compacted under the limit
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 1.9, its compaction criteria and long-conversation check, verbatim. Story 1.9 keeps the size check, the tool-result cap and the `too_large` fallback, and flags a turn for compaction above 40,000 tokens, which this story reads]
+
+As a judge,
+I want a long conversation compacted before its requests near the limit,
+So that long conversations keep working at the cheaper price tier.
+
+**Acceptance Criteria:**
+
+**Given** a turn flagged for compaction
+**When** the runner compacts it in its own job before `Chat`
+**Then** it calls `ForkAndSummarize` with a cut that keeps the last user turn whole (computed from `GetContext()` outside any callback; with no older history there is no compaction) and the compaction prompt starting `OCUTALON-COMPACTION-V1`, which asks for AI Hub's summary schema with every tool result in `facts_learned`; it switches the link to the fork only after checking that the first non-system message is a user message and that every tool result follows its tool call, then saves the fork; `Summarize` in place is never used (AD-20)
+
+**Given** `ForkAndSummarize` throws, or the check fails (a mock scenario answers off-schema)
+**When** the runner compacts
+**Then** it uses a fresh AI session seeded with a code-written summary of the stored user and assistant texts, and the compaction failure never becomes the turn's fallback reason (AD-8, AD-20)
+
+**Given** a compaction
+**When** it runs
+**Then** the summarizer uses the runner's provider with effort `low`, a 20-second request timeout and no retries; Decide adds those 20 seconds to the turn's timer, staying at or under 110 seconds; and a `Usage` row with agent `compaction` and `Estimated` true prices the summarized text at about 4 characters a token at the summarizer model's rate (AD-5, AD-20)
+**And** a live smoke test, kept for release-candidate runs on the real model, makes three turns across jobs, a compaction and a tool change with Claude 5.5's thinking-history rule forced, and every turn passes (AD-20)
+**And** a mock conversation long enough to compact records a largest request under 100,000 tokens (NFR-3)
+
+### Story 30.2: Old messages and records are purged on schedule
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 1.11, renumbered, whole and verbatim]
+
+As the author,
+I want heartbeat and check messages, and old decisions, incidents and traces, purged on a schedule,
+So that OcuTalon's databases don't grow without limit while the records people need are kept.
+
+**Acceptance Criteria:**
+
+**Given** a first start or an upgrade
+**When** the installer core's task step runs
+**Then** it registers two `Ens.Util.Tasks.Purge` tasks: one of type `messages` keeps 7 days for the heartbeat and check items (`HeartbeatIn` and `Checks`, through `optionalMessageLimitToConfigItems`, with `BodiesToo`), and the other, of type `all`, keeps 90 days for everything else (messages, business-process instances, rule logs, the event log, I/O logs, host monitor data and managed alerts; VDocs aren't used) with `KeepIntegrity` and `BodiesToo`; and it registers `OcuTalon.Install.Task.Purge`, which calls `OcuTalon.Bridge.Purge(daysToKeep)` and every area's `Purge(daysToKeep)` declaration; all three run daily at 03:00 instance time and come from the Lane A area's `Tasks()` declaration, and a second start still leaves one of each (NFR-19, AD-23, AD-27)
+**And** `OcuTalon.Bridge.Purge(daysToKeep)` keeps decisions and usage for that many days and deletes AI sessions that no conversation link has pointed to for a day, and a test with a fixture area declaration finds its `Purge(daysToKeep)` called with the task's `DaysToKeep` (NFR-19, AD-27)
+
+**Given** the retention periods
+**When** the task step creates the tasks
+**Then** the day counts are task properties written only at creation (the two purge tasks' `NumberOfDaysToKeep`, 7 and 90, and `OcuTalon.Install.Task.Purge`'s `DaysToKeep`, 90, which it passes on), so an upgrade keeps a value an admin changed in the Task Manager and no purge reads `OcuTalon.Data.Setting` (NFR-19, AD-2, AD-27)
+
+**Given** fixture records older and newer than each retention period
+**When** the purge tasks run
+**Then** only the records past their period are gone, business-process instances, rule logs and event-log entries included, audit entries are untouched (they follow the instance's own audit retention), and history reads from OcuTalon's and the bridge's tables, not from purged messages (NFR-19, AD-27)
+
+### Story 30.3: An approved tool call runs exactly once, with no model
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.6, its replay criteria, verbatim, with its original title and user story, and the replay's audit check from Story 3.7. Story 3.6 keeps the hold: "that request" below is the `tool_call` request its gate raises. Story 3.7 keeps the approval entry]
+
+As a production developer,
+I want a risky tool call in a user's turn held for approval and, once approved, replayed exactly as it was raised,
+So that my own risky tools work through the bridge and never run without a yes.
+
+**Acceptance Criteria:**
+
+**Given** that request is approved
+**When** ApprovalHold handles the outcome
+**Then** it sends a `tool` request carrying the approval `Ref` through `Decide` to the runner of the agent that made the call; the runner calls `StartExecution`, sets a context with provenance `user`, the `Ref` and a process-private grant, calls `..Agent.ToolManager.ExecuteTool` through the whole policy chain, and records `FinishExecution`; no model request is made (FR-8, AD-6, AD-10, AD-30)
+
+**Given** a live grant
+**When** the gate sees the replayed call
+**Then** it consumes the grant at the first call whose name, hash of canonical arguments (sorted keys) and source match the row, and denies a replay with no live grant, which `ExecuteTool` raises as `ToolAccessDenied` (AD-10)
+**And** the story confirms whether `metadata.origin_class` arrives on a replay on build 154; if it doesn't, the source comes from the stored row alone (AD-10)
+
+**Given** the replay finishes
+**When** ApprovalHold receives its result
+**Then** `HostSinkClass` receives `approval.result` with the `Ref`, so the caller's next turn can carry a code-written note naming the tool, done or failed, and the time, never the tool's result text (AD-10, AD-30, AD-31)
+
+**Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
+**When** they run
+**Then** an approved request runs the call exactly once even when the answer or the replay is repeated (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.6's NFR-13 criterion]
+
+**Given** a test answers an approval request and replays its approved test tool
+**When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
+**Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
+
+### Story 30.4: A stopped production or a disabled item is reported once
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 5.6, its finding criterion and test, verbatim. Story 5.6 keeps the check runs, their rows and `closeQuiet`]
+
+As a user,
+I want only new findings from each watched production's check reported,
+So that a stopped production or a disabled item reaches me once.
+
+**Acceptance Criteria:**
+
+**Given** the watched production stopped, or one of its items was disabled, since the last run
+**When** the check finds it
+**Then** the finding becomes one Item sent to `Intake`, whose `CatalogKey` and `Slots` are the production state-change key from `OcuTalon.Msg.Catalog.Watch` and its slots ("The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production."), which `Intake` copies to the `ItemDecision` so `OutcomeRouter`'s notification uses them (Story 2.7), and the same finding is never sent again (FR-23, FR-33, AD-14, AD-30, AD-32, UX-DR112)
+**And** a test sends two Ticks after stopping a test production and finds exactly one finding Item (FR-33)
+
+### Story 30.5: Mixed and unfinished resends say how far they got
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 7.5, its mixed-result and still-running criteria, verbatim. Story 7.5 keeps the interrupted-run safety rule, `OcuTalon.Fix.Run.Sweep()` and the catalog test]
+
+As a user,
+I want a resend that is partly failed and partly skipped, or still running, to tell me exactly how far it got,
+So that I never think a fix finished when it didn't, and nothing is resent behind my back.
+
+**Acceptance Criteria:**
+
+**Given** an approved repair in which some copies fail again and some targets are skipped
+**When** `FixExecutor` sends `FixResult`
+**Then** it carries both counts, that partial result is its request's result as the incident moves per AD-15's transition table, and the `result` notification uses the mixed-result catalog key in `OcuTalon.Msg.Catalog.Watch`, with the resent, completed, failed-again and skipped counts as slots (FR-8, FR-25, AD-16, AD-32)
+
+**Given** copies still running when `FixExecutor`'s 60-second wait ends
+**When** the wait ends
+**Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
+
+## Epic 31: Lane B post-demo hardening
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane B's demo-path stories moved after the demo path.] On a local install the page gets live events over a WebSocket, with polling as the fallback, and a risky tool call's approval request reaches the simulated phone and the paired chat with Approve and Reject and is edited in place when answered. Each part lands before 1.0.0.
+
+### Story 31.1: Push live events over a WebSocket on local installs
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 2.11, its WebSocket criteria, verbatim, with its original title. Story 2.11 keeps the reconnecting banners, and polling stays release 1's live path]
+
+As a user on a local install,
+I want new messages pushed to the page as they happen, with polling only as the fallback,
+So that updates arrive at once.
+
+**Acceptance Criteria:**
+
+**Given** a signed-in session on a local or IPM install
+**When** the page opens the WebSocket `/ocutalon/OcuTalon.Web.Live.cls` (a `%CSP.WebSocket` class)
+**Then** the server checks `Origin` before it accepts, serves only a signed-in session, waits on the session's `$SYSTEM.Event` resource and one instance resource, which `Live.Publish` signals after each commit, and sends each new event in the same envelope `{seq, stream, ts, type, payload}` after the client's cursors (AD-12, AD-13)
+
+**Given** the page's live-event service
+**When** it starts
+**Then** on a local or IPM install it receives events over the WebSocket and applies them through the same idempotent path as polling; with the online-demo flag set it never opens the WebSocket and only polls; if the socket closes or fails, it switches to polling silently and reconnects in the background (FR-12, AD-12, UX-DR91, UX-DR149)
+
+**Given** the CI demo-path environment
+**When** the WebSocket tests run
+**Then** an event published while the socket is open reaches the page through it; with the socket blocked, polling still delivers it; the 2-second delivery bound is measured in the rehearsal (NFR-9, AD-12) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the banner half of this criterion stays in Story 2.11]
+
+### Story 31.2: A tool call's approval request reaches the phone with Approve and Reject
+
+[AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 6.3, its `tool_call` criterion, verbatim. It sits in Lane B's hardening epic because `BridgeSink` and `NoticesIn` are Lane B's; Story 6.3 keeps everything else]
+
+As a production developer,
+I want a risky tool call's approval request on the session's simulated phone and paired chat with Approve and Reject, edited in place when it is answered and when its result arrives,
+So that a tool call is answered the same way as a fix.
+
+**Acceptance Criteria:**
+
+**Given** an approval of kind `tool_call`
+**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
+**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
+**And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
