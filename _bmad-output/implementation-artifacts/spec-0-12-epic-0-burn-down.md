@@ -2,14 +2,21 @@
 title: 'Story 0.12: Epic 0 burn-down'
 type: 'feature'
 created: '2026-10-20'
-status: 'in-progress'
-baseline_revision: '56ea3de33c333569fc041ee85b9a20cb614dd4c7'
-baseline_commit: 56ea3de33c333569fc041ee85b9a20cb614dd4c7
+status: 'done'
+baseline_revision: '5047cd2e90c8e651aa58e05854e94a160c092c60'
+baseline_commit: 5047cd2e90c8e651aa58e05854e94a160c092c60
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Stories 10.2 and 14.2 carry no acceptance criterion for the how-to-remove sentence that EXPERIENCE.md says the README and the security overview carry.
+    evidence: |-
+      EXPERIENCE.md (owner forms table, row "Demo mode off, OCUORDERS kept") says the README and the security overview carry the same sentence as the demoKept note. A search of the repo for "left the OCUORDERS" finds it only in Demo.cls, test-install-start.sh and this spec, and neither story's block in epics.md names it.
+    location: >-
+      epics.md, Stories 10.2 and 14.2
+    severity: low
 ---
 
 <intent-contract>
@@ -178,7 +185,7 @@ Where the rows run:
 
 ## Tasks & Acceptance
 
-- [ ] [Rework, DW-44 (code review's HIGH); the owner's approval through the Contest Planner, October 21] The `demoKept` status note gains a `how` field holding exactly "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.", with `{what was kept}` filled from the same facts the note's kept sentence names (EXPERIENCE.md, the owner forms table). Write it as ASCII with escapes where needed. `test-install-start.sh`'s `kept_note` check pins the exact sentence for both keep fixtures, and a mutation that drops or alters it goes red. The after-start `WARN Demo` line keeps Story 0.10's sentence. No other change.
+- [x] [Rework, DW-44 (code review's HIGH); the owner's approval through the Contest Planner, October 21] The `demoKept` status note gains a `how` field holding exactly "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.", with `{what was kept}` filled from the same facts the note's kept sentence names (EXPERIENCE.md, the owner forms table). Write it as ASCII with escapes where needed. `test-install-start.sh`'s `kept_note` check pins the exact sentence for both keep fixtures, and a mutation that drops or alters it goes red. The after-start `WARN Demo` line keeps Story 0.10's sentence. No other change.
 
 **Execution:**
 
@@ -253,7 +260,7 @@ Where the rows run:
     - it deletes the trace application, if present. Its name comes from `Web.TraceApp(..#NAMESPACE)`, computed before the switch as `role` is;
     - it removes the trace role's OCUORDERS grants (`WithOrders(current, 0)`);
     - it deletes the namespace's `Security.SQLPrivileges` rows whose grantee is the trace role;
-    - it returns the note JSON `{"text","namespace","globals","routines"}`, filled from `Config.Namespaces`;
+    - it returns the note JSON `{"text","namespace","globals","routines","how"}`, filled from `Config.Namespaces` and, for `how`, from the owner's sentence (DW-44);
     - it does nothing else.
   - **`Run`:**
     - when `kept` is set, by `Plan` or by `Orders(0)`, it runs the keep mode in place of `System(0)`, then calls `..Warn(kept)` and `StatusMark.Record(..#KEPTMARK, note)`, and returns OK;
@@ -366,6 +373,17 @@ Rejected (no ledger entry):
 - Rule 22 ruling: **What proves that keep leaves the inside of OCUORDERS alone** -> `inside_state <variable>` in `test-install-start.sh` sets a fingerprint (databases, resources and files, package mappings, Interoperability marker and role, web applications but the trace application, portal folder) before and after the run in both keep fixtures that hold OcuTalon's own OCUORDERS, and prints `CHK|inside|<before = after>|<the portal application is still there>`. (Rejected: literal expected fingerprints, which would need a measurement per machine; a foreign web application seeded into the foreign fixture, which is a new object type for a boundary that the owned-namespace fixtures already pin.)
 - Rule 22 ruling: **Where a stale warning is pinned** -> `TestRun` records a warning before the third run and expects the run's output to hold no such text. (Rejected: a separate test method, one more compile of the fixture steps.)
 
+**Rework rulings** (Rule 22; DW-44, October 21):
+- Rule 22 ruling: **What fills `{what was kept}`** -> the fact that the note's kept sentence names, as a phrase: "databases that OcuTalon did not create" for a foreign OCUORDERS, "the production <name>" for a production that is only defined, and "the production <name>, which is not stopped" for one that is not stopped (the running sentence names that fact too). (Rejected: "the production <name>" for both, which drops a fact the kept sentence states.)
+- Rule 22 ruling: **How the phrase reaches the note** -> `Plan` and `Orders(0)` return it in a new `Output what` beside `kept`, `Run` passes it to `System(0, kept, what, .note)`, and `System` builds the `how` sentence from the owner's text with the namespace and database names taken from `NAMESPACE`, `CODEDB` and `DATADB`. (Rejected: parsing the phrase out of `kept`, which ties the note to the wording of three sentences; a second write of the note from `Run`.)
+- Rule 22 ruling: **The databases in the sentence** -> OCUORDERS_CODE and OCUORDERS_DATA exactly as the owner's text has them, for a foreign OCUORDERS too, whose own default databases are in the note's `globals` and `routines` fields. (Rejected: the foreign namespace's databases in the sentence, which edits the owner's text.)
+- Rule 22 ruling: **What `kept_note` pins** -> `kept_note` prints the `how` field as a seventh value, and each of the five note checks expects the owner's sentence written out in full (`foreign_how`, `running_how`, `defined_how`), so that a change to the step's wording goes red. (Rejected: a sentence composed from a template in the script, which follows a change of the step's template.) `Test.Demo.Step` is unchanged: no test of it pins the note's shape, and `TestPlan` still passes with the added output.
+
+
+**Rework pass** (DW-44, October 21):
+- Baseline: the story's `baseline_revision` was `56ea3de33c333569fc041ee85b9a20cb614dd4c7` before this pass. Step 3 captures a baseline per pass, so the frontmatter now holds this pass's `5047cd2e90c8e651aa58e05854e94a160c092c60`; the story's delivered scope is `git diff 56ea3de33c333569fc041ee85b9a20cb614dd4c7..HEAD`.
+- Rule 22 ruling: **The review pass's two mutations ran in one live run** -> the `how` key dropped and `Warn(what)` in place of `Warn(kept)`, because they fail different checks: the first only the five `CHK|note` checks (`1 of 2` and `1 of 3` values at rows 3 and 4), the second only `check_kept_log` at rows 3 and 4 and the `CHK|warn` values of the in-session fixtures. (Rejected: two runs of about 3 minutes each for the same attribution.)
+- Rule 22 ruling: **The foreign case keeps the owner's exact sentence** -> the review layers noted that the sentence names OCUORDERS_CODE and OCUORDERS_DATA for a foreign OCUORDERS too, whose own databases are in the note's `globals` and `routines`. The task says "exactly", so the code and the pins follow the owner's text; the triage log rejects the finding as spec-bound. If the owner wants a different sentence for a foreign namespace, that is one more owner form, and the change is the `how` line of `System` and `foreign_how`.
 
 Lead, after code review (October 21):
 - Correction: the review-pass ruling that rejected "calling `Clean()` mid-class" is superseded by QA's `TestCleanKeepsTheCounter`, which does exactly that on purpose to pin DW-9's never-reset counter; the test creates and removes its own state, so it stays.
@@ -408,6 +426,31 @@ Lead, after code review (October 21):
   - `[false]` `[reject]` Intent Alignment 6: the WARN line is in the after-start log and not on stdout — the spec's ruling; `after-start.sh` is not to change.
   - `[false]` `[reject]` Intent Alignment 7: the note holds the facts, not the how-to-remove sentence — the sentence is owner-only (Rule 22.4) and parked in Design Notes for the Contest Planner.
   - `[false]` `[reject]` Intent Alignment 8: DW-9 changes the test surface only — the spec closes it on evidence and on the test fix; `Users.Ensure` is not at fault.
+
+### 2026-10-21 — Review pass (rework, DW-44)
+- verdicts: 21 findings — high 0, medium 0, low 20, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter 1: the `how` sentence names OCUORDERS_CODE and OCUORDERS_DATA for a foreign OCUORDERS too, whose own databases are in the note's `globals` and `routines` — spec-bound: the task says "exactly" and the owner approved this text for "not created by OcuTalon, or holds another production"; a foreign OCUORDERS needs a user-made namespace of that name, and the note's other fields name its databases. Reopens only by an owner form for the foreign case (Spec Change Log, Rule 22 ruling).
+  - `[low]` `[reject]` Blind Hunter 2: `Plan`'s new `what` has no unit assertion — `TestPlan` still passes with the added output, and the live script pins `what` for all three kept cases (the rework's mutation 2 turned `Plan`'s `what` empty and went red); a unit assertion is a change beyond the task's "No other change".
+  - `[low]` `[reject]` Blind Hunter 3: the spec still describes the pre-rework shape in places (matrix rows 11 to 13, the Code Map signatures, an earlier ruling, the Auto Run Result, a stale "below") — the fix is to edit the spec, and rows 11 to 13 are in the frozen intent block; the Auto Run Result and the stale pointer were corrected at finalize.
+  - `[low]` `[defer]` Blind Hunter 4: Stories 10.2 and 14.2 have no acceptance criterion for the sentence the README and the security overview carry — not caused by this change (the UX row predates it) and `epics.md` is not this build's to edit; deferred in the frontmatter.
+  - `[low]` `[reject]` Blind Hunter 5: `baseline_revision` now holds this pass's baseline — step 3 captures one per pass; the story's baseline is recorded in the Spec Change Log, and the fix would edit the spec.
+  - `[low]` `[reject]` Blind Hunter 6: `System` writes "holds . To remove it" if called with `keep` and no `what` — unreachable: `System` is private, `Run` is its only caller, and `Plan` and both kept branches of `Orders(0)` always set `what`; a guard adds a branch.
+  - `[low]` `[reject]` Edge Case Hunter 1: the foreign databases in the sentence — same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Edge Case Hunter 2: `System` with `keep` and an empty `what` — same root cause as Blind Hunter 6.
+  - `[low]` `[reject]` Edge Case Hunter 3: `TestPlan` does not assert `what` — same root cause as Blind Hunter 2.
+  - `[low]` `[reject]` Edge Case Hunter 4: the Tasks bullets give the old signatures of `Plan` and `Orders(0)` — those bullets belong to done, reviewed tasks and the fix would edit the spec; the code and its comments carry the new signatures.
+  - `[low]` `[patch]` Verification Gap 1: the AC "the after-start `WARN Demo` line keeps Story 0.10's sentence" has no rework mutation line — applied `Do ..Warn(what)` in place of `Do ..Warn(kept)`, observed red at `check_kept_log` of rows 3 and 4 and at the in-session `CHK|warn` values, reverted byte-identical, line written in `## Verification`.
+  - `[low]` `[patch]` Verification Gap 2: only "alters" is demonstrated, not "drops" — applied the note built without its `how` key in the same run, observed red at the five note checks, reverted, line written in `## Verification`.
+  - `[low]` `[reject]` Verification Gap 3: the changed note checks sit in a staged, order-dependent live script — pre-existing and spec-bound (REL-4 forbids a new restart; the staging is the existing design); the diff changes expected strings only.
+  - `[low]` `[reject]` Verification Gap 4: the foreign fixture pins the sentence with OCUORDERS_CODE and OCUORDERS_DATA — same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Verification Gap 5: the Auto Run Result was not updated for the rework — written at finalize, as the workflow orders; not a defect of the change.
+  - `[low]` `[reject]` Intent Alignment 1: no admin-visible surface for the note beyond the status mark — the intent's Never: "no new status surface"; the README and the security overview (10.2, 14.2) are the surfaces, tracked by the deferred item.
+  - `[low]` `[reject]` Intent Alignment 2: the pin on `how` exists only at the live layer — same root cause as Blind Hunter 2; `System`'s keep branch runs only through `Run()`, which Rule 21 bars from slot A.
+  - `[low]` `[reject]` Intent Alignment 3: the `what` phrases repeat the kept sentences' facts in three places — a drift would turn the five `CHK|note` checks red (mutation 2 shows it), and deriving one from the other adds a parser or a structure.
+  - `[low]` `[reject]` Intent Alignment 4: the foreign case (verbatim databases against functional ones) — same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Intent Alignment 5: the matrix rows 11 and 12, the `kept_note` description of Design Notes and the AD-3 spine-update entry still give the four-field mark — the fix is to edit the spec, and the rows are in the frozen intent block; the code, its comments and the live script give the five fields.
+  - `[false]` `[reject]` Intent Alignment 6: the note may pass the `Value` limit of 1000 — the longest note (a 220-character production name, not stopped, and 30-character database names) is 891 characters.
 
 ## Design Notes
 
@@ -497,8 +540,8 @@ No AC contradicts an AD's Rule. DW-42's "left in place", read with AD-24, means 
 
 **Owner-only (Rule 22.4), for the Contest Planner:**
 - Owner-only: **the sentence that tells an administrator how to remove a kept OCUORDERS by hand.** It belongs in the `demoKept` note, and in the README and security-overview text that points to it.
-  - Until the owner fixes it, the note holds 0.10's fixed sentence, which names what was kept, and the facts the removal needs: the namespace, and its globals and routines databases.
-  - 10.2 and 14.2 carry the owner's wording once it is given. Adding it later is one more field of the note.
+  - The owner approved it through the Contest Planner on October 21 (EXPERIENCE.md, the owner forms table), and the note's `how` field holds it (DW-44).
+  - 10.2 and 14.2 carry the same sentence in the README and the security overview.
 
 **VETO WINDOW FYIs (Rule 22.3):**
 - **Security posture.** Keep removes OcuTalon's own trace access to a kept OCUORDERS. Reversing it means leaving that access, which contradicts AD-24.
@@ -740,6 +783,22 @@ Runtime: slot A (`server: ocutalon-slot-a`, `namespace: OCUTALON`; `iris_server_
 - mutation: the keep mode deletes every grantee's SQL privileges (`If (keep '= "") && 0 Continue`) -> `live install-start` red at `CHK|grantee|1` in both keep fixtures, the stopped one now on its own seed; reverted.
 - mutation: the keep mode deletes the public global mapping of OCUORDERS -> `live install-start` red at `CHK|inside|1|1` in the running keep fixture (the new mapping fingerprint); reverted.
 
+### Rework, DW-44 (October 21; same checkout, tag `v12b`, `OCUTALON_LOCK_OWNER='epic=0 stage=implement'`)
+
+Runtime: slot A (`server: ocutalon-slot-a`, `namespace: OCUTALON`; `iris_server_info` reports build 154U) took `iris_doc_load` with `ck` of `OcuTalon.Install.Step.Demo` and one `iris_execute_tests` call. The live script ran only through `ci/iris.sh` in throwaways of tag `v12b`, one at a time, each followed by `teardown` in its own call. No push, commit or `gh` call; `Demo.Run()` never ran on the slot, and the mutated classes were never loaded into it.
+
+**Results.**
+- **Slot A.** `iris_doc_load` with `ck` of `Install.Step.Demo`: compiled, no error or warning. `Test.Demo.Step` 6 of 6 (run index 744).
+- **Hosted checks and build.** `bash ci/checks.sh` exit 0, "checks: all scripts passed" (run again after the spec edits, same result). `bash ci/iris.sh build`: the web bundle is built.
+- **The live test.** `bash ci/iris.sh live install-start` exit 0, 94 PASS and 0 FAIL. The five note checks pass with the `how` sentence: row 3's start, the in-session foreign off run, the running and the stopped keep fixtures, and the last restart. The after-start `WARN Demo` line (`check_kept_log`, rows 3 and 4) still holds Story 0.10's sentence.
+- **Teardown.** `bash ci/iris.sh teardown`: 0 projects, containers, volumes, networks and images left for `-v12b-`.
+
+**Mutations (rework).** Each was applied, run, observed red and reverted. Before each, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` and one of `Demo.cls` and `test-install-start.sh` were taken; after the revert both were equal, and `git status --short` and `git diff --stat` were unchanged.
+- mutation: the `how` sentence ends "in the Management Console." (`Demo.cls`, `System`) -> `live install-start` red at all five note checks (5 FAIL, 89 PASS: row 3's start, the in-session foreign off run, the running keep fixture, the stopped keep fixture and the last restart, each "1 of n values differ"); reverted.
+- mutation: the fill of `{what was kept}` changes in three places (`Plan`'s `what` is empty, `Orders(0)`'s not-stopped phrase loses ", which is not stopped", its defined phrase loses "the") -> `live install-start` red at the same five checks (5 FAIL, 89 PASS): the foreign ones (row 3's start and the in-session run), the running fixture, and the stopped fixture with the last restart, each fixture failing on its own change; reverted.
+- mutation (review pass, tag `v12d`, both in one run, 87 PASS and 7 FAIL): the note is built without its `how` key (`, "how": (how)` removed from the JSON in `System`) -> `live install-start` red at the five note checks, alone at row 3's start (`1 of 2 values differ`) and the last restart (`1 of 3`); reverted.
+- mutation (review pass, same run): the after-start warning carries the fill in place of the kept sentence (`Do ..Warn(what)` in `Run`) -> `live install-start` red at `check_kept_log` of row 3 (`WARN Demo databases that OcuTalon did not create`) and of row 4 (`WARN Demo the production ZzOcuForeign.Production`) and at the `CHK|warn` values of the in-session fixtures; reverted. Before and after, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal, and so were those of `Demo.cls` and `test-install-start.sh`; `ci/iris.sh teardown` for `-v12d-` left nothing.
+
 ## Auto Run Result
 
 Status: done
@@ -788,5 +847,37 @@ Blocking condition: none
 **Residual risks.**
 - **REL-4.** `live install-start` took 181 to 216 s on ARM against Rule 21's 151 s `(inference: includes machine variation)`; at the ratio of 3 on the runner the worst-case run could pass 35 minutes. The `install` group is the first to rebalance if QA's run is over.
 - **DW-9's cause is still `(inference)`.** The flake did not reproduce in 10 runs before the fix, and 10 clean runs after it are weak evidence (about a 21% chance without a fix at 1 in 7). The fix removes the two candidate causes; the wait cannot be forced to fail. `Clean()` still deletes every `ZzUsers*` fixture, so two runs at once on one instance would remove each other's accounts.
-- **Owner-only (Rule 22.4), for the Contest Planner.** The sentence that tells an administrator how to remove a kept OCUORDERS by hand; the note holds 0.10's fixed sentence and the facts that the removal needs until the owner gives it (10.2 and 14.2 carry it).
+- **Owner-only (Rule 22.4).** The how-to-remove sentence was given on October 21 and the note holds it (the `### Rework, DW-44` block under Verification); 10.2 and 14.2 carry it in the README and the security overview.
 - **For the lead.** The spine updates listed under Design Notes ("Spine updates for the lead": AD-32, AD-3, AD-23, AD-18 and the cross-lane table), the three VETO WINDOW FYIs, and the epic-context pre-warm.
+
+**Rework pass, DW-44 (October 21; this pass only).**
+
+*Summary of the implemented change.* The `demoKept` note gains a `how` field holding the owner's sentence, "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." `{what was kept}` is "databases that OcuTalon did not create", "the production <name>" or "the production <name>, which is not stopped", the fact that the kept sentence names, returned by `Plan` and `Orders(0)` in a new `Output what`. The after-start `WARN Demo` line keeps Story 0.10's sentence.
+
+*Files changed.*
+- `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls`: `what` from `Plan` and `Orders(0)`, passed by `Run` to `System`, which builds `how` and writes it into the note.
+- `docker/tests/test-install-start.sh`: `kept_note` prints `how`; the five note checks expect the sentence in full (`foreign_how`, `running_how`, `defined_how`).
+- This spec: the task ticked, rulings, the Verification block with four mutation lines, the triage entry, one deferred item, and corrections of the stale note-shape claims in Design Notes.
+
+*Review findings breakdown.* 21 findings from the four layers: high 0, medium 0, low 20, false 1.
+- **Patched (2 low entries):** the mutation line for "the `WARN Demo` line keeps 0.10's sentence", and the line for a note built without `how`; both were run, observed red and reverted (they need no code change).
+- **Deferred (1):** Stories 10.2 and 14.2 have no acceptance criterion for the sentence the README and the security overview carry (`deferred:` in the frontmatter).
+- **Rejected (18), each with its reason in the triage log:**
+  - spec-bound or by design: the owner's sentence for a foreign OCUORDERS (4 sightings), no new status surface, the staged live script (REL-4);
+  - the fix would edit the spec: stale descriptions of the note's shape, the baseline, the Auto Run Result (5);
+  - unreachable or covered by a live pin: `System` with an empty `what` (2), no unit assertion on `what` (3), the `what` phrases repeating the kept sentences;
+  - false: the `Value` limit (the longest note is 891 of 1000 characters).
+
+*Follow-up review recommendation:* `false`. Two low entries were patched on this first pass, no high and no medium.
+
+*Verification performed.*
+- Slot A, `ocutalon-slot-a` build 154: `iris_doc_load` of `Install.Step.Demo` with `ck`, no error or warning; `Test.Demo.Step` 6 of 6.
+- `bash ci/checks.sh` exit 0.
+- `bash ci/iris.sh live install-start` (tag `v12c`) exit 0, 94 PASS and 0 FAIL, with the five note checks and the `WARN Demo` checks among them; the implement stage's run (tag `v12b`) gave the same.
+- Four mutations (two in the implement stage, two in the review pass, tag `v12d`): each red at the checks named in `## Verification`, reverted byte-identical.
+- Throwaways of tags `v12b`, `v12c` and `v12d` were torn down. Not run in this pass: `live install-upgrade`, the shards and the DW-9 series, which this change does not touch.
+
+*Residual risks.*
+- **The foreign case.** The owner's sentence names OCUORDERS_CODE and OCUORDERS_DATA also when the kept OCUORDERS is a foreign one on other databases (they are in the note's `globals` and `routines`). The lead may ask the owner through the Contest Planner whether that case needs its own sentence; the change would be one line of `System` and `foreign_how`.
+- **REL-4.** The five note checks add one field to existing lines, so the live script's runtime does not change `(inference)`; the next CI run measures it.
+- The `[Review][Decision]` entry about the missing how-to sentence under `### Review Findings` stays unchecked for the lead to close.

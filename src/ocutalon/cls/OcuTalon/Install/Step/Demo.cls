@@ -22,9 +22,10 @@ Include (Ensemble, %sySecurity)
 ///     mappings, Interoperability markers and role, productions and other web applications stay. It removes only OcuTalon's own
 ///     access: the trace application, the trace role's OCUORDERS database grants and its SQL privileges in the namespace
 ///     (AD-24). It then warns (Install.Step.Warn) with the sentence of the on path's refusal, records the status mark
-///     demoKept (OcuTalon.Data.StatusMark), whose value is the JSON {"text","namespace","globals","routines"} with the
-///     sentence and the namespace's default databases, and returns OK, so the start ends ready. A create or a remove that
-///     succeeds clears the mark, and an error leaves it as it was.
+///     demoKept (OcuTalon.Data.StatusMark), whose value is the JSON {"text","namespace","globals","routines","how"} with the
+///     sentence, the namespace's default databases and the owner's sentence that says what was kept and how to remove the
+///     namespace by hand (the "how" field), and returns OK, so the start ends ready. A create or a remove that succeeds
+///     clears the mark, and an error leaves it as it was.
 /// The step switches namespace in two methods, each with New $NAMESPACE: System (to %SYS) and Orders (to OCUORDERS). Neither
 /// calls a method of this class while it is in its target namespace, because OcuTalon.* classes resolve in neither; System
 /// returns to the caller's namespace for the one pure call it needs.
@@ -64,12 +65,12 @@ Parameter DEADSTATUSES = "error,halted,terminated";
 /// Applies the mode: "create" makes the demo and starts its production, "remove" removes it, "keep" leaves the namespace and
 /// removes only OcuTalon's access to it, and "error" does nothing (see Plan). The seed is written before the plan is made; a
 /// seed that cannot be written throws its error (Mode), which Install.Registry's RunStep reports as a failed step. A kept
-/// namespace (from Plan, or from Orders(0) for another production) is warned about and recorded as the mark demoKept, and
-/// Run returns OK; a create or a remove that succeeds deletes the mark.
+/// namespace (from Plan, or from Orders(0) for another production) is warned about and recorded as the mark demoKept, with
+/// the fact that it holds in the note's "how" sentence, and Run returns OK; a create or a remove that succeeds deletes the mark.
 ClassMethod Run() As %Status
 {
 	Set exists = ##class(%SYS.Namespace).Exists(..#NAMESPACE)
-	Set action = ..Plan(..Mode(), exists, ..Owned(), .sc, .kept)
+	Set action = ..Plan(..Mode(), exists, ..Owned(), .sc, .kept, .what)
 	If action = "create" {
 		Set sc = ..System(1)
 		If $$$ISOK(sc) {
@@ -80,13 +81,13 @@ ClassMethod Run() As %Status
 	} ElseIf action = "remove" {
 		Set sc = $$$OK
 		If exists && ##class(%Library.EnsembleMgr).IsEnsembleNamespace(..#NAMESPACE) {
-			Set sc = ..Orders(0, .kept)
+			Set sc = ..Orders(0, .kept, .what)
 		}
 		If $$$ISOK(sc) && (kept = "") Set sc = ..System(0)
 	}
 	If $$$ISERR(sc) Quit sc
 	If kept '= "" {
-		Set sc = ..System(0, kept, .note)
+		Set sc = ..System(0, kept, what, .note)
 		If $$$ISERR(sc) Quit sc
 		Do ..Warn(kept)
 		Quit ##class(OcuTalon.Data.StatusMark).Record(..#KEPTMARK, note)
@@ -100,11 +101,13 @@ ClassMethod Run() As %Status
 ///   - off, and the namespace exists but is not the step's own: "keep", with kept the sentence of the refusal;
 ///   - off otherwise: "remove", which also cleans the step's own leftovers when the namespace is gone. Orders(0) may still
 ///     turn it into a keep.
-/// kept is "" except for "keep".
-ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output sc As %Status, Output kept As %String) As %String
+/// kept is "" except for "keep". what is "" too, and for "keep" it is the fact that the sentence names, as the phrase that the
+/// note's "how" sentence takes after "because it holds" (System).
+ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output sc As %Status, Output kept As %String, Output what As %String) As %String
 {
 	Set sc = $$$OK
 	Set kept = ""
+	Set what = ""
 	Set foreign = "Namespace "_..#NAMESPACE_" exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone."
 	If on {
 		If exists && 'owned {
@@ -115,6 +118,7 @@ ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output s
 	}
 	If exists && 'owned {
 		Set kept = foreign
+		Set what = "databases that OcuTalon did not create"
 		Quit "keep"
 	}
 	Quit "remove"
@@ -182,8 +186,11 @@ ClassMethod Owned(namespace As %String = {..#NAMESPACE}) As %Boolean
 /// system classes resolve. Every action is idempotent.
 /// With keep (the sentence of the warning) given, off keeps the namespace: it deletes only the trace application, the trace
 /// role's OCUORDERS database grants and its SQL privileges in the namespace, and returns in note the JSON
-/// {"text": keep, "namespace", "globals", "routines"}, the last two being the namespace's default databases.
-ClassMethod System(on As %Boolean, keep As %String = "", Output note As %String) As %Status [ Private ]
+/// {"text": keep, "namespace", "globals", "routines", "how"}, "globals" and "routines" being the namespace's default databases.
+/// "how" is the owner's sentence, with what (the fact that keep names, as a phrase) in place of {what was kept}:
+/// "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace
+/// OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal."
+ClassMethod System(on As %Boolean, keep As %String = "", what As %String = "", Output note As %String) As %Status [ Private ]
 {
 	Set home = $Namespace
 	Set ns = ..#NAMESPACE
@@ -353,7 +360,8 @@ ClassMethod System(on As %Boolean, keep As %String = "", Output note As %String)
 		Kill props
 		Set sc = ##class(Config.Namespaces).Get(ns, .props)
 		If $$$ISERR(sc) Quit sc
-		Set note = {"text": (keep), "namespace": (ns), "globals": ($Get(props("Globals"))), "routines": ($Get(props("Routines")))}.%ToJSON()
+		Set how = "OcuTalon left the "_ns_" namespace in place because it holds "_what_". To remove it, delete the namespace "_ns_" and its databases "_..#CODEDB_" and "_..#DATADB_" in the Management Portal."
+		Set note = {"text": (keep), "namespace": (ns), "globals": ($Get(props("Globals"))), "routines": ($Get(props("Routines"))), "how": (how)}.%ToJSON()
 		Quit $$$OK
 	}
 	#; Databases, innermost directory first: those whose directory is a step directory or below one.
@@ -439,12 +447,14 @@ ClassMethod System(on As %Boolean, keep As %String = "", Output note As %String)
 ///     Then it polls once a second, up to WAITSECONDS, until the production runs and every enabled item with a pool has an
 ///     alive job that is not in error, halted or terminated.
 ///   - off: another production that is not stopped, or any other production defined in the namespace, is not touched: kept
-///     is set to the sentence that says so, nothing is stopped, started or removed, and the status is OK (the caller keeps
-///     the namespace); otherwise a running or Troubled production of this name is stopped (STOPSECONDS, forced).
-/// kept is "" unless the off path keeps the namespace. The on path's refusal of another production keeps its error.
-ClassMethod Orders(on As %Boolean, Output kept As %String) As %Status [ Private ]
+///     is set to the sentence that says so and what to the fact that it names ("the production <name>", with ", which is not
+///     stopped" where it is not), nothing is stopped, started or removed, and the status is OK (the caller keeps the
+///     namespace); otherwise a running or Troubled production of this name is stopped (STOPSECONDS, forced).
+/// kept and what are "" unless the off path keeps the namespace. The on path's refusal of another production keeps its error.
+ClassMethod Orders(on As %Boolean, Output kept As %String, Output what As %String) As %Status [ Private ]
 {
 	Set kept = ""
+	Set what = ""
 	Set ns = ..#NAMESPACE
 	Set production = ..#PRODUCTION
 	Set role = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
@@ -459,6 +469,7 @@ ClassMethod Orders(on As %Boolean, Output kept As %String) As %Status [ Private 
 		Set message = "The production "_name_" is in namespace "_ns_" and is not stopped, so the Demo step leaves it alone."
 		If on Quit $$$ERROR($$$GeneralError, message)
 		Set kept = message
+		Set what = "the production "_name_", which is not stopped"
 		Quit $$$OK
 	}
 	If on {
@@ -515,6 +526,7 @@ ClassMethod Orders(on As %Boolean, Output kept As %String) As %Status [ Private 
 	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the productions of "_ns_": "_rs.%Message)
 	If rs.%Next() {
 		Set kept = "The production "_rs.%Get("Name")_" is in namespace "_ns_", so the Demo step leaves it alone."
+		Set what = "the production "_rs.%Get("Name")
 		Quit $$$OK
 	}
 	If (name = production) && ((state = $$$eProductionStateRunning) || (state = $$$eProductionStateTroubled)) {

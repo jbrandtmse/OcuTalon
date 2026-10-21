@@ -22,7 +22,7 @@
 #   - row 2: all of it is gone (check_demo_off), and the surfaces equal row 1's less every line that names OCUORDERS;
 #   - row 3: a foreign OCUORDERS (databases OCUFOREIGN_DATA and OCUFOREIGN_CODE) is built before the recreate, and the start with
 #     demo mode off keeps it (Story 0.12): the start ends ready, its log holds one WARN Demo line right after STEP Demo OK, and the
-#     status mark demoKept holds the note;
+#     status mark demoKept holds the note, with its how field (what was kept and how to remove it by hand);
 #   - row 4: recreated, with the same surfaces as row 1.
 # Story 0.10's QA pass (DW-37) adds the states that only a foreign or partial start reaches, as fixtures inside rows 3 and 4 with no
 # restart: each builds its own state, calls the step's Run() in OCUTALON, checks the answer and the state, and removes the state.
@@ -190,6 +190,12 @@ foreign_sentence='Namespace OCUORDERS exists and uses databases that OcuTalon di
 running_sentence='The production ZzOcuForeign.Production is in namespace OCUORDERS and is not stopped, so the Demo step leaves it alone.'
 defined_sentence='The production ZzOcuForeign.Production is in namespace OCUORDERS, so the Demo step leaves it alone.'
 
+# The how field of the note, the owner's sentence: what was kept, from the facts that the kept sentence names, and how to remove it
+# by hand. Each is written out in full, so that a check cannot follow a change of the step's wording.
+foreign_how='OcuTalon left the OCUORDERS namespace in place because it holds databases that OcuTalon did not create. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.'
+running_how='OcuTalon left the OCUORDERS namespace in place because it holds the production ZzOcuForeign.Production, which is not stopped. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.'
+defined_how='OcuTalon left the OCUORDERS namespace in place because it holds the production ZzOcuForeign.Production. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal.'
+
 demo_run='Set home=$Namespace,$Namespace="OCUTALON" Set sc=##class(OcuTalon.Install.Step.Demo).Run() Set $Namespace=home'
 
 # fixture_class <name> < class text: puts a fixture class into the container's /tmp, where a session loads it.
@@ -209,12 +215,12 @@ foreign_state() {
     "Write !,\"CHK|$1|\",fp,\"|\",maps,\"|\",\$Data(^%SYS(\"Ensemble\",\"InstalledNamespace\",\"OCUORDERS\")),\"|\",(\$Get(q(\"Resources\"))[\"OCUORDERS\"),\"|\",rs.%GetData(1)"
 }
 
-# kept_note: the ObjectScript lines (for OCUTALON) that print CHK|note|<text>|<namespace>|<globals>|<routines> from the status mark
-# demoKept, or CHK|note|<absent> when the mark has no row.
+# kept_note: the ObjectScript lines (for OCUTALON) that print CHK|note|<text>|<namespace>|<globals>|<routines>|<how> from the status
+# mark demoKept, or CHK|note|<absent> when the mark has no row.
 kept_note() {
   printf '%s\n' \
     'Set note=##class(OcuTalon.Data.StatusMark).Get("demoKept")' \
-    'If note="" { Write !,"CHK|note|<absent>" } Else { Set o=##class(%DynamicAbstractObject).%FromJSON(note) Write !,"CHK|note|",o.text,"|",o.namespace,"|",o.globals,"|",o.routines }'
+    'If note="" { Write !,"CHK|note|<absent>" } Else { Set o=##class(%DynamicAbstractObject).%FromJSON(note) Write !,"CHK|note|",o.text,"|",o.namespace,"|",o.globals,"|",o.routines,"|",o.how }'
 }
 
 # own_access <label>: the ObjectScript lines (for OCUTALON) that print CHK|<label>|<trace application /ocutalon/trace/ocuorders exists>|
@@ -301,7 +307,7 @@ else
 fi
 check_kept_log "row 3" "$foreign_sentence"
 check_session "row 3: the start recorded the note of the kept OCUORDERS, and the foreign namespace is as it was (matrix row 11)" OCUTALON \
-  "CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE
+  "CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE|$foreign_how
 CHK|kept|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
   "$(kept_note)" \
   'Set $Namespace="%SYS"' \
@@ -341,7 +347,7 @@ check_session "demo mode off keeps a foreign OCUORDERS exactly as it was, warns,
   "CHK|cleared|1|
 CHK|run|1|
 CHK|warn|1|$foreign_sentence
-CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE
+CHK|note|$foreign_sentence|OCUORDERS|OCUFOREIGN_DATA|OCUFOREIGN_CODE|$foreign_how
 CHK|off|OCUFOREIGN_DATA/OCUFOREIGN_CODE|000000|0|0|0|0" \
   'Set cleared=##class(OcuTalon.Data.StatusMark).Record("demoKept","") Write !,"CHK|cleared|",$SYSTEM.Status.IsOK(cleared),"|",##class(OcuTalon.Data.StatusMark).Get("demoKept")' \
   "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
@@ -524,7 +530,7 @@ check_session "demo mode off keeps OCUORDERS while another production runs there
 CHK|grantee-seed|1|1
 CHK|run|1|
 CHK|warn|1|$running_sentence
-CHK|note|$running_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
+CHK|note|$running_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE|$running_how
 CHK|own|0|0|0|0
 CHK|inside|1|1
 CHK|grantee|1
@@ -552,7 +558,7 @@ CHK|foreign-stopped|1|2
 CHK|grantee-seed|1|1
 CHK|run|1|
 CHK|warn|1|$defined_sentence
-CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
+CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE|$defined_how
 CHK|own|0|0|0|0
 CHK|inside|1|1
 CHK|grantee|1
@@ -666,7 +672,7 @@ check_log "row 4" "$tmp/expected.row4"
 check_ready_state "row 4"
 check_kept_log "row 4" "$defined_sentence"
 check_session "row 4: the last start kept OCUORDERS and the foreign definition, recorded the note, and removed OcuTalon's own access only (matrix row 12)" OCUTALON \
-  "CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE
+  "CHK|note|$defined_sentence|OCUORDERS|OCUORDERS_DATA|OCUORDERS_CODE|$defined_how
 CHK|own|0|0|0|0
 CHK|kept|1|1|1|1|1" \
   "$(kept_note)" \
