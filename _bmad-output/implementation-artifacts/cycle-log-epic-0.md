@@ -325,3 +325,4 @@
 2026-10-21T02:41:40Z	Story 0.12	dev_complete	spawn_at=2026-10-21T02:08:15Z model=claude-sonnet-5-5 build_sha=5cba5e0 baseline_revision=5047cd2 review_loop_iteration=1 followup_review_recommended=false deferred=1 files=3 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=2 note=rework_DW-44;harvested_DW-45(10.2),DW-46(14.2)
 2026-10-21T02:41:40Z	Epic 0	ledger_routed_planned	story=10-2,14-2 entries=2 excess=0 by=harvest dw=DW-45,DW-46
 2026-10-21T02:41:40Z	Epic 0	planner_message_received	from=Contest_Planner topic=owner_decisions_relayed(items_1_revised_Lane_A_takes_16.1,16.3,16.7,16.10;2_demo_path_first_hardening_epics;3_plan_during_CI_rule;4_hold_after_the_Epic_0_merge) action=queued_after_Epic_0_close
+2026-10-21T02:42:03Z	Story 0.12	stage_spawned	stage=code-review spawn_at=2026-10-21T02:42:03Z model=claude-opus-5-5 agent_name=0-12-code-review-2 cycle_iteration=2 note=re-review_of_the_rework_diff_5047cd2..5cba5e0
