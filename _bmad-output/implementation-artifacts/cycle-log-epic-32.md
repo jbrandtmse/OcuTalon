@@ -83,3 +83,7 @@
 2026-10-21T19:52:00Z	Story 32.2	ci_resolved	story=32.2 sha=b5eeb26 runs=39657913372,39657913346 result=success failed=none via=none resolved_at=next_plan first_ci=infra attempts=2
 2026-10-21T19:52:00Z	Story 32.2	ci_check	part1=pass(every_group_ran_in_full;each_job_What_changed_logged_GROUP_and_run=true_reason=3_input_paths_since_e73b33c) part2=pending(a_real_skip_on_a_later_push_that_touches_only_some_inputs)
 2026-10-21T19:52:00Z	Story 32.3	stage_spawned	stage=implement spawn_at=2026-10-21T19:52:00Z model=claude-sonnet agent_name=32-3-every-iris-job-finishes-in-about-ten-minutes-implement-1 cycle_iteration=1 story_base=cebafa3
+2026-10-21T20:13:06Z	Story 32.3	dev_complete	spawn_at=2026-10-21T19:52:00Z model=claude-sonnet build_sha=2a44c89 baseline_revision=6960adb story_base=6960adb review_loop_iteration=0 followup_review_recommended=false deferred=0 loc_added=59 loc_removed=11 files=2 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
+2026-10-21T20:13:06Z	Story 32.3	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-10-21T20:13:06Z	Story 32.3	runtime_lock_acquired	lock=runtime stage=qa
+2026-10-21T20:13:13Z	Story 32.3	stage_spawned	stage=qa spawn_at=2026-10-21T20:13:13Z model=claude-sonnet agent_name=32-3-every-iris-job-finishes-in-about-ten-minutes-qa-1 cycle_iteration=1
