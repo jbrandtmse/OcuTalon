@@ -15,3 +15,7 @@
 2026-10-21T13:46:51Z	Epic 1-16,29-32	spine_updated	ad=AD-29,AD-33 reason=readiness_gate by=orchestrator story=none lint=baseline(4_low_catalog_placeholders)
 2026-10-21T13:46:51Z	Epic 1-16,29-32	owner_decision	id=launch-rel4 via=contest_planner by=owner(delegated_in_session:work_it_out_with_the_planner) answer=owner_fixed_REL-4_line:12_runner_services_on_ocutalon-ci-b_and_-c
 2026-10-21T13:46:51Z	Epic 1-16,29-32	deps_approved	hash=aa3da78f4e579e7eefc7c806a9927763020600b04808339e0f7687a5fce313c4 epics=20 approved_by=Contest_Planner(owner-delegated) change=story_waits_29.4:[5,7],31.3:[12,15] analyzed_by=claude-opus-5-5
+2026-10-21T13:47:48Z	Epic 1-16,29-32	unattended_started	run=20261021T1347Z-1-16,29-32 policy=7969e52 doctrine=3d11cec range=1-16,29-32 ci=gh visibility=PRIVATE notify=push lock_token=1792590456-71885 mode=orchestrator max_parallel=2
+2026-10-21T13:47:48Z	Epic 1-16,29-32	spine_counter_seeded	next=34
+2026-10-21T13:47:48Z	Epic 1-16,29-32	ledger_counter_seeded	next=48
+2026-10-21T13:48:24Z	Epic 1-16,29-32	ci_green_verified	runs=39611000037,39611000041 head=143ff70 result=success purpose=dispatch note=bookkeeping-only_commit_on_top_stays_local_until_the_next_push
