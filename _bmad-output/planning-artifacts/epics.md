@@ -497,7 +497,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-17: Epic 18 (settings page)
 - FR-18: Epic 12 (pairing by QR code); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
 - FR-19: Epic 12 (unknown codes and bare /start); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
-- FR-20: Epic 12 (conversation, notifications and approvals in Telegram); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
+- FR-20: Epic 12 (conversation, notifications and approvals in Telegram); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3); Epic 31 (the paired chat under load, Story 31.4) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: Epic 31 added]
 - FR-21: Epic 12 (Telegram optional); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
 - FR-22: Epic 12 (one poller per bot); Epic 10 (session side, switched off until the release includes Telegram, Story 10.3)
 - FR-23: Epic 5 (watch a production from the chat); Epic 30 (the stopped-production and disabled-item findings) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
@@ -547,7 +547,7 @@ Epics are numbered in dispatch order, except Epics 29 to 32 (below). Two `/epic-
 
 **The October 20 rebalance** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]. The demo path comes first, and the online demo lands by November 1; 0.1.0 and Telegram's 0.1.1 follow, around November 3 to 4, so 0.1.0 is no longer due October 30. Three epics were added at the end of the list, and each lane dispatches them where its order below puts them:
 
-- **Epic 29** (Lane A), the online demo's platform side: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, as Stories 29.1 to 29.4. Lane B keeps the rest of Epic 16.
+- **Epic 29** (Lane A), the online demo's platform side: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, as Stories 29.1 to 29.4. Lane B keeps the rest of Epic 16. [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: superseded by the October 21 launch fix below; Epic 29 is Lane B's, after Epic 16, and keeps Stories 29.3 and 29.4]
 - **Epic 30** (Lane A) and **Epic 31** (Lane B), post-demo hardening: the parts of the demo-path epics' stories that the owner moved after the demo path. They stay in the plan and land before 1.0.0.
 - **Lane A's order:** 1, 3, 5, 7, 9, 11, 12, 30, then 13, 14, 15 and its step epics; Epic 30 may run before Epic 11 while Epic 11 waits for Lane B's Epic 10. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." Epic 29 moved to Lane B; it was 1, 3, 5, 7, 29, 9, 11, 12, 30.]
 - **Lane B's order:** 32, 2, 4, 6, 16, 29, 8, 10, 31, then its step epics. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." it was 32, 2, 4, 6, 8, 10, 16, 31.] [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: Epic 32 (CI throughput) comes first; it was 2, 4, 6, 8, 10, 16, 31.]
@@ -759,7 +759,7 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 ### Epic 29: The online demo's platform side
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, renumbered 29.1 to 29.4.] The online demo's start values and public accounts are in place, each browser's sign-in opens a session it resumes until the reset, the demo host is adapted for the launch, and sessions stay isolated under load, so the online demo lands by November 1. Lane A builds these four stories after its demo-path epics and before Epics 9, 11 and 12. The files they change stay Lane B's, under AD-29's Epic 29 exception; Lane B builds the rest of the online demo in Epic 16. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." Stories 29.1 and 29.2 went back to Epic 16 as Stories 16.1 and 16.3; this epic keeps Stories 29.3 and 29.4, and Lane B builds them right after Epic 16, under AD-29's Epic 29 exception for Story 29.4's load test in `release/`.]
-**Lane:** B. **Depends on:** Epic 16 (Story 29.3 needs Stories 16.5 and 16.6, the busy and maintenance pages and the probe the host serves and runs; Story 29.4 needs Story 16.2, the REL-2 online-demo run, and Story 16.5, the busy text) and Epic 3 (Story 3.8). Story 29.4's paired-chat cases moved to Story 31.4. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Lane A, after Epic 7 (lane order), with story-level edges on Epic 16.] Story 29.3 doesn't wait for Story 11.5, which Story 16.7 did: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. Story 29.4 doesn't wait for Story 11.1: its online-demo run follows the web run's steps, which Story 11.1 turns on.
+**Lane:** B. **Depends on:** Epic 16 (Story 29.3 needs Stories 16.5 and 16.6, the busy and maintenance pages and the probe the host serves and runs; Story 29.4 needs Story 16.2, the REL-2 online-demo run, and Story 16.5, the busy text) and Epic 3 (Story 3.8). Story 29.4's paired-chat cases moved to Story 31.4. Story 29.4 also waits for Lane A's Epics 5 and 7 to merge (its first two criteria need the real watch, incident and fix-approval path), and its real-proxy load case is the author's to run once the host is adapted and the release is deployed [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the story-level wait added]. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Lane A, after Epic 7 (lane order), with story-level edges on Epic 16.] Story 29.3 doesn't wait for Story 11.5, which Story 16.7 did: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. Story 29.4 doesn't wait for Story 11.1: its online-demo run follows the web run's steps, which Story 11.1 turns on.
 **FRs covered:** FR-15 (isolation and load), FR-40 (the gateway's daily cost cap, Story 29.3), FR-59 (the demo host). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: FR-14's resume session and FR-59's public settings and accounts went back to Epic 16 with Stories 16.1 and 16.3.]
 **Also covers:** NFR-15, NFR-23; AD-13, AD-25 (the demo host), AD-29 (its Epic 29 exception, for Story 29.4's load test in `release/`); the 1.0.0 kit. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: AD-4, AD-24, AD-27, UX-DR87 and UX-DR95 went back to Epic 16 with Stories 16.1 and 16.3.]
 
@@ -1507,7 +1507,7 @@ So that I see my own conversation and status, and every change, as soon as it ha
 **When** the page's one live-event service polls `GET /api/v1/events` every 1 to 2 seconds with its session and instance cursors
 **Then** it applies each event idempotently, replacing the entity with the same public `Ref` by the event's full current view, reloads the snapshot when a stream's `seq` skips, and never moves keyboard focus; the same path carries every release-1 event type, from chat messages, decisions and notifications to incident, approval, check, reminder, pairing, status and guide changes (AD-12, UX-DR126, UX-DR149)
 **And** a test publishes an event after the page has loaded and finds it on the page without a reload, and a CI check against the mock on every run finds it there within 2 seconds of being sent; the 19-of-20 figure over real networks is measured in the rehearsal and on the online demo (NFR-9, P30)
-**And** live events older than 24 hours are deleted through `OcuTalon.Live`'s `Purge(daysToKeep)` declaration, which the purge task calls (NFR-19, AD-27)
+**And** live events older than 24 hours are deleted through `OcuTalon.Live`'s `Purge(daysToKeep)` declaration, which the purge task calls (the task arrives with Story 30.2; until it merges, the test calls the declaration directly) (NFR-19, AD-27) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the purge task is Story 30.2's, in Epic 30]
 
 **Given** a returning session
 **When** the page loads
@@ -3204,7 +3204,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **When** `SessionOps` receives a `pair` command (origin `telegram`, from `TelegramIn` through `Commands.Submit`) with a code's hash and a `ChatRef`
 **Then** it compares that hash with the one in the session's `Pairing` row (hashes only, never a code), checks the code's expiry and single use, links the chat to the session, marks the code used, writes a `Pairing` audit entry with no Telegram identity and publishes a `pairing` event; one chat, one session: pairing a chat with a new session leaves its old one, and a session pairing a second chat drops the first, which is told as below (FR-9, FR-18, AD-4, AD-17)
 **And** for an unknown, expired or used code it links nothing and writes the audit entry; for every pair outcome, success included, `SessionOps` returns the outcome and `TelegramIn` turns it into the reply (FR-19, AD-17)
-**And** `OcuTalon.Data.Pairing.RecordChat(chatId, displayName)`, which `TelegramIn` calls directly (never inside a message, AD-4), keeps a chat's Telegram id and display name only in a `Pairing` row, with no session until it pairs, and returns its `ChatRef`; the Core area's `Purge(daysToKeep)` declaration removes old rows without a session (FR-15, FR-19, AD-4, AD-27)
+**And** `OcuTalon.Data.Pairing.RecordChat(chatId, displayName)`, which `TelegramIn` calls directly (never inside a message, AD-4), keeps a chat's Telegram id and display name only in a `Pairing` row, with no session until it pairs, and returns its `ChatRef`; the Core area's `Purge(daysToKeep)` declaration, which the purge task calls (the task arrives with Story 30.2; until it merges, the test calls the declaration directly), removes old rows without a session (FR-15, FR-19, AD-4, AD-27) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the purge task is Story 30.2's, in Epic 30]
 **And** `OcuTalon.Data.Pairing.TakeReplySlot(chatRef)` returns 1 and records the time, atomically, when no reply has gone to that unpaired chat in the past minute, and 0 otherwise; `TelegramIn` calls it before each reply to any other message from an unpaired chat (not to a code, a bare `/start` or `/help`) (FR-19, AD-4)
 
 **Given** `OcuTalon.Data.Pairing.HashCode(code)`
@@ -3218,6 +3218,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **Given** an unlink the chat didn't start: a page Unpair, the chat pairing with another session, or the session pairing a second chat
 **When** `SessionOps` unlinks the chat
 **Then** for a page Unpair or a second chat it sends a `pairing` `Notification` carrying the dropped chat's `ChatRef` and the matching catalog key ("unpaired from the page" or "other chat paired"), so that chat is told; a chat that moves to another session gets that pair's reply instead; and it publishes a `pairing` event to every session whose state changed, the old session too when a chat moves (FR-18, FR-19, AD-4, AD-14, AD-32, UX-DR109)
+**And** `SessionOps` unlinks a chat through Story 16.4's unlink, reusing its `Pairing` audit entry, and this story adds the notice to a dropped chat above (FR-18, AD-4, AD-29) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: Story 16.4, whose `SessionOps.End` removes the pairing, now builds the unlink before this story]
 
 **Given** a signed-in session and a release that includes Telegram (in tests, Epic 0's stub `Included()` returns 1 only while the test-only global `^OcuTalonTest("TelegramIncluded")` is 1, which only `OcuTalon.Test` classes set and the judges' install never has)
 **When** the page calls `POST /api/v1/pairing/code`
@@ -3234,6 +3235,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **Then** `StatusMonitor` and `/state` turn on the `telegramPaused` condition with that time, and turn it off after it (FR-22, AD-12)
 **And** `OcuTalon.Data.StatusMark.RecordTelegram(state, botUserName)` records the Telegram state: `TelegramIn` records `on` with the bot's user name from `getMe` when it starts polling, `rejected` when `getMe` rejects the token, and `off` when it stops, and the Telegram installer step records `off` when it leaves the items disabled (Story 12.1) (FR-21, AD-12)
 **And** `/state` carries a Telegram block (TypeScript interface `TelegramState`): `included` (from `OcuTalon.Channel.Telegram.In.Included()`), `state` (`off`, `on` or `rejected`), `botUserName`, `paired`, `displayName` and `pausedUntil`, so the rail shows no Telegram section while `included` is false; `OcuTalon.Demo.Guide.Compute` reads "Telegram is on" from the same source (included and `on`) (FR-21, FR-22, AD-12)
+**And** this story turns on Story 16.3's `/state` pairing check, which reads the fixture `Pairing` row until this story merges (AD-4, AD-29) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: Epic 10 now runs after Epic 16, so `/state`'s Telegram block arrives after Story 16.3]
 
 **Given** a fixture `TelegramIn` call to `AnswersIn`, synchronous, with channel `telegram`, an approval `Ref`, the action and the press's `ChatRef` (never a chat id)
 **When** `AnswersIn` handles it
@@ -3969,7 +3971,7 @@ So that the IPM install is as durable as the Docker one.
 
 ## Epic 16: Anyone can try the online demo
 
-A visitor opens the online demo with no install and no key, signs in from the splash screen, sees the reset countdown, the busy state when the demo is full and the demo's allowances, and leaves or signs out cleanly; the busy and maintenance pages and the monitoring probe are ready for the demo host, busy refusals are logged per day, and the README leads to the demo. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test moved to Lane A's Epic 29 (Stories 29.1 to 29.4): the public settings and accounts, the session a browser resumes until the reset, the demo host, and isolation under load. Lane B builds the rest here, after Epic 10.]
+A visitor opens the online demo with no install and no key, signs in from the splash screen, sees the reset countdown, the busy state when the demo is full and the demo's allowances, and leaves or signs out cleanly; the busy and maintenance pages and the monitoring probe are ready for the demo host, busy refusals are logged per day, and the README leads to the demo. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test moved to Lane A's Epic 29 (Stories 29.1 to 29.4): the public settings and accounts, the session a browser resumes until the reset, the demo host, and isolation under load. Lane B builds the rest here, after Epic 10.] [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: superseded by the October 21 launch fix. Stories 16.1 and 16.3 are back in this epic, Lane B builds it after Epic 6, Epic 29 keeps Stories 29.3 and 29.4, and the README story is Story 31.3 (was Story 16.10), so the README no longer lands in this epic]
 
 ### Story 16.1: The online demo's settings arrive at start, and its public accounts are safe to publish
 
@@ -3979,7 +3981,7 @@ A visitor opens the online demo with no install and no key, signs in from the sp
 
 As a developer of the online demo,
 I want the online demo's start values in the public settings, its two public accounts guarded against password changes and limited to what they're for, and the read-only credentials in the page's Visual Trace menu,
-So that every later online-demo story, in this epic and in Epic 16, builds on real settings and accounts, and a local or IPM install stays exactly as it is.
+So that every later online-demo story, in this epic and in Epics 29 and 31, builds on real settings and accounts, and a local or IPM install stays exactly as it is. [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: it said "in this epic and in Epic 16", written when this story was Story 29.1 in Epic 29]
 
 **Acceptance Criteria:**
 
@@ -4059,7 +4061,7 @@ So that my conversation, pairing, orders and approval requests stay mine, althou
 
 **Given** a session with a conversation, a paired chat (a fixture pairing, since Telegram is 0.1.1's, Epic 12), demo orders and a pending approval request
 **When** the same browser signs in again before the next reset, after its CSP session ended
-**Then** `OnLogin` finds the row by the reference's hash and attaches the new CSP session to it instead of creating one, the page loads that conversation, orders and approval request, with skeletons until the data arrives, and `/state` returns the fixture pairing; the check that the rail's Telegram card shows it is off until Story 12.7 turns it on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.10] (FR-14, AD-4, AD-29, UX-DR89, UX-DR152)
+**Then** `OnLogin` finds the row by the reference's hash and attaches the new CSP session to it instead of creating one, the page loads that conversation, orders and approval request, with skeletons until the data arrives, and `/state` returns the fixture pairing; until Story 10.3 merges, the test reads the fixture `Pairing` row instead, and Story 10.3 turns on the `/state` check; the check that the rail's Telegram card shows it is off until Story 12.7 turns it on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 16.10] (FR-14, AD-4, AD-29, UX-DR89, UX-DR152) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: `/state`'s Telegram block (`TelegramState`) is Story 10.3's, and Epic 10 now runs after Epic 16]
 **And** new CSP sessions are recognised in the session events, never by a changed `%session.SessionId`; the trace applications don't attach; and a visitor arriving from another site, whose first page load carries no cookie, still resumes on the sign-in POST, so the splash never depends on the cookie (AD-4)
 
 **Given** a cookie whose session row doesn't exist (an unscheduled reset restored the golden copy before the cookie expired), or a browser that never signed in
@@ -4075,7 +4077,7 @@ So that my conversation, pairing, orders and approval requests stay mine, althou
 **When** it signs in once more without a resumable cookie
 **Then** the post-sign-in check ends the new CSP session and creates no session, and the splash shows the field error "Too many new sessions from your network this hour. You can start another at {time}." under **Sign in and start**, which stays enabled and marks no field; a resume from that address still works, because only creations count (FR-15, NFR-15, AD-13, UX-DR36, UX-DR95)
 **And** the address is the right-most `X-Forwarded-For` entry when the request comes from the proxy's address in settings, and the connection's address otherwise; `OcuTalon.Data.AddressCounter` stores it hashed with timestamps; sign-ins that don't come through the proxy, such as the probe's, are exempt (AD-13)
-**And** the counter's area declares a `Purge(daysToKeep)` that the purge task calls, deleting the counter's entries older than an hour (AD-27)
+**And** the counter's area declares a `Purge(daysToKeep)` that the purge task calls (the task arrives with Story 30.2; until it merges, the test calls the declaration directly), deleting the counter's entries older than an hour (AD-27) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the purge task is Story 30.2's, in Epic 30]
 
 - DW-16: Session resolution stays one method (`OcuTalon.Data.Ownership`, Story 2.2, DW-15), which this story extends with the per-sign-in / resume-cookie branch for the shared demo account; a test signs in twice with the shared account and gets two different sessions, each polling only its own events (FR-15, AD-4) (ledger; routed by Contest Planner relay 2026-10-19)
 
@@ -4109,6 +4111,7 @@ So that other visitors can get in while my session waits for me.
 **When** the visitor chooses Sign out
 **Then** a dialog reads "Signing out ends this demo session. Signing in again starts a fresh one." with **Cancel**, which has focus, and **Sign out**; Cancel or Esc closes it and changes nothing (UX-DR30, UX-DR38)
 **And** confirming calls `POST /api/v1/session/end`, which submits `SessionOps.End(SessionRef)` through `CommandsIn`: it removes the pairing (audited), cancels the session's reminders through `ReminderOps`, stops its watches through `WatchOps`, cancels its pending approval requests through `OcuTalon.Bridge.Approval.Cancel`, expires the resume cookie under the same name and path, and ends the CSP session with every application of the sign-in group; the splash then shows, and the next sign-in in that browser starts a fresh session (FR-14, FR-9, AD-1, AD-4, AD-11)
+**And** this story builds `SessionOps`' unlink of a session's pairing with its `Pairing` audit entry, which `SessionOps.End` uses; Story 10.3 then reuses that unlink and audit entry and extends them with the notice to a dropped chat, for the unlinks its criteria name (a page Unpair or a second chat) (FR-14, FR-18, AD-4, AD-29) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before Epic 10, whose Story 10.3 builds the rest of the unlink]
 
 **Given** a test stack with the online-demo start values and a shortened timeout and idle cap
 **When** the tests run
@@ -4179,7 +4182,7 @@ So that a broken online demo is noticed and repaired without waiting for a judge
 **Then** they produce each outcome: a normal run (healthy); a lowered cap (`busy`); a mock scenario answering with the gateway's HTTP 403 "daily cost cap reached" (`capped`); a wrong password (`auth_failed`); and the `Conversation` item disabled (`no_decision`); and the reset stub runs only after the second counted failure in a row (FR-59, REL-4)
 **And** the probe's files hold no host name, address, key or credential, which come from the demo host's configuration (NFR-11, CON-5)
 
-**Story 16.7 moved to Story 29.3**, whole and verbatim, in Lane A's Epic 29 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
+**Story 16.7 moved to Story 29.3**, whole and verbatim, in Lane A's Epic 29 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: Epic 29 is Lane B's from the October 21 launch fix, and Lane B builds it right after this epic].
 
 ### Story 16.8: The page counts down to the reset and waits it out
 
@@ -6087,6 +6090,8 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Lane B builds this story right after Epic 16 merges, so Stories 16.2 and 16.5 are in place when it starts; its load test in `release/` is in Lane A's folder, which AD-29's Epic 29 exception now lets Lane B change for this story; its paired-chat cases moved to Story 31.4, which turns them on once Epics 12 and 29 have merged; Story 29.2's check is Story 16.3's]
 
+[AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: its first two criteria need Lane A's real watch, incident and fix-approval path (Epics 5 and 7), so this story waits for Epics 5 and 7 to merge; its real-proxy load case needs the adapted host (Story 29.3) and the released demo path (Epic 11), so it is the author's to run once the host is adapted and the release is deployed]
+
 As a judge,
 I want my run on the online demo kept apart from every other visitor's, even when the demo is full,
 So that what I see is my own work.
@@ -6336,6 +6341,10 @@ So that no IRIS job runs much longer than the others, and CI's wall-clock time f
 **When** the story is done
 **Then** it records the new group list, the measured per-group times and the CI capacity: two hosts, `ocutalon-ci-b` (8 vCPU / 16 GB, services 3–8) and `ocutalon-ci-c` (8 vCPU / 16 GB, services 9–14), 12 runner services in all; the original `ocutalon-ci` host and its services 1–2 were retired on 2026-10-21 [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: capacity corrected after the scale-out]. This replaces Rule 21's "two services share one host" with measured facts only.
 
+**Given** AD-22's "CI as built" in the spine and Rule 21's group list in `_bmad/custom/skill-rules.md`
+**When** this story merges
+**Then** both name the six IRIS groups: `install-fresh` and `install-upgrade` in place of `install`, with `production`, `browser`, `shards` and `image` (REL-4, AD-22) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: a new criterion; both still name the five groups].
+
 ### Story 32.2: An IRIS group runs only when something it tests changed
 
 As the author,
@@ -6354,8 +6363,9 @@ So that small or one-lane pushes don't spend runner time on groups they can't af
 - the workflow itself.
 **And** `ci/changes.sh` decides, per group, whether the push changed anything that matches.
 **And** the `browser` group (the demo path) treats any product source change as its input, so the demo-path test never skips when product code changed (REL-2).
+**And** a change under `web/` runs every group whose units check the built web bundle, not only `browser`; the story's plan lists those groups from `ci/units.sh` and the live scripts rather than assuming them (REL-2, AD-22) [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: a change under `web/` was assumed to run only `browser`].
 
-**Given** a push whose changes match none of a group's inputs, compared with the newest commit on the same branch whose push run succeeded
+**Given** a push whose changes match none of a group's inputs, compared with AD-22's base: the newest commit in HEAD's history whose push run of the same workflow succeeded, on whatever branch it ran (HEAD itself on a re-run of a green run), as `ci/changes.sh` finds it [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the base was "the newest commit on the same branch whose push run succeeded"]
 **When** CI runs
 **Then** that group's job starts and skips its own steps, never the workflow's, and concludes `success` with a log line naming the reason ("no input changed since <sha>"). The workflow still runs, so the kit's CI gate sees every workflow conclude.
 
@@ -6366,5 +6376,5 @@ So that small or one-lane pushes don't spend runner time on groups they can't af
 **Given** the change detection
 **When** `docker/tests/test-ci-changes.sh` runs in the hosted `checks` job
 **Then** it covers each group's pattern with at least one changed path that runs the group and one that skips it, including:
-- a web-only change that skips `install-fresh`, `install-upgrade`, `production` and `image`, but runs `browser`;
+- a web-only change that runs `browser` and every other group the plan lists as checking the built web bundle, and skips the rest [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: it skipped `install-fresh`, `install-upgrade`, `production` and `image`];
 - a change under `ci/` that runs every group.

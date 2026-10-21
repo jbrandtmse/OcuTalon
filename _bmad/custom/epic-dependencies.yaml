@@ -15,7 +15,7 @@
 #     waiting_on) and continues with independent work; it is re-dispatched once that epic has merged.
 #   - Epic 11 may change either lane's files (AD-29): its stories that touch files of the in-flight Lane B epic wait
 #     until that epic merges (contended paths).
-epics_md_hash: "4e69108d1679c862549bf480d6dbb56fd108df97857f20ef8e7cf512f45e42c0"
+epics_md_hash: "aa3da78f4e579e7eefc7c806a9927763020600b04808339e0f7687a5fce313c4"
 analyzed_by: claude-opus-5-5
 approved: true
 approved_at: "2026-10-21"
@@ -88,7 +88,8 @@ epics:
   epic-10: {lane: B, depends_on: [epic-8], submodules: [], paths_hint: *lane_b}
   epic-16: {lane: B, depends_on: [epic-6, epic-3], submodules: [], paths_hint: *lane_b}        # epic-3: Story 3.8; 16.4 uses a ReminderOps double until 8.4
   epic-29: {lane: B, depends_on: [epic-16, epic-3], submodules: [], paths_hint: [web/e2e/demo-path/**, epic_29_exception],
-            note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing depends on Epic 29's merge."}
+            story_waits: {"29.4": [epic-5, epic-7]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: story_waits added]
+            note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing in Lane A depends on Epic 29's merge; Story 31.4 waits on it."}   # [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: it said "Nothing depends on Epic 29's merge"]
   epic-31: {lane: B, depends_on: [epic-10], submodules: [], paths_hint: *lane_b,
-            story_waits: {"31.3": epic-15, "31.4": [epic-12, epic-29]},   # 31.3 was 16.10; 31.4 holds 29.4's paired-chat cases
-            note: "Story 31.3's measurement after launch needs the launched online demo (the owner's) and parks; Story 31.2 uses fixtures until 30.3."}
+            story_waits: {"31.3": [epic-12, epic-15], "31.4": [epic-12, epic-29]},   # 31.3 was 16.10; 31.4 holds 29.4's paired-chat cases [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: 31.3 was epic-15 alone; its Telegram cases need Epic 12, which epic-15's depends_on chain does not include]
+            note: "Story 31.3's measurement after launch needs the launched online demo (the owner's) and parks; Story 31.2 uses fixtures until 30.3. Epic 31 merges only after Story 31.3, which needs the launched online demo, which follows 0.1.1; so the WebSocket (Story 31.1) cannot reach the integration branch before 0.1.0 is cut, and release 1 stays on polling (the owner-fixed rule)."}   # [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the sentence on when Epic 31 merges added]

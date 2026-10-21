@@ -18,7 +18,7 @@ owner_fixed:
   - The finish state appears only after an approved, resolved run (P24).
   - Claude Haiku 5.5 is the default model, with max_tokens 8,000 and no sampling parameters.
   - The demo allowance is 50 messages an hour per session, and 20 simulated emails an hour.
-  - REL-4's CI budget is 35 minutes. If a run exceeds it after the groups are rebalanced, the owner adds a third self-hosted runner service (an owner action).
+  - "REL-4's CI budget is 35 minutes. If a run exceeds it after the groups are rebalanced, the owner adds CI capacity (an owner action). Since 2026-10-21 there are 12 runner services on ocutalon-ci-b and ocutalon-ci-c, after the owner's decisions to scale out and retire the original host. [AMENDED 2026-10-21, capacity fact updated, relayed by the Contest Planner]"
   - No plain-IRIS CI run. IRIS for Health is the tested image; the README says plain IRIS is supported, verified on ARM64.
   - The x-ocutalon-mockkey header is sent only with the CI-only setting OCUTALON_MOCK_KEY_HEADER=1.
 stage_preamble: "One iris_execute_tests call per message, never two in the same message; pass server and namespace on every IRIS MCP call (Rule 21)."
