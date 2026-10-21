@@ -311,3 +311,6 @@
 2026-10-20T23:17:50Z	Epic 0	spine_updated	ad=AD-3,AD-18,AD-23,AD-32,seed_table reason=clarification by=lead story=0-12-epic-0-burn-down lint=ok note=one_form,keep_path_access_removal,demoKept,Warn/WARN_line,StatusMark.Record/Get
 2026-10-20T23:17:50Z	Epic 0	planner_message_sent	to=Contest_Planner topic=0.12_owner-only_status_note_wording_and_VETO_FYIs(keep_path_access_removal,reused_sentences)
 2026-10-20T23:17:51Z	Story 0.12	stage_spawned	stage=implement spawn_at=2026-10-20T23:17:51Z model=claude-sonnet-5-5 agent_name=0-12-implement-1 cycle_iteration=1
+2026-10-21T00:47:12Z	Story 0.12	dev_complete	spawn_at=2026-10-20T23:17:51Z model=claude-sonnet-5-5 build_sha=294f81f baseline_revision=56ea3de review_loop_iteration=0 followup_review_recommended=true deferred=0 files=16 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 ci=pending run=39523373710(ci),39523373715(lane-a) note=DW-9_cause_inference(no_repro_in_10);install-start_181-216s_on_ARM(REL-4_watch)
+2026-10-21T00:47:12Z	Story 0.12	protocol_violation	fault=implement rule=22.8 what=teardown_and_shard_run_in_sequence_in_one_Bash_call reported=self impact=none(nothing_was_up)
+2026-10-21T00:47:12Z	Story 0.12	stage_spawned	stage=qa spawn_at=2026-10-21T00:47:12Z model=claude-sonnet-5-5 agent_name=0-12-qa-1 cycle_iteration=1
