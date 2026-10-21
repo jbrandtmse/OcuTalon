@@ -4,6 +4,7 @@ type: 'chore'
 created: '2026-10-21'
 status: 'done'
 baseline_revision: '7f7a191ad77f253a4502007fba883e1a0a7b9baa'
+baseline_commit: '7f7a191ad77f253a4502007fba883e1a0a7b9baa'
 review_loop_iteration: 0
 followup_review_recommended: true
 context: []
