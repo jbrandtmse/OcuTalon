@@ -360,3 +360,5 @@
 2026-10-21T05:32:22Z	Story 0.12	committed	sha=ee676cc submodules= ci=success run=39547633328(ci),39547633289(lane-a) head=dd7c6e0
 2026-10-21T05:32:22Z	Epic 0	ci_green_verified	run=39547633328,39547633289 head=dd7c6e0
 2026-10-21T05:32:22Z	Epic 0	epic_status_done	stories=12 note=set_on_the_feature_branch_after_the_merge
+2026-10-21T05:33:48Z	Epic 0	epic_merged_to_feature	merge=67989bb feature=feature/OCT_OcuTalon_MVP head=5c4b48e ci=success(run=39550130633,lane-a=39550130642) verified=origin_merge-base epic_branch=deleted(local_and_remote)
+2026-10-21T05:33:48Z	Epic 0	hold_complete	reason=owner_decision_4(hold_after_the_Epic_0_merge_until_the_kit_upgrade) items_1_2=5ef07b7 item_3=c9abce4 ci_gate_fix=80e8f46 merge=67989bb feature_green=5c4b48e throwaways_up=none lanes_dispatched=none prompt=.worktrees/.coordination/prompts/lanes-dispatch-resume-2026-10-21-prompt.md
