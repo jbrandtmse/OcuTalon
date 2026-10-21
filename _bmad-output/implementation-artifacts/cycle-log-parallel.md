@@ -30,3 +30,5 @@
 2026-10-21T14:35:07Z	Epic 1	runner_clarification	story=1-1 kind=contended_path path=docker/tests/test-production.sh:274-295 shas=892196f,55084a4,c395613,e50e2b4(verified)
 2026-10-21T14:35:07Z	Epic 1	ruling	question=story_1.1_needs_a_2-line_fixture_edit_in_lane_B_docker/tests/test-production.sh(the_runner_that_resolves_no_model_check)_after_seeding_Model_defaults choice=a:footprint_extension_for_story_1.1 rejected=b:story_1.1_waits_for_lane_B(no_lane_B_epic_plans_this_file;_waiting_stalls_lane_A_for_nothing) why=fixture_only,keeps_the_check_intent(a_runner_that_resolves_no_model_still_fails_the_start),epic_32_specs_do_not_touch_the_file,a_conflict_at_integrate-forward_is_a_plain_union category=decide policy=7969e52
 2026-10-21T14:35:07Z	Epic 1	runner_resumed	message=ruling_a_footprint_extension
+2026-10-21T15:50:31Z	Epic 32	inbox_answer_routed	item=U-1 at=2026-10-21T15:49:47Z#6 by=Contest_Planner quote=a to=epic-32(live_runner) apply_at=next_story_boundary
+2026-10-21T15:50:31Z	Epic 1	inbox_items_seen	items=U-2,U-3 kind=veto story=1-1 pointer=contest_planner
