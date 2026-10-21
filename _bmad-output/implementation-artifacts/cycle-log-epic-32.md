@@ -114,3 +114,8 @@
 2026-10-21T22:02:41Z	Epic 32	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=1.33 unresolved_high_med_avg=0.33 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=4 result=hold applied=false gate=record_only
 2026-10-21T22:02:41Z	Epic 32	epic_retro_skipped	reason=policy
 2026-10-21T22:02:41Z	Epic 32	retro_review_skipped	reason=handled_by_epic_1 note=as_logged_at_epic_start
+2026-10-21T22:05:53Z	Epic 32	ci_resolved	story=none sha=c132b0a runs=39683564292,39683564248 result=success failed=none via=none resolved_at=epic_close
+2026-10-21T22:05:53Z	Story 32.2	ci_check	part2=pass run=39683564292 sha=c132b0a all_six_iris_jobs_skipped_their_steps(iris_<group>_skipped:_no_input_changed_since_e366e33)_and_concluded_success
+2026-10-21T22:05:53Z	Epic 32	smoke_complete	scope=integrated_tree method=cli result=pass evidence=ci/checks.sh_all_passed;ports_3=52813,9=52819,10=52809,14=52805;six_groups;changes.sh_real_API_base=c132b0a_all_skip note=IRIS_units_CI-verified_on_the_identical_source_tree(e366e33,run_39675383146) model=claude-opus-5-5
+2026-10-21T22:05:53Z	Epic 32	integrated_forward	feature=143ff70 head=c132b0a conflicts_resolved=none merge=already_up_to_date
+2026-10-21T22:05:53Z	Epic 32	epic_runner_complete	stories_completed=3
