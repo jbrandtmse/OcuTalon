@@ -1,7 +1,7 @@
 /// Tests of the cross-lane table contracts (Story 0.4): every OcuTalon.Data and OcuTalon.Bridge.Data table, and the live
 /// event table, has exactly its contract, its default global is its registry row's and resolves to the private
 /// database, no persistent class projects an SQL reserved word, and the Delivery stubs refuse and find nothing. The
-/// tests create no rows.
+/// tests create no rows, but for the fixture mark of TestStatusMarkRecord, which the test removes.
 Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 {
 
@@ -89,6 +89,54 @@ Method TestDeliveryStubs()
 	Do $$$AssertStatusNotOK(sc, "Record returns an error status")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "not implemented yet", "the error says it is not implemented yet")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval("zz", "web", "zz"), "", "FindByApproval returns an empty string")
+}
+
+/// Record creates or replaces the row of a mark with RecordedAt in UTC to the second, Get reads the value ("" with no row),
+/// an empty value deletes the row, and an empty mark is an error status that names it. The fixture mark is ZzStatusMark<n>, with
+/// n from ^OcuTalonTest("StatusMark","n"), which is never reset; the rows of every ZzStatusMark mark are removed first, and the
+/// test's own at the end.
+Method TestStatusMarkRecord()
+{
+	Set class = "OcuTalon.Data.StatusMark"
+	Set mark = "ZzStatusMark"_$Increment(^OcuTalonTest("StatusMark", "n"))
+	Do ..RemoveStatusMarks()
+	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "", "a mark with no row reads as empty")
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, "v"), "Record creates the row")
+	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "v", "Get reads the value")
+	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, "w"), "Record replaces the value")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "w", "Get reads the new value")
+	Do $$$AssertEquals(..StatusMarkRows(mark), 1, "one row holds the mark")
+	Set row = $ClassMethod(class, "MarkIndexOpen", mark)
+	Set recorded = $Select($IsObject(row): row.RecordedAt, 1: "")
+	Set shaped = (recorded ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z")
+	Do $$$AssertTrue(shaped, "RecordedAt is UTC to the second: "_recorded)
+	Do $$$AssertTrue(((recorded = before) || (recorded ] before)) && ((recorded = after) || (after ] recorded)), "RecordedAt is the time of the call: "_recorded)
+	Kill row
+	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, ""), "Record with an empty value succeeds")
+	Do $$$AssertEquals($ClassMethod(class, "Get", mark), "", "Get is empty after an empty value")
+	Do $$$AssertEquals(..StatusMarkRows(mark), 0, "an empty value deletes the row")
+	Do $$$AssertStatusOK($ClassMethod(class, "Record", mark, ""), "an empty value for a mark with no row succeeds")
+	Set sc = $ClassMethod(class, "Record", "", "v")
+	Do $$$AssertStatusNotOK(sc, "an empty mark is an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "mark is empty", "the error names the empty mark")
+	Do $$$AssertEquals($ClassMethod(class, "Get", ""), "", "Get of an empty mark is empty")
+	Do ..RemoveStatusMarks()
+}
+
+/// The number of rows of a mark.
+ClassMethod StatusMarkRows(mark As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.StatusMark WHERE Mark = ?", mark)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
+/// Deletes the rows of every fixture mark, ZzStatusMark and a number.
+ClassMethod RemoveStatusMarks() [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.StatusMark WHERE Mark %STARTSWITH 'ZzStatusMark'")
 }
 
 /// The registry rows of src/short-names.tsv that the tests check, as a dynamic array of {"short","global","class"}.

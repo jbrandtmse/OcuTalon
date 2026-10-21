@@ -3,7 +3,9 @@
 /// reminders, the status banners and their actions, the sign-in page's texts and the audit line. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
-///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix}.
+///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
+///    "one": {"slot": a count slot, "text": the form for that slot being 1, "web": the page wording of the form}}.
+/// The form of "one" holds every declared slot but its own, and OcuTalon.Msg.Catalog uses it when that slot is 1.
 /// The slot types are time, count, noun, text, sentence, channel, fallbackReason, groups and cost. OcuTalon.Msg.Catalog
 /// reads the block and is the only renderer. Each key prefix lives in one catalog class; a Lane B story adds its keys here.
 Class OcuTalon.Msg.Catalog.Core
@@ -124,8 +126,33 @@ XData Entries [ MimeType = application/json ]
    "channel": "channel",
    "time": "time"
   },
-  "source": "EXPERIENCE Incidents and Approvals / Approval request states / Already answered",
-  "gap": "The UX fixes only the approved form of the late-press answer; the form for an answer that rejected the request and the 'by {user}' form are not fixed."
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / Already answered"
+ },
+ "answered.alreadyRejected": {
+  "text": "Already answered: rejected from {channel} at {time}.",
+  "slots": {
+   "channel": "channel",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Already answered, rejected"
+ },
+ "answered.alreadyApprovedBy": {
+  "text": "Already answered: approved by {user} from {channel} at {time}.",
+  "slots": {
+   "user": "text",
+   "channel": "channel",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Already answered, with a user"
+ },
+ "answered.alreadyRejectedBy": {
+  "text": "Already answered: rejected by {user} from {channel} at {time}.",
+  "slots": {
+   "user": "text",
+   "channel": "channel",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Already answered, with a user"
  },
  "conversation.turnFallback": {
   "text": "I couldn't answer that: {fallbackReason}. Nothing was changed.",
@@ -345,6 +372,21 @@ XData Entries [ MimeType = application/json ]
   "text": "You were signed out. Sign in again to continue.",
   "slots": {},
   "source": "EXPERIENCE State Patterns / Session ended (local)"
+ },
+ "signIn.userLabel": {
+  "text": "User name",
+  "slots": {},
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Sign-in page labels"
+ },
+ "signIn.passwordLabel": {
+  "text": "Password",
+  "slots": {},
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Sign-in page labels"
+ },
+ "signIn.showPassword": {
+  "text": "Show password",
+  "slots": {},
+  "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Sign-in page labels"
  },
  "audit.recorded": {
   "text": "Recorded in the IRIS audit log.",

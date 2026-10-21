@@ -5,7 +5,8 @@
 ///     for the value "1";
 ///   - TestWithOrders: the OCUORDERS database resources are added with Read, or removed, and nothing else changes;
 ///   - TestDirectory: both database directories are below the manager directory;
-///   - TestPlan: the action for each of the eight combinations of mode, existence and ownership, with the refusal text;
+///   - TestPlan: the action for each of the eight combinations of mode, existence and ownership, with the refusal text, or
+///     with the same sentence as the kept note where the action is keep;
 ///   - TestOwned: a namespace that the step did not create is not owned.
 /// The demo.mode row is saved in OnBeforeAllTests (absent, or its value and UpdatedAt) and put back in OnAfterAllTests.
 Class OcuTalon.Test.Demo.Step Extends %UnitTest.TestCase
@@ -101,16 +102,17 @@ Method TestDirectory()
 Method TestPlan()
 {
 	Set refusal = "Namespace OCUORDERS exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone."
-	Set table = $ListBuild("0,0,0,remove", "0,0,1,remove", "0,1,0,leave", "0,1,1,remove", "1,0,0,create", "1,0,1,create", "1,1,0,error", "1,1,1,create")
+	Set table = $ListBuild("0,0,0,remove", "0,0,1,remove", "0,1,0,keep", "0,1,1,remove", "1,0,0,create", "1,0,1,create", "1,1,0,error", "1,1,1,create")
 	Set position = 0
 	While $ListNext(table, position, row) {
-		Set action = $ClassMethod(..#STEP, "Plan", $Piece(row, ",", 1), $Piece(row, ",", 2), $Piece(row, ",", 3), .sc)
+		Set action = $ClassMethod(..#STEP, "Plan", $Piece(row, ",", 1), $Piece(row, ",", 2), $Piece(row, ",", 3), .sc, .kept)
 		Do $$$AssertEquals(action, $Piece(row, ",", 4), "on "_$Piece(row, ",", 1)_", exists "_$Piece(row, ",", 2)_", owned "_$Piece(row, ",", 3)_" is "_$Piece(row, ",", 4))
 		If action = "error" {
 			Do $$$AssertEquals($SYSTEM.Status.GetErrorText(sc), "ERROR #5001: "_refusal, "the refusal text")
 		} Else {
 			Do $$$AssertStatusOK(sc, "no refusal for "_$Piece(row, ",", 4))
 		}
+		Do $$$AssertEquals(kept, $Select(action = "keep": refusal, 1: ""), "kept is the refusal's sentence for keep and empty otherwise")
 	}
 }
 

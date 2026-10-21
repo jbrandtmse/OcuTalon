@@ -90,7 +90,11 @@ XData Entries [ MimeType = application/json ]
    "resendCount": "count"
   },
   "source": "EXPERIENCE Message Catalog / Incident notice with approval request",
-  "gap": "The UX fixes only the plural 'repaired copies'; the text renders it for a resend count of 1 too."
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
  },
  "incident.laterRequest": {
   "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend {resendCount} repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
@@ -106,7 +110,11 @@ XData Entries [ MimeType = application/json ]
    "resendCount": "count"
   },
   "source": "EXPERIENCE Message Catalog / Later approval request in the same incident",
-  "gap": "The UX fixes only the plural 'repaired copies'; the text renders it for a resend count of 1 too."
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
  },
  "incident.fallback": {
   "text": "{count} {itemNoun} failed since {time}. I couldn't work out the cause ({fallbackReason}), so I'm not proposing a fix. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page.",
@@ -147,7 +155,10 @@ XData Entries [ MimeType = application/json ]
    "itemNoun": "noun"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / All went through",
-  "gap": "The UX fixes no singular form for one item; the text renders 'All 1 order went through.'"
+  "one": {
+   "slot": "count",
+   "text": "The {itemNoun} went through."
+  }
  },
  "result.failedAgain": {
   "text": "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}). I won't retry them without a new approval.",
@@ -159,7 +170,10 @@ XData Entries [ MimeType = application/json ]
    "failReason": "text"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Some failed again",
-  "gap": "The UX fixes only the plural wording for several messages ('them', 'they need'); the text renders it for one message too."
+  "one": {
+   "slot": "failedAgain",
+   "text": "{completed} of {count} {itemNoun} went through. 1 failed again ({failReason}). I won't retry it without a new approval."
+  }
  },
  "result.skipped": {
   "text": "{completed} of {count} {itemNoun} went through. {skipped} had changed since the dry run, so I skipped them; they need a new approval.",
@@ -170,7 +184,10 @@ XData Entries [ MimeType = application/json ]
    "skipped": "count"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Some skipped",
-  "gap": "The UX fixes only the plural wording for several messages ('them', 'they need'); the text renders it for one message too."
+  "one": {
+   "slot": "skipped",
+   "text": "{completed} of {count} {itemNoun} went through. 1 had changed since the dry run, so I skipped it; it needs a new approval."
+  }
  },
  "result.failedAndSkipped": {
   "text": "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and {skipped} had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.",
@@ -183,7 +200,10 @@ XData Entries [ MimeType = application/json ]
    "skipped": "count"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Some failed again and some skipped",
-  "gap": "The UX fixes only the plural wording for several messages ('them', 'they need'); the text renders it for one message too."
+  "one": {
+   "slot": "skipped",
+   "text": "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval."
+  }
  },
  "result.stillResending": {
   "text": "Still resending: {completed} of {count} {itemNoun} have gone through so far. I'll tell you when it's done.",
@@ -193,7 +213,10 @@ XData Entries [ MimeType = application/json ]
    "completed": "count"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Still running after the wait",
-  "gap": "The UX fixes only the plural verb; the text renders 'have gone through' for one message too."
+  "one": {
+   "slot": "completed",
+   "text": "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done."
+  }
  },
  "result.interrupted": {
   "text": "The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.",
@@ -204,7 +227,10 @@ XData Entries [ MimeType = application/json ]
    "remaining": "count"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Cut off by a restart",
-  "gap": "The UX fixes only the plural verb; the text renders 'need' for one message too."
+  "one": {
+   "slot": "remaining",
+   "text": "The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval."
+  }
  },
  "result.couldNotStart": {
   "text": "Nothing was resent: {reason}. Nothing was changed.",

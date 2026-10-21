@@ -5,7 +5,9 @@
 ///   - Grants() declares roles and what they hold, which the Roles step composes;
 ///   - Reconcile() re-arms the area's waiters and rows, which the Reconcile step calls;
 ///   - Tasks() declares scheduled tasks, which the Tasks step creates once;
-///   - Purge() removes the area's old records for the purge task (AD-27).
+///   - Purge() removes the area's old records for the purge task (AD-27);
+///   - Warn(text) records a warning of the running step, which the registry prints after the step's own line as
+///     WARN <step> <text>; outside the registry the warnings stay with the caller until it takes them with TakeWarnings().
 Class OcuTalon.Install.Step [ Abstract ]
 {
 
@@ -41,6 +43,28 @@ ClassMethod Tasks() As %DynamicArray
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
 	Quit $SYSTEM.Status.OK()
+}
+
+/// Records one warning line of the running step, in a process-private global; a carriage return or a line feed in the text
+/// becomes a space. A step that succeeds and has something to say calls this and returns OK. The registry takes the lines
+/// after each step and writes them; code that runs a step on its own takes them with TakeWarnings.
+ClassMethod Warn(text As %String)
+{
+	Set ^||OcuTalonStepWarnings($Increment(^||OcuTalonStepWarnings)) = $Translate(text, $Char(13, 10), "  ")
+}
+
+/// The recorded warning lines in the order they were recorded, as a list ("" when there are none), and clears them.
+ClassMethod TakeWarnings() As %List
+{
+	Set lines = ""
+	Set n = ""
+	For {
+		Set n = $Order(^||OcuTalonStepWarnings(n), 1, line)
+		Quit:n=""
+		Set lines = lines _ $ListBuild(line)
+	}
+	Kill ^||OcuTalonStepWarnings
+	Quit lines
 }
 
 }

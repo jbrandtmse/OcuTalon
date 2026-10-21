@@ -2,13 +2,13 @@ Include (Ensemble, %sySecurity)
 
 /// The Demo step (AD-3, AD-23): with demo mode on it creates the namespace OCUORDERS, enables Interoperability there,
 /// adds the OCUORDERS trace application and the trace role's OCUORDERS grants, and starts OcuTalon.Demo.Orders.Production.
-/// With demo mode off it removes everything it created. It runs at every start in its place in the registry's order, and
-/// again whenever Story 4.1 switches demo mode.
+/// With demo mode off it removes everything it created, and keeps an OCUORDERS that it did not create (below). It runs at
+/// every start in its place in the registry's order, and again whenever Story 4.1 switches demo mode.
 ///   - The mode is the product setting demo.mode ("1" is on). The step seeds it at every run, with 1 where the image's
 ///     version file exists (the Docker install) and 0 where it does not (an IPM install), and never overwrites a row.
 ///   - It creates only what is missing and never recreates a database file that exists. It owns the namespace OCUORDERS
 ///     whose default destinations are its own two directories (below the manager directory), the objects named below, and
-///     nothing else: a foreign OCUORDERS makes the on path fail and the off path leave it alone.
+///     nothing else: a foreign OCUORDERS makes the on path fail and the off path keep it.
 ///   - OCUORDERS has the code database OCUORDERS_CODE and the data database OCUORDERS_DATA, with the resources
 ///     %DB_OCUORDERS_CODE and %DB_OCUORDERS_DATA (no public permission). Its package mappings give it OcuTalon.Demo.Orders
 ///     (OCUTALON_CODE) and the two public packages and the public global (OCUTALON_PUBLIC). Interoperability is enabled with
@@ -17,6 +17,14 @@ Include (Ensemble, %sySecurity)
 ///   - Off removes the namespace, both databases with their directories, the mappings, the web applications of the
 ///     namespace, its Interoperability markers and role, its SQL privileges, its resources and the trace role's OCUORDERS
 ///     grants. Each removal runs only when its object exists, so the off path does nothing when nothing is there.
+///   - Off keeps an OCUORDERS that is not the step's own (its databases are foreign), and one in which another production is
+///     defined or is not stopped. It deletes, stops, starts and changes nothing inside it: its namespace, databases and files,
+///     mappings, Interoperability markers and role, productions and other web applications stay. It removes only OcuTalon's own
+///     access: the trace application, the trace role's OCUORDERS database grants and its SQL privileges in the namespace
+///     (AD-24). It then warns (Install.Step.Warn) with the sentence of the on path's refusal, records the status mark
+///     demoKept (OcuTalon.Data.StatusMark), whose value is the JSON {"text","namespace","globals","routines"} with the
+///     sentence and the namespace's default databases, and returns OK, so the start ends ready. A create or a remove that
+///     succeeds clears the mark, and an error leaves it as it was.
 /// The step switches namespace in two methods, each with New $NAMESPACE: System (to %SYS) and Orders (to OCUORDERS). Neither
 /// calls a method of this class while it is in its target namespace, because OcuTalon.* classes resolve in neither; System
 /// returns to the caller's namespace for the one pure call it needs.
@@ -38,6 +46,9 @@ Parameter CODEDB = "OCUORDERS_CODE";
 /// The data database of the namespace.
 Parameter DATADB = "OCUORDERS_DATA";
 
+/// The status mark that holds the note of a kept OCUORDERS; absent when the last run created or removed.
+Parameter KEPTMARK = "demoKept";
+
 /// The file that exists only in OcuTalon's image: it tells the Docker install from an IPM install.
 Parameter VERSIONFILE = "/opt/ocutalon/version";
 
@@ -50,12 +61,15 @@ Parameter STOPSECONDS = 30;
 /// The job statuses that mean a job does not run.
 Parameter DEADSTATUSES = "error,halted,terminated";
 
-/// Applies the mode: "create" makes the demo and starts its production, "remove" removes it, "leave" and "error" do
-/// nothing (see Plan). The seed is written before the plan is made; a seed that cannot be written throws its error (Mode),
-/// which Install.Registry's RunStep reports as a failed step.
+/// Applies the mode: "create" makes the demo and starts its production, "remove" removes it, "keep" leaves the namespace and
+/// removes only OcuTalon's access to it, and "error" does nothing (see Plan). The seed is written before the plan is made; a
+/// seed that cannot be written throws its error (Mode), which Install.Registry's RunStep reports as a failed step. A kept
+/// namespace (from Plan, or from Orders(0) for another production) is warned about and recorded as the mark demoKept, and
+/// Run returns OK; a create or a remove that succeeds deletes the mark.
 ClassMethod Run() As %Status
 {
-	Set action = ..Plan(..Mode(), ##class(%SYS.Namespace).Exists(..#NAMESPACE), ..Owned(), .sc)
+	Set exists = ##class(%SYS.Namespace).Exists(..#NAMESPACE)
+	Set action = ..Plan(..Mode(), exists, ..Owned(), .sc, .kept)
 	If action = "create" {
 		Set sc = ..System(1)
 		If $$$ISOK(sc) {
@@ -65,30 +79,44 @@ ClassMethod Run() As %Status
 		If $$$ISOK(sc) Set sc = ..Orders(1)
 	} ElseIf action = "remove" {
 		Set sc = $$$OK
-		If ##class(%SYS.Namespace).Exists(..#NAMESPACE) && ##class(%Library.EnsembleMgr).IsEnsembleNamespace(..#NAMESPACE) {
-			Set sc = ..Orders(0)
+		If exists && ##class(%Library.EnsembleMgr).IsEnsembleNamespace(..#NAMESPACE) {
+			Set sc = ..Orders(0, .kept)
 		}
-		If $$$ISOK(sc) Set sc = ..System(0)
+		If $$$ISOK(sc) && (kept = "") Set sc = ..System(0)
 	}
-	Quit sc
+	If $$$ISERR(sc) Quit sc
+	If kept '= "" {
+		Set sc = ..System(0, kept, .note)
+		If $$$ISERR(sc) Quit sc
+		Do ..Warn(kept)
+		Quit ##class(OcuTalon.Data.StatusMark).Record(..#KEPTMARK, note)
+	}
+	Quit ##class(OcuTalon.Data.StatusMark).Record(..#KEPTMARK, "")
 }
 
 /// What to do, from the mode and the state of the namespace. Pure.
 ///   - on, and the namespace exists but is not the step's own: "error", with sc the refusal;
 ///   - on otherwise: "create";
-///   - off, and the namespace exists but is not the step's own: "leave";
-///   - off otherwise: "remove", which also cleans the step's own leftovers when the namespace is gone.
-ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output sc As %Status) As %String
+///   - off, and the namespace exists but is not the step's own: "keep", with kept the sentence of the refusal;
+///   - off otherwise: "remove", which also cleans the step's own leftovers when the namespace is gone. Orders(0) may still
+///     turn it into a keep.
+/// kept is "" except for "keep".
+ClassMethod Plan(on As %Boolean, exists As %Boolean, owned As %Boolean, Output sc As %Status, Output kept As %String) As %String
 {
 	Set sc = $$$OK
+	Set kept = ""
+	Set foreign = "Namespace "_..#NAMESPACE_" exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone."
 	If on {
 		If exists && 'owned {
-			Set sc = $$$ERROR($$$GeneralError, "Namespace "_..#NAMESPACE_" exists and uses databases that OcuTalon did not create, so the Demo step leaves it alone.")
+			Set sc = $$$ERROR($$$GeneralError, foreign)
 			Quit "error"
 		}
 		Quit "create"
 	}
-	If exists && 'owned Quit "leave"
+	If exists && 'owned {
+		Set kept = foreign
+		Quit "keep"
+	}
 	Quit "remove"
 }
 
@@ -152,11 +180,16 @@ ClassMethod Owned(namespace As %String = {..#NAMESPACE}) As %Boolean
 
 /// Creates (on) or removes (off) everything of the step that lives in %SYS and in the CPF. Runs in %SYS, where only the
 /// system classes resolve. Every action is idempotent.
-ClassMethod System(on As %Boolean) As %Status [ Private ]
+/// With keep (the sentence of the warning) given, off keeps the namespace: it deletes only the trace application, the trace
+/// role's OCUORDERS database grants and its SQL privileges in the namespace, and returns in note the JSON
+/// {"text": keep, "namespace", "globals", "routines"}, the last two being the namespace's default databases.
+ClassMethod System(on As %Boolean, keep As %String = "", Output note As %String) As %Status [ Private ]
 {
 	Set home = $Namespace
 	Set ns = ..#NAMESPACE
 	Set role = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
+	Set traceApp = ##class(OcuTalon.Install.Step.Web).TraceApp(ns)
+	Set note = ""
 	Set publicGlobal = ##class(OcuTalon.Data.Public.Settings).#GLOBALNAME
 	Set dirs(..#CODEDB) = ..Directory(..#CODEDB)
 	Set dirs(..#DATADB) = ..Directory(..#DATADB)
@@ -252,10 +285,15 @@ ClassMethod System(on As %Boolean) As %Status [ Private ]
 		Quit sc
 	}
 	#; Off: applications first, then the grants, the namespace, the markers, the SQL privileges, the databases, the resources.
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Path FROM Security.Applications WHERE NameSpace = ?", ns)
-	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the web applications of "_ns_": "_rs.%Message)
-	While rs.%Next() {
-		Set apps(rs.%Get("Name")) = rs.%Get("Path")
+	#; Keep: the trace application, the grants and the trace role's SQL privileges only, then the note.
+	If keep '= "" {
+		If ##class(Security.Applications).Exists(traceApp) Set apps(traceApp) = ""
+	} Else {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Path FROM Security.Applications WHERE NameSpace = ?", ns)
+		If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the web applications of "_ns_": "_rs.%Message)
+		While rs.%Next() {
+			Set apps(rs.%Get("Name")) = rs.%Get("Path")
+		}
 	}
 	Set portalDir = ##class(%File).NormalizeDirectory($SYSTEM.Util.DataDirectory()_"csp/"_$ZConvert(ns, "L"))
 	Set app = ""
@@ -285,22 +323,25 @@ ClassMethod System(on As %Boolean) As %Status [ Private ]
 			If $$$ISERR(sc) Quit sc
 		}
 	}
-	If ##class(Config.Namespaces).Exists(ns) {
-		Set sc = ##class(Config.Namespaces).Delete(ns)
-		If $$$ISERR(sc) Quit sc
-	}
-	If $Data(^%SYS("Ensemble", "InstalledNamespace", ns)) {
-		Set sc = ##class(%Library.EnsembleMgr).DisableNamespace(ns)
-		If $$$ISERR(sc) Quit sc
-	}
-	Set interopRole = $$$InteropNSRole(ns)
-	If ##class(Security.Roles).Exists(interopRole) {
-		Set sc = ##class(Security.Roles).Delete(interopRole)
-		If $$$ISERR(sc) Quit sc
+	If keep = "" {
+		If ##class(Config.Namespaces).Exists(ns) {
+			Set sc = ##class(Config.Namespaces).Delete(ns)
+			If $$$ISERR(sc) Quit sc
+		}
+		If $Data(^%SYS("Ensemble", "InstalledNamespace", ns)) {
+			Set sc = ##class(%Library.EnsembleMgr).DisableNamespace(ns)
+			If $$$ISERR(sc) Quit sc
+		}
+		Set interopRole = $$$InteropNSRole(ns)
+		If ##class(Security.Roles).Exists(interopRole) {
+			Set sc = ##class(Security.Roles).Delete(interopRole)
+			If $$$ISERR(sc) Quit sc
+		}
 	}
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Namespace, SQLObject, Privilege, Grantee, Grantor FROM Security.SQLPrivileges WHERE Namespace = ?", ns)
 	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the SQL privileges of "_ns_": "_rs.%Message)
 	While rs.%Next() {
+		If (keep '= "") && (rs.%Get("Grantee") '= role) Continue
 		Set privs($Increment(privs)) = $ListBuild(rs.%Get("Namespace"), rs.%Get("SQLObject"), rs.%Get("Privilege"), rs.%Get("Grantee"), rs.%Get("Grantor"))
 	}
 	For i = 1:1:+$Get(privs) {
@@ -308,6 +349,13 @@ ClassMethod System(on As %Boolean) As %Status [ Private ]
 		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
+	If keep '= "" {
+		Kill props
+		Set sc = ##class(Config.Namespaces).Get(ns, .props)
+		If $$$ISERR(sc) Quit sc
+		Set note = {"text": (keep), "namespace": (ns), "globals": ($Get(props("Globals"))), "routines": ($Get(props("Routines")))}.%ToJSON()
+		Quit $$$OK
+	}
 	#; Databases, innermost directory first: those whose directory is a step directory or below one.
 	Set rs = ##class(%ResultSet).%New("Config.Databases:List")
 	Set sc = rs.Execute()
@@ -390,11 +438,13 @@ ClassMethod System(on As %Boolean) As %Status [ Private ]
 ///     definition of its own); another production that is running, Troubled or Suspended is an error and nothing is stopped.
 ///     Then it polls once a second, up to WAITSECONDS, until the production runs and every enabled item with a pool has an
 ///     alive job that is not in error, halted or terminated.
-///   - off: another production that is not stopped, or any other production defined in the namespace, is an error, and
-///     nothing is stopped or removed; otherwise a running or Troubled production of this name is stopped (STOPSECONDS,
-///     forced).
-ClassMethod Orders(on As %Boolean) As %Status [ Private ]
+///   - off: another production that is not stopped, or any other production defined in the namespace, is not touched: kept
+///     is set to the sentence that says so, nothing is stopped, started or removed, and the status is OK (the caller keeps
+///     the namespace); otherwise a running or Troubled production of this name is stopped (STOPSECONDS, forced).
+/// kept is "" unless the off path keeps the namespace. The on path's refusal of another production keeps its error.
+ClassMethod Orders(on As %Boolean, Output kept As %String) As %Status [ Private ]
 {
+	Set kept = ""
 	Set ns = ..#NAMESPACE
 	Set production = ..#PRODUCTION
 	Set role = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
@@ -406,7 +456,10 @@ ClassMethod Orders(on As %Boolean) As %Status [ Private ]
 	Set sc = ##class(Ens.Director).GetProductionStatus(.name, .state)
 	If $$$ISERR(sc) Quit sc
 	If (name '= "") && (name '= production) && ((state = $$$eProductionStateRunning) || (state = $$$eProductionStateTroubled) || (state = $$$eProductionStateSuspended)) {
-		Quit $$$ERROR($$$GeneralError, "The production "_name_" is in namespace "_ns_" and is not stopped, so the Demo step leaves it alone.")
+		Set message = "The production "_name_" is in namespace "_ns_" and is not stopped, so the Demo step leaves it alone."
+		If on Quit $$$ERROR($$$GeneralError, message)
+		Set kept = message
+		Quit $$$OK
 	}
 	If on {
 		If $SYSTEM.SQL.Security.CheckPrivilege(role, 1, "Ens.MessageHeader", "s") '= 1 {
@@ -460,7 +513,10 @@ ClassMethod Orders(on As %Boolean) As %Status [ Private ]
 	}
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Name FROM Ens_Config.Production WHERE Name <> ?", production)
 	If rs.%SQLCODE < 0 Quit $$$ERROR($$$GeneralError, "The Demo step could not list the productions of "_ns_": "_rs.%Message)
-	If rs.%Next() Quit $$$ERROR($$$GeneralError, "The production "_rs.%Get("Name")_" is in namespace "_ns_", so the Demo step leaves it alone.")
+	If rs.%Next() {
+		Set kept = "The production "_rs.%Get("Name")_" is in namespace "_ns_", so the Demo step leaves it alone."
+		Quit $$$OK
+	}
 	If (name = production) && ((state = $$$eProductionStateRunning) || (state = $$$eProductionStateTroubled)) {
 		Set sc = ##class(Ens.Director).StopProduction(stop, 1)
 		If $$$ISERR(sc) Quit sc

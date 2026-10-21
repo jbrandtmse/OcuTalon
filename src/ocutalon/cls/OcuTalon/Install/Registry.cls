@@ -37,6 +37,8 @@ ClassMethod Areas() As %List
 
 /// Runs every step in the order, in the namespace OCUTALON only. Writes one line per step:
 /// STEP <name> OK <seconds>s, or STEP <name> FAILED <text> for the first step that fails, which stops the run.
+/// A step's warnings (Install.Step Warn) are discarded before it runs and written after its line, one line each:
+/// WARN <name> <text>.
 /// caller names the entry point ("after-start", "ipm") in the refusal of another namespace.
 ClassMethod Run(caller As %String = "") As %Status
 {
@@ -47,13 +49,20 @@ ClassMethod Run(caller As %String = "") As %Status
 	Set position = 0
 	Set sc = $SYSTEM.Status.OK()
 	While $ListNext(order, position, name) {
+		Do ##class(OcuTalon.Install.Step).TakeWarnings()
 		Set started = $ZHorolog
 		Set sc = ..RunStep(name)
 		If $$$ISERR(sc) {
 			Write !, "STEP ", name, " FAILED ", ..OneLine(sc)
-			Quit
+		} Else {
+			Write !, "STEP ", name, " OK ", $FNumber($ZHorolog - started, "", 1), "s"
 		}
-		Write !, "STEP ", name, " OK ", $FNumber($ZHorolog - started, "", 1), "s"
+		Set warnings = ##class(OcuTalon.Install.Step).TakeWarnings()
+		Set warning = 0
+		While $ListNext(warnings, warning, line) {
+			Write !, "WARN ", name, " ", line
+		}
+		If $$$ISERR(sc) Quit
 	}
 	Quit sc
 }

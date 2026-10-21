@@ -16,6 +16,33 @@ Property RecordedAt As %String(MAXLEN = 20);
 
 Index MarkIndex On Mark [ Unique ];
 
+/// Creates or replaces the row of the mark, with the value and RecordedAt (UTC, to the second). An empty value deletes the
+/// row, and a mark that has none is an error status that names the empty mark.
+ClassMethod Record(mark As %String, value As %String) As %Status
+{
+	If $Get(mark) = "" Quit $SYSTEM.Status.Error(5001, "A status mark needs a name: the mark is empty")
+	Set row = ..MarkIndexOpen(mark)
+	If $Get(value) = "" {
+		If $IsObject(row) Quit ..%DeleteId(row.%Id())
+		Quit $SYSTEM.Status.OK()
+	}
+	If '$IsObject(row) {
+		Set row = ..%New()
+		Set row.Mark = mark
+	}
+	Set row.Value = value
+	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit row.%Save()
+}
+
+/// The value of the mark, or "" when it has no row.
+ClassMethod Get(mark As %String) As %String
+{
+	If $Get(mark) = "" Quit ""
+	Set row = ..MarkIndexOpen(mark)
+	Quit $Select($IsObject(row): row.Value, 1: "")
+}
+
 Storage Default
 {
 <Data name="StatusMarkDefaultData">

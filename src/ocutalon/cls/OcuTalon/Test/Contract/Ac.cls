@@ -299,6 +299,8 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Time", "method": "ForMessage", "args": "utc,now", "returns": "%String"},
  {"class": "OcuTalon.Data.Setting", "method": "Get", "args": "key,default", "returns": "%String"},
  {"class": "OcuTalon.Data.Setting", "method": "Seed", "args": "key,value", "returns": "%Status"},
+ {"class": "OcuTalon.Data.StatusMark", "method": "Record", "args": "mark,value", "returns": "%Status"},
+ {"class": "OcuTalon.Data.StatusMark", "method": "Get", "args": "mark", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Write", "args": "type,data,description", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Events", "args": "", "returns": "%List"},
  {"class": "OcuTalon.Channel.Telegram.In", "method": "Included", "args": "", "returns": "%Boolean"},

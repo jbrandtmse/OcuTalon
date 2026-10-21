@@ -2,9 +2,10 @@
 title: 'Story 0.12: Epic 0 burn-down'
 type: 'feature'
 created: '2026-10-20'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '56ea3de33c333569fc041ee85b9a20cb614dd4c7'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
 deferred: []
@@ -179,27 +180,27 @@ Where the rows run:
 **Execution:**
 
 *Task 0 (measure first; each command is under Verification):*
-- [ ] **0.1** Check slot A's identity with `iris_server_info`: build 154, port 1990.
-- [ ] **0.2 (DW-9, before the fix).** Run `OcuTalon.Test.Install.Users` on slot A 10 times, one call each. Record each result and the fixture number (`^OcuTalonTest("Users","n")`, read-only). The cause is `(inference)` until then: either two runs sharing `ZzUsers1`, or a read soon after the create.
-- [ ] **0.3 (DW-42).** In the first throwaway run of `live install-start`, confirm that `Ens.Config.Production.LoadFromClass("ZzOcuForeign.Production")` in OCUORDERS defines the production without starting it, so that the off path's `Ens_Config.Production` query finds it `(inference)`. If it doesn't, stage task 14's last fixture with the existing start-then-stop sequence (L391–431), and record that in the Spec Change Log.
+- [x] **0.1** Check slot A's identity with `iris_server_info`: build 154, port 1990.
+- [x] **0.2 (DW-9, before the fix).** Run `OcuTalon.Test.Install.Users` on slot A 10 times, one call each. Record each result and the fixture number (`^OcuTalonTest("Users","n")`, read-only). The cause is `(inference)` until then: either two runs sharing `ZzUsers1`, or a read soon after the create.
+- [x] **0.3 (DW-42).** In the first throwaway run of `live install-start`, confirm that `Ens.Config.Production.LoadFromClass("ZzOcuForeign.Production")` in OCUORDERS defines the production without starting it, so that the off path's `Ens_Config.Production` query finds it `(inference)`. If it doesn't, stage task 14's last fixture with the existing start-then-stop sequence (L391–431), and record that in the Spec Change Log.
 
 *DW-41: the catalog.*
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog.cls` -- choose the count-of-one form.
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog.cls` -- choose the count-of-one form.
   - In `Build`, between `ParseSlots` and `Fill`: when the entry has `one`, read `one.slot` with `Count`, so the slot is validated even when the form isn't used.
   - When it is 1, fill `one.web` (on channel `web`, where the entry has `web`) or `one.text`, in place of the entry's text.
   - A `one` that isn't an object, or whose `slot` isn't a declared `count` slot, is an error naming the key.
   - Add `one` to the entry grammar in the class comment: the form used when that slot is 1, whose text holds every declared slot but its own.
   - Rationale: `Render` picks the form, so producers pass the slots as they are (AD-32).
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- remove the `gap` field from the 8 entries and give each its `one` (Design Notes, "The forms").
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- remove the `gap` field from the 8 entries and give each its `one` (Design Notes, "The forms").
   - `incident.withFix` and `.laterRequest` also get `one.web`: their `web`, with the same sentence replaced.
   - Rationale: owner decision 1.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` -- the new keys.
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` -- the new keys.
   - Remove `answered.alreadyApproved`'s `gap`.
   - After it, add `answered.alreadyRejected`, `answered.alreadyApprovedBy` and `answered.alreadyRejectedBy`.
   - After `signIn.signedOut`, add `signIn.userLabel`, `signIn.passwordLabel` and `signIn.showPassword`.
   - Texts, slots and `source` strings are under Design Notes, "The new Core entries". Add `one` to the class comment's entry shape.
   - Rationale: owner decision 1; each key in its producer's lane's class.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- rows 1–10; `TestCountOfOneForms` is the pinning test of the forms.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- rows 1–10; `TestCountOfOneForms` is the pinning test of the forms.
   - **The entry rules:**
     - `ENTRYFIELDS` gains `one`, and `Problems` checks row 10's `one` rules;
     - `TestEntries` expects 63 and 22 keys and "0 keys carry a gap", with `Gaps` emptied to `[]`.
@@ -215,28 +216,28 @@ Where the rows run:
     - for the slot at 0 and at 2, the plural fragment row 8 names;
     - exactly 8 entries carry `one`;
     - row 1's refusals of `resendCount`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls` -- row 10.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls` -- row 10.
   - Move `USERLABEL`, `PASSWORDLABEL` and `SHOWPASSWORD` from `notInUx` to `compared` under `OcuTalon.Web.Public.Login`, as `signIn.userLabel`, `signIn.passwordLabel` and `signIn.showPassword`. `notInUx` becomes `{}`.
   - The counts become 11 compared, 0 not in the UX and 19 not texts.
   - Rationale: the public package itself is unchanged.
 
 *DW-42: keep, warn, note, ready.*
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step.cls` -- add `ClassMethod Warn(text As %String)` and `ClassMethod TakeWarnings() As %List`.
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step.cls` -- add `ClassMethod Warn(text As %String)` and `ClassMethod TakeWarnings() As %List`.
   - `Warn` records one warning line of the running step in a process-private global, with CR and LF made spaces.
   - `TakeWarnings` returns the recorded lines in order and clears them.
   - The contract comment says that the registry prints them, and that outside the registry they stay with the caller until taken.
   - Rationale: the one warning path for steps; 3.7 reuses it for DW-10.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Registry.cls` -- in `Run`, print each step's warnings.
+- [x] `src/ocutalon/cls/OcuTalon/Install/Registry.cls` -- in `Run`, print each step's warnings.
   - Discard any warnings before each step.
   - After the step's `STEP <name> OK <s>s` or `FAILED` line, write one `WARN <name> <text>` line per warning taken.
   - Update the method comment.
   - Rationale: row 16. The after-start log keeps the whole transcript, and `log_steps` reads only STEP and RESULT lines, so every existing log pin holds.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/StatusMark.cls` -- add `ClassMethod Record(mark As %String, value As %String) As %Status` and `ClassMethod Get(mark As %String) As %String`.
+- [x] `src/ocutalon/cls/OcuTalon/Data/StatusMark.cls` -- add `ClassMethod Record(mark As %String, value As %String) As %Status` and `ClassMethod Get(mark As %String) As %String`.
   - `Record` creates or replaces the row, with `RecordedAt` = `OcuTalon.Data.Time.NowUtc()`. An empty value deletes the row, and an empty mark is an error status.
   - `Get` returns the value, or "" when there is no row.
   - Methods only; the storage block is unchanged.
   - Rationale: the note's home (Rule 22 ruling); 10.3 builds `RecordTelegram` on `Record`.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` -- rows 11–15 (AD-3 as amended, AD-24).
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` -- rows 11–15 (AD-3 as amended, AD-24).
   - **`Parameter KEPTMARK = "demoKept"`.**
   - **`Plan(on, exists, owned, Output sc, Output kept)`:**
     - off with a namespace the step doesn't own gives `keep`, with `kept` the foreign sentence;
@@ -256,22 +257,22 @@ Where the rows run:
     - after a create or a remove that succeeds, it calls `Record(..#KEPTMARK, "")`;
     - an error leaves the mark as it was.
   - **Comments.** Update the class comment and those of `Plan` and `Orders`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/Step.cls` -- in `TestPlan`, the row `0,1,0` is `keep`, with `kept` the foreign sentence; every other row has `kept` "". Update the header.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/Step.cls` -- in `TestPlan`, the row `0,1,0` is `keep`, with `kept` the foreign sentence; every other row has `kept` "". Update the header.
   - Rationale: row 11's decision, tested on a slot.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls` -- row 16.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls` -- row 16.
   - **`TestRun`:**
     - a fixture step `ZzRunWarn<n>` whose body calls `Warn("Fixture warning <n>")` and returns OK, with the number written into the body (`@N@` is replaced before `@BODY@`);
     - it runs as `$ListBuild(warn, last)`, and the test checks row 16's lines and their order, then that `TakeWarnings()` is "";
     - the fixture step is deleted with the others.
   - **`TestStepDefaults`:** `Warn("a")` and `Warn("b")`, then `TakeWarnings()` gives `$ListBuild("a","b")`, and then "".
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- new `TestStatusMarkRecord` for row 17.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- new `TestStatusMarkRecord` for row 17.
   - Its fixture mark is `ZzStatusMark<n>`, from a counter `^OcuTalonTest("StatusMark","n")` that is never reset.
   - It deletes any `ZzStatusMark*` rows first, and its own row at the end.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- add two rows to `Signatures`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- add two rows to `Signatures`:
   - `{"class": "OcuTalon.Data.StatusMark", "method": "Record", "args": "mark,value", "returns": "%Status"}`;
   - `{"class": "OcuTalon.Data.StatusMark", "method": "Get", "args": "mark", "returns": "%String"}`.
   - Rationale: Lane A's `TelegramIn` calls `Record` (spine L473).
-- [ ] `docker/tests/test-install-start.sh` -- rows 11–15, with no new restart.
+- [x] `docker/tests/test-install-start.sh` -- rows 11–15, with no new restart.
   - **Header (L17–33):** the foreign states are kept with a warning and a note, and the start ends ready.
   - **Local helpers:**
     - `check_kept_log <label> <sentence>`: in `start_log`, the line right after `STEP Demo OK …` is exactly `WARN Demo <sentence>`, and it is the only `WARN Demo` line;
@@ -292,7 +293,7 @@ Where the rows run:
   - **Unchanged:** every row's expected STEP and RESULT lines.
 
 *DW-9.*
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` -- the fixture and the read.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` -- the fixture and the read.
   - `Clean()` keeps `^OcuTalonTest("Users","n")` and kills only the class's other nodes, so each run's fixture is new.
   - `Account(user, wait)`: `TestEnsureCreates` alone passes `wait` 1. It re-opens the account (killing the handle, then `Exists` again) up to 20 times, 0.1 s apart, until the hash is non-empty.
   - Update the comments.
@@ -308,7 +309,65 @@ Where the rows run:
 
 ## Spec Change Log
 
+**Task 0 measurements** (implement stage, October 20; `(inference)` where stated):
+- **0.1, slot A's identity.** `iris_server_info` on `ocutalon-slot-a` reports `IRIS for UNIX (Ubuntu Server LTS for ARM64 Containers) 2026.3.0AI (Build 154U)`, and the profile roster reports the web port 52790. The call does not report the superserver port, so 1990 is Rule 21's figure `(inference)`.
+- **0.2, DW-9 before the fix.** Ten calls of `OcuTalon.Test.Install.Users` on slot A (run indexes 637 to 646) all passed, with no empty hash. `^OcuTalonTest("Users","n")` read as undefined after every run, because `Clean()` killed it in `OnAfterAllTests`: so the fixture was `ZzUsers1` in every run, by the code. The flake did not reproduce in ten runs, and its cause stays `(inference)`: a read soon after the create, or two runs sharing `ZzUsers1`.
+- **0.3, DW-42, the stopped-foreign fixture.** In the first `live install-start` run, `Ens.Config.Production.LoadFromClass("ZzOcuForeign.Production")` in OCUORDERS returned OK, `SELECT COUNT(*) FROM Ens_Config.Production WHERE Name = ?` found the production (1), and the Orders production kept running, so the foreign production was defined and not started. The last fixture before row 4's final restart uses `LoadFromClass`; the start-then-stop fallback was not needed.
+
+**Rule 22 rulings** (implementation choices that the spec leaves open):
+- Rule 22 ruling: **How `Demo.Run` reaches the keep mode** -> `System(on, keep = "", Output note)`: `keep` is the warning sentence (non-empty means the keep mode) and `note` is the JSON for the mark. The keep mode is the off path of `System` with two filters, so the trace application is deleted by name, the SQL privileges are those of the trace role (a `Continue` in the existing loop), and the namespace, marker and role deletions are skipped. (Rejected: a second %SYS method, which copies the grant and privilege code (Rule 2); parameterized SQL filters such as `(? = '' OR Name = ?)`, whose empty-string and NULL semantics are not measured.)
+- Rule 22 ruling: **Where the form is chosen in `Catalog`** -> a private `Template(context, entry, field, values)` that `Build` calls in place of `entry.%Get(field)`: it reads the form's slot with `Count` first, and returns the form's `text` or `web` when that slot is 1. (Rejected: inline code in `Build`, which grows past a screen; a public method, which widens AD-32's API for tests.) Its three refusals (a `one` that is not an object, a slot that is not a declared count slot, a form with no text for the channel) are defensive: the shipped catalog cannot reach them because `TestEntries` refuses such an entry, and a private method has no test of its own.
+- Rule 22 ruling: **What pins `TestEntries`' rules for a one form** -> `TestCountOfOneForms` also copies two real entries, sets one fault at a time (an unknown field, an undeclared slot, a slot that is not a count, a text that holds the form's own slot, a text that lacks a declared slot, an empty text, a `web` where the entry has none, a `web` with a placeholder of its own, a form with no `web` where the entry has one, a `one` that is not an object) and asserts that `Problems` names it. (Rejected: leaving the rules unpinned, since a checker that has never been seen red proves nothing.)
+- Rule 22 ruling: **Row 16's failing-step line** -> the fixture step `ZzRunWarn<n>` fails on a flag (`^OcuTalonTest("Registry",n,"warnFails")`) that the test sets for the second run, so one compiled class pins both the WARN line after `STEP ... OK` and the WARN line after `STEP ... FAILED`. (Rejected: a second fixture class, one more compile.)
+- Rule 22 ruling: **`check_demo_off "row 3"` in `test-install-start.sh`** -> it runs after `set_demo_mode 0`, because the on-path refusal fixture leaves demo mode on, and `check_demo_off` reads `demo.mode`. (Rejected: dropping the setting check.)
+- Rule 22 ruling: **Rows 14 and 15 in the live script** -> the first partial-state session records a sentinel mark `demoKept = stale` before the on-path error and expects it unchanged after (row 14); the next off run, which removes, expects the mark absent (row 15); the Troubled-recovery run (a create) expects it absent after a keep had set it. Each session that keeps checks OcuTalon's own access before (`CHK|own-before|1|1|1`) and after (`CHK|own|0|0|0`), so the removal is shown and not assumed. (Rejected: checking only the final absence, which an earlier run could already have caused.)
+- Rule 22 ruling: **The helpers of the live script** -> `demo_run`, `fixture_class` and `foreign_state` move to a new helper section before row 3 (the foreign build now runs before row 3's recreate), beside the new `kept_note`, `own_access` and `check_kept_log` and the three fixed sentences; `foreign_state`'s body is unchanged. (Rejected: copies in both places.)
+- Rule 22 ruling: **`Clean()` of `Test.Install.Users`** -> it kills every node of `^OcuTalonTest("Users")` but the counter `"n"`, as the spec says; the class writes no other node today, so the loop kills nothing yet. (Rejected: dropping the loop, which leaves a later node to survive.)
+
+**Review-pass rulings** (Rule 22; the review patches, October 20):
+- Rule 22 ruling: **Which post-create reads of `Test.Install.Users` wait** -> `TestEnsureCreates` and the `before` read of `TestEnsureKeepsAnExistingAccount` pass `wait` 1; the later reads, which follow a `Modify` of an account whose hash was already read, do not. The task text said `TestEnsureCreates` alone, and the intent contract says "a read that re-opens the account until its hash is there"; the cause of DW-9 is still `(inference)`, so a second create-then-read in the same class has the same exposure, and the wait returns on the first read when the hash is there. (Rejected: the wait as the default of `Account`, which also waits after a hand-made `Modify`; leaving the sibling read unguarded.)
+- Rule 22 ruling: **How the counter's survival is pinned** -> `Clean()` calls a new `ClearNodes()` (the loop that kills every node but `"n"`), and a new `TestClearKeepsTheCounter` seeds a probe node, calls `ClearNodes()` and expects the probe gone and `"n"` equal to the run's number. (Rejected: calling `Clean()` mid-class, which would delete the run's own roles; a cross-run comparison, which one run cannot make.)
+- Rule 22 ruling: **What proves that keep leaves the inside of OCUORDERS alone** -> `inside_state <variable>` in `test-install-start.sh` sets a fingerprint (databases, resources and files, package mappings, Interoperability marker and role, web applications but the trace application, portal folder) before and after the run in both keep fixtures that hold OcuTalon's own OCUORDERS, and prints `CHK|inside|<before = after>|<the portal application is still there>`. (Rejected: literal expected fingerprints, which would need a measurement per machine; a foreign web application seeded into the foreign fixture, which is a new object type for a boundary that the owned-namespace fixtures already pin.)
+- Rule 22 ruling: **Where a stale warning is pinned** -> `TestRun` records a warning before the third run and expects the run's output to hold no such text. (Rejected: a separate test method, one more compile of the fixture steps.)
+
 ## Review Triage Log
+
+### 2026-10-20 — Review pass
+- verdicts: 33 findings — high 0, medium 9, low 18, false 6, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind Hunter 1: `TestEnsureKeepsAnExistingAccount` reads its `before` hash straight after the create, without the DW-9 wait — the same create-then-read as `TestEnsureCreates`, and the cause of DW-9 is `(inference)`, so the exposure is the same; the read now passes `wait` 1 (Rule 22 ruling above).
+  - `[low]` `[reject]` Blind Hunter 2: `Demo.Run` does not clear the process-private warnings on entry — by design: `Step.Warn`'s contract says an untaken warning stays with the caller, 4.1 is specified to call `TakeWarnings`, and clearing at entry would drop a caller's untaken lines; the registry clears before each step.
+  - `[low]` `[reject]` Blind Hunter 3: a failing `StatusMark.Record` after `Warn` fails the step — a failing write to the private database is a failure of the install, not a kept-namespace condition; the note is about 150 characters against the 1000 of `Value`; fixing it adds a branch for no reachable case.
+  - `[low]` `[reject]` Blind Hunter 4: a running Orders production with a foreign production only defined is untested and not mentioned by the note — the behavior is the spec's ruling ("stops and starts no production"), it is not a matrix row, and one more fixture costs REL-4 time.
+  - `[medium]` `[patch]` Blind Hunter 5: `TestCountOfOneForms` cannot tell the validation cases apart — every invalid `resendCount` is also refused by the plural text's own placeholder, so no test pinned `Template`'s own `Count`; the slot of every form is now also refused as the text 1 and as true, which would select the form if the slot were compared raw (mutation recorded). Its three defensive refusals stay untested, as the Rule 22 ruling says (`TestEntries` refuses such an entry first).
+  - `[low]` `[reject]` Blind Hunter 6: `StatusMark.Record` has no lock and does not document the 1000-character limit — its writers are single (the start, one heartbeat); a clash or an over-long value is not reachable today, and a lock is new surface for 10.3 to decide.
+  - `[low]` `[reject]` Blind Hunter 7: rows 1 and 2 do not assert that an ordinary start has no WARN line or mark — the in-session runs that remove or create assert `CHK|warn|0|` and `CHK|note|<absent>`, and the Demo step warns only on the keep path.
+  - `[low]` `[reject]` Edge Case Hunter 1: `Account`'s wait quits on the first miss of `Exists` — the DW-9 symptom was an existing account with an empty hash, and `Ensure` is asserted OK before the read.
+  - `[medium]` `[patch]` Edge Case Hunter 2: the post-create read of `TestEnsureKeepsAnExistingAccount` has no wait — same root cause as Blind Hunter 1, patched together.
+  - `[low]` `[reject]` Edge Case Hunter 3: `StatusMark.Record` race — same root cause as Blind Hunter 6.
+  - `[low]` `[reject]` Edge Case Hunter 4: `Demo.Run` outside the registry leaves warnings — same root cause as Blind Hunter 2.
+  - `[low]` `[reject]` Edge Case Hunter 5: the row 3 recreate no longer is a real start with demo mode off and OCUORDERS absent — the spec moves the foreign build to row 3's recreate, and the no-op is still checked in-session (`check_demo_off "row 3"` after the fixture's removal) and by row 2's start.
+  - `[medium]` `[patch]` Verification Gap 1: "removes only OcuTalon's own access" was observed in one direction — a keep that deleted `/csp/ocuorders` stayed green; both owned-namespace keep fixtures now compare a fingerprint of the inside of OCUORDERS before and after, and the portal application must remain (mutation recorded).
+  - `[medium]` `[patch]` Verification Gap 2: the registry's "discard warnings before each step" had no test — `TestRun` now records a stale warning first and expects it absent (mutation recorded).
+  - `[medium]` `[patch]` Verification Gap 3: DW-9's counter half was unpinned and the recorded mutation went red at `Ensure`, not at the fix — `ClearNodes` and `TestClearKeepsTheCounter` pin the counter (mutation recorded). The wait half cannot be forced to fail: closed as accepted, with the 10-run evidence recorded as weak (the flake did not reproduce before the fix either).
+  - `[low]` `[reject]` Verification Gap 4: three assertions count the test's own literals (`Gaps` size 0, `notInUx` 0, 8 forms) — the spec dictates them, and the assertions that tie them to the real catalog sit next to them.
+  - `[low]` `[reject]` Verification Gap 5: the stopped-foreign fixture's `CHK|own|0|0|0` has no `own-before` — the removal is pinned by the running-foreign fixture and by the last restart, which both read `own-before 1|1|1`.
+  - `[low]` `[patch]` Verification Gap 6: the in-session foreign note equals the note row 3's start wrote — the session now clears the mark first, so the check shows that the run records it.
+  - `[medium]` `[patch]` Verification Gap 7: `TestStepDefaults` expects an empty warning global without clearing it, which depends on `TestRun` — it takes the warnings first.
+  - `[low]` `[reject]` Verification Gap 8: no `mutation:` line for the fresh-environment AC — the AC is shown by the four shard runs, and there is no pinning assertion to mutate.
+  - `[low]` `[patch]` Verification Gap 9: the DW-9 AC's one mutation line does not touch the fix — the counter mutation is recorded under the review pass.
+  - `[low]` `[patch]` Verification Gap 10: no `mutation:` line for the foreign-namespace AC — `Run` without its `Warn` goes red at row 3's `check_kept_log` (recorded).
+  - `[low]` `[reject]` Verification Gap 11: no `mutation:` line for the hosted-checks AC and for matrix rows 14 and 15 — the hosted gate is its own check, and rows 14 and 15 are matrix rows with in-session pins, not ACs.
+  - `[medium]` `[patch]` Verification Gap 12: `TestEnsureKeepsAnExistingAccount` reads without the wait — same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Verification Gap 13: `Template`'s three refusals have no test — same root cause as the second half of Blind Hunter 5; unreachable on a shipped catalog.
+  - `[low]` `[reject]` Intent Alignment 1: the product's `Template` validates less than the test's `Problems` — the product refuses what it cannot render, and `TestEntries` gates the shape of the shipped catalog (row 10).
+  - `[false]` `[reject]` Intent Alignment 2: no product code consumes the new keys yet — the spec says so under Integration ACs; 7.2 and 6.3 are the first consumers.
+  - `[false]` `[reject]` Intent Alignment 3: the sign-in test compares the parameters, not the rendered page — the spec leaves `Login` unchanged, and `Test.Web.SignIn` pins the page.
+  - `[false]` `[reject]` Intent Alignment 4: the keep branch is reached only by the live script — the spec's Rule 21 split; slot A never runs `Demo.Run()`.
+  - `[medium]` `[patch]` Intent Alignment 5: the owned-namespace keep fixtures do not cover the inside of OCUORDERS — same root cause as Verification Gap 1; its other parts (row 13 at a start, the on-path refusal of a running production) share the `Quit sc` path that two other error fixtures already pin.
+  - `[false]` `[reject]` Intent Alignment 6: the WARN line is in the after-start log and not on stdout — the spec's ruling; `after-start.sh` is not to change.
+  - `[false]` `[reject]` Intent Alignment 7: the note holds the facts, not the how-to-remove sentence — the sentence is owner-only (Rule 22.4) and parked in Design Notes for the Contest Planner.
+  - `[false]` `[reject]` Intent Alignment 8: DW-9 changes the test surface only — the spec closes it on evidence and on the test fix; `Users.Ensure` is not at fault.
 
 ## Design Notes
 
@@ -525,7 +584,93 @@ Every test added or changed passes on a fresh environment, in either order.
 - **DW-42, the mark:** `Record` ignores an empty value → `Test.Data.Tables.TestStatusMarkRecord` red.
 - **DW-9:** `Ensure` creates the account with an empty password → `TestEnsureCreates` red at "the account has a password hash", on slot A.
 
+**Implement-stage results** (October 20, all on this checkout; tag `v12a`, `OCUTALON_LOCK_OWNER='epic=0 stage=implement'`):
+- **Slot A, load and units.** `iris_doc_load` with `ck` of the 15 changed classes: no error or warning. `Test.Msg.Catalog` 22 of 22, `Test.Web.PublicTexts` 2 of 2, `Test.Demo.Step` 6 of 6, `Test.Data.Tables` 6 of 6, `Test.Contract.Ac` 6 of 6, `Test.Install.Registry` 11 of 11 and `Test.Install.Users` 4 of 4, each in its own call, none failed or skipped.
+- **DW-9 after the fix (once).** `Test.Install.Users` 10 more times on slot A (run indexes 671 to 680): 10 passes, and `^OcuTalonTest("Users","n")` read 3 before the first and then 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 after each run. No run read an empty hash, and each used a new `ZzUsers<n>`. Both `lane-a` orders below ran on a fresh environment.
+- **Hosted checks and build.** `bash ci/checks.sh` exit 0 (35 s on this machine; every pass), `bash ci/iris.sh build` exit 0.
+- **The live test.** `bash ci/iris.sh live install-start` exit 0 with 94 PASS lines and no FAIL, twice (216 s on the first pass, 181 s on the last; the two mutation runs took 168 s and 188 s). The new checks pass: row 3's kept log, note and unchanged foreign state; the in-session off run; the on refusal with the mark left as it was; the partial-state sentinel; row 4's two keeps with `own-before 1|1|1` and `own 0|0|0`; the Troubled recovery clearing the mark; and the last restart (kept log, note, definition and OCUORDERS kept, access gone). Against the 151 s of Rule 21 this is 30 to 65 s more on this machine `(inference: it includes the machine's variation, and only QA's CI run measures the runner)`; 3 sessions are new and the others grew by lines.
+- **The upgrade (once).** `bash ci/iris.sh live install-upgrade` exit 0, 34 PASS, 168 s.
+- **Fresh-environment check (once).** `shard lane-a` 9 of 9 passed in 55 s and `--reverse` 9 of 9 in 54 s; `shard lane-b` 24 of 24 in 65 s and `--reverse` 24 of 24 in 64 s. No `FAIL` or `SKIP` line.
+- **Teardown.** `bash ci/iris.sh teardown` after each live or shard call: 0 projects, containers, volumes, networks and images left for `-v12a-`.
+
+**Mutations** (Rule 19; each was applied, run, observed red and reverted, and a digest of `git status --short`, `git diff --stat` and `git diff` was equal before and after):
+- mutation: `Build` ignores `one` (`Fill` gets `entry.%Get(field)`) -> `Test.Msg.Catalog:TestCountOfOneForms` red for all 8 keys on all 4 channels (rows 1 to 7); reverted.
+- mutation: `gap` put back on `result.allThrough` -> `TestEntries` red at "0 keys carry a gap"; reverted.
+- mutation: `answered.alreadyRejected` says "approved" -> `TestEveryKeyOnEveryChannel` red on the four channels and the JSON render; reverted.
+- mutation: `signIn.showPassword` is "Show the password" -> `Test.Web.PublicTexts:TestCopiesEqualTheCatalog` red at `Login.SHOWPASSWORD`; reverted.
+- mutation: `Plan` returns "leave" with no `kept` for off, exists, not owned -> `Test.Demo.Step:TestPlan` red at "on 0, exists 1, owned 0 is keep"; reverted.
+- mutation: `Orders(0)` returns its old errors (the not-stopped and the defined-other checks) -> `live install-start` red at both keep fixtures of row 4 (`wanted 'CHK|run|1|'`, `CHK|warn`, `CHK|note` and `CHK|own` missing) and dead at "row 4 the restart did not end ready within 200 s" (`STEP Demo FAILED`, `RESULT FAILED`); reverted.
+- mutation: the keep mode skips the trace application's delete (`If 0 Set apps(traceApp) = ""`) -> `live install-start` red at `CHK|own|0|0|0` in the three keep checks (a separate run); reverted.
+- mutation: `Registry.Run` writes no WARN line -> `Test.Install.Registry:TestRun` red at the three WARN assertions; reverted.
+- mutation: `StatusMark.Record` ignores an empty value (`If 0 {`) -> `Test.Data.Tables:TestStatusMarkRecord` red at "an empty value deletes the row"; reverted.
+- mutation: `Install.Step.Users:Ensure` creates the account with an empty password -> `Test.Install.Users:TestEnsureCreates` red: `Ensure creates the account` fails (ERROR #845, the instance refuses an empty password), so no account has a hash and "the account has a password hash" fails as well; reverted. The spec's wording, red at the hash assertion alone, needs an account that is created without a hash, which the instance does not allow.
+- mutation: `OneProblems` skips the placeholder comparison of the form's text and web (`ElseIf 0 {`) -> `TestCountOfOneForms` red at "a text that holds the form's own slot", "a text that lacks a declared slot" and "a web with a placeholder of its own"; reverted.
+
+### Review pass (October 20; same checkout, tag `v12a`, `OCUTALON_LOCK_OWNER='epic=0 stage=implement'`)
+
+**Mutations of the review patches** (each applied, run, observed red and reverted; `git status --short`, `git diff --stat` and `git diff` were digested before and after, and equal):
+- mutation: `Registry.Run` no longer takes the warnings before each step -> `Test.Install.Registry:TestRun` red at "a warning recorded before the run belongs to no step and is discarded"; reverted.
+- mutation: `Test.Install.Users:ClearNodes` kills every node, the counter included -> `Test.Install.Users:TestClearKeepsTheCounter` red at "the counter keeps this run's number"; reverted. The mutated run also killed the counter on slot A, so the ten runs below start at 1.
+- mutation: `Catalog:Template` compares the raw slot value (`values.%Get(slot) '= 1`) in place of `Count` -> `Test.Msg.Catalog:TestCountOfOneForms` red at the text 1 and at true for 7 of the 8 forms (`result.allThrough` is still refused, because its form holds the noun, which validates the count); reverted.
+- mutation: the keep mode lists every web application of the namespace (`If 0 {` in place of `If keep '= "" {`) -> `live install-start` red at `CHK|inside` in both owned-namespace keep fixtures ("1 of 7 values differ"; "wanted 'CHK|inside|1|1', got 'CHK|inside|1|0'"); reverted.
+- mutation: `Demo.Run` does not call `Warn(kept)` -> `live install-start` red at row 3's and row 4's `check_kept_log`, at the three in-session `CHK|warn` checks (5 FAIL lines); reverted.
+
+**Results after the last patch:**
+- **Slot A.** `iris_doc_load` with `ck` of the changed classes: no error or warning. After the patches `Test.Install.Users` 5 of 5, `Test.Install.Registry` 11 of 11 and `Test.Msg.Catalog` 22 of 22, each in its own call. The other four classes are unchanged by the patches and passed in the implement pass.
+- **DW-9 after the fix (once).** `Test.Install.Users` 10 more times on slot A (run indexes 694 to 703): 10 passes; `^OcuTalonTest("Users","n")` was undefined before the first (the counter mutation had killed it) and read 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 after each run. No run read an empty hash, and each used a new `ZzUsers<n>`.
+- **Hosted checks and build.** `bash ci/checks.sh` exit 0 ("checks: all scripts passed"), `bash ci/iris.sh build` exit 0.
+- **The live test.** `bash ci/iris.sh live install-start` exit 0, 94 PASS and 0 FAIL, the two keep fixtures with 7 and 8 values.
+- **The upgrade (once).** `bash ci/iris.sh live install-upgrade` exit 0, 34 PASS.
+- **Fresh-environment check (once).** `shard lane-a` 9 of 9 and `--reverse` 9 of 9; `shard lane-b` 24 of 24 and `--reverse` 24 of 24; no `FAIL` or `SKIP` line. One call ran a teardown and then a shard in sequence (nothing was up to remove).
+- **Teardown.** `bash ci/iris.sh teardown`: 0 projects, containers, volumes, networks and images left for `-v12a-`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary of the implemented change.**
+- **DW-41, the catalog.** `Render` uses an entry's count-of-one form (`one`) when its count slot is 1 and validates that slot either way. The 8 Watch entries carry the owner's forms, 3 `answered.*` and 3 `signIn.*` keys are in Core (63 and 22 keys), and every `gap` is gone. `Test.Web.PublicTexts` compares the three sign-in labels (11 compared, 0 not in the UX, 19 not texts).
+- **DW-42, keep.** With demo mode off, a foreign OCUORDERS, or OcuTalon's own with another production defined or not stopped, is kept. The step removes only OcuTalon's own access (the trace application, the trace role's OCUORDERS grants and SQL privileges), warns through the new `Install.Step.Warn` (the registry writes `WARN <step> <text>` after the step's line), records the status mark `demoKept` through the new `StatusMark.Record` and `Get`, and returns OK, so the start ends ready. The on path's refusal is unchanged.
+- **DW-9.** `Test.Install.Users` keeps its counter, so each run has a new `ZzUsers<n>`, and re-reads a just-created account for up to about 2 s until the hash is there.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog.cls`: `Template` chooses the form; the grammar comment names `one`.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`: the owner's forms and the 6 new Core keys; the gaps are removed.
+- `src/ocutalon/cls/OcuTalon/Install/Step.cls`, `src/ocutalon/cls/OcuTalon/Install/Registry.cls`: `Warn`, `TakeWarnings` and the `WARN` line.
+- `src/ocutalon/cls/OcuTalon/Data/StatusMark.cls`: `Record` and `Get`, methods only.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls`: the keep mode, `KEPTMARK`, and `Plan` and `Orders` returning `kept`.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`, `src/ocutalon/cls/OcuTalon/Test/Web/PublicTexts.cls`, `src/ocutalon/cls/OcuTalon/Test/Demo/Step.cls`, `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`, `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls`, `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls`: the rows 1 to 18 tests, the two new signature rows and the review pass's pins.
+- `docker/tests/test-install-start.sh`: the keep fixtures of rows 11 to 15, staged across the existing restarts, and the `inside_state` fingerprint.
+- This spec: tasks, Task 0 results, rulings, the triage log, mutation lines and results.
+
+**Review findings breakdown.** 33 findings from the four layers: high 0, medium 9, low 18, false 6.
+- **Patched (6 medium entries, 3 low rows).**
+  - The post-create reads of `Test.Install.Users` now wait.
+  - A new `TestClearKeepsTheCounter` and `ClearNodes` pin the counter.
+  - Every form's slot is refused as the text 1 and as true.
+  - The stale-warning pin in `TestRun`, and `TestStepDefaults` takes the warnings first.
+  - `inside_state` pins that keep leaves the inside of OCUORDERS alone.
+  - The foreign-note session clears the mark first.
+  - Mutation lines for the patches are in `## Verification`.
+- **Deferred:** none (`deferred:` is empty).
+- **Rejected, each with its reason in the triage log:**
+  - by design or spec-bound: `Demo.Run` and untaken warnings, the running-Orders-with-defined-foreign case, the spec-dictated literal-count assertions, the row 3 restage, the no-WARN-at-start check, the unreachable defensive refusals of `Template`, and the descriptive audit items (no consumers yet, the log-only warning, the owner-only how-to sentence);
+  - unlikely, with a fix that adds a branch: a `Record` failure after `Warn`, a `Record` race or the 1000-character limit, and the first-miss quit of the wait.
+
+**Follow-up review recommendation:** `true`. Six medium entries were patched on this first pass. The unverified risk is that the new live checks (`CHK|inside`, the cleared-mark session) and the wider keep fixtures have run only on the ARM developer machine; their cost on the x64 runner and REL-4's 35 minutes are measured by QA's CI run.
+
+**Verification performed.**
+- Slot A, `ocutalon-slot-a` build 154: load with `ck`; `Test.Msg.Catalog` 22, `Test.Web.PublicTexts` 2, `Test.Demo.Step` 6, `Test.Data.Tables` 6, `Test.Contract.Ac` 6, `Test.Install.Registry` 11 and `Test.Install.Users` 5, all passed, one class per call.
+- DW-9: 10 runs before the fix (indexes 637 to 646) and 10 after it (694 to 703) all passed.
+- `bash ci/checks.sh` and `bash ci/iris.sh build`: exit 0.
+- `live install-start` 94 PASS, `live install-upgrade` 34 PASS.
+- Shards `lane-a` 9 of 9 and `lane-b` 24 of 24, each forward and `--reverse`.
+- 16 mutations applied, red, reverted, with a digest of the tree unchanged.
+- Every throwaway of tag `v12a` was torn down.
+
+**Residual risks.**
+- **REL-4.** `live install-start` took 181 to 216 s on ARM against Rule 21's 151 s `(inference: includes machine variation)`; at the ratio of 3 on the runner the worst-case run could pass 35 minutes. The `install` group is the first to rebalance if QA's run is over.
+- **DW-9's cause is still `(inference)`.** The flake did not reproduce in 10 runs before the fix, and 10 clean runs after it are weak evidence (about a 21% chance without a fix at 1 in 7). The fix removes the two candidate causes; the wait cannot be forced to fail. `Clean()` still deletes every `ZzUsers*` fixture, so two runs at once on one instance would remove each other's accounts.
+- **Owner-only (Rule 22.4), for the Contest Planner.** The sentence that tells an administrator how to remove a kept OCUORDERS by hand; the note holds 0.10's fixed sentence and the facts that the removal needs until the owner gives it (10.2 and 14.2 carry it).
+- **For the lead.** The spine updates listed under Design Notes ("Spine updates for the lead": AD-32, AD-3, AD-23, AD-18 and the cross-lane table), the three VETO WINDOW FYIs, and the epic-context pre-warm.

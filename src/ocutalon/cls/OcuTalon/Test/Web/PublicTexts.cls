@@ -29,7 +29,7 @@ Method TestCopiesEqualTheCatalog()
 			Do $$$AssertEquals(decoded, text, class_"."_name_" equals the catalog key "_key)
 		}
 	}
-	Do $$$AssertEquals(count, 8, "8 parameters are compared with the catalog")
+	Do $$$AssertEquals(count, 11, "11 parameters are compared with the catalog")
 }
 
 /// Every own parameter of every class of both public packages is in exactly one list, and no list names a parameter that the
@@ -72,8 +72,8 @@ Method TestEveryParameterIsClassified()
 			}
 		}
 	}
-	Do $$$AssertEquals(counts("compared"), 8, "8 parameters are compared")
-	Do $$$AssertEquals(counts("notInUx"), 3, "3 labels are not in the UX")
+	Do $$$AssertEquals(counts("compared"), 11, "11 parameters are compared")
+	Do $$$AssertEquals(counts("notInUx"), 0, "0 parameters are not in the UX")
 	Do $$$AssertEquals(counts("notText"), 19, "19 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
@@ -124,15 +124,16 @@ XData Classified [ MimeType = application/json ]
    "HELP": "signIn.help",
    "ERRORCREDENTIALS": "signIn.errorCredentials",
    "ERRORNOROLE": "signIn.errorNoRole",
-   "LOGOALT": "signIn.logoAlt"
+   "LOGOALT": "signIn.logoAlt",
+   "USERLABEL": "signIn.userLabel",
+   "PASSWORDLABEL": "signIn.passwordLabel",
+   "SHOWPASSWORD": "signIn.showPassword"
   },
   "OcuTalon.Web.Public.ApiBase": {
    "MESSAGESIGNEDOUT": "signIn.signedOut"
   }
  },
- "notInUx": {
-  "OcuTalon.Web.Public.Login": ["USERLABEL", "PASSWORDLABEL", "SHOWPASSWORD"]
- },
+ "notInUx": {},
  "notText": {
   "OcuTalon.Web.Public.ApiBase": ["CHARSET", "CONTENTTYPE"],
   "OcuTalon.Web.Public.Login": ["FAVICON", "ICONALERT", "ICONEYE", "IMAGES", "LOGODARK", "LOGOLIGHT"],

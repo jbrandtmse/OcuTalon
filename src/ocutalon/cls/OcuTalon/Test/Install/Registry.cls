@@ -230,6 +230,12 @@ Method TestStepDefaults()
 	Set tasks = $ClassMethod(step, "Tasks")
 	Do $$$AssertTrue($IsObject(tasks) && tasks.%IsA("%Library.DynamicArray"), "Tasks is a dynamic array")
 	Do $$$AssertEquals(tasks.%Size(), 0, "Tasks declares nothing")
+	Do $ClassMethod(step, "TakeWarnings")
+	Do $$$AssertEquals($ClassMethod(step, "TakeWarnings"), "", "TakeWarnings returns nothing when nothing was recorded")
+	Do $ClassMethod(step, "Warn", "a")
+	Do $ClassMethod(step, "Warn", "b"_$Char(13, 10)_"c")
+	Do $$$AssertEquals($ClassMethod(step, "TakeWarnings"), $ListBuild("a", "b  c"), "TakeWarnings returns the warnings in order, with each CR and LF a space")
+	Do $$$AssertEquals($ClassMethod(step, "TakeWarnings"), "", "TakeWarnings clears them")
 }
 
 /// The purge task: its name, and 90 days to keep unless the task says otherwise, which it passes to the areas.
@@ -245,8 +251,9 @@ Method TestPurgeTaskDefaults()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", ..Number, "purge")), 90, "the areas received 90 days")
 }
 
-/// Run() writes one line per step and stops at the first step that fails or throws, and returns that failure.
-/// It is run over fixture steps by a subclass of the registry whose Order() names them.
+/// Run() writes one line per step and stops at the first step that fails or throws, and returns that failure. A step's
+/// warnings follow its line, one WARN line each, whether the step succeeded or failed. It is run over fixture steps by a
+/// subclass of the registry whose Order() names them.
 Method TestRun()
 {
 	Set number = ..Number
@@ -254,12 +261,14 @@ Method TestRun()
 	Set fail = "ZzRunFail"_number
 	Set throw = "ZzRunThrow"_number
 	Set last = "ZzRunLast"_number
+	Set warn = "ZzRunWarn"_number
 	Set prefix = "OcuTalon.Install.Step."
 	Set okBody = "Quit $SYSTEM.Status.OK()"
 	Set sc = ..Create("FixtureRunStep", prefix_ok, number, , , okBody)
 	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_fail, number, , , "Quit $SYSTEM.Status.Error(5001, ""Step failed on purpose"")")
 	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_throw, number, , , "Throw ##class(%Exception.General).%New(""Step threw"", 5001, , ""Step threw on purpose"")")
 	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_last, number, , , okBody)
+	If $$$ISOK(sc) Set sc = ..Create("FixtureRunStep", prefix_warn, number, , , "Do ..Warn(""Fixture warning "_number_""") Quit $Select($Get(^OcuTalonTest(""Registry"", "_number_", ""warnFails"")): $SYSTEM.Status.Error(5001, ""Warn step failed on purpose""), 1: $SYSTEM.Status.OK())")
 	If $$$ISOK(sc) Set sc = ..Create("FixtureProbe", ..Probe, number)
 	Do $$$AssertStatusOK(sc, "the fixture steps and the probe compile")
 	If $$$ISERR(sc) Quit
@@ -286,15 +295,37 @@ Method TestRun()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_last)), "", "the step after the exception did not run")
 
 	Kill ^OcuTalonTest("Registry", number, "run")
+	Do ##class(OcuTalon.Install.Step).Warn("Stale warning "_number)
 	Set text = ..RunProbe($ListBuild(ok, last), .sc)
 	Do $$$AssertStatusOK(sc, "steps that succeed give a successful run")
+	Do $$$AssertTrue(text '[ "Stale warning", "a warning recorded before the run belongs to no step and is discarded")
 	Do $$$AssertTrue(text '[ "FAILED", "no step is reported FAILED")
 	Do $$$AssertTrue(($Find(text, "STEP "_ok_" OK ") > 0) && ($Find(text, "STEP "_ok_" OK ") < $Find(text, "STEP "_last_" OK ")), "both steps are reported OK, in order")
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_ok)), 1, "the first step ran once")
 	Do $$$AssertEquals($Get(^OcuTalonTest("Registry", number, "run", prefix_last)), 1, "the last step ran once")
 
+	Kill ^OcuTalonTest("Registry", number, "run")
+	Set text = ..RunProbe($ListBuild(warn, last), .sc)
+	Do $$$AssertStatusOK(sc, "a step that warns and succeeds gives a successful run")
+	Set okLine = ..Line(text, "STEP "_warn_" OK ")
+	Do $$$AssertTrue(okLine '= "", "the step that warns is reported OK: "_okLine)
+	Do $$$AssertTrue($Find(text, okLine_$Char(10)_"WARN "_warn_" Fixture warning "_number_$Char(10)_"STEP "_last_" OK ") > 0, "the WARN line is the next line after the step's line, and the step after follows it")
+	Do $$$AssertEquals($Length(text, "WARN "), 2, "only the step that warns has a WARN line")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).TakeWarnings(), "", "the registry took the warnings")
+
+	Kill ^OcuTalonTest("Registry", number, "run")
+	Set ^OcuTalonTest("Registry", number, "warnFails") = 1
+	Set text = ..RunProbe($ListBuild(warn, last), .sc)
+	Kill ^OcuTalonTest("Registry", number, "warnFails")
+	Do $$$AssertStatusNotOK(sc, "a failing step that warned fails the run")
+	Set failedLine = ..Line(text, "STEP "_warn_" FAILED ")
+	Do $$$AssertTrue(failedLine [ "Warn step failed on purpose", "the failing step is reported FAILED: "_failedLine)
+	Do $$$AssertTrue($Find(text, failedLine_$Char(10)_"WARN "_warn_" Fixture warning "_number) > 0, "the failing step's WARN line follows its FAILED line")
+	Do $$$AssertTrue(text '[ last, "the step after the failure has no line")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).TakeWarnings(), "", "the registry took the warnings of the failing step")
+
 	Do ..Delete(..Probe)
-	For name = ok, fail, throw, last {
+	For name = ok, fail, throw, last, warn {
 		Do ..Delete(prefix_name)
 	}
 }

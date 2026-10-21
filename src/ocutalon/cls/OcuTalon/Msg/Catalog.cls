@@ -2,7 +2,8 @@
 /// every text made from the catalog is rendered here.
 /// The texts live in the XData block Entries of OcuTalon.Msg.Catalog.Core (Lane B) and OcuTalon.Msg.Catalog.Watch (Lane A),
 /// one JSON object whose names are the keys <prefix>.<name>. An entry is
-///   {"text": the text, "web": the page wording when it differs, "slots": {"<name>": "<type>"}, "source": ..., "gap": ...}
+///   {"text": the text, "web": the page wording when it differs, "slots": {"<name>": "<type>"}, "source": ..., "gap": ...,
+///    "one": {"slot": a declared count slot, "text": the form for that slot being 1, "web": the page wording of the form}}
 /// and its text holds {name} placeholders for exactly its declared slots. The slot types:
 ///   time           UTC YYYY-MM-DDThh:mm:ssZ, shown through Data.Time.ForMessage, with " ET" on the online demo;
 ///   count          a JSON integer of 0 or more, as digits;
@@ -22,6 +23,9 @@
 /// text binding. A slot that the entry does not declare is ignored.
 /// The channels are web, phone, mailbox and telegram; the others of Msg.Enum CHANNEL are refused until their step adds them.
 /// The web channel uses the entry's web text where it has one. When a dated time follows "at " in a text, that "at" becomes "on".
+/// An entry with a one form uses it, in place of its text (its web text, from the form's web), when the form's count slot is 1.
+/// The form's text holds every declared slot but its own, and its web exists exactly where the entry's web does. The form's
+/// slot is read like any count slot whether or not the form is used, so a bad value is refused either way.
 /// Render and RenderAt return the whole text, or "" with an error status in plain English that names the key and the slot or
 /// channel; there is never a partial text. They are pure: they write no global, no log line and no row.
 Class OcuTalon.Msg.Catalog
@@ -97,7 +101,23 @@ ClassMethod Build(key As %String, slots, channel As %String, now As %String, onl
 	Set field = $Select((channel = "web") && entry.%IsDefined("web"): "web", 1: "text")
 	If (entry.%GetTypeOf(field) '= "string") || (entry.%Get(field) = "") Do ..Fail(context_": the entry has no '"_field_"' text")
 	If entry.%GetTypeOf("slots") '= "object" Do ..Fail(context_": the entry declares no slots object")
-	Quit ..Fill(context, entry.%Get(field), entry.slots, values, now, onlineDemo)
+	Quit ..Fill(context, ..Template(context, entry, field, values), entry.slots, values, now, onlineDemo)
+}
+
+/// The text to fill: the entry's own text of the field (text or web), or its count-of-one form's when the entry has a one form
+/// and the form's count slot is 1. The slot is read with Count even when the form is not used.
+ClassMethod Template(context As %String, entry As %DynamicObject, field As %String, values As %DynamicObject) As %String [ Private ]
+{
+	If 'entry.%IsDefined("one") Quit entry.%Get(field)
+	If entry.%GetTypeOf("one") '= "object" Do ..Fail(context_": the entry's 'one' form is not an object")
+	Set form = entry.one
+	Set slot = form.%Get("slot")
+	If (form.%GetTypeOf("slot") '= "string") || (entry.slots.%GetTypeOf(slot) '= "string") || (entry.slots.%Get(slot) '= "count") {
+		Do ..Fail(context_": the entry's 'one' form needs a slot that the entry declares as a count")
+	}
+	If ..Count(context, slot, values) '= 1 Quit entry.%Get(field)
+	If (form.%GetTypeOf(field) '= "string") || (form.%Get(field) = "") Do ..Fail(context_": the entry's 'one' form has no '"_field_"' text")
+	Quit form.%Get(field)
 }
 
 /// The text with each {name} replaced by the formatted slot, in one pass over the text.
