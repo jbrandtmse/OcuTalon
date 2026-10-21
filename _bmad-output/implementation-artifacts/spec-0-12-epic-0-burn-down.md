@@ -350,6 +350,33 @@ Rejected (no ledger entry):
 - AD-23's step list says Demo off "removes them" with no keep (AA). False: "them" is the trace application and the trace role's grants, which the keep path removes too; the keep is in AD-3.
 - The diff changes `_bmad/custom/skill-rules.md` (AA). False: it is Rule 21's run record, the one entry QA may write.
 
+### Review Findings (re-review)
+
+Code review re-review, October 21 (`bmad-code-review`, tier `full-opus`), scoped to the rework's diff `git diff 5047cd2 5cba5e0 -- . ':(exclude)_bmad-output'` (DW-44; 2 files, +44 -26). Layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on this checkout, none changed anything; 11 raw findings, 9 entries after grouping: 0 high, 0 medium, 2 low patched, 7 rejected. Each entry gives severity / fix-risk / Rule 15 disposition.
+
+- [x] [Review][Patch] `Run`'s doc comment did not parse: "recorded as the mark demoKept, with the fact that it holds in the note's "how" sentence". It now reads "recorded as the mark demoKept, whose "how" sentence names what the namespace holds" (comment only) [src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls:68]. low / low / fixed.
+- [x] [Review][Patch] The rework's last two mutation lines began `mutation (review pass, ...):`, so a search for `mutation:` missed the only records for the "drops" clause and for "the `WARN Demo` line keeps Story 0.10's sentence". Both now begin `mutation:`, with the review-pass note after them; what they record is unchanged [this spec, `### Rework, DW-44` under Verification]. low / low / fixed (Rule 19's sanctioned Verification edit).
+
+Checks the lead asked for:
+- **The sentence, byte for byte.** A script compared `EXPERIENCE.md` L702's quoted sentence with `System`'s template (`ns`, `CODEDB`, `DATADB` = OCUORDERS, OCUORDERS_CODE, OCUORDERS_DATA) and with `foreign_how`, `running_how` and `defined_how`: the template equals the owner's text, and each expected string is the owner's prefix and suffix around its fill. The fills are "databases that OcuTalon did not create" (`Plan`), "the production <name>, which is not stopped" and "the production <name>" (`Orders(0)`), the three keep paths, each the fact that its kept sentence names.
+- **`WARN Demo`.** `Do ..Warn(kept)` is unchanged, so the after-start line keeps Story 0.10's sentence. `check_kept_log` at rows 3 and 4 and the in-session `CHK|warn` values pin it, and the `Warn(what)` mutation turned them red.
+- **`kept_note`.** It prints `how` as a seventh field, and `compare_chk` matches whole lines (`grep -qxF`). All five note checks (row 3's start, the in-session foreign run, the running and the stopped keep fixtures, the last restart) expect the sentence in full. Four demonstrated mutations stand behind them: alter, fill, drop, and `Warn(what)`.
+- **Nothing else changed.** The diff adds the `what` output to `Plan` and `Orders(0)`, passes it through `Run` to `System`, and adds the `how` key. `System` and `Orders` are private, with `Run` their only caller, and `Test.Demo.Step:TestPlan`'s five-argument call is still valid. `Warn`, `Record`, the on path and the clear path are untouched.
+- **ASCII and paths.** Neither file has a byte above 127, and the diff names no local machine path.
+- **The foreign case, judged acceptable as the owner's exact text.** For a foreign OCUORDERS, the `how` sentence names OCUORDERS_CODE and OCUORDERS_DATA, but the note's `globals` and `routines` fields name the namespace's real default databases. They come from `Config.Namespaces`, and row 3 and the in-session run pin them as OCUFOREIGN_DATA and OCUFOREIGN_CODE. It does not mislead into harm:
+  - The owner approved this one sentence for the row's whole trigger, "OCUORDERS was not created by OcuTalon, or holds another production".
+  - The fixed names never tell an administrator to delete a database that OcuTalon did not name. A sentence that named the namespace's own databases could name a shared one, such as USER.
+  - This is a closed owner decision, so it is not `decision-pending`.
+
+Rejected (no ledger entry):
+- The foreign OCUORDERS's `how` names databases it does not use, and nothing asks the owner (BH, EC, AA). Low, spec-bound and owner-decided (above). The AC says "exactly", the owner's approval covers "not created by OcuTalon", and the note's `globals` and `routines` name the real databases. by-design. It reopens only through an owner form for the foreign case.
+- For a production that is not stopped, the sentence leaves out stopping it before the namespace is deleted, and the Portal's `NamespaceDelete.SaveData` checks no production (BH). The Portal claim is true, and the finding is low. The fix is new owner text. The fill already says "which is not stopped", and the removal is the administrator's own deliberate act. by-design.
+- Nothing reads the `how` field, and no log line points to the mark (BH). True, but spec-bound: the intent's Never rules out a new status surface. The after-start log carries the `WARN Demo` line, and DW-45 and DW-46 put the sentence in the README and the security overview. The rework did not cause it.
+- `Orders` reads `rs.%Get("Name")` twice in the defined branch (BH). False: both reads take the same column of the same current row, so `kept` and `what` cannot diverge.
+- With two or more other productions defined, `SELECT TOP 1` names only one in `what` (EC). Low and pre-existing: the kept sentence has named one since the first pass. Deleting the namespace removes every production, so the removal advice stays complete. A fix adds a loop and changes Story 0.10's fixed sentence, and two other productions in the demo namespace is not an everyday case.
+- The five changed note checks depend on the script's staging, not on state they create (VG). Pre-existing and spec-bound: REL-4 allows no new restart, and the rework's triage (VG 3) rejected the same point. Run out of order, they go red, never falsely green.
+- Matrix rows 11 to 13 still give the four-key mark (AA). The fix would edit the spec's frozen intent block. The rework task supersedes those rows.
+
 ## Spec Change Log
 
 **Task 0 measurements** (implement stage, October 20; `(inference)` where stated):
@@ -796,8 +823,23 @@ Runtime: slot A (`server: ocutalon-slot-a`, `namespace: OCUTALON`; `iris_server_
 **Mutations (rework).** Each was applied, run, observed red and reverted. Before each, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` and one of `Demo.cls` and `test-install-start.sh` were taken; after the revert both were equal, and `git status --short` and `git diff --stat` were unchanged.
 - mutation: the `how` sentence ends "in the Management Console." (`Demo.cls`, `System`) -> `live install-start` red at all five note checks (5 FAIL, 89 PASS: row 3's start, the in-session foreign off run, the running keep fixture, the stopped keep fixture and the last restart, each "1 of n values differ"); reverted.
 - mutation: the fill of `{what was kept}` changes in three places (`Plan`'s `what` is empty, `Orders(0)`'s not-stopped phrase loses ", which is not stopped", its defined phrase loses "the") -> `live install-start` red at the same five checks (5 FAIL, 89 PASS): the foreign ones (row 3's start and the in-session run), the running fixture, and the stopped fixture with the last restart, each fixture failing on its own change; reverted.
-- mutation (review pass, tag `v12d`, both in one run, 87 PASS and 7 FAIL): the note is built without its `how` key (`, "how": (how)` removed from the JSON in `System`) -> `live install-start` red at the five note checks, alone at row 3's start (`1 of 2 values differ`) and the last restart (`1 of 3`); reverted.
-- mutation (review pass, same run): the after-start warning carries the fill in place of the kept sentence (`Do ..Warn(what)` in `Run`) -> `live install-start` red at `check_kept_log` of row 3 (`WARN Demo databases that OcuTalon did not create`) and of row 4 (`WARN Demo the production ZzOcuForeign.Production`) and at the `CHK|warn` values of the in-session fixtures; reverted. Before and after, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal, and so were those of `Demo.cls` and `test-install-start.sh`; `ci/iris.sh teardown` for `-v12d-` left nothing.
+- mutation: the note is built without its `how` key (`, "how": (how)` removed from the JSON in `System`) -> `live install-start` red at the five note checks, alone at row 3's start (`1 of 2 values differ`) and the last restart (`1 of 3`); reverted. (Review pass, tag `v12d`; this and the next mutation ran in one run, 87 PASS and 7 FAIL.)
+- mutation: the after-start warning carries the fill in place of the kept sentence (`Do ..Warn(what)` in `Run`) -> `live install-start` red at `check_kept_log` of row 3 (`WARN Demo databases that OcuTalon did not create`) and of row 4 (`WARN Demo the production ZzOcuForeign.Production`) and at the `CHK|warn` values of the in-session fixtures; reverted. (Review pass, same run.) Before and after, a SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal, and so were those of `Demo.cls` and `test-install-start.sh`; `ci/iris.sh teardown` for `-v12d-` left nothing.
+
+### Code review re-review (October 21; same checkout, tag `v12e`, `OCUTALON_LOCK_OWNER='epic=0 stage=code-review'`)
+
+Runtime:
+- **Slot A.** `server: ocutalon-slot-a`, `namespace: OCUTALON`. `iris_server_info` reports build 154U, with OCUTALON present and no OCUORDERS. It took one `iris_doc_load` with `ck` and one `iris_execute_tests` call.
+- **The live script.** It ran only through `ci/iris.sh`, in one throwaway of tag `v12e`, followed by `teardown` in its own call.
+- **Nothing else.** No push, commit or `gh` call. `Demo.Run()` never ran on the slot.
+- **The review layers.** All four changed nothing: the tree was clean after them, and the one unpushed commit, `b2dbcd8`, predates the review.
+
+**Results after the patches** (the `Run` comment, and the two mutation-line prefixes above):
+- **Slot A.** `iris_doc_load` with `ck` of `Install.Step.Demo` compiled with no error or warning. `Test.Demo.Step` passed 6 of 6 (run index 746).
+- **Hosted checks.** `bash ci/checks.sh` exit 0, "checks: all scripts passed", in 37 s.
+- **Build and the live test.** `bash ci/iris.sh build` exit 0. `bash ci/iris.sh live install-start` exit 0, with 94 PASS and 0 FAIL in 199 s on this machine. All five note checks pass with the `how` sentence, and so do both `check_kept_log` lines ("the line after STEP Demo OK is WARN Demo with the kept sentence") at rows 3 and 4.
+- **Teardown.** `bash ci/iris.sh teardown` left 0 projects, containers, volumes, networks and images for `-v12e-`.
+- **Mutations.** None was re-run. The patches change a comment and two line prefixes, and the rework's four mutation lines (alter, fill, drop, `Warn(what)`) still cover every clause of the task. They were checked against the comparator: `compare_chk` matches whole lines with `grep -qxF`, and `kept_note` prints `how` as its seventh field.
 
 ## Auto Run Result
 

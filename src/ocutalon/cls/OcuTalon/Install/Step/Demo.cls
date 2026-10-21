@@ -65,8 +65,8 @@ Parameter DEADSTATUSES = "error,halted,terminated";
 /// Applies the mode: "create" makes the demo and starts its production, "remove" removes it, "keep" leaves the namespace and
 /// removes only OcuTalon's access to it, and "error" does nothing (see Plan). The seed is written before the plan is made; a
 /// seed that cannot be written throws its error (Mode), which Install.Registry's RunStep reports as a failed step. A kept
-/// namespace (from Plan, or from Orders(0) for another production) is warned about and recorded as the mark demoKept, with
-/// the fact that it holds in the note's "how" sentence, and Run returns OK; a create or a remove that succeeds deletes the mark.
+/// namespace (from Plan, or from Orders(0) for another production) is warned about and recorded as the mark demoKept, whose
+/// "how" sentence names what the namespace holds, and Run returns OK; a create or a remove that succeeds deletes the mark.
 ClassMethod Run() As %Status
 {
 	Set exists = ##class(%SYS.Namespace).Exists(..#NAMESPACE)
