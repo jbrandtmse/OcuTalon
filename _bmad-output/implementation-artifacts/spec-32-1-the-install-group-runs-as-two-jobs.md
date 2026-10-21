@@ -114,6 +114,7 @@ Code review of 2026-10-21 (`bmad-code-review`, tier `full-opus`; layers blind-hu
 ## Spec Change Log
 
 - 2026-10-21, the lead (epic runner), unattended ruling on the plan's intent gap (a split, decide, U5): the ceiling "no IRIS job runs longer than about 10 minutes" and "until no job exceeds about 10 minutes" moved to the new sibling Story 32.3, which waits for the owner (a number stated as a target in the epics is owner-only). This story keeps the split, the measured rebalance, the record and comparison of each job's time, and the lead-owned records. "Much longer than the rest" reads as more than about 25 % over the mean of the six IRIS jobs (decided in the ruling). The AC and the `(CI)` pass line were restated; nothing else changed. Status reset to `draft` for a re-plan.
+- 2026-10-21, the lead, the `(CI)` check on run 39633794167 (commit `e73b33c`): wall-clock 19 min 21 s against 20 min 25 s; `install-upgrade` ran 1.33 times the mean of the six (19 min 18 s, ci-13 on `ocutalon-ci-c`, where four of the six IRIS jobs ran). Unattended ruling (decide): no unit moved, because the spread is host placement and on one host's unit times the groups are 1.20 times the mean with no whole-unit move that lowers the longest; the balance rule and the slowest job go to Story 32.3 (owner decision U-1). The lead-owned records are written: Rule 21's `Groups` bullet and sixth-run record, and AD-22's "CI as built" (veto item U-4).
 
 ## Review Triage Log
 
