@@ -408,3 +408,9 @@ Stop only the affected slot, message the Contest Planner at once, and keep the o
 - The finish state appears only after an approved, resolved run (P24).
 - Claude Haiku 5.5 is the default model, with `max_tokens` 8,000 and no sampling parameters.
 - The demo allowance is 50 messages an hour per session, and 20 simulated emails an hour.
+
+## Rule 23 — Plan during CI (lead, orchestrator and runners, under `/epic-cycle`)
+
+CI resolves before the next implement spawn, not before the next plan spawn. The next story's plan and spec stages may run while the previous code head's CI runs. The next implement, and any push of new code, waits until that head is green on every workflow.
+
+Why: the owner's decision of October 20, relayed by the Contest Planner (OcuPilot's Rule 28, proven there). Waiting for CI before planning idles the pipeline for a whole run per story, while the gate that matters, no new code on an unresolved head, is kept.
