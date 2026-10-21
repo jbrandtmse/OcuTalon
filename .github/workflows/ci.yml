@@ -1,5 +1,7 @@
 # CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of six
 # groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+# Each `iris` job runs its group only when ci/changes.sh finds a change to that group's inputs (ci/units.sh); otherwise it skips
+# its own steps and concludes success.
 # The `web` job builds and tests the web app and runs the model mock's node tests (docker/tests/test-mock.sh, Story 0.11).
 # docker/tests/test-ci-config.sh pins the rules of this file: permissions, triggers, concurrency, pinned actions, runners,
 # the fork guard, no secrets, no image cache or upload, the teardown step, and that the matrix equals `ci/iris.sh groups`.
@@ -104,20 +106,19 @@ jobs:
           persist-credentials: false
       - name: What changed
         id: changes
-        run: bash ci/changes.sh ci.yml
+        run: bash ci/changes.sh ci.yml --group ${{ matrix.group }}
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Build the web bundle
-        if: steps.changes.outputs.iris == 'true'
+        if: steps.changes.outputs.run != 'false'
         run: bash ci/iris.sh build
       - name: Run the group
-        if: steps.changes.outputs.iris == 'true'
+        if: steps.changes.outputs.run != 'false'
         run: bash ci/iris.sh group ${{ matrix.group }}
       - name: Skipped
-        if: steps.changes.outputs.iris != 'true'
-        run: echo "iris ${{ matrix.group }} skipped, base $BASE, reason $REASON"
+        if: steps.changes.outputs.run == 'false'
+        run: 'echo "iris ${{ matrix.group }} skipped: $REASON"'
         env:
-          BASE: ${{ steps.changes.outputs.base }}
           REASON: ${{ steps.changes.outputs.reason }}
       - name: Tear down
         if: always()

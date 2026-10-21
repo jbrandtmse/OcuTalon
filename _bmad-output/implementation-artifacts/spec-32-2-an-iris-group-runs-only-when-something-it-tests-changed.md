@@ -2,9 +2,10 @@
 title: 'Story 32.2: An IRIS group runs only when something it tests changed'
 type: 'chore'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7f7a191ad77f253a4502007fba883e1a0a7b9baa'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: [oversized]
 deferred: []
@@ -245,6 +246,31 @@ Rationale: this pins the gate's polarity, and keeps a unit that checks the bundl
 
 ## Review Triage Log
 
+### 2026-10-21 — Review pass
+- verdicts: 21 findings — high 0, medium 3, low 13, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Unrecognized arguments (`--group=production`, `--grup x`) are ignored, so no `run=` line and the group runs — the loop's `*) shift ;;` is the unchanged, pre-existing arm and the failure direction is running; the workflow passes `--group ${{ matrix.group }}`, which the `wiring` rule pins; the fix adds a branch for an input nobody sends.
+  - `[low]` `[reject]` The `inputs` rule scans only `live:` units, so a `shard:` entry in `NO_WEB_BUNDLE_UNITS` is unguarded — no shard is listed today and the spec limits the rule to live scripts (Design Notes 2, 10); a future story that lists a shard owns the guard (also reported by the edge-case layer and the intent layer, same root cause).
+  - `[low]` `[reject]` A running group's reason counts its input paths and does not name them — the reason text is specified (`<k> input path(s) of <g> changed since <base>`); the unclassified reason does name its path.
+  - `[medium]` `[patch]` No case mixes a claimed path with an unclassified one, so an unclassified check that applies only when nothing is claimed would wrongly skip groups and pass every test — patched: the cases "an unclassified path next to a claimed one" and "a live script next to documentation" added to `test-ci-changes.sh`, with a mutation line.
+  - `[low]` `[reject]` The `Skipped` run line departs from the spec's unquoted text — the spec text does not parse as YAML; the decision is recorded in Design Notes 11, and a finding whose fix edits this spec is rejected.
+  - `[low]` `[reject]` Every `git merge-base` status above 1 is reported as a force push — the spec words the case that way ("`before` is unknown here"), the reason names the case, and the direction is running; the iris checkout has `fetch-depth: 0`.
+  - `[low]` `[reject]` The header of `ci/units.sh` omits `docker/tests/test-ci-changes.sh` as a sourcing script — a comment outside the new-entry block of a file shared by region with Lane A; no behaviour changes.
+  - `[low]` `[reject]` A `--group` value with spaces that is a run of adjacent group names passes validation and emits an empty `run` — only a hand-typed call can send it, and an empty `run` runs the group (`!= 'false'`); the fix adds a guard for an argument the workflow never sends.
+  - `[low]` `[reject]` Shard units in `NO_WEB_BUNDLE_UNITS` are never scanned — same root cause as the second row.
+  - `[false]` `[reject]` The bundle markers omit `ensure_web_bundle`, `LIVE_REBUILD_WEB` and bare `web/` or `index.html` — none of the four listed scripts has a code line naming any of them (grep run), and the marker list is a heuristic with a safe direction by Design Notes 10.
+  - `[false]` `[reject]` The unclassified fallback leaves `web` to its pattern — the spec computes `web` "as before", and the force-push and payload fallbacks do set `web=true`.
+  - `[medium]` `[patch]` The `Skipped` step's `REASON` env binding is pinned by no test: the `wiring` rule checks only that the run line holds `$REASON` — patched: `test-ci-config.sh` requires `skipped: $REASON` in the run line and `REASON: ${{ steps.changes.outputs.reason }}` in the step's env, with the samples `skip-reason` and `skip-text`, and a mutation line (grouped with the intent layer's note that the `skipped:` text is not asserted).
+  - `[low]` `[patch]` The declared non-inputs `LICENSE*` and `NOTICE*` have no test — patched: "the licence and notice files run no group" added to `test-ci-changes.sh`, with a mutation line.
+  - `[low]` `[reject]` AC 5 and AC 6 have no `mutation:` line — the spec states that AC 5 aggregates AC 1 to 4 and AC 6 is the lead's CI evidence, and both are marked as having no local mutation.
+  - `[low]` `[reject]` `unclassified_case` accepts any count in "<u> unclassified path(s)" — log text only; the gating and the named path are asserted.
+  - `[low]` `[reject]` The new blocks of `test-ci-changes.sh` depend on the commit graph built by earlier blocks of the same script — the script builds its own repository and is the harness's existing sequential design (rows 10 to 12); a reordering fails and never passes vacuously; both scripts pass in either order.
+  - `[low]` `[reject]` The workflow is only text-tested (wiring), and the real evaluation of the gate is the lead's CI evidence — AC 6 assigns it to the lead; the text pins are now complete (see the `Skipped` row).
+  - `[low]` `[reject]` The static grep does not follow sourced helpers or shard units (the intent layer's surface D) — same root cause as the shard row; the spec's measured table (Task 0, 2) is the evidence for `lib-live.sh`.
+  - `[false]` `[reject]` The `web` job also gets the force-push and payload fallbacks — Design Notes 7 states it; the unchanged `web` gate then runs the web steps, which fails safe.
+  - `[false]` `[reject]` Root `.gitignore` is an input of every group, which the intent's list does not name — the spec's `IRIS_INPUT` block lists `\.gitignore$` and the web build's clean checkout depends on it.
+  - `[false]` `[reject]` The diff edits a spec file under `_bmad-output/implementation-artifacts/` — the Never list names `_bmad/**`, the spine and `.claude/**` only, and the path is bookkeeping.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -308,6 +334,7 @@ No acceptance criterion contradicts an AD's Rule, and no NFR is unmeasurable.
 8. **One `grep -E` per group** over the paths file, instead of one per path. A full-tree diff is about 650 paths.
 9. **No live unit runs in this story.** No live script, `lib-live.sh` or `ci/iris.sh` changes. What a live run would prove is proved here by the hermetic tests and the lead's CI run.
 10. **The `inputs` rule's marker list is a heuristic** with a safe direction. It only keeps bundle-checking units off the skip list. `compose-start` checks the bundle without a marker, but it is not on the list.
+11. **The `Skipped` run line is a single-quoted YAML scalar** (decided at implement). An unquoted `echo "iris ${{ matrix.group }} skipped: $REASON"` holds `: ` and does not parse as a plain scalar (`ruby -ryaml` rejects it, and the `yaml` rule of `test-ci-config.sh` fails), so the line is `run: 'echo "iris ${{ matrix.group }} skipped: $REASON"'`. The printed text is the one the spec names. The `BASE` env of the old `Skipped` step is gone, because the reason now carries the full base sha. The `wiring` rule pins the step name, its `run == 'false'` condition, `skipped: $REASON` in the run line and the `REASON` env binding.
 
 **Rule 2 (extend, don't copy).**
 - `ci/changes.sh` is extended: its `emit`, `everything`, fallback chain, base and `--paths-from` seam. It is not replaced.
@@ -387,6 +414,20 @@ Every command runs from the epic worktree's root, in the foreground, with `timeo
 - **AC 4:** list `live:sign-in` in `NO_WEB_BUNDLE_UNITS`. Wanted: `FAIL inputs` naming `test-sign-in.sh`.
 - **AC 5** is the aggregate of the others, and **AC 6** is the lead's CI evidence: neither has a local mutation.
 
+**Recorded mutations (implement pass; each applied, observed red, reverted, and `git status --short`, `git diff --stat` and the `git diff` checksum were identical to before).**
+- AC 1: mutation: `live:install-start` added to `NO_WEB_BUNDLE_UNITS` in `ci/units.sh` → `test-ci-changes.sh` went red on 8 checks (the web-only cases, the red-then-bookkeeping case, `--group install-fresh`, the non-ASCII web path: `install-fresh` skipped) and `test-ci-config.sh` printed `FAIL inputs` naming `test-install-start.sh`.
+- AC 2: mutation: `docker/[^/]+$` dropped from `IRIS_INPUT` → `test-ci-changes.sh` went red on the three product-source cases (`docker/Dockerfile`, `docker/merge.cpf`, `docker/after-start.cos`: "not claimed by the pattern of" all six groups, which still ran through the fallback).
+- AC 2: mutation: the unclassified fallback removed (`if [ "$u" -gt 0 ]` made never true) → `test-ci-changes.sh` went red on 10 checks, the `newdir/x.txt`, `install.sh`, `docker/other/x.sh` and `docker/tests/helper.sh` cases and the mixed one.
+- AC 2: mutation: the `forced` check skipped (`true) ;;`) → `test-ci-changes.sh` went red on the forced-push case (2 checks).
+- AC 2: mutation: a missing, unreadable or non-JSON payload treated as `forced: false` with a new-ref `before` → `test-ci-changes.sh` went red on the three payload cases (no `GITHUB_EVENT_PATH`, a missing file, not JSON), 6 checks.
+- AC 2: mutation: `failure` runs accepted as a base (the `jq` select) → `test-ci-changes.sh` went red on "a red run is never a base" and on both per-group red-then-bookkeeping checks.
+- AC 3: mutation: the `Run the group` gate set to `steps.changes.outputs.run == 'true'` in `ci.yml` → `test-ci-config.sh` printed `FAIL wiring` (no step runs `bash ci/iris.sh group ${{ matrix.group }}` with the gate `run != 'false'`).
+- AC 3: mutation: `--group ${{ matrix.group }}` dropped from the classifier line of the `iris` job → `test-ci-config.sh` printed `FAIL wiring` (no step runs `bash ci/changes.sh ci.yml --group ${{ matrix.group }}`).
+- AC 4: mutation: `live:sign-in` listed in `NO_WEB_BUNDLE_UNITS` → `test-ci-config.sh` printed `FAIL inputs` naming `docker/tests/test-sign-in.sh` and exited 1.
+- AC 3 (review pass): mutation: the `Skipped` step's `REASON` env re-pointed from `steps.changes.outputs.reason` to `steps.changes.outputs.base` in `ci.yml` → `test-ci-config.sh` printed `FAIL wiring` (the step does not bind `REASON` to the classifier's reason). The samples `skip-reason` and `skip-text` must each be flagged, or `wiring` fails.
+- AC 2 (review pass): mutation: the unclassified fallback made to apply only when no group claimed a path (`if [ "$u" -gt 0 ] && [ ! -s "$tmp/claimed-all.txt" ]`) → `test-ci-changes.sh` went red on the case "an unclassified path next to a claimed one" (2 checks: only `production` ran, and the reasons did not name the path).
+- AC 2 (review pass): mutation: `LICENSE[^/]*$|NOTICE[^/]*$` dropped from `NOT_IRIS_INPUT_PATTERN` → `test-ci-changes.sh` went red on "the licence and notice files run no group" (all six groups ran).
+
 **Shared surfaces:**
 - the outputs of `ci/changes.sh` (`base`, `web` and `reason` kept; `iris` removed; `run` added with `--group`; the `GROUP` lines) and its fallbacks. Read by `ci.yml`'s `web` and `iris` jobs and by `test-ci-changes.sh`;
 - the `wiring` rule of `test-ci-config.sh` (the exact classifier line and gates of the `iris` job);
@@ -399,5 +440,23 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Each `iris` group now runs only when a changed path matches its input pattern. `ci/units.sh` composes the patterns (`group_input_pattern`) from the shared inputs, the group's own live scripts and the web bundle's inputs, unless every unit of the group is in `NO_WEB_BUNDLE_UNITS` (only `production`). `ci/changes.sh --group <name>` decides each group against AD-22's base, prints one `GROUP` line per group, and runs every group on a force push, an unreadable payload, a pull request, a push to `main`, any API, base or diff error, and an unclassified path. The `iris` job gates `Build the web bundle` and `Run the group` on `run != 'false'` and prints `iris <group> skipped: <reason>` otherwise.
+
+**Files changed.**
+- `ci/units.sh`: the new pattern entries and `group_input_pattern` (no existing entry touched).
+- `ci/changes.sh`: `--group`, the payload and force-push checks, the per-group decision, the unclassified-path fallback and the new outputs (`iris` removed, `run` added).
+- `.github/workflows/ci.yml`: the `iris` job's classifier call, gates and `Skipped` step, and the header comment.
+- `docker/tests/test-ci-changes.sh`: the harness and the cases for every row of the I/O matrix (162 checks).
+- `docker/tests/test-ci-config.sh`: the `wiring` rule for the new gates, the `Skipped` step and its `REASON` binding, and the new `inputs` rule.
+- This spec: the recorded mutations, Design Notes 11, the triage log.
+
+**Review findings.** 21 findings from four layers: high 0, medium 3, low 13, false 5. Patches applied (3 entries): a case that mixes a claimed path with an unclassified one and a live script with documentation (`test-ci-changes.sh`); the `Skipped` step's `REASON` binding and `skipped: $REASON` text pinned in the `wiring` rule, with the samples `skip-reason` and `skip-text`; a case for the `LICENSE*` and `NOTICE*` non-inputs. Deferred: none. Rejected with reasons: see the Review Triage Log (unknown arguments, shard units in `NO_WEB_BUNDLE_UNITS`, the reason text, the stale `ci/units.sh` header, spaces in a group name, force-push wording, AC 5 and AC 6 mutation lines, a count wildcard, script order, and five `false` rows).
+
+**Follow-up review recommended: true.** First pass, two medium entries patched. The unverified risk: the `need_reason` function and the two new samples in the `wiring` awk of `docker/tests/test-ci-config.sh`, and the three cases added to `docker/tests/test-ci-changes.sh`, were written in the review pass and are checked only by their recorded mutations and by both scripts passing; no review layer has read them.
+
+**Verification.** `(loop)` `test-ci-changes.sh` (162 PASS, `all checks passed`), `test-ci-config.sh` (`PASS wiring`, `inputs`, `groups`, `units`, `demo-path`, `all rules passed`) and the pattern command (six anchored patterns, only `production`'s without `web/`, `rc=1`) after the last patch. `(once)` both scripts in both orders passed; `bash ci/checks.sh` ended `checks: all scripts passed`; `git status --short` listed only the five files and this spec. Twelve mutations applied, observed red and reverted, tree byte-identical each time. No IRIS instance, MCP call, throwaway, push or CI trigger.
+
+**Residual risks.** The `(CI)` checks are the lead's: only a real run shows that GitHub evaluates `steps.changes.outputs.run != 'false'` as planned and that the runners' push payload carries `forced` and `before` (if it does not, every group runs, which fails safe). The `Skipped` run line is single-quoted YAML (Design Notes 11), which the spec text did not show.
