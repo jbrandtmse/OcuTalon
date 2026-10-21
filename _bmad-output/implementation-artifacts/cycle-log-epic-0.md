@@ -349,3 +349,6 @@
 2026-10-21T04:11:07Z	Epic 0	merge_gate_blocked	reason=ci_red run=39540054243 job=iris(browser) head=fae0f9e
 2026-10-21T04:11:07Z	Story 0.12	rework_opened	reason=CI_story_red_DW-47 task=[CI]_sign-in_row_13_race cycle_iteration=3
 2026-10-21T04:11:07Z	Story 0.12	stage_spawned	stage=implement spawn_at=2026-10-21T04:11:07Z model=claude-sonnet-5-5 agent_name=0-12-implement-3 cycle_iteration=3
+2026-10-21T04:37:21Z	Story 0.12	dev_complete	spawn_at=2026-10-21T04:11:07Z model=claude-sonnet-5-5 build_sha=fe20df6 baseline_revision=191d6cc review_loop_iteration=2 followup_review_recommended=false deferred=0 files=2 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=3 note=CI_rework_DW-47_test_race_fixed;diagnosis_measured
+2026-10-21T04:37:21Z	Story 0.12	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 note=DW-47_resolved(pending_the_x64_run);its_2.1_bullet_removed model=claude-opus-5-5
+2026-10-21T04:37:21Z	Story 0.12	stage_spawned	stage=code-review spawn_at=2026-10-21T04:37:21Z model=claude-opus-5-5 agent_name=0-12-code-review-3 cycle_iteration=3 note=re-review_of_fe20df6

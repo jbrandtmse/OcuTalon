@@ -284,3 +284,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the 302 location was right (line 188 passed); toHaveURL saw the shell root; Story 0.12 changed nothing under web/; attempt 2 green
 - 2026-10-21T03:42:30Z status=routed owner=2-1-lay-out-the-main-page-frame by=harvest note=flake, priority; occurrence=1; same area as DW-4 (deep link lost at sign-in)
 - 2026-10-21T04:11:07Z status=open owner=0-12-epic-0-burn-down by=lead note=second red on fae0f9e (run 39540054243): a test race, not a flake; reopened 0.12 with a [CI] task (the first red commit is 811102f)
+- 2026-10-21T04:37:20Z status=resolved-by:0-12-epic-0-burn-down owner=0-12-epic-0-burn-down by=adjudication note=row 13 now checks the 303 location, the 200 shell document and the title, not the post-boot URL (fe20df6); 3 local runs green; the x64 run confirms, else reopen
