@@ -87,3 +87,12 @@
 2026-10-21T20:13:06Z	Story 32.3	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-10-21T20:13:06Z	Story 32.3	runtime_lock_acquired	lock=runtime stage=qa
 2026-10-21T20:13:13Z	Story 32.3	stage_spawned	stage=qa spawn_at=2026-10-21T20:13:13Z model=claude-sonnet agent_name=32-3-every-iris-job-finishes-in-about-ten-minutes-qa-1 cycle_iteration=1
+2026-10-21T20:26:34Z	Story 32.3	runtime_lock_released	lock=runtime stage=qa
+2026-10-21T20:26:34Z	Story 32.3	qa_complete	spawn_at=2026-10-21T20:13:13Z model=claude-sonnet tests=docker/tests/test-ci-config.sh tests_added=recipe_rule_extended mutations_demonstrated=14 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-10-21T20:26:34Z	Story 32.3	stage_spawned	stage=code-review spawn_at=2026-10-21T20:26:34Z model=claude-opus-5-5 agent_name=32-3-every-iris-job-finishes-in-about-ten-minutes-code-review-1 cycle_iteration=1
+2026-10-21T20:50:08Z	Story 32.3	cr_complete	spawn_at=2026-10-21T20:26:34Z model=claude-opus-5-5 resolved=5 fixed_at_source=5 by_design=2 wontfix_theoretical=2 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=11 high=0 med=1 low=12 rows=20 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus cycle_iteration=1
+2026-10-21T20:50:08Z	Story 32.3	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 model=claude-opus-5-5
+2026-10-21T20:50:28Z	Story 32.3	runtime_lock_acquired	lock=runtime stage=smoke
+2026-10-21T21:01:35Z	Story 32.3	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=ci/iris.sh_port:0=52810,1=52811,9=52819,10=52809,12=52807,14=52805,19=52800,20=auto;live_sign-in_as_runner_12_printed_PORT_52807_on_the_real_live_path;ci/checks.sh_all_passed note=the_live_stack_did_not_start:LOCK_busy_twice(epic1_implement_held_throwaway-iris);the_binding_on_real_runners_is_the_CI_check model=claude-opus-5-5
+2026-10-21T21:01:35Z	Story 32.3	runtime_lock_released	lock=runtime stage=smoke
+2026-10-21T21:01:35Z	Story 32.3	fresh_check	env=worktree-hermetic tests=2(test-ci-config,test-lib-live) result=pass order=forward,reverse

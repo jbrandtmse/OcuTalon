@@ -34,7 +34,7 @@ cd "$root" || exit 1
 . "$root/docker/tests/lib-live.sh"
 
 usage() {
-  sed -n '2,28p' "$root/ci/iris.sh" | sed 's/^# \{0,1\}//' >&2
+  awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$root/ci/iris.sh" >&2
 }
 
 # --- the run tag and the web port ---

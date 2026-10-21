@@ -115,6 +115,42 @@ These rows are `ci/iris.sh port` with `OCUTALON_RUN_TAG=abc-1` and `OCUTALON_TES
 - **Every check script passes.** Given the finished tree, when `bash ci/checks.sh` runs, then it ends `checks: all scripts passed`.
 - **Real CI (the lead's check, see Verification).** Given the lead's push of this story, when CI runs, then every IRIS group runs, and every `PORT` line of an IRIS job on runners 10 to 14 shows that runner's fixed port, never `auto`. Each job's time, runner and host, and the run's wall-clock, are recorded. The balance rule is re-judged on that run by the method. If the slowest IRIS job ran over about 10 minutes, the lead files its measured times as the owner's CI-capacity item, as owner decision 9 does for REL-4's 35 minutes.
 
+### Review Findings
+
+Code review of 2026-10-21 (`bmad-code-review`, full mode, tier `full-opus`). It had four layers: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor. It reviewed the diff `6960adb..` plus the working tree. Each entry gives severity, fix-risk, footprint and spec-status.
+
+- [x] [Review][Patch] Nothing shows that the fixed port reaches the browser unit's own process [docker/tests/test-ci-config.sh:1247] (blind-hunter+verification-gap). `medium`, fix-risk low (test-only, about 10 lines), in-story, spec-clear.
+  - Every check reads `OCUTALON_TEST_WEB_PORT` in the shell that ran `setup_tag`: `cmd_port`, the `PORT` line of `cmd_live`, and the sourced `setup_tag` plus `live_web_port` of `live_port_checks`.
+  - Observed in review: with `export` dropped from the 10-to-19 branch of `setup_tag`, `test-ci-config.sh` still printed `PASS recipe`.
+  - Yet `bash docker/tests/test-<unit>.sh`, the child that `cmd_live` starts, would see no port and probe again, which brings DW-49 back. AC 6's `PORT` lines would still show the fixed port.
+- [x] [Review][Patch] `usage` prints a hard-coded line range of the header [ci/iris.sh:37] (blind-hunter+edge-case-hunter). `low`, fix-risk low (one line, output byte-identical), in-story, spec-clear (the Execution item asks that `usage` stay in step with the header). The `nosuchcommand` pin catches only a header that grows past line 28. A line added after `Needs bash ...` is cut silently, and a shorter header prints `set -u` as help text.
+- [x] [Review][Patch] AC 5's pinning check (`bash ci/checks.sh`) has no `mutation:` line [spec `## Verification`] (verification-gap). `low` (Rule 19: the test exists and its line is missing), fix-risk low, in-story, spec-clear.
+- [x] [Review][Patch] The matrix row "The live unit" pins the `PORT` line and exit 1, but not the preflight's `FAIL` line [docker/tests/test-ci-config.sh:1198] (acceptance-auditor). `low`, fix-risk low (one pin), in-story, spec-clear.
+- [x] [Review][Patch] Four port pins are not anchored [docker/tests/test-ci-config.sh:1187, 1197, 1200, 1201] (acceptance-auditor). `low`, fix-risk low (four patterns), in-story, spec-clear. They are the override `52805` with runner 1, `PORT ...: 52812`, and the two `PORT ...: auto` pins with no runner. An output with extra text would still match them.
+
+**Applied (every patch, in this review).** Each fix has its `mutation:` line under `## Verification`, "Code review pass".
+- `try` in `live_port_checks` reads the port from a child process (`bash -c`). For runners 0 to 19 that child must see the fixed port, and for every probing runner it must see none.
+- `usage` prints the comment block from line 2 up to the first line that is not a comment (`awk`), with no line range. Its output is byte-identical to before, and a header line added after `Needs bash ...` is now printed.
+- A `^FAIL the base image ...` pin was added for `live sign-in` on runner 12.
+- The four pins are anchored (`^52805$`, `52812$`, `auto$`).
+- The header bullet and the `PASS recipe` wording of `test-ci-config.sh` now say that the port is exported.
+
+**Rejected** (each with its verdict and reason; none goes to the ledger):
+- `low` The `## Auto Run Result` of the implement pass, and two rejection reasons of its triage log, predate QA's `live_port_checks` (blind-hunter+acceptance-auditor). The fix would edit the spec under review. Rule 14 also scopes each pass's section to that pass, and the QA block under `## Verification` is the current record.
+- `low` The cycle log gives Story 32.3's `story_base` as `cebafa3` at `stage_spawned` and `6960adb` at `dev_complete` (blind-hunter). `cebafa3..6960adb` changes only the cycle log and `sprint-status.yaml`, so both bases give the same source diff. The cycle log is the lead's.
+- `false` The check "no runner 1 to 18 owns the prober's first port" can never fail alone (blind-hunter). It holds the invariant apart from the test's `want` mapping: a later edit that moves a runner of 1 to 18 onto 52800, with `want` edited to match, turns only this check red.
+- `false` The command-line loop over runners 1 to 19 duplicates `live_port_checks` (blind-hunter). It is AC 2's pinning test as the Execution list asks, and it runs the real `ci/iris.sh port` process, not sourced functions.
+- `low` The `unset` in the `forbidden_ports` subshell does nothing, and it is a second sanitizer next to `iris_env` (blind-hunter). It is a harmless defensive line in a subshell, not a copied helper, and nobody is likely to trip on it.
+- `low` (`wontfix-theoretical`) A runner of 20 or more, or an unnumbered one, probes silently: its unit prints `auto`, and the first port it picks is 52800, runner 19's fixed port (blind-hunter). This is also QA's residual risk.
+  - Today's services are 3 to 14, so no prober runs in CI.
+  - It becomes real when a runner service numbered 20 or more, or one with no number, runs on a host that also runs fixed-port runners. That is an owner capacity action, which the lead's CI-capacity item (lead-owned record 4) can name.
+  - A `WARN` line would change the matrix row "No fixed port" (`auto`, no error expected).
+- `low` (`by-design`) A leftover stack that holds a runner's fixed port now fails that runner's browser units instead of letting them probe (edge-case-hunter). This is the matrix row "A fixed port in use" (the unit fails, it never takes another port), the same behaviour runners 1 to 9 already have.
+- `low` Commit `2a44c89`'s message says that the runners of one host never share a port (edge-case-hunter). Fixing it would rewrite history. The durable text, the header of `ci/iris.sh`, states the limit.
+- `low` (`by-design`) AC 4 and AC 6 have no `mutation:` line (verification-gap). AC 4 is a measurement and AC 6 is the lead's CI evidence, as `## Verification` says.
+- `false` The spec's `status: done` disagrees with the tracker's `review` (verification-gap+acceptance-auditor). The frontmatter is `bmad-build-auto`'s completion contract (Rule 4), and the tracker is what this stage syncs. QA's uncommitted additions are expected, because the lead commits.
+- `low` (`wontfix-theoretical`) The `live` pins rely on no image named `ocutalon-no-such-image:0` being on the machine (verification-gap). This pattern predates the story. It would become real only if someone built an image under that exact name.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -319,12 +355,43 @@ Limits (inference): the method assumes that a host's load slows its units evenly
 
 **Mutations applied (Rule 19; implement stage, each on a saved copy of `ci/iris.sh`, restored from it with `git status --short`, `git diff --stat` and `git diff` byte-identical to before).**
 - mutation: AC 1, deleted the `elif` 10-to-19 branch of `setup_tag` → `bash docker/tests/test-ci-config.sh` printed `FAIL recipe` with the pins `^52809$` (`-10`), `^52807$` (`-12` and `-012`), `^52805$` (`-14`), `^52800$` (`-19`) and the `PORT ... 52807$` line of `live sign-in` red, and the check over runners 1 to 19 naming `auto` (outside 52800-52819, and repeated).
-- mutation: AC 2, gave runner 13 alone the port 52813 (runner 3's), with every pinned runner as it was → `FAIL recipe` from the check over runners 1 to 19 alone (`runner 13: port '52813' repeats an earlier runner's`), no pin red.
+- mutation: AC 2, gave runner 13 alone the port 52813 (runner 3's), with every pinned runner as it was → `FAIL recipe` from the check over runners 1 to 19 (`runner 13: port '52813' repeats an earlier runner's`) and, since the QA pass, from the check through `live_web_port` (runner 13 gave 52813, wanted 52806, and with 52806 held took 52813); still no exact pin red (re-demonstrated, QA).
 - mutation: AC 3, replaced the `[ -z "${OCUTALON_TEST_WEB_PORT:-}" ]` guard by `true` → `FAIL recipe` (the override with `ocutalon-ci-12` printed 52807, `^52805$` wanted, and the older override pin with `ocutalon-ci-1` red as well).
-- mutation: AC 3, widened the branch to n of at most 29 → `FAIL recipe` (`ocutalon-ci-20` printed 52799, `^auto$` wanted; `-114` and `-x` stayed green).
+- mutation: AC 3, widened the branch to n of at most 29 → `FAIL recipe` (`ocutalon-ci-20` printed 52799, `^auto$` wanted, and the QA pins `-0020`, the `live sign-in` PORT line of runner 20 and the probing runners 20 and 0020 of the `live_web_port` check red as well; `-114` and `-x` stayed green) (re-demonstrated, QA).
 - mutation: AC 1, base-10 reading (review pass): replaced `10#$n` by `n` in the 10-to-19 condition of `setup_tag` → `FAIL recipe` (`ocutalon-ci-019` exited 1, `^52800$` wanted); replaced it in the 0-to-9 condition → `FAIL recipe` (`ocutalon-ci-08` exited 1, `^52818$` wanted, and `-019` red too).
 - mutation: AC 2, forbidden-port clause (review pass): added `52805` to `LIVE_FORBIDDEN_PORTS` in `docker/tests/lib-live.sh`, then restored it from a saved copy (`git diff` byte-identical) → `FAIL recipe` (`runner 14: port '52805' is in LIVE_FORBIDDEN_PORTS`). The clause fails only on a change to that list, because the list holds no port of 52800-52819 today.
 - mutation: usage range (review pass): set `usage`'s `sed -n '2,28p'` back to `'2,25p'` → `FAIL recipe` (`ci/iris.sh nosuchcommand -> exit 2, wanted exit 2 with 'Needs bash 3.2 or later'`).
+
+**QA pass (bmad-qa-generate-e2e-tests; `mutations_demonstrated=14`).** The seven lines above (eight mutations: the base-10 line holds two) were applied again to the current tree, each on a saved copy of the file, observed red and restored from the copy with `git status --short` and `git diff` byte-identical; all stayed red as recorded, and the AC 2 and AC 3 lines were completed above. Six mutations of the QA additions follow. A mutation of `docker/tests/lib-live.sh` is temporary: the file is restored from a saved copy and its diff stays empty.
+- mutation: AC 3, QA, cut the digits out of a suffix with a letter (`n=${n%%[!0-9]*}` after `n=${RUNNER_NAME##*-}`, so `12b` reads as 12) → `FAIL recipe` (the `^auto$` pins of `ocutalon-ci-12b` and `ocutalon-ci-1a` red, and the probing runner `ocutalon-ci-12b` of the `live_web_port` check took 52807, wanted 52800; the older `-x` pin stayed green).
+- mutation: AC 3, QA, drop a set `OCUTALON_TEST_WEB_PORT` when `RUNNER_NAME` is empty or unset (`unset` before the guard) → `FAIL recipe` (the override pins with an empty runner name and with no runner red, `^52803$` wanted; the older override pins with runners 1 and 12 stayed green).
+- mutation: AC 3, QA, a set but empty `OCUTALON_TEST_WEB_PORT` suppresses the runner's port (guard `-z "${...+x}"` in place of `-z "${...:-}"`) → `FAIL recipe` (`ocutalon-ci-12` with an empty override printed `auto`, `^52807$` wanted).
+- mutation: AC 1 and 2, QA, `live_web_port` refuses an override below 52810 (`-lt 52800` set to `-lt 52810` in `lib-live.sh`) → `FAIL recipe` from the `live_web_port` check (runners 10 to 19 gave exit 1, "outside 52800-52819", wanted their fixed port). `test-lib-live.sh` pins 52799 refused and 52815 accepted only, so it would not catch this edge.
+- mutation: matrix row "A fixed port in use", QA, `live_web_port` accepts a fixed port that is in use (`if port_in_use "$port"` set to `if false`) → `FAIL recipe` from the `live_web_port` check (runners 0 to 19: with the port held, exit 0 and that port, wanted exit 1, no port and an "in use" message).
+- mutation: AC 3, QA, a probing runner starts at 52805, runner 14's port (`seq 52800 52819` set to `seq 52805 52819` in `lib-live.sh`) → `FAIL recipe` (every probing runner took 52805, wanted 52800, and `runner 14: its port 52805 is the first port that a probing runner takes`).
+
+**Tests added or changed (QA).**
+- (QA) `docker/tests/test-ci-config.sh`, the `recipe` rule only: anchored the `52811`, `52812` and the two `auto` pins; added `^auto$` pins for `ocutalon-ci-12b`, `-1a`, `ocutalon-ci-` (nothing after the hyphen) and `-0020`; an override loop (`OCUTALON_TEST_WEB_PORT=52803` wins for runners 0, 1, 9, 10, 12, 19, 20, `-12b`, `somerunner`, an empty name and no runner) and an empty-override pin (`ocutalon-ci-12` still gets 52807); two `live sign-in` PORT-line pins (the override with runner 12, and `auto` for runner 20); and the `live_port_checks` function, which sources `ci/iris.sh`, stubs `port_in_use` and runs `setup_tag` then the real `live_web_port` for runners 0 to 19 (the fixed port is accepted, and refused as in use when held, without another port), for seven probing runners (each takes 52800) and for the rule that no runner 1 to 18 owns the first port a prober takes. The header bullet and the `PASS recipe` wording say so.
+- Residual risk of the implement stage, as far as it can be pinned without a stack: the pins above show that a probing runner starts at 52800 and that only runner 19 owns that port. The race itself (the probe does not bind the port, and two jobs of one host can choose the same one between the probe and the publish) needs a stack and is not pinned. It is not a defect of this story: a probing runner exists only for a runner name of 20 or more or without a number, and today's services are 3 to 14.
+
+**Code review pass (Rule 19).** Each mutation was made on a saved copy of `ci/iris.sh` and restored from that copy; afterwards `git diff` hashed the same as before.
+- Gap, observed before the patch: `export` dropped from the 10-to-19 branch of `setup_tag`. `test-ci-config.sh` printed `PASS recipe`, so no check saw the port leave the shell.
+- mutation: AC 1, `export` dropped from the 10-to-19 branch of `setup_tag` → `FAIL recipe`, from the child-process check of `live_port_checks` (`runner 10` to `runner 19: a child process sees port none, wanted 52809` ... `52800: setup_tag does not export it`).
+- mutation: AC 1, `export` dropped from the 0-to-9 branch → `FAIL recipe` (the same check, for runners 0 to 9).
+- mutation: usage, `usage` set back to `sed -n '2,25p' ... | sed ...` → `FAIL recipe` (`ci/iris.sh nosuchcommand -> exit 2, wanted exit 2 with 'Needs bash 3.2 or later'`). With the `awk` form, a header line inserted after `Needs bash ...` is printed as the last line of the usage text (checked, then restored).
+- mutation: AC 5, the `elif` 10-to-19 branch of `setup_tag` deleted (and nothing else) → `bash ci/checks.sh` exits 1 and ends `checks: failed: ci-config`, after `FAIL recipe`.
+- mutation: matrix row "The live unit", the preflight's text changed from `is not on this machine` to `is missing on this machine` → `FAIL recipe` (`live sign-in ... wanted exit 1 with '^FAIL the base image ocutalon-no-such-image:0 is not on this machine'`).
+- mutation: matrix rows "Override" and "The live unit", anchoring:
+  - the `PORT` line given the suffix ` (x)` → `FAIL recipe`, with all six `PORT ...$` pins red (`52812$`, `52807$`, `52803$` and `auto$` three times);
+  - `cmd_port` printing `52805 x` for a set port of 52805 → `FAIL recipe`, with the three `^52805$` pins red (runner 14, and the overrides with runners 12 and 1) and `runner 14: port '52805 x' is not within 52800-52819`.
+- After the last patch, all of these passed:
+  - `bash docker/tests/test-ci-config.sh` (`PASS recipe`, `test-ci-config: all rules passed`, about 8.5 s);
+  - `bash docker/tests/test-lib-live.sh` (`test-lib-live: all checks passed`);
+  - both scripts in both orders;
+  - `bash ci/checks.sh` (`checks: all scripts passed`, 50 s);
+  - the port loop (`52810 52811 52819 52809 52807 52805 52800 auto 52807 auto`).
+
+  `git diff --stat` of `ci/units.sh`, `ci/changes.sh`, `.github/workflows/ci.yml` and `docker/tests/lib-live.sh` is empty.
 
 **Shared surfaces:**
 - the output of `ci/iris.sh port`, and the `PORT` line of `ci/iris.sh live`. The `recipe` rule of `test-ci-config.sh` and the lead's CI evidence read them;

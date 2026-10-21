@@ -6391,7 +6391,7 @@ So that one slow group doesn't hold up CI's verdict, and a slow runner host show
 
 **Given** a push that runs every IRIS group, after Story 32.1's split and rebalance
 **When** CI runs
-**Then** no IRIS job runs more than about 25% over the mean of the six IRIS jobs, and each job's time, runner and host are recorded (REL-4, AD-22).
+**Then** no IRIS job runs more than about 25% over the mean of the six IRIS jobs, and each job's time, runner and host are recorded (REL-4, AD-22). [AMENDED 2026-10-21, Story 32.3 spec gate, unattended ruling (veto U-7): the 25% rule is judged on the grouping, each group's unit time normalized to one host, because the repository cannot choose a job's runner host; every raw job time, runner and host is still recorded, and the host disparity goes to the owner with the CI-capacity item.]
 **And** a unit still moves whole between groups and is never split.
 **And** if the slowest IRIS job runs over about 10 minutes, its measured times go to the owner as a CI-capacity item, as owner decision 9 does for REL-4's 35 minutes.
 - DW-49: `ci/iris.sh` gives the browser units a fixed web port (52810 + n) only for runners 1 to 9, so on `ocutalon-ci-10` to `-14` two concurrent browser jobs can probe and pick the same free port (ledger; routed by adjudication 2026-10-21)

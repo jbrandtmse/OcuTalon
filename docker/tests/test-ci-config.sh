@@ -35,10 +35,13 @@
 #     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern;
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number on runners 0 to 9 and 52819 minus it on runners 10 to 19, a set
-#     OCUTALON_TEST_WEB_PORT wins, any other runner name (a number of 20 or more, none) and no runner leave `auto` (DW-49, Story 32.3),
-#     and the ports of runners 1 to 19 are distinct, within 52800-52819 and none in LIVE_FORBIDDEN_PORTS; `groups` prints the six
-#     groups in order, `list` shows the two install groups with their anchors, the retired group install is refused with exit 2, and
-#     each group's CI tag (<run id>-<attempt>-<group>) is a valid run tag under which `group <name>` knows the group;
+#     OCUTALON_TEST_WEB_PORT wins (whatever the runner, none included), any other runner name (a number of 20 or more, a letter after
+#     the number, none) and no runner leave `auto` (DW-49, Story 32.3), and the ports of runners 1 to 19 are distinct, within
+#     52800-52819 and none in LIVE_FORBIDDEN_PORTS; the real live_web_port (port_in_use stubbed, nothing listens) accepts the fixed
+#     port of each runner 0 to 19, which setup_tag exports to a child process, refuses it as in use when it is held without taking
+#     another, and gives a probing runner 52800, which no runner 1 to 18 owns; `groups` prints the six groups in order, `list` shows the two install groups with their anchors,
+#     the retired group install is refused with exit 2, and each group's CI tag (<run id>-<attempt>-<group>) is a valid run tag under
+#     which `group <name>` knows the group;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
 #     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
 #   - mock wrapper (Story 0.11): docker/tests/test-mock.sh runs node --test on every file of ci/mock/test/ and exits with node's
@@ -1159,8 +1162,8 @@ recipe 2 "unknown live unit" -- live nosuch
 recipe 2 "unknown group" -- group nosuch
 recipe 2 "Needs bash 3.2 or later" -- nosuchcommand
 recipe 1 "base image" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- build
-recipe 0 "52811" RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "52812" RUNNER_NAME=ocutalon-ci-2 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52811$" RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52812$" RUNNER_NAME=ocutalon-ci-2 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^52819$" RUNNER_NAME=ocutalon-ci-9 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^52809$" RUNNER_NAME=ocutalon-ci-10 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^52807$" RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
@@ -1173,14 +1176,31 @@ recipe 0 "^52810$" RUNNER_NAME=ocutalon-ci-0 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-20 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-114 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-x OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "auto" RUNNER_NAME=somerunner OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "auto" OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
+# QA (Story 32.3): a number followed by a letter, a trailing hyphen with no number, and a leading-zero 20 are no runner number (the
+# digits are not cut out of the suffix; 0020 is 20 in base 10, 16 in octal).
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-12b OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-1a OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci- OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-0020 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=somerunner OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52805$" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
 recipe 0 "^52805$" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+# QA (Story 32.3): a set OCUTALON_TEST_WEB_PORT wins whatever the runner is: one of each branch (0, 1, 9, 10, 12, 19), a number of 20 or
+# more, a number with a letter after it, a name with no number, an empty RUNNER_NAME and none at all. 52803 is the fixed port of none of
+# them, so a runner that kept its own port would show. A set but empty OCUTALON_TEST_WEB_PORT counts as unset, as it does for live_web_port.
+for override_runner in ocutalon-ci-0 ocutalon-ci-1 ocutalon-ci-9 ocutalon-ci-10 ocutalon-ci-12 ocutalon-ci-19 ocutalon-ci-20 ocutalon-ci-12b somerunner ""; do
+  recipe 0 "^52803$" OCUTALON_TEST_WEB_PORT=52803 RUNNER_NAME="$override_runner" OCUTALON_RUN_TAG=abc-1 -- port
+done
+recipe 0 "^52803$" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52807$" OCUTALON_TEST_WEB_PORT= RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 1 "PORT the web port of the browser units: 52812$" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: 52807$" RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
-recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
-recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
+recipe 1 "^FAIL the base image ocutalon-no-such-image:0 is not on this machine" RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: 52803$" OCUTALON_TEST_WEB_PORT=52803 RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" RUNNER_NAME=ocutalon-ci-20 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
 # The runners of one host share its 127.0.0.1 (DW-49), so the 19 runners 1 to 19 must get 19 distinct ports, each one that live_web_port
 # accepts: within 52800-52819 and not in LIVE_FORBIDDEN_PORTS (read from a sourced ci/iris.sh, which defines functions and runs nothing).
 forbidden_ports=$(unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME; . ci/iris.sh; printf '%s' "$LIVE_FORBIDDEN_PORTS")
@@ -1204,6 +1224,89 @@ while [ "$runner_n" -le 19 ]; do
   seen_ports="$seen_ports$runner_port "
   runner_n=$((runner_n + 1))
 done
+# QA (Story 32.3; DW-49): the same ports through the real live_web_port, which a browser unit calls after setup_tag. A subshell sources
+# ci/iris.sh (it defines functions and runs nothing), replaces port_in_use by a list of held ports (nothing listens and nothing is
+# bound), and for each case runs setup_tag and then live_web_port. The expected fixed port is the spec's mapping, written out here:
+# 52810 + n for n from 0 to 9, 52819 - n for n from 10 to 19.
+#   - the fixed port of every runner 0 to 19 is accepted as it is, so live_web_port's range holds all twenty, and a child process
+#     sees it, because ci/iris.sh live starts the browser unit's script as one; a probing runner's child sees no port;
+#   - a fixed port that something already holds fails "in use" and takes no other port (a runner of the same host, or a probing runner
+#     that got there first, ends its unit and does not move to a free port);
+#   - a probing runner (no RUNNER_NAME, a name with no number or a non-digit suffix, a number of 20 or more) takes 52800, the first
+#     port of the range, as a developer machine does today;
+#   - that first pick, 52800, is the fixed port of runner 19 alone: runners 1 to 18 never meet it. This is the limit of the design (the
+#     header of ci/iris.sh): a probing runner on a host that also ran a runner 19 could meet it, and no such service exists (today's are 3
+#     to 14). The race itself (a probe does not bind the port) cannot be shown without a stack.
+live_port_checks() {
+  (
+    unset OCUTALON_TEST_WEB_PORT
+    . ci/iris.sh
+    OCUTALON_RUN_TAG=abc-1
+    tmp="$tmp/live-port"
+    mkdir -p "$tmp"
+    held=""
+    port_in_use() { [[ " $held " == *" $1 "* ]]; }
+    # try <runner name> <held ports>: setup_tag, then live_web_port. Sets try_rc, try_port (web_port), try_msg (its first line) and
+    # try_child (the port that a child process sees, as the browser unit's own script does). setup_tag leaves a global n behind, so the
+    # loops below count with idx.
+    try() {
+      RUNNER_NAME=$1
+      held=$2
+      unset OCUTALON_TEST_WEB_PORT
+      LIVE_FILES=()
+      web_port=""
+      setup_tag
+      try_child=$(bash -c 'printf %s "${OCUTALON_TEST_WEB_PORT-}"')
+      live_web_port > "$tmp/out" 2>&1
+      try_rc=$?
+      try_port=$web_port
+      try_msg=$(head -n 1 "$tmp/out")
+    }
+    try "" ""
+    prober_first=$try_port
+    if [ "$try_rc" -ne 0 ] || [ "$prober_first" != 52800 ]; then
+      printf ' [no runner: live_web_port gave exit %s and port %s, wanted exit 0 and 52800]' "$try_rc" "${prober_first:-none}"
+    fi
+    if [ -n "$try_child" ]; then
+      printf ' [no runner: a child process sees port %s, wanted none]' "$try_child"
+    fi
+    for prober in somerunner ocutalon-ci-x ocutalon-ci-12b ocutalon-ci- ocutalon-ci-20 ocutalon-ci-114 ocutalon-ci-0020; do
+      try "$prober" ""
+      if [ "$try_rc" -ne 0 ] || [ "$try_port" != 52800 ]; then
+        printf ' [%s: live_web_port gave exit %s and port %s, wanted exit 0 and 52800]' "$prober" "$try_rc" "${try_port:-none}"
+      fi
+      if [ -n "$try_child" ]; then
+        printf ' [%s: a child process sees port %s, wanted none]' "$prober" "$try_child"
+      fi
+    done
+    idx=0
+    while [ "$idx" -le 19 ]; do
+      if [ "$idx" -le 9 ]; then want=$((52810 + idx)); else want=$((52819 - idx)); fi
+      try "ocutalon-ci-$idx" ""
+      if [ "$try_rc" -ne 0 ] || [ "$try_port" != "$want" ]; then
+        printf ' [runner %s: live_web_port gave exit %s and port %s, wanted exit 0 and %s: %s]' "$idx" "$try_rc" "${try_port:-none}" "$want" "$try_msg"
+      fi
+      if [ "$try_child" != "$want" ]; then
+        printf ' [runner %s: a child process sees port %s, wanted %s: setup_tag does not export it]' "$idx" "${try_child:-none}" "$want"
+      fi
+      if [ "$idx" -ge 1 ] && [ "$idx" -le 18 ] && [ "$try_port" = "$prober_first" ]; then
+        printf ' [runner %s: its port %s is the first port that a probing runner takes]' "$idx" "$try_port"
+      fi
+      try "ocutalon-ci-$idx" "$want"
+      if [ "$try_rc" -ne 1 ] || [ -n "$try_port" ] || ! printf '%s\n' "$try_msg" | grep -q 'in use'; then
+        printf ' [runner %s: with port %s held, live_web_port gave exit %s and port %s, wanted exit 1, no port and an in use message: %s]' \
+          "$idx" "$want" "$try_rc" "${try_port:-none}" "$try_msg"
+      fi
+      idx=$((idx + 1))
+    done
+    printf ' [live-port-done]'
+  )
+}
+live_port_out=$(live_port_checks)
+case $live_port_out in
+  *'[live-port-done]') recipe_fail="$recipe_fail${live_port_out%' [live-port-done]'}" ;;
+  *) recipe_fail="$recipe_fail [the checks through live_web_port did not run to their end: $(printf '%s' "$live_port_out" | tr -d '[]' | head -c 300)]" ;;
+esac
 # The six groups through the command line (Story 32.1). `groups` prints the names in order. `list` shows the install groups with their
 # anchor units, and no more than that is pinned (a rebalance of whole units needs no edit). The retired name install is refused with
 # exit 2 and the new list; it runs with a base image that does not exist, so that a stale `install` case of group_units would end at
@@ -1241,7 +1344,7 @@ for browser_unit in $(. ./ci/units.sh && printf '%s' "$BROWSER_UNITS"); do
   fi
 done
 if [ -z "$recipe_fail" ]; then
-  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number (the ports of runners 1 to 19 are distinct), and the six groups answer groups, list and group (the retired install is refused) under their CI tags"
+  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number (the ports of runners 1 to 19 are distinct and exported, and live_web_port takes each one), and the six groups answer groups, list and group (the retired install is refused) under their CI tags"
 else
   printf '%s\n' "$recipe_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
   echo "FAIL recipe: ci/iris.sh does not refuse, does not choose the port, or does not answer for the six groups, as designed"
