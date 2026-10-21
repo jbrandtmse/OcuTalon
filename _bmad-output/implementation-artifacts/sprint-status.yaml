@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-21-2026 14:37
+last_updated: 10-21-2026 15:28
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -307,7 +307,7 @@ development_status:
   epic-31-retrospective: optional
 
   epic-32: in-progress
-  32-1-the-install-group-runs-as-two-jobs: in-progress
+  32-1-the-install-group-runs-as-two-jobs: review
   32-2-an-iris-group-runs-only-when-something-it-tests-changed: backlog
   32-3-every-iris-job-finishes-in-about-ten-minutes: backlog
   epic-32-retrospective: optional
