@@ -13,3 +13,7 @@
 2026-10-21T13:56:41Z	Epic 32	retro_review_skipped	reason=handled_by_epic_1
 2026-10-21T14:01:42Z	Epic 32	epic_context_compiled	reason=initial model=claude-opus-5-5 lines=65
 2026-10-21T14:01:42Z	Story 32.1	stage_spawned	stage=plan spawn_at=2026-10-21T14:01:42Z model=claude-opus-5-5 agent_name=32-1-the-install-group-runs-as-two-jobs-plan-1 cycle_iteration=1
+2026-10-21T14:21:38Z	Story 32.1	plan_clarification_requested	spawn_at=2026-10-21T14:01:42Z model=claude-opus-5-5 build_status=blocked condition=intent_gap_10min_ceiling_unmeetable_by_whole_unit_moves path=_bmad-output/implementation-artifacts/spec-32-1-the-install-group-runs-as-two-jobs.md cycle_iteration=1
+2026-10-21T14:21:38Z	Story 32.1	ruling	question=ac2_10min_ceiling_unmeetable choice=split_ceiling_to_sibling_32.3_and_park_it rejected=park_whole_32.1(blocks_32.2_which_builds_on_it),plan_around_it(Rule_5),restate_number_ourselves(owner_only) why=the_ceiling_is_a_number_stated_as_a_target_in_the_epics(owner_only);a_split_into_a_sibling_in_the_same_epic_is_decide(U5)_and_keeps_the_split,rebalance_and_records_moving category=decide policy=7969e5240335346c2007efd9c1c9fffe2d95443f files=epics.md,spec-32-1 inbox=none
+2026-10-21T14:21:38Z	Story 32.3	story_parked	unit=Story_32.3 inbox=U-1 reason=owner_only:number_stated_as_target_in_epics stage=before_plan code=none
+2026-10-21T14:21:38Z	Epic 32	story_split	from=32-1-the-install-group-runs-as-two-jobs to=32-3-every-iris-job-finishes-in-about-ten-minutes children=1 limit=6 deps_hash_reason=split

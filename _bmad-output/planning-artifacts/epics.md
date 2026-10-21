@@ -6328,10 +6328,10 @@ So that no IRIS job runs much longer than the others, and CI's wall-clock time f
 **When** the IRIS groups are listed
 **Then** `install` is replaced by two groups, `install-fresh` (`live:install-start`) and `install-upgrade` (`live:install-upgrade`). `IRIS_GROUPS` and the matrix in `.github/workflows/ci.yml` list both, and `docker/tests/test-ci-config.sh` still proves that the workflow and `units.sh` agree (REL-4, AD-22).
 
-**Given** a push that runs every IRIS group, with at least as many free runner services as groups
+**Given** a push that runs every IRIS group
 **When** CI runs
-**Then** no IRIS job runs longer than about 10 minutes. The run's wall-clock time is recorded and compared with the last full run before the split.
-**And** if one group still runs much longer than the rest, its units are rebalanced across groups (a unit moves whole, never split) until no job exceeds about 10 minutes, and each move is recorded.
+**Then** each IRIS job's time, runner and host, and the run's wall-clock time, are recorded and compared with the last full run before the split.
+**And** if one group still runs much longer than the rest, its units are rebalanced across groups (a unit moves whole, never split), and each move is recorded. [AMENDED 2026-10-21, Story 32.1 plan, unattended ruling (a split, decide): the ceiling "no IRIS job runs longer than about 10 minutes", and the rebalance "until no job exceeds about 10 minutes", moved to Story 32.3, because the plan's measurement found that whole-unit moves cannot meet it on the current runner hosts; the criterion's Given also named "at least as many free runner services as groups", which Story 32.3 keeps.]
 
 **Given** the two new groups
 **When** each runs on its own throwaway stack
@@ -6378,3 +6378,18 @@ So that small or one-lane pushes don't spend runner time on groups they can't af
 **Then** it covers each group's pattern with at least one changed path that runs the group and one that skips it, including:
 - a web-only change that runs `browser` and every other group the plan lists as checking the built web bundle, and skips the rest [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: it skipped `install-fresh`, `install-upgrade`, `production` and `image`];
 - a change under `ci/` that runs every group.
+
+### Story 32.3: Every IRIS job finishes in about ten minutes
+
+[AMENDED 2026-10-21, Story 32.1 plan, unattended ruling (a split, decide): split from Story 32.1's second criterion. It waits for the owner's decision on how the ceiling is met, because the plan measured that it cannot be met by moving whole units on the current runner hosts: on run 39594299887, with five IRIS stacks on `ocutalon-ci-b`, `live:install-start` alone took 681 s, so the job that holds it takes about 12 minutes whatever the grouping.]
+
+As the author,
+I want no IRIS job to run longer than about 10 minutes when runners are free,
+So that CI's verdict comes in about ten minutes.
+
+**Acceptance Criteria:**
+
+**Given** a push that runs every IRIS group, with at least as many free runner services as groups, after Story 32.1's split and rebalance
+**When** CI runs
+**Then** no IRIS job runs longer than about 10 minutes, and each job's time, runner and host are recorded (REL-4, AD-22).
+**And** a unit still moves whole between groups and is never split.
