@@ -44,3 +44,7 @@
 2026-10-21T22:10:21Z	Epic 32	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=every_routed_entry_already_has_its_bullet
 2026-10-21T22:10:21Z	Epic 32	deps_hash_rerecorded	reason=split hash=b697229525f0ce9bad1b3dcf8fd6419c653f86b0327ae11c2dcca5cbadfb03ad note=story_32.3_split_from_32.1_inside_epic_32
 2026-10-21T22:10:21Z	Epic 32	spine_reconciled	ads_merged=0 lint=baseline(4_low_placeholders) note=AD-22_amended_by_epic_32(veto_U-4)
+2026-10-21T22:10:37Z	Epic 32	worktree_removed	worktree=.worktrees/epic-32
+2026-10-21T22:10:37Z	Epic 32	epic_branches_deleted	branch=OCT-epic32 local=deleted remote=deleted
+2026-10-21T22:12:12Z	Epic 1-16,29-32	ci_green_verified	runs=39684520856,39684520953 head=2d55996 result=success purpose=dispatch(epic-2) note=feature_head_after_the_epic_32_merge
+2026-10-21T22:12:12Z	Epic 2	worktree_provisioned	worktree=.worktrees/epic-2 branch=OCT-epic2 from=feature submodules=none
