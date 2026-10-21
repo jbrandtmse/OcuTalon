@@ -176,9 +176,10 @@ test('row 12: a user without the user role sees the message and holds no session
 });
 
 /**
- * Row 13: signing in at a deep link lands on it. The proof is the server's 303 and the document navigation it
- * leads to, not the address bar: the shell boots Angular with hash routing under <base href="/ocutalon/">, and the
- * router's first navigation rewrites the page's URL to /ocutalon/#/, so a URL read after the boot is not the target.
+ * Row 13: signing in at a deep link redirects to it, and that URL serves the shell. The proof is the server's 303
+ * and the document navigation it leads to, not the address bar: the shell boots Angular with hash routing under
+ * <base href="/ocutalon/">, and the router's first navigation rewrites the page's URL to /ocutalon/#/, so a URL
+ * read after the boot is not the target.
  */
 test('row 13: sign-in at a deep link redirects to that URL, which serves the shell', async ({ page }) => {
   const target = '/ocutalon/index.html?x=1';
@@ -189,7 +190,8 @@ test('row 13: sign-in at a deep link redirects to that URL, which serves the she
   const landed = page.waitForResponse(
     (r) => r.request().method() === 'GET' && r.request().isNavigationRequest() && r.url().endsWith(target),
   );
-  // The 303 is asserted first, so a wrong Location names itself; this keeps the unused wait from rejecting unhandled.
+  // Awaited only after the 303 and its Location pass, so a wrong Location fails on its own assertion. The no-op
+  // catch handles this wait's rejection when an assertion above fails first; awaiting landed still rejects.
   landed.catch(() => undefined);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   const response = await answered;

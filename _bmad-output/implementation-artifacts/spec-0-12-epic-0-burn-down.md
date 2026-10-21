@@ -379,6 +379,44 @@ Rejected (no ledger entry):
 - The five changed note checks depend on the script's staging, not on state they create (VG). Pre-existing and spec-bound: REL-4 allows no new restart, and the rework's triage (VG 3) rejected the same point. Run out of order, they go red, never falsely green.
 - Matrix rows 11 to 13 still give the four-key mark (AA). The fix would edit the spec's frozen intent block. The rework task supersedes those rows.
 
+### Review Findings (CI re-review)
+
+Code review re-review after the CI rework, October 21 (`bmad-code-review`, tier `full-opus`), scoped to `git diff 191d6cc fe20df6 -- . ':(exclude)_bmad-output'` (DW-47; 1 file, +17 -5, `web/e2e/sign-in/sign-in.spec.ts` row 13). Layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor ran on this checkout, and none of them changed anything. 12 raw findings, 10 entries after grouping: 0 high, 0 medium, 2 low patched, 8 rejected. Each entry gives severity / fix-risk / Rule 15 disposition.
+
+- [x] [Review][Patch] Row 13's doc comment opened with "signing in at a deep link lands on it", and its own next sentence says the address bar ends at `/ocutalon/#/`. It now states what the test pins: "signing in at a deep link redirects to it, and that URL serves the shell" (comment only) [web/e2e/sign-in/sign-in.spec.ts:179]. low / low / fixed.
+- [x] [Review][Patch] The inline comment called `landed` "the unused wait", but the wait is awaited on the passing path. It now states the contract: the wait is awaited only after the 303 and its `Location` pass, and the no-op `catch` handles its rejection when an earlier assertion fails, while `await landed` still rejects (comment only) [web/e2e/sign-in/sign-in.spec.ts:193]. low / low / fixed.
+
+Checks the lead asked for:
+- **Row 13 still proves Story 0.3's row 13.** Four assertions carry it:
+  - **The 303:** `toBe(303)`.
+  - **The exact `Location` with the query:** `location.pathname + location.search` equals `target`, `/ocutalon/index.html?x=1`.
+  - **A 200 shell document for that URL:** `landed` waits for a GET navigation whose URL ends with `target`, which must answer 200 with `<app-root` in its body.
+  - **The title:** `toHaveTitle('OcuTalon')` is an exact match, so the sign-in page's "Sign in · OcuTalon" fails it.
+  The post-boot `toHaveURL` was the only assertion removed.
+- **The new wait cannot pass for the wrong reason.**
+  - **The sign-in page's own document:** it is served at `target` itself, but `landed` is registered only after `await page.goto(target)` has resolved, and `waitForResponse` sees only later responses.
+  - **The form's POST:** it also goes to `target`, and the GET filter excludes it.
+  - **Other navigations:** the sign-in page's script only toggles the password field and never navigates, so the first match is the GET that follows the 303.
+  - **A wrong match fails:** if that GET answered the sign-in page again, `<app-root` would fail (row 12 pins its absence) and so would the title. It cannot be a cached copy, because the sign-in page is sent `no-store`.
+- **Nothing else changed behaviour.** The diff has one hunk, row 13. Renaming the predicate's parameter from `response` to `r`, and the `target` constant, are equivalent to the old code. This pass's two patches change comments only.
+- **ASCII and comments.** The file has no byte above 127. After the two patches, both comments state what the test pins and relies on, and neither tells history.
+- **The recorded mutations are sound** (`### CI pass, DW-47` under Verification). Under each one, the assertion it names is the first that can fail:
+  - **`Location` without the query:** the 303 passes, then the `Location` check fails.
+  - **404 for `index.html` with a query:** the page before sign-in comes from `Login()`, not `Serve`, so it is unaffected. The 303 and `Location` pass, then the 200 check fails.
+  - **A 200 stub without `<app-root`:** only the `<app-root` check can fail.
+  Together they cover `Location`, the 200 and the shell body, and the first two were rightly run apart. None was re-run, because this pass changed comments only.
+- **x64.** On the pushed head `b6459b8`, the `ci` run 39545049306 had `iris (browser)` green on the runner by the end of the review, together with `checks`, `web`, `iris (install)` and `iris (shards)`. `iris (image)` and `iris (production)` were still running and were not waited on.
+
+Rejected (no ledger entry):
+- **`landed` is not tied to the 303 by `redirectedFrom()` and would also accept a subframe (BH).** False. The wait is registered after `goto` has resolved, the POST fails the GET filter and nothing else navigates, so the first match is the GET after the 303. Any other match would be the sign-in page, which fails `<app-root` and the title. The CI pass triage rejected the same point (Blind Hunter 4, Edge Case Hunter 1).
+- **Row 13 repeats `helpers.ts`'s `fillSignIn` and `submitSignIn` inline (BH).** Low and pre-existing. The inline fill, wait and click predate the rework, which only renamed the predicate's parameter. The fix is a refactor that no developer meets in everyday use.
+- **`Location` is resolved against `page.url()`, which the doc comment says is not the target after the boot (BH).** False. `FullUrl()` writes an absolute path, so the base supplies only the origin, and every URL the page holds is on that origin. The line is unchanged.
+- **`answered` has no no-op `catch`, so a click that throws leaves its rejection unhandled (EC).** Low and pre-existing. `answered` is unchanged, this happens only on a test that is already red, and the fix adds a guard.
+- **`landed` has no timeout of its own, so a redirect GET that fails at the network level shows only as the 45 s test timeout (EC).** Low. The test still goes red, and Playwright's timeout error names the pending `waitForResponse`. A local GET failing at the network level is not an everyday case, and the fix adds a timeout value.
+- **No recorded mutation makes `toBe(303)` the red assertion, and none mutates the title (VG).** False as a gap. Rule 19 asks for one mutation per AC, and row 13 has three. The 303 assertion is unchanged, plainly falsifiable and also pinned by `Test.Web.Shell:TestRedirect`. The CI pass triage ruled on the title (Verification Gap 2).
+- **Row 13 signs in with the README account, which it does not create (VG).** False as a hermeticity gap. The install of the unit's fresh throwaway creates the account, `test-sign-in.sh` checks it at rows 1 and 2 before the browser runs, and no other test changes it. This is unchanged by the diff.
+- **The CI pass ruling on the wait order says a wrong `Location` would otherwise fail as "a 30 s timeout of the navigation wait" (AA).** Low and real: `playwright.config.ts` sets no `actionTimeout`, so the bound is the 45 s test timeout. The reasoning holds and only the figure is wrong. The fix edits the spec's Spec Change Log, so it is left to the lead.
+
 ## Spec Change Log
 
 **Task 0 measurements** (implement stage, October 20; `(inference)` where stated):
@@ -884,6 +922,14 @@ Runtime: the live unit ran only through `ci/iris.sh live sign-in` in throwaways 
 - `npm --prefix web run lint`, `bash ci/checks.sh` and `bash ci/iris.sh build`: exit 0.
 - `bash ci/iris.sh live sign-in`, three calls: exit 0 each, 29 passed each, row 13 green (143, 144 and 145 ms).
 - The `Shell.Serve` 404 mutation again (a fresh `if` at the top of `Serve`): `live sign-in` exit 1, row 13 alone red at "the redirect target answers 200" (expected 200, received 404; 28 passed, 1 failed); reverted. A SHA-256 of `git status --short`, `git diff --stat` and `git diff` was equal before and after, and `git diff --quiet HEAD -- src` held.
+
+### Code review CI re-review (October 21; same checkout, tag `v12h`, `OCUTALON_LOCK_OWNER='epic=0 stage=code-review'`)
+
+Runtime: one throwaway through `ci/iris.sh live sign-in`, then `ci/iris.sh teardown` in its own call. Slot A was not used. No push, commit or `gh` call that writes. The review's two patches change comments in `web/e2e/sign-in/sign-in.spec.ts` only.
+- `npm --prefix web run lint`: exit 0. `bash ci/checks.sh`: "checks: all scripts passed".
+- `bash ci/iris.sh live sign-in`: exit 0, 29 passed, row 13 green (135 ms), "test-sign-in: all checks passed".
+- `bash ci/iris.sh teardown`: 0 projects, containers, volumes, networks and images left for `v12h`.
+- Mutations: none re-run. The patches change comments only, and the three `mutation:` lines of `### CI pass, DW-47` still cover the `Location`, the 200 and `<app-root`.
 
 ## Auto Run Result
 
