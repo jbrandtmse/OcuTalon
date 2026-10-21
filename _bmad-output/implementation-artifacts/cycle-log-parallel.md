@@ -26,3 +26,7 @@
 2026-10-21T13:51:55Z	Epic 1	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a retro_review=own run_in_background=true
 2026-10-21T13:51:55Z	Epic 32	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b retro_review=skip(handled_by_epic_1) run_in_background=true
 2026-10-21T14:24:35Z	Epic 32	runner_reported	item=U-1 kind=parked unit=Story_32.3 sha=eaeaca7(verified) notified=push+contest_planner note=split_story_32.3_inside_epic_32:hash_re-record_reason=split_at_the_merge_gate,when_epics.md_reaches_the_feature_branch
+2026-10-21T14:24:44Z	Epic 32	runner_resumed	message=continue_with_independent_work item=U-1
+2026-10-21T14:35:07Z	Epic 1	runner_clarification	story=1-1 kind=contended_path path=docker/tests/test-production.sh:274-295 shas=892196f,55084a4,c395613,e50e2b4(verified)
+2026-10-21T14:35:07Z	Epic 1	ruling	question=story_1.1_needs_a_2-line_fixture_edit_in_lane_B_docker/tests/test-production.sh(the_runner_that_resolves_no_model_check)_after_seeding_Model_defaults choice=a:footprint_extension_for_story_1.1 rejected=b:story_1.1_waits_for_lane_B(no_lane_B_epic_plans_this_file;_waiting_stalls_lane_A_for_nothing) why=fixture_only,keeps_the_check_intent(a_runner_that_resolves_no_model_still_fails_the_start),epic_32_specs_do_not_touch_the_file,a_conflict_at_integrate-forward_is_a_plain_union category=decide policy=7969e52
+2026-10-21T14:35:07Z	Epic 1	runner_resumed	message=ruling_a_footprint_extension
