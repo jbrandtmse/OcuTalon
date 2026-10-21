@@ -2,7 +2,7 @@
 title: 'Story 1.1: Every agent runs on Claude Haiku 5.5 through the Config Store'
 type: 'feature'
 created: '2026-10-21'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -48,7 +48,7 @@ deferred: []
 - Merge never restarts an item.
 - Runners keep `STUB`, and the adapter's `OnInit` stays a no-op (Story 1.2).
 - The step writes neither the timeout values from `Timeouts.Derive` nor a retry block (Story 1.7).
-- No edit to a contended Lane B path. That covers `docker/**`, `ci/**` except `ci/mock/scenarios/A/`, `OcuTalon.Core`, `OcuTalon.Msg` except `Msg/Catalog/Watch.cls`, and the Lane B test packages.
+- No edit to a contended Lane B path. That covers `docker/**`, `ci/**` except `ci/mock/scenarios/A/`, `OcuTalon.Core`, `OcuTalon.Msg` except `Msg/Catalog/Watch.cls`, and the Lane B test packages. The one exception is the orchestrator's granted fixture edit inside the "a runner that resolves no model" check of `docker/tests/test-production.sh` (the task "The Lane B fixture"); nothing else in that file or in `docker/**` changes.
 - No new `ci/units.sh` or `module.xml` entry. Areas are discovered automatically.
 - No commit and no push.
 
@@ -119,7 +119,7 @@ deferred: []
   - `Test/Bridge/Api.cls:45-48 TestConfigStore` expects "not implemented".
   - `Test/Agent/Constants.cls:13-31` holds the per-agent `{{` check.
   - `Test/Install/Production.cls:174-202 TestRunnerModels`.
-  - `docker/tests/test-production.sh:274-295` (Lane B): see `## Clarification Needed`.
+  - `docker/tests/test-production.sh:274-295` (Lane B): the "a runner that resolves no model" check; see the task "The Lane B fixture".
 - The checks:
   - `docker/tests/lib-live.sh:575-581` expects `STEP Provider OK`.
   - `test-class-rules.sh`: bridge-refs and the `%AI` allow-list.
@@ -228,6 +228,13 @@ deferred: []
   - `TestExpansionSeesMerge`: `Expand("@{config:OcuTalonZzMerge<n>}")` shows the merged and untouched fields, with `api_key` still the literal placeholder.
 - `src/ocutalon/cls/OcuTalon/Test/Bridge/Api.cls`: remove `TestConfigStore` and its header line, because the merge is no longer a stub.
 
+**The Lane B fixture (orchestrator ruling of 2026-10-21; a footprint extension of this story).**
+- `docker/tests/test-production.sh`, inside the check "a runner that resolves no model" (lines 274-295) only. Nothing else in the file changes.
+  - Before `Start(15)`, delete the seeded TriageAgent `Model` default row: `Do ##class(Ens.Config.DefaultSettings).%DeleteId("OcuTalon.Production||TriageAgent||*||Model")`. You may add one CHK line for the delete (for example `CHK|row-deleted|1`, asserting the row no longer exists), and the check's expected-output block gains that line.
+  - After the class is restored, re-seed the row before the healthy start: run the Production step (`##class(OcuTalon.Install.Step.Production).Run()`, which seeds then starts) in place of `Start(30)`, or restore the row and keep `Start(30)`. Either way `start-ok` still proves the healthy path.
+  - Keep the meaning of the four existing CHK lines: `fixture`, `start-unresolved` (the start fails naming `TriageAgent`), `restored` and `start-ok`. The check must still prove that a runner resolving no model fails the start.
+  - Rationale: AD-7 and AD-19 (the `Model` setting wins over the class parameter). The orchestrator's grant: integrate-forward conflicts on this file are a plain union.
+
 **Acceptance Criteria:**
 - Given the package compiles, when the agent classes are inspected, then Triage, Diagnosis and Chat extend `%AI.Agent` with a non-empty `XData INSTRUCTIONS`, `MODEL` = `claude-haiku-5-5` and their Epic 0 `MOCKKEY`, Triage has no toolset, and Diagnosis has only `OcuTalon.Tools.Watch`, whose three tools are read-only. A test in `OcuTalon.Test.Agent` fails on a `{{` in any INSTRUCTIONS block and on any OcuTalon reference to `%AI.Utils.Template`.
 - Given the Triage and Chat instructions, when `Test.Agent.Instructions` reads them, then Triage asks for one `DecisionPayload`-shaped JSON object, and Chat states the voice rules and the exact catalog sentence for a request to run a command, with no tool call.
@@ -238,6 +245,8 @@ deferred: []
 - Given an existing entry, when `Merge` runs, then only the given fields change, and a literal key or a non-key `@{` is refused. This is the integration AC: the consumer is AI Hub's `@{config:}` expansion.
 
 ## Spec Change Log
+
+- 2026-10-21, lead (Epic 1 runner), after the plan's intent-gap HALT: applied the orchestrator's ruling. Added the task "The Lane B fixture", the narrowed exception on the contended-path "Never" line, the mutation row for `start-unresolved`, and the veto-window rulings on decisions 10 and 13 (U-2, U-3); status reset to `ready-for-dev` (no re-plan: the rest of the plan met the READY-FOR-DEVELOPMENT standard).
 
 ## Review Triage Log
 
@@ -299,7 +308,11 @@ deferred: []
 
 **Ledger:** DW-39 is addressed by the Provider step task and the matrix rows CI, base URL alone and flag alone.
 
-**Lane B piece (chosen: HALT with an intent gap):** the check "a runner that resolves no model" in `docker/tests/test-production.sh:274-295` goes red once `Model` is seeded. No Lane A design keeps it green without breaking AD-7's rule that the setting wins over the class parameter. See `## Clarification Needed`.
+**Lane B piece (resolved by the orchestrator's ruling of 2026-10-21, `category=decide`):** the check "a runner that resolves no model" in `docker/tests/test-production.sh:274-295` goes red once `Model` is seeded, and no Lane A design keeps it green without breaking AD-7's rule that the setting wins over the class parameter. The orchestrator granted Lane A the fixture edit inside that check only, as a footprint extension of this story; no Lane B epic in flight plans that file, and an integrate-forward conflict on it is a plain union. See the task "The Lane B fixture" and `## Clarification Record`.
+
+**Veto-window rulings (recorded by the runner at spec validation, kept as planned):**
+- Decision 10, Merge's key rule: kept (inbox U-2). It tightens AD-19 (only a placeholder can reach `api_key`, never a literal key or a nested `@{`).
+- Decision 13, the key scan's fake key: kept (inbox U-3). The value is non-key-like (`test-boundaries.sh`'s `key_like` does not match it), lives only in the test process's environment, and is restored afterwards.
 
 ## Verification
 
@@ -318,7 +331,7 @@ deferred: []
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live install-start` (once): expected: PASS. `STEP Provider OK` on a fresh volume pins `RebuildRegistry` first. About 151 s.
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live install-upgrade` (once): expected: PASS. The second start modifies the entries. About 164 s.
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live compose-start` (once): expected: PASS (about 80 s).
-- `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live production` (once): expected: PASS. This needs the Lane B change in `## Clarification Needed`. About 83 s.
+- `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live production` (once): expected: PASS, including the "a runner that resolves no model" check with the task "The Lane B fixture" applied. About 83 s.
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live production-restart` (once): expected: PASS (about 87 s).
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh live demo-path` (once): expected: PASS, with the `@floor` test passed (about 60 s).
 - `OCUTALON_RUN_TAG=e1s1a OCUTALON_LOCK_OWNER='epic=1 stage=implement' bash ci/iris.sh teardown` (once): expected: removes only e1s1a's projects.
@@ -329,7 +342,7 @@ deferred: []
 - The agents' INSTRUCTIONS and TOOLSETS, which the mock's constants test reads.
 - The toolset inventory (`OcuTalon.Tools.Watch`).
 - The stub list in `Test.Bridge.Api`.
-- Tests updated for the new shape: `Test.Bridge.Api`, `Test.Agent.Constants`, `Test.Install.Production`, and Lane B's `docker/tests/test-production.sh` (blocked; see below).
+- Tests updated for the new shape: `Test.Bridge.Api`, `Test.Agent.Constants`, `Test.Install.Production`, and Lane B's `docker/tests/test-production.sh` (the "a runner that resolves no model" check only, per the orchestrator's grant).
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order. The lead runs `shard lane-a` and `shard lane-b` forward, then both with `--reverse`.
 
@@ -351,8 +364,11 @@ deferred: []
 | `ResolveModel` ignores the setting | `TestModelChange` |
 | `Merge` replaces the entry | `TestMerge` |
 | `Merge` accepts a literal `api_key` | `TestMergeRefused` |
+| `Start` no longer fails on an unresolved runner | `live production`, its `start-unresolved` line |
 
-## Clarification Needed
+## Clarification Record
+
+**Resolved 2026-10-21 by the orchestrator's ruling (`category=decide`, logged in `cycle-log-parallel.md`):** option (a), the fixture edit is granted to Lane A as a footprint extension of this story, inside the "a runner that resolves no model" check only (the task "The Lane B fixture"). The plan's question, kept as asked:
 
 **The blocking question.** The question concerns the contended path `docker/tests/test-production.sh`, which belongs to Lane B.
 
@@ -367,5 +383,7 @@ deferred: []
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Story 1.1 needs a change in the contended Lane B path docker/tests/test-production.sh. Its check "a runner that resolves no model" (lines 274-295) expects Production.Start(15) to fail for an OcuTalon.Agent.Triage with no MODEL. Once the AC seeds the runner's Model System Default Setting (OcuTalon.Production||TriageAgent||*||Model = claude-haiku-5-5) at the first start, the runner resolves through that row and live:production goes red. Keeping it green from Lane A alone would contradict AD-7 and AD-19, under which the setting wins over the class parameter. Needed: inside that check, delete that row before Start(15) (about 2 lines). Recommendation: the orchestrator grants Lane A this edit as a footprint extension of Story 1.1 and sets the spec to ready-for-dev; the rest of the spec meets the READY-FOR-DEVELOPMENT standard.
+Status: ready-for-dev
+Blocking condition: none
+
+Plan pass (superseded by the ruling above): blocked on an intent gap: Story 1.1 needs a change in the contended Lane B path docker/tests/test-production.sh. Its check "a runner that resolves no model" (lines 274-295) expects Production.Start(15) to fail for an OcuTalon.Agent.Triage with no MODEL. Once the AC seeds the runner's Model System Default Setting (OcuTalon.Production||TriageAgent||*||Model = claude-haiku-5-5) at the first start, the runner resolves through that row and live:production goes red. Keeping it green from Lane A alone would contradict AD-7 and AD-19, under which the setting wins over the class parameter. Needed: inside that check, delete that row before Start(15) (about 2 lines). Recommendation: the orchestrator grants Lane A this edit as a footprint extension of Story 1.1 and sets the spec to ready-for-dev; the rest of the spec meets the READY-FOR-DEVELOPMENT standard.
