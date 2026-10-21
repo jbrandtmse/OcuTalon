@@ -32,3 +32,10 @@
 2026-10-21T14:35:07Z	Epic 1	runner_resumed	message=ruling_a_footprint_extension
 2026-10-21T15:50:31Z	Epic 32	inbox_answer_routed	item=U-1 at=2026-10-21T15:49:47Z#6 by=Contest_Planner quote=a to=epic-32(live_runner) apply_at=next_story_boundary
 2026-10-21T15:50:31Z	Epic 1	inbox_items_seen	items=U-2,U-3 kind=veto story=1-1 pointer=contest_planner
+2026-10-21T22:08:25Z	Epic 32	runner_complete	stories_completed=3 head=87f60e2 ready_for_merge=true model=opus
+2026-10-21T22:08:25Z	Epic 32	merge_enqueued	policy=when_green
+2026-10-21T22:09:06Z	Epic 32	orchestrator_error	fault=orchestrator slip=cd_into_the_epic-32_worktree_for_a_read-only_check(amendment_lines) writes_affected=none correction=every_command_starts_with_an_absolute_cd_to_the_main_checkout;worktree_reads_by_git_-C_and_absolute_paths
+2026-10-21T22:09:06Z	Epic 32	amendments_verified	amendments=11 extensions=3 ok=true note=skill-rules_258,270,272_are_appended_Rule_21_measured_records_without_markers(policy:decide);extensions_lane_B_docker/tests+Rule_21_facts,no_overlap_with_epic_1
+2026-10-21T22:09:06Z	Epic 32	ci_green_verified	runs=39683989550,39683989755 head=87f60e2 result=success via=none
+2026-10-21T22:09:40Z	Epic 32	inbox_resolved	item=U-1 at=2026-10-21T15:49:47Z#6 applied_by=epic-32
+2026-10-21T22:09:40Z	Epic 32	epic_merge_started	head=87f60e2 feature=feature/OCT_OcuTalon_MVP conditions=stories_done:3,parked:none,burndown:logged,retro:skipped(policy),veto_open:6<20,ci:green,integrated_forward:ok
