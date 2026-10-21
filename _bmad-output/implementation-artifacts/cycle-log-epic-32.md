@@ -42,3 +42,5 @@
 2026-10-21T16:20:39Z	Story 32.3	owner_decision	id=U-1 at=2026-10-21T15:49:47Z#6 via=inbox by=Contest_Planner quote=a answer=restate_the_10min_ceiling_as_a_balance_rule:no_IRIS_job_more_than_about_25pct_over_the_mean_of_the_six;each_job_time,runner,host_recorded;a_slowest_job_over_about_10min_goes_to_the_owner_as_a_CI-capacity_item;32.1_and_32.2_proceed
 2026-10-21T16:20:51Z	Story 32.3	story_unparked	story=32-3-every-iris-job-finishes-in-about-ten-minutes via=inbox id=U-1 at=2026-10-21T15:49:47Z#6 code=none effect=epics.md_block_amended_to_the_balance_rule next=plan_after_32.2
 2026-10-21T16:21:02Z	Story 32.3	ledger_routed_planned	story=32-3-every-iris-job-finishes-in-about-ten-minutes entries=1 excess=0 by=adjudication ids=DW-49
+2026-10-21T16:25:46Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer model=claude-opus-5-5 lines=81
+2026-10-21T16:25:46Z	Story 32.2	stage_spawned	stage=plan spawn_at=2026-10-21T16:25:46Z model=claude-opus-5-5 agent_name=32-2-an-iris-group-runs-only-when-something-it-tests-changed-plan-1 cycle_iteration=1
