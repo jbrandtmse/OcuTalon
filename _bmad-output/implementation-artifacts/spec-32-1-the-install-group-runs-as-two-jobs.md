@@ -2,7 +2,7 @@
 title: 'Story 32.1: The install group runs as two jobs'
 type: 'chore'
 created: '2026-10-21'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -55,10 +55,10 @@ deferred: []
 
 - `ci/units.sh` L23-37 -- `IRIS_GROUPS` (L24) and `group_units` (L28-37; `install` L30, `production` L31). This is the only part of the file to edit; the shards, `BROWSER_UNITS` and the patterns stay as they are.
 - `.github/workflows/ci.yml` L1-2 -- the header comment says "a matrix of five groups". L91-94 -- `matrix.group: [install, production, browser, shards, image]`. L97 -- `OCUTALON_RUN_TAG: <run_id>-<attempt>-<group>`. The tag stays as it is; hyphenated group names are valid tags.
-- `docker/tests/test-ci-config.sh` L2-36 -- the header list of rules (add `groups`). L405-411 -- the matrix rule compares `ci.yml` with `bash ci/iris.sh groups`, names and order. L554-645 -- the `units` rule. L648-753 -- the `demo-path` rule, the pattern to follow: a `*_violations <tree>` function, `mk*` synthetic trees, and one wanted message per bad sample. L304-305 and L373-376 -- the matrix rule's synthetic YAML samples use the names `install, production`; leave them (see Design Notes).
+- `docker/tests/test-ci-config.sh` L2-40 -- the header list of rules (add `groups`). L395-425 `rule()`, L410 -- the matrix rule compares `ci.yml` with `bash ci/iris.sh groups`, names and order (L439 `rule matrix`). L552-659 -- the `units` rule. L661-753 -- the `demo-path` rule, the pattern to follow: a `*_violations <tree>` function, `mk*` synthetic trees, and one wanted message per bad sample (L727-742). The new section goes between L753 and the test-classes section at L755. L305 and L373-376 -- the matrix rule's synthetic YAML samples use the names `install, production`; leave them (see Design Notes). L1164-1172 -- the closing lines (`test-ci-config: all rules passed`).
 - `ci/iris.sh` L307-315 `live_known`, L332-360 `cmd_group`, L39-61 `setup_tag`. Read-only. The groups need no code change: `group <name>` runs each unit as its own `bash ci/iris.sh live|shard` process, and an unknown name exits 2.
-- `docker/tests/lib-live.sh` L53-84 `live_start`. Read-only. It gives each unit a fresh project `ocutalon-<label>-<tag>-<epoch>-<pid>`, takes `throwaway-iris.lock` (waits up to 240 s, then exits 75), and sets the cleanup trap. This is why the two groups are hermetic by construction.
-- `docker/tests/test-install-start.sh` (`live_start t02s`), `test-install-upgrade.sh` (`live_start t02u`) and `test-audit.sh` (`live_start t04`). Read-only units. `audit` tests the installer's Audit step (AD-17), which makes it a natural member of an install group.
+- `docker/tests/lib-live.sh` L53-84 `live_start`. Read-only. It gives each unit a fresh project `ocutalon-<label>-<tag>-<epoch>-<pid>`, takes `throwaway-iris.lock` (waits up to `OCUTALON_LOCK_WAIT`, default 240 s, then prints `LOCK busy` and exits 75; L112-125), and sets the cleanup trap. This is why the two groups are hermetic by construction.
+- `docker/tests/test-install-start.sh` L50 (`live_start t02s`), `test-install-upgrade.sh` L25 (`live_start t02u`) and `test-audit.sh` L22 (`live_start t04`). Read-only units. `audit` tests the installer's Audit step (AD-17), which makes it a natural member of an install group.
 - `docker/tests/test-demo-path-gate.sh` -- runs `ci/iris.sh group browser` in a scratch copy. `browser` is unchanged, so this needs no edit.
 - `ci/changes.sh` -- names no group (its outputs are `base`, `web`, `iris` and `reason`). Unchanged.
 
@@ -98,6 +98,8 @@ deferred: []
 
 No acceptance criterion contradicts an AD's Rule.
 
+**Out of scope: Story 32.3.** By the lead's split ruling (Spec Change Log), the ceiling of about 10 minutes per IRIS job belongs to Story 32.3, which is parked for the owner. This story does not plan, build or judge it. Its rebalance test is the restated one: no IRIS job more than about 25 % over the mean of the six.
+
 **Task 0, the measurement (done at planning, read-only from the job logs).**
 
 Run 39594299887 (a500860; all five jobs on `ocutalon-ci-b`, five IRIS stacks at once):
@@ -107,7 +109,7 @@ Run 39594299887 (a500860; all five jobs on `ocutalon-ci-b`, five IRIS stacks at 
 | `install` | ci-4 | `install-start` 681, `install-upgrade` 502 | 1184 s | 20:23 |
 | `production` | ci-3 | `production` 309, `production-restart` 318, `audit` 275 | 902 s | 15:42 |
 | `browser` | ci-5 | `demo-path` 284, `sign-in` 276, `bundle-folder` 245 | 805 s | 14:04 |
-| `shards` | ci-6 | `lane-a` 286, `lane-b` 281 | 567 s | 10:07 |
+| `shards` | ci-6 | `lane-a` 286, `lane-b` 281 | 567 s | 10:06 |
 | `image` | ci-8 | `storage-roundtrip` 308, `build-inputs` 9, `compose-start` 243 | 560 s | 10:00 |
 
 - Job overhead: 36 s before the group (checkout, classifier, preflight, bundle build) and 4 s after it.
@@ -142,14 +144,18 @@ Run 39594116236, attempt 2 (12:06Z):
    | Run 39594299887 | 681, 777, 627, 805, 567, 560 | 777 s |
    | Two stacks on ci-b | 563, 621, 539, 666, 469, 468 | 636 s |
 
+   Against the restated test (more than about 25 % over the mean of the six), the split alone leaves `production` 35 % over the mean on run 39594299887 (902 s against 669.5 s; 33 % with the 40 s job overhead) and 34 % over at two stacks (745 s against 554 s), so the criterion calls for a rebalance. After the move, the longest group (`browser`) is 20 % over the mean at both loads (19 % with the overhead). The two-stack row is partly scaled from the measured load ratio (inference).
+
    "Best possible max" is a full search over every assignment that keeps the anchors (scratch calculation). The move is within about 30 s of that optimum at both loads. The optimal assignments scatter units across all six groups, which would blur Story 32.2's per-group input patterns. A second move does not help: every target group would then exceed `browser`.
 2. Group order: `install-fresh` and `install-upgrade` take `install`'s place, so the order is `install-fresh install-upgrade production browser shards image`.
 3. Add a `groups` rule to `test-ci-config.sh`. It pins the six names, the two anchors, non-empty groups and demo-path first. It does not pin where `audit` sits, so later rebalances need no test edit.
 4. Leave the matrix rule's synthetic sample names (`install, production`) unchanged. They are the samples' own names, passed to `wf_check` as the expected list, and are not the real groups.
-5. `ci.yml`'s `timeout-minutes: 40` and `OCUTALON_LIVE_DEADLINE: "1200"` stay as they are. The longest group measured after the move is 777 s.
+5. `ci.yml`'s `timeout-minutes: 40` and `OCUTALON_LIVE_DEADLINE: "1200"` (per unit) stay as they are. After the move the longest group is `browser`, at 805 s on run 39594299887. The longest unit measured is `install-start`, at 847 s on ci-c.
 6. The live group runs are marked `(once)`. The live scripts do not change, and an implement-loop edit can only change the grouping, which the `(loop)` static check pins.
+7. *Re-plan check:* the live group calls set `OCUTALON_LOCK_WAIT=120`. Each unit takes the lock on its own, so with the default 240 s, `group install-upgrade` (two units, about 4 to 5 min of work) could wait 8 min and pass the 10-minute call cap (Rule 18 (5)). With 120 s, the worst case is about 9 min. A unit that gives up prints `LOCK busy` and exits 75. Its group then prints `UNIT … failed` and exits 1, so the call is run again.
+8. The baseline stays run 39594299887, the run the intent names. Every `ci` run since then (up to 13:48Z on 2026-10-21) was a bookkeeping push that ran no IRIS job. If a later full five-group run exists when the lead pushes (Lane A's pushes run `ci.yml` too), the lead records it beside the baseline.
 
-**Rule 2 (extend, don't copy).** `groups_violations` and its sample trees extend the file's own rule pattern (`demo_path_violations` and `mkdemo`, L648-753). They are a sibling rule with no shared helper to factor out, because each rule's tree differs.
+**Rule 2 (extend, don't copy).** `groups_violations` and its sample trees extend the file's own rule pattern (`demo_path_violations` and `mkdemo`, L661-753). They are a sibling rule with no shared helper to factor out, because each rule's tree differs.
 
 **Integration ACs.** This story introduces no service, module or shared component. It reshapes a shared list.
 - Consumed-by: Story 32.2, which declares an input pattern per group and names `install-fresh` and `install-upgrade`; also the lead's CI records (Rule 21, AD-22).
@@ -163,7 +169,7 @@ Run 39594116236, attempt 2 (12:06Z):
 
 **Lead-owned records (the lead writes them after the real run; they are not implement tasks).**
 - Rule 21, `_bmad/custom/skill-rules.md` L257. Replace the `Groups` bullet with:
-  > - **Groups** (the matrix of `ci.yml`; six from Story 32.1): `install-fresh` (install-start), `install-upgrade` (install-upgrade, audit), `production` (production, production-restart), `browser` (demo-path, sign-in, bundle-folder), `shards` (lane-a, lane-b) and `image` (storage-roundtrip, build-inputs, compose-start). Story 32.1 split `install` into `install-fresh` and `install-upgrade`, and moved `audit` from `production` to `install-upgrade`, because `production` was the longest group after the split in both measured runs on the new hosts (902 s and 745 s of unit time). `image` is the IRIS checks job of AD-5. In CI each unit runs in its own project, and the web port of the browser units is 52810 plus the runner's number.
+  > - **Groups** (the matrix of `ci.yml`; six from Story 32.1): `install-fresh` (install-start), `install-upgrade` (install-upgrade, audit), `production` (production, production-restart), `browser` (demo-path, sign-in, bundle-folder), `shards` (lane-a, lane-b) and `image` (storage-roundtrip, build-inputs, compose-start). Story 32.1 split `install` into `install-fresh` and `install-upgrade`, and moved `audit` from `production` to `install-upgrade`, because after the split `production` ran about 35 % over the mean of the six groups at both measured loads on the new hosts (902 s and 745 s of unit time). `image` is the IRIS checks job of AD-5. In CI each unit runs in its own project, and the web port of the browser units is 52810 plus the runner's number.
 
   Then append one run bullet in the form of the existing ones. It holds:
   - the `ci` run id and commit;
@@ -184,10 +190,10 @@ No dev slot. This story changes CI configuration only, so no stage touches `ocut
 
 Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a time, from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-32`.
 - Run tags: `OCUTALON_RUN_TAG=e32s1i` (implement), `e32s1q` (QA), `e32s1r` (review), `e32s1l` (lead).
-- Set `OCUTALON_LOCK_OWNER='epic=32 stage=<stage>'`.
+- Set `OCUTALON_LOCK_OWNER='epic=32 stage=<stage>'` and `OCUTALON_LOCK_WAIT=120` (Design Notes, item 7).
 - Pass `timeout: 600000` on every call.
 - Run `ci/iris.sh teardown` with the same tag at the end.
-- `LOCK waiting` is normal. Epic 1 may hold the lock, and exit 75 means run the same call again.
+- `LOCK waiting` is normal, because Epic 1 may hold the lock. A group call whose output has a `LOCK busy` line (the unit exits 75, the group exits 1) is run again as the same call.
 
 **Commands:**
 - `(loop)` `bash docker/tests/test-ci-config.sh` -- expected: `PASS matrix`, `PASS groups`, `PASS units`, `PASS demo-path`, and the last line `test-ci-config: all rules passed`; exit 0. About 5 s.
@@ -195,10 +201,10 @@ Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a tim
 - `(loop)` `bash ci/iris.sh group install; echo "rc=$?"` -- expected: `unknown group 'install'; …` and `rc=2`. No stack starts.
 - `(loop)` `OCUTALON_RUN_TAG=39594299887-1-install-upgrade bash ci/iris.sh port` -- expected: `auto`, exit 0.
 - `(once)` `bash ci/checks.sh` -- expected: `checks: all scripts passed`. This includes `ci-config`, `ci-changes` and `demo-path-gate`.
-- `(once)` `OCUTALON_RUN_TAG=e32s1i OCUTALON_LOCK_OWNER='epic=32 stage=implement' bash ci/iris.sh group install-fresh` -- expected: `UNIT live:install-start passed`, then `GROUP install-fresh passed`; exit 0. About 3 to 4 min on the developer machine.
+- `(once)` `OCUTALON_RUN_TAG=e32s1i OCUTALON_LOCK_OWNER='epic=32 stage=implement' OCUTALON_LOCK_WAIT=120 bash ci/iris.sh group install-fresh` -- expected: `UNIT live:install-start passed`, then `GROUP install-fresh passed`; exit 0. About 3 to 4 min on the developer machine.
 - `(once)` the same with `group install-upgrade` -- expected: `UNIT live:install-upgrade passed`, `UNIT live:audit passed`, `GROUP install-upgrade passed`; exit 0. About 4 to 5 min.
 - `(once)` the same two again in reverse order (`install-upgrade`, then `install-fresh`), one per call -- expected: both pass.
-- `(once)` After each of the four calls, `docker ps -a --format '{{.Names}}' | grep -c -- '-e32s1i-'; docker volume ls --format '{{.Name}}' | grep -c -- '-e32s1i-'` -- expected: `0` and `0`.
+- `(once)` After each of the four calls, `docker ps -a --format '{{.Names}}' | grep -c -- '-e32s1i-'; docker volume ls --format '{{.Name}}' | grep -c -- '-e32s1i-'; docker network ls --format '{{.Name}}' | grep -c -- '-e32s1i-'` -- expected: `0`, `0` and `0`.
 - `(once)` the same with `group production` -- expected: two units pass, `GROUP production passed`.
 - `(once)` `OCUTALON_RUN_TAG=e32s1i bash ci/iris.sh teardown` -- expected: one `TEARDOWN tag e32s1i: …` line.
 - `(CI)` For the lead only, after its push of the story's commit:
@@ -210,7 +216,7 @@ Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a tim
 **Mutations (Rule 19, one per AC; apply, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged):**
 - AC 1: drop `install-upgrade` from the `ci.yml` matrix → `FAIL matrix`. Separately, restore `IRIS_GROUPS` to `install production browser shards image`, with an `install)` case and a matching matrix → `FAIL groups` (this proves the rename is pinned, not only the agreement between the files).
 - AC 2: in the real `ci/units.sh`, put `live:sign-in` before `live:demo-path` in `browser` → `FAIL groups` naming AD-22. Each synthetic sample's wanted message is checked inside the rule.
-- AC 3: insert right after `live_start t02u` in `test-install-upgrade.sh` a line that dies unless a container of the tag whose name holds `t02s` exists (a dependency on install-fresh's leftovers) → `group install-upgrade` goes red in both orders, within seconds and before any stack starts, so the cleanup and the lock release run as usual. Then revert.
+- AC 3: insert right after `live_start t02u` (L25) in `test-install-upgrade.sh` a line that dies unless a container of the tag whose name holds `t02s` exists (a dependency on install-fresh's leftovers) → `group install-upgrade` goes red in both orders, within seconds and before any stack starts, so the cleanup and the lock release run as usual. Then revert.
 - AC 4 is a CI measurement: there is no local mutation, and the lead's recorded times are the evidence. AC 5 is the lead's records.
 
 **Shared surfaces:**
@@ -222,5 +228,15 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Story 32.1's second criterion ("no IRIS job runs longer than about 10 minutes", with units rebalanced "until no job exceeds about 10 minutes") cannot be met by splitting and rebalancing whole units on the measured runners. Measured from the job logs (read-only): on run 39594299887 (five IRIS stacks on ocutalon-ci-b) `live:install-start` alone took 681 s, so the job that holds it takes about 12.0 min whatever the grouping (36 s before the group, 4 s after), and the best six-group partition of the 13 units is 13.6 min; on run 39594116236 attempt 2, `install-start` took 847 s alone on ocutalon-ci-c (a job of about 14.8 min), and `iris (production)` with two stacks on ocutalon-ci-b took 12 min 52 s. At the lightest load measured (two stacks on ocutalon-ci-b; 7 of the 13 unit times scaled by the measured load ratio of 1.21, inference) the floor is 10.1 min and the best six-group partition 11.3 min; only at the retired host's per-stack speed do six groups make it (9.1 min best, 9.5 min with this plan's one move). Recommended amendment (the owner's call, a product number): keep the split and the move of `live:audit` to `install-upgrade`, and restate the criterion as "no IRIS job runs much longer than the others: none more than about 25% longer than the mean of the six IRIS jobs. Each job's time, runner and host, and the run's wall-clock time, are recorded and compared with run 39594299887. If the slowest job is over about 10 minutes, the measured times go to the owner as a CI-capacity item (faster or less-loaded runner hosts), as owner decision 9 already provides for REL-4's 35 minutes." With the planned move, the slowest job is projected at about 1.20 times the mean at both measured loads (inference). Alternatives: (b) the owner changes capacity (dedicated-CPU hosts, or fewer IRIS jobs per host), which this story cannot do; (c) allow `live:install-start` to be split (its row 5, the standalone-bridge install, took 106 s on ci-b and 201 s on ci-c), which the criterion forbids. The rest of the plan is complete: only this criterion's `(CI)` pass line changes with the answer.
+Status: ready-for-dev
+Blocking condition: none
+
+This pass (re-plan, cycle iteration 2, after the lead's split ruling) kept the intent contract word for word and kept the first plan's decisions: the split, the one move of `live:audit` to `install-upgrade`, the `groups` rule, the lead-owned records and the run tags. It checked them again against the current tree and the restated criterion:
+- the Code Map anchors were corrected to the current line numbers;
+- the move was justified against the 25 %-over-the-mean test (Design Notes, item 1);
+- the `shards` job time was corrected to 10:06, checked with `gh api`, and item 5 now names the longest group after the move correctly (`browser`, 805 s);
+- the live calls got `OCUTALON_LOCK_WAIT=120` so they fit the 10-minute call cap (item 7);
+- the leftover check now counts networks too;
+- the baseline run was confirmed (item 8).
+
+The about-10-minute ceiling is Story 32.3's and is not planned here. The baseline `bash docker/tests/test-ci-config.sh` passes on the unchanged tree (4 s).

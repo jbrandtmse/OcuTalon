@@ -19,3 +19,5 @@
 2026-10-21T14:21:38Z	Epic 32	story_split	from=32-1-the-install-group-runs-as-two-jobs to=32-3-every-iris-job-finishes-in-about-ten-minutes children=1 limit=6 deps_hash_reason=split
 2026-10-21T14:29:47Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer model=claude-opus-5-5 lines=80
 2026-10-21T14:29:47Z	Story 32.1	stage_spawned	stage=plan spawn_at=2026-10-21T14:29:47Z model=claude-opus-5-5 agent_name=32-1-the-install-group-runs-as-two-jobs-plan-2 cycle_iteration=2 anchor=spec_path
+2026-10-21T14:36:50Z	Story 32.1	story_created	spawn_at=2026-10-21T14:29:47Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-32-1-the-install-group-runs-as-two-jobs.md build_status=ready-for-dev epic_context=reused cycle_iteration=2
+2026-10-21T14:36:50Z	Story 32.1	spec_validated	service_introducing=false integration_ac=declared-consumers(32.2) adr_constrained_acs=AD-22,AD-29 adr_tooled_acs=none decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false footprint_extension=docker/tests/test-ci-config.sh model=claude-opus-5-5
