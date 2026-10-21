@@ -10,3 +10,5 @@
 2026-10-21T13:54:39Z	Epic 1	ledger_load	total=47 open=0 routed=16 escalated=0 decision_pending=0 terminal=31 owner_unknown=0 burndown=0 reowned_none=0
 2026-10-21T13:55:20Z	Epic 1	sprint_planning_complete	gate=PASS mode=headless in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,epic_list_heading) model=claude-opus-5-5
 2026-10-21T13:55:30Z	Epic 1	retro_review_skipped	reason=no_retro_no_closable_ledger_no_open_action_items source_retro= ledger_nonterminal=16 all_routed_to_epic1_or_later=true burndown=0 none=0 earlier_epic_owned=0 open_action_items=0 assignment=own
+2026-10-21T13:59:54Z	Epic 1	epic_context_compiled	sha=55084a4 reason=initial model=claude-opus-5-5 lines=85 spawn_agent=a5b311e25431fa6be
+2026-10-21T14:00:44Z	Story 1.1	stage_spawned	stage=plan spawn_at=2026-10-21T14:00:44Z model=claude-opus-5-5 agent_name=1-1-plan-1 cycle_iteration=1
