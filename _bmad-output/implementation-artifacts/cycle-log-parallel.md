@@ -19,3 +19,9 @@
 2026-10-21T13:47:48Z	Epic 1-16,29-32	spine_counter_seeded	next=34
 2026-10-21T13:47:48Z	Epic 1-16,29-32	ledger_counter_seeded	next=48
 2026-10-21T13:48:24Z	Epic 1-16,29-32	ci_green_verified	runs=39611000037,39611000041 head=143ff70 result=success purpose=dispatch note=bookkeeping-only_commit_on_top_stays_local_until_the_next_push
+2026-10-21T13:51:55Z	Epic 1	worktree_provisioned	worktree=.worktrees/epic-1 branch=OCT-epic1 from=e50e2b4 submodules=none
+2026-10-21T13:51:55Z	Epic 1	worktree_bootstrapped	epic=1 result=ok check=ok
+2026-10-21T13:51:55Z	Epic 32	worktree_provisioned	worktree=.worktrees/epic-32 branch=OCT-epic32 from=e50e2b4 submodules=none
+2026-10-21T13:51:55Z	Epic 32	worktree_bootstrapped	epic=32 result=ok check=ok
+2026-10-21T13:51:55Z	Epic 1	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a retro_review=own run_in_background=true
+2026-10-21T13:51:55Z	Epic 32	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b retro_review=skip(handled_by_epic_1) run_in_background=true
