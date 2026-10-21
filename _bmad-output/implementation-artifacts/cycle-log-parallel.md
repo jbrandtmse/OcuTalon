@@ -25,3 +25,4 @@
 2026-10-21T13:51:55Z	Epic 32	worktree_bootstrapped	epic=32 result=ok check=ok
 2026-10-21T13:51:55Z	Epic 1	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a retro_review=own run_in_background=true
 2026-10-21T13:51:55Z	Epic 32	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b retro_review=skip(handled_by_epic_1) run_in_background=true
+2026-10-21T14:24:35Z	Epic 32	runner_reported	item=U-1 kind=parked unit=Story_32.3 sha=eaeaca7(verified) notified=push+contest_planner note=split_story_32.3_inside_epic_32:hash_re-record_reason=split_at_the_merge_gate,when_epics.md_reaches_the_feature_branch
