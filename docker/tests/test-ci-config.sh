@@ -24,6 +24,9 @@
 #   - demo-path (Story 0.8): live:demo-path is a unit of exactly one IRIS group and docker/tests/test-demo-path.sh exists, every name
 #     of BROWSER_UNITS (the live units that need Playwright's Chromium) is a live unit of a group, and every docker/tests/test-*.sh
 #     with a code line, not a comment, that runs the Playwright npm script is in BROWSER_UNITS;
+#   - groups: IRIS_GROUPS is exactly install-fresh, install-upgrade, production, browser, shards and image in this order, each with a
+#     unit, and group_units has no case for the retired group install; install-fresh holds live:install-start, install-upgrade holds
+#     live:install-upgrade, and live:demo-path is the first unit of browser (AD-22);
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
@@ -749,6 +752,102 @@ if [ "$ok" -eq 1 ]; then
   echo "PASS demo-path: live:demo-path is a unit of exactly one group, every browser unit is a live unit, and every script that runs Playwright is a browser unit"
 else
   echo "FAIL demo-path: the demo-path unit and the browser units"
+  fails=$((fails + 1))
+fi
+
+# --- groups: the six IRIS groups, the two install anchors and the demo-path first rule ---
+
+# groups_violations <repository directory>: one line per violation of the groups rule in that tree. The names and their order are
+# pinned; where a unit sits in a group other than the two anchors is not, so a rebalance of whole units needs no edit here.
+groups_violations() {
+  (
+    cd "$1" || exit 1
+    . ./ci/units.sh
+    set -- $IRIS_GROUPS
+    if [ "$*" != "install-fresh install-upgrade production browser shards image" ]; then
+      echo "ci/units.sh: IRIS_GROUPS is '$IRIS_GROUPS', wanted install-fresh, install-upgrade, production, browser, shards and image, in this order"
+    fi
+    if group_units install > /dev/null 2>&1; then
+      echo "ci/units.sh: group_units still has a case for the retired group install"
+    fi
+    for g in $(printf '%s\n' $IRIS_GROUPS | LC_ALL=C sort | uniq -d); do
+      echo "ci/units.sh: the group $g is listed twice in IRIS_GROUPS"
+    done
+    for g in $IRIS_GROUPS; do
+      if [ -z "$(group_units "$g" 2>/dev/null)" ]; then echo "ci/units.sh: the group $g has no unit"; fi
+    done
+    printf '%s\n' $(group_units install-fresh 2>/dev/null) | grep -qx -- live:install-start \
+      || echo "ci/units.sh: install-fresh does not hold live:install-start"
+    printf '%s\n' $(group_units install-upgrade 2>/dev/null) | grep -qx -- live:install-upgrade \
+      || echo "ci/units.sh: install-upgrade does not hold live:install-upgrade"
+    first=$(group_units browser 2>/dev/null | cut -d' ' -f1)
+    if [ "$first" != live:demo-path ]; then
+      echo "ci/units.sh: the first unit of browser is '$first', wanted live:demo-path (AD-22)"
+    fi
+  )
+}
+
+mkgroups() { # mkgroups <dir> <IRIS_GROUPS> <install-fresh units> <install-upgrade units> <production units> <browser units> <extra case>: a tree with the good layout; the arguments break it
+  local d=$1
+  mkdir -p "$d/ci"
+  cat > "$d/ci/units.sh" <<EOU
+IRIS_GROUPS="${2:-install-fresh install-upgrade production browser shards image}"
+group_units() {
+  case \$1 in
+    install-fresh) echo "${3-live:install-start}" ;;
+    install-upgrade) echo "${4-live:install-upgrade live:audit}" ;;
+    production) echo "${5-live:production live:production-restart}" ;;
+    browser) echo "${6-live:demo-path live:sign-in}" ;;
+    shards) echo "shard:lane-a shard:lane-b" ;;
+    image) echo "live:storage-roundtrip" ;;
+    ${7-}
+    *) return 1 ;;
+  esac
+}
+EOU
+}
+mkgroups "$tmp/g-good"
+mkgroups "$tmp/g-old" "install production browser shards image"
+mkgroups "$tmp/g-dup" "install-fresh install-upgrade production browser shards image image"
+mkgroups "$tmp/g-order" "install-upgrade install-fresh production browser shards image"
+mkgroups "$tmp/g-stale" "" "live:install-start" "live:install-upgrade live:audit" "live:production live:production-restart" "live:demo-path live:sign-in" 'install) echo "live:install-start live:install-upgrade" ;;'
+mkgroups "$tmp/g-empty" "" "live:install-start" "live:install-upgrade live:audit" ""
+mkgroups "$tmp/g-no-fresh" "" "live:sign-in"
+mkgroups "$tmp/g-no-upgrade" "" "live:install-start" "live:audit"
+mkgroups "$tmp/g-demo-second" "" "live:install-start" "live:install-upgrade live:audit" "live:production" "live:sign-in live:demo-path"
+
+ok=1
+if [ -n "$(groups_violations "$tmp/g-good")" ]; then
+  echo "FAIL groups: the rule flags the good tree ($(groups_violations "$tmp/g-good" | head -n 3 | tr '\n' ';'))"
+  ok=0
+fi
+# Each bad sample must draw its own violation, so that no other violation of the same sample can stand in for it.
+for pair in "g-old|IRIS_GROUPS is 'install production browser shards image', wanted" "g-dup|the group image is listed twice in IRIS_GROUPS" \
+  "g-order|IRIS_GROUPS is 'install-upgrade install-fresh production browser shards image', wanted" \
+  "g-stale|group_units still has a case for the retired group install" \
+  "g-empty|the group production has no unit" "g-no-fresh|install-fresh does not hold live:install-start" \
+  "g-no-upgrade|install-upgrade does not hold live:install-upgrade" \
+  "g-demo-second|the first unit of browser is 'live:sign-in', wanted live:demo-path (AD-22)"; do
+  s=${pair%%|*}
+  want=${pair#*|}
+  got=$(groups_violations "$tmp/$s")
+  case $got in
+    *"$want"*) ;;
+    *)
+      echo "FAIL groups: the sample $s does not draw '$want' (got: $(printf '%s' "$got" | head -n 3 | tr '\n' ';'))"
+      ok=0
+      ;;
+  esac
+done
+hits=$(groups_violations "$root") || hits="ci/units.sh: the groups rule could not read the tree ($hits)"
+if [ -n "$hits" ]; then
+  printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+  ok=0
+fi
+if [ "$ok" -eq 1 ]; then
+  echo "PASS groups: IRIS_GROUPS is install-fresh, install-upgrade, production, browser, shards and image in this order, group_units has no case for install, every group has a unit, the two install groups hold their anchors, and live:demo-path is the first unit of browser"
+else
+  echo "FAIL groups: the six IRIS groups"
   fails=$((fails + 1))
 fi
 

@@ -1,4 +1,4 @@
-# CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of five
+# CI of Lane B (AD-22, AD-29; Story 0.7). Three jobs: `checks` and `web` run on hosted runners; `iris` is a matrix of six
 # groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
 # The `web` job builds and tests the web app and runs the model mock's node tests (docker/tests/test-mock.sh, Story 0.11).
 # docker/tests/test-ci-config.sh pins the rules of this file: permissions, triggers, concurrency, pinned actions, runners,
@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [install, production, browser, shards, image]
+        group: [install-fresh, install-upgrade, production, browser, shards, image]
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}

@@ -21,14 +21,15 @@ shard_areas() {
 }
 
 # The IRIS groups, in the order of the matrix of .github/workflows/ci.yml.
-IRIS_GROUPS="install production browser shards image"
+IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 group_units() {
   case $1 in
-    install) echo "live:install-start live:install-upgrade" ;;
-    production) echo "live:production live:production-restart live:audit" ;;
+    install-fresh) echo "live:install-start" ;;
+    install-upgrade) echo "live:install-upgrade live:audit" ;;
+    production) echo "live:production live:production-restart" ;;
     browser) echo "live:demo-path live:sign-in live:bundle-folder" ;;
     shards) echo "shard:lane-a shard:lane-b" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start" ;;

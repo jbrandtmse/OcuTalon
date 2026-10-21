@@ -2,12 +2,20 @@
 title: 'Story 32.1: The install group runs as two jobs'
 type: 'chore'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9d7155db1cced714f58677f6f1df2b1324bc47bb'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The `units` and `demo-path` rules of docker/tests/test-ci-config.sh read only the stdout of their violation functions, so a tree that cannot be read can print PASS.
+    evidence: |-
+      `hits=$(units_violations "$root")` and `hits=$(demo_path_violations "$root")` ignore the function's exit status; a `set -u` abort in the sourced ci/units.sh leaves stdout empty. The suite stays red through other rules (matrix, recipe) in every realistic case. The new `groups` rule carries the guard.
+    location: >-
+      docker/tests/test-ci-config.sh (the `hits=$(units_violations ...)` and `hits=$(demo_path_violations ...)` lines)
+    severity: low
 ---
 
 <intent-contract>
@@ -89,6 +97,26 @@ deferred: []
 - 2026-10-21, the lead (epic runner), unattended ruling on the plan's intent gap (a split, decide, U5): the ceiling "no IRIS job runs longer than about 10 minutes" and "until no job exceeds about 10 minutes" moved to the new sibling Story 32.3, which waits for the owner (a number stated as a target in the epics is owner-only). This story keeps the split, the measured rebalance, the record and comparison of each job's time, and the lead-owned records. "Much longer than the rest" reads as more than about 25 % over the mean of the six IRIS jobs (decided in the ruling). The AC and the `(CI)` pass line were restated; nothing else changed. Status reset to `draft` for a re-plan.
 
 ## Review Triage Log
+
+### 2026-10-21 -- Review pass
+- verdicts: 16 findings -- high 0, medium 3, low 9, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind-hunter) A stale `install)` case in `group_units` goes undetected and "old name refused" is not pinned -- `cmd_group` decides exit 2 from `group_units`, so a leftover case keeps `group install` running; patched: `groups_violations` now reports a `group_units install` that answers, the good sample tree lost its `install)` case, and a `g-stale` sample draws the message (mutation line under AC 2).
+  - `[low]` `[patch]` (blind-hunter) `groups_violations` fails open: only stdout is read, so a tree that cannot be read prints `PASS groups` -- patched: `hits=$(...) || hits="...could not read the tree..."` (mutation line under AC 2). The same shape in the older `units` and `demo-path` rules is pre-existing and recorded under `deferred:`.
+  - `[low]` `[patch]` (blind-hunter) The order of `IRIS_GROUPS` is not pinned (names are compared sorted) -- the intent's matrix row says "in this order"; patched: the unsorted list is compared, a `g-order` sample draws the message (mutation line under AC 1).
+  - `[low]` `[patch]` (edge-case-hunter) Same fail-open as the second finding (a missing directory or an unset `IRIS_GROUPS` under `set -u` leaves stdout empty) -- fixed by the same one-line guard.
+  - `[low]` `[reject]` (edge-case-hunter) A group whose `group_units` output is only blanks passes the has-a-unit check -- contrived (`echo " "`), and the fix is a new pipeline guard, not a direct correction; a plain empty `echo ""` is caught.
+  - `[false]` `[reject]` (edge-case-hunter) Removing the job `iris (install)` may orphan a required status check -- GitHub answers 403 "Upgrade to GitHub Pro or make this repository public" for branch protection and rulesets on this private repository, so no required check can name it.
+  - `[medium]` `[patch]` (verification-gap) Same as the first finding (stale `install)` case ships green; the `group install` rc=2 loop line has no suite test) -- same patch.
+  - `[low]` `[patch]` (verification-gap) Group order and `live:audit` placement are asserted by the spec but pinned by no test -- the order is now pinned (third finding); the audit placement stays unpinned on purpose (Design Notes item 3: later rebalances need no test edit; the lead's per-unit CI times are the safety net), closed by-design.
+  - `[low]` `[reject]` (verification-gap) AC 4's pass line does not require the six `iris` jobs to succeed -- the fix is a spec edit of the lead's `(CI)` line; a red job is the lead's failed-CI path (Rule 23), so the gap is not met in practice.
+  - `[low]` `[patch]` (verification-gap) `PASS groups` can print when the real-tree call crashes -- same as the second finding.
+  - `[false]` `[reject]` (intent-alignment) The intent's timing outcome is not exercised by the diff's tests -- the intent assigns the measurement to the lead ("Then the lead measures the real run"; AC 4), and the config tests are not meant to model a duration.
+  - `[low]` `[patch]` (intent-alignment) Order is not pinned by any rule -- same as the third finding.
+  - `[low]` `[reject]` (intent-alignment) `live:audit` placement is not pinned -- same by-design closure as the eighth finding.
+  - `[medium]` `[patch]` (intent-alignment) The old-name refusal is a manual check only -- same as the first finding.
+  - `[false]` `[reject]` (intent-alignment) Per-group hermeticity lives in live runs the diff does not make -- the live runs were made: `install-fresh` and `install-upgrade` one per call in both orders, plus `production`, all passed, and the leftover counts of the tag were 0, 0 and 0 after each call.
+  - `[false]` `[reject]` (intent-alignment) The job names change and an external setting may name `iris (install)` -- same as the sixth finding.
 
 ## Design Notes
 
@@ -188,7 +216,7 @@ Run 39594116236, attempt 2 (12:06Z):
 
 No dev slot. This story changes CI configuration only, so no stage touches `ocutalon-slot-b` or any IRIS MCP profile.
 
-Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a time, from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-32`.
+Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a time, from the root of the epic-32 worktree.
 - Run tags: `OCUTALON_RUN_TAG=e32s1i` (implement), `e32s1q` (QA), `e32s1r` (review), `e32s1l` (lead).
 - Set `OCUTALON_LOCK_OWNER='epic=32 stage=<stage>'` and `OCUTALON_LOCK_WAIT=120` (Design Notes, item 7).
 - Pass `timeout: 600000` on every call.
@@ -214,9 +242,13 @@ Live units run only in throwaway stacks through `ci/iris.sh`, one stack at a tim
   - The lead then writes the two lead-owned records.
 
 **Mutations (Rule 19, one per AC; apply, observe red, revert, confirm that `git status --short` and `git diff --stat` are unchanged):**
-- AC 1: drop `install-upgrade` from the `ci.yml` matrix → `FAIL matrix`. Separately, restore `IRIS_GROUPS` to `install production browser shards image`, with an `install)` case and a matching matrix → `FAIL groups` (this proves the rename is pinned, not only the agreement between the files).
-- AC 2: in the real `ci/units.sh`, put `live:sign-in` before `live:demo-path` in `browser` → `FAIL groups` naming AD-22. Each synthetic sample's wanted message is checked inside the rule.
-- AC 3: insert right after `live_start t02u` (L25) in `test-install-upgrade.sh` a line that dies unless a container of the tag whose name holds `t02s` exists (a dependency on install-fresh's leftovers) → `group install-upgrade` goes red in both orders, within seconds and before any stack starts, so the cleanup and the lock release run as usual. Then revert.
+- mutation: AC 1 -- drop `install-upgrade` from the `ci.yml` matrix → `FAIL matrix` (the `groups` rule stays green).
+- mutation: AC 1 -- set `IRIS_GROUPS` to `install production browser shards image` with a matching matrix → `FAIL groups` while `PASS matrix` holds (the rename is pinned, not only the agreement between the files).
+- mutation: AC 1 -- swap `install-fresh` and `install-upgrade` in `IRIS_GROUPS` and in the matrix → `FAIL groups` (the order is pinned; `matrix` stays green).
+- mutation: AC 2 -- add an `install)` case to `group_units` → `FAIL groups` ("group_units still has a case for the retired group install").
+- mutation: AC 2 -- in the real `ci/units.sh`, put `live:sign-in` before `live:demo-path` in `browser` → `FAIL groups` naming AD-22. Each synthetic sample's wanted message is checked inside the rule.
+- mutation: AC 2 -- rename `IRIS_GROUPS` in the real `ci/units.sh` so the rule cannot read the tree → `FAIL groups` ("could not read the tree"), never `PASS groups`.
+- mutation: AC 3 -- insert right after `live_start t02u` in `test-install-upgrade.sh` a line that exits 1 unless a container of the tag whose name holds `t02s` exists (a dependency on install-fresh's leftovers) → `bash ci/iris.sh live install-upgrade` (the process `group install-upgrade` runs for that unit) printed the line, released the lock and exited 1 within seconds, before any stack started; reverted, tree byte-identical.
 - AC 4 is a CI measurement: there is no local mutation, and the lead's recorded times are the evidence. AC 5 is the lead's records.
 
 **Shared surfaces:**
@@ -228,15 +260,29 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-This pass (re-plan, cycle iteration 2, after the lead's split ruling) kept the intent contract word for word and kept the first plan's decisions: the split, the one move of `live:audit` to `install-upgrade`, the `groups` rule, the lead-owned records and the run tags. It checked them again against the current tree and the restated criterion:
-- the Code Map anchors were corrected to the current line numbers;
-- the move was justified against the 25 %-over-the-mean test (Design Notes, item 1);
-- the `shards` job time was corrected to 10:06, checked with `gh api`, and item 5 now names the longest group after the move correctly (`browser`, 805 s);
-- the live calls got `OCUTALON_LOCK_WAIT=120` so they fit the 10-minute call cap (item 7);
-- the leftover check now counts networks too;
-- the baseline run was confirmed (item 8).
+**Implemented.** `install` is now two groups, `install-fresh` (`live:install-start`) and `install-upgrade` (`live:install-upgrade`, then `live:audit`, moved whole from `production`). `IRIS_GROUPS`, `group_units` and the `ci.yml` matrix name the six groups in the order `install-fresh install-upgrade production browser shards image`. A new `groups` rule in `docker/tests/test-ci-config.sh` pins the names and their order, the retired `install` case, the two anchors, non-empty groups and `live:demo-path` first in `browser`.
 
-The about-10-minute ceiling is Story 32.3's and is not planned here. The baseline `bash docker/tests/test-ci-config.sh` passes on the unchanged tree (4 s).
+**Files changed.**
+- `ci/units.sh` -- the `IRIS_GROUPS` line and the `group_units` cases only.
+- `.github/workflows/ci.yml` -- the matrix list and "six groups" in the header comment.
+- `docker/tests/test-ci-config.sh` -- the `groups` rule (`groups_violations`, `mkgroups` samples) and its header bullet.
+- This spec -- `mutation:` lines, the triage log, the `deferred:` item, and the local machine path removed from `## Verification` (the `boundaries` check flagged it on the planned spec, so `bash ci/checks.sh` was red before any code change).
+
+**Review.** Four layers reported 16 findings: high 0, medium 3, low 9, false 4. Three root causes were patched: the stale `install)` case in `group_units` (medium), the fail-open real-tree check of the new rule (low), and the unpinned order of `IRIS_GROUPS` (low). Deferred: 1 (low), the same fail-open shape in the older `units` and `demo-path` rules. Rejected: blank-only group output (contrived), the required-status-check worry (false: GitHub offers no branch protection or rulesets on this private repository), the AC 4 pass line (a spec edit; a red job is the lead's failed-CI path), the timing and hermeticity readings (false: the lead measures the run; the live runs were made), and the `live:audit` placement (by design, Design Notes item 3). Follow-up review recommended: false (one medium entry patched, no high).
+
+**Verification performed.**
+- `bash docker/tests/test-ci-config.sh`: `PASS matrix`, `PASS groups`, `PASS units`, `PASS demo-path`, `test-ci-config: all rules passed`.
+- `bash ci/iris.sh groups` and `list`: the six names in order and the group lines of the I/O matrix. `group install`: `unknown group 'install'; ...`, rc 2. `OCUTALON_RUN_TAG=39594299887-1-install-upgrade bash ci/iris.sh port`: `auto`, rc 0.
+- `bash ci/checks.sh`: `checks: all scripts passed`.
+- Live groups, tag `e32s1i`, one per call: `install-fresh` passed (198 s), `install-upgrade` passed (270 s: 173 s + `audit` 97 s); then in reverse order `install-upgrade` passed (348 s: 243 s + 105 s) and `install-fresh` passed (212 s); `production` passed (203 s: 84 s + 119 s). The counts of containers, volumes and networks holding `-e32s1i-` were 0, 0 and 0 after each call, and `teardown` printed `TEARDOWN tag e32s1i: 0 project(s) removed, 0 leftover ...`. These are ARM developer-machine times, not the runner's.
+- Mutations (the lines under `## Verification`): each went red and was reverted with the tree byte-identical.
+- Matrix Test Audit: every I/O row is covered. `Six groups` by the `groups` rule and the `groups` loop line; `New group contents` by the `list` loop line (the `audit` placement is unpinned by design); `Workflow agrees`, `install comes back`, `Anchors lost or a group empty` and `Demo path not first` by the `matrix` and `groups` rules and their samples; `Old name called` and `Hyphenated CI tag` by their loop lines (the first also by the stale-case check); `Each group alone, either order` by the four live group runs.
+
+**Residual risks and notes.**
+- AC 4 (the real run's per-job times and wall-clock) and AC 5 (the two records) are the lead's.
+- Epic 1 held the throwaway lock during the reverse-order runs: two `install-upgrade` calls ended `LOCK busy` (every unit exit 75, group exit 1) and the third passed, as the Verification section expects.
+- Containment note: the verification-gap layer, trying a mutation in a scratch copy outside the worktree, ran `ci/iris.sh group install` there; with its stale `install)` case that began `live:install-start` and was cut short by `head`. Afterwards no process, container, volume, network or lock remained, `HEAD` and the worktree were unchanged, and no subagent committed or pushed.
+- The plan pass (re-plan, cycle iteration 2) kept the intent word for word and the first plan's decisions; the baseline `test-ci-config.sh` passed on the unchanged tree.
