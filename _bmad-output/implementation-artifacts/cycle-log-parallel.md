@@ -56,3 +56,4 @@
 2026-10-21T22:42:30Z	Epic 1-16,29-32	owner_decision	ids=U-2,U-3,U-4,U-5,U-6,U-7 at=2026-10-21T22:15:31Z#13..#18 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
 2026-10-21T22:42:40Z	Epic 1-16,29-32	report_error	fault=orchestrator field=inbox_resolved(a5402dd) reported=U-2..U-7_resolved actual=the_resolve_was_refused(answers_existed);resolved_with_their_answer_refs_in_b7d44d3 impact=none
 2026-10-21T22:42:40Z	Epic 1-16,29-32	inbox_resolved	item=U-8 kind=report applied_by=orchestrator note=ci-c_capped_by_the_Contest_Planner
+2026-10-21T23:09:26Z	Epic 1-16,29-32	hold_ordered	reason=owner:weekly_quota_97pct_switch_accounts source=owner_direct dispatch=stopped
