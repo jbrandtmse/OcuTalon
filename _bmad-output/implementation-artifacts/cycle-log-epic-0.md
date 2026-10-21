@@ -339,3 +339,8 @@
 2026-10-21T03:42:30Z	Story 0.12	ci_red_classified	run=39534434817 class=flake test=sign-in.spec.ts_row_13 attempt2=success dw=DW-47 note=passed_on_one_unchanged_rerun
 2026-10-21T03:42:30Z	Story 0.12	ci_resolved	story=0.12 run=39534434817 result=success(attempt_2) head=811102f workflows=ci:success,lane-a:success(run=39534434848)
 2026-10-21T03:42:30Z	Epic 0	ledger_routed_planned	story=2-1-lay-out-the-main-page-frame entries=1 excess=0 by=harvest dw=DW-47
+2026-10-21T03:43:29Z	Story 0.12	committed	sha=1836478 submodules= ci=pending run=39540054243(ci),39540054278(lane-a) head=fae0f9e amendments=spine_AD-3,AD-18,AD-23,AD-32,seed_table;EXPERIENCE.md_owner_rows;epics.md_DW-45(10.2),DW-46(14.2),DW-47(2.1)
+2026-10-21T03:43:29Z	Story 0.12	story_cycle	plan_to_commit_min=469 implement_passes=2 reviews=2 rework=1(DW-44_owner_text) first_ci=success(39523373710,28m07s) models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 note=includes_a_dead_plan_agent(about_3h)
+2026-10-21T03:43:29Z	Epic 0	model_tier_checkpoint	result=keep evidence=12_stories;implement(Sonnet)_converged_in_one_pass_on_every_story;reworks:0.9(a_test_race_found_by_CI_and_fixed_in_review),0.12(owner_product_text,not_tier);CR_HIGHs:2_(both_fixed);no_model-overrides.yaml applied=n/a(Rule_22:_no_escalation)
+2026-10-21T03:43:29Z	Epic 0	epic_retro_skipped	reason=owner_directed(Rule_22)
+2026-10-21T03:43:29Z	Epic 0	decision_sheet_recorded	entries=1 decided_by=merge_gate(Rule_22) DW-20=wontfix-accepted(reopen_if_a_public_class_uses_a_form_the_check_misses) veto_window=security_posture(FYI_to_Contest_Planner) sweep=every_non-terminal_entry_owned_by_a_named_story_outside_Epic_0
