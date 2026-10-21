@@ -356,3 +356,7 @@
 2026-10-21T04:57:19Z	Story 0.12	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=re-review_live_sign-in_29_passed(row_13_green);x64_iris(browser)_green_on_b6459b8 model=claude-opus-5-5
 2026-10-21T04:59:22Z	Story 0.12	fresh_check	env=clean-checkout tests=checks.sh+web(ci,lint,test)+live_sign-in(29_passed) result=pass order=forward note=the_CI_rework_touches_one_test_file leftovers=none
 2026-10-21T05:05:47Z	Story 0.12	ci_resolved	story=0.12 run=39545049306 result=success head=b6459b8 workflows=ci:success,lane-a:success(run=39545049301) wall_clock=27m48s note=the_sign-in_fix_holds_on_x64
+2026-10-21T05:32:22Z	Story 0.12	ci_resolved	story=0.12 run=39547633328 result=success head=dd7c6e0 workflows=ci:success,lane-a:success(run=39547633289) wall_clock=25m02s
+2026-10-21T05:32:22Z	Story 0.12	committed	sha=ee676cc submodules= ci=success run=39547633328(ci),39547633289(lane-a) head=dd7c6e0
+2026-10-21T05:32:22Z	Epic 0	ci_green_verified	run=39547633328,39547633289 head=dd7c6e0
+2026-10-21T05:32:22Z	Epic 0	epic_status_done	stories=12 note=set_on_the_feature_branch_after_the_merge
