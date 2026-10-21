@@ -1,4 +1,4 @@
-2026-10-21T13:54:39Z	Epic 1	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=7969e5240335346c2007efd9c1c9fffe2d95443f doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 state=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/unattended hold_at=none
+2026-10-21T13:54:39Z	Epic 1	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=7969e5240335346c2007efd9c1c9fffe2d95443f doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 state=.worktrees/.coordination/unattended(main-checkout-relative) hold_at=none
 2026-10-21T13:54:39Z	Epic 1	lead_model_gate	model=claude-opus-5-5 action=proceed
 2026-10-21T13:54:39Z	Epic 1	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh workflows=ci,lane-a
 2026-10-21T13:54:39Z	Epic 1	launch_env	depth=4 watchdog=1 bash_max_ms=default
@@ -21,3 +21,5 @@
 2026-10-21T14:37:09Z	Story 1.1	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-2,AD-5,AD-6,AD-7,AD-19,AD-22,AD-23,AD-29,AD-33 decision_dependency=none sections_created=none owned_ledger=DW-39 addressed=1 declined=0 mutates_shared_runtime=true(throwaways_only;slot_a=doc_load+process-local_Task_0) footprint_extensions=docker/tests/test-production.sh veto_items=U-2,U-3 model=claude-opus-5-5
 2026-10-21T14:37:31Z	Story 1.1	ci_resolved	story=epic_base sha=e50e2b4 runs=39611250220,39611250286 result=success failed=none via=none resolved_at=next_plan
 2026-10-21T14:37:32Z	Story 1.1	stage_spawned	stage=implement spawn_at=2026-10-21T14:37:32Z model=claude-sonnet-5-5 agent_name=1-1-implement-1 cycle_iteration=1 story_base=bc23338
+2026-10-21T17:28:14Z	Epic 1	bookkeeping_corrected	fault=lead line=1(runner_unattended_start) what=local_absolute_path_in_state= fix=main-checkout-relative_path reason=test-boundaries.sh_scans_every_tracked_file_for_local_paths found_by=1.1_implement(deferred_item_2)
+2026-10-21T17:28:55Z	Story 1.1	dev_complete	spawn_at=2026-10-21T14:37:32Z model=claude-sonnet-5-5 build_sha=af4d3ec baseline_revision=9808cd9 story_base=bc23338 review_loop_iteration=0 followup_review_recommended=true deferred=2(DW-52,DW-53) loc_added=1621 loc_removed=71 files=17 nfr_tripwires=0 adr_violations_surfaced=0 review_rows=58 review_patched=9 duration_min=169 cycle_iteration=1
