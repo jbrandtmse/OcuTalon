@@ -15,7 +15,7 @@
 #     waiting_on) and continues with independent work; it is re-dispatched once that epic has merged.
 #   - Epic 11 may change either lane's files (AD-29): its stories that touch files of the in-flight Lane B epic wait
 #     until that epic merges (contended paths).
-epics_md_hash: "aa3da78f4e579e7eefc7c806a9927763020600b04808339e0f7687a5fce313c4"
+epics_md_hash: "b697229525f0ce9bad1b3dcf8fd6419c653f86b0327ae11c2dcca5cbadfb03ad"
 analyzed_by: claude-opus-5-5
 approved: true
 approved_at: "2026-10-21"

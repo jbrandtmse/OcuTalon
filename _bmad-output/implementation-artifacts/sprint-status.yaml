@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-21-2026 22:02
+last_updated: 10-21-2026 15:10
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -311,3 +311,14 @@ development_status:
   32-2-an-iris-group-runs-only-when-something-it-tests-changed: done
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   epic-32-retrospective: optional
+action_items:
+  - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
+    epic: 32
+    action: "CI capacity (DW-55): ocutalon-ci-c starts IRIS stacks 1.4 to 3 times
+      slower than ocutalon-ci-b and misses the 400 s first-start limit; make ci-c
+      match ci-b per stack or cap its services, then re-measure one full green run;
+      and decide whether about 11 minutes for the install-start job is acceptable
+      or a faster CPU class is wanted (see inbox U-7, U-8)"
+    owner: "user"
+    status: open
+    ref: ""
