@@ -1324,6 +1324,8 @@ So that a slow or busy model never leaves me waiting.
 **Then** Decide re-sends with back-off until its timer fires, returning the reply when an attempt succeeds and `rate_limited` otherwise; when a tool ran, it falls back at once, and an `error` always falls back at once (FR-4, NFR-23, AD-8)
 **And** a scenario that sends a long `Retry-After` shows the wait capped at the retry block's back-off (AD-8, AD-22)
 
+- DW-56: Nothing sets `Reply.ToolsRun`: the runner's `Answer` fills `Text`, `FinishReason`, `HostData` and `Tainted` only, so a turn that ran tools reports `ToolsRun` 0; this story's re-send rule reads it (ledger; routed by harvest 2026-10-21)
+
 ### Story 1.8: Conversations survive restarts
 
 As a user,

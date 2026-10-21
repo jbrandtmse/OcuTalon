@@ -305,3 +305,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: KeyScan.cls FindRequest and Has repeat Mock.cls Find and Has (about 436-461) line for line; Mock's are Private and Lane B's (Test.Contract), so Lane A cannot call them or edit them (Rule 2)
 - 2026-10-21T18:26:38Z status=escalated owner=burndown by=cr note=decision sheet: Lane B makes Mock.Find and Mock.Has public, then KeyScan calls them and drops its copies
+
+### DW-56: Nothing sets Reply.ToolsRun: the runner's Answer fills Text, FinishReason, HostData and Tainted only, so a turn that ran tools reports ToolsRun 0
+- source: _bmad-output/implementation-artifacts/spec-1-2-agent-runners-send-every-request-under-the-model-rules.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: AD-6 gives Reply ToolsRun; Story 1.7 re-sends after a rate limit only when no tool ran (ToolsRun false); Adapter/Agent.cls Answer builds the Reply; %AI.LLM.Response carries the tool-call count
+- 2026-10-21T22:30:46Z status=routed owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=1.7 sets ToolsRun in Adapter.Agent Answer (or where the step audit sees a tool run) and pins it; its rate-limit AC depends on it
