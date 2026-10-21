@@ -48,3 +48,5 @@
 2026-10-21T22:10:37Z	Epic 32	epic_branches_deleted	branch=OCT-epic32 local=deleted remote=deleted
 2026-10-21T22:12:12Z	Epic 1-16,29-32	ci_green_verified	runs=39684520856,39684520953 head=2d55996 result=success purpose=dispatch(epic-2) note=feature_head_after_the_epic_32_merge
 2026-10-21T22:12:12Z	Epic 2	worktree_provisioned	worktree=.worktrees/epic-2 branch=OCT-epic2 from=feature submodules=none
+2026-10-21T22:12:27Z	Epic 2	worktree_bootstrapped	epic=2 result=ok check=ok head=1f05542
+2026-10-21T22:12:27Z	Epic 2	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b retro_review=own run_in_background=true
