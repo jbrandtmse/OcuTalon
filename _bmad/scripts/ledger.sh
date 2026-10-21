@@ -12,7 +12,8 @@
 #   - evidence: <why this is real, <= 3 lines>
 #   - <UTC> status=<status> owner=<story-key|burndown|none> by=<stage> note=<short>
 #   - <UTC> occurrence=<story-key>
-# Effective status/owner = the LAST trailer line that sets each. Statuses:
+# Effective status/owner = the trailer line with the LATEST UTC timestamp that sets each (equal timestamps: the later
+# line), so the order a union merge leaves the lines in never decides it. Statuses:
 #   non-terminal: open | routed | escalated | decision-pending
 #   terminal:     by-design | wontfix-theoretical | wontfix-accepted | dropped | resolved-by:<story-key>
 set -euo pipefail
@@ -64,16 +65,17 @@ scan() {
     }
     /^### DW-[0-9]+: / {
       emit(); id = $2; sub(/:$/, "", id); summary = $0; sub(/^### DW-[0-9]+: /, "", summary)
-      status = "open"; owner = "none"; block = $0; next
+      status = "open"; owner = "none"; sts = ""; ots = ""; block = $0; next
     }
     id != "" {
       if ($0 ~ /^### /) { emit(); id = ""; next }
       block = block "\n" $0
       if ($0 ~ /^- [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z /) {
+        ts = $2
         for (i = 3; i <= NF; i++) {
           if ($i ~ /^note=/) break
-          if ($i ~ /^status=/) status = substr($i, 8)
-          else if ($i ~ /^owner=/) owner = substr($i, 7)
+          if ($i ~ /^status=/) { if (ts >= sts) { status = substr($i, 8); sts = ts } }
+          else if ($i ~ /^owner=/) { if (ts >= ots) { owner = substr($i, 7); ots = ts } }
         }
       }
     }
@@ -109,11 +111,17 @@ now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # the same id to two epics, and the union merge keeps both headings. With LEDGER_ID_COUNTER pointing at a shared
 # counter file (the parallel kit's coordination dir), `new` claims max(counter, local next) under an exclusive
 # lock file and writes that + 1 back. A missing or non-numeric counter is an error, never a silent fallback.
+# A claim holds the lock for milliseconds, so a lock older than 10 minutes was left by a crashed claim: it is broken
+# (with a warning naming its content) rather than blocking every later `new` in every worktree.
 claim_counter_id() {
   counter="$1"; lock="$1.lock"; tries=0
   until ( set -o noclobber; printf 'pid=%s acquired_at=%s\n' "$$" "$(now)" > "$lock" ) 2>/dev/null; do
+    if [ -n "$(find "$lock" -mmin +10 2>/dev/null)" ]; then
+      echo "WARNING: breaking stale $lock ($(cat "$lock" 2>/dev/null)) -- a claim takes milliseconds" >&2
+      rm -f "$lock"; continue
+    fi
     tries=$((tries + 1))
-    [ "$tries" -lt 120 ] || { echo "ERROR: $lock held for 120 s; report it -- never delete another party's lock" >&2; return 1; }
+    [ "$tries" -lt 120 ] || { echo "ERROR: $lock held for 120 s by a live claim; report it -- never delete another party's lock" >&2; return 1; }
     sleep 1
   done
   n="$(cat "$counter" 2>/dev/null || true)"
@@ -130,7 +138,7 @@ claim_counter_id() {
 # key and were invisible to every drain, with no error and no count anomaly.
 TRACKER="$(dirname "$FILE")/sprint-status.yaml"
 tracker_keys() {
-  awk '/^development_status:/ { f = 1; next } f && /^[^ #]/ { f = 0 } f && /^  [A-Za-z0-9_-]+:/ { k = $1; sub(/:$/, "", k); print k }' "$TRACKER"
+  awk '/^development_status:/ { f = 1; next } f && /^[^ #]/ { f = 0 } f && /^  [^ #][^ ]*:([ \t]|$)/ { k = $1; sub(/:$/, "", k); print k }' "$TRACKER"
 }
 # Status validation (Rule 15 grammar). A status outside it is neither terminal nor one of the non-terminal states the
 # gates select by, so the entry silently escapes them; refuse it on write the way an unknown owner is refused.
@@ -148,9 +156,11 @@ owner_check_active() { [ "${LEDGER_OWNER_CHECK:-on}" != "off" ] && [ -f "$TRACKE
 check_owner() {
   owner_check_active || return 0
   case "$1" in burndown|"") return 0 ;; esac
-  if ! tracker_keys | grep -qx -- "$1"; then
+  # Readers here consume the whole stream: under pipefail, an early exit (grep -q, head) SIGPIPEs the producer
+  # once the tracker outgrows the pipe buffer, and a valid key then reads as unknown.
+  if ! tracker_keys | grep -Fx -- "$1" >/dev/null; then
     pre="$(printf '%s' "$1" | sed -E 's/^([0-9]+-[0-9]+)-.*/\1-/')"
-    cand="$(tracker_keys | grep -- "^$pre" | head -3 | tr '\n' ' ')"
+    cand="$(tracker_keys | awk -v p="$pre" 'index($0, p) == 1 && n < 3 { printf "%s ", $0; n++ }')"
     echo "ERROR: owner=$1 is not a story key in $TRACKER (same-number keys: ${cand:-none}). Use the exact key or burndown; LEDGER_OWNER_CHECK=off to bypass (migration only)." >&2
     return 1
   fi
@@ -205,9 +215,10 @@ case "$CMD" in
     scan exists "$ID" || { echo "ERROR: $ID not found" >&2; exit 1; }
     TS="$(now)"
     # Insert the trailer as the last line of the entry (before the next heading or EOF). Pure line insertion: union-merge safe.
-    awk -v id="$ID" -v line="- $TS $LINE" '
+    # The trailer reaches awk through the environment: `awk -v` would turn C:\new or \d+ in a note into escapes.
+    LEDGER_LINE="- $TS $LINE" awk -v id="$ID" '
       function flushpending() { print line; if (blanks != "") { printf "%s", blanks; blanks = "" } }
-      BEGIN { inside = 0 }
+      BEGIN { inside = 0; line = ENVIRON["LEDGER_LINE"] }
       /^### DW-[0-9]+: / {
         if (inside) { flushpending(); inside = 0 }
         h = $2; sub(/:$/, "", h); if (h == id) inside = 1

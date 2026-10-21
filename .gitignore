@@ -52,3 +52,6 @@ docs/handoff/
 
 # /epic-cycle parallel epic worktrees
 .worktrees/
+
+# /epic-cycle --unattended run state (inbox, run lock, resume prompts)
+_bmad-output/unattended/

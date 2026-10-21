@@ -8,3 +8,4 @@ src/** text=auto eol=lf
 .dockerignore text eol=lf
 .env.example text eol=lf
 web/** text=auto eol=lf
+_bmad/scripts/*.sh text eol=lf

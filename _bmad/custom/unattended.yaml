@@ -1,0 +1,75 @@
+# /epic-cycle --unattended policy for OcuTalon. Project-owned. Supersedes the hand-written Rule 22 grant (cef5f60)
+# from 2026-10-21. Change it only during a hold, commit it, then resume.
+version: 2
+product_defaults:
+  - The demo path comes first. Prefer the option that keeps UJ-1 real and the demo-path test green.
+  - Never weaken a non-negotiable (N1-N15 in the scope brief) or any AD's "Prevents" line. In particular, no false all-clear; risky actions always wait for approval; every demo step is generated live, with no canned replies; no key or token in IRIS, a log, a commit or the trace; the AI Hub image never goes to any registry, cache or artifact; Claude Haiku 5.5 is the default model and no request sets temperature, top_p or top_k; MCP tools are governed like built-in tools.
+  - Governed and honest. When a choice trades safety for convenience, keep the safe behaviour and make it convenient. Text claims only what the product does (tokens and cost are per turn and per decision, never per step).
+  - The architecture spine is the contract; where it is silent, choose the simplest option consistent with it.
+  - Measure, don't guess. Unknown platform behaviour gets a Task 0 measurement on the slot or a throwaway; anything unmeasured is labelled (inference).
+  - Smaller is better; split rather than stretch a story.
+  - Any mention of OpenClaw carries the not-affiliated note; OpenClaw's name is never part of a product name, and its logo or artwork is never used.
+owner_fixed:
+  - One IPM package, `ocutalon`, with the bridge inside it.
+  - "Lane order (owner decisions of 2026-10-20 and 2026-10-21). Lane A: Epics 1, 3, 5, 7, then 29 (the online demo's platform side), then 9, 11, 12 (Telegram), 30 (hardening). Lane B: Epic 32 (CI throughput) first, then 2, 4, 6, 8, 10, 16, 31 (hardening). 0.1.0 is cut at Epic 11, and Telegram ships as 0.1.1."
+  - Polling is the release-1 contract; the WebSocket is post-demo hardening.
+  - Online-demo sessions resume until the reset (P10). The CSP session ends about 2 minutes after the page closes or after 10 minutes idle.
+  - Online-demo capacity is about 6 visitors per instance (P12), with "Demo busy" beyond that and no scale-out work.
+  - The finish state appears only after an approved, resolved run (P24).
+  - Claude Haiku 5.5 is the default model, with max_tokens 8,000 and no sampling parameters.
+  - The demo allowance is 50 messages an hour per session, and 20 simulated emails an hour.
+  - REL-4's CI budget is 35 minutes. If a run exceeds it after the groups are rebalanced, the owner adds a third self-hosted runner service (an owner action).
+  - No plain-IRIS CI run. IRIS for Health is the tested image; the README says plain IRIS is supported, verified on ARM64.
+  - The x-ocutalon-mockkey header is sent only with the CI-only setting OCUTALON_MOCK_KEY_HEADER=1.
+stage_preamble: "One iris_execute_tests call per message, never two in the same message; pass server and namespace on every IRIS MCP call (Rule 21)."
+milestones:
+  - {date: 2026-10-30, scope: [1, 2, 3, 4, 5, 6, 7, 8, 32], name: "working demo path (local)"}
+  - {date: 2026-11-01, scope: [10, 16, 29], name: "online demo"}
+  - {date: 2026-11-07, scope: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 29, 30, 31, 32], name: "1.0.0 submission"}
+licences_allowed: [MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC]
+hard_stops:
+  - a security incident (a secret in a commit, log, trace or ANY printed output; pushing to any remote other than origin; changing repository or package visibility) - never rewrite history
+  - a red CI head that is not a known flake and cannot be fixed inside its story, nor fixed forward (limits.fix_forward_per_cause)
+  - a conflict that cannot be classified
+  - agent liveness that cannot be established; a live orphan writer that cannot be stopped
+  - a tooling need that cannot be met (for example a dev slot that doesn't answer, Rule 21)
+  - a workspace integrity error; a policy or doctrine file whose hash changed without a logged resume
+owner_only:
+  - releases, tags, release pull requests, anything landing on the trunk
+  - anything outward-facing (publishing, posting, filing external reports including InterSystems bug reports, DNS or hosting, the online demo host, Telegram bot settings, repository or service settings, making anything public)
+  - dropping scope from a release, or deferring it out of the release; moving an AC when no milestone defines the release
+  - changing a number stated as a product target in the PRD or epics (implementation details such as timeouts, batch sizes and retry counts are decide)
+  - changing epic boundaries, story-to-epic assignment, or dependency statements
+  - waiving a HIGH finding
+  - money, accounts, keys, quota; a dependency under a licence not in licences_allowed
+  - destroying or migrating data on a shared (non-throwaway) runtime
+  - agent instruction files (CLAUDE.md, AGENTS.md, anything under .claude/) and anything under _bmad/ (the kit's own run-state writes excepted; appending measured facts - timings, test commands, recipes - to Rule 21's sections of _bmad/custom/skill-rules.md is decide)
+  - stopping, recreating or tearing down a runtime resource this run did not start (using one is fine; ocutalon-aihub-test, any ocupilot* container and iris-community-edition are never touched; dev slots follow Rule 21)
+  - rewriting pushed history (force-push); deleting branches or tags other than the kit's own merged epic branches
+veto_window:
+  - security posture; how secrets and credentials are stored or handled
+  - privileges, roles and access grants (above all anything close to %All, or any grant to the demo, trace or public accounts)
+  - a change to how stored data is kept (schema, format, retention)
+  - weakening a guarantee stated in the PRD, the spine or a spec's intent
+  - public-facing text NOT already specified in the UX or PRD; claims about what the product does; licence and attribution notices; project or owner identity
+  - a new third-party dependency under a licence in licences_allowed, pinned to an exact version
+  - moving an AC to a not-yet-planned story in the same release (never one a release gate, milestone or end-to-end acceptance test depends on)
+  - adding an AC to another epic's not-yet-planned story (sequential; parallel runs route this to the orchestrator)
+  - amending an architecture decision (AD), within the bounds of the doctrine's U7
+gates:
+  retrospective: skip
+  model_tier: record_only
+  merge_to_feature: when_green
+  merge_conflicts: resolve
+  gap_fill: burndown
+  gap_fill_stories: []
+limits:
+  clarification_rounds: 3
+  split_children: 6
+  fix_forward_per_cause: 1
+  gap_fill_per_epic: 2
+  veto_open_max: 20
+  unverified_stories: 1
+ci: {queue_minutes: 60, blocked_hours: 6, without_ci: ""}
+hold: {at: "", after_hours: 0}
+notify: {push: true}

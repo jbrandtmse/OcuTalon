@@ -40,7 +40,8 @@ for r in $REPOS; do
   if [ -n "$d" ]; then
     BLOCKED="yes"; echo "UNCOMMITTED in $r:"; echo "$d"
   fi
-  u="$(git -C "$r" log --oneline --branches --not --remotes 2>/dev/null || true)"
+  # HEAD, not --branches: linked worktrees share refs, so --branches would list other epics' unpushed commits
+  u="$(git -C "$r" log --oneline HEAD --not --remotes 2>/dev/null || true)"
   if [ -n "$u" ]; then
     BLOCKED="yes"; echo "UNPUSHED in $r:"; echo "$u"
   fi
