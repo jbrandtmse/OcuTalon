@@ -28,7 +28,9 @@
 #     unit, and group_units has no case for the retired group install; install-fresh holds live:install-start, install-upgrade holds
 #     live:install-upgrade, and live:demo-path is the first unit of browser (AD-22);
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
-#     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
+#     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere; `groups` prints the six groups
+#     in order, `list` shows the two install groups with their anchors, the retired group install is refused with exit 2, and each
+#     group's CI tag (<run id>-<attempt>-<group>) is a valid run tag under which `group <name>` knows the group;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
 #     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
 #   - mock wrapper (Story 0.11): docker/tests/test-mock.sh runs node --test on every file of ci/mock/test/ and exits with node's
@@ -554,6 +556,14 @@ fi
 
 # --- units ---
 
+# real_hits <rule> <function> <repository directory>: the function's violation lines for that tree, or one line saying that the
+# rule could not read it when the function fails (no ci/units.sh, or a set -u abort while sourcing it), so it never passes.
+real_hits() {
+  local out
+  out=$("$2" "$3") || out="ci/units.sh: the $1 rule could not read the tree ($out)"
+  printf '%s' "$out"
+}
+
 # units_violations <repository directory>: one line per violation of the unit rules in that tree.
 units_violations() {
   (
@@ -649,7 +659,12 @@ if [ -n "$(units_violations "$tmp/u-helper")" ]; then
   echo "FAIL units: the rule flags a helper class with no test method"
   ok=0
 fi
-hits=$(units_violations "$root")
+mkdir -p "$tmp/u-unread/ci" && : > "$tmp/u-unread/ci/units.sh"
+if [ -z "$(real_hits units units_violations "$tmp/u-unread" 2>/dev/null)" ]; then
+  echo "FAIL units: a tree whose ci/units.sh cannot be read passes the rule"
+  ok=0
+fi
+hits=$(real_hits units units_violations "$root")
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
@@ -743,7 +758,7 @@ for pair in "d-two|live:demo-path is in 2 groups, wanted 1" "d-none|live:demo-pa
       ;;
   esac
 done
-hits=$(demo_path_violations "$root")
+hits=$(real_hits demo-path demo_path_violations "$root")
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
@@ -774,13 +789,15 @@ groups_violations() {
       echo "ci/units.sh: the group $g is listed twice in IRIS_GROUPS"
     done
     for g in $IRIS_GROUPS; do
-      if [ -z "$(group_units "$g" 2>/dev/null)" ]; then echo "ci/units.sh: the group $g has no unit"; fi
+      set -- $(group_units "$g" 2>/dev/null)
+      if [ $# -eq 0 ]; then echo "ci/units.sh: the group $g has no unit"; fi
     done
     printf '%s\n' $(group_units install-fresh 2>/dev/null) | grep -qx -- live:install-start \
       || echo "ci/units.sh: install-fresh does not hold live:install-start"
     printf '%s\n' $(group_units install-upgrade 2>/dev/null) | grep -qx -- live:install-upgrade \
       || echo "ci/units.sh: install-upgrade does not hold live:install-upgrade"
-    first=$(group_units browser 2>/dev/null | cut -d' ' -f1)
+    set -- $(group_units browser 2>/dev/null)
+    first=${1-}
     if [ "$first" != live:demo-path ]; then
       echo "ci/units.sh: the first unit of browser is '$first', wanted live:demo-path (AD-22)"
     fi
@@ -812,21 +829,31 @@ mkgroups "$tmp/g-dup" "install-fresh install-upgrade production browser shards i
 mkgroups "$tmp/g-order" "install-upgrade install-fresh production browser shards image"
 mkgroups "$tmp/g-stale" "" "live:install-start" "live:install-upgrade live:audit" "live:production live:production-restart" "live:demo-path live:sign-in" 'install) echo "live:install-start live:install-upgrade" ;;'
 mkgroups "$tmp/g-empty" "" "live:install-start" "live:install-upgrade live:audit" ""
+mkgroups "$tmp/g-blank" "" "live:install-start" "live:install-upgrade live:audit" " "
+mkgroups "$tmp/g-spaced" "" "live:install-start" "live:install-upgrade live:audit" "live:production" "  live:demo-path  live:sign-in"
+mkgroups "$tmp/g-moved" "" "live:install-start" "live:install-upgrade" "live:production live:production-restart live:audit" "live:demo-path live:sign-in live:bundle-folder"
+mkgroups "$tmp/g-near" "" "live:install-starter" "live:install-upgrade-old live:audit"
 mkgroups "$tmp/g-no-fresh" "" "live:sign-in"
 mkgroups "$tmp/g-no-upgrade" "" "live:install-start" "live:audit"
 mkgroups "$tmp/g-demo-second" "" "live:install-start" "live:install-upgrade live:audit" "live:production" "live:sign-in live:demo-path"
 
 ok=1
-if [ -n "$(groups_violations "$tmp/g-good")" ]; then
-  echo "FAIL groups: the rule flags the good tree ($(groups_violations "$tmp/g-good" | head -n 3 | tr '\n' ';'))"
-  ok=0
-fi
+# g-moved is a rebalance of whole units (live:audit moved to production, a unit added to browser after live:demo-path): the rule does
+# not pin where a unit sits beyond the two anchors and demo-path first, so a rebalance needs no edit here.
+for good in g-good g-moved g-spaced; do
+  if [ -n "$(groups_violations "$tmp/$good")" ]; then
+    echo "FAIL groups: the rule flags the good tree $good ($(groups_violations "$tmp/$good" | head -n 3 | tr '\n' ';'))"
+    ok=0
+  fi
+done
 # Each bad sample must draw its own violation, so that no other violation of the same sample can stand in for it.
 for pair in "g-old|IRIS_GROUPS is 'install production browser shards image', wanted" "g-dup|the group image is listed twice in IRIS_GROUPS" \
   "g-order|IRIS_GROUPS is 'install-upgrade install-fresh production browser shards image', wanted" \
   "g-stale|group_units still has a case for the retired group install" \
-  "g-empty|the group production has no unit" "g-no-fresh|install-fresh does not hold live:install-start" \
+  "g-empty|the group production has no unit" "g-blank|the group production has no unit" \
+  "g-no-fresh|install-fresh does not hold live:install-start" \
   "g-no-upgrade|install-upgrade does not hold live:install-upgrade" \
+  "g-near|install-fresh does not hold live:install-start" "g-near|install-upgrade does not hold live:install-upgrade" \
   "g-demo-second|the first unit of browser is 'live:sign-in', wanted live:demo-path (AD-22)"; do
   s=${pair%%|*}
   want=${pair#*|}
@@ -839,7 +866,7 @@ for pair in "g-old|IRIS_GROUPS is 'install production browser shards image', wan
       ;;
   esac
 done
-hits=$(groups_violations "$root") || hits="ci/units.sh: the groups rule could not read the tree ($hits)"
+hits=$(real_hits groups groups_violations "$root")
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
@@ -947,6 +974,28 @@ recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON
 recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
 recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
+# The six groups through the command line (Story 32.1). `groups` prints the names in order. `list` shows the install groups with their
+# anchor units, and no more than that is pinned (a rebalance of whole units needs no edit). The retired name install is refused with
+# exit 2 and the new list; it runs with a base image that does not exist, so that a stale `install` case of group_units would end at
+# the preflight (exit 1, red) and never start a stack. For every group, the tag of its CI job (<run id>-<attempt>-<group>, as in
+# ci.yml) is a valid run tag, and `group <name>` knows the name: with that tag and the missing base image it ends at the preflight
+# with exit 1, where an unknown group or a refused tag would give exit 2.
+cli_groups=$(bash ci/iris.sh groups 2>&1 | tr '\n' ' ')
+if [ "$cli_groups" != "install-fresh install-upgrade production browser shards image " ]; then
+  recipe_fail="$recipe_fail [ci/iris.sh groups printed '$cli_groups']"
+fi
+cli_list=$(bash ci/iris.sh list 2>&1)
+printf '%s\n' "$cli_list" | grep -Eq -- '^group install-fresh: (.* )?live:install-start( |$)' \
+  || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-fresh line with live:install-start]"
+printf '%s\n' "$cli_list" | grep -Eq -- '^group install-upgrade: (.* )?live:install-upgrade( |$)' \
+  || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-upgrade line with live:install-upgrade]"
+recipe 2 "^unknown group 'install'; groups: install-fresh install-upgrade production browser shards image$" \
+  IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- group install
+for cli_group in $(bash ci/iris.sh groups); do
+  recipe 0 "auto" OCUTALON_RUN_TAG="39594299887-1-$cli_group" -- port
+  recipe 1 "the base image" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG="39594299887-1-$cli_group" -- group "$cli_group"
+done
+
 # A browser unit installs Chromium before its script runs. A stub docker lets the preflight pass (it answers every `image inspect`,
 # the base image's and the mock image's, so nothing is pulled), and a stub npx that records its arguments and fails ends the run
 # before the unit's script starts.
@@ -962,10 +1011,10 @@ for browser_unit in $(. ./ci/units.sh && printf '%s' "$BROWSER_UNITS"); do
   fi
 done
 if [ -z "$recipe_fail" ]; then
-  echo "PASS recipe: bad tags, units and a missing base image are refused, and the web port follows the runner's number"
+  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number, and the six groups answer groups, list and group (the retired install is refused) under their CI tags"
 else
   printf '%s\n' "$recipe_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
-  echo "FAIL recipe: ci/iris.sh does not refuse, or does not choose the port, as designed"
+  echo "FAIL recipe: ci/iris.sh does not refuse, does not choose the port, or does not answer for the six groups, as designed"
   fails=$((fails + 1))
 fi
 

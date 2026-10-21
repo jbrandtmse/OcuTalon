@@ -291,3 +291,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: hits=$(units_violations ...) and hits=$(demo_path_violations ...) ignore the exit status; a set -u abort in the sourced ci/units.sh leaves stdout empty; other rules keep the suite red in realistic cases
 - 2026-10-21T15:28:03Z status=open owner=32-1-the-install-group-runs-as-two-jobs by=harvest note=LOW two-way door in a file this story edits: for the code review to patch or close
+- 2026-10-21T16:06:55Z status=resolved-by:32-1-the-install-group-runs-as-two-jobs by=adjudication note=cr patched test-ci-config.sh: real_hits helper guards the units, demo-path and groups real-tree reads; u-unread sample pins it; mutation recorded in spec Verification
+
+### DW-49: ci/iris.sh gives the browser units a fixed web port (52810 + n) only for runners 1 to 9, so on ocutalon-ci-10 to -14 they probe for the first free port of 52800-52819, which two concurrent browser jobs on ocutalon-ci-c can both pick
+- source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: setup_tag (ci/iris.sh) sets OCUTALON_TEST_WEB_PORT only when the runner number is 9 or less; live_web_port (lib-live.sh) then probes and binds later, a check-then-use race; 5 of the 12 services (ci-c's 10-14) take it, and a red CI job re-opens a story
+- 2026-10-21T16:04:07Z status=routed owner=burndown by=cr note=fix: map runners 10-19 to 52800-52809 in setup_tag (no fixed or forbidden port there) plus a recipe pin; Rule 21's 'is 52810 plus the runner's number' needs this
+
+### DW-50: test-ci-config.sh names the six IRIS groups as literals in both the groups rule and the recipe rule, so a change to the group set edits both
+- source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: groups_violations compares IRIS_GROUPS with the six names, and the recipe rule compares ci/iris.sh groups and the 'unknown group install' line with the same literal list
+- 2026-10-21T16:04:12Z status=by-design owner=32-1-the-install-group-runs-as-two-jobs by=cr note=QA's recipe line is a deliberate, independent pin of the CLI output (spec QA files); a missed edit fails closed, never green
+
+### DW-51: AC 1's clause 'install-upgrade holds live:audit after live:install-upgrade' has no pinning test: the groups rule pins only the two anchors, and its good sample g-moved puts live:audit back in production
+- source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: moving live:audit back to production, or into install-fresh, leaves matrix, groups, units and recipe green (g-moved is that tree)
+- 2026-10-21T16:04:19Z status=by-design owner=32-1-the-install-group-runs-as-two-jobs by=cr note=Design Notes item 3: a whole-unit rebalance needs no test edit; the lead's per-unit CI times and AC 5's Rule 21 record name audit's group

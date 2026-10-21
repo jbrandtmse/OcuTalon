@@ -27,3 +27,12 @@
 2026-10-21T15:28:21Z	Story 32.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-10-21T15:28:33Z	Story 32.1	runtime_lock_acquired	lock=runtime stage=qa
 2026-10-21T15:28:33Z	Story 32.1	stage_spawned	stage=qa spawn_at=2026-10-21T15:28:33Z model=claude-sonnet agent_name=32-1-the-install-group-runs-as-two-jobs-qa-1 cycle_iteration=1
+2026-10-21T15:43:10Z	Story 32.1	runtime_lock_released	lock=runtime stage=qa
+2026-10-21T15:43:10Z	Story 32.1	qa_complete	spawn_at=2026-10-21T15:28:33Z model=claude-sonnet tests=docker/tests/test-ci-config.sh tests_added=1_extended mutations_demonstrated=14 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-10-21T15:43:18Z	Story 32.1	stage_spawned	stage=code-review spawn_at=2026-10-21T15:43:18Z model=claude-opus-5-5 agent_name=32-1-the-install-group-runs-as-two-jobs-code-review-1 cycle_iteration=1
+2026-10-21T16:06:55Z	Story 32.1	cr_complete	spawn_at=2026-10-21T15:43:18Z model=claude-opus-5-5 resolved=4 fixed_at_source=4 by_design=2 wontfix_theoretical=0 routed=1 escalated=0 decision_pending=0 deferred=3 dismissed=5 high=0 med=1 low=6 rows=17 unresolved_high_med=1 ledger=DW-49,DW-50,DW-51 clarifications=0 closing_sections_present=true review_tier=full-opus cycle_iteration=1
+2026-10-21T16:06:55Z	Story 32.1	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 model=claude-opus-5-5
+2026-10-21T16:07:19Z	Story 32.1	runtime_lock_acquired	lock=runtime stage=smoke
+2026-10-21T16:18:27Z	Story 32.1	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=ci/checks.sh_all_passed,groups_list_six,unknown_install_rc2,live_group_install-fresh_passed_272s_94_PASS(tag_e32s1l;first_try_LOCK_busy_epic1),teardown_clean model=claude-opus-5-5
+2026-10-21T16:18:27Z	Story 32.1	runtime_lock_released	lock=runtime stage=smoke
+2026-10-21T16:19:41Z	Story 32.1	fresh_check	env=worktree-hermetic(test-ci-config.sh_builds_its_own_temp_trees)+implement_live_groups_on_fresh_throwaways tests=1 result=pass order=forward,forward(single_script);live:install-fresh,install-upgrade_and_reverse(implement_e32s1i)
