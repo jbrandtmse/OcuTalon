@@ -6306,7 +6306,7 @@ So that no IRIS job runs much longer than the others, and CI's wall-clock time f
 
 **Given** Rule 21's CI section in `_bmad/custom/skill-rules.md`
 **When** the story is done
-**Then** it records the new group list, the measured per-group times and the CI capacity: two hosts, `ocutalon-ci` (4 vCPU / 8 GB, services 1–2) and `ocutalon-ci-b` (8 vCPU / 16 GB, services 3–8), 8 runner services in all. This replaces Rule 21's "two services share one host" with measured facts only.
+**Then** it records the new group list, the measured per-group times and the CI capacity: two hosts, `ocutalon-ci-b` (8 vCPU / 16 GB, services 3–8) and `ocutalon-ci-c` (8 vCPU / 16 GB, services 9–14), 12 runner services in all; the original `ocutalon-ci` host and its services 1–2 were retired on 2026-10-21 [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: capacity corrected after the scale-out]. This replaces Rule 21's "two services share one host" with measured facts only.
 
 ### Story 32.2: An IRIS group runs only when something it tests changed
 
