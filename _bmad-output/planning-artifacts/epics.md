@@ -1159,7 +1159,7 @@ So that every model request follows the same cap, caching and no-sampling rules 
 
 **Given** the CI mock, which rejects sampling parameters and output caps under 4,000 tokens
 **When** each runner sends a request for its default scenario under `ci/mock/scenarios/A/`
-**Then** the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings (FR-38, NFR-1, NFR-2, REL-4)
+**Then** the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings, which mark every block whose cached prefix reaches `min_tokens_for_cache` (a shorter prefix is never marked), while every runner's session carries the cache block (FR-38, NFR-1, NFR-2, REL-4) [AMENDED 2026-10-21 — see the story change log]
 **And** after `DiagnosisAgent`'s `Model` is changed to `claude-sonnet-5-5` and the item restarted, its next request names that model (FR-5, AD-7)
 
 **Given** a request reaches a runner

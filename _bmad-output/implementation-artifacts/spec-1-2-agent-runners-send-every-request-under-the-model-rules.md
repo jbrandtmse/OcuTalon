@@ -2,7 +2,8 @@
 title: 'Story 1.2: Agent runners send every request under the model rules'
 type: 'feature'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: '0ec181343a9ab237c5bc69e87aebb9062a8d7ba2'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -71,9 +72,10 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Triage request (CI mock) | `decide` Request to `TriageAgent`; the entry's key placeholder points at a CI variable (fixture) | The logged request has `model` `claude-haiku-5-5`, `maxTokens` 8000, `request.output_config.effort` `low`, the cache marker on `request.system.cacheControl` (the form Task 0 (a) records) and no `temperature`, `top_p` or `top_k`, with status 200 and no `rejected`. `Reply.Text` is `triage.json`'s text. | No error expected |
-| Diagnosis request | `diagnose` Request to `DiagnosisAgent` | Effort `high`; the system marker and the last tool's `cacheControl`; two requests (the fixture tool runs), both accepted. `Reply.Text` is `diagnosis.json`'s final text. | No error expected |
-| Chat request | `turn` Request (provenance `user`) to `ChatAgent` | No `output_config.effort`, `maxTokens` 8000, the system marker; every logged request accepted. AC3 asserts the log only: Chat's answer is recorded by Task 0 (b), not asserted, because `chat.json` calls a tool that Chat gets in a later story. | No error expected from the mock |
+| Triage request (CI mock) | `decide` Request to `TriageAgent`; the entry's key placeholder points at a CI variable (fixture) | The logged request has `model` `claude-haiku-5-5`, `maxTokens` 8000, `request.output_config.effort` `low`, no cache marker (its prefix is below `min_tokens_for_cache`; measured in Task 0 (a)) and no `temperature`, `top_p` or `top_k`, with status 200 and no `rejected`. `Reply.Text` is `triage.json`'s text. [AMENDED 2026-10-21 with AC3; see the Spec Change Log] | No error expected |
+| Diagnosis request | `diagnose` Request to `DiagnosisAgent` | Effort `high`; the last tool's `cacheControl` is `{"type":"ephemeral"}` (system plus tools reach the threshold), the system block alone is unmarked (measured); two requests (the fixture tool runs), both accepted. `Reply.Text` is `diagnosis.json`'s final text. [AMENDED 2026-10-21 with AC3] | No error expected |
+| Cache over the threshold | A probe agent whose system prompt is over `min_tokens_for_cache` (about 800 tokens, the form Task 0 (a) measured) through the same runner path | `request.system.cacheControl` is `{"type":"ephemeral"}`: the cache block reaches the provider. [ADDED 2026-10-21 with AC3] | No error expected |
+| Chat request | `turn` Request (provenance `user`) to `ChatAgent` | No `output_config.effort`, `maxTokens` 8000, no cache marker (below the threshold, measured); every logged request accepted. [AMENDED 2026-10-21 with AC3] AC3 asserts the log only: Chat's answer is recorded by Task 0 (b), not asserted, because `chat.json` calls a tool that Chat gets in a later story. | No error expected from the mock |
 | Model change | `DiagnosisAgent`'s `Model` row set to `claude-sonnet-5-5`, then the item restarts | The next request names `claude-sonnet-5-5`, still with 8000 and effort `high` | No error expected |
 | GPT-5 family (pure) | Model `gpt-5-mini`, effort `high` | `{"extra_params":{"max_completion_tokens":8000},"cache":{...}}`, with no `max_tokens` and no effort | No error expected |
 | Other model (pure) | Model `zz-other-model` | The `default` family: `max_tokens` 8000 and no effort | No error expected |
@@ -161,6 +163,7 @@ deferred: []
 - **(a)** Read the logged request of one `TriageAgent` and one `DiagnosisAgent` request, and record:
   - `request.system.cacheControl`, the last tool's `cacheControl`, any top-level cache field, and `request.output_config`.
   - If no cache marker shows for a runner, stop with status `blocked` and the condition: "intent gap: AC3's 'its log shows ... the cache settings' is unmeasurable for <runner>, because AI Hub marks no block under `min_tokens_for_cache` 512 (measured: <facts>)". Recommend the amendment: "... the cache settings, where the cached prefix reaches `min_tokens_for_cache`, and the cache block reaches the provider for every runner".
+  - **Resolved 2026-10-21:** this stop rule fired on the first implement pass (Triage and Chat unmarked), and the lead amended AC3 (Spec Change Log). Do not halt on it again; record the measured facts and follow the amended AC3.
 - **(b)** What `ChatAgent` answers for `chat.json`, whose first reply calls `list_productions`, a tool Chat does not have.
 - **(c)** How an `OnInit` refusal shows: the status of `TempStopConfigItem(item, 0)`, `NotRunning()`, and the event-log row's type and text.
 - **(d)** The `finish_reason` of a normal reply.
@@ -271,12 +274,19 @@ deferred: []
 **Acceptance Criteria:**
 - **AC1, the start.** Given the runner items with `OcuTalon.Bridge.Adapter.Agent`, when an item starts, then it refuses to start with any refused setting set, or with an `AgentClass` not on `AgentAllowList`, and the event log names why. With no key in the environment it starts and runs, because the agent is built on first use (`Test.Agent.Runners`, `Test.Bridge.Runner`).
 - **AC2, the session config.** Given any request, when the runner creates or opens the AI session, then one method composes the config from the agent and the resolved model's `ModelFamily` row. It holds the cap, the effort, `max_iterations` (4 for Chat) and the cache block, never a sampling parameter, and the same composition applies when a session is opened (`Test.Bridge.SessionConfig`, `Test.Bridge.Runner.TestOpenKeepsConfig`).
-- **AC3, the integration AC.** Given the CI mock, when each runner sends its default scenario's request, then the mock accepts every request and its log shows `claude-haiku-5-5`, 8000, the effort and the cache settings. After `DiagnosisAgent`'s `Model` changes to `claude-sonnet-5-5` and it restarts, its next request names that model. The consumer here is AI Hub's Anthropic provider path, read through the mock's log.
+- **AC3, the integration AC.** Given the CI mock, when each runner sends its default scenario's request, then the mock accepts every request and its log shows `claude-haiku-5-5`, 8000, the effort and the cache settings, which mark every block whose cached prefix reaches `min_tokens_for_cache` (Diagnosis's last tool; a probe agent's long system prompt through the same runner path), while Triage's and Chat's short prefixes stay unmarked and every runner's session carries the cache block [AMENDED 2026-10-21 — see the Spec Change Log]. After `DiagnosisAgent`'s `Model` changes to `claude-sonnet-5-5` and it restarts, its next request names that model. The consumer here is AI Hub's Anthropic provider path, read through the mock's log.
 - **AC4, the request.** Given a request reaching a runner, when it calls `Chat`, then the context was set first (request fields, `ThreadSessionId`, `SuperSession`, the taint and `HostData`). `Response.Extra` is kept as `FinishReason`, and afterwards `HostData` and the taint are on the `Reply`. No product class but the runner calls `Chat`, and each runner's pool size is its concurrency cap.
 - **AC5, the callback rule.** Given the tool, policy and renderer classes, when `Test.Bridge.CodeRules` runs, then it fails on any `%AI` reference beyond their base classes and on any Python use.
 - **AC6, the live inventory.** Given every running runner, when `Test.Agent.Runners.TestToolInventory` inspects its live ToolManager, then no AI Hub shell, filesystem, SQL or web-search tool is registered, and the test fails on any tool that is not an OcuTalon iris tool with clean code.
 
 ## Spec Change Log
+
+- 2026-10-21, lead (Epic 1 runner), after the first implement pass's intent-gap HALT at Task 0 (a). Rule 5 apply-and-report amendment (restating an observable so it is measurable; the intent is unchanged), ruled `category=decide`:
+  - **Where:** `epics.md`, Story 1.2, the third Given/When/Then (the CI mock), its `Then` line, with an inline `[AMENDED 2026-10-21 — see the story change log]` marker; this spec's AC3, the I/O matrix rows for Triage, Diagnosis and Chat, and a new matrix row "Cache over the threshold".
+  - **Original:** "the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings".
+  - **Amended:** "the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings, which mark every block whose cached prefix reaches `min_tokens_for_cache` (a shorter prefix is never marked), while every runner's session carries the cache block".
+  - **Rationale:** AI Hub applies AD-7's cache block (`min_tokens_for_cache` 512) by marking only a prefix that reaches the threshold. Triage's and Chat's prompts are about 190 to 310 tokens, so the mock's log can never show a marker for them, while every runner's composed session config holds the exact block and a probe prompt of about 800 tokens through the same runner path is marked (Task 0 (a), measured). AD-7's rule and NFR-2 (output caps) are unchanged; no spine edit.
+  - **Status:** reset from `blocked` to `in-progress` to re-implement. The halted pass's written implementation stays in the working tree, uncommitted, for this pass to continue from (the lead saved a copy outside git).
 
 ## Review Triage Log
 
@@ -399,7 +409,7 @@ deferred: []
 | AC2 | Effort written for the `gpt-5` family | `SessionConfig` |
 | AC2 | The open method passes no config | `Runner.TestOpenKeepsConfig` |
 | AC3 | The `Effort` setting ignored | `Runners.TestRequestsUnderTheModelRules` |
-| AC3 | The cache block omitted | `Runners.TestRequestsUnderTheModelRules` (per Task 0 (a)) |
+| AC3 | The cache block omitted (re-derive per the amended AC3: the session config's cache block, and the probe's system marker; see the note on `BuildSessionConfig` under `## Auto Run Result`) | `Runners.TestRequestsUnderTheModelRules`, `SessionConfig` |
 | AC3 | The adapter's `Model` ignored in favour of `MODEL` | `Models.TestModelChange` |
 | AC4 | `Context.Begin` after `Chat` | `Runner.TestContext` |
 | AC4 | `FinishReason` not copied | `Runner.TestFinishReason` |
@@ -417,6 +427,20 @@ deferred: []
   - `rust:shell` and `rust:filesystem` add `bash`, `list_tasks`, `task_io`, `terminate_task`, `read_file`, `read_directory`, `read_lines`, `glob_files`, `grep_files`, `change_directory` and `get_working_directory`, with source `rust` and provider `builtin`.
   - `rust:web_search` fails to add without `BRAVE_SEARCH_API_KEY`.
 
+**Measured in implementation (Task 0; throwaway of tag `e1s2a`, build 154, the CI mock; two runs, nothing kept):**
+- **(a) The cache marker. THE STOP RULE OF TASK 0 (a) FIRED.** The logged requests of the three default scripts, every field as sent (messages left out):
+  - **Triage** (system 1245 chars, no tools): `{"max_tokens":8000,"model":"claude-haiku-5-5","output_config":{"effort":"low"},"system":{"chars":1245,"cacheControl":null},"tools":[]}`. No cache marker anywhere.
+  - **Diagnosis** (system 758 chars, three tools): `output_config.effort` `high`, `system.cacheControl` `null`, and `tools` `read_event_log` `null`, `read_failed_messages` `null`, `read_item_settings` `{"type":"ephemeral"}`. The marker is on the last tool only, in both of its requests.
+  - **Chat** (system 901 chars, no tools): no `output_config`, `system.cacheControl` `null`, `tools` `[]`. No cache marker anywhere.
+  - No request holds a top-level cache field: the top-level fields are `max_tokens`, `model`, `messages`, `system`, `tools` and, for Triage and Diagnosis, `output_config`.
+  - The composed session config of every runner holds the exact cache block (`{"enabled":1,"cache_system_prompt":1,"cache_tool_definitions":1,"min_tokens_for_cache":512}`). With a system prompt of 3317 chars (about 800 tokens) through the same runner path, `system.cacheControl` is `{"type":"ephemeral"}` and so is the tool (one tool) of a probe agent, and with no tools the system is still marked. So the block reaches the provider, and AI Hub marks a block only when the prefix reaches `min_tokens_for_cache` (Triage's, Chat's and Diagnosis's system prompts are about 190 to 310 tokens). The three product prompts are too short to be marked.
+  - Condition and amendment for the owner: "intent gap: AC3's 'its log shows ... the cache settings' is unmeasurable for Triage and Chat, because AI Hub marks no block under `min_tokens_for_cache` 512 (measured: Triage `system.cacheControl` null with no tools; Chat `system.cacheControl` null with no tools; Diagnosis marks its last tool only)". Recommended amendment: "... the cache settings, where the cached prefix reaches `min_tokens_for_cache`, and the cache block reaches the provider for every runner".
+- **(b) What ChatAgent answers for `chat.json`.** The Reply has status OK, `Text` `The CI mock looked at the productions.` and `FinishReason` `end_turn`. The mock logged two requests, both 200, and no request offers a tool: Chat has no tool `list_productions`, AI Hub fed that back to the model and the second scripted reply came back as text.
+- **(c) How an `OnInit` refusal shows.** `TempStopConfigItem(item, 1)` and `TempStopConfigItem(item, 0)` both return OK with no text. About 1 s later `NotRunning()` is `TriageAgent`, the item has no alive job, and `Ens.Job:Enumerate` shows its last job as `Mode` Background, `Status` `last was: terminated`, `State` Dead, with the refusal as its detail. The event log holds one row of type 2 (error), `ConfigName` `TriageAgent`: `Terminating Job <n> / 'TriageAgent' with Status = ERROR #5001: OcuTalon.Bridge.Adapter.Agent refuses to start: the setting SystemPrompt is set; ...` and, for the allow-list, `... refuses to start: the AgentClass 'OcuTalon.Agent.Triage' is not on the AgentAllowList setting`. The other two runners keep their jobs. A System Default Setting row for item `*` (`AgentAllowList`) is resolved by `GetAdapterSettingValue` for every runner and applied by the running item; with the row deleted or put back and a restart, the item runs again.
+- **(d) `finish_reason` of a normal reply:** `end_turn`, for Triage, Diagnosis and Chat.
+- **(e) The error of a runner request with no key.** The status code is `<%AICore>ProviderCreateFailed` and the text is `ERROR <%AICore>ProviderCreateFailed: Failed to create provider 'anthropic'    > ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ANTHROPIC_API_KEY} has no value and no :-fallback was given`. The second request gets the same text, nothing reaches the mock, the item keeps its job, and a `ToolInventory` request gets the same error. The event log holds the same text as an error row of the item.
+- **Other facts.** After the bridge installer, `ModelFamily` holds `anthropic|claude-|max_tokens|extra_params.output_config.effort`, `default||max_tokens|` and `gpt-5|gpt-5|extra_params.max_completion_tokens|`. After the Production step, the `Effort` rows are `low` (TriageAgent) and `high` (DiagnosisAgent) with none for ChatAgent, and the item-`*` `AgentAllowList` row is `OcuTalon.Agent.Triage,OcuTalon.Agent.Diagnosis,OcuTalon.Agent.Chat`. The live `ToolInventory` answers are `{"tools":[]}` for Triage and Chat, and for Diagnosis the three tools `read_event_log`, `read_failed_messages` and `read_item_settings`, each with source `iris`, provider `OcuTalon.Tools.WatchFixture`, status `available` and reason empty.
+
 ## Clarification Record
 
 **For the veto window (not blocking; recommended as planned):**
@@ -428,7 +452,16 @@ deferred: []
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: in-progress
 Blocking condition: none
 
-The plan stage halted after planning, as the dispatch asked. The spec passed the READY FOR DEVELOPMENT gate on its first check. The epic context `epic-1-context.md` was reused, and Story 1.1's spec (`done`) was loaded for continuity. Nothing was implemented, committed or pushed. The only runtime calls were process-local measurements on `ocutalon-slot-a` (recorded under `## Verification`).
+Resolved by the lead's Rule 5 amendment of AC3 (see the Spec Change Log); the first pass's record follows. It was blocked on: intent gap: AC3's "its log shows ... the cache settings" is unmeasurable for Triage and Chat, because AI Hub marks no block under `min_tokens_for_cache` 512 (measured: Triage `system.cacheControl` null with no tools; Chat `system.cacheControl` null with no tools; Diagnosis marks its last tool only). Recommended amendment: "... the cache settings, where the cached prefix reaches `min_tokens_for_cache`, and the cache block reaches the provider for every runner".
+
+The implement pass of 2026-10-21 wrote the implementation, then ran Task 0 and stopped at (a), as the spec's stop rule requires. The measured facts are under `## Verification`. The evidence is two-sided: the three product prompts (about 190 to 310 tokens) get no system marker, and the same runner path with a 3317-char system prompt gets `{"type":"ephemeral"}` on the system block and on a probe agent's tool, so the cache block does reach the provider.
+
+**State left for the lead (nothing committed or pushed; HEAD is still the baseline):**
+- The tree holds the written, not yet verified implementation: the bridge (`Adapter/Agent`, `Operation/AgentRunner`, `Msg/Reply`, `Msg/ToolInventory`, `Installer`), the product (`EFFORT` on Triage and Diagnosis, Chat's `MaxIterations`, the Production step's `SeedEfforts` and `SeedAllowList`), `ci/mock/scenarios/A/context-probe.json`, and the tests and fixtures the spec lists.
+- Run so far: `bash ci/checks.sh` passed; the bridge, agents, Production step and all new and changed test classes compile on the dev slot; three process-local checks (refusals, the deferred build, the inventory) and two throwaway runs of a scratch measurement class (deleted). No lane-a test class, no `(loop)` line beyond `checks.sh`, no `(once)` line and no Rule 19 mutation has run, so no `mutation:` line is recorded. The `e1s2a` throwaway is torn down.
+- To resume after the amendment: `Test.Agent.Runners.AssertRequests` asserts a system marker for every runner and the last tool's marker, which fails for Triage and Chat, so it follows the amended AC3 wording. The Verification row "AC3 | The cache block omitted" needs re-reading too: AI Hub's `BuildSessionConfig` (`%AI/Agent.cls` :632-634) sets `cache` to the agent's `CachingEnabled` when the config has no `cache` key, so omitting the block may still mark Diagnosis's last tool (inference, unmeasured).
+- Choices made in the written code, to record under `## Design Notes` "Decided in-stage" when the pass resumes: a `Building` flag lets the adapter's `OnInit` defer to AI Hub's own through `##super()`; the composer returns a status with an Output config and `ClearSampling` is split out for a pure test; the adapter's methods are `NewSession`, `OpenSession`, `Answer` and `Inventory`; `RunnerFixture` also holds `GuardReason` (moved out of `KeyScan`), `Ask`, `Effort` and `Restart(name, wait)`, and repeats the scenario texts as `TRIAGETEXT` and `DIAGNOSISTEXT`; `ToolCodeClean` has the signature `(class, .problems, text="")`; `Test.Bridge.Runner.NORMALFINISH` is `end_turn` (measured).
+- No Lane B path was touched, no git mutation was run by the implementation subagent (HEAD verified unchanged), and no secret was read or written.
