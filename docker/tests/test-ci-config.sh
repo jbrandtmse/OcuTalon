@@ -30,8 +30,9 @@
 #     unit, and group_units has no case for the retired group install; install-fresh holds live:install-start, install-upgrade holds
 #     live:install-upgrade, and live:demo-path is the first unit of browser (AD-22);
 #   - inputs (Story 32.2): every unit of NO_WEB_BUNDLE_UNITS is a unit of a group and no live script of it has a code line that names the
-#     web bundle; group_input_pattern answers for each group with a pattern that matches ci/units.sh, the workflow and src/, and for
-#     no unknown group;
+#     web bundle (each of the markers alone is enough); group_input_pattern answers for each group with a pattern that matches
+#     ci/units.sh, the workflow and src/, and for no unknown group; and every file that a live script of the group sources or adds
+#     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern;
 #   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
 #     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere; `groups` prints the six groups
 #     in order, `list` shows the two install groups with their anchors, the retired group install is refused with exit 2, and each
@@ -481,14 +482,16 @@ function need_named(job, name, hold, cond,    key, kk, found) {
   }
   if (!found) bad(job ": no step '" name "' runs a line that holds '" hold "' with the condition '" cond "'")
 }
-# need_reason <job> <name>: the job has a step of that name whose env binds REASON to the classifier's reason.
-function need_reason(job, name,    key, kk, found) {
+# need_reason <job> <name> <text in its run line> <if text>: ONE step of that name has exactly that condition, a run line that holds
+# the text and an env that binds REASON to the classifier's reason, so that the three cannot be shared out over two steps of the name.
+function need_reason(job, name, hold, cond,    key, kk, found) {
   found = 0
   for (key in snames) {
     split(key, kk, SUBSEP)
-    if (kk[1] == job && snames[key] == name && reasonenv[key] == "REASON: ${{ steps.changes.outputs.reason }}") found = 1
+    if (kk[1] == job && snames[key] == name && ifs[key] == cond && index(runs[key], hold) > 0 \
+      && reasonenv[key] == "REASON: ${{ steps.changes.outputs.reason }}") found = 1
   }
-  if (!found) bad(job ": the step '" name "' does not bind REASON to the classifier's reason")
+  if (!found) bad(job ": no one step '" name "' has the condition '" cond "', a run line that holds '" hold "' and REASON bound to the classifier's reason")
 }
 BEGIN { FS = "\t" }
 { kind = $1; ln = $2; job = $3; st = $4; text = $5 }
@@ -518,7 +521,7 @@ END {
   need("iris", "bash ci/iris.sh build", iris)
   need("iris", "bash ci/iris.sh group ${{ matrix.group }}", iris)
   need_named("iris", "Skipped", "skipped: $REASON", "steps.changes.outputs.run == 'false'")
-  need_reason("iris", "Skipped")
+  need_reason("iris", "Skipped", "skipped: $REASON", "steps.changes.outputs.run == 'false'")
   if (!(("web", "changes") in ids) || !(("iris", "changes") in ids)) bad("the classifier step has no id changes in the web job or the iris job")
   if (env["iris", "OCUTALON_RUN_TAG"] != "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}") bad("iris: OCUTALON_RUN_TAG is not run id, attempt and group")
   if (env["iris", "IRIS_IMAGE"] != "ocutalon-iris-base:2026.3.0AI.154.0") bad("iris: IRIS_IMAGE is not the preloaded base image")
@@ -539,11 +542,14 @@ wiring_bad() { # wiring_bad <name> <awk program>: a copy of ci.yml that the prog
 }
 wiring_bad id '/^        id: changes$/ { n++; if (n == 2) { print "        id: chg"; next } } { print }'
 wiring_bad iris-gate '/outputs\.run != / && !done { sub(/outputs\.run != /, "outputs.run == "); done = 1 } { print }'
+wiring_bad group-gate '/outputs\.run != / { n++; if (n == 2) sub(/outputs\.run != /, "outputs.run == ") } { print }'
+wiring_bad gate-truthy '/if: steps\.changes\.outputs\.run != / { sub(/ != .false./, "") } { print }'
 wiring_bad web-gate '/outputs\.web ==/ { n++; if (n == 2) sub(/outputs\.web ==/, "outputs.web !=") } { print }'
 wiring_bad skip-step '/outputs\.run == / { sub(/outputs\.run ==/, "outputs.run !=") } { print }'
 wiring_bad skip-reason '/^          REASON: / { n++; if (n == 2) { m = "outputs.reason"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) "outputs.base" substr($0, i + length(m)) } } { print }'
 wiring_bad skip-text '/skipped: \$REASON/ && !done { m = "skipped: "; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)); done = 1 } { print }'
 wiring_bad group-arg '/ci\/changes\.sh ci\.yml --group/ { m = " --group ${{ matrix.group }}"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)) } { print }'
+wiring_bad skip-split '/^          REASON: / { n++; if (n == 2) { m = "outputs.reason"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) "outputs.base" substr($0, i + length(m)) } } { print } END { print "      - name: Skipped"; print "        if: always()"; print "        run: echo skipped"; print "        env:"; print "          REASON: ${{ steps.changes.outputs.reason }}" }'
 wiring_bad tag '/OCUTALON_RUN_TAG:/ { m = "-${{ matrix.group }}"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)) } { print }'
 wiring_bad checks '$0 == "        run: bash ci/checks.sh" { print "        run: echo checks"; next } { print }'
 wiring_bad lint '$0 == "        run: npm --prefix web run lint" { print "        run: echo lint"; next } { print }'
@@ -551,7 +557,7 @@ wiring_bad test '$0 == "        run: npm --prefix web test" { print "        run
 wiring_bad group '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: echo group"; next } { print }'
 wiring_bad mock '$0 == "        run: bash docker/tests/test-mock.sh" { print "        run: echo mock"; next } { print }'
 wiring_ok=1
-for n in id iris-gate web-gate skip-step skip-reason skip-text group-arg tag checks lint test group mock; do
+for n in id iris-gate group-gate gate-truthy web-gate skip-step skip-reason skip-text skip-split group-arg tag checks lint test group mock; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
     echo "FAIL wiring: the rule does not flag the sample $n"
     wiring_ok=0
@@ -903,9 +909,17 @@ fi
 # here so that this file never matches its own rule.
 bundle_markers="$tmp/bundle-markers"
 : > "$bundle_markers"
-for part in "cs:p" "ocutalon-:web" "npm --prefix :web" "live_web_:port" "check_:security"; do
+for part in "cs:p" "ocutalon-:web" "npm --prefix :web" "live_web_:port" "check_:security" "index:.html" "ensure_web_:bundle" "LIVE_REBUILD_:WEB"; do
   printf '%s%s\n' "${part%%:*}" "${part#*:}" >> "$bundle_markers"
 done
+
+# unit_reads <live script>: the repository files that a code line of the script names through $root or through the script's own
+# folder (the files it sources and the compose files it adds), one per line, as paths from the repository root. Only a name with an
+# extension counts, so that a folder is never taken for a file.
+unit_reads() {
+  grep -v '^[[:space:]]*#' "$1" | grep -oE '[$][{]?root[}]?/[A-Za-z0-9_./-]+|[$][(]dirname "[$]0"[)]/[A-Za-z0-9_][A-Za-z0-9_.-]*' \
+    | sed -e 's#^[$][{]*root[}]*/##' -e 's#^[$](dirname "[$]0")/#docker/tests/#' | grep -E '[.][A-Za-z0-9]+$' | sort -u
+}
 
 # inputs_violations <repository directory>: one line per violation of the inputs rule in that tree.
 inputs_violations() {
@@ -934,6 +948,18 @@ inputs_violations() {
         for path in ci/units.sh .github/workflows/ci.yml src/x; do
           printf '%s\n' "$path" | grep -Eq -- "$p" || echo "ci/units.sh: group_input_pattern $g does not match $path"
         done
+        # A file that a live script of the group sources or adds is an input of the group: its pattern must claim it.
+        for u in $(group_units "$g"); do
+          case $u in
+            live:*)
+              f="docker/tests/test-${u#live:}.sh"
+              [ -f "$f" ] || continue
+              for rel in $(unit_reads "$f"); do
+                printf '%s\n' "$rel" | grep -Eq -- "$p" || echo "$f: it reads $rel, which the input pattern of group $g does not claim"
+              done
+              ;;
+          esac
+        done
       fi
     done
     if p=$(group_input_pattern nosuch-group 2>/dev/null) || [ -n "${p:-}" ]; then
@@ -955,6 +981,8 @@ mkinputs() {
     esac
   done
 }
+# script_line <dir> <unit name> <text>: the unit's script gets that line.
+script_line() { printf '%s\n' "$3" >> "$1/docker/tests/test-$2.sh"; }
 # bundle_script <dir> <unit name>: the unit's script gets a code line that names the web bundle.
 bundle_script() { printf '%s\n' "$(sed -n 1p "$bundle_markers")" >> "$1/docker/tests/test-$2.sh"; }
 
@@ -967,11 +995,24 @@ mkinputs "$tmp/i-fn-fails" 'group_input_pattern() { return 1; }'
 mkinputs "$tmp/i-fn-empty" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; }'
 mkinputs "$tmp/i-fn-narrow" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; echo "^(ci/|\.github/workflows/ci\.yml\$)"; }'
 mkinputs "$tmp/i-fn-any" 'group_input_pattern() { echo "^(src/|ci/|\.github/workflows/ci\.yml\$)"; }'
+# A live script reads the files its group claims (a comment may name any): clean. A file that its group does not claim is not.
+mkinputs "$tmp/i-reads-claimed"
+script_line "$tmp/i-reads-claimed" install-start 'live_add_file "$root/docker-compose.dev.yml"'
+script_line "$tmp/i-reads-claimed" install-start '. "$(dirname "$0")/lib-scan.sh"'
+script_line "$tmp/i-reads-claimed" compose-start 'live_add_file "${root}/docker/tests/compose.no-after-start.yml"'
+mkinputs "$tmp/i-reads-comment"
+script_line "$tmp/i-reads-comment" production '# live_add_file "$root/docker/tests/extra/compose.x.yml"'
+script_line "$tmp/i-reads-comment" demo-path '  # . "$(dirname "$0")/helper.sh"'
+script_line "$tmp/i-reads-comment" sign-in 'cd "$root/web"'
+mkinputs "$tmp/i-reads-compose"
+script_line "$tmp/i-reads-compose" production 'live_add_file "$root/docker/tests/extra/compose.x.yml"'
+mkinputs "$tmp/i-reads-helper"
+script_line "$tmp/i-reads-helper" demo-path '. "$(dirname "$0")/helper.sh"'
 mkdir -p "$tmp/i-unread/ci" && : > "$tmp/i-unread/ci/units.sh"
 
 ok=1
 # The comment-only tree lists two units whose scripts name the bundle only in a comment: it stays clean.
-for good in i-good i-comment-only; do
+for good in i-good i-comment-only i-reads-claimed i-reads-comment; do
   if [ -n "$(inputs_violations "$tmp/$good")" ]; then
     echo "FAIL inputs: the rule flags the good tree $good ($(inputs_violations "$tmp/$good" | head -n 3 | tr '\n' ';'))"
     ok=0
@@ -982,7 +1023,9 @@ for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names
   "i-listed-sign-in|docker/tests/test-sign-in.sh: it names the web bundle, but live:sign-in is in NO_WEB_BUNDLE_UNITS" \
   "i-unknown-unit|NO_WEB_BUNDLE_UNITS names live:nosuch-unit, which is a unit of no group" \
   "i-fn-fails|group_input_pattern production fails" "i-fn-empty|group_input_pattern production prints nothing" \
-  "i-fn-narrow|group_input_pattern production does not match src/x" "i-fn-any|group_input_pattern answers for the unknown group nosuch-group"; do
+  "i-fn-narrow|group_input_pattern production does not match src/x" "i-fn-any|group_input_pattern answers for the unknown group nosuch-group" \
+  "i-reads-compose|docker/tests/test-production.sh: it reads docker/tests/extra/compose.x.yml, which the input pattern of group production does not claim" \
+  "i-reads-helper|docker/tests/test-demo-path.sh: it reads docker/tests/helper.sh, which the input pattern of group browser does not claim"; do
   s=${pair%%|*}
   want=${pair#*|}
   got=$(inputs_violations "$tmp/$s")
@@ -994,6 +1037,20 @@ for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names
       ;;
   esac
 done
+# Every marker must by itself list a unit that is in NO_WEB_BUNDLE_UNITS as a unit that names the web bundle (audit is one).
+nmark=0
+while IFS= read -r marker; do
+  nmark=$((nmark + 1))
+  mkinputs "$tmp/i-marker-$nmark"
+  script_line "$tmp/i-marker-$nmark" audit "echo $marker"
+  case $(inputs_violations "$tmp/i-marker-$nmark") in
+    *"docker/tests/test-audit.sh: it names the web bundle, but live:audit is in NO_WEB_BUNDLE_UNITS"*) ;;
+    *)
+      echo "FAIL inputs: a code line that holds the marker number $nmark of the web bundle is not flagged"
+      ok=0
+      ;;
+  esac
+done < "$bundle_markers"
 if [ -z "$(real_hits inputs inputs_violations "$tmp/i-unread" 2>/dev/null)" ]; then
   echo "FAIL inputs: a tree whose ci/units.sh cannot be read passes the rule"
   ok=0
@@ -1004,7 +1061,7 @@ if [ -n "$hits" ]; then
   ok=0
 fi
 if [ "$ok" -eq 1 ]; then
-  echo "PASS inputs: every unit that is not checked against the web bundle is a unit of a group and names no bundle input in a code line, and each group has an input pattern that claims ci/units.sh, the workflow and src/"
+  echo "PASS inputs: every unit that is not checked against the web bundle is a unit of a group and names no bundle input in a code line, and each group has an input pattern that claims ci/units.sh, the workflow, src/ and every file that its live scripts source or add"
 else
   echo "FAIL inputs: the input patterns of the IRIS groups and NO_WEB_BUNDLE_UNITS"
   fails=$((fails + 1))

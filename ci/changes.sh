@@ -67,7 +67,8 @@ tab=$(printf '\t')
 
 output() { # output <name=value>: prints the line and appends it to $GITHUB_OUTPUT
   echo "$1"
-  # An output that cannot be written would leave the job's gates empty, and an empty run gate runs the group: that is a failure.
+  # An output that cannot be written would leave the job's gates empty, and the web job's gate (== 'true') skips on an empty web:
+  # that is a failure.
   if [ -n "${GITHUB_OUTPUT:-}" ] && ! echo "$1" >> "$GITHUB_OUTPUT"; then
     echo "FAIL ci/changes.sh: cannot append to GITHUB_OUTPUT"
     exit 1
@@ -189,15 +190,16 @@ case $? in
   *) everything "the web input pattern could not be applied" ;;
 esac
 
-# One decision per group: it runs when its pattern claims at least one changed path.
+# One decision per group: it runs when its pattern claims at least one changed path. The count comes from grep itself and not from
+# a file, so a temporary file that cannot be written never reads as a group that claims nothing.
 : > "$tmp/claimed-all.txt"
 : > "$tmp/groups.txt"
 for g in $IRIS_GROUPS; do
   pattern=$(group_input_pattern "$g") && [ -n "$pattern" ] || everything "the input pattern of $g could not be read"
-  LC_ALL=C grep -E -- "$pattern" "$tmp/changed.txt" > "$tmp/claimed.txt"
+  k=$(LC_ALL=C grep -cE -- "$pattern" "$tmp/changed.txt")
   if [ $? -gt 1 ]; then everything "the input pattern of $g could not be applied"; fi
-  k=$(wc -l < "$tmp/claimed.txt" | tr -d ' ')
-  cat "$tmp/claimed.txt" >> "$tmp/claimed-all.txt"
+  # A failed append leaves claimed-all.txt shorter, which can only add unclassified paths.
+  LC_ALL=C grep -E -- "$pattern" "$tmp/changed.txt" >> "$tmp/claimed-all.txt"
   if [ "$k" -gt 0 ]; then
     printf '%s\ttrue\t%s\n' "$g" "$k input path(s) of $g changed since $base" >> "$tmp/groups.txt"
   else

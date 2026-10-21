@@ -54,8 +54,9 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 
 # The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
 # its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
-# files, the throwaway helpers and compose overrides, the eval folder, the CI recipe and this workflow. These are unanchored ERE
-# alternatives, joined by group_input_pattern.
+# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, the eval folder, the CI recipe,
+# .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
+# group_input_pattern.
 IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.

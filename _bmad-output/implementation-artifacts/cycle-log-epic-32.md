@@ -57,3 +57,16 @@
 2026-10-21T17:37:35Z	Story 32.2	protocol_violation	stage=implement depth=3 agent=handoff violation=git_stash_and_pop_by_handoff_subagent(a_tree_and_index_rewrite_outside_the_listed_prohibitions);one_read_of_the_main_checkout_render(Rule_13) consequence=none:HEAD_unchanged,stash_list_empty,main_checkout_clean detected_by=implement_stage_self_report;lead_checked_git_state outcome=closed_no_action;next_prompts_forbid_stash_and_main_checkout_reads
 2026-10-21T17:37:35Z	Story 32.2	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-10-21T17:37:47Z	Story 32.2	stage_spawned	stage=qa spawn_at=2026-10-21T17:37:47Z model=claude-sonnet agent_name=32-2-an-iris-group-runs-only-when-something-it-tests-changed-qa-1 cycle_iteration=1
+2026-10-21T17:45:51Z	Story 32.2	runtime_lock_waiting	lock=runtime stage=qa holder=epic=1_stage=qa_acquired_at=2026-10-21T17:29:38Z waited_s=460
+2026-10-21T17:57:25Z	Story 32.2	runtime_lock_acquired	lock=runtime stage=qa waited_min=28
+2026-10-21T17:57:31Z	Story 32.2	stage_spawned	stage=qa spawn_at=2026-10-21T17:57:31Z model=claude-sonnet agent_name=32-2-an-iris-group-runs-only-when-something-it-tests-changed-qa-1 cycle_iteration=1 note=supersedes_the_write-ahead_entry_before_the_runtime_lock_wait
+2026-10-21T18:23:34Z	Story 32.2	runtime_lock_released	lock=runtime stage=qa
+2026-10-21T18:23:34Z	Story 32.2	qa_complete	spawn_at=2026-10-21T17:57:31Z model=claude-sonnet tests=docker/tests/test-ci-changes.sh,docker/tests/test-ci-config.sh tests_added=70_checks_extended mutations_demonstrated=29 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-10-21T18:23:34Z	Story 32.2	stage_spawned	stage=code-review spawn_at=2026-10-21T18:23:34Z model=claude-opus-5-5 agent_name=32-2-an-iris-group-runs-only-when-something-it-tests-changed-code-review-1 cycle_iteration=1
+2026-10-21T18:58:27Z	Story 32.2	cr_complete	spawn_at=2026-10-21T18:23:34Z model=claude-opus-5-5 resolved=7 fixed_at_source=7 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=13 high=0 med=2 low=5 rows=20 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus cycle_iteration=1
+2026-10-21T18:58:27Z	Story 32.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
+2026-10-21T18:58:27Z	Story 32.2	runtime_lock_acquired	lock=runtime stage=smoke
+2026-10-21T19:00:31Z	Story 32.2	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=ci/checks.sh_all_passed;ci/changes.sh_against_the_real_runs_API(base=e73b33c):web-only_skips_production_only,docs+bookkeeping_skips_all,unclassified_runs_all,force_push_runs_all(base_empty) model=claude-opus-5-5
+2026-10-21T19:00:31Z	Story 32.2	runtime_lock_released	lock=runtime stage=smoke
+2026-10-21T19:00:31Z	Story 32.2	fresh_check	env=worktree-hermetic(both_scripts_build_their_own_scratch_repos) tests=2 result=pass order=forward,reverse
+2026-10-21T19:00:54Z	Story 32.2	rule21_recorded	file=_bmad/custom/skill-rules.md bullet=Skips_(Story_32.2) category=decide(recipe_facts) ad22=unchanged(its_job-level_skip_sentence_already_holds_per_group)

@@ -20,6 +20,19 @@
 #     is missing, not JSON or without a boolean forced or a 40-hex before, and a paths file that cannot be read, each run every group;
 #   - row 12, the outputs: base, web, reason and, with --group, run are appended to $GITHUB_OUTPUT, with the full base in the skip
 #     reason, and the GROUP lines are printed only; an output file that cannot be written fails the script; a bad group exits 2.
+# The cases where a wrong answer would be a false green (QA pass of Story 32.2):
+#   - a run that has not finished as a success (no conclusion yet, cancelled, skipped, neutral), a run with no head sha, an
+#     abbreviated one or no event, and a run list that is an object or null, is no base;
+#   - a payload that is empty, a JSON array or a directory, or has a null or numeric forced or a null before, has no base and runs
+#     every group, with a reason that names it;
+#   - a recipe whose group or web pattern grep rejects, or whose group has no pattern, has no base and runs every group (copies of
+#     ci/changes.sh beside a copy of ci/units.sh with one definition broken);
+#   - a declared path's name inside another folder (newdir/docs/x.md, docker/tests/sub/test-x.sh, a third workflow, ...) is
+#     unclassified, because the declarations are anchored;
+#   - the files that a live unit reads (lib-scan.sh, the no-after-start compose file, the healthcheck) are claimed by a pattern;
+#   - an output file that cannot be written fails the script on the path that skips a group as well (a state checked to skip with an
+#     output file that can be written), at its first output, so no gate and no GROUP line is printed;
+#   - a diff that lists a rename as two paths (the old path is a changed path), and a base whose tree cannot be read.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
@@ -207,6 +220,12 @@ claimed_case ".dockerignore" false .dockerignore
 claimed_case "eval/**" false eval/x.json
 claimed_case "a live test helper (docker/tests/lib-live.sh)" false docker/tests/lib-live.sh
 claimed_case "the throwaway compose file" false docker/tests/compose.throwaway.yml
+# The other files that the live units read: lib-scan.sh (install-start, storage-roundtrip), the no-after-start compose file
+# (compose-start) and the files that the image copies (docker/healthcheck.sh, docker/after-start.sh).
+claimed_case "a live scanner helper (docker/tests/lib-scan.sh)" false docker/tests/lib-scan.sh
+claimed_case "the no-after-start compose file" false docker/tests/compose.no-after-start.yml
+claimed_case "docker/healthcheck.sh" false docker/healthcheck.sh
+claimed_case "docker/after-start.sh" false docker/after-start.sh
 
 # A path that no unit reads runs no group, whatever the web job does with it.
 paths_case "the web build script runs web, and no group" true none docker/tests/test-web-build.sh
@@ -237,6 +256,14 @@ unclassified_case "a script in an unknown docker folder" false docker/other/x.sh
 unclassified_case "a helper script in docker/tests" false docker/tests/helper.sh docker/tests/helper.sh
 unclassified_case "an unclassified path among declared ones" false newdir/x.txt docs/guide.md _bmad/custom/parallel.yaml newdir/x.txt release/x.sh
 unclassified_case "an unclassified path next to a claimed one" false newdir/x.txt docker/tests/test-production.sh newdir/x.txt
+
+# A declaration is anchored to the repository root (or, for a script, to docker/tests/): the name of a declared path inside another
+# folder is unclassified, so that no group is skipped for a path that a unit may read.
+for near in newdir/docs/x.md newdir/release/x.sh newdir/.claude/x.json newdir/README.md newdir/x.md newdir/LICENSE newdir/NOTICE \
+  newdir/_bmad/x.yaml newdir/_bmad-output/x.md docker/other/test-x.sh docker/tests/sub/test-x.sh docker/tests/sub/record-eval.sh \
+  .github/workflows/other.yml .github/workflows/lane-a.yml.bak; do
+  unclassified_case "a declared path's name in another place ($near)" false "$near" "$near"
+done
 
 # --- row 10: the base ---
 
@@ -288,6 +315,37 @@ expect "base: an answer with no run list fails open" "" true all
 echo 'not json' > "$tmp/garbage.json"
 classify "$tmp/garbage.json" push
 expect "base: an answer that is not JSON fails open" "" true all
+
+# Answers that the runs helper cannot build. A run is a base only when it concluded success on a push and its head sha is a whole
+# commit of HEAD's history. HEAD is c2 here, and the diff since c0 or c1 holds code, so a wrong base would show as a skip.
+runs_json() { printf '%s\n' "$2" > "$1"; }
+for conclusion in null '"cancelled"' '"skipped"' '"neutral"' '"timed_out"' '"action_required"' '""' '"Success"'; do
+  runs_json "$tmp/not-success.json" '{"workflow_runs":[{"conclusion":'"$conclusion"',"head_sha":"'"$c2"'","event":"push"}]}'
+  classify "$tmp/not-success.json" push
+  cname=$(printf '%s' "$conclusion" | tr -d '"')
+  expect "base: a run of HEAD whose conclusion is ${cname:-empty} is no base" "" true all
+done
+runs_json "$tmp/in-progress.json" '{"workflow_runs":[{"conclusion":null,"head_sha":"'"$c2"'","event":"push"},{"conclusion":"success","head_sha":"'"$c0"'","event":"push"}]}'
+classify "$tmp/in-progress.json" push
+expect "base: the run of HEAD that is still in progress is no base, the older green commit is" "$c0" false all
+runs "$tmp/empty-sha.json" "success:"
+classify "$tmp/empty-sha.json" push
+expect "base: a green run with no head sha is no base" "" true all
+runs "$tmp/short-sha.json" "success:$(printf '%.12s' "$c2")"
+classify "$tmp/short-sha.json" push
+expect "base: a green run with an abbreviated head sha is no base" "" true all
+runs_json "$tmp/no-event.json" '{"workflow_runs":[{"conclusion":"success","head_sha":"'"$c2"'"}]}'
+classify "$tmp/no-event.json" push
+expect "base: a green run with no event is no base" "" true all
+runs_json "$tmp/object-runs.json" '{"workflow_runs":{"a":{"conclusion":"success","head_sha":"'"$c2"'","event":"push"}}}'
+classify "$tmp/object-runs.json" push
+expect "base: an answer whose run list is an object fails open" "" true all
+runs_json "$tmp/null-runs.json" '{"workflow_runs":null}'
+classify "$tmp/null-runs.json" push
+expect "base: an answer whose run list is null fails open" "" true all
+: > "$tmp/empty-answer.json"
+classify "$tmp/empty-answer.json" push
+expect "base: an empty answer fails open" "" true all
 
 # --- row 11: red, then bookkeeping ---
 
@@ -343,6 +401,14 @@ fallback_case "a forced that is not a boolean" 'no boolean forced' '{"forced": "
 fallback_case "a payload with no forced" 'no boolean forced' '{"before": "'$c0'"}'
 fallback_case "a payload with no before" '40-hex before' '{"forced": false}'
 fallback_case "a before that is not 40 hex characters" '40-hex before' '{"forced": false, "before": "abc123"}'
+: > "$tmp/event-empty.json"
+fallback_case "an empty payload file" 'no boolean forced' "@$tmp/event-empty.json"
+echo '[]' > "$tmp/event-array.json"
+fallback_case "a payload that is a JSON array" 'could not be read' "@$tmp/event-array.json"
+fallback_case "a payload path that is a directory" 'could not be read' "@$tmp"
+fallback_case "a forced that is null" 'no boolean forced' '{"forced": null, "before": "'$c0'"}'
+fallback_case "a forced that is a number" 'no boolean forced' '{"forced": 0, "before": "'$c0'"}'
+fallback_case "a before that is null" '40-hex before' '{"forced": false, "before": null}'
 classify_payload='{"forced": false, "before": "'$c0'"}'
 classify "$tmp/green-b1.json" push --paths-from "$tmp/docs-only.txt"
 classify_payload=$default_payload
@@ -350,6 +416,26 @@ expect "payload: a before that is an ancestor of HEAD is no force push" "$b1" fa
 classify "$tmp/green-b1.json" push --paths-from "$tmp/no-such-paths.txt"
 expect "paths: a paths file that cannot be read has no base and runs everything" "" true all
 if printf '%s\n' "$out_reason" | grep -q 'paths file'; then pass "paths: the reason names the paths file"; else fail "paths: the reason '$out_reason' does not name the paths file"; fi
+
+# --- a recipe that cannot be applied: copies of ci/changes.sh beside a copy of ci/units.sh with one definition broken ---
+
+# src/x is an input of every group, so with a base it would run every group through the patterns alone.
+echo src/x > "$tmp/src-only.txt"
+broken_case() { # broken_case <folder> <label> <text of the reason> <shell text appended to the copy of ci/units.sh>
+  local real=$changes
+  mkdir -p "$tmp/$1/ci"
+  cp "$root/ci/changes.sh" "$root/ci/units.sh" "$tmp/$1/ci/"
+  printf '\n%s\n' "$4" >> "$tmp/$1/ci/units.sh"
+  changes="$tmp/$1/ci/changes.sh"
+  classify "$tmp/green-b1.json" push --paths-from "$tmp/src-only.txt"
+  changes=$real
+  expect "broken recipe: $2 has no base and runs everything" "" true all
+  if printf '%s\n' "$out_reason" | grep -qF "$3"; then pass "broken recipe: $2: the reason names the case"; else fail "broken recipe: $2: the reason '$out_reason' does not hold '$3'"; fi
+}
+# Five group patterns that grep rejects, beside production's, which still claims the path.
+broken_case broken-bundle "a group pattern that grep rejects" 'the input pattern of install-fresh could not be applied' "WEB_BUNDLE_INPUT='web/|('"
+broken_case broken-web "a web pattern that grep rejects" 'the web input pattern could not be applied' "WEB_INPUT_PATTERN='^(web/'"
+broken_case broken-read "a group with no pattern" 'the input pattern of install-fresh could not be read' 'group_input_pattern() { return 1; }'
 
 # --- row 12: the outputs ---
 
@@ -467,6 +553,34 @@ else
   fail "outputs: an output file that cannot be written did not fail the step (exit $rc)"
 fi
 
+# The same on the path that skips a group (a green base, only bookkeeping changed, so every gate would read false): the step fails with
+# exit 1 at its first output (base), before any gate or GROUP line, instead of leaving the gates empty. The environment's own output
+# file stays out of it. The control call first proves that this state skips, with an output file that can be written.
+classify "$tmp/green-b1.json" push --group production
+if [ "$out_run" = false ]; then
+  expect "outputs: the state of the unwritable cases below skips web and every group" "$b1" false none
+else
+  fail "outputs: the state of the unwritable cases below does not skip production (run='$out_run'; $out_reason)"
+fi
+unwritable_case() { # unwritable_case <label> <GITHUB_OUTPUT> [script argument]...
+  local label=$1 target=$2
+  shift 2
+  (
+    cd "$repo" || exit 1
+    GITHUB_OUTPUT=$target GITHUB_EVENT_PATH="$push_event" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/OCT-epic0 GITHUB_REPOSITORY=o/r \
+      OCUTALON_CI_RUNS_FILE="$tmp/green-b1.json" bash "$changes" ci.yml "$@"
+  ) > "$tmp/stdout" 2>/dev/null
+  rc=$?
+  if [ "$rc" -eq 1 ] && grep -qx 'FAIL ci/changes.sh: cannot append to GITHUB_OUTPUT' "$tmp/stdout" && ! grep -qE '^(run|web|reason)=|^GROUP ' "$tmp/stdout"; then
+    pass "outputs: $label fails the step with exit 1 and prints no gate"
+  else
+    fail "outputs: $label (exit $rc; stdout '$(tr '\n' '|' < "$tmp/stdout")')"
+  fi
+}
+unwritable_case "a skip, with the output file a directory" "$tmp" --group production
+unwritable_case "a skip, with the output file in a folder that does not exist" "$tmp/no-such-folder/out" --group production
+unwritable_case "a skip, without --group, with the output file a directory" "$tmp"
+
 # --- the diff names a path with a non-ASCII name as it is, not quoted, so it still counts as a web input ---
 
 commit "c4 non-ascii web path" "web/src/caf$(printf '\303\251').ts"
@@ -521,6 +635,38 @@ if [ -z "$others" ] && grep -qx "GROUP production run=true: 1 input path(s) of p
 else
   fail "red then bookkeeping: the GROUP lines are wrong ($(grep '^GROUP' "$tmp/stdout" | tr '\n' '|'))"
 fi
+
+# --- the diff, in a repository of its own: a rename is two changed paths, and a base whose tree is gone fails open ---
+
+main_repo=$repo
+repo="$tmp/repo-diff"
+git init -q "$repo"
+commit "d0 dockerfile" docker/Dockerfile README.md
+d0=$sha
+runs "$tmp/green-d0.json" "success:$d0"
+mkdir -p "$repo/docs"
+g mv docker/Dockerfile docs/old-Dockerfile.txt
+g commit -q -m "d1 the Dockerfile moves into docs"
+classify "$tmp/green-d0.json" push
+expect "diff: a claimed file renamed into docs still runs every group (git's rename detection would list only the new path)" "$d0" false all
+if grep -qx "GROUP production run=true: 1 input path(s) of production changed since $d0" "$tmp/stdout"; then
+  pass "diff: the old path of the rename is the changed path that production counts"
+else
+  fail "diff: the GROUP line of production is wrong for a rename ($(grep '^GROUP production' "$tmp/stdout"))"
+fi
+
+commit "d2 code" src/module.xml
+d2=$sha
+tree=$(g rev-parse "$d0^{tree}")
+rm -f "$repo/.git/objects/${tree%"${tree#??}"}/${tree#??}"
+if g cat-file -e "$tree" 2>/dev/null; then
+  fail "diff: harness: the root tree of the base is still readable after it was removed"
+else
+  classify "$tmp/green-d0.json" push
+  expect "diff: a base whose tree cannot be read has no base and runs everything" "" true all
+  if printf '%s\n' "$out_reason" | grep -q "the diff from $d0 failed"; then pass "diff: the reason names the failed diff"; else fail "diff: the reason '$out_reason' does not name the failed diff"; fi
+fi
+repo=$main_repo
 
 if [ "$fails" -ne 0 ]; then
   echo "test-ci-changes: $fails check(s) failed"
