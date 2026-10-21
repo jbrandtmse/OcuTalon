@@ -3201,6 +3201,8 @@ So that I can try it without help and trust that it claims only what the release
 - DW-3: The judges' compose file publishes the web port on every host interface by the author's decision (AD-23); the README warns that the Management Portal is reachable from the LAN until the default and README-account passwords are changed, and tells the judge plainly to change the README account's password after the first sign-in (DW-6) (ledger; routed by spec_gate 2026-10-18)
 - The README says OcuTalon runs on the plain IRIS (non-Health) AI Hub build 154 image, supported and verified on ARM64; CI tests only the IRIS for Health image (NFR-21, P15 wording) [AMENDED 2026-10-20, owner decision 3]
 
+- DW-45: Where the README explains demo mode off, it quotes the owner's sentence for a kept OCUORDERS: "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
+
 ### Story 10.3: The session side of Telegram is ready and stays off
 
 As the author,
@@ -3869,6 +3871,8 @@ So that I can approve OcuTalon from one document without reading its code.
 **Given** the overview
 **When** each release is prepared
 **Then** a release checklist item reviews its hand-written sections against the release, the public-text check passes on it, and this story supplies the overview's path for the About dialog's security overview link, which Lane B's Story 16.10 adds (FR-61, CON-5, UX-DR28)
+
+- DW-46: The security overview quotes the same sentence where it describes what demo mode off leaves in place (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
 
 ## Epic 15: Install into an existing IRIS with IPM
 
