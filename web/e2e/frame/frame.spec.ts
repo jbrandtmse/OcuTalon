@@ -297,6 +297,58 @@ test('F6: no version and no model', async ({ page }) => {
   await expect(dialog.getByText('Default model')).toHaveCount(0);
 });
 
+/**
+ * F6: About reads the snapshot it is given: the version as it is, and the Triage agent's model name as it is (the
+ * server has mapped it; an id it does not know arrives as the id). The three agents differ here, so a line that reads
+ * another agent's model shows.
+ */
+test("F6: About names the snapshot's version and the Triage model, an unknown id as it is", async ({ page }) => {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['version'] = '9.8.7-qa';
+    snapshot['models'] = { triage: 'claude-opus-9-9', diagnosis: 'Diagnosis QA model', chat: 'Chat QA model' };
+  });
+  await signInReadme(page);
+  await expect(accountButton(page)).toBeVisible();
+  const dialog = await openAbout(page, 'OcuTalon 9.8.7-qa');
+  await expect(dialog.getByText('Default model: claude-opus-9-9.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Default model'), 'one model line').toHaveCount(1);
+  await expect(dialog.getByText(/Diagnosis QA model|Chat QA model/), "no other agent's model").toHaveCount(0);
+});
+
+test('F6: an empty Triage model leaves the Default model line out, whatever the other agents use', async ({ page }) => {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['version'] = '9.8.7-qa';
+    snapshot['models'] = { triage: '', diagnosis: 'Diagnosis QA model', chat: 'Chat QA model' };
+  });
+  await signInReadme(page);
+  await expect(accountButton(page)).toBeVisible();
+  const dialog = await openAbout(page, 'OcuTalon 9.8.7-qa');
+  await expect(dialog.getByText('Default model')).toHaveCount(0);
+  await expect(dialog.getByText(/Diagnosis QA model|Chat QA model/)).toHaveCount(0);
+});
+
+/** F6: the Close button sits at the dialog's top right, closes it, and returns focus to the account trigger. */
+test('F6: the Close button closes the About dialog and focus returns to the account trigger', async ({ page }) => {
+  await signInReadme(page);
+  const snapshot = await realSnapshot(page);
+  const dialog = await openAbout(page, aboutTitle(snapshot['version']));
+  const close = dialog.getByRole('button', { name: 'Close', exact: true });
+  await expect(close).toBeVisible();
+
+  const panel = (await page.locator('app-about-dialog').boundingBox())!;
+  const button = (await close.boundingBox())!;
+  expect(panel.width, 'the dialog is 480px wide').toBe(480);
+  expect(button.x + button.width, "Close is at the dialog's right edge").toBeLessThanOrEqual(panel.x + panel.width);
+  expect(panel.x + panel.width - (button.x + button.width), "Close is within 24px of the dialog's right edge").toBeLessThanOrEqual(24);
+  expect(button.y - panel.y, "Close is at the dialog's top, within 24px of its edge").toBeGreaterThanOrEqual(0);
+  expect(button.y - panel.y).toBeLessThanOrEqual(24);
+
+  await close.click();
+  await expect(dialog, 'Close closes the dialog').toHaveCount(0);
+  await expect(page.locator('.cdk-overlay-backdrop'), 'and its scrim').toHaveCount(0);
+  await expect(accountButton(page), 'focus returns to the account trigger').toBeFocused();
+});
+
 /** A snapshot that fails: the page says so in data-snapshot, the header keeps its placeholders, About shows OcuTalon. */
 test('a failed snapshot: Account, no badge, and About without a model', async ({ page }) => {
   await page.route(`**${STATE}`, (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } } }));
@@ -372,6 +424,7 @@ test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and E
   await expect(tooltip).toHaveAttribute('aria-hidden', 'true');
   const { entered, shown } = await page.evaluate(() => (window as unknown as { tooltipTimes: { entered: number; shown: number } }).tooltipTimes);
   expect(shown - entered, 'absent before 300 ms, then shown').toBeGreaterThanOrEqual(295);
+  expect(shown - entered, 'shown once the 300 ms have passed, not seconds later').toBeLessThan(1500);
 
   await page.mouse.move(640, 400);
   await expect(tooltip, 'it hides when the pointer leaves').toHaveCount(0);
@@ -389,6 +442,41 @@ test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and E
   await page.keyboard.press('Escape');
   await expect(tooltip, 'Escape hides it').toHaveCount(0);
   await expect(accountButton(page), 'and focus stays where it was').toBeFocused();
+});
+
+/** F8: the tooltip is for a pointer resting on the button; one that leaves within the 300 ms shows nothing. */
+test('F8: a pointer that leaves the theme button within 300 ms shows no tooltip', async ({ page }) => {
+  await signInReadme(page);
+  await expect(accountButton(page)).toBeVisible();
+  // The page drives the pointer's enter and leave itself, 250 ms apart, so that the runner's speed cannot move the gap.
+  const appeared = await themeButton(page).evaluate(async (button) => {
+    let seen = false;
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('app-tooltip')) seen = true;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    button.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+    await new Promise((done) => setTimeout(done, 250));
+    button.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' }));
+    await new Promise((done) => setTimeout(done, 600));
+    observer.disconnect();
+    return seen;
+  });
+  expect(appeared, 'no tooltip appears after the pointer has left').toBe(false);
+});
+
+/** F8: no tooltip covers the theme menu while it is open, when the pointer comes back onto the button. */
+test('F8: the tooltip stays away while the theme menu is open', async ({ page }) => {
+  await signInReadme(page);
+  await expect(accountButton(page)).toBeVisible();
+  await themeButton(page).click();
+  const dark = page.getByRole('menuitemradio', { name: 'Dark' });
+  await dark.hover();
+  await themeButton(page).hover();
+  await page.waitForTimeout(600);
+  await expect(page.locator('app-tooltip'), 'no tooltip over the open menu').toHaveCount(0);
+  await expect(dark, 'the menu is still open').toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 /** F9: the snapshot is requested once, and every part of the page reads that one load. */

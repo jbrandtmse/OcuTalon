@@ -5,8 +5,9 @@
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
 /// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. The tests of the snapshot's flags write the
-/// public setting onlineDemo and the demo.mode row, which OnBeforeAllTests saves and OnAfterAllTests puts back. Capture,
-/// Collect and Written are shared with the other web tests that call a class method and read what it wrote.
+/// public setting onlineDemo and the demo.mode row, which OnBeforeAllTests saves and OnAfterAllTests puts back; the row
+/// goes through Test.Demo.Step's row helpers. Capture, Collect and Written are shared with the other web tests that call
+/// a class method and read what it wrote.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -37,12 +38,8 @@ Method OnBeforeAllTests() As %Status
 	Set ..SavedDefined = ''$Data(^OcuTalonTest("TelegramIncluded"), value)
 	Set ..SavedValue = $Get(value)
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
-	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
-	Set ..SavedModeFound = $IsObject(row)
-	If ..SavedModeFound {
-		Set ..SavedModeValue = row.Value
-		Set ..SavedModeUpdatedAt = row.UpdatedAt
-	}
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .modeValue, .modeUpdatedAt)
+	Set ..SavedModeFound = found, ..SavedModeValue = modeValue, ..SavedModeUpdatedAt = modeUpdatedAt
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -55,11 +52,7 @@ Method OnAfterAllTests() As %Status
 		Kill ^OcuTalonTest("TelegramIncluded")
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
-	If ..SavedModeFound {
-		Do ..PutMode(..SavedModeValue, ..SavedModeUpdatedAt)
-	} Else {
-		Do ..RemoveMode()
-	}
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedModeFound, ..SavedModeValue, ..SavedModeUpdatedAt)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -121,7 +114,7 @@ Method TestStateFlags()
 	For online = 0, 1 {
 		For mode = 0, 1 {
 			Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
-			Do ..PutMode(mode, ##class(OcuTalon.Data.Time).NowUtc())
+			Do ##class(OcuTalon.Test.Demo.Step).Put(mode, ##class(OcuTalon.Data.Time).NowUtc())
 			Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 			Set label = "onlineDemo "_online_", demo.mode "_mode
 			Do $$$AssertEquals(body.onlineDemo, online, label_": onlineDemo")
@@ -130,10 +123,10 @@ Method TestStateFlags()
 		}
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
-	Do ..RemoveMode()
+	Do ##class(OcuTalon.Test.Demo.Step).Remove()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
-	Do ..PutMode("yes", ##class(OcuTalon.Data.Time).NowUtc())
+	Do ##class(OcuTalon.Test.Demo.Step).Put("yes", ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
 }
@@ -495,37 +488,6 @@ Method PublishReminders(stream As %String, count As %Integer, prefix As %String)
 		If $SYSTEM.Status.IsError(sc) Quit
 	}
 	Do $$$AssertStatusOK(sc, count_" events are published")
-}
-
-/// The key of the demo mode setting.
-ClassMethod ModeKey() As %String [ Private ]
-{
-	Quit ##class(OcuTalon.Install.Step.Demo).#MODEKEY
-}
-
-/// Writes the demo.mode row with the value and the time, creating it when it is absent, and drops this process's cache
-/// entry so that the next Get reads the row.
-ClassMethod PutMode(value As %String, updatedAt As %String) [ Private ]
-{
-	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
-	If '$IsObject(row) {
-		Set row = ##class(OcuTalon.Data.Setting).%New()
-		Set row.Key = ..ModeKey()
-	}
-	Set row.Value = value
-	Set row.UpdatedAt = updatedAt
-	$$$ThrowOnError(row.%Save())
-	Kill ^||OcuTalon.Setting(..ModeKey())
-}
-
-/// Deletes the demo.mode row and drops this process's cache entry.
-ClassMethod RemoveMode() [ Private ]
-{
-	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
-	If $IsObject(row) {
-		$$$ThrowOnError(##class(OcuTalon.Data.Setting).%DeleteId(row.%Id()))
-	}
-	Kill ^||OcuTalon.Setting(..ModeKey())
 }
 
 /// Deletes the fixture sessions with their events and counters.

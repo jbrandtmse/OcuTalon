@@ -36,7 +36,8 @@ export class TooltipBubble {
 /**
  * A tooltip for a control, for the pointer only: it reacts to a mouse or a pen resting on the host, never to focus.
  * It shows after 300 ms, stays while the host or the tooltip is hovered, and hides when the pointer leaves, when
- * the host is pressed, or on Escape, which does not move focus. The host must carry the same text as its name.
+ * the host is pressed, or on Escape, which does not move focus. A pointer that leaves within the 300 ms shows nothing,
+ * and none shows while the host's popup is open. The host must carry the same text as its name.
  */
 @Directive({
   selector: '[appTooltip]',
@@ -64,6 +65,10 @@ export class Tooltip {
     if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') {
       return;
     }
+    // While the host's own popup is open (a menu trigger with aria-expanded true), a tooltip would cover the popup.
+    if (this.host.getAttribute('aria-expanded') === 'true') {
+      return;
+    }
     this.cancelHide();
     if (this.overlayRef || this.showTimer !== undefined) {
       return;
@@ -75,7 +80,12 @@ export class Tooltip {
     }, TOOLTIP_DELAY_MS);
   }
 
+  /** A pointer that leaves before the tooltip shows cancels it; a shown tooltip waits the grace for the pointer. */
   protected scheduleHide(): void {
+    if (this.showTimer !== undefined) {
+      this.hide();
+      return;
+    }
     this.cancelHide();
     this.hideTimer = window.setTimeout(() => this.hide(), LEAVE_GRACE_MS);
   }

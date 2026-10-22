@@ -276,9 +276,60 @@ deferred: []
 - **F9, the snapshot.** Given I sign in, when the main page loads, then `/state` is requested exactly once, and it answers the new keys from the real server (`user`, `onlineDemo`, `demoMode`, `models`). The header, the About dialog and `main` all read this one load.
 - **Stack row.** Given the spine's Stack table, when the reviewer reads it, then the row "Component library (Story 0.3 …) | the Angular CDK plus custom components; no component kit" (ARCHITECTURE-SPINE.md:935) and the Angular convention "components styled from the `DESIGN.md` tokens" (:911) already record the criterion's choice. The criterion is met by confirming them, and no duplicate row is added (lead tidy below).
 
+### Review Findings
+
+Code review, 2026-10-21 (`bmad-code-review`, tier full-opus: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on the reviewer's model). Diff: `435d814` plus QA's working tree, 31 files. 41 rows → 16 entries (high 0, medium 3, low 13); 23 rows rejected. Fields: severity · fix-risk · footprint · spec-status → disposition (Rule 15).
+
+- [x] [Review][Patch] Test.Web.Api's demo.mode row helpers copy Test.Demo.Step's: `PutMode`, `RemoveMode` and the save and restore around the tests repeat `Put`, `Remove`, `Restore` and the save of `OcuTalon.Test.Demo.Step` almost line for line, with no reason under Design Notes (Rule 2) [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:508, src/ocutalon/cls/OcuTalon/Test/Demo/Step.cls:128] — med · low (test helpers only; both classes run again) · in-story (the sibling is in-epic) · clear → fix now: the sibling's helpers become shared class methods (`Put`, `Remove`, `Saved`, `PutBack`, statuses thrown) and Test.Web.Api calls them.
+- [x] [Review][Patch] The `README_URL` comment gives the superseded section-link rule ("appends its fragment"), against the amended spine row "README link" and the U-9 ruling [web/src/app/links.ts:1] — low · low (comment only) · in-story · clear → fix now; the constant is untouched and U-9 is not re-opened.
+- [x] [Review][Patch] Web.Api types the production name instead of reading `Install.Step.Production.#PRODUCTION`, beside the `Install.Step.Demo.#MODEKEY` it already reads [src/ocutalon/cls/OcuTalon/Web/Api.cls:168] — low · low (same value; Test.Web.Api runs again) · in-story · clear → fix now.
+- [x] [Review][Patch] The busy spinner comes after the label; DESIGN.md:276 and :747 put it before [web/src/app/shared/server-button.ts:33] — low · low (template order) · in-story · clear → fix now.
+- [x] [Review][Patch] A busy button keeps its hover fill, so it looks pressable while presses are ignored [web/src/styles/controls.css:34] — low · low (four hover selectors) · in-story · clear → fix now.
+- [x] [Review][Patch] The README link lacks DESIGN's `link` decoration (underline 1px, offset 2px, 2px on hover and focus) and the `--link-foreground` token [web/src/app/about/about-dialog.ts:64] — low · low (style) · in-story · clear → fix now, as a global `.link` in controls.css that Stories 2.10 and 31.3 reuse.
+- [x] [Review][Patch] controls.css's header says every value is a tokens.css token, but the file also holds literals and base.css's `--font-ui` (Rule 14) [web/src/styles/controls.css:3] — low · low · in-story · clear → fix now.
+- [x] [Review][Patch] The tooltip still shows when the pointer leaves 200 to 300 ms after entering, because the 100 ms leave grace outlives the 300 ms timer; F8 shows it only for "the pointer on the theme button" [web/src/app/shared/tooltip.ts:78] — low · low (one branch and a test) · in-story · clear → fix now, with a frame test.
+- [x] [Review][Patch] The tooltip shows over the theme button's own open menu when the pointer comes back onto the button [web/src/app/shared/tooltip.ts:63] — low · low (one guard and a test) · in-story · clear → fix now, with a frame test.
+- [x] [Review][Patch] F8 has no upper bound: a 3 s delay still passes "when 300 ms pass, then shown" [web/e2e/frame/frame.spec.ts:426] — low · low (one assertion) · in-story · clear → fix now, with its mutation line.
+- [x] [Review][Patch] The DW-4 `?q=1` deep-link test accepts both `/ocutalon/#/x` and `/ocutalon/index.html?q=1#/x`, and both `#/x` landing checks ran before the page booted, so a router that lost the deep link after boot stayed green [web/e2e/sign-in/sign-in.spec.ts:240, :272] — low · low · in-story · clear → fixed: both checks run after `data-snapshot` "loaded" and pin `/ocutalon/#/x` exactly. Measured on the built bundle: the router settles on `/ocutalon/#/x` for both targets and drops the query, as it already did before this story (row 13), so the DW-4 criterion's address holds; the matrix's "(or `...?q=1#/x`)" is the address before boot.
+- [x] [Review][Patch] F3's first criterion ("F3: the header") and F9's page half ("F9: /state is requested once…") have no `mutation:` line (Rule 19) [web/e2e/frame/frame.spec.ts:116, :447] — low · low · in-story · clear → close in this pass: mutation applied, red observed, reverted, lines written under `## Verification`.
+- [x] [Review][Defer] The server button, the inline notice and the announcer ship with no executed test host: the matrix rows "Server button answers", "Server button, no answer" and "Repeat press" are pinned only through `BusyState` [web/src/app/shared/server-button.ts:29] — deferred: med · low · in-epic, spec-placed (the Busy AC gives their first browser test to Story 2.2's Retry, and a test now needs a host page the spec does not allow) → `routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates`, DW-57.
+- [x] [Review][Defer] The popover ships with no executed test host [web/src/app/shared/popover.ts:117] — deferred: med · low · in-epic, spec-placed (Story 2.9, the Visual Trace menu) → `routed owner=2-9-open-anything-in-visual-trace`, DW-58.
+- [x] [Review][Defer] No test can tell the three `models` keys apart: every agent resolves to Claude Haiku 5.5, so swapping two item names in `StateBody` stays green [src/ocutalon/cls/OcuTalon/Web/Api.cls:151] — deferred: low · med (a production seam and a test production, about 40 lines; a System Default Setting would mark the production modified and write an audit event) · in-story · not a two-way door → `wontfix-accepted`, reopened when an agent item's Model differs, DW-59.
+- [x] [Review][Defer] F2's "Demo guide" and "Simulated devices" absences cannot fail until Epic 4 builds those regions [web/e2e/frame/frame.spec.ts:105] — deferred: low · not a two-way door (the subject does not exist yet) → `wontfix-accepted`, reopened when web/src renders either region without a demo-mode-on twin in F2, DW-60.
+
+**Applied** (every patch) and verified:
+- Web: `lint`, `npm --prefix web test` (95 tests), `build` (no budget warning), `e2e --list` (56 chromium tests, none from `demo-path/`), and `e2e:demo-path --list` (13).
+- Slot B (`ocutalon-slot-b`, `OCUTALON`, Build 154U): Test.Web.Api 12 of 12 and Test.Demo.Step 6 of 6.
+- Throwaway tag `e2s21r`: on the restored tree, `live sign-in` passed 56 of 56 and `shard lane-b` passed all 24 classes; then `ci/checks.sh` (exit 0) and a clean `teardown`.
+- The review's mutation lines are under `## Verification` ("Code review").
+
+**Rejected** (23 rows):
+- `false` Popovers.show leaves `aria-expanded` to the consumer, which goes stale (blind) — `PopoverRef.closed` emits on every close path, `closeAll` included, so a consumer bound to it never goes stale.
+- `false` An older call's late answer clears a newer call's notice (edge) — the contract in busy-state.ts and Decided 9: any answer means OcuTalon was reached and may have changed something, so "Nothing was changed" must not stand.
+- `false` An action that returns a plain value throws (edge) — the input type allows only an Observable or a Promise.
+- `false` A server button destroyed mid-call leaks its request (edge) — cancelling the request would not undo the server's change; dispose has cleared the timer, and a late `answered` only sets signals.
+- `false` About throws when `models` is missing (edge) — the type requires it, and the page and the server ship in one package.
+- `false` An absent demo.mode row shows no badge although `Mode()` would seed 1 (edge) — the Demo step seeds the row at every start, and the spec forbids `Mode()` in the web layer.
+- `false` The Haiku x3 assertions rely on state the tests did not create (verification) — the state is the shipped production definition and the owner-fixed default model, present on every environment the suite runs on.
+- `false` `var(--font-ui)` is declared in base.css, not tokens.css (acceptance) — base.css composes the DESIGN token `--type-body-font-family` with fallbacks (the bare `Inter` tokens have none); no harm named.
+- `low` `BUSY_NOTICE` cannot carry Approve and Reject's extra sentence (blind) — no such consumer here; that story extends the component.
+- `low` Closing a popover on an outside press or a focus leave returns focus to the trigger even when focus has moved to another control (blind, edge) — the spec's popover task says exactly that; no consumer until Story 2.9, whose spec may amend it.
+- `low` `focusFirst` can throw after a close before the next render (edge) — needs a close in the same tick as `show()`; no consumer; a guard for a state not shown reachable.
+- `low` A popover whose host view is destroyed while open keeps its pane (edge) — no consumer; the fix adds subscriptions.
+- `low` The tooltip keeps old text when the theme changes by keyboard while it shows (edge) — needs a resting pointer and a keyboard choice; the fix adds an effect.
+- `low` A fast failure restores the button silently (edge) — an error is an answer under the component's contract, and error UI is the consumer's (Story 2.2).
+- `low` An inactive server button still calls the server (edge) — no consumer; a guard for no reachable case.
+- `low` A failed snapshot cannot be retried (edge) — the spec loads once per page load; Retry is Story 2.2's.
+- `low` The theme does not follow a change made in another tab (edge) — no criterion asks for it; the fix adds a listener.
+- `low` TestStateFlags' writes are visible to other processes, which may cache them for 60 s (edge) — real only with web traffic on the instance while the class runs, which no pipeline path has.
+- `low` A killed Test.Web.Api run leaves demo.mode changed (edge) — real only if the process dies mid-class; failed assertions and errors still reach `OnAfterAllTests`.
+- `low` The Stack-row criterion's line reference drifted (:935 to :936), and the Residual risks still say "appends" (acceptance) — the fix edits the spec under review.
+- `low` "Enter submits" and other clause-level tests have no mutation line (verification, two rows) — Rule 19 asks one mutation per criterion; the Sign-in page criterion is pinned by row 5 (`.logo` 240px).
+
 ## Spec Change Log
 
 - 2026-10-21, spec validation (lead): the README-link question is ruled (veto, inbox U-9), recorded under Design Notes "Ruled at spec validation"; the planner's two spine tidies are done by the lead in the spec-validation commit (Stack row "Component library" and the Angular convention), plus a new Conventions row "README link" (Rule 20). The former `## Clarification Needed` section is folded into that ruling.
+- 2026-10-22, after code review (lead, decide ruling): the DW-4 matrix row's "(or `...?q=1#/x`)" is the address before the page boots. After boot the router drops the query, as it did before this story, so both deep links land on `/ocutalon/#/x`. This meets the DW-4 acceptance criterion, which names `/ocutalon/#/x`. The test pins the measured landing, and the frozen intent is left as written.
 
 ## Review Triage Log
 
@@ -484,6 +535,39 @@ Every test added or changed passes on a fresh environment, in either order. Each
 
 **Manual checks:**
 - None beyond the commands. Firefox and WebKit, and the accessibility scan, are Story 2.12's.
+
+**QA stage (2026-10-21; throwaway tag `e2s21q`, lock owner `epic=2 stage=qa`).** Every acceptance criterion and every matrix row was read against its test; the gaps below were closed. No new test file was needed: each new test joins the spec that already holds its row, and the chromium list went from 49 to 54 tests (none in `demo-path/`, which stays 13).
+- (QA) `web/e2e/sign-in/sign-in.spec.ts`, 2 tests added (one per address): "DW-4: signing in at /ocutalon/ with no fragment lands on #/" and "... at /ocutalon/index.html?x=1 ...". The matrix row "No fragment" (lands on `#/`) had no assertion on the address after the boot: row 13 pins the 303 and the shell only. The page lands on `/ocutalon/#/` for both (the router rewrites the address under the base href, so the query is gone, as before this story).
+- (QA) `web/e2e/frame/frame.spec.ts`, 3 tests added:
+  - "F6: About names the snapshot's version and the Triage model, an unknown id as it is": the snapshot's three models differ, so a line that reads another agent's model shows, and the "Model id" row's unknown id is shown as the id (every other frame test runs on three equal models and on the throwaway's own version).
+  - "F6: an empty Triage model leaves the Default model line out, whatever the other agents use": the "Model id" row's empty id, with the other two agents non-empty (the earlier "no version and no model" test empties all three).
+  - "F6: the Close button closes the About dialog and focus returns to the account trigger": Close was only measured (F7), never pressed; it also pins the 480px width and the top-right corner.
+- Read and judged adequate, no test added: the sign-in page clauses (labels above, `aria-pressed`, full-width button, help line, title, `lang`, Enter, the error focus: rows 5 to 7); F1's order, tab order and landmarks; F6's focus trap and only link; "No IPM version" and "Snapshot fails" (F6 "no version and no model", "a failed snapshot"); the Busy rows (`busy-state.test.mjs`); the server rows (`Test.Web.Api`: `TestStateBody`, `TestStateFlags`, `TestModelName`). The Stack row AC is a read of the spine (rows at ARCHITECTURE-SPINE.md :911 and :936 read "Angular CDK plus custom components, styled from the `DESIGN.md` tokens; no component kit"), with no test.
+- Not covered by design: the shared controls' DOM side and the popover (Stories 2.2 and 2.9), and the `models` swap on the server (the three agents resolve to one model today; reopen if any agent's `Model` setting differs).
+
+QA mutations (each applied in a live `live sign-in` run, red observed, files restored from a copy, and `git status --short`, `git diff --stat` and the `git diff` hash checked identical to the state before; the last run on the restored tree passed 54 of 54):
+- mutation: added `{ path: '', pathMatch: 'full', redirectTo: 'home' }` before the wildcard route in `app.config.ts` -> `sign-in.spec.ts` "DW-4: signing in at /ocutalon/ with no fragment lands on #/" and "... at /ocutalon/index.html?x=1 ..." (received `/ocutalon/#/home`; the `#/x` DW-4 tests stayed green)
+- mutation: About reads `models.chat` instead of `models.triage` in `about-dialog.ts` -> `frame.spec.ts` "F6: About names the snapshot's version and the Triage model, an unknown id as it is" (the line is not found) and "F6: an empty Triage model leaves the Default model line out, whatever the other agents use" (one line received, none expected)
+- mutation: `close()` in `about-dialog.ts` does nothing -> `frame.spec.ts` "F6: the Close button closes the About dialog and focus returns to the account trigger", at "Close closes the dialog"
+- mutation: a second link (`tabindex="-1"`, so no other test's Tab count moves) added to the About dialog -> `frame.spec.ts` "F6: the About dialog", at "its only link is README" (2 received)
+- mutation: `.cdk-focus-trap-anchor { display: none; }` appended to `controls.css`, so Tab can leave the dialog -> `frame.spec.ts` "F6: the About dialog", at "Tab keeps focus inside the dialog"
+- mutation: an empty version names the dialog "OcuTalon 0.0.0" in `about-dialog.ts` -> `frame.spec.ts` "F6: no version and no model" and "a failed snapshot: Account, no badge, and About without a model" (the dialog named "OcuTalon" is not found, in both tests)
+- mutation: a failed `/state` reports `loaded` in `live-state.ts` -> `frame.spec.ts` "a failed snapshot: Account, no badge, and About without a model", at `data-snapshot` "failed" (received "loaded")
+- mutation: `<nav aria-label="Pages">Pages</nav>` added after `.banner-slot` in `app.ts` -> `frame.spec.ts` "F1: landmarks, headings and order", at "the page has no nav landmark"
+- mutation: `.banner-slot` moved after `<router-outlet />` in `app.ts` -> `frame.spec.ts` "F1: landmarks, headings and order", at "DOM order: banner, banner slot, Status region, main"
+- mutation: `tabindex="2"` on `main` in `main-page.ts` -> `frame.spec.ts` "F1: landmarks, headings and order", at "tab order is DOM order"
+- mutation: `aria-pressed` no longer set by the toggle in `signin.js` (`SignInAssets.cls` regenerated) -> `sign-in.spec.ts` "row 7: the toggle shows and hides the password"
+- mutation: `.field { display: flex; align-items: center; gap: var(--space-2); }` in `signin.css` so the labels sit beside their fields (`SignInAssets.cls` regenerated) -> `sign-in.spec.ts` "row 5: the page in the light scheme" and "... in the dark scheme", at "User name sits above its field"
+
+**Code review (2026-10-21; throwaway tag `e2s21r`, lock owner `epic=2 stage=code-review`).** Mutations were applied in two `live sign-in` runs (batch A and batch B), with red observed in each. Files were restored from a copy, and `git status --short` and the `git diff` hash were checked identical to the state before. The restored tree then passed 56 of 56.
+- mutation: `tabindex="0"` on the context badge in `header.ts` -> `frame.spec.ts` "F3: the header", at "the badge takes no focus"; F7 also failed, because its Tab from the home link lands on the badge (batch A).
+- mutation: a second `this.api.state()` request in `LiveState.load` -> `frame.spec.ts` "F9: /state is requested once and answers the new keys", at "/state was requested exactly once"; `api.spec.ts` row 13 also failed (batch A).
+- mutation: the leave-before-show branch removed from `Tooltip.scheduleHide` -> `frame.spec.ts` "F8: a pointer that leaves the theme button within 300 ms shows no tooltip" (batch A).
+- mutation: the `aria-expanded` guard removed from `Tooltip.onEnter` -> `frame.spec.ts` "F8: the tooltip stays away while the theme menu is open" (batch A). Batch A failed exactly these six tests.
+- mutation: `TOOLTIP_DELAY_MS = 3000` in `tooltip.ts` -> `frame.spec.ts` "F8: the tooltip shows after 300 ms for the pointer, never for focus, and Escape hides it", at "shown once the 300 ms have passed, not seconds later" (batch B).
+- mutation: routes `[{ path: '', component: MainPage }, { path: '**', redirectTo: '' }]` in `app.config.ts`, so a deep link is redirected after boot -> the three DW-4 `#/x` tests of `sign-in.spec.ts`, at the after-boot landing check (received `/ocutalon/#/`) (batch B). Batch B failed exactly these four tests. This is the DW-4 criterion's line for the reordered tests. The `signin.js` line above lands the page on `#/` at the same check.
+- mutation: `demoMode` read from `onlineDemo` in `Api.StateBody` -> `Test.Web.Api:TestStateFlags` on slot B, for the two cases where the flags differ. This was shown again after the test moved to Test.Demo.Step's row helpers.
+- Not a recorded mutation: `history.replaceState(null, '', location.hash || '#/')` in `main.ts` stayed green in batch A. It showed that the landing checks read the address before the page booted. Measured on the built bundle with a local static server: the router settles on `/ocutalon/#/x` for both `/ocutalon/#/x` and `/ocutalon/index.html?q=1#/x`, with or without the mutation.
 
 ## Auto Run Result
 

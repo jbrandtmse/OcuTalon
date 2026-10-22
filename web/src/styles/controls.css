@@ -1,7 +1,8 @@
 /*
-  The shared controls' global rules: the button variants, and the panes of the overlays that the CDK renders outside
-  the app (a popover's pane, a dialog's scrim). Every value is a token from tokens.css. The focus ring comes from
-  base.css and nothing here overrides it.
+  The shared controls' global rules: the button variants, the text link, and the panes of the overlays that the CDK
+  renders outside the app (a popover's pane, a dialog's scrim). Colours, sizes, radii and type come from the DESIGN.md
+  tokens of tokens.css (the font through base.css's --font-ui stack); the borders, the underline and the spinner's turn
+  are plain values. The focus ring comes from base.css and nothing here overrides it.
 */
 
 /* A button: primary, secondary, attention, ghost or inactive. The height is the control height; ghost is the target minimum. */
@@ -31,7 +32,8 @@
   color: var(--button-primary-foreground);
 }
 
-.button-primary:hover {
+/* A busy button (aria-disabled) ignores presses, so it shows no hover. */
+.button-primary:hover:not([aria-disabled='true']) {
   background: var(--button-primary-background-hover);
 }
 
@@ -43,7 +45,7 @@
   color: var(--button-secondary-foreground);
 }
 
-.button-secondary:hover {
+.button-secondary:hover:not([aria-disabled='true']) {
   background: var(--button-secondary-background-hover);
 }
 
@@ -54,7 +56,7 @@
   color: var(--button-attention-foreground);
 }
 
-.button-attention:hover {
+.button-attention:hover:not([aria-disabled='true']) {
   background: var(--button-attention-background-hover);
 }
 
@@ -65,7 +67,7 @@
   color: var(--button-ghost-foreground);
 }
 
-.button-ghost:hover {
+.button-ghost:hover:not([aria-disabled='true']) {
   background: var(--button-ghost-background-hover);
 }
 
@@ -88,6 +90,19 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* A text link: underlined 1px with a 2px offset, 2px on hover and keyboard focus. */
+.link {
+  color: var(--link-foreground);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration-thickness: 2px;
 }
 
 /* A popover's pane. */

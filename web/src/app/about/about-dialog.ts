@@ -65,7 +65,6 @@ export const ABOUT_TITLE_ID = 'about-title';
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
-      color: var(--action-ink);
     }
     .close {
       position: absolute;

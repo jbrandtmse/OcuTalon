@@ -26,6 +26,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Error:FullURL and the 303 Location carry no fragment; harmless until the first hash route ships (Epic 2 frame)
 - 2026-10-19T05:10:58Z status=routed owner=2-1-lay-out-the-main-page-frame by=harvest note=Rule 22 ruling: routed, not wontfix, because Story 2.1 adds the first routes and the defect then becomes certain; fix in Shell/signin.js
+- 2026-10-22T02:09:17Z status=resolved-by:2-1-lay-out-the-main-page-frame by=adjudication note=signin.js_appends_location.hash_to_the_form_action_once(de7dc48;Shell.cls_unchanged:a_fragment-less_303_Location_inherits_the_fragment);sign-in.spec.ts_DW-4_rows(#/x_and_index.html?q=1#/x_land_on_/ocutalon/#/x_after_boot;wrong_password_first;double_submit;no-fragment_lands_on_#/)_red_under_the_dropped_append_and_the_dropped_guard_mutations;56_of_56_chromium_on_throwaway_e2s21r
 
 ### DW-5: On the non-Health image the namespace's default application /csp/ocutalon serves the bundle folder without sign-in and without the shell's policy
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -315,3 +316,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 39633794167: install-upgrade 19:18 on ci-c, raw 1.33x the mean, grouping 1.21x; run 39657913372: six stacks on ci-c, 9 units of two runs failed a start limit; run 39675383146 (no other run): every IRIS job on ci-c failed or crawled (first start ready 449-557 s against 150-250 s on ci-b), twice; install-start 550-681 s even on ci-b
 - 2026-10-21T21:49:22Z status=decision-pending owner=burndown by=lead note=human=CI capacity: fix, resize or cap ocutalon-ci-c; a ~10 min job needs faster hosts
 - 2026-10-21T22:10:11Z status=dropped by=unattended note=action_item:epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i(human=CI_capacity;decision_sheet_epic_32)
+
+### DW-57: Story 2.1's server button, inline notice and announcer ship with no executed test host; the matrix Busy rows are pinned only through BusyState
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: No spec or page renders app-server-button, app-inline-notice or Announcer; busy-state.test.mjs covers only the framework-free state machine; the Busy AC places their first browser test in Story 2.2
+- 2026-10-22T02:05:46Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=Retry is the first consumer: browser-test aria-busy and aria-disabled, the spinner, the notice text, announced once
+
+### DW-58: Story 2.1's popover service ships with no executed test host
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: No code calls Popovers.show; the spec's Integration ACs place its first browser test in Story 2.9 (the Visual Trace menu)
+- 2026-10-22T02:05:46Z status=routed owner=2-9-open-anything-in-visual-trace by=cr note=The menu is the first consumer: test the dialog role and name, focus on open, Esc, an outside press and focus leaving
+
+### DW-59: No test can tell the snapshot's three models keys apart, because every agent resolves to the same model
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Swapping TriageAgent and DiagnosisAgent in Web.Api.StateBody leaves Test.Web.Api, api.spec row 13 and frame F9 green; all three resolve to claude-haiku-5-5 (Task 0)
+- 2026-10-22T02:05:46Z status=wontfix-accepted owner=2-1-lay-out-the-main-page-frame by=cr note=reopen_if=an OcuTalon.Production agent item gets its own Model (Production.cls, an installer step or a default setting)
+
+### DW-60: F2's Demo guide and Simulated devices absence checks cannot fail until those regions exist
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Neither text appears anywhere in web/src, so toHaveCount(0) holds in every mode; F2's pinning assertion is main's geometry (flex: none)
+- 2026-10-22T02:05:46Z status=wontfix-accepted owner=2-1-lay-out-the-main-page-frame by=cr note=reopen_if=web/src renders a Demo guide or Simulated devices region and frame.spec F2 has no demo-mode-on twin

@@ -30,10 +30,10 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
       [attr.aria-disabled]="busy() ? 'true' : null"
       (click)="press()"
     >
-      <ng-content />
       @if (busy()) {
         <app-icon class="spinner" name="loader-circle" [size]="16" />
       }
+      <ng-content />
     </button>
     @if (notice()) {
       <app-inline-notice class="under" variant="warning">{{ text }}</app-inline-notice>

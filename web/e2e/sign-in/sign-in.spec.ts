@@ -237,8 +237,10 @@ test.describe('DW-4: a deep link survives sign-in', () => {
       expect(location.hash, 'and no fragment').toBe('');
       expect((await landed).status(), 'the redirect target answers 200').toBe(200);
       await expect(page).toHaveTitle('OcuTalon');
-      await expect(page).toHaveURL(/\/ocutalon\/[^#]*#\/x$/);
       await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+      // Read once the page has booted: before that the address is still the redirect's. The router settles on the hash
+      // route under the base href, so the fragment stays and a query is dropped (as in row 13).
+      await expect(page, 'the page lands on #/x').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/x');
     });
   }
 
@@ -266,7 +268,23 @@ test.describe('DW-4: a deep link survives sign-in', () => {
     const accepted = await submitSignIn(page);
     expect(accepted.status()).toBe(303);
     await expect(page).toHaveTitle('OcuTalon');
-    await expect(page).toHaveURL(/\/ocutalon\/#\/x$/);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page, 'the page lands on #/x once it has booted').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/x');
   });
+
+  // No fragment to carry: the 303 names the address as it was, and the page's router then rewrites the address to the
+  // hash route under the base href, /ocutalon/#/ (row 13).
+  for (const target of ['/ocutalon/', '/ocutalon/index.html?x=1']) {
+    test(`DW-4: signing in at ${target} with no fragment lands on #/`, async ({ page }) => {
+      await fillSignIn(page, README_ACCOUNT.user, README_ACCOUNT.password, target);
+      const response = await submitSignIn(page);
+      expect(response.status()).toBe(303);
+      const location = new URL((await response.headerValue('location'))!, page.url());
+      expect(location.pathname + location.search, 'the 303 names the address as it was').toBe(target);
+      expect(location.hash, 'and no fragment').toBe('');
+      await expect(page).toHaveTitle('OcuTalon');
+      await expect(page, 'the page lands on the hash route #/').toHaveURL((url) => url.pathname + url.search + url.hash === '/ocutalon/#/');
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    });
+  }
 });

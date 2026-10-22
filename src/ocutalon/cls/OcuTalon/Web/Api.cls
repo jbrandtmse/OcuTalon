@@ -165,7 +165,7 @@ ClassMethod ModelName(id As %String) As %String
 /// The model that an agent's runner item of the production uses (AD-7), "" when none resolves.
 ClassMethod ResolveModel(item As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, "OcuTalon.Production")
+	Quit ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, ##class(OcuTalon.Install.Step.Production).#PRODUCTION)
 }
 
 /// The events after the two cursors: the session's own stream first, then the instance stream, each in Seq order

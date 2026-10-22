@@ -1517,6 +1517,8 @@ So that I see my own conversation and status, and every change, as soon as it ha
 
 - DW-15: `GET /state` and `GET /events` resolve the caller's session through `OcuTalon.Data.Ownership` from the CSP session (AD-4), replacing Epic 0's interim `Session.ForUser($Username)` lookup, so two visitors signed in with one shared account never see each other's events; a test signs in twice with one account and shows each poll holds only its own session's events (ledger; routed by cr 2026-10-19)
 
+- DW-57: Story 2.1's server button, inline notice and announcer get their first browser test through this story's **Retry**: while busy the button keeps its label, shows the spinner and has `aria-busy` and `aria-disabled` true (never `disabled`); with no answer by 10 s it restores and shows the warning notice "Couldn't reach OcuTalon. Try again. Nothing was changed." under it, announced once through the polite announcer (ledger; routed by cr 2026-10-22)
+
 ### Story 2.3: Route every command by verb, with origin checks
 
 As a security reviewer,
@@ -1752,6 +1754,8 @@ So that I can watch the assistant work like any other production.
 **When** I press a trace link or open the Visual Trace menu
 **Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
 **And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+
+- DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; routed by cr 2026-10-22)
 
 ### Story 2.10: Show status banners for a missing key or a stalled heartbeat
 
