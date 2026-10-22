@@ -346,3 +346,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Delivery.Record keeps ownerRef, channel, channelMessageId and approvalRef; Story 2.2's snapshot AC asks for the conversation with its notice cards; Story 2.7 publishes the notification event and records Delivery
 - 2026-10-22T02:54:40Z status=routed owner=2-7-route-untrusted-items-and-notifications-by-outcome by=spec_gate note=keep each web notice card where the snapshot can read it, and add notification entries to StateBody's chat merge (Story 2.2), so a reload shows the cards in order; veto ruling at 2.2 spec validation
+
+### DW-65: Web.Api.StateBody loads and serializes every turn and every noticed incident of the session on each /state call and snapshot reload, with no cap or paging
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: ChatItems reads Ownership.Turns and Ownership.Incidents without a limit, opens each row and exports it; a durable local session only grows (Web/Api.cls ChatItems)
+- 2026-10-22T06:27:39Z status=routed owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=the chat's renderer decides a cap or paging for /state's chat (AD-12's snapshot shape) and a test pins it on a long session
+
+### DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rule 2 copy forced by the lanes (spec Design Notes, Extend don't copy); Web/Api.cls CheckView builds Live.Payload.Check for StateBody's rail.checks
+- 2026-10-22T06:27:39Z status=routed owner=5-6-the-production-watch-runs-on-every-heartbeat by=harvest note=the check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it; orchestrator writes the acceptance bullet after Epic 2 merges

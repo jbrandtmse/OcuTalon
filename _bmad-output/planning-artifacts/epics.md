@@ -1614,6 +1614,8 @@ So that talking to OcuTalon is a quiet conversation I can follow.
 **Then** the chat doesn't move, and a floating "New messages" button with `chevron-down` appears centred above the composer, just before it in tab order; pressing it scrolls down and focuses the first new message (UX-DR67, UX-DR126)
 **And** the REL-2 spec for UJ-1's page step, one Playwright spec per UJ-1 step under `web/e2e/demo-path/` whose runner configuration and fixtures Lane B owns, checks the chat panel and the composer (REL-2, AD-29)
 
+- DW-65: `/state`'s chat (Story 2.2's `Web.Api.ChatItems`) loads and serializes every turn and noticed incident of the session with no cap or paging, and a durable local session only grows; this story decides a cap or paging for the snapshot's chat within AD-12's snapshot shape, and a test pins it on a long session (ledger; routed by harvest 2026-10-22)
+
 ### Story 2.6: Show every decision with its reasons and cost
 
 As a user,

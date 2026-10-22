@@ -5,6 +5,7 @@ created: '2026-10-21'
 status: 'done'
 review_loop_iteration: 0
 baseline_revision: '04b39400cd67ee72cbbfb0919667a0eb93ad4c1e'
+baseline_commit: '04b39400cd67ee72cbbfb0919667a0eb93ad4c1e'
 followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
