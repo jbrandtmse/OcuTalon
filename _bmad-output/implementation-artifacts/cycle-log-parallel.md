@@ -58,3 +58,6 @@
 2026-10-21T22:42:40Z	Epic 1-16,29-32	inbox_resolved	item=U-8 kind=report applied_by=orchestrator note=ci-c_capped_by_the_Contest_Planner
 2026-10-21T23:09:26Z	Epic 1-16,29-32	hold_ordered	reason=owner:weekly_quota_97pct_switch_accounts source=owner_direct dispatch=stopped
 2026-10-21T23:48:30Z	Epic 1	runner_ended	reason=hold head=8cca33e(local) origin=98a1fc2 unpushed=8cca33e,70ca4dd,c080868,9c87cfc,7fc5765,0ec1813,9626f3f,4790bfd(c080868=story_1.2_implement_before_smoke;7_bookkeeping) hold_patch=patches/epic-1/1-2-...-code-review.patch tree=clean stories_done=1(1.1) note=bookkeeping_left_unpushed_with_the_unsmoked_code_commit_per_normal_push_rules(accepted)
+2026-10-22T00:15:49Z	Epic 2	runner_ended	reason=hold head=89a51fa(pushed) unpushed=none hold_patch=none tree=clean stories_in_progress=2.1(review:after_implement) ci=pending(39698491852,39698491847) inbox=U-9
+2026-10-22T00:15:49Z	Epic 2	inbox_items_seen	items=U-9 kind=veto story=2-1 pointer=contest_planner
+2026-10-22T00:15:49Z	Epic 1-16,29-32	hold_complete	reason=owner:weekly_quota_97pct shas=feature:6887e69(local,pushed_below),epic-1:98a1fc2(origin)+8_local(8cca33e..),epic-2:89a51fa(origin) merged=epic-32 held=epic-1,epic-2 throwaways_up=none locks=none ci_in_flight=epic-2:39698491852,39698491847 resume=.worktrees/.coordination/unattended/resume/{orchestrator,epic-1,epic-2}.md
