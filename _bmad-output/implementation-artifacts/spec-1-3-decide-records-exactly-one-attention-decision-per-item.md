@@ -82,6 +82,10 @@ deferred: []
 - **The bridge boundary (AD-2).**
   - Code in `src/bridge/` names no other OcuTalon package, the `BridgeExample` package included.
   - The example's settings live only in its production definition and in System Default Settings rows.
+- **The package (AD-2).** [ADDED 2026-10-22 at the spec gate, orchestrator ruling; see the Spec Change Log]
+  - `src/module.xml`'s first three resources are `OcuTalon.Bridge.PKG`, `OcuTalon.BridgeExample.PKG` and `OcuTalon.PKG`, each with `Directory="bridge/cls"`, `"bridge/cls"` and `"ocutalon/cls"`, in that order.
+  - Lane B's `docker/tests/test-pinned-sources.sh` `bridge_first` pins that full order. Its self-tests still reject a reversed manifest and a single-resource one.
+  - In OCUTALON the IPM install therefore also installs `OcuTalon.BridgeExample`. Its production is compiled there, never started and never the autostart production.
 - **Storage (AD-5).** `Decide`'s Storage block keeps its committed slots, and `TimerSeconds` is appended as slot 4 by the compiler.
 - **Text in `src/`.** It is ASCII. No INSTRUCTIONS block contains `{{`.
 - **Test placement.**
@@ -99,10 +103,10 @@ deferred: []
 - No change to `Bridge.Msg.Enum`.
 - `AgentSteps`, `OcuTalon.Checks.ReplyGuard` and `OcuTalon.Core.BridgeSink` stay as they are.
 - No edit to `triage.json`, `diagnosis.json` or `chat.json`.
-- No edit to `src/module.xml` (Design Notes, decision 14).
+- No edit to `src/module.xml` beyond the one new resource line (Boundaries, "The package"; Design Notes, decision 14).
 - No `TestingEnabled="true"` and no provider settings in the example production's XData.
 - No literal key and no `@{env:...:-fallback}` form.
-- No edit to any contended Lane B path, including `docker/**`, `ci/**` (except `ci/mock/scenarios/A/`), `.github/workflows/ci.yml`, `OcuTalon.Core`, `.Msg`, `.Data.Time` and the Lane B test packages. No copy of a private Lane B helper. No new `ci/units.sh` entry.
+- No edit to any contended Lane B path, including `docker/**`, `ci/**` (except `ci/mock/scenarios/A/`), `.github/workflows/ci.yml`, `OcuTalon.Core`, `.Msg`, `.Data.Time` and the Lane B test packages. The one exception is the orchestrator's footprint extension: `docker/tests/test-pinned-sources.sh`, limited to `bridge_first` and its self-test fixtures. No copy of a private Lane B helper. No new `ci/units.sh` entry.
 - No commit and no push.
 
 ## I/O & Edge-Case Matrix
@@ -131,6 +135,7 @@ deferred: []
 | Render, user | `Item` provenance `user`, `Text` "Is the Orders feed fine?", `now` = `2025-03-04T15:06:07Z` | The preamble from `Data.Time.ToLocal(now)` and `Zone()`, a blank line, then the text, unchanged | No error expected |
 | Render, untrusted | Provenance `untrusted` (and `""`), channel `mailbox`, sender, subject, two-line text holding `[[mock:x]]` | The preamble, a label naming `mailbox` as quoted data and never instructions, then the sender, subject and every text line, each prefixed `> ` | No error expected |
 | Render, empty | `##class(OcuTalon.Msg.Item).%New()` | "" | No error expected |
+| The package manifest | `src/module.xml`; the IPM install of the image into OCUTALON | `test-pinned-sources.sh` passes: the first three resources are `OcuTalon.Bridge.PKG bridge/cls`, `OcuTalon.BridgeExample.PKG bridge/cls`, `OcuTalon.PKG ocutalon/cls`. Its self-tests accept that order and reject a reversed manifest, a single resource, and the old two-resource manifest. After the install, OCUTALON holds `OcuTalon.BridgeExample.Production` compiled, not running and not the autostart production, and `OcuTalon.Production` runs as before. [ADDED 2026-10-22, orchestrator ruling] | The check fails, naming the manifest |
 | The bridge alone | `src/bridge/cls` loaded into a fresh namespace with Interoperability and no Foundation (CI or throwaway); `Installer.Run()`; the example production with its runner's `ProviderConfig` and `$Production` `TestingEnabled` as System Default Settings rows | 1. **The response:** a `decide` request through `EnsLib.Testing.Service.SendTestRequest("Decide", ...)` gets a `DecisionResponse` with `tellnow` (scenario `bridge-example`).<br>2. **The row:** a `Decision` row for its `ItemId` whose `TraceSessionId` is that session.<br>3. **The extensions:** `Ext.Accessor.ClassFor` gives the three base classes.<br>4. **The namespace:** no `OcuTalon.*` class outside `OcuTalon.Bridge` and `OcuTalon.BridgeExample`, and no web application of the namespace that names an OcuTalon class or `/ocutalon`. | The script fails, naming the failed check |
 
 </intent-contract>
@@ -243,6 +248,7 @@ deferred: []
 - **(c)** In the standalone run, the exact System Default Settings rows that enable the testing service and set the runner's `ProviderConfig` for `OcuTalon.BridgeExample.Production`, and that no production runs in the new namespace before the example starts.
 - **(d)** The logged shape of `chat.json`'s second request: where the `tool_result` block sits and what it holds.
 - **(e)** Where an in-process `$$$LOGWARNING` lands in `Ens_Util.Log` (`Type`, `SourceClass`, `ConfigName`).
+- **(f)** After the image's IPM install with the new manifest: the `OcuTalon.BridgeExample` classes in OCUTALON, and the example production's state (not running, not the autostart production) while `OcuTalon.Production` runs.
 - If a fact contradicts this spec in a way that changes an AC, stop with status `blocked` and the condition `intent gap: <the AC>, measured <fact>`.
 
 **The bridge.**
@@ -287,6 +293,14 @@ deferred: []
   - `Decide` (pool 1, no settings);
   - `TriageAgent` (`AgentRunner`, pool 1), with the adapter's `AgentClass` and `AgentAllowList` = `OcuTalon.BridgeExample.Agent` and the host's `ReplyClass` = `OcuTalon.Bridge.Msg.DecisionPayload`;
   - `AgentSteps` (`Steps`, pool 1).
+
+**The package (AD-2).** [ADDED 2026-10-22 at the spec gate, orchestrator ruling] Rationale: AD-2, FR-5.
+- **`src/module.xml`** (shared by region): add `<Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>` as the second resource, after `OcuTalon.Bridge.PKG` and before `OcuTalon.PKG`. Change nothing else in the file.
+- **`docker/tests/test-pinned-sources.sh`** (Lane B; the orchestrator's footprint extension, limited to `bridge_first` and its self-test fixtures):
+  - `bridge_first` pins the first three resources as `OcuTalon.Bridge.PKG bridge/cls`, `OcuTalon.BridgeExample.PKG bridge/cls` and `OcuTalon.PKG ocutalon/cls`.
+  - Update its comment and the `check` label at the manifest check to say the bridge, the example, then the product.
+  - The `manifest.good` fixture gains the example line in second place. The self-tests still reject `manifest.reversed` and `manifest.single`, and also reject the old two-resource manifest (bridge then product, no example).
+  - Change nothing else in the file.
 
 **The product.**
 - **`src/ocutalon/cls/OcuTalon/Agent/Input.cls`**: implement `Render(item, now = "")` (Boundaries, "Rendering") and update the class comment. Rationale: AD-7, AD-14, AD-18, NFR-6, NFR-14.
@@ -419,10 +433,13 @@ deferred: []
   - **Given** `src/bridge/` loaded alone into a clean Interoperability namespace and `OcuTalon.Bridge.Installer` run,
   - **when** `OcuTalon.BridgeExample.Production` receives a `decide` request through Ens's testing service; the production holds only `Decide`, a `TriageAgent` runner (the example agent on its allow-list, inline provider settings) and `AgentSteps`, configured only through production settings,
   - **then** a `Decision` row and a `DecisionResponse` are recorded and returned, with every extension class at its do-nothing default and no other OcuTalon package in the namespace. The consumer, Ens's testing service acting as the example's caller, gets the scenario's outcome. `lane-a.yml`'s `standalone-bridge` job runs this on the IRIS runner.
+  - **And** `src/module.xml` lists `OcuTalon.Bridge`, then `OcuTalon.BridgeExample`, then `OcuTalon`, as AD-2 orders them; the pinned-sources check holds that order, and the image's IPM install still gives a running `OcuTalon.Production`, with the example installed and not started. [ADDED 2026-10-22, orchestrator ruling]
 
-  (`release/standalone-bridge.sh`)
+  (`release/standalone-bridge.sh`; `docker/tests/test-pinned-sources.sh`; the image and install units)
 
 ## Spec Change Log
+
+- 2026-10-22, lead (Epic 1 runner), at the spec gate, applying the orchestrator's ruling on decision 14 (`category=decide`, comply with AD-2 now). Changed: Boundaries "The package (AD-2)" added, and the `src/module.xml` and contended-path "Never" lines narrowed to the ruling; the I/O matrix row "The package manifest"; Task 0 (f); the Tasks block "The package (AD-2)"; AC6's manifest clause; Design Notes decision 14 and "Lane B pieces"; the Verification lines for `test-pinned-sources.sh`, `live build-inputs` and the image and install groups; one mutation row; one shared surface. The rest of the intent is unchanged. Status stays `ready-for-dev`.
 
 ## Review Triage Log
 
@@ -472,10 +489,10 @@ No acceptance criterion contradicts an AD's Rule.
     - Untrusted lines are quoted with `> ` on every line, so content cannot close a delimiter.
     - Any provenance other than `user` is rendered as untrusted (fail safe).
     - An empty Item renders "", so `Decide` refuses it rather than sending a bare preamble, and `Test.Bridge.Api` stays as it is.
-14. **The example and `src/module.xml`.**
-    - **Why not now.** AD-2 lists `OcuTalon.BridgeExample` among the package's resources, ahead of `src/ocutalon/`. Lane B's `test-pinned-sources.sh` (`bridge_first`) pins the first two resources as `OcuTalon.Bridge.PKG` then `OcuTalon.PKG`. Listing the example in AD-2's position therefore needs that Lane B check changed (contended), and a third position would break AD-2's order.
-    - **What this story needs.** Its standalone criterion loads the bridge with `LoadDir`, which needs no manifest. So the listing is left to Story 15.2, whose criterion inspects the installed package for `OcuTalon.BridgeExample`, together with a Lane B change to `bridge_first`.
-    - **Consequence.** The judges' install is unchanged, and no OCUTALON test may depend on the example's classes.
+14. **The example and `src/module.xml`.** [RULED 2026-10-22 by the orchestrator, `category=decide`: comply now; the planner's deferral to Story 15.2 is withdrawn]
+    - AD-2 lists `OcuTalon.BridgeExample` among the package's resources, ahead of `src/ocutalon/`, and this story creates the package. So `src/module.xml` lists it second, as AD-2 orders them.
+    - Lane B's `test-pinned-sources.sh` `bridge_first` pinned only the first two resources. The orchestrator granted a footprint extension limited to `bridge_first` and its self-test fixtures, so that the check pins AD-2's full order. Epic 2, the Lane B epic in flight, touches neither file; a conflict at integrate-forward is a plain union.
+    - **Consequence.** The image's IPM install also installs `OcuTalon.BridgeExample` into OCUTALON. Its production is compiled there and never started (`TestingEnabled` false, no provider settings), and the Production step never marks any production autostart. No OCUTALON test depends on the example's classes. Story 15.2 keeps its criterion that the installed package holds the example and that the example production is not started in OCUTALON.
 15. **How the example is configured and called.**
     - Its XData holds neither the provider settings nor `TestingEnabled`: an XData setting would win over the CI's rows, and the example must not point at the mock or enable testing in a shipped class.
     - The CI script writes both as System Default Settings rows in the throwaway's own namespace, the same settings a developer sets for their own namespace (Story 13.3's guide). Ens's testing service is the only way to reach a production that holds no service of its own, and Story 13.1 adds the example's own service.
@@ -507,7 +524,7 @@ No acceptance criterion contradicts an AD's Rule.
 - **Story 5.7:** `ReplyGuard` as the filter.
 - **Story 9.1:** the evaluation runs through `Intake`.
 - **Story 13.1:** the example grows.
-- **Story 15.2:** the manifest (decision 14).
+- **Story 15.2:** the installed package's check that it holds `OcuTalon.BridgeExample`, which this story lists (decision 14).
 
 **Consumes:**
 - **Story 1.2:** the runners' `Answer` and `Reply`, `RunnerFixture`, and the mock scenarios.
@@ -524,8 +541,7 @@ No acceptance criterion contradicts an AD's Rule.
 
 **Ledger:** this story's inbox is empty.
 
-**Lane B pieces.** No contended edit is planned. Follow-ons:
-- Widen `test-pinned-sources.sh`'s `bridge_first` for `OcuTalon.BridgeExample.PKG`, for Story 15.2.
+**Lane B pieces.** One contended edit, granted by the orchestrator as a footprint extension: `test-pinned-sources.sh`'s `bridge_first` and its self-test fixtures (decision 14). Follow-ons:
 - Story 2.4 and the stories after it can drop the `Decide` test double once this story merges.
 
 ## Verification
@@ -547,6 +563,7 @@ No acceptance criterion contradicts an AD's Rule.
   - `.Bridge.Contracts`, `.Bridge.CodeRules` and `.Bridge.Ext`.
 
   Expected: `CLASS ... passed`.
+- **(loop)** `bash docker/tests/test-pinned-sources.sh`. Expected: every check passes, with the three-resource order and the self-tests that reject a reversed, a single-resource and the old two-resource manifest. (Also part of `ci/checks.sh`, if that script lists it; run it on its own either way.)
 - **(loop)** `bash release/standalone-bridge.sh`. Expected: every check `PASS`, and exit 0. About 2 to 3 minutes on ARM (inference).
 - **(loop)** `bash ci/iris.sh shard lane-a`. Expected: every class passed, and the only SKIP is the existing `TestStepHelpers` one.
 - **(loop)** `bash ci/iris.sh teardown`. Expected: it removes only `e1s3a`'s projects.
@@ -557,7 +574,9 @@ No acceptance criterion contradicts an AD's Rule.
 - **(once)** `bash ci/iris.sh live install-start`. Expected: PASS. Row 5 loads `src/bridge/cls` with `BridgeExample` in it, `Run()` gives 1, and there are 0 other classes. About 150 to 200 s.
 - **(once)** `bash ci/iris.sh live install-upgrade`. Expected: PASS, with the changed production upgraded in place. About 165 s.
 - **(once)** `bash ci/iris.sh live storage-roundtrip`. Expected: PASS. `Decide`'s committed block, with slot 4 `TimerSeconds`, equals the compiler's, and the control still sees a removed slot 3. About 70 s.
+- **(once)** `bash ci/iris.sh live build-inputs`. Expected: PASS (the build context carries what the Dockerfile copies, the example's classes among them). About 15 s.
 - **(once)** `bash ci/iris.sh live compose-start`. Expected: PASS, with no key and every item running. About 80 s.
+- The image group (`live storage-roundtrip`, `live build-inputs`, `live compose-start`) and the install group (`live install-start`, `live install-upgrade`) are the IPM image and install units that the orchestrator's ruling asks for with the new manifest; Task 0 (f) is read on one of them.
 - **(once)** `bash ci/iris.sh live demo-path`. Expected: PASS, with `@floor`. About 60 s.
 - **(once)** `bash ci/iris.sh teardown`. Expected: it removes only `e1s3a`'s projects.
 
@@ -571,6 +590,7 @@ No acceptance criterion contradicts an AD's Rule.
 - **`Agent.Input.Render`'s output.** `Test.Bridge.Api.TestNeutralValues` reads it for an empty Item.
 - **`DecisionPayload`'s validation**, read by `Test.Bridge.Contracts.TestDecisionPayloadJson`.
 - **`lane-a.yml`**, against `test-ci-config.sh`'s rules.
+- **`src/module.xml`'s resources**, pinned by `test-pinned-sources.sh` `bridge_first` (now three), and the classes the image's IPM install puts into OCUTALON (the example's among them), read by `test-storage-roundtrip.sh` and the install units.
 - **The `release/` folder**, against `test-boundaries.sh`'s ASCII, local-path and key-like-string scans.
 - **The new classes** in `OcuTalon.Bridge` and `OcuTalon.BridgeExample`, for bridge-refs, the `%AI` allow-list, and the `{{` check in INSTRUCTIONS.
 - **Tests updated for the new shape:** `Test.Install.Production`, `Test.Bridge.Api` (comments only) and `Test.Agent.Runners` (the moved helper).
@@ -594,6 +614,7 @@ No acceptance criterion contradicts an AD's Rule.
 | AC5 | A `user` item rendered as quoted data | `Agent.Render`, `Agent.Decide.TestTurn` |
 | AC5 | The preamble built from `$Horolog` instead of `ToLocal(now)` | `Agent.Render` |
 | AC6 | `Decide`'s `HostSinkClass` default changed to `OcuTalon.Core.BridgeSink` | `release/standalone-bridge.sh` (the extension check, or the compile) |
+| AC6 | The `OcuTalon.BridgeExample.PKG` line moved after `OcuTalon.PKG` in `src/module.xml` | `docker/tests/test-pinned-sources.sh` (the manifest check) |
 
 **Measured in planning** (`ocutalon-slot-a`, `OCUTALON`, `iris_server_info` build 154U; process-local, nothing kept). `DecisionPayload.%JSONImport` then `%ValidateObject()`:
 - **Pass:** `{"outcome":"act","reasons":["r"],"confidence":0.12}` passes both, with `Confidence` .12, and exports back as `0.12`. Confidence 0, 1 and 0.123 import as they are (.123 is kept).
@@ -628,7 +649,7 @@ No acceptance criterion contradicts an AD's Rule.
 - **`Decide.TimerSeconds` and decisions 5, 7 and 8 (what a `Decision` row holds):** `category=veto`, kept as planned (inbox U-12).
 - **Decision 15, the testing service in CI only:** `category=veto`, kept as planned (inbox U-13).
 - **Decision 3 (`AgentRunner.ReplyClass` in the XData), the user rule's sentence, and decision 15's CI key placeholder:** `category=decide`, kept. AD-7 names the setting; the criterion fixes the sentence's meaning; Story 1.2's ruled decision 12 (U-6) is the placeholder's precedent.
-- **Decision 14 (`src/module.xml` and AD-2):** a cross-epic matter (a contended Lane B check, and Story 15.2 in Epic 15), routed to the orchestrator. Its ruling is recorded here when it comes.
+- **Decision 14 (`src/module.xml` and AD-2):** a cross-epic matter (a contended Lane B check, and Story 15.2 in Epic 15), routed to the orchestrator, which ruled `category=decide`: comply now. `src/module.xml` lists `OcuTalon.BridgeExample.PKG` second, and a footprint extension, limited to `docker/tests/test-pinned-sources.sh`'s `bridge_first` and its self-test fixtures, lets that check pin AD-2's full order. The IPM image and install units run with the new manifest.
 
 ## Auto Run Result
 
