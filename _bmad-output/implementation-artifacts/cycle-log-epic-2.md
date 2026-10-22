@@ -80,3 +80,5 @@
 2026-10-22T08:02:22Z	Story 2.2	runtime_lock_released	lock=runtime stage=smoke
 2026-10-22T08:02:52Z	Story 2.2	committed	sha=07ef42c submodules= ci=pending runs=39744804364,39744804170 amendments=spine:AD-13(allow-list+Ownership.Rows,U-15) note=bookkeeping_and_build_757405c_pushed_together
 2026-10-22T08:02:52Z	Story 2.2	story_cycle	plan_to_commit_min=339(incl_U-15_wait) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-22T08:09:55Z	Epic 2	epic_context_compiled	reason=planning_artifact_newer(epics.md_DW-61,62,65,68_bullets;spine_AD-13_amended) model=claude-opus-5-5 lines=122
+2026-10-22T08:09:55Z	Story 2.3	stage_spawned	stage=plan spawn_at=2026-10-22T08:09:55Z model=claude-opus agent_name=2-3-route-every-command-by-verb-with-origin-checks-plan-1 cycle_iteration=1
