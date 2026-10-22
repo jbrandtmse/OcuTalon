@@ -99,3 +99,6 @@
 2026-10-22T05:37:26Z	Story 1.3	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_1.3's_ACs_to_lead-run_agent-time_tooling;AC4's_trace_field_names_are_read_from_the_body_XML_the_contents_pane_shows(Test.Agent.Decide.TestTraceFields) model=claude-opus-5-5
 2026-10-22T05:37:33Z	Epic 1	runtime_lock_acquired	lock=runtime stage=qa waited_s=0
 2026-10-22T05:37:33Z	Story 1.3	stage_spawned	stage=qa spawn_at=2026-10-22T05:37:33Z model=claude-sonnet-5-5 agent_name=1-3-qa-1 cycle_iteration=1
+2026-10-22T06:25:06Z	Epic 1	runtime_lock_released	lock=runtime stage=qa
+2026-10-22T06:25:06Z	Story 1.3	qa_complete	spawn_at=2026-10-22T05:37:33Z model=claude-sonnet-5-5 tests=Test/Bridge/Example(new,3),Test/Bridge/Decide(+4,2_extended),Test/Agent/Render(+1,1_extended) tests_added=8_methods+3_extended(1_new_class) mutations_demonstrated=10 first_run_failures=1(TestDecideDefaults_read_live_item_settings,fixed) waits=polls_>=120s clarifications=0 checks=pass shard_lane_a=23/23_forward+reverse closing_sections_present=true agent=af9c09dbb49900e1b cycle_iteration=1
+2026-10-22T06:25:06Z	Story 1.3	stage_spawned	stage=code-review spawn_at=2026-10-22T06:25:06Z model=claude-opus-5-5 agent_name=1-3-code-review-1 cycle_iteration=1
