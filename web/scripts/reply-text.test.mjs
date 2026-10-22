@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const { parseReply } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'reply-text.ts')).href);
 
 const text = (value) => ({ kind: 'text', text: value });
-const link = (href, label = href) => ({ kind: 'link', href, label });
+const link = (href, label = href, host = '') => ({ kind: 'link', href, label, host });
 const para = (...runs) => ({ kind: 'paragraph', runs });
 const list = (ordered, items, start = 1) => ({ kind: 'list', ordered, start, items });
 
@@ -76,10 +76,18 @@ describe('links', () => {
     assert.deepEqual(parseReply('https://en.wikipedia.org/wiki/Foo_(bar).'), [para(link('https://en.wikipedia.org/wiki/Foo_(bar)'), text('.'))]);
   });
 
-  it('links [label](https://address) with the label as its text', () => {
-    assert.deepEqual(parseReply('Read [the docs](https://example.com/docs).'), [para(text('Read '), link('https://example.com/docs', 'the docs'), text('.'))]);
-    assert.deepEqual(parseReply('[w](https://en.wikipedia.org/wiki/Foo_(bar)) ok'), [para(link('https://en.wikipedia.org/wiki/Foo_(bar)', 'w'), text(' ok'))]);
-    assert.deepEqual(parseReply('[https://a.example](https://b.example)'), [para(link('https://b.example', 'https://a.example'))]);
+  it('links [label](https://address) with the label as its text and the host it opens', () => {
+    assert.deepEqual(parseReply('Read [the docs](https://example.com/docs).'), [para(text('Read '), link('https://example.com/docs', 'the docs', 'example.com'), text('.'))]);
+    assert.deepEqual(parseReply('[w](https://en.wikipedia.org/wiki/Foo_(bar)) ok'), [para(link('https://en.wikipedia.org/wiki/Foo_(bar)', 'w', 'en.wikipedia.org'), text(' ok'))]);
+    assert.deepEqual(parseReply('[https://a.example](https://b.example)'), [para(link('https://b.example', 'https://a.example', 'b.example'))]);
+  });
+
+  it('names the host a labelled link opens, so a label cannot pass for another address', () => {
+    assert.deepEqual(parseReply('[https://bank.example/login](https://evil.example/x)'), [para(link('https://evil.example/x', 'https://bank.example/login', 'evil.example'))]);
+    assert.deepEqual(parseReply('[bank.example](https://bank.example:8443/a)'), [para(link('https://bank.example:8443/a', 'bank.example', 'bank.example:8443'))], 'the port is part of the host');
+    assert.deepEqual(parseReply('[bank](https://b\u0430nk.example/)'), [para(link('https://b\u0430nk.example/', 'bank', 'xn--bnk-6cd.example'))], 'a non-ASCII name shows as punycode');
+    assert.deepEqual(parseReply('[https://example.com/a](https://example.com/a)'), [para(link('https://example.com/a', 'https://example.com/a'))], 'a label that is the address needs no host');
+    assert.deepEqual(parseReply('[Example.com](https://example.com/a)'), [para(link('https://example.com/a', 'Example.com'))], 'nor does a label that is its host');
   });
 
   it('reads the scheme without regard to case', () => {

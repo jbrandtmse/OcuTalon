@@ -268,6 +268,38 @@ Method TestStateChatCapped()
 	Do $ClassMethod(fixture, "Clean", refs)
 }
 
+/// DW-65: where the cut falls inside a group of entries with the same time, the chat keeps the later rows, and the entries
+/// of one time stay in the merge's order: turns before incidents, each by row ID. A session with three turns and two noticed
+/// incidents, all at 10:01:00, and 96 turns after them one second apart (10:02:00 to 10:03:35) has 101 entries; the chat
+/// drops the oldest, the first of the three turns, and keeps the second and third turn, the two incidents in row order, then
+/// the 96 turns.
+Method TestStateChatCappedTies()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicapties"_..Number)
+	Set tied = "2030-01-01T10:01:00Z"
+	Set refs = mine
+	For i = 1:1:3 {
+		Set turn(i) = $ClassMethod(fixture, "Turn", mine, tied)
+		Set refs = refs_","_turn(i)
+	}
+	For i = 1:1:2 {
+		Set incident(i) = $ClassMethod(fixture, "Incident", mine, tied)
+		Set refs = refs_","_incident(i)
+	}
+	Set expected = "chat.message:"_turn(2)_",chat.message:"_turn(3)_",incident:"_incident(1)_",incident:"_incident(2)
+	For i = 0:1:95 {
+		Set later = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(102 + (i \ 60), 2, 3)_":"_$Extract(100 + (i # 60), 2, 3)_"Z")
+		Set refs = refs_","_later
+		Set expected = expected_",chat.message:"_later
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 101")
+	Do $$$AssertEquals(..Items(body.chat), expected, "the first of the tied turns is the one dropped; the rest of the tie stay in row order, turns before incidents")
+	Do $$$AssertTrue(('$Find(body.%ToJSON(), turn(1))), "the dropped turn is not in the snapshot")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
 /// StateBody reads the stream cursors before any section, so that whatever changes after the cursors is an event the page
 /// applies. A job takes the snapshot while the session's stream is locked by this process; once the job waits on that lock,
 /// this process adds a turn, publishes its event and releases the lock. The cursor the job read includes the event, so the

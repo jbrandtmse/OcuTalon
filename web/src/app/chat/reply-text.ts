@@ -9,10 +9,13 @@
  *   the other kind, or a line that is no list line, ends the list. A numbered list keeps its first number.
  * - A link is a bare `http://` or `https://` address, without the `.,;:!?` or the unmatched `)` that ends it, or
  *   `[label](http(s)://address)`. A link whose scheme is not http(s) is text.
+ * - A link's host is the host its address opens (punycode for a non-ASCII name), for the page to show after a label that
+ *   names something else, so a label cannot pass for another address; it is empty for a bare address and for a label that is
+ *   the address itself or its host.
  */
 
 /** A piece of a paragraph or of a list item. */
-export type Run = { kind: 'text'; text: string } | { kind: 'link'; href: string; label: string };
+export type Run = { kind: 'text'; text: string } | { kind: 'link'; href: string; label: string; host: string };
 
 /** A paragraph, or a list whose items are runs. start is the number of a numbered list's first item. */
 export type ReplyBlock =
@@ -72,7 +75,9 @@ export function parseRuns(text: string): Run[] {
     at = start + match[0].length;
     if (match[2] !== undefined) {
       if (isWebAddress(match[2])) {
-        runs.push({ kind: 'link', href: match[2], label: match[1] ?? match[2] });
+        const label = match[1] ?? match[2];
+        const host = new URL(match[2]).host;
+        runs.push({ kind: 'link', href: match[2], label, host: label === match[2] || label.toLowerCase() === host ? '' : host });
       } else {
         addText(match[0]);
       }
@@ -80,7 +85,7 @@ export function parseRuns(text: string): Run[] {
     }
     const { href, rest } = trimAddress(match[3] ?? '');
     if (isWebAddress(href)) {
-      runs.push({ kind: 'link', href, label: href });
+      runs.push({ kind: 'link', href, label: href, host: '' });
       addText(rest);
     } else {
       addText(match[0]);

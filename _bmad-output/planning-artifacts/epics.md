@@ -1855,6 +1855,8 @@ So that the page works for me as well as for anyone.
 **When** the page tests run
 **Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
 
+- DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
+
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
 Every action is classified safe or risky by fixed rules the model and arriving content can't change; each risky action becomes one IRIS Workflow approval request fixed to exact targets, answered once (first answer wins), expiring after 24 hours and surviving restarts; every action and governance event is written to the IRIS audit log; roles and the service user decide who may do what.

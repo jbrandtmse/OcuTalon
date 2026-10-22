@@ -15,7 +15,7 @@ const FALLBACK_KEY = 'conversation.turnFallback';
  * the whole seconds instead): the ellipsis is revealed in three steps unless the user prefers reduced motion. Once the turn is done it is the
  * reply, left-aligned and unboxed under the mark and the name "OcuTalon": the catalog's fallback sentence for a fallback, else
  * the model's text as paragraphs and lists. The model's text is bound by interpolation and `[href]` only, never as HTML; its
- * links open in a new tab and say so in their names. Nothing here is a live region, and the element takes focus only when the
+ * links open in a new tab and say so in their names, and a labelled link shows the host it opens after its label. Nothing here is a live region, and the element takes focus only when the
  * New messages button sends it there.
  */
 @Component({
@@ -73,7 +73,7 @@ const FALLBACK_KEY = 'conversation.turnFallback';
       @for (run of list; track $index) {
         @if (run.kind === 'link') {
           <a class="link" [href]="run.href" target="_blank" rel="noopener noreferrer"
-            >{{ run.label }}<app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ texts.opensInNewTab }}</span></a
+            >{{ run.label }}@if (run.host) {<span class="host"> ({{ run.host }})</span>}<app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ texts.opensInNewTab }}</span></a
           >
         } @else {
           <span>{{ run.text }}</span>
@@ -100,6 +100,8 @@ const FALLBACK_KEY = 'conversation.turnFallback';
     .mark {
       display: block;
       flex: none;
+      width: var(--chat-message-ocutalon-avatar-size);
+      height: var(--chat-message-ocutalon-avatar-size);
     }
     .name {
       color: var(--ink);
@@ -164,7 +166,8 @@ const FALLBACK_KEY = 'conversation.turnFallback';
 export class OcutalonReply {
   readonly turn = input.required<TurnView>();
   protected readonly texts = CHAT_TEXTS;
-  protected readonly ellipsis = '\u2026';
+  /** The one-character ellipsis that ends "Deciding" and "Working" in CHAT_TEXTS. */
+  protected readonly ellipsis = CHAT_TEXTS.deciding.slice(-1);
 
   /** The indicator while the turn is in progress, with its spoken form and, once past 10 s, the whole seconds. */
   protected readonly indicator = computed(() => {

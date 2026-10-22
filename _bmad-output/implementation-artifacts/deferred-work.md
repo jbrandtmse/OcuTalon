@@ -356,6 +356,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ChatItems reads Ownership.Turns and Ownership.Incidents without a limit, opens each row and exports it; a durable local session only grows (Web/Api.cls ChatItems)
 - 2026-10-22T06:27:39Z status=routed owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=the chat's renderer decides a cap or paging for /state's chat (AD-12's snapshot shape) and a test pins it on a long session
 - 2026-10-22T07:48:43Z occurrence=2-2-keep-the-session-and-load-its-snapshot-with-live-updates
+- 2026-10-22T22:46:30Z status=resolved-by:2-5-chat-with-ocutalon-in-the-page by=adjudication note=Web.Api_CHATMAX_100_newest_entries_via_Ownership_recentTurns/recentIncidents;TestStateChatCapped(103_turns)_and_TestStateChatCappedTies;Task_0:1000_turns_1.38MB->138KB;veto_U-24
 
 ### DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -432,3 +433,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-5-chat-with-ocutalon-in-the-page.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: chat-panel.ts onScroll/scrollToBottom: scrollTop set, a DOM growth over 24 px, then the scroll event measures the geometry; not reproduced in C6/C10 (unverified)
 - 2026-10-22T20:12:26Z status=open owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=code review patches it (e.g. ignore the scroll event the panel caused itself) with a test, or dispositions it with a reason
+- 2026-10-22T22:45:19Z status=resolved-by:2-5-chat-with-ocutalon-in-the-page by=cr note=reproduced by C13 (red on the old rule); onScroll leaves the bottom only on a scroll up; patched with C13
+
+### DW-89: The chat list and the rail scroll on their own with no tab stop, so a keyboard user in Safari cannot scroll them unless a link or button sits inside
+- source: spec-2-5-chat-with-ocutalon-in-the-page.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: chat-panel.ts .list and main-page.ts section.rail: overflow-y auto, no tabindex or name; entries are tabindex=-1; Chromium and Firefox focus a scroller, WebKit does not
+- 2026-10-22T22:18:28Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=2.12 owns WebKit runs and the a11y scan: e.g. tabindex=0 plus aria-labelledby the Chat heading; the rail too

@@ -19,7 +19,7 @@
 #     session is the one that posts messages, so that the turns it makes touch neither the README account's seeded events nor
 #     another spec's snapshot.
 #   - Story 2.5's chat panel (web/e2e/chat/chat.spec.ts): the panel user (OCUTALON_PANEL_USER), whose session the specs send
-#     on and seed turns into (C2 to C7); C1 reads the README account and sends nothing.
+#     on and seed turns into (C2 to C14); C1 reads the README account and sends nothing.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
 # 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat and panel users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
@@ -183,13 +183,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C10: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C14: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C10: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C14: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

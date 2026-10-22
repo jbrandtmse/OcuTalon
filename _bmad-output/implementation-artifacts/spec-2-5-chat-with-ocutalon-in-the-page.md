@@ -443,6 +443,81 @@ Turn on the demo-path page step's chat check. Cap `/state`'s chat at the newest 
 - **The demo path (REL-2, AD-29).** **Given** the demo-path project, **when** step 1 runs, **then** its `@floor` test checks the chat panel and the composer, and the step summary reads `STEP 1 page: partly skipped, 2 passed, 3 skipped (Story 4.7: …)` (`01-page.spec.ts`, `live demo-path`, `playwright-projects.test.mjs`).
 - DW-65: **Given** a session with more than 100 chat entries, **when** `/state` loads, **then** its chat holds the newest 100, oldest first, merged as before. Each new row kind returns none of another session's rows (`TestStateChatCapped`, `TestOrders`, `TestIsolationEveryRowKind`).
 
+### Review Findings
+
+Code review, 2026-10-22. Tier `full-opus` (no `model-overrides.yaml`): blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, each with no model override. The reviewer also read the post-review changes no layer had read: `ChatOutbox.sendCount` and the panel's effect, and C8, C9 and C10. 28 rows after grouping: 13 survive (0 high, 5 medium, 8 low; 12 patch, 1 defer, 0 decision-needed) and 15 are rejected. Every patch is applied (menu option 1).
+
+- [x] [Review][Patch] (medium, Rule 19 hermeticity) The seeds dated 2030-2034 outranked every sent turn in the capped `/state` [web/e2e/chat/chat.spec.ts:118]
+  - A run seeded 101 future-dated entries.
+  - In reverse order, or on a second run, `turnsWith` found nothing: C2's `[0]!` failed and C3's and C4's counts read 0. C5's oldest turn also dropped out.
+  - Fix: every seed is dated 2020-2025, and C5, C12 and C14 hold the newest seeds. C6 goes through `longChat`, and the file header states the rule.
+  - Found by blind-hunter, edge-case-hunter and verification-gap.
+- [x] [Review][Patch] (medium, DW-88) The at-the-bottom flag turned false when content grew between the panel's own scroll and that scroll's event [web/src/app/chat/chat-panel.ts:222]
+  - Fix: `onScroll` leaves the bottom only on a scroll up (scrollTop below the last known position), and `scrollToBottom` records the position it set.
+  - C13 reproduces the race deterministically. Under the old rule it is red: the list stayed 344 px off the bottom.
+  - A first version of the fix did not record the panel's own position. C9 went red once on a coalesced scroll event (the panel's scroll down and the test's scroll up in one frame), and recording the position fixed it.
+- [x] [Review][Patch] (medium, security posture: the lead's veto item) A `[label](url)` link showed only its label, so the label could name another address [web/src/app/chat/reply-text.ts:83]
+  - Fix: the reply shows the destination's host after any label that is neither the address nor its host, for example "the guide (example.org)". A non-ASCII name shows as punycode, and the port is kept.
+  - A bare address shows as itself.
+  - Pinned by `reply-text.test.mjs` and C5.
+- [x] [Review][Patch] (medium) The bubble's text lines were not capped at `chat-text-max` (the panel AC's "text lines capped"; DESIGN:692) [web/src/app/chat/user-message.ts:43]
+  - At 1280 px a long message ran to 725 px, against 681.8 px for 72ch.
+  - Fix: `max-width: min(80%, 72ch + the bubble's padding)`. C5 measures a long message in the bubble's font.
+  - Found by acceptance-auditor.
+- [x] [Review][Defer] (medium) The chat list and the rail scroll with no tab stop, so a keyboard user in Safari cannot scroll them unless a link or button is inside [web/src/app/chat/chat-panel.ts:57]
+  - Deferred: DW-89, `routed owner=2-12-meet-the-accessibility-and-responsive-floor`. The WebKit runs and the accessibility scan are Story 2.12's; Chromium and Firefox make a scroller focusable.
+  - Found by blind-hunter.
+- [x] [Review][Patch] (low) The `keyCode` 229 guard (Safari's committing Enter) was never pinned on its own [web/e2e/chat/chat.spec.ts:325]
+  - Fix: C3 dispatches an `isComposing` Enter and a `keyCode` 229 Enter separately.
+  - Found by verification-gap.
+- [x] [Review][Patch] (low) "After a send the field shrinks" had no assertion [web/e2e/chat/chat.spec.ts:250]
+  - Fix: after a two-line send, C2 compares the field's height with its one-line height.
+  - Found by verification-gap.
+- [x] [Review][Patch] (low) The browser's own hour format was not verified [web/e2e/chat/chat.spec.ts:893]
+  - Every case ran en-US, and the node default-locale test compares the function with itself.
+  - Fix: C14 runs in Europe/Berlin with en-GB and expects "16:11".
+  - Found by verification-gap.
+- [x] [Review][Patch] (low) "Entries span the column" had no assertion [web/e2e/chat/chat.spec.ts:620]
+  - Fix: C6 compares the first entry's width with the column.
+  - `recentIncidents`' isolation now has its own demonstrated mutation (see Verification).
+  - Found by verification-gap.
+- [x] [Review][Patch] (low) `recentIncidents`' instance-incident branch was not asserted [src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls:144]
+  - Fix: `TestInstanceScope` checks `recentincidents` for A, B and C, with onlineDemo off and on.
+  - The tie at the cut is pinned by `TestStateChatCappedTies`.
+  - Found by blind-hunter.
+- [x] [Review][Patch] (low) `quoted()` wrote a character above U+FFFF as `$Char(<code point>)`, which IRIS reads as "" (slot B: `$Length($Char(128512))` = 0) [web/e2e/support/iris.ts:102]
+  - Fix: it writes UTF-16 code units, so the surrogate pair arrives.
+  - The `seedTurns` doc now names `literal()` for the user name.
+  - Found by blind-hunter and edge-case-hunter.
+- [x] [Review][Patch] (low, Rule 14) The ellipsis was a second literal outside `CHAT_TEXTS` [web/src/app/chat/ocutalon-reply.ts:167]
+  - Fix: it is derived from `CHAT_TEXTS.deciding`.
+  - Found by acceptance-auditor.
+- [x] [Review][Patch] (low) The avatar did not use `--chat-message-ocutalon-avatar-size` [web/src/app/chat/ocutalon-reply.ts:100]
+  - Fix: the mark's CSS size is the token.
+  - Found by acceptance-auditor.
+
+**Rejected**
+
+- `false`, acceptance-auditor: "The page's own renderer breaks AD-32 (HIGH)".
+  - The Conventions row "Text OcuTalon sends" already read "Only `*Out` operations (and the page) render, from the catalog classes" before this story (`6de4cb8` and later).
+  - The page renders a reply's fallback, and AD-32 says "Replies are `OcuTalon.Msg.Outbound`", so it is not a Notification.
+  - AD-32's Prevents line (wording drift) holds: the module is generated, with `--check` in the build.
+  - AD-32's own Rule text not naming the page is a spine wording point for the lead (Rule 20).
+- `low`, blind-hunter: an older entry's time shows no date. The spec fixes hour and minute (EXPERIENCE "Times on the page"); adding a date is a UX call, and the fix edits the spec.
+- `low`, edge-case-hunter: a bare link keeps a trailing `*`, quote, backtick or `]`. That is the contract's grammar (repeat of #2).
+- `low`, edge-case-hunter: control-only text answers 400. Covered by Decided 7 and the Residual risks (repeat of #9).
+- `low`, edge-case-hunter: when the newest 100 entries are all incidents, the list is blank. Ruled under U-24 (repeat of #5 and #6).
+- `low`, edge-case-hunter: an event for a turn outside the cap appends it last. That needs 100 newer entries while a turn runs (repeat of #23).
+- `low`, edge-case-hunter: a whitespace-only reply shows the name over nothing. Nothing produces such a reply (`Conversation` concludes with the bridge's `Reply.Text`), and showing no reply would be no better.
+- `false`, edge-case-hunter: a repeated REASONKEYS value. The build fails loudly; it is an author-time case (repeat of #19).
+- `low`, edge-case-hunter: `max` of 0 or less on the new wrappers. Only `CHATMAX` and literals call them (repeat of #8).
+- `low`, edge-case-hunter: `Ownership.Incidents` has no production caller now. The spec keeps it unchanged for Story 6.1's incident readers.
+- `low`, verification-gap: `CHAT_TEXTS.seconds` is unused, and the page speaks "Working · 12 seconds". Boundaries fixes that accessible text, and the constant is listed for Story 2.12 (repeat of #11).
+- `low`, verification-gap: sub-clauses of the ACs have no `mutation:` line. Rule 19 asks for one per AC, and each AC has one (repeat of #43). The two clauses with no assertion at all are patched above.
+- `low`, verification-gap: C1, shell.spec row 8 and the floor test rely on an empty README chat. That is the stack's fresh README session, which no spec writes (repeat of #39).
+- `low`, acceptance-auditor: the working time stays in seconds past a minute. The UX ends the indicator at the 60 s timeout, and a minutes form would be new text.
+- `low`, acceptance-auditor: a 202 with no body shows "Not sent". The server always writes `{clientId}`.
+
 ## Spec Change Log
 
 - 2026-10-22, spec validation (lead):
@@ -740,6 +815,61 @@ Mutations (Rule 19; each applied, red observed, the tree restored byte-identical
 - mutation: the `zap` icon has no path -> C1 (the chip's icon is drawn)
 - mutation: `<app-chat-panel />` rendered whatever the load status -> L5 and L7 (no panel and no composer while loading or failed)
 - mutation: `Msg/Enum.cls` removed from `WEB_INPUT_PATTERN` -> `test-ci-changes.sh` (the message enums run web and every group)
+
+**QA record (stage qa, Rule 19; tag e2s25q).** No test file was created. Changed or added by QA, all marked (QA):
+- `web/e2e/chat/chat.spec.ts` (QA): C1 pins each chip's own icon; C2 pins the bubble's line break, the unboxed reply and that a landed reply takes no focus; C4's silent case pins the bubble and the missing indicator while the post is in flight; C5 pins a paragraph's single line break; C6 pins that an arriving turn moves no focus and that the press goes to the first of two turns that landed in separate polls (its "last message in view" no longer names a seeded turn, so it holds in any order); C8 reads the working time from the page and no longer measures a wall-clock interval; C9 and C6 scroll through `scrollListTo`, which waits for the page's scroll event; C4's silent case, C8 and C10 are `test.slow()`; C11 (new) and C12 (new).
+- `web/e2e/support/iris.ts` (QA): `SeedTurn` gains `catalogKey` and `fallbackReason`.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` (QA): `TestStateChatCappedTies`.
+- `docker/tests/test-sign-in.sh` (QA): the labels name C1-C12.
+
+QA mutations (each applied, red observed, the tree restored byte-identical with `git status --short`, `git diff --stat` and the hash of `git diff` unchanged). The browser mutations ran on the throwaway as five batches of `live sign-in`; each batch put at most one mutation on a test.
+- mutation: `ChatItems` walks a time's rows in ascending ID (`$Order(..., 1, item)`) -> `TestStateChatCappedTies` (slot B); `TestStateChatCapped` stayed green under it
+- mutation: the ignore chip draws the inbox icon -> C1 (ignore has its own icon)
+- mutation: the bubble loses `white-space: pre-wrap` -> C2 (the bubble keeps the line break; `toHaveText` collapses whitespace and stayed green)
+- mutation: the reply gets `background: var(--sunken)` -> C2 (the reply is unboxed)
+- mutation: a reply that lands takes the focus -> C2 (a reply that lands takes no focus)
+- mutation: a post in flight or failed shows the Deciding indicator -> C4 silent case (a post still in flight has no indicator), plus the C4 cases that retry
+- mutation: the reply paragraph loses `white-space: pre-wrap` -> C5 (a single line break stays a line break)
+- mutation: `this.target ??= first` becomes `this.target = first` -> C6 (focuses the first turn that landed, not the later one)
+- mutation: an entry that arrives while the list is scrolled up takes the focus -> C6 (a turn that lands moves no focus)
+- mutation: `ELAPSED_AFTER_MS` is 5 s -> C8 (whole seconds, 10 or more since the page first saw the turn running)
+- mutation: the reply-landed branch of `noteArrivals` removed -> C9 (a reply that lands while scrolled up shows New messages)
+- mutation: `onSent` neither pins nor scrolls -> C9 (Send takes a list that is scrolled up to the bottom)
+- mutation: `onScroll` no longer clears the button at the bottom -> C9 (scrolling to the bottom by hand hides New messages)
+- mutation: the panel's `ResizeObserver` disconnects after its first callback -> C6 (at the bottom, the list follows new content) and C10 (after message 0 the list is at the bottom)
+- mutation: `isFreshChat` is given no outbox in the panel -> C11 (the bubble shows while the post has no answer)
+- mutation: the reply passes no reason to the catalog -> C12 (reason timeout); C2 stayed green, because its stub reason reads as the generic sentence
+- mutation: a catalog key the page does not render is used as it is -> C12 (reason rate_limited)
+
+QA run: `live sign-in` 99 passed (2.4 min of tests, 3.5 min the piece), `live demo-path` printed `STEP 1 page: partly skipped, 2 passed, 3 skipped (Story 4.7: ...)` with `floor 2 of 2 passed`, `Test.Web.Api` 26 of 26 on slot B with no `zz` row left, `npm --prefix web test` 180 passed, `lint`, `build`, `e2e --list` (99) and `e2e:demo-path --list` (13), `bash ci/checks.sh` exit 0; teardown of the tag left nothing.
+
+**Code-review record (stage code-review, tag e2s25r).** Changed or added by the review:
+- `chat.spec.ts`: the seed dates (2020-2025); C2's shrink check; C3's two IME dispatches; C5's long message, its bubble cap and the link's host; C6's column check; C13 (new) and C14 (new).
+- `reply-text.test.mjs`: the hosts.
+- `Test/Data/Ownership.cls`: `TestInstanceScope`'s `recentincidents` checks.
+- `test-sign-in.sh`: labels C1-C14.
+
+Mutations. Each was applied and its red observed, then the tree was restored byte-identical (`git status --short` and the hash of `git diff` unchanged). The browser mutations ran as two batches of `live sign-in`, each after a fresh `build`, with at most one mutation on a test.
+- mutation: `onScroll` sets the flag false whenever the list is away from the bottom (the old rule) -> C13 (the list still follows new content: 344 px off the bottom)
+- mutation: the bubble's `max-width` back to `80%` -> C5 (a long message's lines are no wider than 72ch: 725 against 681.8)
+- mutation: `Composer.send` without `this.grow()` -> C2 (and shrunk from two lines back to one)
+- mutation: the composer's `keyCode === 229` guard dropped -> C3 (the Enter with keyCode 229 alone sent the text)
+- mutation: the composer's `isComposing` guard dropped -> C3 (an Enter with isComposing sends nothing)
+- mutation: `pageTime` defaults to `en-US` -> C14 ("4:11 PM" for "16:11")
+- mutation: the host span removed from a reply link -> C5 (the link named "the guide (example.org) (opens in a new tab)")
+- mutation: `parseRuns` gives every link an empty host -> `reply-text.test.mjs` (2 red)
+- mutation: the first entry 95% wide -> C6 (an entry spans the column); C2 went red incidentally, since its turn is the first entry
+- mutation: `recentIncidents` without its owner check (`? <> '' OR ? = 1 OR ? <> ''`) -> `TestIsolationEveryRowKind` on slot B ("B's recentincidents holds none of A's")
+
+Runs:
+- Slot B: `Test.Data.Ownership` 13 of 13, no fixture row left.
+- Throwaway: `live sign-in` 101 passed on the final bundle, `live demo-path` printed `STEP 1 page: partly skipped, 2 passed, 3 skipped (Story 4.7: ...)` with `floor 2 of 2 passed`, and `shard lane-b` passed 31 classes.
+- Local: `npm --prefix web test` 181 passed; `lint`, `test-web-build.sh` and `ci/checks.sh` exit 0.
+
+Fresh environment (Rule 19):
+- Every seed is dated 2020-2025, and a sent turn is dated now.
+- So after any reload, the newest 100 entries hold every sent turn (about 25 a run) and the seeds of C5, C12 and C14, in either order and on a second run on one stack.
+- `live sign-in` has no order option, so the lead's reverse-order run is the check of this.
 
 ## Auto Run Result
 

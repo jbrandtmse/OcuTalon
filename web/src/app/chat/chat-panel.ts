@@ -41,7 +41,9 @@ const landed = (turn: TurnView): boolean => turn.reply.kind === 'text' || turn.r
  * focus except the New messages button.
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
- * the bottom, new content keeps it there (a ResizeObserver on the list and its content). When it is scrolled up, content from
+ * the bottom, new content keeps it there (a ResizeObserver on the list and its content). It leaves the bottom only when it is
+ * scrolled up (its scrollTop falls), so content that grows between the panel's own scroll to the bottom and that scroll's
+ * event does not stop it following. When it is scrolled up, content from
  * elsewhere (a new entry, or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
  * it scrolls to the bottom with no smooth scroll and focuses the first entry that arrived or changed meanwhile; it hides once
  * the list is at the bottom. A new message that this page sends (ChatOutbox.send, from the composer or later from the demo guide) scrolls the list to the bottom, as the user's own action.
@@ -153,6 +155,8 @@ export class ChatPanel {
   private readonly clock = signal(0);
   /** Whether the list is at the bottom, as of its last scroll or the last time the panel put it there. */
   private atBottom = true;
+  /** The list's scrollTop at its last scroll event, or where the panel last put it: a scroll event below it is a scroll up. */
+  private lastTop = 0;
   /** Whether each turn's reply has landed, as of the last look. */
   private readonly landedBefore = new Map<string, boolean>();
   /** The first entry that arrived or changed while the list was scrolled up. */
@@ -216,11 +220,17 @@ export class ChatPanel {
     });
   }
 
+  /** At the bottom (within 24 px) the list is at the bottom; away from it, it has left the bottom only if it was scrolled up. */
   protected onScroll(): void {
     const list = this.list().nativeElement;
-    this.atBottom = list.scrollHeight - list.scrollTop - list.clientHeight <= BOTTOM_SLACK_PX;
-    if (this.atBottom) {
+    const top = list.scrollTop;
+    const up = top < this.lastTop;
+    this.lastTop = top;
+    if (list.scrollHeight - top - list.clientHeight <= BOTTOM_SLACK_PX) {
+      this.atBottom = true;
       this.seenAll();
+    } else if (up) {
+      this.atBottom = false;
     }
   }
 
@@ -272,5 +282,6 @@ export class ChatPanel {
   private scrollToBottom(): void {
     const list = this.list().nativeElement;
     list.scrollTop = list.scrollHeight;
+    this.lastTop = list.scrollTop;
   }
 }

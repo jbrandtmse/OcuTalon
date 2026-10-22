@@ -85,8 +85,9 @@ export async function publishReminder(user: string): Promise<number> {
 
 /**
  * A string as an ObjectScript expression: runs of printable ASCII are quoted, with each double quote doubled, and every other
- * character (control characters and non-ASCII, by code point) is written with $Char(n), so that no value reaches the script as
- * anything but those two forms. The empty string is "".
+ * character (control characters and non-ASCII) is written with $Char(n) by UTF-16 code unit, so that a character above U+FFFF
+ * reaches IRIS as its surrogate pair (IRIS's $Char of such a code point is empty) and no value reaches the script as anything
+ * but those two forms. The empty string is "".
  */
 export function quoted(value: string): string {
   const parts: string[] = [];
@@ -98,11 +99,11 @@ export function quoted(value: string): string {
     ascii = '';
     codes = [];
   };
-  for (const char of value) {
-    const code = char.codePointAt(0) as number;
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
     if (code >= 0x20 && code <= 0x7e) {
       if (codes.length > 0) flush();
-      ascii += char === '"' ? '""' : char;
+      ascii += code === 0x22 ? '""' : value.charAt(i);
     } else {
       if (ascii !== '') flush();
       codes.push(code);
@@ -112,13 +113,19 @@ export function quoted(value: string): string {
   return parts.length > 0 ? parts.join('_') : '""';
 }
 
-/** A done turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. */
+/**
+ * A done turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. A fallback
+ * reply carries the catalog key the server answered with and its reason (Turn.ReplyCatalogKey and Turn.FallbackReason); both
+ * are empty for a reply of the model's own words.
+ */
 export interface SeedTurn {
   createdAt: string;
   text: string;
   replyText: string;
   channel?: string;
   fromGuide?: boolean;
+  catalogKey?: string;
+  fallbackReason?: string;
 }
 
 /** What seedTurns made: the Ref of each turn, and with publishing the Seq of its chat.message event, in the order given. */
@@ -130,7 +137,8 @@ export interface Seeded {
 /**
  * Writes done turns into the user's own session (Session.ForUser), each with a new Ref and ItemId. With publish, each row's
  * chat.message event (ChatMessage.FromRow) is then published on the session stream, after its save, the way the production's
- * one publisher would (AD-33); without it the turns appear on the next /state. Every value goes through quoted().
+ * one publisher would (AD-33); without it the turns appear on the next /state. Every value of a turn goes through quoted(),
+ * and the user name through literal().
  */
 export async function seedTurns(user: string, turns: SeedTurn[], publish = false): Promise<Seeded> {
   const lines = [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`];
@@ -146,6 +154,8 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
       `Set t.FromGuide=${turn.fromGuide ? 1 : 0}`,
       `Set t.Text=${quoted(turn.text)}`,
       `Set t.ReplyText=${quoted(turn.replyText)}`,
+      `Set t.ReplyCatalogKey=${quoted(turn.catalogKey ?? '')}`,
+      `Set t.FallbackReason=${quoted(turn.fallbackReason ?? '')}`,
       'Set sc=t.%Save()',
       `Write !,"CHK|ref|${i}|",t.Ref,"|",$System.Status.IsOK(sc)`,
     );

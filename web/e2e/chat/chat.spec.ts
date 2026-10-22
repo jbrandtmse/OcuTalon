@@ -4,11 +4,15 @@ import { signIn, signInReadme, watchViolations } from '../sign-in/helpers';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
 
 /**
- * Story 2.5, the chat panel (C1 to C7), in a real browser against a real stack. C1 reads the README account and sends nothing;
+ * Story 2.5, the chat panel (C1 to C14), in a real browser against a real stack. C1 reads the README account and sends nothing;
  * every other case signs in as the panel fixture user that test-sign-in.sh created (OCUTALON_PANEL_USER) and sends or seeds on
  * its own session, so that no spec publishes on the README session or the instance stream (api.spec pins their counts) or
  * touches the chat user's chat. Each case asserts only on the clientIds and refs it made. The browser runs in Asia/Kolkata with
- * the en-US locale, so a time is the same wherever the specs run.
+ * the en-US locale (C14 in Europe/Berlin with en-GB), so a time is the same wherever the specs run.
+ *
+ * /state's chat holds only the session's newest 100 entries, so every seeded turn is dated in the past (2020 to 2025): a turn
+ * that a case sends (dated now) is always among the newest, and the cases that reload to read their own seeded turns (C5, C12,
+ * C14) seed the newest of the past dates. That holds in any order of the cases and on a stack that ran them before.
  */
 const STATE = '/ocutalon/api/v1/state';
 const EVENTS = /\/ocutalon\/api\/v1\/events\?/;
@@ -135,6 +139,23 @@ function tokenColor(page: Page, token: string): Promise<string> {
 /** The distance in px between the bottom of the list's content and the bottom of its view. */
 const fromBottom = (list: Locator): Promise<number> => list.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
 
+/**
+ * Scrolls the list to its top or its bottom, as the user would, and returns once the page has delivered the scroll event: the
+ * event fires in the rendering step that precedes the animation-frame callbacks of the same frame, so the panel has measured
+ * the new position by then. A test that changes the page's content next acts on a list the panel knows is scrolled, on a host
+ * of any speed.
+ */
+async function scrollListTo(list: Locator, where: 'top' | 'bottom'): Promise<void> {
+  await list.evaluate(
+    (el, target) =>
+      new Promise<void>((resolve) => {
+        el.scrollTop = target === 'top' ? 0 : el.scrollHeight;
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+    where,
+  );
+}
+
 /** C1: a fresh session shows the empty chat panel and the composer; nothing in main is a live region; the page sends script-src 'self'. */
 test('C1: the empty chat panel, the composer, no live region and the page policy', async ({ page }) => {
   const violations = watchViolations(page);
@@ -159,10 +180,18 @@ test('C1: the empty chat panel, the composer, no live region and the page policy
     'Needs you now',
     'OcuTalon took or requested an action',
   ]);
+  /** One stroke that only that outcome's Lucide icon draws: eye-off, inbox, bell-ring and zap. */
+  const ICON_STROKE: Record<string, string> = {
+    ignore: 'path[d="m2 2 20 20"]',
+    digest: 'polyline[points="22 12 16 12 14 15 10 15 8 12 2 12"]',
+    'tell-now': 'path[d="M10.268 21a2 2 0 0 0 3.464 0"]',
+    act: 'path[d^="M4 14a1 1 0 0 1-.78-1.63"]',
+  };
   for (const [i, outcome] of ['ignore', 'digest', 'tell-now', 'act'].entries()) {
     const chip = chips.nth(i).locator('.chip');
     await expect(chip.locator('svg[aria-hidden="true"]'), `${outcome} has its icon, hidden from assistive technology`).toHaveCount(1);
     expect(await chip.locator('svg path, svg polyline').count(), `${outcome}'s icon is drawn`).toBeGreaterThan(0);
+    await expect(chip.locator(ICON_STROKE[outcome]!), `${outcome} has its own icon, not another outcome's`).toHaveCount(1);
     await expect(chip).toHaveCSS('background-color', await tokenColor(page, `--outcome-chip-${outcome}-background`));
     await expect(chip).toHaveCSS('color', await tokenColor(page, `--outcome-chip-${outcome}-foreground`));
     await expect(chip, `${outcome} is not focusable`).not.toHaveAttribute('tabindex', /.*/);
@@ -212,6 +241,7 @@ test('C2: Enter sends, and the turn shows Deciding, Working and then the fallbac
   await oneEventPerPoll(page);
   const field = await open(page);
   const mark = await page.evaluate(() => (window as unknown as { replyLog: string[] }).replyLog.length);
+  const oneLine = await field.evaluate((el) => el.clientHeight);
 
   const text = unique('C2');
   const { posted, status } = await sendWithEnter(page, field, `  ${text}\nsecond line  `);
@@ -222,9 +252,12 @@ test('C2: Enter sends, and the turn shows Deciding, Working and then the fallbac
   expect(posted.fromGuide).toBe(false);
   await expect(field, 'the field is empty').toHaveValue('');
   await expect(field, 'and focused').toBeFocused();
+  await expect.poll(() => field.evaluate((el, height) => Math.abs(el.clientHeight - height), oneLine), { message: 'and shrunk from two lines back to one' }).toBeLessThanOrEqual(1);
 
   const bubble = userOf(page, posted.clientId).locator('.bubble');
   await expect(bubble).toHaveText(`${text}\nsecond line`);
+  // toHaveText collapses whitespace, so the line break is read as the page draws it: innerText follows white-space.
+  await expect.poll(() => bubble.evaluate((el) => (el as HTMLElement).innerText), { message: 'the bubble keeps the line break of the text' }).toBe(`${text}\nsecond line`);
   await expect(bubble).toHaveCSS('background-color', await tokenColor(page, '--sunken'));
   const list = page.locator('app-chat-panel > .list');
   const bubbleBox = (await bubble.boundingBox())!;
@@ -237,6 +270,9 @@ test('C2: Enter sends, and the turn shows Deciding, Working and then the fallbac
   await expect.poll(() => page.evaluate((from) => (window as unknown as { replyLog: string[] }).replyLog.slice(from), mark), { timeout: 20_000 }).toEqual([DECIDING, WORKING, FALLBACK]);
   const reply = replyOf(page, posted.clientId);
   await expect(reply.locator('.text')).toHaveText(FALLBACK);
+  await expect(field, 'a reply that lands takes no focus').toBeFocused();
+  await expect(reply, 'the reply is unboxed: no background').toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(reply, 'and no border').toHaveCSS('border-top-width', '0px');
   const head = reply.locator('.head');
   const avatar = head.locator('img.mark');
   await expect(avatar).toHaveAttribute('alt', '');
@@ -289,7 +325,10 @@ test('C3: Shift+Enter, growth to 5 lines, the name, and a second message mid-tur
   await field.press('Enter');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   await field.fill('composing');
-  await field.dispatchEvent('keydown', { key: 'Enter', keyCode: 229, isComposing: true, bubbles: true, cancelable: true });
+  // The two signs of an open composition, one at a time: isComposing, and keyCode 229, which Safari's committing Enter carries alone.
+  await field.dispatchEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true });
+  expect(posts(), 'an Enter with isComposing sends nothing').toEqual([]);
+  await field.dispatchEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true });
   expect(posts(), 'empty text, space-only text and Enter during an IME composition send nothing').toEqual([]);
   expect(await field.inputValue(), 'and the IME text stays in the field').toBe('composing');
   await field.fill('');
@@ -414,6 +453,7 @@ test.describe('C4: a failed send', () => {
   });
 
   test('a post that is never answered gives Not sent after 10 seconds', async ({ page }) => {
+    test.slow(); // the page's own 10 s, then the retry's turn: the 45 s of a quick host is too little for a slow one
     const field = await open(page);
     const posts = watchPosts(page);
     const stuck: Route[] = [];
@@ -432,6 +472,8 @@ test.describe('C4: a failed send', () => {
     await field.press('Enter');
     await expect.poll(() => posts().length).toBe(1);
     const clientId = posts()[0]!.clientId;
+    await expect(userOf(page, clientId).locator('.bubble'), 'the bubble shows at once, before any answer').toHaveText(text);
+    await expect(replyOf(page, clientId), 'a post still in flight has no indicator').toHaveCount(0);
     await expect(userOf(page, clientId).locator('.failed')).toHaveCount(0);
     await expect(userOf(page, clientId).locator('.failed'), 'Not sent after the 10 s limit').toHaveText('Not sent', { timeout: 15_000 });
     expect(Date.now() - sentAt, 'and not before it').toBeGreaterThanOrEqual(9_500);
@@ -486,9 +528,10 @@ test('C5: seeded turns in CreatedAt order, with captions, lists, links and text 
     long,
   ].join('\n');
   const turns: SeedTurn[] = [
-    { createdAt: '2030-01-01T10:03:00Z', text: `zz C5 ${stamp} third`, replyText: blocks },
-    { createdAt: '2030-01-01T10:01:00Z', text: `zz C5 ${stamp} first`, replyText: 'Sent from Telegram.', channel: 'telegram' },
-    { createdAt: '2030-01-01T10:02:00Z', text: `zz C5 ${stamp} second`, replyText: 'Sent from the guide.', fromGuide: true },
+    { createdAt: '2025-06-01T10:03:00Z', text: `zz C5 ${stamp} third`, replyText: blocks },
+    { createdAt: '2025-06-01T10:01:00Z', text: `zz C5 ${stamp} first`, replyText: 'Sent from Telegram.', channel: 'telegram' },
+    { createdAt: '2025-06-01T10:02:00Z', text: `zz C5 ${stamp} second`, replyText: 'Sent from the guide.', fromGuide: true },
+    { createdAt: '2025-06-01T10:04:00Z', text: `zz C5 ${stamp} long ${long}`, replyText: 'A reply to a long message.' },
   ];
   await open(page);
   const { user } = fixtureUser('PANEL');
@@ -497,15 +540,37 @@ test('C5: seeded turns in CreatedAt order, with captions, lists, links and text 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   const bubbles = page.locator('app-chat-panel .bubble').filter({ hasText: `zz C5 ${stamp}` });
-  await expect(bubbles, 'the turns are in CreatedAt order, not the order they were written').toHaveText([`zz C5 ${stamp} first`, `zz C5 ${stamp} second`, `zz C5 ${stamp} third`]);
-  const [thirdRef, firstRef, secondRef] = seeded.refs as [string, string, string];
-  expect(plain(await userOf(page, firstRef).locator('.when').textContent())).toBe(`via Telegram \u00B7 ${clock('2030-01-01T10:01:00Z')}`);
-  expect(plain(await userOf(page, secondRef).locator('.when').textContent())).toBe(`From the demo guide \u00B7 ${clock('2030-01-01T10:02:00Z')}`);
-  expect(plain(await userOf(page, thirdRef).locator('.when').textContent()), 'a web turn has no caption').toBe(clock('2030-01-01T10:03:00Z'));
+  await expect(bubbles, 'the turns are in CreatedAt order, not the order they were written').toHaveText([
+    `zz C5 ${stamp} first`,
+    `zz C5 ${stamp} second`,
+    `zz C5 ${stamp} third`,
+    `zz C5 ${stamp} long ${long}`,
+  ]);
+  const [thirdRef, firstRef, secondRef, longRef] = seeded.refs as [string, string, string, string];
+  expect(plain(await userOf(page, firstRef).locator('.when').textContent())).toBe(`via Telegram \u00B7 ${clock('2025-06-01T10:01:00Z')}`);
+  expect(plain(await userOf(page, secondRef).locator('.when').textContent())).toBe(`From the demo guide \u00B7 ${clock('2025-06-01T10:02:00Z')}`);
+  expect(plain(await userOf(page, thirdRef).locator('.when').textContent()), 'a web turn has no caption').toBe(clock('2025-06-01T10:03:00Z'));
+  const bubbleText = await userOf(page, longRef)
+    .locator('.bubble')
+    .evaluate((el) => {
+      const style = getComputedStyle(el);
+      const probe = document.createElement('div');
+      probe.style.width = 'var(--chat-panel-text-max)';
+      el.append(probe);
+      const max = probe.getBoundingClientRect().width;
+      probe.remove();
+      return { width: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight), max };
+    });
+  expect(bubbleText.width, "a long message's lines are no wider than 72ch in the bubble's font").toBeLessThanOrEqual(bubbleText.max + 0.5);
+  expect(bubbleText.width, 'and reach it').toBeGreaterThan(bubbleText.max * 0.9);
 
   const reply = replyOf(page, thirdRef);
   const body = reply.locator('.text');
   await expect(body.locator('p.para'), 'two paragraphs and the long one').toHaveCount(3);
+  // toHaveText collapses whitespace, so the line break is read as the page draws it: innerText follows white-space.
+  await expect
+    .poll(() => body.locator('p.para').first().evaluate((el) => (el as HTMLElement).innerText), { message: 'a single line break inside a paragraph stays a line break' })
+    .toMatch(/\.\nSecond line of the same paragraph\.$/);
   await expect(body.locator('ul > li')).toHaveText(['bullet one', 'bullet two']);
   await expect(body.locator('ol > li')).toHaveText(['step one', 'step two']);
   const links = body.locator('a.link');
@@ -518,8 +583,11 @@ test('C5: seeded turns in CreatedAt order, with captions, lists, links and text 
     await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
   }
   await expect(body.getByRole('link', { name: /\(opens in a new tab\)$/ })).toHaveCount(2);
-  await expect(body.getByRole('link', { name: 'the guide (opens in a new tab)' })).toHaveCount(1);
+  await expect(body.getByRole('link', { name: 'the guide (example.org) (opens in a new tab)' })).toHaveCount(1);
+  await expect(links.nth(1).locator('.host'), 'a labelled link shows the host it opens after its label').toHaveText('(example.org)');
+  await expect(links.nth(1).locator('.host')).toBeVisible();
   await expect(body.getByRole('link', { name: 'https://example.com/docs (opens in a new tab)' })).toHaveCount(1);
+  await expect(links.first().locator('.host'), 'a bare address names itself').toHaveCount(0);
   await expect(body, 'a javascript: link and HTML-like text show as text').toContainText('[bad](javascript:window.__pwned=1)');
   await expect(body).toContainText('<b>x</b><img src=x onerror="window.__pwned=1">');
   await expect(body.locator('b, img, script'), 'with no element made from them').toHaveCount(0);
@@ -545,31 +613,33 @@ test('C5: seeded turns in CreatedAt order, with captions, lists, links and text 
 test('C6: scrolled up, a new turn leaves the list where it is and New messages takes you to it', async ({ page }) => {
   const field = await open(page);
   const { user } = fixtureUser('PANEL');
-  const stamp = Date.now().toString(36);
-  const many: SeedTurn[] = Array.from({ length: 30 }, (_unused, i) => ({
-    createdAt: `2031-01-01T10:${String(10 + i).padStart(2, '0')}:00Z`,
-    text: `zz C6 ${stamp} message ${i}`,
-    replyText: `Reply ${i} to message ${i}.\nIt has a second line so that the list is tall.`,
-  }));
-  await seedTurns(user, many);
-  await page.reload();
-  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
-  const list = page.locator('app-chat-panel > .list');
-  await expect.poll(() => fromBottom(list), { message: 'the list starts at the bottom' }).toBeLessThanOrEqual(24);
-  await expect(page.locator('app-chat-panel .bubble').filter({ hasText: `message 29` }).last()).toBeInViewport();
+  const { list, stamp } = await longChat(page, 2021, 'C6');
+  await expect(page.locator('app-chat-panel [data-part="user"]').last(), 'the last message is in view').toBeInViewport();
   await expect(page.getByRole('button', { name: 'New messages' })).toHaveCount(0);
+  const column = await page.locator('app-chat-panel .entries').evaluate((el) => {
+    const style = getComputedStyle(el);
+    return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  });
+  expect(Math.abs((await page.locator('app-chat-panel .turn').first().boundingBox())!.width - column), 'an entry spans the column').toBeLessThanOrEqual(1);
 
-  await list.evaluate((el) => (el.scrollTop = 0));
-  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
+  await scrollListTo(list, 'top');
+  expect(await list.evaluate((el) => el.scrollTop), 'the list is at the top').toBe(0);
   const firstBubble = page.locator('app-chat-panel [data-part="user"] .bubble').first();
   const before = (await firstBubble.boundingBox())!;
 
-  const published = await seedTurns(user, [{ createdAt: '2031-02-01T10:00:00Z', text: `zz C6 ${stamp} published`, replyText: 'A reply that lands while the list is scrolled up.' }], true);
+  const published = await seedTurns(user, [{ createdAt: '2021-02-01T10:00:00Z', text: `zz C6 ${stamp} published`, replyText: 'A reply that lands while the list is scrolled up.' }], true);
   const ref = published.refs[0]!;
   await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(published.seqs[0]), { timeout: 2000 });
   await expect(userOf(page, ref), 'the turn is in the list').toHaveCount(1);
   expect(await list.evaluate((el) => el.scrollTop), 'scrollTop did not change').toBe(0);
   expect((await firstBubble.boundingBox())!, 'nor did the first visible entry move').toEqual(before);
+  expect(await page.evaluate(() => document.activeElement === document.body), 'a turn that lands moves no focus').toBe(true);
+
+  // A second turn lands in a later poll: the press must still go to the first one that landed, not to the latest.
+  const later = await seedTurns(user, [{ createdAt: '2021-02-01T10:01:00Z', text: `zz C6 ${stamp} later`, replyText: 'A second reply that lands while the list is scrolled up.' }], true);
+  await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(later.seqs[0]), { timeout: 5000 });
+  await expect(userOf(page, later.refs[0]!), 'the second turn is in the list').toHaveCount(1);
+  expect(await list.evaluate((el) => el.scrollTop), 'still at the top').toBe(0);
 
   const button = page.getByRole('button', { name: 'New messages' });
   await expect(button).toBeVisible();
@@ -586,10 +656,10 @@ test('C6: scrolled up, a new turn leaves the list where it is and New messages t
 
   await page.keyboard.press('Enter');
   await expect.poll(() => fromBottom(list), { message: 'pressing it puts the list at the bottom' }).toBeLessThanOrEqual(24);
-  await expect(userOf(page, ref), "and focuses the new turn's element").toBeFocused();
+  await expect(userOf(page, ref), "and focuses the first turn that landed, not the later one").toBeFocused();
   await expect(button).toHaveCount(0);
 
-  const followed = await seedTurns(user, [{ createdAt: '2031-02-02T10:00:00Z', text: `zz C6 ${stamp} followed`, replyText: 'A reply that lands while the list is at the bottom.' }], true);
+  const followed = await seedTurns(user, [{ createdAt: '2021-02-02T10:00:00Z', text: `zz C6 ${stamp} followed`, replyText: 'A reply that lands while the list is at the bottom.' }], true);
   await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(followed.seqs[0]), { timeout: 2000 });
   await expect(userOf(page, followed.refs[0]!), 'the turn is in the list').toHaveCount(1);
   await expect.poll(() => fromBottom(list), { message: 'at the bottom, the list follows new content' }).toBeLessThanOrEqual(24);
@@ -615,8 +685,14 @@ test('C7: the indicator\'s dots have no animation under reduced motion', async (
   await expect(replyOf(page, sent.posted.clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
 });
 
-/** C8: a turn that stays running shows "Working \u00B7 N s" after 10 seconds, with the whole spoken form, and the indicator is no live region. */
+/**
+ * C8: a turn that stays running shows "Working \u00B7 N s" after 10 seconds, with the whole spoken form, and the indicator is no
+ * live region. The 10 s are the page's own, counted from when it first saw the turn running, so the test waits for the text and
+ * reads N from it: a threshold that is too low shows N under 10, one that is too high misses the 20 s wait. It measures no
+ * wall-clock interval of its own, which a slow host would stretch between the page's clock and the test's first look.
+ */
 test('C8: after 10 seconds the working indicator adds the elapsed seconds, spoken in full', async ({ page }) => {
+  test.slow(); // the turn's own stages, then the page's 10 s: the 45 s of a quick host is too little for a slow one
   await page.route(EVENTS, async (route: Route) => {
     const response = await route.fetch();
     const body = (await response.json()) as { events: Array<{ type: string; payload?: { state?: string } }> };
@@ -628,16 +704,15 @@ test('C8: after 10 seconds the working indicator adds the elapsed seconds, spoke
   expect(sent.status).toBe(202);
   const indicator = replyOf(page, sent.posted.clientId).locator('.indicator');
   await expect(indicator, 'the running turn shows Working').toHaveText(WORKING, { timeout: 20_000 });
-  const startedAt = Date.now();
+  await expect(indicator.locator('[aria-hidden="true"]'), 'before 10 seconds there is no working time').toHaveCount(0);
 
   await expect(indicator.locator('[aria-hidden="true"]'), 'after 10 seconds the working time shows').toHaveText(/^Working \u00B7 \d+ s$/, { timeout: 20_000 });
-  expect(Date.now() - startedAt, 'and not before 10 s since the page saw the turn running').toBeGreaterThanOrEqual(8_000);
   const shown = await indicator.evaluate((el) => ({
     visible: el.querySelector('[aria-hidden="true"]')?.textContent?.trim() ?? '',
     spoken: el.querySelector('.visually-hidden')?.textContent?.trim() ?? '',
   }));
   const seconds = /^Working \u00B7 (\d+) s$/.exec(shown.visible)?.[1];
-  expect(Number(seconds), 'whole seconds, 10 or more').toBeGreaterThanOrEqual(10);
+  expect(Number(seconds), 'whole seconds, 10 or more since the page first saw the turn running').toBeGreaterThanOrEqual(10);
   expect(shown.spoken, 'spoken as seconds').toBe(`Working \u00B7 ${seconds} seconds`);
   await expect(page.getByRole('main').locator(LIVE_REGIONS), 'the working time is no live region').toHaveCount(0);
 });
@@ -663,19 +738,17 @@ async function longChat(page: Page, year: number, label: string): Promise<{ list
 test('C9: scrolled up, a reply that lands shows New messages, Send goes to the bottom and scrolling down hides the button', async ({ page }) => {
   const field = await open(page);
   const { user } = fixtureUser('PANEL');
-  const { list, stamp } = await longChat(page, 2032, 'C9');
+  const { list, stamp } = await longChat(page, 2022, 'C9');
   const button = page.getByRole('button', { name: 'New messages' });
 
-  await list.evaluate((el) => (el.scrollTop = 0));
-  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
+  await scrollListTo(list, 'top');
   const hold = await holdEvents(page);
   const sent = await sendWithEnter(page, field, unique('C9'));
   expect(sent.status).toBe(202);
   await expect.poll(() => fromBottom(list), { message: 'Send takes a list that is scrolled up to the bottom' }).toBeLessThanOrEqual(24);
   await expect(button, 'the user\u2019s own message needs no button').toHaveCount(0);
 
-  await list.evaluate((el) => (el.scrollTop = 0));
-  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
+  await scrollListTo(list, 'top');
   const firstBubble = page.locator('app-chat-panel [data-part="user"] .bubble').first();
   const before = (await firstBubble.boundingBox())!;
   hold.release();
@@ -689,19 +762,19 @@ test('C9: scrolled up, a reply that lands shows New messages, Send goes to the b
   await expect(replyOf(page, sent.posted.clientId), 'the press focuses the reply that landed').toBeFocused();
   await expect(button).toHaveCount(0);
 
-  await list.evaluate((el) => (el.scrollTop = 0));
-  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBe(0);
-  const published = await seedTurns(user, [{ createdAt: '2032-02-01T10:00:00Z', text: `zz C9 ${stamp} published`, replyText: 'A reply that lands while the list is scrolled up.' }], true);
+  await scrollListTo(list, 'top');
+  const published = await seedTurns(user, [{ createdAt: '2022-02-01T10:00:00Z', text: `zz C9 ${stamp} published`, replyText: 'A reply that lands while the list is scrolled up.' }], true);
   await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(published.seqs[0]), { timeout: 5000 });
   await expect(button).toBeVisible();
-  await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await scrollListTo(list, 'bottom');
   await expect(button, 'scrolling to the bottom by hand hides New messages').toHaveCount(0);
 });
 
 /** C10: in a long chat the list is still at the bottom after each of several sends and their replies. */
 test('C10: in a long chat the list stays at the bottom through several sends and their replies', async ({ page }) => {
+  test.slow(); // eight turns one after the other: the 45 s of a quick host is too little for a slow one
   const field = await open(page);
-  const { list } = await longChat(page, 2033, 'C10');
+  const { list } = await longChat(page, 2023, 'C10');
   for (let i = 0; i < 8; i += 1) {
     const sent = await sendWithEnter(page, field, unique(`C10 ${i}`));
     expect(sent.status).toBe(202);
@@ -710,4 +783,122 @@ test('C10: in a long chat the list stays at the bottom through several sends and
     await expect(replyOf(page, sent.posted.clientId), `and the reply of message ${i} is in view`).toBeInViewport();
   }
   await expect(page.getByRole('button', { name: 'New messages' }), 'the list was never left behind').toHaveCount(0);
+});
+
+/** C11: in a fresh chat the first message replaces the empty chat panel at once, before the server has answered its post. */
+test('C11: the first message replaces the empty chat panel at once, before the server answers', async ({ page }) => {
+  // The snapshot is cut to an empty chat, so the case does not depend on what other cases left on the panel user's session.
+  await page.route(`**${STATE}`, async (route: Route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Json;
+    await route.fulfill({ response, json: { ...body, chat: [] } });
+  });
+  const stuck: Route[] = [];
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    stuck.push(route);
+  });
+  const field = await open(page);
+  const posts = watchPosts(page);
+  const empty = page.locator('app-chat-panel app-empty-chat');
+  await expect(empty, 'a snapshot with no chat shows the empty chat panel').toHaveCount(1);
+  await expect(page.locator('app-chat-panel [data-part="user"]')).toHaveCount(0);
+
+  const text = unique('C11');
+  await field.fill(text);
+  await field.press('Enter');
+  await expect.poll(() => posts().length).toBe(1);
+  const clientId = posts()[0]!.clientId;
+  await expect(userOf(page, clientId).locator('.bubble'), 'the bubble shows while the post has no answer').toHaveText(text);
+  await expect(empty, 'and has replaced the empty chat panel').toHaveCount(0);
+  await expect(replyOf(page, clientId), 'a post in flight has no indicator').toHaveCount(0);
+  await expect(userOf(page, clientId).locator('.failed')).toHaveCount(0);
+
+  expect(stuck, 'the post is held, not answered').toHaveLength(1);
+  await stuck[0]!.continue();
+  await expect(replyOf(page, clientId).locator('.text'), 'the answered post gets its turn and reply').toHaveText(FALLBACK, { timeout: 20_000 });
+  await expect(empty, 'the empty chat panel does not come back').toHaveCount(0);
+  await expect(userOf(page, clientId), 'one bubble').toHaveCount(1);
+});
+
+/**
+ * C12: a fallback reply reads in the words of its own reason. C2's stub model answers every turn with the reason that the
+ * generic sentence names, so only a seeded turn can show that the page passes the turn's reason to the catalog: a reason of its
+ * own reads as that reason, a catalog key the page does not render reads as the turn fallback with the turn's own reason, and a
+ * reason outside the 12 reads as the generic one.
+ */
+test('C12: a fallback reply names its own reason, and an unknown reason reads as the generic one', async ({ page }) => {
+  const stamp = Date.now().toString(36);
+  const sentence = (reason: string): string => `I couldn't answer that: ${reason}. Nothing was changed.`;
+  const cases = [
+    { reason: 'timeout', key: 'conversation.turnFallback', words: "the model didn't answer within 60 seconds" },
+    { reason: 'no_key', key: 'conversation.turnFallback', words: 'no model key is set' },
+    { reason: 'rate_limited', key: 'conversation.dailyCap', words: 'the model was busy and retries ran out' },
+    { reason: 'not_a_reason', key: 'conversation.turnFallback', words: "the model's reply couldn't be used" },
+  ];
+  const turns: SeedTurn[] = cases.map((entry, i) => ({
+    createdAt: `2025-01-01T10:0${i + 1}:00Z`,
+    text: `zz C12 ${stamp} ${entry.reason}`,
+    replyText: '',
+    catalogKey: entry.key,
+    fallbackReason: entry.reason,
+  }));
+  await open(page);
+  const { user } = fixtureUser('PANEL');
+  const seeded = await seedTurns(user, turns);
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  for (const [i, entry] of cases.entries()) {
+    await expect(replyOf(page, seeded.refs[i]!).locator('.text'), `reason ${entry.reason}`).toHaveText(sentence(entry.words));
+  }
+});
+
+/**
+ * C13: at the bottom, the list keeps following new content when more content lands between the panel's own scroll to the
+ * bottom and that scroll's event. A ResizeObserver of the test's own, which runs after the panel's in the same frame, adds
+ * 200 px under the content once the panel has scrolled for a landed turn, so the scroll event then measures a list 200 px off
+ * the bottom; that is content growing, not the user scrolling up, so the next turn must still be followed, with no button.
+ */
+test('C13: at the bottom, the list follows new content that grows between its own scroll and that scroll\'s event', async ({ page }) => {
+  await open(page);
+  const { user } = fixtureUser('PANEL');
+  const { list, stamp } = await longChat(page, 2020, 'C13');
+  await list.evaluate((el) => {
+    const content = el.querySelector('.content') as HTMLElement;
+    const height = content.getBoundingClientRect().height;
+    const observer = new ResizeObserver(() => {
+      if (content.getBoundingClientRect().height === height) return;
+      observer.disconnect();
+      const spacer = document.createElement('div');
+      spacer.style.height = '200px';
+      spacer.style.flex = 'none';
+      el.append(spacer);
+      (window as unknown as { grownAt?: number }).grownAt = el.scrollTop;
+    });
+    observer.observe(content);
+  });
+  const first = await seedTurns(user, [{ createdAt: '2020-02-01T10:00:00Z', text: `zz C13 ${stamp} first`, replyText: 'A reply that lands at the bottom.' }], true);
+  await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(first.seqs[0]), { timeout: 5000 });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { grownAt?: number }).grownAt !== undefined), { message: 'the content grew right after the panel scrolled' }).toBe(true);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+
+  const second = await seedTurns(user, [{ createdAt: '2020-02-01T10:01:00Z', text: `zz C13 ${stamp} second`, replyText: 'A second reply that lands at the bottom.' }], true);
+  await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(second.seqs[0]), { timeout: 5000 });
+  await expect(userOf(page, second.refs[0]!), 'the turn is in the list').toHaveCount(1);
+  await expect.poll(() => fromBottom(list), { message: 'the list still follows new content' }).toBeLessThanOrEqual(24);
+  await expect(page.getByRole('button', { name: 'New messages' }), 'and New messages does not show').toHaveCount(0);
+});
+
+/** C14: the time under a message follows the browser's zone and hour format: in Berlin with en-GB it is a 24-hour time. */
+test.describe('C14: another zone and locale', () => {
+  test.use({ timezoneId: 'Europe/Berlin', locale: 'en-GB' });
+
+  test('C14: the time under a message is in the browser\'s zone and hour format', async ({ page }) => {
+    const stamp = Date.now().toString(36);
+    await open(page);
+    const { user } = fixtureUser('PANEL');
+    const seeded = await seedTurns(user, [{ createdAt: '2025-05-01T14:11:00Z', text: `zz C14 ${stamp}`, replyText: 'A reply.' }]);
+    await page.reload();
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(userOf(page, seeded.refs[0]!).locator('.when'), '14:11 UTC is 16:11 in Berlin summer time, as a 24-hour time').toHaveText('16:11');
+  });
 });
