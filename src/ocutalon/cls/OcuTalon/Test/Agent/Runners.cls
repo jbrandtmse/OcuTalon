@@ -317,12 +317,10 @@ Method TestSeedsOfTheProduction()
 
 /// --- helpers ---
 /// 1 when OcuTalon.Production runs, every item of it has its job (the wait is a poll, up to RunnerFixture.WAITSECONDS), and the
-/// environment is the CI override's (Test.Agent.RunnerFixture.GuardReason). Otherwise the test fails with the reason, and quits.
+/// environment is the CI override's (Test.Agent.RunnerFixture.ReadyReason). Otherwise the test fails with the reason, and quits.
 Method Ready() As %Boolean [ Private ]
 {
-	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
-	If reason = "" Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).GuardReason()
-	If (reason = "") && '##class(OcuTalon.Test.Agent.RunnerFixture).WaitAllRun() Set reason = "not every item of "_..#PRODUCTION_" runs "_##class(OcuTalon.Test.Agent.RunnerFixture).#WAITSECONDS_" seconds after the test began: "_##class(OcuTalon.Install.Step.Production).NotRunning()
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
 	If reason = "" Quit 1
 	Do $$$AssertTrue(0, reason)
 	Quit 0

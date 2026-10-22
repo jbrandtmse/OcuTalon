@@ -1,5 +1,7 @@
-# CI of Lane A (AD-29; Story 0.7): the standalone-bridge job runs on the self-hosted IRIS runner, behind the fork guard, and is
-# empty until Story 1.3 fills it. The evaluation job of Epic 9 joins this file. The rules of docker/tests/test-ci-config.sh apply.
+# CI of Lane A (AD-29; Story 0.7, Story 1.3): the standalone-bridge job runs on the self-hosted IRIS runner, behind the fork guard.
+# It loads src/bridge/ alone into a clean Interoperability namespace of a throwaway stack and runs OcuTalon.BridgeExample.Production
+# there (release/standalone-bridge.sh, AD-2). The evaluation job of Epic 9 joins this file. The rules of
+# docker/tests/test-ci-config.sh apply.
 name: lane-a
 
 on:
@@ -21,7 +23,20 @@ jobs:
   standalone-bridge:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, ocutalon]
-    timeout-minutes: 10
+    timeout-minutes: 20
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-bridge
+      OCUTALON_LIVE_DEADLINE: "900"
     steps:
-      - name: Empty until Story 1.3
-        run: echo "standalone-bridge is empty until Story 1.3 fills it."
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the web bundle
+        run: bash ci/iris.sh build
+      - name: Run the bridge alone
+        run: bash release/standalone-bridge.sh
+      - name: Tear down
+        if: always()
+        run: bash ci/iris.sh teardown

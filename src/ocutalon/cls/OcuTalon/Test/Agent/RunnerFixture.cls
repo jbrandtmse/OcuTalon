@@ -2,6 +2,10 @@
 /// CI ONLY (Rule 21): they act on the running OcuTalon.Production and read the CI mock's log.
 ///   - Running, RunningReason, Restart and Jobs: the state of the production and of the jobs of its items;
 ///   - Send: a message to a production item through the adapterless service ApprovalStartIn, as a caller of the runners will;
+///   - NewRequest and Ask: a Request of a kind and provenance with an ItemId of its own, and a send of it to a runner;
+///   - ReadyReason: "" only when the production runs with every item, in the CI override's environment;
+///   - DecisionOf, Headers, SessionOf, HeaderMark and SessionSince (Story 1.3): the Decision row of an item, and the message
+///     headers of a session (the target, body class and body id of each header that a source item sent);
 ///   - PointKeys and RestoreKeys: CI starts with no model key on purpose, so the live tests point the entry of each runner at
 ///     OCUTALON_MOCK_KEY_HEADER, a non-secret CI-only variable (value 1), through ConfigStore.Merge, and put the entries back to
 ///     the placeholder of the Provider step afterwards. Both restart the runners, because a runner builds its agent once;
@@ -119,22 +123,88 @@ ClassMethod Send(target As %String, message As %Persistent, Output response As %
 	Quit service.SendRequestSync(target, message, .response, ..#SENDSECONDS)
 }
 
-/// Sends a Request of the kind and provenance to the target, with the text and a fresh reference of its own in the input, and
-/// reads the mock's log for it. reply is the answer (a Reply), or ""; requests holds the entries of the mock's log, since the
-/// send, for the requests that carry the reference (a turn with a tool call makes more than one); ref is the reference. The
-/// status is the one Send gives.
-ClassMethod Ask(target As %String, kind As %String, provenance As %String, text As %String, Output reply As %Persistent, Output requests As %DynamicArray, Output ref As %String) As %Status
+/// A Request of the kind and provenance for a new item: ref is a fresh reference, which is the request's ItemId, OwnerRef is
+/// instance, Channel is system, Summary is "Test <ref>", and Input is the input with " (test <ref>)" appended, so that the
+/// request can be found in the mock's log by its reference.
+ClassMethod NewRequest(kind As %String, provenance As %String, input As %String, Output ref As %String) As OcuTalon.Bridge.Msg.Request
 {
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = kind
 	Set request.Provenance = provenance
-	Set request.Input = text_" (test "_ref_")"
+	Set request.ItemId = ref
+	Set request.OwnerRef = "instance"
+	Set request.Channel = "system"
+	Set request.Summary = "Test "_ref
+	Set request.Input = input_" (test "_ref_")"
+	Quit request
+}
+
+/// Sends a Request of the kind and provenance to the target (NewRequest: the text with a fresh reference of its own in the
+/// input), and reads the mock's log for it. reply is the answer (a Reply), or ""; requests holds the entries of the mock's log,
+/// since the send, for the requests that carry the reference (a turn with a tool call makes more than one); ref is the
+/// reference. The status is the one Send gives.
+ClassMethod Ask(target As %String, kind As %String, provenance As %String, text As %String, Output reply As %Persistent, Output requests As %DynamicArray, Output ref As %String) As %Status
+{
+	Set request = ..NewRequest(kind, provenance, text, .ref)
 	Set requests = []
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
 	Set sc = ..Send(target, request, .reply)
 	If $$$ISOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Set requests = ..FindRequests(entries, ref)
 	Quit sc
+}
+
+/// "" only when OcuTalon.Production runs, every item of it has its job (the wait is a poll, up to WAITSECONDS), and the environment
+/// is the CI override's (GuardReason). Otherwise the reason, which a test reports as a failure.
+ClassMethod ReadyReason() As %String
+{
+	Set reason = ..RunningReason()
+	If reason = "" Set reason = ..GuardReason()
+	If (reason = "") && '..WaitAllRun() Set reason = "not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after the test began: "_##class(OcuTalon.Install.Step.Production).NotRunning()
+	Quit reason
+}
+
+/// The Decision row of the item and kind, or "".
+ClassMethod DecisionOf(itemId As %String, kind As %String) As OcuTalon.Bridge.Data.Decision
+{
+	If '##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(itemId, kind, .id) Quit ""
+	Quit ##class(OcuTalon.Bridge.Data.Decision).%OpenId(id)
+}
+
+/// The headers of the session that the item named source sent, oldest first, as a dynamic array of {"target","bodyClass","bodyId"}.
+ClassMethod Headers(sessionId As %Integer, source As %String) As %DynamicArray
+{
+	Set headers = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID", sessionId, source)
+	While result.%Next() {
+		Do headers.%Push({"target": (result.%GetData(1)), "bodyClass": (result.%GetData(2)), "bodyId": (result.%GetData(3))})
+	}
+	Quit headers
+}
+
+/// The session of the header that carries the message body, or "": the session that holds a response, as Visual Trace shows it.
+ClassMethod SessionOf(body As %Persistent) As %Integer
+{
+	If '$IsObject(body) Quit ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? ORDER BY ID", $ClassName(body), body.%Id())
+	If result.%Next() Quit result.%GetData(1)
+	Quit ""
+}
+
+/// The highest id of the message headers: the mark that SessionSince reads from.
+ClassMethod HeaderMark() As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens.MessageHeader")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The session of the first header after the mark that is addressed to the item, or "".
+ClassMethod SessionSince(mark As %Integer, target As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = ? ORDER BY ID", mark, target)
+	If result.%Next() Quit result.%GetData(1)
+	Quit ""
 }
 
 /// Points the Config Store entry of each runner at the placeholder of OCUTALON_MOCK_KEY_HEADER and restarts the runners. The

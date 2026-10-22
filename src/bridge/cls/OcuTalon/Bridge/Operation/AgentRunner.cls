@@ -2,13 +2,20 @@
 /// class. Each names its agent class in the AgentClass setting of its adapter, and its pool size is its concurrency cap: the
 /// runners are the only code that calls Chat. A Request gets a Reply (the adapter's Answer) and a ToolInventory request gets
 /// an Ens.StringResponse that holds the JSON of the live ToolManager's tools. Any other message class gets "not implemented"
-/// and no response.
+/// and no response. Its ReplyClass setting names the %JSON.Adaptor class that Decide checks the runner's reply against
+/// (AD-7); the runner itself never reads it.
 Class OcuTalon.Bridge.Operation.AgentRunner Extends Ens.BusinessOperation
 {
 
 Parameter ADAPTER = "OcuTalon.Bridge.Adapter.Agent";
 
+Parameter SETTINGS = "ReplyClass:Basic";
+
 Property Adapter As OcuTalon.Bridge.Adapter.Agent;
+
+/// The compiled %JSON.Adaptor class that Decide checks this runner's reply against, for a decide or diagnose request
+/// (OcuTalon.Bridge.Msg.DecisionPayload for Triage). Empty for a runner whose reply is text.
+Property ReplyClass As %String(MAXLEN = 128);
 
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {

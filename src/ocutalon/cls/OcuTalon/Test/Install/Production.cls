@@ -1,4 +1,5 @@
-/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2). Nothing
+/// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2;
+/// Story 1.3). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
 /// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
@@ -8,8 +9,8 @@
 ///   - TestDefinition: the compiled XData holds exactly the items of the oracle, each between the markers of its lane,
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
-///     new log row; the two rule classes carry STUB and hold a rule set with no rule. The three agent runners carry no STUB,
-///     so the oracle marks them "stub": 0;
+///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3) and the three
+///     agent runners carry no STUB, so the oracle marks them "stub": 0;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -24,7 +25,9 @@
 ///     runners in order, and writes nothing when a runner resolves a list from an item row, or when a row exists, an empty one
 ///     included; a production that cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
-///     production when it does not run.
+///     production when it does not run;
+///   - TestExampleInstalledNotStarted: the bridge example production is compiled and registered, and neither running nor the
+///     autostart production.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
 /// OnBeforeAllTests and OnAfterAllTests delete every such class with its rows, and the EvalIn row is put back as it was found.
 Class OcuTalon.Test.Install.Production Extends %UnitTest.TestCase
@@ -436,6 +439,25 @@ Method TestStepHelpers()
 	}
 }
 
+/// The package installs the bridge example (AD-2) and starts nothing of it: OcuTalon.BridgeExample.Production and its agent are
+/// compiled, the production is registered with its three items and TestingEnabled off, and it is neither the running production
+/// nor the autostart production.
+Method TestExampleInstalledNotStarted()
+{
+	Set example = "OcuTalon.BridgeExample.Production"
+	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(example), "the example production is compiled")
+	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.BridgeExample.Agent"), "and so is its agent")
+	Set definition = ##class(Ens.Config.Production).%OpenId(example)
+	Do $$$AssertTrue($IsObject(definition), "the example production is registered")
+	If $IsObject(definition) {
+		Do $$$AssertEquals(definition.Items.Count(), 3, "with its three items")
+		Do $$$AssertEquals(+definition.TestingEnabled, 0, "and TestingEnabled off")
+	}
+	Do ##class(Ens.Director).IsProductionRunning(.running)
+	Do $$$AssertTrue($Get(running) '= example, "the example production is not running")
+	Do $$$AssertTrue($Get(^Ens.AutoStart) '= example, "and is not the autostart production")
+}
+
 /// The oracle as a dynamic array: lane A's rows of XData Items, then lane B's rows of OcuTalon.Test.Core.ProductionItems,
 /// in the order of the production. The live tests of docker/tests/ read the same list in their container, so that the
 /// ownership table has one copy in the tests.
@@ -588,10 +610,10 @@ XData Items [ MimeType = application/json ]
 [
  {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
- {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 1, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
+ {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}]},
+ {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}, {"target": "Host", "name": "ReplyClass", "value": "OcuTalon.Bridge.Msg.DecisionPayload"}]},
  {"lane": "A", "name": "DiagnosisAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Diagnosis"}]},
  {"lane": "A", "name": "ChatAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Chat"}]},
  {"lane": "A", "name": "AgentSteps", "class": "OcuTalon.Bridge.Operation.Steps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
