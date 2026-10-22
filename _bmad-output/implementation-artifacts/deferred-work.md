@@ -354,3 +354,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Story 1.5 decision 6: Answer's error path carries no Reply, so Reply.Steps cannot travel; Story 1.6 turns every failure into a fallback decision with a reply, where the buffered steps can ride
 - 2026-10-22T13:43:43Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=spec_gate note=1.6's fallback carries the failed call's buffered steps (redacted) to Decide, which sends them to AgentSteps like a completed turn's; FR-3 every model request and tool call recorded
+
+### DW-85: Shipped tool classes declare no STEPLABEL, and nothing fails a tool class that has none, so every real tool step reads 'Running a tool' in Visual Trace
+- source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: AD-9 and the spine's Agent step labels convention: each tool declares its readable step label; Tools.WatchFixture carries none (Story 5.4 replaces it); Test.Bridge.CodeRules.TestCallbackRule is where a scan belongs once the first real tool class exists
+- 2026-10-22T17:04:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=1.10's reminder tools declare their STEPLABEL<NAME> labels, and 1.10 adds the CodeRules scan that fails a shipped OcuTalon tool class with no label (fixtures and Tools.WatchFixture exempted until Story 5.4)

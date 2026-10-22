@@ -1421,6 +1421,7 @@ So that reminders work the way I would ask a person, from any channel I chat on.
 **Story 1.11 moved to Story 30.2**, whole and verbatim, in Lane A's post-demo hardening epic (Epic 30) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
 - DW-32: Fold Lane A's four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Usage, Budget) into one Lane A test helper before adding more zone tests (ledger; routed by adjudication 2026-10-22)
+- DW-85: Declare STEPLABEL<NAME> for the reminder tools, and add the CodeRules scan that fails a shipped tool class with no step label (ledger; routed by harvest 2026-10-22)
 
 ### Story 1.12: Items saved for the digest are kept for it
 
