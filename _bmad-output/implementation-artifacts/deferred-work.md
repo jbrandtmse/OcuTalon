@@ -90,11 +90,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-5-live-events-and-the-rest-skeleton.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the API refuses a state-changing call without both (403 not_json / no_request_header); ApiClient has no POST or DELETE yet
 - 2026-10-19T12:43:59Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=harvest note=Rule 22 ruling: routed, not wontfix, because 2.2 adds the first POST (session/end) and the gap then becomes certain
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=envelope.interceptor.ts_sets_Content-Type_and_X-OcuTalon-Request_on_POST/PUT/PATCH/DELETE_under_/ocutalon/api;session.spec_S1_(204_with_both_headers)_and_S2_(403_not_json/no_request_header);red_under_the_omitted-header_mutation
 
 ### DW-15: Web.Api State and Events resolve the caller's session with Session.ForUser($Username), outside Data.Ownership (AD-4), so 16.3 has two lookups to replace
 - source: spec-0-5-live-events-and-the-rest-skeleton.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Api.cls State() and Events() call Data.Session.ForUser($Username) and read Live.Event.Since directly. AD-4 says REST reads go through Ownership; Stories 2.2 (AC 17) and 16.3 (one session per visitor) expect Ownership to resolve the caller's SessionRef from the CSP session, never the IRIS user name. Isolation holds today (one durable session per user).
 - 2026-10-19T13:50:49Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=2.2: resolve State/Events' session via Ownership; lead reconciles AD-4's last bullet with AD-13's Oct 19 amendment
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=Web.Api_State_and_Events_resolve_through_Ownership.SessionRef_(no_ForUser($Username)_left_in_Web.Api);TestPollsResolveTheCspSession_red_under_the_ForUser_mutation;Story_16.3_extends_the_one_resolution_method_(DW-16)
 
 ### DW-16: On the online demo every visitor shares one IRIS account, so session resolution by user name would merge visitors; the one Ownership lookup (DW-15) needs a per-sign-in / resume-cookie branch
 - source: Contest Planner note 2026-10-19 (0.5 review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -321,6 +323,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: No spec or page renders app-server-button, app-inline-notice or Announcer; busy-state.test.mjs covers only the framework-free state machine; the Busy AC places their first browser test in Story 2.2
 - 2026-10-22T02:05:46Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=Retry is the first consumer: browser-test aria-busy and aria-disabled, the spinner, the notice text, announced once
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=Retry_is_the_first_browser_test_of_the_server_button_notice_and_announcer:live.spec_L6_(busy_label_spinner_aria-busy/aria-disabled_never_disabled;10s_notice_announced_once)_and_L11_(answered_Retry);red_under_the_disabled-while-busy_and_unannounced-notice_mutations
 
 ### DW-58: Story 2.1's popover service ships with no executed test host
 - source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
@@ -351,8 +354,37 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: ChatItems reads Ownership.Turns and Ownership.Incidents without a limit, opens each row and exports it; a durable local session only grows (Web/Api.cls ChatItems)
 - 2026-10-22T06:27:39Z status=routed owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=the chat's renderer decides a cap or paging for /state's chat (AD-12's snapshot shape) and a test pins it on a long session
+- 2026-10-22T07:48:43Z occurrence=2-2-keep-the-session-and-load-its-snapshot-with-live-updates
 
 ### DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rule 2 copy forced by the lanes (spec Design Notes, Extend don't copy); Web/Api.cls CheckView builds Live.Payload.Check for StateBody's rail.checks
 - 2026-10-22T06:27:39Z status=routed owner=5-6-the-production-watch-runs-on-every-heartbeat by=harvest note=the check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it; orchestrator writes the acceptance bullet after Epic 2 merges
+
+### DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Watchers prepares with the privilege check and answers "" on any error, the same as nobody watching. AD-11 and AD-31 put BridgeSink's approval.* events in the AnswersIn job, which the REST endpoint calls synchronously as the signed-in user, who holds no SQL grant (AD-13), so (inference, not run) the read fails there and the watchers silently get no event.
+- 2026-10-22T07:48:19Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 resolves watchers where the read is allowed (a production job) or asks for an AD-13 amendment, and makes a failed read loud
+- 2026-10-22T07:48:35Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 reads watchers where the read is allowed (a production job) or asks for an AD-13 amendment; a failed read is loud
+
+### DW-69: LiveState prepends every decision event to store.decisions with no cap, while the snapshot carries the 20 newest decide decisions
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: live-store.ts applyEvent's decisions case puts a new decision first and never trims, so after live events the list holds more than a reload would; no view renders it until Story 2.8, which shows the 20 newest.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Story 2.8's Recent decisions shows more than 20 rows, or other rows than a reload shows, after live decision events
+- 2026-10-22T07:48:35Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Story 2.8's Recent decisions shows over 20 rows, or other rows than a reload, after live decision events
+
+### DW-70: The Envelope criterion's Content-Type half is satisfied by Angular for an object body, so no test can see the interceptor drop it
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: S1 checks content-type application/json on POST /session/end, but HttpClient sets that header itself for an object body ({}), so deleting it from envelope.interceptor.ts keeps every spec green; no current call has a body-less or non-object changing request.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=ApiClient gains a state-changing call with no body or a non-object body (e.g. DELETE /v1/pairing) and no spec checks its content-type
+- 2026-10-22T07:48:35Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=ApiClient gains a body-less or non-object state-changing call and no spec checks its content-type
+
+### DW-71: TestStateFailsLoudly sees only the first failing section read of StateBody, so a later read's lost Check would pass
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The test calls StateBody with a session that has no Ref, so the turns read throws first and the seven later Check(sc) calls never run; Ownership offers no seam to fail one read without a test-only hook, which the spec forbids.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=a /state 200 is seen with an empty chat or rail section while the session holds rows of that kind
+
+### DW-72: The live-event retention is declared by Install.Step.Web.Purge, while AD-27 names the area OcuTalon.Live; its move to Install.Step.Live is recorded only in the spec
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Install.Step.Web.Purge delegates to Live.Event.Purge (the logic is in OcuTalon.Live), because the registry finds only Install.Step.<Area> classes and Install/** other than Web.cls is Lane A's; spec Design Note 10 plans the move, and nothing else tracks it.
+- 2026-10-22T07:48:43Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Install/Step/ is open to Lane B, or an OcuTalon.Install.Step.Live class exists, and Web still declares it

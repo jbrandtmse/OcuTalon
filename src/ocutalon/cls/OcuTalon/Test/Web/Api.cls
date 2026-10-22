@@ -237,20 +237,19 @@ Method TestStateSections()
 }
 
 /// StateBody reads the stream cursors before any section, so that whatever changes after the cursors is an event the page
-/// applies. A job takes the snapshot while the session's stream is locked by this process; this process then adds a turn
-/// and publishes its event, and releases the lock. The cursor the job read includes the event, so the turn must be in the
-/// chat; sections read before the cursors would miss it. The snapshot is built once first, so that the job's reads are warm
-/// and finish well inside the wait.
+/// applies. A job takes the snapshot while the session's stream is locked by this process; once the job waits on that lock,
+/// this process adds a turn, publishes its event and releases the lock. The cursor the job read includes the event, so the
+/// turn must be in the chat; a job that read the sections before the cursors waits on the lock only after them, and misses it.
 Method TestCursorsAreReadBeforeTheSections()
 {
 	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session("zzapicursor"_..Number)
-	Do ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
 	Set key = "cursor"_..Number
 	Kill ^OcuTalonTest("WebApi", "job", key)
 	Lock +^OcuTalonP.LiveEventC(mine)
 	Job ##class(OcuTalon.Test.Web.Api).StateJob(mine, key)
+	Set child = $ZChild
 	Do ..WaitFor($Name(^OcuTalonTest("WebApi", "job", key, "started")), 1, 30)
-	Hang 1
+	Do $$$AssertTrue(..WaitsOnLock(child, 30), "the job waits on the stream's lock")
 	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(mine)
 	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(##class(OcuTalon.Data.Turn).RefIndexOpen(turn))
 	Set sc = ##class(OcuTalon.Live.Publish).Publish(mine, "chat.message", payload, .seq)
@@ -772,6 +771,18 @@ ClassMethod StateJob(ref As %String, key As %String)
 		Set @run@("error") = exception.DisplayString()
 	}
 	Set @run@("done") = 1
+}
+
+/// 1 once the process waits on a lock (its state is LOCK in five samples 20 ms apart), 0 if it does not within seconds.
+ClassMethod WaitsOnLock(pid As %Integer, seconds As %Integer) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	Set run = 0
+	While (run < 5) && ($ZHorolog < deadline) {
+		Set run = $Select($Extract($SYSTEM.Process.State(pid), 1, 4) = "LOCK": run + 1, 1: 0)
+		Hang 0.02
+	}
+	Quit run = 5
 }
 
 /// Waits up to seconds for the global node named by ref to reach count.

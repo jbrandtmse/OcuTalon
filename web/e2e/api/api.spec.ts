@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Response } from '@playwright/test';
 
-import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
 /**
  * Story 0.5, rows 13 to 19: the REST skeleton and the public status over real HTTP, on a stack that
@@ -75,18 +75,6 @@ const BY_REF: ReadonlyArray<readonly [method: 'POST', path: (ref: string) => str
   ['POST', (ref) => `/ocutalon/api/v1/incidents/${ref}/dismiss`],
 ];
 
-/** The origin of the stack, which a same-origin POST of the page carries as its Origin header. */
-function originOf(baseURL: string | undefined): string {
-  if (!baseURL) throw new Error('OCUTALON_URL must name the stack');
-  return new URL(baseURL).origin;
-}
-
-/** Signs a user in over HTTP, the way a script does: the sign-in page, then the three fields of its form. */
-async function signInOverHttp(request: APIRequestContext, user: string, password: string, path = '/ocutalon/'): Promise<APIResponse> {
-  await request.get(path);
-  return request.post(path, { form: { IRISUsername: user, IRISPassword: password, IRISLogin: 'Sign in' } });
-}
-
 /** The error object of an answer, after checking its status and that it is the API's error shape. */
 async function expectError(response: APIResponse, status: number, code: string, message?: string): Promise<void> {
   expect(response.status(), await response.text()).toBe(status);
@@ -98,11 +86,6 @@ async function expectError(response: APIResponse, status: number, code: string, 
   else expect(body.error.message.length).toBeGreaterThan(10);
 }
 
-/** The origin of the stack under test: OCUTALON_URL, which the config also uses as baseURL. */
-function stackOrigin(): string {
-  return originOf(process.env['OCUTALON_URL']);
-}
-
 /** A call with the whole browser envelope; the headers override or (when undefined) remove one part of it. */
 function call(
   request: APIRequestContext,
@@ -110,13 +93,7 @@ function call(
   path: string,
   headers: Record<string, string | undefined> = {},
 ): Promise<APIResponse> {
-  const envelope: Record<string, string | undefined> = {
-    'content-type': 'application/json',
-    'x-ocutalon-request': '1',
-    origin: stackOrigin(),
-    ...headers,
-  };
-  const sent = Object.fromEntries(Object.entries(envelope).filter((entry): entry is [string, string] => entry[1] !== undefined));
+  const sent = envelope(headers);
   return method === 'DELETE' ? request.delete(path, { headers: sent }) : request.fetch(path, { method, headers: sent, data: '{}' });
 }
 

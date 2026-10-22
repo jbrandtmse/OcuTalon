@@ -161,9 +161,27 @@ ClassMethod Adopt(row As %Persistent) As %String
 	Quit row.Ref
 }
 
-/// Deletes exactly the recorded rows, and the live events and counters of the recorded sessions' streams.
-ClassMethod Clean()
+/// The number of session rows of an IRIS user, matched without regard to case, as IRIS matches user names.
+ClassMethod SessionCount(user As %String) As %Integer
 {
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE IrisUser = ?")
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set result = statement.%Execute(user)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
+/// Deletes recorded rows, with the live events and counters of the streams of the recorded sessions it deletes: every
+/// recorded row, or with refs (a comma-separated list of Refs) only the recorded rows with those Refs, so that a test that
+/// shares the stack with others removes its own rows and nobody else's.
+ClassMethod Clean(refs As %String = "")
+{
+	Kill only
+	For i = 1:1:$Length(refs, ",") {
+		Set one = $Piece(refs, ",", i)
+		If one '= "" Set only(one) = ""
+	}
 	Set class = ""
 	For {
 		Set class = $Order(^OcuTalonTest("Fixture", class))
@@ -172,11 +190,13 @@ ClassMethod Clean()
 		For {
 			Set id = $Order(^OcuTalonTest("Fixture", class, id), 1, ref)
 			Quit:id=""
+			If refs '= "", '$Data(only(ref)) Continue
 			If class = "OcuTalon.Data.Session" Do ..DropStream(ref)
 			Do $ClassMethod(class, "%DeleteId", id)
+			Kill ^OcuTalonTest("Fixture", class, id)
 		}
 	}
-	Kill ^OcuTalonTest("Fixture")
+	If refs = "" Kill ^OcuTalonTest("Fixture")
 }
 
 /// Saves the row and records it.

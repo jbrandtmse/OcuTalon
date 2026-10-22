@@ -4,7 +4,7 @@ import { signIn } from '../sign-in/helpers';
 import { fixtureUser, publishReminder } from '../support/iris';
 
 /**
- * Story 2.2, the live path (L1 to L8), in a real browser against a real stack, signed in as the live fixture user that
+ * Story 2.2, the live path (L1 to L13), in a real browser against a real stack, signed in as the live fixture user that
  * test-sign-in.sh created (OCUTALON_LIVE_USER). No spec here publishes on the README session's stream or the instance
  * stream, whose counts api.spec.ts pins; an event is published on the live user's own stream through the IRIS container.
  * Where a case needs the server held or failing, the page's own /state or /events answer is routed in the browser.
@@ -87,6 +87,25 @@ async function recordAnnouncements(page: Page): Promise<void> {
 const announcements = (page: Page, text: string): Promise<number> =>
   page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry === wanted).length, text);
 
+/**
+ * Before the page's scripts run: records every value that the main region's data-snapshot takes, in order, as window.snapshots,
+ * so a test can tell that the snapshot's status never left loaded while the snapshot was loaded again.
+ */
+async function recordSnapshotStates(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const snapshots: string[] = [];
+    (window as unknown as { snapshots: string[] }).snapshots = snapshots;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const value = (record.target as HTMLElement).getAttribute('data-snapshot');
+        if (value) snapshots.push(value);
+      }
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-snapshot'] });
+  });
+}
+
+const snapshotStates = (page: Page): Promise<string[]> => page.evaluate(() => (window as unknown as { snapshots: string[] }).snapshots);
+
 /** The computed colour of a token, as the page paints it. */
 function tokenColor(page: Page, token: string): Promise<string> {
   return page.evaluate((name) => {
@@ -166,19 +185,10 @@ test('L3: a Seq that skips reloads the snapshot once, and the page stays loaded'
     body.events.push({ seq: after + 2, stream: 'session', ts: '2030-01-01T00:00:00Z', type: 'reminder', payload: { ref: 'ZzE2ESkip', state: 'pending' } });
     await route.fulfill({ response, json: body });
   });
-  await page.addInitScript(() => {
-    const snapshots: string[] = [];
-    (window as unknown as { snapshots: string[] }).snapshots = snapshots;
-    new MutationObserver((records) => {
-      for (const record of records) {
-        const value = (record.target as HTMLElement).getAttribute('data-snapshot');
-        if (value) snapshots.push(value);
-      }
-    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['data-snapshot'] });
-  });
+  await recordSnapshotStates(page);
   await open(page);
   await expect.poll(() => states(), { timeout: 10_000 }).toBe(2);
-  const snapshots = await page.evaluate(() => (window as unknown as { snapshots: string[] }).snapshots);
+  const snapshots = await snapshotStates(page);
   expect(snapshots.slice(snapshots.indexOf('loaded')), 'data-snapshot stayed loaded from the first load on').toEqual(['loaded']);
   await page.waitForTimeout(3500);
   expect(states(), 'the snapshot was loaded again once, and not a third time').toBe(2);
@@ -201,6 +211,7 @@ test('L3: a repeated event changes neither the cursor nor the snapshot', async (
   });
   await open(page);
   const cursor = await mainOf(page).getAttribute('data-session-seq');
+  expect(cursor, 'the page holds a session cursor').toMatch(/^\d+$/);
   await expect.poll(() => injected, { timeout: 10_000 }).toBe(2);
   await page.waitForTimeout(2500);
   expect(await mainOf(page).getAttribute('data-session-seq'), 'the cursor did not move').toBe(cursor);
@@ -368,6 +379,7 @@ test('L8: a failed poll is asked again after the same delay, and the page stays 
   });
   await open(page);
   const cursor = await mainOf(page).getAttribute('data-session-seq');
+  expect(cursor, 'the page holds a session cursor').toMatch(/^\d+$/);
 
   await expect.poll(() => answers.length, { timeout: 15_000, message: 'a poll after the two failures is answered' }).toBeGreaterThanOrEqual(1);
   expect(answers[0], 'and it is answered 200').toBe(200);
@@ -381,4 +393,190 @@ test('L8: a failed poll is asked again after the same delay, and the page stays 
   expect(await mainOf(page).getAttribute('data-session-seq'), 'the cursor did not move').toBe(cursor);
   await expect(page.locator('.load-error'), 'no load error').toHaveCount(0);
   await expect(page.locator('app-inline-notice'), 'and no notice').toHaveCount(0);
+});
+
+/**
+ * L9: a poll answered with an epoch that is not the snapshot's (the session was reset on the server) loads the snapshot
+ * again, once, and the page stays loaded; the polls that follow carry the epoch of the new snapshot and ask for nothing more.
+ */
+test("L9: an epoch that is not the snapshot's loads the snapshot again once, and the page stays loaded", async ({ page }) => {
+  const states = countRequests(page, STATE);
+  let changed = false;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    const response = await route.fetch();
+    if (changed) {
+      await route.fulfill({ response });
+      return;
+    }
+    changed = true;
+    const body = (await response.json()) as Json;
+    body['epoch'] = 'ZzE2EOtherEpoch';
+    await route.fulfill({ response, json: body });
+  });
+  await recordSnapshotStates(page);
+  await open(page);
+  await expect.poll(() => states(), { timeout: 10_000, message: 'the other epoch loads the snapshot again' }).toBe(2);
+  const polled = (await polls(page)).length;
+  await expect.poll(async () => (await polls(page)).length, { timeout: 15_000, message: 'three more polls follow the reload' }).toBeGreaterThanOrEqual(polled + 3);
+  expect(states(), 'and none of them loads the snapshot a third time').toBe(2);
+  const snapshots = await snapshotStates(page);
+  expect(snapshots.slice(snapshots.indexOf('loaded')), 'data-snapshot stayed loaded from the first load on').toEqual(['loaded']);
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+});
+
+/**
+ * L10: an event is lost on the way (the answer of one poll holds a later event but not the next one): the snapshot is loaded
+ * again, and its cursors replace the old ones, so the first poll after the reload asks from the new snapshot's cursor and the
+ * page does not fetch the event it already holds again.
+ */
+test("L10: after a skip the reloaded snapshot's cursors replace the old ones", async ({ page }) => {
+  const states = countRequests(page, STATE);
+  const asked: string[] = [];
+  let armed = false;
+  let lostAt = -1;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    const response = await route.fetch();
+    const after = new URL(route.request().url()).searchParams.get('after') ?? '';
+    asked.push(after);
+    const body = (await response.json()) as { events: Json[] };
+    const next = body.events.find((event) => event['stream'] === 'session' && event['seq'] === Number(after) + 1);
+    if (!armed || !next) {
+      await route.fulfill({ response });
+      return;
+    }
+    armed = false;
+    lostAt = asked.length - 1;
+    body.events = body.events.filter((event) => event !== next);
+    body.events.push({ seq: Number(after) + 2, stream: 'session', ts: '2030-01-01T00:00:00Z', type: 'reminder', payload: { ref: 'ZzE2ELost', state: 'pending' } });
+    await route.fulfill({ response, json: body });
+  });
+  await recordSnapshotStates(page);
+  await open(page);
+  const cursor = Number(await mainOf(page).getAttribute('data-session-seq'));
+
+  armed = true;
+  const { user } = fixtureUser('LIVE');
+  const seq = await publishReminder(user);
+  expect(seq, 'the published event is the next one of the stream').toBe(cursor + 1);
+  await expect.poll(() => lostAt, { timeout: 10_000, message: 'a poll answered with a skip' }).toBeGreaterThanOrEqual(0);
+  await expect.poll(() => states(), { timeout: 10_000, message: 'the skip loads the snapshot again' }).toBe(2);
+  await expect(mainOf(page), "the new snapshot's cursor is the page's").toHaveAttribute('data-session-seq', String(seq));
+  await expect.poll(() => asked.length, { timeout: 10_000, message: 'a poll after the reload' }).toBeGreaterThan(lostAt + 1);
+  expect(asked[lostAt + 1], "the first poll after the reload carries the new snapshot's cursor").toBe(String(seq));
+  expect(states(), 'and the snapshot was loaded once more only').toBe(2);
+  const snapshots = await snapshotStates(page);
+  expect(snapshots.slice(snapshots.indexOf('loaded')), 'data-snapshot stayed loaded').toEqual(['loaded']);
+});
+
+/**
+ * L11: a Retry that /state answers loads the page: while it waits the button is busy, then the error and the button give way
+ * to the page, the failure is not announced again, no notice shows, and the polling starts.
+ */
+test('L11: a Retry that is answered loads the page, with no notice and no second announcement', async ({ page }) => {
+  await recordAnnouncements(page);
+  let answers = 0;
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**${STATE}`, async (route) => {
+    answers += 1;
+    if (answers === 1) {
+      await route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } } });
+      return;
+    }
+    await released;
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    const { user, password } = fixtureUser('LIVE');
+    await signIn(page, user, password);
+    const main = mainOf(page);
+    await expect(main).toHaveAttribute('data-snapshot', 'failed', { timeout: 3000 });
+    await expect.poll(() => announcements(page, LOAD_FAILED)).toBe(1);
+
+    const retry = main.getByRole('button', { name: 'Retry', exact: true });
+    await retry.click();
+    await expect.poll(() => answers, { message: 'Retry asks for the snapshot again' }).toBe(2);
+    await expect(retry, 'busy while it waits').toHaveAttribute('aria-busy', 'true');
+    await expect(retry.locator('.spinner'), 'with a spinner').toHaveCount(1);
+    await expect(main, 'and the page is still the load error').toHaveAttribute('data-snapshot', 'failed');
+  } finally {
+    release();
+  }
+  const main = mainOf(page);
+  await expect(main, 'the answer loads the page').toHaveAttribute('data-snapshot', 'loaded');
+  await expect(page.locator('.load-error'), 'the error is gone').toHaveCount(0);
+  await expect(page.locator('.skeleton'), 'and there is no skeleton').toHaveCount(0);
+  await expect(page.locator('app-inline-notice'), 'no notice shows').toHaveCount(0);
+  await expect(main, 'the page holds the snapshot cursors').toHaveAttribute('data-session-seq', /^\d+$/);
+  await expect.poll(async () => (await polls(page)).length, { timeout: 10_000, message: 'the polling starts' }).toBeGreaterThan(0);
+  expect(await announcements(page, LOAD_FAILED), 'the failure was announced once').toBe(1);
+  expect(await announcements(page, BUSY_NOTICE), 'and the busy notice not at all').toBe(0);
+});
+
+/**
+ * L12: one poll at a time. While a poll's answer is held, no other /events request starts; the next one starts about
+ * POLL_DELAY_MS (1 s) after the held answer arrives.
+ */
+test('L12: a poll whose answer is slow is the only one in flight, and the next waits for its answer', async ({ page }) => {
+  const starts: number[] = [];
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let answeredAt = 0;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    starts.push(Date.now());
+    if (starts.length === 2) {
+      await released;
+      answeredAt = Date.now();
+    }
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    await open(page);
+    await expect.poll(() => starts.length, { timeout: 10_000, message: 'the second poll starts and is held' }).toBe(2);
+    await page.waitForTimeout(3000);
+    expect(starts.length, 'no other poll starts while one is out').toBe(2);
+  } finally {
+    release();
+  }
+  await expect.poll(() => starts.length, { timeout: 5000, message: 'the next poll follows the answer' }).toBe(3);
+  const gap = starts[2]! - answeredAt;
+  expect(gap, 'the next poll waits the delay after the answer').toBeGreaterThanOrEqual(900);
+  expect(gap, 'the next poll waits the delay after the answer').toBeLessThanOrEqual(2500);
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+});
+
+/**
+ * L13: a poll that never answers is given up after POLL_TIMEOUT_MS (10 s), and the next poll follows after the usual delay,
+ * so the live updates go on; nothing else on the page changes.
+ */
+test('L13: a poll that never answers is given up after 10 seconds, and the polling goes on', async ({ page }) => {
+  const states = countRequests(page, STATE);
+  const starts: number[] = [];
+  const held: Route[] = [];
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    starts.push(Date.now());
+    if (starts.length === 2) {
+      held.push(route);
+      return;
+    }
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    await open(page);
+    await expect.poll(() => starts.length, { timeout: 10_000, message: 'the second poll starts and gets no answer' }).toBe(2);
+    await expect.poll(() => starts.length, { timeout: 15_000, message: 'a poll follows the one that never answered' }).toBe(3);
+    const gap = starts[2]! - starts[1]!;
+    expect(gap, 'it is given up after 10 s, then the delay').toBeGreaterThanOrEqual(10_900);
+    expect(gap, 'it is given up after 10 s, then the delay').toBeLessThanOrEqual(13_000);
+    await expect.poll(() => starts.length, { timeout: 5000, message: 'and the polling goes on' }).toBeGreaterThanOrEqual(4);
+    expect(states(), '/state was requested once').toBe(1);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page.locator('.load-error'), 'no load error').toHaveCount(0);
+  } finally {
+    for (const route of held) await route.abort().catch(() => undefined);
+  }
 });

@@ -1729,6 +1729,8 @@ So that I see at a glance what OcuTalon is doing for me.
 **And** the rail's Telegram card is its own Angular component under `web/src/app/rail/telegram-card/`, which Lane A owns from Epic 12 (AD-29, AD-33)
 **And** the REL-2 spec for UJ-1's page step also checks the status rail's sections (REL-2)
 
+- DW-68: `Session.Recipients` finds an `instance` incident's watchers where the read is allowed (a production job, not the signed-in user's REST request, which holds no SQL grant under AD-13), or the story asks for an AD-13 amendment; a failed watcher read is loud, never the same as "nobody watches"; a test shows two watching sessions both get BridgeSink's `approval` event (ledger; routed by cr 2026-10-22)
+
 ### Story 2.9: Open anything in Visual Trace
 
 As a judge,

@@ -37,13 +37,13 @@ Method TestAttachReuses()
 	Set user = "zzown"_..Number_"attach"
 	Set first = ##class(%CSP.Session).%New("ZzOwnA", 0)
 	Set second = ##class(%CSP.Session).%New("ZzOwnB", 0)
-	Do $$$AssertEquals(..Count(user), 0, "no row to begin with")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 0, "no row to begin with")
 	Set %session = first
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Ownership).Attach(user), "the first CSP session attaches")
 	Set %session = second
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Ownership).Attach(user), "the second CSP session attaches")
 	Do ..AdoptUser(user)
-	Do $$$AssertEquals(..Count(user), 1, "one row for the user")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "one row for the user")
 	Set ref = first.Data("OcuTalon.SessionRef")
 	Do $$$AssertTrue(ref ? 22(1AN,1"-",1"_"), "the first CSP session holds a Ref: "_ref)
 	Do $$$AssertEquals(second.Data("OcuTalon.SessionRef"), ref, "the second CSP session holds the same Ref")
@@ -61,14 +61,14 @@ Method TestSessionRefFromTheCspSession()
 	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
 	Set later = ##class(OcuTalon.Test.Data.Fixture).Session($ZConvert($Username, "L"))
 	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"other")
-	Set before = ..Count($Username)
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
 	Set %session = ##class(%CSP.Session).%New("ZzOwnC", 0)
 
 	Set %session.Data("OcuTalon.SessionRef") = later
 	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	Do $$$AssertStatusOK(sc, "the recorded Ref is resolved")
 	Do $$$AssertEquals(ref, later, "the recorded Ref wins over the user's first row, whatever the case of the user name")
-	Do $$$AssertEquals(..Count($Username), before, "and no row is created")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "and no row is created")
 	Set %session.Data("OcuTalon.SessionRef") = mine
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), mine, "another recorded Ref of the same user wins too")
 
@@ -82,7 +82,7 @@ Method TestSessionRefFromTheCspSession()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), expected, "a Ref with no row is replaced the same way")
 	Kill %session.Data("OcuTalon.SessionRef")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(), expected, "so is no Ref at all")
-	Do $$$AssertEquals(..Count($Username), before, "no session row is created by any of this")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before, "no session row is created by any of this")
 
 	Set %session = ""
 	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
@@ -107,10 +107,10 @@ Method TestOwnRecordsOnly()
 	Do $$$AssertEquals(seen("approvals"), ra1("approval")_","_ra2("approval"), "A's approvals")
 	Do $$$AssertEquals(seen("pairing"), ra1("pairing"), "A's pairing, the first row")
 	Do ..ReadAll(b, .seen)
-	For kind = "turns", "reminders", "checks", "decisions", "incidents", "approvals", "pairing" {
-		Do $$$AssertEquals($Length(seen(kind), ","), 1, "B reads one "_kind_" row")
+	For kind = "turn", "reminder", "check", "decision", "incident", "approval" {
+		Do $$$AssertEquals(seen(kind_"s"), rb(kind), "B reads its own "_kind_" row and no other")
 	}
-	Do $$$AssertEquals(seen("turns"), rb("turn"), "B's turn")
+	Do $$$AssertEquals(seen("pairing"), rb("pairing"), "B's pairing")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incident(ra1("incident"), a).Ref, ra1("incident"), "A finds its own incident")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Approval(rb("approval"), b).Ref, rb("approval"), "B finds its own approval")
 }
@@ -335,9 +335,9 @@ Method TestRowsRefuses()
 	Set rows = $ClassMethod(probe, "Call", "turns' OR '1'='1", a, .sc)
 	Do $$$AssertStatusNotOK(sc, "a kind that is SQL text is an unknown kind")
 	Do $$$AssertEquals(rows.Count(), 0, "with no rows")
-	For owner = "instance", "eval", "Instance", "EVAL" {
+	For owner = "instance", "eval", "Instance", "EVAL", "instance ", "EVAL  ", "eval"_$Char(9), "Instance"_$Char(160) {
 		Set rows = $ClassMethod(probe, "Call", "turns", owner, .sc)
-		Do $$$AssertStatusNotOK(sc, owner_" is not a session's Ref")
+		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
 	Set rows = $ClassMethod(probe, "Call", "turns", a, .sc)
@@ -411,18 +411,8 @@ ClassMethod AdoptUser(user As %String) [ Private ]
 	Set sc = statement.%Prepare("SELECT ID FROM OcuTalon_Data.Session WHERE IrisUser = ?")
 	Set result = statement.%Execute(user)
 	While result.%Next() {
-		Set ^OcuTalonTest("Fixture", "OcuTalon.Data.Session", result.%Get("ID")) = ##class(OcuTalon.Data.Session).%OpenId(result.%Get("ID")).Ref
+		Do ##class(OcuTalon.Test.Data.Fixture).Adopt(##class(OcuTalon.Data.Session).%OpenId(result.%Get("ID")))
 	}
-}
-
-/// The session rows of an IRIS user, matched without regard to case.
-ClassMethod Count(user As %String) As %Integer [ Private ]
-{
-	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE IrisUser = ?")
-	Set result = statement.%Execute(user)
-	Do result.%Next()
-	Quit result.%GetData(1)
 }
 
 }

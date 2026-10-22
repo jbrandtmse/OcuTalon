@@ -13,8 +13,9 @@
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
 #     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned by this rule, because it is
 #     not privilege-checked and this rule could not see it: the next rule keeps it out of src/;
-#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/, in any case. Embedded SQL
-#     is not privilege-checked and the unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
+#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/, in any case, and no class
+#     query of type %SQLQuery, whose SELECT compiles to embedded SQL. Embedded SQL is not privilege-checked and the
+#     unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -164,12 +165,12 @@ unchecked_prepares() {
 }
 
 # embedded_sql <file>...: file:line of each code line of a class, routine or include file that holds embedded SQL: &sql( or
-# ##sql(, in any case, with blanks allowed before the parenthesis.
+# ##sql(, in any case, with blanks allowed before the parenthesis, or the declaration of a class query of type %SQLQuery.
 embedded_sql() {
   awk '
     FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
     !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
-    tolower($0) ~ /(&|##)sql[ \t]*\(/ { print FILENAME ":" FNR }
+    tolower($0) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -361,15 +362,18 @@ fi
 
 # --- no-embedded-sql ---
 
-es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 INTO :x FROM T)' '	&SQL (SELECT 2 INTO :y FROM T)' '	Set a = ##sql(SELECT 3 INTO :z FROM T)' '}')
-es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}')
+es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 INTO :x FROM T)' '	&SQL (SELECT 2 INTO :y FROM T)' '	Set a = ##sql(SELECT 3 INTO :z FROM T)' '}' \
+  'Query B(x As %String) As %SQLQuery(ROWSPEC = "y:%String") [ SqlProc ]' '{' 'SELECT y FROM T WHERE x = :x' '}' \
+  'Query C() As %Library.SQLQuery' '{' 'SELECT 1 FROM T' '}')
+es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}' \
+  'Query B() As %Query(ROWSPEC = "y:%String")' '{' '}' 'Query C() As %SQLQueryCustom' '{' '}')
 es_comment=$(write_class es OcuTalon.Zz.EsComment '/// Never write &sql( or ##sql( here.' 'ClassMethod A()' '{' '	// &sql(SELECT 1 INTO :x FROM T)' '	; &sql(SELECT 1 INTO :x FROM T)' '	Quit 1' '}')
 samples_ok=1
-expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 3
+expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 5
 expect_clean "no-embedded-sql" embedded_sql "$es_good"
 expect_clean "no-embedded-sql" embedded_sql "$es_comment"
 if [ "$samples_ok" -eq 1 ]; then
-  scan_rule "no-embedded-sql: no &sql( on a code line of src/" embedded_sql \
+  scan_rule "no-embedded-sql: no &sql( and no %SQLQuery class query on a code line of src/" embedded_sql \
     "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 

@@ -35,11 +35,11 @@ Method OnAfterAllTests() As %Status
 Method TestFindsOrCreates()
 {
 	Set user = "zzsess"_..Number
-	Do $$$AssertEquals(..Count(user), 0, "no row to begin with")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 0, "no row to begin with")
 	Set first = ##class(OcuTalon.Data.Session).ForUser(user, .sc)
 	Do $$$AssertStatusOK(sc, "the first call")
 	Do $$$AssertTrue($IsObject(first), "the first call returns the row")
-	Do $$$AssertEquals(..Count(user), 1, "one row is created")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "one row is created")
 	Do $$$AssertEquals(first.IrisUser, user, "the row keeps the user name")
 	For field = "Ref", "TraceRef", "Epoch" {
 		Do $$$AssertTrue($Property(first, field) ? 22(1AN,1"-",1"_"), field_" is 22 base64url characters: "_$Property(first, field))
@@ -56,7 +56,7 @@ Method TestFindsOrCreates()
 	Do $$$AssertEquals(upper.%Id(), first.%Id(), "it returns the same row")
 	Do $$$AssertEquals(upper.Epoch, first.Epoch, "with the same Epoch")
 	Do $$$AssertEquals(upper.Ref, first.Ref, "and the same Ref")
-	Do $$$AssertEquals(..Count(user), 1, "still one row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "still one row")
 
 	Set other = ##class(OcuTalon.Data.Session).ForUser("zzsessother"_..Number, .sc)
 	Do $$$AssertStatusOK(sc, "another user")
@@ -128,7 +128,7 @@ Method TestConcurrentFirstCall()
 	Do $$$AssertEquals($Get(@run@("error"), ""), "", "without an error")
 	Set split = ""
 	For i = 1:1:20 {
-		If (..Count(user_i) '= 1) || ($Get(@run@("ref", i, 1)) = "") || ($Get(@run@("ref", i, 1)) '= $Get(@run@("ref", i, 2))) Set split = split_" "_i
+		If (##class(OcuTalon.Test.Data.Fixture).SessionCount(user_i) '= 1) || ($Get(@run@("ref", i, 1)) = "") || ($Get(@run@("ref", i, 1)) '= $Get(@run@("ref", i, 2))) Set split = split_" "_i
 	}
 	Do $$$AssertEquals(split, "", "every user has one row, and both jobs got its Ref")
 	Kill @run
@@ -166,16 +166,6 @@ ClassMethod WaitFor(ref As %String, count As %Integer, seconds As %Integer) [ Pr
 	While (+$Get(@ref) < count) && ($ZHorolog < deadline) {
 		Hang 0.05
 	}
-}
-
-/// The rows of a user, matched without regard to case.
-ClassMethod Count(user As %String) As %Integer [ Private ]
-{
-	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE IrisUser = ?")
-	Set result = statement.%Execute(user)
-	Do result.%Next()
-	Quit result.%GetData(1)
 }
 
 ClassMethod CountAll() As %Integer [ Private ]

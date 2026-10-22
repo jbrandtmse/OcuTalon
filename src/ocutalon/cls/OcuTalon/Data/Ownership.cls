@@ -22,10 +22,10 @@ Class OcuTalon.Data.Ownership
 Parameter SESSIONKEY = "OcuTalon.SessionRef";
 
 /// The owner literal of an instance-wide record.
-Parameter INSTANCE = "instance";
+Parameter INSTANCE [ Final ] = "instance";
 
 /// The owner literal of an evaluation record, which no session sees.
-Parameter EVAL = "eval";
+Parameter EVAL [ Final ] = "eval";
 
 /// The cost of one turn, as an object. Not implemented yet: it answers an empty object. Story 2.6.
 ClassMethod TurnCost(turnRef As %String) As %DynamicObject
@@ -176,15 +176,17 @@ ClassMethod LocalFlag() As %Integer [ Private ]
 
 /// The rows of one kind that the owner can see, opened, in the statement's order. kind names one fixed statement
 /// (Statement); ownerRef is required and is bound into the statement's owner check. Each further argument is bound
-/// where the statement's bind pattern says. An empty ownerRef, the literal instance or eval (in any case), or an unknown
-/// kind gives an error status in sc and an empty list, and no statement is prepared. This is the one unchecked prepare of
-/// the class: the callers pass only SessionRef()'s value or a Ref read through this class.
-ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, args...) As %ListOfObjects [ Private ]
+/// where the statement's bind pattern says. An empty ownerRef, an ownerRef that the SQL equality takes for the literal
+/// instance or eval (the default collation, SQLUPPER: any case, trailing blanks ignored), or an unknown kind gives an error
+/// status in sc and an empty list, and no statement is prepared. This is the one unchecked prepare of the class: the
+/// callers pass only SessionRef()'s value or a Ref read through this class. Final, with Statement and the owner literals,
+/// so that no subclass can change what it prepares.
+ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, args...) As %ListOfObjects [ Final, Private ]
 {
 	Set sc = $SYSTEM.Status.OK()
 	Set list = ##class(%ListOfObjects).%New()
-	Set literal = $ZConvert(ownerRef, "L")
-	If (ownerRef = "") || (literal = ..#INSTANCE) || (literal = ..#EVAL) {
+	Set literal = $SYSTEM.Util.Collation(ownerRef, 7)
+	If (ownerRef = "") || (literal = $SYSTEM.Util.Collation(..#INSTANCE, 7)) || (literal = $SYSTEM.Util.Collation(..#EVAL, 7)) {
 		Set sc = $SYSTEM.Status.Error(5001, "A read needs the Ref of a session")
 		Quit list
 	}
@@ -227,7 +229,7 @@ ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, arg
 /// The fixed statement of a row kind, with the class of its rows and its bind pattern: one letter per ? of the text,
 /// in order, o for the owner's Ref and a for the next further argument of Rows. An unknown kind gives "". The texts
 /// are constants of this class; nothing is built from an argument. Every one has the owner check in its WHERE clause.
-ClassMethod Statement(kind As %String, Output class As %String, Output binds As %String) As %String [ Private ]
+ClassMethod Statement(kind As %String, Output class As %String, Output binds As %String) As %String [ Final, Private ]
 {
 	Set class = "", binds = ""
 	If kind = "turns" {

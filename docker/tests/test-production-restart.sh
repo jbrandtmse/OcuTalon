@@ -14,8 +14,9 @@
 #     cleans the production instead of recovering it would lose its queued messages and fail this check).
 #     Story 2.2 adds the snapshot: before the kill and again after the next start, the epoch, the chat and the rail that
 #     Web.Api.StateBody builds for a session that Test.Data.Fixture seeded with a turn, a check, a pending reminder and a
-#     pending approval are printed, and the two must be equal and hold the four fixture refs. The journal is synced before the
-#     kill, so that the kill cannot lose the seeded rows. The rows are removed afterwards.
+#     pending approval are printed, and the two must be equal and hold the four fixture refs. Journaling must be enabled
+#     (%SYS.Journal.System.GetState() 0), and the journal is synced before the kill, so that the kill cannot lose the seeded
+#     rows. The rows are removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -131,9 +132,9 @@ if [ -n "$snapshot_session" ] && [ "$(printf '%s' "$snapshot_refs" | tr ',' '\n'
 else
   fail "row 20: the snapshot's fixture rows could not be seeded ('$seeded')"
 fi
-check_session "row 20: the journal holds the seeded rows before the kill" OCUTALON \
+check_session "row 20: journaling is enabled and the journal is synced to disk before the kill" OCUTALON \
   "CHK|journal|1" \
-  'Try { Do ##class(%SYS.Journal.System).Sync() Write !,"CHK|journal|1" } Catch e { Write !,"CHK|journal|0" }' \
+  'Try { Set state=##class(%SYS.Journal.System).GetState() Do ##class(%SYS.Journal.System).Sync() Write !,"CHK|journal|",(state=0) } Catch e { Write !,"CHK|journal|0" }' \
   'Halt'
 killed_start=$(started_at)
 docker kill -s KILL "$cid" >/dev/null 2>&1 || die "row 20 the kill failed"

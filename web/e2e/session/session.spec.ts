@@ -1,10 +1,10 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { noRoleAccount, signIn, submitSignIn } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, noRoleAccount, signIn, signInOverHttp, stackOrigin, submitSignIn } from '../sign-in/helpers';
 import { chk, fixtureUser, irisScript } from '../support/iris';
 
 /**
- * Story 2.2, the session (S1 to S7), in a real browser and over HTTP against a real stack. The users are the fixture users
+ * Story 2.2, the session (S1 to S8), in a real browser and over HTTP against a real stack. The users are the fixture users
  * that test-sign-in.sh created: OCUTALON_SESSION_USER (the user role and the trace role), and OCUTALON_SIGNIN_USER, which
  * nothing signs in before S4; and the fixture user without roles, whom S6 signs in. The browser envelope of a state-changing call is the JSON content type, the header
  * X-OcuTalon-Request: 1 and the Origin of the page; an APIRequestContext sends no Origin by itself, so every POST made
@@ -20,30 +20,6 @@ const CREDENTIALS = "That user name and password didn't work.";
 
 const isPath = (url: string, path: string): boolean => new URL(url).pathname === path;
 const mainOf = (page: Page) => page.locator('main.main');
-
-/** The origin of the stack under test, which a same-origin POST of the page carries as its Origin header. */
-function stackOrigin(): string {
-  const url = process.env['OCUTALON_URL'];
-  if (!url) throw new Error('OCUTALON_URL must name the stack');
-  return new URL(url).origin;
-}
-
-/** The whole browser envelope of a state-changing call, with the parts that a case overrides. */
-function envelope(overrides: Record<string, string | undefined> = {}): Record<string, string> {
-  const headers: Record<string, string | undefined> = {
-    'content-type': 'application/json',
-    'x-ocutalon-request': '1',
-    origin: stackOrigin(),
-    ...overrides,
-  };
-  return Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== undefined));
-}
-
-/** Signs a user in over HTTP, the way a script does: the sign-in page of the path, then the three fields of its form. */
-async function signInOverHttp(request: APIRequestContext, user: string, password: string, path = '/ocutalon/'): Promise<void> {
-  await request.get(path);
-  await request.post(path, { form: { IRISUsername: user, IRISPassword: password, IRISLogin: 'Sign in' } });
-}
 
 /** The fields of a snapshot that Sign out must not change. */
 interface Kept {
@@ -81,6 +57,13 @@ async function sessionRows(user: string): Promise<{ refs: string[]; count: numbe
   return { refs: lines.filter((line) => line.startsWith('CHK|ref|')).map((line) => line.slice('CHK|ref|'.length)), count: Number(chk(lines, 'count')) };
 }
 
+/** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
+async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
+  const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
+  if (mine.length === 0) return;
+  await irisScript(`Do ##class(OcuTalon.Test.Data.Fixture).Clean("${mine.join(',')}")\nWrite !,"CHK|clean|1"`);
+}
+
 /** S1: Sign out goes through the API with the whole envelope; signing in again gives the same epoch, chat and rail. */
 test('S1: Sign out ends the session through the API, and signing in again restores the same conversation and rail', async ({ page }) => {
   const { user, password } = fixtureUser('SESSION');
@@ -95,39 +78,43 @@ test('S1: Sign out ends the session through the API, and signing in again restor
   const turn = chk(seeded, 'turn');
   const check = chk(seeded, 'check');
   const reminder = chk(seeded, 'reminder');
-  expect(turn && check && reminder, `the fixture rows are seeded (${seeded.join(' ')})`).toBeTruthy();
+  try {
+    expect(turn && check && reminder, `the fixture rows are seeded (${seeded.join(' ')})`).toBeTruthy();
 
-  const firstState = page.waitForResponse((response) => isPath(response.url(), STATE));
-  await signIn(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-  const before = kept((await (await firstState).json()) as Kept);
-  expect(JSON.stringify(before.chat), "the seeded turn is in the chat").toContain(turn!);
-  expect(before.rail.checks.map((row) => row.ref), 'the seeded check is in the rail').toContain(check!);
-  expect(before.rail.reminders.map((row) => row.ref), 'the seeded reminder is in the rail').toContain(reminder!);
+    const firstState = page.waitForResponse((response) => isPath(response.url(), STATE));
+    await signIn(page, user, password);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    const before = kept((await (await firstState).json()) as Kept);
+    expect(JSON.stringify(before.chat), "the seeded turn is in the chat").toContain(turn!);
+    expect(before.rail.checks.map((row) => row.ref), 'the seeded check is in the rail').toContain(check!);
+    expect(before.rail.reminders.map((row) => row.ref), 'the seeded reminder is in the rail').toContain(reminder!);
 
-  const sent = page.waitForRequest((request) => isPath(request.url(), END));
-  const answered = page.waitForResponse((response) => isPath(response.url(), END));
-  await page.getByRole('button', { name: user, exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Sign out' }).click();
-  const request = await sent;
-  const headers = await request.allHeaders();
-  expect(request.method()).toBe('POST');
-  expect(headers['content-type'], 'the JSON content type').toContain('application/json');
-  expect(headers['x-ocutalon-request'], 'the request header').toBe('1');
-  expect(headers['origin'], "and the page's own origin").toBe(stackOrigin());
-  expect((await answered).status(), 'the server answers 204').toBe(204);
+    const sent = page.waitForRequest((request) => isPath(request.url(), END));
+    const answered = page.waitForResponse((response) => isPath(response.url(), END));
+    await page.getByRole('button', { name: user, exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
+    const request = await sent;
+    const headers = await request.allHeaders();
+    expect(request.method()).toBe('POST');
+    expect(headers['content-type'], 'the JSON content type').toContain('application/json');
+    expect(headers['x-ocutalon-request'], 'the request header').toBe('1');
+    expect(headers['origin'], "and the page's own origin").toBe(stackOrigin());
+    expect((await answered).status(), 'the server answers 204').toBe(204);
 
-  await expect(page).toHaveTitle(SIGN_IN_TITLE);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in to OcuTalon');
-  expect((await page.request.get(STATE)).status(), 'the API session ended').toBe(401);
-  const trace = await page.request.get(TRACE);
-  expect(await trace.text(), 'and the trace application asks for a password').toContain('name="IRISPassword"');
+    await expect(page).toHaveTitle(SIGN_IN_TITLE);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in to OcuTalon');
+    expect((await page.request.get(STATE)).status(), 'the API session ended').toBe(401);
+    const trace = await page.request.get(TRACE);
+    expect(await trace.text(), 'and the trace application asks for a password').toContain('name="IRISPassword"');
 
-  const secondState = page.waitForResponse((response) => isPath(response.url(), STATE));
-  await signIn(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-  const after = kept((await (await secondState).json()) as Kept);
-  expect(after, 'the epoch, the chat and the rail are the same after signing in again').toEqual(before);
+    const secondState = page.waitForResponse((response) => isPath(response.url(), STATE));
+    await signIn(page, user, password);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    const after = kept((await (await secondState).json()) as Kept);
+    expect(after, 'the epoch, the chat and the rail are the same after signing in again').toEqual(before);
+  } finally {
+    await cleanFixtureRows([turn, check, reminder]);
+  }
 });
 
 /** S2: without the JSON type, or without the header, the sign-out call is refused and the session stays signed in. */
@@ -218,8 +205,9 @@ test('S3: after the first 401 the page makes no further API call, whatever the u
 /** S4: the first sign-in creates the user's one durable session at sign-in, with no API call; the next finds the same Ref. */
 test("S4: signing in creates the user's session row, and a second sign-in finds the same one", async ({ playwright, baseURL }) => {
   const { user, password } = fixtureUser('SIGNIN');
+  await dropSessionRows(user);
   const none = await sessionRows(user);
-  expect(none.count, 'nothing has signed this user in before').toBe(0);
+  expect(none.count, 'the user starts with no durable session').toBe(0);
 
   const first = await playwright.request.newContext({ baseURL });
   await signInOverHttp(first, user, password);
@@ -283,4 +271,60 @@ test("S7: a failed sign-out call falls back to IRIS's own sign-out", async ({ pa
   await fallback;
   await expect(page).toHaveTitle(SIGN_IN_TITLE);
   expect((await page.request.get(STATE)).status(), 'the session ended').toBe(401);
+});
+
+/** What the snapshot of a session holds of an instance incident and its pending request. */
+interface InstanceView {
+  chat: Array<{ type: string; payload: { ref: string } }>;
+  rail: { approvals: Array<{ ref: string; incidentRef: string }> };
+}
+
+/** Signs a user in over HTTP in a context of its own and returns what /state answers, after the context is closed. */
+async function snapshotOf(newContext: () => Promise<APIRequestContext>, account: { user: string; password: string }): Promise<InstanceView> {
+  const context = await newContext();
+  try {
+    await signInOverHttp(context, account.user, account.password);
+    const state = await context.get(STATE);
+    expect(state.status(), `/state answers ${account.user}`).toBe(200);
+    return (await state.json()) as InstanceView;
+  } finally {
+    await context.dispose();
+  }
+}
+
+/**
+ * S8: a noticed incident of the instance, and its pending approval request, are in the snapshot of every signed-in session
+ * whose checks watch the production (two sessions here), as the unprivileged users they are; a session that does not watch it
+ * gets neither. Its own rows are removed afterwards.
+ */
+test('S8: two sessions that watch a production both get its noticed instance incident and pending request, and a third gets neither', async ({ playwright, baseURL }) => {
+  const watchers = [fixtureUser('LIVE'), fixtureUser('SESSION')];
+  const production = `Zz.E2E.S8.${Date.now().toString(36)}`;
+  const fresh = () => playwright.request.newContext({ baseURL });
+  let seeded: string[] = [];
+  try {
+    seeded = await irisScript(
+      [
+        ...watchers.map((account, i) => `Set s${i}=##class(OcuTalon.Data.Session).ForUser("${account.user}",.sc)  Write !,"CHK|check${i}|",##class(OcuTalon.Test.Data.Fixture).Check(s${i}.Ref,"ZZNS","${production}")`),
+        `Set i=##class(OcuTalon.Test.Data.Fixture).Incident("instance",,"ZZNS","${production}")`,
+        'Write !,"CHK|incident|",i',
+        'Write !,"CHK|approval|",##class(OcuTalon.Test.Data.Fixture).Approval("instance",i)',
+      ].join('\n'),
+    );
+    const incident = chk(seeded, 'incident');
+    const approval = chk(seeded, 'approval');
+    expect(incident && approval, `the instance rows are seeded (${seeded.join(' ')})`).toBeTruthy();
+
+    for (const account of watchers) {
+      const view = await snapshotOf(fresh, account);
+      expect(view.chat.map((item) => `${item.type}:${item.payload.ref}`), `the instance incident is in ${account.user}'s chat`).toContain(`incident:${incident}`);
+      const request = view.rail.approvals.find((row) => row.ref === approval);
+      expect(request?.incidentRef, `its pending request is in ${account.user}'s rail, for that incident`).toBe(incident);
+    }
+    const stranger = await snapshotOf(fresh, README_ACCOUNT);
+    expect(JSON.stringify(stranger.chat), 'a session that does not watch the production has not the incident in its chat').not.toContain(incident!);
+    expect(JSON.stringify(stranger.rail.approvals), 'nor its request in its rail').not.toContain(approval!);
+  } finally {
+    await cleanFixtureRows(['check0', 'check1', 'incident', 'approval'].map((name) => chk(seeded, name)));
+  }
 });

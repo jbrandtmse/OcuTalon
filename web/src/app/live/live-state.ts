@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, type Subscription } from 'rxjs';
+import { Observable, timeout, type Subscription } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import type { EventsResponse, StateSnapshot } from '../api/api-types';
@@ -16,6 +16,12 @@ export const LOAD_TIMEOUT_MS = 10_000;
 /** How long the poll waits after each answer before it asks again (AD-12), so polls come one to two seconds apart. */
 export const POLL_DELAY_MS = 1000;
 
+/**
+ * How long a poll, or the reload of the snapshot after a skip, may stay unanswered before it counts as failed: it is dropped
+ * and the next poll follows after POLL_DELAY_MS, so a request that never answers cannot stop the live updates.
+ */
+export const POLL_TIMEOUT_MS = 10_000;
+
 /** What the page says, and the polite announcer reads, when the snapshot did not load. */
 export const LOAD_FAILED = "Couldn't load your session.";
 
@@ -23,7 +29,7 @@ export const LOAD_FAILED = "Couldn't load your session.";
  * The page's one live-state service. It loads the snapshot (`/state`) once per page load and every consumer reads it from
  * here; once loaded it polls `/events` with the two cursors, one at a time, waiting POLL_DELAY_MS after each answer, and
  * applies the events to the store idempotently. A skipped Seq or a new epoch loads the snapshot again and keeps the status
- * loaded. Nothing here moves keyboard focus.
+ * loaded. A poll or a reload with no answer by POLL_TIMEOUT_MS counts as failed. Nothing here moves keyboard focus.
  *
  * With no answer by LOAD_TIMEOUT_MS, or with an error answer, the status is failed and the polite announcer says so once;
  * a late answer still loads. retry() asks again, and says so again when that fails. A 401 is the session gate's: this
@@ -107,13 +113,17 @@ export class LiveState {
     this.inFlight.clear();
   }
 
-  /** Sends a /state request. onError gets any answer but a 401; onApplied runs after a good answer was applied. */
-  private fetchSnapshot(onError: () => void, onApplied?: () => void): void {
+  /**
+   * Sends a /state request. onError gets any answer but a 401, and with limitMs the lack of an answer by then; onApplied runs
+   * after a good answer was applied.
+   */
+  private fetchSnapshot(onError: () => void, onApplied?: () => void, limitMs?: number): void {
     if (this.stopped) {
       return;
     }
     const request = ++this.issued;
-    const subscription = this.api.state().subscribe({
+    const answer = limitMs === undefined ? this.api.state() : this.api.state().pipe(timeout(limitMs));
+    const subscription = answer.subscribe({
       next: (snapshot) => {
         if (this.stopped) {
           return;
@@ -172,13 +182,16 @@ export class LiveState {
     }, POLL_DELAY_MS);
   }
 
-  /** One poll with the current cursors; the next one is scheduled when this one has answered, good or not. */
+  /**
+   * One poll with the current cursors; the next one is scheduled when this one has answered, good or not, or has had no answer
+   * by POLL_TIMEOUT_MS.
+   */
   private poll(): void {
     const store = this.store();
     if (this.stopped || !store) {
       return;
     }
-    const subscription = this.api.events(store.cursors.session, store.cursors.instance).subscribe({
+    const subscription = this.api.events(store.cursors.session, store.cursors.instance).pipe(timeout(POLL_TIMEOUT_MS)).subscribe({
       next: (response) => this.applyPoll(response),
       error: () => this.schedulePoll(),
     });
@@ -196,6 +209,7 @@ export class LiveState {
       this.fetchSnapshot(
         () => this.schedulePoll(),
         () => this.schedulePoll(),
+        POLL_TIMEOUT_MS,
       );
       return;
     }
