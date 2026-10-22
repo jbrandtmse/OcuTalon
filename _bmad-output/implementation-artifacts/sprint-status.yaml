@@ -70,7 +70,7 @@ development_status:
   2-3-route-every-command-by-verb-with-origin-checks: done
   2-4-answer-every-chat-message-through-the-turn-pipeline: done
   2-5-chat-with-ocutalon-in-the-page: done
-  2-6-show-every-decision-with-its-reasons-and-cost: ready-for-dev
+  2-6-show-every-decision-with-its-reasons-and-cost: in-progress
   2-7-route-untrusted-items-and-notifications-by-outcome: backlog
   2-8-show-the-status-rail: backlog
   2-9-open-anything-in-visual-trace: backlog
