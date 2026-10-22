@@ -12,7 +12,7 @@ Class OcuTalon.Core.Commands
 ///   - inside a bridge context (a tool is running) it is "tool", whatever origin the caller names;
 ///   - otherwise it is the origin argument, which must be one of Msg.Enum ORIGIN.
 /// Submit trusts the origin that its caller authenticated and does not check the caller's roles: the admin-checked
-/// endpoints and CommandsIn own those checks.
+/// entry points own those checks, and CommandsIn checks only which origins may send each verb.
 /// An object that is not a command, or an origin that is not in the enumeration, is an error that names the problem;
 /// nothing is sent and the command keeps its origin.
 ClassMethod Submit(command As OcuTalon.Msg.Command, origin As %String, Output result As OcuTalon.Msg.CommandResult) As %Status

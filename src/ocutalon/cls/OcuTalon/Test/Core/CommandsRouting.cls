@@ -10,9 +10,12 @@
 ///   - TestToolGovernanceRefused: SetDemoMode, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
 ///   - TestToolDismissOwnIncident: a tool dismisses only an incident that Ownership.Incident returns for its session;
+///   - TestContextDismissSeesOwnIncidentOnly: the same limit holds for a Dismiss that says web_user while a context is active,
+///     and a Dismiss whose SessionRef is not the context's OwnerRef is refused;
 ///   - TestStubOwner: an owner stub of either kind gives not_built;
 ///   - TestOwnerFailure: an owner error, no answer, a wrong answer and a thrown error give failed, and the status is OK;
 ///   - TestUnknownCommand: a class that is not in the table, and an origin outside the enumeration, send nothing;
+///   - TestSubclassOfVerbIsUnknown: a class that only extends a verb class is not that verb;
 ///   - TestThread: the send joins the context's thread session and SuperSession;
 ///   - TestSuperSessionFromSession: outside a context the SuperSession is the TraceRef of the command's session.
 /// The run's number is n from ^OcuTalonTest("CommandsRouting","n") (never reset); the owner records the calls of a run under
@@ -105,7 +108,7 @@ Method TestOriginRules()
 			Set probe = ..NewProbe("ok")
 			Set command = ..NewCommand(verb, origin, session, "zzkey"_..Number)
 			If verb = "Dismiss" Set command.IncidentRef = incident
-			Do probe.OnProcessInput(command, .output)
+			Set sc = probe.OnProcessInput(command, .output)
 			Set expected = ..Expected(verb, origin)
 			Set label = verb_" from '"_origin_"'"
 			If expected = "" {
@@ -116,6 +119,7 @@ Method TestOriginRules()
 			} Else {
 				Set refused = refused + 1
 				Do $$$AssertEquals(..Calls(), 0, label_" sends nothing")
+				Do $$$AssertStatusOK(sc, label_" is answered with a status that is OK")
 				Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed")
 				Do $$$AssertEquals(output.Message, expected, label_" says why")
 			}
@@ -201,7 +205,8 @@ Method TestToolDismissOwnIncident()
 	Set refusals = $ListBuild(a_"|"_bOwn_"|another session's incident", a_"|"_unnoticed_"|an unnoticed incident", a_"|"_eval_"|an eval incident", a_"|zzmissing"_..Number_"|an unknown Ref", a_"||an empty Ref", "|"_own_"|an empty session", a_"|"_instance_"|an instance incident of a production it does not watch")
 	For i = 1:1:$ListLength(refusals) {
 		Set one = $List(refusals, i)
-		Do ..Dismiss(probe, $Piece(one, "|", 1), $Piece(one, "|", 2), .output)
+		Set sc = ..Dismiss(probe, $Piece(one, "|", 1), $Piece(one, "|", 2), .output)
+		Do $$$AssertStatusOK(sc, "the refusal of "_$Piece(one, "|", 3)_" is answered with a status that is OK")
 		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_found", "a tool is refused "_$Piece(one, "|", 3))
 		Do $$$AssertEquals(output.Message, answer, "with the text for an incident it can't see")
 	}
@@ -214,6 +219,45 @@ Method TestToolDismissOwnIncident()
 	Do $$$AssertEquals(output.Ok, 1, "and the session's own incident still is")
 	Do $$$AssertEquals(..Calls(), 3, "which is sent")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// While a bridge context is active the origin is tool whatever the command says, so a Dismiss that says web_user is limited
+/// the same way: the session's own noticed incident is sent to IncidentManager, another session's incident is not_found and
+/// nothing is sent. A Dismiss that names session B inside session A's context is not_found too, although B can see the
+/// incident, because a tool acts only for the session of its turn. Once the context has ended the same Dismiss is routed,
+/// because only a tool is limited to what it sees.
+Method TestContextDismissSeesOwnIncidentOnly()
+{
+	Set a = ..Session("ctxdisa")
+	Set b = ..Session("ctxdisb")
+	Set production = "Zz.Cmd"_..Number_".Production"
+	Set own = ..Incident(a, "2030-01-01T10:00:00Z", production)
+	Set other = ..Incident(b, "2030-01-01T10:00:00Z", production)
+	Set probe = ..NewProbe("ok")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = a
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Number), "a context of session A begins")
+	Try {
+		Set sc = ..Dismiss(probe, a, other, .output, "web_user")
+		Do $$$AssertStatusOK(sc, "the Dismiss of another session's incident is answered with a status that is OK")
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_found", "a Dismiss that says web_user is not_found for another session's incident inside a context")
+		Do $$$AssertEquals(output.Message, "This session has no such incident. Nothing was changed.", "with the text for an incident it can't see")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+		Set sc = ..Dismiss(probe, b, other, .output, "web_user")
+		Do $$$AssertStatusOK(sc, "a Dismiss that names another session is answered with a status that is OK")
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_found", "a Dismiss that names session B is not_found inside session A's context, though B can see the incident")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent for it")
+		Do ..Dismiss(probe, a, own, .output, "web_user")
+		Do $$$AssertEquals(output.Ok, 1, "the session's own incident is routed inside the context")
+		Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "incidentRef"), "IncidentManager|"_own, "to IncidentManager")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set before = ..Calls()
+	Do ..Dismiss(probe, a, other, .output, "web_user")
+	Do $$$AssertEquals(output.Ok, 1, "once the context has ended the same Dismiss from web_user is routed")
+	Do $$$AssertEquals(..Calls(), before + 1, "and it is sent")
 }
 
 /// An owner that is still a stub gives not_built whether it is an operation (code 5003) or a process (<Ens>ErrBPTerminated
@@ -276,19 +320,39 @@ Method TestUnknownCommand()
 	Set labels = $ListBuild("an IncidentCommand", "a message that is not a command", "a dynamic object", "an empty value", "a string")
 	For i = 1:1:$ListLength(labels) {
 		Set value = $Case(i, 1: incident, 2: ##class(Ens.StringRequest).%New("zz"), 3: {"Origin": "system"}, 4: "", : "zz")
-		Do probe.OnProcessInput(value, .output)
+		Set sc = probe.OnProcessInput(value, .output)
+		Do $$$AssertStatusOK(sc, $List(labels, i)_": the status is OK")
 		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|unknown_command", $List(labels, i)_" is unknown_command")
 		Do $$$AssertEquals(output.Message, "OcuTalon doesn't know that command. Nothing was changed.", $List(labels, i)_": and it says so")
 	}
 	Set command = ..NewCommand("ListReminders", "zz", session, "zzkey"_..Number)
-	Do probe.OnProcessInput(command, .output)
+	Set sc = probe.OnProcessInput(command, .output)
+	Do $$$AssertStatusOK(sc, "a verb with an origin outside the enumeration: the status is OK")
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "a verb with an origin outside the enumeration is not_allowed")
 	Do $$$AssertEquals(output.Message, "OcuTalon can't take that command from here. Nothing was changed.", "and it says so")
 	Do $$$AssertEquals(..Calls(), 0, "nothing was sent")
 }
 
+/// A verb is matched by its exact class name: a command whose class only extends a verb class (here a ListReminders) is
+/// unknown_command, from an origin that the verb accepts too, and nothing is sent.
+Method TestSubclassOfVerbIsUnknown()
+{
+	Set session = ..Session("subverb")
+	Set probe = ..NewProbe("ok")
+	Set command = ##class(OcuTalon.Test.Core.CommandsSubVerb).%New()
+	Set command.Origin = "web_user"
+	Set command.SessionRef = session
+	Set command.IdempotencyKey = "zzkey"_..Number
+	Do $$$AssertEquals(command.%Extends("OcuTalon.Msg.Command.ListReminders"), 1, "the test command is a ListReminders by inheritance")
+	Set sc = probe.OnProcessInput(command, .output)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|unknown_command", "a subclass of a verb is unknown_command")
+	Do $$$AssertEquals(output.Message, "OcuTalon doesn't know that command. Nothing was changed.", "and it says so")
+	Do $$$AssertEquals(..Calls(), 0, "nothing was sent")
+}
+
 /// Inside a context the send is in the thread session of the context's ThreadSessionId, with its SuperSession; with no
-/// ThreadSessionId it is a session of its own that still carries the SuperSession.
+/// ThreadSessionId (empty or 0, which no trace session has) it is a session of its own that still carries the SuperSession.
 Method TestThread()
 {
 	Set session = ..Session("thread")
@@ -311,6 +375,18 @@ Method TestThread()
 		Set probe = ..NewProbe("ok")
 		Do probe.OnProcessInput(command, .output)
 		Do $$$AssertEquals(probe.SeenSessionId, "", "with no ThreadSessionId the send starts a session of its own")
+		Do $$$AssertEquals(probe.SeenSuperSession, super, "which still carries the SuperSession")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.ThreadSessionId = 0
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, super), "a context whose ThreadSessionId is 0 begins")
+	Try {
+		Set probe = ..NewProbe("ok")
+		Set command = ..NewCommand("ListReminders", "web_user", session, "zzkey"_..Number)
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(probe.SeenSessionId, "", "a ThreadSessionId of 0 is no thread: the send starts a session of its own")
 		Do $$$AssertEquals(probe.SeenSuperSession, super, "which still carries the SuperSession")
 	} Catch exception {
 		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
@@ -378,12 +454,13 @@ Method NewCommand(verb As %String, origin As %String, sessionRef As %String, key
 	Quit command
 }
 
-/// A tool's Dismiss of the incident for the session, through the probe; output is the answer.
-Method Dismiss(probe As OcuTalon.Test.Core.CommandsInProbe, sessionRef As %String, incidentRef As %String, Output output As OcuTalon.Msg.CommandResult) [ Private ]
+/// A Dismiss of the incident for the session through the probe (from a tool unless the origin says otherwise); output is the
+/// answer, and the status is the one that OnProcessInput answered.
+Method Dismiss(probe As OcuTalon.Test.Core.CommandsInProbe, sessionRef As %String, incidentRef As %String, Output output As OcuTalon.Msg.CommandResult, origin As %String = "tool") As %Status [ Private ]
 {
-	Set command = ..NewCommand("Dismiss", "tool", sessionRef, "zzkey"_..Number)
+	Set command = ..NewCommand("Dismiss", origin, sessionRef, "zzkey"_..Number)
 	Set command.IncidentRef = incidentRef
-	Do probe.OnProcessInput(command, .output)
+	Quit probe.OnProcessInput(command, .output)
 }
 
 /// The number of calls the owner has recorded in this run.

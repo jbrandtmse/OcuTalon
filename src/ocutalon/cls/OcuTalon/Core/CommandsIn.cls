@@ -5,7 +5,8 @@
 ///     item and the origins that may send it; a class not in the table (IncidentCommand included) is unknown_command;
 ///   - the origin is "tool" whenever a bridge context is active in this process, whatever the command says, and otherwise the
 ///     command's Origin. A tool may send only the verbs of TOOLVERBS, and Dismiss only for an incident that
-///     Ownership.Incident returns for the command's SessionRef; any other origin must be one the table names for the verb;
+///     Ownership.Incident returns for the command's SessionRef, which inside a bridge context must be the context's OwnerRef;
+///     any other origin must be one the table names for the verb;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -71,6 +72,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		Quit ..Result("not_allowed", $Select(owner = "SettingsOps": ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
 	}
 	If (origin = "tool") && (verb = "Dismiss") {
+		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
@@ -85,8 +87,8 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Quit response
 }
 
-/// The one send of the class: the command to the owner item, synchronously. Private so that no caller outside the class
-/// sends; a test subclass overrides it to stand in for the owner.
+/// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
+/// after the checks; a test subclass overrides it to stand in for the owner.
 Method Send(target As %String, request As OcuTalon.Msg.Command, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)

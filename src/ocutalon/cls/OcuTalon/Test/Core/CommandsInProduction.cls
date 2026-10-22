@@ -67,7 +67,7 @@ Method TestStubOwnersAnswerPlainEnglish()
 	If '..Guard() Quit
 	Set a = ..Session("stubs")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set mode = (##class(OcuTalon.Data.Setting).Get("demo.mode") = "1")
+	Set mode = (..Mode() = "1")
 	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "StartWatch|WatchOps|web_user", "SetDemoMode|SettingsOps|system", "EndSession|SessionOps|web_user", "Dismiss|IncidentManager|web_user")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
@@ -118,9 +118,9 @@ Method TestTraceAndThread()
 	Do $$$AssertEquals(request.superSession, trace, "its SuperSession is the session's TraceRef")
 	Do $$$AssertEquals(request.bodyClass, "OcuTalon.Msg.Command.ListReminders", "its body is the command")
 	Set body = ##class(OcuTalon.Msg.Command.ListReminders).%OpenId(request.bodyId)
-	Do $$$AssertTrue($IsObject(body) && (body.IdempotencyKey = command.IdempotencyKey), "with the submitted key")
+	Do $$$AssertTrue($IsObject(body) && (body.IdempotencyKey = ("zzkey"_..Number_"first")), "with the submitted key")
 	Set thread = request.sessionId
-	Do $$$AssertTrue(thread '= "", "it has a session of its own: "_thread)
+	Do $$$AssertEquals(thread, request.id, "it has a session of its own, which starts at its request header")
 	Do $$$AssertEquals(answers.%Get(0).sessionId, thread, "the answer is in the same session")
 	Do $$$AssertEquals(answers.%Get(0).superSession, trace, "with the same SuperSession")
 
@@ -155,7 +155,7 @@ Method TestGovernanceRefusedFromTool()
 {
 	If '..Guard() Quit
 	Set a = ..Session("governance")
-	Set mode = ##class(OcuTalon.Data.Setting).Get("demo.mode")
+	Set mode = ..Mode()
 	Set settings = ..Sent("SettingsOps")
 	Set sessions = ..Sent("SessionOps")
 	Set begin = ##class(OcuTalon.Bridge.Msg.Request).%New()
@@ -183,7 +183,7 @@ Method TestGovernanceRefusedFromTool()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do $$$AssertEquals(..Sent("SettingsOps"), settings, "no header went to SettingsOps")
 	Do $$$AssertEquals(..Sent("SessionOps"), sessions, "no header went to SessionOps")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("demo.mode"), mode, "and demo.mode is as it was")
+	Do $$$AssertEquals(..Mode(), mode, "and demo.mode is as it was")
 }
 
 /// Inside a context, the Dismiss of session A's own noticed incident reaches IncidentManager (the stub answers not_built);
@@ -244,6 +244,14 @@ Method Dismissal(sessionRef As %String, incidentRef As %String) As OcuTalon.Msg.
 	Set command.IncidentRef = incidentRef
 	Set command.IdempotencyKey = "zzkey"_..Number_"d"_incidentRef
 	Quit command
+}
+
+/// The demo mode as its Setting row holds it now, read past the per-process cache of Setting.Get, so that a change made by
+/// another job shows at once; "" when there is no row.
+ClassMethod Mode() As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Quit $Select($IsObject(row): row.Value, 1: "")
 }
 
 /// The number of request headers from CommandsIn to the owner item, whatever their session.
