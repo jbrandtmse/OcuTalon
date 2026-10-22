@@ -165,9 +165,10 @@ ClassMethod LabelFor(toolClass As %String, name As %String) As %String
 	Quit $Select(label '= "": label, 1: ..#GENERICLABEL)
 }
 
-/// The text redacted (OcuTalon.Bridge.Redact.Text), then cut (Cut). Line breaks and other control characters (the C0 and DEL controls,
-/// NEL, and the line and paragraph separators) become spaces, so that a part is one line. Redaction comes first, so that a cut can
-/// never split a secret out of its pattern.
+/// The text with its line breaks and other control characters (the C0 and DEL controls, NEL, and the line and paragraph separators) as
+/// spaces, so that a part is one line, then redacted (OcuTalon.Bridge.Redact.Text), then cut (Cut). The spaces come first, so that the
+/// redactor sees the text as the step shows it (a control character between a key and its value is a space to it), and redaction comes
+/// before the cut, so that a cut can never split a secret out of its pattern.
 ClassMethod Part(text As %String, max As %Integer) As %String
 {
 	Set controls = ""
@@ -175,7 +176,7 @@ ClassMethod Part(text As %String, max As %Integer) As %String
 		Set controls = controls _ $Char(code)
 	}
 	Set controls = controls _ $Char(127, 133, 8232, 8233)
-	Quit ..Cut($Translate(##class(OcuTalon.Bridge.Redact).Text(text), controls, $Justify("", $Length(controls))), max)
+	Quit ..Cut(##class(OcuTalon.Bridge.Redact).Text($Translate(text, controls, $Justify("", $Length(controls)))), max)
 }
 
 /// The text cut to at most max characters: a text over max keeps its first max - 3 characters and ends in "...".

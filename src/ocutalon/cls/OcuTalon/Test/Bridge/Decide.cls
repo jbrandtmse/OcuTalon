@@ -53,6 +53,11 @@
 ///     and with a reply of another class gets none and no warning; Steps that is not a JSON array, and a record that is not an object, get
 ///     none (or skip the record) and one warning that names the DecisionRef and not the content; Conclude's answer to a turn has no Steps;
 ///   - TestTurnKeepsReply also pins that the answer to a turn does not carry the runner's Steps, and the runner's own Reply keeps them.
+/// Added by the QA stage of Story 1.5 (AD-9, AD-31; the "Problems" clause of the sending):
+///   - TestEmitStepsFails: steps whose sends fail (the messages are invalid, so the send fails in the validation of the message and sends
+///     nothing, whatever the production is doing) give one warning for each, which names the DecisionRef, the step and the codes of the
+///     error and holds nothing of the content that the status echoes (a password and a Bearer token), not even redacted; EmitSteps raises
+///     nothing, and OnResponse still answers the turn and records its row.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
@@ -72,6 +77,9 @@ Property ItemIds As %List;
 /// The DecisionRefs of the Usage rows that the test made.
 Property UsageRefs As %List;
 
+/// The values (DecisionRefs and fake secrets) whose event-log rows the test wrote or provoked, to be deleted again.
+Property LogNeedles As %List;
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set position = 0
@@ -84,6 +92,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
 	}
 	Set ..UsageRefs = ""
+	Set position = 0
+	While $ListNext(..LogNeedles, position, needle) {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", needle)
+	}
+	Set ..LogNeedles = ""
 	Kill ^||ZzProbeFilter, ^||ZzProbeSink
 	Quit $$$OK
 }
@@ -728,6 +741,66 @@ Method TestStepMessages()
 	Do $$$AssertEquals(reply.Steps, steps.%ToJSON(), "and the runner's Reply keeps them")
 }
 
+/// EmitSteps with sends that fail. The records are valid JSON, but a field of each is not a number, so the message is invalid and the send
+/// fails in the validation of the message, before any header or queue entry: nothing reaches AgentSteps, with the production running or
+/// not. The status of the failed send echoes the value that failed, as the validation error of a real send does, so the warning holds the
+/// codes of the error and not its text: the value is a password in the first record and a Bearer token in the second, and neither is in a
+/// warning. Each warning names the DecisionRef and the step.
+/// (The platform logs the same status itself, as an error of Ens.MessageHeader.NewRequestMessage, with the echoed value. That row is not
+/// the step code's: the records that the runner returns are redacted at their source, so a real status echoes no secret, and the value
+/// is planted here only to show what the warnings of EmitSteps do with a status that holds one.)
+/// EmitSteps raises nothing, and OnResponse answers the turn all the same and records its row.
+Method TestEmitStepsFails()
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason _ ", so the status of a failed send echoes the value that failed")
+		Quit
+	}
+	Set process = ..NewProcess()
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set password = "zzhunter2-" _ ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set bearer = "zzbearer-" _ ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..LogNeedles = ..LogNeedles _ $ListBuild(ref, password, bearer)
+	Set steps = [{"kind": "tool", "label": "Reading the test note", "summary": "zz_steps_note. Inputs: {}. Result: {}. About 1 tokens added to the next request (an estimate).", "durationMs": ("password=" _ password), "status": "ok", "estimatedTokens": 1}, {"kind": "tool", "label": "Reading the test card", "summary": "zz_steps_card. Inputs: {}. Result: {}. About 1 tokens added to the next request (an estimate).", "durationMs": 3, "status": "ok", "estimatedTokens": ("Bearer " _ bearer)}]
+	Set reply = ..NewReply("Everything is fine.")
+	Set reply.Steps = steps.%ToJSON()
+	Set mark = ..LogMark()
+	Set raised = ""
+	Try {
+		Do process.EmitSteps(ref, reply)
+	} Catch exception {
+		Set raised = exception.DisplayString()
+	}
+	Do $$$AssertEquals(raised, "", "EmitSteps raises nothing when the sends fail")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref), 2, "and logs one warning for each step that was not sent")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, "Step 1 of the decision " _ ref _ " was not sent to AgentSteps"), 1, "the first names the step, the DecisionRef and AgentSteps")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, "Step 2 of the decision " _ ref _ " was not sent to AgentSteps"), 1, "and so does the second")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, "(error codes "), 2, "each names the codes of its error")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, "password") + ..EmitWarnings(mark, ref, "Bearer") + ..EmitWarnings(mark, ref, "[redacted]"), 0, "and none holds the content of its step: not the value that its status echoes, not even redacted")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, password), 0, "the password is in no warning of EmitSteps")
+	Do $$$AssertEquals(..EmitWarnings(mark, ref, bearer), 0, "nor the Bearer token")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ?", ref)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "and no AgentStep was saved for the DecisionRef")
+
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = "OcuTalon.Bridge.Ext.HostSink"
+	Set process.%SessionId = 4244
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..LogNeedles = ..LogNeedles _ $ListBuild(sent.DecisionRef)
+	Set sc = process.OnResponse(request, .response, sent, reply, "reply")
+	Do $$$AssertStatusOK(sc, "the reply is concluded though its steps were not sent")
+	Do $$$AssertEquals($Select($IsObject(response): response.Text_"|"_response.Steps, 1: "none"), "Everything is fine.|", "and the answer is the text, with no Steps")
+	Set row = ..RowOf(request.ItemId, "turn")
+	Do $$$AssertTrue($IsObject(row), "a row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.Ref, sent.DecisionRef, "with the DecisionRef of the runner's request")
+	Do $$$AssertEquals(..EmitWarnings(mark, sent.DecisionRef), 2, "and its two steps are two warnings too")
+	Do $$$AssertEquals(..EmitWarnings(mark, sent.DecisionRef, password) + ..EmitWarnings(mark, sent.DecisionRef, bearer), 0, "and neither the password nor the Bearer token is in them")
+}
+
 /// Conclude puts the totals of the decision on the Decision row and on the answer, for a decide and for a turn (AD-20, AD-26): the
 /// sums of the Usage rows of its DecisionRef in InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens and CostUSD, the Model of
 /// the newest row, the AgentStepCount of the runner's reply, and the DurationMs it is given. A decision with no Usage row has empty
@@ -1012,6 +1085,12 @@ Method AssertReply(text As %String, pass As %Boolean, label As %String) [ Privat
 	Do $$$AssertStatusNotOK(sc, label_" fails")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "reply check", label_" fails with an error that names the reply check")
 	Do $$$AssertEquals(payload, "", label_" gives no payload")
+}
+
+/// The number of warnings of Decide's EmitSteps after the mark that name the DecisionRef and hold the needle, if one is given.
+ClassMethod EmitWarnings(mark As %Integer, ref As %String, needle As %String = "") As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "EmitSteps", $ListBuild(ref, needle))
 }
 
 /// The number of warnings of Decide's StepMessages after the mark that name the DecisionRef.

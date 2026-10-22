@@ -2,7 +2,8 @@
 /// tests read the source of the compiled OcuTalon classes, drop their comment lines (Test.Bridge.Source), and call nothing in AI Hub.
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
-///     %AI.Shell.StreamRenderer) names %AI on no code line except its Class line, and uses no Python, because on build 154 a session
+///     %AI.Shell.StreamRenderer), and a class whose methods they call (CALLBACKHELPERS: the step buffer), names %AI on no code line except
+///     its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
 ///     StreamChat, StreamChatWithContent, SendChat, SendChatWithContent, RunAgent, ChatComplete, StreamChatComplete or an agent's Run
@@ -22,6 +23,10 @@ Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 
 /// The base classes of the classes that run inside AI Hub's callbacks.
 Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Policy.Audit,%AI.Policy.Discovery,%AI.Shell.StreamRenderer";
+
+/// The classes that extend none of those bases but whose methods the callbacks call: the step buffer, which the step renderer and the
+/// step audit policy append to (AD-9).
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -66,6 +71,7 @@ Method TestCallbackRule()
 	Do $$$AssertEquals(..CallbackProblem(good), "", "and passes a sample that keeps it, comment lines and look-alike words included")
 
 	Set classes = 0
+	Set helpers = 0
 	Set offending = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.'")
 	While result.%Next() {
@@ -73,6 +79,7 @@ Method TestCallbackRule()
 		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
 		If '..IsCallbackClass(class) Continue
 		Set classes = classes + 1
+		If $ListFind($ListFromString(..#CALLBACKHELPERS), class) Set helpers = helpers + 1
 		If $$$ISERR(##class(OcuTalon.Test.Bridge.Source).Text(class, .text)) {
 			Set offending = offending _ " " _ class _ " (no source)"
 			Continue
@@ -81,7 +88,8 @@ Method TestCallbackRule()
 		If problem '= "" Set offending = offending _ " " _ class _ " (" _ problem _ ")"
 	}
 	Do $$$AssertTrue(classes >= 3, "the scan found the tool and toolset classes of OcuTalon: "_classes)
-	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class refers to %AI beyond its Class line, or uses Python")
+	Do $$$AssertEquals(helpers, $ListLength($ListFromString(..#CALLBACKHELPERS)), "and every class of CALLBACKHELPERS, which the callbacks call")
+	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class, nor a class that they call, refers to %AI beyond its Class line, or uses Python")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.
@@ -322,6 +330,7 @@ ClassMethod Offenders(pattern As %String, allowed As %String, Output scanned As 
 /// no %Extends method and is none of them.
 ClassMethod IsCallbackClass(class As %String) As %Boolean [ Private ]
 {
+	If $ListFind($ListFromString(..#CALLBACKHELPERS), class) Quit 1
 	If '##class(%Dictionary.CompiledMethod).%ExistsId(class_"||%Extends") Quit 0
 	Set is = 0
 	Set bases = $ListFromString(..#CALLBACKBASES)

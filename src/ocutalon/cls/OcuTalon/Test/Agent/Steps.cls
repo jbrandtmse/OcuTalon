@@ -19,6 +19,11 @@
 ///     shows [redacted]; the failed card call is a step with the status error and its error text, redacted;
 ///   - TestDecideStep: an untrusted decide request to Triage's default script leaves one model step in the decision's session, and Decide
 ///     sends only to the runner, the timer, AgentSteps and its caller.
+/// Added by the QA stage of Story 1.5 (AD-4, AD-9, AD-31):
+///   - TestRedactedText: a turn whose tools answer TEXT, as the product's tools do (the scenario steps-secrets-text), and whose card tool
+///     fails with a JSON body: none of the 14 fake secrets is in any step, in the runner's Reply (Steps and XML), in the event log or in
+///     what the key scan names, and [redacted] stands in the place of each, counted in the two steps;
+///   - OnAfterOneTest also deletes the AgentStep messages of the test's decisions, once AgentSteps has handled them.
 Class OcuTalon.Test.Agent.Steps Extends %UnitTest.TestCase
 {
 
@@ -74,6 +79,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
 	}
@@ -242,28 +248,55 @@ Method TestRedacted()
 	Set runner = $ClassMethod(fixture, "HeaderTo", headers, "Decide")
 	Set reply = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(runner.bodyId), 1: "")
 	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
-	Set xml = ""
-	If $IsObject(reply) {
-		Do $$$AssertStatusOK(reply.XMLExportToString(.xml), "the runner's Reply is exported as XML")
-		Do $$$AssertTrue(reply.Steps [ "[redacted]", "it carries the steps, redacted")
-	}
+	If $IsObject(reply) Do $$$AssertTrue(reply.Steps [ "[redacted]", "it carries the steps, redacted")
 	For kind = "apiKey", "accessToken", "password", "chatId", "displayName" {
 		For where = "arg", "result" {
 			Set value = $ClassMethod(note, "Secret", kind, where)
-			Set label = "the " _ kind _ " " _ where
-			Set found = 0
-			Set iterator = steps.%GetIterator()
-			While iterator.%GetNext(, .step) {
-				If (step.label [ value) || (step.summary [ value) Set found = found + 1
-			}
-			Do $$$AssertEquals(found, 0, label _ " is in no agent step")
-			If $IsObject(reply) {
-				Do $$$AssertNotTrue(reply.Steps [ value, label _ " is not in the runner's Reply, in its Steps")
-				Do $$$AssertNotTrue(xml [ value, "nor in its XML")
-			}
-			Do $$$AssertEquals(..LogRowsHolding(mark, value), 0, label _ " is in no event-log row since the test began")
-			Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.KeyScan).Find(value), "; "), "", label _ " is in nothing that the key scan names")
+			Do $$$AssertEquals($ClassMethod(fixture, "LeakPlaces", value, steps, reply, mark), "", "the " _ kind _ " " _ where _ " is in no agent step, not in the runner's Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
 		}
+	}
+}
+
+/// A turn whose tools answer text and fail with a JSON body (the scenario steps-secrets-text), through Decide and the running production.
+/// The product's tools return a %String, which AI Hub gives the audit policy as a JSON string; the redactor has to look inside it. Controls
+/// first: the fixtures hold the 14 values that the test looks for. Then none of them is in any step, in the runner's Reply, in the event
+/// log or in what the key scan names, and [redacted] stands in the place of each: nine times in the text step (five keys and four secrets
+/// in a line of free text) and five times in the error of the card step.
+Method TestRedactedText()
+{
+	If ..Failed() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set note = "OcuTalon.Test.Bridge.StepsNote"
+	Set values = $ClassMethod(note, "TextValues")
+	Do $$$AssertEquals($ClassMethod(fixture, "TextControlsMissing"), "", "control: the fixtures hold the 14 fake secrets that the test looks for")
+
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:steps-secrets-text]] Read the secret report.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn, though a tool failed")
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(answer.Text, "The CI mock read the secret report.", "the text is the last reply of the scenario")
+	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
+	Do $$$AssertEquals(steps.%Size(), 5, "five AgentStep messages exist")
+	If steps.%Size() '= 5 Quit
+	Set textStep = steps.%Get(1)
+	Set cardStep = steps.%Get(3)
+	Do $$$AssertEquals(textStep.label_"|"_textStep.status, "Reading the test report|ok", "the text step has the label of its class and is ok")
+	Do $$$AssertEquals(cardStep.label_"|"_cardStep.status, "Reading the test card|error", "the card step is an error")
+	Do $$$AssertTrue(cardStep.summary [ "was refused", "its summary holds the error text: " _ cardStep.summary)
+	Do $$$AssertEquals($Length(textStep.summary, "[redacted]") - 1, 9, "the text step shows [redacted] nine times: " _ textStep.summary)
+	Do $$$AssertEquals($Length(cardStep.summary, "[redacted]") - 1, 5, "and the card step five times: " _ cardStep.summary)
+	Set headers = $ClassMethod(fixture, "Headers", session, "ChatAgent")
+	Set runner = $ClassMethod(fixture, "HeaderTo", headers, "Decide")
+	Set reply = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(runner.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
+	Set position = 0
+	While $ListNext(values, position, value) {
+		Do $$$AssertEquals($ClassMethod(fixture, "LeakPlaces", value, steps, reply, mark), "", "'" _ $Extract(value, 1, 22) _ "...' is in no agent step, not in the runner's Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
 	}
 }
 
@@ -298,6 +331,11 @@ Method TestDecideStep()
 	} Else {
 		Do $$$AssertTrue(0, "a header to AgentSteps exists")
 	}
+	// The clean-up of the tests that make steps (QA): DeleteSteps removes the step and leaves the row of the decision.
+	Do $$$AssertEquals($ClassMethod(fixture, "StepsOf", response.DecisionRef).%Size(), 1, "the step exists before DeleteSteps")
+	Do $ClassMethod(fixture, "DeleteSteps", ref)
+	Do $$$AssertEquals($ClassMethod(fixture, "StepsOf", response.DecisionRef).%Size(), 0, "DeleteSteps removes the AgentStep messages of the item's decision")
+	Do $$$AssertTrue($IsObject($ClassMethod(fixture, "DecisionOf", ref, "decide")), "and not the decision's row")
 }
 
 /// --- helpers ---
@@ -365,12 +403,6 @@ ClassMethod HeadersOfBody(bodyClass As %String, bodyId As %String, session As %I
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId <> ?", bodyClass, bodyId, session)
 	Do result.%Next()
 	Quit result.%GetData(1)
-}
-
-/// The number of event-log rows after the mark whose text holds the value (Test.Agent.RunnerFixture.LogRowsHolding).
-ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer [ Private ]
-{
-	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, value)
 }
 
 }

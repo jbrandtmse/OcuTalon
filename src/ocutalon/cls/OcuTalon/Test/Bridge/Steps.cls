@@ -19,7 +19,15 @@
 ///     duration, ok and error with the error's own text without its code, and %LogDenial the status denied with the text; a call, a
 ///     metadata or a result that is not an object raises nothing, returns OK and still records the step;
 ///   - TestRedactThenCut: a result of 2,000 characters with a key that crosses the cut gives a summary with no part of the key, and
-///     every part and the summary stay within their limits.
+///     every part and the summary stay within their limits;
+///   - TestErrorTextIsWhole: the error text of a failed tool reaches the redactor whole, so a secret near its 2,000th character, which a
+///     collapsed key brings into view, is redacted;
+///   - TestControlsBeforeRedaction: a part's control characters become spaces before the redactor sees it, so a separator control
+///     between Bearer, or a key, and its value hides nothing.
+/// Added by the QA stage of Story 1.5 (AD-9, AD-31):
+///   - TestPartsAreRedactedThenCut: the other parts of a tool step are redacted before they are cut, each on its own: the inputs (a key that
+///     starts three characters before the cut at 300), the error text (the cut at 400), the tool's name, and the label of a tool class,
+///     whose text holds a Bearer token.
 Class OcuTalon.Test.Bridge.Steps Extends %UnitTest.TestCase
 {
 
@@ -294,6 +302,81 @@ Method TestRedactThenCut()
 	Do $$$AssertEquals($ClassMethod(buffer, "Part", "line" _ $Char(13, 10) _ "break", 200), "line  break", "and a line break becomes spaces: a part is one line")
 	Do $$$AssertEquals($ClassMethod(buffer, "Part", "esc" _ $Char(27, 0, 133, 8232) _ "end", 200), "esc    end", "and so do the other control characters: the escape, the null, the next-line and the line separator")
 	Do $$$AssertEquals($ClassMethod(buffer, "Part", "a password=" _ huge, 200), "a password=[redacted]", "a part passes the redactor")
+}
+
+/// Every part of a tool step is redacted before it is cut, not only the result: the inputs and the error text each have a key that starts
+/// shortly before their cut (so that a cut first would leave the first characters of the key, which no pattern matches), the tool's name
+/// holds a password, and the label of a tool class holds a Bearer token. After the redactor, the parts keep their limits.
+Method TestPartsAreRedactedThenCut()
+{
+	Set buffer = ..#BUFFER
+	Set audit = ##class(OcuTalon.Bridge.Policy.StepAudit).%New()
+	Set key = ##class(OcuTalon.Test.Bridge.StepsNote).Secret("apiKey", "result")
+	Set meta = ..Meta("OcuTalon.Test.Bridge.StepsNote")
+
+	// The inputs are cut to 300 characters, 297 and "...". The key starts at character 294 of the arguments.
+	Set arguments = "{""note"":""" _ ..Chars(284) _ key _ """,""topic"":""x""}"
+	Do $$$AssertEquals($Find(arguments, key) - $Length(key), 294, "the key starts at character 294 of the arguments, three characters before the cut")
+	Do $ClassMethod(buffer, "Start", 0)
+	Do audit.%LogExecution(..Call("zz_steps_note", arguments), meta, ..Result("{}"), 1, 1)
+	Set summary = $ClassMethod(buffer, "Records").%Get(0).summary
+	Set inputs = $Piece($Piece(summary, ". Inputs: ", 2), ". Result: ", 1)
+	Do $$$AssertEquals($Length(inputs), 300, "the inputs are cut to 300 characters")
+	Do $$$AssertNotTrue(summary [ "sk-a", "no part of the key is in the summary: not even its first four characters")
+	Do $$$AssertEquals($Extract(inputs, 294, 300), "[red...", "the redacted text is what is cut: the marker starts where the key did, and the cut ends in ...")
+
+	// The error text is cut to 400 characters. StatusText takes the text after "ERROR #5001: ", and the key starts at its character 393.
+	Set detail = ..Chars(392) _ key _ ..Chars(500)
+	Do $ClassMethod(buffer, "Start", 0)
+	Do audit.%LogExecution(..Call("zz_steps_note", "{}"), meta, "", 2, $SYSTEM.Status.Error(5001, detail))
+	Set summary = $ClassMethod(buffer, "Records").%Get(0).summary
+	Set outcome = $Piece($Piece(summary, ". Error: ", 2), ". About ", 1)
+	Do $$$AssertEquals($Length(outcome), 400, "the error text is cut to 400 characters")
+	Do $$$AssertNotTrue(summary [ "sk-an", "no part of the key is in the summary of the error")
+	Do $$$AssertEquals($Extract(outcome, 393, 400), "[reda...", "the redacted error text is what is cut")
+
+	// The name of the tool is redacted too.
+	Set password = ##class(OcuTalon.Test.Bridge.StepsNote).Secret("password", "result")
+	Do $ClassMethod(buffer, "Start", 0)
+	Do audit.%LogExecution(..Call("zz_steps_note password=" _ password, "{}"), meta, ..Result("{}"), 1, 1)
+	Set summary = $ClassMethod(buffer, "Records").%Get(0).summary
+	Do $$$AssertNotTrue(summary [ password, "the password in the name of the tool is not in the summary")
+	Do $$$AssertEquals($Piece(summary, ". Inputs: ", 1), "zz_steps_note password=[redacted]", "and [redacted] stands in its place")
+
+	// The label of a tool class is redacted too: STEPLABELZZLEAKY of StepsCard holds a Bearer token.
+	Do $ClassMethod(buffer, "Start", 0)
+	Do audit.%LogExecution(..Call("zz_leaky", "{}"), ..Meta("OcuTalon.Test.Bridge.StepsCard"), ..Result("{}"), 1, 1)
+	Set record = $ClassMethod(buffer, "Records").%Get(0)
+	Do $$$AssertEquals(record.label, "Reading the card with Bearer [redacted]", "the label of the tool class passes the redactor: " _ record.label)
+	Do $$$AssertNotTrue(record.label [ "zzlabel", "and holds none of the token")
+}
+
+/// The error text of a failed tool reaches the redactor whole, with no cut before it: a quoted private key of 1,700 characters, which the
+/// redactor collapses, comes before a bot token that starts at character 1,976 of the error text, so that a cut at 2,000 would leave 15
+/// characters of it after the colon, too few for its pattern, and the collapse would bring them into the 400 characters that the step shows.
+Method TestErrorTextIsWhole()
+{
+	Set buffer = ..#BUFFER
+	Set audit = ##class(OcuTalon.Bridge.Policy.StepAudit).%New()
+	Set token = "123456789" _ ":" _ "AAH" _ $Translate($Justify("", 32), " ", "z")
+	Set filler = $Translate($Justify("", 261), " ", "x")
+	Set detail = "privateKey=""" _ $Translate($Justify("", 1700), " ", "k") _ """ " _ filler _ token _ " end"
+	Do $$$AssertEquals($Find(detail, token) - $Length(token), 1976, "the token starts at character 1,976 of the error text")
+	Do $ClassMethod(buffer, "Start", 0)
+	Do audit.%LogExecution(..Call("zz_steps_note", "{}"), ..Meta("OcuTalon.Test.Bridge.StepsNote"), "", 2, $SYSTEM.Status.Error(5001, detail))
+	Set summary = $ClassMethod(buffer, "Records").%Get(0).summary
+	Do $$$AssertNotTrue(summary [ "AAHzzz", "no part of the token is in the summary: " _ $Extract(summary, 1, 120))
+	Do $$$AssertTrue(summary [ ("Error: privateKey=""[redacted]"" " _ filler _ "[redacted] end."), "the whole error text was redacted, then cut: the key and the token are each [redacted]")
+}
+
+/// A part's control characters become spaces before the redactor sees it, so that a separator control (28 to 31, which the redactor's
+/// white space does not take) between Bearer, or a key, and its value hides nothing that the step then shows on one line.
+Method TestControlsBeforeRedaction()
+{
+	Set buffer = ..#BUFFER
+	Do $$$AssertEquals($ClassMethod(buffer, "Part", "sent Bearer" _ $Char(29) _ "zztok1 on", 200), "sent Bearer [redacted] on", "Bearer, a group separator and a token")
+	Do $$$AssertEquals($ClassMethod(buffer, "Part", "password" _ $Char(28) _ "=" _ $Char(31) _ "zzpw1 end", 200), "password = [redacted] end", "a key, separators around its = and a value")
+	Do $$$AssertEquals($ClassMethod(buffer, "Part", "{""password"":" _ $Char(10) _ """zzpw2""}", 200), "{""password"":""[redacted]""}", "and JSON with a line break between its tokens is still parsed as JSON")
 }
 
 /// --- helpers ---

@@ -21,7 +21,10 @@
 ///   - UseAgent and RestoreAgent (Story 1.5): put a test agent behind a runner item, and put the item back, by changing the item's
 ///     AgentClass and AgentAllowList settings in the stored configuration of the production and updating the running production;
 ///     StepsOf: the AgentStep rows of a decision, by Position; Headers also gives the id of each header; Run, Targets, HeaderTo and
-///     CountTo are the send to Decide and the readings of its headers, which Test.Agent.Decide and Test.Agent.Steps share.
+///     CountTo are the send to Decide and the readings of its headers, which Test.Agent.Decide and Test.Agent.Steps share;
+///     DeleteSteps (QA): the AgentStep messages of an item's requests are deleted once AgentSteps has handled them; LeakPlaces: where a
+///     fake secret shows after a call (the steps, the runner's Reply, the event log and the stores of the key scan), which the redaction
+///     tests of Test.Agent.Steps and Test.Bridge.Runner share, with TextControlsMissing, the controls of the scenario steps-secrets-text.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -115,6 +118,56 @@ ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", mark, value)
 	Do result.%Next()
 	Quit result.%GetData(1)
+}
+
+/// Where the value shows after a call, as a text that names each place ("" when it shows nowhere): the label or summary of a step of
+/// steps (step records or AgentStep rows, each an object with label and summary), the Steps and the XML of the runner's reply (when it
+/// is an object), the rows of the event log after the mark (EventMark), and the stores that the key scan names (Test.Agent.KeyScan.Find).
+ClassMethod LeakPlaces(value As %String, steps As %DynamicArray, reply As %RegisteredObject, mark As %Integer) As %String
+{
+	Set places = ""
+	Set iterator = steps.%GetIterator()
+	While iterator.%GetNext(.index, .step) {
+		If (step.label [ value) || (step.summary [ value) Set places = places _ $ListBuild("step " _ (index + 1))
+	}
+	If $IsObject(reply) {
+		If reply.Steps [ value Set places = places _ $ListBuild("the Steps of the runner's Reply")
+		Set xml = ""
+		If $$$ISERR(reply.XMLExportToString(.xml)) Set places = places _ $ListBuild("the runner's Reply, whose XML cannot be exported")
+		If xml [ value Set places = places _ $ListBuild("the XML of the runner's Reply")
+	}
+	Set rows = ..LogRowsHolding(mark, value)
+	If rows Set places = places _ $ListBuild(rows _ " event-log rows")
+	Set stores = ##class(OcuTalon.Test.Agent.KeyScan).Find(value)
+	If stores '= "" Set places = places _ $ListBuild("the key scan: " _ $ListToString(stores, ", "))
+	Quit $ListToString(places, "; ")
+}
+
+/// The controls of the scenario steps-secrets-text, as a text that names each one that fails ("" when all hold): the fixtures hold the 14
+/// fake secrets that the redaction tests look for (OcuTalon.Test.Bridge.StepsNote.TextValues). The report of StepsText for the topic keys
+/// is text that holds JSON with the five kinds under their keys and four of them in a line of free text, and the error that StepsCard
+/// throws for the owner refused holds all five.
+ClassMethod TextControlsMissing() As %String
+{
+	Set missing = ""
+	Set note = "OcuTalon.Test.Bridge.StepsNote"
+	If $ListLength($ClassMethod(note, "TextValues")) '= 14 Set missing = missing _ $ListBuild("TextValues does not list 14 values")
+	Set report = $ClassMethod("OcuTalon.Test.Bridge.StepsText", "Read", "keys")
+	If $Extract(report) '= "{" Set missing = missing _ $ListBuild("the report is not text that holds JSON")
+	Set thrown = ""
+	Try {
+		Do $ClassMethod("OcuTalon.Test.Bridge.StepsCard", "Read", "refused")
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	For kind = "apiKey", "accessToken", "password", "chatId", "displayName" {
+		If report '[ $ClassMethod(note, "Secret", kind, "text") Set missing = missing _ $ListBuild("the report lacks the " _ kind _ " under its key")
+		If thrown '[ $ClassMethod(note, "Secret", kind, "error") Set missing = missing _ $ListBuild("the error of the refused card lacks the " _ kind)
+	}
+	For kind = "apiKey", "accessToken", "password", "chatId" {
+		If report '[ $ClassMethod(note, "Secret", kind, "line") Set missing = missing _ $ListBuild("the line of free text lacks the " _ kind)
+	}
+	Quit $ListToString(missing, "; ")
 }
 
 /// The rows of the event log after the mark that belong to the item, as a list of "<type>: <text>", oldest first. The type is
@@ -211,6 +264,34 @@ ClassMethod StepsOf(decisionRef As %String) As %DynamicArray
 		Do steps.%Push({"id": (result.%GetData(1)), "position": (result.%GetData(2)), "kind": (result.%GetData(3)), "label": (result.%GetData(4)), "summary": (result.%GetData(5)), "durationMs": (result.%GetData(6)), "status": (result.%GetData(7)), "estimatedTokens": (result.%GetData(8))})
 	}
 	Quit steps
+}
+
+/// Deletes the AgentStep messages of the requests of the item (the DecisionRef of each Request message with its ItemId: the runner
+/// requests that Decide sent, so also those of a reply that Conclude refused, which has no Decision row), for the tests that make steps.
+/// It first waits, polling up to WAITSECONDS, until the AgentSteps operation has handled each message (its header is no longer Created,
+/// Queued or Delivered), so that the operation never opens a message that is gone.
+ClassMethod DeleteSteps(itemId As %String)
+{
+	Set refs = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DISTINCT DecisionRef FROM OcuTalon_Bridge_Msg.Request WHERE ItemId = ? AND DecisionRef IS NOT NULL", itemId)
+	While result.%Next() {
+		Set refs = refs _ $ListBuild(result.%GetData(1))
+	}
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Set steps = ..StepsOf(ref)
+		Set iterator = steps.%GetIterator()
+		While iterator.%GetNext(, .step) {
+			Set deadline = $ZHorolog + ..#WAITSECONDS
+			While 1 {
+				Set pending = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND Status < 4", "OcuTalon.Bridge.Msg.AgentStep", step.id)
+				Do pending.%Next()
+				If (pending.%GetData(1) = 0) || ($ZHorolog > deadline) Quit
+				Hang 0.5
+			}
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ?", ref)
+	}
 }
 
 /// Sends the request to Decide and waits for the answer. response is the answer (or ""), and session is the session of the request,

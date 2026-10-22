@@ -1,15 +1,19 @@
 /// The one redactor of the bridge (AD-31, Consistency Conventions: Redaction). Text(text) returns the text with every sensitive
 /// value replaced by [redacted]; the agent steps (AD-9), and from later stories the audit writer and the recorded files, pass
 /// their text through it. Structural rules come first in the code that builds a record (AD-4, AD-14), and this class is the backstop.
-///   - A text that is a JSON object or array is parsed. The value of every key in SENSITIVEKEYS, at any depth, is replaced
-///     (the names are compared in lower case with _ and - removed, so api_key, apiKey and API-KEY are one name), and every string
-///     value is checked for the patterns below. The result is the serialized JSON.
+///   - A text that is a JSON object or array is parsed. The value of every sensitive key, at any depth, is replaced, and every string
+///     value is redacted as a text of its own (JSON inside it is parsed too). The result is the serialized JSON. A key is sensitive
+///     when its name, in lower case with _, -, . and spaces removed (so api_key, apiKey, API-KEY and "api key" are one name), is a name
+///     of SENSITIVEKEYS or ends with one (authToken, telegramChatId), or when the name of the object that holds it and its own name
+///     together are (chat.id, user.name). In a name and value pair, such as a setting {"Name":"BotToken","Value":"..."}, the value is
+///     sensitive when the name is.
 ///   - A text that is exactly one JSON string (a tool that returns text has its result encoded so) is redacted by its content, as a
 ///     text of its own: JSON inside the string is parsed as above. A string that needs no change is returned as it is.
 ///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included), Telegram
 ///     bot tokens (6 to 12 digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub
-///     tokens (ghp_ and the other gh*_ forms, github_pat_) and AWS access key ids (AKIA). A key of SENSITIVEKEYS followed by =
-///     or : and a value is replaced too, in text that is not JSON and in the string values of JSON that is.
+///     tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of
+///     SENSITIVEKEYS followed by = or : and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is
+///     not JSON and in the string values of JSON that is.
 ///   - It is idempotent: Text(Text(x)) is Text(x).
 ///   - It never throws and never logs or stores its input. When it fails (for example when the redacted form of a text would
 ///     pass the limit of a string), it fails closed: it returns UNCHECKED and nothing of the text.
@@ -23,8 +27,14 @@ Parameter REDACTED = "[redacted]";
 /// What Text returns when it cannot check the text.
 Parameter UNCHECKED = "[redacted: the text could not be checked]";
 
-/// The names of the keys whose values are sensitive, comma-separated, in lower case with _ and - removed.
-Parameter SENSITIVEKEYS = "password,passwd,pwd,passphrase,secret,clientsecret,token,accesstoken,refreshtoken,idtoken,bottoken,apikey,xapikey,authorization,cookie,privatekey,chatid,firstname,lastname,username,displayname";
+/// The names of the keys whose values are sensitive, comma-separated, in lower case with _, -, . and spaces removed. A key whose name ends
+/// with one of them is sensitive too.
+Parameter SENSITIVEKEYS = "password,passwd,pwd,passphrase,secret,clientsecret,token,accesstoken,refreshtoken,idtoken,bottoken,apikey,xapikey,authorization,cookie,privatekey,chatid,firstname,lastname,username,displayname,secretkey,accesskey,userid,fromid";
+
+/// The members that hold the name of a name and value pair, and those that hold its value, in lower case, comma-separated.
+Parameter PAIRNAMES = "name,key";
+
+Parameter PAIRVALUES = "value";
 
 /// The deepest nesting of JSON that Text checks; a deeper text is not checked.
 Parameter MAXDEPTH = 100;
@@ -41,14 +51,42 @@ ClassMethod Text(text As %String = "") As %String
 	Quit result
 }
 
-/// 1 when the key names a sensitive value: in lower case with _ and - removed, it is in SENSITIVEKEYS.
-ClassMethod SensitiveKey(key As %String) As %Boolean
+/// 1 when the key names a sensitive value: its name (Normal) is a name of SENSITIVEKEYS or ends with one, or the name of its parent, the
+/// key of the object that holds it, and its own name together are or do.
+ClassMethod SensitiveKey(key As %String, parent As %String = "") As %Boolean
 {
-	Quit $ListFind($ListFromString(..#SENSITIVEKEYS), $Translate($ZConvert(key, "L"), "_-"))
+	Set name = ..Normal(key)
+	If name = "" Quit 0
+	Set names = $ListFromString(..#SENSITIVEKEYS)
+	For candidate = name, ..Normal(parent) _ name {
+		Set position = 0
+		While $ListNext(names, position, sensitive) {
+			If $Extract(candidate, *-$Length(sensitive) + 1, *) = sensitive Return 1
+		}
+	}
+	Quit 0
+}
+
+/// The name of a key as SENSITIVEKEYS holds it: in lower case, with _, -, . and spaces removed.
+ClassMethod Normal(key As %String) As %String [ Private ]
+{
+	Quit $Translate($ZConvert(key, "L"), "_-. ")
+}
+
+/// 1 when the object is a name and value pair whose name is sensitive: a member of PAIRNAMES holds the name of a sensitive key as a
+/// string, as in a setting {"Name":"BotToken","Value":"..."} or a header {"name":"Authorization","value":"..."}.
+ClassMethod SensitivePair(node As %Library.DynamicObject) As %Boolean [ Private ]
+{
+	Set pairNames = $ListFromString(..#PAIRNAMES)
+	Set iterator = node.%GetIterator()
+	While iterator.%GetNext(.key, .value, .type) {
+		If (type = "string") && $ListFind(pairNames, ..Normal(key)) && ..SensitiveKey(value) Return 1
+	}
+	Quit 0
 }
 
 /// Text without the safety net: a JSON object or array is parsed and scrubbed, a JSON string is redacted by its content (Literal), and
-/// the patterns are applied. depth counts the nested JSON strings.
+/// the patterns are applied. depth counts the nesting of JSON objects, arrays and strings, so that MAXDEPTH bounds all of it.
 ClassMethod Redacted(text As %String, depth As %Integer = 0) As %String [ Private ]
 {
 	If $ZStrip(text, "*WC") = "" Quit text
@@ -61,7 +99,7 @@ ClassMethod Redacted(text As %String, depth As %Integer = 0) As %String [ Privat
 			Set object = ""
 		}
 		If $IsObject(object) {
-			Do ..Scrub(object, 0)
+			Do ..Scrub(object, depth)
 			Quit ..Patterns(object.%ToJSON(), 0)
 		}
 	} ElseIf first = """" {
@@ -92,21 +130,24 @@ ClassMethod Literal(text As %String, depth As %Integer) As %String [ Private ]
 	Quit $Extract(json, 2, *-1)
 }
 
-/// Replaces, in a parsed JSON object or array and at any depth, the value of each sensitive key, and checks each string value
-/// for the patterns (the key rule included).
-ClassMethod Scrub(node As %Library.DynamicAbstractObject, depth As %Integer) [ Private ]
+/// Replaces, in a parsed JSON object or array and at any depth, the value of each sensitive key (with the key of the object that holds
+/// it as its parent, SensitiveKey) and the value of a sensitive name and value pair, and redacts each string value as a text of its own
+/// (Nested). parent is the key under which the node sits ("" at the top); the items of an array keep the array's.
+ClassMethod Scrub(node As %Library.DynamicAbstractObject, depth As %Integer, parent As %String = "") [ Private ]
 {
 	If depth > ..#MAXDEPTH Throw ##class(%Exception.General).%New("TooDeep", 5001, , "The JSON is nested too deeply to be checked")
 	Set isObject = node.%IsA("%Library.DynamicObject")
+	Set paired = isObject && ..SensitivePair(node)
+	Set pairValues = $ListFromString(..#PAIRVALUES)
 	Set changes = ""
 	Set iterator = node.%GetIterator()
 	While iterator.%GetNext(.key, .value, .type) {
-		If isObject && ..SensitiveKey(key) {
+		If isObject && (..SensitiveKey(key, parent) || (paired && $ListFind(pairValues, ..Normal(key)))) {
 			Set changes = changes _ $ListBuild($ListBuild(key, ..#REDACTED))
 		} ElseIf (type = "object") || (type = "array") {
-			Do ..Scrub(value, depth + 1)
+			Do ..Scrub(value, depth + 1, $Select(isObject: key, 1: parent))
 		} ElseIf type = "string" {
-			Set clean = ..Patterns(value, 1)
+			Set clean = ..Nested(value, depth + 1)
 			If clean '= value Set changes = changes _ $ListBuild($ListBuild(key, clean))
 		}
 	}
@@ -114,6 +155,23 @@ ClassMethod Scrub(node As %Library.DynamicAbstractObject, depth As %Integer) [ P
 	While $ListNext(changes, position, change) {
 		Do node.%Set($List(change, 1), $List(change, 2), "string")
 	}
+}
+
+/// A string value of JSON, redacted as a text of its own (Redacted: JSON inside it is parsed, a JSON string is redacted by its content,
+/// and the patterns with the key rule are applied). A value that holds JSON in which nothing is sensitive is returned as it is, not in
+/// its serialized form.
+ClassMethod Nested(value As %String, depth As %Integer) As %String [ Private ]
+{
+	Set clean = ..Redacted(value, depth)
+	If clean = value Quit value
+	Set first = $Extract($ZStrip(value, "<W"))
+	If (first = "{") || (first = "[") {
+		Try {
+			If clean = ##class(%Library.DynamicAbstractObject).%FromJSON(value).%ToJSON() Set clean = value
+		} Catch {
+		}
+	}
+	Quit clean
 }
 
 /// The text with each pattern of the list replaced. kv is 1 to include the rule for a sensitive key followed by = or : and a value.
@@ -140,22 +198,25 @@ ClassMethod PatternList(kv As %Boolean) As %List [ Private ]
 		$ListBuild("eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*", mark),
 		$ListBuild("gh[pousr]_[A-Za-z0-9]{20,}", mark),
 		$ListBuild("github_pat_[A-Za-z0-9_]{20,}", mark),
-		$ListBuild("AKIA[0-9A-Z]{16}", mark))
+		$ListBuild("AKIA[0-9A-Z]{16}", mark),
+		$ListBuild("(?i)\b([a-z][a-z0-9+.-]*://)[^\s/?#@:""'\\]+:[^\s/?#@""'\\]*@", "$1" _ mark _ "@"))
 	If kv {
 		Set keys = ..KeyPattern()
 		Set patterns = patterns _ $ListBuild(
-			$ListBuild(keys _ """[^""]*""", "$1""" _ mark _ """"),
+			$ListBuild(keys _ "(\\+"")(?:(?!\2)[\s\S])*\2", "$1$2" _ mark _ "$2"),
+			$ListBuild(keys _ """(?:[^""\\]|\\.)*""", "$1""" _ mark _ """"),
 			$ListBuild(keys _ "'[^']*'", "$1'" _ mark _ "'"),
-			$ListBuild(keys _ "(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?[^\s""',;&]+", "$1" _ mark))
+			$ListBuild(keys _ "(?!\\+"")(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?[^\s""',;&]+", "$1" _ mark))
 	}
 	Quit patterns
 }
 
 /// The start of the regular expression of a sensitive key followed by = or : and a value: group 1 is the key and the separator.
-/// Each name of SENSITIVEKEYS matches with an optional _ or - between its letters and in any case. The value, which follows, is a
-/// double-quoted string, a single-quoted string, or a run of characters up to a space, quote, comma, semicolon or ampersand (after an
-/// authentication scheme such as Bearer or Basic, which belongs to the value); a quoted value keeps its quotes, so that a JSON fragment
-/// in a text stays well formed.
+/// Each name of SENSITIVEKEYS matches with an optional _, -, . or space between its letters and in any case, and its closing quote may be
+/// escaped (JSON inside a text). The value, which follows, is a string in escaped double quotes (JSON inside a text), a double-quoted
+/// string (whose escaped quotes belong to it), a single-quoted string, or a run of characters up to a space, quote, comma, semicolon or
+/// ampersand (after an authentication scheme such as Bearer or Basic, which belongs to the value); a quoted value keeps its quotes, so
+/// that a JSON fragment in a text stays well formed.
 ClassMethod KeyPattern() As %String [ Private ]
 {
 	Set names = $ListFromString(..#SENSITIVEKEYS)
@@ -164,11 +225,11 @@ ClassMethod KeyPattern() As %String [ Private ]
 	While $ListNext(names, position, name) {
 		Set spaced = ""
 		For i = 1:1:$Length(name) {
-			Set spaced = spaced _ $Select(i = 1: "", 1: "[_-]?") _ $Extract(name, i)
+			Set spaced = spaced _ $Select(i = 1: "", 1: "[_\-. ]?") _ $Extract(name, i)
 		}
 		Set alternatives = alternatives _ $Select(alternatives = "": "", 1: "|") _ spaced
 	}
-	Quit "(?i)((?:" _ alternatives _ ")[""']?\s*[=:]\s*)"
+	Quit "(?i)((?:" _ alternatives _ ")\\*[""']?\s*[=:]\s*)"
 }
 
 }

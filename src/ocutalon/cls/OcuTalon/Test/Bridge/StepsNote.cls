@@ -21,18 +21,35 @@ ClassMethod Read(topic As %String = "", apiKey As %String = "", accessToken As %
 	Quit {"topic": (topic), "note": "All systems normal."}
 }
 
-/// The fake secret of the kind (apiKey, accessToken, password, chatId or displayName) in the place (arg or result): ten distinct strings.
+/// The fake secret of the kind (apiKey, accessToken, password, chatId or displayName) in the place (arg or result: the ten strings of the
+/// scenario steps-secrets; text, line or error: the strings of the scenario steps-secrets-text, which OcuTalon.Test.Bridge.StepsText and
+/// OcuTalon.Test.Bridge.StepsCard return as TEXT): distinct strings for every kind and place.
 /// The api key has the form of a model key, the access token that of a bot token, and the chat id and the display name those of a
 /// Telegram identity.
 ClassMethod Secret(kind As %String, where As %String) As %String
 {
-	Set number = $Select(where = "arg": 1, 1: 2)
+	Set number = $Select(where = "arg": 1, where = "result": 2, where = "text": 3, where = "line": 4, 1: 5)
 	If kind = "apiKey" Quit "sk-" _ "ant-zzsteps-" _ where _ "-0123456789abcdefghijkl"
 	If kind = "accessToken" Quit "555001100" _ number _ ":" _ "zzsteps-" _ where _ "-access-token-0123456789abcd"
 	If kind = "password" Quit "Zz-Steps-Pass-" _ where _ "-4711"
 	If kind = "chatId" Quit "777001100" _ number
 	If kind = "displayName" Quit "Ada Zz-" _ where _ "-Display"
 	Quit ""
+}
+
+/// The 14 fake secrets of the scenario steps-secrets-text, as a list: the five kinds in the places text (the keys of the report that
+/// OcuTalon.Test.Bridge.StepsText answers) and error (the JSON body of the error that OcuTalon.Test.Bridge.StepsCard throws for the
+/// owner refused), and four kinds in the place line (the free text of the report: a model key, a bot token, a password and a chat id).
+ClassMethod TextValues() As %List
+{
+	Set values = ""
+	For kind = "apiKey", "accessToken", "password", "chatId", "displayName" {
+		Set values = values _ $ListBuild(..Secret(kind, "text"), ..Secret(kind, "error"))
+	}
+	For kind = "apiKey", "accessToken", "password", "chatId" {
+		Set values = values _ $ListBuild(..Secret(kind, "line"))
+	}
+	Quit values
 }
 
 }

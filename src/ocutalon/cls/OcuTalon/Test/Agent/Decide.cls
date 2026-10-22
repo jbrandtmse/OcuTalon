@@ -17,7 +17,8 @@
 ///     rendered input as the text of a user-role message in every logged request and in no tool_result block; the same item again
 ///     is refused with an error that names the item and the DecisionRef, and nothing is sent;
 ///   - TestDiagnoseNeedsReplyClass: a diagnose request is refused, naming DiagnosisAgent and ReplyClass, and nothing is sent;
-///   - TestUnusableEndsWithError: a reply that fails the check, and a runner error, end with an error status and record nothing;
+///   - TestUnusableEndsWithError: a reply that fails the check, and a runner error, end with an error status and record no row; the
+///     refused reply's step was sent before Conclude refused it;
 ///   - TestTimer: with TimerSeconds 2, a reply that comes after 6 s ends with an error that names the timer and TriageAgent, and no
 ///     row is recorded, before or after the late reply, whose header is discarded;
 ///   - TestRefused: a message of another class gets "not implemented" (5003, inside the error that ends the process) and a
@@ -41,7 +42,8 @@
 ///   - TestRepeat and TestTimer also pin that a repeated request and a late reply send no AgentStep;
 ///   - TestCostOfFailedTurn now pins a largest request above 0 for the call that threw, the largest estimate of its requests, and that the
 ///     failed call sent no AgentStep.
-/// OnAfterOneTest deletes the rows its test made (Decision and Usage) and the TimerSeconds row, starts Decide again if the test changed
+/// OnAfterOneTest deletes the rows its test made (Decision, Usage and, since the QA stage of Story 1.5, the AgentStep messages, once
+/// AgentSteps has handled them) and the TimerSeconds row, starts Decide again if the test changed
 /// it, and waits until TriageAgent has answered the late request. Every wait is a poll with a generous ceiling.
 Class OcuTalon.Test.Agent.Decide Extends %UnitTest.TestCase
 {
@@ -85,6 +87,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
 	}
@@ -336,7 +339,8 @@ Method TestDiagnoseNeedsReplyClass()
 }
 
 /// A reply that fails the check, and a runner error, end with an error status and record no row: the first names the reply
-/// check, the second carries the runner's error text.
+/// check, the second carries the runner's error text. Decide sends the steps of a reply before Conclude checks it (Story 1.5), so the
+/// refused reply's one step is in AgentSteps under the DecisionRef of the runner's request.
 Method TestUnusableEndsWithError()
 {
 	If '..Prepare() Quit
@@ -349,6 +353,14 @@ Method TestUnusableEndsWithError()
 	Do $$$AssertEquals(response, "", "and gives no answer")
 	Do $$$AssertEquals($ClassMethod(fixture, "DecisionOf", ref, "decide"), "", "no row is recorded")
 	Do $$$AssertEquals(..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), "TriageAgent"), 1, "Decide sent the runner one request and did not send again")
+	Set runner = ..HeaderTo($ClassMethod(fixture, "Headers", session, "Decide"), "TriageAgent")
+	Set sent = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Request).%OpenId(runner.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(sent), "the runner's request is read")
+	If $IsObject(sent) {
+		Do $$$AssertEquals($ClassMethod(fixture, "StepsOf", sent.DecisionRef).%Size(), 1, "the refused reply's step was sent before Conclude refused it")
+		Do $ClassMethod(fixture, "DeleteSteps", ref)
+		Do $$$AssertEquals($ClassMethod(fixture, "StepsOf", sent.DecisionRef).%Size(), 0, "and DeleteSteps removes it, though the reply has no Decision row")
+	}
 
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:provider-error]] Triage this item.", .ref)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)

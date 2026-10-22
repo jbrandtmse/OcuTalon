@@ -114,7 +114,8 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 
 /// Sends each step record of the runner's reply to the AgentSteps operation, in order, without waiting for an answer: the sends
 /// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). A send that fails
-/// is a warning that names the DecisionRef, never the content, and so is a Steps value that does not parse; nothing changes the answer.
+/// is a warning that names the step, the DecisionRef and the codes of its error, never the content (the text of a validation error
+/// echoes the value that failed), and so is a Steps value that does not parse; nothing changes the answer.
 Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
 {
 	Try {
@@ -122,7 +123,7 @@ Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
 		For i = 1:1:messages.Count() {
 			Set sc = ..SendRequestAsync(..#STEPSITEM, messages.GetAt(i), 0)
 			If $$$ISERR(sc) {
-				$$$LOGWARNING("Step "_i_" of the decision "_decisionRef_" was not sent to "_..#STEPSITEM_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+				$$$LOGWARNING("Step "_i_" of the decision "_decisionRef_" was not sent to "_..#STEPSITEM_" (error codes "_$SYSTEM.Status.GetErrorCodes(sc)_")")
 			}
 		}
 	} Catch exception {

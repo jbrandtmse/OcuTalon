@@ -37,6 +37,13 @@
 ///     the password and the key; a second, test-only audit policy shows that the tools got the intended values; none of the ten values is
 ///     in the Reply (Steps and XML), in the event log or in what Test.Agent.KeyScan.Find names, [redacted] stands in its place, and the
 ///     failed call is a step with the status error whose summary holds the error text, redacted.
+/// Added by the QA stage of Story 1.5 (AD-9, AD-31):
+///   - TestStepsRedactedText: the tools of the scenario steps-secrets-text answer TEXT, as the product's tools do (a %String that holds
+///     JSON, which AI Hub gives the policy as a JSON string), with the five kinds of secret under their keys and four more in a line of
+///     free text, and the card tool fails with a JSON body that holds all five; none of the 14 values is in the Reply (Steps and XML), the
+///     event log or what the key scan names, and [redacted] stands in the place of each (counted in the two steps);
+///   - TestStepBufferEndsOnEveryPath: the step buffer is over after a call that threw in the tool loop and after a provider failure, as
+///     after a call that returned, and a call after them records only its own steps.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
@@ -567,22 +574,93 @@ Method TestStepsRedacted()
 	Do $$$AssertTrue(cardStep.summary [ "is locked", "the failed step's summary holds the error text: " _ cardStep.summary)
 	Do $$$AssertTrue(cardStep.summary [ "password=[redacted]", "with the password replaced")
 	Do $$$AssertTrue(cardStep.summary [ "apiKey=[redacted]", "and the key replaced")
+	Do $$$AssertNotTrue(cardStep.summary [ "ERROR <", "AI Hub's leading ERROR <%AICore>ToolExecutionFailed: is not in the error text")
+	Do $$$AssertNotTrue(cardStep.summary [ $Char(8212), "nor its long dash, which is a hyphen")
+	Do $$$AssertNotTrue(cardStep.summary [ "  ", "nor a run of spaces where its control characters were")
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
 		Do $$$AssertTrue(noteStep.summary [ ("""" _ kind _ """:""[redacted]"""), "the note step shows [redacted] for " _ kind _ " in its inputs and its result")
 		Do $$$AssertTrue(cardStep.summary [ ("""" _ kind _ """:""[redacted]"""), "and so does the card step")
 	}
-	Do $$$AssertStatusOK(reply.XMLExportToString(.xml), "the Reply is exported as XML")
 	For kind = "apiKey", "accessToken", "password", "chatId", "displayName" {
 		For where = "arg", "result" {
 			Set value = $ClassMethod(note, "Secret", kind, where)
-			Do $$$AssertNotTrue(reply.Steps [ value, "the " _ kind _ " " _ where _ " is not in the Reply's Steps")
-			Do $$$AssertNotTrue(xml [ value, "nor in its XML")
-			Do $$$AssertEquals(..LogRowsHolding(mark, value), 0, "nor in an event-log row since the test began")
-			Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.KeyScan).Find(value), "; "), "", "nor in what the key scan names")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LeakPlaces(value, steps, reply, mark), "", "the " _ kind _ " " _ where _ " is in no step record, not in the Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
 		}
 	}
 	Kill ^||ZzStepsSeen
+}
+
+/// The tools answer text and fail with a JSON body (the scenario steps-secrets-text). The form matters: the product's tools return a
+/// %String, and AI Hub gives the result of such a tool to the audit policy as a JSON string, so the redactor has to look inside the string.
+/// Controls first: the fixtures do hold the 14 values that the test looks for. Then none of them reaches the Reply, the event log or the
+/// scan of the stores, and each shows as [redacted] in the steps: nine in the text step (five keys and four in a line of free text) and five
+/// in the error of the card step.
+Method TestStepsRedactedText()
+{
+	If ..Guard() Quit
+	Set note = "OcuTalon.Test.Bridge.StepsNote"
+	Set values = $ClassMethod(note, "TextValues")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).TextControlsMissing(), "", "control: the fixtures hold the 14 fake secrets that the test looks for, and the report is text that holds JSON")
+
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets-text]] Read the secret report.")
+	Set mark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the request is answered, though a tool failed")
+	If '$IsObject(reply) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(reply.Text, "The CI mock read the secret report.", "the text is the last reply of the scenario")
+	Set steps = ..StepsOf(reply)
+	Do $$$AssertEquals(steps.%Size(), 5, "the Reply holds five step records")
+	If steps.%Size() '= 5 Quit
+	Set textStep = steps.%Get(1)
+	Set cardStep = steps.%Get(3)
+	Do $$$AssertEquals(textStep.label_"|"_textStep.status, "Reading the test report|ok", "the text step has the label of its class and is ok")
+	Do $$$AssertEquals(cardStep.label_"|"_cardStep.status, "Reading the test card|error", "the card step is an error")
+	Do $$$AssertTrue(cardStep.summary [ "was refused", "its summary holds the error text: " _ cardStep.summary)
+	Do $$$AssertEquals($Length(textStep.summary, "[redacted]") - 1, 9, "the text step shows [redacted] nine times: the five keys of the report and the four secrets of its line: " _ textStep.summary)
+	Do $$$AssertEquals($Length(cardStep.summary, "[redacted]") - 1, 5, "and the card step five times, one for each secret in the JSON body of its error: " _ cardStep.summary)
+	Set position = 0
+	While $ListNext(values, position, value) {
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LeakPlaces(value, steps, reply, mark), "", "'" _ $Extract(value, 1, 22) _ "...' is in no step record, not in the Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
+	}
+}
+
+/// The step buffer is over after every call, also after one that threw: a turn that stalls in the tool loop (the call threw after its
+/// requests were counted) and a provider failure end with an error status, no Reply and no buffer, and a call after them records only its
+/// own steps.
+Method TestStepBufferEndsOnEveryPath()
+{
+	If ..Guard() Quit
+	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Set chat = ..NewRunner("OcuTalon.Agent.Chat", "", ..ProviderConfig("chat"))
+	Set request = ..NewUsageRequest("turn", "Loop on the tool. [[mock:tool-loop]]")
+	Set sc = chat.OnMessage(request, .reply)
+	Do $$$AssertStatusNotOK(sc, "a turn that stalls in the tool loop gives an error status")
+	Do $$$AssertEquals(reply, "", "and no Reply, so no step travels")
+	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "the step buffer is over")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and so is the context")
+
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusNotOK(sc, "a provider failure gives an error status")
+	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "and the step buffer is over")
+
+	Set request = ..NewUsageRequest("decide", "Triage this item.")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the next request is answered")
+	If '$IsObject(reply) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Set steps = ..StepsOf(reply)
+	Do $$$AssertEquals(steps.%Size(), 1, "and its Reply holds one step, its own")
+	If steps.%Size() = 1 Do $$$AssertEquals(steps.%Get(0).label, "Model request 1", "the first model request of the call")
+	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "the step buffer is over after it too")
 }
 
 /// The stats of an AI session that cannot be read (the object has no GetStats) give "" and one warning that names GetStats, and raise
@@ -614,12 +692,6 @@ ClassMethod StepsOf(reply As OcuTalon.Bridge.Msg.Reply) As %DynamicArray [ Priva
 ClassMethod SeenArguments(n As %Integer) As %DynamicObject [ Private ]
 {
 	Quit ##class(%DynamicAbstractObject).%FromJSON($List($Get(^||ZzStepsSeen(n), $ListBuild("", "{}")), 2))
-}
-
-/// The number of event-log rows after the mark whose text holds the value (Test.Agent.RunnerFixture.LogRowsHolding).
-ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer [ Private ]
-{
-	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, value)
 }
 
 /// A Request with the fields of a Decide request that the Usage row copies: an ItemId and a DecisionRef of its own, the owner instance

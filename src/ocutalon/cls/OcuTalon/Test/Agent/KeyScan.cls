@@ -16,6 +16,11 @@
 /// one step with a fresh value to show that the scan sees them. SetEnv, UnsetEnv and
 /// HasEnv are the helpers that set, remove and test an environment variable of the process, for the tests that need a key
 /// there.
+/// Added by the QA stage of Story 1.5 (AD-31):
+///   - TestLogRowsHolding: the count that the step tests make of the event-log rows after a mark that hold a value
+///     (Test.Agent.RunnerFixture.LogRowsHolding) is shown to see a row: it counts a row of each type after the mark that holds the value,
+///     not a row from before the mark, and not a value that no row holds. Without it, a test that expects 0 would also pass if the
+///     count could never find anything. The rows are removed.
 Class OcuTalon.Test.Agent.KeyScan Extends %UnitTest.TestCase
 {
 
@@ -129,6 +134,33 @@ Method TestKeyIsStoredNowhere()
 	}
 	Do $$$AssertEquals(..HasEnv(..#KEYVARIABLE), had, "the key variable is as it was found")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "the Provider step runs once more with the environment as it was")
+}
+
+/// LogRowsHolding sees a row of the event log that holds a value and was written after the mark. It runs with no production and no mock.
+Method TestLogRowsHolding()
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set tag = "ocutalon-logscan-" _ ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set early = tag _ "-early"
+	Set info = tag _ "-info"
+	Set warning = tag _ "-warning"
+	Try {
+		Set start = $ClassMethod(fixture, "EventMark")
+		Do ##class(Ens.Util.Log).LogInfo("OcuTalon.Test.Agent.KeyScan", "TestLogRowsHolding", "a row from before the mark: " _ early)
+		Set mark = $ClassMethod(fixture, "EventMark")
+		Do ##class(Ens.Util.Log).LogInfo("OcuTalon.Test.Agent.KeyScan", "TestLogRowsHolding", "an info row: " _ info _ " and more text")
+		Do ##class(Ens.Util.Log).LogWarning("OcuTalon.Test.Agent.KeyScan", "TestLogRowsHolding", "a warning row: " _ warning)
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, info), 1, "an info row after the mark that holds the value is counted")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, warning), 1, "and so is a warning row")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, tag), 2, "a value that two rows hold counts both")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, early), 0, "a row from before the mark is not counted")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", start, early), 1, "but it is counted from a mark before it")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, tag _ "-none"), 0, "a value that no row holds is not counted")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the event log is written and counted without an exception")
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", tag)
+	Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", 0, tag), 0, "the rows are removed")
 }
 
 /// The stores that hold the value, as a list of descriptions; "" when none does:

@@ -339,6 +339,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Usage.FromStats sets LargestRequestTokens from last.prompt_tokens+cache_read_tokens+cache_creation_tokens; spec line 410 says Decisions 2 and 5 depart from AD wording for the lead to rule; U-16..U-18 rule only 1, 2, 3 and stored data
 - 2026-10-22T12:43:46Z status=routed owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=1.5's plan rules Decision 5: comply (max of step estimates) or amend AD-20's wording by Rule 20's light path
+- 2026-10-22T19:41:40Z status=resolved-by:1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=adjudication note=Usage.Largest(last, estimates) puts the larger of the measured last request and the step estimates on LargestRequestTokens, also after a throw; AD-20 complied with as written; pinned by Test.Bridge.Usage.TestLargest and TestFromStats (mutation lines in spec-1-5 Verification)
 
 ### DW-78: A capped-day mark is never cleared: after an owner raises or turns off DailyCostCapUSD on a marked day, Budget.State still reports capped (cap 0, capped true) until local midnight
 - source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
@@ -354,8 +355,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Story 1.5 decision 6: Answer's error path carries no Reply, so Reply.Steps cannot travel; Story 1.6 turns every failure into a fallback decision with a reply, where the buffered steps can ride
 - 2026-10-22T13:43:43Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=spec_gate note=1.6's fallback carries the failed call's buffered steps (redacted) to Decide, which sends them to AgentSteps like a completed turn's; FR-3 every model request and tool call recorded
+- 2026-10-22T19:38:04Z occurrence=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=a reply whose ReplyClassOf lookup fails ends Decide in error before EmitSteps, so its steps are not sent either
 
 ### DW-85: Shipped tool classes declare no STEPLABEL, and nothing fails a tool class that has none, so every real tool step reads 'Running a tool' in Visual Trace
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: AD-9 and the spine's Agent step labels convention: each tool declares its readable step label; Tools.WatchFixture carries none (Story 5.4 replaces it); Test.Bridge.CodeRules.TestCallbackRule is where a scan belongs once the first real tool class exists
 - 2026-10-22T17:04:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=1.10's reminder tools declare their STEPLABEL<NAME> labels, and 1.10 adds the CodeRules scan that fails a shipped OcuTalon tool class with no label (fixtures and Tools.WatchFixture exempted until Story 5.4)
+
+### DW-86: A model's call of a tool the agent does not have reaches neither %LogExecution nor %LogDenial, so it has no step and its model step says 0 tool calls while AgentStepCount counts it
+- source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Task 0 (c) measured it: usage-turn on ChatAgent calls list_productions, which Chat lacks; only OnBegin and two OnMessage fire, total_tool_calls counts the call (blind-hunter, edge-case-hunter).
+- 2026-10-22T19:37:59Z status=by-design owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=spec decision 5 keeps the stats delta and lists the gap as a residual risk; reopen only by a spec amendment
+
+### DW-87: The redactor's unquoted value takes a closing brace or bracket after it, so a JSON fragment in a text loses it (chatId:777001} becomes chatId:[redacted])
+- source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: QA probe on the slot and the acceptance-auditor: the unquoted branch admits } and ]; nothing leaks, and a bracket-aware rule breaks idempotence ([redacted] ends in ]) or leaks a value that holds }.
+- 2026-10-22T19:38:02Z status=wontfix-accepted owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=reopen_if=a step summary's broken JSON fragment hides non-secret text that a reviewer needed

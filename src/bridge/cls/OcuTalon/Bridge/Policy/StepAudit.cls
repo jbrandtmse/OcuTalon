@@ -38,7 +38,8 @@ Method %LogDenial(call As %DynamicObject, metadata As %DynamicObject, status As 
 /// The text of the status, without its code, or "" when it cannot be read: the error text of every error of the status, each without its
 /// leading "ERROR <code>:", the control characters that AI Hub puts around the text of an embedded error as spaces (and runs of spaces
 /// as one), and the long dash that it puts before it as a hyphen. The text of a tool that failed is inside it, because AI Hub reports
-/// the failure as one error whose cause is embedded. At most 2,000 characters.
+/// the failure as one error whose cause is embedded. The text is whole: the step record redacts it first and cuts it after
+/// (StepBuffer.Part), so a cut here could split a secret out of its pattern.
 ClassMethod StatusText(status As %Status) As %String [ Private ]
 {
 	Set text = ""
@@ -50,7 +51,7 @@ ClassMethod StatusText(status As %Status) As %String [ Private ]
 			Set text = text _ $Select(text = "": "", 1: " ") _ line
 		}
 		Set text = $Translate(text, $Char(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31) _ $Char(8212), $Justify("", 31) _ "-")
-		Set text = $Extract($ZStrip(text, "=<>", " "), 1, 2000)
+		Set text = $ZStrip(text, "=<>", " ")
 	} Catch {
 		Set text = ""
 	}

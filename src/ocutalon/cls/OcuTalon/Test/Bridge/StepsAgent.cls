@@ -1,5 +1,6 @@
-/// The agent of the step tests (Story 1.5; AD-6, AD-9): a test fixture, never part of a production. It has the two read-only tools of
-/// OcuTalon.Test.Bridge.StepsTools, so that a request with the marker steps-two-tools or steps-secrets makes the CI mock call them.
+/// The agent of the step tests (Story 1.5; AD-6, AD-9): a test fixture, never part of a production. It has the three read-only tools of
+/// OcuTalon.Test.Bridge.StepsTools, so that a request with the marker steps-two-tools, steps-secrets or steps-secrets-text makes the CI
+/// mock call them.
 /// Test.Agent.Steps points the stored configuration of ChatAgent at it for its own run, and Test.Bridge.Runner builds it in a shadow
 /// runner.
 Class OcuTalon.Test.Bridge.StepsAgent Extends %AI.Agent
