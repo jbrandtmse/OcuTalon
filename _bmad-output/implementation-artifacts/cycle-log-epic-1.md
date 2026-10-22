@@ -157,3 +157,5 @@
 2026-10-22T17:04:49Z	Story 1.5	ledger_routed_planned	story=1-10-the-chat-agent-sets-lists-and-cancels-reminders entries=1(DW-85) excess=0 by=harvest
 2026-10-22T17:04:49Z	Story 1.5	dev_complete	spawn_at=2026-10-22T13:44:36Z model=claude-sonnet-5-5 build_sha=ca1ba90 baseline_revision=b5d8096 story_base=6d209de review_loop_iteration=0 followup_review_recommended=true deferred=1(DW-85,routed_1-10) loc=_29_files_changed__2453_insertions(+)__94_deletions(-) nfr_tripwires=0 adr_violations_surfaced=0 review_rows=42 review_patched=16(8_causes) mutations=19_lines(5_new) duration_min=198 agent=a85750f6d4af18866 cycle_iteration=1
 2026-10-22T17:04:49Z	Story 1.5	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_1.5's_ACs_to_lead-run_agent-time_tooling;AC5's_Visual_Trace_reading_is_the_message_and_session_shape,pinned_by_tests model=claude-opus-5-5
+2026-10-22T17:04:59Z	Epic 1	runtime_lock_acquired	lock=runtime stage=qa waited_s=0
+2026-10-22T17:04:59Z	Story 1.5	stage_spawned	stage=qa spawn_at=2026-10-22T17:04:59Z model=claude-sonnet-5-5 agent_name=1-5-qa-1 cycle_iteration=1
