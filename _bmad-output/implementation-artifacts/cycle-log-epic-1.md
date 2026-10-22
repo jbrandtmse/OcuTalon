@@ -127,3 +127,6 @@
 2026-10-22T11:04:27Z	Epic 1	runtime_lock_waiting	lock=runtime stage=qa holder=epic=2,stage=smoke,acquired_at=2026-10-22T10:59:34Z
 2026-10-22T11:05:25Z	Epic 1	runtime_lock_acquired	lock=runtime stage=qa waited_s=142
 2026-10-22T11:05:25Z	Story 1.4	stage_spawned	stage=qa spawn_at=2026-10-22T11:05:25Z model=claude-sonnet-5-5 agent_name=1-4-qa-1 cycle_iteration=1
+2026-10-22T11:45:55Z	Epic 1	runtime_lock_released	lock=runtime stage=qa
+2026-10-22T11:45:55Z	Story 1.4	qa_complete	spawn_at=2026-10-22T11:05:25Z model=claude-sonnet-5-5 tests=Test/Bridge/{Usage,Budget,Time,Runner,ProbeSink}+Test/Agent/Decide+helpers_ZzStatsAdapter,ZzStatsRunner tests_added=4_methods+6_strengthened(2_helper_classes) mutations_demonstrated=10 first_run_failures=0 waits=polls_120s(TestMarkLockTimeout_measures_the_5s_product_timeout) clarifications=0 checks=pass shard_lane_a=26/26_forward+reverse closing_sections_present=true agent=a83ee2e2547131bfa cycle_iteration=1
+2026-10-22T11:45:55Z	Story 1.4	stage_spawned	stage=code-review spawn_at=2026-10-22T11:45:55Z model=claude-opus-5-5 agent_name=1-4-code-review-1 cycle_iteration=1
