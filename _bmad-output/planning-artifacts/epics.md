@@ -1534,7 +1534,7 @@ So that a tool or arriving content can never reach a governance command, and eve
 
 **Given** a command with origin `tool`
 **When** `CommandsIn` checks it
-**Then** it accepts only setting or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1)
+**Then** it accepts only setting, listing or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1) [AMENDED 2026-10-22, Story 2.3 spec validation, Rule 5 tier 1, Epic 2 runner: it read "setting or cancelling a reminder"; AD-1's Rule and Story 1.10's list tool include listing]
 **And** a test submits each governance command with origin `tool` and expects the refusal (AD-1, AD-22)
 
 **Given** the settings and demo-mode verbs, and the pairing verb
