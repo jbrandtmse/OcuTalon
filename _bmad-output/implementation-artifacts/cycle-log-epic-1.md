@@ -171,3 +171,4 @@
 2026-10-22T20:00:58Z	Story 1.5	committed	sha=f934afe submodules= ci=pending runs=39845072804,39845072355 amendments=spine:Consistency_Conventions_row_Agent_step_labels(Rule20_light_path) footprint_extensions=none pushed_with=ca1ba90(implement)+bookkeeping
 2026-10-22T20:00:58Z	Story 1.5	story_cycle	plan_to_commit_min=411 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=0(gate_rulings:decide_3,4,6;veto_U-21,U-22,U-23)
 2026-10-22T20:02:11Z	Epic 1	epic_context_compiled	sha=pending_in_next_commit reason=planning_artifact_newer(epics.md:DW-83_in_1.6,DW-85_in_1.10;spine:Agent_step_labels_row) model=claude-opus-5-5 lines=93 spawn_agent=a3cdb5f48c254dbe4
+2026-10-22T20:02:11Z	Story 1.6	stage_spawned	stage=plan spawn_at=2026-10-22T20:02:11Z model=claude-opus-5-5 agent_name=1-6-plan-1 cycle_iteration=1
