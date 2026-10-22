@@ -69,3 +69,6 @@
 2026-10-22T01:04:27Z	Epic 1-16,29-32	permission_mode_attested	mode=bypassPermissions source=process_args(--permission-mode=bypassPermissions,pid_85855) note=new_session_after_the_owner's_account_switch
 2026-10-22T01:04:27Z	Epic 1-16,29-32	unattended_resumed	run=20261021T1347Z-1-16,29-32 policy=7969e52 doctrine=3d11cec lock_token=1792631055-86206 hold=cleared(resumed_by_the_owner) via=interactive
 2026-10-22T01:04:27Z	Epic 1-16,29-32	owner_decision	id=U-9 at=2026-10-22T00:16:55Z#31 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
+2026-10-22T01:04:54Z	Epic 1	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a reason=resume_after_hold resume_prompt=resume/epic-1.md hold_patch=patches/epic-1/1-2-...-code-review.patch ci_origin_head=98a1fc2:success
+2026-10-22T01:04:54Z	Epic 2	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b reason=resume_after_hold resume_prompt=resume/epic-2.md hold_patch=none ci_head=89a51fa:success
+2026-10-22T01:04:54Z	Epic 1-16,29-32	ci_green_verified	runs=39698733667,39698733694 head=45dcdcf result=success purpose=resume
