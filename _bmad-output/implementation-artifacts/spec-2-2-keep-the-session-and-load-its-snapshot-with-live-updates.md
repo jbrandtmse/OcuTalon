@@ -49,7 +49,11 @@ deferred: []
   - An incident is visible only once `NoticedAt` is set.
   - An `eval`-owned record is never visible.
   - A record the session can't see is indistinguishable from a missing one (404 `not_found`).
-- **SQL.** Ownership's queries run as the signed-in user, who holds no SQL grant (AD-13). They are prepared without the privilege check in exactly one private method, `Ownership.Rows`. It is the only new entry in `ALLOW_UNCHECKED`, and every query enforces ownership in its own `WHERE` clause. See `## Clarification Needed`, item 1.
+- **SQL (AD-13 as amended 2026-10-22, inbox U-15).** Ownership's queries run as the signed-in user, who holds no SQL grant. They are prepared without the privilege check in exactly one private method, `Ownership.Rows`, the only new entry in `ALLOW_UNCHECKED`. Four conditions bind it:
+  1. `Rows` takes the caller's `SessionRef` or owner `Ref` as a required argument. That value comes only from `Ownership.SessionRef()` or from a row Ownership itself read, never from request input. Every statement `Rows` prepares has the owner check in its `WHERE` clause.
+  2. The SQL text is fixed inside `Ownership`, one statement per row kind. It is never built from caller-supplied text, field or table names.
+  3. A test shows that a second session reading through Ownership gets none of the first session's rows, for every row kind.
+  4. No embedded SQL, and no other unchecked path, is added anywhere else.
 - **Live events (AD-12).**
   - The page reads `/state` once per load, then polls `/events?after=&afterInstance=` with one cursor per stream, waiting 1 s after each answer, so polls come 1 to 2 s apart.
   - Each event's full view replaces the entity with the same key, or is added. An event at or below the cursor is ignored.
@@ -75,7 +79,7 @@ deferred: []
   - computing the status conditions and `StatusMonitor` (2.10);
   - the reconnecting banners (2.11);
   - announcer batching and focus replacement (2.12);
-  - a turn's text and reply text, and where a notice card is kept (2.4 and 2.7; see `## Clarification Needed`, item 2);
+  - a turn's text and reply text (2.4, DW-61), and where a notice card is kept (2.7, DW-62), as ruled at spec validation (inbox U-14, kept);
   - the Telegram bot state (10.3);
   - the online demo's resume, splash, epoch return, idle cap and `SessionOps.End` (Epic 16);
   - the WebSocket (31.1);
@@ -94,6 +98,8 @@ deferred: []
 | No envelope | `POST /session/end` without the JSON content type, or without the header | 403 `not_json` or `no_request_header`, and the session stays signed in (DW-14) | — |
 | A 401 on any call | The CSP session ended elsewhere | The page makes no further API call and goes to `/ocutalon/?signedOut=1` plus its hash. The sign-in page shows "You were signed out. Sign in again to continue." | A later wrong password shows the credentials error instead |
 | Unseen Ref | `POST /approvals/:ref/answer` or `/incidents/:ref/dismiss` with any of: another session's ref, an unnoticed incident, an `eval` record, an unwatched `instance` incident, a missing ref | 404 `{"error": {"code": "not_found", "message"}}`. A visible ref answers 501 `not_built` | The envelope check still comes first |
+| Isolation (AD-13 condition 3) | Sessions A and B, each with one row of every kind: a turn, a pending reminder, a check, a `decide` decision, a noticed own incident, a pending approval and a pairing | Every Ownership read with B's `SessionRef` returns none of A's rows, and `Incident(ref)` and `Approval(ref)` return "" for A's refs (and the same from A's side) | — |
+| Rows refuses | `Rows` with an empty owner `Ref`, or a row kind it does not define | An error status, no rows, and no statement prepared | — |
 | Instance incident, local | A noticed `instance` incident on a production that two sessions watch | It is in both sessions' `chat`, and its pending request is in both `rail.approvals`. `Recipients("instance", ref)` lists both | With `onlineDemo` on: visible to neither, and `Recipients` is "" |
 | Snapshot sections | Fixture rows for one session | See the snapshot shape in Design Notes | — |
 | Event in order | Page loaded, an event with `seq` = cursor + 1 | Applied, the cursor advances, and `main[data-session-seq]` shows it within 2 s. No `/state` reload and no navigation; focus is unchanged | — |
@@ -217,7 +223,11 @@ deferred: []
     - With no `%session`, it returns "" and an error.
     - This is the one resolution method that Story 16.3 extends (DW-16).
   - `Attach(irisUser = {$Username}) As %Status`: `Session.ForUser(irisUser)`, then records the row's `Ref` in the CSP session.
-  - `Rows(class, sql, args...) As %ListOfObjects [ Private ]`: the one unchecked prepare (`%Prepare(sql, 0)`). It selects `ID` and opens each row.
+  - `Rows(kind, ownerRef, args...) As %ListOfObjects [ Private ]`: the one unchecked prepare (`%Prepare(sql, 0)`), under AD-13's four conditions (Boundaries, SQL).
+    - `kind` names one statement in a fixed table inside `Ownership`: a `Case` or one class parameter per row kind, which also gives the row class. The SQL text is never built from an argument.
+    - `ownerRef` is required and is bound into that statement's `WHERE` owner check. An empty `ownerRef` or an unknown `kind` returns an error status with no rows and no prepare.
+    - It selects `ID` and opens each row.
+    - Its callers pass only `SessionRef()`'s value or a `Ref` read through Ownership, never request input.
   - The reads, each returning rows in the stated order:
     - `Turns(sessionRef)`: by `CreatedAt`, then ID.
     - `Reminders(sessionRef)`: `State` pending, by `DueAt`.
@@ -230,8 +240,12 @@ deferred: []
     - `Incident(ref, sessionRef)`;
     - `Approval(ref, sessionRef)`.
   - `Watchers(namespace, production) As %List`: the distinct `SessionRef`s with a `production` check on that production, empty when `onlineDemo` is on.
-  - Why: AD-4's one API, and the only unchecked SQL Lane B adds.
-- `docker/tests/test-class-rules.sh:28-29`: append `OcuTalon.Data.Ownership:Rows` to `ALLOW_UNCHECKED`, and change nothing else. The lead amends AD-13's sentence (`## Clarification Needed`, item 1).
+    - It is a cross-session read with no owner, so it is not a `Rows` statement. It uses a checked prepare (`%Prepare(sql)`, the default) and runs only in production jobs and tests, through `Session.Recipients`. No request path calls it.
+    - The session's own view of watched `instance` incidents is a `Rows` statement, owner-checked on the session's own `BackgroundCheck` rows (`SessionRef = ?`).
+  - Why: AD-4's one API, and the only unchecked SQL Lane B adds (AD-13 as amended, inbox U-15).
+- `docker/tests/test-class-rules.sh`:
+  - Append `OcuTalon.Data.Ownership:Rows` to `ALLOW_UNCHECKED` (:28-29), and nothing else to it. The lead has already amended AD-13's sentence in the spine.
+  - Add the rule `no-embedded-sql` (AD-13 condition 4): no `&sql(` on a code line of `src/`. The header says why: embedded SQL is not privilege-checked and the unchecked-prepare rule can't see it. Like every other rule, it first runs on synthetic classes: one that breaks it, one that keeps it, and one with only a comment that mentions it. `src/` holds no embedded SQL today (measured 2026-10-22), so the rule passes on the tree as it stands.
 - `src/ocutalon/cls/OcuTalon/Data/Session.cls`: implement `Recipients(ownerRef, incidentRef)`:
   - `eval` or "" → "";
   - a session `Ref` with a row → `$ListBuild(ownerRef)`;
@@ -283,6 +297,8 @@ deferred: []
   - `TestEvalNeverVisible`.
   - `TestFinds`: `Incident` and `Approval` return "" for every unseen case in the matrix.
   - `TestOrders`: the order and the filters of each read.
+  - `TestIsolationEveryRowKind` (AD-13 condition 3, the "Isolation" row): sessions A and B each get one row of every kind (a turn, a pending reminder, a check, a `decide` decision, a noticed own incident, a pending approval and a pairing). Every read with B's `SessionRef` holds none of A's rows, and the reverse. `Incident(ref, B)` and `Approval(ref, B)` return "" for A's refs.
+  - `TestRowsRefuses` (the "Rows refuses" row): an empty owner `Ref` and an unknown row kind each give an error status and no rows. The test reaches the private method through a subclass or an `Ownership` test hook. If neither is possible without adding a test-only hook to the product, test it through the public reads with an empty `SessionRef`, and record why.
 
   Save and restore `onlineDemo` as `Test.Web.Api` does.
 - `src/ocutalon/cls/OcuTalon/Test/Data/Session.cls`: `TestRecipients`. It covers:
@@ -401,6 +417,10 @@ deferred: []
   - it uses the `SessionRef` from the CSP session, never one from the client and never the user name;
   - two OcuTalon sessions of one account each poll only their own events (DW-15, `TestPollsResolveTheCspSession`);
   - a `Ref` the session can't see answers 404 with the error shape (`TestUnseenRefIs404`, api.spec).
+- **Ownership.Rows (AD-13 as amended, inbox U-15).** Given Ownership's one unchecked prepare, then:
+  - every statement is a fixed text per row kind, with the owner check in its `WHERE` clause bound to a required owner `Ref` that never comes from request input; an empty `Ref` or an unknown kind is refused (`TestRowsRefuses`);
+  - a second session reading through Ownership gets none of the first session's rows, for every row kind (`TestIsolationEveryRowKind`);
+  - `ALLOW_UNCHECKED` gains only `OcuTalon.Data.Ownership:Rows`, and `test-class-rules.sh`'s `no-embedded-sql` rule finds no `&sql(` in `src/`.
 - **Recipients.** Given `Session.Recipients(ownerRef, incidentRef)`, when it resolves a session-owned record, an `instance` incident or an `eval` record, then it returns the owner, every watcher (on a local install) or none (`TestRecipients`).
 - **Snapshot.** Given a signed-in session, when the page calls `GET /api/v1/state`, then the body holds every section in the snapshot shape, read through Ownership (`TestStateSections`). After IRIS is killed and started, `epoch`, `chat` and `rail` are identical (the restart unit).
 - **Live path.** Given the loaded page, when `LiveState` polls `/events` every 1 to 2 s with its two cursors, then:
@@ -421,7 +441,8 @@ deferred: []
   - The purge tests run only on throwaways. `Test.Live.Publish` and `Test.Web.Install` left the slot-B loop list and run through `ci/iris.sh class` (Rule 21: `Live.Event.Purge` deletes rows the test did not create).
   - Clarification item 2 is ruled (veto, inbox U-14): turn and reply text go to Story 2.4 (DW-61), the notice-card store to Story 2.7 (DW-62), each with an acceptance bullet in `epics.md`. This story builds the merge, the turn and incident entries, and the builder 2.4 extends, as planned.
   - No split (decide): the intent is one path, from session to snapshot to live updates, and its tests cross that path (S1 to S5, L1 to L7). Story 2.1 was a comparable size and converged in one pass.
-  - Clarification item 1 (AD-13's allow-list) goes to the orchestrator, because an AD amendment is a cross-epic matter (U14). The spec is buildable as planned, and its ruling is recorded here before the implement stage runs.
+  - Clarification item 1 (AD-13's allow-list) went to the orchestrator, because an AD amendment is a cross-epic matter (U14).
+- 2026-10-22, spec validation (lead), applying inbox U-15: AD-13 is amended in the spine. Its four binding conditions are folded into Boundaries (SQL), the `Ownership.cls` and `test-class-rules.sh` tasks (the `no-embedded-sql` rule is new), the "Isolation" and "Rows refuses" matrix rows, `TestIsolationEveryRowKind` and `TestRowsRefuses`, the Ownership.Rows criterion and three planned mutations. `Watchers`, the one cross-session read, uses a checked prepare outside `Rows`. The former `## Clarification Needed` section is folded into Design Notes, "Ruled at spec validation".
 
 ## Review Triage Log
 
@@ -442,7 +463,7 @@ deferred: []
   - the 401 `signed_out`;
   - an 8-hour lifetime with silent trace re-sign-in;
   - `%session.Logout(1)` with `EndSession`;
-  - the unchecked-prepare allow-list (item 1 below).
+  - the unchecked-prepare allow-list, as amended on 2026-10-22 (inbox U-15; "Ruled at spec validation", item 1).
 - AD-19: `onlineDemo` through `Setting.Get`.
 - AD-22: tests and throwaways.
 - AD-23 and AD-27: an area's `Purge(daysToKeep)`; live events are kept 24 hours whatever the number.
@@ -542,21 +563,10 @@ Its Integration ACs run against a real throwaway.
 - DW-57 is addressed by the Retry rows, L6 and the Loading and Retry AC.
 - No entry is declined.
 
-## Clarification Needed
-
-Two questions for the lead's spec validation. The plan follows each recommendation, so the spec is buildable as written, and a reversal re-plans only the named parts.
-
-1. **AD-13's allow-list (veto: amending an AD).**
-   - Ownership's reads run as the signed-in user, who holds no SQL grant, so they need prepares without the privilege check.
-   - AD-13 currently allows those "only in `Session.ForUser` and `Live.Event.Since`".
-   - Granting SQL to `OcuTalonUser` would contradict AD-13. Embedded SQL is unscanned by `test-class-rules.sh`, so using it would evade the rule's intent.
-   - **Recommendation:** the light path (Rule 20). Amend the sentence to "only in `Session.ForUser`, `Live.Event.Since` and Ownership's one private query method, `Ownership.Rows`, keyed by class and method". The implement stage then adds the one `ALLOW_UNCHECKED` line.
-2. **Conversation content with no store yet (veto: moving part of an AC to not-yet-planned stories of this release).** `Data.Turn` has no message text, reply text or `clientId`, and no table holds a delivered notice card's text (`Delivery` keeps only references). So the snapshot can't carry either today.
-   - **Recommendation:** route two `DW-n:` bullets.
-     - **To Story 2.4:** it appends `Text`, `ReplyText`, `ClientId` and the trace target to `Turn`, which its recap already needs, and extends `ChatMessage.FromRow`.
-     - **To Story 2.7:** it keeps each web notice card where the snapshot can read it, and adds `notification` entries to `StateBody`'s chat merge.
-   - This story builds the merge, the turn and incident entries, and the builder that 2.4 extends.
-   - The demo-path floor and the release gates depend on neither.
+**Ruled at spec validation (no open question remains; the implement stage builds on these).**
+1. **AD-13's allow-list: amended.** The owner's delegate answered (a) through inbox U-15 (relayed by the orchestrator, 2026-10-22T02:57:22Z#45). The lead wrote the amendment into the spine by Rule 20's light path, marked `[AMENDED 2026-10-22, Story 2.2, owner's delegate via inbox U-15, orchestrator]`. The sentence now reads "only in `Session.ForUser`, `Live.Event.Since` and `Ownership.Rows`, keyed by class and method", followed by the four binding conditions. Boundaries (SQL), the `Ownership.cls` and `test-class-rules.sh` tasks, the "Isolation" and "Rows refuses" rows, the Ownership.Rows criterion and three planned mutations carry them. Why not the alternatives: granting SQL to `OcuTalonUser` contradicts AD-13, and embedded SQL would get past the unchecked-prepare rule only because that rule can't see it.
+2. **Conversation content with no store yet: routed (veto, inbox U-14, kept).** `Data.Turn` has no message text, reply text or `clientId`, and no table keeps a delivered notice card's text. So turn and reply text go to Story 2.4 (DW-61) and the notice-card store to Story 2.7 (DW-62), each with an acceptance bullet in `epics.md`. This story builds the merge, the turn and incident entries, and the builder that 2.4 extends.
+3. **Routed at harvest (Rule 2):** `Web.Api.CheckView` is filed in the ledger for the Epic 5 story that builds the `check` publisher. The orchestrator writes that story's acceptance bullet after Epic 2 merges.
 
 ## Verification
 
@@ -602,6 +612,9 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 | Ownership (DW-15) | `State` and `Events` use `ForUser($Username)` | `TestPollsResolveTheCspSession` |
 | 404 | `Ownership.Incident` skips the owner check | `TestFinds`; api.spec's 404 row |
 | Noticed only | the `NoticedAt` filter is dropped | `TestOnlyNoticedIncidents` |
+| Isolation (U-15) | the reminders statement drops its owner check | `TestIsolationEveryRowKind` |
+| Rows refuses (U-15) | `Rows` runs with an empty owner `Ref` | `TestRowsRefuses` |
+| No embedded SQL (U-15) | a `&sql(` line added to any `src/` class | `test-class-rules.sh` `no-embedded-sql` |
 | Recipients | the `instance` branch returns every session | `TestRecipients` |
 | Snapshot | reminders not filtered to pending | `TestStateSections` |
 | Restart | `rail.reminders` is served from an `^IRIS.Temp` copy filled at seed time | the restart unit |
@@ -623,7 +636,7 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 - the `/state` key set and sections: `Test.Web.Api` `TestStateBody`, `api.spec.ts` :136, `api-types.ts`;
 - the API route table: `TestRoutes`, api.spec's `UNBUILT`;
 - the web application property table: `Test.Web.Install` `Expected` (both ways), `lib-live.sh` :482, :521 and :819;
-- `ALLOW_UNCHECKED`;
+- `ALLOW_UNCHECKED`, and `test-class-rules.sh`'s rule list (the new `no-embedded-sql` rule);
 - the README session's and the instance stream's event counts (api.spec rows 13 and 14; untouched by design);
 - the fixture users and env of `test-sign-in.sh`;
 - the account menu's Sign out item (shell.spec row 11, frame F5);
