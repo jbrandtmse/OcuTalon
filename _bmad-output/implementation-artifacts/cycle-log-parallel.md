@@ -87,3 +87,4 @@
 2026-10-22T02:57:36Z	Epic 2	owner_decision	id=U-14 at=2026-10-22T02:57:22Z#46 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
 2026-10-22T02:57:36Z	Epic 2	inbox_answer_routed	item=U-15 at=2026-10-22T02:57:22Z#45 by=Contest_Planner(owner_delegate) answer=a:amend_AD-13(Ownership:Rows)+4_conditions to=epic-2(live_runner,resumed) apply_at=now(story_2.2_spec_gate)
 2026-10-22T02:57:36Z	Epic 2	runner_resumed	message=apply_U-15
+2026-10-22T04:46:46Z	Epic 1-16,29-32	ci_capacity_changed	by=Contest_Planner(owner_approved) action=resize_both_hosts_to_premium_intel(s-8vcpu-16gb-intel),ci-c_first,one_at_a_time,drained expect=queueing_10-20min_per_host;cut-off_jobs=infra then=ci-13,ci-14_re-enabled(12_services) rule21=Planner_sends_measured_result
