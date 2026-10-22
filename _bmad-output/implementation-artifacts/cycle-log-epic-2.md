@@ -24,3 +24,12 @@
 2026-10-22T00:14:10Z	Epic 2	spine_updated	ad=conv reason=clarification(veto_U-9,correction) by=runner story=2-1-lay-out-the-main-page-frame lint=baseline(4_preexisting_low_placeholder,no_ad_findings) rows=README_link(amended:section_links_replace_#readme_with_their_anchor) source=implement_residual_risk
 2026-10-22T00:14:10Z	Epic 2	hold_ordered	reason=owner:weekly_quota_at_97pct;pause_at_the_next_safe_checkpoint_to_switch_accounts(HOLD_requested_at=2026-10-21T23:09:26Z) seen_at=stage_boundary_after_2.1_implement
 2026-10-22T00:14:10Z	Story 2.1	hold_saved	story=2-1-lay-out-the-main-page-frame stage=implement patch=none tree=clean note=implement_finalize_commit_de7dc48_holds_all_code;nothing_uncommitted_by_design(QA_and_review_not_yet_run) next=adr_verifications(none_required)_then_qa
+2026-10-22T01:06:11Z	Epic 2	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=7969e5240335346c2007efd9c1c9fffe2d95443f doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 hold_at=none resume=after_owner_hold(account_switch)
+2026-10-22T01:06:11Z	Epic 2	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-22T01:06:11Z	Epic 2	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-22T01:06:11Z	Epic 2	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-22T01:06:11Z	Epic 2	bootstrap_check	result=ok
+2026-10-22T01:06:11Z	Story 2.1	ci_resolved	story=2.1 sha=89a51fa runs=39698491852,39698491847 result=success failed=none via=none resolved_at=resume note=hold_head_with_unreviewed_build_commit_de7dc48
+2026-10-22T01:07:05Z	Story 2.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=no_AD_commits_a_verification_tool(checked_at_spec_validation) model=claude-opus-5-5
+2026-10-22T01:07:05Z	Story 2.1	residual_risk_closed	risks=busy-state_on_node24,F7_F8_on_x64 evidence=ci_run_39698491852(web_unit_tests=success;iris_browser_group_ran_not_skipped=success) model=claude-opus-5-5
+2026-10-22T01:07:05Z	Story 2.1	stage_spawned	stage=qa spawn_at=2026-10-22T01:07:05Z model=claude-sonnet agent_name=2-1-lay-out-the-main-page-frame-qa-1 cycle_iteration=1
