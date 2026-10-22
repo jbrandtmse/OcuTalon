@@ -311,3 +311,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-2-agent-runners-send-every-request-under-the-model-rules.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: AD-6 gives Reply ToolsRun; Story 1.7 re-sends after a rate limit only when no tool ran (ToolsRun false); Adapter/Agent.cls Answer builds the Reply; %AI.LLM.Response carries the tool-call count
 - 2026-10-21T22:30:46Z status=routed owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=1.7 sets ToolsRun in Adapter.Agent Answer (or where the step audit sees a tool run) and pins it; its rate-limit AC depends on it
+
+### DW-63: No hermetic check pins the content of lane-a.yml's standalone-bridge job: its step that runs release/standalone-bridge.sh could be removed or turned back into an echo with every check green
+- source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-ci-config.sh asserts only that lane-a.yml has a job named standalone-bridge and the workflow-wide rules, which the old echo job also met; the job is the script's only automatic host (no ci/units.sh list runs it); the check is Lane B's file
+- 2026-10-22T05:37:11Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=harvest note=reopen_if=grep -q 'bash release/standalone-bridge.sh' .github/workflows/lane-a.yml fails, or a standalone-bridge job log on a Lane A push lacks the script's PASS lines; a Lane B story that edits test-ci-config.sh may add the pin
+
+### DW-64: docker/tests/test-boundaries.sh does not list release/ among its ASCII-scanned roots, so a non-ASCII byte in a release/ script would pass the boundaries check
+- source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: found by the Story 1.3 implement stage when it added release/standalone-bridge.sh (the folder's first file); the script was checked ASCII by hand; test-boundaries.sh is Lane B's file
+- 2026-10-22T05:37:12Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=harvest note=reopen_if=LC_ALL=C grep -rnP '[^\x00-\x7F]' release/ finds a byte, or a Lane B story edits test-boundaries.sh's scanned roots (it may add release/ then)
