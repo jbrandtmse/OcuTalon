@@ -10,7 +10,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
 
 - Story 2.1: Lay out the main page frame (done)
 - Story 2.2: Keep the session and load its snapshot with live updates (done)
-- Story 2.3: Route every command by verb, with origin checks
+- Story 2.3: Route every command by verb, with origin checks (done)
 - Story 2.4: Answer every chat message through the turn pipeline
 - Story 2.5: Chat with OcuTalon in the page
 - Story 2.6: Show every decision with its reasons and cost
@@ -46,8 +46,9 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - Lane A's classes and tables are read-only: Bridge, Agent, Checks, Watch, `Incident`, `BackgroundCheck`, `Decision`, `ApprovalRequest` and `Usage`. Ask for a property rather than adding it.
   - Edit only lane B's production region, and keep `Test.Contract.Ac` green.
 - **Entry points.** Components talk only by messages to item names. Outside Core, call only `Commands.Submit`; channel services may also call `Allowance.TryConsume` and `Trace.Join`.
-- **Commands.** `CommandsIn` routes each verb to its one owner, returns the owner's `CommandResult` and passes `IdempotencyKey` through. A stub owner answers with a plain-English failure, never an exception.
-  - `tool` may only set, list or cancel reminders, start or stop watches, and dismiss its own incidents.
+- **Commands.** `CommandsIn` is the one command gate: a fixed verb→owner table matched by exact class name, plus origin rules. It passes the command through unchanged, `IdempotencyKey` included.
+  - Every answer is a plain-English `CommandResult` with status OK: a refusal sends nothing, and a stub owner gives `not_built`.
+  - `tool` may only set, list or cancel reminders, start or stop watches, and `Dismiss` an incident its own session (the bridge context's `OwnerRef`) can see.
   - Settings and demo mode come only from `system` or `web_admin`, and pairing only from `telegram`.
   - REST handlers never write domain tables; they submit commands.
 - **Pipelines.**
@@ -62,11 +63,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
 - **Ownership and SQL (AD-13, amended 2026-10-22).**
   - Every REST read and handler goes through `Data.Ownership`. An unseen `Ref` answers 404 `not_found`.
   - Incidents show only once `NoticedAt` is set. On a local install, watchers also see `instance` incidents.
-  - Unchecked prepares are allowed only in `Session.ForUser`, `Live.Event.Since` and `Ownership.Rows`. `Rows` must:
-    - take the owner `Ref` as a required argument, never from request input;
-    - use fixed SQL for each row kind, never built from caller-supplied text or names;
-    - check the owner in every `WHERE` clause;
-    - prove, for every row kind, that a second session gets none of the first session's rows.
+  - Unchecked prepares are allowed only in `Session.ForUser`, `Live.Event.Since` and `Ownership.Rows`. `Rows` takes the owner `Ref` as a required argument (never from request input), uses fixed SQL per row kind with the owner in every `WHERE`, and proves for each row kind that a second session gets none of the first session's rows.
   - CI forbids embedded SQL and every other unchecked path.
 - **Live events.**
   - Write them only through `Live.Publish`, after the commit and never inside a transaction.
@@ -74,7 +71,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - Each type has one publisher: `chat.message` (`Conversation`), `notification` (`WebChatOut`), `decision`, `approval` and `turn.step` (`BridgeSink`), `reminder` (`ReminderOps`, `ReminderTimer`) and `status` (`StatusMonitor`).
   - Polling is release 1's only live path.
 - **Status conditions** come from a closed catalog: `allowance`, `dailyCap`, `noModelKey`, `heartbeatStalled`, `telegramPaused` and `resetSoon`. `/state` computes them, and `StatusMonitor` publishes their changes every 15 s. Key and cap state come only from `Bridge.Keys.Status` and `Bridge.Budget.State`.
-- **Visual Trace.** Each session has one thread per day, from `Trace.Join`, which only channel services call. Work inside a turn, commands included, reuses the bridge context's `ThreadSessionId`. `Web.TraceLink` is the only trace-URL builder.
+- **Visual Trace.** Each session has one thread per day, from `Trace.Join`, which only channel services call. Work inside a turn, commands included, joins the turn's thread through the bridge context's `ThreadSessionId`; a command outside a turn takes the session's `TraceRef` as its `SuperSession`. `Web.TraceLink` is the only trace-URL builder.
 - **Telegram.** `Included()` is 0 in release 1, and tests set `^OcuTalonTest("TelegramIncluded")`.
 - **README links.** `README_URL` is defined in `links.ts`. A section link swaps `#readme` for that section's anchor.
 - **Conventions.**
@@ -94,19 +91,15 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
 
 ## Cross-Story Dependencies
 
-- **Built so far (Stories 2.1 and 2.2).**
+- **Built so far (Stories 2.1 to 2.3).**
   - **Frame:** `MainPage`, `.banner-slot` and the shared controls.
   - **Server:**
     - `SessionEvents` attaches the durable `Session` at sign-in;
-    - `Ownership` provides `SessionRef`, `Rows` and `Watchers`, and `Session.Recipients` is built;
-    - `/state` holds `epoch`, `streams`, `chat`, `rail`, `telegram` and `status` (empty until Story 2.10), built by the `Live.Payload.*.FromRow` builders.
-  - **Page:**
-    - the envelope interceptor;
-    - `SessionGate`, which stops every call on a 401;
-    - the `live-store`, keyed by `ref`;
-    - `LiveState` polling, skeletons with **Retry**, and sign-out through the API.
+    - `Ownership` provides `SessionRef`, `Rows`, `Watchers` and `Incident`, and `Session.Recipients` is built;
+    - `/state` holds `epoch`, `streams`, `chat`, `rail`, `telegram` and `status` (empty until Story 2.10), built by the `Live.Payload.*.FromRow` builders;
+    - `CommandsIn` routes every verb; its owners stay stubs until their own epics.
+  - **Page:** the envelope interceptor, `SessionGate` (stops every call on a 401), the `live-store` keyed by `ref`, `LiveState` polling, skeletons with **Retry**, and sign-out through the API.
 - **Inside the epic.**
-  - Story 2.3 comes first for commands.
   - Story 2.4's pipeline and `Decide` double come before Stories 2.5 and 2.6.
   - Story 2.6's `BridgeSink` feeds Stories 2.5 and 2.8, and Story 2.8 adds the `approval.*` events.
   - Story 2.9's `TraceLink` serves Stories 2.6 and 2.8, and its menu tests the popover (DW-58).
@@ -116,6 +109,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - **Story 2.5 (DW-65):** `ChatItems` loads the whole chat. Choose a cap or paging within the snapshot's shape, and test it on a long session.
   - **Story 2.7 (DW-62):** keep web notice cards where the snapshot can read them, merged into the chat in time order.
   - **Story 2.8 (DW-68):** `Recipients` reads watchers in a production job, not in the REST request (or the story asks to amend AD-13). A failed read is loud, and a test shows two watchers both get the `approval` event.
+  - **Story 2.9 (DW-74):** a throwaway check settles whether `Commands.Submit` loses the calling job's job-local `SessionId`. If it does, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's thread.
 - **Lane A.** Real decisions arrive with Story 1.3 and threads with Story 1.5. The key status comes from Story 1.6 and the cap from Story 1.4. Approvals arrive with Stories 3.4 and 3.5.
 - **Later.**
   - Epic 5 uses `Recipients`, and Story 16.3 extends `SessionRef`.
