@@ -12,13 +12,18 @@ ClassMethod Make(application As %String) As OcuTalon.Test.Web.StubRequest
 	Quit request
 }
 
-/// A request whose body is the text json, as a character stream positioned at its start, which is where a handler reads
-/// %request.Content.
-ClassMethod MakeBody(application As %String, json As %String) As OcuTalon.Test.Web.StubRequest
+/// A request whose body is the text json, positioned at its start, which is where a handler reads %request.Content: a
+/// character stream, or with binary 1 the UTF-8 bytes of the text in a binary stream, as the CSP server hands a body over.
+ClassMethod MakeBody(application As %String, json As %String, binary As %Boolean = 0) As OcuTalon.Test.Web.StubRequest
 {
 	Set request = ..Make(application)
-	Set stream = ##class(%CSP.CharacterStream).%New()
-	Do stream.Write(json)
+	If binary {
+		Set stream = ##class(%CSP.BinaryStream).%New()
+		Do stream.Write($ZConvert(json, "O", "UTF8"))
+	} Else {
+		Set stream = ##class(%CSP.CharacterStream).%New()
+		Do stream.Write(json)
+	}
 	Do stream.Rewind()
 	Set request.Content = stream
 	Quit request

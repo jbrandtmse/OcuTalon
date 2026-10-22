@@ -426,7 +426,8 @@ async function sessionEvents(request: APIRequestContext, after: number, until: (
 test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
   test.describe.configure({ mode: 'serial' });
   const clientId = `zz-chat-${Date.now()}`;
-  const text = 'zz hello from the chat spec';
+  /** Text outside ASCII (an accented letter, a dash, a curly apostrophe and an emoji) must come back as it was typed. */
+  const text = 'zz hello from the chat spec: caf\u00e9 \u2014 it\u2019s \u{1F600}';
   let chat: APIRequestContext;
   let cursor = 0;
   let turnRef = '';

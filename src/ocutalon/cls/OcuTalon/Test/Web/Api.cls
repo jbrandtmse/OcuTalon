@@ -565,12 +565,35 @@ Method TestMessagesAccepted()
 		Set body = ..PostMessage(csp, json, .response)
 		Set label = "fromGuide "_$List(case, 1)
 		Do $$$AssertEquals(response.Status, "202 Accepted", label_": 202")
+		Do $$$AssertEquals(response.ContentType, "application/json", label_": the content type")
 		Do $$$AssertEquals(body, "{""clientId"":"""_##class(%DynamicObject).%FromJSON(json).clientId_"""}", label_": the body is the clientId")
 		Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 2, label_": the allowance is asked and one request is sent")
 		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "target"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "class")), "Conversation|OcuTalon.Msg.Item", label_": an Item goes to Conversation")
 		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "sessionRef")), session, label_": for the CSP session's own session, never the body's")
 		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "clientId"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "text"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "fromGuide")), ##class(%DynamicObject).%FromJSON(json).clientId_"|"_$List(case, 3)_"|"_$List(case, 4), label_": the clientId, the text and fromGuide")
 	}
+}
+
+/// A body arrives as the UTF-8 bytes that the page sent, and text outside ASCII reaches WebChatIn as the characters that were
+/// typed: an accented letter, a dash, a curly apostrophe and an emoji (a surrogate pair). A clientId's length is counted in
+/// characters, so 127 ASCII characters and one accented letter are accepted.
+Method TestMessagesUtf8Body()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiUtf8", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set text = "zz caf"_$Char(233)_" "_$Char(8212)_" it"_$Char(8217)_"s "_$Char(55357, 56832)
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set body = ..PostMessage(csp, "{""clientId"":""zzutf8"_..Number_""",""text"":"""_text_""",""fromGuide"":false}", .response, , 1)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a UTF-8 body: 202")
+	Do $$$AssertEquals(body, "{""clientId"":""zzutf8"_..Number_"""}", "with the clientId")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "text")), text, "the text reaches WebChatIn as it was typed")
+	Set long = $Translate($Justify("", 127), " ", "c")_$Char(233)
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set body = ..PostMessage(csp, "{""clientId"":"""_long_""",""text"":""zz""}", .response, , 1)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a clientId of 128 characters, one of them outside ASCII, is accepted")
+	Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "clientId")), long, "and reaches WebChatIn as it was sent")
 }
 
 /// A clientId that the session already has a turn for answers 202 again with its clientId, and nothing is sent.
@@ -642,6 +665,23 @@ Method TestMessagesServerError()
 	Set csp.Data("OcuTalon.SessionRef") = session
 	Set refused = ..PostMessage(csp, valid, .response)
 	Do $$$AssertEquals(response.Status, "202 Accepted", "the same message is accepted once the production takes it")
+}
+
+/// With no production running, the real Post cannot create WebChatIn and the message is not taken: 500 server_error with the
+/// plain-English text and no cause in the body. Skipped where a production runs, because the real Post would then take the
+/// message (the API spec and ConversationProduction cover that path).
+Method TestMessagesNoProductionIs500()
+{
+	If ##class(Ens.Director).IsProductionRunning() {
+		Do $$$AssertSkipped("A production runs in "_$Namespace_": the real Post would queue a turn, which the API spec tests")
+		Quit
+	}
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiNoProduction", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set body = ..PostMessage(csp, "{""clientId"":""zznoproduction"_..Number_""",""text"":""zz hello"",""fromGuide"":false}", .response, "OcuTalon.Web.Api")
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a message that cannot reach WebChatIn: 500")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}", "with server_error and no cause")
 }
 
 /// A request without a session is answered 401 signed_out in the API's error shape, by the public superclass, with
@@ -785,16 +825,16 @@ Method PreDispatch(method As %String, contentType As %String, header As %String,
 	Quit body
 }
 
-/// Calls Messages of Test.Web.ApiProbe with a stand-in request whose body is json and the given CSP session, and returns the
-/// body that it wrote.
-Method PostMessage(session As %CSP.Session, json As %String, Output response) As %String [ Private ]
+/// Calls Messages of Test.Web.ApiProbe (or of the class given) with a stand-in request whose body is json (with binary 1, its
+/// UTF-8 bytes, as the CSP server hands a body over) and the given CSP session, and returns the body that it wrote.
+Method PostMessage(session As %CSP.Session, json As %String, Output response, class As %String = "OcuTalon.Test.Web.ApiProbe", binary As %Boolean = 0) As %String [ Private ]
 {
 	New %request, %response, %session
-	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", json)
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", json, binary)
 	Set %response = ##class(%CSP.Response).%New()
 	Set %session = session
 	Set %response.ContentType = ""
-	Set body = ..Written(.sc, "OcuTalon.Test.Web.ApiProbe", "Messages")
+	Set body = ..Written(.sc, class, "Messages")
 	Set response = %response
 	Do $$$AssertStatusOK(sc, "Messages returns OK")
 	Quit body

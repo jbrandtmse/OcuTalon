@@ -24,9 +24,13 @@
 ///   - an answer whose instance Attempt differs from the Turn's, or whose Turn is not running, changes nothing, so that a turn
 ///     that a sweep started again gives exactly one reply.
 /// The trace: before any send a turn sets %SessionId to the SessionId of the Item's header (the Turn's TraceHeaderId; without
-/// that header the instance's own session stays) and %SuperSession to the session's TraceRef (AD-26).
+/// that header the instance's own session stays) and %SuperSession to the session's TraceRef (AD-26). The sweep sends its
+/// RunTurns requests with no SuperSession, so that the sweep itself stays outside every session's trace; each one takes the
+/// session's TraceRef from the instance that runs the turn, because the framework fills a request header's empty
+/// SuperSession from the instance that handled it when that instance ends.
 /// Reconcile is the way in for code outside the production. OnResponse and OnError read only the instance's own properties and
-/// the answer, never the request.
+/// the answer, never the request. Conversation needs the one job that the production gives it (PoolSize 1): Take checks an
+/// Item's ItemId and ClientId outside the session's queue lock.
 Class OcuTalon.Core.Conversation Extends Ens.BusinessProcess
 {
 
@@ -79,6 +83,19 @@ Parameter ERRORREQUEST = "Conversation takes an Item or a RunTurns request, and 
 
 Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't free in the time allowed.";
 
+Parameter ERRORSWEEP = "The sweep could not read the turns: ";
+
+/// The start of the warning for a dropped Item; one of the DROP texts follows it.
+Parameter LOGDROPPED = "Conversation dropped an item: ";
+
+Parameter DROPPROVENANCE = "its provenance is '{provenance}', not user";
+
+Parameter DROPNOITEMID = "it has no ItemId";
+
+Parameter DROPNOTEXT = "it has no text";
+
+Parameter DROPNOSESSION = "it has no session";
+
 /// The Ref of the Turn this instance runs.
 Property TurnRef As %String(MAXLEN = 22);
 
@@ -104,15 +121,17 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Quit $SYSTEM.Status.Error(5001, ..#ERRORREQUEST)
 }
 
-/// An answer error: kept for the OnResponse call that follows, which handles it with the key.
+/// An answer error (the call's key is set): kept for the OnResponse call that follows, which handles it with the key. An error
+/// with no key (OnRequest or the framework failed) stays an error, so that the framework logs it and ends the instance.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
+	If pCompletionKey = "" Quit pErrorStatus
 	Set ..CallError = pErrorStatus
 	Quit $$$OK
 }
 
-/// An answer, or the end of a wait, by the key of the call: decide, turn or busy. It never throws: a failure inside is logged
-/// and ends the turn with the fallback unusable.
+/// An answer, or the end of a wait, by the key of the call: decide, turn or busy. It never throws: an exception inside is
+/// logged and ends the turn with the fallback unusable, and an error status that the handling returns is logged.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set answer = $Get(callresponse)
@@ -131,7 +150,7 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Set refusal = ..Untrusted(item)
 	If refusal '= "" {
-		$$$LOGWARNING("Conversation dropped an item: "_refusal)
+		$$$LOGWARNING(..#LOGDROPPED_refusal)
 		Quit $$$OK
 	}
 	If $IsObject(##class(OcuTalon.Data.Turn).ItemIdIndexOpen(item.ItemId)) Quit $$$OK
@@ -158,10 +177,10 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 /// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row.
 Method Untrusted(item As OcuTalon.Msg.Item) As %String [ Private ]
 {
-	If item.Provenance '= "user" Quit "its provenance is '"_item.Provenance_"', not user"
-	If item.ItemId = "" Quit "it has no ItemId"
-	If $ZStrip(item.Text, "<>WC") = "" Quit "it has no text"
-	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit "it has no session"
+	If item.Provenance '= "user" Quit $Replace(..#DROPPROVENANCE, "{provenance}", item.Provenance)
+	If item.ItemId = "" Quit ..#DROPNOITEMID
+	If $ZStrip(item.Text, "<>WC") = "" Quit ..#DROPNOTEXT
+	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit ..#DROPNOSESSION
 	Quit ""
 }
 
@@ -180,7 +199,7 @@ Method Sweep() As %Status [ Private ]
 	Set sc = statement.%Prepare("SELECT DISTINCT %EXACT(SessionRef) AS Owner FROM OcuTalon_Data.Turn WHERE State IN ('queued', 'running')")
 	If $$$ISERR(sc) Quit sc
 	Set result = statement.%Execute()
-	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The sweep could not read the turns: "_result.%Message)
+	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, ..#ERRORSWEEP_result.%Message)
 	Kill owners
 	While result.%Next() {
 		Set owners(result.%Get("Owner")) = ""
@@ -260,7 +279,8 @@ Method Start(sessionRef As %String) As %Status [ Private ]
 }
 
 /// Runs the turn it was given: this instance keeps its Ref and Attempt, joins the turn's trace and sends the decide request.
-/// A failure inside is logged and ends the turn with the fallback unusable, so a started turn is never left running.
+/// An exception inside is logged and ends the turn with the fallback unusable, so that no exception leaves a started turn
+/// running; a decide send that fails is handled as an error answer.
 Method Begin(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 {
 	Set ..TurnRef = turn.Ref

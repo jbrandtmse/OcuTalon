@@ -1689,6 +1689,8 @@ So that only what needs me interrupts me, and nothing an outsider sends can act.
 
 - DW-62: Each web notice card is kept where the snapshot can read it, and `StateBody`'s chat merge (Story 2.2) adds its `notification` entries in time order, so a reload shows the cards in the conversation (ledger; routed by spec_gate 2026-10-22)
 
+- DW-81: With `DecideDouble` (Story 2.4) running inside a throwaway production, a `Busy` answer makes `Conversation` (Story 2.4) wait about 3 seconds through the real `Ens.Alarm`, then resend on the reopened instance, at most 5 times before the fallback route, and a test shows it end to end (ledger; routed by cr 2026-10-22)
+
 ### Story 2.8: Show the status rail
 
 As a user,

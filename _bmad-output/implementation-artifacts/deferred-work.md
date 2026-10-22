@@ -344,6 +344,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data.Turn holds SessionRef, State, Channel, FromGuide, CreatedAt only; Story 2.2's snapshot AC asks for turns with their replies; Story 2.4's Tainted-reply recap already builds on Turn rows holding the messages and replies as sent
 - 2026-10-22T02:54:40Z status=routed owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=spec_gate note=Turn keeps the message text, the reply text as sent, the clientId and the trace target, and ChatMessage.FromRow (Story 2.2) maps them, so /state's chat shows each turn with its reply after a reload; veto ruling at 2.2 spec validation
+- 2026-10-22T16:16:48Z status=resolved-by:2-4-answer-every-chat-message-through-the-turn-pipeline by=adjudication note=Turn_keeps_Text,ReplyText,ClientId,TraceHeaderId(slots_10-18);ChatMessage.FromRow_maps_them;api.spec_CHAT_reload_and_Test.Live.Payloads_TestFromRowBuilders;red_under_FromRow_omitting_Text
 
 ### DW-62: Story 2.2's snapshot carries no notice cards, because no table keeps a delivered web notice card's text (Delivery keeps references only)
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: in-epic
@@ -415,8 +416,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: TestBusyRequeues drives Wait through ConversationProbe; Task 0 measured the timer path once with a reverted temporary change; production tests reach only the Epic 0 Decide stub
 - 2026-10-22T13:35:56Z status=open owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=harvest note=code review closes it: a throwaway test production with DecideDouble answering Busy, or a reasoned disposition
+- 2026-10-22T16:01:16Z status=routed owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=probe now replaces only SetTimer (Wait runs); real Ens.Alarm resend e2e once 2.7 puts DecideDouble in a production
 
 ### DW-82: No test observes that WebChatIn's Allowed reaches Allowance.TryConsume, because TryConsume cannot refuse yet
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: WebChatIn.Allowed delegates to TryConsume, a constant 1 until Story 16.9; replacing Allowed with Quit 1 changes no test
 - 2026-10-22T13:35:56Z status=wontfix-accepted owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=harvest note=reopen_if=Story 16.9's online-demo refusal test passes with WebChatIn.Allowed replaced by Quit 1
+
+### DW-84: The no-production branches (Reconcile with no production, the REST 500 when WebChatIn can't be made) run only on the slot, never in CI
+- source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestReconcileWithoutProduction and TestMessagesNoProductionIs500 skip where a production runs, and CI's lane-b shard runs Core and Web with the production up
+- 2026-10-22T16:01:16Z status=wontfix-accepted owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=cr note=reopen_if=either branch changes or CI gains a unit with no production; both mutations were seen red on slot B

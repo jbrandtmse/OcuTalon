@@ -199,13 +199,22 @@ turns_state() {
     'Write !,"CHK|states|",$Select($IsObject(r):r.State,1:"-"),"|",$Select($IsObject(q):q.State,1:"-")' \
     'Halt' | iris_script OCUTALON | sed -n 's/^CHK|states|//p'
 }
+# turns_published <session> <turn ref> <turn ref>: 1 when the session's stream holds a done chat.message for each of the two
+# turns (Conversation publishes it after it saves the row, so a done row alone is not yet the signal).
+turns_published() {
+  printf '%s\n' \
+    "Set e=##class(OcuTalon.Live.Event).Since(\"$1\",0,100,\"session\"),i=e.%GetIterator(),n1=0,n2=0" \
+    "While i.%GetNext(,.x) { If x.payload.state=\"done\" { Set:x.payload.ref=\"$2\" n1=n1+1 Set:x.payload.ref=\"$3\" n2=n2+1 } }" \
+    'Write !,"CHK|published|",((n1>0)&&(n2>0))' \
+    'Halt' | iris_script OCUTALON | sed -n 's/^CHK|published|//p'
+}
 turn_one=${turns_refs%%,*}
 turn_two=${turns_refs##*,}
-turns_done() { [ "$(turns_state "$turn_one" "$turn_two")" = "done|done" ]; }
+turns_done() { [ "$(turns_state "$turn_one" "$turn_two")" = "done|done" ] && [ "$(turns_published "$turns_session" "$turn_one" "$turn_two")" = 1 ]; }
 if [ -n "$turns_session" ] && wait_until 60 turns_done; then
-  pass "row 20: the turn left running and the queued turn are both done within 60 s of the start"
+  pass "row 20: the turn left running and the queued turn are both done and published within 60 s of the start"
 else
-  fail "row 20: the turns of the queue were not both done within 60 s ('$(turns_state "$turn_one" "$turn_two")')"
+  fail "row 20: the turns of the queue were not both done and published within 60 s ('$(turns_state "$turn_one" "$turn_two")', published '$(turns_published "$turns_session" "$turn_one" "$turn_two")')"
 fi
 check_session "row 20: both turns have the fallback reply, the first on its second attempt, with one done event each, in order" OCUTALON \
   "CHK|turns|done|2|conversation.turnFallback|unusable|done|1|conversation.turnFallback|unusable

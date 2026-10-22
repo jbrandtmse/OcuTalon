@@ -7,10 +7,12 @@
 /// answers with the next scripted answer for the request's OwnerRef and Kind (Script); with none scripted, tellnow for a
 /// decide request and reply for a turn request. Every DecisionResponse and Reply it makes, except busy, carries a new DecisionRef.
 ///   - decide: tellnow, act, ignore or digest (a DecisionResponse with that Outcome), fallback:<reason> (a DecisionResponse
-///     with Fallback 1 and the reason), error (an error status);
+///     with Fallback 1 and the reason), error (an error status), wrong (an Ens.StringResponse) or reply (a Reply with a
+///     DecisionRef), the last two being answers that are not a DecisionResponse;
 ///   - turn: reply (a Reply with text), tainted (a Reply with Tainted 1, ToolsRun 1 and HostData {"zz":"tool result"}), busy
 ///     (Reply.NewBusy()), broken (SessionBroken 1 and Fallback 1 with the reason error), fallback:<reason> (a Reply with
-///     Fallback 1 and the reason), error (an error status), wrong (an Ens.StringResponse, which is not a Reply).
+///     Fallback 1 and the reason), taintedfallback:<reason> (the same with Tainted 1 and ToolsRun 1), error (an error
+///     status), wrong (an Ens.StringResponse, which is not a Reply).
 Class OcuTalon.Test.Core.DecideDouble Extends Ens.BusinessProcess
 {
 
@@ -60,8 +62,20 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 				Set response.Fallback = 1
 				Set response.FallbackReason = $Piece(answer, ":", 2, *)
 				Set response.Text = ""
+			} ElseIf $Piece(answer, ":", 1) = "taintedfallback" {
+				Set response.Fallback = 1
+				Set response.FallbackReason = $Piece(answer, ":", 2, *)
+				Set response.Tainted = 1
+				Set response.ToolsRun = 1
+				Set response.Text = ""
 			}
 		}
+	} ElseIf answer = "wrong" {
+		Set response = ##class(Ens.StringResponse).%New("zz")
+	} ElseIf answer = "reply" {
+		Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+		Set response.DecisionRef = ref
+		Set response.Text = "zz a reply is not a decision"
 	} Else {
 		Set response = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
 		Set response.DecisionRef = ref

@@ -9,6 +9,7 @@
 ///   - TestDecideThenTurn: Decide gets a decide request and then a turn request, each with the ids and Summary, the thread and
 ///     the SuperSession; one Outbound goes to Notify with the origin channel;
 ///   - TestStagesPublished: chat.message is published when the turn is queued, when the decision lands and when the reply lands;
+///   - TestStagesInOrder: a turn that waits behind another is published as queued, and as running and done only once it runs;
 ///   - TestEveryTriageOutcomeRuns: whatever the attention decision was, the turn request is sent and the turn has one reply;
 ///   - TestSecondMessageWaits: a message sent during a turn is its own turn that starts after the first is done (NFR-6);
 ///   - TestBusyRequeues, TestBrokenRetriedFresh, TestTaintedNextFresh: the reply shapes of AD-6 and AD-10;
@@ -20,7 +21,22 @@
 ///   - TestBeginFailureEndsTurn, TestCallbackFailureEndsTurn: a failure inside the class ends the turn with the fallback;
 ///   - TestItemOfCarriesTheRow, TestSummaryCut: the Item that Decide's input is rendered from, and the Summary of a request;
 ///   - TestTaintReadFailureStartsFresh: a failed read of the last replied turn starts the next turn fresh;
-///   - TestReconcileWithoutProduction: with no production running, Reconcile answers OK and does nothing.
+///   - TestReconcileWithoutProduction: with no production running, Reconcile answers OK;
+///   - TestFrameworkErrorStaysAnError: an error that the framework hands OnError with no completion key stays an error;
+///   - TestTurnJoinsItsItemSession: a turn that a RunTurns request starts sends its requests and its Outbound in its own Item's
+///     trace session, which is its thread (AD-26);
+///   - TestFinishingOrder: three queued turns start in the order of the messages, and each is saved done, then its done event is
+///     published, then its Outbound goes to Notify, then the RunTurns request for the next queued turn goes to Conversation;
+///   - TestAnswerForNonRunningTurnDropped: an answer for a turn that is no longer running changes nothing, whatever its Attempt;
+///   - TestDecideAnswerOfAnotherClassStillRuns: a decide answer that is not a DecisionResponse keeps no DecisionRef and the turn
+///     runs on;
+///   - TestSourceKeepsToItsBoundaries: Conversation and WebChatIn never call SendRequestSync (AD-6) or render through the catalog
+///     (AD-32), and Conversation never asks the allowance (AD-20), which the tests that replace the seams can't see;
+///   - TestTurnKeepsItsChannel: a message from another channel keeps its channel through the Turn, both Decide requests, the Outbound
+///     and the events, and two such messages with no ClientId are two turns;
+///   - TestTaintedFallbackNextFresh: a fallback reply keeps the Tainted flag of the reply, so the next turn is fresh;
+///   - TestPublishFailureNeverStopsTurn: a chat.message that cannot be published never stops the turn;
+///   - TestDroppedItemIsLogged: each dropped Item is logged as one warning, and a re-delivery is dropped silently.
 /// The fixture sessions come from Test.Data.Fixture, and the turns that Conversation makes are adopted after each test, so
 /// Fixture.Clean removes them with the events of the streams. The run's number is n from ^OcuTalonTest("ConversationTurns",
 /// "n") (never reset); the probe records the calls of the run under ^OcuTalonTest("ConversationProbe", n), and the double's
@@ -64,7 +80,7 @@ Method OnBeforeOneTest() As %Status
 
 Method OnAfterOneTest() As %Status
 {
-	Do ..AdoptTurns()
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -168,14 +184,14 @@ Method TestStagesPublished()
 	Set probe = ..NewProbe()
 	Do probe.OnRequest(item, .response)
 	Set events = ..ChatEvents(session)
-	Do $$$AssertEquals(..States(events), "queued", "one event when the Item is taken, with the state queued")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued", "one event when the Item is taken, with the state queued")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"stages").State, "running", "although the row is already running")
 	Do $$$AssertEquals(probe.Deliver(1), 1, "the decision answer arrives")
 	Set events = ..ChatEvents(session)
-	Do $$$AssertEquals(..States(events), "queued,running", "the second event is published when the decision lands")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running", "the second event is published when the decision lands")
 	Do $$$AssertEquals(probe.Deliver(), 1, "the reply arrives")
 	Set events = ..ChatEvents(session)
-	Do $$$AssertEquals(..States(events), "queued,running,done", "the third is published when the reply lands")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the third is published when the reply lands")
 	Set ref = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"stages").Ref
 	For i = 0:1:2 {
 		Set payload = events.%Get(i).payload
@@ -196,16 +212,16 @@ Method TestStagesInOrder()
 	Set other = ..NewProbe()
 	Do other.OnRequest(..Item(session, "zz waits", "zzc"_..Number_"ordersecond"), .response)
 	Set ref = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"ordersecond").Ref
-	Do $$$AssertEquals(..States(..ChatEvents(session, ref)), "queued", "the waiting turn is published as queued")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session, ref)), "queued", "the waiting turn is published as queued")
 	Set probes(1) = probe
 	Set probes(2) = other
 	Do probe.Deliver(1)
-	Do $$$AssertEquals(..States(..ChatEvents(session, ref)), "queued", "it stays queued while the first turn runs")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session, ref)), "queued", "it stays queued while the first turn runs")
 	Do ..Pump(.probes)
 	Set events = ..ChatEvents(session, ref)
-	Do $$$AssertEquals(..States(events), "queued,running,done", "then it is running when its decision lands and done when its reply lands")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "then it is running when its decision lands and done when its reply lands")
 	Do $$$AssertEquals(events.%Get(2).payload.replyText, "zz reply to zz waits", "the last one has the reply as sent")
-	Do $$$AssertEquals(..States(..ChatEvents(session)), "queued,queued,running,done,running,done", "the stream holds both queued events, the first turn's other two, and then the second turn's")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session)), "queued,queued,running,done,running,done", "the stream holds both queued events, the first turn's other two, and then the second turn's")
 }
 
 /// Whatever the attention decision was, the turn request is sent after it and the turn has one reply and one done event: the
@@ -229,7 +245,7 @@ Method TestEveryTriageOutcomeRuns()
 		Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 1, label_": the turn request was sent")
 		Do $$$AssertEquals($ListLength(..SentFor("Notify", session)), 1, label_": one Outbound")
 		Do $$$AssertEquals(row.ReplyText, "zz reply to zz triage "_answer, label_": the reply is the model's")
-		Do $$$AssertEquals(..States(..ChatEvents(session)), "queued,running,done", label_": the three stages")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session)), "queued,running,done", label_": the three stages")
 		If answer = "error" {
 			Do $$$AssertEquals(row.TriageDecisionRef, "", label_": no decision to keep")
 		} Else {
@@ -504,10 +520,11 @@ Method TestDuplicateItemDropped()
 }
 
 /// An Item that is not user provenance, or has no ItemId, no text or no Session row, is dropped: the status is OK, no Turn is
-/// made, nothing is sent and nothing is published.
+/// made, nothing is sent and nothing is published. The warnings that the drops log are removed.
 Method TestUntrustedItemRefused()
 {
 	Set session = ..Session("untrusted")
+	Set mark = ..LastLog()
 	Set cases = $ListBuild("untrusted provenance", "no ItemId", "no text", "text of spaces", "no session", "unknown session")
 	Set position = 0
 	While $ListNext(cases, position, case) {
@@ -525,6 +542,7 @@ Method TestUntrustedItemRefused()
 	}
 	Do $$$AssertStatusNotOK(..NewProbe().OnRequest(##class(Ens.StringRequest).%New("zz"), .response), "a request that is neither an Item nor a RunTurns is an error")
 	Do $$$AssertEquals(..Turns(session).Count(), 0, "and changes nothing")
+	Do ..RemoveWarnings(mark)
 }
 
 /// An answer of an instance whose Attempt was replaced is dropped: a sweep puts the running turn back in its queue, the next
@@ -558,7 +576,7 @@ Method TestStaleAnswerDropped()
 	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
 	Do $$$AssertEquals(row.State_"|"_row.Attempt, "done|2", "the second instance finishes the turn")
 	Do $$$AssertEquals($ListLength(..SentFor("Notify", session)), 1, "with one Outbound")
-	Do $$$AssertEquals(..States(..ChatEvents(session)), "queued,running,done", "and one done event")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session)), "queued,running,done", "and one done event")
 	Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 1, "and one turn request")
 	Do first.OnResponse("", , "", ##class(Ens.StringResponse).%New("zz"), "turn")
 	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
@@ -609,7 +627,7 @@ Method TestBeginFailureEndsTurn()
 	Do $$$AssertEquals(row.State_"|"_row.ReplyCatalogKey_"|"_row.FallbackReason, "done|conversation.turnFallback|unusable", "the turn is done with the fallback unusable")
 	Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, "nothing reached Decide")
 	Do $$$AssertEquals($ListLength(..SentFor("Notify", session)), 1, "one Outbound went to Notify")
-	Do $$$AssertEquals(..States(..ChatEvents(session)), "queued,done", "and the stream holds queued and done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session)), "queued,done", "and the stream holds queued and done")
 	Set next = ..NewProbe()
 	Do next.OnRequest(..Item(session, "zz after the failure", "zzc"_..Number_"afterfail"), .response)
 	Set probes(1) = next
@@ -677,17 +695,341 @@ Method TestTaintReadFailureStartsFresh()
 	Do $$$AssertEquals(probe.FreshAfter(session), 0, "a session with no replied turn continues")
 }
 
-/// With no production running, Reconcile answers OK and does nothing: no message header is made. Where a production runs
-/// (a throwaway), the test is skipped, because Reconcile then sweeps every session.
+/// With no production running, Reconcile answers OK (the next start reconciles). Where a production runs (a throwaway), the
+/// test is skipped, because Reconcile then sweeps every session.
 Method TestReconcileWithoutProduction()
 {
 	If ##class(Ens.Director).IsProductionRunning() {
 		Do $$$AssertSkipped("A production runs in "_$Namespace_": Reconcile then sweeps, which ConversationProduction tests")
 		Quit
 	}
-	Set before = ..Headers()
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.Conversation).Reconcile(), "with no production running, Reconcile answers OK")
-	Do $$$AssertEquals(..Headers(), before, "and makes no message")
+}
+
+/// An error that the framework hands OnError with no completion key (OnRequest failed, or the framework did) stays an error,
+/// so that the framework logs it and ends the instance, and it is not kept as an answer error. An answer's error (its call's
+/// key) answers OK and is kept for the OnResponse call that follows.
+Method TestFrameworkErrorStaysAnError()
+{
+	Set probe = ..NewProbe()
+	Set error = $SYSTEM.Status.Error(5001, "zz the request failed")
+	Set sc = probe.OnError("", , "", error, "")
+	Do $$$AssertStatusNotOK(sc, "an error with no completion key stays an error")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText(sc), $SYSTEM.Status.GetErrorText(error), "the same error")
+	Do $$$AssertStatusOK(probe.CallError, "and it is not kept as an answer error")
+	Set sc = probe.OnError("", , "", error, "decide")
+	Do $$$AssertStatusOK(sc, "an answer's error answers OK")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText(probe.CallError), $SYSTEM.Status.GetErrorText(error), "and is kept for OnResponse")
+}
+
+/// A turn that an instance of another trace session starts (a RunTurns request, as after the turn before it) sends its decide
+/// and turn requests and its Outbound in the session of its own Item's header, which is also the requests' ThreadSessionId
+/// (AD-26). The Item's header is a stand-in saved by the test and deleted afterwards.
+Method TestTurnJoinsItsItemSession()
+{
+	Set session = ..Session("join")
+	Set header = ##class(Ens.MessageHeader).%New()
+	Do $$$AssertStatusOK(header.%Save(), "a stand-in Item header is saved")
+	Set header.SessionId = header.%Id()
+	Do $$$AssertStatusOK(header.%Save(), "in a session of its own")
+	Try {
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(session, , "queued", "zz joins its item", "zzc"_..Number_"join")
+		Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+		Set row.TraceHeaderId = header.%Id()
+		Do $$$AssertStatusOK(row.%Save(), "the queued turn's trace target is that header")
+		Set probe = ..NewProbe()
+		Set probe.%SessionId = header.SessionId + 4242
+		Set run = ##class(OcuTalon.Core.Msg.RunTurns).%New()
+		Set run.SessionRef = session
+		Do $$$AssertStatusOK(probe.OnRequest(run, .response), "a RunTurns request in another trace session starts the turn")
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+		Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexOpen(ref).State, "done", "the turn is done")
+		Set decides = ..Sent("Decide")
+		Do $$$AssertEquals($ListLength(decides), 2, "Decide gets the decide and the turn request")
+		For i = 1:1:$ListLength(decides) {
+			Set n = $List(decides, i)
+			Do $$$AssertEquals(..Call(n, "sessionId")_"|"_..Call(n, "threadSessionId"), header.SessionId_"|"_header.SessionId, ..Call(n, "kind")_": sent in the Item's session, which is its thread")
+		}
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals($ListLength(sent), 1, "one Outbound goes to Notify")
+		If $ListLength(sent) = 1 Do $$$AssertEquals(..Call($List(sent, 1), "sessionId"), header.SessionId, "in the Item's session too")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the test threw: "_exception.DisplayString())
+	}
+	Do ##class(Ens.MessageHeader).%DeleteId(header.%Id())
+}
+
+/// Three messages in a row are three turns that start one after another, in the order of the messages, and each finishes in
+/// AD-30's order. The probe records, at each send, the state of the instance's Turn and how many done events of it the stream
+/// holds: the turn request goes out while the turn runs with no done event; the Outbound goes out with the row saved done and
+/// its done event published; the RunTurns request for the next queued turn goes out after the Outbound.
+Method TestFinishingOrder()
+{
+	Set session = ..Session("finishorder")
+	Kill itemIds
+	For i = 1:1:3 {
+		Set item = ..Item(session, "zz finishing "_i, "zzc"_..Number_"finish"_i)
+		Set itemIds(i) = item.ItemId
+		Set probe = ..NewProbe()
+		Do probe.OnRequest(item, .response)
+		Set probes(i) = probe
+	}
+	Do ..Pump(.probes)
+	Set turns = ..Sent("Decide", "turn")
+	Do $$$AssertEquals($ListLength(turns), 3, "three turn requests")
+	Set order = ""
+	For i = 1:1:3 {
+		Set n = $List(turns, i)
+		Set order = order_$Select(order = "": "", 1: ",")_$Select(..Call(n, "itemId") = itemIds(1): 1, ..Call(n, "itemId") = itemIds(2): 2, ..Call(n, "itemId") = itemIds(3): 3, 1: "?")
+		Do $$$AssertEquals(..Call(n, "turnState")_"|"_..Call(n, "doneEvents"), "running|0", "turn request "_i_" goes out while its turn runs, with no done event")
+	}
+	Do $$$AssertEquals(order, "1,2,3", "the turns start in the order of the messages")
+	Set notices = ..Sent("Notify")
+	Set runs = ..Sent("Conversation")
+	Do $$$AssertEquals($ListLength(notices)_"|"_$ListLength(runs), "3|2", "three Outbounds, and a RunTurns request after each of the first two turns")
+	For i = 1:1:3 {
+		Set notice = $List(notices, i)
+		Do $$$AssertEquals(..Call(notice, "turnState")_"|"_..Call(notice, "doneEvents"), "done|1", "Outbound "_i_" goes out with the row saved done and its done event published")
+	}
+	For i = 1:1:2 {
+		Set run = $List(runs, i)
+		Do $$$AssertEquals(..Call(run, "class")_"|"_..Call(run, "sessionRef"), "OcuTalon.Core.Msg.RunTurns|"_session, "RunTurns request "_i_" is for the session")
+		Do $$$AssertTrue(run > $List(notices, i), "and goes out after Outbound "_i)
+		Do $$$AssertEquals(..Call(run, "turnState")_"|"_..Call(run, "doneEvents"), "done|1", "once its turn is done and its event published")
+	}
+}
+
+/// An answer for a turn that is not running changes nothing, whatever its Attempt: the old instance's decision answer
+/// arrives after a sweep put the turn back in its queue (same Attempt, state queued), and a duplicate of the reply arrives for
+/// a turn that is already done (the instance's own Attempt, state done).
+Method TestAnswerForNonRunningTurnDropped()
+{
+	Set session = ..Session("notrunning")
+	Set clientId = "zzc"_..Number_"notrunning"
+	Set old = ..NewProbe()
+	Do old.OnRequest(..Item(session, "zz queued again", clientId), .response)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
+	Do $$$AssertEquals(row.State_"|"_row.Attempt, "running|1", "the instance started the turn")
+	Set row.State = "queued"
+	Do $$$AssertStatusOK(row.%Save(), "a sweep puts the turn back in its queue before another instance starts it")
+	Set calls = ..Calls()
+	Set events = ..ChatEvents(session).%Size()
+	Do $$$AssertEquals(old.Deliver(), 1, "the old instance's decision answer arrives")
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
+	Do $$$AssertEquals(row.State_"|"_row.Attempt_"|"_row.TriageDecisionRef, "queued|1|", "the queued turn is not changed")
+	Do $$$AssertEquals(..Calls(), calls, "nothing is sent")
+	Do $$$AssertEquals(..ChatEvents(session).%Size(), events, "and nothing is published")
+
+	Set other = ..Session("lateanswer")
+	Set finished = ..NewProbe()
+	Do finished.OnRequest(..Item(other, "zz answered once", "zzc"_..Number_"lateanswer"), .response)
+	Set probes(1) = finished
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(other, "zzc"_..Number_"lateanswer")
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz answered once", "another turn is done")
+	Set calls = ..Calls()
+	Set events = ..ChatEvents(other).%Size()
+	Set late = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	Set late.Text = "zz late duplicate"
+	Set late.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do finished.OnResponse("", , "", late, "turn")
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(other, "zzc"_..Number_"lateanswer")
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz answered once", "a duplicate reply for the done turn leaves its reply as it was")
+	Do $$$AssertTrue(row.TurnDecisionRef '= late.DecisionRef, "and its reply decision")
+	Do $$$AssertEquals(..Calls(), calls, "it sends no second Outbound")
+	Do $$$AssertEquals(..ChatEvents(other).%Size(), events, "and publishes no second done event")
+}
+
+/// A decide answer that is not a DecisionResponse, a string response or a Reply, keeps no DecisionRef, and the turn still gets
+/// its turn request, one reply and its three stages.
+Method TestDecideAnswerOfAnotherClassStillRuns()
+{
+	For answer = "wrong", "reply" {
+		Set session = ..Session("decideclass"_answer)
+		Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "decide", $ListBuild(answer))
+		Set clientId = "zzc"_..Number_"dc"_answer
+		Set probe = ..NewProbe()
+		Do probe.OnRequest(..Item(session, "zz decide class", clientId), .response)
+		Kill probes
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+		Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
+		Set label = "a decide answer '"_answer_"'"
+		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz decide class", label_": the turn is done with the model's reply")
+		Do $$$AssertEquals(row.TriageDecisionRef, "", label_": no decision is kept")
+		Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 1, label_": the turn request is sent")
+		Do $$$AssertEquals($ListLength(..SentFor("Notify", session)), 1, label_": one Outbound")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(..ChatEvents(session)), "queued,running,done", label_": the three stages")
+		Kill ^OcuTalonTest("ConversationProbe", ..Number)
+		Set ..Handled = 0
+	}
+}
+
+/// The source of every method of Conversation and WebChatIn keeps to the boundaries that the tests, which replace the send seam
+/// and the allowance, can't see: neither calls SendRequestSync, so a slow model call never blocks a process (AD-6); neither
+/// renders text through the catalog, because a producer sends the key and its slots (AD-32); and Conversation never calls the
+/// allowance, which WebChatIn alone asks (AD-20). The scan is only trusted if it finds each class's asynchronous send.
+Method TestSourceKeepsToItsBoundaries()
+{
+	Set rules = $ListBuild("OcuTalon.Core.Conversation|SendRequestSync", "OcuTalon.Core.Conversation|OcuTalon.Msg.Catalog", "OcuTalon.Core.Conversation|OcuTalon.Core.Allowance", "OcuTalon.Channel.WebChat.In|SendRequestSync", "OcuTalon.Channel.WebChat.In|OcuTalon.Msg.Catalog")
+	For class = "OcuTalon.Core.Conversation", "OcuTalon.Channel.WebChat.In" {
+		Kill found
+		Set async = 0
+		Set definition = ##class(%Dictionary.ClassDefinition).%OpenId(class)
+		If '$IsObject(definition) {
+			Do $$$AssertTrue(0, class_" has a class definition")
+			Continue
+		}
+		For i = 1:1:definition.Methods.Count() {
+			Set method = definition.Methods.GetAt(i)
+			Do method.Implementation.Rewind()
+			While 'method.Implementation.AtEnd {
+				Set code = method.Implementation.Read(30000)
+				If code [ "SendRequestAsync" Set async = async + 1
+				Set position = 0
+				While $ListNext(rules, position, rule) {
+					If ($Piece(rule, "|", 1) = class) && (code [ $Piece(rule, "|", 2)) Set found($Piece(rule, "|", 2)) = $Get(found($Piece(rule, "|", 2)))_" "_method.Name
+				}
+			}
+		}
+		Do $$$AssertTrue(async > 0, class_": the scan sees its asynchronous send")
+		Set position = 0
+		While $ListNext(rules, position, rule) {
+			If $Piece(rule, "|", 1) '= class Continue
+			Do $$$AssertEquals($Get(found($Piece(rule, "|", 2))), "", class_": no method uses "_$Piece(rule, "|", 2))
+		}
+	}
+}
+
+/// A message that comes from another channel (telegram, with no ClientId) keeps its channel everywhere: the Turn, both Decide
+/// requests, the Outbound's origin and every event; and a second such message is its own turn, because an empty ClientId is
+/// never a duplicate.
+Method TestTurnKeepsItsChannel()
+{
+	Set session = ..Session("channel")
+	Set first = ..Item(session, "zz from telegram one", "")
+	Set first.Channel = "telegram"
+	Set second = ..Item(session, "zz from telegram two", "")
+	Set second.Channel = "telegram"
+	Set p1 = ..NewProbe()
+	Do p1.OnRequest(first, .response)
+	Set p2 = ..NewProbe()
+	Do p2.OnRequest(second, .response)
+	Do $$$AssertEquals(..Turns(session).Count(), 2, "two messages with no ClientId are two turns")
+	Set probes(1) = p1
+	Set probes(2) = p2
+	Do ..Pump(.probes)
+	Set rows = ..Turns(session)
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		Do $$$AssertEquals(row.State_"|"_row.Channel_"|"_row.ClientId, "done|telegram|", "turn "_i_": done, on the telegram channel, with no ClientId")
+	}
+	Set decides = ..Sent("Decide")
+	Do $$$AssertEquals($ListLength(decides), 4, "four requests reach Decide")
+	For i = 1:1:$ListLength(decides) {
+		Do $$$AssertEquals(..Call($List(decides, i), "channel"), "telegram", "request "_i_" names the telegram channel")
+	}
+	Set notices = ..SentFor("Notify", session)
+	Do $$$AssertEquals($ListLength(notices), 2, "two Outbounds")
+	For i = 1:1:$ListLength(notices) {
+		Do $$$AssertEquals(..Call($List(notices, i), "originChannel"), "telegram", "Outbound "_i_" has the telegram origin")
+	}
+	Set events = ..ChatEvents(session)
+	Do $$$AssertEquals(events.%Size(), 6, "six events")
+	For i = 0:1:events.%Size() - 1 {
+		Do $$$AssertEquals(events.%Get(i).payload.channel, "telegram", "event "_(i + 1)_" shows the telegram channel")
+	}
+}
+
+/// A fallback reply that carries Tainted (a tool ran, then the model's reply was cut off) is marked tainted like any reply, so the
+/// next turn starts fresh with a recap that shows the fallback as the no-answer line and nothing of the tool result.
+Method TestTaintedFallbackNextFresh()
+{
+	Set session = ..Session("taintedfallback")
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListBuild("taintedfallback:cut_off", "reply"))
+	For i = 1:1:2 {
+		Set probe = ..NewProbe()
+		Do probe.OnRequest(..Item(session, "zz message "_i, "zzc"_..Number_"tf"_i), .response)
+		Kill probes
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+	}
+	Set first = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"tf1")
+	Do $$$AssertEquals(first.State_"|"_first.Tainted_"|"_first.ReplyCatalogKey_"|"_first.FallbackReason, "done|1|conversation.turnFallback|cut_off", "the fallback reply is marked tainted")
+	Do $$$AssertTrue(first.TurnDecisionRef ? 22(1AN,1"-",1"_"), "and keeps its reply decision: "_first.TurnDecisionRef)
+	Set turns = ..Sent("Decide", "turn")
+	Do $$$AssertEquals($ListLength(turns), 2, "two turn requests")
+	Do $$$AssertEquals(..Call($List(turns, 1), "sessionMode"), "continue", "the first continues")
+	Do $$$AssertEquals(..Call($List(turns, 2), "sessionMode"), "fresh", "the turn after the tainted fallback is fresh")
+	Set seed = ..Call($List(turns, 2), "seedText")
+	Do $$$AssertEquals(seed, ..Header()_$Char(10)_"User: zz message 1"_$Char(10)_"OcuTalon: (OcuTalon couldn't answer this message.)", "its recap shows the fallback as the no-answer line")
+	Do $$$AssertTrue(seed '[ "tool result", "and nothing of the tool result")
+}
+
+/// A chat.message that cannot be published never stops the turn. Publish refuses inside an open transaction, so the whole turn
+/// runs inside one that is rolled back at the end, and the results are read before the rollback: the turn is done with its reply,
+/// the Outbound goes to Notify, and the stream holds no event.
+Method TestPublishFailureNeverStopsTurn()
+{
+	Set session = ..Session("publishfail")
+	Set clientId = "zzc"_..Number_"publishfail"
+	Set item = ..Item(session, "zz publish fails", clientId)
+	Set probe = ..NewProbe()
+	Set probes(1) = probe
+	Set error = "", opened = 0
+	TSTART
+	Try {
+		Set opened = $TLevel
+		Set sc = probe.OnRequest(item, .response)
+		Do ..Pump(.probes)
+		Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
+		Set result = $Select($IsObject(row): row.State_"|"_row.ReplyText, 1: "no Turn")
+		Set notices = $ListLength(..SentFor("Notify", session))
+		Set events = ..ChatEvents(session).%Size()
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	If $TLevel > 0 TROLLBACK
+	Do $$$AssertEquals(error, "", "the turn raises no error")
+	Do $$$AssertTrue(opened > 0, "the turn ran inside an open transaction")
+	Do $$$AssertStatusOK($Get(sc), "the Item is taken")
+	Do $$$AssertEquals($Get(events), 0, "no chat.message could be published")
+	Do $$$AssertEquals($Get(result), "done|zz reply to zz publish fails", "and the turn is still done with its reply")
+	Do $$$AssertEquals($Get(notices), 1, "and its Outbound still goes to Notify")
+	Do $$$AssertEquals(..Turns(session).Count(), 0, "the rollback left no Turn")
+}
+
+/// Each Item that Conversation drops is logged as one warning that names the cause; an Item that is taken, and a re-delivery or a
+/// repeated ClientId, are not: those are dropped silently. The warnings that the test made are removed.
+Method TestDroppedItemIsLogged()
+{
+	Set session = ..Session("logged")
+	Set mark = ..LastLog()
+	Set cases = $ListBuild("untrusted provenance|provenance is 'untrusted'", "no ItemId|no ItemId", "no text|no text", "no session|no session")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $Piece(case, "|", 1)
+		Set item = ..Item(session, "zz logged", "zzc"_..Number_"l"_position)
+		If label = "untrusted provenance" Set item.Provenance = "untrusted"
+		If label = "no ItemId" Set item.ItemId = ""
+		If label = "no text" Set item.Text = ""
+		If label = "no session" Set item.SessionRef = ""
+		Set before = ..Warnings(mark)
+		Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), label_": the status is OK")
+		Set after = ..Warnings(mark, .text)
+		Do $$$AssertEquals(after - before, 1, label_": one warning is logged")
+		Do $$$AssertEquals($Extract(text, 1, 30), "Conversation dropped an item: ", label_": it says an item was dropped")
+		Do $$$AssertTrue(text [ $Piece(case, "|", 2), label_": and why: "_text)
+	}
+	Set item = ..Item(session, "zz silent", "zzc"_..Number_"silent")
+	Set before = ..Warnings(mark)
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), "a valid Item is taken")
+	Do $$$AssertEquals(..Warnings(mark), before, "and logs no warning")
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(item, .response), "the same Item again is dropped")
+	Do $$$AssertStatusOK(..NewProbe().OnRequest(..Item(session, "zz same client", item.ClientId), .response), "so is a new Item with the same ClientId")
+	Do $$$AssertEquals(..Warnings(mark), before, "both silently")
+	Do ..RemoveWarnings(mark)
 }
 
 /// --- helpers ---
@@ -701,20 +1043,6 @@ Method Session(name As %String) As %String [ Private ]
 	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
 	Do ##class(OcuTalon.Test.Core.DecideDouble).Clear(ref)
 	Quit ref
-}
-
-/// Adds the turns of the fixture sessions that Conversation made to the refs of the run, recorded for Fixture.Clean.
-Method AdoptTurns() [ Private ]
-{
-	For i = 1:1:$Length(..Sessions, ",") {
-		Set session = $Piece(..Sessions, ",", i)
-		If session = "" Continue
-		Set turns = ##class(OcuTalon.Data.Ownership).Turns(session, .sc)
-		For j = 1:1:turns.Count() {
-			Set ref = ##class(OcuTalon.Test.Data.Fixture).Adopt(turns.GetAt(j))
-			If ('$Find(","_..Refs_",", ","_ref_",")) Set ..Refs = ..Refs_","_ref
-		}
-	}
 }
 
 /// A shadow instance of the probe, in the run's records, with a session of its own.
@@ -821,22 +1149,32 @@ Method ChatEvents(session As %String, ref As %String = "") As %DynamicArray [ Pr
 	Quit found
 }
 
-/// The states of the events, comma-separated.
-Method States(events As %DynamicArray) As %String [ Private ]
+/// The number of the newest row of the event log, 0 when it is empty.
+Method LastLog() As %Integer [ Private ]
 {
-	Set states = ""
-	For i = 0:1:events.%Size() - 1 {
-		Set states = states_$Select(states = "": "", 1: ",")_events.%Get(i).payload.state
-	}
-	Quit states
-}
-
-/// The number of message headers in the namespace.
-Method Headers() As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// The number of warnings that Conversation logged for a dropped Item after the row mark (the event log names the class of the
+/// instance, here the probe); text is the newest one's text.
+Method Warnings(mark As %Integer, Output text As %String) As %Integer [ Private ]
+{
+	Set text = ""
+	Set count = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ? ORDER BY ID", mark, "Take", "Conversation dropped an item")
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
+/// Removes the warnings for a dropped Item that were logged after the row mark.
+Method RemoveWarnings(mark As %Integer) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Take", "Conversation dropped an item")
 }
 
 /// The first line of every recap, as the spec words it.

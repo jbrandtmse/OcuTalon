@@ -10,59 +10,46 @@
 ///     one Outbound to Notify are all in the session's SuperSession (the TraceRef);
 ///   - TestRepeatQueuesNothing: a second message with the same clientId is accepted as a duplicate and queues nothing;
 ///   - TestTurnsRunInOrder: three messages are three turns that run one after another, in the order they were posted, each
-///     with one done event;
+///     with one done event, and each turn's requests and Outbound are in its own Item's trace session (AD-26);
 ///   - TestReconcileResumesTurns: a running turn and two queued turns are run, in order, by Install.Step.Web.Reconcile(),
-///     each with one reply.
-/// The fixture sessions come from Test.Data.Fixture. The run's number is n from ^OcuTalonTest("ConversationProduction","n")
-/// (never reset). OnAfterAllTests removes the run's headers, bodies and event-log rows by the TraceRefs of its sessions
-/// (Fixture.RemoveMessages), its turns and events, and its fixture rows.
-Class OcuTalon.Test.Core.ConversationProduction Extends %UnitTest.TestCase
+///     each with one reply, and every RunTurns request is in the session's SuperSession (AD-26);
+///   - TestReconcileResumesEverySession: the same sweep resumes the turns of three sessions at once (one with a running and a
+///     queued turn, one with a lone running turn, one with a lone queued turn), each turn with one reply, and the sweep's
+///     RunTurns request for each session is in that session's SuperSession, while the sweep request itself is in none.
+/// Before a reconcile a test checks that no other session has a queued or running turn, and after each test the turns of the
+/// run's sessions that are not done are removed, so that no test runs another's turns. The guard, the fixture sessions, the
+/// run's number (^OcuTalonTest("ConversationProduction","n")) and the clean-up are those of Test.Core.InProduction; the clean-up
+/// also removes the turns that Conversation made, with their events.
+Class OcuTalon.Test.Core.ConversationProduction Extends OcuTalon.Test.Core.InProduction
 {
 
-/// The production under test.
-Parameter PRODUCTION = "OcuTalon.Production";
+/// The start of the user name of each fixture session.
+Parameter SESSIONPREFIX = "zzprodconv";
 
 /// Seconds to wait for a turn to be done.
 Parameter WAIT = 20;
 
-/// The run's number.
-Property Number As %Integer;
-
-/// The reason why every test fails, or empty.
-Property Missing As %String(MAXLEN = 200);
-
-/// The Refs of the fixture rows of the run, comma-separated.
-Property Refs As %String(MAXLEN = "");
-
-/// The Refs of the fixture sessions of the run, comma-separated.
-Property Sessions As %String(MAXLEN = "");
-
-/// The SuperSessions of the run's messages.
-Property Supers As %DynamicArray;
-
-Method OnBeforeAllTests() As %Status
+/// After each test, the turns of the run's sessions that are not done are removed, so that a test that failed leaves no turn
+/// for the next test's sweep to run; an instance that still runs one of them finds no row and changes nothing.
+Method OnAfterOneTest() As %Status
 {
-	Do ##class(OcuTalon.Bridge.Context).End()
-	Set ..Number = $Increment(^OcuTalonTest("ConversationProduction", "n"))
-	Set ..Refs = ""
-	Set ..Sessions = ""
-	Set ..Supers = []
-	Set ..Missing = ""
-	If '##class(Ens.Director).IsProductionRunning(.name) {
-		Set ..Missing = "No production runs in "_$Namespace_": this class runs in throwaways and CI only (Rule 21)"
-	} ElseIf name '= ..#PRODUCTION {
-		Set ..Missing = "The production that runs is "_name_", not "_..#PRODUCTION
+	Set refs = ""
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set session = $Piece(..Sessions, ",", i)
+		If session = "" Continue
+		Set queue = ##class(OcuTalon.Data.Ownership).TurnQueue(session, .sc)
+		For j = 1:1:queue.Count() {
+			Set refs = refs_$Select(refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(queue.GetAt(j))
+		}
 	}
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
-	Do ##class(OcuTalon.Bridge.Context).End()
-	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
-	Do ..AdoptTurns()
-	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
-	Quit $SYSTEM.Status.OK()
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
+	Quit ##super()
 }
 
 /// A message goes through WebChatIn and the turn is done within 20 seconds with the fallback unusable (the stub Decide answers an
@@ -90,7 +77,7 @@ Method TestTurnThroughProduction()
 	Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|unusable|", "the stub Decide gives the fallback unusable")
 	Do $$$AssertEquals(row.Attempt_"|"_row.Tainted_"|"_row.TriageDecisionRef_"|"_row.TurnDecisionRef, "1|0||", "started once, with no decision to keep")
 	Set events = ..WaitEvents(session, 3)
-	Do $$$AssertEquals(..States(events), "queued,running,done", "the stream holds the three stages, once each")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the stream holds the three stages, once each")
 	If events.%Size() = 3 {
 		Set last = events.%Get(2).payload
 		Do $$$AssertEquals(last.ref_"|"_last.clientId_"|"_last.text_"|"_last.catalogKey_"|"_last.fallbackReason_"|"_last.replyText, row.Ref_"|"_clientId_"|"_text_"|conversation.turnFallback|unusable|", "and the last one is the turn as stored")
@@ -151,7 +138,7 @@ Method TestRepeatQueuesNothing()
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "WebChatIn", "Conversation").%Size(), 1, "and one Item request header")
 	Set events = ..WaitEvents(session, 3)
-	Do $$$AssertEquals(..States(events), "queued,running,done", "and its three events")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "and its three events")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId).Text, "zz once", "the first message stands")
 }
 
@@ -202,6 +189,26 @@ Method TestTurnsRunInOrder()
 		}
 	}
 	Do $$$AssertEquals(sequence, "1decide,1turn,2decide,2turn,3decide,3turn", "and no turn starts before the one before it is done")
+	Do ..WaitNotices(trace, 3)
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Set items = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "WebChatIn", "Conversation")
+	Kill sessionOf
+	Set itemSessions = ""
+	For i = 0:1:items.%Size() - 1 {
+		Set sessionOf(##class(OcuTalon.Msg.Item).%OpenId(items.%Get(i).bodyId).ItemId) = items.%Get(i).sessionId
+		Set itemSessions = itemSessions_$Select(itemSessions = "": "", 1: ",")_items.%Get(i).sessionId
+	}
+	For i = 0:1:decides.%Size() - 1 {
+		Set body = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(decides.%Get(i).bodyId)
+		Set own = $Get(sessionOf(body.ItemId))
+		Do $$$AssertEquals(decides.%Get(i).sessionId_"|"_body.ThreadSessionId, own_"|"_own, body.Kind_" of message "_(i \ 2 + 1)_": in its own Item's trace session, which is its thread (AD-26)")
+	}
+	Set notices = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Conversation", "Notify")
+	Set noticeSessions = ""
+	For i = 0:1:notices.%Size() - 1 {
+		Set noticeSessions = noticeSessions_$Select(noticeSessions = "": "", 1: ",")_notices.%Get(i).sessionId
+	}
+	Do $$$AssertEquals(noticeSessions, itemSessions, "each Outbound is in its own turn's Item session, in order")
 }
 
 /// A turn left running and two queued turns of a session are run by the reconcile, in order, each with one reply: Reconcile
@@ -214,6 +221,7 @@ Method TestReconcileResumesTurns()
 	Set first = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:01Z", "running", "zz resume 1", "zzc"_..Number_"resume1", 1)
 	Set second = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:02Z", "queued", "zz resume 2", "zzc"_..Number_"resume2")
 	Set third = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:03Z", "queued", "zz resume 3", "zzc"_..Number_"resume3")
+	Do $$$AssertEquals(..Elsewhere(session), "", "no other session has a queued or running turn for the sweep to run")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Reconcile(), "the Web step reconciles")
 	Kill itemIds
 	For i = 1:1:3 {
@@ -246,29 +254,59 @@ Method TestReconcileResumesTurns()
 	}
 	Do $$$AssertEquals(order, $Get(itemIds(1))_","_$Get(itemIds(2))_","_$Get(itemIds(3)), "one turn request each, in order")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Conversation", "Notify").%Size(), 3, "and one Outbound each")
+	Do $$$AssertEquals(..RunTurnsIn(trace), 3, "the sweep's RunTurns request and the two that start the next turn are all in the session's SuperSession")
+}
+
+/// One reconcile resumes the turns of every session that has one: session A holds a running and a queued turn, session B a lone
+/// running turn and session C a lone queued turn. Every turn reaches done with the fallback reply, a turn that was running on its
+/// second attempt and the others on their first, with one done event and one Outbound each.
+Method TestReconcileResumesEverySession()
+{
+	If '..Guard() Quit
+	Set a = ..Session("sweepa")
+	Set b = ..Session("sweepb")
+	Set c = ..Session("sweepc")
+	Kill sessions, turns
+	Set sessions(1) = a, sessions(2) = b, sessions(3) = c
+	Set turns(1) = $ListBuild(1, "sweepa1", 2)
+	Set turns(2) = $ListBuild(1, "sweepa2", 1)
+	Set turns(3) = $ListBuild(2, "sweepb1", 2)
+	Set turns(4) = $ListBuild(3, "sweepc1", 1)
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:01Z", "running", "zz sweep a1", "zzc"_..Number_"sweepa1", 1)
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:02Z", "queued", "zz sweep a2", "zzc"_..Number_"sweepa2")
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(b, "2030-01-01T10:00:03Z", "running", "zz sweep b1", "zzc"_..Number_"sweepb1", 1)
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(c, "2030-01-01T10:00:04Z", "queued", "zz sweep c1", "zzc"_..Number_"sweepc1")
+	Do $$$AssertEquals(..Elsewhere(a_","_b_","_c), "", "no other session has a queued or running turn for the sweep to run")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Reconcile(), "the Web step reconciles")
+	For i = 1:1:4 {
+		Set owner = $List(turns(i), 1)
+		Set label = "turn "_$List(turns(i), 2)
+		Set row = ..WaitDone(sessions(owner), "zzc"_..Number_$List(turns(i), 2))
+		If '$IsObject(row) {
+			Do $$$AssertTrue(0, label_" exists")
+			Continue
+		}
+		Do $$$AssertEquals(row.State_"|"_row.ReplyCatalogKey_"|"_row.FallbackReason, "done|conversation.turnFallback|unusable", label_": done with the fallback reply")
+		Do $$$AssertEquals(row.Attempt, $List(turns(i), 3), label_": started "_$Select($List(turns(i), 3) = 2: "again", 1: "once"))
+	}
+	For owner = 1:1:3 {
+		Set expected = $Select(owner = 1: 2, 1: 1)
+		Set events = ..WaitEvents(sessions(owner), expected * 2)
+		Set done = 0
+		For j = 0:1:events.%Size() - 1 {
+			If events.%Get(j).payload.state = "done" Set done = done + 1
+		}
+		Do $$$AssertEquals(done, expected, "session "_$Char(64 + owner)_" has one done event for each of its "_expected_" turns")
+		Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(sessions(owner)).TraceRef
+		Do ..WaitNotices(trace, expected)
+		Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Conversation", "Notify").%Size(), expected, "session "_$Char(64 + owner)_" has one Outbound for each of its turns")
+		Do $$$AssertEquals(..RunTurnsIn(trace), expected, "session "_$Char(64 + owner)_": the sweep's RunTurns request"_$Select(expected = 2: " and the one that starts its second turn are", 1: " is")_" in its SuperSession (AD-26)")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "WebChatIn", "Conversation").%Size(), 0, "session "_$Char(64 + owner)_": and the sweep request itself, which is for every session, is not")
+	}
 }
 
 /// --- helpers ---
-/// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
-Method Guard() As %Boolean [ Private ]
-{
-	If ..Missing '= "" {
-		Do $$$AssertTrue(0, ..Missing)
-		Quit 0
-	}
-	Quit 1
-}
-
-/// A fixture session; its Ref is kept for the clean-up, and its TraceRef is a SuperSession of the run.
-Method Session(name As %String) As %String [ Private ]
-{
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzprodconv"_..Number_name)
-	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
-	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
-	Do ..Supers.%Push(##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef)
-	Quit ref
-}
-
 /// Sends a message of the page through WebChatIn, created in this process as the REST surface creates it; output is the
 /// service's answer.
 Method Send(session As %String, clientId As %String, text As %String, Output output As %String) As %Status [ Private ]
@@ -328,28 +366,28 @@ Method WaitNotices(trace As %String, count As %Integer) [ Private ]
 	}
 }
 
-/// The states of the events, comma-separated.
-Method States(events As %DynamicArray) As %String [ Private ]
+/// The sessions, other than the given ones (comma-separated Refs), that have a queued or running turn, comma-separated: a
+/// sweep would run their turns too.
+Method Elsewhere(mine As %String) As %String [ Private ]
 {
-	Set states = ""
-	For i = 0:1:events.%Size() - 1 {
-		Set states = states_$Select(states = "": "", 1: ",")_events.%Get(i).payload.state
+	Set others = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DISTINCT %EXACT(SessionRef) AS Owner FROM OcuTalon_Data.Turn WHERE State IN ('queued', 'running')")
+	While result.%Next() {
+		Set owner = result.%Get("Owner")
+		If '$Find(","_mine_",", ","_owner_",") Set others = others_$Select(others = "": "", 1: ",")_owner
 	}
-	Quit states
+	Quit others
 }
 
-/// Adds the turns of the fixture sessions that Conversation made to the refs of the run, recorded for Fixture.Clean.
-Method AdoptTurns() [ Private ]
+/// The number of RunTurns requests that Conversation sent itself in the SuperSession.
+Method RunTurnsIn(trace As %String) As %Integer [ Private ]
 {
-	For i = 1:1:$Length(..Sessions, ",") {
-		Set session = $Piece(..Sessions, ",", i)
-		If session = "" Continue
-		Set turns = ##class(OcuTalon.Data.Ownership).Turns(session, .sc)
-		For j = 1:1:turns.Count() {
-			Set ref = ##class(OcuTalon.Test.Data.Fixture).Adopt(turns.GetAt(j))
-			If ('$Find(","_..Refs_",", ","_ref_",")) Set ..Refs = ..Refs_","_ref
-		}
+	Set runs = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "Conversation", "Conversation")
+	Set count = 0
+	For i = 0:1:runs.%Size() - 1 {
+		If runs.%Get(i).bodyClass = "OcuTalon.Core.Msg.RunTurns" Set count = count + 1
 	}
+	Quit count
 }
 
 }

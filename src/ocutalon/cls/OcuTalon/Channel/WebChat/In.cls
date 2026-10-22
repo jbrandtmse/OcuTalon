@@ -7,8 +7,8 @@
 ///     ClientId. The output is the JSON text {"accepted":1,"duplicate":0|1};
 ///   - a Core.Msg.RunTurns, which goes to Conversation unchanged: the way in for code outside the production that restarts the
 ///     turn queue (Conversation.Reconcile).
-/// Any other input, and a Post with an empty session, clientId or text, answers an error status and sends nothing. The service
-/// sends only to Conversation, asynchronously.
+/// Any other input, and a Post with an empty session, clientId or text or a session with no Session row, answers an error
+/// status, sends nothing and asks the allowance nothing. The service sends only to Conversation, asynchronously.
 Class OcuTalon.Channel.WebChat.In Extends Ens.BusinessService
 {
 
@@ -47,9 +47,9 @@ Method Accept(post As OcuTalon.Channel.WebChat.Post, Output output As %String) A
 		Set output = {"accepted": 1, "duplicate": 1}.%ToJSON()
 		Quit $SYSTEM.Status.OK()
 	}
-	If '..Allowed(post.SessionRef, ..#CHANNEL, post.Text, .retryAt, .firstRefusal) Quit $SYSTEM.Status.Error(5001, ..#ERRORREFUSED)
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(post.SessionRef)
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERRORSESSION)
+	If '..Allowed(post.SessionRef, ..#CHANNEL, post.Text, .retryAt, .firstRefusal) Quit $SYSTEM.Status.Error(5001, ..#ERRORREFUSED)
 	Set ..%SuperSession = session.TraceRef
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()

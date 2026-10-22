@@ -164,7 +164,7 @@ ClassMethod MessageBody(Output clientId As %String, Output text As %String, Outp
 	Set (clientId, text) = ""
 	Set fromGuide = 0
 	Try {
-		Set body = ##class(%DynamicAbstractObject).%FromJSON(%request.Content)
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
 	} Catch {
 		Set body = ""
 	}
@@ -176,6 +176,22 @@ ClassMethod MessageBody(Output clientId As %String, Output text As %String, Outp
 	Set text = message
 	Set fromGuide = (body.%GetTypeOf("fromGuide") = "boolean") && body.fromGuide
 	Quit 1
+}
+
+/// The request body as text, "" when there is none. The CSP server hands the body over as the bytes that were sent (this class
+/// leaves CONVERTINPUTSTREAM at 0), and the page sends JSON in UTF-8, so a binary body is decoded from UTF-8; a character body
+/// is already text. A body longer than the longest string throws, which MessageBody answers as a bad body.
+ClassMethod BodyText() As %String [ Private ]
+{
+	Set content = %request.Content
+	If '$IsObject(content) Quit ""
+	Do content.Rewind()
+	Set raw = ""
+	While 'content.AtEnd {
+		Set raw = raw_content.Read(32000)
+	}
+	If content.IsCharacter() Quit raw
+	Quit $ZConvert(raw, "I", "UTF8")
 }
 
 /// Hands the input (a Channel.WebChat.Post) to WebChatIn: the service is created in this process and takes the input with

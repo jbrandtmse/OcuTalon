@@ -5,7 +5,8 @@
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
 /// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers and
-/// Between read them.
+/// Between read them. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
+/// of a stream's chat.message events.
 Class OcuTalon.Test.Data.Fixture
 {
 
@@ -166,6 +167,32 @@ ClassMethod Adopt(row As %Persistent) As %String
 {
 	Do ..Record(row)
 	Quit row.Ref
+}
+
+/// Records every turn of the sessions (comma-separated Refs) with Adopt, the turns that Conversation made included, and returns
+/// refs (comma-separated) with the Refs of those turns added once each.
+ClassMethod AdoptTurns(sessions As %String, refs As %String) As %String
+{
+	For i = 1:1:$Length(sessions, ",") {
+		Set session = $Piece(sessions, ",", i)
+		If session = "" Continue
+		Set turns = ##class(OcuTalon.Data.Ownership).Turns(session, .sc)
+		For j = 1:1:turns.Count() {
+			Set ref = ..Adopt(turns.GetAt(j))
+			If '$Find(","_refs_",", ","_ref_",") Set refs = refs_$Select(refs = "": "", 1: ",")_ref
+		}
+	}
+	Quit refs
+}
+
+/// The states of chat.message events (a dynamic array of events as Live.Event.Since gives them), comma-separated, in order.
+ClassMethod States(events As %DynamicArray) As %String
+{
+	Set states = ""
+	For i = 0:1:events.%Size() - 1 {
+		Set states = states_$Select(states = "": "", 1: ",")_events.%Get(i).payload.state
+	}
+	Quit states
 }
 
 /// The number of session rows of an IRIS user, matched without regard to case, as IRIS matches user names.

@@ -12,52 +12,14 @@
 ///     SessionOps;
 ///   - TestToolDismissReachesIncidentManager: inside a context, the Dismiss of the session's own noticed incident reaches
 ///     IncidentManager, and the Dismiss of another session's incident is not_found with no header.
-/// The fixture sessions come from Test.Data.Fixture. The run's number is n from ^OcuTalonTest("CommandsInProduction","n")
-/// (never reset). OnAfterAllTests ends the context of the test process, removes the run's headers, bodies and event-log rows
-/// by the TraceRefs of its sessions and the SuperSession of its contexts (Fixture.RemoveMessages), and removes the fixture rows.
-Class OcuTalon.Test.Core.CommandsInProduction Extends %UnitTest.TestCase
+/// The guard, the fixture sessions, the run's number (^OcuTalonTest("CommandsInProduction","n")) and the clean-up are those
+/// of Test.Core.InProduction; the SuperSessions of the tests' contexts are added to the run's, so that the clean-up removes
+/// their messages too.
+Class OcuTalon.Test.Core.CommandsInProduction Extends OcuTalon.Test.Core.InProduction
 {
-
-/// The production under test.
-Parameter PRODUCTION = "OcuTalon.Production";
 
 /// The text of a stub owner's answer.
 Parameter NOTBUILT = "This part of OcuTalon isn't built yet. Nothing was changed.";
-
-/// The run's number.
-Property Number As %Integer;
-
-/// The reason why every test fails, or empty.
-Property Missing As %String(MAXLEN = 200);
-
-/// The Refs of the fixture rows of the run, comma-separated.
-Property Refs As %String(MAXLEN = "");
-
-/// The SuperSessions of the run's messages.
-Property Supers As %DynamicArray;
-
-Method OnBeforeAllTests() As %Status
-{
-	Do ##class(OcuTalon.Bridge.Context).End()
-	Set ..Number = $Increment(^OcuTalonTest("CommandsInProduction", "n"))
-	Set ..Refs = ""
-	Set ..Supers = []
-	Set ..Missing = ""
-	If '##class(Ens.Director).IsProductionRunning(.name) {
-		Set ..Missing = "No production runs in "_$Namespace_": this class runs in throwaways and CI only (Rule 21)"
-	} ElseIf name '= ..#PRODUCTION {
-		Set ..Missing = "The production that runs is "_name_", not "_..#PRODUCTION
-	}
-	Quit $SYSTEM.Status.OK()
-}
-
-Method OnAfterAllTests() As %Status
-{
-	Do ##class(OcuTalon.Bridge.Context).End()
-	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
-	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
-	Quit $SYSTEM.Status.OK()
-}
 
 /// Each stub owner gets one verb with an origin it accepts: ReminderOps (SetReminder), WatchOps (StartWatch), SettingsOps
 /// (SetDemoMode from the system, with the mode it already has), SessionOps (EndSession) and IncidentManager (Dismiss). Each
@@ -217,25 +179,6 @@ Method TestToolDismissReachesIncidentManager()
 }
 
 /// --- helpers ---
-/// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
-Method Guard() As %Boolean [ Private ]
-{
-	If ..Missing '= "" {
-		Do $$$AssertTrue(0, ..Missing)
-		Quit 0
-	}
-	Quit 1
-}
-
-/// A fixture session; its Ref is kept for the clean-up, and its TraceRef is a SuperSession of the run.
-Method Session(name As %String) As %String [ Private ]
-{
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzprod"_..Number_name)
-	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
-	Do ..Supers.%Push(##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef)
-	Quit ref
-}
-
 /// A Dismiss of the incident for the session.
 Method Dismissal(sessionRef As %String, incidentRef As %String) As OcuTalon.Msg.Command.Dismiss [ Private ]
 {

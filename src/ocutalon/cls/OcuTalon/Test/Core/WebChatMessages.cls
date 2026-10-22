@@ -9,9 +9,11 @@
 ///   - TestRefusalQueuesNothing: a refusal sends nothing and answers an error status;
 ///   - TestSendFailureAnswersError: a send that fails answers an error status with no output;
 ///   - TestBadPostRefused: a Post with no session, clientId or text, a session with no row, and any other input are errors that
-///     send nothing;
+///     ask the allowance nothing and send nothing;
 ///   - TestRunTurnsForwarded: a RunTurns request goes to Conversation as it is;
-///   - TestAllowanceAllowsWithFlagOff: the allowance allows every message while the online-demo flag is off.
+///   - TestAllowanceAllowsWithFlagOff: the allowance allows every message while the online-demo flag is off;
+///   - TestAllowedAsksTheAllowance: the service's one allowance call returns what Core.Allowance.TryConsume answers for the
+///     session, the channel and the text, which no run can show while TryConsume allows everything.
 /// The fixture sessions come from Test.Data.Fixture. The run's number is n from ^OcuTalonTest("WebChatMessages","n") (never
 /// reset); the probe records under ^OcuTalonTest("WebChatIn", n), which OnAfterAllTests deletes. onlineDemo is put back.
 Class OcuTalon.Test.Core.WebChatMessages Extends %UnitTest.TestCase
@@ -83,8 +85,8 @@ Method TestRepeatClientId()
 {
 	Set a = ..Session("repeata")
 	Set b = ..Session("repeatb")
-	Do ##class(OcuTalon.Test.Data.Fixture).Turn(a, , "done", "zz done", "zzc"_..Number_"done")
-	Do ##class(OcuTalon.Test.Data.Fixture).Turn(a, , "queued", "zz queued", "zzc"_..Number_"queued")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(a, , "done", "zz done", "zzc"_..Number_"done")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(a, , "queued", "zz queued", "zzc"_..Number_"queued")
 	For which = "done", "queued" {
 		Set probe = ..NewProbe()
 		Kill ^OcuTalonTest("WebChatIn", ..Number)
@@ -150,7 +152,7 @@ Method TestBadPostRefused()
 		Set sc = ..NewProbe().OnProcessInput(post, .output)
 		Do $$$AssertStatusNotOK(sc, case_": an error status")
 		Do $$$AssertEquals(output, "", case_": no output")
-		Do $$$AssertEquals(..Sends(), 0, case_": nothing is sent")
+		Do $$$AssertEquals(..Calls(), 0, case_": the allowance is not asked and nothing is sent")
 	}
 	For other = "", "zz a string", ##class(Ens.StringRequest).%New("zz") {
 		Kill ^OcuTalonTest("WebChatIn", ..Number)
@@ -187,6 +189,24 @@ Method TestAllowanceAllowsWithFlagOff()
 	Do $$$AssertEquals(refused, 0, "60 messages are all allowed, with no retryAt and no first refusal")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).TryConsume("zzsession", "web", "zz", .retryAt, .firstRefusal), 1, "and so is a message with the flag set to 0")
+}
+
+/// The service's Allowed seam, which the probe replaces, is one call: it returns what Core.Allowance.TryConsume answers for the
+/// session, the channel and the text, with retryAt and firstRefusal passed through. While TryConsume allows every message no run
+/// can show the hop, so the source of the method is read (Story 16.9 adds the count that makes it observable).
+Method TestAllowedAsksTheAllowance()
+{
+	Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Channel.WebChat.In||Allowed")
+	If '$IsObject(method) {
+		Do $$$AssertTrue(0, "WebChatIn has the method Allowed")
+		Quit
+	}
+	Set code = ""
+	Do method.Implementation.Rewind()
+	While 'method.Implementation.AtEnd {
+		Set code = code_method.Implementation.Read(30000)
+	}
+	Do $$$AssertEquals($ZStrip(code, "*WC"),"Quit##class(OcuTalon.Core.Allowance).TryConsume(sessionRef,channel,text,.retryAt,.firstRefusal)", "Allowed returns the answer of TryConsume for the session, the channel and the text")
 }
 
 /// --- helpers ---
