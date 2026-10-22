@@ -371,3 +371,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: QA probe on the slot and the acceptance-auditor: the unquoted branch admits } and ]; nothing leaks, and a bracket-aware rule breaks idempotence ([redacted] ends in ]) or leaks a value that holds }.
 - 2026-10-22T19:38:02Z status=wontfix-accepted owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=reopen_if=a step summary's broken JSON fragment hides non-secret text that a reviewer needed
+
+### DW-92: AI Hub (build 154) runs a tool call that the provider cut at max_tokens and goes on, and reports only the last response's stop reason, so the bridge cannot see an intermediate cut-off; whether such a call's arguments can be truncated on the real Anthropic API is unmeasured
+- source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: Story 1.6 Task 0 (e): cut-off-tool through StepsAgent gives steps model, tool, model and FinishReason end_turn; StepRenderer.OnMessage gets the content only; TestCutOffToolCall pins it
+- 2026-10-22T23:49:35Z status=decision-pending owner=burndown by=harvest note=human=report it to InterSystems (an AI Hub stop reason per response, or no tool run after a max_tokens stop); until then Epic 3's gate governs any risky tool call, and the read-only tools of release 1 are harmless with cut arguments
+
+### DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured)
+- source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
+- 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend

@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-22'
 status: 'done'
 baseline_revision: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
+baseline_commit: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -163,7 +164,7 @@ deferred:
 | A turn's fallback is a reply only (live) | User `turn`, marker `refusal` | `Text`, `HostData`, `Steps`, `FailureText` and `FinishReason` are empty; `Fallback` 1, `refusal`. The refused text is in no field of the answer. | OK |
 | A runner error status (live, Task 0 (d)) | `ChatAgent`'s `Model` row is `zz-no-such-model`, `ChatAgent` restarted; a user turn | 1. **The answer** comes through `OnError`: an `error` fallback `Reply` and row.<br>2. **Nothing reached the mock.**<br>3. **On time:** the answer comes in under 10 s, not after the timer. | OK; the row is put back and the item restarted |
 | A failed turn's steps (live, DW-83) | `ChatAgent` swapped to `StepsAgent`, marker `steps-loop` | 1. **The answer:** an `unusable` fallback `Reply`.<br>2. **The steps:** the `AgentStep`s of the ref alternate model and tool:<br>- Positions 1 to n;<br>- tool labels `Reading the test note`, status `ok`;<br>- each Completed, in the decision's session, after `ChatAgent`'s reply and before `Decide`'s answer.<br>3. **The count:** the row's `AgentStepCount` is at least n. | OK |
-| A cut-off tool call (live, Task 0 (e)) | `StepsAgent`, marker `cut-off-tool` | A fallback: `cut_off` when `Chat` returned, else the reason of its failure, as Task 0 (e) records. Never a usable answer. | OK |
+| A cut-off tool call (live, Task 0 (e)) | `StepsAgent`, marker `cut-off-tool` | As measured on build 154: AI Hub runs the cut-off tool call and goes on, `Chat` returns the later reply with `end_turn`, and that final reply is the turn's answer (three steps: model, tool, model). A final reply cut at the cap is never an answer (`cut_off`, AC1). [AMENDED 2026-10-22, lead, unattended ruling U-29; the row said "A fallback ... Never a usable answer", which AI Hub does not allow] | OK |
 | Prechecks (live) | 1. `DecisionTokenBudget` 1, `Decide` restarted.<br>2. `DailyCostCapUSD` 1, `GatewaySpendUSD` 1, `GatewaySpendDate` today. | 1. `budget`.<br>2. `daily_cap`, plus one `budget.capped` event: owner `instance`, payload `{"day": <today>}`.<br>For each: the mock's log holds no request with the ref, and `Decide` sends nothing but its answer (no runner request, no `Ens.Alarm`). | OK |
 | Both daily-cap paths (live, U-16) | The cap is off, today is unmarked, and `Decide`'s `HostSinkClass` is swapped to `ProbeSink` in shared mode. Then, in order:<br>1. a decide with `[[mock:daily-cap]]` (HTTP 403);<br>2. a decide on Triage's default script;<br>3. a user turn. | 1. **The 403:** `daily_cap`; the runner was called once and today is marked.<br>2. **The precheck:** `daily_cap`, nothing sent.<br>3. **The turn:** a `daily_cap` fallback `Reply`, nothing sent.<br>**The events:** exactly one `budget.capped` (owner `instance`, `{day}` today), fired after the first row exists, and three `decision.recorded`. | OK; the mark and the swap are removed |
 | No key (live, a CI start) | `ANTHROPIC_API_KEY` unset; the entries at its placeholder | 1. **Keys:** `Keys.Status` is 0 for `TriageAgent`, `DiagnosisAgent` and `ChatAgent`.<br>2. **Fallbacks:** a decide and a turn through `Decide` each record a `no_key` fallback.<br>3. **Nothing sent:** the mock's log has nothing since the mark.<br>4. **Nothing fails:** every item runs before and after, and there is no event-log row of Type 2 or 6 since the mark taken before the `Decide` sends. | OK |
@@ -417,6 +418,8 @@ deferred:
   (`Test.Bridge.Budget.TestFaults`, `Test.Bridge.Decide.TestPrecheckLogs`)
 
 ## Spec Change Log
+
+- 2026-10-22, lead (Epic 1 runner), at dev complete: the I/O matrix row "A cut-off tool call" is restated to the behaviour Task 0 (e) measured (veto U-29; the platform report is ledgered as decision-pending for the owner). The intent is unchanged: a reply cut at the output cap is never treated as an answer.
 
 ## Review Triage Log
 
