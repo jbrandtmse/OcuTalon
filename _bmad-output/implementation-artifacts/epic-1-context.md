@@ -24,10 +24,11 @@ Build the bridge's decision core (Lane A) on Epic 0's merged contracts and stubs
 ## Requirements & Constraints
 
 - **Model rules.** Every agent defaults to `claude-haiku-5-5`. No request ever sets `temperature`, `top_p` or `top_k`. The output cap is 8,000 tokens and never goes below 4,000. Every test runs against the CI mock, which rejects sampling parameters and caps under 4,000.
-- **Caching.** Every runner's session carries the full cache block, but AI Hub marks a block only where its cached prefix reaches `min_tokens_for_cache` (512 tokens). A shorter prompt (today Triage's and Chat's) is never marked, so a test expects a cache marker in the mock's log only where the prefix reaches that threshold, and proves the block itself from each runner's session config.
+- **Caching.** Every runner's session carries the full cache block, but AI Hub marks a block only where its cached prefix reaches `min_tokens_for_cache` (512 tokens). A shorter prefix is never marked, so a test expects a cache marker in the mock's log only where the prefix reaches that threshold, and proves the block itself from each runner's session config.
 - **Keys.** The model key comes only from the environment through a placeholder that only AI Hub's provider resolves. Its value must never appear in a Config Store entry, a saved AI session, a production setting, the event log, an agent step, a log line or an error detail. With no key, every item still runs, nothing in the production fails, and every decision falls back with `no_key`.
 - **One decision per item.** A decision is unique on (item, kind), and a repeated request returns the recorded decision without calling the model. Outcomes are ignore, digest, tell now and act. Confidence is recorded but never changes the outcome. When the user wrote the item, an ignore or digest answer becomes tell now, and the reasons say why.
 - **Fallback.** An unusable reply is never treated as an answer. It is recorded as tell now, with the fallback flag and its reason. It triggers no tool, fix or approval, and Visual Trace flags it. On a chat turn the fallback is a reply only. CI forces every fallback reason through mock scenarios.
+- **On time.** Every decision and turn finishes, or falls back, within `Decide`'s timer. A rate-limited attempt (HTTP 429 or 529) is re-sent with back-off until the timer fires only when no tool ran in it, as `Reply.ToolsRun` reports; when a tool ran it falls back at once, and an `error` always falls back at once.
 - **Cost honesty.** Tokens and cost are recorded per turn and per decision, never per step. A model-request step carries only an estimated request size, labelled as an estimate.
 - **Size.** No request goes over 100,000 input tokens: one that would is never sent and falls back with `too_large`. Together, all the tool results of one model step pass at most 10,000 tokens to the model, and each cut result says it was cut.
 - **Prompt safety.** The user's own text always reaches the model as a user-role message, never inside a tool result. Untrusted content is quoted data, labelled with where it came from. Every request starts with a preamble that states the local time and zone.
@@ -72,6 +73,7 @@ Build the bridge's decision core (Lane A) on Epic 0's merged contracts and stubs
 - **Inside the epic.**
   - Stories 1.1 and 1.2 come before Story 1.3, which the later stories build on.
   - Story 1.7 adds `Derive`'s values to Story 1.1's `Provider` step (the request timeout and retry block) and to Story 1.2's session config (`timeout_ms`).
+  - Story 1.7's re-send rule reads `Reply.ToolsRun`, but the runner's answer from Story 1.2 fills only `Text`, `FinishReason`, `HostData` and `Tainted`, so a turn that ran tools reports `ToolsRun` 0. Story 1.7 has to make the runner set it.
   - Story 1.10's tools return through Story 1.9's `Tools.Result` cap.
 - **Other epics.**
   - Until a dependency merges, its stand-in is used:
