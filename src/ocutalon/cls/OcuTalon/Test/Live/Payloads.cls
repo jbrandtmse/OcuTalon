@@ -1,6 +1,7 @@
 /// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 25 payload
-/// and part classes that Story 0.5 adds, every JSON key, and the incident payload with its nested shapes and its
-/// FromRow builder. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// and part classes that Story 0.5 adds, every JSON key, the incident payload with its nested shapes and its FromRow
+/// builder, and the FromRow builders of the chat message, reminder, approval and decision payloads (Story 2.2), which
+/// build from unsaved rows. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -234,6 +235,94 @@ Method TestFromRow()
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "no item noun in the row gives none")
 	Set row.ItemNoun = "not json"
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "a broken item noun gives none")
+}
+
+/// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
+/// from the others, so a field copied from the wrong property is caught. The rows are not saved. A field with no source
+/// in the row stays empty. An approval's dry run is parsed; an empty one, a broken one and one without an item noun give a
+/// payload without the part that is missing.
+Method TestFromRowBuilders()
+{
+	Set turn = ##class(OcuTalon.Data.Turn).%New()
+	Set turn.Ref = "ZzTurnRef"_..Number
+	Set turn.Channel = "telegram"
+	Set turn.FromGuide = 1
+	Set turn.State = "queued"
+	Set turn.CreatedAt = "2026-10-19T09:00:01Z"
+	Set turn.TriageDecisionRef = "ZzTriageDecision"
+	Set turn.TurnDecisionRef = "ZzTurnDecision"
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Channel_"|"_payload.FromGuide_"|"_payload.State_"|"_payload.CreatedAt, "ZzTurnRef"_..Number_"|telegram|1|queued|2026-10-19T09:00:01Z", "a turn: ref, channel, fromGuide, state, createdAt")
+	Do $$$AssertEquals(payload.ClientId_"|"_payload.Text_"|"_payload.ReplyText_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||||", "and the fields with no source in the row stay empty")
+
+	Set reminder = ##class(OcuTalon.Data.Reminder).%New()
+	Set reminder.Ref = "ZzRemRef"_..Number
+	Set reminder.Text = "Call the warehouse"
+	Set reminder.DueAt = "2030-02-03T04:05:06Z"
+	Set reminder.State = "pending"
+	Set reminder.Late = 1
+	Set reminder.CreatedAt = "2026-10-19T09:00:02Z"
+	Set payload = ##class(OcuTalon.Live.Payload.Reminder).FromRow(reminder)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Text_"|"_payload.DueAt_"|"_payload.State_"|"_payload.Late, "ZzRemRef"_..Number_"|Call the warehouse|2030-02-03T04:05:06Z|pending|1", "a reminder: ref, text, dueAt, state, late")
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "and it has no trace")
+
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Ref = "ZzAppRef"_..Number
+	Set request.Kind = "fix"
+	Set request.IncidentRef = "ZzIncRef"_..Number
+	Set request.OwnerRef = "ZzOwnerRef"
+	Set request.State = "answered"
+	Set request.ToolName = "tool.fix"
+	Set request.RaisedAt = "2026-10-19T09:10:00Z"
+	Set request.ExpiresAt = "2026-10-19T09:20:00Z"
+	Set request.AnsweredAction = "approve"
+	Set request.AnsweredChannel = "phone"
+	Set request.AnsweredBy = "someone"
+	Set request.AnsweredAt = "2026-10-19T09:11:00Z"
+	Set request.Result = "fixed"
+	Set request.FinishedAt = "2026-10-19T09:12:00Z"
+	Set request.DryRun = {"affected": 4, "resend": 3, "leftOut": 1, "field": "OrderDate", "before": "16/10/2026", "after": "2026-10-16", "itemNoun": {"one": "order", "other": "orders"}}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.State_"|"_payload.IncidentRef_"|"_payload.ToolName, "ZzAppRef"_..Number_"|fix|answered|ZzIncRef"_..Number_"|tool.fix", "an approval: ref, kind, state, incidentRef, toolName")
+	Do $$$AssertEquals(payload.RaisedAt_"|"_payload.ExpiresAt_"|"_payload.AnsweredAction_"|"_payload.AnsweredChannel, "2026-10-19T09:10:00Z|2026-10-19T09:20:00Z|approve|phone", "raisedAt, expiresAt, answeredAction, answeredChannel")
+	Do $$$AssertEquals(payload.AnsweredBy_"|"_payload.AnsweredAt_"|"_payload.Result_"|"_payload.FinishedAt, "someone|2026-10-19T09:11:00Z|fixed|2026-10-19T09:12:00Z", "answeredBy, answeredAt, result, finishedAt")
+	Do $$$AssertEquals(payload.Reason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||", "the reason and the trace have no source in the row")
+	Do $$$AssertEquals(payload.DryRun.Affected_"|"_payload.DryRun.Resend_"|"_payload.DryRun.LeftOut_"|"_payload.DryRun.Field_"|"_payload.DryRun.Before_"|"_payload.DryRun.After, "4|3|1|OrderDate|16/10/2026|2026-10-16", "the dry run is parsed")
+	Do $$$AssertEquals(payload.DryRun.ItemNoun.One_"|"_payload.DryRun.ItemNoun.Other, "order|orders", "with its item noun")
+	Set request.DryRun = {"affected": 2}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals($IsObject(payload.DryRun) && (payload.DryRun.Affected = 2) && ('$IsObject(payload.DryRun.ItemNoun)), 1, "a dry run without an item noun gives a part without one")
+	Set request.DryRun = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun, "", "no dry run in the row gives none")
+	Set request.DryRun = "not json"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun, "", "a broken dry run gives none")
+
+	Set decision = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set decision.Ref = "ZzDecRef"_..Number
+	Set decision.Kind = "decide"
+	Set decision.ItemId = "ZzItemId"_..Number
+	Set decision.Summary = "A summary"
+	Set decision.Outcome = "notify"
+	Set decision.Reasons = "a reason"
+	Set decision.Confidence = 0.85
+	Set decision.Fallback = 1
+	Set decision.FallbackReason = "model_error"
+	Set decision.InputTokens = 101
+	Set decision.OutputTokens = 202
+	Set decision.CacheReadTokens = 303
+	Set decision.CacheWriteTokens = 404
+	Set decision.AgentStepCount = 5
+	Set decision.DurationMs = 6000
+	Set decision.CostUSD = 0.012345
+	Set decision.Model = "claude-sonnet-5-5"
+	Set decision.TraceSessionId = 77
+	Set decision.RecordedAt = "2026-10-19T09:30:00Z"
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(decision)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.ItemId_"|"_payload.ItemSummary_"|"_payload.Outcome_"|"_payload.Reasons, "ZzDecRef"_..Number_"|decide|ZzItemId"_..Number_"|A summary|notify|a reason", "a decision: ref, kind, itemId, itemSummary, outcome, reasons")
+	Do $$$AssertEquals(payload.Confidence_"|"_payload.Fallback_"|"_payload.FallbackReason, ".85|1|model_error", "confidence, fallback, fallbackReason")
+	Do $$$AssertEquals(payload.InputTokens_"|"_payload.OutputTokens_"|"_payload.CacheReadTokens_"|"_payload.CacheWriteTokens, "101|202|303|404", "the four token counts")
+	Do $$$AssertEquals(payload.AgentStepCount_"|"_payload.DurationMs_"|"_payload.CostUSD_"|"_payload.RecordedAt, "5|6000|.012345|2026-10-19T09:30:00Z", "agentStepCount, durationMs, costUSD, recordedAt")
+	Do $$$AssertEquals(payload.Model_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "Claude Sonnet 5.5|77|"_$Namespace, "the model's display name, the trace of the decision's session")
 }
 
 /// --- helpers ---

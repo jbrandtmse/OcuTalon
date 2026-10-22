@@ -11,9 +11,13 @@
 #   - rows 13 to 19 of Story 0.5, through web/e2e/api/api.spec.ts, on a stack that this script seeds: the README
 #     account's session gets two reminder events and the instance stream one status event, and the script passes what
 #     it read back (the version, the instance zone, the session's epoch and the marker of the texts) to the specs.
+#   - Story 2.2's live path and session (web/e2e/live/ and web/e2e/session/): three more fixture users with the user role, the
+#     live user (OCUTALON_LIVE_USER), the session user, who also holds the trace role (OCUTALON_SESSION_USER), and the sign-in
+#     user, whom nothing signs in before session.spec S4 (OCUTALON_SIGNIN_USER). The specs reach the IRIS container with
+#     docker exec, which OCUTALON_E2E_IRIS_CONTAINER names.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only and first-call users get random
-# passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session and sign-in users
+# get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or
@@ -31,6 +35,12 @@ traceuser=ZzTraceOnly
 tracepassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 firstuser=ZzFirstCall
 firstpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+liveuser=ZzLive
+livepassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+sessionuser=ZzSession
+sessionpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+signinuser=ZzSignIn
+signinpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -86,6 +96,23 @@ else
   die "the fixture user with the user role could not be created ('$created')"
 fi
 
+# Story 2.2's users: the live user and the sign-in user hold the user role; the session user also holds the trace role, so that
+# session.spec S5 can sign in at a trace application. Nothing signs the sign-in user in before S4.
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture"; do
+  fixture_name=${fixture%%|*}
+  fixture_rest=${fixture#*|}
+  fixture_password=${fixture_rest%%|*}
+  fixture_rest=${fixture_rest#*|}
+  fixture_roles=${fixture_rest%%|*}
+  fixture_comment=${fixture_rest#*|}
+  created=$(create_fixture_user "$fixture_name" "$fixture_password" "$fixture_roles" "$fixture_comment")
+  if [ "$created" = "CHK|fixture-user|1" ]; then
+    pass "the fixture user $fixture_name (roles $fixture_roles) is created"
+  else
+    die "the fixture user $fixture_name could not be created ('$created')"
+  fi
+done
+
 # --- Story 0.5, rows 13 and 14: the seeded events ---
 
 # The README account's durable session, two reminder events on its stream, and one status event on the instance
@@ -118,7 +145,7 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -126,6 +153,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_TRACEONLY_PASSWORD="$tracepassword" \
   OCUTALON_FIRSTCALL_USER="$firstuser" \
   OCUTALON_FIRSTCALL_PASSWORD="$firstpassword" \
+  OCUTALON_LIVE_USER="$liveuser" \
+  OCUTALON_LIVE_PASSWORD="$livepassword" \
+  OCUTALON_SESSION_USER="$sessionuser" \
+  OCUTALON_SESSION_PASSWORD="$sessionpassword" \
+  OCUTALON_SIGNIN_USER="$signinuser" \
+  OCUTALON_SIGNIN_PASSWORD="$signinpassword" \
+  OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \
   OCUTALON_E2E_EPOCH="$seeded_epoch" \
@@ -135,13 +169,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "rows 3-13 and Story 0.5's rows 13-19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19 and Story 2.2's L1-L8 and S1-S7: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13 and Story 0.5's rows 13-19: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19 and Story 2.2's L1-L8 and S1-S7: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

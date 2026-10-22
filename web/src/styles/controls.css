@@ -92,6 +92,14 @@
   }
 }
 
+/* A skeleton block: a static stand-in for content on its way. It never shimmers, pulses or fades; the page that uses it
+   sets the size and marks the group aria-hidden. */
+.skeleton {
+  display: block;
+  background: var(--skeleton-background);
+  border-radius: var(--skeleton-radius);
+}
+
 /* A text link: underlined 1px with a 2px offset, 2px on hover and keyboard focus. */
 .link {
   color: var(--link-foreground);

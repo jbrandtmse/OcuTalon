@@ -62,4 +62,39 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The payload for a decision row, with every row-backed field set: itemSummary is the row's Summary, model the
+/// display name of the row's model id, traceHeaderId the row's TraceSessionId and traceNamespace the current namespace.
+ClassMethod FromRow(row As OcuTalon.Bridge.Data.Decision) As OcuTalon.Live.Payload.Decision
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Kind = row.Kind
+	Set payload.ItemId = row.ItemId
+	Set payload.ItemSummary = row.Summary
+	Set payload.Outcome = row.Outcome
+	Set payload.Reasons = row.Reasons
+	Set payload.Confidence = row.Confidence
+	Set payload.Fallback = row.Fallback
+	Set payload.FallbackReason = row.FallbackReason
+	Set payload.InputTokens = row.InputTokens
+	Set payload.OutputTokens = row.OutputTokens
+	Set payload.CacheReadTokens = row.CacheReadTokens
+	Set payload.CacheWriteTokens = row.CacheWriteTokens
+	Set payload.AgentStepCount = row.AgentStepCount
+	Set payload.DurationMs = row.DurationMs
+	Set payload.CostUSD = row.CostUSD
+	Set payload.Model = ..ModelName(row.Model)
+	Set payload.RecordedAt = row.RecordedAt
+	Set payload.TraceHeaderId = row.TraceSessionId
+	Set payload.TraceNamespace = $Namespace
+	Quit payload
+}
+
+/// The display name of a model id: "Claude Haiku 5.5" for claude-haiku-5-5 and "Claude Sonnet 5.5" for
+/// claude-sonnet-5-5. Any other id is returned as it is, and "" stays "". This is the one display-name table.
+ClassMethod ModelName(id As %String) As %String
+{
+	Quit $Case(id, "claude-haiku-5-5": "Claude Haiku 5.5", "claude-sonnet-5-5": "Claude Sonnet 5.5", : id)
+}
+
 }

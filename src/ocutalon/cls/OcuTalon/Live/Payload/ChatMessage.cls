@@ -32,4 +32,17 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The payload for a turn row, with every row-backed field set: ref, channel, fromGuide, state and createdAt. The
+/// turn's text, its reply and its trace have no source in the row yet (Story 2.4) and stay empty.
+ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Channel = row.Channel
+	Set payload.FromGuide = row.FromGuide
+	Set payload.State = row.State
+	Set payload.CreatedAt = row.CreatedAt
+	Quit payload
+}
+
 }

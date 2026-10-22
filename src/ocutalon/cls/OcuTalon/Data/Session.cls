@@ -1,5 +1,6 @@
 /// A signed-in session (AD-4). Lane B. Each IRIS user has one durable row on a local install; ForUser finds or
-/// creates it.
+/// creates it. Only Ownership.Attach calls ForUser: the REST surface resolves the caller through Ownership.SessionRef.
+/// Recipients says which sessions an owner's records go to.
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -73,10 +74,21 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 	Quit session
 }
 
-/// The SessionRefs that receive what the owner owns, as a list, narrowed to the incident's recipients when incidentRef
-/// is set. Not implemented yet: it answers an empty list. Lane B implements it in Story 2.2.
+/// The SessionRefs that receive what the owner owns, as a list:
+///   - a session's Ref that has a Session row: that Ref alone;
+///   - instance with the Ref of an instance incident: the sessions that watch the incident's production, in
+///     SessionRef order (Ownership.Watchers), none when onlineDemo is on;
+///   - eval, an empty owner, an unknown Ref, instance without an instance incident: none, the empty list.
 ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "") As %List
 {
+	If (ownerRef = "") || (ownerRef = ##class(OcuTalon.Data.Ownership).#EVAL) Quit ""
+	If ownerRef = ##class(OcuTalon.Data.Ownership).#INSTANCE {
+		If incidentRef = "" Quit ""
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(incidentRef)
+		If '$IsObject(incident) || (incident.OwnerRef '= ownerRef) Quit ""
+		Quit ##class(OcuTalon.Data.Ownership).Watchers(incident.Namespace, incident.Production)
+	}
+	If ..RefIndexExists(ownerRef) Quit $ListBuild(ownerRef)
 	Quit ""
 }
 

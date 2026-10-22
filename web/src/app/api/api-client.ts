@@ -16,6 +16,11 @@ export class ApiClient {
     return this.http.get<StateSnapshot>(`${BASE}/state`);
   }
 
+  /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
+  endSession(): Observable<void> {
+    return this.http.post<void>(`${BASE}/session/end`, {});
+  }
+
   /** The events after the two cursors, one for the session's stream and one for the instance's. */
   events(after: number, afterInstance: number): Observable<EventsResponse> {
     return this.http.get<EventsResponse>(`${BASE}/events`, { params: { after, afterInstance } });

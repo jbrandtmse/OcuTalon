@@ -475,12 +475,12 @@ session_value() {
 }
 
 # security_app_props <CSPZENEnabled> <CookiePath> <DispatchClass> <MatchRoles> <Path> <PermittedClasses> <ServeFiles>
-# [<AutheEnabled> [<GroupById> [<NameSpace>]]]: the properties string that check_security reads back for a web application, in
-# the order of its key list; the values every application shares are written here. AutheEnabled defaults to 32 (password),
-# GroupById to OcuTalon, the sign-in group, and NameSpace to OCUTALON.
+# [<AutheEnabled> [<GroupById> [<NameSpace> [<EventClass>]]]]: the properties string that check_security reads back for a web
+# application, in the order of its key list; the values every application shares are written here. AutheEnabled defaults to 32
+# (password), GroupById to OcuTalon, the sign-in group, NameSpace to OCUTALON and EventClass to none (only /ocutalon has one).
 security_app_props() {
-  printf 'AutheEnabled=%s;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;GroupById=%s;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=%s;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
-    "${8:-32}" "$1" "$2" "$3" "${9-OcuTalon}" "$4" "${10:-OCUTALON}" "$5" "$6" "$7"
+  printf 'AutheEnabled=%s;AutoCompile=0;CSPZENEnabled=%s;CookiePath=%s;CorsAllowlist=;DispatchClass=%s;Enabled=1;EventClass=%s;GroupById=%s;InbndWebServicesEnabled=0;IsNameSpaceDefault=0;LoginPage=;MatchRoles=%s;NameSpace=%s;Path=%s;PermittedClasses=%s;ServeFiles=%s;SessionScope=2;Timeout=28800;' \
+    "${8:-32}" "$1" "$2" "$3" "${11-}" "${9-OcuTalon}" "$4" "${10:-OCUTALON}" "$5" "$6" "$7"
 }
 
 # check_security <label>: Story 0.3's matrix rows 1 and 2 on the running container, from the security tables.
@@ -495,7 +495,7 @@ security_app_props() {
 check_security() {
   local label=$1 permitted shell_props api_props public_props trace_props orders_props
   permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
-  shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3)
+  shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3 32 OcuTalon OCUTALON OcuTalon.Web.SessionEvents)
   api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
   public_props=$(security_app_props 1 /ocutalon/public/ OcuTalon.Web.Public.Status '' '' '' 0 64 '')
   trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
@@ -518,7 +518,7 @@ CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
     'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
     'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
     'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
-    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
+    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","EventClass","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
     'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
     'Halt'
 }
@@ -816,7 +816,7 @@ CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
     'Set ok=##class(Security.Roles).Get("OcuTalonTraceViewer",.p) Set want=$ListBuild("%DB_OCUORDERS_CODE:R","%DB_OCUORDERS_DATA:R"),have="" For i=1:1:$Length($Get(p("Resources")),",") { If $ListFind(want,$Piece(p("Resources"),",",i)) { Set have=have_$Select(have="":"",1:",")_$Piece(p("Resources"),",",i) } } Write !,"CHK|trace-role-orders|",have' \
     'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
     'Kill p Set sc=##class(Security.Applications).Get("/csp/ocuorders",.p) Write !,"CHK|portal-authe|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("AutheEnabled")),1:"<missing>")' \
-    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
+    'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","EventClass","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
     'Kill p Set sc=##class(Security.Applications).Get("/ocutalon/trace/ocuorders",.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|/ocutalon/trace/ocuorders|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>")' \
     'Halt'
   check_session "$label: the Orders production runs in OCUORDERS, and is not autostart" OCUORDERS \

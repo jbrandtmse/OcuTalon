@@ -60,16 +60,19 @@ const NOT_BUILT = "This part of OcuTalon isn't built yet.";
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 
-/** The routes that answer 501 not_built, with the method that each takes. */
+/** The routes that answer 501 not_built, with the method that each takes. Session/end is built (Story 2.2) and the two routes that name a record answer 404 first. */
 const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
   ['POST', '/ocutalon/api/v1/messages'],
-  ['POST', '/ocutalon/api/v1/approvals/zz/answer'],
-  ['POST', '/ocutalon/api/v1/incidents/zz/dismiss'],
   ['POST', '/ocutalon/api/v1/demo/break-feed'],
   ['POST', '/ocutalon/api/v1/mailbox/incoming'],
   ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
   ['POST', '/ocutalon/api/v1/guide/markers'],
-  ['POST', '/ocutalon/api/v1/session/end'],
+];
+
+/** The routes that name a record: a ref the session can't see answers 404 not_found, before the 501 of an unbuilt route. */
+const BY_REF: ReadonlyArray<readonly [method: 'POST', path: (ref: string) => string]> = [
+  ['POST', (ref) => `/ocutalon/api/v1/approvals/${ref}/answer`],
+  ['POST', (ref) => `/ocutalon/api/v1/incidents/${ref}/dismiss`],
 ];
 
 /** The origin of the stack, which a same-origin POST of the page carries as its Origin header. */
@@ -133,7 +136,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
@@ -144,15 +147,24 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(body['onlineDemo'], 'a local install is not the online demo').toBe(false);
   expect(body['demoMode'], 'every Docker throwaway runs in demo mode').toBe(true);
   expect(body['models']).toEqual({ triage: 'Claude Haiku 5.5', diagnosis: 'Claude Haiku 5.5', chat: 'Claude Haiku 5.5' });
+  expect(body['telegram'], 'Telegram is not included in this release and nobody is paired').toEqual({
+    included: false,
+    state: 'off',
+    botUserName: '',
+    paired: false,
+    displayName: '',
+    pausedUntil: '',
+  });
+  expect(body['status'], 'no status condition is computed yet').toEqual([]);
 });
 
 /**
- * Rows 13 and 14 and AD-4: the first /state of a user with no session row creates it, as that unprivileged user, a
- * second call returns the same session, and the user's poll holds the instance events and none of another user's
- * session events. It is the only test that signs in as the first-call user, so its first call creates the row in any
+ * Rows 13 and 14 and AD-4: a user with no session row has it created, as that unprivileged user, at sign-in (and by the first
+ * call if the sign-in did not), a second call returns the same session, and the user's poll holds the instance events and none
+ * of another user's session events. It is the only test that signs in as the first-call user, so the row is created in any
  * test order.
  */
-test("rows 13 and 14: a user's first /state creates its session, and its poll holds the instance events and not another user's session events", async ({ request }) => {
+test("rows 13 and 14: a user's /state answers the session that sign-in created, and its poll holds the instance events and not another user's session events", async ({ request }) => {
   await signInOverHttp(request, SEEDED.firstCall.user, SEEDED.firstCall.password);
   const first = await request.get(STATE);
   expect(first.status(), await first.text()).toBe(200);
@@ -297,11 +309,18 @@ test.describe('row 15: the browser envelope', () => {
   });
 });
 
-/** Row 16: every route that no story has built answers 501, and the pairing routes answer 404. */
-test('row 16: unbuilt routes answer 501 not_built, and the pairing routes 404', async ({ request }) => {
+/**
+ * Row 16: every route that no story has built answers 501, the pairing routes answer 404, and the two routes that name a record
+ * answer 404 for a ref the session can't see (a random ref, here) with the error shape (AD-4).
+ */
+test('row 16: unbuilt routes answer 501 not_built, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
   for (const [, path] of UNBUILT) {
     await expectError(await call(request, 'POST', path), 501, 'not_built', NOT_BUILT);
+  }
+  for (const [, path] of BY_REF) {
+    await expectError(await call(request, 'POST', path('ZzNoSuchRef0123456789')), 404, 'not_found', NOT_FOUND);
+    await expectError(await call(request, 'POST', path('zz')), 404, 'not_found', NOT_FOUND);
   }
   await expectError(await call(request, 'POST', `${PAIRING}/code`), 404, 'not_found', NOT_FOUND);
   await expectError(await call(request, 'DELETE', PAIRING), 404, 'not_found', NOT_FOUND);

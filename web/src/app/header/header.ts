@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, viewChild, type E
 import { ABOUT_TITLE_ID, AboutDialog } from '../about/about-dialog';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
+import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
 import { Tooltip } from '../shared/tooltip';
 import { Theme, type ThemeChoice } from '../theme/theme';
@@ -17,8 +18,8 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
 
 /**
  * The app header. Left: the mark and the wordmark, both linking to the main page, and the context badge (Online demo,
- * or Demo mode, or none). Right: the theme menu and the account menu, which holds About and Sign out. Sign out leaves
- * the application through IRIS's own sign-out, which ends the whole sign-in group.
+ * or Demo mode, or none). Right: the theme menu and the account menu, which holds About and Sign out. Sign out goes
+ * through the API (SessionGate), which ends the CSP session and the whole sign-in group.
  */
 @Component({
   selector: 'app-header',
@@ -80,7 +81,7 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
     <ng-template #account>
       <div class="menu" cdkMenu aria-label="Account">
         <button type="button" class="item" cdkMenuItem (cdkMenuItemTriggered)="openAbout()">About OcuTalon</button>
-        <a class="item" cdkMenuItem href="/ocutalon/?IRISLogout=end">Sign out</a>
+        <button type="button" class="item" cdkMenuItem (cdkMenuItemTriggered)="signOut()">Sign out</button>
       </div>
     </ng-template>
   `,
@@ -184,6 +185,7 @@ export class Header {
   protected readonly live = inject(LiveState);
   protected readonly theme = inject(Theme);
   private readonly dialogs = inject(Dialogs);
+  private readonly gate = inject(SessionGate);
   private readonly accountTrigger = viewChild.required<ElementRef<HTMLElement>>('accountTrigger');
 
   protected readonly themeOptions = THEME_OPTIONS;
@@ -204,6 +206,10 @@ export class Header {
   protected readonly themeName = computed(
     () => `Theme: ${THEME_OPTIONS.find((option) => option.value === this.theme.choice())?.label ?? 'System'}`,
   );
+
+  protected signOut(): void {
+    this.gate.signOut();
+  }
 
   protected openAbout(): void {
     this.dialogs.open(AboutDialog, { labelledBy: ABOUT_TITLE_ID, restoreFocus: this.accountTrigger().nativeElement });

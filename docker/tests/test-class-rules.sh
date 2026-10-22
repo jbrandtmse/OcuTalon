@@ -11,7 +11,10 @@
 #   - unchecked-prepare (AD-13, DW-17): outside the methods of ALLOW_UNCHECKED, no %Prepare whose second argument is not 1,
 #     no %PrepareClassQuery whose third argument is not 1, and no %ExecDirectNoPriv or %ExecDirectNoPrivNoAudit, even when the
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
-#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned.
+#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned by this rule, because it is
+#     not privilege-checked and this rule could not see it: the next rule keeps it out of src/;
+#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/, in any case. Embedded SQL
+#     is not privilege-checked and the unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -27,7 +30,8 @@ trap 'rm -rf "$tmp"' EXIT
 
 # The only unchecked prepares of src/ (DW-17): Class:Method, one per line.
 ALLOW_UNCHECKED="OcuTalon.Data.Session:ForUser
-OcuTalon.Live.Event:Since"
+OcuTalon.Live.Event:Since
+OcuTalon.Data.Ownership:Rows"
 # The allow-list that the synthetic classes are judged by, so that the samples do not depend on the real list.
 SAMPLE_ALLOW="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since"
@@ -156,6 +160,16 @@ unchecked_prepares() {
       process()
       if (stale == 1) for (k in allow) if (!(k in used)) print "allow-list:" allow[k]
     }
+  ' "$@"
+}
+
+# embedded_sql <file>...: file:line of each code line of a class, routine or include file that holds embedded SQL: &sql( or
+# ##sql(, in any case, with blanks allowed before the parenthesis.
+embedded_sql() {
+  awk '
+    FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
+    !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    tolower($0) ~ /(&|##)sql[ \t]*\(/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -338,11 +352,25 @@ if [ "$samples_ok" -eq 1 ]; then
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
-    echo "FAIL unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "FAIL unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
     fails=$((fails + 1))
   else
-    echo "PASS unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
   fi
+fi
+
+# --- no-embedded-sql ---
+
+es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 INTO :x FROM T)' '	&SQL (SELECT 2 INTO :y FROM T)' '	Set a = ##sql(SELECT 3 INTO :z FROM T)' '}')
+es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}')
+es_comment=$(write_class es OcuTalon.Zz.EsComment '/// Never write &sql( or ##sql( here.' 'ClassMethod A()' '{' '	// &sql(SELECT 1 INTO :x FROM T)' '	; &sql(SELECT 1 INTO :x FROM T)' '	Quit 1' '}')
+samples_ok=1
+expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 3
+expect_clean "no-embedded-sql" embedded_sql "$es_good"
+expect_clean "no-embedded-sql" embedded_sql "$es_comment"
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "no-embedded-sql: no &sql( on a code line of src/" embedded_sql \
+    "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 
 if [ "$fails" -ne 0 ]; then

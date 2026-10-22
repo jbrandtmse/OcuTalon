@@ -2,12 +2,20 @@
 title: 'Story 2.2: Keep the session and load its snapshot with live updates'
 type: 'feature'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
-followup_review_recommended: false
+baseline_revision: '04b39400cd67ee72cbbfb0919667a0eb93ad4c1e'
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Web.Api.StateBody loads and serializes every turn and every noticed incident of the session on each /state call and each snapshot reload, with no cap or paging.
+    evidence: |-
+      ChatItems reads Ownership.Turns and Ownership.Incidents without a limit, opens each row, and PayloadObject exports and parses it again. A durable local session only grows, so the call grows with it. The snapshot shape (AD-12) has no paging and Story 2.5 renders the chat, so the decision on a cap or paging belongs to that story.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Api.cls ChatItems
+    severity: medium
 ---
 
 <intent-contract>
@@ -446,6 +454,68 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-22 — Review pass
+- verdicts: 58 findings — high 0, medium 21, low 30, false 7, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) Watchers answers "" when its read fails, the same as "nobody watches" — no consumer in this story; Watchers keeps the spec's signature and checked prepare, and a failure needs a production job whose user lacks SELECT, which the installer never creates; reopen_if a job user without SQL privilege runs Recipients.
+  - `[medium]` `[patch]` (blind) the restart check kills IRIS with no wait for the journal, so a lost seed row fails it for a reason that is not the check — `test-production-restart.sh` now calls `%SYS.Journal.System.Sync()` between the "before" snapshot and the kill.
+  - `[low]` `[reject]` (blind) an exception inside LiveState's next handlers stops polling or leaves the skeletons on — the payload types are generated from the server's contract and the server only sends objects, so it takes a malformed answer to throw; the guard would add a try/catch to three handlers; reopen_if a server answer is seen that the store cannot apply.
+  - `[low]` `[patch]` (blind) LiveState keeps `snapshot` and `store` with no rule for which to read — doc comment on `snapshot` now says its chat, rail, telegram and status are not kept up to date and views read `store`.
+  - `[low]` `[patch]` (blind) TestStateSections' leak check runs on the onlineDemo snapshot only — the first (local) snapshot's JSON is kept and both are checked.
+  - `[medium]` `[patch]` (blind) api.spec rows 13/14 keep a title that says the first /state creates the session, and S5 cannot tell a lazy attach from sign-in's — api.spec title renamed; S5 now deletes the user's session rows first and asserts one row after the page loads (with `Ownership.Attach` doing nothing S5 is red).
+  - `[medium]` `[defer]` (blind) /state loads and serializes every turn and noticed incident on every call, with no cap or paging — real for a durable local session that only grows; the snapshot shape (AD-12, spec) has no paging and Story 2.5 renders the chat, so the decision is Story 2.5's; fix-risk high; deferred to the spec frontmatter.
+  - `[medium]` `[patch]` (blind) Approval.FromRow's empty, broken and item-noun-less dry run branches have no test — `TestFromRowBuilders` covers all three; mutation recorded.
+  - `[low]` `[reject]` (blind) Sign out stops live updates first, has no timeout and no guard against a second trigger — a hung call leaves the page as a reload fixes; a second trigger needs the menu reopened inside the call's latency; guards add state to SessionGate; reopen_if a hung sign-out is reported.
+  - `[medium]` `[patch]` (blind) test hygiene: Fixture.Reminder's comment is wrong, and HoursAgo and Seqs are copied into Test.Live.Publish and Test.Web.Install — comment corrected; the three purge-test helpers moved into `Test.Data.Fixture` (HoursAgo, SetEventTs, EventSeqs) and both classes call them (Rule 2).
+  - `[low]` `[patch]` (edge) the Rows guard compares the owner literals instance and eval case-sensitively while SQL matches without regard to case — guard now compares the lower-cased value; `TestRowsRefuses` also tries "Instance" and "EVAL"; mutation recorded (callers only ever pass a session Ref, so this is defense in depth).
+  - `[low]` `[reject]` (edge) Decisions(max) with 0, negative or non-numeric max — `max` comes only from code (20); no request input reaches it.
+  - `[low]` `[reject]` (edge) a SQL error during the fetch loop ends %Next silently and the rows come back truncated with an OK status — cannot be induced in a test; the statements are plain reads of fixed text; the guard adds a branch to two methods; reopen_if a truncated snapshot is reported.
+  - `[low]` `[reject]` (edge) Recipients does not require NoticedAt for an instance incident, as Ownership.Incidents does — spec-bound: the Recipients task says an instance incident goes to the watchers of its production; publishers (Lane A) publish incident events only for noticed incidents.
+  - `[low]` `[reject]` (edge) Fixture.Clean ignores a failed %DeleteId and then kills the record — test helper; a leftover row fails the next run's assertions loudly.
+  - `[low]` `[reject]` (edge) fromSnapshot throwing on a partial snapshot after the load timer was cleared leaves skeletons forever — same root as the LiveState handler finding; the server always sends the full snapshot.
+  - `[low]` `[reject]` (edge) signOut run twice meets a 401 on the second POST and shows the signed-out notice — same root as the Sign out finding; needs two triggers inside one call's latency.
+  - `[low]` `[reject]` (edge) e2e support iris.ts: EPIPE on stdin when docker exec exits early — test-side; the container being down fails the case either way.
+  - `[false]` `[reject]` (edge) live-store: an event whose stream is neither session nor instance makes every poll reload — `Web.Api.EventsBody` labels every event "session" or "instance" (Api.cls:337-338); no other label reaches the store.
+  - `[low]` `[reject]` (edge) retry() never settles on a 401 or after stop(), so Retry shows the false busy notice after 10 s — the page is leaving for the sign-in page in both cases.
+  - `[low]` `[reject]` (edge) L1's 1000-2000 ms window can fail when a poll takes longer than 1 s — spec-bound: the criterion is AD-12's and the spec's L1; /events is a cheap read.
+  - `[low]` `[reject]` (edge) with several rows for one user name, Attach binds every unattached CSP session to the first — by-design: Design Notes 3, Story 16.3 replaces the online demo's branch of SessionRef (DW-16).
+  - `[low]` `[reject]` (edge) the removed plain Sign out link: after a 401 whose redirect failed Sign out does nothing — the 401 handler replaces the location at once; reopen_if a page is seen stuck after a 401.
+  - `[medium]` `[patch]` (gap) nothing observes that a poll carries the cursor that the last event advanced to — L2 now waits for the next /events request with `after` = the applied seq; mutation recorded (the poll sends the snapshot's cursors).
+  - `[medium]` `[patch]` (gap) the FromRow builders' field mappings are mostly unasserted — `TestFromRowBuilders` (Test.Live.Payloads) builds unsaved rows with a distinct value per field and asserts every mapped field; mutation recorded.
+  - `[medium]` `[patch]` (gap) Approval.FromRow's fallback branches and CheckView's trace branch never run — same root as the mapping finding: `TestFromRowBuilders` covers the dry run branches and `TestStateSections` a check with a run.
+  - `[medium]` `[patch]` (gap) SessionEvents.OnLogin's failure branches never run — OnLogin now calls `AttachFor(hasRole)`; `Test.Web.SessionEvents` shows OK for a failed attach, no row without the role, and the attach with it; mutation recorded.
+  - `[low]` `[reject]` (gap) the announce-once guard of LiveState.fail (timeout then error answer) is unpinned — not an acceptance pin: L6 and L7 pin the announcement of each path; the timeout-then-error pair needs a held-then-failed /state; reopen_if a double announcement is reported.
+  - `[medium]` `[patch]` (gap) the lower edge of the 24-hour purge window is not pinned — the first stream's third event in `TestPurge` is 23 hours old and must be kept; mutation recorded (12-hour cutoff).
+  - `[medium]` `[patch]` (gap) the two :ref handlers' session resolution is not mutation-pinned, and TestUnseenRefIs404 could pass with ForUser($Username) — the CSP session is bound to the second of two rows of the user name; mutation recorded.
+  - `[medium]` `[patch]` (gap) TestCursorsAreReadBeforeTheSections relies on a fixed 1 s wait — the snapshot is built once before the job, so the job's reads are warm and finish well inside the wait; the mutation (cursors after the sections) was re-observed red.
+  - `[medium]` `[patch]` (gap) a failed Ownership read or an unresolvable session has no test on /state — `TestStateFailsLoudly`; mutation recorded (Check does nothing).
+  - `[medium]` `[patch]` (gap) Rule 19: the second bullet of Session at sign-in (S5) has no mutation line and cannot see the lazy attach — S5 starts from a user with no session row; mutation recorded (Attach does nothing) and Task 0's open question answered (OnLogin fires for the group-carried sign-in).
+  - `[medium]` `[patch]` (gap) Rule 19: the 404 bullet's pinning test (TestUnseenRefIs404, api.spec row 16) has no mutation line — same root as the :ref handler finding; recorded.
+  - `[low]` `[reject]` (gap) Rule 19: the Lifetime AC's live check (lib-live.sh) has no mutated run — one demonstrated mutation per AC: TestDefinitions' (Timeout 900) is recorded.
+  - `[medium]` `[patch]` (gap) Rule 19: L1 has no mutation for the cursors each poll carries — same root as the advanced-cursor finding: L2 now pins it and the mutation is recorded.
+  - `[low]` `[reject]` (gap) Rule 19: L7 has no mutation line — one mutation per AC: the Loading and Retry AC has L5 and L6 mutations.
+  - `[low]` `[reject]` (gap) Rule 19: the Snapshot AC's mutations cover only the reminder filter and the cursor order — one mutation per AC, and both are recorded.
+  - `[low]` `[reject]` (gap) Rule 19: S2's server-side envelope refusal has no mutation — one mutation per AC: the Envelope AC's (the interceptor omits the header) is recorded.
+  - `[low]` `[reject]` (gap) Rule 19: only the reminders statement's owner check was mutated for the isolation AC — one mutation per AC, not per statement; the test asserts all seven kinds.
+  - `[medium]` `[patch]` (gap) Rule 19: the Purge AC's lower window edge — same root as the purge window finding.
+  - `[low]` `[reject]` (gap) assertions on `status` equal to [] pin the stub — spec-bound: Status.Active answers [] until Story 2.10 computes conditions; 2.10 rewrites the assertions.
+  - `[medium]` `[patch]` (gap) L1's cursor assertions cannot differ from the snapshot's — same root as the advanced-cursor finding.
+  - `[medium]` `[patch]` (gap) S5's body.user check would hold under ForUser($Username) — same root as the S5 finding.
+  - `[medium]` `[patch]` (gap) TestCursorsAreReadBeforeTheSections: fixed sleep (not self-contained) — same root as the fixed-wait finding.
+  - `[low]` `[reject]` (gap) S4 asserts that nothing signed its single-use user in before — by design in the spec: the user exists for S4 alone, on a fresh stack.
+  - `[low]` `[reject]` (gap) L1 to L8 share one fixture user and depend on workers: 1 — the config pins workers: 1 and fullyParallel: false; every case reads its own cursors after the load.
+  - `[low]` `[reject]` (gap) TestPurge and TestPurgeDeclaration are protected from slot B by prose only — spec-bound (Rule 21): both classes run only through `ci/iris.sh class` on a throwaway.
+  - `[low]` `[reject]` (gap) session-gate.ts, envelope.interceptor.ts and live-state.ts have no unit host — covered by the chromium specs; the spec's node host is live-store.ts alone, by design.
+  - `[low]` `[reject]` (gap) the "fresh environment, in either order" line holds for the Playwright specs only under workers: 1 — same root as the shared fixture user finding.
+  - `[false]` `[reject]` (intent) restart: the check calls StateBody from an operator session, not GET /state — decided in-stage (Design Notes 14); S1 pins the HTTP path to the same sections.
+  - `[false]` `[reject]` (intent) unseen ref over HTTP covers only missing refs — the spec's api.spec row is a random ref; every other case is TestUnseenRefIs404 at the handler.
+  - `[false]` `[reject]` (intent) Ownership's SQL runs privileged in the unit tests — every `/state` call of the fixture users runs all seven list statements, and row 16 the two finds, as an unprivileged user in the chromium suite (green).
+  - `[medium]` `[patch]` (intent) OnLogin's failure path is exercised by no test — same root as the OnLogin finding.
+  - `[false]` `[reject]` (intent) skip on the instance stream and a changed epoch are covered in node only — live-store.test.mjs pins both; L3 is the browser case for the session stream, as the spec's L3 says.
+  - `[false]` `[reject]` (intent) Purge is tested directly, not through Registry.Purge — the Web area's Purge is the declaration; Test.Install.Registry already calls Registry.Purge and runs in the lane-b shard on a throwaway.
+  - `[false]` `[reject]` (intent) the two finds repeat the list statements' visibility predicate; an own approval is not gated on its incident's NoticedAt — spec-consistent: only the instance branch is gated, as the task says.
+  - `[low]` `[reject]` (intent) never-$Username is enforced by no rule — the spec asks for no rule; a grep shows $Username only in Ownership.SessionRef and Attach.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -511,6 +581,15 @@ Views (Stories 2.5 to 2.10) filter by state, for example a fired reminder leavin
 12. **`Decision.ModelName`** holds the display-name table, so `Decision.FromRow` (and Story 2.6's `BridgeSink`) never call into `OcuTalon.Web`. `Web.Api.ModelName` delegates to it.
 13. **Fixture users.** The new specs sign in as their own fixture users and never publish on the README session or the instance stream, so api.spec's counts hold in either order.
 14. **The restart check reads `StateBody` through `iris_script`**, because the restart unit publishes no host port. `StateBody` is the body `GET /state` writes, and S1 pins the HTTP path to the same sections.
+
+15. **`Ownership.Rows` and every read take a trailing `Output sc`** (the signature in Tasks has no place for the error status that "Rows refuses" requires). Callers that ignore it get the empty list.
+16. **The Matrix Test Audit added S6, S7 and L8**, and a hash assertion in S3: the "No role" row, the sign-out fallback to `?IRISLogout=end`, and the "Poll fails" row had no covering test. `docker/tests/test-sign-in.sh` names L1-L8 and S1-S7 accordingly.
+17. **S3 is two tests, and S5 signs in through the browser.** A held navigation cannot be pressed during, so the second S3 test aborts the sign-in navigation instead; a bare form POST at a trace application did not carry the sign-in to `/ocutalon/`. S5 starts from a user with no session row (it deletes the rows first through `irisScript`).
+18. **`SessionEvents.OnLogin` calls `AttachFor(hasRole)`**, so that "OnLogin always answers OK" can be tested without a role injection or a test-only hook; `OnLogin` itself is `AttachFor(Shell.HasRole())`.
+19. **The purge tests share `Test.Data.Fixture.HoursAgo`, `SetEventTs` and `EventSeqs`** (Rule 2) instead of three copies.
+20. **The restart unit syncs the journal (`%SYS.Journal.System.Sync()`) between the seeding and the kill**, so a kill inside the journal's flush window cannot lose the seeded rows.
+21. **The `Rows` owner guard compares the owner literals `instance` and `eval` in lower case**, because the SQL equality ignores case. Callers only ever pass a session Ref, so this is defense in depth for AD-13 condition 1.
+22. **`OnLogin` does fire and attach for a sign-in that the group carries** (measured: S5 stays green with the lazy attach of `SessionRef` disabled). The lazy attach stays as the spec's backstop and is pinned by the unit tests.
 
 **Integration ACs (Rule 1).**
 - `Ownership`: `Web.Api.State`/`Events` read through it, and the page shows the user's own snapshot and events (S1, S5, L2).
@@ -632,6 +711,56 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 | Envelope (DW-14) | the interceptor omits `X-OcuTalon-Request` | S1's header check |
 | Floor | `LiveState` never polls | the `01-page` floor test |
 
+**Task 0 results (implement stage, `ci/iris.sh live sign-in` on tag `e2s22i`, first full run with `SessionEvents` and the `EventClass` key in place).** No halt: the event class loads at the sign-in request, so the question left as an inference is answered.
+- The sign-in page still renders and the README sign-in still works with `EventClass` set on `/ocutalon`: every sign-in, shell, frame and api spec of the chromium project passed in every run (the first run: 66 passed, 3 failed, all three in new specs and all three faults of the specs themselves, fixed; the second: 69 of 70; the third and every run after: 70 of 70).
+- session.spec S4 (attach at sign-in) passes: a form POST sign-in with no API call creates the user's one `Session` row, and a second sign-in finds the same `Ref`.
+- session.spec S5 (a group sign-in from a trace application) passes: after signing in at `/ocutalon/trace/ocutalon/`, `/ocutalon/` loads with no sign-in form and `/state` answers 200 for the user. It does not show whether `OnLogin` fires for a sign-in that the group carries, because the lazy attach in `Ownership.SessionRef` covers either case; that part stays unmeasured.
+- L2 measured 997 ms from the return of `publishReminder` to `main[data-session-seq]` showing the new `seq` (limit 2000 ms).
+- A sign-in at the trace application by a bare form POST (the request-context helper that api.spec uses for `/ocutalon/`) did not open `/ocutalon/` afterwards; signing in through the trace application's own login page in the browser did, so S5 signs in through the browser.
+
+**Mutations run (Rule 19).** Each was applied, the named tests observed red, and the tree restored byte-identical (the fingerprint of the tracked and new files of `src/`, `web/`, `docker/` and `ci/` equals the one taken before the first mutation, and the rebuilt bundle has the same file names).
+- mutation: `OnLogin` skips `Attach` → S4 red ("the sign-in alone created the row").
+- mutation: `Attach` creates a new row instead of calling `ForUser` → `TestAttachReuses` red; in the browser S1 ("the seeded turn is in the chat") and S4 ("a later sign-in reuses it") red, and with them api.spec rows 13 and 14 and L2, L4 on the README session.
+- mutation: `EndSession()` answers 204 without `Logout(1)` and `EndSession` → `TestEndSession` red; in the browser S1, both S3 tests and shell.spec row 11 red.
+- mutation: `Timeout` 900 for `/ocutalon/api` in the definitions → `TestDefinitions` red (`/ocutalon/api Timeout`), run through `ci/iris.sh class OcuTalon.Test.Web.Install`.
+- mutation: the interceptor's 401 branch no longer calls `SessionGate.onSignedOut()` (the planned "keeps calling" cannot be reached while `LiveState.stop()` runs, so this is the 401 mutation) → both S3 tests red.
+- mutation: the interceptor's `signedOut()` guard removed → the second S3 test red ("no API call after the first 401": the pressed Sign out sent its POST).
+- mutation: `Login` ignores `signedOut` → `TestSignedOutNotice` red; in the browser the first S3 test red (`#ocu-error` missing).
+- mutation: `State` and `Events` resolve the session with `ForUser($Username)` → `TestPollsResolveTheCspSession` red.
+- mutation: `Ownership.Incident`'s statement drops its owner check → `TestFinds` red (also `TestEvalNeverVisible`, `TestInstanceScope`, `TestIsolationEveryRowKind`, `TestOnlyNoticedIncidents`). api.spec's 404 row stays green by design: a random ref is missing under any owner check, so `TestFinds` is the pin.
+- mutation: the `NoticedAt` filter dropped from the incidents statement → `TestOnlyNoticedIncidents` red (also `TestOrders`).
+- mutation: the reminders statement drops its owner check → `TestIsolationEveryRowKind` red (also `TestOwnRecordsOnly`, `TestOrders`).
+- mutation: `Rows` accepts an empty owner `Ref` → `TestRowsRefuses` red (also `TestEvalNeverVisible`).
+- mutation: a `&sql(` line added to `Data/Time.cls` → `test-class-rules.sh` `no-embedded-sql` FAIL, naming `Time.cls:17`.
+- mutation: `Recipients`'s instance branch returns every session → `TestRecipients` red.
+- mutation: the reminders statement not filtered to pending → `TestStateSections` red (also `TestOrders`).
+- mutation: `rail.reminders` served from an `^IRIS.Temp` copy filled by the fixture at seed time → the restart unit's snapshot comparison FAIL (`ci/iris.sh live production-restart`).
+- mutation: `LiveState` drops every event → L2, the L3 skip test and L4 red.
+- mutation: the chat apply appends instead of replacing → `live-store.test.mjs` "replaces an entry of the chat in place and appends a new one" red.
+- mutation: a skipped Seq is applied, not reloaded → `live-store.test.mjs` (three reload tests) and the L3 skip test red.
+- mutation: `LiveState` focuses `main` after an apply → L4 red ("the active element is the same").
+- mutation: `POLL_DELAY_MS = 3000` → L1 red (also L2 and L4).
+- mutation: `Live.Event.Purge` keeps `daysToKeep` days instead of 24 hours → `TestPurge` red, run through `ci/iris.sh class OcuTalon.Test.Live.Publish`.
+- mutation: `Install.Step.Web.Purge` answers OK without calling `Live.Event.Purge` → `TestPurgeDeclaration` red.
+- mutation: a shimmer `animation` on `.skeleton` → L5 red ("no animation").
+- mutation: `LOAD_TIMEOUT_MS = 30_000` → L6 red (no load error at 10 s).
+- mutation: `server-button` sets `disabled` while busy → L6 red ("never disabled").
+- mutation: the busy notice is not announced → L6 red (the announcer region never holds it).
+- mutation: the interceptor omits `X-OcuTalon-Request` → S1 red ("the request header").
+- mutation: `LiveState` never polls → the `01-page` floor test red ("within 3 s of the load, an /events poll was answered"), run through `ci/iris.sh live demo-path` after `ci/iris.sh build`.
+- mutation: `StateBody` reads the cursors after the sections (not planned) → `TestCursorsAreReadBeforeTheSections` red.
+- mutation (Matrix Test Audit, applied together in one `ci/iris.sh live sign-in` run, four red and 69 green, tree restored byte-identical): `OnLogin` attaches whatever the role → S6 (a user without the role holds no session row) red; the sign-out fallback to `?IRISLogout=end` removed from `SessionGate.signOut` → S7 red; a failed poll no longer schedules the next one → L8 (a failed poll is asked again after the same delay) red; the signed-out redirect drops the page's hash → the first S3 test (hash kept) red.
+- mutation (review patches, each applied on slot B, the named test class observed red, then restored byte-identical): `Decision.FromRow` copies `InputTokens` from `OutputTokens` → `TestFromRowBuilders` red ("the four token counts"); the `Catch` of `Approval.FromRow` rethrows → `TestFromRowBuilders` red (a broken dry run); the `Rows` guard compares the owner literals case-sensitively → `TestRowsRefuses` red ("Instance", "EVAL"); `SessionEvents.AttachFor` answers the attach error → `Test.Web.SessionEvents` red; `CheckView` drops the trace namespace → `TestStateSections` red; `AnswerApproval` and `DismissIncident` take the session from `ForUser($Username)` → `TestUnseenRefIs404` red; `Web.Api.Check` does nothing → `TestStateFailsLoudly` red; `StateBody` reads the cursors after the sections → `TestCursorsAreReadBeforeTheSections` red (re-observed with the warm-up).
+- mutation (review patches, throwaway, applied together, restored byte-identical): `Live.Event.Purge` keeps 12 hours instead of 24 → `TestPurge` red (`ci/iris.sh class OcuTalon.Test.Live.Publish`, the 23-hour-old event); `LiveState.poll` sends the snapshot's cursors instead of the store's → L2 red (the next poll carries the advanced cursor; the only red of that `live sign-in` run, 72 green). `Ownership.SessionRef` never attaches → S5 stays green, because `OnLogin` attaches for the group-carried sign-in; so the mutation that turns S5 red is `Ownership.Attach` doing nothing (a separate run, S4 and S5 among 49 red; S5's pin is that the page loads and the user then holds one session row).
+- Task 0, completed by the review pass: with the lazy attach of `Ownership.SessionRef` disabled, S5 (which starts from a user with no session row) stays green, so `OnLogin` does fire and attach for a sign-in that the group carries from a trace application; the lazy attach is the unit tests' (`TestSessionRefFromTheCspSession`).
+
+**Implement-stage record of the `(loop)` lines.** `iris_doc_load` of both trees: 0 errors. The nine unit classes pass on slot B (`Test.Data.Ownership` 10, `Test.Data.Session` 4, `Test.Web.Api` 17, `Test.Web.SignIn` 10, `Test.Web.PublicTexts` 2, `Test.Live.Payloads` 4, `Test.Core.Commands` 4, `Test.Data.Tables` 6, `Test.Contract.Ac` 6). `npm --prefix web run lint` and `test` (115 tests, `live-store` among them) and `run build` (no budget warning, `tokens` and `payloads` unchanged) pass. `e2e -- --list` shows `live/` and `session/` under chromium and no `demo-path/`; `e2e:demo-path -- --list` shows 13 tests. `test-class-rules.sh`, `test-boundaries.sh` and `test-ci-config.sh` pass. On throwaways: `live sign-in` 70 of 70 (L1 to L7 and S1 to S5 included); after the Matrix Test Audit added S6, S7 and L8 and the hash assertion of S3, 73 of 73, `live demo-path` (`STEP 1 page: partly skipped, 1 passed, 4 skipped`), `live production-restart` (snapshot comparison included), `class OcuTalon.Test.Data.Ownership`, `class OcuTalon.Test.Live.Publish` and `class OcuTalon.Test.Web.Install` pass.
+
+**Verification after the review patches (the whole `(loop)` set run again, then the `(once)` lines).**
+- `(loop)`: both trees load with 0 errors; the ten unit classes pass on slot B (`Test.Data.Ownership` 10, `Test.Data.Session` 4, `Test.Web.Api` 18, `Test.Web.SignIn` 10, `Test.Web.PublicTexts` 2, `Test.Live.Payloads` 5, `Test.Core.Commands` 4, `Test.Data.Tables` 6, `Test.Contract.Ac` 6, and the new `Test.Web.SessionEvents` 1); slot B holds no fixture row afterwards. `npm --prefix web run lint`, `test` (115), `run build` (no budget warning, `tokens` and `payloads` unchanged) and the two `--list` calls (73 chromium tests with `live/` and `session/`, no `demo-path/`; 13 demo-path tests) pass; `test-class-rules.sh`, `test-boundaries.sh` and `test-ci-config.sh` pass. On throwaways: `live sign-in` 73 of 73, `live demo-path` (`STEP 1 page: partly skipped, 1 passed, 4 skipped`), `live production-restart` (the journal sync and the snapshot comparison pass), and `class` of `Test.Data.Ownership`, `Test.Live.Publish` and `Test.Web.Install`.
+- `(once)`: `bash ci/checks.sh` exit 0; `shard lane-b` 26 classes passed (24 plus `Test.Data.Ownership` and `Test.Web.SessionEvents`); `shard lane-a` 9 classes passed (one pre-existing `SKIP` in `TestStepHelpers`); `live install-start` (94 checks), `live install-upgrade` (34) and `live bundle-folder` (22) pass; `teardown` of tag `e2s22i` left nothing.
+- Lock waits: Epic 1 held `throwaway-iris` at times, so several `ci/iris.sh` calls ended with exit 75 after 240 s and were run again; no lock was touched.
+
 **Shared surfaces:**
 - the `/state` key set and sections: `Test.Web.Api` `TestStateBody`, `api.spec.ts` :136, `api-types.ts`;
 - the API route table: `TestRoutes`, api.spec's `UNBUILT`;
@@ -651,7 +780,30 @@ Every test added or changed passes on a fresh environment, in either order. Each
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as dispatched. Two veto questions for the lead's spec validation are under `## Clarification Needed`: the AD-13 allow-list amendment, and the turn texts and notice cards routed to Stories 2.4 and 2.7. The plan follows each recommendation.
+**Summary.** The session is kept and its snapshot loads with live updates. Server: `Web.SessionEvents` attaches the durable session at sign-in; `Data.Ownership` resolves the caller's `SessionRef` from the CSP session and makes every owner- and scope-checked read through `Rows`, the one new unchecked prepare (AD-13 as amended, inbox U-15: all four conditions hold and are tested; `ALLOW_UNCHECKED` gained only `Ownership:Rows` and the `no-embedded-sql` rule passes); `Session.Recipients`, the `FromRow` builders, `Status.Active`, `Live.Event.Purge` and its `Install.Step.Web.Purge` declaration; `/state` fills `chat`, `rail`, `telegram` and `status` through Ownership with the cursors read first; `POST /session/end`, and 404 before 501 on the two `:ref` routes; the signed-out notice on the sign-in page. Page: the envelope interceptor, `SessionGate`, the framework-free `live-store`, polling in `LiveState`, skeletons, the load error with Retry, and Sign out through the API.
+
+**Files changed.**
+- Server (`src/ocutalon/cls/OcuTalon/`): `Data/Ownership.cls` (the one ownership API), `Data/Session.cls` (`Recipients`), `Web/SessionEvents.cls` (new), `Web/Api.cls` (snapshot, routes, `CurrentSession`), `Web/Public/Login.cls` (signed-out notice), `Install/Step/Web.cls` (`EventClass`, `Purge`), `Live/Event.cls` (`Purge`), `Live/Payload/{ChatMessage,Reminder,Approval,Decision,Status}.cls` (`FromRow`, `ModelName`, `Active`).
+- Tests (`src/ocutalon/cls/OcuTalon/Test/`): new `Data/Fixture`, `Data/Ownership`, `Data/OwnershipProbe`, `Web/SessionEvents`, `Web/LogoutProbe`; extended `Data/Session`, `Live/Payloads`, `Live/Publish`, `Web/Api`, `Web/Install`, `Web/SignIn`.
+- Scripts: `docker/tests/{test-class-rules,lib-live,test-production-restart,test-sign-in}.sh`.
+- Web: new `api/envelope.interceptor.ts`, `session/session-gate.ts`, `live/live-store.ts`, `scripts/live-store.test.mjs`, `e2e/{live,session}/*.spec.ts`, `e2e/support/iris.ts`; edited `api-client.ts`, `api-types.ts`, `app.config.ts`, `live-state.ts`, `main-page.ts`, `header.ts`, `controls.css`, and `e2e/{api,frame,demo-path}` specs.
+
+**Review findings.** 58 findings from four layers (blind hunter 10, edge-case hunter 13, verification-gap 27, intent-alignment 8): high 0, medium 21, low 30, false 7. 23 patched (20 medium, 3 low), 1 deferred (medium), 34 rejected, each with its reason in the Review Triage Log above:
+- patches applied: the restart unit's journal sync; the `snapshot`/`store` doc; the leak check on both snapshots; the api.spec title and a S5 that starts without a session; `TestFromRowBuilders` (field mappings and the dry-run fallbacks) and a check with a run in `TestStateSections`; `AttachFor` and `Test.Web.SessionEvents`; the 23-hour edge in `TestPurge`; `TestUnseenRefIs404` on the second row of a user name; a warmed snapshot in `TestCursorsAreReadBeforeTheSections`; `TestStateFailsLoudly`; the next-poll cursor in L2; the case-insensitive `Rows` guard; the shared purge-test helpers in `Test.Data.Fixture`; the corrected `Fixture.Reminder` comment.
+- deferred: `ChatItems` loads every turn and incident on each /state (Story 2.5 decides paging).
+- rejected (low or false, reasons in the log): `Watchers` conflating a failed read with "no watchers"; exceptions inside LiveState's next handlers; Sign out without a timeout or a second-trigger guard; `Decisions(max)` with a non-positive max; a SQL error during a fetch loop; `Recipients` and NoticedAt (spec-bound); `Fixture.Clean` ignoring a failed delete; the `iris.ts` EPIPE; an unknown stream label (false: the server labels every event); `retry()` after a 401; L1's window on a slow server; the first row for a user with several (by design, Story 16.3); the removed Sign out link; the announce-once guard for timeout then error; mutation lines for the Lifetime, L7, Snapshot, S2 and isolation criteria (one per criterion is recorded); the `status` stub assertions; single-use S4 user, shared LIVE user under `workers: 1`, purge tests protected by Rule 21 prose, modules with no unit host; and the seven intent-alignment divergences that the spec's own decisions cover.
+
+**Follow-up review recommended: true.** Ten medium entries were patched (by shared root: the restart journal sync, S5 and the title, the FromRow tests, the shared purge helpers, the advanced-cursor check, the OnLogin seam, the purge edge, the `:ref` handlers, the cursor-order wait, and the failing-read test), none high. The named unverified risk is the `production-restart` unit: its journal sync was added after a review remark and one green run cannot show that a kill inside the journal's flush window is gone for good; the other patches each have a demonstrated mutation.
+
+**Verification performed.** The `(loop)` and `(once)` records under `## Verification` above: both trees compile with 0 errors; the ten unit classes pass on slot B; web lint, 115 node tests, the build and the spec listings pass; the three static scripts and `ci/checks.sh` pass; on throwaways `live sign-in` 73 of 73, `live demo-path`, `live production-restart`, `live install-start`, `live install-upgrade`, `live bundle-folder`, both shards (26 and 9 classes) and the purge classes pass; 44 mutations demonstrated red and restored byte-identical (the implement stage's 29, the Matrix Test Audit's four, and the review's eight server-side and three throwaway ones).
+
+**Residual risks.**
+- `ci/units.sh` and Rule 21 still describe the `lane-b` shard as 24 classes; it is 26 now (`Test.Data.Ownership`, `Test.Web.SessionEvents`). `test-ci-config.sh` passes, so nothing pins the number; the lead may update the Rule 21 text.
+- The Tasks list under `## Tasks & Acceptance` names L1-L7 and S1-S5; the specs now hold L1-L8 and S1-S7 (decided in-stage, items 16-17).
+- `Live.Event.Purge`, and so `Test.Install.Registry` and `Test.Live.Publish`/`Test.Web.Install`, delete every live event older than 24 hours: run them only on throwaways.
+- `CheckView` copies what a `Check.FromRow` would do (Lane A's payload); its `traceNamespace` is the check's namespace, which Epic 5's `check` publisher story should confirm or replace.
+- The `Rows` statements match refs without regard to case (the default SQL collation); isolation rests on the 22-character random refs.
+- `OnLogin` itself is covered through `AttachFor` and the browser (S4, S6); the `Catch` branch of `AttachFor` has no test.

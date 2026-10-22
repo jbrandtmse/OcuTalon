@@ -12,6 +12,10 @@
 #     kill ^Ens.Suspended, where RecoverProduction names the production it suspends, is empty, and after the next start it
 #     names OcuTalon.Production (measured on build 154: a clean stop and CleanProduction leave it empty, so a step that
 #     cleans the production instead of recovering it would lose its queued messages and fail this check).
+#     Story 2.2 adds the snapshot: before the kill and again after the next start, the epoch, the chat and the rail that
+#     Web.Api.StateBody builds for a session that Test.Data.Fixture seeded with a turn, a check, a pending reminder and a
+#     pending approval are printed, and the two must be equal and hold the four fixture refs. The journal is synced before the
+#     kill, so that the kill cannot lose the seeded rows. The rows are removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -51,6 +55,16 @@ CHK|refused|1" \
       'Set sc=##class(Ens.Director).CreateBusinessService("EvalIn",.svc) Write !,"CHK|refused|",($SYSTEM.Status.IsError(sc)&&($SYSTEM.Status.GetErrorText(sc)["is disabled"))' \
       'Halt'
   fi
+}
+
+# restart_snapshot <session ref>: the epoch, the chat and the rail that Web.Api.StateBody builds for the session, as one line of
+# JSON ("" when the session or the body is missing).
+restart_snapshot() {
+  printf '%s\n' \
+    "Set row=##class(OcuTalon.Data.Session).RefIndexOpen(\"$1\")" \
+    'Set b=##class(OcuTalon.Web.Api).StateBody(row)' \
+    'Write !,"CHK|snapshot|",{"epoch":(b.epoch),"chat":(b.chat),"rail":(b.rail)}.%ToJSON()' \
+    'Halt' | iris_script OCUTALON | sed -n 's/^CHK|snapshot|//p'
 }
 
 # --- the first start, without the variable ---
@@ -102,6 +116,25 @@ check_session "row 20: before the kill no production is suspended" OCUTALON \
   "CHK|suspended|" \
   'Write !,"CHK|suspended|",$Get(^Ens.Suspended)' \
   'Halt'
+seeded=$(printf '%s\n' \
+  'Set F="OcuTalon.Test.Data.Fixture"' \
+  'Set s=$ClassMethod(F,"Session","ZzRestartSnapshot")' \
+  'Write !,"CHK|session|",s' \
+  'Write !,"CHK|refs|",$ClassMethod(F,"Turn",s),",",$ClassMethod(F,"Check",s),",",$ClassMethod(F,"Reminder",s),",",$ClassMethod(F,"Approval",s)' \
+  'Halt' | iris_script OCUTALON)
+snapshot_session=$(printf '%s\n' "$seeded" | sed -n 's/^CHK|session|//p')
+snapshot_refs=$(printf '%s\n' "$seeded" | sed -n 's/^CHK|refs|//p')
+snapshot_before=""
+if [ -n "$snapshot_session" ] && [ "$(printf '%s' "$snapshot_refs" | tr ',' '\n' | grep -c .)" = 4 ]; then
+  snapshot_before=$(restart_snapshot "$snapshot_session")
+  pass "row 20: a session with a turn, a check, a pending reminder and a pending approval is seeded"
+else
+  fail "row 20: the snapshot's fixture rows could not be seeded ('$seeded')"
+fi
+check_session "row 20: the journal holds the seeded rows before the kill" OCUTALON \
+  "CHK|journal|1" \
+  'Try { Do ##class(%SYS.Journal.System).Sync() Write !,"CHK|journal|1" } Catch e { Write !,"CHK|journal|0" }' \
+  'Halt'
 killed_start=$(started_at)
 docker kill -s KILL "$cid" >/dev/null 2>&1 || die "row 20 the kill failed"
 dc start iris >/dev/null 2>&1
@@ -125,6 +158,26 @@ check_session "row 20: the production is Running again" OCUTALON \
   'Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Write !,"CHK|state|",n,"|",s' \
   'Halt'
 check_items_run "row 20"
+
+snapshot_after=""
+if [ -n "$snapshot_session" ]; then
+  snapshot_after=$(restart_snapshot "$snapshot_session")
+fi
+snapshot_whole=1
+for ref in $(printf '%s' "$snapshot_refs" | tr ',' ' '); do
+  case $snapshot_before in *"$ref"*) ;; *) snapshot_whole=0 ;; esac
+done
+if [ -n "$snapshot_before" ] && [ "$snapshot_whole" = 1 ] && [ "$snapshot_before" = "$snapshot_after" ]; then
+  pass "row 20: the snapshot's epoch, chat and rail are identical after the kill, and hold the turn, the check, the reminder and the approval"
+else
+  printf '%s\n' "  before: $(printf '%s' "$snapshot_before" | cut -c1-300)" "  after:  $(printf '%s' "$snapshot_after" | cut -c1-300)"
+  fail "row 20: the snapshot's epoch, chat and rail differ after the kill, or miss a fixture row"
+fi
+check_session "row 20: the snapshot's fixture rows are removed" OCUTALON \
+  "CHK|left|0" \
+  'Do ##class(OcuTalon.Test.Data.Fixture).Clean()' \
+  'Write !,"CHK|left|",$Data(^OcuTalonTest("Fixture"))' \
+  'Halt'
 
 if [ "$fails" -ne 0 ]; then
   echo "test-production-restart: $fails check(s) failed (project $P)"

@@ -53,4 +53,46 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
+/// into its part (left absent when the row holds none or it can't be read). The reason and the trace have no source in
+/// the row and stay empty.
+ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Live.Payload.Approval
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Kind = row.Kind
+	Set payload.State = row.State
+	Set payload.IncidentRef = row.IncidentRef
+	Set payload.ToolName = row.ToolName
+	Set payload.RaisedAt = row.RaisedAt
+	Set payload.ExpiresAt = row.ExpiresAt
+	Set payload.AnsweredAction = row.AnsweredAction
+	Set payload.AnsweredChannel = row.AnsweredChannel
+	Set payload.AnsweredBy = row.AnsweredBy
+	Set payload.AnsweredAt = row.AnsweredAt
+	Set payload.Result = row.Result
+	Set payload.FinishedAt = row.FinishedAt
+	If row.DryRun '= "" {
+		Try {
+			Set dry = ##class(%DynamicObject).%FromJSON(row.DryRun)
+			Set part = ##class(OcuTalon.Live.Payload.Part.DryRun).%New()
+			Set part.Affected = dry.affected
+			Set part.Resend = dry.resend
+			Set part.LeftOut = dry.leftOut
+			Set part.Field = dry.field
+			Set part.Before = dry.before
+			Set part.After = dry.after
+			If $IsObject(dry.itemNoun) {
+				Set part.ItemNoun = ##class(OcuTalon.Live.Payload.Part.ItemNoun).%New()
+				Set part.ItemNoun.One = dry.itemNoun.one
+				Set part.ItemNoun.Other = dry.itemNoun.other
+			}
+			Set payload.DryRun = part
+		} Catch {
+			Set payload.DryRun = ""
+		}
+	}
+	Quit payload
+}
+
 }

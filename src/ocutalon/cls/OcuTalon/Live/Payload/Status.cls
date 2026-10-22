@@ -14,4 +14,11 @@ Property Active As %Boolean(%JSONFIELDNAME = "active") [ InitialExpression = 0 ]
 /// The condition's slots.
 Property Slots As OcuTalon.Live.Payload.Part.StatusSlots(%JSONFIELDNAME = "slots");
 
+/// The active status conditions of a session, as an array of Status payloads. Not computed yet: it answers an empty
+/// array. Story 2.10 computes the conditions, here, so that /state and the status monitor share one reader.
+ClassMethod Active(sessionRef As %String) As %DynamicArray
+{
+	Quit []
+}
+
 }
