@@ -26,6 +26,9 @@ Parameter HandleCorsRequest = 0;
 
 Parameter HTTP501NOTIMPLEMENTED = "501 Not Implemented";
 
+/// The most entries the snapshot's chat holds: the newest, oldest first (DW-65).
+Parameter CHATMAX = 100;
+
 Parameter MESSAGEBADCURSOR = "The after and afterInstance values must be whole numbers of zero or more.";
 
 Parameter MESSAGENOTJSON = "OcuTalon refused this request because it wasn't sent as JSON.";
@@ -244,12 +247,12 @@ ClassMethod Pairing() As %Status
 
 /// The snapshot of a session, keys in this order: the version, the instance zone, the session's epoch, each stream's
 /// last Seq (read before any section, so that every change after the cursors is an event the page will apply), the chat
-/// and the rail (read through Ownership: the chat holds the session's turns and visible noticed incidents merged by
-/// time, the rail its pending approval requests, checks, pending reminders and newest decisions), the signed-in user (the
-/// session row's, never the client's), the booleans onlineDemo and demoMode, models: the display names of the triage,
-/// diagnosis and chat agents' models, telegram: whether the release includes Telegram and the session's pairing, and
-/// status: the active status conditions. instanceStream is the stream reported as instance: Live.Publish's instance
-/// stream unless the caller names another. A read that fails throws.
+/// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns and visible noticed
+/// incidents merged by time, oldest first; the rail its pending approval requests, checks, pending reminders and newest
+/// decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
+/// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
+/// and the session's pairing, and status: the active status conditions. instanceStream is the stream reported as
+/// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
 	Set streams = {
@@ -289,40 +292,46 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	Quit body
 }
 
-/// The chat: the session's turns and its visible noticed incidents as live items ({"type", "payload"}), merged by time
-/// (a turn's CreatedAt, an incident's NoticedAt), a turn before an incident of the same time, then by row ID.
+/// The chat: the newest CHATMAX of the session's turns and its visible noticed incidents, as live items ({"type",
+/// "payload"}), oldest first. Both reads are newest first and at most CHATMAX, so the newest CHATMAX of the two together
+/// are among them. They are merged by time (a turn's CreatedAt, an incident's NoticedAt), a turn before an incident of the
+/// same time, then by row ID; the merge is walked from its newest end and the entries kept are pushed oldest first.
 ClassMethod ChatItems(sessionRef As %String) As %DynamicArray [ Private ]
 {
 	Kill merged
-	Set turns = ##class(OcuTalon.Data.Ownership).Turns(sessionRef, .sc)
+	Set turns = ##class(OcuTalon.Data.Ownership).RecentTurns(sessionRef, ..#CHATMAX, .sc)
 	Do ..Check(sc)
 	For i = 1:1:turns.Count() {
 		Set turn = turns.GetAt(i)
 		Set merged("T"_turn.CreatedAt, 0, turn.%Id()) = {"type": "chat.message", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)))}
 	}
-	Set incidents = ##class(OcuTalon.Data.Ownership).Incidents(sessionRef, .sc)
+	Set incidents = ##class(OcuTalon.Data.Ownership).RecentIncidents(sessionRef, ..#CHATMAX, .sc)
 	Do ..Check(sc)
 	For i = 1:1:incidents.Count() {
 		Set incident = incidents.GetAt(i)
 		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
 	}
-	Set chat = []
+	Kill newest
+	Set kept = 0
 	Set time = ""
 	For {
-		Set time = $Order(merged(time))
-		Quit:time=""
+		Set time = $Order(merged(time), -1)
+		Quit:(time="")||(kept>=..#CHATMAX)
 		Set rank = ""
 		For {
-			Set rank = $Order(merged(time, rank))
-			Quit:rank=""
+			Set rank = $Order(merged(time, rank), -1)
+			Quit:(rank="")||(kept>=..#CHATMAX)
 			Set id = ""
 			For {
-				Set id = $Order(merged(time, rank, id), 1, item)
-				Quit:id=""
-				Do chat.%Push(item)
+				Set id = $Order(merged(time, rank, id), -1, item)
+				Quit:(id="")||(kept>=..#CHATMAX)
+				Set kept = kept + 1
+				Set newest(kept) = item
 			}
 		}
 	}
+	Set chat = []
+	For i = kept:-1:1 Do chat.%Push(newest(i))
 	Quit chat
 }
 

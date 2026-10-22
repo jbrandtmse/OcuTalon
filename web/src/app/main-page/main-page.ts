@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
+import { ChatPanel } from '../chat/chat-panel';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { ServerButton } from '../shared/server-button';
 
@@ -16,12 +17,13 @@ const SKELETON_ROWS = [1, 2] as const;
  *
  * While the snapshot loads, both regions are aria-busy and show static skeletons, hidden from assistive technology:
  * two rows in each rail section and three entries in main. When the load fails (no data by 10 seconds, or an error
- * answer) the skeletons give way to the load error at the top of main, with Retry. The page's data-snapshot says how the
- * load went, and data-session-seq and data-instance-seq the last event of each stream that the page has applied.
+ * answer) the skeletons give way to the load error at the top of main, with Retry. Once it has loaded, main holds the chat
+ * panel after its hidden heading. The page's data-snapshot says how the load went, and data-session-seq and
+ * data-instance-seq the last event of each stream that the page has applied.
  */
 @Component({
   selector: 'app-main-page',
-  imports: [ServerButton],
+  imports: [ChatPanel, ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="visually-hidden">OcuTalon</h1>
@@ -63,6 +65,9 @@ const SKELETON_ROWS = [1, 2] as const;
           <app-server-button variant="secondary" [action]="retry">Retry</app-server-button>
         </div>
       }
+      @if (live.status() === 'loaded') {
+        <app-chat-panel />
+      }
     </main>
   `,
   styles: `
@@ -76,6 +81,7 @@ const SKELETON_ROWS = [1, 2] as const;
       display: flex;
       flex-direction: column;
       gap: 14px;
+      overflow-y: auto;
       width: var(--status-rail-width);
       padding: var(--space-3) var(--space-3) var(--space-4);
       background: var(--status-rail-background);
@@ -115,8 +121,11 @@ const SKELETON_ROWS = [1, 2] as const;
       height: 10px;
     }
     .main {
+      display: flex;
       flex: 1;
+      flex-direction: column;
       min-width: 0;
+      min-height: 0;
       background: var(--chat-panel-background);
     }
     .skeleton-chat {

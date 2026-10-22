@@ -239,6 +239,35 @@ Method TestStateSections()
 	}
 }
 
+/// DW-65: the snapshot's chat holds the newest 100 entries, oldest first, merged as before. A session with 103 done turns
+/// one second apart (10:00:01 to 10:01:43) and two noticed incidents of its own, one older than every turn (10:00:00) and one
+/// at the second of turn 50 (10:00:50), has 105 entries; the chat drops the oldest five (the first incident and turns 1 to
+/// 4) and keeps turns 5 to 50, the second incident, then turns 51 to 103. Another session's rows are not in it.
+Method TestStateChatCapped()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicap"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapicapother"_..Number)
+	Set oldest = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:00Z")
+	Set middle = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:50Z")
+	Set theirTurn = $ClassMethod(fixture, "Turn", theirs, "2030-01-01T10:00:30Z")
+	Set refs = mine_","_theirs_","_oldest_","_middle_","_theirTurn
+	Set expected = ""
+	For i = 1:1:103 {
+		Set turn = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(100 + (i \ 60), 2, 3)_":"_$Extract(100 + (i # 60), 2, 3)_"Z")
+		Set refs = refs_","_turn
+		If i < 5 Continue
+		Set expected = expected_$Select(expected = "": "", 1: ",")_"chat.message:"_turn
+		If i = 50 Set expected = expected_",incident:"_middle
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 105")
+	Do $$$AssertEquals(..Items(body.chat), expected, "turns 5 to 50, the second incident, then turns 51 to 103: the newest 100, oldest first, merged by time")
+	Do $$$AssertTrue(('$Find(..Items(body.chat), oldest)), "the incident older than every turn is dropped")
+	Do $$$AssertTrue(('$Find(body.%ToJSON(), theirTurn)), "the other session's turn is not in the snapshot")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
 /// StateBody reads the stream cursors before any section, so that whatever changes after the cursors is an event the page
 /// applies. A job takes the snapshot while the session's stream is locked by this process; once the job waits on that lock,
 /// this process adds a turn, publishes its event and releases the lock. The cursor the job read includes the event, so the

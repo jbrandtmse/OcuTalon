@@ -34,7 +34,12 @@ test('row 8: the README sign-in loads the shell', async ({ page }) => {
   await page.keyboard.press('Escape');
 
   const main = page.getByRole('main');
-  await expect.soft(main.locator('*'), 'main holds its hidden heading and nothing else').toHaveCount(1);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect.soft(main.locator('> *'), 'main holds its hidden heading and the chat panel').toHaveCount(2);
+  await expect.soft(main.locator('> app-chat-panel'), 'the chat panel follows the heading').toHaveCount(1);
+  await expect.soft(main.locator('app-chat-panel app-empty-chat'), 'a fresh session shows the empty chat panel').toHaveCount(1);
+  await expect.soft(main.getByRole('textbox', { name: 'Message OcuTalon' }), 'and the composer').toHaveCount(1);
+  await expect.soft(main.getByRole('heading'), 'main has exactly one heading').toHaveCount(1);
   const chat = main.getByRole('heading', { level: 2 });
   await expect(chat).toHaveText('Chat');
   const chatBox = (await chat.boundingBox())!;

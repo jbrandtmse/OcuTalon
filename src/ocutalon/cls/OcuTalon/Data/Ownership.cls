@@ -7,6 +7,8 @@
 ///     pending reminders, background checks, decisions, noticed incidents, pending approval requests and pairing.
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
+///   - The snapshot's chat reads only the newest turns and the newest noticed incidents (RecentTurns, RecentIncidents), so
+///     that a long session's snapshot does not open and serialize every row (DW-65).
 ///   - A find (Incident, Approval) answers "" for a record the session can't see, exactly as for a missing one, so
 ///     the REST surface answers both with 404.
 ///   - The reads run as the signed-in user, who holds no SQL privilege on the tables, so Rows prepares its statements
@@ -27,6 +29,11 @@ Parameter INSTANCE [ Final ] = "instance";
 
 /// The owner literal of an evaluation record, which no session sees.
 Parameter EVAL [ Final ] = "eval";
+
+/// The condition on an incident row i that the incident statements share: it is noticed, and it is the owner's or, on a
+/// local install, an instance incident of a production the owner's checks watch. Three ?: the owner, the local flag and
+/// the owner again (o, a, o).
+Parameter INCIDENTVISIBLE [ Final ] = "i.NoticedAt <> '' AND (i.OwnerRef = ? OR (? = 1 AND i.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production)))";
 
 /// The cost of one turn, as an object. Not implemented yet: it answers an empty object. Story 2.6.
 ClassMethod TurnCost(turnRef As %String) As %DynamicObject
@@ -75,6 +82,13 @@ ClassMethod Attach(irisUser As %String = {$Username}) As %Status
 ClassMethod Turns(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("turns", sessionRef, .sc)
+}
+
+/// The session's newest turns, newest CreatedAt first and then newest ID first, at most max. sc is an error status when
+/// the read failed.
+ClassMethod RecentTurns(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentTurns", sessionRef, .sc, +max)
 }
 
 /// The session's turn that came from the page's message with this clientId, or "" when it has none or clientId is empty.
@@ -126,6 +140,13 @@ ClassMethod Decisions(sessionRef As %String, max As %Integer = 20, Output sc As 
 ClassMethod Incidents(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("incidents", sessionRef, .sc, ..LocalFlag())
+}
+
+/// The session's newest noticed incidents, as Incidents sees them, newest NoticedAt first and then newest ID first, at most
+/// max.
+ClassMethod RecentIncidents(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentIncidents", sessionRef, .sc, +max, ..LocalFlag())
 }
 
 /// The session's pending approval requests, by RaisedAt: its own, and on a local install those of the visible
@@ -263,6 +284,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Set class = "OcuTalon.Data.Turn", binds = "o"
 		Quit "SELECT ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? ORDER BY CreatedAt, ID"
 	}
+	If kind = "recentTurns" {
+		Set class = "OcuTalon.Data.Turn", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? ORDER BY CreatedAt DESC, ID DESC"
+	}
 	If kind = "turnByClient" {
 		Set class = "OcuTalon.Data.Turn", binds = "oa"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ClientId = ? ORDER BY ID"
@@ -289,11 +314,15 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "incidents" {
 		Set class = "OcuTalon.Data.Incident", binds = "oao"
-		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE i.NoticedAt <> '' AND (i.OwnerRef = ? OR (? = 1 AND i.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production))) ORDER BY i.NoticedAt, i.ID"
+		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE "_..#INCIDENTVISIBLE_" ORDER BY i.NoticedAt, i.ID"
+	}
+	If kind = "recentIncidents" {
+		Set class = "OcuTalon.Data.Incident", binds = "aoao"
+		Quit "SELECT TOP ? i.ID FROM OcuTalon_Data.Incident i WHERE "_..#INCIDENTVISIBLE_" ORDER BY i.NoticedAt DESC, i.ID DESC"
 	}
 	If kind = "incident" {
 		Set class = "OcuTalon.Data.Incident", binds = "aoao"
-		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE i.Ref = ? AND i.NoticedAt <> '' AND (i.OwnerRef = ? OR (? = 1 AND i.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production)))"
+		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE i.Ref = ? AND "_..#INCIDENTVISIBLE
 	}
 	If kind = "approvals" {
 		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oao"

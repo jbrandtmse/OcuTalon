@@ -2,12 +2,20 @@
 title: 'Story 2.5: Chat with OcuTalon in the page'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a1b899e6350ab101d52eb70c38edae00eb552c0c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The chat panel's at-the-bottom flag can turn false when an entry lands between the panel's own scroll to the bottom and that scroll's event, so the list stops following new content.
+    evidence: |-
+      Edge-case review: by event order (scrollTop set, a DOM growth of more than 24 px, then the scroll event measures the geometry) the flag turns false and the ResizeObserver stops pinning. Not reproduced: C10 (8 sends and replies in a 30-turn chat), C6 and C9 passed on a throwaway. To settle it: run C10 over several CI runs on the slow hosts, or trace a send frame by frame; if it reproduces, mark the scroll that scrollToBottom makes as the panel's own and skip re-measuring on its scroll event.
+    location: >-
+      web/src/app/chat/chat-panel.ts onScroll and scrollToBottom
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -444,6 +452,64 @@ Turn on the demo-path page step's chat check. Cap `/state`'s chat at the newest 
 
 ## Review Triage Log
 
+### 2026-10-22 - Review pass
+- verdicts: 54 findings - high 0, medium 6, low 47, false 0, maybe-false 1
+- findings (Blind Hunter 1-12, Edge Case Hunter 13-25, Verification Gap 26-45, Intent Alignment 46-54; a repeat of an earlier row says so and shares its route):
+  - 1 `[low]` `patch` `Msg/Enum.cls` is missing from `WEB_INPUT_PATTERN` although `catalog.test.mjs` reads it - added to the pattern and a `paths_case` in `test-ci-changes.sh`; mutation red.
+  - 2 `[low]` `reject` A bare link keeps trailing `**`, backticks, quotes or `]`; nested list lines flatten - the grammar is the contract's ("without trailing `.,;:!?` or an unmatched `)`"; list lines by their prefix), and whether the chat agent writes Markdown is Lane A's instruction (Decided 2); a wider grammar is a spec change.
+  - 3 `[medium]` `reject` A `[label](url)` label can name another address (a phishing shape if injected content steers the model) - the link form is the contract's (UX-DR60); showing the destination is new public text and a security-posture call, which is a spec edit; the browser shows the target on hover and focus; named under Residual risks for the lead.
+  - 4 `[low]` `patch` A `catalogKey` the page does not render showed the generic reason, which may be false - it now shows the `conversation.turnFallback` sentence with the turn's own reason (the server sets only that key today); Decided 24 amended.
+  - 5 `[low]` `reject` A chat with only incidents or notices draws nothing - spec-bound (`isFreshChat` counts every type, Decided 11); ends with Stories 6.1 and 2.7.
+  - 6 `[low]` `reject` The 100-entry cap counts entries the panel does not draw and says nothing - ruled by the lead (veto U-24, Decided 20 "no affordance").
+  - 7 `[low]` `reject` `TOP ?` still sorts the session's rows without an index - Decided 20 says so; Task 0 measured 3.4 ms and 138 KB at 1,000 turns.
+  - 8 `[low]` `reject` The reverse merge's hard cases are untested (incidents alone over the cap, a tie at the cut, instance incidents, `max` of 0 or less) - the walk is generic, `max` is only the `CHATMAX` constant, and the matrix row has `TestStateChatCapped`.
+  - 9 `[low]` `reject` A permanent failure (a 400 for control-only text) reads as transient; a 401 leaves the entry `sending` - Decided 7 covers the 400, and a 401 is `SessionGate`'s, which leaves the page.
+  - 10 `[medium]` `patch` The elapsed-seconds path has no browser test, and `turns` writes the `since` map - C8 added (see 28); the impure computed and the unpruned map are bounded by the session's turns and left.
+  - 11 `[low]` `reject` `CHAT_TEXTS.seconds` is unused - the spec lists "{n} seconds" in `CHAT_TEXTS`, and Story 2.12's announcements use it.
+  - 12 `[low]` `reject` C6's 2 s bound has little slack - it is the AC's bound (FR-12); loosening it edits the AC.
+  - 13 `[maybe-false]` `defer` The at-the-bottom flag can flip to false when an entry lands between the panel's own scroll and its scroll event - plausible by event order, not reproduced by C10 (8 sends and replies in a 30-turn chat), C6 or C9; medium if true; deferred as unverified.
+  - 14 `[low]` `reject` The composer keeps a stale height after a width change - rare; fixing it adds an observer; Story 2.12 owns the narrow layouts.
+  - 15 `[low]` `reject` Safari sends on the Enter that confirms an IME candidate - the contract's rule is `isComposing`; the WebKit runs are Story 2.12's.
+  - 16 `[low]` `reject` Control-only text answers 400 (repeat of 9).
+  - 17 `[low]` `reject` Trailing markup on a bare link (repeat of 2).
+  - 18 `[low]` `patch` A known key other than `turnFallback`, or an unknown one, shows a wrong reason (repeat of 4); a known fragment key as `catalogKey` has no producer.
+  - 19 `[low]` `reject` A repeated REASONKEYS value would write a duplicate key - `Catalog.cls` is server code pinned by `Test.Msg.Catalog`; no user path.
+  - 20 `[low]` `reject` A `fallbackReason.*` entry with a slot would show a raw placeholder - an author-time case with no such entry; the generator already rejects undeclared placeholders.
+  - 21 `[low]` `patch` `Enum.cls` missing from the web inputs (repeat of 1).
+  - 22 `[low]` `reject` `max` of 0 or less on the wrappers (repeat of 8).
+  - 23 `[low]` `reject` A queued or running turn outside the newest 100 entries would reappear last - it needs 100 newer entries while one turn runs.
+  - 24 `[low]` `reject` `seedTurns` keeps going when `ForUser` fails - the helper throws unless every save reports 1; a test helper.
+  - 25 `[low]` `reject` The page cleans a reason value more leniently than the server - the value is the server's own `FallbackReason`, always exact.
+  - 26 `[medium]` `patch` "Only a 202 is a success" is untested for a 2xx - C4 case "an answer other than 202" added; mutation red.
+  - 27 `[low]` `reject` The outbox's 401 branch is untested - the effect is invisible, as `SessionGate` leaves the page; reopen_if a 401 keeps the page.
+  - 28 `[medium]` `patch` The elapsed indicator never runs in a test - C8 added (real 10 s, visible and spoken text, no live region); mutation red.
+  - 29 `[medium]` `patch` "Not a live region" was asserted only where no indicator, failed entry or button shows - C7 (indicator), C4 (failed entry), C6 (button) and C8 (working time) assert it; mutation red in C7.
+  - 30 `[medium]` `patch` The scrolled-up branches (a reply landing on an existing turn, Send while scrolled up, scrolling down by hand) are unexercised - C9 added; three mutations red.
+  - 31 `[low]` `patch` Missing adoption of `Msg/Enum.cls` (repeat of 1).
+  - 32 `[low]` `reject` The step-1 summary line is asserted nowhere and its fixtures show the pre-2.5 shape - the spec keeps the synthetic baseline and `test-demo-path-gate.sh:134-151`; `live demo-path` prints the line and the two floor tests gate it.
+  - 33 `[low]` `patch` The rail's `overflow-y` and the app's height are untested - C1 asserts the app fills the viewport, the page does not scroll, and the rail and list scroll on their own; mutation red.
+  - 34 `[low]` `reject` `window.__pwned` cannot fail on its own - it backs the `b, img, script` count, which carries the red.
+  - 35 `[low]` `patch` The chip icon check holds for an icon with no path - C1 asserts a drawn path per chip; mutation red.
+  - 36 `[low]` `reject` The default-zone `pageTime` test compares the same call - by design; the explicit-zone tests and C2 pin the zone.
+  - 37 `[low]` `patch` C4's "arrives anyway" never saw the failed state - the events are held until "Not sent" shows.
+  - 38 `[low]` `reject` C3's negative checks read `posts()` with no settle - the IME and empty-text mutations went red.
+  - 39 `[low]` `reject` C1, the floor test and `shell.spec` row 8 assume the README chat is empty - the spec's premise (the README account is only read, api.spec posts as the CHAT user).
+  - 40 `[low]` `reject` C5 and C6 leave seeded turns on the PANEL session - each run has a fresh throwaway (`retries: 0`) and each test asserts its own refs; reopen_if a spec runs twice on one stack.
+  - 41 `[low]` `reject` C2's reply log follows the last reply - the live-appended turn is the last one, and one worker runs.
+  - 42 `[low]` `reject` C6's 2000 ms bound (repeat of 12).
+  - 43 `[low]` `reject` Mutation lines are missing for sub-claims of the ACs - Rule 19 asks one per AC and each AC has one or more; lines were added for every test added here.
+  - 44 `[low]` `reject` A 401 leaves the entry `sending` (repeat of 27).
+  - 45 `[low]` `patch` C3's `oneLine` is measured with two lines - renamed `twoLines`.
+  - 46 `[low]` `patch` The send scroll sits at the composer-to-panel event, not at `ChatOutbox.send` - `ChatOutbox.sendCount` now drives it, so a guide send scrolls too (Decided 32).
+  - 47 `[low]` `reject` DW-65 is pinned at class level, not over HTTP - `TestStateChatCapped` runs the body `/state` returns; the matrix row names the chat.
+  - 48 `[low]` `patch` "Working - N s" is covered in node only (repeat of 28).
+  - 49 `[low]` `reject` The browser shows one of the 12 reasons - `catalog.test.mjs` covers all 12 on the module the page uses, and C2 covers the wiring.
+  - 50 `[low]` `patch` A reply landing while scrolled up is unexercised (repeat of 30).
+  - 51 `[low]` `patch` The layout is unasserted (repeat of 33).
+  - 52 `[low]` `patch` No live-region check while the indicator, a failed entry or the button shows (repeat of 29).
+  - 53 `[low]` `patch` "No composer while loading or failed" is unasserted - L5 and L7 assert no panel and no composer; mutation red in both.
+  - 54 `[low]` `reject` Incident and notice entries, and a local `fromGuide` caption, are covered in node only - the page has no path for them before Stories 6.1, 2.7 and 4.4.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -489,6 +555,21 @@ No AC contradicts an AD's Rule. Rule 5: NFR-6 and FR-12's 2 s are measured in CI
     - **Why 100.** The rail already caps decisions at 20, and the recap uses 20 turns. 100 entries is a long working session. On the online demo, the allowance (50 an hour) and the reset bound a session anyway.
     - **What the reads save.** `TOP ?` with a bound value is proven in this repo (`decisions`, `Live.Event.Since`). The newest-first reads plus the merge keep the snapshot's order with no subquery. They still sort the session's rows, because Turn has no `CreatedAt` index, but they no longer open, export and parse every row. Task 0 records the effect.
     - **No flag.** No flag or "earlier messages" text is added, because the bullet asks for a cap within AD-12's shape, and a flag would change the key list and need new public text.
+21. **The time's day-period space.** `page-time.test.mjs` reads the space before AM or PM as either U+0020 or U+202F. The runtime that runs it (Node 26 with ICU 78) writes a plain space, and the spec's oracle assumed U+202F; the page uses `Intl.DateTimeFormat` as it is, so the browser's own form shows. C2 and C5 compare with the narrow no-break space read as a space.
+22. **The outbox entry also holds `fromGuide`.** `{clientId, text, fromGuide, sentAt, status}`: Retry sending posts the same body again, and the caption of a guide message must survive until the server's entry arrives.
+23. **Only a 202 is a success.** `ApiClient.postMessage` observes the response and fails any other status, a 2xx included, as the matrix says ("a non-202 status"). The body is `MessageAccepted`.
+24. **A catalog key the page does not render** (an entry of a later story, such as the allowance texts) shows the `conversation.turnFallback` sentence with the turn's own reason (the generic reason when that is unknown too), never a blank or the raw key. The story that renders that key adds it to `catalog.mjs`'s allowlist.
+25. **Reply markup details** (within Decided 2). A list ends at a list line of the other kind, a plain line or a blank line; a numbered list keeps its first number (`start`); a list line needs text after its marker (`-x`, `1.5 is` and a bare `- ` are text); a paragraph keeps its own leading spaces; a scheme in capitals still links; `new URL` must accept the address as http(s) with a host, or it stays text.
+26. **One element for the indicator and the reply.** The reply's place is one element (`data-part="reply"`, `tabindex="-1"`), so the New messages focus has one target and the DOM node survives the change from indicator to reply. The indicator row is the 24px mark and the text (no name); the reply adds the name. After 10 s the visible "Working · 12 s" is `aria-hidden` and a visually hidden "Working · 12 seconds" follows it.
+27. **New messages focuses with `preventScroll`.** The press scrolls the list to the bottom first, so the focus must not scroll it back up to an entry above the view.
+28. **A new entry's focus target is its user message, a landed reply's is the reply.** "Changed" means a reply that landed (the matrix's "new entry, or a reply that lands"); the indicator's states and its seconds never show the button.
+29. **The generator also fails closed** on a listed key with a `one` form, with a placeholder that is no declared slot or with a stray brace, on a reason of REASONKEYS whose `fallbackReason.*` key is missing, and on a missing `fallbackReason.generic`.
+30. **The fixture tests.** `TestStateChatCapped` removes its own rows with `Fixture.Clean(refs)`. C4 has a fourth case, "a failed post whose turn then arrives by poll leaves no Not sent" (the matrix's "Arrives anyway"). C6 allows 2 s from the return of `seedTurns` (which runs after the publish), a stricter bound than 2 s from the publish. `iris.ts` exports `quoted()`, the literal helper of `seedTurns`.
+31. **Matrix audit additions (the Send row's error handling and the "at the bottom" row).** C3 sends nothing for empty text, space-only text, a click on **Send** over an empty field and an Enter inside an IME composition (a `keydown` with `isComposing`), sends its second message by a click on **Send** and asserts the field is empty and focused; C5 asserts no live region in `main` with entries rendered; C6 asserts that the list follows a turn that lands while it is at the bottom and that **New messages** stays hidden.
+32. **A new message scrolls the list through `ChatOutbox`.** The outbox counts the new messages it sends (`sendCount`, a retry is not one), and the panel scrolls to the bottom when the count changes, so any caller of `send` (the composer now, the demo guide in Story 4.4) gets the contract's "a new message scrolls the list to the bottom". The composer no longer has a `sent` output.
+33. **Tests added after review (C4's 200 case, C8, C9, C10; assertions in C1, C3, C4, C6, C7, L5, L7).** C8 waits about 11 s in real time for the working time (the page's clock, not a fake one) with the done event held back; C9 covers a reply that lands on an existing turn, Send while scrolled up and scrolling down by hand; C10 sends 8 messages in a 30-turn chat and checks the list is at the bottom after each reply. C1 asserts the app fills the viewport, the page does not scroll, and the rail and the list scroll on their own; L5 and L7 assert no panel and no composer while loading or after a failed load.
+34. **`ci/units.sh`'s `WEB_INPUT_PATTERN` also names `Msg/Enum.cls`**, which `catalog.test.mjs` reads to compare the 12 fallback reasons with the module; `test-ci-changes.sh` has its case.
+35. **`chat.spec.ts` unroutes its routes after each test** (`page.unrouteAll({ behavior: 'ignoreErrors' })`), because a routed `/events` poll that is still being answered when a test ends is reported against the next test as `route.fetch: Test ended`; one clean run showed it.
 
 **Veto-window items for the lead** (ruled at spec validation: kept as planned, veto inbox U-24; the implement stage builds as planned unless the owner reverses them):
 1. **Weakening a guarantee? DW-65's cap.** After a reload, the page shows only the newest 100 chat entries; older turns stay in `Turn` rows and in Visual Trace. This reads FR-1's "the web chat shows every turn" as covering every channel's turns. It reads FR-6 and EXPERIENCE:340's "history intact" as being about what is kept. The alternative is paging: a `before` cursor, an "earlier messages" control and its text, a new key or endpoint, and UX text that doesn't exist yet. That would be a follow-on story if the owner wants it.
@@ -611,7 +692,77 @@ Every test added or changed passes on a fresh environment, in either order:
 
 **Manual checks:** none.
 
+**Implement-stage record.**
+
+Task 0 (slot B, `OcuTalon.Test.Web.Api:TestMeasureChatCap`: one fixture session with 1,000 done turns of 200-character text and 1,000-character reply; `/state` three times through `StateJob`, the median logged). The method is removed and `grep -rn MEASURE src/` finds nothing.
+- MEASURE old `ChatItems` (`Turns` and `Incidents`, every row): turns=1000 runs=.151565,.020182,.019489 s medianSeconds=.020182 bodyLength=1376458
+- MEASURE capped `ChatItems` (`RecentTurns` and `RecentIncidents`, 100 each): turns=1000 runs=.089225,.003436,.003214 s medianSeconds=.003436 bodyLength=138058
+- The capped snapshot is a tenth of the size and about a sixth of the time; no `reopen_if` line (3.4 ms: nothing stays slow without a `CreatedAt` index at this size).
+
+Mutations (Rule 19; each applied, red observed, the tree restored byte-identical with `git status --short` and `git diff --stat` unchanged). The browser mutations ran on the throwaway as four batches of `live sign-in`, each mutation in a test of its own; a mutation whose red is in a node test ran in `node --test`.
+- mutation: `chatView` walks the store's chat reversed -> `chat-view.test.mjs` (order, outbox merge, keys, captions); C5 (the turns' order)
+- mutation: the panel's entries read `snapshot().chat` instead of `store().chat` -> C6 (the published turn never shows)
+- mutation: `aria-live="polite"` on the list -> C1 (nothing in main is a live region)
+- mutation: the headline loses "one" -> `chat-view.test.mjs` string test; C1 (the headline)
+- mutation: `isFreshChat` counts only `chat.message` entries -> `chat-view.test.mjs` (an incident alone is not fresh)
+- mutation: Shift+Enter also sends (`event.shiftKey` dropped from the key test) -> C3 (Shift+Enter adds a line and makes no request)
+- mutation: `newClientId` draws a constant -> `chat-view.test.mjs` (`newClientId`); `ChatOutbox.send` reuses the last clientId -> C3 (each message is its own turn)
+- mutation: the field's height has no maximum -> C3 (8 lines leave it at its 5-line height)
+- mutation: `pageTime` formats in UTC -> `page-time.test.mjs`; C2 (the bubble's time)
+- mutation: the "via Telegram" caption dropped -> `chat-view.test.mjs` (captions); C5 (the Telegram caption)
+- mutation: `retry` posts a new clientId -> C4 (the three cases that retry: the retry posts the same clientId, and its turn never shows)
+- mutation: a local entry kept after its clientId is in the store (no skip in `chatView`, no pruning in `ChatOutbox`) -> `chat-view.test.mjs` (the local message is dropped); C4's fourth case (one bubble)
+- mutation: the reply's text runs bound with `[innerHTML]` -> `page-safety.test.mjs`; C5 (HTML-like text shows as text)
+- mutation: the links lose `target` -> C5 (`target` is `_blank`); a `javascript:` scheme accepted -> `reply-text.test.mjs` (a non-http(s) link stays text)
+- mutation: a running turn shown as "Deciding…" -> `chat-view.test.mjs` (stages); C2 (the log reads Deciding…, then the fallback, with no Working…)
+- mutation: the elapsed threshold 0 s -> `chat-view.test.mjs` ("Working…" at 9 s)
+- mutation: the `prefers-reduced-motion` rule of the dots removed -> C7 (`animation-name` is not `none`)
+- mutation: `unusable` mapped to `error` in `REASON_KEYS` -> `catalog.test.mjs` (the sentence of each of the 12 reasons; the generated file is current)
+- mutation: the generator ignores an entry's `web` text -> `catalog.test.mjs` (uses the web text); `--check` always passes -> `catalog.test.mjs` (a stale file fails the check)
+- mutation: the ResizeObserver scrolls to the bottom whether or not the list was at the bottom -> C6 (scrollTop did not change)
+- mutation: the New messages press does not focus the target -> C6 (focuses the new turn's element)
+- mutation: the panel is not rendered -> `01-page.spec.ts` floor test "shows the empty chat panel and the composer" (`live demo-path`: floor 1 of 2 passed, step 1 failed)
+- mutation: `ChatItems` ignores `CHATMAX` (the parameter 100000) -> `TestStateChatCapped` (slot B)
+- mutation: `recentTurns` without its owner check (`WHERE ? <> ''`) -> `TestIsolationEveryRowKind` (slot B)
+- mutation: the IME guard (`event.isComposing`, `keyCode` 229) dropped from the composer's key test -> C3 (empty text, space-only text and Enter during an IME composition send nothing)
+- mutation: `ChatOutbox.send` without its empty-text guard -> C3 (the same assertion)
+- mutation: `Composer.send` without `field.focus()` -> C3 (a click on Send returns focus to the field)
+- mutation: the panel's `ResizeObserver` disconnects after its first callback -> C6 (at the bottom, the list follows new content)
+- mutation: the panel's `ResizeObserver` disconnects after its first callback -> C10 (after message 0 the list is at the bottom), as in C6
+- mutation: `ApiClient.postMessage` accepts any 2xx (the `status !== 202` test dropped) -> C4 (an answer other than 202 is Not sent)
+- mutation: `ChatPanel` never notes a running turn (`since.set` removed) -> C8 (after 10 seconds the working time shows)
+- mutation: `role="status"` on the indicator -> C7 (the indicator is no live region)
+- mutation: the reply-landed branch of `noteArrivals` removed -> C9 (a reply that lands while scrolled up shows New messages)
+- mutation: `onSent` only clears the button and neither pins nor scrolls -> C9 (Send takes a list that is scrolled up to the bottom)
+- mutation: `onScroll` no longer clears the button at the bottom -> C9 (scrolling to the bottom by hand hides New messages)
+- mutation: the rail's `overflow-y: auto` removed -> C1 (the rail scrolls on its own)
+- mutation: the `zap` icon has no path -> C1 (the chip's icon is drawn)
+- mutation: `<app-chat-panel />` rendered whatever the load status -> L5 and L7 (no panel and no composer while loading or failed)
+- mutation: `Msg/Enum.cls` removed from `WEB_INPUT_PATTERN` -> `test-ci-changes.sh` (the message enums run web and every group)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The signed-in page has its chat: the empty chat panel, the user's bubbles, OcuTalon's replies (paragraphs, lists and http(s) links as text; the generated catalog's fallback sentence), the turn indicator (Deciding, Working, and the working time after 10 s), the composer, the New messages button and the scroll rules. `ChatOutbox` sends with a new `clientId` and reuses it for Retry sending. `/state`'s chat is capped at the newest 100 entries through two new `Ownership` row kinds (DW-65). The demo-path page step has its second `@floor` test.
+
+**Files changed.**
+- Server: `Data/Ownership.cls` (row kinds `recentTurns`, `recentIncidents`, their wrappers, the shared `INCIDENTVISIBLE` condition), `Web/Api.cls` (`CHATMAX`, the capped `ChatItems`), `Test/Data/Ownership.cls` and `Test/Web/Api.cls` (`TestStateChatCapped`, the order, isolation and refusal cases).
+- Catalog: `web/scripts/catalog.mjs` (generator), `web/src/app/msg/catalog.ts` (generated), `web/package.json` (`catalog`, and `--check` in `build`), `ci/units.sh` and `docker/tests/test-ci-changes.sh` (the catalog classes and `Msg/Enum.cls` join the web inputs).
+- Page: `web/src/app/chat/` (`chat-panel`, `composer`, `empty-chat`, `user-message`, `ocutalon-reply`, `outcome-chip`, `chat-outbox`, `chat-view`, `reply-text`, `page-time`), `main-page.ts`, `app.ts`, `icon.ts`, `api-client.ts`, `api-types.ts`.
+- Tests: `web/scripts/{catalog,chat-view,page-safety,page-time,reply-text}.test.mjs`, `playwright-projects.test.mjs`, `web/e2e/chat/chat.spec.ts` (C1-C10), `web/e2e/support/iris.ts` (`PANEL`, `quoted`, `seedTurns`), `web/e2e/sign-in/shell.spec.ts`, `web/e2e/live/live.spec.ts` (L5 and L7 assert no composer), `web/e2e/demo-path/01-page.spec.ts` (the floor test), `docker/tests/test-sign-in.sh` (`ZzPanel`).
+
+**Review.** 54 findings from four layers: high 0, medium 6, low 47, maybe-false 1. Patched: 4 medium entries (the elapsed indicator, "only a 202 is a success", the live-region checks while something is showing, the scrolled-up branches) and 8 low ones (the `Msg/Enum.cls` web input, an unknown catalog key showing the turn's own reason, the layout assertions, the chip icon paths, C4's "arrives anyway", the `twoLines` name, the send scroll through `ChatOutbox.sendCount`, no composer while loading or failed). Deferred: 1 (the at-the-bottom flag race, medium, unverified). Rejected: 33, each with its reason in the Review Triage Log (the spec-bound ones are the link and list grammar, the cap's shape, Decided 7, 11 and 20, and the synthetic summary fixtures).
+
+**Follow-up review recommended: true.** Four medium entries were patched, and the changes made after the review layers read the diff were not read by a layer: the send scroll now runs from `ChatOutbox.sendCount` through an effect in `ChatPanel`, and C8 (a real 10 s wait), C9 and C10 are timing-dependent browser tests that passed on one machine (a throwaway on the developer machine) and could flake on the slow CI hosts.
+
+**Verification performed.** Slot B (build 154U, 52791): both source trees load and compile with 0 errors; `Test.Web.Api` 25 of 25, `Test.Data.Ownership` 13 of 13, `Test.Web.Shell` 5 of 5; no `zz` row left. `npm --prefix web test` 180 passed; `lint`, `catalog`, `payloads` and `tokens` `--check` exit 0; `test-web-build.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-mock.sh` and `ci/checks.sh` exit 0. Throwaway (tag `e2s25i`): `live sign-in` 97 passed (C1-C10 included), `live demo-path` printed `STEP 1 page: partly skipped, 2 passed, 3 skipped (Story 4.7: ...)` and `floor 2 of 2 passed`, `shard lane-b` 31 classes passed; teardown left nothing. Task 0 measured the cap (below the Verification section). Every added or changed pinning test has a recorded mutation that went red.
+
+**Residual risks.**
+- A `[label](url)` link shows its label only, so a model-written label can name another address (finding 3). The link form is the contract's; the options are showing the destination host with the link, or having the reply guard (AD-28, Lane A) remove such links. It is a security-posture call for the UX and security owner, with the chat agent's input being content that arrives from productions (AD-10).
+- The deferred scroll-flag race (frontmatter `deferred:`).
+- Reply links open in a new tab against EXPERIENCE:391 and UX-DR127 (U-24, for the UX owner).
+- A Safari IME confirmation Enter may send (WebKit runs are Story 2.12's).
+- Control-only text that JavaScript does not trim answers 400 and shows "Not sent" with a Retry that cannot succeed (Decided 7).
+- `page-time.test.mjs` accepts a plain space or U+202F before AM or PM, since Node 26 with ICU 78 writes the plain space the spec's oracle did not expect.

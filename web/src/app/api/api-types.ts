@@ -55,6 +55,18 @@ export interface EventsResponse {
   events: LiveEnvelope[];
 }
 
+/** POST /ocutalon/api/v1/messages: one message of the chat. The session is the caller's; the body never names one. */
+export interface MessagePost {
+  clientId: string;
+  text: string;
+  fromGuide: boolean;
+}
+
+/** The 202 answer to a message: its clientId, also for a repeat of one the server already holds. */
+export interface MessageAccepted {
+  clientId: string;
+}
+
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };

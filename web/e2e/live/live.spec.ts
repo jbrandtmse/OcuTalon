@@ -278,6 +278,7 @@ test('L5: static skeletons while the snapshot loads', async ({ page }) => {
       await expect(block, 'no transition').toHaveCSS('transition-duration', '0s');
     }
     await expect(page.locator('app-server-button'), 'no Retry while loading').toHaveCount(0);
+    await expect(page.locator('app-chat-panel, app-composer'), 'no chat panel and no composer while loading').toHaveCount(0);
   } finally {
     hold.release();
   }
@@ -350,6 +351,7 @@ test('L7: an error answer shows the load error at once, and a failed Retry annou
   await expect(main).toHaveAttribute('data-snapshot', 'failed', { timeout: 3000 });
   await expect(main.locator('.load-error p')).toHaveText(LOAD_FAILED);
   await expect(page.locator('.skeleton')).toHaveCount(0);
+  await expect(page.locator('app-chat-panel, app-composer'), 'no chat panel and no composer after a failed load').toHaveCount(0);
   await expect.poll(() => announcements(page, LOAD_FAILED)).toBe(1);
   expect(answers, 'the snapshot was asked for once').toBe(1);
 

@@ -1,8 +1,8 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 
-import type { EventsResponse, StateSnapshot } from './api-types';
+import type { EventsResponse, MessageAccepted, MessagePost, StateSnapshot } from './api-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -19,6 +19,21 @@ export class ApiClient {
   /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
   endSession(): Observable<void> {
     return this.http.post<void>(`${BASE}/session/end`, {});
+  }
+
+  /**
+   * Posts one message of the chat. Only the answer 202 is a success; any other status, a 2xx included, fails as an error.
+   * A repeat of a clientId is answered 202 too, so a retry never queues a second turn.
+   */
+  postMessage(body: MessagePost): Observable<MessageAccepted> {
+    return this.http.post<MessageAccepted>(`${BASE}/messages`, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/messages` });
+        }
+        return response.body;
+      }),
+    );
   }
 
   /** The events after the two cursors, one for the session's stream and one for the instance's. */

@@ -91,7 +91,7 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
   it('reports the floor test of step 1 with the tag floor, the form that the summary reads', () => {
     const page = reportOf('e2e:demo-path').suites.find((suite) => suite.file === 'demo-path/01-page.spec.ts');
     const tagged = page.specs.filter((entry) => entry.tags.includes('floor'));
-    assert.deepEqual(tagged.map((entry) => entry.title), ['signs in with the README account and loads the page snapshot']);
+    assert.deepEqual(tagged.map((entry) => entry.title), ['signs in with the README account and loads the page snapshot', 'shows the empty chat panel and the composer']);
   });
 });
 
