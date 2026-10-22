@@ -57,3 +57,4 @@
 2026-10-22T02:55:31Z	Story 2.4	ledger_routed_planned	story=2-4-answer-every-chat-message-through-the-turn-pipeline entries=1(DW-61) excess=0 by=spec_gate
 2026-10-22T02:55:31Z	Story 2.7	ledger_routed_planned	story=2-7-route-untrusted-items-and-notifications-by-outcome entries=1(DW-62) excess=0 by=spec_gate
 2026-10-22T02:55:31Z	Story 2.2	plan_clarification_requested	item=AD-13_allow-list_amendment(Ownership.Rows) to=orchestrator reason=U14_AD_amendment_cross-epic;U7(c)_AD-13_cited_by_done_specs(0.2,0.3,0.5,0.7,0.8,2.1) spec_gate=held_before_ready-for-dev
+2026-10-22T02:55:41Z	Story 2.1	ci_resolved	story=2.1 sha=669515f runs=39710585498,39710585496 result=success failed=none via=none resolved_at=next_plan first_ci=success
