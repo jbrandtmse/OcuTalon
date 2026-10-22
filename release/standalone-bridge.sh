@@ -6,7 +6,8 @@
 #   OCUTALON_RUN_TAG=<tag> bash release/standalone-bridge.sh
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh) and runs nothing of them but the throwaway
 # recipe: a project of its own, the CI override with the model mock, the throwaway lock and the teardown on exit. The checks:
-#   1. the namespace OCUBRIDGE is created without Interoperability and enabled for it with no Foundation installer;
+#   1. the namespace OCUBRIDGE is created without Interoperability (it is no Interoperability namespace until it is enabled) and
+#      enabled for it with no Foundation installer (it is no HealthShare namespace after);
 #   2. LoadDir of /opt/ocutalon/src/bridge/cls and OcuTalon.Bridge.Installer.Run() give 1, and no OcuTalon class outside
 #      OcuTalon.Bridge and OcuTalon.BridgeExample is there; no production runs before the example starts;
 #   3. the CI override's environment is there (OCUTALON_MOCK_KEY_HEADER is 1 and OCUTALON_MODEL_BASE_URL is set), and two System
@@ -53,16 +54,20 @@ CreateNamespace:Name=OCUBRIDGE,Globals=OCUBRIDGE,Routines=OCUBRIDGE
 EOC
 if dc exec -T iris sh -c 'cat > /tmp/ocubridge.cpf' < "$tmp/ocubridge.cpf" > "$tmp/merge.log" 2>&1 \
   && dc exec -T iris iris merge IRIS /tmp/ocubridge.cpf >> "$tmp/merge.log" 2>&1; then
-  pass "the namespace $NS is created without Interoperability"
+  pass "the namespace $NS is created"
 else
   tail -n 30 "$tmp/merge.log"
   die "the namespace $NS could not be created"
 fi
-check_session "the namespace $NS is enabled for Interoperability, with no Foundation installer" %SYS \
-  "CHK|enable|1
-CHK|interop|1" \
+check_session "the namespace $NS has no Interoperability until it is enabled for it, with no Foundation installer" %SYS \
+  "CHK|interop-before|0
+CHK|enable|1
+CHK|interop|1
+CHK|foundation|0" \
+  'Write !,"CHK|interop-before|",##class(%Library.EnsembleMgr).IsEnsembleNamespace("OCUBRIDGE")' \
   'Set sc=##class(%Library.EnsembleMgr).EnableNamespace("OCUBRIDGE",0,,1) Write !,"CHK|enable|",$SYSTEM.Status.IsOK(sc)' \
   'Write !,"CHK|interop|",##class(%Library.EnsembleMgr).IsEnsembleNamespace("OCUBRIDGE")' \
+  'Write !,"CHK|foundation|",##class(%Library.EnsembleMgr).IsHealthShareNamespace("OCUBRIDGE")' \
   'Halt'
 if [ "$fails" -ne 0 ]; then die "the namespace $NS could not be enabled for Interoperability"; fi
 

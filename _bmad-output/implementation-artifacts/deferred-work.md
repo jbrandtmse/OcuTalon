@@ -321,3 +321,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: found by the Story 1.3 implement stage when it added release/standalone-bridge.sh (the folder's first file); the script was checked ASCII by hand; test-boundaries.sh is Lane B's file
 - 2026-10-22T05:37:12Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=harvest note=reopen_if=LC_ALL=C grep -rnP '[^\x00-\x7F]' release/ finds a byte, or a Lane B story edits test-boundaries.sh's scanned roots (it may add release/ then)
+
+### DW-67: release/standalone-bridge.sh repeats row 5's namespace-create and LoadDir recipe from Lane B's test-install-start.sh
+- source: spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: About 10 lines (the CPF heredoc, the docker exec copy and iris merge, LoadDir, Installer.Run and the other-classes query) appear in both scripts; the spec forces the copy (Rule 2), since test-install-start.sh runs as a whole and lib-live.sh has no helper for it.
+- 2026-10-22T07:03:27Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=cr note=reopen_if=a third script copies the namespace-create and LoadDir recipe, or lib-live.sh gains a helper for it

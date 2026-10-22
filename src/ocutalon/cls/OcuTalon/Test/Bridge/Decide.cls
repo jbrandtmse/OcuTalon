@@ -17,6 +17,9 @@
 ///     stands;
 ///   - TestConcurrentSave: a row that another call saved first answers, with no second row and no event, and a turn refuses;
 ///   - TestRecord: a save refused by the unique index on (ItemId, Kind) answers from the row that won, and a turn row refuses;
+///   - TestLostRace: a row that another call saves after Conclude's check for an existing row, and before its own save, answers,
+///     with no second row and no event;
+///   - TestConcludeChecksFilter: Conclude refuses a filter class that is no ReplyFilter, with no row and no event;
 ///   - TestUserRule: a user's ignore and digest become tellnow with the code-written line first; a user's act and tellnow and every
 ///     untrusted outcome stay;
 ///   - TestConfidence: 0.12 stays 0.12 and 0.123 is recorded as 0.12, and the confidence never changes the outcome;
@@ -24,6 +27,18 @@
 ///   - TestOnResponseUsesItsSettings and TestOnRequestUsesItsSettings: the business process hands its own ReplyFilterClass,
 ///     HostSinkClass, TimerSeconds and session to the class methods, on a Decide instance of the test with no production started;
 ///   - TestRecordedAtIsUtc: RecordedAt is a UTC time whatever the zone of the process.
+/// Added by QA (Story 1.3):
+///   - TestUserRule also pins that the user rule is for decide requests only (a user's diagnose reply keeps ignore and digest);
+///   - TestReplyCheck also refuses a missing, null or wrong-case outcome and a null, string or negative confidence, and accepts
+///     the confidences 0 and 1;
+///   - TestReasonLines: a line break inside a model reason becomes a space, so that a reason is one line of the row and cannot add
+///     a line of its own, such as a forged copy of the code-written line of the user rule; the Payload keeps the reasons as filtered;
+///   - TestTurnKeepsReply: the answer to a turn is a clone of the runner's Reply, with only the Text filtered and the DecisionRef and
+///     the outcome set; the runner's own Reply is not changed;
+///   - TestSaveFailure: a row that cannot be saved for another reason than the (ItemId, Kind) race is no answer: no response, no
+///     event, no row;
+///   - TestOnRequestAnswersRecorded: OnRequest answers a recorded decide or diagnose item from its row before it checks any
+///     setting or sends anything, and refuses a recorded turn naming the item and the Ref.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
 
@@ -140,6 +155,14 @@ Method TestReplyCheck()
 	Do ..AssertReply("", 0, "an empty text")
 	Do ..AssertReply("   ", 0, "a text of white space")
 	Do ..AssertReply(fence_"json"_$Char(10)_good, 0, "a code fence that is not closed")
+	Do ..AssertReply("{""reasons"":[""r""],""confidence"":0.5}", 0, "no outcome")
+	Do ..AssertReply("{""outcome"":null,""reasons"":[""r""],""confidence"":0.5}", 0, "a null outcome")
+	Do ..AssertReply("{""outcome"":""Ignore"",""reasons"":[""r""],""confidence"":0.5}", 0, "an outcome in the wrong case")
+	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":null}", 0, "a null confidence")
+	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":""high""}", 0, "a confidence that is a string")
+	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":-0.1}", 0, "a negative confidence")
+	Do ..AssertReply("{""outcome"":""ignore"",""reasons"":[""r""],""confidence"":0}", 1, "a confidence of 0")
+	Do ..AssertReply("{""outcome"":""tellnow"",""reasons"":[""r"",""""],""confidence"":1}", 1, "a confidence of 1, and a blank reason beside a real one")
 
 	Set request = ..NewRequest("decide")
 	Set reply = ..NewReply("{""outcome"":""maybe"",""reasons"":[""r""],""confidence"":0.5}")
@@ -308,6 +331,19 @@ Method TestUserRule()
 	Set request = ..NewRequest("turn", "user")
 	Do $$$AssertStatusOK(..Conclude(request, ..NewReply("A turn."), .response), "a user's turn is recorded")
 	Do $$$AssertEquals(..RowOf(request.ItemId, "turn").Reasons, "", "and the user rule adds no line to its row")
+	For outcome = "ignore", "digest" {
+		Set request = ..NewRequest("diagnose", "user")
+		Set json = "{""outcome"":"""_outcome_""",""reasons"":["""_reason_"""],""confidence"":0.4}"
+		Set sc = ..Conclude(request, ..NewReply(json), .response)
+		Do $$$AssertStatusOK(sc, "a user's diagnose reply of "_outcome_" is recorded")
+		Set row = ..RowOf(request.ItemId, "diagnose")
+		If '$IsObject(row) || '$IsObject(response) {
+			Do $$$AssertTrue(0, "a user's diagnose reply of "_outcome_" is recorded and answered")
+			Continue
+		}
+		Do $$$AssertEquals(row.Outcome_"|"_response.Outcome, outcome_"|"_outcome, "the user rule is for decide requests only: a user's diagnose request keeps "_outcome)
+		Do $$$AssertEquals(row.Reasons_"|"_response.Reasons, reason_"|"_reason, "and has no code-written line")
+	}
 }
 
 /// The confidence is recorded rounded to two decimals, in the row and in the answer, and never changes the outcome: 0.12 stays
@@ -390,6 +426,39 @@ Method TestFilterBlanks()
 	Set row = ..RowOf(request.ItemId, "decide")
 	Do $$$AssertEquals(row.Reasons, "[f] Kept.", "and the row holds the reason that is left")
 	Do $$$AssertEquals(response.Reasons, "[f] Kept.", "and so does the answer")
+}
+
+/// The lost save race: another call saves its row for the item and kind after Conclude's check for an existing row and before
+/// Conclude's own save (the stand-in request ProbeRaceRequest saves it when Conclude reads its Summary). Conclude answers with the
+/// row that won, records no second row and fires no event.
+Method TestLostRace()
+{
+	Kill ^||ZzProbeSink
+	Set template = ..NewRequest("decide")
+	Set request = ##class(OcuTalon.Test.Bridge.ProbeRaceRequest).%New()
+	Set request.Kind = "decide", request.Provenance = "untrusted", request.ItemId = template.ItemId, request.OwnerRef = "instance", request.Summary = template.Summary
+	Set request.Competitor = ..NewRow(template.ItemId, "decide", "act")
+	Set request.Competitor.Reasons = "The other call won the race."
+	Set request.Competitor.Confidence = 0.31
+	Set sc = ..Conclude(request, ..NewReply(..#DIGEST), .response, , ..#SINK)
+	Do $$$AssertTrue(request.Raced && $$$ISOK(request.RaceStatus), "the other call saved its row inside Conclude, after the check for an existing row")
+	Do $$$AssertStatusOK(sc, "Conclude answers")
+	Do $$$AssertEquals($Select($IsObject(response): response.DecisionRef_"|"_response.Outcome_"|"_response.Reasons, 1: ""), request.Competitor.Ref_"|act|The other call won the race.", "with the row that won")
+	Do $$$AssertEquals(..Rows(template.ItemId), 1, "no second row is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and no event is sent")
+}
+
+/// Conclude checks the filter class itself, so that a direct caller cannot record unfiltered text: a class that does not extend
+/// OcuTalon.Bridge.Ext.ReplyFilter ends Conclude with an error that names ReplyFilterClass, with no row and no event.
+Method TestConcludeChecksFilter()
+{
+	Kill ^||ZzProbeSink
+	Set request = ..NewRequest("decide")
+	Set sc = ..Conclude(request, ..NewReply(..#DIGEST), .response, "OcuTalon.Bridge.Ext.HostSink", ..#SINK)
+	Do $$$AssertStatusNotOK(sc, "a filter class that is no ReplyFilter ends Conclude with an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "ReplyFilterClass", "that names ReplyFilterClass: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(response, "", "it gives no answer")
+	Do $$$AssertEquals(..Rows(request.ItemId)_"|"_(+$Get(^||ZzProbeSink)), "0|0", "and records no row and sends no event")
 }
 
 /// Record saves a row for a new item. A row for an item that another call recorded first is refused by the unique index on
@@ -478,6 +547,146 @@ Method TestOnRequestUsesItsSettings()
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and no row is recorded")
 }
 
+/// A model reason is one line of the row. A line break inside it (CR LF, CR, LF, vertical tab, form feed, NEL or a Unicode line or
+/// paragraph separator) becomes a space and the white space and control characters at its ends are trimmed, so that a reason
+/// cannot add a line of its own, such as a forged copy of the code-written line of the user rule; a reason of control characters
+/// only is dropped. The Payload keeps the reasons as the filter gave them.
+Method TestReasonLines()
+{
+	Set sentence = ##class(OcuTalon.Bridge.Process.Decide).#USERANSWERED
+	Set lf = $Char(10)
+	Set cr = $Char(13)
+	Set body = {"outcome": "act", "confidence": 0.8}
+	Set body.reasons = [("First"_lf_"line"), ("Second"_cr_lf_"line"), ("Third"_cr_"line"), "  padded  ", ("Fourth"_lf_sentence)]
+	Set json = body.%ToJSON()
+	Set expected = "First line"_lf_"Second line"_lf_"Third line"_lf_"padded"_lf_"Fourth "_sentence
+	Set request = ..NewRequest("decide")
+	Do $$$AssertStatusOK(..Conclude(request, ..NewReply(json), .response), "a reply with line breaks inside its reasons is recorded")
+	Set row = ..RowOf(request.ItemId, "decide")
+	If '$IsObject(row) || '$IsObject(response) {
+		Do $$$AssertTrue(0, "the reply is recorded and answered")
+		Quit
+	}
+	Do $$$AssertEquals(row.Reasons, expected, "each reason is one line of the row, its line breaks are spaces and its ends are trimmed")
+	Do $$$AssertEquals($Length(row.Reasons, lf), 5, "five reasons are five lines")
+	Do $$$AssertEquals($Find(lf_row.Reasons_lf, lf_sentence_lf), 0, "and no line is the code-written sentence of the user rule, which a reason tried to forge")
+	Do $$$AssertEquals(response.Reasons, expected, "the answer holds the same lines")
+	Do $$$AssertTrue(row.Payload [ "First\nline", "the Payload keeps the line break of the reason as the model wrote it")
+	Set request = ..NewRequest("decide", "user")
+	Set body.outcome = "ignore"
+	Do $$$AssertStatusOK(..Conclude(request, ..NewReply(body.%ToJSON()), .response), "a user's reply with the same reasons is recorded")
+	Set row = ..RowOf(request.ItemId, "decide")
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the user's reply is recorded")
+		Quit
+	}
+	Do $$$AssertEquals(row.Reasons, sentence_lf_expected, "the code-written line is the first of the lines, and only the code wrote it")
+	Do $$$AssertEquals($Length(row.Reasons, lf), 6, "one line more than the five reasons")
+	Set body = {"outcome": "act", "confidence": 0.8}
+	Set body.reasons = [("Fifth"_$Char(8232)_sentence), ("Sixth"_$Char(133)_"line"), ("Seventh"_$Char(11, 12)_"line"), ("Eighth"_$Char(8233)_"line"), ($Char(7, 9))]
+	Set request = ..NewRequest("decide")
+	Do $$$AssertStatusOK(..Conclude(request, ..NewReply(body.%ToJSON()), .response), "a reply whose reasons hold the other line breaks, and a reason of control characters only, is recorded")
+	Set row = ..RowOf(request.ItemId, "decide")
+	Set reasons = $Select($IsObject(row): row.Reasons, 1: "")
+	Do $$$AssertEquals(reasons, "Fifth "_sentence_lf_"Sixth line"_lf_"Seventh  line"_lf_"Eighth line", "NEL, VT, FF and the Unicode line and paragraph separators are spaces too, and the reason of control characters is dropped")
+	Do $$$AssertEquals($Find(lf_reasons_lf, lf_sentence_lf), 0, "so no line is the code-written sentence")
+}
+
+/// The answer to a turn is a clone of the runner's Reply: its Text is filtered and its DecisionRef and Outcome are set, and every
+/// other field that the runner set (the taint flag of AD-10, the session and tool flags, the host data, the finish reason, the model
+/// and the totals) reaches the caller. The runner's own Reply is not changed.
+Method TestTurnKeepsReply()
+{
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("Everything is fine.", "end_turn")
+	Set reply.Tainted = 1
+	Set reply.SessionRotated = 1
+	Set reply.ToolsRun = 1
+	Set reply.HostData = "{""rows"":[1]}"
+	Set reply.Model = "claude-haiku-5-5"
+	Set reply.InputTokens = 123
+	Set reply.OutputTokens = 45
+	Set sc = ..Conclude(request, reply, .response, ..#FILTER)
+	Do $$$AssertStatusOK(sc, "a turn reply with the runner's flags and totals is recorded")
+	If '$IsObject(response) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
+	Do $$$AssertEquals(response.Text, "[f] Everything is fine.", "its Text is the filtered text")
+	Do $$$AssertEquals(response.Tainted_"|"_response.SessionRotated_"|"_response.ToolsRun, "1|1|1", "the taint, session-rotated and tools-run flags of the runner reach the caller")
+	Do $$$AssertEquals(response.HostData_"|"_response.FinishReason_"|"_response.Model, "{""rows"":[1]}|end_turn|claude-haiku-5-5", "and so do the host data, the finish reason and the model")
+	Do $$$AssertEquals(response.InputTokens_"|"_response.OutputTokens, "123|45", "and the totals")
+	Set row = ..RowOf(request.ItemId, "turn")
+	Do $$$AssertTrue($IsObject(row), "the turn is recorded")
+	If $IsObject(row) {
+		Do $$$AssertEquals(response.DecisionRef_"|"_response.Outcome, row.Ref_"|tellnow", "with the DecisionRef of its row and the outcome tellnow")
+	}
+	Do $$$AssertEquals(reply.Text_"|"_reply.Outcome_"|"_reply.DecisionRef, "Everything is fine.||", "the runner's own Reply is not changed")
+}
+
+/// A decision whose row cannot be saved is no answer: Conclude ends with the save error, gives no response, fires no event and
+/// records no row for the item. Here another row already holds the new Ref (RefIndex is unique); the race on (ItemId, Kind) is
+/// TestRecord's.
+Method TestSaveFailure()
+{
+	Kill ^||ZzProbeSink
+	Set taken = ..NewRequest("decide")
+	Set first = ..NewRow(taken.ItemId, "decide", "act")
+	Do $$$AssertStatusOK(first.%Save(), "a row holds a Ref")
+	Set request = ..NewRequest("decide")
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, first.Ref, ..NewReply(..#DIGEST), ..#REPLYCLASS, "OcuTalon.Bridge.Ext.ReplyFilter", ..#SINK, 4242, .response)
+	Do $$$AssertStatusNotOK(sc, "a decision whose Ref is taken ends with the save error")
+	Do $$$AssertEquals(response, "", "it gives no answer")
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "it records no row for the item")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and sends no event")
+	Do $$$AssertEquals(..Rows(taken.ItemId), 1, "the row that holds the Ref is as it was")
+	Set late = ..NewRow(request.ItemId, "decide", "digest")
+	Set late.Ref = first.Ref
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Record(late, .saved, .response)
+	Do $$$AssertStatusNotOK(sc, "Record returns the save error when no row of the item and kind exists")
+	Do $$$AssertEquals(saved_"|"_response, "0|", "and saved nothing and answered nothing")
+}
+
+/// OnRequest answers an item that has a decision from its row, before it checks any setting or sends anything: for a decide request
+/// and for a diagnose request (DiagnosisAgent has no ReplyClass until Story 5.4, and an answer from a row needs none). A recorded
+/// turn is refused with an error that names the item and the Ref. The process of the test has a ReplyFilterClass that is no
+/// filter, so that a request that went on to the settings check would be refused (the last case shows it); no production is
+/// started and nothing is sent.
+Method TestOnRequestAnswersRecorded()
+{
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = "OcuTalon.Test.Bridge.ZzNoSuchFilter"
+	Set process.TimerSeconds = 60
+	For kind = "decide", "diagnose" {
+		Set request = ..NewRequest(kind)
+		Set row = ..NewRow(request.ItemId, kind, "act")
+		Set row.Reasons = "The recorded reason."
+		Set row.Confidence = 0.31
+		Set row.Payload = "{""outcome"":""act""}"
+		Do $$$AssertStatusOK(row.%Save(), "a "_kind_" row is recorded")
+		Set sc = process.OnRequest(request, .response)
+		Do $$$AssertStatusOK(sc, "a "_kind_" request for a recorded item is answered, not refused")
+		If '$IsObject(response) {
+			Do $$$AssertTrue(0, "the "_kind_" answer is a DecisionResponse")
+			Continue
+		}
+		Do $$$AssertEquals(response.DecisionRef_"|"_response.Outcome_"|"_response.Reasons_"|"_response.Confidence_"|"_response.Payload, row.Ref_"|act|The recorded reason.|.31|{""outcome"":""act""}", "from the row: its Ref, outcome, reasons, confidence and Payload")
+	}
+	Set request = ..NewRequest("turn", "user")
+	Set row = ..NewRow(request.ItemId, "turn", "tellnow")
+	Do $$$AssertStatusOK(row.%Save(), "a turn row is recorded")
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusNotOK(sc, "a turn request for a recorded item is refused")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue((text [ request.ItemId) && (text [ row.Ref), "with an error that names the item and the Ref: "_text)
+	Do $$$AssertEquals(response, "", "and gives no answer")
+	Set request = ..NewRequest("turn", "user")
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusNotOK(sc, "while a turn request for an item with no decision goes on to the settings check and is refused")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "ReplyFilterClass", "for the filter class of this process: "_$SYSTEM.Status.GetErrorText(sc))
+}
+
 /// RecordedAt is a UTC time in the stored form whatever the zone of the process: a row recorded in America/New_York holds a time
 /// between two readings that were taken in the process's own zone.
 Method TestRecordedAtIsUtc()
@@ -494,7 +703,7 @@ Method TestRecordedAtIsUtc()
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	Do $SYSTEM.Process.TimeZone(saved)
+	Do $SYSTEM.Process.TimeZone($Select(saved = -1: "", 1: saved))
 	Do $$$AssertStatusOK(sc, "a decision is recorded in America/New_York")
 	Set recorded = ..RowOf(request.ItemId, "decide").RecordedAt
 	Do $$$AssertTrue(recorded ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RecordedAt is a UTC time: "_recorded)
@@ -502,8 +711,8 @@ Method TestRecordedAtIsUtc()
 }
 
 /// --- helpers ---
-/// A Decide instance for the in-process tests: it is never started or saved, and its settings are the defaults until the test sets
-/// them.
+/// A Decide instance for the in-process tests: it is never started or saved. Its settings are those of the Decide item of the
+/// active production (Ens.Host's initConfig), so a test sets every setting that it relies on.
 ClassMethod NewProcess() As OcuTalon.Bridge.Process.Decide [ Private ]
 {
 	Quit ##class(OcuTalon.Bridge.Process.Decide).%New("Decide")
@@ -559,11 +768,10 @@ ClassMethod Rows(itemId As %String) As %Integer [ Private ]
 	Quit result.%GetData(1)
 }
 
-/// The Decision row of the item and kind, or "".
+/// The Decision row of the item and kind, or "" (Test.Agent.RunnerFixture.DecisionOf, which needs no production).
 ClassMethod RowOf(itemId As %String, kind As %String) As OcuTalon.Bridge.Data.Decision [ Private ]
 {
-	If '##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(itemId, kind, .id) Quit ""
-	Quit ##class(OcuTalon.Bridge.Data.Decision).%OpenId(id)
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(itemId, kind)
 }
 
 /// Asserts that Admit refuses the request with an error that names the field.

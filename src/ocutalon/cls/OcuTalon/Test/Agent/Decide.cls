@@ -468,17 +468,6 @@ ClassMethod HeaderTo(headers As %DynamicArray, target As %String) As %DynamicObj
 	Quit found
 }
 
-/// The ids of the headers in the session that the item sent to Decide, as a list.
-ClassMethod ChainOf(session As %Integer, source As %String) As %List [ Private ]
-{
-	Set ids = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID", session, source)
-	While result.%Next() {
-		Set ids = ids _ $ListBuild(result.%GetData(1))
-	}
-	Quit ids
-}
-
 /// The status of the first header that the item sent in the session, as its display name, or "" when there is none.
 ClassMethod AnswerStatus(session As %Integer, source As %String) As %String [ Private ]
 {
@@ -492,11 +481,12 @@ ClassMethod AnswerStatus(session As %Integer, source As %String) As %String [ Pr
 /// Waits, up to WAITSECONDS, until the item has sent a header in the session. 1 when it has.
 ClassMethod WaitForAnswer(session As %Integer, source As %String) As %Boolean [ Private ]
 {
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While ($ListLength(..ChainOf(session, source)) = 0) && ($ZHorolog < deadline) {
+	While ($ClassMethod(fixture, "Headers", session, source).%Size() = 0) && ($ZHorolog < deadline) {
 		Hang 1
 	}
-	Quit $ListLength(..ChainOf(session, source)) > 0
+	Quit $ClassMethod(fixture, "Headers", session, source).%Size() > 0
 }
 
 /// Waits, up to WAITSECONDS, until the first header that the item sent in the session has the status (its display name). 1 when it

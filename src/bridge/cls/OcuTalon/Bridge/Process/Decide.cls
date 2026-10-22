@@ -212,7 +212,9 @@ ClassMethod CheckReplyShape(kind As %String, reply As OcuTalon.Bridge.Msg.Reply)
 /// Turns the runner's reply into the recorded decision and the answer, in this order:
 ///   1. interprets the reply: for decide and diagnose, CheckReply against replyClass; for a turn, its text;
 ///   2. filters each model-written text once with filterClass (each reason; a turn's reply text), never the code-written line;
-///      a decision with no reason left, and a turn with no text left, once filtered, are not answers;
+///      each reason is one line of the row: its line breaks (CR LF, CR, LF, vertical tab, form feed, NEL and the Unicode line
+///      and paragraph separators) become spaces, and a reason that is blank once trimmed of white space and control characters
+///      is dropped; a decision with no reason left, and a turn with no text left, once filtered, are not answers;
 ///   3. applies the user rule: for a decide request with provenance user, an ignore or digest becomes tellnow, and the first
 ///      reason line says so (USERANSWERED);
 ///   4. answers from the row that another call saved first for the item and kind, if there is one, and fires no event;
@@ -244,7 +246,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		For i = 1:1:payload.Reasons.Count() {
 			Set filtered = $ClassMethod(filterClass, "Filter", payload.Reasons.GetAt(i))
 			Do payload.Reasons.SetAt(filtered, i)
-			Set line = $ZStrip($Translate($Replace(filtered, $Char(13, 10), " "), $Char(13, 10), "  "), "<>W")
+			Set line = $ZStrip($Translate($Replace(filtered, $Char(13, 10), " "), $Char(10, 11, 12, 13, 133, 8232, 8233), "       "), "<>WC")
 			If line '= "" Set lines = lines _ $ListBuild(line)
 		}
 		If lines = "" {
