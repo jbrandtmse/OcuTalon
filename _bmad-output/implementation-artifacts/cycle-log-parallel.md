@@ -72,3 +72,5 @@
 2026-10-22T01:04:54Z	Epic 1	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a reason=resume_after_hold resume_prompt=resume/epic-1.md hold_patch=patches/epic-1/1-2-...-code-review.patch ci_origin_head=98a1fc2:success
 2026-10-22T01:04:54Z	Epic 2	runner_dispatched	model=opus lane=B slot=ocutalon-slot-b reason=resume_after_hold resume_prompt=resume/epic-2.md hold_patch=none ci_head=89a51fa:success
 2026-10-22T01:04:54Z	Epic 1-16,29-32	ci_green_verified	runs=39698733667,39698733694 head=45dcdcf result=success purpose=resume
+2026-10-22T01:06:26Z	Epic 1-16,29-32	pointer_target_changed	from=Contest_Planner[2411f1] to=contests-26[2140f1](may_be_renamed_Contest_Planner_1) reason=the_Planner_window_after_the_owner_account_switch source=its_message;ListAgents_confirms_both_sessions
+2026-10-22T01:06:26Z	Epic 1-16,29-32	inbox_resolved	item=U-11 kind=report note=read_on_the_owner_side
