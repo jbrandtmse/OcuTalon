@@ -13,6 +13,24 @@ recommendation: (a). It answers 404 to visitors until you make the repository pu
 blocks: nothing: veto window, Story 2.1 proceeds on (a)
 answer: (none yet -- answer with the script or --review)
 
+## Holds
+
+### U-10 | hold | Run 20261021T1347Z-1-16,29-32 | 2026-10-22T00:16:23Z
+question: The run is held as you ordered (weekly quota at 97%; account switch). Resume it after the switch?
+options: resume: run /epic-cycle 1-16,29-32 --unattended in a fresh session launched with --permission-mode bypassPermissions (it clears the hold); or keep holding
+recommendation: resume after the switch; Epic 1 resumes with its Story 1.2 hold patch, Epic 2 at Story 2.1's QA
+blocks: every epic (Epic 32 merged; Epics 1 and 2 held)
+answer: (none yet -- answer with the script or --review)
+
+## Run reports
+
+### U-11 | report | Run 20261021T1347Z-1-16,29-32 | 2026-10-22T00:16:45Z
+question: Run report at the hold: since 13:47Z (about 10.5 h), Epic 32 merged with 3 stories (32.1-32.3; CI on six groups with per-group skips); Epic 1 has 1.1 done and green, 1.2 past code review (hold patch); Epic 2 has 2.1 implemented (pushed, before QA). 10 inbox items: U-1 answered (balance rule), U-2..U-8 resolved (vetoes kept, ci-c capped to 10 services), U-9 open (README link 404 until the repo is public), U-10 this hold. CI: intermittent infra reds on ocutalon-ci-c (disk), re-runs pass. Pace: about 5 stories in 10.5 h across two lanes, slowed by the launch fixes and CI host contention; the Nov 1 online demo depends on Lane B reaching Epic 16 (after 2, 4, 6).
+options: read
+recommendation: read; resume after the account switch
+blocks: nothing
+answer: (none yet -- answer with the script or --review)
+
 ## Resolved
 - U-1 | parked | Story 32.3: Story 32.3 (split from 32.1's second criterion): how should 'no IRIS job runs longer than about 10 minutes' be met? 32.1's plan measured that moving whole units cannot meet it on the current hosts: on run 39594299887 (five IRIS stacks on ocutalon-ci-b) live:install-start alone took 681 s, so the job holding it takes about 12 min whatever the grouping (best six-group split 13.6 min); at the lightest load seen (two stacks on ci-b) the floor is 10.1 min and the best split 11.3 min (inference: scaled); on ocutalon-ci-c install-start took 847 s alone. -> (a) Restate the 10-minute IRIS-job ceiling as a balance rule: no IRIS job more than about 25% over the mean of the six, with each job's time, runner and host recorded; a slowest job over about 10 minutes goes to the owner as a CI-capacity item. 32.1 and 32.2 proceed. (by Contest Planner, 2026-10-21T15:49:47Z#6; quoting the owner: "a"); resolved by orchestrator, 2026-10-21T22:09:40Z -- epic 32 applied it (32.3 restated as the balance rule)
 - U-2 | veto | Story 1.1: Credential handling: the bridge Config Store Merge accepts api_key only as exactly one @{env:NAME} placeholder (NAME [A-Za-z0-9_]+) and refuses a literal key or any other @{ in any field, failing with nothing written (spec decision 10; AD-19 tightened, not changed). -> keep (by Contest Planner, 2026-10-21T22:15:31Z#13; quoting the owner: "Please answer any of the questions that the orchestrator escalates to you to the best of your ability while I'm gone."); resolved by orchestrator, 2026-10-21T22:42:30Z -- kept (veto window closed by the owner's delegate)
@@ -23,4 +41,4 @@ answer: (none yet -- answer with the script or --review)
 - U-7 | veto | Story 32.3: Your balance rule (U-1, 'a': no IRIS job more than about 25% over the mean of the six) is judged on the grouping, i.e. each group's unit time normalized to one host, because the repository cannot choose which runner host a job lands on. Raw job times, runners and hosts are recorded every run, and the host disparity (ocutalon-ci-c runs a stack 1.4 to 2 times as long as ocutalon-ci-b; the first six-group run was 1.33x raw, 1.21x normalized) goes to you as the CI-capacity item with any job over about 10 minutes. -> keep (by Contest Planner, 2026-10-21T22:15:32Z#18; quoting the owner: "Please answer any of the questions that the orchestrator escalates to you to the best of your ability while I'm gone."); resolved by orchestrator, 2026-10-21T22:42:30Z -- kept (veto window closed by the owner's delegate)
 - U-8 | report | CI capacity: Measured CI on the new hosts (Epic 32): ocutalon-ci-c starts IRIS stacks too slowly. On run 39675383146 (commit e366e33, no other run on the runners) all three IRIS jobs on ci-c failed the 400 s first-start limit (install-start, production, production-restart, sign-in), while the three on ocutalon-ci-b passed. Run 39657913372 failed the same way with six stacks on ci-c. On the first six-group run (39633794167) a stack on ci-c ran 1.4 to 1.9 times as long as on ci-b, and the job holding install-start takes about 11 min even on ci-b. Re-runs of the failed jobs have passed so far, so both lanes see intermittent reds that a re-run clears. -> (no answer); resolved by orchestrator, 2026-10-21T22:42:40Z -- handled: the Contest Planner (owner's delegate) capped ci-c to 4 services, 10 in all; recorded in Rule 21 (cc69839); a faster-disk plan is the owner's spend decision
 
-<!-- journal: 27 lines -->
+<!-- journal: 30 lines -->
