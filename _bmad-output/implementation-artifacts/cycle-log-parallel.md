@@ -74,3 +74,7 @@
 2026-10-22T01:04:54Z	Epic 1-16,29-32	ci_green_verified	runs=39698733667,39698733694 head=45dcdcf result=success purpose=resume
 2026-10-22T01:06:26Z	Epic 1-16,29-32	pointer_target_changed	from=Contest_Planner[2411f1] to=contests-26[2140f1](may_be_renamed_Contest_Planner_1) reason=the_Planner_window_after_the_owner_account_switch source=its_message;ListAgents_confirms_both_sessions
 2026-10-22T01:06:26Z	Epic 1-16,29-32	inbox_resolved	item=U-11 kind=report note=read_on_the_owner_side
+2026-10-22T02:18:39Z	Epic 1	runner_clarification	story=1-3 kind=contended_path+AD-2 paths=src/module.xml,docker/tests/test-pinned-sources.sh(bridge_first) shas=e4432ad,b32e8e6(verified)
+2026-10-22T02:18:39Z	Epic 1	ruling	question=story_1.3_creates_OcuTalon.BridgeExample;AD-2_lists_it_with_the_bridge_before_src/ocutalon_in_module.xml,but_lane_B_bridge_first_pins_the_first_two_resources choice=a:comply_now(BridgeExample.PKG_second_in_module.xml;footprint_extension_to_test-pinned-sources.sh_bridge_first_for_AD-2_full_order) rejected=b:defer_to_15.2(0.1.0_would_depart_from_AD-2;a_code_review_would_score_it_HIGH) why=AD-2_comply_first(U7),epic_2_touches_neither_file,the_check_edit_extends_it_to_AD-2s_own_list category=decide policy=7969e52
+2026-10-22T02:18:39Z	Epic 1	runner_resumed	message=ruling_a
+2026-10-22T02:18:39Z	Epic 1	inbox_items_seen	items=U-12,U-13 kind=veto story=1-3 pointer=contests-26
