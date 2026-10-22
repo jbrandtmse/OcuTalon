@@ -84,3 +84,6 @@
 2026-10-22T02:56:50Z	Epic 2	ruling	question=AD-13_unchecked-prepare_allow-list_plus_Ownership.Rows choice=stop(owner_decides) rejected=decide/veto(U7c:AD-13_cited_by_done_specs_0.2,0.3,0.5,0.7,0.8,2.1=re-architecture) why=doctrine_U7_step3;epic_1_specs_do_not_cite_AD-13 category=stop inbox=U-15 policy=7969e52
 2026-10-22T02:56:50Z	Epic 2	unattended_stop	unit=Story_2.2 reason=AD-13_amendment_is_a_re-architecture_under_U7c inbox=U-15 runner=idle_awaiting_answer(context_kept)
 2026-10-22T02:56:50Z	Epic 2	inbox_items_seen	items=U-14 kind=veto story=2-2 pointer=Contest_Planner_1
+2026-10-22T02:57:36Z	Epic 2	owner_decision	id=U-14 at=2026-10-22T02:57:22Z#46 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
+2026-10-22T02:57:36Z	Epic 2	inbox_answer_routed	item=U-15 at=2026-10-22T02:57:22Z#45 by=Contest_Planner(owner_delegate) answer=a:amend_AD-13(Ownership:Rows)+4_conditions to=epic-2(live_runner,resumed) apply_at=now(story_2.2_spec_gate)
+2026-10-22T02:57:36Z	Epic 2	runner_resumed	message=apply_U-15
