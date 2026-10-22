@@ -388,3 +388,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Install.Step.Web.Purge delegates to Live.Event.Purge (the logic is in OcuTalon.Live), because the registry finds only Install.Step.<Area> classes and Install/** other than Web.cls is Lane A's; spec Design Note 10 plans the move, and nothing else tracks it.
 - 2026-10-22T07:48:43Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Install/Step/ is open to Lane B, or an OcuTalon.Install.Step.Live class exists, and Web still declares it
+
+### DW-73: CommandsIn checks a tool's Dismiss against the command's SessionRef and never compares it with the active bridge context's OwnerRef, so a tool that filled SessionRef from model-supplied arguments could dismiss another session's incident
+- source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Core/CommandsIn.cls tool Dismiss branch uses command.SessionRef; Bridge.Context.Current().OwnerRef is never compared; no tool submits yet (unverified)
+- 2026-10-22T10:04:50Z status=open owner=2-3-route-every-command-by-verb-with-origin-checks by=harvest note=code review patches the cross-check (context active: SessionRef must equal Context.Current().OwnerRef, else not_found) with a test, or dispositions it with reason
+
+### DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread
+- source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Ens.BusinessService.ProcessInput kills JobSessionId in preProcessInput and at Exit (irislib/Ens/BusinessService.cls:79,100); CommandsIn runs in the caller's process; behaviour since Story 0.6 (unverified)
+- 2026-10-22T10:04:50Z status=routed owner=2-9-open-anything-in-visual-trace by=harvest note=a throwaway check inside an operation job with JobSessionId set: Submit, then log an event and read its SessionId; if lost, Trace.Join or the runner restores the id

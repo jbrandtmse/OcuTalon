@@ -1765,6 +1765,8 @@ So that I can watch the assistant work like any other production.
 
 - DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; routed by cr 2026-10-22)
 
+- DW-74: A throwaway check settles whether `Commands.Submit` (Story 2.3) loses the calling job's job-local `SessionId` (`Ens.BusinessService.ProcessInput` kills it on exit): inside an operation job with the id set, `Submit`, then log an event and read its `SessionId`; if it is lost, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's Visual Trace thread (ledger; routed by harvest 2026-10-22)
+
 ### Story 2.10: Show status banners for a missing key or a stalled heartbeat
 
 As a user,
