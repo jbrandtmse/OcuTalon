@@ -1579,6 +1579,8 @@ So that OcuTalon never leaves a message of mine unanswered.
 **When** IRIS or its container restarts
 **Then** queued turns are still queued and run in order, and a turn left `running` is run again (FR-6, NFR-16, AD-30)
 
+- DW-61: Each `Turn` keeps my message text, its reply text as sent, the `clientId` and the trace target, and `ChatMessage.FromRow` (Story 2.2) maps them, so `/state`'s chat shows every turn with its reply after a reload; Story 2.2's snapshot carries the turn entries without text until then (ledger; routed by spec_gate 2026-10-22)
+
 ### Story 2.5: Chat with OcuTalon in the page
 
 As a user,
@@ -1682,6 +1684,8 @@ So that only what needs me interrupts me, and nothing an outsider sends can act.
 **Then** a tell-now card has an `attention` bar, `bell-ring`, the catalog text exactly with no title, the "Why now:" line and a decision strip; a reminder card has an `info-ink` bar, `bell`, the text ("Reminder: stretch.") and "Due {time} · arrived {time}" (FR-1, UX-DR69)
 **And** page times use the browser's zone and hour format with no suffix, and a page time beside message text adds the browser's zone abbreviation when it differs from the instance's ("20:15 CEST"); a Playwright test runs the browser in a zone different from the instance's (FR-12, UX-DR123)
 **And** a CI check against the mock on every run finds a tell-now notification in the page's web chat within 5 seconds of its decision, and on the simulated phone within 5 seconds once Story 4.5 builds `SimPhoneOut` and turns that half on; the 19-of-20 figure over real networks is measured in the rehearsal and on the online demo (FR-1, NFR-9, P30)
+
+- DW-62: Each web notice card is kept where the snapshot can read it, and `StateBody`'s chat merge (Story 2.2) adds its `notification` entries in time order, so a reload shows the cards in the conversation (ledger; routed by spec_gate 2026-10-22)
 
 ### Story 2.8: Show the status rail
 
