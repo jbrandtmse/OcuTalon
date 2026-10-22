@@ -79,3 +79,4 @@
 2026-10-22T02:18:39Z	Epic 1	runner_resumed	message=ruling_a
 2026-10-22T02:18:39Z	Epic 1	inbox_items_seen	items=U-12,U-13 kind=veto story=1-3 pointer=contests-26
 2026-10-22T02:19:24Z	Epic 1-16,29-32	ci_capacity_note	source=Contest_Planner(owner_delegate) benchmark=premium_intel_30-40pct_faster,first_start_164-177s_vs_252-293s recommendation=resize_both_hosts_in_place_one_at_a_time(owner_go_pending) until_then=ci-c_start_timeouts_are_infra,re-run
+2026-10-22T02:19:33Z	Epic 1	owner_decision	ids=U-12,U-13 at=2026-10-22T02:19:09Z#39,#40 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved(the_earlier_commit_5882881_logged_no_owner_decision:the_loop_misparsed_an_empty_field)
