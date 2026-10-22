@@ -80,3 +80,7 @@
 2026-10-22T02:18:39Z	Epic 1	inbox_items_seen	items=U-12,U-13 kind=veto story=1-3 pointer=contests-26
 2026-10-22T02:19:24Z	Epic 1-16,29-32	ci_capacity_note	source=Contest_Planner(owner_delegate) benchmark=premium_intel_30-40pct_faster,first_start_164-177s_vs_252-293s recommendation=resize_both_hosts_in_place_one_at_a_time(owner_go_pending) until_then=ci-c_start_timeouts_are_infra,re-run
 2026-10-22T02:19:33Z	Epic 1	owner_decision	ids=U-12,U-13 at=2026-10-22T02:19:09Z#39,#40 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved(the_earlier_commit_5882881_logged_no_owner_decision:the_loop_misparsed_an_empty_field)
+2026-10-22T02:56:50Z	Epic 2	runner_clarification	story=2-2 kind=AD_amendment ad=AD-13 shas=669515f,f7be165(verified)
+2026-10-22T02:56:50Z	Epic 2	ruling	question=AD-13_unchecked-prepare_allow-list_plus_Ownership.Rows choice=stop(owner_decides) rejected=decide/veto(U7c:AD-13_cited_by_done_specs_0.2,0.3,0.5,0.7,0.8,2.1=re-architecture) why=doctrine_U7_step3;epic_1_specs_do_not_cite_AD-13 category=stop inbox=U-15 policy=7969e52
+2026-10-22T02:56:50Z	Epic 2	unattended_stop	unit=Story_2.2 reason=AD-13_amendment_is_a_re-architecture_under_U7c inbox=U-15 runner=idle_awaiting_answer(context_kept)
+2026-10-22T02:56:50Z	Epic 2	inbox_items_seen	items=U-14 kind=veto story=2-2 pointer=Contest_Planner_1
