@@ -80,3 +80,4 @@
 2026-10-22T01:40:34Z	Story 1.2	committed	sha=b32e8e6 submodules= ci=pending runs=39707004646,39707004709 amendments=_bmad-output/planning-artifacts/epics.md:1162(AC3_Then_line,rule5_tier1) footprint_extensions=none pushed_with=c080868(implement)+7_bookkeeping
 2026-10-22T01:40:34Z	Story 1.2	story_cycle	plan_to_commit_min=420(incl_hold_78) implement_passes=2(1_halted_intent_gap,1_redispatch) reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=1(dev,ruled_decide_rule5)
 2026-10-22T01:43:06Z	Epic 1	epic_context_compiled	sha=pending_in_next_commit reason=planning_artifact_newer(epics.md:DW-56_bullet_in_1.7_at_70ca4dd) model=claude-opus-5-5 lines=88 spawn_agent=a543b608ef53060bd
+2026-10-22T01:43:18Z	Story 1.3	stage_spawned	stage=plan spawn_at=2026-10-22T01:43:18Z model=claude-opus-5-5 agent_name=1-3-plan-1 cycle_iteration=1
