@@ -2,7 +2,8 @@
 title: 'Story 2.1: Lay out the main page frame'
 type: 'feature'
 created: '2026-10-21'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '435d814263697bc7d66bed155130374ea8be82a7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -280,6 +281,58 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-21 — Review pass
+- verdicts: 44 findings — high 0, medium 3, low 33, false 8, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` README_URL plus an appended section fragment gives `#readme#telegram` — the U-9 ruling and the spine Conventions row dictate the constant and "appends its fragment"; About is the only consumer here; reopen_if: Story 2.10, 16.x or 31.3 lands a README section link (residual risk reported to the lead)
+    - `[low]` `[reject]` ServerButton accepts the `inactive` variant but acts as a live button — no consumer; the variant is a stylesheet class the spec lists; a guard adds branching for no reachable case
+    - `[low]` `[reject]` ServerButton swallows a fast failure or a throw and restores silently — the spec defines busy, 10 s restore and the late answer, not a failure notice; reopen_if: Story 2.2's Retry shows no feedback on a fast failure
+    - `[low]` `[reject]` Web.Api hard-codes the production and item names; the empty-model path has no StateBody test — the spec's task names the literal; `ModelName("")` is tested and the browser test covers the empty line; no divergence reachable
+    - `[low]` `[reject]` controls.css bypasses the per-variant height and radius tokens — the spec's task names `--space-control-height`, `--space-target-min` and `--rounded-sm`; the spinner follows the button's colour on purpose (a white spinner would vanish on ghost and secondary)
+    - `[low]` `[reject]` F4 does not show that a theme choice repaints — the AC pins `html[data-theme]`; the dark selectors are Story 0.3's and pinned by the token tests
+    - `[low]` `[reject]` no test for an invalid stored theme — `storedTheme()` maps it to System by `find`; no AC; theme.ts imports Angular, which the node tests cannot load
+    - `[low]` `[reject]` Popover, Dialogs, ServerButton, InlineNotice and Announcer ship with no browser test — the spec's Integration ACs and the Busy AC place those tests in Stories 2.2 and 2.9; no consumer exists here; reopen_if: Story 2.2 or 2.9 lacks that test
+  - Edge Case Hunter
+    - `[low]` `[reject]` ResolveModel could throw inside StateBody — the pinned contract quits "" on every failure path it handles; no throw path shown
+    - `[false]` `[reject]` onlineDemo "1.0" or " 1" reads false — Install.Step.Public stores 1 or 0; a non-canonical value is not reachable
+    - `[low]` `[reject]` demo.mode is read through Setting.Get's 60 s cache — the spec requires Setting.Get; the cache is Setting's contract
+    - `[low]` `[reject]` OnBeforeAllTests aborting before its saves lets OnAfterAllTests drop the row — the reads cannot fail in practice; no probe
+    - `[low]` `[patch]` PutMode and RemoveMode drop the %Save and %DeleteId status — both now `$$$ThrowOnError`; Test.Web.Api passes on slot B and on a throwaway
+    - `[low]` `[reject]` the restore kills only this process's cache — the spec says to kill it after each write; another process matters only with concurrent web traffic on the same runtime, which no CI path has
+    - `[false]` `[reject]` an action that returns neither an Observable nor a Promise throws a TypeError — the input type forbids it and the spec says the action returns one of the two
+    - `[low]` `[reject]` same root cause as the swallowed fast failure above (rejection or synchronous throw restores silently) — see that row
+    - `[low]` `[reject]` an older call's late answer clears a newer call's notice — needs two unanswered presses 10 s each; the fix adds per-call notice tracking
+    - `[false]` `[reject]` About breaks when `models` is missing — `StateSnapshot.models` is required by type and the server always sends it; the page and the server ship in one package
+    - `[low]` `[reject]` a long user name overflows the header — IRIS user names are short; narrow layouts are Story 2.12's
+    - `[low]` `[reject]` the tooltip text is stale if it changes while showing — a keyboard theme change under a resting pointer; cosmetic
+    - `[low]` `[reject]` a flash of the wrong theme before main.ts runs — the spec places the apply in main.ts because no inline script is allowed; reopen_if: a screenshot shows the flash
+    - `[low]` `[reject]` the rail and main squeeze on a narrow viewport — wide and narrow layouts are Story 2.12's (out of scope in the intent)
+    - `[low]` `[reject]` Popovers.focusFirst may find a hidden control or run after close — no consumer until Story 2.9
+    - `[low]` `[reject]` signin.js re-submit after the hash changed keeps the old fragment — needs a hash edit between two submits of one document
+  - Verification Gap
+    - `[medium]` `[patch]` the Online demo badge was only tested with demoMode true — the F3 online test now runs with demoMode true and false; mutation recorded (badge requires demoMode)
+    - `[low]` `[reject]` the three `models` values are identical in every test, so a swapped item is invisible — the fix needs a fixture production and a StateBody seam (about 40 lines); the mapping is three reviewable lines and all three agents use one model today; reopen_if: any agent's Model setting differs (for example Diagnosis on Sonnet)
+    - `[medium]` `[patch]` F4 "no page error" cannot fail for the setItem path (Angular logs a listener error to the console and raises no page error) — the test now also collects console errors; mutation recorded and shown red
+    - `[low]` `[reject]` shared controls with no executed test host — same as the Blind Hunter row: Integration ACs name Stories 2.2 and 2.9
+    - `[low]` `[patch]` the signin.js double-submit guard is untested — a DW-4 test now submits twice with the default prevented and asserts one fragment; mutation recorded
+    - `[low]` `[reject]` the "Demo guide" and "Simulated devices" counts of F2 cannot fail yet — the regions do not exist until Epic 4; the F2 AC states the clause; the pinning assertions here are the badge and main's geometry (mutation recorded)
+    - `[false]` `[reject]` acceptance criteria lack mutation lines — Rule 19 asks one demonstrated mutation per AC; the plan's table names one per AC and all of them are recorded, three more are added by this pass
+    - `[low]` `[reject]` the "Claude Haiku 5.5" x3 assertion depends on the saved production — the spec's task asks for exactly that and Task 0 measured it on slot B and a throwaway
+    - `[low]` `[patch]` PutMode and RemoveMode ignore their statuses (hermeticity) — same fix as the Edge Case Hunter row
+    - `[low]` `[reject]` frame specs depend on the installer's demo mode and README account, and F8 sleeps 600 ms — a real throwaway by design; the sleep bounds a negative assertion past the 300 ms delay
+  - Intent Alignment (divergences of the diff from the intent's surfaces)
+    - `[low]` `[reject]` the server button's DOM contract is tested only through BusyState — same as the shared-controls row; the matrix's Busy rows are covered by `busy-state.test.mjs` as the Busy AC plans
+    - `[low]` `[reject]` only the ghost variant is rendered in a browser — `controls-styles.test.mjs` scans all five; F7 is a ghost AC
+    - `[low]` `[reject]` the popover is never opened — no consumer until Story 2.9
+    - `[low]` `[reject]` the demo-region absences hold with the flag on — same as the F2 vacuous-clause row
+    - `[medium]` `[patch]` the browser test of Online demo uses demoMode true only — same fix as the Verification Gap badge row
+    - `[low]` `[reject]` the theme tests assert the attribute, not the paint — same as the Blind Hunter repaint row
+    - `[false]` `[reject]` `models.diagnosis` and `models.chat` are read by nothing on the frame — the spec's task names the three keys (Story 2.2's snapshot carries them)
+    - `[false]` `[reject]` Web.Api references Lane A classes — read-only references the Code Map names (`Install.Step.Demo.#MODEKEY`, `AgentRunner.ResolveModel`); no Lane A file is edited
+    - `[false]` `[reject]` shell.spec row 8 was rewritten (h1 outside main, a hidden Chat h2) — the spec's task
+    - `[false]` `[reject]` the account trigger's name changes from "Account" to the user name — the spec's task and its decision 5
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -363,6 +416,8 @@ It wraps CDK primitives instead of writing its own. `ModelName` is new: its only
 
 Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. Only one `iris_execute_tests` call is made per message. The tag for every throwaway command below is `OCUTALON_RUN_TAG=e2s21i OCUTALON_LOCK_OWNER='epic=2 stage=implement'`, with one piece per call and `timeout: 600000` on each.
 
+**Task 0 result (measured 2026-10-21 on `ocutalon-slot-b`, namespace `OCUTALON`, Build 154U, after loading both class trees):** `ResolveModel("TriageAgent","OcuTalon.Production")` returns `claude-haiku-5-5`, and so do `DiagnosisAgent` and `ChatAgent`. The inference holds, so `Test.Web.Api`'s model assertions run on the slot as well as on the installed throwaway, and the slot loop line needs no change.
+
 **Commands:**
 - (loop) `iris_server_info` (`server: ocutalon-slot-b`). Expected: Build 154U; the profile's ports are 1991 and 52791.
 - (loop) `iris_doc_load` (`compile: true`, `flags: "ck"`) as two calls: `src/bridge/cls/**/*.cls`, then `src/ocutalon/cls/**/*.cls`. Expected: 0 errors. The slot held no OcuTalon class on 2026-10-21 (measured: `<CLASS DOES NOT EXIST>`).
@@ -399,6 +454,22 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. O
 | Busy | drop the repeat guard | `busy-state.test.mjs` |
 | F9 / StateBody | `demoMode` read from `onlineDemo` | `TestStateFlags` |
 
+- mutation: `.logo` width 240px in `signin.css` (`SignInAssets.cls` regenerated) -> `sign-in.spec.ts` row 5, light and dark (red together with the DW-4 mutation in one `live sign-in` run: exactly those five tests failed)
+- mutation: dropped the `form.setAttribute('action', ...)` hash append in `signin.js` (`SignInAssets.cls` regenerated) -> the three DW-4 tests of `sign-in.spec.ts`
+- mutation: removed the rail's `aria-labelledby` in `main-page.ts` -> `frame.spec.ts` F1 (the F1, F2, F3, F4, F7 and F8 mutations were applied together in one `live sign-in` run: exactly F1, F2, F3 online, F4 reload, F7 and F8 failed)
+- mutation: `main` `flex: none` in `main-page.ts` -> `frame.spec.ts` F2
+- mutation: the badge ignores `onlineDemo` (`false && snapshot?.onlineDemo`) in `header.ts` -> `frame.spec.ts` F3 online badge
+- mutation: skipped the `localStorage.setItem` in `Theme.set` -> `frame.spec.ts` F4 "choosing Dark applies at once and survives a reload", at the reload assertion
+- mutation: removed the "About OcuTalon" item from the account menu in `header.ts` -> `frame.spec.ts` F5 (F6, the failed-snapshot test, F7 and F9 also failed, because they open About)
+- mutation: `autoFocus: 'first-tabbable'` in `dialogs.ts` -> `frame.spec.ts` F6 "focus starts on the heading" (F7, which waits for that focus, also failed)
+- mutation: `outline-offset: 0` in `base.css` -> `frame.spec.ts` F7 "the theme button's ring is 2px off"
+- mutation: `TOOLTIP_DELAY_MS = 0` in `tooltip.ts` -> `frame.spec.ts` F8 "absent before 300 ms, then shown" (run again alone after the F8 test was changed to time the gap in the page: only F8 failed)
+- mutation: dropped the repeat guard (`if (this.isBusy) return false`) in `BusyState.press` -> `busy-state.test.mjs` "ignores a press while busy and makes no second call"
+- mutation: `demoMode` read from `onlineDemo` in `Api.StateBody` -> `Test.Web.Api:TestStateFlags` (slot B: failed for the cases where the two flags differ)
+- mutation: the badge also requires `demoMode` (`snapshot?.onlineDemo && snapshot?.demoMode`) in `header.ts` -> `frame.spec.ts` F3 "Online demo" with demoMode false (the demoMode true variant stayed green)
+- mutation: removed the try/catch around `localStorage.setItem` in `Theme.set` -> `frame.spec.ts` F4 "a storage that throws" at its console-error assertion (the page-error watcher alone stayed empty)
+- mutation: removed the `action.indexOf('#') < 0` guard in `signin.js` (`SignInAssets.cls` regenerated) -> `sign-in.spec.ts` "DW-4: a second submit before the page leaves adds the fragment to the action once" (these three were applied together in one `live sign-in` run: exactly those three tests failed; the tree was then restored byte-identical)
+
 **Shared surfaces:**
 - the `/state` key set: `Test.Web.Api:70`, `api.spec.ts:136`, `api-types.ts`;
 - the header's account trigger name: shell.spec rows 8 and 11, the @floor test in `01-page.spec.ts`;
@@ -415,5 +486,43 @@ Every test added or changed passes on a fresh environment, in either order. Each
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Release 1's page frame: `GET /api/v1/state` gains `user`, `onlineDemo`, `demoMode` and `models` (display names mapped by `Api.ModelName`); `signin.js` carries the URL fragment through sign-in (DW-4, `Shell.cls` unchanged); the Angular app gets the wildcard hash route, the landmarks and headings, a root `LiveState`, the full header (context badge, theme menu, account menu with About and Sign out), the About dialog, and the shared controls (`controls.css` button variants, server button over a framework-free `BusyState`, inline notice, announcer, popover registry, tooltip, dialog service over the CDK).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: the four new `/state` keys, `ModelName`, a private `ResolveModel`.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls`: key list, `TestStateFlags` (four combinations, saves and restores `onlineDemo` and `demo.mode`), `TestModelName`.
+- `src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls`, `web/src/signin/signin.js`: the fragment carry (regenerated).
+- `web/src/app/{live,main-page,theme,about,shared}/**`, `web/src/app/links.ts`, `web/src/styles/controls.css`, `web/angular.json`: new frame pieces and shared controls.
+- `web/src/app/{app.ts,app.config.ts,header/header.ts,icon/icon.ts,api/api-types.ts}`, `web/src/main.ts`: extended.
+- `web/e2e/frame/frame.spec.ts` (new), `web/e2e/sign-in/{sign-in,shell}.spec.ts`, `web/e2e/demo-path/01-page.spec.ts`, `web/e2e/api/api.spec.ts`: F1-F9, the sign-in and DW-4 rows, and the old shapes updated.
+- `web/scripts/{busy-state,controls-styles}.test.mjs` (new): the busy state machine on a fake clock and the button-variant stylesheet scan.
+
+**Review.** 44 findings from four layers: high 0, medium 3, low 33, false 8.
+- Patched (6 rows, 4 entries): the Online demo badge now also runs with `demoMode` false (medium); F4's storage-throws test also watches console errors, because Angular logs a listener error there and raises no page error (medium); the signin.js double-submit guard has a test (low); `PutMode` and `RemoveMode` in `Test.Web.Api` throw on a failed save or delete (low). Each test patch has its mutation line, demonstrated red and restored byte-identical.
+- Deferred: none.
+- Rejected, 38 (reasons per row in the Review Triage Log): spec-dictated or by-design (the README link constant and token choices, `Setting.Get`'s cache, the demo-region absence clause of F2, the Haiku x3 assertion); no consumer until Story 2.2 or 2.9 (server button failure feedback, `inactive` variant, popover focus, tests of the shared controls' DOM side); out of scope (narrow layouts, Story 2.12); unreachable or type-forbidden (`models` missing, non-canonical `onlineDemo`, an action returning a plain value); cosmetic or unlikely (long user names, tooltip text change, a theme flash, an older call's late answer clearing a newer notice, a re-submit after a hash edit).
+- Follow-up review recommended: false. The patched entries are two medium and two low, all in tests; each was shown red under its mutation and the full `live sign-in` unit (49 tests) passed afterwards. No unverified risk can be named.
+
+**Verification.**
+- Slot B (`ocutalon-slot-b`, `OCUTALON`, Build 154U): `src/bridge` (33) and `src/ocutalon` (175) classes compiled with no error; `Test.Web.Api` (12), `Test.Web.SignIn` (9), `Test.Web.Shell` (5) and `Test.Contract.Ac` (6) passed, before and after the patches.
+- Web: `tokens --check`, `lint`, `npm test` (95 tests, including `busy-state` and `controls-styles`), `build` (no budget warning, tree otherwise unchanged), `e2e --list` (49 chromium tests, none from `demo-path/`), `e2e:demo-path --list` (13 tests), `test-boundaries.sh` and `test-web-build.sh` all passed.
+- Throwaway tag `e2s21i`: `ci/iris.sh build`, `live sign-in` (49 passed), `live demo-path` (1 floor test passed, 12 skipped, 0 failed), `class OcuTalon.Test.Web.Api` passed, and `teardown` left nothing. After the last patch: `ci/checks.sh` (exit 0), `shard lane-b` (24 classes passed), `live bundle-folder` passed, `teardown` clean.
+- Task 0: `ResolveModel` returns `claude-haiku-5-5` for all three items on slot B (recorded under `## Verification`). Fifteen mutations demonstrated red and reverted (twelve planned, three from review).
+- Matrix Test Audit: every row has a covering test that ran and passed (rows 1-9 in `sign-in.spec.ts`, `frame.spec.ts`, `Test.Web.Api`; rows 10-12 in `busy-state.test.mjs`, as the Busy AC plans).
+
+**Decided in-stage (implement), all small and reversible.**
+- The tooltip also hides on pointer down; a new press on a server button clears the previous notice, and only the latest call's answer ends the busy state; a press on a popover's trigger is left to the trigger (an `isOpen` getter lets it toggle); About's heading sits inside its one body block; the rail's label spacing follows the mockup and `main` uses `--chat-panel-background`.
+- F7 waits for the About heading's focus before pressing Tab, and F8 times the gap between the pointer entering and the tooltip appearing inside the page, so a slow runner cannot skew either.
+- The Online demo badge test runs with `demoMode` true and false; the storage-throws test also watches console errors.
+
+**Residual risks.**
+- `README_URL` ends in `#readme`; the U-9 ruling and the Conventions row say a section link appends its fragment, which gives `#readme#section` and does not scroll on GitHub. Stories 2.10, 16.x and 31.3 should take a fragment-free base (the lead may amend the ruling and the row).
+- The server button's DOM side, the popover, the inline notice and the announcer have no browser test until Stories 2.2 and 2.9; they were checked by hand in a temporary page that is not in the tree.
+- F2's absences of "Demo guide" and "Simulated devices" hold vacuously until Epic 4 builds those regions; Epic 4 keeps them and adds a mutation.
+- `busy-state.test.mjs` passes on Node 26.8.1 with a `MODULE_TYPELESS_PACKAGE_JSON` warning on stderr; CI's Node 24 is inference until a CI run.
+- All three `models` values are the same model today, so the tests cannot see a swapped item; reopen if any agent's `Model` setting differs.
+- The chromium specs ran on ARM only; the first x64 runner run of F7/F8 (timing, focus) is unobserved.
+- Gitignored build output (`src/ocutalon/csp`, `web/public/assets/brand`) is left on disk.

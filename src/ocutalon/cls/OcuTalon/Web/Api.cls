@@ -2,6 +2,8 @@
 /// with /ocutalon and the trace applications.
 ///   - GET /v1/state is the snapshot and GET /v1/events the poll (AD-12); every other route of the release answers
 ///     501 not_built until its story ships, and the pairing routes answer 404 while Telegram is not included.
+///     The snapshot also tells the page who is signed in, which mode the instance runs in (onlineDemo, demoMode) and the
+///     display names of the models its agents use.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -125,11 +127,13 @@ ClassMethod Pairing() As %Status
 }
 
 /// The snapshot of a session: the version, the instance zone, the session's epoch, each stream's last Seq, and
-/// the chat and rail sections (empty until Story 2.2 fills them). instanceStream is the stream reported as instance:
-/// Live.Publish's instance stream unless the caller names another.
+/// the chat and rail sections (empty until Story 2.2 fills them), then the signed-in user (the session row's, never the
+/// client's), the booleans onlineDemo and demoMode, and models: the display names of the triage, diagnosis and chat
+/// agents' models. instanceStream is the stream reported as instance: Live.Publish's instance stream unless the caller
+/// names another.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
-	Quit {
+	Set body = {
 		"version": (..Version()),
 		"instanceZone": (##class(OcuTalon.Data.Time).Zone()),
 		"epoch": (session.Epoch),
@@ -138,8 +142,30 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 			"instance": (##class(OcuTalon.Live.Publish).LastSeq(instanceStream))
 		},
 		"chat": [],
-		"rail": {"approvals": [], "checks": [], "reminders": [], "decisions": []}
+		"rail": {"approvals": [], "checks": [], "reminders": [], "decisions": []},
+		"user": (session.IrisUser)
 	}
+	Do body.%Set("onlineDemo", ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1, "boolean")
+	Do body.%Set("demoMode", ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1", "boolean")
+	Set body.models = {
+		"triage": (..ModelName(..ResolveModel("TriageAgent"))),
+		"diagnosis": (..ModelName(..ResolveModel("DiagnosisAgent"))),
+		"chat": (..ModelName(..ResolveModel("ChatAgent")))
+	}
+	Quit body
+}
+
+/// The display name of a model id: "Claude Haiku 5.5" for claude-haiku-5-5 and "Claude Sonnet 5.5" for
+/// claude-sonnet-5-5. Any other id is returned as it is, and "" stays "".
+ClassMethod ModelName(id As %String) As %String
+{
+	Quit $Case(id, "claude-haiku-5-5": "Claude Haiku 5.5", "claude-sonnet-5-5": "Claude Sonnet 5.5", : id)
+}
+
+/// The model that an agent's runner item of the production uses (AD-7), "" when none resolves.
+ClassMethod ResolveModel(item As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, "OcuTalon.Production")
 }
 
 /// The events after the two cursors: the session's own stream first, then the instance stream, each in Seq order

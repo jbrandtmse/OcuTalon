@@ -23,6 +23,10 @@ export interface StateSnapshot {
     reminders: ReminderPayload[];
     decisions: DecisionPayload[];
   };
+  user: string;
+  onlineDemo: boolean;
+  demoMode: boolean;
+  models: { triage: string; diagnosis: string; chat: string };
 }
 
 /** GET /ocutalon/api/v1/events?after=<sessionSeq>&afterInstance=<instanceSeq>: the session's events, then the instance's. */

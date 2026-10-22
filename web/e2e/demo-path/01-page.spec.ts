@@ -1,6 +1,6 @@
 import { expect, test, type Response } from '@playwright/test';
 
-import { signInReadme, watchViolations } from '../sign-in/helpers';
+import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
 import { notBuilt } from './not-built';
 
 /** The page's state snapshot (UJ-1 step 1). */
@@ -21,7 +21,7 @@ test('signs in with the README account and loads the page snapshot', { tag: '@fl
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page.locator('app-header .wordmark')).toHaveText('OcuTalon');
-  await expect(page.getByRole('button', { name: 'Account' })).toBeVisible();
+  await expect(page.getByRole('button', { name: README_ACCOUNT.user })).toBeVisible();
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
   expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
 });

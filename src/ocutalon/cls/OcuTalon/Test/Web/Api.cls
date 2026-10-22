@@ -4,8 +4,9 @@
 /// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
-/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. Capture, Collect and Written are shared
-/// with the other web tests that call a class method and read what it wrote.
+/// instance stream, and ^OcuTalonTest("TelegramIncluded") is restored. The tests of the snapshot's flags write the
+/// public setting onlineDemo and the demo.mode row, which OnBeforeAllTests saves and OnAfterAllTests puts back. Capture,
+/// Collect and Written are shared with the other web tests that call a class method and read what it wrote.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -17,12 +18,31 @@ Property SavedDefined As %Boolean;
 
 Property SavedValue As %String;
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
+/// 1 when the demo.mode row existed before the tests.
+Property SavedModeFound As %Boolean;
+
+/// The value of the demo.mode row before the tests.
+Property SavedModeValue As %String(MAXLEN = 1000);
+
+/// The UpdatedAt of the demo.mode row before the tests.
+Property SavedModeUpdatedAt As %String(MAXLEN = 20);
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
 	Set ..Number = $Increment(^OcuTalonTest("WebApi", "n"))
 	Set ..SavedDefined = ''$Data(^OcuTalonTest("TelegramIncluded"), value)
 	Set ..SavedValue = $Get(value)
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
+	Set ..SavedModeFound = $IsObject(row)
+	If ..SavedModeFound {
+		Set ..SavedModeValue = row.Value
+		Set ..SavedModeUpdatedAt = row.UpdatedAt
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -34,11 +54,17 @@ Method OnAfterAllTests() As %Status
 	} Else {
 		Kill ^OcuTalonTest("TelegramIncluded")
 	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	If ..SavedModeFound {
+		Do ..PutMode(..SavedModeValue, ..SavedModeUpdatedAt)
+	} Else {
+		Do ..RemoveMode()
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, and empty chat and rail.
-/// A fixture session's stream stands in for the instance stream.
+/// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, empty chat and rail, the
+/// session row's user and the models' display names. A fixture session's stream stands in for the instance stream.
 Method TestStateBody()
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
@@ -67,13 +93,59 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail", "the snapshot's keys")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models", "the snapshot's keys")
+	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
+	Do $$$AssertEquals(body.user, "zzapistate"_..Number, "and the fixture session's user")
+	Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", "the two flags are booleans")
+	Set keys = ""
+	Set iterator = body.models.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "triage,diagnosis,chat", "the models' keys")
+	Do $$$AssertEquals(body.models.triage_"|"_body.models.diagnosis_"|"_body.models.chat, "Claude Haiku 5.5|Claude Haiku 5.5|Claude Haiku 5.5", "every agent's model is Claude Haiku 5.5")
 	Set keys = ""
 	Set iterator = body.rail.%GetIterator()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
 	Do $$$AssertEquals(keys, "approvals,checks,reminders,decisions", "the rail's keys")
+}
+
+/// onlineDemo is true only when the public setting is 1, and demoMode only when the demo.mode row is "1": the four
+/// combinations, and an absent row or setting reads false.
+Method TestStateFlags()
+{
+	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
+	Do $$$AssertStatusOK(sc, "the fixture session")
+	For online = 0, 1 {
+		For mode = 0, 1 {
+			Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+			Do ..PutMode(mode, ##class(OcuTalon.Data.Time).NowUtc())
+			Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+			Set label = "onlineDemo "_online_", demo.mode "_mode
+			Do $$$AssertEquals(body.onlineDemo, online, label_": onlineDemo")
+			Do $$$AssertEquals(body.demoMode, mode, label_": demoMode")
+			Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", label_": both are booleans")
+		}
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do ..RemoveMode()
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
+	Do ..PutMode("yes", ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
+}
+
+/// The display names of the two known models, an unknown id as it is, and "" as "".
+Method TestModelName()
+{
+	Set api = "OcuTalon.Web.Api"
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-haiku-5-5"), "Claude Haiku 5.5", "claude-haiku-5-5")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-sonnet-5-5"), "Claude Sonnet 5.5", "claude-sonnet-5-5")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", "claude-opus-9-9"), "claude-opus-9-9", "an unknown id is returned as it is")
+	Do $$$AssertEquals($ClassMethod(api, "ModelName", ""), "", "an empty id stays empty")
 }
 
 /// The poll returns a session's events after its cursor, 200 at most, in order, each in the envelope; another
@@ -423,6 +495,37 @@ Method PublishReminders(stream As %String, count As %Integer, prefix As %String)
 		If $SYSTEM.Status.IsError(sc) Quit
 	}
 	Do $$$AssertStatusOK(sc, count_" events are published")
+}
+
+/// The key of the demo mode setting.
+ClassMethod ModeKey() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Install.Step.Demo).#MODEKEY
+}
+
+/// Writes the demo.mode row with the value and the time, creating it when it is absent, and drops this process's cache
+/// entry so that the next Get reads the row.
+ClassMethod PutMode(value As %String, updatedAt As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
+	If '$IsObject(row) {
+		Set row = ##class(OcuTalon.Data.Setting).%New()
+		Set row.Key = ..ModeKey()
+	}
+	Set row.Value = value
+	Set row.UpdatedAt = updatedAt
+	$$$ThrowOnError(row.%Save())
+	Kill ^||OcuTalon.Setting(..ModeKey())
+}
+
+/// Deletes the demo.mode row and drops this process's cache entry.
+ClassMethod RemoveMode() [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..ModeKey())
+	If $IsObject(row) {
+		$$$ThrowOnError(##class(OcuTalon.Data.Setting).%DeleteId(row.%Id()))
+	}
+	Kill ^||OcuTalon.Setting(..ModeKey())
 }
 
 /// Deletes the fixture sessions with their events and counters.
