@@ -1,12 +1,12 @@
 Include Ensemble
 
 /// Tests of the runners' models in a production that the Production step started (Story 1.1; AD-7, AD-19). THIS CLASS RUNS IN
-/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the Model rows that the Production step seeded at the start, it runs the
-/// Production step again, which restarts the production, and it restarts one runner item. Where the production does not run,
-/// the tests fail with that reason.
-///   - TestAppliedAtStart: with the three Model rows deleted, the Production step's Run() seeds them and restarts the
-///     production, and the running items of the three runners then apply claude-haiku-5-5 and their ProviderConfig, so the
-///     step seeds the rows before it starts the production;
+/// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the Model and Effort rows that the Production step seeded at the start,
+/// it runs the Production step again, which restarts the production, and it restarts one runner item. Where the production does
+/// not run, the tests fail with that reason.
+///   - TestAppliedAtStart: with the three Model rows and the two Effort rows deleted, the Production step's Run() seeds them and
+///     restarts the production, and the running items of the three runners then apply claude-haiku-5-5, the effort of their
+///     agent class (low, high, none) and their ProviderConfig, so the step seeds the rows before it starts the production;
 ///   - TestRunnersResolve: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, each runner has a
 ///     Model row with claude-haiku-5-5, and the step's own check, Production.UnresolvedRunners, names no runner;
 ///   - TestModelChange: one change of DiagnosisAgent's Model row to claude-sonnet-5-5 and a restart of that item make both
@@ -32,17 +32,16 @@ Parameter OTHERMODEL = "claude-sonnet-5-5";
 /// The runner whose model the change test switches.
 Parameter CHANGED = "DiagnosisAgent";
 
-/// The longest to wait for the item to run again, in seconds.
-Parameter WAITSECONDS = 30;
-
-/// The Production step seeds the Model rows before it starts the production. With the three rows deleted, Run() writes them
-/// again and restarts the production, and the running items apply the default model, which they would not if the rows were
-/// written after the start. Each item also applies its ProviderConfig row. The rows must hold the default model when the test
+/// The Production step seeds the Model and Effort rows before it starts the production. With the three Model rows and the two
+/// Effort rows deleted, Run() writes them again and restarts the production, and the running items apply the default model and
+/// the effort of their agent class (low for Triage, high for Diagnosis, none for Chat), which they would not if the rows were
+/// written after the start. Each item also applies its ProviderConfig row. The rows must hold the seeded values when the test
 /// starts, so that the seed puts them back as they were found; a run that fails leaves them seeded again.
 Method TestAppliedAtStart()
 {
 	If '..Running() Quit
 	Set runners = $ListFromString(..#RUNNERS)
+	Set effort("TriageAgent") = "low", effort("DiagnosisAgent") = "high", effort("ChatAgent") = ""
 	Set found = 1
 	Set position = 0
 	While $ListNext(runners, position, item) {
@@ -50,17 +49,24 @@ Method TestAppliedAtStart()
 		Set found = ##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = ..#DEFAULTMODEL)
 		Do $$$AssertTrue(found, item_" has a Model row with "_..#DEFAULTMODEL_" before the test")
 		If 'found Quit
+		If effort(item) = "" Continue
+		Set id = ..#PRODUCTION_"||"_item_"||*||Effort"
+		Set found = ##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = effort(item))
+		Do $$$AssertTrue(found, item_" has an Effort row with "_effort(item)_" before the test")
+		If 'found Quit
 	}
 	If 'found Quit
 	Try {
 		Set position = 0
 		While $ListNext(runners, position, item) {
 			Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||Model"), "the Model row of "_item_" is deleted")
+			If effort(item) '= "" Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||Effort"), "the Effort row of "_item_" is deleted")
 		}
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).Run(), "the Production step seeds the rows and restarts the production")
 		Set position = 0
 		While $ListNext(runners, position, item) {
 			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Model")), ..#DEFAULTMODEL, item_" applies "_..#DEFAULTMODEL_" as the step started it")
+			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Effort")), effort(item), item_" applies the effort '"_effort(item)_"' (empty: none) as the step started it")
 			Set config = ##class(Ens.Director).GetAdapterSettingValue(..#PRODUCTION_"||"_item, "ProviderConfig", .status)
 			Do $$$AssertTrue(config ? 1"@{config:OcuTalon"1.A1"}", item_"'s ProviderConfig names its entry: "_config)
 			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "ProviderConfig")), config, item_" applies its ProviderConfig")
@@ -69,10 +75,14 @@ Method TestAppliedAtStart()
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(..#PRODUCTION), "the rows are seeded where a failed run left none")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedEfforts(..#PRODUCTION), "and so are the Effort rows")
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set id = ..#PRODUCTION_"||"_item_"||*||Model"
 		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = ..#DEFAULTMODEL), "the Model row of "_item_" holds "_..#DEFAULTMODEL_" again")
+		If effort(item) = "" Continue
+		Set id = ..#PRODUCTION_"||"_item_"||*||Effort"
+		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id) && (##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue = effort(item)), "the Effort row of "_item_" holds "_effort(item)_" again")
 	}
 }
 

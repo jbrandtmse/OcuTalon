@@ -5,8 +5,8 @@
 /// variable OCUTALON_MOCK_KEY_HEADER (RunnerFixture.PointKeys) and put it back afterwards. The requests go through ApprovalStartIn,
 /// the adapterless service of the production, as a caller of the runners will send them.
 ///   - TestStartsWithNoKey: with no model key in the container, every runner runs; a Request gets an error that names the key
-///     placeholder, twice, because the agent is built on first use and a failed build is not kept; nothing reaches the mock and the
-///     item keeps its job;
+///     placeholder, twice, because the agent is built on first use and a failed build is not kept, and so does a ToolInventory
+///     request; nothing reaches the mock and the item keeps its job;
 ///   - TestStartRefused: a runner whose adapter has a refused setting (SystemPrompt), or whose agent class is not on the allow-list,
 ///     does not start, and the event log names the setting or the class; with the row put back it starts again;
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
@@ -17,7 +17,13 @@
 ///     web-search tool, and every tool is an OcuTalon tool of source iris whose code is clean (Test.Bridge.CodeRules.ToolCodeClean);
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
 ///     keeps its job;
-///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size.
+///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size;
+///   - TestKeysAreRead: RunnerFixture.KeysAre tells the entries of the Provider step from the entries that PointKeys changed, which is
+///     what lets TestStartsWithNoKey start from the entries of the Provider step whatever ran before it;
+///   - TestSeedsOfTheProduction: the rows that the Production step seeded for OcuTalon.Production itself: the Effort of each runner
+///     (low, high, none) and one AgentAllowList for every item that holds exactly the three agent classes of the runners.
+/// Every wait is a poll with a generous ceiling (RunnerFixture.WAITSECONDS and this class's WAITSECONDS): it returns as soon as the
+/// system shows what the test waits for, so a slower machine takes longer and does not fail.
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
 Class OcuTalon.Test.Agent.Runners Extends %UnitTest.TestCase
 {
@@ -34,8 +40,9 @@ Parameter KEYVARIABLE = "ANTHROPIC_API_KEY";
 /// The model that every runner resolves.
 Parameter MODEL = "claude-haiku-5-5";
 
-/// The longest to wait for the event log to show a refusal, in seconds.
-Parameter WAITSECONDS = 20;
+/// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
+/// once a second), and as long as RunnerFixture's wait for the items to run.
+Parameter WAITSECONDS = 120;
 
 /// 1 when the AgentAllowList row existed when the class began, with its value and description.
 Property AllowFound As %Boolean;
@@ -59,13 +66,13 @@ Method OnBeforeAllTests() As %Status
 	Quit $$$OK
 }
 
-/// Puts back what a test may have changed: the SystemPrompt row of TriageAgent, the allow-list row and the keys of the entries,
-/// and starts every runner that does not run.
+/// Puts back what a test may have changed: the SystemPrompt row of TriageAgent and the allow-list row, whether the production
+/// runs or not, and, when it runs, the keys of the entries, and starts every runner that does not run.
 Method OnAfterOneTest(testname As %String) As %Status
 {
-	If '##class(OcuTalon.Test.Agent.RunnerFixture).Running() Quit $$$OK
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||TriageAgent||*||SystemPrompt")
 	Do ..RestoreAllow()
+	If '##class(OcuTalon.Test.Agent.RunnerFixture).Running() Quit $$$OK
 	If ..Pointed {
 		Set ..Pointed = 0
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
@@ -79,7 +86,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 }
 
 /// With no model key in the container, every runner runs, and a Request to each gets an error that names the key placeholder, with
-/// no response. A second Request tries the build again and gets the same error. Nothing reaches the mock, and the item keeps its job.
+/// no response. A second Request tries the build again and gets the same error, and so does a ToolInventory request, which needs
+/// the built agent too. The entries must hold the placeholder of the Provider step and no job may hold an agent built before, so the
+/// test puts the entries back and restarts the runners first. Nothing reaches the mock, and the item keeps its job.
 Method TestStartsWithNoKey()
 {
 	If '..Ready() Quit
@@ -89,6 +98,7 @@ Method TestStartsWithNoKey()
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "every item runs with no model key")
 	Set placeholder = "@{env:"_..#KEYVARIABLE_"}"
+	If '..EnsureKeysAtPlaceholder(placeholder) Quit
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
@@ -101,6 +111,10 @@ Method TestStartsWithNoKey()
 			Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ placeholder, "that names "_placeholder_": "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 300))
 			Do $$$AssertTrue('$IsObject(reply), "and gives no response")
 		}
+		Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).Send(item, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .inventory)
+		Do $$$AssertStatusNotOK(sc, item_" answers a ToolInventory request with an error status too, because it builds the agent")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ placeholder, "that names "_placeholder_": "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 300))
+		Do $$$AssertTrue('$IsObject(inventory), "and gives no inventory")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item), before, item_" keeps its job")
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
@@ -257,16 +271,74 @@ Method TestPoolIsTheCap()
 	}
 }
 
+/// RunnerFixture.KeysAre reads the api_key placeholder of each runner's Config Store entry: true for the placeholder of the Provider
+/// step before PointKeys, true for the placeholder of the CI mock key variable and false for the first one after it. The test
+/// starts from the entries of the Provider step, and OnAfterOneTest puts them back.
+Method TestKeysAreRead()
+{
+	If '..Ready() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set placeholder = "@{env:"_..#KEYVARIABLE_"}"
+	Set mockKey = "@{env:"_$Parameter(fixture, "MOCKKEYVARIABLE")_"}"
+	If '..EnsureKeysAtPlaceholder(placeholder) Quit
+	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", mockKey), "the entries do not hold "_mockKey_" before they are pointed")
+	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", "@{env:ZZ_NO_SUCH_VARIABLE}"), "and do not hold a variable that nothing names")
+	If '..Point() Quit
+	Do $$$AssertTrue($ClassMethod(fixture, "KeysAre", mockKey), "after PointKeys every entry holds "_mockKey)
+	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", placeholder), "and none holds "_placeholder)
+}
+
+/// The Production step has seeded the rows of OcuTalon.Production itself: the Effort of each runner comes from the EFFORT of its
+/// agent class (low for Triage, high for Diagnosis, none for Chat), and one AgentAllowList for every item holds exactly the
+/// AgentClass of the three runners, in the order of the runners, so that the allow-list admits no other agent class. The rows are
+/// read the way a runner item resolves them.
+Method TestSeedsOfTheProduction()
+{
+	If '..Ready() Quit
+	Set expected("TriageAgent") = $ListBuild("OcuTalon.Agent.Triage", "low")
+	Set expected("DiagnosisAgent") = $ListBuild("OcuTalon.Agent.Diagnosis", "high")
+	Set expected("ChatAgent") = $ListBuild("OcuTalon.Agent.Chat", "")
+	Set allowed = "OcuTalon.Agent.Triage,OcuTalon.Agent.Diagnosis,OcuTalon.Agent.Chat"
+	Set runners = $ListFromString(..#RUNNERS)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set name = ..#PRODUCTION_"||"_item
+		Set value = ##class(Ens.Director).GetAdapterSettingValue(name, "AgentClass", .sc)
+		Do $$$AssertStatusOK(sc, item_"'s AgentClass is read")
+		Do $$$AssertEquals(value, $List(expected(item), 1), item_" runs "_$List(expected(item), 1))
+		Set value = ##class(Ens.Director).GetAdapterSettingValue(name, "Effort", .sc)
+		Do $$$AssertStatusOK(sc, item_"'s Effort is read")
+		Do $$$AssertEquals(value, $List(expected(item), 2), item_" resolves the effort '"_$List(expected(item), 2)_"' (empty: none)")
+		Set value = ##class(Ens.Director).GetAdapterSettingValue(name, "AgentAllowList", .sc)
+		Do $$$AssertStatusOK(sc, item_"'s AgentAllowList is read")
+		Do $$$AssertEquals(value, allowed, item_" resolves the allow-list of the three agent classes of the runners")
+	}
+}
+
 /// --- helpers ---
-/// 1 when OcuTalon.Production runs and the environment is the CI override's (Test.Agent.RunnerFixture.GuardReason). Otherwise the
-/// test fails with the reason, and quits.
+/// 1 when OcuTalon.Production runs, every item of it has its job (the wait is a poll, up to RunnerFixture.WAITSECONDS), and the
+/// environment is the CI override's (Test.Agent.RunnerFixture.GuardReason). Otherwise the test fails with the reason, and quits.
 Method Ready() As %Boolean [ Private ]
 {
 	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
 	If reason = "" Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).GuardReason()
+	If (reason = "") && '##class(OcuTalon.Test.Agent.RunnerFixture).WaitAllRun() Set reason = "not every item of "_..#PRODUCTION_" runs "_##class(OcuTalon.Test.Agent.RunnerFixture).#WAITSECONDS_" seconds after the test began: "_##class(OcuTalon.Install.Step.Production).NotRunning()
 	If reason = "" Quit 1
 	Do $$$AssertTrue(0, reason)
 	Quit 0
+}
+
+/// Makes the entries of the runners hold the placeholder and the runners run with no agent built: the entries are put back to the
+/// placeholder of the Provider step and every runner is restarted, whatever a test before this one left, so that no job holds an
+/// agent that was built with another key. 1 when every entry holds the placeholder. Otherwise the test fails with the reason, and
+/// quits.
+Method EnsureKeysAtPlaceholder(placeholder As %String) As %Boolean [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Do $$$AssertStatusOK($ClassMethod(fixture, "RestoreKeys"), "the entries of the runners are put back to the placeholder of the Provider step, and the runners restarted")
+	Set holds = $ClassMethod(fixture, "KeysAre", placeholder)
+	Do $$$AssertTrue(holds, "the entry of each runner holds the placeholder "_placeholder)
+	Quit holds
 }
 
 /// Points the keys of the runners at the CI mock key variable, and remembers to put them back. 1 when it worked.
@@ -312,19 +384,21 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, tools As %Bo
 	}
 }
 
-/// Asserts that the item does not run and that its event log, after the mark, holds an error row with the text.
+/// Asserts that the item does not run and that its event log, after the mark, holds an error row with the text. The wait is a poll
+/// up to WAITSECONDS for all three at once: the row, no alive job, and the item named by the Production step's check. The event
+/// log row is written while the job ends, so the jobs are read only once the row has shown.
 Method AssertRefused(item As %String, mark As %Integer, text As %String) [ Private ]
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
-	Set found = 0
-	Set rows = ""
 	For {
+		Set found = 0
 		Set rows = ##class(OcuTalon.Test.Agent.RunnerFixture).EventRows(mark, item)
 		Set position = 0
 		While $ListNext(rows, position, row) {
 			If row [ text Set found = 1
 		}
-		If found || ($ZHorolog > deadline) Quit
+		Set settled = found && '$ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)) && (##class(OcuTalon.Install.Step.Production).NotRunning() [ item)
+		If settled || ($ZHorolog > deadline) Quit
 		Hang 1
 	}
 	Do $$$AssertTrue(found, "the event log of "_item_" says '"_text_"': "_$ListToString(rows, " | "))

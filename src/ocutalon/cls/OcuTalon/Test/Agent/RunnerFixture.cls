@@ -5,6 +5,8 @@
 ///   - PointKeys and RestoreKeys: CI starts with no model key on purpose, so the live tests point the entry of each runner at
 ///     OCUTALON_MOCK_KEY_HEADER, a non-secret CI-only variable (value 1), through ConfigStore.Merge, and put the entries back to
 ///     the placeholder of the Provider step afterwards. Both restart the runners, because a runner builds its agent once;
+///     KeysAre reads the api_key placeholder of each runner's entry, so that a test can tell whether the entries are as the
+///     Provider step left them;
 ///   - GuardReason: "" only when the environment is the CI override's (the mock's base URL and the mock-key switch), so that no
 ///     test can send a request to a real model API;
 ///   - FindRequest, FindRequests, Effort, CacheMark and Has: read the entries of the mock's log (Test.Contract.Mock.LogSince).
@@ -18,11 +20,12 @@ Parameter PRODUCTION = "OcuTalon.Production";
 /// The runners of the production, in the order of the production.
 Parameter RUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent";
 
-/// The longest to wait for every item to run, in seconds.
-Parameter WAITSECONDS = 30;
+/// The longest to wait for every item to run, in seconds. A ceiling, not a delay: the wait polls once a second and returns as soon
+/// as the items run, so a slow machine takes longer and does not fail.
+Parameter WAITSECONDS = 120;
 
-/// The longest a sent message waits for its answer, in seconds.
-Parameter SENDSECONDS = 90;
+/// The longest a sent message waits for its answer, in seconds. A ceiling too: the first request of a runner builds its agent.
+Parameter SENDSECONDS = 240;
 
 /// The variable whose value is the placeholder of the pointed entries: a non-secret CI-only variable.
 Parameter MOCKKEYVARIABLE = "OCUTALON_MOCK_KEY_HEADER";
@@ -46,15 +49,11 @@ ClassMethod Running() As %Boolean
 	Quit ..RunningReason() = ""
 }
 
-/// "" only when OCUTALON_MODEL_BASE_URL is the mock's base URL and OCUTALON_MOCK_KEY_HEADER is 1 (Test.Contract.Mock checks
-/// both). Otherwise the reason.
+/// "" only when OCUTALON_MODEL_BASE_URL is the mock's base URL and OCUTALON_MOCK_KEY_HEADER is 1. Otherwise the reason. This is
+/// Test.Contract.Mock.MissingReason for the environment of this process.
 ClassMethod GuardReason() As %String
 {
-	Set sc = ##class(OcuTalon.Test.Contract.Mock).CheckBaseUrl($SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"))
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	Set sc = ##class(OcuTalon.Test.Contract.Mock).CheckMockKeyFlag($SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER"))
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	Quit ""
+	Quit ##class(OcuTalon.Test.Contract.Mock).MissingReason($SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"), $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER"))
 }
 
 /// Stops the item temporarily and starts it again, each through the director, and (when wait is 1) waits until every item runs.
@@ -152,6 +151,35 @@ ClassMethod RestoreKeys() As %Status
 	Quit ..SetKeys(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)
 }
 
+/// 1 when the api_key of the Config Store entry of every runner is exactly the placeholder. The entries hold a placeholder only
+/// (ConfigStore.Merge refuses anything else), so no key is read.
+ClassMethod KeysAre(placeholder As %String) As %Boolean
+{
+	Set are = 1
+	Set runners = $ListFromString(..#RUNNERS)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set entry = ..EntryOf(item, .sc)
+		If entry '= "" Set sc = ##class(%ConfigStore.Configuration).GetDetails(##class(OcuTalon.Bridge.ConfigStore).FullName(entry), .details, 0, 0)
+		If (entry = "") || $$$ISERR(sc) {
+			Set are = 0
+			Continue
+		}
+		If details.%Get("api_key") '= placeholder Set are = 0
+	}
+	Quit are
+}
+
+/// The name of the Config Store entry that the item's ProviderConfig names (@{config:<entry>}), or "" with the error in sc.
+ClassMethod EntryOf(item As %String, Output sc As %Status) As %String [ Private ]
+{
+	Set config = ##class(Ens.Director).GetAdapterSettingValue(..#PRODUCTION_"||"_item, "ProviderConfig", .sc)
+	If $$$ISERR(sc) Quit ""
+	Set entry = $Piece($Piece(config, "@{config:", 2), "}", 1)
+	If entry = "" Set sc = $SYSTEM.Status.Error(5001, item_"'s ProviderConfig does not name a Config Store entry")
+	Quit entry
+}
+
 /// Merges the api_key into the entry of each runner, then restarts the runners one after the other.
 ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
 {
@@ -159,14 +187,9 @@ ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {
-		Set config = ##class(Ens.Director).GetAdapterSettingValue(..#PRODUCTION_"||"_item, "ProviderConfig", .status)
-		If $$$ISERR(status) {
-			Set sc = $$$ADDSC(sc, status)
-			Continue
-		}
-		Set entry = $Piece($Piece(config, "@{config:", 2), "}", 1)
+		Set entry = ..EntryOf(item, .status)
 		If entry = "" {
-			Set sc = $$$ADDSC(sc, $SYSTEM.Status.Error(5001, item_"'s ProviderConfig does not name a Config Store entry"))
+			Set sc = $$$ADDSC(sc, status)
 			Continue
 		}
 		Set sc = $$$ADDSC(sc, ##class(OcuTalon.Bridge.ConfigStore).Merge(entry, {"api_key": (placeholder)}))
@@ -178,22 +201,14 @@ ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
 	Quit sc
 }
 
-/// The first entry of the mock's log (Test.Contract.Mock.LogSince) that is a POST to /v1/messages and holds the reference in its
-/// text, or "".
+/// The first entry of FindRequests, or "".
 ClassMethod FindRequest(entries As %DynamicArray, ref As %String) As %DynamicObject
 {
-	Set request = ""
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), ref) {
-			Set request = entry
-			Quit
-		}
-	}
-	Quit request
+	Quit ..FindRequests(entries, ref).%Get(0)
 }
 
-/// Every such entry, in the order of the log, as a dynamic array.
+/// Every entry of the mock's log (Test.Contract.Mock.LogSince) that is a POST to /v1/messages and holds the reference in its text,
+/// in the order of the log, as a dynamic array.
 ClassMethod FindRequests(entries As %DynamicArray, ref As %String) As %DynamicArray
 {
 	Set found = []

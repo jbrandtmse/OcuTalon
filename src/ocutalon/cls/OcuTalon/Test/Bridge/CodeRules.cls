@@ -5,11 +5,17 @@
 ///     %AI.Shell.StreamRenderer) names %AI on no code line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
-///     StreamChat, SendChat, SendChatWithContent, RunAgent or ChatComplete (AD-6);
+///     StreamChat, StreamChatWithContent, SendChat, SendChatWithContent, RunAgent, ChatComplete, StreamChatComplete or an agent's Run
+///     (AD-6);
 ///   - TestRunnerStartsNoJob: the runner and its adapter start no job and use no work manager, because the pool size is the
 ///     concurrency cap (AD-6);
 ///   - TestToolCodeScan: ToolCodeClean flags a tool class that runs an operating system command, executes code, loads or compiles
-///     classes, uses Python or changes data with SQL (AD-10).
+///     classes, uses Python or changes data with SQL (AD-10);
+///   - TestSessionsOnlyThroughTheComposer: no OcuTalon class outside the Test package, except the adapter, creates, resumes or opens
+///     an AI session on an agent, or calls AI Hub's adapter methods that create one from its SessionConfig setting, so that every
+///     session gets the config that the adapter composes (AD-7);
+///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
+///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool.
 Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 {
@@ -23,14 +29,24 @@ Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$
 /// A use of Python.
 Parameter PYTHON = "language\s*=\s*python|%sys\.python|\$system\.python";
 
-/// The calls of the chat family of AI Hub's agent, adapter and provider.
-Parameter CHATCALLS = "\.(chat|chatwithcontent|streamchat|sendchat|sendchatwithcontent|runagent|chatcomplete)\(";
+/// The calls of the chat family of AI Hub's agent, adapter and provider, and Run of an agent, which calls Chat. Run is matched only
+/// on an object named agent, because many classes have a method Run.
+Parameter CHATCALLS = "\.(chat|chatwithcontent|streamchat|streamchatwithcontent|sendchat|sendchatwithcontent|runagent|chatcomplete|streamchatcomplete)\(|agent\.run\(";
 
 /// A job started by a command, or the work manager. The command Job (or J) starts a line or follows a brace or a semicolon.
 Parameter JOBS = "(^\s*|[{;]\s*)(job|j)(:[^ ]*)?\s+(\^|\.\.|##|\$|%|[a-z])|workmgr";
 
 /// The classes that may call the chat family: the runner and its adapter.
 Parameter CHATTERS = "OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent";
+
+/// The calls that create, resume or open an AI session on an agent: CreateSession, ResumeSession and %InitWithSession of any object,
+/// OpenSession of any object but the adapter, %AI.Agent.Session's Create, and SendChat, SendChatWithContent and RunAgent of AI Hub's
+/// adapter, which create a session from its SessionConfig setting. The adapter's own methods NewSession and OpenSession are not
+/// these calls.
+Parameter SESSIONCALLS = "\.(createsession|resumesession|%initwithsession|sendchat|sendchatwithcontent|runagent)\(|(?<!adapter)\.opensession\(|%ai\.agent\.session\)\.create\(";
+
+/// The class that may make sessions: the adapter, which composes their config.
+Parameter SESSIONMAKERS = "OcuTalon.Bridge.Adapter.Agent";
 
 /// The statements that change data, as a word.
 Parameter SQLVERBS = "insert|update|delete|drop|create|alter|truncate";
@@ -79,24 +95,13 @@ Method TestOnlyRunnersChat()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set sc = adapter.SendChatWithContent(c, .r)", pattern), "and SendChatWithContent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set sc = adapter.RunAgent(goal, .r)", pattern), "and RunAgent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = provider.ChatComplete(m, c)", pattern), "and ChatComplete")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = agent.StreamChatWithContent(s, c, cb)", pattern), "and StreamChatWithContent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = provider.StreamChatComplete(m, c)", pattern), "and StreamChatComplete")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set r = ..Agent.Run(session, goal)", pattern), "and Run of an agent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"SET R = AGENT.CHAT(S, I)", pattern), "in any case")
-	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set channel = msg.ChatRef"_$Char(10)_"/// Calls agent.Chat( in a comment"_$Char(10)_$Char(9)_"; agent.Chat(", pattern), "and passes a property that starts with Chat and comment lines")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set channel = msg.ChatRef"_$Char(10)_"/// Calls agent.Chat( in a comment"_$Char(10)_$Char(9)_"; agent.Chat("_$Char(10)_$Char(9)_"Set sc = ##class(OcuTalon.Install.Step.Production).Run()", pattern), "and passes a property that starts with Chat, comment lines and Run of another class")
 
-	Set scanned = 0
-	Set offending = ""
-	Set unreadable = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.' AND NOT Name %STARTSWITH 'OcuTalon.Test.'")
-	While result.%Next() {
-		Set class = result.%GetData(1)
-		If $ListFind($ListFromString(..#CHATTERS), class) Continue
-		Set sc = ##class(OcuTalon.Test.Bridge.Source).Text(class, .text)
-		If $$$ISERR(sc) {
-			If $SYSTEM.Status.GetErrorText(sc) '[ "is a stub name" Set unreadable = unreadable _ " " _ class
-			Continue
-		}
-		Set scanned = scanned + 1
-		If ##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern) Set offending = offending _ " " _ class
-	}
+	Set offending = ..Offenders(pattern, ..#CHATTERS, .scanned, .unreadable)
 	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
 	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
 	Do $$$AssertEquals(offending, "", "no class but the runner and its adapter calls the chat family")
@@ -108,6 +113,53 @@ Method TestOnlyRunnersChat()
 		If ##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern) Set found = found + 1
 	}
 	Do $$$AssertEquals(found, 1, "and the scan sees the one class that does call Chat, the adapter")
+}
+
+/// No class outside the Test package, except the adapter, creates, resumes or opens an AI session on an agent: every session that
+/// the runner uses is made by the adapter, which gives it the composed config (the cap, the effort, max_iterations and the cache
+/// block). The scanner is first shown to flag the calls and to pass the adapter's own methods and look-alikes.
+Method TestSessionsOnlyThroughTheComposer()
+{
+	Set pattern = ..#SESSIONCALLS
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set session = agent.CreateSession(config)", pattern), "the scanner flags CreateSession")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set session = ..Agent.ResumeSession(id)", pattern), "and ResumeSession")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set session = ..Agent.OpenSession(id, config)", pattern), "and OpenSession of the adapter's agent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set session = agent.OpenSession(id)", pattern), "and OpenSession of any other agent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = agent.%InitWithSession(session)", pattern), "and %InitWithSession")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set s = ##class(%AI.Agent.Session).Create(p, m)", pattern), "and the Create of %AI.Agent.Session")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.SendChat(text, .r)", pattern), "and SendChat of AI Hub's adapter, which creates a session from its SessionConfig")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.SendChatWithContent(c, .r)", pattern), "and SendChatWithContent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.RunAgent(goal, .r)", pattern), "and RunAgent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET S = AGENT.CREATESESSION({})", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.NewSession(.session)"_$Char(10)_tab_"Set sc = ..Adapter.OpenSession(id, .session)"_$Char(10)_tab_"Set createsession = 1"_$Char(10)_"/// Calls agent.CreateSession( in a comment"_$Char(10)_tab_"; ..Agent.OpenSession(id, c)", pattern), "and passes the adapter's own methods, a variable and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#SESSIONMAKERS, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class but the adapter creates, resumes or opens an AI session on an agent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#SESSIONMAKERS, .text), ..#SESSIONMAKERS_" has source")
+	Do $$$AssertTrue($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, pattern)) > 0, "and the scan sees the calls of the adapter, the one class that makes sessions")
+}
+
+/// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
+/// read every other line, one with a trailing comment included. A match is made in any case, and as plain text when asked for, so
+/// that a pattern such as {{ needs no escape.
+Method TestSourceHelper()
+{
+	Set tab = $Char(9), lf = $Char(10)
+	Set text = "Code one"_lf_"/// doc"_lf_tab_"// comment"_lf_tab_"; comment"_lf_" #; comment"_lf_tab_"##; comment"_lf_"Code two ; with a trailing comment"_lf_tab_"//"_lf_"Code three"
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Do $$$AssertEquals($ListToString(lines, "|"), "Code one|Code two ; with a trailing comment|Code three", "the comment lines of every form are dropped and the other lines kept")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, "^code (one|three)$")), 2, "Lines gives the code lines that match, in any case")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, "comment")), 1, "and finds a word in a trailing comment but not in a comment line")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = ""{{ a }}""", "{{", 1), "a plain-text match needs no escape")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("SET X = 1", "set x", 1), "and is made in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"// {{ a }}", "{{", 1), "and skips a comment line")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches("Set x = 1", "(", 1), "a plain-text match of a regular expression character is not an error")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = 1", "SET\s+X"), "a pattern is a regular expression, made in any case")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Test.Bridge.Source).Text("OcuTalon.Zz.NoSuchClass", .none), "the source of a class that does not exist is an error")
+	Do $$$AssertEquals(none, "", "with no text")
 }
 
 /// The runner and its adapter start no job and use no work manager.
@@ -142,6 +194,7 @@ Method TestToolCodeScan()
 		tab_"Xecute code",
 		tab_"Set x = $XECUTE(""Quit 1"")",
 		tab_"Do $SYSTEM.OBJ.Compile(""A.B"")",
+		tab_"Do ##class(%SYSTEM.OBJ).Load(""a.xml"", ""ck"")",
 		tab_"Set p = $SYSTEM.Python.Import(""os"")",
 		tab_"Set p = ##class(%SYS.Python).Import(""os"")",
 		"ClassMethod A() [ Language = python ]",
@@ -179,7 +232,8 @@ Method TestToolCodeScan()
 	Do $$$AssertTrue(problems [ "OcuTalon.Zz.NoSuchClass", "and the problem names it: "_problems)
 }
 
-/// 1 when the code of the class passes the rules of a tool class (AD-10): no $ZF, no XECUTE or $XECUTE, no $SYSTEM.OBJ, no Python,
+/// 1 when the code of the class passes the rules of a tool class (AD-10): no $ZF, no XECUTE or $XECUTE, no $SYSTEM.OBJ (also as
+/// ##class(%SYSTEM.OBJ)), no Python,
 /// and no INSERT, UPDATE, DELETE, DROP, CREATE, ALTER or TRUNCATE inside embedded SQL (&sql) or at the start of a string. problems
 /// lists what was found, separated by semicolons; it is empty when the code is clean. A class with no source is not clean. text
 /// replaces the source of the class, for the samples of the tests.
@@ -196,7 +250,7 @@ ClassMethod ToolCodeClean(class As %String, Output problems As %String, text As 
 	Set checks = $ListBuild(
 		$ListBuild("\$zf\(", "$ZF"),
 		$ListBuild("\bxecute\b", "XECUTE"),
-		$ListBuild("\$system\.obj\.", "$SYSTEM.OBJ"),
+		$ListBuild("[$%]system\.obj\b", "$SYSTEM.OBJ"),
 		$ListBuild(..#PYTHON, "Python"),
 		$ListBuild("""\s*("_..#SQLVERBS_")\b", "a string that starts with an SQL statement that changes data"))
 	Set position = 0
@@ -241,6 +295,29 @@ ClassMethod EmbeddedSql(text As %String) As %String [ Private ]
 }
 
 /// --- helpers ---
+/// The non-test OcuTalon classes other than the allowed ones (a comma-separated list) whose code lines match the pattern, as
+/// " Class1 Class2". scanned is the number of classes read, and unreadable the classes that have no source, except the generated
+/// stub classes of the process message tracking ("is a stub name and can not be opened"), which hold no code.
+ClassMethod Offenders(pattern As %String, allowed As %String, Output scanned As %Integer, Output unreadable As %String) As %String [ Private ]
+{
+	Set scanned = 0
+	Set offending = ""
+	Set unreadable = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.' AND NOT Name %STARTSWITH 'OcuTalon.Test.'")
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If $ListFind($ListFromString(allowed), class) Continue
+		Set sc = ##class(OcuTalon.Test.Bridge.Source).Text(class, .text)
+		If $$$ISERR(sc) {
+			If $SYSTEM.Status.GetErrorText(sc) '[ "is a stub name" Set unreadable = unreadable _ " " _ class
+			Continue
+		}
+		Set scanned = scanned + 1
+		If ##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern) Set offending = offending _ " " _ class
+	}
+	Quit offending
+}
+
 /// 1 when the compiled class extends one of the bases of the classes that run in AI Hub's callbacks. A class with no superclass has
 /// no %Extends method and is none of them.
 ClassMethod IsCallbackClass(class As %String) As %Boolean [ Private ]

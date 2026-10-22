@@ -170,16 +170,19 @@ ClassMethod SeedModels(production As %String) As %Status
 
 /// Writes the Effort row (production, runner, any class, Effort) for each runner that has no effort (AD-7, AD-19), in the
 /// way SeedModels writes the Model row: the value is the EFFORT parameter of the runner's agent class. A runner that has an
-/// effort keeps it, and a runner whose agent class has no EFFORT gets no row, so it asks the model for its default effort.
+/// effort keeps it, and so does a runner for which a System Default Setting row of any specificity exists, also an empty one:
+/// an empty Effort is a choice, the model's default effort, so the step writes the row only when it is absent (AD-19). A
+/// runner whose agent class has no EFFORT gets no row, so it asks the model for its default effort.
 ClassMethod SeedEfforts(production As %String) As %Status
 {
-	Quit ..SeedRunnerRows(production, "Effort", "EFFORT", "Seeded by the Production install step when the runner has no effort, with the EFFORT of its agent class; the step never overwrites it.")
+	Quit ..SeedRunnerRows(production, "Effort", "EFFORT", "Seeded by the Production install step when the runner has no effort, with the EFFORT of its agent class; the step never overwrites it.", 1)
 }
 
 /// Writes the row (production, runner, any class, setting) for each runner that has no value for the setting: the runner's
 /// item setting and every System Default Setting row of any specificity are empty, and the value is the parameter of the
-/// runner's agent class, which is non-empty. This is the loop of SeedModels and SeedEfforts.
-ClassMethod SeedRunnerRows(production As %String, setting As %String, parameter As %String, description As %String) As %Status [ Private ]
+/// runner's agent class, which is non-empty. With keepEmpty 1, a runner for which such a row exists keeps it, also when the
+/// row is empty. This is the loop of SeedModels and SeedEfforts.
+ClassMethod SeedRunnerRows(production As %String, setting As %String, parameter As %String, description As %String, keepEmpty As %Boolean = 0) As %Status [ Private ]
 {
 	Set sc = ..Runners(production, .runners)
 	For i = 1:1:runners {
@@ -187,6 +190,7 @@ ClassMethod SeedRunnerRows(production As %String, setting As %String, parameter 
 		Set item = $List(runners(i), 1)
 		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item, setting, .status)
 		If $$$ISOK(status) && (current '= "") Continue
+		If keepEmpty && ..HasRow(production, item, setting) Continue
 		Set value = ..AgentParameter($List(runners(i), 2), parameter)
 		If value = "" Continue
 		Set sc = ..WriteDefault(production, item, setting, value, description)
@@ -196,8 +200,9 @@ ClassMethod SeedRunnerRows(production As %String, setting As %String, parameter 
 
 /// Writes one AgentAllowList row for every item of the production (item *, any class) (AD-6, AD-19) when no runner resolves a
 /// value for the setting: the value is the distinct AgentClass values of the runners, in the order of the runners and
-/// comma-separated. A runner that has a value, from its item setting or from any row, keeps it: the settings page owns the
-/// list from then on, and a developer adds an agent class to it there. No row is written when no runner has an agent class.
+/// comma-separated. A runner that has a value, from its item setting or from any row, keeps it, and so does a runner for which
+/// a row exists that is empty (an empty list refuses every class): the settings page owns the list from then on, and a
+/// developer adds an agent class to it there. No row is written when no runner has an agent class.
 ClassMethod SeedAllowList(production As %String) As %Status
 {
 	Set sc = ..Runners(production, .runners)
@@ -205,8 +210,9 @@ ClassMethod SeedAllowList(production As %String) As %Status
 	Set classes = ""
 	Set resolved = 0
 	For i = 1:1:runners {
-		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_$List(runners(i), 1), "AgentAllowList", .status)
-		If $$$ISOK(status) && (current '= "") {
+		Set item = $List(runners(i), 1)
+		Set current = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item, "AgentAllowList", .status)
+		If ($$$ISOK(status) && (current '= "")) || ..HasRow(production, item, "AgentAllowList") {
 			Set resolved = 1
 			Quit
 		}
@@ -215,6 +221,13 @@ ClassMethod SeedAllowList(production As %String) As %Status
 	}
 	If resolved || (classes = "") Quit $$$OK
 	Quit ..WriteDefault(production, "*", "AgentAllowList", $ListToString(classes, ","), "Seeded by the Production install step when no runner has an allow-list, with the AgentClass of each runner; the step never overwrites it.")
+}
+
+/// 1 when a System Default Setting row of any specificity exists for the adapter setting of the runner item, whatever its
+/// value, as the running item resolves it (Ens.Config.DefaultSettings.%GetSetting).
+ClassMethod HasRow(production As %String, item As %String, setting As %String) As %Boolean [ Private ]
+{
+	Quit ##class(Ens.Config.DefaultSettings).%GetSetting(production, item, ..#RUNNERCLASS, "Adapter", setting, .value)
 }
 
 /// The MODEL parameter of an agent class: "" when the class does not exist or does not extend %AI.Agent.

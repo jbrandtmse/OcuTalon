@@ -19,10 +19,10 @@
 ///     from writing a Model row for it, and SeedModels of a production whose definition cannot be opened is an error that
 ///     writes nothing (a test writes no row for any other production);
 ///   - TestSeedEfforts: SeedEfforts writes the Effort row of the runner whose agent class has an EFFORT and no other, and never
-///     overwrites a row, and the agents of the product seed low (Triage), high (Diagnosis) and nothing (Chat);
+///     overwrites a row, an empty one included, and the agents of the product seed low (Triage), high (Diagnosis) and nothing (Chat);
 ///   - TestSeedAllowList: SeedAllowList writes one AgentAllowList row for every item, holding the distinct AgentClass values of the
-///     runners in order, and writes nothing when a runner resolves a list from an item row, or when a row exists; a production that
-///     cannot be opened is an error that writes nothing;
+///     runners in order, and writes nothing when a runner resolves a list from an item row, or when a row exists, an empty one
+///     included; a production that cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
@@ -296,8 +296,9 @@ Method TestSeedSpecificity()
 }
 
 /// SeedEfforts writes the Effort row of ZzAgentModel, whose agent class (Triage) has EFFORT low, and no row for the runners whose
-/// agent class has none (%AI.Agent) or does not exist. A second run leaves the row as it is, also when it holds another effort, and
-/// a runner that has an item row of its own is left alone. The agents of the product seed low, high and nothing.
+/// agent class has none (%AI.Agent) or does not exist. A second run leaves the row as it is, also when it holds another effort or
+/// no effort (empty, the model's default), and a runner that has a row for every item is left alone. The agents of the product
+/// seed low, high and nothing.
 Method TestSeedEfforts()
 {
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
@@ -323,6 +324,10 @@ Method TestSeedEfforts()
 		Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to another effort")
 		Do $$$AssertStatusOK($ClassMethod(step, "SeedEfforts", fixture), "SeedEfforts runs again")
 		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "ZzAgentModel=medium", "the existing row is kept as it is")
+		Set row.SettingValue = ""
+		Do $$$AssertStatusOK(row.%Save(), "the row of ZzAgentModel is set to no effort, the model's default")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedEfforts", fixture), "SeedEfforts runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "Effort"), "ZzAgentModel=", "an existing empty row is kept too: the row is not absent")
 
 		Do ..DeleteRows(fixture, "Effort")
 		Set row = ##class(Ens.Config.DefaultSettings).%New()
@@ -342,8 +347,8 @@ Method TestSeedEfforts()
 }
 
 /// SeedAllowList writes one AgentAllowList row for every item, holding the distinct AgentClass values of the five runners of the
-/// fixture production in their order. A second run leaves the row as it is, also when it holds another list. It writes nothing when
-/// a runner has a list of its own, and an error for a production that cannot be opened.
+/// fixture production in their order. A second run leaves the row as it is, also when it holds another list or an empty one. It
+/// writes nothing when a runner has a list of its own, and an error for a production that cannot be opened.
 Method TestSeedAllowList()
 {
 	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
@@ -365,6 +370,10 @@ Method TestSeedAllowList()
 		Do $$$AssertStatusOK(row.%Save(), "the row is set to another list")
 		Do $$$AssertStatusOK($ClassMethod(step, "SeedAllowList", fixture), "SeedAllowList runs again")
 		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "*=OcuTalon.Agent.Triage", "the existing row is kept as it is")
+		Set row.SettingValue = ""
+		Do $$$AssertStatusOK(row.%Save(), "the row is set to an empty list, which refuses every class")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedAllowList", fixture), "SeedAllowList runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "*=", "an existing empty row is kept too: the row is not absent")
 
 		Do ..DeleteRows(fixture, "AgentAllowList")
 		Set row = ##class(Ens.Config.DefaultSettings).%New()
@@ -478,12 +487,7 @@ Method RestoreRow() [ Private ]
 /// The Model rows of a production as item=value, separated by semicolons, in the order of the items.
 ClassMethod ModelRows(production As %String) As %String [ Private ]
 {
-	Set rows = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemName, SettingValue FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND SettingName = 'Model' ORDER BY ItemName", production)
-	While result.%Next() {
-		Set rows = rows _ $Select(rows = "": "", 1: ";") _ result.%GetData(1) _ "=" _ result.%GetData(2)
-	}
-	Quit rows
+	Quit ..SettingRows(production, "Model")
 }
 
 /// The rows of a production for a setting as item=value, separated by semicolons, in the order of the items.

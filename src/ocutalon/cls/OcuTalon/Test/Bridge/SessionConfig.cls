@@ -8,12 +8,18 @@
 ///   - TestNoSampling: no config holds temperature, top_p or top_k at any depth, also for an agent whose Temperature is set before the
 ///     build, once the adapter has cleared it;
 ///   - TestInstallerRows: the installer writes the three families exactly, keeps a row of another family, and writes a changed
-///     seeded row again.
+///     seeded row again;
+///   - TestInstallerRun: Installer.Run, the call of the after-start installer, writes the three families (it needs an Interoperability
+///     namespace, and registers the audit events as it does at every start);
+///   - TestComposeBranches: a family row that has no CapKey fails the compose, naming the model, and gives no config.
 Class OcuTalon.Test.Bridge.SessionConfig Extends %UnitTest.TestCase
 {
 
 /// The cache block of every config.
 Parameter CACHE = "{""enabled"":1,""cache_system_prompt"":1,""cache_tool_definitions"":1,""min_tokens_for_cache"":512}";
+
+/// The three families that the installer writes, as Rows gives them: Family|ModelPrefix|CapKey|EffortKey, ordered by family.
+Parameter FAMILYROWS = "anthropic|claude-|max_tokens|extra_params.output_config.effort;default||max_tokens|;gpt-5|gpt-5|extra_params.max_completion_tokens|";
 
 /// The rows of ModelFamily when the class began, as JSON: [{"family","prefix","cap","effort"}].
 Property Saved As %String(MAXLEN = "");
@@ -135,7 +141,7 @@ Method TestNoSampling()
 Method TestInstallerRows()
 {
 	Try {
-		Set expected = "anthropic|claude-|max_tokens|extra_params.output_config.effort;default||max_tokens|;gpt-5|gpt-5|extra_params.max_completion_tokens|"
+		Set expected = ..#FAMILYROWS
 		Do $$$AssertEquals($ListLength(##class(OcuTalon.Bridge.Installer).ModelFamilies()), 3, "the installer has three families")
 		Do ..Upsert("ZzFamily", "zz-", "zz_cap", "zz_effort")
 		Do ..Upsert("anthropic", "changed-", "changed_cap", "changed_effort")
@@ -148,6 +154,42 @@ Method TestInstallerRows()
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ModelFamily WHERE Family IN ('anthropic', 'gpt-5', 'default')")
 		Do result.%Next()
 		Do $$$AssertEquals(result.%GetData(1), 3, "and there is one row for each of the three families")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Restore()
+}
+
+/// The call of the after-start installer, Installer.Run, writes the three families: with the rows deleted, Run succeeds and the
+/// rows are exactly the seeded ones, so a start that runs the installer leaves every runner a family to compose from.
+Method TestInstallerRun()
+{
+	Try {
+		For family = "anthropic", "gpt-5", "default" {
+			Do ..Delete(family)
+		}
+		Do $$$AssertEquals(..Rows("Family IN ('anthropic', 'default', 'gpt-5')"), "", "the three families are deleted")
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).Run(), "the installer's Run succeeds")
+		Do $$$AssertEquals(..Rows("Family IN ('anthropic', 'default', 'gpt-5')"), ..#FAMILYROWS, "and has written the three families")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Restore()
+}
+
+/// A family row with no CapKey does not compose: the compose fails, says which model and that the CapKey is missing, and gives no
+/// config, so that no request goes out without its output cap.
+Method TestComposeBranches()
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).SeedModelFamilies(), "the installer's families are written")
+	Try {
+		Do ..Upsert("ZzNoCap", "zz-nocap-", "", "extra_params.zz.effort")
+		Set sc = ##class(OcuTalon.Bridge.Adapter.Agent).Compose("", "zz-nocap-1", "low", .config)
+		Do $$$AssertStatusNotOK(sc, "a family row with no CapKey fails the compose")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "zz-nocap-1", "and the error names the model: "_$SYSTEM.Status.GetErrorText(sc))
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "CapKey", "and says that the CapKey is missing")
+		Do $$$AssertEquals(config, "", "and gives no config")
+		Do ..AssertCompose("", "claude-haiku-5-5", "low", "{""max_tokens"":8000,""extra_params"":{""output_config"":{""effort"":""low""}},""cache"":"_..#CACHE_"}", "while a model of a family with a CapKey still composes")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

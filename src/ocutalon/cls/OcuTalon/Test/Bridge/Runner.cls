@@ -389,15 +389,13 @@ Method NewRunner(agentClass As %String, effort As %String = "", providerConfig A
 }
 
 /// The ProviderConfig JSON of a runner for the mock: the Anthropic provider, the key placeholder (the non-secret CI variable by
-/// default), the mock's base URL and, when a mock key is given, the header that picks an agent's default script.
+/// default), the mock's base URL and, when a mock key is given, the header that picks an agent's default script
+/// (Test.Contract.Mock.CustomHeaders, with the mock-key switch of this process).
 ClassMethod ProviderConfig(mockKey As %String = "", key As %String = "") As %String [ Private ]
 {
 	If key = "" Set key = "@{env:"_##class(OcuTalon.Test.Agent.RunnerFixture).#MOCKKEYVARIABLE_"}"
 	Set config = {"model_provider": "anthropic", "api_key": (key), "base_url": (##class(OcuTalon.Test.Contract.Mock).#BASEURL)}
-	If mockKey '= "" {
-		Set config."http_config" = {"custom_headers": {}}
-		Do config."http_config"."custom_headers".%Set(##class(OcuTalon.Test.Contract.Mock).#MOCKKEYHEADER, mockKey)
-	}
+	If mockKey '= "" Set config."http_config" = {"custom_headers": (##class(OcuTalon.Test.Contract.Mock).CustomHeaders(mockKey, $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER")))}
 	Quit config.%ToJSON()
 }
 
