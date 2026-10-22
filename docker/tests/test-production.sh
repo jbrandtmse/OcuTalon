@@ -13,8 +13,9 @@
 #     TriageAgent and OutcomeRouter. The operations answer code 5003, the process answers that it terminated because of
 #     5003, the router answers OK with nothing and sends nothing on, and every target keeps the job it had; then the same
 #     for every enabled stub with a pool, so that no stub kills its job on a request;
-#   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context;
-#     an origin outside the enumeration is refused naming it; CommandsIn logs its error;
+#   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context, and
+#     CommandsIn answers both with ReminderOps' plain-English not_built result (status OK, Ok 0) after sending the command from
+#     CommandsIn to ReminderOps; an origin outside the enumeration is refused naming it;
 #   - row 18, the Running branch: the Production step run on the running production starts every item with a pool again;
 #   - row 21, an item that cannot start: with a WatchOps whose OnInit fails the step fails naming WatchOps, and with the
 #     original class back it succeeds and WatchOps runs;
@@ -183,14 +184,16 @@ fi
 # --- row 17: Submit, live ---
 
 check_session "row 17: Submit reaches CommandsIn with the origin of the caller, tool inside a context, and refuses a bad origin" OCUTALON \
-  "CHK|submit-user|5003|web_user
-CHK|submit-tool|5003|tool
+  "CHK|submit-user|1|0|not_built|web_user
+CHK|submit-tool|1|0|not_built|tool
 CHK|submit-zz|1|1|web_admin
-CHK|commandsin-logged|1" \
-  'Set cmd=##class(OcuTalon.Msg.Command.ListReminders).%New() Set cmd.Origin="web_admin" Set sc=##class(OcuTalon.Core.Commands).Submit(cmd,"web_user",.res) Write !,"CHK|submit-user|",$SYSTEM.Status.GetErrorCodes(sc),"|",cmd.Origin' \
-  'Set sc=##class(OcuTalon.Bridge.Context).Begin(##class(OcuTalon.Bridge.Msg.Request).%New(),"zzss") Set cmd=##class(OcuTalon.Msg.Command.ListReminders).%New() Set cmd.Origin="web_admin" Set sc=##class(OcuTalon.Core.Commands).Submit(cmd,"web_admin",.res) Write !,"CHK|submit-tool|",$SYSTEM.Status.GetErrorCodes(sc),"|",cmd.Origin Do ##class(OcuTalon.Bridge.Context).End()' \
+CHK|commandsin-sent|1" \
+  'Set sql="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = ?" Set rs=##class(%SQL.Statement).%ExecDirect(,sql,"CommandsIn","ReminderOps","OcuTalon.Msg.Command.ListReminders") Do rs.%Next() Set before=rs.%GetData(1)' \
+  'Set cmd=##class(OcuTalon.Msg.Command.ListReminders).%New() Set cmd.Origin="web_admin" Set sc=##class(OcuTalon.Core.Commands).Submit(cmd,"web_user",.res) Write !,"CHK|submit-user|",$SYSTEM.Status.IsOK(sc),"|",res.Ok,"|",res.Outcome,"|",cmd.Origin' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,sql,"CommandsIn","ReminderOps","OcuTalon.Msg.Command.ListReminders") Do rs.%Next() Set after=rs.%GetData(1)' \
+  'Set sc=##class(OcuTalon.Bridge.Context).Begin(##class(OcuTalon.Bridge.Msg.Request).%New(),"zzss") Set cmd=##class(OcuTalon.Msg.Command.ListReminders).%New() Set cmd.Origin="web_admin" Set sc=##class(OcuTalon.Core.Commands).Submit(cmd,"web_admin",.res) Write !,"CHK|submit-tool|",$SYSTEM.Status.IsOK(sc),"|",res.Ok,"|",res.Outcome,"|",cmd.Origin Do ##class(OcuTalon.Bridge.Context).End()' \
   'Set cmd=##class(OcuTalon.Msg.Command.ListReminders).%New() Set cmd.Origin="web_admin" Set sc=##class(OcuTalon.Core.Commands).Submit(cmd,"zz",.res) Write !,"CHK|submit-zz|",$SYSTEM.Status.IsError(sc),"|",($SYSTEM.Status.GetErrorText(sc)["zz"),"|",cmd.Origin' \
-  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE ConfigName = ? AND Type = 2 AND Text LIKE ?","CommandsIn","%Not implemented%") Do rs.%Next() Write !,"CHK|commandsin-logged|",(rs.%GetData(1)>0)' \
+  'Write !,"CHK|commandsin-sent|",(after>before)' \
   'Halt'
 
 # --- row 18: the step on the running production ---

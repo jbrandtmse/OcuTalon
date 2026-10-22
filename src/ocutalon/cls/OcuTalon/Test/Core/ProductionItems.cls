@@ -21,7 +21,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "B", "name": "SimMailboxOut", "class": "OcuTalon.Channel.SimMailbox.Out", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "B", "name": "SimPhoneOut", "class": "OcuTalon.Channel.SimPhone.Out", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "B", "name": "AnswersIn", "class": "OcuTalon.Core.AnswersIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "B", "name": "CommandsIn", "class": "OcuTalon.Core.CommandsIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
+ {"lane": "B", "name": "CommandsIn", "class": "OcuTalon.Core.CommandsIn", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "B", "name": "NoticesIn", "class": "OcuTalon.Core.NoticesIn", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "B", "name": "StatusMonitor", "class": "OcuTalon.Core.StatusMonitor", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "B", "name": "Conversation", "class": "OcuTalon.Core.Conversation", "pool": 1, "enabled": 1, "stub": 1, "settings": []},

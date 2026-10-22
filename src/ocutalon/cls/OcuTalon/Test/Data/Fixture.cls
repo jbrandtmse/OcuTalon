@@ -4,6 +4,7 @@
 /// with the live events and counters of the fixture sessions' streams, so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
+/// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave.
 Class OcuTalon.Test.Data.Fixture
 {
 
@@ -197,6 +198,38 @@ ClassMethod Clean(refs As %String = "")
 		}
 	}
 	If refs = "" Kill ^OcuTalonTest("Fixture")
+}
+
+/// Deletes the headers, the bodies and the event-log rows of the sessions whose messages carry one of the SuperSessions
+/// (a dynamic array of strings), in the namespace (the current one by default). It switches to the namespace itself and
+/// calls only classes that resolve in both namespaces while it is there (Ens, EnsLib and % classes, and the body classes
+/// of the messages it deletes), and it returns to the namespace it was called in.
+ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String = {$Namespace}) As %Status
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	For i = 0:1:superSessions.%Size() - 1 {
+		Kill ids, sessions
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SuperSession = ?", superSessions.%Get(i))
+		While rs.%Next() {
+			Set ids(rs.%Get("ID")) = $ListBuild(rs.%Get("MessageBodyClassName"), rs.%Get("MessageBodyId"))
+			Set sessions(rs.%Get("SessionId")) = ""
+		}
+		Set id = ""
+		For {
+			Set id = $Order(ids(id), 1, body)
+			Quit:id=""
+			If $List(body, 1) '= "" Do $ClassMethod($List(body, 1), "%DeleteId", $List(body, 2))
+			Do ##class(Ens.MessageHeader).%DeleteId(id)
+		}
+		Set session = ""
+		For {
+			Set session = $Order(sessions(session))
+			Quit:session=""
+			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
+		}
+	}
+	Quit $$$OK
 }
 
 /// Saves the row and records it.
