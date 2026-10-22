@@ -24,6 +24,14 @@
 ///     fails with a JSON body: none of the 14 fake secrets is in any step, in the runner's Reply (Steps and XML), in the event log or in
 ///     what the key scan names, and [redacted] stands in the place of each, counted in the two steps;
 ///   - OnAfterOneTest also deletes the AgentStep messages of the test's decisions, once AgentSteps has handled them.
+/// Added by Story 1.6 (AD-6, AD-8, AD-9, DW-83):
+///   - TestFailedTurnSteps: a user's turn whose Chat throws after four model requests and four tool calls (the scenario steps-loop reads the
+///     test note again and again with a new topic, until the agent's four iterations are used up) is answered with an unusable fallback
+///     Reply, and its steps reach Visual Trace like a completed turn's: eight AgentSteps of the DecisionRef, alternating model and tool, from
+///     Position 1, the tools with the label Reading the test note and the status ok, each header Completed in the decision's session and
+///     in the caller's super session, after ChatAgent's reply and before Decide's answer; the row's step count is at least eight;
+///   - TestCutOffToolCall (Task 0 (e)): a tool call that the provider cut at the output cap (the scenario cut-off-tool) is run by AI Hub, which
+///     goes on to the later reply: the turn is answered with that reply's text, three steps (model, tool, model), no fallback.
 Class OcuTalon.Test.Agent.Steps Extends %UnitTest.TestCase
 {
 
@@ -336,6 +344,120 @@ Method TestDecideStep()
 	Do $ClassMethod(fixture, "DeleteSteps", ref)
 	Do $$$AssertEquals($ClassMethod(fixture, "StepsOf", response.DecisionRef).%Size(), 0, "DeleteSteps removes the AgentStep messages of the item's decision")
 	Do $$$AssertTrue($IsObject($ClassMethod(fixture, "DecisionOf", ref, "decide")), "and not the decision's row")
+}
+
+/// A turn whose Chat throws after model requests and tool calls: the runner answers with a failure Reply that carries the steps, and Decide
+/// sends them to AgentSteps as for any reply, before it answers with the unusable fallback (DW-83). The scenario steps-loop asks for the
+/// note again and again, with a new topic each time, so that AI Hub finds new evidence and runs its four iterations out (measured: the
+/// error is <%AICore>MaxIterationsReached). The steps are four model steps and four tool steps in turn.
+Method TestFailedTurnSteps()
+{
+	If ..Failed() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:steps-loop]] Read the note again and again.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn though Chat threw")
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(answer.Text_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, "|tellnow|1|unusable", "an unusable fallback Reply with no text")
+	Do $$$AssertEquals(answer.Steps_"|"_answer.FailureText, "|", "that carries no steps and no failure text: Decide sent the steps")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
+	Do $$$AssertTrue($IsObject(row), "a row of kind turn is recorded")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason, "tellnow|1|unusable", "that says the same")
+	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
+	Set count = steps.%Size()
+	Do $$$AssertEquals(count, 8, "eight AgentStep messages exist for the DecisionRef: four model requests and four tool calls")
+	If count '= 8 Quit
+	Set kinds = ""
+	Set positions = ""
+	For i = 0:1:count - 1 {
+		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
+		Set positions = positions _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).position
+	}
+	Do $$$AssertEquals(positions, "1,2,3,4,5,6,7,8", "their Positions are 1 to 8")
+	Do $$$AssertEquals(kinds, "model,tool,model,tool,model,tool,model,tool", "and they alternate model and tool")
+	For i = 1:2:7 {
+		Set tool = steps.%Get(i)
+		Do $$$AssertEquals(tool.label_"|"_tool.status, "Reading the test note|ok", "step "_(i + 1)_" is the tool, with the label of its class and the status ok")
+		Do $$$AssertTrue(tool.summary [ "zz_steps_note", "its summary holds the tool's name: "_tool.summary)
+	}
+	Do $$$AssertTrue(row.AgentStepCount '< count, "the row's step count is at least their number: "_row.AgentStepCount)
+
+	// the runner's reply carried the failure and the steps
+	Set headers = $ClassMethod(fixture, "Headers", session, "ChatAgent")
+	Set runner = $ClassMethod(fixture, "HeaderTo", headers, "Decide")
+	Set reply = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(runner.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
+	If $IsObject(reply) {
+		Do $$$AssertTrue(reply.FailureText [ "MaxIterationsReached", "whose FailureText holds the error of the iteration limit: "_$Extract(reply.FailureText, 1, 200))
+		Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason, "|", "and which has no text")
+		Do $$$AssertEquals(##class(%Library.DynamicAbstractObject).%FromJSON(reply.Steps).%Size(), 8, "but the eight steps")
+	}
+
+	// the trace: the same as a completed turn's
+	Do $$$AssertTrue(..WaitStepsDone(session, 8), "the eight step headers are Completed within the ceiling")
+	Set all = ..HeadersOf(session)
+	Set stepHeaders = ..HeadersWith(all, "OcuTalon.Bridge.Msg.AgentStep")
+	Do $$$AssertEquals(stepHeaders.%Size(), 8, "eight headers carry an AgentStep in the session of the request")
+	Set runnerId = ""
+	Set answerId = ""
+	Set iterator = all.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		If (header.source = "ChatAgent") && (header.bodyClass = "OcuTalon.Bridge.Msg.Reply") Set runnerId = header.id
+		If (header.source = "Decide") && (header.target = "ApprovalStartIn") && (header.bodyClass = "OcuTalon.Bridge.Msg.Reply") Set answerId = header.id
+	}
+	Do $$$AssertTrue((runnerId '= "") && (answerId '= ""), "the session holds the runner's reply and Decide's answer: "_runnerId_" and "_answerId)
+	Set previous = runnerId
+	Set position = 0
+	Set iterator = stepHeaders.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		Set position = position + 1
+		Set label = "step header "_position
+		Do $$$AssertEquals(header.source_">"_header.target, "Decide>AgentSteps", label_" is from Decide to AgentSteps")
+		Do $$$AssertEquals(header.session, session, label_" is in the session of the decision")
+		Do $$$AssertEquals(header.super, ..#SUPER, label_" has the caller's super session")
+		Do $$$AssertEquals(header.status, 9, label_" is Completed")
+		Do $$$AssertEquals(header.bodyId, steps.%Get(position - 1).id, label_" carries the message with Position "_position)
+		Do $$$AssertTrue(header.id > previous, label_" comes after "_$Select(position = 1: "the runner's reply", 1: "the step before it"))
+		Set previous = header.id
+	}
+	Do $$$AssertTrue((answerId '= "") && (previous < answerId), "the last step comes before Decide's answer")
+	Do $$$AssertEquals(row.TraceSessionId, session, "the row's TraceSessionId is the session of the steps")
+	Do $$$AssertEquals($ClassMethod(fixture, "Targets", $ClassMethod(fixture, "Headers", session, "Decide")), "AgentSteps,ApprovalStartIn,ChatAgent,Ens.Alarm", "Decide sent only to the runner, the timer, AgentSteps and its caller")
+	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", $ClassMethod(fixture, "Headers", session, "Decide"), "ChatAgent"), 1, "with one request to the runner, never a second")
+}
+
+/// A tool call that the provider cut at the output cap (the scenario cut-off-tool: a tool use with the stop reason max_tokens, then a text)
+/// is what Task 0 (e) measured: AI Hub runs the tool and goes on to the later reply, and Chat returns that reply, whose stop reason is
+/// end_turn. So the turn is answered with the later text and no fallback; the cut-off reply is no answer, as it has no text, and the
+/// bridge sees only the stop reason of the last reply. The tool ran: its step is recorded with the status ok, between two model steps.
+Method TestCutOffToolCall()
+{
+	If ..Failed() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:cut-off-tool]] Read the note.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set mark = $ClassMethod("OcuTalon.Test.Contract.Mock", "LogMark")
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn")
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback_"|"_answer.FallbackReason_"|"_answer.Outcome, "The CI mock answered after the cut.|0||tellnow", "the answer is the later reply's text, and no fallback")
+	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Contract.Mock", "LogSince", mark, .entries), "the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 2, "the mock got two requests: the one that was cut, and the one that carried the tool's result")
+	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
+	Set kinds = ""
+	For i = 0:1:steps.%Size() - 1 {
+		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
+	}
+	Do $$$AssertEquals(kinds, "model,tool,model", "the steps are a model request, the tool that ran and a model request")
+	If steps.%Size() = 3 Do $$$AssertEquals(steps.%Get(1).label_"|"_steps.%Get(1).status, "Reading the test note|ok", "the tool step has its label and the status ok")
 }
 
 /// --- helpers ---

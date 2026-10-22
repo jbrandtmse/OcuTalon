@@ -58,6 +58,27 @@
 ///     nothing, whatever the production is doing) give one warning for each, which names the DecisionRef, the step and the codes of the
 ///     error and holds nothing of the content that the status echoes (a password and a Bearer token), not even redacted; EmitSteps raises
 ///     nothing, and OnResponse still answers the turn and records its row.
+/// Added by Story 1.6 (AD-8, AD-20, AD-26, AD-28, AD-30, AD-31; DW-76):
+///   - TestReplyCheck and TestFilterBlanks now pin that a reply which fails its check, and a reply which the filter leaves nothing of, are
+///     recorded as fallbacks with the reason invalid, and no longer end with an error status;
+///   - TestConcludeFallbacks: Conclude of a refusal, a cut-off, an empty and an unusable turn, a reply that fails its check, a filter that
+///     leaves nothing, a failure text and no Reply at all gives status OK and one row with Fallback true, the reason and no reasons,
+///     confidence or payload; one decision.recorded after the save; a decide or diagnose gets the DecisionResponse of the row, and a turn
+///     gets a new Reply that holds no text, host data, steps, failure text or finish reason (the refused text is in no field of it) but
+///     the DecisionRef, the totals and the runner's Tainted;
+///   - TestOnErrorFallback: OnError keeps the runner's error status for the key reply and returns OK, and OnResponse then records an
+///     error fallback (or the reason of the status text); another key keeps its status; a failure Reply is classified by its FailureText;
+///   - TestFallbackRace: a fallback for an item that has a row, or that another call saves first, answers with that row and fires nothing;
+///   - TestMarkCappedWiring: RecordFallback with daily_cap fires decision.recorded and then budget.capped (the row and the mark in place,
+///     outside any transaction), a second item fires decision.recorded only, any other reason no budget.capped, and the failing sink is
+///     a warning; Conclude with the gateway's 403 marks the day too;
+///   - TestPrecheckLogs: Precheck logs one warning for each fault that Budget.State names, naming it and redacted, and one for a
+///     DecisionTokenBudget that is not a whole number of 0 or more, which counts as 0;
+///   - TestEstimateTokens: the estimate is the lengths of Input, SeedText and SystemNote at 4 characters a token, and the budget is over
+///     only above it;
+///   - TestOnRequestPrecheck: OnRequest records a request that fails a precheck as a fallback and answers it from OnRequest, with the
+///     settings checked first.
+/// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
@@ -71,6 +92,15 @@ Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
 
 Parameter REPLYCLASS = "OcuTalon.Bridge.Msg.DecisionPayload";
 
+/// The failure texts that AI Hub raised on build 154 (Story 1.6, Task 0; the same as in Test.Bridge.Fallback).
+Parameter DAILYCAP = "ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: Authentication failed: daily cost cap reached";
+
+Parameter OVERLOADED = "ERROR <%AICore>ProviderError: Provider 'anthropic' error: Rate limit exceeded: CI mock: overloaded.";
+
+Parameter LOOP = "ERROR <%AICore>LoopDetected: Agentic loop stalled: no new evidence from tool results after 4 assessment(s)";
+
+Parameter MAXITERATIONS = "ERROR <%AICore>MaxIterationsReached: Max iterations (4) reached without a final response";
+
 /// The ItemIds of the requests that the test made.
 Property ItemIds As %List;
 
@@ -79,6 +109,12 @@ Property UsageRefs As %List;
 
 /// The values (DecisionRefs and fake secrets) whose event-log rows the test wrote or provoked, to be deleted again.
 Property LogNeedles As %List;
+
+/// The System Default Settings rows before the test touched them (Test.Agent.RunnerFixture.SnapshotDefault), to be put back.
+Property SavedRows As %List;
+
+/// 1 when the test may have set the mark of today's day, which OnAfterOneTest removes.
+Property DayMarked As %Boolean [ InitialExpression = 0 ];
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
@@ -97,6 +133,15 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", needle)
 	}
 	Set ..LogNeedles = ""
+	Set position = 0
+	While $ListNext(..SavedRows, position, saved) {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(saved)
+	}
+	Set ..SavedRows = ""
+	If ..DayMarked {
+		Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
+		Set ..DayMarked = 0
+	}
 	Kill ^||ZzProbeFilter, ^||ZzProbeSink
 	Quit $$$OK
 }
@@ -203,18 +248,29 @@ Method TestReplyCheck()
 	Set request = ..NewRequest("decide")
 	Set reply = ..NewReply("{""outcome"":""maybe"",""reasons"":[""r""],""confidence"":0.5}")
 	Set sc = ..Conclude(request, reply, .response)
-	Do $$$AssertStatusNotOK(sc, "Conclude refuses a reply that fails the check")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "reply check", "and the error names the reply check: "_$SYSTEM.Status.GetErrorText(sc))
-	Do $$$AssertEquals(response, "", "it gives no response")
-	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row")
-	Set sc = ..Conclude(..NewRequest("decide"), ..NewReply(good, "refusal"), .response)
-	Do $$$AssertStatusNotOK(sc, "Conclude refuses a reply that the provider ended with a refusal")
-	Set sc = ..Conclude(..NewRequest("decide"), ..NewReply(good, "max_tokens"), .response)
-	Do $$$AssertStatusNotOK(sc, "and one that it cut off at the output cap")
+	Do $$$AssertStatusOK(sc, "Conclude records a reply that fails the check as a fallback")
+	Do $$$AssertEquals(response.Outcome_"|"_response.Fallback_"|"_response.FallbackReason, "tellnow|1|invalid", "tellnow, Fallback and the reason invalid")
+	Do $$$AssertEquals(response.Reasons_response.Confidence_response.Payload, "", "with no reasons, confidence or payload, so that the model's text is kept nowhere")
+	Do $$$AssertEquals(..Rows(request.ItemId), 1, "and records one row")
+	Set row = ..RowOf(request.ItemId, "decide")
+	Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Outcome, "1|invalid|tellnow", "that holds the same")
+	Set request = ..NewRequest("decide")
+	Set sc = ..Conclude(request, ..NewReply(good, "refusal"), .response)
+	Do $$$AssertStatusOK(sc, "Conclude records a reply that the provider ended with a refusal as a fallback")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|refusal", "with the reason refusal")
+	Set request = ..NewRequest("decide")
+	Set sc = ..Conclude(request, ..NewReply(good, "max_tokens"), .response)
+	Do $$$AssertStatusOK(sc, "and one that it cut off at the output cap")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|cut_off", "with the reason cut_off")
+	Set request = ..NewRequest("turn", "user")
+	Set sc = ..Conclude(request, ..NewReply(" "_$Char(10), "end_turn"), .response)
+	Do $$$AssertStatusOK(sc, "Conclude records an empty turn reply as a fallback")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|empty", "with the reason empty")
+	Do $$$AssertEquals(..Rows(request.ItemId), 1, "and records one row for it")
 	Set request = ..NewRequest("turn", "user")
 	Set sc = ..Conclude(request, ..NewReply(" "_$Char(10)), .response)
-	Do $$$AssertStatusNotOK(sc, "Conclude refuses an empty turn reply")
-	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row for it")
+	Do $$$AssertStatusOK(sc, "an empty turn reply with no finish reason is a fallback too")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|unusable", "with the reason unusable")
 }
 
 /// The filter runs once on each model-written text: every reason of a decide reply, and a turn's text. It does not run on the
@@ -441,9 +497,9 @@ Method TestResponseFromRow()
 	Do $$$AssertEquals(..Totals(made), ..Totals(response), "as the answer that Conclude gave does")
 }
 
-/// A decision with no reason left once the filter has run, and a turn with no text left, are not answers: Conclude refuses them,
-/// records no row and sends no event, for a user's item too. A reason that the filter blanks while another stays is dropped from
-/// the row.
+/// A decision with no reason left once the filter has run, and a turn with no text left, are not answers: Conclude records each as a
+/// fallback with the reason invalid, for a user's item too, with one decision.recorded and no model text. A reason that the filter
+/// blanks while another stays is dropped from the row.
 Method TestFilterBlanks()
 {
 	Set json = "{""outcome"":""ignore"",""reasons"":[""Gone {blank}"",""Gone too {blank}""],""confidence"":0.9}"
@@ -452,20 +508,19 @@ Method TestFilterBlanks()
 		Set request = ..NewRequest("decide", provenance)
 		Set sc = ..Conclude(request, ..NewReply(json), .response, ..#FILTER, ..#SINK)
 		Set label = "a "_provenance_" decide reply whose reasons the filter blanks"
-		Do $$$AssertStatusNotOK(sc, label_" is refused")
-		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "no reason is left", "with an error that says so: "_$SYSTEM.Status.GetErrorText(sc))
-		Do $$$AssertEquals(response, "", label_" gives no answer")
-		Do $$$AssertEquals(..Rows(request.ItemId), 0, label_" records no row")
-		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, label_" sends no event")
+		Do $$$AssertStatusOK(sc, label_" is recorded as a fallback")
+		Do $$$AssertEquals(response.Outcome_"|"_response.Fallback_"|"_response.FallbackReason, "tellnow|1|invalid", label_" is answered tellnow with the reason invalid")
+		Do $$$AssertEquals(response.Reasons_response.Confidence_response.Payload, "", label_" keeps no reason, confidence or payload")
+		Do $$$AssertEquals(..Rows(request.ItemId), 1, label_" records one row")
+		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, label_" sends one event, decision.recorded")
 	}
 	Kill ^||ZzProbeSink
 	Set request = ..NewRequest("turn", "user")
 	Set sc = ..Conclude(request, ..NewReply("Gone {blank}"), .response, ..#FILTER, ..#SINK)
-	Do $$$AssertStatusNotOK(sc, "a turn reply that the filter blanks is refused")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "no text is left", "with an error that says so: "_$SYSTEM.Status.GetErrorText(sc))
-	Do $$$AssertEquals(response, "", "and gives no answer")
-	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row")
-	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and sends no event")
+	Do $$$AssertStatusOK(sc, "a turn reply that the filter blanks is recorded as a fallback")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.Text, 1: "none"), "1|invalid|", "with the reason invalid and no text")
+	Do $$$AssertEquals(..Rows(request.ItemId), 1, "records one row")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and sends one event")
 
 	Set request = ..NewRequest("decide")
 	Set json = "{""outcome"":""ignore"",""reasons"":[""Kept."",""Gone {blank}""],""confidence"":0.9}"
@@ -474,6 +529,7 @@ Method TestFilterBlanks()
 	Set row = ..RowOf(request.ItemId, "decide")
 	Do $$$AssertEquals(row.Reasons, "[f] Kept.", "and the row holds the reason that is left")
 	Do $$$AssertEquals(response.Reasons, "[f] Kept.", "and so does the answer")
+	Do $$$AssertEquals(row.Fallback, 0, "it is no fallback")
 }
 
 /// The lost save race: another call saves its row for the item and kind after Conclude's check for an existing row and before
@@ -972,6 +1028,369 @@ Method TestRecordedAtIsUtc()
 	Do $$$AssertTrue((before ']] recorded) && (recorded ']] after), "and lies between the readings "_before_" and "_after_": "_recorded)
 }
 
+/// Conclude of every kind of unusable request or reply records a fallback and answers it (AD-8, AD-20, AD-26, AD-28, AD-31). For each:
+/// status OK; one row with the outcome tellnow, Fallback true and the reason, no reasons, confidence or payload, the DecisionRef given and
+/// the totals of its Usage rows; one decision.recorded after the save, outside any transaction; and the answer: a DecisionResponse of the row
+/// for a decide or diagnose request, and for a turn a new Reply that holds no text, host data, steps, failure text or finish reason, with
+/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted.
+Method TestConcludeFallbacks()
+{
+	Set json = ..#DIGEST
+	// the finish reasons
+	Do ..AssertFallback("a decide refusal", ..NewRequest("decide"), ..NewReply(json, "refusal"), "", "refusal")
+	Do ..AssertFallback("a diagnose refusal", ..NewRequest("diagnose"), ..NewReply(json, "refusal"), "", "refusal")
+	Do ..AssertFallback("a decide cut-off", ..NewRequest("decide"), ..NewReply(json, "max_tokens"), "", "cut_off")
+	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
+	Set reply.Tainted = 1
+	Set reply.HostData = "{""rows"":[1]}"
+	Set reply.Steps = "[{""kind"":""model"",""label"":""Model request 1"",""summary"":""zz"",""durationMs"":1,""status"":""ok"",""estimatedTokens"":2}]"
+	Set reply.SessionRotated = 1
+	Set reply.ToolsRun = 1
+	Set reply.AgentStepCount = 3
+	Do ..AssertFallback("a turn refusal", ..NewRequest("turn", "user"), reply, "", "refusal")
+	Set reply = ..NewReply("A cut zzrefusedtext reply that stops at the cap and", "max_tokens")
+	Do ..AssertFallback("a turn cut-off", ..NewRequest("turn", "user"), reply, "", "cut_off")
+	// an empty text
+	Do ..AssertFallback("an empty turn", ..NewRequest("turn", "user"), ..NewReply(" "_$Char(10), "end_turn"), "", "empty")
+	Do ..AssertFallback("an empty decide", ..NewRequest("decide"), ..NewReply("", "end_turn"), "", "empty")
+	Do ..AssertFallback("an empty turn from a provider that reports no finish reason", ..NewRequest("turn", "user"), ..NewReply(""), "", "unusable")
+	// invalid
+	Do ..AssertFallback("a decide reply that fails its check", ..NewRequest("decide"), ..NewReply("{""outcome"":""maybe"",""reasons"":[""zzrefusedtext""],""confidence"":0.5}", "end_turn"), "", "invalid")
+	Do ..AssertFallback("a decide reply that is no JSON", ..NewRequest("decide"), ..NewReply("Not JSON at all, zzrefusedtext."), "", "invalid")
+	Set blanks = "{""outcome"":""ignore"",""reasons"":[""Gone {blank}"",""Gone too {blank}""],""confidence"":0.9}"
+	Do ..AssertFallback("a decide reply that the filter leaves nothing of", ..NewRequest("decide"), ..NewReply(blanks, "end_turn"), "", "invalid", ..#FILTER)
+	Do ..AssertFallback("a user's decide reply that the filter leaves nothing of", ..NewRequest("decide", "user"), ..NewReply(blanks, "end_turn"), "", "invalid", ..#FILTER)
+	Do ..AssertFallback("a turn that the filter leaves nothing of", ..NewRequest("turn", "user"), ..NewReply("Gone {blank} zzrefusedtext", "end_turn"), "", "invalid", ..#FILTER)
+	// the failure of the runner
+	Set failed = ..NewReply("")
+	Set failed.FailureText = ..#MAXITERATIONS
+	Set failed.Steps = "[{""kind"":""model"",""label"":""Model request 1"",""summary"":""zz"",""durationMs"":1,""status"":""ok"",""estimatedTokens"":2}]"
+	Set failed.Tainted = 1
+	Set failed.AgentStepCount = 8
+	Do ..AssertFallback("a turn whose Chat reached the maximum of iterations", ..NewRequest("turn", "user"), failed, ..#MAXITERATIONS, "unusable")
+	Do ..AssertFallback("a decide whose Chat stalled in a loop", ..NewRequest("decide"), ..NewReply(""), ..#LOOP, "unusable")
+	Do ..AssertFallback("a failure with a reply that is a usable text", ..NewRequest("turn", "user"), ..NewReply("Everything is fine."), "ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: [api_error] zz", "error")
+	Do ..AssertFallback("a rate limit", ..NewRequest("decide"), ..NewReply(""), ..#OVERLOADED, "rate_limited")
+	Do ..AssertFallback("a provider timeout", ..NewRequest("turn", "user"), ..NewReply(""), "ERROR <%AICore>ProviderError: Provider 'anthropic' error: operation timed out", "timeout")
+	Do ..AssertFallback("a missing key found by the runner", ..NewRequest("decide"), ..NewReply(""), "ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ANTHROPIC_API_KEY} has no value and no :-fallback was given", "no_key")
+	// no Reply at all
+	Do ..AssertFallback("no reply at all", ..NewRequest("decide"), "", "", "error")
+	Do ..AssertFallback("a reply of another class", ..NewRequest("turn", "user"), ##class(Ens.StringResponse).%New("x"), "", "error")
+}
+
+/// OnError keeps the runner's error status for the key reply and returns OK, so that Ens calls OnResponse, which classifies the failure and
+/// records the fallback; the error of any other key keeps its status. A failure Reply is classified by its FailureText, and an error status
+/// wins over a Reply.
+Method TestOnErrorFallback()
+{
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = ..#FILTER
+	Set process.HostSinkClass = ..#SINK
+	Set process.%SessionId = 4245
+	Set request = ..NewRequest("turn", "user")
+	Set ref = ..NewUsageRef()
+	Do ..AddUsage(ref, "claude-haiku-5-5", 3800, 300, 2000, 600, .000365)
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ref
+	Set bad = $$$ERROR($$$GeneralError, "ERROR <%AICore>ProviderCreateFailed: Failed to create provider zz")
+	Do $$$AssertStatusOK(process.RunnerError, "no runner error is kept at first")
+	Set sc = process.OnError(request, .response, sent, bad, "timer")
+	Do $$$AssertStatusNotOK(sc, "the error of another key keeps its status")
+	Do $$$AssertStatusOK(process.RunnerError, "and keeps nothing")
+	Set sc = process.OnError(request, .response, sent, bad, "zz")
+	Do $$$AssertStatusNotOK(sc, "so does the error of an unknown key")
+	Set sc = process.OnError(request, .response, sent, bad, "reply")
+	Do $$$AssertStatusOK(sc, "OnError returns OK for the key reply, so that Ens calls OnResponse")
+	Do $$$AssertStatusNotOK(process.RunnerError, "and keeps the runner's error status")
+	Kill ^||ZzProbeSink
+	Set sc = process.OnResponse(request, .response, sent, "", "reply")
+	Do $$$AssertStatusOK(sc, "OnResponse records the failure")
+	Do $$$AssertStatusOK(process.RunnerError, "and clears the error it kept")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA("OcuTalon.Bridge.Msg.Reply"), "a turn is answered with a Reply")
+	If $IsObject(response) {
+		Do $$$AssertEquals(response.Outcome_"|"_response.Fallback_"|"_response.FallbackReason_"|"_response.Text, "tellnow|1|error|", "an error fallback, with no text")
+		Do $$$AssertEquals(response.DecisionRef, ref, "with the DecisionRef of the runner's request")
+		Do $$$AssertEquals(..Totals(response), "3800|300|2000|600|.000365|claude-haiku-5-5|0|"_response.DurationMs, "and the totals of its Usage rows, no steps and its duration")
+	}
+	Set row = ..RowOf(request.ItemId, "turn")
+	Do $$$AssertTrue($IsObject(row), "the row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.TraceSessionId, "tellnow|1|error|4245", "with the fallback, the reason and the session of the process")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and one decision.recorded")
+
+	// the reason is that of the status text
+	Set texts = $ListBuild(..#OVERLOADED, "ERROR <%AICore>ProviderError: Provider 'anthropic' error: operation timed out", ..#MAXITERATIONS, "ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ANTHROPIC_API_KEY} has no value and no :-fallback was given")
+	Set reasons = $ListBuild("rate_limited", "timeout", "unusable", "no_key")
+	For i = 1:1:$ListLength(texts) {
+		Set request = ..NewRequest("decide")
+		Set sent = request.%ConstructClone()
+		Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do process.OnError(request, .response, sent, $$$ERROR($$$GeneralError, $List(texts, i)), "reply")
+		Set sc = process.OnResponse(request, .response, sent, "", "reply")
+		Do $$$AssertStatusOK(sc, "a runner error with the text of "_$List(reasons, i)_" is recorded")
+		Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "1|"_$List(reasons, i), "as a fallback with the reason "_$List(reasons, i))
+	}
+
+	// a failure Reply, and the error that wins over a Reply
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set failed = ..NewReply("")
+	Set failed.FailureText = ..#LOOP
+	Set failed.Tainted = 1
+	Set sc = process.OnResponse(request, .response, sent, failed, "reply")
+	Do $$$AssertStatusOK(sc, "the failure Reply of a runner is recorded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.Tainted_"|"_response.FailureText, 1: "none"), "1|unusable|1|", "as an unusable fallback that carries the taint and not the failure text")
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do process.OnError(request, .response, sent, $$$ERROR($$$GeneralError, "zz failed"), "reply")
+	Set sc = process.OnResponse(request, .response, sent, ..NewReply("Everything is fine."), "reply")
+	Do $$$AssertStatusOK(sc, "an error status and a Reply together are recorded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.Text, 1: "none"), "1|error|", "the error wins: the Reply's text is not an answer")
+}
+
+/// A fallback for an item that already has a row answers with that row and fires nothing, also when the other call saves its row inside
+/// RecordFallback, after its check and before its own save. The row of a turn is refused, naming the item and the Ref.
+Method TestFallbackRace()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Kill ^||ZzProbeSink
+	Set request = ..NewRequest("decide")
+	Set first = ..NewRow(request.ItemId, "decide", "act")
+	Set first.Reasons = "The first call won."
+	Set first.Confidence = 0.31
+	Do $$$AssertStatusOK(first.%Save(), "another call saved its row first")
+	Set sc = $ClassMethod(decide, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", "", ..#SINK, 4242, .response)
+	Do $$$AssertStatusOK(sc, "a fallback for the item answers")
+	Do $$$AssertEquals($Select($IsObject(response): response.DecisionRef_"|"_response.Outcome_"|"_response.Fallback_"|"_response.Reasons, 1: "none"), first.Ref_"|act|0|The first call won.", "with the row that exists")
+	Do $$$AssertEquals(..Rows(request.ItemId)_"|"_(+$Get(^||ZzProbeSink)), "1|0", "records no second row and fires no event")
+
+	Set request = ..NewRequest("turn", "user")
+	Set row = ..NewRow(request.ItemId, "turn", "tellnow")
+	Do $$$AssertStatusOK(row.%Save(), "a turn row exists")
+	Set sc = $ClassMethod(decide, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", "", ..#SINK, 4242, .response)
+	Do $$$AssertStatusNotOK(sc, "a fallback for a turn that has a row is refused")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue((text [ request.ItemId) && (text [ row.Ref), "naming the item and the Ref: "_text)
+	Do $$$AssertEquals(response, "", "with no answer")
+	Do $$$AssertEquals(..Rows(request.ItemId)_"|"_(+$Get(^||ZzProbeSink)), "1|0", "and no second row or event")
+
+	For kind = "decide", "turn" {
+		Set template = ..NewRequest(kind, $Select(kind = "turn": "user", 1: "untrusted"))
+		Set race = ##class(OcuTalon.Test.Bridge.ProbeRaceRequest).%New()
+		Set race.Kind = kind, race.Provenance = template.Provenance, race.ItemId = template.ItemId, race.OwnerRef = "instance", race.Summary = template.Summary
+		Set race.Competitor = ..NewRow(template.ItemId, kind, "act")
+		Set race.Competitor.Reasons = "The other call won the race."
+		Set sc = $ClassMethod(decide, "RecordFallback", race, ##class(OcuTalon.Bridge.Ids).NewRef(), "refusal", "", ..#SINK, 4242, .response)
+		Do $$$AssertTrue(race.Raced && $$$ISOK(race.RaceStatus), "the other "_kind_" call saved its row inside RecordFallback")
+		If kind = "decide" {
+			Do $$$AssertStatusOK(sc, "the fallback answers")
+			Do $$$AssertEquals($Select($IsObject(response): response.DecisionRef_"|"_response.Outcome_"|"_response.Fallback_"|"_response.Reasons, 1: "none"), race.Competitor.Ref_"|act|0|The other call won the race.", "with the row that won")
+		} Else {
+			Do $$$AssertStatusNotOK(sc, "the fallback of a turn is refused, as the row of a turn has no reply text")
+		}
+		Do $$$AssertEquals(..Rows(template.ItemId)_"|"_(+$Get(^||ZzProbeSink)), "1|0", "no second "_kind_" row is recorded and no event is fired")
+	}
+}
+
+/// The day is capped once, by the fallback that records daily_cap (AD-20; U-16): RecordFallback fires decision.recorded and then budget.capped
+/// (owner instance, {"day"}), outside any transaction, with the row saved before the first and the mark set before the second. A second
+/// item with daily_cap fires decision.recorded only, as does any other reason. Conclude with the gateway's 403 does the same, and a sink
+/// that fails is a warning that leaves the mark and the answer.
+Method TestMarkCappedWiring()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	Set ..DayMarked = 1
+	Kill ^OcuTalonBP.UsageCapped(today)
+	Kill ^||ZzProbeSink
+	Set first = ..NewRequest("decide")
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = $ClassMethod(decide, "RecordFallback", first, ref, "daily_cap", "", ..#SINK, 4242, .response)
+	Do $$$AssertStatusOK(sc, "a daily_cap fallback is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 2, "the sink got two calls")
+	Set one = $Get(^||ZzProbeSink(1))
+	Set two = $Get(^||ZzProbeSink(2))
+	Do $$$AssertEquals($List(one, 1)_"|"_$List(one, 2)_"|"_$List(one, 3), "decision.recorded|instance|{""ref"":"""_ref_"""}", "the first is decision.recorded with the Ref of the row")
+	Do $$$AssertEquals($List(one, 4)_"|"_$List(one, 5)_"|"_$List(one, 6), "0|1|", "outside any transaction, with the row saved and the day not yet marked")
+	Do $$$AssertEquals($List(two, 1)_"|"_$List(two, 2)_"|"_$List(two, 3), "budget.capped|instance|{""day"":"""_today_"""}", "the second is budget.capped with the owner instance and the day")
+	Do $$$AssertEquals($List(two, 4)_"|"_$List(two, 5)_"|"_$List(two, 6)_"|"_$List(two, 7), "0||1|0", "outside any transaction, with the mark in place and its lock released")
+	Do $$$AssertEquals(..RowOf(first.ItemId, "decide").FallbackReason, "daily_cap", "the row is the daily_cap fallback")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "1|daily_cap", "and so is the answer")
+
+	Set second = ..NewRequest("turn", "user")
+	Set ref2 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = $ClassMethod(decide, "RecordFallback", second, ref2, "daily_cap", "", ..#SINK, 4242, .response)
+	Do $$$AssertStatusOK(sc, "a second daily_cap fallback is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 3, "it fires one event more")
+	Do $$$AssertEquals($List($Get(^||ZzProbeSink(3)), 1), "decision.recorded", "decision.recorded only: the day is marked once")
+
+	Set third = ..NewRequest("decide")
+	Set sc = $ClassMethod(decide, "RecordFallback", third, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", "", ..#SINK, 4242, .response)
+	Do $$$AssertStatusOK(sc, "a fallback with another reason is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 4, "it fires one event more")
+	Do $$$AssertEquals($List($Get(^||ZzProbeSink(4)), 1), "decision.recorded", "decision.recorded and no budget.capped")
+	Kill ^OcuTalonBP.UsageCapped(today)
+	Kill ^||ZzProbeSink
+	Set fourth = ..NewRequest("decide")
+	Set sc = $ClassMethod(decide, "RecordFallback", fourth, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", "", ..#SINK, 4242, .response)
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink)_"|"_$Data(^OcuTalonBP.UsageCapped(today)), "1|0", "an error fallback does not mark the day")
+
+	// the gateway's 403 through Conclude
+	Kill ^||ZzProbeSink
+	Set request = ..NewRequest("turn", "user")
+	Set sc = ..ConcludeWith(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply(""), 1, .response, , ..#SINK, ..#DAILYCAP)
+	Do $$$AssertStatusOK(sc, "Conclude with the gateway's 403 records a fallback")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "1|daily_cap", "daily_cap")
+	Do $$$AssertEquals($List($Get(^||ZzProbeSink(1)), 1)_"|"_$List($Get(^||ZzProbeSink(2)), 1)_"|"_(+$Get(^||ZzProbeSink)), "decision.recorded|budget.capped|2", "with decision.recorded and then budget.capped")
+	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State().capped, 1, "so that Budget.State reports the cap reached")
+
+	// a sink that fails
+	For mode = "error", "throw" {
+		Kill ^OcuTalonBP.UsageCapped(today)
+		Kill ^||ZzProbeSink
+		Set ^||ZzProbeSink("mode") = mode
+		Set mark = ..LogMark()
+		Set request = ..NewRequest("decide")
+		Set sc = $ClassMethod(decide, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "daily_cap", "", ..#SINK, 4242, .response)
+		Do $$$AssertStatusOK(sc, "in "_mode_" mode the fallback is recorded and answered")
+		Do $$$AssertEquals(..Rows(request.ItemId), 1, "the row stands")
+		Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and so does the mark")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(..#SINK, "decision.recorded")), 1, "one warning names the sink and decision.recorded")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(..#SINK, "budget.capped", today)), 1, "and one the sink, budget.capped and the day")
+	}
+}
+
+/// Precheck logs one warning for each fault that Budget.State names (DW-76), naming it and redacted, and one for a DecisionTokenBudget that
+/// is not a whole number of 0 or more, which counts as 0. TriageAgent has a key for the test (an inline configuration that names PATH).
+Method TestPrecheckLogs()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Do ..PutKey("TriageAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 1)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set ref = ..NewUsageRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, "zz-unpriced", 10, 5, 0, 0, "", now, "instance"), "a Usage row of today with no cost is saved")
+	Set request = ..NewRequest("decide")
+	Set mark = ..LogMark()
+	Set reason = $ClassMethod(decide, "Precheck", request, "TriageAgent", 0)
+	Do $$$AssertEquals(reason, "", "a request with a key, under the cap and with no budget passes")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 1, "one warning comes from Precheck")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, "zz-unpriced"), 1, "and it names the model")
+	Set fake = "zzfakebearer0123456789"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, "zz Bearer "_fake, 10, 5, 0, 0, "", now, "instance"), "a model whose name holds a Bearer token is saved")
+	Do ..Put("Decide", "GatewaySpendUSD", "x")
+	Set mark = ..LogMark()
+	Set reason = $ClassMethod(decide, "Precheck", request, "TriageAgent", 0)
+	Do $$$AssertEquals(reason, "", "still no fallback: the cap fails open")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 3, "three faults give three warnings: two models and the gateway's spend")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, "GatewaySpendUSD"), 1, "one names GatewaySpendUSD")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, "zz-unpriced"), 1, "and one the first model")
+	Do $$$AssertEquals(..LogRowsHolding(mark, fake), 0, "none holds the fake token: they are redacted")
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, "claude-haiku-5-5", 10, 5, 0, 0, 2, now, "instance"), "a priced Usage row above the cap is saved")
+	Set mark = ..LogMark()
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0), "daily_cap", "the spend that can be read reaches the cap")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 2, "and the two faults of the models are still logged")
+
+	// the token budget
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	For bad = -1, "abc", "1.5", "5e1", "1,000", " 7" {
+		Set mark = ..LogMark()
+		Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", bad), "", "a token budget of '"_bad_"' counts as 0, which is off")
+		Do $$$AssertEquals(..PrecheckWarnings(mark, "DecisionTokenBudget"), 1, "with one warning that names DecisionTokenBudget")
+		Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 1, "and no other")
+	}
+	For good = "", 0, "0", 7, "007", 1000000 {
+		Set mark = ..LogMark()
+		Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", good), "", "a token budget of '"_good_"' passes this small request")
+		Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 0, "with no warning")
+	}
+}
+
+/// The estimate is the lengths of Input, SeedText and SystemNote added together, at 4 characters a token and rounded up; a budget is over
+/// only when the estimate is above it, and 0 is off.
+Method TestEstimateTokens()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Input = "abcd"
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 1, "4 characters are 1 token")
+	Set request.Input = "abcde"
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 2, "5 characters are 2 tokens: the count is rounded up")
+	Set request.Input = ""
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 0, "nothing is 0 tokens")
+	Set request.Input = "abc", request.SeedText = "def", request.SystemNote = "gh"
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 2, "the three lengths are added before they are counted: 8 characters are 2 tokens, not 3")
+	Set request.SystemNote = "ghi"
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 3, "and 9 are 3")
+	Set request.Input = $Justify("", 400), request.SeedText = "", request.SystemNote = ""
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 100, "400 characters are 100 tokens")
+
+	// the budget against the estimate
+	Do ..PutKey("TriageAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Set request = ..NewRequest("decide")
+	Set request.Input = "Triage this item."
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 5, "the input of the test is 5 tokens")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 5), "", "a budget of 5 is not over")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 4), "budget", "a budget of 4 is")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "budget", "so is a budget of 1")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0), "", "a budget of 0 is off")
+	Set request.SeedText = "0123456789"
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 7), "", "with 27 characters (7 tokens) in all, a budget of 7 is not over")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 6), "budget", "and a budget of 6 is")
+}
+
+/// OnRequest records a request that fails a precheck as a fallback and answers it itself, with no runner request and no timer; the settings
+/// are checked first, and an item that has a decision is answered from its row. No production is started.
+Method TestOnRequestPrecheck()
+{
+	Do ..PutKey("TriageAgent")
+	Do ..Put("ChatAgent", "ProviderConfig", "{}")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = ..#SINK
+	Set process.TimerSeconds = 60
+	Set process.DecisionTokenBudget = 1
+	Set process.%SessionId = 4246
+	Set request = ..NewRequest("decide")
+	Kill ^||ZzProbeSink
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a request over the token budget is answered by OnRequest")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Outcome_"|"_response.Fallback_"|"_response.FallbackReason, 1: "none"), "OcuTalon.Bridge.Msg.DecisionResponse|tellnow|1|budget", "with a DecisionResponse that is a fallback with the reason budget")
+	Set row = ..RowOf(request.ItemId, "decide")
+	Do $$$AssertTrue($IsObject(row), "the row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.FallbackReason_"|"_row.TraceSessionId_"|"_row.AgentStepCount, "budget|4246|0", "with the reason, the session of the process and no steps")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and one decision.recorded")
+	Set sc = process.OnRequest(request, .again)
+	Do $$$AssertStatusOK(sc, "the same item again is answered from its row")
+	Do $$$AssertEquals($Select($IsObject(again): again.DecisionRef, 1: ""), $Select($IsObject(row): row.Ref, 1: ""), "with the same DecisionRef")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and no second event")
+
+	Set process.DecisionTokenBudget = 0
+	Set request = ..NewRequest("turn", "user")
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a turn with no key for ChatAgent is answered by OnRequest")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Fallback_"|"_response.FallbackReason_"|"_response.Text, 1: "none"), "OcuTalon.Bridge.Msg.Reply|1|no_key|", "with a Reply that is a no_key fallback and has no text")
+
+	Set process.TimerSeconds = 0
+	Set process.DecisionTokenBudget = 1
+	Set request = ..NewRequest("turn", "user")
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusNotOK(sc, "a Decide with a bad setting is an error, not a fallback, although this turn also fails the no-key and the budget prechecks")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "TimerSeconds", "that names the setting: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row")
+}
+
 /// --- helpers ---
 /// A Decide instance for the in-process tests: it is never started or saved. Its settings are those of the Decide item of the
 /// active production (Ens.Host's initConfig), so a test sets every setting that it relies on.
@@ -1023,10 +1442,10 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, reply As OcuTalon.B
 }
 
 /// Conclude as the helper above does, for a DecisionRef that the test chose (the Usage rows of the decision carry it) and with the
-/// duration that Decide measured. response is the answer.
-ClassMethod ConcludeWith(request As OcuTalon.Bridge.Msg.Request, ref As %String, reply As OcuTalon.Bridge.Msg.Reply, durationMs As %Integer, Output response, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter", sink As %String = "OcuTalon.Bridge.Ext.HostSink") As %Status [ Private ]
+/// duration that Decide measured, and the failure text of the runner, if any. response is the answer.
+ClassMethod ConcludeWith(request As OcuTalon.Bridge.Msg.Request, ref As %String, reply As OcuTalon.Bridge.Msg.Reply, durationMs As %Integer, Output response, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter", sink As %String = "OcuTalon.Bridge.Ext.HostSink", failure As %String = "") As %Status [ Private ]
 {
-	Quit ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ref, reply, ..#REPLYCLASS, filter, sink, 4242, .response, durationMs)
+	Quit ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ref, reply, ..#REPLYCLASS, filter, sink, 4242, .response, durationMs, failure)
 }
 
 /// A new DecisionRef for Usage rows, which the test deletes the rows of afterwards.
@@ -1117,6 +1536,85 @@ Method AssertWarning(mark As %Integer, class As %String, ref As %String, label A
 {
 	Set found = ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(class, ref, event))
 	Do $$$AssertEquals(found, 1, label_": one warning names "_class_" and the Ref")
+}
+
+/// Conclude of the request and reply (and the runner's failure text, if one is given), with a Usage row of the decision, and the
+/// assertions that every fallback shares: status OK; one row with the outcome tellnow, Fallback true, the reason expected and no reasons,
+/// confidence or payload; the totals of the decision; one decision.recorded, after the save and outside any transaction; and an answer
+/// that holds none of the model's refused text (the marker zzrefusedtext), is a new Reply with nothing but the verdict, the totals and the
+/// taint for a turn, and a DecisionResponse of the row otherwise.
+Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, reply As %RegisteredObject, failure As %String, expected As %String, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter") [ Private ]
+{
+	Kill ^||ZzProbeSink, ^||ZzProbeFilter
+	Set ref = ..NewUsageRef()
+	Do ..AddUsage(ref, "claude-haiku-5-5", 3800, 300, 2000, 600, .000365)
+	Set isReply = $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply")
+	Set before = $Select(isReply: reply.Text_"|"_reply.FinishReason_"|"_reply.Steps_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.Tainted, 1: "")
+	Set sc = ..ConcludeWith(request, ref, reply, 987, .response, filter, ..#SINK, failure)
+	Do $$$AssertStatusOK(sc, label_": Conclude records a fallback")
+	Set row = ..RowOf(request.ItemId, request.Kind)
+	If '$IsObject(row) || '$IsObject(response) {
+		Do $$$AssertTrue(0, label_": a row is recorded and an answer is given")
+		Quit
+	}
+	Set steps = $Select(isReply: reply.AgentStepCount, 1: 0)
+	Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason, "tellnow|1|"_expected, label_": the row is a tellnow fallback with the reason "_expected)
+	Do $$$AssertEquals(row.Reasons_"|"_row.Confidence_"|"_row.Payload, "||", label_": it holds no reasons, confidence or payload")
+	Do $$$AssertEquals(row.Ref_"|"_row.TraceSessionId, ref_"|4242", label_": with the DecisionRef given and the session")
+	Do $$$AssertEquals(..Totals(row), "3800|300|2000|600|.000365|claude-haiku-5-5|"_steps_"|987", label_": and the totals of the decision")
+	Do $$$AssertEquals(..Totals(response), ..Totals(row), label_": the answer carries the same totals")
+	Do $$$AssertEquals(response.DecisionRef_"|"_response.Outcome_"|"_response.Fallback_"|"_response.FallbackReason, row.Ref_"|tellnow|1|"_expected, label_": and the verdict of the row")
+	Do $$$AssertEquals(response.Reasons_"|"_response.Confidence, "|", label_": with no reasons or confidence")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, label_": one event is sent")
+	Set call = $Get(^||ZzProbeSink(1))
+	Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 3)_"|"_$List(call, 4)_"|"_$List(call, 5), "decision.recorded|{""ref"":"""_ref_"""}|0|1", label_": it is decision.recorded, sent after the save and outside any transaction")
+	Do $$$AssertStatusOK(response.XMLExportToString(.xml), label_": the answer is exported as XML")
+	Do $$$AssertTrue(xml [ "<Fallback>true</Fallback>", label_": the XML shows Fallback true")
+	Do $$$AssertTrue(xml [ ("<FallbackReason>"_expected_"</FallbackReason>"), label_": and the reason")
+	Do $$$AssertTrue(xml '[ "zzrefusedtext", label_": the model's refused text is in no field of the answer")
+	If request.Kind = "turn" {
+		Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), label_": a turn is answered with a Reply")
+		Do $$$AssertEquals(response.Text_"|"_response.HostData_"|"_response.Steps_"|"_response.FailureText_"|"_response.FinishReason, "||||", label_": with no text, host data, steps, failure text or finish reason")
+		Do $$$AssertEquals(response.SessionRotated_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0|0", label_": and no flag of the runner's")
+		Do $$$AssertEquals(response.Tainted, $Select(isReply: +reply.Tainted, 1: 0), label_": but the taint of the runner's reply")
+		If $IsObject(reply) Do $$$AssertTrue(response '= reply, label_": it is a new Reply, not the runner's")
+		If isReply Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason_"|"_reply.Steps_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.Tainted, before, label_": and the runner's own Reply is not changed")
+	} Else {
+		Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.DecisionResponse"), label_": a decide or diagnose request is answered with a DecisionResponse")
+		Do $$$AssertEquals(response.Payload, "", label_": with no payload")
+	}
+}
+
+/// Puts the System Default Settings row of the setting of the item (Test.Agent.RunnerFixture.PutDefault) and remembers the row that was
+/// there, once, for OnAfterOneTest.
+Method Put(item As %String, setting As %String, value As %String) [ Private ]
+{
+	Set known = 0
+	Set position = 0
+	While $ListNext(..SavedRows, position, saved) {
+		If ($List(saved, 1) = item) && ($List(saved, 2) = setting) Set known = 1
+	}
+	If 'known Set ..SavedRows = ..SavedRows _ $ListBuild(##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault(item, setting))
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault(item, setting, value), "the setting "_setting_" of "_item_" is '"_value_"'")
+}
+
+/// Gives the runner item a model key for the test: an inline provider configuration whose api_key names PATH, which is set in this process.
+Method PutKey(item As %String) [ Private ]
+{
+	Do ..Put(item, "ProviderConfig", "{""api_key"":""@{env:PATH}""}")
+}
+
+/// Removes the mark of today's day, and again when the test is over.
+Method Unmark() [ Private ]
+{
+	Set ..DayMarked = 1
+	Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
+}
+
+/// The number of warnings of Decide's Precheck after the mark that hold the needle.
+ClassMethod PrecheckWarnings(mark As %Integer, needle As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "Precheck", $ListBuild(needle))
 }
 
 }

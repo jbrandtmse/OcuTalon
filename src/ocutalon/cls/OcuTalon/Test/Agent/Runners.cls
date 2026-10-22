@@ -6,7 +6,10 @@
 /// the adapterless service of the production, as a caller of the runners will send them.
 ///   - TestStartsWithNoKey: with no model key in the container, every runner runs; a Request gets an error that names the key
 ///     placeholder, twice, because the agent is built on first use and a failed build is not kept, and so does a ToolInventory
-///     request; nothing reaches the mock and the item keeps its job;
+///     request; nothing reaches the mock and the item keeps its job. Since Story 1.6 (AD-6, AD-8, AD-19; FR-38) Keys.Status is 0 for each
+///     runner, and a decide and a turn through Decide are fallbacks with the reason no_key that are never sent: the mock's log holds
+///     nothing since the mark, Decide sent only its answer, every item still runs and the event log holds no error or alert row since
+///     the Decide sends;
 ///   - TestStartRefused: a runner whose adapter has a refused setting (SystemPrompt), or whose agent class is not on the allow-list,
 ///     does not start, and the event log names the setting or the class; with the row put back it starts again;
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
@@ -54,6 +57,9 @@ Property AllowDescription As %String(MAXLEN = "");
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
+/// The ItemIds of the requests that the test sent through Decide, whose rows OnAfterOneTest deletes.
+Property ItemIds As %List;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set id = ..AllowId()
@@ -70,6 +76,13 @@ Method OnBeforeAllTests() As %Status
 /// runs or not, and, when it runs, the keys of the entries, and starts every runner that does not run.
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set position = 0
+	While $ListNext(..ItemIds, position, itemId) {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+	}
+	Set ..ItemIds = ""
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||TriageAgent||*||SystemPrompt")
 	Do ..RestoreAllow()
 	If '##class(OcuTalon.Test.Agent.RunnerFixture).Running() Quit $$$OK
@@ -120,6 +133,39 @@ Method TestStartsWithNoKey()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "and every item still runs")
+
+	// Decide stops the same configuration before anything is sent: no_key (AC2, AC6)
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set runners = $ListFromString(..#RUNNERS)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set status = ##class(OcuTalon.Bridge.Keys).Status(item)
+		Do $$$AssertEquals(status, 0, "Keys.Status of "_item_" is 0: its key is not set")
+		Do $$$AssertTrue((status = 0) || (status = 1), "exactly 0 or 1: '"_status_"'")
+	}
+	Set errorMark = $ClassMethod(fixture, "EventMark")
+	Set mockMark = $ClassMethod(mock, "LogMark")
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .decideRef)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(decideRef)
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "a decide through Decide is answered")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, 1: "none"), "OcuTalon.Bridge.Msg.DecisionResponse|tellnow|1|no_key", "with a fallback with the reason no_key")
+	Set row = $ClassMethod(fixture, "DecisionOf", decideRef, "decide")
+	Do $$$AssertTrue($IsObject(row) && (row.Fallback = 1) && (row.FallbackReason = "no_key"), "and a row that says the same")
+	Do $$$AssertEquals($ClassMethod(fixture, "Targets", $ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent no runner request and no timer, only its answer")
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "What is going on?", .turnRef)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(turnRef)
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "a turn through Decide is answered")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason_"|"_answer.Text, 1: "none"), "OcuTalon.Bridge.Msg.Reply|tellnow|1|no_key|", "with a no_key fallback Reply that has no text")
+	Set row = $ClassMethod(fixture, "DecisionOf", turnRef, "turn")
+	Do $$$AssertTrue($IsObject(row) && (row.Fallback = 1) && (row.FallbackReason = "no_key"), "and a row that says the same")
+	Do $$$AssertEquals($ClassMethod(fixture, "Targets", $ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent only its answer for the turn too")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mockMark, .entries), "the mock's log is read")
+	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock since the mark")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "every item still runs")
+	Do $$$AssertEquals($ListToString($ClassMethod(fixture, "ErrorRows", errorMark), "; "), "", "and the event log holds no error or alert row since the mark")
 }
 
 /// A SystemPrompt row for TriageAgent, and then an allow-list that leaves out Triage, each stop the item at its start: it has no

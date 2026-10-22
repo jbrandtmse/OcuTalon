@@ -2,13 +2,33 @@
 title: 'Story 1.6: An unusable reply takes the fallback route, and OcuTalon starts with no key'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-5, AD-6, AD-8, AD-9, AD-19, AD-20, AD-22, AD-26, AD-28, AD-30, AD-31 and AD-33, and the Redaction, Logging and errors and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The matrix row "A cut-off tool call" says the result is never a usable answer, but AI Hub runs a tool call that the provider cut at
+      max_tokens and goes on, so Chat returns the later reply with end_turn and the turn is answered with no fallback.
+    evidence: |-
+      Measured in Task 0 (e) on build 154 (Verification, "Measured in implementation"): the scenario cut-off-tool gives three steps (model, tool,
+      model) and the finish reason end_turn. The bridge sees only the stop reason of the last response: StepRenderer.OnMessage gets the content
+      value and nothing else. TestCutOffToolCall pins the measured behaviour. The row needs the lead's amendment, or AI Hub needs a per-response
+      stop reason. Whether the arguments of a cut-off tool call can be truncated on the real Anthropic API is not measured (inference).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Agent/Steps.cls (TestCutOffToolCall); src/bridge/cls/OcuTalon/Bridge/Adapter/StepRenderer.cls (OnMessage)
+    severity: medium
+  - summary: >-
+      Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index.
+    evidence: |-
+      Usage indexes DecisionRef and OwnerRef only; UsageSpent selects by RecordedAt, and with a cap above 0 UnpricedModels scans again. The cost
+      grows with the number of Usage rows. What would settle it: the time of Decide.Precheck with about 100,000 Usage rows.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Budget.cls (UsageSpent, UnpricedModels); src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (Precheck)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -400,6 +420,62 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-22 — Review pass
+- verdicts: 48 findings — high 0, medium 8, low 36, false 3, maybe-false 1
+- findings:
+  - Blind Hunter:
+    - `[medium]` `[patch]` `ConfigStore.Merge` does not read through `Details` although the spec, the class doc and the test header say it does — `Merge` repeated the `Exists` and `GetDetails` block (Rule 2). Fixed: `Merge` calls `Details`; the missing-entry text names the class and the entry; `Test.Bridge.ConfigStore` is green.
+    - `[low]` `[patch]` `Details` doc says the api_key is "never the value", which holds only for placeholders — fixed: the doc says it returns the entry as stored and that a caller never logs, stores or returns it.
+    - `[low]` `[patch]` `Keys.Present` finds an absent entry by matching "does not exist" in the error text — fixed: a failed `Details` is absent only when `%ConfigStore.Configuration.Exists` says so (decision 23).
+    - `[low]` `[reject]` `Keys` judges "no key" from `ProviderConfig` alone, not from `ProviderName` or the agent class's `APIKEY` and `PROVIDERCONFIG` parameters — spec-bound (Boundaries: an empty config is 0), and OcuTalon's runners always carry a `ProviderConfig` from the Provider step; reopen_if a runner may take its key from those other sources.
+    - `[maybe-false]` `[defer]` `Precheck` calls `Budget.State` on every decision, and `State` scans `Usage` by the unindexed `RecordedAt` — medium if true; what would settle it: the time of `Precheck` with about 100,000 `Usage` rows (deferred item 2).
+    - `[low]` `[patch]` `UnpricedModels` logs its failure without `Redact.Text` — fixed. The scan failure is a warning, not silent, and the four faults of `State` are the spec's list.
+    - `[low]` `[reject]` `daily_cap` is found by an unanchored substring and has a day-wide effect — AD-8 and the spec define the match as "holds `daily cost cap reached`", and the text is the provider's own error, which does not echo request text (Task 0 (b)); reopen_if a provider error is seen echoing prompt text.
+    - `[medium]` `[defer]` `TestCutOffToolCall` pins "no fallback" where the matrix row says "never a usable answer" — AI Hub runs a tool call that the provider cut at max_tokens and goes on (Task 0 (e), decision 22), and the bridge cannot see an intermediate stop reason (`StepRenderer.OnMessage` gets the text only). The platform behaviour is pre-existing; the row needs the lead's amendment (deferred item 1).
+    - `[low]` `[reject]` the restores in three `OnAfterOneTest` methods ignore their status — a failed restore makes later tests fail visibly, not pass; unlikely, and the fix touches three teardown methods.
+    - `[low]` `[patch]` `TestPresentEntry` has `$$$AssertTrue(1, ...)` for the entry that cannot be created — fixed: `$$$LogMessage`, so no assertion that cannot fail stays.
+    - `[low]` `[reject]` untested branches (the `Catch` of `FailureText`, the failed scan in `UnpricedModels`, a `Keys.Status` read error that is not "item not found", `Classify` of a non-object) — each is by inspection, needs a seam that the product does not have, and `Classify` takes a `%DynamicObject` by contract.
+  - Edge Case Hunter:
+    - `[low]` `[reject]` an empty `ProviderConfig` while `ProviderName` or the class parameters supply the key — same root as the Blind Hunter's fourth finding.
+    - `[low]` `[reject]` a keyless provider (vertex, bedrock, a local `base_url`) has no api_key and counts as absent — spec-bound (a missing api_key is 0) and release 1 runs key-based providers; reopen_if a keyless provider is supported.
+    - `[low]` `[patch]` `Details` errors read as absent by their text — same root as the Blind Hunter's third finding; fixed.
+    - `[low]` `[reject]` a missing or renamed runner item is hidden as `no_key` — spec-bound (Keys.Status Boundaries: no item gives 0), and `CheckSettings` already refuses a runner that the kind does not name.
+    - `[low]` `[reject]` one warning per fault per decision, unthrottled — decision 4 states exactly that, and decisions are rare events; reopen_if the event log fills with these warnings.
+    - `[low]` `[reject]` `daily_cap` does not mark the day when another call already saved the item's row — spec-bound (the mark follows the call that saved the row), it needs two answers for one item, and the next `daily_cap` fallback of any other item marks the day.
+    - `[low]` `[reject]` a non-AI-Hub exception inside `Chat` becomes an `error` fallback row — spec-bound (Boundaries: when `Chat` throws, `Answer` no longer re-throws; ruled U-25); a job that is halted does not return to this code.
+    - `[low]` `[reject]` a reply of only non-ASCII white space (NBSP, U+200B) is not blank — spec-bound (blank once white space and control characters are removed, as Story 1.3 checked); reopen_if a provider returns such replies.
+    - `[low]` `[patch]` `TestCostOfFailedTurn` reads `row.AgentStepCount` when `row` may not be an object — fixed: a guard.
+    - `[low]` `[reject]` a failed `Chat` no longer raises an error-level event-log row or alert — spec-bound (Boundaries: one warning, Type 3 only, so `check_clean_start` stays clean; ruled U-25).
+    - `[medium]` `[patch]` the removed assertion that `Decide` sends the runner exactly one request — fixed: `CountTo(headers, runner) = 1` in `TestReplyFallbacks` (each marker), `TestCostOfFailedTurn`, `TestTurnFallbackIsReplyOnly`, `TestRunnerErrorIsFallback` and `TestFailedTurnSteps`; mutation recorded.
+    - `[medium]` `[patch]` claim: "`Merge` calls `Details`" — same root as the Blind Hunter's first finding; fixed.
+    - `[low]` `[reject]` claim: `steps-loop.json` holds six topics, not one — a measured fact, recorded as decision 13; the fix would edit the spec's Tasks text.
+  - Verification Gap:
+    - `[medium]` `[patch]` the dropped one-request assertion — same root as the Edge Case Hunter's eleventh finding; fixed.
+    - `[low]` `[patch]` `TestOnRequestPrecheck` could not tell the settings check from the precheck — fixed: the bad-setting case is a turn that also fails the no-key and budget prechecks. `TestOnRequestUsesItsSettings` already pinned the order; mutation recorded.
+    - `[low]` `[reject]` the three "cannot be read" branches of `State` have no test — a read fails only with no active production or no Decide item, and then `Precheck` does not run; a test needs a production argument on `State`, which is new public surface.
+    - `[medium]` `[patch]` a failure Reply's host data and taint were checked only at their defaults — fixed: the scenario `context-probe-fail` and `TestFailureKeepsContext`; mutation recorded.
+    - `[low]` `[reject]` the fail-open branches of `Keys` are never exercised — no seam provokes a director or Config Store error; the branches follow decision 7 and read right by inspection.
+    - `[low]` `[patch]` no `mutation:` line names `TestRunnerErrorIsFallback` — recorded (`OnError` returns the status).
+    - `[low]` `[patch]` AC5's pinning test `TestCatalogMap` had no demonstrated red — recorded (a `FALLBACKREASON` value the catalog does not know).
+    - `[low]` `[reject]` sub-clauses with no mutation line of their own (the 403, "sends nothing but", AC6's `ErrorRows`, AC8's invalid settings) — Rule 19 asks for one demonstrated mutation per AC, and each AC has at least one.
+    - `[low]` `[reject]` the pre-story stub (`Status` always 0) leaves `TestStartsWithNoKey` green — the AC6 mutation (`Present` always 1) is red there, and the stub's case is red in every test that points the keys.
+    - `[low]` `[patch]` `$$$AssertTrue(1, ...)` in `TestPresentEntry` — same root as the Blind Hunter's tenth finding; fixed.
+    - `[low]` `[reject]` `(x = 0) || (x = 1)` after an equality to 0 or 1 adds nothing — redundant, not misleading.
+    - `[low]` `[patch]` `RunnerFixture.ErrorRows` ignores a failed statement, so the "no error row" assertion could pass without a query — fixed: a failed statement gives one row that says so.
+    - `[low]` `[reject]` `TestPrecheckLogs` asserts absolute warning counts, which an unpriced row left by another test would change — it holds on a fresh environment in either order (the standing criterion), and a leftover would fail loudly.
+    - `[low]` `[reject]` `Keys.TestStatus` reads the installed `ProviderConfig` rows — it reads and writes nothing of its own.
+    - `[low]` `[reject]` `OnAfterOneTest` ignores the restore statuses — same root as the Blind Hunter's ninth finding.
+    - `[low]` `[patch]` stale `Saved` comment in `Test.Bridge.Budget` — fixed.
+  - Intent Alignment:
+    - `[medium]` `[defer]` the cut-off tool call: the diff pins the opposite of the row's last sentence — same root as the Blind Hunter's eighth finding (deferred item 1).
+    - `[medium]` `[patch]` `Details` is a sibling reader and `Merge` does not share it — same root as the first finding; fixed.
+    - `[low]` `[reject]` `Classify` with a missing `text` fact gives "" (decision 16) — a documented choice between two statements of the contract.
+    - `[false]` `[reject]` "The bridge alone" has no test — `release/standalone-bridge.sh` is a `## Verification` command, unchanged, and passes; the example's `ProviderConfig` reads as present.
+    - `[false]` `[reject]` the catalog map pins Lane B's existing state — that is AC5's Integration AC by design.
+    - `[low]` `[reject]` the live `OnError` test shows only the default reason `error` — `TestOnErrorFallback` covers the texts of the other reasons through `OnError` then `OnResponse`.
+    - `[low]` `[reject]` only the `BuildAgent` failure before `Chat` is tested in `TestFailureTextRedacted` — a refused request and an unbuilt kind keep their status in `TestUnbuiltKinds`, and `NewSession` and `Context.Begin` precede the `Try` that catches `Chat`.
+    - `[false]` `[reject]` the timer path is not re-pinned — `TestTimer` is unchanged as the spec says, and the timer branch of `OnResponse` still comes first.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -439,6 +515,18 @@ No acceptance criterion contradicts an AD's Rule.
 10. **A filter that leaves nothing is `invalid`**: the reply is not one that can be used, and the generic reason is true.
 11. **`EmitSteps` moves before `ReplyClassOf` in `OnResponse`.** This closes 1.5's occurrence on DW-83, a reply whose `ReplyClass` lookup fails.
 12. **The live fallback tests extend `Test.Agent.Decide`**, which holds `Prepare`, the row clean-up and the restart of `Decide`, rather than copying them into a new class. The DW-83 and cut-off tests extend `Test.Agent.Steps`, which already swaps `ChatAgent` to `StepsAgent`.
+13. **`steps-loop.json` holds six replies with six topics, not one repeated topic (Task 0 (a); Rule: decide small).** Measured on build 154: a loop of identical, successful tool calls does not end in an error. After two identical tool results AI Hub appends the user message "You appear to be repeating tool calls without gaining new information" (it holds no marker), the mock answers that request from `ChatAgent`'s default script, and the turn ends with the text "The CI mock looked at the productions." and `end_turn`. With a new topic in each reply the results bring new evidence, no nudge comes, and `Chat` throws `<%AICore>MaxIterationsReached` after the 4 iterations, with four model steps and four tool steps. The scenario keeps its name, its marker and the tool `zz_steps_note`; only the topic changes from reply to reply (status, uptime, queues, errors, alerts, journal).
+14. **`ITERATIONCODES` holds two codes (Task 0 (a)).** The `tool-loop` scenario on `ChatAgent` raises `<%AICore>LoopDetected` ("Agentic loop stalled: no new evidence from tool results after 4 assessment(s)"), not `MaxIterationsReached`, and both end a turn in AI Hub's loop. The parameter is `<%AICore>MaxIterationsReached,<%AICore>LoopDetected`, and AC1's `tool-loop` row is `unusable` through `LoopDetected`.
+15. **A runner error status needs the default model family out of the way (Task 0 (d)).** A `Model` row of `zz-no-such-model` alone fails nothing: the `default` row of `ModelFamily` has the empty prefix and matches every model, and the mock accepts any model. `TestRunnerErrorIsFallback` therefore also takes the `default` row out for its run and `OnAfterOneTest` writes it back. With no matching family `NewSession` fails with "No ModelFamily row matches the model", the runner answers an error status, `OnError` keeps it and `OnResponse` records the `error` fallback in 0.3 s.
+16. **`Classify` applies the empty-text rule only when a `text` fact is there.** "A missing fact counts as false or empty" and "no facts give ''" together mean that a request with no reply to judge is not an empty reply. `Conclude` always sets `text` for a `Reply`, and a reply that is not a `Reply` is a failure.
+17. **`Conclude`'s check is a private method, `Interpret`.** It holds the decide-and-diagnose half (`CheckReply`, the filter on each reason, the user rule, the payload), so that `Conclude` stays one flow: facts, `Classify`, fallback or usable. It runs on any non-blank text, also a refused one, and its result is only `invalid`, never stored.
+18. **Budget faults: which are unconditional.** The unreadable or invalid `DailyCostCapUSD`, `GatewaySpendUSD` and `GatewaySpendDate` each give a line whatever the cap (the Boundaries list them without a condition); only the unpriced-model lines need a cap above 0 (the row "Budget faults" 5). An empty value is no fault. The models are listed as written (`%EXACT`), because a query collates them to capitals.
+19. **`DecisionTokenBudget`: an empty value counts as 0 without a warning;** a value that is not made of digits only (`-1`, `abc`, `1.5`, `5e1`, `1,000`, a leading space) counts as 0 and is one warning from `Precheck`.
+20. **`Keys.Status` answers 0 for an unreadable setting only when the item or the production is missing** (`Ens.Director` returns the error `<Ens>ErrConfigItemNotFound`, or there is no active production). Any other error counts as present, like every form it cannot judge (decision 7).
+21. **`RunnerFixture.PutDefault` writes the row with SQL when the validated save refuses it.** The save of a provider configuration expands it, so a configuration that names an unset variable, a missing entry or text that is not JSON cannot be saved, and the `Keys` tests need exactly those. It is test code only.
+22. **`TestCutOffToolCall` pins what was measured (Task 0 (e)), not "never a usable answer".** AI Hub runs a tool call that the provider cut at the output cap and goes on: the second request carries the tool's result and `Chat` returns that later reply with `end_turn`. The turn is answered with the later text and no fallback, and the bridge cannot tell, because it sees the stop reason of the last response only (`StepRenderer.OnMessage` gets the text and nothing else). This does not meet the row's "never a usable answer" in the wording of the specification and is reported for the lead's ruling; the cut-off reply itself is never an answer, as a tool use has no text.
+23. **`Keys.Present` judges an entry that cannot be read by `Exists`, not by the error text.** A failed `ConfigStore.Details` is absent only when `%ConfigStore.Configuration.Exists` says the entry is not there; any other failure counts as present (decision 7).
+24. **`ConfigStore.Merge` reads through `Details`** (Rule 2). The text of a missing entry names the class and the entry; `Merge`'s tests only pin that it names the entry.
 
 **Integration ACs (Rule 1):**
 - **AC3:** `Budget.State` reads the day's mark that the 403's fallback set, and the next decision falls back before sending, through the running production and the mock.
@@ -549,6 +637,52 @@ No acceptance criterion contradicts an AD's Rule.
 | AC7 | `FailureText` is not redacted (`Cut` instead of `Part`) | `Bridge.Runner.TestFailureTextRedacted` |
 | AC8 | `State` reports no fault for unpriced rows | `Bridge.Budget.TestFaults`, `Bridge.Decide.TestPrecheckLogs` |
 
+**Measured in implementation** (Task 0; build 154; the slot `ocutalon-slot-a` for the process-local facts and the throwaway `e1s6a` for the rest; 2026-10-22). The failure texts are the `FailureText` of the runner's `Reply` (the status text of the same call before this story's change).
+- **(a) Maximum iterations.**
+  - `tool-loop` on `ChatAgent`: `Chat` throws `ERROR <%AICore>LoopDetected: Agentic loop stalled: no new evidence from tool results after 4 assessment(s)`. The code is `<%AICore>LoopDetected`. The mock saw three requests (two by the marker, one by `ChatAgent`'s default script after AI Hub's nudge "You appear to be repeating tool calls without gaining new information"); 3 buffered model steps (calls to a missing tool are not audited), `AgentStepCount` 6.
+  - `steps-loop` as first specified (always `{"topic":"status"}`) on `StepsAgent`: `Chat` returns, with `end_turn` and the text "The CI mock looked at the productions." after the nudge (4 requests, 7 steps). Neither code is raised.
+  - `steps-loop` with six topics (decision 13): `ERROR <%AICore>MaxIterationsReached: Max iterations (4) reached without a final response`; 8 steps (model, tool, four times), the tool steps labelled `Reading the test note` with the status `ok`; `AgentStepCount` 8.
+  - `Decide.ITERATIONCODES` is `<%AICore>MaxIterationsReached,<%AICore>LoopDetected` (decision 14).
+- **(b) The gateway's 403** (scenario `daily-cap`, Anthropic's error shape, `permission_error`): `ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: Authentication failed: daily cost cap reached`. It holds `daily cost cap reached`, so the plain-text body was not tried. One request reached the mock: AI Hub does not send a 403 again.
+- **(c) The reply shapes** (`ChatAgent` turns; Triage the same for `empty`): `refusal` gives `FinishReason` `refusal` with the text "The CI mock refuses this request."; `max-tokens` gives `max_tokens` with a text of 50 characters; `empty` gives `FinishReason` `end_turn` (not empty) and a `Text` of length 0. An empty reply therefore carries a stop reason on the Anthropic path.
+- **(d) `OnError`.**
+  - **Setup:** the `default` family row was taken out (decision 15). `NewSession` fails ("No ModelFamily row matches the model 'zz-no-such-model'"), the build does not, and nothing reached the mock.
+  - **Ens:** the header `ChatAgent` to `Decide` has `IsError` 1 and no body class. Ens calls `OnError`, and when it returns OK it calls `OnResponse` with the key `reply`, and with `callresponse` empty (not an object). `OnResponse` read `callrequest.DecisionRef` as usual.
+  - **Timing:** the process completed with the answer after 0.3 s. The header `Decide` to `Ens.Alarm` stayed Delivered until the timer's 6 s were over, and then completed with a discarded `AlarmResponse` (read in a normal run with `TimerSeconds` 6; the error run was read for 0.3 s only).
+  - **Implemented:** `OnError` keeps the status and `OnResponse` classifies and records it.
+- **(e) `cut-off-tool`** (`StepsAgent`): `Chat` runs the tool and goes on. The mock got two requests; `Chat` returned `end_turn` with "The CI mock answered after the cut."; 3 steps (model, tool `Reading the test note` with `ok`, model); `AgentStepCount` 3. Decision 22.
+- **(f) The environment in the jobs.** `/proc/<pid>/environ` of the jobs of `Decide`, `TriageAgent`, `DiagnosisAgent` and `ChatAgent` holds `OCUTALON_MOCK_KEY_HEADER` (length 1), `PATH` (length 54) and no `ANTHROPIC_API_KEY`; the test process gives lengths 1, 80 and 0 for the three through `GetEnviron`. `Keys.Status` of the three runners is 0, 0, 0 in the test process with the entries at the placeholder and 1, 1, 1 after `PointKeys`; `Decide`'s own job agrees: it records `no_key` in `TestStartsWithNoKey` and passes the precheck in every test that points the keys. (The jobs' variables were read from `/proc`, which is the environment that `GetEnviron` reads.)
+- **(g) `Redact.Text`** leaves the 403 text, the missing-key text (with `@{env:ANTHROPIC_API_KEY} has no value`), the 529 text and the `LoopDetected` text as they are; the secret scenario's text becomes `... [api_error] CI mock: the provider failed. Authorization: [redacted]`.
+- **(h) The XML** of a `refusal` fallback `DecisionResponse`: `<DecisionResponse><DecisionRef>..</DecisionRef><Outcome>tellnow</Outcome><Reasons></Reasons><Fallback>true</Fallback><FallbackReason>refusal</FallbackReason><InputTokens>376</InputTokens>..<DurationMs>118</DurationMs><CostUSD>.000045</CostUSD><Model>claude-haiku-5-5</Model><Payload></Payload></DecisionResponse>`. Of a `refusal` fallback `Reply`: `<Reply>..<Fallback>true</Fallback><FallbackReason>refusal</FallbackReason>..<Text></Text><Tainted>false</Tainted><SessionRotated>false</SessionRotated><ToolsRun>false</ToolsRun><SessionBroken>false</SessionBroken><Busy>false</Busy><HostData></HostData><FinishReason></FinishReason><Steps></Steps><FailureText></FailureText></Reply>`.
+- **Other facts.** The two `intent gap` conditions of Task 0 (the 403 text, an empty `FinishReason`) did not occur. Decisions 13, 15 and 22 are the places where a premise of the specification did not hold.
+
+**Verified** (all from the worktree, in throwaways of the tag `e1s6a`, one command per call):
+- `bash ci/checks.sh`: every block passes. `bash docker/tests/test-mock.sh`: 94 pass.
+- `ci/iris.sh shard lane-a`: 31 classes passed, forward and with `--reverse`, the only SKIP being `TestStepHelpers`. `ci/iris.sh shard lane-b`: 24 classes passed.
+- `release/standalone-bridge.sh`, `live storage-roundtrip` (57 classes, with `Reply` slot 10 and `Decide` slot 8), `live production`, `live production-restart`, `live install-upgrade`, `live compose-start` and `live demo-path`: all pass.
+- **After the review patches** (the same tag, one command per call): `bash ci/checks.sh` and `ci/iris.sh build` pass; each of the 12 classes of the (loop) list passes alone; `release/standalone-bridge.sh` passes; `shard lane-a` passes (31 classes, the only SKIP being `TestStepHelpers`); then, once, `docker/tests/test-mock.sh` (94 pass), `shard lane-b` (24 classes), `live storage-roundtrip` (57 classes), `live production`, `live production-restart`, `live install-upgrade`, `live compose-start` and `live demo-path` all pass, and `ci/iris.sh teardown` left nothing of the tag.
+
+**Mutations demonstrated (Rule 19).** Each was applied to the worktree and the test run in a throwaway; the files were then put back, and `git status --short`, `git diff --stat` and a checksum of the diff and of the untracked files were identical to what they were before. Mutations 1, 2, 3 and 10 were applied together, and so were 7, 8, 9 and 14 and 11 and 12, each attributed by the text of the failed assertion.
+- mutation: `Classify` drops the `finishReason` rules -> red: `Test.Bridge.Fallback.TestEachFactAlone` (refusal, cut_off), `Test.Agent.Decide.TestReplyFallbacks` (refusal and max-tokens)
+- mutation: `ITERATIONCODES` is empty -> red: `Test.Bridge.Fallback.TestMeasuredTexts`, `Test.Agent.Decide.TestCostOfFailedTurn` (gives `error`)
+- mutation: `invalid` is checked before `empty` -> red: `Test.Bridge.Fallback.TestOrder` ("an empty text before invalid")
+- mutation: `Precheck` returns "" -> red: `Test.Agent.Decide.TestPrechecks`, `Test.Agent.Runners.TestStartsWithNoKey`, `Test.Bridge.Decide.TestOnRequestPrecheck`
+- mutation: the precheck fallback still sends the request -> red: `Test.Agent.Decide.TestPrechecks` (a mock request with the ref), `Test.Bridge.Decide.TestOnRequestPrecheck`
+- mutation: `RecordFallback` does not call `MarkCapped` -> red: `Test.Agent.Decide.TestDailyCapBothPaths`, `Test.Bridge.Decide.TestMarkCappedWiring`
+- mutation: `MarkCapped` is called before the row is saved -> red: `Test.Bridge.Decide.TestMarkCappedWiring` (budget.capped comes before decision.recorded)
+- mutation: the turn fallback is a clone of the runner's reply -> red: `Test.Agent.Decide.TestTurnFallbackIsReplyOnly`, `Test.Bridge.Decide.TestConcludeFallbacks`
+- mutation: `Fallback` is not set on the row -> red: `Test.Agent.Decide.TestReplyFallbacks` (the XML), `Test.Bridge.Decide.TestReplyCheck`
+- mutation: empty text with no `finishReason` gives `empty` -> red: `Test.Bridge.Fallback.TestEachFactAlone`, `TestEmptyText`
+- mutation: `Keys.Present` ignores the environment (always 1) -> red: `Test.Bridge.Keys.TestPresent`, `Test.Agent.Runners.TestStartsWithNoKey`
+- mutation: `Answer` re-throws as before -> red: `Test.Agent.Steps.TestFailedTurnSteps`, `Test.Bridge.Runner.TestChatErrorIsFailureReply`
+- mutation: `FailureText` is not redacted (`Cut` instead of `Part`) -> red: `Test.Bridge.Runner.TestFailureTextRedacted`
+- mutation: `State` reports no fault for unpriced rows -> red: `Test.Bridge.Budget.TestFaults`, `Test.Bridge.Decide.TestPrecheckLogs`
+- mutation: `OnError` returns the runner's error status instead of OK -> red: `Test.Agent.Decide.TestRunnerErrorIsFallback` (AC4)
+- mutation: `OnRequest` sends the runner request twice -> red: `Test.Agent.Decide.TestReplyFallbacks` (every marker: "sends the runner one request, never a second") (AC4)
+- mutation: `Answer` drops the taint and the host data of a failure Reply -> red: `Test.Bridge.Runner.TestFailureKeepsContext` (AC7)
+- mutation: `OnRequest` runs the precheck before the settings check -> red: `Test.Bridge.Decide.TestOnRequestPrecheck`, `TestOnRequestUsesItsSettings`, `TestOnRequestAnswersRecorded`
+- mutation: a `FALLBACKREASON` value that the catalog does not know (`cut_off` written `cutoff`) -> red: `Test.Bridge.Fallback.TestCatalogMap` (AC5), `TestPure`
+
 ## Clarification Record
 
 **For the veto window** (not blocking; recommended as planned):
@@ -574,5 +708,45 @@ No acceptance criterion contradicts an AD's Rule.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** An unusable reply, a runner failure and a failed precheck now take the fallback route in `OcuTalon.Bridge.Process.Decide`. `Classify` picks the one `FallbackReason` in AD-8's order. `Precheck` runs after the settings check and before any send (`no_key` through `Keys.Status`, `daily_cap` through `Budget.State`, and `budget` through the new `DecisionTokenBudget` setting). `RecordFallback` records `tellnow` with `Fallback` 1 and the reason, answers a turn with a text-free `Reply`, and marks the day capped once for `daily_cap`. A `Chat` that threw is answered by the runner with a failure `Reply` (`FailureText`, the steps, the usage), so its steps reach Visual Trace (DW-83). `Budget.State` names the faults of a set cap, and `Precheck` logs them (DW-76).
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `Classify`, `Precheck`, `EstimateTokens`, `RecordFallback`, `NewRow`, `Interpret`, `OnError`, the reworked `OnRequest`, `OnResponse` and `Conclude`, the five literal parameters, `DecisionTokenBudget` (slot 8); `CheckReplyShape` removed.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: the failure `Reply` of a thrown `Chat`, with one warning.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/Reply.cls`: `FailureText` (slot 10) and `MAXFAILURE`.
+- `src/bridge/cls/OcuTalon/Bridge/Keys.cls`: `Status` and `Present` (presence only, never a value).
+- `src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls`: `Details`, which `Merge` and `Keys` share.
+- `src/bridge/cls/OcuTalon/Bridge/Budget.cls`: the `faults` output of `State`, `Setting` returns its status, `UnpricedModels`.
+- `src/bridge/cls/OcuTalon/Bridge/Operation/AgentRunner.cls`: doc only.
+- `ci/mock/scenarios/A/`: `daily-cap`, `steps-loop`, `cut-off-tool`, `provider-error-secret` and `context-probe-fail`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/`: new `Fallback` and `Keys`; changed `Decide`, `Budget`, `Runner`, `Contracts`, `Api`, `Example`, `ConfigStore`, `ProbeSink`, `StepsAgent` and `ZzStatsAdapter`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/`: changed `Decide`, `Steps`, `Runners` and `RunnerFixture`.
+
+**Review.** 48 findings: high 0, medium 8, low 36, false 3, maybe-false 1 (see the Review Triage Log). Patches applied: 18 findings in 13 groups. In short:
+- `ConfigStore.Merge` reads through `Details`, and the `Details` doc is corrected;
+- `Keys.Present` finds an absent entry by `Exists`, not by an error text;
+- the `UnpricedModels` warning is redacted;
+- the one-request assertions are back in the five fallback tests;
+- `TestFailureKeepsContext` and the scenario `context-probe-fail` pin the taint and host data of a failure `Reply`;
+- the bad-setting case of `TestOnRequestPrecheck` also fails the prechecks, so it pins the order;
+- `ErrorRows` cannot pass on a failed statement;
+- a vacuous assertion, a missing guard and a stale comment are fixed;
+- five `mutation:` lines were added.
+
+Deferred: 2 items, in the frontmatter (the cut-off tool call that AI Hub continues, and the `Usage` scan in every `Precheck`). Rejected: 27, each with its reason in the log.
+
+**Follow-up review recommended: true.** Three medium entries were patched after the review layers had read the diff (the `Merge` and `Details` refactor, the restored one-request assertions, and the failure-reply taint test), together with the `Keys.Present` rewrite, and no second layer has read those patches. Patched counts by verdict: medium 3 entries (6 findings), low 12 findings.
+
+**Verification.** See `## Verification`, "Verified": every (loop) command and every (once) command passed on the patched tree; 14 recorded mutations from the first pass and 5 more after the review were each applied, seen red, reverted, and the tree checked byte-identical.
+
+**Needs the lead's ruling (not blocking).**
+- The matrix row "A cut-off tool call" ends "Never a usable answer", and AI Hub does not allow it: it runs a tool call that the provider cut at `max_tokens` and goes on, and `Chat` returns the later reply with `end_turn` (decision 22, Task 0 (e)). `TestCutOffToolCall` pins what was measured. The row needs an amendment (a wording that says the cut-off reply is never an answer, and that a cut-off tool call is run by AI Hub), or an AI Hub change that reports each response's stop reason. Deferred item 1.
+- Decision 13: `steps-loop.json` holds six replies with six topics, because AI Hub's loop detector ends a loop of identical tool results with a usable text and no error.
+
+**Residual risks.**
+- The `Usage` table is scanned on every decision (deferred item 2).
+- `Keys.Status` reads a runner's `ProviderConfig` only: a runner that takes its key from `ProviderName` or an agent class parameter, or a keyless provider, counts as having no key (spec-bound; reopen_if either is supported).
+- The pending timer after an error-status fallback was measured for 0.3 s only (Task 0 (d)); the normal path shows it completing after its seconds with a discarded response.

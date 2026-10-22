@@ -1,4 +1,4 @@
-/// A host sink for the tests of Decide and Budget (Stories 1.3 and 1.4). Its mode comes from ^||ZzProbeSink("mode"):
+/// A host sink for the tests of Decide and Budget (Stories 1.3, 1.4 and 1.6). Its mode comes from ^||ZzProbeSink("mode"):
 ///   - record (the default): OnEvent returns OK;
 ///   - error: OnEvent returns an error status;
 ///   - throw: OnEvent throws.
@@ -7,6 +7,11 @@
 /// ^OcuTalonBP.UsageCapped(<the payload's day>) exists at that moment, else 0 (empty when the payload has no day), and 1 when any
 /// process holds the lock of that day's mark at that moment (LockHeld), else 0 (empty when the payload has no day).
 /// ^||ZzProbeSink holds the number of calls. The test that sets the global kills it.
+/// The shared mode (Story 1.6): the process-private global cannot be read from another job, and a sink that Decide calls runs in the
+/// production's Decide job. While ^OcuTalonTest("ProbeSink","shared") is 1, each call also appends $ListBuild(type, ownerRef, payload
+/// as JSON, rowExists, markExists) to ^OcuTalonTest("ProbeSink","calls",<n>), n counting from 1 in ^OcuTalonTest("ProbeSink","calls"),
+/// with rowExists and markExists as in the call above (Test.Agent.RunnerFixture.SinkCalls reads them). The test that sets the mode kills
+/// ^OcuTalonTest("ProbeSink").
 Class OcuTalon.Test.Bridge.ProbeSink Extends OcuTalon.Bridge.Ext.HostSink
 {
 
@@ -15,7 +20,13 @@ ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObj
 	Set n = $Increment(^||ZzProbeSink)
 	Set ref = payload.%Get("ref")
 	Set day = payload.%Get("day")
-	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 1: ""), $Select(day '= "": $Data(^OcuTalonBP.UsageCapped(day)) > 0, 1: ""), $Select(day '= "": ..LockHeld(day), 1: ""))
+	Set rowExists = $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 1: "")
+	Set markExists = $Select(day '= "": $Data(^OcuTalonBP.UsageCapped(day)) > 0, 1: "")
+	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, rowExists, markExists, $Select(day '= "": ..LockHeld(day), 1: ""))
+	If $Get(^OcuTalonTest("ProbeSink", "shared")) = 1 {
+		Set shared = $Increment(^OcuTalonTest("ProbeSink", "calls"))
+		Set ^OcuTalonTest("ProbeSink", "calls", shared) = $ListBuild(type, ownerRef, payload.%ToJSON(), rowExists, markExists)
+	}
 	Set mode = $Get(^||ZzProbeSink("mode"), "record")
 	If mode = "error" Quit $$$ERROR($$$GeneralError, "The probe sink was set to fail")
 	If mode = "throw" Throw ##class(%Exception.General).%New("ProbeSink", 5001, , "The probe sink was set to throw")

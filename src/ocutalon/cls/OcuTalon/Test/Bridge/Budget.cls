@@ -27,6 +27,12 @@
 ///     sets no mark, sends no event and logs a warning that names the day;
 ///   - TestMarkSinkFails: a sink that returns an error, and one that throws, leave the mark set, return 1 and are logged as a warning that
 ///     names the sink, the event and the day.
+/// Added by Story 1.6 (DW-76):
+///   - TestFaults: State names each way in which a set cap counts less than it was set to, in its output faults, and still counts the spend
+///     that it can read: a DailyCostCapUSD, GatewaySpendUSD or GatewaySpendDate that is not valid gives one line that names the setting; a
+///     cap above 0 with Usage rows of the day that have no cost gives one line for each model, that names it and is redacted; a cap of 0
+///     with such a row, and valid settings, give none; the JSON of State is the same with and without the output.
+/// The settings rows are put in place and put back by Test.Agent.RunnerFixture (PutDefault, SnapshotDefault and RestoreDefault).
 /// The run's number is n from ^OcuTalonTest("BridgeBudget","n") (never reset); the child job reports through
 /// ^OcuTalonTest("BridgeBudget",n,...), which OnBeforeAllTests and OnAfterAllTests delete with the reports of earlier runs.
 Class OcuTalon.Test.Bridge.Budget Extends %UnitTest.TestCase
@@ -50,7 +56,7 @@ Property Refs As %List;
 /// The days whose mark the test may have set.
 Property Days As %List;
 
-/// The settings rows before the test touched them, each $ListBuild(setting, existed, value, description).
+/// The settings rows before the test touched them, each RunnerFixture.SnapshotDefault's $ListBuild(item, setting, existed, value, description).
 Property Saved As %List;
 
 /// The zone of the process before the test: -1 for none.
@@ -195,6 +201,103 @@ Method TestStateCap()
 	Do ..Put("DailyCostCapUSD", 0)
 	Set state = ##class(OcuTalon.Bridge.Budget).State(now)
 	Do $$$AssertEquals(state.cap_"|"_state.capped, "0|0", "a cap of 0 is off")
+}
+
+/// DW-76: the cap fails open, and says so. State gives, in its output faults, one redacted line for each way in which a set cap counts
+/// less than it was set to, and still counts the spend that it can read. The settings are put one at a time, over valid ones, on a day of
+/// 2001 that no real row reaches; the Usage rows are the test's, and OnAfterOneTest deletes them.
+Method TestFaults()
+{
+	If '..Prepare() Quit
+	Do $SYSTEM.Process.TimeZone("")
+	Set day = "2001-02-06"
+	Set now = day_"T12:00:00Z"
+	Do ..Unmark(day)
+	Set budget = "OcuTalon.Bridge.Budget"
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set ref = ..NewRef()
+	Do ..AddRow(ref, day_"T06:00:00Z", .25, "instance")
+	Do ..Put("DailyCostCapUSD", 5)
+	Do ..Put("GatewaySpendUSD", 1)
+	Do ..Put("GatewaySpendDate", day)
+
+	// 6. every setting valid: no fault, and the JSON of State is what it was
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 0, "valid settings and priced rows give no fault")
+	Do $$$AssertEquals(state.%ToJSON(), "{""spent"":1.25,""cap"":5,""capped"":false,""resetsAt"":""2001-02-07T00:00:00Z""}", "the JSON of State holds the same keys in the same order")
+	Do $$$AssertEquals($ClassMethod(budget, "State", now).%ToJSON(), state.%ToJSON(), "with and without the output")
+	Do $$$AssertEquals($ClassMethod(budget, "State", now, .again).%ToJSON(), state.%ToJSON(), "and the output is an array")
+	Do $$$AssertTrue($IsObject(again) && again.%IsA("%Library.DynamicArray"), "faults is a dynamic array")
+
+	// 1. a cap that is not a number
+	Do ..Put("DailyCostCapUSD", "abc")
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 1, "a cap of abc gives one fault")
+	Do $$$AssertTrue(faults.%Get(0) [ "DailyCostCapUSD", "that names DailyCostCapUSD: "_faults.%Get(0))
+	Do $$$AssertEquals(state.cap_"|"_state.capped, "0|0", "and the cap counts as 0, which is off")
+	Do $$$AssertEquals(state.spent, 1.25, "while the spend that can be read is still counted")
+
+	// 2. a gateway spend that is not a number, with a cap that the priced rows alone reach
+	Do ..Put("DailyCostCapUSD", .2)
+	Do ..Put("GatewaySpendUSD", "x")
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 1, "a gateway spend of x gives one fault")
+	Do $$$AssertTrue(faults.%Get(0) [ "GatewaySpendUSD", "that names GatewaySpendUSD: "_faults.%Get(0))
+	Do $$$AssertEquals(state.spent_"|"_state.capped, ".25|1", "the gateway's spend is not counted, and the rows that can be read still reach the cap")
+
+	// 3. a gateway date that is not a date
+	Do ..Put("GatewaySpendUSD", 1)
+	For bad = "2001-13-45", "2001-02-30", "today", "2001-2-6" {
+		Do ..Put("GatewaySpendDate", bad)
+		Set state = $ClassMethod(budget, "State", now, .faults)
+		Do $$$AssertEquals(faults.%Size(), 1, "a gateway date of "_bad_" gives one fault")
+		Do $$$AssertTrue(faults.%Get(0) [ "GatewaySpendDate", "that names GatewaySpendDate: "_faults.%Get(0))
+		Do $$$AssertEquals(state.spent, .25, "and the gateway's spend is not counted")
+	}
+	Do ..Put("GatewaySpendDate", "")
+	Do ..Put("GatewaySpendUSD", "")
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 0, "settings that are empty are no fault: nothing was set")
+	Do ..Put("GatewaySpendDate", "2001-02-05")
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 0, "nor is a gateway date of another day")
+
+	// 4. a cap above 0 and a Usage row of the day with no cost
+	Do ..Put("DailyCostCapUSD", 1)
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz-unpriced", 10, 5, 0, 0, "", day_"T07:00:00Z", "instance"), "a Usage row of zz-unpriced with no cost is saved")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz-unpriced", 10, 5, 0, 0, "", day_"T08:00:00Z", "instance"), "and a second one")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz-eval-unpriced", 10, 5, 0, 0, "", day_"T08:00:00Z", "eval"), "and one of the owner eval, which no cap counts")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz-other-day", 10, 5, 0, 0, "", "2001-02-07T08:00:00Z", "instance"), "and one of another day")
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 1, "the unpriced model gives one line, however many rows it has")
+	Do $$$AssertTrue((faults.%Get(0) [ "zz-unpriced") && (faults.%Get(0) '[ "zz-eval-unpriced") && (faults.%Get(0) '[ "zz-other-day"), "that names the model, and no model of another owner or day: "_faults.%Get(0))
+	Do $$$AssertEquals(state.capped_"|"_state.spent, "0|.25", "the cap fails open: the day is not capped, and spent leaves the rows out")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz-also-unpriced", 10, 5, 0, 0, "", day_"T09:00:00Z", "instance"), "a second unpriced model is saved")
+	Do $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 2, "it gives a second line")
+	Set fake = "zzfakebearer0123456789"
+	Do $$$AssertStatusOK($ClassMethod(fixture, "AddUsage", ref, "zz Bearer "_fake, 10, 5, 0, 0, "", day_"T10:00:00Z", "instance"), "a model whose name holds a Bearer token is saved")
+	Do $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 3, "it gives a third line")
+	Set all = faults.%ToJSON()
+	Do $$$AssertTrue(all '[ fake, "which is redacted: the fake token is in no line")
+	Do $$$AssertTrue(all [ "[redacted]", "and shows [redacted]")
+
+	// 5. a cap of 0 with such rows
+	Do ..Put("DailyCostCapUSD", 0)
+	Set state = $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 0, "with the cap off an unpriced row is no fault")
+	Do ..Put("DailyCostCapUSD", "")
+	Do $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 0, "nor with the cap empty")
+
+	// several faults together, in the order of the specification: the cap, the gateway's spend, its date, the unpriced models
+	Do ..Put("DailyCostCapUSD", "abc")
+	Do ..Put("GatewaySpendUSD", "x")
+	Do ..Put("GatewaySpendDate", "2001-13-45")
+	Do $ClassMethod(budget, "State", now, .faults)
+	Do $$$AssertEquals(faults.%Size(), 3, "three bad settings give three lines")
+	Do $$$AssertTrue((faults.%Get(0) [ "DailyCostCapUSD") && (faults.%Get(1) [ "GatewaySpendUSD") && (faults.%Get(2) [ "GatewaySpendDate"), "the cap first, then the gateway's spend, then its date")
 }
 
 /// MarkCapped on a new day: it returns 1, tells the sink once, with the owner instance and exactly {"day"}, after the mark is set. A
@@ -510,50 +613,32 @@ Method Prepare() As %Boolean [ Private ]
 /// The id of the System Default Settings row of a setting of the Decide item of the active production.
 Method SettingId(setting As %String) As %String [ Private ]
 {
-	Quit ..Production_"||Decide||*||"_setting
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", setting)
 }
 
-/// Remembers the row of the setting, once, so that OnAfterOneTest can put it back.
+/// Remembers the row of the setting, once, so that OnAfterOneTest can put it back (RunnerFixture.SnapshotDefault).
 Method Snapshot(setting As %String) [ Private ]
 {
 	Set known = 0
 	Set position = 0
 	While $ListNext(..Saved, position, saved) {
-		If $List(saved, 1) = setting Set known = 1
+		If $List(saved, 2) = setting Set known = 1
 	}
-	If known Quit
-	Set id = ..SettingId(setting)
-	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
-		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
-		Set ..Saved = ..Saved _ $ListBuild($ListBuild(setting, 1, row.SettingValue, row.Description))
-	} Else {
-		Set ..Saved = ..Saved _ $ListBuild($ListBuild(setting, 0))
-	}
+	If 'known Set ..Saved = ..Saved _ $ListBuild(##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault("Decide", setting))
 }
 
-/// Writes the row of a setting of the Decide item of the active production. Saving a row checks the value against the datatype of the
-/// setting, so a number that is none (x, 1,5 or $5) cannot be saved: a row with 0 is saved, and its value is then set by SQL, which
-/// checks nothing. That is how such a value can reach the item (a hand-edited global, an import), and Budget counts it as 0.
+/// Writes the row of a setting of the Decide item of the active production (RunnerFixture.PutDefault: a value that cannot be saved is
+/// set by SQL, which checks nothing, so that it can reach the item as a hand-edited global or an import would, and Budget counts it as 0).
 Method Put(setting As %String, value As %String) [ Private ]
 {
 	Do ..Snapshot(setting)
-	Set description = "Written by a test; the test deletes it."
-	Set sc = ##class(OcuTalon.Install.Step.Production).WriteDefault(..Production, "Decide", setting, value, description)
-	If $$$ISERR(sc) {
-		Set sc = ##class(OcuTalon.Install.Step.Production).WriteDefault(..Production, "Decide", setting, 0, description)
-		If $$$ISOK(sc) {
-			Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens_Config.DefaultSettings SET SettingValue = ? WHERE ID = ?", value, ..SettingId(setting))
-			If result.%SQLCODE < 0 Set sc = $$$ERROR($$$GeneralError, "The row of "_setting_" cannot be set to '"_value_"': "_result.%Message)
-		}
-	}
-	Do $$$AssertStatusOK(sc, "the setting "_setting_" is '"_value_"'")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault("Decide", setting, value), "the setting "_setting_" is '"_value_"'")
 }
 
 /// Puts the row of a snapshot back: the row is deleted, and written again when it existed.
 Method RestoreSetting(saved As %List) [ Private ]
 {
-	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..SettingId($List(saved, 1)))
-	If $List(saved, 2) Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(..Production, "Decide", $List(saved, 1), $List(saved, 3), $List(saved, 4)), "the row of "_$List(saved, 1)_" is put back")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(saved), "the row of "_$List(saved, 2)_" is put back")
 }
 
 /// Removes the mark of the day now, and again when the test is over.

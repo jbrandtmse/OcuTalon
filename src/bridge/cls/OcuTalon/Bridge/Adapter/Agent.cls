@@ -22,8 +22,13 @@ Include Ensemble
 /// Answer also records the agent steps of the call (AD-9): it starts the step buffer right before Chat, with the size of what the
 /// first request carries, and passes the step renderer to Chat; the renderer records one step for every model response and the step
 /// audit policy one for every tool call, in the runner's job. After Chat, outside every callback, Answer reads the buffer: the
-/// estimated sizes of the model requests go to the Usage row (RecordUsage), and the redacted step records go to the reply (Steps),
-/// when Chat returned. The buffer ends with the context on every path. This class names no other OcuTalon package (AD-2).
+/// estimated sizes of the model requests go to the Usage row (RecordUsage), and the redacted step records go to the reply (Steps).
+/// A Chat that throws is answered with a failure Reply, never an error status (DW-83): FailureText holds the redacted text of AI Hub's
+/// error, cut to Reply.#MAXFAILURE (StepBuffer.Part), and the reply carries the buffered steps, the usage, the host data and the taint
+/// like any other; its Text and FinishReason are empty, so that Decide classifies the failure and still sends the steps to Visual
+/// Trace. A warning names the runner item, the DecisionRef and the FailureText. A failure before Chat (a refused request, BuildAgent,
+/// NewSession, Context.Begin) keeps its error status and has no steps. The buffer ends with the context on every path. This class
+/// names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Adapter.Agent Extends EnsLib.AI.Agent.OutboundAdapter
 {
 
@@ -205,8 +210,9 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 /// that is empty once white space is removed; builds the agent if needed; sets the context with the super session before Chat; starts
 /// the step buffer (StepBuffer.Start, with BaseChars); chats in a throwaway session, passing the step renderer; and
 /// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, the usage of the call
-/// (RecordUsage, which also writes the Usage row) and the redacted step records (Steps). The context and the step buffer end on every
-/// path. Errors come back as the status, with AI Hub's text.
+/// (RecordUsage, which also writes the Usage row) and the redacted step records (Steps). When Chat throws, the reply is a failure
+/// reply instead (FailureText holds the redacted error text) and the status is OK. The context and the step buffer end on every path. Any other error comes back as
+/// the status, with AI Hub's text.
 Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = "", Output reply As OcuTalon.Bridge.Msg.Reply) As %Status
 {
 	Set reply = ""
@@ -241,11 +247,14 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				} Else {
 					Set row = ""
 				}
-				If $IsObject(thrown) Throw thrown
 				Set context = ##class(OcuTalon.Bridge.Context).Current()
 				Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
-				Set reply.Text = ..ContentText(response.Content)
-				Set reply.FinishReason = $Extract(..FinishReason(response.Extra), 1, 32)
+				If $IsObject(thrown) {
+					Set reply.FailureText = ..FailureText(thrown, request)
+				} Else {
+					Set reply.Text = ..ContentText(response.Content)
+					Set reply.FinishReason = $Extract(..FinishReason(response.Extra), 1, 32)
+				}
 				Set reply.HostData = context.HostData
 				Set reply.Tainted = context.Tainted
 				Set reply.Steps = ..StepsJson()
@@ -277,6 +286,20 @@ Method BaseChars(request As OcuTalon.Bridge.Msg.Request) As %Integer [ Private ]
 	} Catch {
 	}
 	Quit chars
+}
+
+/// The failure text of a Chat that threw: AI Hub's error text (HandleError keeps the <%AICore> code and text), redacted and cut to
+/// Reply.#MAXFAILURE by StepBuffer.Part. One warning names the runner item, the DecisionRef and the text.
+Method FailureText(thrown As %Exception.AbstractException, request As OcuTalon.Bridge.Msg.Request) As %String [ Private ]
+{
+	Set text = ""
+	Try {
+		Set text = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part($SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(thrown, 1)), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
+	} Catch {
+		Set text = "The call failed, and AI Hub's error text cannot be read"
+	}
+	$$$LOGWARNING("The chat call of "_..BusinessHost.%ConfigName_" failed for the decision "_request.DecisionRef_": "_text)
+	Quit text
 }
 
 /// The step records of the call as a JSON array (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after

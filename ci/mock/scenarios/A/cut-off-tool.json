@@ -1,0 +1,22 @@
+{
+  "name": "cut-off-tool",
+  "match": {
+    "marker": "cut-off-tool"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "max_tokens",
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "status"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answered after the cut."
+    }
+  ]
+}

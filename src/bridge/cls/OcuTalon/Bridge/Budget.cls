@@ -4,9 +4,10 @@ Include Ensemble
 ///   - State reads the day's spend from the Usage rows, the cap and the gateway's spend from the three budget settings of the Decide
 ///     item (DailyCostCapUSD, GatewaySpendUSD and GatewaySpendDate, through OcuTalon.Bridge.Ext.Accessor.ValueFor), and the day's
 ///     mark. The day is the local date of the instance zone, so it ends at local midnight, through OcuTalon.Bridge.Time. Rows of the
-///     owner eval, and rows of unknown cost, are never counted.
+///     owner eval, and rows of unknown cost, are never counted. A cap that is set never fails open silently (DW-76): State names each
+///     fault in its output faults, and Decide's precheck logs them.
 ///   - MarkCapped marks a day as capped once, under a lock, and tells the host sink once (budget.capped). The callers are the paths
-///     that record a daily_cap fallback (Story 1.6); the mark is a plain global of the private database,
+///     that record a daily_cap fallback (Decide.RecordFallback); the mark is a plain global of the private database,
 ///     ^OcuTalonBP.UsageCapped(day) = the UTC time of the mark.
 /// This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Budget
@@ -21,15 +22,56 @@ Class OcuTalon.Bridge.Budget
 ///   - cap is DailyCostCapUSD; 0 means off. A setting that is not a number of 0 or more counts as 0, and so does a setting that
 ///     cannot be read (no production).
 ///   - capped is true when the day is marked (MarkCapped), or when cap is above 0 and spent has reached it.
-ClassMethod State(now As %String = "") As %DynamicObject
+///   - faults (DW-76) is a dynamic array with one plain line, passed through OcuTalon.Bridge.Redact.Text, for each way in which the
+///     cap counts less than it was set to. The spend that can be read is still counted and compared with the cap. The lines, in this order:
+///       - DailyCostCapUSD cannot be read, or is not empty and not a number of 0 or more (it counts as 0, which is off);
+///       - GatewaySpendUSD cannot be read, or is not empty and not a number of 0 or more (the gateway's spend is not counted);
+///       - GatewaySpendDate cannot be read, or is not empty and not a date, YYYY-MM-DD (the gateway's spend is not counted);
+///       - the cap is above 0, and the Usage rows of the day (owner not eval) of a model have no cost: one line for each model, naming it
+///         (their spend is not counted).
+ClassMethod State(now As %String = "", Output faults As %DynamicArray) As %DynamicObject
 {
+	Set faults = []
 	If ##class(OcuTalon.Bridge.Time).LocalDate(now) = "" Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Set day = ##class(OcuTalon.Bridge.Time).LocalDate(now)
 	Set from = ##class(OcuTalon.Bridge.Time).DayStartUtc(day)
 	Set to = ##class(OcuTalon.Bridge.Time).DayEndUtc(day)
 	Set spent = ..UsageSpent(from, to)
-	If ..Setting("GatewaySpendDate") = day Set spent = spent + ..Amount(..Setting("GatewaySpendUSD"))
-	Set cap = ..Amount(..Setting("DailyCostCapUSD"))
+	Set capText = ..Setting("DailyCostCapUSD", .capStatus)
+	Set cap = 0
+	If $$$ISERR(capStatus) {
+		Do ..Fault(faults, "The setting DailyCostCapUSD of Decide cannot be read, so the daily cost cap counts as off: "_$SYSTEM.Status.GetErrorText(capStatus))
+	} ElseIf capText = "" {
+		Set cap = 0
+	} ElseIf '$IsValidNum(capText, "", 0) {
+		Do ..Fault(faults, "The setting DailyCostCapUSD of Decide is not a number of 0 or more, so the daily cost cap counts as off")
+	} Else {
+		Set cap = +capText
+	}
+	Set gatewaySpend = ..Setting("GatewaySpendUSD", .spendStatus)
+	If $$$ISERR(spendStatus) {
+		Do ..Fault(faults, "The setting GatewaySpendUSD of Decide cannot be read, so the gateway's spend is not counted: "_$SYSTEM.Status.GetErrorText(spendStatus))
+		Set gatewaySpend = 0
+	} ElseIf (gatewaySpend '= "") && '$IsValidNum(gatewaySpend, "", 0) {
+		Do ..Fault(faults, "The setting GatewaySpendUSD of Decide is not a number of 0 or more, so the gateway's spend is not counted")
+		Set gatewaySpend = 0
+	}
+	Set gatewayDate = ..Setting("GatewaySpendDate", .dateStatus)
+	If $$$ISERR(dateStatus) {
+		Do ..Fault(faults, "The setting GatewaySpendDate of Decide cannot be read, so the gateway's spend is not counted: "_$SYSTEM.Status.GetErrorText(dateStatus))
+		Set gatewayDate = ""
+	} ElseIf (gatewayDate '= "") && '..IsDate(gatewayDate) {
+		Do ..Fault(faults, "The setting GatewaySpendDate of Decide is not a date, YYYY-MM-DD, so the gateway's spend is not counted")
+		Set gatewayDate = ""
+	}
+	If gatewayDate = day Set spent = spent + ..Amount(gatewaySpend)
+	If cap > 0 {
+		Set models = ..UnpricedModels(from, to)
+		Set position = 0
+		While $ListNext(models, position, model) {
+			Do ..Fault(faults, "The Usage rows of today of the model '"_model_"' have no cost (no Price row has the model), so the daily cost cap does not count their spend")
+		}
+	}
 	Set capped = ($Data(^OcuTalonBP.UsageCapped(day)) > 0) || ((cap > 0) && (spent >= cap))
 	Set state = {}
 	Do state.%Set("spent", spent, "number")
@@ -95,10 +137,41 @@ ClassMethod UsageSpent(from As %String, to As %String) As %Numeric [ Private ]
 	Quit $Number(spent, 6)
 }
 
-/// The value of a budget setting of the Decide item, or "" when it cannot be read.
-ClassMethod Setting(name As %String) As %String [ Private ]
+/// The value of a budget setting of the Decide item, or "" with the error in sc when it cannot be read.
+ClassMethod Setting(name As %String, Output sc As %Status) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor(name)
+	Quit ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor(name, , , .sc)
+}
+
+/// Adds one line to the faults, redacted.
+ClassMethod Fault(faults As %DynamicArray, line As %String) [ Private ]
+{
+	Do faults.%Push(##class(OcuTalon.Bridge.Redact).Text($Translate(line, $Char(10, 13), "  ")))
+}
+
+/// 1 when the text is a date, YYYY-MM-DD, that exists.
+ClassMethod IsDate(text As %String) As %Boolean [ Private ]
+{
+	Quit (text ? 4N1"-"2N1"-"2N) && (##class(OcuTalon.Bridge.Time).DayStartUtc(text) '= "")
+}
+
+/// The models, as a list, of the Usage rows recorded from the UTC time from (inclusive) to the UTC time to (exclusive) that have no
+/// cost, without rows of the owner eval, each once and as it is written (a query would collate it to capitals). A row with no model counts
+/// under the name (no model). A scan that fails is logged as a warning and gives an empty list.
+ClassMethod UnpricedModels(from As %String, to As %String) As %List [ Private ]
+{
+	Set models = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT %EXACT(Model) FROM OcuTalon_Bridge_Data.Usage WHERE RecordedAt >= ? AND RecordedAt < ? AND CostUSD IS NULL AND (OwnerRef IS NULL OR OwnerRef <> 'eval')", from, to)
+	If result.%SQLCODE < 0 {
+		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The unpriced Usage rows of the day cannot be listed: "_result.%Message))
+		Quit models
+	}
+	While result.%Next() {
+		Set model = result.%GetData(1)
+		If model = "" Set model = "(no model)"
+		If '$ListFind(models, model) Set models = models _ $ListBuild(model)
+	}
+	Quit models
 }
 
 /// The value as an amount in US dollars: a number of 0 or more, otherwise 0.

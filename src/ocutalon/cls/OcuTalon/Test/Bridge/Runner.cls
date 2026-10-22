@@ -8,8 +8,9 @@
 ///   - TestRefusals: each refused setting stops the adapter at start, naming it; a value of white space and a SessionConfigString of {}
 ///     do not; the agent class must be a compiled %AI.Agent class and an exact entry of the allow-list; a passing start builds nothing;
 ///   - TestBuildRetried: an unset key variable fails the build twice and keeps no agent, and then a variable that is set builds;
-///   - TestChatErrorIsStatus: a provider failure inside Chat gives the runner's error status with no Reply, the context is over, and
-///     the next request on the same runner is answered;
+///   - TestChatErrorIsFailureReply (Story 1.6; DW-83): a provider failure inside Chat gives status OK and a failure Reply that holds the
+///     provider's text as FailureText, no Text or finish reason, the steps and the usage of the call, one warning that names the runner
+///     item, the DecisionRef and the text, and the context is over; the next request on the same runner is answered;
 ///   - TestContext: a probe agent's tool reads the context during Chat and writes the host data and the taint, which the Reply carries,
 ///     the context is over afterwards, and the built agent has no Temperature although the probe agent has one before the build;
 ///   - TestFinishReason: the Reply keeps finish_reason of the normal reply and of the refusal and max_tokens stop reasons;
@@ -44,6 +45,14 @@
 ///     event log or what the key scan names, and [redacted] stands in the place of each (counted in the two steps);
 ///   - TestStepBufferEndsOnEveryPath: the step buffer is over after a call that threw in the tool loop and after a provider failure, as
 ///     after a call that returned, and a call after them records only its own steps.
+/// Added by Story 1.6 (AD-6, AD-9, DW-83):
+///   - TestUsageRows and TestStepBufferEndsOnEveryPath now pin that a call whose Chat threw is a failure Reply with status OK, that
+///     carries its usage (the Usage row's counts) and its steps, with the buffer and the context over;
+///   - TestFailureKeepsContext: a call whose Chat throws after the probe tool tainted the turn and wrote the host data (the scenario
+///     context-probe-fail) is a failure Reply that carries the taint and the host data, and the context is over;
+///   - TestFailureTextRedacted: the provider's text with a fake Bearer token (the scenario provider-error-secret) shows [redacted] in
+///     FailureText, and the token is in no FailureText, Steps, reply XML, event-log row or what the key scan names; a failure text over
+///     2,000 characters is cut to Reply.#MAXFAILURE, with its line breaks as spaces; an error before Chat keeps its error status.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
@@ -167,20 +176,35 @@ Method TestBuildRetried()
 	Do $$$AssertEquals(response.FinishReason, "refusal", "with the refusal of the marker")
 }
 
-/// A provider failure (the mock's provider-error scenario answers 500) raises inside Chat and comes back as the runner's error status
-/// with AI Hub's text, no Reply and no response, with the context over. The same runner then answers the next request.
-Method TestChatErrorIsStatus()
+/// A provider failure (the mock's provider-error scenario answers 500) raises inside Chat and comes back as a failure Reply with status
+/// OK (DW-83): FailureText holds AI Hub's text, the reply has no Text or finish reason, the steps of the call (none: the failure came at
+/// the first request), no Usage row because no request was counted, one warning that names the runner item, the DecisionRef and the text,
+/// and the context is over. The same runner then answers the next request.
+Method TestChatErrorIsFailureReply()
 {
 	If ..Guard() Quit
 	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set request = ..NewRequest("decide", "user", "Fail this. [[mock:provider-error]] (test "_ref_")")
+	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
+	Set ref = $Piece($Piece(request.Input, "(test ", 2), ")", 1)
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set logMark = ..LogMark()
 	Set sc = host.OnMessage(request, .response)
-	Do $$$AssertStatusNotOK(sc, "a provider failure gives an error status, not an exception")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "ProviderError", "that carries AI Hub's text: "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 300))
-	Do $$$AssertTrue('$IsObject(response), "and no response")
+	Do $$$AssertStatusOK(sc, "a provider failure gives status OK, not an error and not an exception")
+	If '$IsObject(response) || 'response.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the runner answers with a Reply")
+		Quit
+	}
+	Do $$$AssertTrue(response.FailureText [ "ProviderError", "whose FailureText carries AI Hub's text: "_$Extract(response.FailureText, 1, 300))
+	Do $$$AssertTrue(response.FailureText [ "CI mock: the provider failed.", "with the provider's message")
+	Do $$$AssertEquals(response.Text_"|"_response.FinishReason, "|", "the Reply has no Text and no finish reason")
+	Do $$$AssertEquals(response.Steps, "[]", "no step was taken before the failure, so its Steps is the empty array")
+	Do $$$AssertEquals(response.HostData_"|"_response.Tainted, "|0", "the host data and the taint are those of the context")
+	Do $$$AssertEquals(response.AgentStepCount, 0, "and no step was counted")
+	Do $$$AssertTrue((response.DurationMs '= "") && (response.DurationMs '< 0), "but the wall time of the call: "_response.DurationMs)
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 0, "no Usage row exists: no request was counted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(logMark, "OcuTalon.Bridge.Adapter.Agent", "FailureText", $ListBuild("ZzRunner", request.DecisionRef, "CI mock: the provider failed.")), 1, "one warning names the runner item, the DecisionRef and the failure text")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), 0, "and so is the step buffer")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
 	Set requests = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, ref)
 	Do $$$AssertTrue(requests.%Size() > 0, "the request reached the mock: "_requests.%Size())
@@ -190,6 +214,54 @@ Method TestChatErrorIsStatus()
 	}
 	Do $$$AssertStatusOK(..Ask(host, "A new email arrived. Should the user hear about it now?", .normal), "the next request on the same runner is answered")
 	Do $$$AssertEquals(normal.Text, ##class(OcuTalon.Test.Agent.RunnerFixture).#TRIAGETEXT, "with the text of Triage's script")
+	Do $$$AssertEquals(normal.FailureText, "", "and no failure text")
+}
+
+/// The provider's text with a fake Bearer token (the scenario provider-error-secret) comes back redacted: [redacted] stands in the place of
+/// the token, which is in no FailureText, Steps, reply XML, event-log row or store that the key scan names. A failure text is cut to
+/// Reply.#MAXFAILURE after it is redacted, with its line breaks as spaces, and the cut never splits a secret out of its pattern. A failure
+/// before Chat (an agent that cannot be built) keeps its error status and has no failure reply.
+Method TestFailureTextRedacted()
+{
+	If ..Guard() Quit
+	Set fake = "zzocutalonfakebearer0123456789"
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error-secret]]")
+	Set logMark = ..LogMark()
+	Set sc = host.OnMessage(request, .response)
+	Do $$$AssertStatusOK(sc, "a provider failure whose text holds a Bearer token gives a failure Reply")
+	If '$IsObject(response) {
+		Do $$$AssertTrue(0, "the runner answers with a Reply")
+		Quit
+	}
+	Do $$$AssertTrue(response.FailureText [ "CI mock: the provider failed.", "its FailureText holds the provider's message: "_response.FailureText)
+	Do $$$AssertTrue(response.FailureText [ "[redacted]", "and [redacted] in the place of the token")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LeakPlaces(fake, [], response, logMark), "", "the token is in no FailureText, no Steps, no XML of the Reply, no event-log row since the test began and nothing that the key scan names")
+
+	// the cut: redacted first, then cut at the limit, line breaks as spaces
+	Set adapter = $ClassMethod("OcuTalon.Test.Bridge.ZzStatsRunner", "%New", "ZzRunner").Adapter
+	Set limit = ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE
+	Do $$$AssertEquals(limit, 2000, "the limit is 2,000 characters")
+	Set long = ##class(%Exception.General).%New("ZzLong", 5001, , "line one"_$Char(10)_"line two "_$Justify("", 3000))
+	Set text = adapter.FailureOf(long, request)
+	Do $$$AssertEquals($Length(text), limit, "a failure text over the limit is cut to it: "_$Length(text))
+	Do $$$AssertEquals($Extract(text, limit - 2, limit), "...", "and ends in an ellipsis")
+	Do $$$AssertTrue(text '[ $Char(10), "with no line break")
+	Do $$$AssertTrue(text [ "line one line two", "a line break is a space")
+	// the raw text puts the token across the limit, and the redacted text fits within it
+	Set frame = $Length(adapter.FailureOf(##class(%Exception.General).%New("ZzSecret", 5001, , "x"), request)) - 1
+	Set padding = $Justify("", limit - 40 - frame)
+	Set spill = ##class(%Exception.General).%New("ZzSecret", 5001, , padding_" Authorization: Bearer "_fake)
+	Set text = adapter.FailureOf(spill, request)
+	Do $$$AssertTrue((frame + $Length(padding) + $Length(" Authorization: Bearer "_fake)) > limit, "the raw text is over the limit, with the token across it")
+	Do $$$AssertTrue(text '[ "zzocutalonfake", "a token that the limit would have cut in two is redacted first, so no piece of it is left: "_$Extract(text, limit - 100, $Length(text)))
+	Do $$$AssertTrue(text [ "[redacted]", "and its place shows [redacted]")
+
+	// an error before Chat keeps its status
+	Set broken = ..NewRunner(..#AGENT, "low", ..ProviderConfig("", "@{env:"_..#UNSETVARIABLE_"}"))
+	Set sc = broken.OnMessage(..NewUsageRequest("decide", "Triage this item."), .response)
+	Do $$$AssertStatusNotOK(sc, "an agent that cannot be built keeps its error status")
+	Do $$$AssertTrue('$IsObject(response), "and gives no Reply")
 }
 
 /// The probe agent's tool reads the context that the runner set before Chat, and writes the host data and the taint. It sees every
@@ -246,6 +318,32 @@ Method TestContext()
 	}
 	Set host.%SuperSession = ""
 	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// A call whose Chat throws after the probe tool tainted the turn and wrote the host data (the scenario context-probe-fail: the probe
+/// tool, then a provider failure) is answered with a failure Reply whose FailureText holds the provider's text and which still carries
+/// the taint and the host data of the context; the context is over afterwards.
+Method TestFailureKeepsContext()
+{
+	If ..Guard() Quit
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ProbeAgent")
+	Set request = ..NewRequest("turn", "user", "Run the probe. [[mock:context-probe-fail]] (test "_ref_")")
+	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = host.OnMessage(request, .response)
+	Do $$$AssertStatusOK(sc, "a call that fails after the tool ran is answered with status OK")
+	If '$IsObject(response) || 'response.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the runner answers with a Reply")
+		Quit
+	}
+	Do $$$AssertTrue(response.FailureText [ "CI mock: the provider failed after the probe.", "whose FailureText carries the provider's message: "_$Extract(response.FailureText, 1, 300))
+	Do $$$AssertEquals(response.Text_"|"_response.FinishReason, "|", "with no Text and no finish reason")
+	Do $$$AssertEquals(response.Tainted, 1, "the Reply is tainted, because the tool tainted the turn before the failure")
+	Set seen = $Select(response.HostData '= "": {}.%FromJSON(response.HostData), 1: "")
+	Do $$$AssertTrue($IsObject(seen), "and it carries the host data that the tool wrote: "_response.HostData)
+	If $IsObject(seen) Do $$$AssertEquals(seen.%Get("Kind"), "turn", "which holds the kind of the request")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
 }
 
 /// The Reply keeps the provider's finish_reason: the normal reply of Triage's default script, the refusal and max_tokens.
@@ -420,14 +518,15 @@ Method TestUsageRows()
 
 	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
 	Set sc = host.OnMessage(request, .reply)
-	Do $$$AssertStatusNotOK(sc, "a provider failure gives an error status")
+	Do $$$AssertStatusOK(sc, "a provider failure gives a failure Reply")
+	Do $$$AssertTrue($IsObject(reply) && (reply.FailureText [ "ProviderError"), "that holds the failure text")
 	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 0, "and, with no request counted, no Usage row")
 
 	Set chat = ..NewRunner("OcuTalon.Agent.Chat", "", ..ProviderConfig("chat"))
 	Set request = ..NewUsageRequest("turn", "Loop on the tool. [[mock:tool-loop]]")
 	Set sc = chat.OnMessage(request, .reply)
-	Do $$$AssertStatusNotOK(sc, "a turn that stalls in the tool loop gives an error status")
-	Do $$$AssertEquals(reply, "", "and no Reply")
+	Do $$$AssertStatusOK(sc, "a turn that stalls in the tool loop gives a failure Reply")
+	Do $$$AssertTrue($IsObject(reply) && (reply.FailureText [ "LoopDetected"), "whose failure text is the loop's: "_$Select($IsObject(reply): $Extract(reply.FailureText, 1, 200), 1: "no Reply"))
 	Set ids = ..UsageIds(request.ItemId)
 	Do $$$AssertEquals(ids.%Size(), 1, "but its requests are counted in one Usage row")
 	If ids.%Size() = 1 {
@@ -435,6 +534,10 @@ Method TestUsageRows()
 		Do $$$AssertTrue((usage.RequestCount > 0) && (usage.InputTokens > 0), "with the requests and tokens of the turn: "_usage.RequestCount_" requests, "_usage.InputTokens_" in")
 		Do $$$AssertTrue(usage.LargestRequestTokens > 0, "and the largest estimate of its requests as its largest request, because Chat returned no response to measure: " _ usage.LargestRequestTokens)
 		Do $$$AssertEquals(usage.Agent_"|"_usage.Kind, "ZzRunner|turn", "for the runner item and the kind")
+		If $IsObject(reply) {
+			Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.CostUSD_"|"_reply.Model, usage.InputTokens_"|"_usage.OutputTokens_"|"_usage.CostUSD_"|"_usage.Model, "the failure Reply carries the counts, the cost and the model of the row")
+			Do $$$AssertTrue(reply.AgentStepCount > 0, "and the step count of the call: "_reply.AgentStepCount)
+		}
 	}
 
 	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
@@ -630,8 +733,8 @@ Method TestStepsRedactedText()
 }
 
 /// The step buffer is over after every call, also after one that threw: a turn that stalls in the tool loop (the call threw after its
-/// requests were counted) and a provider failure end with an error status, no Reply and no buffer, and a call after them records only its
-/// own steps.
+/// requests were counted) and a provider failure end with a failure Reply that carries the steps taken so far and no buffer, and a call
+/// after them records only its own steps.
 Method TestStepBufferEndsOnEveryPath()
 {
 	If ..Guard() Quit
@@ -639,15 +742,21 @@ Method TestStepBufferEndsOnEveryPath()
 	Set chat = ..NewRunner("OcuTalon.Agent.Chat", "", ..ProviderConfig("chat"))
 	Set request = ..NewUsageRequest("turn", "Loop on the tool. [[mock:tool-loop]]")
 	Set sc = chat.OnMessage(request, .reply)
-	Do $$$AssertStatusNotOK(sc, "a turn that stalls in the tool loop gives an error status")
-	Do $$$AssertEquals(reply, "", "and no Reply, so no step travels")
+	Do $$$AssertStatusOK(sc, "a turn that stalls in the tool loop gives a failure Reply")
+	If $IsObject(reply) {
+		Set steps = ..StepsOf(reply)
+		Do $$$AssertTrue(steps.%Size() > 0, "that carries the steps taken before the failure: "_steps.%Size())
+		If steps.%Size() > 0 Do $$$AssertEquals(steps.%Get(0).label, "Model request 1", "the first of them is the first model request")
+	} Else {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+	}
 	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "the step buffer is over")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and so is the context")
 
 	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
 	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
 	Set sc = host.OnMessage(request, .reply)
-	Do $$$AssertStatusNotOK(sc, "a provider failure gives an error status")
+	Do $$$AssertStatusOK(sc, "a provider failure gives a failure Reply")
 	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "and the step buffer is over")
 
 	Set request = ..NewUsageRequest("decide", "Triage this item.")

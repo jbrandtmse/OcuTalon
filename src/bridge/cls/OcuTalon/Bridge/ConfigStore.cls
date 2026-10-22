@@ -1,6 +1,6 @@
 /// The Config Store API (AD-19). Merge changes some fields of an AI Hub LLM entry and leaves the others as they are; it is
-/// the one run-time writer of those entries, and the first caller is the model-change API of Story 17.3. The bridge
-/// names no other OcuTalon package here (AD-2).
+/// the one run-time writer of those entries, and the first caller is the model-change API of Story 17.3. Details reads an entry
+/// with its placeholders unresolved, for Merge and for OcuTalon.Bridge.Keys. The bridge names no other OcuTalon package here (AD-2).
 /// What Merge guards (AD-19): an api_key field, at any depth, takes only one environment placeholder, @{env:NAME}, which
 /// AI Hub resolves inside its provider, and an @{ in any other string or field name is refused, so that no merged value can
 /// expand an environment variable that is not a key placeholder. Merge judges nothing else: not the variable a placeholder
@@ -43,15 +43,33 @@ ClassMethod Merge(entry As %String, fields As %DynamicObject) As %Status
 			Quit
 		}
 		Set fqn = ..FullName($Get(entry))
-		If '##class(%ConfigStore.Configuration).Exists(fqn) {
-			Set sc = $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.ConfigStore.Merge: the Config Store entry "_fqn_" does not exist")
-			Quit
-		}
-		Set sc = ##class(%ConfigStore.Configuration).GetDetails(fqn, .details, 0, 0)
+		Set sc = ..Details(entry, .details)
 		If $SYSTEM.Status.IsError(sc) Quit
 		Do ..MergeInto(details, fields)
 		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details)
 	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Reads the entry (a name as in Merge) without its placeholders and secret references resolved: details is a dynamic object as it is
+/// stored, so that an api_key written as @{env:NAME} is that text and never the value of the variable. An entry that someone else wrote
+/// with a literal value returns that value as written, so a caller never logs, stores or returns details. It fails, with details
+/// empty, when the entry does not exist (the error names the entry) or cannot be read. It never throws.
+ClassMethod Details(entry As %String, Output details As %DynamicObject) As %Status
+{
+	Set details = ""
+	Try {
+		Set fqn = ..FullName($Get(entry))
+		If '##class(%ConfigStore.Configuration).Exists(fqn) {
+			Set sc = $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.ConfigStore: the Config Store entry "_fqn_" does not exist")
+			Quit
+		}
+		Set sc = ##class(%ConfigStore.Configuration).GetDetails(fqn, .read, 0, 0)
+		If $SYSTEM.Status.IsOK(sc) Set details = read
+	} Catch exception {
+		Set details = ""
 		Set sc = exception.AsStatus()
 	}
 	Quit sc

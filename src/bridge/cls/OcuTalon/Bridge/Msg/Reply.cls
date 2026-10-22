@@ -2,6 +2,9 @@
 Class OcuTalon.Bridge.Msg.Reply Extends OcuTalon.Bridge.Msg.Result
 {
 
+/// The longest FailureText, in characters: the one limit that the runner and Decide cut a failure text to.
+Parameter MAXFAILURE = 2000;
+
 /// The reply text.
 Property Text As %String(MAXLEN = "");
 
@@ -30,6 +33,11 @@ Property FinishReason As %String(MAXLEN = 32);
 /// redacted and cut (OcuTalon.Bridge.Redact); the runner fills it and Decide sends each record to AgentSteps as an AgentStep (AD-9).
 /// Decide's own answer to a turn leaves it empty.
 Property Steps As %String(MAXLEN = "");
+
+/// The failure of a call whose Chat threw, as the runner's reply to Decide (AD-6, AD-9): the text of AI Hub's error, redacted and cut to
+/// MAXFAILURE (OcuTalon.Bridge.Adapter.StepBuffer.Part). Only the runner fills it, and only on such a failure reply, which also carries the
+/// steps, the usage, the host data and the taint of the call; Text and FinishReason are empty then. Every answer of Decide leaves it empty.
+Property FailureText As %String(MAXLEN = 2000);
 
 /// A reply that says the conversation was busy: Busy is true and nothing else is set (AD-6).
 /// Decide answers a refused turn with it and never signals busy with an error status.
@@ -70,6 +78,9 @@ Storage Default
 </Value>
 <Value name="9">
 <Value>Steps</Value>
+</Value>
+<Value name="10">
+<Value>FailureText</Value>
 </Value>
 </Data>
 <DefaultData>ReplyDefaultData</DefaultData>

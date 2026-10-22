@@ -25,6 +25,11 @@
 ///     DeleteSteps (QA): the AgentStep messages of an item's requests are deleted once AgentSteps has handled them; LeakPlaces: where a
 ///     fake secret shows after a call (the steps, the runner's Reply, the event log and the stores of the key scan), which the redaction
 ///     tests of Test.Agent.Steps and Test.Bridge.Runner share, with TextControlsMissing, the controls of the scenario steps-secrets-text.
+///   - UseItemSetting and RestoreItemSetting (Story 1.6): the same swap for one setting of any target (Adapter or Host) of an item, such
+///     as Decide's HostSinkClass; SnapshotDefault, PutDefault and RestoreDefault: a System Default Settings row of an item put in place
+///     and put back (moved from Test.Bridge.Budget, which delegates to them); ErrorRows: the event-log rows of Type 2 or 6 after a mark
+///     (a start with no key writes none); SinkCalls: the calls that the shared mode of Test.Bridge.ProbeSink recorded in the production's
+///     own jobs.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -486,31 +491,161 @@ ClassMethod ChangeAgent(item As %String, hasClass As %Boolean, agentClass As %St
 	Quit sc
 }
 
-/// Records in saved whether the item has the Adapter setting (key with "Set" added) and its value (key).
-ClassMethod ReadSetting(config As Ens.Config.Item, name As %String, saved As %DynamicObject, key As %String) [ Private ]
+/// Records in saved whether the item has the setting of the target (key with "Set" added) and its value (key).
+ClassMethod ReadSetting(config As Ens.Config.Item, name As %String, saved As %DynamicObject, key As %String, target As %String = "Adapter") [ Private ]
 {
-	Set setting = config.FindSettingByName(name, "Adapter")
+	Set setting = config.FindSettingByName(name, target)
 	Do saved.%Set(key _ "Set", $IsObject(setting), "boolean")
 	Do saved.%Set(key, $Select($IsObject(setting): setting.Value, 1: ""))
 }
 
-/// Sets the Adapter setting of the item to the value, or removes the setting when has is 0.
-ClassMethod PutSetting(config As Ens.Config.Item, name As %String, has As %Boolean, value As %String) [ Private ]
+/// Sets the setting of the target on the item to the value, or removes the setting when has is 0.
+ClassMethod PutSetting(config As Ens.Config.Item, name As %String, has As %Boolean, value As %String, target As %String = "Adapter") [ Private ]
 {
-	Set setting = config.FindSettingByName(name, "Adapter")
+	Set setting = config.FindSettingByName(name, target)
 	If has {
 		If '$IsObject(setting) {
 			Set setting = ##class(Ens.Config.Setting).%New()
-			Set setting.Target = "Adapter"
+			Set setting.Target = target
 			Set setting.Name = name
 			Do config.Settings.Insert(setting)
 		}
 		Set setting.Value = value
 	} ElseIf $IsObject(setting) {
 		For i = config.Settings.Count():-1:1 {
-			If (config.Settings.GetAt(i).Name = name) && (config.Settings.GetAt(i).Target = "Adapter") Do config.Settings.RemoveAt(i)
+			If (config.Settings.GetAt(i).Name = name) && (config.Settings.GetAt(i).Target = target) Do config.Settings.RemoveAt(i)
 		}
 	}
+}
+
+/// Puts one setting of an item for a test: sets the setting of the target (Adapter or Host) on the item in the stored configuration of the
+/// production (as UseAgent does), updates the running production and waits until every item runs. saved holds what the item had
+/// ({"target","name","valueSet","value"}), for RestoreItemSetting; it is "" when the item's setting was not read, so that there is nothing
+/// to restore. THIS CHANGES THE RUNNING PRODUCTION: throwaways and CI only (Rule 21).
+ClassMethod UseItemSetting(item As %String, target As %String, name As %String, value As %String, Output saved As %DynamicObject) As %Status
+{
+	Set saved = ""
+	Set record = {"target": (target), "name": (name)}
+	Set sc = ..ChangeSetting(item, target, name, 1, value, record)
+	If record.%IsDefined("valueSet") Set saved = record
+	Quit sc
+}
+
+/// Puts the item's setting back as saved says (UseItemSetting): the setting gets its value back, or is removed from the item when it had
+/// none, and the running production is updated. A saved value that UseItemSetting did not give is an error and changes nothing.
+ClassMethod RestoreItemSetting(item As %String, saved As %DynamicObject) As %Status
+{
+	If '$IsObject(saved) || 'saved.%IsDefined("valueSet") Quit $SYSTEM.Status.Error(5001, "There is nothing to restore: UseItemSetting saved no setting of "_item)
+	Quit ..ChangeSetting(item, saved.target, saved.name, saved.valueSet, saved.value)
+}
+
+/// Sets (when has is 1) or removes (when 0) one setting of the target on the item in the stored configuration, saves the production,
+/// updates the running one and waits for every item to run. When saved is an object, it first holds what the item had of the setting.
+ClassMethod ChangeSetting(item As %String, target As %String, name As %String, has As %Boolean, value As %String, saved As %DynamicObject = "") As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set production = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
+		If '$IsObject(production) {
+			Set sc = $SYSTEM.Status.Error(5001, "The stored configuration of "_..#PRODUCTION_" cannot be opened")
+		} Else {
+			Set config = production.FindItemByConfigName(item, .sc)
+		}
+		If $$$ISOK(sc) && '$IsObject(config) Set sc = $SYSTEM.Status.Error(5001, ..#PRODUCTION_" has no item "_item)
+		If $$$ISOK(sc) {
+			If $IsObject(saved) Do ..ReadSetting(config, name, saved, "value", target)
+			Do ..PutSetting(config, name, has, value, target)
+			Set sc = production.%Save()
+		}
+		If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(60)
+		If $$$ISOK(sc) && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_item_" was changed: "_##class(OcuTalon.Install.Step.Production).NotRunning())
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The id of the System Default Settings row of a setting of an item of the active production.
+ClassMethod DefaultId(item As %String, setting As %String) As %String
+{
+	Quit ##class(Ens.Director).GetActiveProductionName()_"||"_item_"||*||"_setting
+}
+
+/// What the System Default Settings row of the setting of the item (a host or adapter setting of the active production) holds now,
+/// for RestoreDefault: $ListBuild(item, setting, existed, value, description) ($ListBuild(item, setting, 0) when there is no row).
+ClassMethod SnapshotDefault(item As %String, setting As %String) As %List
+{
+	Set id = ..DefaultId(item, setting)
+	If '##class(Ens.Config.DefaultSettings).%ExistsId(id) Quit $ListBuild(item, setting, 0)
+	Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+	Quit $ListBuild(item, setting, 1, row.SettingValue, row.Description)
+}
+
+/// Writes the System Default Settings row of the setting of the item of the active production. Saving a row checks the value against
+/// the datatype of the setting and, for a provider configuration, expands it, so a value that is none (x, 1,5, $5, text that is not JSON or
+/// a placeholder of an unset variable) cannot be saved: SQL then writes the row, and checks nothing. That is how such a value can reach the
+/// item (a hand-edited global, an import). The status is the first error. Call SnapshotDefault first.
+ClassMethod PutDefault(item As %String, setting As %String, value As %String) As %Status
+{
+	Set production = ##class(Ens.Director).GetActiveProductionName()
+	Set description = "Written by a test; the test deletes it."
+	Set sc = ##class(OcuTalon.Install.Step.Production).WriteDefault(production, item, setting, value, description)
+	If $$$ISERR(sc) {
+		Set id = ..DefaultId(item, setting)
+		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens_Config.DefaultSettings SET SettingValue = ?, Description = ? WHERE ID = ?", value, description, id)
+		} Else {
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO Ens_Config.DefaultSettings (ProductionName, ItemName, HostClassName, SettingName, SettingValue, Description) VALUES (?, ?, '*', ?, ?, ?)", production, item, setting, value, description)
+		}
+		If result.%SQLCODE < 0 {
+			Set sc = $$$ERROR($$$GeneralError, "The row of "_setting_" cannot be set to '"_value_"': "_result.%Message)
+		} Else {
+			Set sc = $$$OK
+		}
+	}
+	Quit sc
+}
+
+/// Puts the row of a snapshot back: the row is deleted, and written again when it existed. The status is the error of the write.
+ClassMethod RestoreDefault(saved As %List) As %Status
+{
+	Set item = $List(saved, 1)
+	Set setting = $List(saved, 2)
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..DefaultId(item, setting))
+	If '$List(saved, 3) Quit $$$OK
+	Quit ##class(OcuTalon.Install.Step.Production).WriteDefault(##class(Ens.Director).GetActiveProductionName(), item, setting, $List(saved, 4), $List(saved, 5))
+}
+
+/// The rows of the event log after the mark (EventMark) of Type 2 (error) or 6 (alert), as a list of "<type>: <item>: <text>" (the text
+/// cut to 200 characters), oldest first. A start with no key writes none (FR-38). A statement that fails gives one row that says so,
+/// never an empty list.
+ClassMethod ErrorRows(mark As %Integer) As %List
+{
+	Set rows = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Type, ConfigName, SUBSTRING(Text, 1, 200) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 6) ORDER BY ID", mark)
+	If result.%SQLCODE < 0 Quit $ListBuild("SQL "_result.%SQLCODE_": "_result.%Message)
+	While result.%Next() {
+		Set rows = rows _ $ListBuild(result.%GetData(1)_": "_result.%GetData(2)_": "_result.%GetData(3))
+	}
+	Quit rows
+}
+
+/// The calls that the shared mode of OcuTalon.Test.Bridge.ProbeSink recorded in ^OcuTalonTest("ProbeSink","calls") (the mode is on while
+/// ^OcuTalonTest("ProbeSink","shared") is 1, and a sink class that runs in a production job is the only way to see its calls), oldest
+/// first, as a dynamic array of {"type","ownerRef","payload","rowExists","markExists"}; payload is the JSON text. A type, when given, keeps
+/// the calls of that event type.
+ClassMethod SinkCalls(type As %String = "") As %DynamicArray
+{
+	Set calls = []
+	Set n = ""
+	For {
+		Set n = $Order(^OcuTalonTest("ProbeSink", "calls", n))
+		Quit:n=""
+		Set call = ^OcuTalonTest("ProbeSink", "calls", n)
+		If (type '= "") && ($List(call, 1) '= type) Continue
+		Do calls.%Push({"type": ($List(call, 1)), "ownerRef": ($List(call, 2)), "payload": ($List(call, 3)), "rowExists": ($List(call, 4)), "markExists": ($List(call, 5))})
+	}
+	Quit calls
 }
 
 /// The first entry of FindRequests, or "".

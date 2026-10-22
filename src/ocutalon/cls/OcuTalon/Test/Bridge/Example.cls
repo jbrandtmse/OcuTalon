@@ -9,7 +9,8 @@
 ///     AgentClass and on its AgentAllowList and DecisionPayload as its ReplyClass, and AgentSteps; no item names a provider
 ///     setting and the testing service is off (AD-19: a developer sets those in System Default Settings of their own namespace);
 ///   - TestDecideDefaults: Decide's three extension settings and its timer default to the do-nothing bases and 60 seconds, which
-///     is what the example runs with; its budget settings default to no cap (DailyCostCapUSD 0) and no gateway spend (Story 1.4).
+///     is what the example runs with; its budget settings default to no cap (DailyCostCapUSD 0) and no gateway spend (Story 1.4), and its
+///     token budget per decision to 0, which is off (DecisionTokenBudget, Story 1.6).
 Class OcuTalon.Test.Bridge.Example Extends %UnitTest.TestCase
 {
 
@@ -102,6 +103,8 @@ Method TestDecideDefaults()
 	Do $$$AssertEquals(..Initial(class, "DailyCostCapUSD"), "0", "DailyCostCapUSD defaults to 0, which is no cap")
 	Do $$$AssertEquals(..Initial(class, "GatewaySpendUSD"), $Char(34, 34), "GatewaySpendUSD defaults to the empty string, which is no spend")
 	Do $$$AssertEquals(..Initial(class, "GatewaySpendDate"), $Char(34, 34), "and GatewaySpendDate to the empty string, which is no date")
+	Do $$$AssertEquals(..Initial(class, "DecisionTokenBudget"), "0", "DecisionTokenBudget defaults to 0, which is off")
+	Do $$$AssertEquals(..Setting(class, "DecisionTokenBudget"), "DecisionTokenBudget:Bridge", "DecisionTokenBudget is a host setting of the category Bridge")
 	Do $$$AssertEquals(..Setting(class, "DailyCostCapUSD"), "DailyCostCapUSD:Bridge", "DailyCostCapUSD is a host setting of the category Bridge")
 	Do $$$AssertEquals(..Setting(class, "GatewaySpendUSD"), "GatewaySpendUSD:Bridge", "so is GatewaySpendUSD")
 	Do $$$AssertEquals(..Setting(class, "GatewaySpendDate"), "GatewaySpendDate:Bridge", "and GatewaySpendDate")

@@ -12,6 +12,8 @@
 ///   - TestMergeKeyNameCharacters: an api_key placeholder names a variable of letters, digits and underscores only; a hyphen, a
 ///     dot, a colon, a dollar sign, a letter outside ASCII, a line end or a space around the placeholder is refused;
 ///   - TestMissingEntry: a missing entry is an error that names it, and nothing is created;
+///   - TestDetails (Story 1.6): Details reads the entry with its placeholders unresolved, by its short or its full name; a missing entry
+///     is an error that names it and leaves details empty; Merge and Keys read through it;
 ///   - TestKeepsSecretReference: an entry that holds a secret:// reference is merged without resolving the reference, so the
 ///     reference stays what is stored (Merge reads with resolveSecrets 0);
 ///   - TestExpansionSeesMerge: AI Hub's @{config:} expansion of the entry shows the merged and the untouched fields, and the
@@ -226,6 +228,23 @@ Method TestExpansionSeesMerge()
 	Do $$$AssertEquals(expanded."http_config"."custom_headers"."x-keep", "1", "and the untouched header")
 	Do $$$AssertEquals(expanded."model_provider", "anthropic", "and the provider")
 	Do $$$AssertEquals(expanded."api_key", "@{env:ANTHROPIC_API_KEY}", "and the key still as the literal placeholder")
+}
+
+/// Details gives the details of the entry, with the api_key as its placeholder, by the short and by the full name. A missing entry is an
+/// error that names it, and details is empty.
+Method TestDetails()
+{
+	Set store = "OcuTalon.Bridge.ConfigStore"
+	Set name = ..EntryName()
+	Do $$$AssertStatusOK($ClassMethod(store, "Details", name, .details), "Details reads the entry by its short name")
+	Do $$$AssertEquals($Select($IsObject(details): details."api_key", 1: ""), "@{env:ANTHROPIC_API_KEY}", "the api_key is the placeholder, not a value")
+	Do $$$AssertEquals($Select($IsObject(details): details."model_provider", 1: ""), "anthropic", "and the other fields are as they were written")
+	Do $$$AssertStatusOK($ClassMethod(store, "Details", "AI.LLM."_name, .full), "and by its full name")
+	Do $$$AssertEquals($Select($IsObject(full): full.%ToJSON(), 1: ""), $Select($IsObject(details): details.%ToJSON(), 1: ""), "with the same details")
+	Set sc = $ClassMethod(store, "Details", "ZzNoSuchEntry", .none)
+	Do $$$AssertStatusNotOK(sc, "a missing entry is an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "AI.LLM.ZzNoSuchEntry", "that names the entry: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(none, "", "and details is empty")
 }
 
 /// --- helpers ---
