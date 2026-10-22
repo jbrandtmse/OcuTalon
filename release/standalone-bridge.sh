@@ -19,7 +19,9 @@
 #      EnsLib.Testing.Service gets a DecisionResponse with the outcome of the scenario bridge-example, tellnow, and a Decision row
 #      whose TraceSessionId is the session of the request; the bridge alone also counts and prices the call (Story 1.4; AD-2, AD-20):
 #      both Price rows that Installer.Run() seeds exist, and the decision's row holds the model claude-haiku-5-5 and tokens and a cost
-#      above 0, with one Usage row for its Ref that TriageAgent wrote;
+#      above 0, with one Usage row for its Ref that TriageAgent wrote; and it records the decision's step (Story 1.5; AD-2, AD-9, FR-5):
+#      one OcuTalon.Bridge.Msg.AgentStep for the decision's Ref, of kind model at Position 1 with an estimate above 0, sent from Decide
+#      to AgentSteps in the session of the decision's row and Completed (the check waits up to 60 s for it), and AgentSteps logged no error;
 #   5. no web application of the namespace names an OcuTalon class or /ocutalon;
 #   6. the production stops.
 # Prints one PASS or FAIL line per check, and exits 1 when any fails. The trap of live_start removes the project, its volume and
@@ -160,6 +162,24 @@ CHK|usage-model|claude-haiku-5-5" \
   'Set ref=$Select($IsObject(row):row.Ref,1:"")' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?",ref) Do rs.%Next() Write !,"CHK|usage-rows|",rs.%GetData(1)' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 Agent, Model FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ? ORDER BY ID",ref) Set agent="",model="" If rs.%Next() { Set agent=rs.%GetData(1),model=rs.%GetData(2) } Write !,"CHK|usage-agent|",agent,!,"CHK|usage-model|",model' \
+  'Halt'
+check_session "the bridge alone records the decision's step: one model AgentStep with an estimate, sent from Decide to AgentSteps in the session of the decision's row, and AgentSteps logged no error" $NS \
+  "CHK|row|1
+CHK|steps|1
+CHK|kind|model
+CHK|position|1
+CHK|estimate|1
+CHK|step-header|1
+CHK|steps-errors|0" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 ID FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ? ORDER BY ID DESC","Standalone bridge check") Set id="" If rs.%Next() { Set id=rs.%GetData(1) }' \
+  'If $Length(id) { Set row=##class(OcuTalon.Bridge.Data.Decision).%OpenId(id) } Else { Set row="" }' \
+  'Write !,"CHK|row|",$IsObject(row)' \
+  'Set ref=$Select($IsObject(row):row.Ref,1:"")' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*), MIN(ID) FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ?",ref) Do rs.%Next() Write !,"CHK|steps|",rs.%GetData(1) Set stepId=rs.%GetData(2),trace=$Select($IsObject(row):row.TraceSessionId,1:"")' \
+  'If $Length(stepId) { Set step=##class(OcuTalon.Bridge.Msg.AgentStep).%OpenId(stepId) } Else { Set step="" }' \
+  'If $IsObject(step) { Write !,"CHK|kind|",step.StepKind,!,"CHK|position|",step.Position,!,"CHK|estimate|",(step.EstimatedTokens>0) }' \
+  'Set done=0 For k=1:1:120 { Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? AND SessionId = ? AND SourceConfigName = ? AND TargetConfigName = ? AND Status = 9","OcuTalon.Bridge.Msg.AgentStep",stepId,trace,"Decide","AgentSteps") Do rs.%Next() Set done=rs.%GetData(1) If (done>0)||($Length(stepId)=0) { Quit } Hang 0.5 } Write !,"CHK|step-header|",done' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE ConfigName = ? AND Type = 2","AgentSteps") Do rs.%Next() Write !,"CHK|steps-errors|",rs.%GetData(1)' \
   'Halt'
 if [ "$fails" -ne 0 ]; then
   check_session "diagnosis: the event log of $NS holds these error rows" $NS \

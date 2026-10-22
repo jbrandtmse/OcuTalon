@@ -1,0 +1,31 @@
+{
+  "name": "steps-two-tools",
+  "match": {
+    "marker": "steps-two-tools"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 1000,
+      "toolUse": {
+        "name": "zz_steps_note",
+        "input": {
+          "topic": "status"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_steps_card",
+        "input": {
+          "owner": "ops"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the note and the card."
+    }
+  ]
+}

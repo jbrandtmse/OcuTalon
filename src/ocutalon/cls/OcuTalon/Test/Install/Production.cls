@@ -1,5 +1,5 @@
 /// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2;
-/// Story 1.3). Nothing
+/// Story 1.3; Story 1.5). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
 /// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
@@ -9,8 +9,8 @@
 ///   - TestDefinition: the compiled XData holds exactly the items of the oracle, each between the markers of its lane,
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
-///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3) and the three
-///     agent runners carry no STUB, so the oracle marks them "stub": 0;
+///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
+///     agent runners and AgentSteps (built in Story 1.5) carry no STUB, so the oracle marks them "stub": 0;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -616,7 +616,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}, {"target": "Host", "name": "ReplyClass", "value": "OcuTalon.Bridge.Msg.DecisionPayload"}]},
  {"lane": "A", "name": "DiagnosisAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Diagnosis"}]},
  {"lane": "A", "name": "ChatAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Chat"}]},
- {"lane": "A", "name": "AgentSteps", "class": "OcuTalon.Bridge.Operation.Steps", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
+ {"lane": "A", "name": "AgentSteps", "class": "OcuTalon.Bridge.Operation.Steps", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "OcuTalonApprovals", "class": "EnsLib.Workflow.Operation", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "FailurePoller", "class": "OcuTalon.Watch.FailurePoller", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "IncidentManager", "class": "OcuTalon.Watch.IncidentManager", "pool": 1, "enabled": 1, "stub": 1, "settings": []},

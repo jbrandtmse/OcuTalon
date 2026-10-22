@@ -14,9 +14,14 @@
 ///   - GuardReason: "" only when the environment is the CI override's (the mock's base URL and the mock-key switch), so that no
 ///     test can send a request to a real model API;
 ///   - FindRequest, FindRequests, Effort, CacheMark and Has: read the entries of the mock's log (Test.Contract.Mock.LogSince);
-///   - EventMark, EventRows and Warnings: the rows of the event log after a mark, and the warnings that one method logged after it;
+///   - EventMark, EventRows, LogRowsHolding and Warnings: the rows of the event log after a mark, the number of them that hold a value,
+///     and the warnings that one method logged after it;
 ///   - UsageIds, AddUsage and Totals (Story 1.4): the Usage rows of an item or a decision, a fixture Usage row, and the total fields
 ///     of a Decision row or an answer, which the tests of Test.Agent and Test.Bridge share.
+///   - UseAgent and RestoreAgent (Story 1.5): put a test agent behind a runner item, and put the item back, by changing the item's
+///     AgentClass and AgentAllowList settings in the stored configuration of the production and updating the running production;
+///     StepsOf: the AgentStep rows of a decision, by Position; Headers also gives the id of each header; Run, Targets, HeaderTo and
+///     CountTo are the send to Decide and the readings of its headers, which Test.Agent.Decide and Test.Agent.Steps share.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -104,6 +109,14 @@ ClassMethod EventMark() As %Integer
 	Quit +result.%GetData(1)
 }
 
+/// The number of event-log rows after the mark (EventMark) whose text holds the value.
+ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", mark, value)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
 /// The rows of the event log after the mark that belong to the item, as a list of "<type>: <text>", oldest first. The type is
 /// the number of Ens.Util.Log (1 assert, 2 error, 3 warning, 4 info, 5 trace, 6 alert).
 ClassMethod EventRows(mark As %Integer, item As %String) As %List
@@ -117,12 +130,14 @@ ClassMethod EventRows(mark As %Integer, item As %String) As %List
 }
 
 /// Sends the message to the target item through ApprovalStartIn, the adapterless service of the production, and waits for the
-/// answer. The status is the one the sender gets, the error of a runner included. response is the answer, or "".
-ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent) As %Status
+/// answer. The status is the one the sender gets, the error of a runner included. response is the answer, or "". A super session, when
+/// given, is the SuperSession that the service's messages carry, as those of a channel service do (AD-26).
+ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent, superSession As %String = "") As %Status
 {
 	Set response = ""
 	Set sc = ##class(Ens.Director).CreateBusinessService("ApprovalStartIn", .service)
 	If $$$ISERR(sc) Quit sc
+	If superSession '= "" Set service.%SuperSession = superSession
 	Quit service.SendRequestSync(target, message, .response, ..#SENDSECONDS)
 }
 
@@ -174,15 +189,77 @@ ClassMethod DecisionOf(itemId As %String, kind As %String) As OcuTalon.Bridge.Da
 	Quit ##class(OcuTalon.Bridge.Data.Decision).%OpenId(id)
 }
 
-/// The headers of the session that the item named source sent, oldest first, as a dynamic array of {"target","bodyClass","bodyId"}.
+/// The headers of the session that the item named source sent, oldest first, as a dynamic array of
+/// {"id","target","bodyClass","bodyId"}: the id of the header and the target, body class and body id of its message.
 ClassMethod Headers(sessionId As %Integer, source As %String) As %DynamicArray
 {
 	Set headers = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID", sessionId, source)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName, MessageBodyClassName, MessageBodyId, ID FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID", sessionId, source)
 	While result.%Next() {
-		Do headers.%Push({"target": (result.%GetData(1)), "bodyClass": (result.%GetData(2)), "bodyId": (result.%GetData(3))})
+		Do headers.%Push({"id": (result.%GetData(4)), "target": (result.%GetData(1)), "bodyClass": (result.%GetData(2)), "bodyId": (result.%GetData(3))})
 	}
 	Quit headers
+}
+
+/// The AgentStep rows of the decision, by Position, as a dynamic array of {"id","position","kind","label","summary","durationMs",
+/// "status","estimatedTokens"}: the message bodies that Decide sent to AgentSteps.
+ClassMethod StepsOf(decisionRef As %String) As %DynamicArray
+{
+	Set steps = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Position, StepKind, Label, Summary, DurationMs, Status, EstimatedTokens FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ? ORDER BY Position, ID", decisionRef)
+	While result.%Next() {
+		Do steps.%Push({"id": (result.%GetData(1)), "position": (result.%GetData(2)), "kind": (result.%GetData(3)), "label": (result.%GetData(4)), "summary": (result.%GetData(5)), "durationMs": (result.%GetData(6)), "status": (result.%GetData(7)), "estimatedTokens": (result.%GetData(8))})
+	}
+	Quit steps
+}
+
+/// Sends the request to Decide and waits for the answer. response is the answer (or ""), and session is the session of the request,
+/// which holds every header of the call. The status is the one Send gives (superSession as there).
+ClassMethod Run(request As OcuTalon.Bridge.Msg.Request, Output response As %Persistent, Output session As %Integer, superSession As %String = "") As %Status
+{
+	Set mark = ..HeaderMark()
+	Set sc = ..Send("Decide", request, .response, superSession)
+	Set session = ..SessionSince(mark, "Decide")
+	Quit sc
+}
+
+/// The targets of the headers (Headers), sorted and comma-separated.
+ClassMethod Targets(headers As %DynamicArray) As %String
+{
+	Set iterator = headers.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		Set targets(header.target) = ""
+	}
+	Set names = ""
+	Set name = ""
+	For {
+		Set name = $Order(targets(name))
+		Quit:name=""
+		Set names = names _ $Select(names = "": "", 1: ",") _ name
+	}
+	Quit names
+}
+
+/// The first header of the array (Headers) that is addressed to the target, or "".
+ClassMethod HeaderTo(headers As %DynamicArray, target As %String) As %DynamicObject
+{
+	Set found = ""
+	Set iterator = headers.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		If (found = "") && (header.target = target) Set found = header
+	}
+	Quit found
+}
+
+/// The number of headers in the array (Headers) that are addressed to the target.
+ClassMethod CountTo(headers As %DynamicArray, target As %String) As %Integer
+{
+	Set count = 0
+	Set iterator = headers.%GetIterator()
+	While iterator.%GetNext(, .header) {
+		If header.target = target Set count = count + 1
+	}
+	Quit count
 }
 
 /// The session of the header that carries the message body, or "": the session that holds a response, as Visual Trace shows it.
@@ -272,6 +349,87 @@ ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
 		Set sc = $$$ADDSC(sc, ..Restart(..#PRODUCTION_"||"_item))
 	}
 	Quit sc
+}
+
+/// Puts the agent class behind the runner item for a test: sets the AgentClass and the AgentAllowList settings (target Adapter) of the
+/// item in the stored configuration of the production (Ens.Config.Production, which UpdateProduction applies; an item setting of the
+/// class definition cannot be overridden from anywhere else), updates the running production, and waits until every item runs. The
+/// class definition of the production is not touched. saved holds what the item had ({"agentClassSet","agentClass","allowListSet",
+/// "allowList"}), for RestoreAgent; it is "" when the item's settings were not read, so that there is nothing to restore.
+/// THIS CHANGES THE RUNNING PRODUCTION: throwaways and CI only (Rule 21).
+ClassMethod UseAgent(item As %String, agentClass As %String, Output saved As %DynamicObject) As %Status
+{
+	Set saved = ""
+	Set record = {}
+	Set sc = ..ChangeAgent(item, 1, agentClass, 1, agentClass, record)
+	If record.%IsDefined("allowListSet") Set saved = record
+	Quit sc
+}
+
+/// Puts the item back as saved says (UseAgent): each of the two settings gets its value back, or is removed from the item when it had
+/// none, and the running production is updated. A saved value that is not what UseAgent gives is an error and changes nothing.
+ClassMethod RestoreAgent(item As %String, saved As %DynamicObject) As %Status
+{
+	If '$IsObject(saved) || 'saved.%IsDefined("allowListSet") Quit $SYSTEM.Status.Error(5001, "There is nothing to restore: UseAgent saved no settings of "_item)
+	Quit ..ChangeAgent(item, saved.agentClassSet, saved.agentClass, saved.allowListSet, saved.allowList)
+}
+
+/// Sets (when has is 1) or removes (when 0) the AgentClass and the AgentAllowList setting of the item in the stored configuration,
+/// saves the production, updates the running one and waits for every item to run. When saved is an object, it first holds what the
+/// item had of the two settings.
+ClassMethod ChangeAgent(item As %String, hasClass As %Boolean, agentClass As %String, hasAllow As %Boolean, allowList As %String, saved As %DynamicObject = "") As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set production = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
+		If '$IsObject(production) {
+			Set sc = $SYSTEM.Status.Error(5001, "The stored configuration of "_..#PRODUCTION_" cannot be opened")
+		} Else {
+			Set config = production.FindItemByConfigName(item, .sc)
+		}
+		If $$$ISOK(sc) && '$IsObject(config) Set sc = $SYSTEM.Status.Error(5001, ..#PRODUCTION_" has no item "_item)
+		If $$$ISOK(sc) {
+			If $IsObject(saved) {
+				Do ..ReadSetting(config, "AgentClass", saved, "agentClass")
+				Do ..ReadSetting(config, "AgentAllowList", saved, "allowList")
+			}
+			Do ..PutSetting(config, "AgentClass", hasClass, agentClass)
+			Do ..PutSetting(config, "AgentAllowList", hasAllow, allowList)
+			Set sc = production.%Save()
+		}
+		If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(60)
+		If $$$ISOK(sc) && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_item_" was changed: "_##class(OcuTalon.Install.Step.Production).NotRunning())
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Records in saved whether the item has the Adapter setting (key with "Set" added) and its value (key).
+ClassMethod ReadSetting(config As Ens.Config.Item, name As %String, saved As %DynamicObject, key As %String) [ Private ]
+{
+	Set setting = config.FindSettingByName(name, "Adapter")
+	Do saved.%Set(key _ "Set", $IsObject(setting), "boolean")
+	Do saved.%Set(key, $Select($IsObject(setting): setting.Value, 1: ""))
+}
+
+/// Sets the Adapter setting of the item to the value, or removes the setting when has is 0.
+ClassMethod PutSetting(config As Ens.Config.Item, name As %String, has As %Boolean, value As %String) [ Private ]
+{
+	Set setting = config.FindSettingByName(name, "Adapter")
+	If has {
+		If '$IsObject(setting) {
+			Set setting = ##class(Ens.Config.Setting).%New()
+			Set setting.Target = "Adapter"
+			Set setting.Name = name
+			Do config.Settings.Insert(setting)
+		}
+		Set setting.Value = value
+	} ElseIf $IsObject(setting) {
+		For i = config.Settings.Count():-1:1 {
+			If (config.Settings.GetAt(i).Name = name) && (config.Settings.GetAt(i).Target = "Adapter") Do config.Settings.RemoveAt(i)
+		}
+	}
 }
 
 /// The first entry of FindRequests, or "".

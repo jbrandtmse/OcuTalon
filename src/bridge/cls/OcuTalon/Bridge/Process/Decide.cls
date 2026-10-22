@@ -8,7 +8,12 @@ Include Ensemble
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, sends a clone of the request that
 ///     carries it to the runner of the kind (RUNNERS) and sets the timer of TimerSeconds, a whole number of seconds from 1 to
-///     MAXTIMER (AD-5). These are the only two messages Decide sends; it answers only its caller.
+///     MAXTIMER (AD-5). Besides the runner request and the timer, Decide sends only the agent steps (below); it answers only its caller.
+///   - The steps (AD-9, AD-30): when the runner's reply arrives in time, and before Conclude, EmitSteps sends each step record of the
+///     reply's Steps to the AgentSteps operation (STEPSITEM) as an OcuTalon.Bridge.Msg.AgentStep, in order, so that the steps sit in the
+///     caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). A Steps value
+///     that does not parse and a send that fails are warnings that name the DecisionRef and never change the answer. An answer from a
+///     recorded row, a timer that fired and a late reply send no steps. Decide's answer to a turn leaves Steps empty.
 ///   - The runner's reply goes to Conclude: the reply is checked (CheckReply: one JSON object that the ReplyClass setting of the
 ///     runner accepts, for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the
 ///     ReplyFilterClass, the user rule is applied, one Decision row is recorded, the event decision.recorded is fired after the
@@ -34,6 +39,9 @@ Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
 
 /// The longest timer, in seconds (AD-5, AD-8).
 Parameter MAXTIMER = 110;
+
+/// The operation that records the agent steps (AD-9).
+Parameter STEPSITEM = "AgentSteps";
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest (AD-6).
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
@@ -100,7 +108,69 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
+	Do ..EmitSteps(callrequest.DecisionRef, callresponse)
 	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
+}
+
+/// Sends each step record of the runner's reply to the AgentSteps operation, in order, without waiting for an answer: the sends
+/// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). A send that fails
+/// is a warning that names the DecisionRef, never the content, and so is a Steps value that does not parse; nothing changes the answer.
+Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
+{
+	Try {
+		Set messages = ..StepMessages(decisionRef, reply)
+		For i = 1:1:messages.Count() {
+			Set sc = ..SendRequestAsync(..#STEPSITEM, messages.GetAt(i), 0)
+			If $$$ISERR(sc) {
+				$$$LOGWARNING("Step "_i_" of the decision "_decisionRef_" was not sent to "_..#STEPSITEM_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING("The steps of the decision "_decisionRef_" were not sent: "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+}
+
+/// The AgentStep messages for the step records in the reply's Steps, as a list of messages in the order of the records. Position is the
+/// place in the array, from 1, and DecisionRef is the one given. No Steps, a reply of another class and a Steps value that is not a
+/// JSON array give an empty list; the last also logs a warning that names the DecisionRef and not the content. A record that is not
+/// an object is skipped with the same warning.
+ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply) As %ListOfObjects
+{
+	Set messages = ##class(%ListOfObjects).%New()
+	Try {
+		If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") && ($ZStrip(reply.Steps, "*WC") '= "") {
+			Set records = ""
+			Try {
+				Set records = ##class(%Library.DynamicAbstractObject).%FromJSON(reply.Steps)
+			} Catch {
+				Set records = ""
+			}
+			If '$IsObject(records) || 'records.%IsA("%Library.DynamicArray") {
+				$$$LOGWARNING("The steps of the decision "_decisionRef_" are not a JSON array of step records, so none is sent")
+			} Else {
+				Set iterator = records.%GetIterator()
+				While iterator.%GetNext(.index, .record, .type) {
+					If type '= "object" {
+						$$$LOGWARNING("Step "_(index + 1)_" of the decision "_decisionRef_" is not a step record, so it is not sent")
+						Continue
+					}
+					Set message = ##class(OcuTalon.Bridge.Msg.AgentStep).%New()
+					Set message.DecisionRef = decisionRef
+					Set message.Position = index + 1
+					Set message.StepKind = $Extract(record.%Get("kind"), 1, 32)
+					Set message.Label = $Extract(record.%Get("label"), 1, 1000)
+					Set message.Summary = $Extract(record.%Get("summary"), 1, 1000)
+					Set message.DurationMs = record.%Get("durationMs")
+					Set message.Status = $Extract(record.%Get("status"), 1, 32)
+					Set message.EstimatedTokens = record.%Get("estimatedTokens")
+					Do messages.Insert(message)
+				}
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING("The steps of the decision "_decisionRef_" cannot be read: "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Quit messages
 }
 
 /// OK when the message is a Request that Decide serves. A message of another class, and a request of kind tool, give "not
@@ -309,6 +379,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		Set response.Text = text
 		Set response.DecisionRef = decisionRef
 		Set response.Outcome = outcome
+		Set response.Steps = ""
 		Do ..CarryTotals(row, response)
 		Quit $$$OK
 	}

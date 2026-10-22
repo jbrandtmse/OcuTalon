@@ -1,7 +1,8 @@
 /// One row per agent turn, written by the runner right after Chat (AD-20). Lane A. The class methods serve the runner (Delta, HasSpend, FromStats) and Decide (Totals):
 ///   - Delta: the change of one counter of AI Hub's session stats between two readings;
 ///   - HasSpend: whether the turn spent a request or a token, so that a Chat that threw still gets its row;
-///   - FromStats: the unsaved row of one Chat, from the request, the two stats readings and the last response's usage;
+///   - Largest: the largest request of a turn, the larger of the last request's measured input and the estimates of the other requests;
+///   - FromStats: the unsaved row of one Chat, from the request, the two stats readings, the last response's usage and the estimates;
 ///   - Totals: the sums over the rows of one decision, which Decide puts on its Decision row and its answer.
 Class OcuTalon.Bridge.Data.Usage Extends %Persistent
 {
@@ -80,15 +81,33 @@ ClassMethod HasSpend(before As %DynamicObject, after As %DynamicObject) As %Bool
 	Quit spent
 }
 
+/// The largest request of a turn in tokens (AD-20, AD-9): the larger of two values, or "" when there is neither.
+///   - The measured input of the last request, from last (the Usage of the last response: prompt_tokens, cache_read_tokens and
+///     cache_creation_tokens), when last is an object.
+///   - The estimates of the other requests, from estimates (a list of the estimated tokens of the model requests, in order; see
+///     OcuTalon.Bridge.Adapter.StepBuffer.Estimates). When a measurement exists, the last estimate is the last request's own and is
+///     dropped; when nothing was measured, as after a Chat that threw, all of them count.
+ClassMethod Largest(last As %DynamicObject, estimates As %List = "") As %Integer
+{
+	Set largest = $Select($IsObject(last): +last.%Get("prompt_tokens") + last.%Get("cache_read_tokens") + last.%Get("cache_creation_tokens"), 1: "")
+	Set count = $ListLength(estimates) - $Select($IsObject(last): 1, 1: 0)
+	For i = 1:1:count {
+		Set estimate = +$List(estimates, i)
+		If (largest = "") || (estimate > largest) Set largest = estimate
+	}
+	Quit largest
+}
+
 /// Builds the unsaved row of one Chat call (AD-20) in row and returns OK, or returns an error when after is not a stats reading.
 ///   - DecisionRef, ItemId, Kind, OwnerRef and Channel come from the request; agent and model are given;
 ///   - RequestCount is the delta of total_interactions, OutputTokens the delta of total_completion_tokens, and CacheReadTokens and
 ///     CacheWriteTokens the deltas of total_cache_read_tokens and total_cache_creation_tokens;
 ///   - InputTokens adds the delta of total_prompt_tokens to those two, because AI Hub's prompt tokens exclude the cached input;
-///   - LargestRequestTokens is the input of the last request, from last (the Usage of the response: prompt_tokens,
-///     cache_read_tokens and cache_creation_tokens), or empty when last is not an object, as after a Chat that threw;
+///   - LargestRequestTokens is Largest(last, estimates): the larger of the input of the last request, from last (the Usage of the
+///     response: prompt_tokens, cache_read_tokens and cache_creation_tokens), and the estimates of the other requests (all of them
+///     when last is not an object, as after a Chat that threw), or empty when there is neither;
 ///   - CostUSD is Price.CostFor of the model, empty when no Price row has it; Estimated is 0; RecordedAt is the current UTC time.
-ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, model As %String, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject, Output row As OcuTalon.Bridge.Data.Usage) As %Status
+ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, model As %String, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject, Output row As OcuTalon.Bridge.Data.Usage, estimates As %List = "") As %Status
 {
 	Set row = ""
 	If '$IsObject(after) Quit $$$ERROR($$$GeneralError, "No stats reading after the call, so no usage row can be built")
@@ -97,7 +116,7 @@ ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, 
 	Set cacheWrite = ..Delta(before, after, "total_cache_creation_tokens")
 	Set output = ..Delta(before, after, "total_completion_tokens")
 	Set requests = ..Delta(before, after, "total_interactions")
-	Set largest = $Select($IsObject(last): +last.%Get("prompt_tokens") + last.%Get("cache_read_tokens") + last.%Get("cache_creation_tokens"), 1: "")
+	Set largest = ..Largest(last, estimates)
 	Set row = ..%New()
 	Set row.DecisionRef = request.DecisionRef
 	Set row.ItemId = request.ItemId

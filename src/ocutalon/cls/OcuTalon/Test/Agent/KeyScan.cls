@@ -11,7 +11,9 @@
 ///     the script triage picked by the mock key, and the model; Find on the fake key names no store; Find on values that the
 ///     stores do hold names their stores, so that the scan is shown to see what it scans. The session is deleted.
 /// Find(value) is the scan that other stories reuse: it names each of the stores it scans that holds the value (the stores
-/// are listed at Find; the audit log, the journal and the jobs' runtime settings are not among them). SetEnv, UnsetEnv and
+/// are listed at Find; the audit log, the journal and the jobs' runtime settings are not among them). The agent steps (the Label and
+/// the Summary of every AgentStep message, Story 1.5) are one of the stores, and the positive control of TestKeyIsStoredNowhere saves
+/// one step with a fresh value to show that the scan sees them. SetEnv, UnsetEnv and
 /// HasEnv are the helpers that set, remove and test an environment variable of the process, for the tests that need a key
 /// there.
 Class OcuTalon.Test.Agent.KeyScan Extends %UnitTest.TestCase
@@ -46,6 +48,7 @@ Method TestKeyIsStoredNowhere()
 	Set previous = $SYSTEM.Util.GetEnviron(..#KEYVARIABLE)
 	Set sessionId = ""
 	Set logText = ""
+	Set stepId = ""
 	Try {
 		Do ..SetEnv(..#KEYVARIABLE, fake)
 		Do $$$AssertEquals($SYSTEM.Util.GetEnviron(..#KEYVARIABLE), fake, "the fake key is in the environment of the process")
@@ -101,11 +104,24 @@ Method TestKeyIsStoredNowhere()
 		Do $$$AssertTrue(text [ "item setting TriageAgent:Adapter:AgentClass", "Find sees an item setting: "_$Extract(text, 1, 200))
 		Set text = $ListToString(..Find(logText), "; ")
 		Do $$$AssertTrue(text [ "event log", "Find sees an event-log row: "_text)
+		Set stepText = "ocutalon-keyscan-step-"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set step = ##class(OcuTalon.Bridge.Msg.AgentStep).%New()
+		Set step.DecisionRef = "zzkeyscan"
+		Set step.Position = 1
+		Set step.StepKind = "tool"
+		Set step.Label = "Reading the key scan control"
+		Set step.Summary = "zz_keyscan. Inputs: {}. Result: "_stepText_"."
+		Set step.Status = "ok"
+		Do $$$AssertStatusOK(step.%Save(), "an agent step with a fresh value is saved")
+		Set stepId = step.%Id()
+		Set text = $ListToString(..Find(stepText), "; ")
+		Do $$$AssertTrue(text [ "agent steps "_stepId, "Find sees an agent step: "_text)
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the key scan runs without an exception")
 	}
 	If sessionId '= "" Do ##class(%AI.Agent.Session).%DeleteId(sessionId)
 	If logText '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text = ?", logText)
+	If stepId '= "" Do ##class(OcuTalon.Bridge.Msg.AgentStep).%DeleteId(stepId)
 	If had {
 		Do ..SetEnv(..#KEYVARIABLE, previous)
 	} Else {
@@ -121,13 +137,14 @@ Method TestKeyIsStoredNowhere()
 ///   - "setting <id>": a row of the System Default Settings;
 ///   - "item setting <item>:<target>:<name>": an item setting of OcuTalon.Production, or "production setting <name>";
 ///   - "event log <id>": a row of the Event Log;
+///   - "agent steps <id>": an AgentStep message whose Label or Summary holds it (FindSteps);
 /// and "<store> could not be read" for a store that cannot be scanned, so that an unreadable store never counts as clean.
 ClassMethod Find(value As %String) As %List
 {
 	Set found = ""
 	If value = "" Quit found
 	Try {
-		Set found = found _ ..FindEntries(value) _ ..FindSettings(value) _ ..FindItemSettings(value) _ ..FindEventLog(value) _ ..FindSessions(value)
+		Set found = found _ ..FindEntries(value) _ ..FindSettings(value) _ ..FindItemSettings(value) _ ..FindEventLog(value) _ ..FindSessions(value) _ ..FindSteps(value)
 	} Catch exception {
 		Set found = found _ $ListBuild("the scan failed: "_$SYSTEM.Status.GetErrorText(exception.AsStatus()))
 	}
@@ -189,6 +206,17 @@ ClassMethod FindEventLog(value As %String) As %List [ Private ]
 	If result.%SQLCODE < 0 Quit $ListBuild("the event log could not be read")
 	While result.%Next() {
 		Set found = found _ $ListBuild("event log "_result.%GetData(1))
+	}
+	Quit found
+}
+
+ClassMethod FindSteps(value As %String) As %List [ Private ]
+{
+	Set found = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Msg.AgentStep WHERE Label [ ? OR Summary [ ?", value, value)
+	If result.%SQLCODE < 0 Quit $ListBuild("agent steps could not be read")
+	While result.%Next() {
+		Set found = found _ $ListBuild("agent steps "_result.%GetData(1))
 	}
 	Quit found
 }

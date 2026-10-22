@@ -2,13 +2,24 @@
 title: 'Story 1.5: Every model request and tool call is an agent step in Visual Trace'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b5d8096b3bf5dfe15d355dca2ac0a19b5423a9ea'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-5, AD-6, AD-9, AD-20, AD-22, AD-26, AD-30, AD-31 and AD-33, and the Redaction, Logging, Messages and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Shipped tool classes declare no STEPLABEL, and nothing fails a tool class that has none, so every real tool step reads
+      "Running a tool" in Visual Trace.
+    evidence: |-
+      AD-9: each tool declares its readable step label. Tools.WatchFixture (the methods of the Tools.Watch toolset) carries none; the spec's
+      decision 10 leaves them out because Diagnosis cannot run through Decide yet and Story 5.4 replaces the class.
+      Test.Bridge.CodeRules.TestCallbackRule is the place for a scan once the first real tool class exists (Stories 1.10, 5.4).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Tools/
+    severity: low
 ---
 
 <intent-contract>
@@ -365,6 +376,52 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-22 — Review pass
+- verdicts: 42 findings — high 0, medium 9, low 29, false 2, maybe-false 2
+- findings:
+  - `[low]` `[patch]` Blind: StepBuffer appends raise the counter before the slot is written, so a raise leaves a hole that Estimates() reads outside RecordUsage's Try — Verified in `Tool`/`Model`: `$Increment` came first, `Estimates()` and `Records()` read every slot up to the counter. Reachable only with strings over the 3.6 M-character limit (the next model request would fail then anyway). Fixed: the slot, the running total and the counter are written in that order, so an append is whole or absent; `Test.Bridge.Steps.TestAppendRaises` pins it (mutation recorded).
+  - `[low]` `[reject]` Blind: Redact key names and free-text values (compound names such as authToken keep their value in JSON; an unquoted value stops at a space) — `SENSITIVEKEYS` is the list of the intent contract (veto U-22) and the patterns are the backstop to the structural rules; the unquoted-value limit is recorded under Residual risks with its trade-off (over-redacting the rest of an error sentence). reopen_if=a real tool puts a secret under a name outside the list, or a passphrase with spaces in an error text.
+  - `[medium]` `[patch]` Blind: nothing pins the AgentSteps operation after STUB left it out of TestStubsAnswer — Verified: no test calls `Operation.Steps.OnMessage`; an unconditional `Quit $$$OK` kept every test green. Fixed: `Test.Bridge.Steps.TestAgentStepsOperation` (AgentStep gets OK and no response, another class gets 5003, no STUB); mutation recorded.
+  - `[low]` `[reject]` Blind: KeyScan.Find does not scan Reply.Steps — The spec names the `agent steps` store as the one to add; `Reply.Steps` holds the same redacted JSON and is checked directly in `TestRedacted` and `TestStepsRedacted` (Steps and XML). reopen_if=a later story relies on `Find` alone for the runner's reply.
+  - `[low]` `[defer]` Blind: shipped tool classes carry no STEPLABEL and nothing enforces the convention — Pre-existing tools (`Tools.WatchFixture`); the spec's decision 10 leaves them unlabelled and Stories 1.10 and 5.4 declare labels. An enforcement scan belongs with the first real tool story: deferred, severity low.
+  - `[low]` `[reject]` Blind: Redact.Text rebuilds and compiles its patterns on every call — Real but small: about a hundred calls and a thousand compiles for a 30-step loop, once per turn, in the runner job after Chat; the fix (a process cache) adds state. reopen_if=a turn's reply is measured slower by the redaction.
+  - `[low]` `[reject]` Blind: the steps of a failed turn are discarded — The spec's decision 6, already routed as DW-83 to Story 1.6.
+  - `[low]` `[reject]` Blind: "1 tool calls" and "About 1 tokens" read badly — The intent contract fixes the wording (veto U-23); changing it is the lead's call.
+  - `[low]` `[patch]` Blind: Test.Agent.Steps.OnAfterAllTests skips the restore when the production is not running — Verified: the agent restore was guarded by `Running()`. Fixed: the stored settings of ChatAgent are put back whenever they were swapped (the update of the running production then fails with a status); the entries of the runners keep the guard.
+  - `[medium]` `[patch]` Blind: LogRowsHolding is copied into three test classes — Verified (Test.Bridge.Decide, Test.Bridge.Runner, Test.Agent.Steps), no reason given: Rule 2. Fixed: one `RunnerFixture.LogRowsHolding`; each class keeps a one-line delegate, as `Test.Agent.Decide` does for the moved helpers.
+  - `[low]` `[patch]` Edge: Tool and Model raise the counter before writing the slot (same root as the Blind finding) — Same defect and fix as the first Blind row.
+  - `[low]` `[reject]` Edge: EmitSteps sends before Conclude, so a refused reply or a concurrent duplicate leaves AgentSteps under a DecisionRef with no row — The intent contract says before `Conclude`; the steps then show what the agent did for a reply that was refused, and orphans are purged like any message. Recorded under Residual risks.
+  - `[low]` `[reject]` Edge: an unquoted sensitive value with a space, comma or semicolon leaves its tail (displayName=Ada Lovelace; a second cookie) — The same limit as the Blind redaction row; recorded under Residual risks.
+  - `[medium]` `[patch]` Edge: escaped JSON in text is invisible to the key rule — Measured on the slot: the result of a tool that returns text (the product tools return %String) reaches the policy as a JSON string, and `"{\"password\":\"hunter2\",\"chatId\":777001}"` came back unchanged. Fixed: a text that is exactly one JSON string is redacted by its content (`Redact.Literal`, also when encoded twice; a string that needs no change is returned as it is); `Test.Bridge.Redact.TestJsonString` pins it (mutation recorded). Escaped JSON inside other free text is rare and stays a residual risk.
+  - `[low]` `[patch]` Edge: Part turns only TAB to CR into spaces, though its doc says control characters — Verified. Fixed: the C0 controls, DEL, NEL and the line and paragraph separators become spaces; pinned in `TestRedactThenCut` (mutation recorded).
+  - `[maybe-false]` `[reject]` Edge: a cut inside a surrogate pair may make %ToJSON throw — Not measured; if true it is low (one call's steps lost, with a warning) and the trigger is a non-BMP character exactly at a cut point.
+  - `[medium]` `[patch]` Edge: TestTwoTools reads the step headers right after Decide answers, without waiting for AgentSteps to complete them — Verified: the five sends are asynchronous and the test asserted status Completed once. Fixed: a poll with a 60 s ceiling (`WaitStepsDone`) before the headers are read.
+  - `[medium]` `[patch]` Edge: the standalone step check counts the header and the AgentSteps errors without waiting — Same defect in `release/standalone-bridge.sh`. Fixed: the check polls (up to 60 s) for the step header with Status 9 before it counts the errors.
+  - `[maybe-false]` `[reject]` Edge: StepAudit records call.name and the original arguments when a policy redirects a call — No policy in this product redirects a call, and the intent contract names `call.name`; if true it is low.
+  - `[low]` `[reject]` Edge: LargestRequestTokens ignores the request that was in flight when Chat threw — By design: estimates come from the model responses that arrived (`OnMessage`), and a call that threw before any request writes no row at all (the intent contract's matrix).
+  - `[low]` `[patch]` Gap: no test fails if Tool stops moving the clock mark — Verified: model step 2 followed the tool step with no pause, so it read about 0 either way. Fixed: `TestRenderer` pauses 0.25 s before the tool step and asserts that the next model step is under 200 ms (mutation recorded). Not added: an upper bound in the live tests (a slow runner could exceed it) and a test of the mark that OnBegin sets (the adapter calls Start right before Chat, so the two marks coincide).
+  - `[medium]` `[patch]` Gap: nothing tests the AgentSteps operation — Same finding and fix as the third Blind row.
+  - `[low]` `[reject]` Gap: EmitSteps' failed-send branch has no test — Measured while trying to fix it: a Decide instance that is not started does not fail the send, it sent two real AgentStep messages into the running production, so the cheap test is unsafe; a safe one needs a Decide subclass with a missing STEPSITEM or a disabled AgentSteps in the running production. The branch is twelve lines (ISERR to a warning, Catch to a warning). reopen_if=a send to AgentSteps fails in a live run and the answer changes.
+  - `[medium]` `[patch]` Gap: TestTwoTools asserts Completed without waiting (flaky) — Same finding and fix as the Edge row on TestTwoTools.
+  - `[medium]` `[patch]` Gap: the standalone check has no wait and no header status — Same finding and fix as the Edge row on the standalone check.
+  - `[low]` `[reject]` Gap: Runner.TestSteps' `LargestRequestTokens >= first estimate` cannot catch ignored estimates — True, and not AC6's pinning test (`Bridge.Usage.TestLargest` and `Agent.Decide.TestCostOfFailedTurn` pin AC6, both with recorded mutations); the assertion can fail if the field is empty.
+  - `[low]` `[patch]` Gap: the `durationMs >= 0` half of the TestRenderer assertion cannot fail — Removed while the line was changed for the clock-mark finding.
+  - `[low]` `[reject]` Gap: TestRedacted has no positive control that the note tool returned its secrets — The tool returns them for topic keys by construction, `TestStepsRedacted` shows the arguments arrive, and the unredacted mutation turned `TestRedacted` red.
+  - `[low]` `[reject]` Gap: Test.Agent.Steps.OnBeforeAllTests saves whatever ChatAgent has, even a leftover swap — Each class runs in its own fresh throwaway; a leftover swap needs an aborted run in the same stack.
+  - `[low]` `[reject]` Gap: AgentStep rows are not deleted after the tests — The intent contract's cleanup names the Usage and Decision rows; the AgentStep rows carry fresh DecisionRefs and nothing counts them across tests.
+  - `[low]` `[reject]` Gap: Test.Bridge.CodeRules, %LogDenial and the order of the step headers have no mutation line of their own — Each of AC1, AC2 and AC5 has the mutation lines the spec asked for (one per AC); the order is pinned by the reverse-order mutation of AC3.
+  - `[low]` `[reject]` Gap: %LogDenial is never driven through AI Hub — Story 3.2's gate produces the first denials (Consumed-by); the pure test covers the signature and the record.
+  - `[false]` `[reject]` Gap: Test.Contract.Ac does not list Reply.Steps — Lane B, read only, and a superset check by design; `Test.Bridge.Contracts` is the exhaustive pin and lists `Steps`.
+  - `[low]` `[reject]` Intent: the failed-send branch is untested (gap 1) — Same as the Gap row on EmitSteps.
+  - `[medium]` `[patch]` Intent: Completed is read once, without a wait (gap 2, reading B5) — Same as the TestTwoTools and standalone rows.
+  - `[low]` `[reject]` Intent: "nowhere in the trace" is scanned over AgentStep only, not Reply (gap 3) — Same as the KeyScan row.
+  - `[low]` `[reject]` Intent: the shape-only patterns are tested only in the pure class (gap 4) — The matrix row for the patterns is a pure row; the live and in-process rows use the key rule.
+  - `[low]` `[reject]` Intent: AgentStepCount and the step messages are two counters, compared only in the two-tool scenarios (gap 5) — Task 0 (c) measured the missing-tool difference; it is recorded under Residual risks.
+  - `[low]` `[reject]` Intent: an ordinary call can now take an earlier request's estimate as its largest request (gap 6) — That is AC6; `TestFromStats` pins the tier effect with a synthetic estimate.
+  - `[low]` `[reject]` Intent: the chaining of audit policies is shown only by the in-process test (gap 7, reading B6) — `TestStepsRedacted` chains a second policy and counts both calls; `TestSteps` and the live tests record the steps.
+  - `[low]` `[patch]` Intent: the restore path is skipped when the production has stopped (gap 8, reading B8) — Same as the OnAfterAllTests row.
+  - `[false]` `[reject]` Intent: readings B1 to B4 and B7 (estimates are not tokens of a step; the key rule inside JSON strings; Position is the array index; the prefix counts toward 20; all calls take the larger value) — Descriptive: the diff takes the readings the intent contract states or the Decided in-stage notes record; no divergence beyond the rows above.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -403,6 +460,18 @@ No acceptance criterion contradicts an AD's Rule.
 9. **Fake secrets in the scenario.** The model key and the bot token are written with one `\u` escape, so `test-boundaries.sh`'s key scan stays meaningful. The tools build their values from fragments at run time.
 10. **`WatchFixture` gets no labels.** Diagnosis cannot run through `Decide` yet (no `ReplyClass`), and Story 5.4 replaces the class.
 11. **Redaction runs in the runner,** before the reply is a message, so neither the runner's reply nor a step holds a secret. It fails closed.
+
+**Decided in-stage (implementation, unattended):** small ambiguities, each inside the spec's intent and reversible in this story.
+12. **`sk-` keys of "20 or more characters"** count the prefix: `sk-` followed by 17 or more of `A-Z a-z 0-9 _ -`, with no letter or digit before the `sk-`. `sk-ant-` keys have no minimum and no boundary.
+13. **The key rule (`<sensitive key>` then `=` or `:` and a value)** also checks the string values inside JSON, because a tool's result can hold `password=...` in a string; a key follows `[_-]?` between its letters, so `api_key` and `apiKey` match; a quoted value is replaced whole and keeps its quotes (so a JSON fragment in a text stays well formed); an authentication scheme (`Bearer`, `Basic`, `Digest`, `Negotiate`) before the value belongs to it. The structural JSON rule still takes the whole value of a sensitive key, whatever its type.
+14. **A tool step adds its arguments and its result, or its error or denial text when there is no result, to the later estimates**, the same count as its own `estimatedTokens`, so that an error that the model reads counts as it should. For a step with a result the count is the spec's.
+15. **The error detail is the full error text without its code.** `GetOneStatusText` drops the cause of a tool failure (Task 0 (d)), so `StepAudit` takes `GetErrorText`, removes the leading `ERROR <code>:` of each error, turns control characters into spaces and the long dash into a hyphen, and keeps 2,000 characters.
+16. **Redaction runs on each part** (name, inputs, result or error text, label) and the parts are cut; the composed summary is cut only. A second redaction of the composed text would let the key rule take the full stop after a value.
+17. **`UseAgent` leaves `saved` empty when it could not read the item's settings**, and `RestoreAgent` of an empty `saved` is an error that changes nothing, so a failed swap can never remove the item's `AgentClass`. `Send` and `Run` of `RunnerFixture` take an optional super session, as a channel service sets one (AD-26).
+18. **Added tests and fixtures:** `Test.Bridge.StepsSeen` (a second audit policy that records what the tools were called with, for Task 0 (i)); `Test.Agent.Steps.TestSwapKeepsDefinition` (the Task 0 (f) gate as a test); `Test.Bridge.Usage.TestLargest` also runs the four DW-77 cases through `FromStats`; `Test.Bridge.Runner.TestUsageRows` now expects a largest request above 0 for the stalled tool loop (AC6) and still expects no row for a failure before any request.
+19. **`Decide`'s helpers moved.** `Run`, `Targets`, `HeaderTo` and `CountTo` live in `RunnerFixture`; `Test.Agent.Decide` keeps one-line private methods of the same names that call them, so its test bodies did not change.
+20. **A text that is exactly one JSON string** is redacted by its content. AI Hub encodes the string result of a tool as a JSON string, and the product's own tools return `%String`; the key rule cannot see `\"password\"` inside such a string. `Redact.Literal` parses the string, redacts its content as a text of its own (JSON inside it too, also when encoded twice) and encodes it again; a string that needs no change is returned as it is.
+21. **A step is added to the buffer whole or not at all.** The slot, the running total and the counter are written in that order, so an append that raises leaves nothing behind for `Estimates()` and `Records()`.
 
 **Integration ACs (Rule 1):**
 - **AC3, live.** `Decide` reads the runner's `Reply.Steps` and produces the messages in `AgentSteps`, through the running production and the mock.
@@ -501,10 +570,47 @@ No acceptance criterion contradicts an AD's Rule.
 | AC6 | `FromStats` ignores the estimates | `Bridge.Usage.TestLargest` (case 1), `Agent.Decide.TestCostOfFailedTurn` |
 | AC6 | The last estimate is kept beside the measurement | `Bridge.Usage.TestLargest` (case 2: 4,000, not 3,000) |
 
+**Mutations demonstrated (Rule 19).** Each change was applied alone to a clean tree, the named classes ran in a throwaway, and the tree was put back and compared (`git status --short`, `git diff --stat` and the file's checksum identical to before).
+- mutation: `StepRenderer.OnMessage` records nothing -> `Bridge.Steps` (`TestRenderer`), `Bridge.Runner` (`TestSteps`, `TestStepsRedacted`, `TestUsageRows`), `Agent.Steps` (`TestTwoTools`, `TestRedacted`, `TestDecideStep`) went red
+- mutation: the estimate is the base only (`Model` without the accumulated texts) -> `Bridge.Steps` (`TestRenderer` 130, `TestRecords`), `Bridge.Runner.TestSteps`, `Agent.Steps.TestTwoTools` (increasing) went red
+- mutation: the model step's duration is a fixed 0 -> `Bridge.Runner.TestSteps` (at least 1000), `Agent.Steps.TestTwoTools`, `Bridge.Steps.TestRenderer` went red
+- mutation: the label is taken from `call.name` (`Records` uses the name, not `LabelFor`) -> `Bridge.Steps` (`TestRecords`, `TestAudit`), `Agent.Steps.TestTwoTools` went red
+- mutation: `OnAfterAgentInit` adds no policy -> `Bridge.Runner.TestSteps` (no `StepAudit`, no tool step), `TestStepsRedacted` went red
+- mutation: the status is always `ok` -> `Agent.Steps.TestRedacted` (the card step), `Bridge.Runner.TestStepsRedacted` went red
+- mutation: `EmitSteps` is not called -> `Agent.Steps` (`TestTwoTools`, `TestRedacted`, `TestDecideStep`), `Agent.Decide` (`TestDecision`, `TestRepeat`) and the step check of `release/standalone-bridge.sh` ("wanted CHK|steps|1, got 0") went red
+- mutation: the steps are sent in reverse order (`For i = messages.Count():-1:1`) -> `Agent.Steps.TestTwoTools` (the ids against Position) went red
+- mutation: the turn clone keeps `Steps` -> `Bridge.Decide.TestTurnKeepsReply` (and `TestStepMessages`) went red
+- mutation: `Redact.Text` returns its input -> `Bridge.Redact` (all three families), `Bridge.Runner.TestStepsRedacted`, `Agent.Steps.TestRedacted`, `Bridge.Steps.TestRedactThenCut` went red
+- mutation: the text is cut before it is redacted (`Part`) -> `Bridge.Steps.TestRedactThenCut` ("sk-a" left in the summary) went red
+- mutation: each step is sent from a fresh session (`..%SessionId` cleared before the send) -> `Agent.Steps` (`TestTwoTools`, `TestDecideStep`) went red
+- mutation: `FromStats` ignores the estimates (`Largest(last)`) -> `Bridge.Usage` (`TestLargest` cases 1 and 3 through the row, `TestFromStats`), `Agent.Decide.TestCostOfFailedTurn` went red
+- mutation: the last estimate is kept beside the measurement (no `- 1` in `Largest`) -> `Bridge.Usage.TestLargest` (case 2: 4,000, not 3,000) went red
+- mutation: `StepBuffer.Tool` does not move the clock mark -> `Bridge.Steps.TestRenderer` (the model step after the tool step reads 252 ms) went red
+- mutation: `Redact.Redacted` does not treat a text that is one JSON string by its content -> `Bridge.Redact.TestJsonString` went red
+- mutation: `StepBuffer.Tool` raises the counter before it writes the slot -> `Bridge.Steps.TestAppendRaises` (`<UNDEFINED>` in `Estimates`) went red
+- mutation: `Operation.Steps.OnMessage` answers OK to every message -> `Bridge.Steps.TestAgentStepsOperation` (5003 for another class) went red
+- mutation: `StepBuffer.Part` turns only TAB to CR into spaces -> `Bridge.Steps.TestRedactThenCut` went red
+
+The five mutations of the review pass were applied together in two batches (four in `StepBuffer`, `Operation.Steps` and `Part`, then one in `Redact`), each named test went red, and the tree was put back and compared as above.
+
+**Measured in implementation (Task 0).** The slot (build 154) ran the process-local facts; a throwaway of tag `e1s5a` ran the rest, through a temporary measurement class and a temporary renderer and audit policy (all deleted). Times are from the start of the call.
+- **(a) The callback order.** `steps-two-tools` through a shadow runner: `OnBegin` (1 ms), `OnMessage` 1 (1,016 ms, `value` ""), `%LogExecution` of `zz_steps_note` (1,281 ms), `OnMessage` 2 (1,284 ms, ""), `%LogExecution` of `zz_steps_card` (1,285 ms), `OnMessage` 3 (1,285 ms, the 39 characters of the final text). So `OnMessage(n)` comes before the tool calls of response n, and a tool-calling response has an empty text. `call` is `{"id","name","arguments"}` with `arguments` a JSON string (keys sorted); `metadata` is `{"ReadOnly":"1","origin_class":"<the tool class>","requires_auth":false}`; `result` is `{"tool_name","result_json","display_text":null}`, where `result_json` is a JSON string with sorted keys (`{"note":"All systems normal.","topic":"status"}`) and a tool's string result is encoded once more (`"\"{\\\"items\\\":[]}\""`). The status is OK on success.
+- **(b) `duration`** of the tool that hangs 0.25 s: 252 to 256. A fast tool reports 0. So the tool step uses `duration`, and no clock fallback is needed.
+- **(c) A missing tool.** `usage-turn` on `ChatAgent` (the call of `list_productions`, which Chat's catalog, `[]` in this story, does not hold): neither `%LogExecution` nor `%LogDenial` is called. The events are `OnBegin`, `OnMessage` (empty), `OnMessage` (46 characters). `total_tool_calls` still counts the call, so `AgentStepCount` is 3 and the steps are 2 (Residual risks). No test changes.
+- **(d) A tool that throws** (`zz_steps_card`, owner `locked`): `%LogExecution` gets `result` `{}` (an object with no members, not null), `duration` 0, and a status of one error, `<%AICore>ToolExecutionFailed`. `GetOneStatusText` gives only "Tool execution failed: IRIS error"; the cause is embedded, and only `GetErrorText` shows it: `ERROR <%AICore>ToolExecutionFailed: Tool execution failed: IRIS error [%Status]: 5001 (code: 5001) <long dash> p$C(1)The card of locked is locked: password=... apiKey=...$C(1) x 8 at Read+2^OcuTalon.Test.Bridge.StepsCard.1`. The model's next request holds a `tool_result` block of `{"error": "<that text>"}`, and the turn goes on to the final reply. `StepAudit` therefore takes the full error text, drops the leading `ERROR <code>:`, turns the control characters into spaces and the long dash into a hyphen.
+- **(e) The estimates** (`baseChars` = system prompt + tool catalog JSON + input; tokens; the measured value is `Response.Usage.prompt_tokens` of the last request, from the mock's `ceil(body / 4)`): `StepsAgent` two tools 1,457 (172 + 1,203 + 82), estimates 365, 381, 394, measured 418, ratio 0.94; `StepsAgent` secrets 1,449, estimates 363, 480, 546, measured 639, ratio 0.85; Triage 1,332 (1,245 + 2 + 85), estimate 333, measured 373, ratio 0.89; Diagnosis 2,172 (758 + 1,358 + 56), estimates 543, 548, measured 461, ratio 1.19; Chat 968 (901 + 2 + 65), estimates 242, 242, measured 347, ratio 0.70. The ratio of the last estimate to the last measured request lies between 0.70 and 1.19. No test pins a ratio.
+- **(f) The configuration swap works and is undone.** Changing `AgentClass` and adding `AgentAllowList` (target Adapter) on `ChatAgent` in the stored `Ens.Config.Production` and calling `UpdateProduction(60)` took about 1 s, restarted `ChatAgent` (a new job) and ran `StepsAgent` behind `Decide` (five steps). `RestoreAgent` removed the allow-list setting, gave back `OcuTalon.Agent.Chat` and restarted the job again. The text of the class XData (4,722 characters) was identical after `%Save`, after `UpdateProduction`, after `UseAgent` and after `RestoreAgent`. (A first comparison by hash reported a difference; that was a reading artifact: `%OpenId` gave back the open object whose XData stream was at its end. The comparison of the whole text, with a rewind, is the one that counts and the one `Test.Agent.Steps.TestSwapKeepsDefinition` makes.) `Test.Install.Production` passes after the swap in the `lane-a` shard, forward and reversed.
+- **(g) The XML of an `AgentStep`:** `<AgentStep><DecisionRef>...</DecisionRef><Position>1</Position><StepKind>model</StepKind><Label>Model request 1</Label><Summary>...</Summary><DurationMs>1001</DurationMs><Status>ok</Status><EstimatedTokens>365</EstimatedTokens></AgentStep>`. The runner's `Reply` XML holds `<Steps>` with the JSON array as text.
+- **(h) The headers** of one turn through `Decide`, in id order, all with one `SessionId`: `ApprovalStartIn` to `Decide` (3), `Decide` to `ChatAgent` (4), `Decide` to `Ens.Alarm` (5), `ChatAgent` to `Decide` with the `Reply` (6), five `Decide` to `AgentSteps` with the `AgentStep` bodies (7 to 11, in Position order, each Completed), and `Decide` to `ApprovalStartIn` with the answer (12). The steps come after the runner's reply and before the answer. When the sending service has a `SuperSession`, every header, the steps included, carries it. The `Decision` row's `TraceSessionId` is that session.
+- **(i) The JSON escapes of `steps-secrets`** reach the tools as the intended values: a test-only second audit policy (`Test.Bridge.StepsSeen`, chained after `StepAudit`) saw the `call.arguments` of both calls, and `Test.Bridge.Runner.TestStepsRedacted` compares all five against `StepsNote.Secret(kind, "arg")`; the card's error text names the intended password and key.
+
 **Residual risks:**
 - A summary's inputs are JSON. They are readable to a reviewer, but not prose.
-- Free-text identities (a display name in prose) are beyond the redactor: the structural rules come first (Conventions).
-- A call of a missing tool may not reach the policy (Task 0 (c)).
+- Free-text identities (a display name in prose) are beyond the redactor: the structural rules come first (Conventions). The key rule takes a value up to the next space, so `displayName=Ada Lovelace` in free text leaves `Lovelace`; in JSON the whole value goes.
+- A call of a missing tool does not reach the policy (Task 0 (c), measured): `AgentStepCount` (the stats delta, which counts the call) is then one more than the steps that `Decide` sends, and the model step that asked for it says "0 tool calls". `Test.Agent.Decide.TestUsageTurn` keeps the stats count of 3 and pins no step count.
+- `Decide` sends the steps before `Conclude`, as the spec says, so a reply that `Conclude` then refuses (the reply check) has sent its steps for a decision that is never recorded. The steps of a turn whose `Chat` threw are not sent at all (decision 6; Story 1.6, DW-83).
+- The failed-send branch of `EmitSteps` has no test: a Decide instance that is not started does not fail the send (it sent real messages in a trial), so a safe test needs a Decide subclass with a missing `STEPSITEM` or a disabled `AgentSteps`.
+- Escaped JSON inside free text (not a text that is one JSON string) is not seen by the key rule, and nor is a name outside `SENSITIVEKEYS`.
 
 ## Clarification Record
 
@@ -531,18 +637,32 @@ No acceptance criterion contradicts an AD's Rule.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Summary (plan stage, halted after planning as directed).**
-- **The run.** The epic-story path was resolved from the key `1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual`. The committed `epic-1-context.md` was reused: it is valid, and no planning artifact is newer. Story 1.4's done spec was loaded for continuity.
-- **The design.** The spec plans five new parts:
-  - the step renderer, the audit policy and the step buffer in the runner's job;
-  - `OcuTalon.Bridge.Redact`;
-  - `Reply.Steps`, which returns the redacted records;
-  - `Decide` sending `AgentStep` messages to a real `AgentSteps`, in the caller's session;
-  - the largest-request rule of DW-77.
-- **The ADs:** AD-2, AD-5, AD-6, AD-9, AD-20, AD-22, AD-26, AD-30, AD-31 and AD-33. No acceptance criterion contradicts an AD's Rule, and no AD needs amending.
-- **The inbox:** DW-77 is addressed (AC6).
-- **No implementation, no commit and no push.** The working tree holds only this new spec.
-- **One gated risk.** Task 0 (f) gates the live test's runtime swap of `ChatAgent`'s agent. If the swap fails, the implement stage stops with an intent gap on AC3.
+**Summary of the implemented change.**
+- **Recording.** The runner's adapter starts a step buffer (`StepBuffer`, in `^||OcuTalonBP.Steps`) right before `Chat`, passes a `StepRenderer` to it and adds a `StepAudit` policy in `OnAfterAgentInit`. One model step is recorded per model response and one tool step per tool call or denial.
+- **Returning and sending.** After `Chat`, the redacted and cut records go back in the new `Reply.Steps` (Storage slot 9). `Decide.EmitSteps` sends each one as an `AgentStep` to `AgentSteps`, in order, in the caller's session, before `Conclude`; `AgentSteps` answers an `AgentStep` with OK. The answer to a turn has no `Steps`.
+- **Redaction.** `OcuTalon.Bridge.Redact.Text` replaces the values of sensitive keys at any depth, the key, token and bearer patterns, and the content of a text that is one JSON string; it fails closed.
+- **The largest request (DW-77).** `Usage.Largest` and the `estimates` parameter of `FromStats` give `LargestRequestTokens` the larger of the measured last request and the estimates of the others.
+- **Task 0.** All nine measurements are under `## Verification`. The configuration swap of the live test works and is undone; a tool's `duration` is accurate; a call of a missing tool never reaches the policy.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/`: `Redact.cls`, `Adapter/StepBuffer.cls`, `Adapter/StepRenderer.cls` and `Policy/StepAudit.cls` (new); `Adapter/Agent.cls`, `Data/Usage.cls`, `Msg/Reply.cls`, `Operation/Steps.cls` and `Process/Decide.cls` (changed).
+- `ci/mock/scenarios/A/steps-two-tools.json` and `steps-secrets.json` (new); `release/standalone-bridge.sh` (the step check).
+- `src/ocutalon/cls/OcuTalon/Test/`: `Bridge/Redact`, `Bridge/Steps`, `Bridge/StepsAgent`, `StepsTools`, `StepsNote`, `StepsCard`, `StepsSeen` and `Agent/Steps` (new); `Bridge/Contracts`, `Decide`, `Runner`, `Usage`, `Agent/Decide`, `KeyScan`, `RunnerFixture` and `Install/Production` (changed).
+
+**Review findings.** 42 findings from the four layers (medium 9, low 29, false 2, maybe-false 2, high 0), all in `## Review Triage Log`.
+- **Patched (16 findings, 8 root causes, medium 9 and low 7):** the step buffer's append is whole or absent; a text that is one JSON string is redacted by its content; `Part` turns every control character into a space; a test of the `AgentSteps` operation; `LogRowsHolding` moved into `RunnerFixture` (Rule 2); `TestTwoTools` and the standalone step check wait for the step headers to be Completed; `TestRenderer` pins the clock mark that a tool step moves; the swap of `ChatAgent` is restored when the production has stopped. Five new mutation lines are under `## Verification`.
+- **Deferred (1):** a scan that fails a shipped tool class with no `STEPLABEL`, for Stories 1.10 and 5.4.
+- **Rejected (25), each with its reason in the log:** the redactor's key list and unquoted-value limit (intent contract, Residual risks), `Reply.Steps` outside `KeyScan.Find`, redaction cost, the steps of a failed turn (DW-83), the wording of "1 tool calls", steps sent before `Conclude`, the failed-send test of `EmitSteps` (a trial showed that a Decide instance that is not started sends real messages, so no safe cheap test exists), and the descriptive gaps of the intent-alignment layer.
+
+**Follow-up review recommendation: true.** Nine medium findings were patched in this first pass (two or more). The unverified risk is the new JSON-string branch of `Redact` (a recursion and a re-encoding path in a security backstop) and the two polls, which have each run green but have not been reviewed.
+
+**Verification performed.**
+- **Loop lines, first pass, before the review:** `bash ci/checks.sh` (all scripts passed), `ci/iris.sh build` (exit 0), the twelve classes one per call (all passed), `release/standalone-bridge.sh` (every check PASS), `shard lane-a` (29 classes passed, one SKIP `TestStepHelpers`), `teardown`.
+- **After the patches:** `ci/checks.sh` (364 PASS), `ci/iris.sh build`, `Test.Bridge.Steps`, `Redact`, `Decide`, `Runner` and `Test.Agent.Steps` one per call (passed), `release/standalone-bridge.sh` (12 PASS, the step check included), `shard lane-a` (29 classes passed; it also covers the classes not run alone again), then the five mutations (red as named, tree put back byte-identical).
+- **Once lines, after the last patch:** `docker/tests/test-mock.sh` (94 of 94), `shard lane-b` (24 classes passed), `live storage-roundtrip`, `live production`, `live production-restart`, `live install-upgrade`, `live compose-start` and `live demo-path` (all PASS), and `ci/iris.sh teardown` for tag `e1s5a` (nothing left).
+- **Not run:** `shard lane-a` and `shard lane-b` with `--reverse` (the lead's fresh-environment check).
+
+**Residual risks.** See `## Verification`: free-text identities and names outside `SENSITIVEKEYS`, escaped JSON inside free text, a call of a missing tool (`AgentStepCount` one more than the steps), steps sent for a reply that `Conclude` then refuses, the steps of a failed `Chat` (DW-83, Story 1.6) and the untested failed-send branch of `EmitSteps`.

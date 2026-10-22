@@ -25,6 +25,18 @@
 ///     no row, without changing the answer in either case;
 ///   - TestStatsReadFails (Story 1.4): the stats of an AI session that cannot be read give an empty reading and a warning, and raise
 ///     nothing.
+///   - TestUsageRows also pins, since Story 1.5 (DW-77), that a call that stalls in the tool loop has a largest request: the largest
+///     estimate of its model requests, because Chat returned no response to measure;
+///   - TestSteps (Story 1.5; AD-6, AD-9): a test agent with two read-only tools through the shadow runner. The Reply holds five step
+///     records (model, tool, model, tool, model) with the labels of the tool classes, summaries that hold the tools' names, inputs and
+///     results, the status ok, and an estimate for each that grows with the earlier texts and tool results from the base that the runner
+///     measured; the first model step lasts at least the mock's 1 s and the note step at least the tool's 0.25 s. The built agent's audit
+///     policy is the step audit policy, the step count is 5, and the step buffer and the context are over;
+///   - TestStepsRedacted (Story 1.5; AD-4, AD-9, AD-31): the tools of the scenario steps-secrets get a model key, an access token, a
+///     password, a Telegram chat id and a display name in their arguments, return them in their results, and the card tool fails naming
+///     the password and the key; a second, test-only audit policy shows that the tools got the intended values; none of the ten values is
+///     in the Reply (Steps and XML), in the event log or in what Test.Agent.KeyScan.Find names, [redacted] stands in its place, and the
+///     failed call is a step with the status error whose summary holds the error text, redacted.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
@@ -414,7 +426,7 @@ Method TestUsageRows()
 	If ids.%Size() = 1 {
 		Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
 		Do $$$AssertTrue((usage.RequestCount > 0) && (usage.InputTokens > 0), "with the requests and tokens of the turn: "_usage.RequestCount_" requests, "_usage.InputTokens_" in")
-		Do $$$AssertEquals(usage.LargestRequestTokens, "", "and no largest request, because Chat returned no response")
+		Do $$$AssertTrue(usage.LargestRequestTokens > 0, "and the largest estimate of its requests as its largest request, because Chat returned no response to measure: " _ usage.LargestRequestTokens)
 		Do $$$AssertEquals(usage.Agent_"|"_usage.Kind, "ZzRunner|turn", "for the runner item and the kind")
 	}
 
@@ -447,6 +459,132 @@ Method TestUsageRows()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
 }
 
+/// The characters of the arguments and of the results of the two tools of the scenario steps-two-tools, as the policy gets them (measured
+/// in Story 1.5): {"topic":"status"} and {"note":"All systems normal.","topic":"status"}, then {"owner":"ops"} and
+/// {"card":"On call: ops","owner":"ops"}.
+Parameter NOTECHARS = 65;
+
+Parameter CARDCHARS = 52;
+
+/// A test agent with two read-only tools, through the shadow runner and the real AgentRunner.OnMessage. The scenario steps-two-tools
+/// makes five steps: model, note, model, card, model. The Reply holds them as records: the labels, summaries, statuses and durations of
+/// the steps, and an estimate for each model request that is the base measured before Chat (the agent's system prompt, its tool catalog
+/// and the input) plus the model texts and tool arguments and results that the callbacks got before it, in tokens, rounded up.
+Method TestSteps()
+{
+	If ..Guard() Quit
+	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set request = ..NewUsageRequest("turn", "[[mock:steps-two-tools]] Read the note and the card.")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the request is answered")
+	If '$IsObject(reply) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Set agent = host.Adapter.Agent
+	Set policy = agent.ToolManager.AuditPolicy
+	Do $$$AssertTrue($IsObject(policy) && policy.%IsA("OcuTalon.Bridge.Policy.StepAudit"), "the audit policy of the built agent is the step audit policy")
+	Do $$$AssertEquals(reply.Text, "The CI mock read the note and the card.", "the text is the last reply of the scenario")
+	Do $$$AssertEquals(reply.AgentStepCount, 5, "the step count is 3 requests and 2 tool calls")
+	Set steps = ..StepsOf(reply)
+	Do $$$AssertEquals(steps.%Size(), 5, "the Reply holds five step records")
+	If steps.%Size() '= 5 Quit
+	Set kinds = ""
+	For i = 0:1:4 {
+		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
+	}
+	Do $$$AssertEquals(kinds, "model,tool,model,tool,model", "in the order of the calls: model, tool, model, tool, model")
+	Set base = $Length(agent.SystemPrompt) + $Length(agent.ToolManager.%Discover().%ToJSON()) + $Length(request.Input)
+	Do $$$AssertTrue(base > 0, "the base of the estimates is measured: " _ base)
+	Set model1 = steps.%Get(0)
+	Set note = steps.%Get(1)
+	Set model2 = steps.%Get(2)
+	Set card = steps.%Get(3)
+	Set model3 = steps.%Get(4)
+	Do $$$AssertEquals(model1.label_"|"_model2.label_"|"_model3.label, "Model request 1|Model request 2|Model request 3", "the model steps are numbered")
+	Do $$$AssertEquals(model1.estimatedTokens, $ClassMethod(buffer, "Tokens", base), "the first request is the base")
+	Do $$$AssertEquals(model2.estimatedTokens, $ClassMethod(buffer, "Tokens", base + ..#NOTECHARS), "the second adds the note's arguments and result")
+	Do $$$AssertEquals(model3.estimatedTokens, $ClassMethod(buffer, "Tokens", base + ..#NOTECHARS + ..#CARDCHARS), "the third adds the card's too")
+	Do $$$AssertTrue((model1.estimatedTokens < model2.estimatedTokens) && (model2.estimatedTokens < model3.estimatedTokens), "so the estimates grow: " _ model1.estimatedTokens _ ", " _ model2.estimatedTokens _ ", " _ model3.estimatedTokens)
+	Do $$$AssertEquals(model1.summary, "About " _ model1.estimatedTokens _ " tokens sent (an estimate). Reply: 0 characters of text, 1 tool calls.", "the summary of the first model step")
+	Do $$$AssertEquals(model3.summary, "About " _ model3.estimatedTokens _ " tokens sent (an estimate). Reply: 39 characters of text, 0 tool calls.", "and of the last, whose reply is 39 characters of text")
+	Do $$$AssertTrue(model1.durationMs '< 1000, "the first model step lasts at least the 1 s that the mock waits: " _ model1.durationMs)
+	Do $$$AssertEquals(note.label, "Reading the test note", "the note step has the label of its class")
+	Do $$$AssertEquals(card.label, "Reading the test card", "and the card step the label of its tool's name")
+	Do $$$AssertEquals(note.status_"|"_card.status_"|"_model1.status, "ok|ok|ok", "all the steps are ok")
+	Do $$$AssertTrue(note.durationMs '< 200, "the note step lasts at least 200 ms, as the tool hangs 0.25 s: " _ note.durationMs)
+	Do $$$AssertEquals(note.summary, "zz_steps_note. Inputs: {""topic"":""status""}. Result: {""note"":""All systems normal."",""topic"":""status""}. About " _ note.estimatedTokens _ " tokens added to the next request (an estimate).", "the note step: the tool's name, its inputs and its result")
+	Do $$$AssertEquals(card.summary, "zz_steps_card. Inputs: {""owner"":""ops""}. Result: {""card"":""On call: ops"",""owner"":""ops""}. About " _ card.estimatedTokens _ " tokens added to the next request (an estimate).", "and the card step")
+	Do $$$AssertEquals(note.estimatedTokens_"|"_card.estimatedTokens, $ClassMethod(buffer, "Tokens", ..#NOTECHARS)_"|"_$ClassMethod(buffer, "Tokens", ..#CARDCHARS), "a tool step estimates what it adds to the next request")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "the context is over")
+	Do $$$AssertEquals($ClassMethod(buffer, "Active"), 0, "and so is the step buffer")
+	Set ids = ..UsageIds(request.ItemId)
+	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists")
+	If ids.%Size() = 1 {
+		Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
+		Do $$$AssertTrue(usage.LargestRequestTokens '< model1.estimatedTokens, "its largest request is at least the first estimate: " _ usage.LargestRequestTokens)
+	}
+}
+
+/// The tools get secrets and fail naming two of them; none of the ten values reaches a step, the Reply, the event log or the scan of the
+/// stores, and [redacted] stands in its place. A test-only audit policy, chained after the step audit policy, records the arguments the
+/// tools were called with: they are the intended values, so the JSON escapes of the scenario file arrive as written.
+Method TestStepsRedacted()
+{
+	If ..Guard() Quit
+	Set note = "OcuTalon.Test.Bridge.StepsNote"
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds")
+	Do $$$AssertStatusOK(host.Adapter.Agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Test.Bridge.StepsSeen).%New()), "a second audit policy is chained after the step audit policy")
+	Kill ^||ZzStepsSeen
+	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets]] Read the secret note.")
+	Set mark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the request is answered, though a tool failed")
+	If '$IsObject(reply) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Set kinds = $ListBuild("apiKey", "accessToken", "password", "chatId", "displayName")
+	Set seen = ..SeenArguments(1)
+	Do $$$AssertEquals($Get(^||ZzStepsSeen), 2, "both tools were called")
+	Do $$$AssertEquals(seen.%Get("topic"), "keys", "the note tool was called for the topic keys")
+	Set card = ..SeenArguments(2)
+	Do $$$AssertEquals(card.%Get("owner"), "locked", "and the card tool for the owner locked")
+	Set position = 0
+	While $ListNext(kinds, position, kind) {
+		Set intended = $ClassMethod(note, "Secret", kind, "arg")
+		Do $$$AssertEquals(seen.%Get(kind), intended, "the note tool got the intended " _ kind _ ": the escapes of the scenario file arrive as written")
+		Do $$$AssertEquals(card.%Get(kind), intended, "and so did the card tool")
+	}
+	Set steps = ..StepsOf(reply)
+	Do $$$AssertEquals(steps.%Size(), 5, "the Reply holds five step records")
+	If steps.%Size() '= 5 Quit
+	Set noteStep = steps.%Get(1)
+	Set cardStep = steps.%Get(3)
+	Do $$$AssertEquals(noteStep.status_"|"_cardStep.status, "ok|error", "the note step is ok and the failed card step is an error")
+	Do $$$AssertTrue(cardStep.summary [ "is locked", "the failed step's summary holds the error text: " _ cardStep.summary)
+	Do $$$AssertTrue(cardStep.summary [ "password=[redacted]", "with the password replaced")
+	Do $$$AssertTrue(cardStep.summary [ "apiKey=[redacted]", "and the key replaced")
+	Set position = 0
+	While $ListNext(kinds, position, kind) {
+		Do $$$AssertTrue(noteStep.summary [ ("""" _ kind _ """:""[redacted]"""), "the note step shows [redacted] for " _ kind _ " in its inputs and its result")
+		Do $$$AssertTrue(cardStep.summary [ ("""" _ kind _ """:""[redacted]"""), "and so does the card step")
+	}
+	Do $$$AssertStatusOK(reply.XMLExportToString(.xml), "the Reply is exported as XML")
+	For kind = "apiKey", "accessToken", "password", "chatId", "displayName" {
+		For where = "arg", "result" {
+			Set value = $ClassMethod(note, "Secret", kind, where)
+			Do $$$AssertNotTrue(reply.Steps [ value, "the " _ kind _ " " _ where _ " is not in the Reply's Steps")
+			Do $$$AssertNotTrue(xml [ value, "nor in its XML")
+			Do $$$AssertEquals(..LogRowsHolding(mark, value), 0, "nor in an event-log row since the test began")
+			Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.KeyScan).Find(value), "; "), "", "nor in what the key scan names")
+		}
+	}
+	Kill ^||ZzStepsSeen
+}
+
 /// The stats of an AI session that cannot be read (the object has no GetStats) give "" and one warning that names GetStats, and raise
 /// nothing: the adapter then counts that call as far as the other reading allows, and never changes the answer or its status.
 Method TestStatsReadFails()
@@ -466,6 +604,24 @@ Method TestStatsReadFails()
 }
 
 /// --- helpers ---
+/// The step records of the Reply, as a dynamic array.
+ClassMethod StepsOf(reply As OcuTalon.Bridge.Msg.Reply) As %DynamicArray [ Private ]
+{
+	Quit ##class(%DynamicAbstractObject).%FromJSON(reply.Steps)
+}
+
+/// The arguments that the n-th tool call of the test got, from the test-only audit policy: the JSON of the call as an object.
+ClassMethod SeenArguments(n As %Integer) As %DynamicObject [ Private ]
+{
+	Quit ##class(%DynamicAbstractObject).%FromJSON($List($Get(^||ZzStepsSeen(n), $ListBuild("", "{}")), 2))
+}
+
+/// The number of event-log rows after the mark whose text holds the value (Test.Agent.RunnerFixture.LogRowsHolding).
+ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, value)
+}
+
 /// A Request with the fields of a Decide request that the Usage row copies: an ItemId and a DecisionRef of its own, the owner instance
 /// and the channel system.
 Method NewUsageRequest(kind As %String, input As %String) As OcuTalon.Bridge.Msg.Request [ Private ]

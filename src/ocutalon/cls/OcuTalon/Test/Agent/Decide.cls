@@ -7,8 +7,8 @@
 /// The rows that Test.Bridge.Decide pins in process (the filter, the sink, the concurrent save, the bad settings) are not repeated.
 ///   - TestDecision: an untrusted decide request gets a DecisionResponse with a new DecisionRef, the digest of the default script
 ///     and its reason, and the Payload of the reply; the row holds the same, with the session of the response as TraceSessionId;
-///     the runner's request carries the DecisionRef; the timer's Timeout is 60; Decide sends only the runner request and the timer
-///     request, and answers only its caller;
+///     the runner's request carries the DecisionRef; the timer's Timeout is 60; Decide sends only the runner request, the timer
+///     request and (Story 1.5) the one agent step of the runner's reply to AgentSteps, and answers only its caller;
 ///   - TestLowConfidence: act with a confidence of 0.12 is recorded and answered as it is;
 ///   - TestUserRule: a user's digest and ignore become tellnow with the code-written line first, a user's act stays, and an
 ///     untrusted ignore stays;
@@ -36,6 +36,11 @@
 ///     row;
 ///   - TestTimer and TestRepeat also pin that the reply that comes after the timer is counted (one row for the DecisionRef of the
 ///     runner's request), and that a repeated item is answered with the recorded totals and writes no new row.
+/// Added by Story 1.5 (the agent steps; the largest request of DW-77):
+///   - TestDecision also pins the one AgentStep of the decision, in its session, sent from Decide to AgentSteps;
+///   - TestRepeat and TestTimer also pin that a repeated request and a late reply send no AgentStep;
+///   - TestCostOfFailedTurn now pins a largest request above 0 for the call that threw, the largest estimate of its requests, and that the
+///     failed call sent no AgentStep.
 /// OnAfterOneTest deletes the rows its test made (Decision and Usage) and the TimerSeconds row, starts Decide again if the test changed
 /// it, and waits until TriageAgent has answered the late request. Every wait is a poll with a generous ceiling.
 Class OcuTalon.Test.Agent.Decide Extends %UnitTest.TestCase
@@ -137,7 +142,7 @@ Method TestDecision()
 
 	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
 	Set targets = ..Targets(headers)
-	Do $$$AssertEquals(targets, "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sends only to TriageAgent, Ens.Alarm and its caller: "_targets)
+	Do $$$AssertEquals(targets, "AgentSteps,ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sends only to TriageAgent, Ens.Alarm, AgentSteps and its caller: "_targets)
 	Set runner = ..HeaderTo(headers, "TriageAgent")
 	Set alarm = ..HeaderTo(headers, "Ens.Alarm")
 	If $IsObject(runner) {
@@ -157,6 +162,15 @@ Method TestDecision()
 	}
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 1, "the mock got one model request for the item")
+	Set steps = $ClassMethod(fixture, "StepsOf", response.DecisionRef)
+	Do $$$AssertEquals(steps.%Size(), 1, "one AgentStep exists for the DecisionRef")
+	Set stepHeader = ..HeaderTo(headers, "AgentSteps")
+	If $IsObject(stepHeader) && (steps.%Size() = 1) {
+		Do $$$AssertEquals(stepHeader.bodyClass_"|"_stepHeader.bodyId, "OcuTalon.Bridge.Msg.AgentStep|"_steps.%Get(0).id, "Decide sent it to AgentSteps, in this session")
+		Do $$$AssertEquals(steps.%Get(0).position_"|"_steps.%Get(0).kind, "1|model", "it is the model step at Position 1")
+	} Else {
+		Do $$$AssertTrue(0, "a header to AgentSteps carries the step")
+	}
 }
 
 /// A reply of act with a confidence of 0.12 is recorded and answered as it is: the confidence never changes the outcome.
@@ -232,6 +246,8 @@ Method TestRepeat()
 	Do $$$AssertEquals(entries.%Size(), 0, "the mock got no request")
 	Set targets = ..Targets($ClassMethod(fixture, "Headers", secondSession, "Decide"))
 	Do $$$AssertEquals(targets, "ApprovalStartIn", "Decide sent nothing but the answer in the second session: "_targets)
+	Set steps = $ClassMethod(fixture, "StepsOf", first.DecisionRef)
+	Do $$$AssertEquals(steps.%Size(), 1, "and no step: the recorded decision still has the one step of the first request")
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", ref)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "and the table holds one row for the item")
@@ -366,10 +382,13 @@ Method TestTimer()
 	Do $$$AssertTrue(..WaitForStatus(session, "TriageAgent", "Discarded"), "TriageAgent answers the late request and Decide discards the reply, within the ceiling")
 	Do $$$AssertEquals(..AnswerStatus(session, "TriageAgent"), "Discarded", "the late reply's header is marked discarded")
 	Do $$$AssertEquals($ClassMethod(fixture, "DecisionOf", ref, "decide"), "", "no row is recorded after the late reply either")
+	Do $$$AssertEquals(..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), "AgentSteps"), 0, "no step is sent for the late reply")
 	Set runner = ..HeaderTo($ClassMethod(fixture, "Headers", session, "Decide"), "TriageAgent")
 	Set sent = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Request).%OpenId(runner.bodyId), 1: "")
 	Do $$$AssertTrue($IsObject(sent) && (sent.DecisionRef '= ""), "the runner's request carries a DecisionRef")
 	If $IsObject(sent) {
+		Set steps = $ClassMethod(fixture, "StepsOf", sent.DecisionRef)
+		Do $$$AssertEquals(steps.%Size(), 0, "and no AgentStep exists for it")
 		Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("DecisionRef", sent.DecisionRef)
 		Do $$$AssertEquals(ids.%Size(), 1, "and one Usage row exists for it: the reply that came after the timer is counted")
 		If ids.%Size() = 1 {
@@ -492,9 +511,19 @@ Method TestCostOfFailedTurn()
 	Do $$$AssertEquals(usage.Agent_"|"_usage.Kind, "ChatAgent|turn", "it is ChatAgent's, for the turn")
 	Do $$$AssertTrue(usage.RequestCount > 0, "with the requests that were made: "_usage.RequestCount)
 	Do $$$AssertTrue(usage.InputTokens > 0, "and their tokens: "_usage.InputTokens)
-	Do $$$AssertEquals(usage.LargestRequestTokens, "", "the largest request is unknown, because the call returned no response")
+	Do $$$AssertTrue(usage.LargestRequestTokens > 0, "the largest request is the largest estimate of the requests, because the call returned no response to measure: " _ usage.LargestRequestTokens)
 	Do $$$AssertEquals(usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "0|0", "the mock's default usage has no cache tokens")
 	Do $$$AssertEquals(usage.CostUSD, $Number((usage.InputTokens * 0.1 + (usage.OutputTokens * 0.5)) / 1000000, 6), "and the cost is priced at 0.10 a million input tokens and 0.50 a million output tokens, below the long tier: "_usage.CostUSD)
+	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
+	Do $$$AssertEquals(..CountTo(headers, "AgentSteps"), 0, "the failed call sent no AgentStep")
+	Set runner = ..HeaderTo(headers, "ChatAgent")
+	Set sent = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Request).%OpenId(runner.bodyId), 1: "")
+	If $IsObject(sent) {
+		Set steps = $ClassMethod(fixture, "StepsOf", sent.DecisionRef)
+		Do $$$AssertEquals(steps.%Size(), 0, "and no AgentStep exists for the runner's request")
+	} Else {
+		Do $$$AssertTrue(0, "a header to ChatAgent carries the request")
+	}
 }
 
 /// A message of another class gets "not implemented" (5003), and a request of an unknown kind an error that names the field;
@@ -567,14 +596,10 @@ Method Prepare() As %Boolean [ Private ]
 }
 
 /// Sends the request to Decide and waits for the answer. response is the answer (or ""), and session is the session of the
-/// request, which holds every header of the call.
+/// request, which holds every header of the call (Test.Agent.RunnerFixture.Run).
 Method Run(request As OcuTalon.Bridge.Msg.Request, Output response As %Persistent, Output session As %Integer) As %Status [ Private ]
 {
-	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
-	Set mark = $ClassMethod(fixture, "HeaderMark")
-	Set sc = $ClassMethod(fixture, "Send", "Decide", request, .response)
-	Set session = $ClassMethod(fixture, "SessionSince", mark, "Decide")
-	Quit sc
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Run(request, .response, .session)
 }
 
 /// A decide request of the provenance whose text holds the marker (none: the default script), sent to Decide. The answer is the
@@ -596,32 +621,16 @@ Method Case(provenance As %String, marker As %String, Output row As %Persistent)
 	Quit response
 }
 
-/// The targets of the headers, sorted and comma-separated.
+/// The targets of the headers, sorted and comma-separated (Test.Agent.RunnerFixture.Targets).
 ClassMethod Targets(headers As %DynamicArray) As %String [ Private ]
 {
-	Set iterator = headers.%GetIterator()
-	While iterator.%GetNext(, .header) {
-		Set targets(header.target) = ""
-	}
-	Set names = ""
-	Set name = ""
-	For {
-		Set name = $Order(targets(name))
-		Quit:name=""
-		Set names = names _ $Select(names = "": "", 1: ",") _ name
-	}
-	Quit names
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Targets(headers)
 }
 
-/// The first header of the array that is addressed to the target, or "".
+/// The first header of the array that is addressed to the target, or "" (Test.Agent.RunnerFixture.HeaderTo).
 ClassMethod HeaderTo(headers As %DynamicArray, target As %String) As %DynamicObject [ Private ]
 {
-	Set found = ""
-	Set iterator = headers.%GetIterator()
-	While iterator.%GetNext(, .header) {
-		If (found = "") && (header.target = target) Set found = header
-	}
-	Quit found
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderTo(headers, target)
 }
 
 /// The status of the first header that the item sent in the session, as its display name, or "" when there is none.
@@ -656,15 +665,10 @@ ClassMethod WaitForStatus(session As %Integer, source As %String, status As %Str
 	Quit ..AnswerStatus(session, source) = status
 }
 
-/// The number of headers in the array that are addressed to the target.
+/// The number of headers in the array that are addressed to the target (Test.Agent.RunnerFixture.CountTo).
 ClassMethod CountTo(headers As %DynamicArray, target As %String) As %Integer [ Private ]
 {
-	Set count = 0
-	Set iterator = headers.%GetIterator()
-	While iterator.%GetNext(, .header) {
-		If header.target = target Set count = count + 1
-	}
-	Quit count
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).CountTo(headers, target)
 }
 
 /// 1 when any message of the logged request holds a tool_result block.

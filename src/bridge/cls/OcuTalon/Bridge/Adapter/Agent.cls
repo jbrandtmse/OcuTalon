@@ -9,6 +9,8 @@ Include Ensemble
 ///     session.
 ///   - It composes the session config in one place (Compose) and uses it for every AI session it creates (NewSession) or opens
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort.
+///   - It adds the step audit policy to every agent it builds (OnAfterAgentInit), after any policy that a setting names, and refuses
+///     the AuditPolicy setting (REFUSED), so that every tool call is a step (AD-6, AD-9).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context. Answer also counts the call
 /// (AD-6, AD-9, AD-20): it reads the session's GetStats() after the session is created and again after Chat, outside every
@@ -16,8 +18,12 @@ Include Ensemble
 /// returns, whether or not Decide still waits for it, and after a Chat that threw when the difference holds a model request or a
 /// token; a call that threw before any request writes nothing. The reply carries the same counts, the cost and the model, the
 /// step count (model requests plus tool calls) and the wall time of Chat in milliseconds. A stats, price or save problem is logged
-/// as a warning and never changes the answer or its status. Inventory lists the tools of the live ToolManager. This class names no
-/// other OcuTalon package (AD-2).
+/// as a warning and never changes the answer or its status. Inventory lists the tools of the live ToolManager.
+/// Answer also records the agent steps of the call (AD-9): it starts the step buffer right before Chat, with the size of what the
+/// first request carries, and passes the step renderer to Chat; the renderer records one step for every model response and the step
+/// audit policy one for every tool call, in the runner's job. After Chat, outside every callback, Answer reads the buffer: the
+/// estimated sizes of the model requests go to the Usage row (RecordUsage), and the redacted step records go to the reply (Steps),
+/// when Chat returned. The buffer ends with the context on every path. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Adapter.Agent Extends EnsLib.AI.Agent.OutboundAdapter
 {
 
@@ -96,6 +102,15 @@ Method BuildAgent() As %Status
 	}
 	Do ..ClearSampling(..Agent)
 	Quit $$$OK
+}
+
+/// AI Hub's hook after the agent is initialized: adds the step audit policy (OcuTalon.Bridge.Policy.StepAudit) to the agent's tool
+/// manager (AD-6, AD-9). AI Hub chains the policies that code adds after those that settings name, and calls every audit policy.
+Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
+{
+	Set sc = ##super(.agent)
+	If $$$ISERR(sc) Quit sc
+	Quit agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
 }
 
 /// Clears the sampling parameters of an agent that AI Hub would copy into a session config: its Temperature.
@@ -187,9 +202,11 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 }
 
 /// Answers a request with a reply. It refuses kind tool ($$$NotImplemented), any kind that is not a request kind, and an Input
-/// that is empty once white space is removed; builds the agent if needed; sets the context with the super session before Chat; chats in a throwaway session; and
-/// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, and the usage of the call
-/// (RecordUsage, which also writes the Usage row). The context ends on every path. Errors come back as the status, with AI Hub's text.
+/// that is empty once white space is removed; builds the agent if needed; sets the context with the super session before Chat; starts
+/// the step buffer (StepBuffer.Start, with BaseChars); chats in a throwaway session, passing the step renderer; and
+/// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, the usage of the call
+/// (RecordUsage, which also writes the Usage row) and the redacted step records (Steps). The context and the step buffer end on every
+/// path. Errors come back as the status, with AI Hub's text.
 Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = "", Output reply As OcuTalon.Bridge.Msg.Reply) As %Status
 {
 	Set reply = ""
@@ -209,9 +226,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				Set before = ..ReadStats(session)
 				Set response = ""
 				Set thrown = ""
+				Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(..BaseChars(request))
 				Set started = $ZHorolog
 				Try {
-					Set response = ..Agent.Chat(session, request.Input)
+					Set response = ..Agent.Chat(session, request.Input, ##class(OcuTalon.Bridge.Adapter.StepRenderer).%New())
 				} Catch chatException {
 					Set thrown = chatException
 				}
@@ -219,7 +237,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				Set after = ..ReadStats(session)
 				If '$IsObject(thrown) || ##class(OcuTalon.Bridge.Data.Usage).HasSpend(before, after) {
 					Set last = $Select($IsObject(response): response.Usage, 1: "")
-					Set row = ..RecordUsage(request, before, after, last)
+					Set row = ..RecordUsage(request, before, after, last, ##class(OcuTalon.Bridge.Adapter.StepBuffer).Estimates())
 				} Else {
 					Set row = ""
 				}
@@ -230,6 +248,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				Set reply.FinishReason = $Extract(..FinishReason(response.Extra), 1, 32)
 				Set reply.HostData = context.HostData
 				Set reply.Tainted = context.Tainted
+				Set reply.Steps = ..StepsJson()
 				Do ..CarryUsage(row, before, after, durationMs, reply)
 			}
 		} Catch exception {
@@ -238,8 +257,40 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 		}
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	If $$$ISERR(sc) Set reply = ""
 	Quit sc
+}
+
+/// The size of what the first request of the call carries before any model text or tool result, in characters (the base of the step
+/// estimates, AD-9): the agent's system prompt, the JSON of its tool catalog (ToolManager.%Discover(), counted as 0 when it fails)
+/// and the request's input. Read here, outside every callback. The agent is built.
+Method BaseChars(request As OcuTalon.Bridge.Msg.Request) As %Integer [ Private ]
+{
+	Set chars = $Length(request.Input)
+	Try {
+		Set chars = chars + $Length(..Agent.SystemPrompt)
+	} Catch {
+	}
+	Try {
+		Set chars = chars + $Length(..Agent.ToolManager.%Discover().%ToJSON())
+	} Catch {
+	}
+	Quit chars
+}
+
+/// The step records of the call as a JSON array (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after
+/// Chat, outside every callback.
+Method StepsJson() As %String [ Private ]
+{
+	Set json = ""
+	Try {
+		Set json = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records().%ToJSON()
+	} Catch exception {
+		Set json = ""
+		$$$LOGWARNING("The steps of the call are not returned: "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Quit json
 }
 
 /// session.GetStats(), or "" with a warning when it throws: AI Hub's counters of the session (total_interactions, total_tool_calls
@@ -257,15 +308,16 @@ Method ReadStats(session As %AI.Agent.Session) As %DynamicObject [ Private ]
 }
 
 /// Writes the Usage row of one Chat call (Usage.FromStats from the request, the config name of the runner item, the agent's model, the
-/// two readings and the usage of the last response, which is empty when Chat threw) and returns the row. A model with no Price row
+/// two readings, the usage of the last response, which is empty when Chat threw, and the estimated sizes of the model requests,
+/// a list from StepBuffer.Estimates) and returns the row. A model with no Price row
 /// gets a row with no cost and a warning that names the model. A problem is logged as a warning, never raised: the row is then
 /// returned unsaved, or "" when none could be built.
-Method RecordUsage(request As OcuTalon.Bridge.Msg.Request, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject) As OcuTalon.Bridge.Data.Usage
+Method RecordUsage(request As OcuTalon.Bridge.Msg.Request, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject, estimates As %List = "") As OcuTalon.Bridge.Data.Usage
 {
 	Set row = ""
 	Try {
 		Set model = ..Agent.Model
-		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, ..BusinessHost.%ConfigName, model, before, after, last, .row)
+		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, ..BusinessHost.%ConfigName, model, before, after, last, .row, estimates)
 		If $$$ISOK(sc) {
 			Set sc = row.%Save()
 			If $$$ISOK(sc) && (row.CostUSD = "") $$$LOGWARNING("The usage of the call is recorded with no cost: no Price row has the model '"_model_"'")

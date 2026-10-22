@@ -15,6 +15,10 @@
 ///     row again;
 ///   - TestTotals: Usage.Totals sums the rows of a decision, takes the model of the newest, is empty for no row and for no ref, and has no
 ///     cost when any row has none.
+/// Added by Story 1.5 (DW-77; AD-20):
+///   - TestLargest: Usage.Largest is the larger of the last request's measured input and the estimates of the other requests (the last
+///     estimate belongs to the measured request and is dropped), all the estimates when nothing was measured, and empty when there is neither;
+///   - TestFromStats also pins the row: the estimates reach LargestRequestTokens, and the larger value prices the long tier.
 Class OcuTalon.Test.Bridge.Usage Extends %UnitTest.TestCase
 {
 
@@ -144,6 +148,20 @@ Method TestFromStats()
 	Do $$$AssertEquals(row.CostUSD, "", "with an empty cost")
 	Do $$$AssertEquals(row.InputTokens, 3124, "and its counts")
 
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, before, after, last, .row, $ListBuild(243, 5000, 1700))
+	Do $$$AssertStatusOK(sc, "a row is built with the estimates of three requests")
+	Do $$$AssertEquals(row.LargestRequestTokens, 5000, "LargestRequestTokens is the larger of the measured last request (1,612) and the estimates of the other two (243 and 5,000)")
+	Do $$$AssertEquals(row.InputTokens_"|"_row.RequestCount, "3124|2", "the sums are the same")
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, before, after, "", .row, $ListBuild(243, 2000))
+	Do $$$AssertStatusOK(sc, "a row is built with estimates and no usage of a last response, as after a Chat that threw")
+	Do $$$AssertEquals(row.LargestRequestTokens, 2000, "its LargestRequestTokens is the largest estimate: the call returned no response, so none is dropped")
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, before, after, last, .row, $ListBuild(100001, 500))
+	Do $$$AssertStatusOK(sc, "a row is built with an earlier request estimated above the long tier's threshold")
+	Do $$$AssertEquals(row.LargestRequestTokens, 100001, "its LargestRequestTokens is that estimate")
+	Set expected = ..NewPrice(..#HAIKU).Cost(2100, 512, 512, 130, 100001, 2)
+	Do $$$AssertEquals(row.CostUSD, expected, "and the cost reads it: the whole turn is priced at the long tier")
+	Do $$$AssertTrue(expected > .000344, "which is above the cost at the base tier, .000344: " _ expected)
+
 	Set big = ..Stats(1, 99000, 10, 5000, 4000)
 	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, ..Stats(0, 0, 0, 0, 0), big, {"prompt_tokens": 90000, "cache_read_tokens": 5000, "cache_creation_tokens": 5001}, .row)
 	Do $$$AssertEquals(row.LargestRequestTokens, 100001, "a last request of 100,001 tokens")
@@ -158,6 +176,31 @@ Method TestFromStats()
 	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, ..Stats(0, 0, 0, 0, 0), many, "", .row)
 	Do $$$AssertStatusOK(sc, "a row is built for the same two requests with no last response")
 	Do $$$AssertEquals(row.CostUSD, .014565, "the average request of 75,000 decides, so the turn is at the base tier: 14000 + 60 + 500 + 5 micro-dollars")
+}
+
+/// The largest request of a turn (DW-77): the larger of the last request's measured input and the estimates of the other requests;
+/// the last estimate is dropped when a measurement exists, because it estimates the measured request; with nothing measured, as after a
+/// Chat that threw, every estimate counts; with neither, the value is empty.
+Method TestLargest()
+{
+	Set usage = "OcuTalon.Bridge.Data.Usage"
+	Set measured = {"prompt_tokens": 2000, "cache_read_tokens": 500, "cache_creation_tokens": 500, "completion_tokens": 80}
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", measured, $ListBuild(5000, 2000, 2500)), 5000, "an earlier request beats the measurement: 5,000")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", measured, $ListBuild(1000, 2000, 4000)), 3000, "the last estimate is dropped when a measurement exists: 3,000, not 4,000")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", "", $ListBuild(1000, 4000)), 4000, "with nothing measured every estimate counts: 4,000")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", "", ""), "", "with neither the value is empty")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", measured, ""), 3000, "a measurement and no estimate: the measurement")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", measured, $ListBuild(9000)), 3000, "a measurement and one estimate: the estimate is the measured request's own and is dropped")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", measured, $ListBuild(2999, 9000)), 3000, "a measurement above the other estimates: the measurement")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", "", $ListBuild(7)), 7, "one estimate and nothing measured: that estimate")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", {}, ""), 0, "a last response with no usage counts as a measurement of 0")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", {}, $ListBuild(10, 20)), 10, "and the other estimates are larger than it")
+	Do $$$AssertEquals($ClassMethod(usage, "Largest", "", $ListBuild(0, 0)), 0, "estimates of 0 are 0, not empty")
+
+	Do $$$AssertEquals(..RowLargest(measured, $ListBuild(5000, 2000, 2500)), 5000, "the row of the runner: an earlier request beats the measurement of the last (3,000): 5,000")
+	Do $$$AssertEquals(..RowLargest(measured, $ListBuild(1000, 2000, 4000)), 3000, "the last estimate is dropped when a measurement exists: 3,000")
+	Do $$$AssertEquals(..RowLargest("", $ListBuild(1000, 4000)), 4000, "with nothing measured every estimate counts: 4,000")
+	Do $$$AssertEquals(..RowLargest("", ""), "", "with neither the row has none")
 }
 
 /// RecordedAt is the current UTC time, YYYY-MM-DDThh:mm:ssZ, whatever the zone of the process: in UTC+14 and UTC-11, whose local
@@ -257,6 +300,18 @@ Method TestTotals()
 }
 
 /// --- helpers ---
+/// The LargestRequestTokens of the row that FromStats builds for a call of two requests, with the usage of the last response and the
+/// estimates given.
+ClassMethod RowLargest(last As %DynamicObject, estimates As %List) As %Integer [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Set request.DecisionRef = "zzdecision3"
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", "zz-unpriced", ..Stats(0, 0, 0, 0, 0), ..Stats(2, 100, 10, 0, 0), last, .row, estimates)
+	If $$$ISERR(sc) Quit "no row: " _ $SYSTEM.Status.GetErrorText(sc)
+	Quit row.LargestRequestTokens
+}
+
 /// A stats reading with the counters that matter.
 ClassMethod Stats(interactions As %Integer, prompt As %Integer, completion As %Integer, cacheRead As %Integer, cacheWrite As %Integer, toolCalls As %Integer = 0) As %DynamicObject [ Private ]
 {

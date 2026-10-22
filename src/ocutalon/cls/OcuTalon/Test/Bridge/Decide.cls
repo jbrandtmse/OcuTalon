@@ -47,6 +47,12 @@
 ///   - TestResponseFromRow also pins that an answer built from a recorded row carries the row's totals;
 ///   - TestFireEventTypes: FireEvent sends decision.recorded with {"ref"} by default, and the given type with the given payload, and logs
 ///     a failure with the sink, the event and the subject.
+/// Added by Story 1.5 (AD-9, AD-26, AD-30):
+///   - TestStepMessages: StepMessages builds one AgentStep for each record of the reply's Steps, with the DecisionRef given, the Position
+///     of the record in the array, and its kind, label, summary, duration, status and estimate; a reply with no Steps, with white space
+///     and with a reply of another class gets none and no warning; Steps that is not a JSON array, and a record that is not an object, get
+///     none (or skip the record) and one warning that names the DecisionRef and not the content; Conclude's answer to a turn has no Steps;
+///   - TestTurnKeepsReply also pins that the answer to a turn does not carry the runner's Steps, and the runner's own Reply keeps them.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
@@ -639,6 +645,7 @@ Method TestTurnKeepsReply()
 	Set reply.InputTokens = 123
 	Set reply.OutputTokens = 45
 	Set reply.AgentStepCount = 4
+	Set reply.Steps = "[{""kind"":""model"",""label"":""Model request 1"",""summary"":""zz"",""durationMs"":1,""status"":""ok"",""estimatedTokens"":2}]"
 	Set sc = ..ConcludeWith(request, ref, reply, 250, .response, ..#FILTER)
 	Do $$$AssertStatusOK(sc, "a turn reply with the runner's flags and totals is recorded")
 	If '$IsObject(response) {
@@ -658,6 +665,67 @@ Method TestTurnKeepsReply()
 	}
 	Do $$$AssertEquals(reply.Text_"|"_reply.Outcome_"|"_reply.DecisionRef, "Everything is fine.||", "the runner's own Reply is not changed")
 	Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.Model_"|"_reply.AgentStepCount, "123|45|claude-haiku-5-5|4", "not even its totals")
+	Do $$$AssertEquals(response.Steps, "", "the answer does not carry the runner's Steps: Decide has sent them as messages")
+	Do $$$AssertTrue(reply.Steps [ "Model request 1", "and the runner's own Reply keeps them")
+}
+
+/// StepMessages: one AgentStep for each record of the reply's Steps, in order. Steps that is empty, white space or missing gives none
+/// and no warning; Steps that is no JSON array, and a record that is no object, give a warning that names the DecisionRef and never the
+/// content. The answer to a turn has no Steps.
+Method TestStepMessages()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set steps = [{"kind": "model", "label": "Model request 1", "summary": "About 100 tokens sent (an estimate). Reply: 0 characters of text, 1 tool calls.", "durationMs": 1001, "status": "ok", "estimatedTokens": 100}, {"kind": "tool", "label": "Reading the test note", "summary": "zz_steps_note. Inputs: {}. Result: {}. About 1 tokens added to the next request (an estimate).", "durationMs": 252, "status": "error", "estimatedTokens": 1}]
+	Set reply = ..NewReply("Everything is fine.")
+	Set reply.Steps = steps.%ToJSON()
+	Set mark = ..LogMark()
+	Set messages = $ClassMethod(decide, "StepMessages", ref, reply)
+	Do $$$AssertEquals(messages.Count(), 2, "two records give two messages")
+	If messages.Count() = 2 {
+		Set first = messages.GetAt(1)
+		Set second = messages.GetAt(2)
+		Do $$$AssertEquals(first.%ClassName(1), "OcuTalon.Bridge.Msg.AgentStep", "each is an AgentStep")
+		Do $$$AssertEquals(first.DecisionRef_"|"_first.Position_"|"_first.StepKind_"|"_first.Label_"|"_first.DurationMs_"|"_first.Status_"|"_first.EstimatedTokens, ref_"|1|model|Model request 1|1001|ok|100", "the first has the DecisionRef, Position 1 and the fields of the first record")
+		Do $$$AssertEquals(first.Summary, "About 100 tokens sent (an estimate). Reply: 0 characters of text, 1 tool calls.", "and its summary")
+		Do $$$AssertEquals(second.DecisionRef_"|"_second.Position_"|"_second.StepKind_"|"_second.Label_"|"_second.DurationMs_"|"_second.Status_"|"_second.EstimatedTokens, ref_"|2|tool|Reading the test note|252|error|1", "the second has Position 2 and the fields of the second record")
+		Do $$$AssertEquals(second.Summary, "zz_steps_note. Inputs: {}. Result: {}. About 1 tokens added to the next request (an estimate).", "and its summary")
+	}
+	Do $$$AssertEquals(..WarningsOf(mark, ref), 0, "and there is no warning")
+
+	For text = "", " ", $Char(10, 9), "[]" {
+		Set reply.Steps = text
+		Set messages = $ClassMethod(decide, "StepMessages", ref, reply)
+		Do $$$AssertEquals(messages.Count(), 0, "Steps '" _ $Translate(text, $Char(10, 9), "  ") _ "' gives no message")
+	}
+	Set messages = $ClassMethod(decide, "StepMessages", ref, "")
+	Do $$$AssertEquals(messages.Count(), 0, "no reply gives none")
+	Set messages = $ClassMethod(decide, "StepMessages", ref, ##class(OcuTalon.Bridge.Msg.AgentStep).%New())
+	Do $$$AssertEquals(messages.Count(), 0, "and neither does a message of another class")
+	Do $$$AssertEquals(..WarningsOf(mark, ref), 0, "none of them is a problem")
+
+	For text = "{", "[{""kind"":""zzstepcontent""", "{""kind"":""zzstepcontent""}", "zzstepcontent", """zzstepcontent""", "17" {
+		Set reply.Steps = text
+		Set before = ..WarningsOf(mark, ref)
+		Set messages = $ClassMethod(decide, "StepMessages", ref, reply)
+		Do $$$AssertEquals(messages.Count(), 0, "Steps '" _ text _ "' gives no message")
+		Do $$$AssertEquals(..WarningsOf(mark, ref) - before, 1, "and one warning that names the DecisionRef")
+	}
+	Do $$$AssertEquals(..LogRowsHolding(mark, "zzstepcontent"), 0, "no warning holds the content of the Steps")
+
+	Set reply.Steps = "[{""kind"":""model"",""label"":""L"",""summary"":""S"",""durationMs"":1,""status"":""ok"",""estimatedTokens"":2}, ""zzstepcontent"", 5, null, {""kind"":""tool"",""label"":""M"",""summary"":""T"",""durationMs"":3,""status"":""ok"",""estimatedTokens"":4}]"
+	Set before = ..WarningsOf(mark, ref)
+	Set messages = $ClassMethod(decide, "StepMessages", ref, reply)
+	Do $$$AssertEquals(messages.Count(), 2, "records that are no object are skipped: two messages")
+	If messages.Count() = 2 Do $$$AssertEquals(messages.GetAt(1).Position_"|"_messages.GetAt(2).Position, "1|5", "the Position is the place in the array")
+	Do $$$AssertEquals(..WarningsOf(mark, ref) - before, 3, "with one warning for each of them")
+
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("Everything is fine.")
+	Set reply.Steps = steps.%ToJSON()
+	Do $$$AssertStatusOK(..ConcludeWith(request, ..NewUsageRef(), reply, 1, .response), "a turn whose reply has Steps is concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Steps, 1: "none"), "", "its answer has no Steps")
+	Do $$$AssertEquals(reply.Steps, steps.%ToJSON(), "and the runner's Reply keeps them")
 }
 
 /// Conclude puts the totals of the decision on the Decision row and on the answer, for a decide and for a turn (AD-20, AD-26): the
@@ -944,6 +1012,18 @@ Method AssertReply(text As %String, pass As %Boolean, label As %String) [ Privat
 	Do $$$AssertStatusNotOK(sc, label_" fails")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "reply check", label_" fails with an error that names the reply check")
 	Do $$$AssertEquals(payload, "", label_" gives no payload")
+}
+
+/// The number of warnings of Decide's StepMessages after the mark that name the DecisionRef.
+ClassMethod WarningsOf(mark As %Integer, ref As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "StepMessages", $ListBuild(ref))
+}
+
+/// The number of event-log rows after the mark whose text holds the value (Test.Agent.RunnerFixture.LogRowsHolding).
+ClassMethod LogRowsHolding(mark As %Integer, value As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, value)
 }
 
 /// The highest id of the event log (Test.Agent.RunnerFixture.EventMark).
