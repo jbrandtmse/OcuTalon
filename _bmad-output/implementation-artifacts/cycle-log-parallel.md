@@ -62,3 +62,10 @@
 2026-10-22T00:15:49Z	Epic 2	inbox_items_seen	items=U-9 kind=veto story=2-1 pointer=contest_planner
 2026-10-22T00:15:49Z	Epic 1-16,29-32	hold_complete	reason=owner:weekly_quota_97pct shas=feature:6887e69(local,pushed_below),epic-1:98a1fc2(origin)+8_local(8cca33e..),epic-2:89a51fa(origin) merged=epic-32 held=epic-1,epic-2 throwaways_up=none locks=none ci_in_flight=epic-2:39698491852,39698491847 resume=.worktrees/.coordination/unattended/resume/{orchestrator,epic-1,epic-2}.md
 2026-10-22T00:16:45Z	Epic 1-16,29-32	unattended_report	at=hold merged=epic-32(3_stories) stories_done=4(32.1,32.2,32.3,1.1) in_progress=1.2(code-review_done,hold_patch),2.1(implemented) inbox=U-1..U-8_resolved,U-9_open(veto),U-10_hold vetoes_open=1 ci=infra_reds_on_ci-c(re-runs_pass;ci-c_capped) wall_h=10.5 note=report_written_after_run-end(order_slip,no_effect)
+2026-10-22T01:04:27Z	Epic 1-16,29-32	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-22T01:04:27Z	Epic 1-16,29-32	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-22T01:04:27Z	Epic 1-16,29-32	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-22T01:04:27Z	Epic 1-16,29-32	telemetry_gate	pending=0 action=none
+2026-10-22T01:04:27Z	Epic 1-16,29-32	permission_mode_attested	mode=bypassPermissions source=process_args(--permission-mode=bypassPermissions,pid_85855) note=new_session_after_the_owner's_account_switch
+2026-10-22T01:04:27Z	Epic 1-16,29-32	unattended_resumed	run=20261021T1347Z-1-16,29-32 policy=7969e52 doctrine=3d11cec lock_token=1792631055-86206 hold=cleared(resumed_by_the_owner) via=interactive
+2026-10-22T01:04:27Z	Epic 1-16,29-32	owner_decision	id=U-9 at=2026-10-22T00:16:55Z#31 via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
