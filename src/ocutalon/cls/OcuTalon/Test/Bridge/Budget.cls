@@ -1,7 +1,9 @@
-/// Tests of the budget (Story 1.4; AD-18, AD-19, AD-20, AD-31): State and MarkCapped, in process. No production is started and nothing is
-/// sent, but the settings are read the way the product reads them, from the Decide item of the active production, so the tests write
-/// System Default Settings rows for it (Install.Step.Production.WriteDefault) and put back the rows that were there. The Usage rows
-/// of the tests sit on days of 2001 and 2025 that no real row reaches, and the tests delete them; the day marks they set are killed.
+/// Tests of the budget (Story 1.4; AD-18, AD-19, AD-20, AD-31): State and MarkCapped, in process. THIS CLASS RUNS IN THROWAWAY STACKS
+/// AND IN CI ONLY (Rule 21): it deletes and writes the System Default Settings rows of the budget settings of the active production's
+/// Decide item, and TestMarkDefaultDay marks today. No production is started and nothing is sent, but the settings are read the way
+/// the product reads them, from the Decide item of the active production, so the tests write System Default Settings rows for it
+/// (Install.Step.Production.WriteDefault) and put back the rows that were there. The Usage rows of the tests sit on days of 2001 and
+/// 2025 that no real row reaches, and the tests delete them; the day marks they set are killed.
 ///   - TestStateOff: with no setting and no mark State is {"spent":0,"cap":0,"capped":false,"resetsAt":<the next midnight>}, with spent and
 ///     cap JSON numbers and capped a JSON boolean; an empty or unreadable now means the current time;
 ///   - TestStateDay: in America/New_York on 2025-03-09, a 23-hour day, a row counts from 05:00:00Z to 03:59:59Z of the next date and not a
@@ -9,11 +11,18 @@
 ///   - TestStateCap: the cap is reached at spend = cap and not below it; the gateway's spend is added on its own date only; a cap that is
 ///     not a number of 0 or more counts as 0, which is off; a bad gateway spend counts as 0;
 ///   - TestMarkOnce: MarkCapped returns 1 and fires budget.capped once, with the owner instance and exactly {"day"}, the mark already set
-///     during the call; a second call returns 0 and fires nothing; State reports capped for that day only, with no cap and no spend;
+///     during the call; a second call returns 0 and fires nothing; State reports capped for that day only, with no cap and no spend,
+///     and with a cap that the spend is under;
+///   - TestMarkDefaultSink: a call with no sink class tells the class that the HostSinkClass setting of the Decide item names, and
+///     logs no warning;
 ///   - TestMarkDefaultDay: the day of a call with no day is today in the instance zone, observed in UTC+14 and in UTC-11, two zones whose
-///     dates are never both the UTC date; a day that is not a date, or does not exist, is refused;
-///   - TestMarkUnderLock: while another job holds the lock of the day, MarkCapped sets nothing and does not return; once the other job has
-///     set the node and released the lock it returns 0;
+///     dates are never both the UTC date, and the mark holds the UTC time; a day that is not a date, or does not exist, is refused;
+///   - TestMarkFiresAfterUnlock: the host sink is told after the lock of the day is released (the sink looks at the lock table, and a
+///     lock that the test holds is seen there);
+///   - TestMarkUnderLock: while another job holds the lock of the day, MarkCapped waits in the LOCK state, sets nothing and does not
+///     return; once the other job has set the node and released the lock it returns 0;
+///   - TestMarkSeveralAtOnce: three jobs wait for the lock of one day together; when it is released exactly one of them marks the day and
+///     tells the sink;
 ///   - TestMarkLockTimeout: while another job holds the lock of the day for longer than the 5 seconds that MarkCapped waits, it returns 0,
 ///     sets no mark, sends no event and logs a warning that names the day;
 ///   - TestMarkSinkFails: a sink that returns an error, and one that throws, leave the mark set, return 1 and are logged as a warning that
@@ -219,6 +228,27 @@ Method TestMarkOnce()
 	Do $$$AssertEquals(state.capped_"|"_state.cap_"|"_state.spent, "1|0|0", "State reports the day capped, with no cap and nothing spent")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State("2001-02-04T12:00:00Z").capped, 0, "but not the next day")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State("2001-02-02T12:00:00Z").capped, 0, "nor the day before")
+	Do ..Put("DailyCostCapUSD", 5)
+	Set state = ##class(OcuTalon.Bridge.Budget).State("2001-02-03T12:00:00Z")
+	Do $$$AssertEquals(state.capped_"|"_state.cap_"|"_state.spent, "1|5|0", "and capped with a cap of 5 dollars that nothing spent has reached")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State("2001-02-04T12:00:00Z").capped, 0, "while the next day, with the same cap and no mark, is not")
+}
+
+/// A call with no sink class tells the host sink that the HostSinkClass setting of the active production's Decide item names (here
+/// the production's own sink, which takes every event): it returns 1, sets the mark and logs no warning. A sink class that FireEvent
+/// refuses would be logged as a warning that names the day.
+Method TestMarkDefaultSink()
+{
+	If '..Prepare() Quit
+	Set day = "2001-02-12"
+	Do ..Unmark(day)
+	Set sink = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("HostSinkClass")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).Check("HostSinkClass", sink), "the Decide item names a host sink, "_sink)
+	Set mark = ..LogMark()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).MarkCapped(day), 1, "a call with no sink class marks the day")
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 1, "the mark is set")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(day)), 0, "and the item's host sink took budget.capped: no warning names the day")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Budget", "MarkCapped"), 0, "and MarkCapped logged none")
 }
 
 /// A call with no day marks today in the instance zone and tells the sink that day. The zones are UTC+14 and UTC-11: at every moment at
@@ -229,6 +259,7 @@ Method TestMarkDefaultDay()
 	If '..Prepare() Quit
 	For zone = "Pacific/Kiritimati", "Pacific/Pago_Pago" {
 		Do $SYSTEM.Process.TimeZone(zone)
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Time).ToLocal("2025-01-15T12:00:00Z"), $Select(zone [ "Kiritimati": "2025-01-16T02:00:00", 1: "2025-01-15T01:00:00"), "the process is in "_zone_", whose local time is not the UTC time")
 		Kill ^||ZzProbeSink
 		Set first = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
 		If $Data(^OcuTalonBP.UsageCapped(first)) {
@@ -236,7 +267,9 @@ Method TestMarkDefaultDay()
 			Continue
 		}
 		Set ..Days = ..Days _ $ListBuild(first)
+		Set utcBefore = ..UtcNow()
 		Set marked = ##class(OcuTalon.Bridge.Budget).MarkCapped("", ..#SINK)
+		Set utcAfter = ..UtcNow()
 		Set last = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
 		Set ..Days = ..Days _ $ListBuild(last)
 		Do $$$AssertEquals(marked, 1, "in "_zone_" a call with no day sets a mark")
@@ -244,6 +277,8 @@ Method TestMarkDefaultDay()
 		Set day = $Select(event = "": "", 1: $Piece($List(event, 3), """", 4))
 		Do $$$AssertTrue((day = first) || (day = last), "for today in the zone, which the sink is told: "_day_" (the zone's date is "_first_")")
 		Do $$$AssertEquals($Select(day = "": 0, 1: $Data(^OcuTalonBP.UsageCapped(day))), 1, "and the mark is there")
+		Set at = $Select(day = "": "", 1: $Get(^OcuTalonBP.UsageCapped(day)))
+		Do $$$AssertTrue((at '= "") && '(utcBefore ] at) && '(at ] utcAfter), "and holds the UTC time of the call, not the local time: "_at_" lies between "_utcBefore_" and "_utcAfter)
 	}
 
 	Kill ^||ZzProbeSink
@@ -253,8 +288,32 @@ Method TestMarkDefaultDay()
 	}
 }
 
-/// Another job holds the lock of the day: MarkCapped waits, sets nothing and has not returned after 2 seconds. That job sets the node and
-/// releases the lock, and MarkCapped then returns 0 and tells nobody.
+/// The sink is told after the lock of the day is released: the probe sink looks at the lock table when it is called. First the probe
+/// is shown to see a lock that the test holds, and to see it gone once released, so that "no lock held" in the sink means something.
+Method TestMarkFiresAfterUnlock()
+{
+	If '..Prepare() Quit
+	Set probe = "OcuTalon.Test.Bridge.ProbeSink"
+	Set other = "2001-02-09"
+	Lock +^OcuTalonBP.UsageCapped(other):5
+	Set held = $Test
+	Do $$$AssertEquals(held, 1, "the test holds the lock of another day")
+	If 'held Quit
+	Do $$$AssertEquals($ClassMethod(probe, "LockHeld", other), 1, "the probe sees a lock that is held")
+	Do $$$AssertEquals($ClassMethod(probe, "LockHeld", "2001-02-11"), 0, "and not the lock of a day that nobody holds")
+	Lock -^OcuTalonBP.UsageCapped(other)
+	Do $$$AssertEquals($ClassMethod(probe, "LockHeld", other), 0, "and sees it gone once it is released")
+
+	Set day = "2001-02-10"
+	Do ..Unmark(day)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).MarkCapped(day, ..#SINK), 1, "the day is marked")
+	Set call = $Get(^||ZzProbeSink(1))
+	Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 6), "budget.capped|1", "and the sink was told, with the mark set")
+	Do $$$AssertEquals($List(call, 7), 0, "while no process held the lock of the day")
+}
+
+/// Another job holds the lock of the day: MarkCapped waits for it (the job is in the LOCK state), sets nothing and has not returned.
+/// That job sets the node and releases the lock, and MarkCapped then returns 0 and tells nobody.
 Method TestMarkUnderLock()
 {
 	If '..Prepare() Quit
@@ -268,20 +327,75 @@ Method TestMarkUnderLock()
 	If 'held Quit
 	Try {
 		Job ##class(OcuTalon.Test.Bridge.Budget).MarkInJob(day, ..Number)
-		Do ..WaitFor($Name(@run@("started")), 1, 60)
-		Do $$$AssertEquals($Get(@run@("started")), 1, "the other job started")
-		Hang 2
-		Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 0, "after 2 seconds the node is still absent")
+		Do $$$AssertEquals(..WaitBlocked(run, 120), 1, "the other job waits for the lock of the day: it is in the LOCK state")
+		Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 0, "so the node is still absent")
 		Do $$$AssertEquals($Get(@run@("done"), 0), 0, "and the call has not returned")
 		Set ^OcuTalonBP.UsageCapped(day) = ##class(OcuTalon.Bridge.Time).NowUtc()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
 	Lock -^OcuTalonBP.UsageCapped(day)
-	Do ..WaitFor($Name(@run@("done")), 1, 60)
+	Do ..WaitFor($Name(@run@("done")), 1, 120)
 	Do $$$AssertEquals($Get(@run@("done")), 1, "once the lock is released the call returns")
 	Do $$$AssertEquals($Get(@run@("result")), 0, "with 0, because the node was set while it waited")
+	Do $$$AssertTrue($Get(@run@("seconds"), 5) < 5, "on the release, before its 5-second wait for the lock ran out: "_$Get(@run@("seconds"))_" seconds")
+	Do $$$AssertEquals($Get(@run@("events"), -1), 0, "and it told nobody")
 	Do $$$AssertEquals($Get(@run@("error")), "", "and without an error")
+	Kill @run
+}
+
+/// Three jobs call MarkCapped for one day together, while another process holds its lock, and all three wait for it. The test releases the lock
+/// without marking the day: exactly one of the three marks it and returns 1, the other two find the mark and return 0, and the sinks
+/// of the three jobs were told once in all.
+Method TestMarkSeveralAtOnce()
+{
+	If '..Prepare() Quit
+	Set day = "2001-02-08"
+	Set jobs = 3
+	Do ..Unmark(day)
+	Set run = $Name(^OcuTalonTest("BridgeBudget", ..Number))
+	Kill @run
+	Lock +^OcuTalonBP.UsageCapped(day):5
+	Set held = $Test
+	Do $$$AssertEquals(held, 1, "the test holds the lock of the day")
+	If 'held Quit
+	Try {
+		For i = 1:1:jobs {
+			Job ##class(OcuTalon.Test.Bridge.Budget).MarkInJob(day, ..Number, i)
+		}
+		Set ready = 0
+		For i = 1:1:jobs {
+			Do ..WaitFor($Name(@run@(i, "started")), 1, 120)
+			Set ready = ready + $Get(@run@(i, "started"), 0)
+		}
+		Do $$$AssertEquals(ready, jobs, "all "_jobs_" jobs started")
+		Set @run@("go") = 1
+		Set waiting = 0
+		For i = 1:1:jobs {
+			Set waiting = waiting + ..WaitBlocked($Name(@run@(i)), 120)
+		}
+		Do $$$AssertEquals(waiting, jobs, "all "_jobs_" jobs wait for the lock of the day")
+		Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 0, "and the day is not marked")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Set @run@("go") = 1
+	Lock -^OcuTalonBP.UsageCapped(day)
+	Set finished = 0, marks = 0, events = 0, errors = "", slowest = 0
+	For i = 1:1:jobs {
+		Do ..WaitFor($Name(@run@(i, "done")), 1, 120)
+		Set finished = finished + $Get(@run@(i, "done"), 0)
+		Set marks = marks + $Get(@run@(i, "result"), 0)
+		Set events = events + $Get(@run@(i, "events"), 0)
+		Set errors = errors _ $Get(@run@(i, "error"))
+		If $Get(@run@(i, "seconds"), 5) > slowest Set slowest = $Get(@run@(i, "seconds"), 5)
+	}
+	Do $$$AssertEquals(finished, jobs, "all "_jobs_" calls return once the lock is released")
+	Do $$$AssertTrue(slowest < 5, "on the release, before their 5-second wait for the lock ran out: the slowest took "_slowest_" seconds")
+	Do $$$AssertEquals(marks, 1, "exactly one of them marked the day")
+	Do $$$AssertEquals(events, 1, "and exactly one budget.capped was sent")
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 1, "the day is marked")
+	Do $$$AssertEquals(errors, "", "without an error")
 	Kill @run
 }
 
@@ -304,7 +418,7 @@ Method TestMarkLockTimeout()
 		Do ..WaitFor($Name(@run@("done")), 1, 120)
 		Do $$$AssertEquals($Get(@run@("done")), 1, "the call returns although the lock is still held")
 		Do $$$AssertEquals($Get(@run@("result")), 0, "with 0")
-		Do $$$AssertTrue($Get(@run@("seconds"), 0) '< 4, "after it waited for the lock: "_$Get(@run@("seconds"))_" seconds")
+		Do $$$AssertTrue(($Get(@run@("seconds"), 0) '< 4) && ($Get(@run@("seconds"), 0) < 10), "after it waited its 5 seconds for the lock: "_$Get(@run@("seconds"))_" seconds")
 		Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(day)), 0, "no mark is set")
 		Do $$$AssertEquals($Get(@run@("events"), -1), 0, "no event is sent")
 		Do $$$AssertEquals($Get(@run@("error")), "", "and there is no error")
@@ -312,12 +426,7 @@ Method TestMarkLockTimeout()
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
 	Lock -^OcuTalonBP.UsageCapped(day)
-	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Budget", "MarkCapped")
-	While result.%Next() {
-		If result.%GetData(1) [ day Set found = found + 1
-	}
-	Do $$$AssertEquals(found, 1, "one warning names the day whose lock was not free")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Budget", "MarkCapped", $ListBuild(day)), 1, "one warning names the day whose lock was not free")
 	Kill @run
 }
 
@@ -354,13 +463,22 @@ Method TestMarkSinkFails()
 	Do ..AssertWarning(mark, "OcuTalon.Test.Bridge.ZzNoSuchSink", "budget.capped", day, "a sink class that does not exist")
 }
 
-/// The job body of TestMarkUnderLock and TestMarkLockTimeout: calls MarkCapped for the day and reports the result, the seconds the call
-/// took and the number of events that the probe sink took.
-ClassMethod MarkInJob(day As %String, number As %Integer)
+/// The job body of the lock tests: calls MarkCapped for the day and reports the job's pid, the result, the seconds the call took and the
+/// number of events that the probe sink took, under ^OcuTalonTest("BridgeBudget", number), or under its subscript index when one is given.
+/// A job with an index reports that it started and then waits (up to 120 seconds) for the test to set ^OcuTalonTest("BridgeBudget",
+/// number, "go"), so that the jobs of one test call MarkCapped together.
+ClassMethod MarkInJob(day As %String, number As %Integer, index As %Integer = "")
 {
-	Set run = $Name(^OcuTalonTest("BridgeBudget", number))
+	Set run = $Select(index = "": $Name(^OcuTalonTest("BridgeBudget", number)), 1: $Name(^OcuTalonTest("BridgeBudget", number, index)))
 	Try {
+		Set @run@("pid") = $Job
 		Set @run@("started") = 1
+		If index '= "" {
+			Set deadline = $ZHorolog + 120
+			While '$Get(^OcuTalonTest("BridgeBudget", number, "go")) && ($ZHorolog < deadline) {
+				Hang 0.05
+			}
+		}
 		Set begun = $ZHorolog
 		Set @run@("result") = ##class(OcuTalon.Bridge.Budget).MarkCapped(day, "OcuTalon.Test.Bridge.ProbeSink")
 		Set @run@("seconds") = $ZHorolog - begun
@@ -435,7 +553,7 @@ Method Put(setting As %String, value As %String) [ Private ]
 Method RestoreSetting(saved As %List) [ Private ]
 {
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..SettingId($List(saved, 1)))
-	If $List(saved, 2) Do ##class(OcuTalon.Install.Step.Production).WriteDefault(..Production, "Decide", $List(saved, 1), $List(saved, 3), $List(saved, 4))
+	If $List(saved, 2) Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(..Production, "Decide", $List(saved, 1), $List(saved, 3), $List(saved, 4)), "the row of "_$List(saved, 1)_" is put back")
 }
 
 /// Removes the mark of the day now, and again when the test is over.
@@ -453,16 +571,11 @@ Method NewRef() As %String [ Private ]
 	Quit ref
 }
 
-/// Saves a Usage row recorded at the UTC time for the owner, with the cost ("" for an unknown cost).
+/// Saves a Usage row recorded at the UTC time for the owner, with the cost ("" for an unknown cost) and no token counts
+/// (Test.Agent.RunnerFixture.AddUsage).
 Method AddRow(ref As %String, recordedAt As %String, cost As %String, owner As %String) [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
-	Set row.DecisionRef = ref
-	Set row.OwnerRef = owner
-	Set row.Model = "claude-haiku-5-5"
-	Set row.RecordedAt = recordedAt
-	Set row.CostUSD = cost
-	Do $$$AssertStatusOK(row.%Save(), "a Usage row of "_owner_" at "_recordedAt_" is saved")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, "claude-haiku-5-5", "", "", "", "", cost, recordedAt, owner), "a Usage row of "_owner_" at "_recordedAt_" is saved")
 }
 
 /// Deletes the reports of every run, this one and the runs that failed before: every node under the counter's level except the counter.
@@ -485,24 +598,44 @@ ClassMethod WaitFor(ref As %String, count As %Integer, seconds As %Integer) [ Pr
 	}
 }
 
-/// The highest id of the event log.
+/// 1 when the job that reports under the global reference run has started and is in the LOCK state, waiting for a lock; it waits up to
+/// seconds for that, and gives up when the job has returned. 0 when the job never waits for a lock.
+ClassMethod WaitBlocked(run As %String, seconds As %Integer) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	Set blocked = 0
+	While 1 {
+		Set pid = $Get(@run@("pid"))
+		If pid '= "" {
+			Try {
+				Set blocked = ($Extract($SYSTEM.Process.State(pid), 1, 4) = "LOCK")
+			} Catch exception {
+				Set blocked = 0
+			}
+		}
+		If blocked || $Get(@run@("done")) || ($ZHorolog '< deadline) Quit
+		Hang 0.05
+	}
+	Quit blocked
+}
+
+/// The current UTC time, YYYY-MM-DDThh:mm:ssZ, from the clock that is UTC whatever the zone of the process.
+ClassMethod UtcNow() As %String [ Private ]
+{
+	Quit $Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z"
+}
+
+/// The highest id of the event log (Test.Agent.RunnerFixture.EventMark).
 ClassMethod LogMark() As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
-	Do result.%Next()
-	Quit +result.%GetData(1)
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 }
 
 /// Asserts that the event log holds, after the mark, one warning (type 3) of Decide's FireEvent whose text names the class, the event and
 /// the subject (here the day).
 Method AssertWarning(mark As %Integer, class As %String, event As %String, subject As %String, label As %String) [ Private ]
 {
-	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Process.Decide", "FireEvent")
-	While result.%Next() {
-		Set text = result.%GetData(1)
-		If (text [ class) && (text [ event) && (text [ subject) Set found = found + 1
-	}
+	Set found = ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(class, event, subject))
 	Do $$$AssertEquals(found, 1, label_": one warning names "_class_", "_event_" and "_subject)
 }
 

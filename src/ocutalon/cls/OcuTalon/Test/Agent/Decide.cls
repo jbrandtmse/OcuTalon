@@ -223,11 +223,11 @@ Method TestRepeat()
 	Do $$$AssertEquals(second.DecisionRef_"|"_second.Outcome_"|"_second.Reasons_"|"_second.Confidence, first.DecisionRef_"|"_first.Outcome_"|"_first.Reasons_"|"_first.Confidence, "the answer is the recorded decision")
 	Do $$$AssertEquals(second.Payload, first.Payload, "with the same Payload")
 	Do $$$AssertTrue(first.InputTokens > 0, "the first answer counts the tokens of the call: "_first.InputTokens)
-	Do $$$AssertEquals(..Totals(second), ..Totals(first), "and the answer carries the totals of the recorded decision, the first answer's")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(second), ##class(OcuTalon.Test.Agent.RunnerFixture).Totals(first), "and the answer carries the totals of the recorded decision, the first answer's")
 	Set recorded = $ClassMethod(fixture, "DecisionOf", ref, "decide")
 	Do $$$AssertTrue($IsObject(recorded) && (recorded.InputTokens > 0), "the recorded row holds them")
-	If $IsObject(recorded) Do $$$AssertEquals(..Totals(second), ..Totals(recorded), "and the answer carries exactly the totals of the recorded row")
-	Do $$$AssertEquals(..UsageIds("ItemId", ref).%Size(), 1, "the call left one Usage row")
+	If $IsObject(recorded) Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(second), ##class(OcuTalon.Test.Agent.RunnerFixture).Totals(recorded), "and the answer carries exactly the totals of the recorded row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("ItemId", ref).%Size(), 1, "the call left one Usage row")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals(entries.%Size(), 0, "the mock got no request")
 	Set targets = ..Targets($ClassMethod(fixture, "Headers", secondSession, "Decide"))
@@ -235,7 +235,7 @@ Method TestRepeat()
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", ref)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "and the table holds one row for the item")
-	Do $$$AssertEquals(..UsageIds("ItemId", ref).%Size(), 1, "and still one Usage row: the repeat wrote none")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("ItemId", ref).%Size(), 1, "and still one Usage row: the repeat wrote none")
 }
 
 /// A user's turn: the mock's final text, outcome tellnow and the DecisionRef of its row, and the rendered input as the text of a
@@ -370,7 +370,7 @@ Method TestTimer()
 	Set sent = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Request).%OpenId(runner.bodyId), 1: "")
 	Do $$$AssertTrue($IsObject(sent) && (sent.DecisionRef '= ""), "the runner's request carries a DecisionRef")
 	If $IsObject(sent) {
-		Set ids = ..UsageIds("DecisionRef", sent.DecisionRef)
+		Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("DecisionRef", sent.DecisionRef)
 		Do $$$AssertEquals(ids.%Size(), 1, "and one Usage row exists for it: the reply that came after the timer is counted")
 		If ids.%Size() = 1 {
 			Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
@@ -397,7 +397,7 @@ Method TestUsageDecide()
 		Do $$$AssertTrue(0, "the answer is a DecisionResponse")
 		Quit
 	}
-	Set ids = ..UsageIds("DecisionRef", response.DecisionRef)
+	Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("DecisionRef", response.DecisionRef)
 	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists for the DecisionRef of the answer")
 	If ids.%Size() '= 1 Quit
 	Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
@@ -415,14 +415,14 @@ Method TestUsageDecide()
 	Set reply = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(runner.bodyId), 1: "")
 	Do $$$AssertTrue($IsObject(reply), "TriageAgent sent Decide a Reply")
 	If $IsObject(reply) {
-		Do $$$AssertEquals(..Totals(reply, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "the runner's Reply carries the counts, the cost, the model and one step")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(reply, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "the runner's Reply carries the counts, the cost, the model and one step")
 		Do $$$AssertTrue(reply.DurationMs >= 1000, "its DurationMs is the wall time of the call, at least the 1 s of the mock: "_reply.DurationMs)
 	}
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "decide")
 	Do $$$AssertTrue($IsObject(row), "the Decision row is recorded")
 	If '$IsObject(row) Quit
-	Do $$$AssertEquals(..Totals(row, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "the row holds the same counts, cost, model and step count")
-	Do $$$AssertEquals(..Totals(response, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "and so does the DecisionResponse")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(row, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "the row holds the same counts, cost, model and step count")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(response, 0), "3800|300|2000|600|.000365|claude-haiku-5-5|1", "and so does the DecisionResponse")
 	Do $$$AssertTrue((row.DurationMs '< $Select($IsObject(reply): reply.DurationMs, 1: 1000)) && (row.DurationMs < 60000), "the row's DurationMs is at least the runner's and under 60,000: "_row.DurationMs)
 	Do $$$AssertEquals(response.DurationMs, row.DurationMs, "and the DecisionResponse holds the same")
 
@@ -450,7 +450,7 @@ Method TestUsageTurn()
 		Quit
 	}
 	Do $$$AssertEquals(answer.Text, ..#USAGETURNTEXT, "the text is the final text of the scenario")
-	Set ids = ..UsageIds("DecisionRef", answer.DecisionRef)
+	Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("DecisionRef", answer.DecisionRef)
 	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists for the DecisionRef of the answer: the turn is one Chat call")
 	If ids.%Size() '= 1 Quit
 	Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
@@ -464,11 +464,11 @@ Method TestUsageTurn()
 	Set runner = ..HeaderTo($ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
 	Set reply = $Select($IsObject(runner): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(runner.bodyId), 1: "")
 	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
-	If $IsObject(reply) Do $$$AssertEquals(..Totals(reply, 0), expected, "the runner's Reply carries the sums and a step count of the two requests plus the tool call")
+	If $IsObject(reply) Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(reply, 0), expected, "the runner's Reply carries the sums and a step count of the two requests plus the tool call")
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
 	Do $$$AssertTrue($IsObject(row), "the turn's Decision row is recorded")
-	If $IsObject(row) Do $$$AssertEquals(..Totals(row, 0), expected, "it holds the same")
-	Do $$$AssertEquals(..Totals(answer, 0), expected, "and so does the answer")
+	If $IsObject(row) Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(row, 0), expected, "it holds the same")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Totals(answer, 0), expected, "and so does the answer")
 	Do $$$AssertTrue(answer.DurationMs > 0, "with a duration: "_answer.DurationMs)
 }
 
@@ -485,7 +485,7 @@ Method TestCostOfFailedTurn()
 	Do $$$AssertStatusNotOK(sc, "the turn ends with the runner's error status")
 	Do $$$AssertEquals(answer, "", "and gives no answer")
 	Do $$$AssertEquals($ClassMethod(fixture, "DecisionOf", ref, "turn"), "", "no Decision row is recorded")
-	Set ids = ..UsageIds("ItemId", ref)
+	Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("ItemId", ref)
 	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists for the item: the call that threw is counted")
 	If ids.%Size() '= 1 Quit
 	Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
@@ -493,7 +493,8 @@ Method TestCostOfFailedTurn()
 	Do $$$AssertTrue(usage.RequestCount > 0, "with the requests that were made: "_usage.RequestCount)
 	Do $$$AssertTrue(usage.InputTokens > 0, "and their tokens: "_usage.InputTokens)
 	Do $$$AssertEquals(usage.LargestRequestTokens, "", "the largest request is unknown, because the call returned no response")
-	Do $$$AssertTrue(usage.CostUSD '= "", "the cost is priced: "_usage.CostUSD)
+	Do $$$AssertEquals(usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "0|0", "the mock's default usage has no cache tokens")
+	Do $$$AssertEquals(usage.CostUSD, $Number((usage.InputTokens * 0.1 + (usage.OutputTokens * 0.5)) / 1000000, 6), "and the cost is priced at 0.10 a million input tokens and 0.50 a million output tokens, below the long tier: "_usage.CostUSD)
 }
 
 /// A message of another class gets "not implemented" (5003), and a request of an unknown kind an error that names the field;
@@ -593,26 +594,6 @@ Method Case(provenance As %String, marker As %String, Output row As %Persistent)
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "decide")
 	Do $$$AssertTrue($IsObject(row), label_": the row is recorded")
 	Quit response
-}
-
-/// The ids of the Usage rows whose ItemId or DecisionRef (the column) is the value, oldest first, as a dynamic array.
-ClassMethod UsageIds(column As %String, value As %String) As %DynamicArray [ Private ]
-{
-	Set ids = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE "_$Select(column = "ItemId": "ItemId", 1: "DecisionRef")_" = ? ORDER BY ID", value)
-	While result.%Next() {
-		Do ids.%Push(result.%GetData(1))
-	}
-	Quit ids
-}
-
-/// The total fields of a Decision row, a DecisionResponse or a Reply, in the order of Result and joined by |: InputTokens,
-/// OutputTokens, CacheReadTokens, CacheWriteTokens, CostUSD, Model, AgentStepCount and, when withDuration is 1 or not given,
-/// DurationMs.
-ClassMethod Totals(object As %RegisteredObject, withDuration As %Boolean = 1) As %String [ Private ]
-{
-	Set text = object.InputTokens_"|"_object.OutputTokens_"|"_object.CacheReadTokens_"|"_object.CacheWriteTokens_"|"_object.CostUSD_"|"_object.Model_"|"_object.AgentStepCount
-	Quit text_$Select(withDuration: "|"_object.DurationMs, 1: "")
 }
 
 /// The targets of the headers, sorted and comma-separated.

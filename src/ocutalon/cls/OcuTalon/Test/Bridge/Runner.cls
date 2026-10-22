@@ -22,7 +22,9 @@
 ///     the runner item as its agent, and puts the same counts, the cost, the model, the steps and the wall time on the Reply; a call
 ///     that fails before any request writes none; a call that stalls in the tool loop after it spent tokens writes one; and a model with
 ///     no Price row gets a row with no cost and a warning that names the model, and a row that cannot be saved is a warning and keeps
-///     no row, without changing the answer in either case.
+///     no row, without changing the answer in either case;
+///   - TestStatsReadFails (Story 1.4): the stats of an AI session that cannot be read give an empty reading and a warning, and raise
+///     nothing.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
@@ -390,7 +392,7 @@ Method TestUsageRows()
 		Do $$$AssertTrue((usage.InputTokens > 0) && (usage.OutputTokens > 0), "with the tokens of the mock: "_usage.InputTokens_" in, "_usage.OutputTokens_" out")
 		Do $$$AssertEquals(usage.InputTokens, usage.LargestRequestTokens, "the one request is the largest")
 		Do $$$AssertEquals(usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "0|0", "no cache tokens")
-		Do $$$AssertEquals(usage.CostUSD, ##class(OcuTalon.Bridge.Data.Price).CostFor("claude-haiku-5-5", usage.InputTokens, 0, 0, usage.OutputTokens, usage.LargestRequestTokens, 1), "the cost is the Price row's")
+		Do $$$AssertEquals(usage.CostUSD, $Number((usage.InputTokens * 0.1 + (usage.OutputTokens * 0.5)) / 1000000, 6), "the cost is that of Claude Haiku 5.5 at 0.10 a million input tokens and 0.50 a million output tokens, below the long tier")
 		Do $$$AssertTrue(usage.CostUSD > 0, "which is above 0: "_usage.CostUSD)
 		Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.CacheReadTokens_"|"_reply.CacheWriteTokens_"|"_reply.CostUSD_"|"_reply.Model, usage.InputTokens_"|"_usage.OutputTokens_"|"_usage.CacheReadTokens_"|"_usage.CacheWriteTokens_"|"_usage.CostUSD_"|"_usage.Model, "the Reply carries the counts, the cost and the model of the row")
 		Do $$$AssertEquals(reply.AgentStepCount, 1, "and one step")
@@ -434,17 +436,33 @@ Method TestUsageRows()
 	Do $$$AssertEquals(..WarningsAbout(mark, "zz-unpriced"), 1, "one warning names the model that has no price")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
 
-	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
-	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds again")
-	Set host.Adapter.Agent.Model = "zz-" _ $Translate($Justify("", 130), " ", "x")
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"), "ZzRunner" _ $Translate($Justify("", 30), " ", "x"))
 	Set request = ..NewUsageRequest("decide", "Triage this item.")
 	Set mark = ..LogMark()
 	Set sc = host.OnMessage(request, .reply)
-	Do $$$AssertStatusOK(sc, "a call whose Usage row cannot be saved (a model id over the 128 characters of the column) is answered all the same")
+	Do $$$AssertStatusOK(sc, "a call whose Usage row cannot be saved (a runner item name over the 32 characters of the Agent column, which the Reply does not carry) is answered all the same")
 	Do $$$AssertTrue($IsObject(reply) && (reply.Text '= ""), "with its text")
 	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 0, "no row is kept")
 	Do $$$AssertEquals(..WarningsAbout(mark, "is not recorded"), 1, "and one warning says that the usage is not recorded")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
+}
+
+/// The stats of an AI session that cannot be read (the object has no GetStats) give "" and one warning that names GetStats, and raise
+/// nothing: the adapter then counts that call as far as the other reading allows, and never changes the answer or its status.
+Method TestStatsReadFails()
+{
+	Set host = $ClassMethod("OcuTalon.Test.Bridge.ZzStatsRunner", "%New", "ZzRunner")
+	Set mark = ..LogMark()
+	Set stats = ""
+	Try {
+		Set stats = host.Adapter.StatsOf({})
+		Set raised = ""
+	} Catch exception {
+		Set raised = exception.DisplayString()
+	}
+	Do $$$AssertEquals(raised, "", "a session whose stats cannot be read raises nothing")
+	Do $$$AssertEquals(stats, "", "and gives no reading")
+	Do $$$AssertEquals(..WarningsAbout(mark, "GetStats", "ReadStats", "OcuTalon.Test.Bridge.ZzStatsAdapter"), 1, "one warning says that GetStats of the AI session failed")
 }
 
 /// --- helpers ---
@@ -460,34 +478,23 @@ Method NewUsageRequest(kind As %String, input As %String) As OcuTalon.Bridge.Msg
 	Quit request
 }
 
-/// The number of warnings (type 3) of the adapter's RecordUsage after the log mark whose text holds the needle.
-ClassMethod WarningsAbout(mark As %Integer, needle As %String) As %Integer [ Private ]
+/// The number of warnings (type 3) of the adapter's method (RecordUsage unless another is named) after the log mark whose text holds
+/// the needle. The log names the class of the object that logged, which is the adapter unless another class is named.
+ClassMethod WarningsAbout(mark As %Integer, needle As %String, method As %String = "RecordUsage", class As %String = "OcuTalon.Bridge.Adapter.Agent") As %Integer [ Private ]
 {
-	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Adapter.Agent", "RecordUsage")
-	While result.%Next() {
-		If result.%GetData(1) [ needle Set found = found + 1
-	}
-	Quit found
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, class, method, $ListBuild(needle))
 }
 
-/// The ids of the Usage rows of the item, as a dynamic array.
+/// The ids of the Usage rows of the item, as a dynamic array (Test.Agent.RunnerFixture.UsageIds).
 ClassMethod UsageIds(itemId As %String) As %DynamicArray [ Private ]
 {
-	Set ids = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ? ORDER BY ID", itemId)
-	While result.%Next() {
-		Do ids.%Push(result.%GetData(1))
-	}
-	Quit ids
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("ItemId", itemId)
 }
 
-/// The highest id of the event log.
+/// The highest id of the event log (Test.Agent.RunnerFixture.EventMark).
 ClassMethod LogMark() As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
-	Do result.%Next()
-	Quit +result.%GetData(1)
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 }
 
 /// Creates a session through a first adapter, chats once, saves it and returns its id. The adapter, its agent and the session are
@@ -506,11 +513,11 @@ Method SaveSession() As %String [ Private ]
 	Quit id
 }
 
-/// A runner host made in memory, a shadow, whose adapter has the agent class, an allow-list of that class, the effort and the
-/// provider configuration. The key is the non-secret CI variable.
-Method NewRunner(agentClass As %String, effort As %String = "", providerConfig As %String = "") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+/// A runner host made in memory, a shadow named configName (ZzRunner unless another is given), whose adapter has the agent class, an
+/// allow-list of that class, the effort and the provider configuration. The key is the non-secret CI variable.
+Method NewRunner(agentClass As %String, effort As %String = "", providerConfig As %String = "", configName As %String = "ZzRunner") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
 {
-	Set host = $ClassMethod(..#RUNNER, "%New", "ZzRunner")
+	Set host = $ClassMethod(..#RUNNER, "%New", configName)
 	Set adapter = host.Adapter
 	Set adapter.AgentClass = agentClass
 	Set adapter.AgentAllowList = agentClass

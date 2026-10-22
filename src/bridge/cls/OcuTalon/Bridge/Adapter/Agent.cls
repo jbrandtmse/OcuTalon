@@ -267,8 +267,8 @@ Method RecordUsage(request As OcuTalon.Bridge.Msg.Request, before As %DynamicObj
 		Set model = ..Agent.Model
 		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, ..BusinessHost.%ConfigName, model, before, after, last, .row)
 		If $$$ISOK(sc) {
-			If row.CostUSD = "" $$$LOGWARNING("The usage of the call is recorded with no cost: no Price row has the model '"_model_"'")
 			Set sc = row.%Save()
+			If $$$ISOK(sc) && (row.CostUSD = "") $$$LOGWARNING("The usage of the call is recorded with no cost: no Price row has the model '"_model_"'")
 		}
 		If $$$ISERR(sc) $$$LOGWARNING("The usage of the call is not recorded: "_$SYSTEM.Status.GetErrorText(sc))
 	} Catch exception {

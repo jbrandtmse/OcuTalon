@@ -1271,6 +1271,8 @@ So that I can follow what the assistant did step by step, like any other feed.
 **When** they read it
 **Then** the bridge's message classes, production items and step summaries have readable names, and the steps sit in the turn's thread beside its decision and reply (NFR-20, AD-26, UX-DR139, UX-DR151)
 
+- DW-77: AD-20 names the Usage row's largest estimated request size; Story 1.4 stores the last request's measured input. With the step estimates this story builds, comply (the largest of measured and estimated) or bring AD-20's wording to the orchestrator (ledger; routed by cr 2026-10-22)
+
 ### Story 1.6: An unusable reply takes the fallback route, and OcuTalon starts with no key
 
 As a user,
@@ -1416,6 +1418,8 @@ So that reminders work the way I would ask a person, from any channel I chat on.
 **Then** every command carries origin `tool`, the session's `SessionRef` and its `IdempotencyKey`, a re-sent turn submits the same keys, each tool call is an agent step in Visual Trace, and a refusal from the test double reaches the reply as the owner's plain-English reason (FR-3, FR-34, AD-1, AD-9)
 
 **Story 1.11 moved to Story 30.2**, whole and verbatim, in Lane A's post-demo hardening epic (Epic 30) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
+
+- DW-32: Fold Lane A's four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Usage, Budget) into one Lane A test helper before adding more zone tests (ledger; routed by adjudication 2026-10-22)
 
 ### Story 1.12: Items saved for the digest are kept for it
 

@@ -13,7 +13,10 @@
 ///     Provider step left them;
 ///   - GuardReason: "" only when the environment is the CI override's (the mock's base URL and the mock-key switch), so that no
 ///     test can send a request to a real model API;
-///   - FindRequest, FindRequests, Effort, CacheMark and Has: read the entries of the mock's log (Test.Contract.Mock.LogSince).
+///   - FindRequest, FindRequests, Effort, CacheMark and Has: read the entries of the mock's log (Test.Contract.Mock.LogSince);
+///   - EventMark, EventRows and Warnings: the rows of the event log after a mark, and the warnings that one method logged after it;
+///   - UsageIds, AddUsage and Totals (Story 1.4): the Usage rows of an item or a decision, a fixture Usage row, and the total fields
+///     of a Decision row or an answer, which the tests of Test.Agent and Test.Bridge share.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -316,6 +319,61 @@ ClassMethod Has(names As %DynamicArray, name As %String) As %Boolean
 		}
 	}
 	Quit has
+}
+
+/// The number of warnings (type 3) that the method of the class logged after the event-log mark (EventMark) whose text holds every
+/// string of needles, a $ListBuild; an empty list counts every warning of that method.
+ClassMethod Warnings(mark As %Integer, class As %String, method As %String, needles As %List = "") As %Integer
+{
+	Set found = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, class, method)
+	While result.%Next() {
+		Set text = result.%GetData(1)
+		Set all = 1
+		Set position = 0
+		While $ListNext(needles, position, needle) {
+			If '(text [ needle) Set all = 0
+		}
+		Set found = found + all
+	}
+	Quit found
+}
+
+/// The ids of the Usage rows whose ItemId or DecisionRef (the column) is the value, oldest first, as a dynamic array.
+ClassMethod UsageIds(column As %String, value As %String) As %DynamicArray
+{
+	Set ids = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE "_$Select(column = "ItemId": "ItemId", 1: "DecisionRef")_" = ? ORDER BY ID", value)
+	While result.%Next() {
+		Do ids.%Push(result.%GetData(1))
+	}
+	Quit ids
+}
+
+/// Saves a fixture Usage row of the DecisionRef with the model, the token counts, the cost ("" for an unknown cost), the UTC time
+/// it was recorded at ("" for none) and the owner, and returns the status of the save.
+ClassMethod AddUsage(ref As %String, model As %String, input As %Integer, completion As %Integer, cacheRead As %Integer, cacheWrite As %Integer, cost As %String, recordedAt As %String = "", owner As %String = "instance") As %Status
+{
+	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
+	Set row.DecisionRef = ref
+	Set row.OwnerRef = owner
+	Set row.Model = model
+	Set row.InputTokens = input
+	Set row.OutputTokens = completion
+	Set row.CacheReadTokens = cacheRead
+	Set row.CacheWriteTokens = cacheWrite
+	Set row.CostUSD = cost
+	Set row.RecordedAt = recordedAt
+	Quit row.%Save()
+}
+
+/// The total fields of a Decision row, a DecisionResponse or a Reply, in the order of Result and joined by |: InputTokens,
+/// OutputTokens, CacheReadTokens, CacheWriteTokens, CostUSD, Model, AgentStepCount and, when withDuration is 1 or not given,
+/// DurationMs.
+ClassMethod Totals(object As %RegisteredObject, withDuration As %Boolean = 1) As %String
+{
+	Set text = object.InputTokens_"|"_object.OutputTokens_"|"_object.CacheReadTokens_"|"_object.CacheWriteTokens_"|"_object.CostUSD_"|"_object.Model_"|"_object.AgentStepCount
+	Quit text_$Select(withDuration: "|"_object.DurationMs, 1: "")
 }
 
 }

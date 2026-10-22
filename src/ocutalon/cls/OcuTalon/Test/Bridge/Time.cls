@@ -8,7 +8,8 @@
 ///     2025-03-09, whose midnight does not exist, starts at its first instant, local 01:00; with no zone a day is a UTC day;
 ///   - TestUnreadable: every method gives "" for an input it cannot read;
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
-///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads 900 ms less than the same second with .000.
+///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
+///     (at least 600 ms less, whatever pause there is between the two reads).
 Class OcuTalon.Test.Bridge.Time Extends %UnitTest.TestCase
 {
 
@@ -128,14 +129,14 @@ Method TestMsSince()
 }
 
 /// Two stamps of the same second, five seconds ago, one with the fraction .000 and one with .900, read one after the other: the second
-/// reads about 900 ms less than the first (the reads are microseconds apart), so the fraction is counted.
+/// reads 900 ms less than the first, less the pause between the two reads, which stays far under 300 ms, so the fraction is counted.
 Method TestMsSinceFraction()
 {
 	Set time = "OcuTalon.Bridge.Time"
 	Set second = $Translate($Extract(..Shift($ClassMethod(time, "NowUtc"), -5), 1, 19), "T", " ")
 	Set zero = $ClassMethod(time, "MsSince", second_".000")
 	Set late = $ClassMethod(time, "MsSince", second_".900")
-	Do $$$AssertTrue((zero - late > 800) && (zero - late '> 900), "the stamp .900 of the second "_second_" reads "_(zero - late)_" ms less than its .000")
+	Do $$$AssertTrue((zero - late > 600) && (zero - late '> 900), "the stamp .900 of the second "_second_" reads "_(zero - late)_" ms less than its .000")
 }
 
 /// --- helpers ---

@@ -1,12 +1,15 @@
-/// Tests of the Usage row, the Price and the installer's prices (Story 1.4; AD-19, AD-20; FR-2). Pure and in process: nothing is sent
-/// and no production runs. The tests write rows of their own (Usage rows with a DecisionRef of their own, a Price row of a model that
-/// no product uses), delete them again, and put the two Price rows of the product back as they were (OnAfterOneTest).
+/// Tests of the Usage row, the Price and the installer's prices (Story 1.4; AD-19, AD-20; FR-2), in process: nothing is sent and no
+/// production runs. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): TestSeedPrices deletes the two Price rows of the
+/// product and runs Installer.Run(). The tests write rows of their own (Usage rows with a DecisionRef of their own, a Price row of a
+/// model that no product uses), delete them again, and put the two Price rows of the product back as they were (OnAfterOneTest).
 ///   - TestCost: the cost of one turn at the seeded rates of Claude Haiku 5.5 and Claude Sonnet 5.5, each tier at its own rate, the
-///     long tier above 100,000 tokens (not at 100,000), the average request when the largest is unknown, a model with no Price
-///     row (empty cost, never 0) and the exact model match;
+///     long tier above 100,000 tokens (not at 100,000), the average request when the largest is unknown, the rounding to 6 decimals
+///     (up and down), a model with no Price row (empty cost, never 0) and the exact model match;
 ///   - TestFromStats: the row of one Chat from two stats readings, the last response's usage, and the request: the four sums with
 ///     input = prompt + cache read + cache write, the request count, the largest request from the last usage or empty without it, the
-///     request's fields, Estimated 0 and RecordedAt in UTC, a counter that falls, a missing first reading and a missing second;
+///     request's fields, Estimated 0 and RecordedAt in UTC, the long tier chosen by the last response's request and not by the average
+///     of the turn, a counter that falls, a missing first reading and a missing second;
+///   - TestRecordedAtIsUtc: RecordedAt of a row is the current UTC time, whatever the zone of the process (UTC+14 and UTC-11);
 ///   - TestHasSpend: a request or a token is spend; a tool call alone and no change are not;
 ///   - TestSeedPrices: Installer.Run() creates both rows with the values of the table, leaves an edited row alone and creates a deleted
 ///     row again;
@@ -29,8 +32,18 @@ Property Refs As %List;
 /// CacheWritePerMTok, LongThresholdTokens, LongInputPerMTok, LongOutputPerMTok).
 Property Saved As %List;
 
+/// The zone of the process before the test: -1 for none.
+Property SavedZone As %String;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Quit $$$OK
+}
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
 	Set position = 0
 	While $ListNext(..Refs, position, ref) {
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
@@ -57,6 +70,8 @@ Method TestCost()
 	Do $$$AssertEquals(haiku.Cost(92000, 5000, 4000, 2000, "", 0), .05375, "a request count of 0 counts as 1")
 	Do $$$AssertEquals(haiku.Cost(1200, 2000, 600, 300, 3800, 1), .000365, "the fixed usage of the mock: 120 + 20 + 75 + 150 micro-dollars")
 	Do $$$AssertEquals(haiku.Cost(2100, 512, 512, 130, 1612, 2), .000344, "the two requests of the mock's turn: 344.12 micro-dollars rounded to 6 decimals")
+	Do $$$AssertEquals(haiku.Cost(7, 0, 0, 0, 7, 1), .000001, "0.7 micro-dollars round up to 1: the cost is rounded to 6 decimals, not cut")
+	Do $$$AssertEquals(haiku.Cost(4, 0, 0, 0, 4, 1), 0, "and 0.4 micro-dollars round down to 0")
 	Do $$$AssertEquals(haiku.Cost(0, 0, 0, 0, 0, 0), 0, "no token costs 0")
 	Do $$$AssertEquals(haiku.Cost("", "", "", "", "", ""), 0, "and so does an empty count")
 
@@ -132,8 +147,36 @@ Method TestFromStats()
 	Set big = ..Stats(1, 99000, 10, 5000, 4000)
 	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, ..Stats(0, 0, 0, 0, 0), big, {"prompt_tokens": 90000, "cache_read_tokens": 5000, "cache_creation_tokens": 5001}, .row)
 	Do $$$AssertEquals(row.LargestRequestTokens, 100001, "a last request of 100,001 tokens")
-	Do $$$AssertEquals(row.CostUSD, ##class(OcuTalon.Bridge.Data.Price).CostFor(..#FIXTURE, 99000, 5000, 4000, 10, 100001, 1), "is priced at the long tier")
-	Do $$$AssertTrue(row.CostUSD > ..NewPrice(..#HAIKU).Cost(99000, 5000, 4000, 10, 100000, 1), "which costs more than the base tier")
+	Do $$$AssertEquals(row.CostUSD, .052275, "is priced at the long tier: 49500 + 250 + 2500 + 25 micro-dollars, against 10455 at the base tier")
+
+	Set last = {"prompt_tokens": 90000, "cache_read_tokens": 5000, "cache_creation_tokens": 5001}
+	Set many = ..Stats(2, 140000, 10, 6000, 4000)
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, ..Stats(0, 0, 0, 0, 0), many, last, .row)
+	Do $$$AssertStatusOK(sc, "a row is built for two requests of 150,000 input tokens in all")
+	Do $$$AssertEquals(row.RequestCount_"|"_row.InputTokens_"|"_row.LargestRequestTokens, "2|150000|100001", "whose last request has 100,001 and whose average has 75,000")
+	Do $$$AssertEquals(row.CostUSD, .072825, "the last request decides, so the whole turn is at the long tier: 70000 + 300 + 2500 + 25 micro-dollars, against 14565 at the base tier")
+	Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", ..#FIXTURE, ..Stats(0, 0, 0, 0, 0), many, "", .row)
+	Do $$$AssertStatusOK(sc, "a row is built for the same two requests with no last response")
+	Do $$$AssertEquals(row.CostUSD, .014565, "the average request of 75,000 decides, so the turn is at the base tier: 14000 + 60 + 500 + 5 micro-dollars")
+}
+
+/// RecordedAt is the current UTC time, YYYY-MM-DDThh:mm:ssZ, whatever the zone of the process: in UTC+14 and UTC-11, whose local
+/// times are never the UTC time, the stamp lies between the UTC times read before and after the row is built.
+Method TestRecordedAtIsUtc()
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Set request.DecisionRef = "zzdecision2"
+	For zone = "Pacific/Kiritimati", "Pacific/Pago_Pago" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Time).ToLocal("2025-01-15T12:00:00Z"), $Select(zone [ "Kiritimati": "2025-01-16T02:00:00", 1: "2025-01-15T01:00:00"), "the process is in "_zone_", whose local time is not the UTC time")
+		Set first = $Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z"
+		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, "ChatAgent", "zz-unpriced", ..Stats(0, 0, 0, 0, 0), ..Stats(1, 10, 5, 0, 0), "", .row)
+		Set last = $Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z"
+		Do $$$AssertStatusOK(sc, "a row is built in "_zone)
+		If '$IsObject(row) Continue
+		Do $$$AssertTrue('(first ] row.RecordedAt) && '(row.RecordedAt ] last), "in "_zone_" RecordedAt "_row.RecordedAt_" lies between the UTC times "_first_" and "_last)
+	}
 }
 
 /// HasSpend: 1 when a reading holds a model request or a token more than the one before, for each of the five counters; 0 for no
@@ -280,7 +323,7 @@ ClassMethod Remove(model As %String) [ Private ]
 }
 
 /// Puts the Price row of a snapshot back: the row of the model is deleted, and created again with the values when it existed.
-ClassMethod Restore(saved As %List) [ Private ]
+Method Restore(saved As %List) [ Private ]
 {
 	Set model = $List(saved, 1)
 	Do ..Remove(model)
@@ -294,7 +337,7 @@ ClassMethod Restore(saved As %List) [ Private ]
 	Set row.LongThresholdTokens = $List(saved, 7)
 	Set row.LongInputPerMTok = $List(saved, 8)
 	Set row.LongOutputPerMTok = $List(saved, 9)
-	Do row.%Save()
+	Do $$$AssertStatusOK(row.%Save(), "the Price row of "_model_" is put back")
 }
 
 /// A new DecisionRef, which the test deletes the Usage rows of afterwards.
@@ -305,19 +348,10 @@ Method NewRef() As %String [ Private ]
 	Quit ref
 }
 
-/// Saves a Usage row of the DecisionRef.
+/// Saves a Usage row of the DecisionRef (Test.Agent.RunnerFixture.AddUsage).
 Method AddRow(ref As %String, model As %String, input As %Integer, completion As %Integer, cacheRead As %Integer, cacheWrite As %Integer, cost As %String) [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
-	Set row.DecisionRef = ref
-	Set row.OwnerRef = "instance"
-	Set row.Model = model
-	Set row.InputTokens = input
-	Set row.OutputTokens = completion
-	Set row.CacheReadTokens = cacheRead
-	Set row.CacheWriteTokens = cacheWrite
-	Set row.CostUSD = cost
-	Do $$$AssertStatusOK(row.%Save(), "a Usage row of "_model_" is saved")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, model, input, completion, cacheRead, cacheWrite, cost), "a Usage row of "_model_" is saved")
 }
 
 }

@@ -896,26 +896,17 @@ Method NewUsageRef() As %String [ Private ]
 	Quit ref
 }
 
-/// Saves a Usage row of the DecisionRef.
+/// Saves a Usage row of the DecisionRef (Test.Agent.RunnerFixture.AddUsage).
 Method AddUsage(ref As %String, model As %String, input As %Integer, completion As %Integer, cacheRead As %Integer, cacheWrite As %Integer, cost As %String) [ Private ]
 {
-	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
-	Set row.DecisionRef = ref
-	Set row.OwnerRef = "instance"
-	Set row.Model = model
-	Set row.InputTokens = input
-	Set row.OutputTokens = completion
-	Set row.CacheReadTokens = cacheRead
-	Set row.CacheWriteTokens = cacheWrite
-	Set row.CostUSD = cost
-	Do $$$AssertStatusOK(row.%Save(), "a Usage row of "_model_" is saved")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).AddUsage(ref, model, input, completion, cacheRead, cacheWrite, cost), "a Usage row of "_model_" is saved")
 }
 
 /// The eight total fields of a Decision row or an answer, in the order of Result: InputTokens, OutputTokens, CacheReadTokens,
-/// CacheWriteTokens, CostUSD, Model, AgentStepCount and DurationMs, joined by |.
+/// CacheWriteTokens, CostUSD, Model, AgentStepCount and DurationMs, joined by | (Test.Agent.RunnerFixture.Totals).
 ClassMethod Totals(object As %RegisteredObject) As %String [ Private ]
 {
-	Quit object.InputTokens_"|"_object.OutputTokens_"|"_object.CacheReadTokens_"|"_object.CacheWriteTokens_"|"_object.CostUSD_"|"_object.Model_"|"_object.AgentStepCount_"|"_object.DurationMs
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Totals(object)
 }
 
 /// The number of Decision rows of the item.
@@ -955,24 +946,17 @@ Method AssertReply(text As %String, pass As %Boolean, label As %String) [ Privat
 	Do $$$AssertEquals(payload, "", label_" gives no payload")
 }
 
-/// The highest id of the event log.
+/// The highest id of the event log (Test.Agent.RunnerFixture.EventMark).
 ClassMethod LogMark() As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
-	Do result.%Next()
-	Quit +result.%GetData(1)
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 }
 
 /// Asserts that the event log holds, after the mark, one warning (type 3) of Decide's FireEvent whose text names the class, the
 /// Ref and, when given, the event. Outside a production job its ConfigName is empty (measured in Story 1.3).
 Method AssertWarning(mark As %Integer, class As %String, ref As %String, label As %String, event As %String = "") [ Private ]
 {
-	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Process.Decide", "FireEvent")
-	While result.%Next() {
-		Set text = result.%GetData(1)
-		If (text [ class) && (text [ ref) && (text [ event) Set found = found + 1
-	}
+	Set found = ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Process.Decide", "FireEvent", $ListBuild(class, ref, event))
 	Do $$$AssertEquals(found, 1, label_": one warning names "_class_" and the Ref")
 }
 

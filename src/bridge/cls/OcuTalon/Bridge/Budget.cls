@@ -43,10 +43,12 @@ ClassMethod State(now As %String = "") As %DynamicObject
 ///   - Under Lock +^OcuTalonBP.UsageCapped(day):5 it sets ^OcuTalonBP.UsageCapped(day) to the current UTC time when the node is
 ///     absent. A lock it cannot get in 5 seconds leaves no mark and fires no event; the failure is logged as a warning.
 ///   - After it has released the lock, it fires budget.capped with the owner instance and the payload {"day"} through Decide.FireEvent,
-///     only when this call set the node. The sink is sinkClass, or, when that is empty, the HostSinkClass of the Decide item. A sink
-///     that fails is logged as a warning and the mark stays.
+///     only when this call set the node. The sink is sinkClass, or, when that is empty, the class that the HostSinkClass setting of
+///     the Decide item names (Accessor.ValueFor; FireEvent checks it, so its warning names the class). A sink that fails is logged as
+///     a warning and the mark stays.
 /// A day that is not a date (the form is wrong, or the date does not exist) is refused with a warning: it returns 0, sets no mark and
-/// fires no event. Returns 1 when this call set the mark, otherwise 0. It never throws.
+/// fires no event. Returns 1 when this call set the mark, otherwise 0. It never throws. Call it outside any transaction: the host sink
+/// is told after the change has committed (AD-31), and a lock taken inside a transaction is held until the transaction ends.
 ClassMethod MarkCapped(day As %String = "", sinkClass As %String = "") As %Boolean
 {
 	If day = "" Set day = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
@@ -70,7 +72,7 @@ ClassMethod MarkCapped(day As %String = "", sinkClass As %String = "") As %Boole
 	}
 	If locked Lock -^OcuTalonBP.UsageCapped(day)
 	If marked {
-		If sinkClass = "" Set sinkClass = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("HostSinkClass")
+		If sinkClass = "" Set sinkClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("HostSinkClass")
 		Do ##class(OcuTalon.Bridge.Process.Decide).FireEvent(sinkClass, "instance", day, ##class(OcuTalon.Bridge.Ext.HostSink).#BUDGETCAPPED, ##class(OcuTalon.Bridge.Ext.HostSink).BudgetCappedPayload(day))
 	}
 	Quit marked

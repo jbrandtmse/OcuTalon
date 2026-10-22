@@ -197,6 +197,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Msg/Catalog.cls SavedZone, OnBeforeAllTests, OnAfterOneTest, RestoreZone vs Test/Data/Time.cls L6-25 and RestoreZone; the spec names Test.Data.Time as the pattern
 - 2026-10-20T06:52:09Z status=wontfix-accepted owner=0-9-the-message-catalog-and-its-one-renderer by=cr note=reopen_if=a third test class copies SavedZone/RestoreZone: extract one zone fixture base that ci/units.sh does not run
+- 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
+- 2026-10-22T12:46:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=reopen_if fired at Story 1.4: Lane A now holds four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Test.Bridge.Usage, Test.Bridge.Budget); Story 1.10 (reminders, zone-heavy tests) folds Lane A's copies into one Lane A test helper before adding its own; Lane B's two (Test.Data.Time, Test.Msg.Catalog) stay Lane B's
 
 ### DW-33: Msg.Catalog.ReadEntries repeats Test.Contract.Read's three-line JSON XData read, a copy the spec states (product code may not depend on OcuTalon.Test)
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: in-story
@@ -331,3 +333,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Story 1.4 implement residual risks: CostFor returns empty for an unpriced model (never 0, by U-18), and State cannot count such a row; the budget settings are read through the accessor with no fault path; Story 1.6 builds the daily_cap precheck that reads State
 - 2026-10-22T11:02:45Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=harvest note=1.6's daily_cap precheck treats an unknown-cost row and an unreadable budget setting as a configuration fault it logs, and does not let it pass silently; how a set cap behaves then (fail open or closed) is 1.6's plan decision, recorded in its spec
+- 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
+
+### DW-77: AD-20 says the Usage row holds the largest estimated request size; Story 1.4 stores the last request's measured input from Response.Usage (empty when Chat threw), and the spec's call for a lead ruling on its Decision 5 was never recorded
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Usage.FromStats sets LargestRequestTokens from last.prompt_tokens+cache_read_tokens+cache_creation_tokens; spec line 410 says Decisions 2 and 5 depart from AD wording for the lead to rule; U-16..U-18 rule only 1, 2, 3 and stored data
+- 2026-10-22T12:43:46Z status=routed owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=1.5's plan rules Decision 5: comply (max of step estimates) or amend AD-20's wording by Rule 20's light path
+
+### DW-78: A capped-day mark is never cleared: after an owner raises or turns off DailyCostCapUSD on a marked day, Budget.State still reports capped (cap 0, capped true) until local midnight
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Budget.State: capped = $Data(^OcuTalonBP.UsageCapped(day)) || (cap>0 && spent>=cap); no code clears the node; Boundaries and AD-20 define capped as marked-or-reached
+- 2026-10-22T12:43:46Z status=by-design owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=spec-bound (Boundaries State.capped, AD-20); purge is Story 30.2's; reopens via the step-2 settings-page story if a raised cap must clear the mark
+
+### DW-79: Test.Bridge.Budget copies Test.Bridge.Ext's private WaitFor and CleanRuns (the spec's only reason: its child job follows Ext's), so the two child-job helpers now live in two Lane A test classes
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Bridge/Budget.cls CleanRuns and WaitFor vs Test/Bridge/Ext.cls:230-247, same bodies with their own ^OcuTalonTest area; unifying them is about 40 lines over three files
+- 2026-10-22T12:43:46Z status=wontfix-accepted owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=reopen_if=a third Lane A test class copies WaitFor or CleanRuns: move both into Test.Agent.RunnerFixture beside EventMark

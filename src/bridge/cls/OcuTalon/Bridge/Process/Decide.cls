@@ -132,17 +132,11 @@ ClassMethod RunnerFor(kind As %String) As %String
 	Quit runner
 }
 
-/// The ReplyClass setting of the runner item in the active production, or "" with an error in sc when it cannot be read. An
-/// empty value is returned as "" with OK; CheckSettings refuses it.
+/// The ReplyClass setting of the runner item in the active production (OcuTalon.Bridge.Ext.Accessor.ValueFor), or "" with an error
+/// in sc when it cannot be read. An empty value is returned as "" with OK; CheckSettings refuses it.
 ClassMethod ReplyClassOf(runner As %String, Output sc As %Status) As %String
 {
-	Set sc = $$$OK
-	Set production = ##class(Ens.Director).GetActiveProductionName()
-	If production = "" {
-		Set sc = $$$ERROR($$$GeneralError, "No production is active, so the ReplyClass setting of "_runner_" cannot be read")
-		Quit ""
-	}
-	Set class = ##class(Ens.Director).GetHostSettingValue(production_"||"_runner, "ReplyClass", .sc)
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ReplyClass", "", runner, .sc)
 	If $$$ISERR(sc) {
 		Set sc = $$$ERROR($$$GeneralError, "The ReplyClass setting of "_runner_" cannot be read: "_$SYSTEM.Status.GetErrorText(sc))
 		Quit ""
