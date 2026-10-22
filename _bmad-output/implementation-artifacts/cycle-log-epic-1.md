@@ -124,3 +124,6 @@
 2026-10-22T11:02:57Z	Story 1.4	ledger_routed_planned	story=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star entries=1(DW-76) excess=0 by=harvest
 2026-10-22T11:02:57Z	Story 1.4	dev_complete	spawn_at=2026-10-22T07:57:49Z model=claude-sonnet-5-5 build_sha=f342511 baseline_revision=d9d5703 story_base=f21f9ae review_loop_iteration=0 followup_review_recommended=true deferred=0 harvested_from_residual_risks=1(DW-76,routed_to_1-6) loc_added=2316 loc_removed=76 files=21+spec nfr_tripwires=0 adr_violations_surfaced=0 review_rows=42 review_patched=8_entries(3_med,5_low) mutations=23_lines(5_new) duration_min=184 agent=a55c761d108874514 cycle_iteration=1
 2026-10-22T11:02:57Z	Story 1.4	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_1.4's_ACs_to_lead-run_agent-time_tooling;AC3's_Visual_Trace_field_names_are_message_properties_pinned_by_tests model=claude-opus-5-5
+2026-10-22T11:04:27Z	Epic 1	runtime_lock_waiting	lock=runtime stage=qa holder=epic=2,stage=smoke,acquired_at=2026-10-22T10:59:34Z
+2026-10-22T11:05:25Z	Epic 1	runtime_lock_acquired	lock=runtime stage=qa waited_s=142
+2026-10-22T11:05:25Z	Story 1.4	stage_spawned	stage=qa spawn_at=2026-10-22T11:05:25Z model=claude-sonnet-5-5 agent_name=1-4-qa-1 cycle_iteration=1
