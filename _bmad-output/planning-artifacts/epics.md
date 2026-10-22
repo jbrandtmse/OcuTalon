@@ -1227,7 +1227,7 @@ So that I can see in Visual Trace what every decision cost without another tool.
 **Given** usage reported by the provider
 **When** its cost is computed
 **Then** input tokens are `prompt_tokens + cache_read_tokens + cache_creation_tokens`, each tier is priced at its own rate from `OcuTalon.Bridge.Data.Price`, and a unit test matches hand-computed costs at every tier (FR-2, AD-20)
-**And** `OcuTalon.Bridge.Installer` seeds Claude Haiku 5.5 at $0.10 per million input and $0.50 per million output tokens, cache reads at 0.1 times and cache writes at 1.25 times (5-minute) or 2 times (1-hour) the input price, five times both prices for a request above 100,000 input tokens, and Claude Sonnet 5.5 at $2 and $10 per million (FR-2, AD-19)
+**And** `OcuTalon.Bridge.Installer` seeds Claude Haiku 5.5 at $0.10 per million input and $0.50 per million output tokens, cache reads at 0.1 times and cache writes at 1.25 times the input price (the 5-minute tier, the only one AI Hub writes), five times both prices for a request above 100,000 input tokens, and Claude Sonnet 5.5 at $2 and $10 per million (FR-2, AD-19) [AMENDED 2026-10-22, unattended ruling U-17 — see the story change log]
 
 **Given** a decision or a turn
 **When** Decide records it
@@ -1239,9 +1239,9 @@ So that I can see in Visual Trace what every decision cost without another tool.
 **Then** it returns spent, cap, capped and resets-at in UTC, where the day ends at midnight in the instance zone through `OcuTalon.Bridge.Time`, and usage with owner `eval` is never counted (AD-2, AD-20)
 **And** a test compares `OcuTalon.Bridge.Time` with `OcuTalon.Data.Time` across a daylight-saving change (AD-18)
 
-**Given** the first decision of the day that falls back with `daily_cap`, from the precheck or from the gateway's HTTP 403 "daily cost cap reached"
-**When** the bridge records it
-**Then** it marks the day as capped once, under a lock, so `Budget.State()` reports the cap reached from then on even when the gateway refused first, and fires the HostSink event `budget.capped` once that day, with `ownerRef` `instance` and payload `{day}` (the instance-zone date); a test forces both paths through the mock and finds one event (FR-40, AD-20, AD-31)
+**Given** the first `daily_cap` of the day, which Story 1.6's precheck and its classification of the gateway's HTTP 403 "daily cost cap reached" report through `OcuTalon.Bridge.Budget.MarkCapped`
+**When** `MarkCapped` is called for that day, by one caller or by several at once
+**Then** it marks the day as capped once, under a lock, so `Budget.State()` reports the cap reached from then on even when the gateway refused first, and fires the HostSink event `budget.capped` once that day, with `ownerRef` `instance` and payload `{day}` (the instance-zone date); a test calls it repeatedly and concurrently and finds one mark and one event (FR-40, AD-20, AD-31) [AMENDED 2026-10-22, unattended ruling U-16: the two triggers and the both-paths mock test moved to Story 1.6 — see the story change log]
 
 ### Story 1.5: Every model request and tool call is an agent step in Visual Trace
 
@@ -1288,6 +1288,7 @@ So that a refusal, an error or a missing key never leads to an action or a broke
 **When** Decide prechecks it
 **Then** the result is `budget`, `daily_cap` or `no_key`, and the mock's log shows the request was never sent (FR-4, AD-8, AD-20)
 **And** the online demo gateway's fixed refusal (HTTP 403, "daily cost cap reached") is classified `daily_cap` and never re-sent (AD-8)
+**And** both `daily_cap` paths, the precheck and the gateway's 403, call `OcuTalon.Bridge.Budget.MarkCapped` (Story 1.4) once the fallback decision is recorded, so the day is marked capped once and `budget.capped` fires once that day; a test forces both paths through the mock and finds one event (FR-40, AD-20, AD-31) [MOVED 2026-10-22 from Story 1.4, unattended ruling U-16]
 
 **Given** any fallback
 **When** Decide records it
