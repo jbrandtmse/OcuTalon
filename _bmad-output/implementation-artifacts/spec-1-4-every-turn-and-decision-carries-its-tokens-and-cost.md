@@ -2,9 +2,10 @@
 title: 'Story 1.4: Every turn and decision carries its tokens and cost'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd9d570380d0a8ca03ef41356766e558a286fd9c4'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-3, AD-5, AD-6, AD-9, AD-18, AD-19, AD-20, AD-26, AD-31 and AD-33)'
 warnings: ['oversized']
@@ -342,6 +343,54 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-22 - Review pass
+- verdicts: 42 findings - high 0, medium 4, low 30, false 8, maybe-false 0
+- layers: Blind Hunter 11 (its list of 10, with the `MarkCapped` finding counted as its two claims), Edge Case Hunter 13, Verification Gap Reviewer 12 (4 gaps and 8 other findings), Intent Alignment Auditor 6 (its gaps and divergences). The diff file held the code only; the spec went to the Edge Case Hunter alone, and to the Verification Gap Reviewer for the `## Verification` section.
+- findings:
+  - `[low]` `[patch]` BH1: the runner tests leave Usage rows behind and the new header says they do not - `Test.Bridge.Runner.OnAfterOneTest` now deletes every row of the shadow runner `ZzRunner` (the `ItemIds` list is gone) and the header says so. `Test.Agent.Runners` (not changed by this story) keeps its rows, as the spec's Shared surfaces line records.
+  - `[low]` `[reject]` BH2: `Usage.Totals` returns empty totals when its SELECT fails, with no warning - wontfix-theoretical: a static SELECT on this package's own table fails only when the table is missing, which the compile would have caught; reopen_if `Totals` reads anything other than `OcuTalon_Bridge_Data.Usage`.
+  - `[low]` `[reject]` BH3: `Budget.Setting` drops the status of `Accessor.ValueFor`, so an unreadable cap is silently off - wontfix-accepted: `GetHostSettingValue` falls back to the property default with OK when no row exists (measured, Task 0 (f)); it fails only for a production with no `Decide` item, which neither OcuTalon's production nor the example has; Decision 13 rules bad values open; reopen_if a production names the Decide item otherwise.
+  - `[low]` `[reject]` BH4a: `MarkCapped` returns 0 both for "already marked" and for "lock not obtained" - by-design: the Boundaries give "returns 1 then, else 0" and a warning for the lock failure; Story 1.6 re-reads `State()`.
+  - `[low]` `[patch]` BH4b: `MarkCapped` accepts `2025-13-45` (a pattern check only) - the guard now also requires `DayStartUtc(day)` to be non-empty; `TestMarkDefaultDay` refuses `2025-13-45` and `2001-02-30`; mutation recorded.
+  - `[low]` `[reject]` BH5: spend of a model with no Price row is invisible to the cap, and RecordUsage warns on every call - by-design: the Boundaries give an unpriced model an unknown cost, `State` skips unknown costs, and the adapter logs one warning per call; the seeds price the default model; residual risk recorded.
+  - `[low]` `[reject]` BH6: `Price.Cost` prices a row with blank rates at 0 - wontfix-accepted: only the installer writes `Price` rows until the admin editor (FR-17) exists, and the seeds are complete; reopen_if the editor can save a row with a blank rate or a long threshold without long rates.
+  - `[medium]` `[patch]` BH7: no test for a failed save or a throwing `GetStats()`, and `TestMarkDefaultDay` returns early through an assertion that cannot fail - `Test.Bridge.Runner.TestUsageRows` gains a call whose Usage row cannot be saved (a model id over 128 characters): answered, no row, one "not recorded" warning; the early return is now `$$$AssertSkipped`. The `GetStats()` throw is not tested: the method is private and takes a live session, and its `Try` is five lines (wontfix-accepted, reopen_if a stats failure is seen in a log).
+  - `[low]` `[reject]` BH8: `State` scans all rows in ObjectScript and reads each setting separately - not worth a change: Decision 16 accepts the scan (residual risk), the precheck is rate-limited on the online demo, and the fix is a refactor with float-sum risk.
+  - `[false]` `[reject]` BH9: `DayStartUtc` may pick the second midnight of a repeated hour - measured on the slot in `America/Havana` on 2025-11-02 (clocks fall back at 01:00): `DayStartUtc` is 04:00Z, the first occurrence, `DayEndUtc` is 2025-11-03T05:00Z (25 hours), and `ToLocal` of 04:30Z and 05:30Z is the same local 00:30.
+  - `[low]` `[patch]` BH10: three wrong or unclear comments - `Usage.cls` header (`Totals` is Decide's), `Test.Bridge.Time` header ("two zones" for three) and the `TestMsSince` comment, all corrected.
+  - `[low]` `[reject]` E1: an empty `Response.Usage` object gives a largest request of 0, not "" - unlikely: a response with no usage has an all-zero stats delta too, so the cost is 0 either way; the fix adds a branch.
+  - `[low]` `[reject]` E2: `Price.CostFor` throwing loses the whole row - wontfix-theoretical: the arithmetic on numeric columns cannot throw (an empty or text value counts as 0 in ObjectScript), and `RecordUsage` catches anything else.
+  - `[low]` `[reject]` E3: a long threshold with blank long rates costs a long turn at 0 - grouped with BH6.
+  - `[low]` `[reject]` E4: a model that composes through the default family has no exact Price row, so its rows have no cost - grouped with BH5.
+  - `[low]` `[reject]` E5: `ValueFor` failure silently turns the cap off - grouped with BH3.
+  - `[low]` `[reject]` E6: `DayStartUtc` and `DayEndUtc` return "" without a log when the conversion throws - wontfix-theoretical: they run only on dates `$ZDateH` already accepted, and the conversion does not throw for them (the Havana, Santiago and Kolkata days are tested).
+  - `[low]` `[patch]` E7: a day of the right form that is not a date - grouped with BH4b.
+  - `[low]` `[reject]` E8: a runner item name over 32 characters fails the `Agent` column - wontfix-theoretical: the runner items are the fixed names of `Decide.RUNNERS` (all under 32); the save failure itself is now tested (BH7).
+  - `[low]` `[reject]` E9: a second `GetStats()` that throws after a failed `Chat` loses the spend - by-design: the Boundaries give a logged warning for a `GetStats()` that throws; the spend cannot be known without the reading.
+  - `[low]` `[reject]` E10: the last request is smaller than an earlier one after a compaction - by-design: Decision 5 records "the last request is the largest" as an inference, and compaction is Story 30.1, which owns the rule for its own rows.
+  - `[low]` `[reject]` E11: the step count is the last reply's when several Usage rows share a ref - Story 1.7's re-sends are the only source of several rows, and its Consumed-by line in this spec names the step count across attempts.
+  - `[low]` `[reject]` E12: when the runner's row was not saved, the decision's totals are empty although the Reply carried counts - by-design: the Matrix row "No rows: the token fields, cost and model are empty" pins it, and the rows are the single source of the totals (Decision 8).
+  - `[low]` `[reject]` E13: the spec says three class methods on `Usage`, the diff adds four - the fix edits this build's spec, and "Decided in implementation" item 1 records `Delta`.
+  - `[medium]` `[patch]` V1: the default day of `MarkCapped` is pinned by one zone and passes under a UTC-date regression about 77% of the time - `TestMarkDefaultDay` now runs in `Pacific/Kiritimati` (UTC+14) and `Pacific/Pago_Pago` (UTC-11), whose dates are never both the UTC date; mutation recorded.
+  - `[medium]` `[patch]` V2: the 5-second lock timeout of `MarkCapped` has no test - `TestMarkLockTimeout` holds the lock past the wait: the call returns 0 after about 5 seconds, sets no mark, sends no event and logs one warning naming the day (a poll with a 120 s ceiling); `MarkInJob` reports the seconds and the events; mutation recorded.
+  - `[medium]` `[patch]` V3: the "stats or save problem never changes the answer" paths have no test - the save failure is tested (BH7); the `GetStats()` throw is rejected there.
+  - `[low]` `[patch]` V4: `MsSince` does not pin the fraction of a second - `TestMsSinceFraction` reads the same second with .000 and .900 one after the other and asserts the difference is between 800 and 900 ms; mutation recorded (the gap reviewer filed it as a defer; it is a four-line test).
+  - `[false]` `[reject]` V-O1: some behaviours that tests pin have no mutation line - Rule 19 asks for one demonstrated mutation per acceptance criterion, and AC1 to AC5 each have lines; the new tests above have theirs.
+  - `[low]` `[patch]` V-O2: `reply.DurationMs '< 0` passes when `DurationMs` is empty - now `(reply.DurationMs '= "") && (reply.DurationMs '< 0)`.
+  - `[low]` `[patch]` V-O3: the early return of `TestMarkDefaultDay` asserts `1` - grouped with BH7 (`$$$AssertSkipped`).
+  - `[low]` `[reject]` V-O4: `TestMarkUnderLock` sets "started" before the call and then sleeps 2 s - the child runs `MarkCapped` within microseconds of setting the flag, the 2 s is the time the call must stay blocked, and the recorded mutation went red.
+  - `[low]` `[reject]` V-O5: the unknown-cost row of `TestStateDay` cannot fail on its own because a NULL adds 0 - the `CostUSD IS NOT NULL` predicate is redundant, not a missing check; no behaviour differs, so nothing is unpinned.
+  - `[low]` `[reject]` V-O6: `Test.Bridge.Budget` and `Test.Bridge.Usage` do not pre-clean rows of an aborted earlier run - wontfix-accepted: the tests run in fresh throwaways and clean in `OnAfterOneTest`; reopen_if they are run on a persistent database.
+  - `[false]` `[reject]` V-O7: the cost assertions depend on the seeded Price rows - the seeds are part of the installed product (`Installer.Run()`), and `TestSeedPrices` restores what it changes; the standing criterion (either order) holds in the forward and reverse shard runs.
+  - `[low]` `[reject]` V-O8: `Test.Contract.Ac` does not pin the new `State` parameter - Lane B's oracle, read-only here, and the spec states it allows trailing optional parameters; `Test.Bridge.Budget` calls `State(now)` and `MarkCapped(day, sink)` by position.
+  - `[false]` `[reject]` IA1: the pure rows are checked on helper names the intent does not give - the spec's Tasks name `Cost`, `CostFor`, `FromStats`, `HasSpend` and `Totals`; the pure rows are tested through them.
+  - `[low]` `[reject]` IA2: branches the prose states that no test reaches (a `GetStats()` throw, a failed save, the lock timeout, no active production) - the save failure and the lock timeout are now tested (V2, BH7); the `GetStats()` throw (BH7) and the missing production (BH3) are rejected there.
+  - `[false]` `[reject]` IA3: `TestTurnKeepsReply` was rewritten - the spec's Tasks require the change (the totals now come from the Usage rows).
+  - `[false]` `[reject]` IA4: `Accessor.ValueFor` is created, not reused - the spec's Tasks add it, and `ClassFor` is built on it.
+  - `[false]` `[reject]` IA5: Storage slots 5 to 7 are hand-added, not compiler-appended - `ci/iris.sh live storage-roundtrip` passed: the committed block of `Decide` equals the compiler's.
+  - `[false]` `[reject]` IA6: no product code calls `MarkCapped` or `State` - the spec says so (Design Notes, decision 1; Story 1.6 and Story 2.10 are the callers).
+- patched, by entry (root cause): 3 medium (the failure-path tests with the skip, the default-day test, the lock-timeout test) and 5 low (the day guard, the runner-test cleanup, the fraction test, the duration assertion, the comments); deferred: none.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -402,6 +451,21 @@ deferred: []
 17. **Test hooks.** `State(now)` and `MarkCapped(day, sinkClass)` take trailing optional parameters, so the tests fix the clock, the day and the sink. `Test.Contract.Ac` allows trailing optional parameters (:138-163).
 18. **The live tests extend `Test.Agent.Decide`,** so the keys are pointed once, as Story 1.3's decision 26 does. `Usage.HasSpend` and the cost are pinned in process.
 19. **Fixed usage needs `body` replies.** The mock's default usage depends on the raw request length, which the log does not record. So the two new scenarios fix every count. Task 0 (c) checks the `tool_use` body.
+
+**Decided in implementation** (small choices inside the spec's intent; each is reversible inside this story):
+1. **Four class methods on `Usage`, not three.** `Usage.Delta(before, after, key)` is the change of one `GetStats()` counter (at least 0; a missing reading or counter counts as 0). `FromStats`, `HasSpend` and the adapter's step count all use it (Rule 2).
+2. **`Price.Cost` names its fourth parameter `completion`.** `output` is the keyword of a formal specification in ObjectScript (`output As %Integer` is parsed as the modifier), so the spec's name cannot be a parameter name. The position is the spec's, and the test helpers that took an `output` parameter use `completion` too.
+3. **`CostFor` checks the match after it opens the row.** `ModelIndex` collates `Model` as upper case, so `ModelIndexOpen` finds `CLAUDE-HAIKU-5-5` for `claude-haiku-5-5`; `CostFor` returns "" unless the row's `Model` equals the argument, which is the spec's "exact `Model` match".
+4. **A `Chat` that returned always gets a row, even when the delta is all 0.** The condition `HasSpend` gates only the case of a `Chat` that threw. When the second `GetStats()` reading fails, `FromStats` has nothing to build from, and the adapter logs a warning and writes no row.
+5. **`RecordUsage` returns the row, saved or not.** The `Reply` takes its counts, cost and model from that row even when the save failed (the failure is logged); with no row at all the `Reply` carries only the step count and the duration. `AgentStepCount` is the delta of `total_interactions` plus the delta of `total_tool_calls`, as the spec says.
+6. **`DayStartUtc` formats the converted time itself.** `$ZDateTime(<horolog>,-3)` returns the UTC time as a horolog (`67273,18000`), not as text. The method formats that with `$ZDateTime(<horolog>,3,1)` and the `T` and `Z` of `NowUtc`.
+7. **`MsSince` is zone-free date arithmetic.** It reads the date with `$ZDateH` and the time with `$ZTimeH` and subtracts them from `$ZTimeStamp`, because `$ZDateTimeH(<stamp>,3)` reads the stamp in the zone of the process. A timestamp ahead of the clock gives 0.
+8. **`State` falls back, and never throws.** An empty or unreadable `now` means the current time. A budget setting that cannot be read (no active production) counts as its default (0, "", ""). A scan of `Usage` that fails is logged as a warning and counts as 0.
+9. **`MarkCapped` refuses a day that is not `YYYY-MM-DD`.** It logs a warning, returns 0, sets no node and fires no event. It resolves the host sink only after the lock is released and only when it set the node, so a call that sets nothing never reads the production.
+10. **`FireEvent`'s warning reads "for <subject>".** The old text said "for decision <Ref>", which is wrong for `budget.capped`; the event name in the text tells the two apart.
+11. **The bad numbers of the cap reach `State` only by SQL or a hand edit.** Saving a System Default Settings row checks the value against the datatype of the host setting (`ERROR #7207` for `x`, `1,5` and `$5`), and `-1` passes. `Test.Bridge.Budget` writes a valid row and then sets the value with SQL, which checks nothing.
+12. **The standalone script reads `Agent` and `Model` with `TOP 1`.** SQL `MIN()` returns the collation key, which is upper case, so the check for `TriageAgent` and `claude-haiku-5-5` selects the first row instead.
+13. **Two tests the spec does not list.** `Test.Bridge.Runner.TestUsageRows` pins the adapter on its own (the row's agent is the runner item's config name, a throw before any request writes no row, a stalled tool loop writes one, and a model with no `Price` row logs one warning that names it). `Test.Bridge.Ext.TestValueFor` pins `Accessor.ValueFor`.
 
 **Integration ACs (Rule 1):**
 - **AC3, live.** `Decide` reads the runner's `Usage` rows (a real instance, the running production and the mock) and puts the totals on the `Decision` row and the decision message.
@@ -517,6 +581,48 @@ deferred: []
 - **Timestamps.** `$ZDateTimeH("<YYYY-MM-DD hh:mm:ss.fff>",3)` keeps the milliseconds: a 250 ms `Hang` measured 258 ms.
 - **Rounding.** `$Number(0.0003441249,6)` is .000344, and `+"abc"` is 0.
 
+**Measured in implementation** (Task 0; a throwaway of tag `e1s4a` with the CI mock, build 154, `ChatAgent` and `TriageAgent` through the runner's adapter; nothing contradicts an AC):
+- **(a) `GetStats()` and `Response.Usage`.**
+  - **`usage-decide`** on Triage: after `Chat`, `total_interactions` 1, `total_prompt_tokens` 1200, `total_cache_read_tokens` 2000, `total_cache_creation_tokens` 600, `total_completion_tokens` 300, `total_tool_calls` 0 and `total_llm_duration_ms` 1012. `prompt_tokens` is the body's `input_tokens` and excludes both cache counts. `Response.Usage` is `{"cache_creation_tokens":600,"cache_read_tokens":2000,"completion_tokens":300,"prompt_tokens":1200,"total_tokens":1500}` (`total_tokens` is prompt plus completion). Before the call every counter is 0. The `Chat` took 1014 ms.
+  - **`usage-turn`** on Chat: `total_interactions` 2, `total_prompt_tokens` 2100, `total_cache_read_tokens` 512, `total_cache_creation_tokens` 512, `total_completion_tokens` 130, `total_tool_calls` 1. `Response.Usage` covers the last request only: prompt 1100, cache read 512, cache creation 0, completion 80. The tool result is `{"error":"Tool 'list_productions' not found"}`. So `AgentStepCount` of the turn is 2 + 1 = 3 (`Test.Agent.Decide.USAGETURNSTEPS`).
+  - **`chat.json`** (the default script of Chat): `total_interactions` 2, `total_tool_calls` 1, prompt 640, completion 37.
+  - **`GetStats()` keys:** exactly the eleven of the planning list. `model_context_size` was 200000 on one fresh session and 1000000 on the others.
+- **(b) `GetStats()` after a throw.**
+  - **`provider-error` (500):** the throw is `<%AICore>ProviderError: Provider 'anthropic' error: API error: [api_error] CI mock: the provider failed.` and every counter is 0 afterwards, so no row.
+  - **`tool-loop` on Chat:** the throw is `<%AICore>LoopDetected: Agentic loop stalled: no new evidence from tool results after 4 assessment(s)`, not a maximum-iterations error. Afterwards `total_interactions` is 3 (the inference said 4), `total_tool_calls` 3, prompt 1126, completion 61. The matrix row holds: `RequestCount` and `InputTokens` are above 0.
+- **(c) A `body` of type `tool_use`** drives AI Hub's tool loop as `toolUse` does: two interactions, one tool call, and a `tool_result` block in the second request.
+- **(d) Cache control.** No logged request of any call above carries `"ttl"`, and `Test.Bridge.Runner.TestCacheOverThreshold` (Story 1.2) pins the cache block of a long system prompt to exactly `{"type":"ephemeral"}`, which is the 5-minute write.
+- **(e) `%TimeCreated`.** It is set by the framework when the process begins to handle its primary request, before `OnRequest` sends anything, in UTC to the millisecond, and `OnResponse` reads it back from storage. It is not empty, so `..%PrimaryRequestHeader.TimeCreated` is not needed. A decide of `usage-decide` gave `DurationMs` 1145 for the mock's delay of 1000 ms.
+- **(f) Settings.** `GetHostSettingValue` of `Decide` gives `DailyCostCapUSD` 0, `GatewaySpendUSD` "" and `GatewaySpendDate` "", each with OK. A System Default Settings row of 5.5 is read at once, and the value is 0 again once the row is deleted. Saving a row checks the value against the setting's datatype (decision 11).
+- **(g) XML of the `DecisionResponse`.** `<InputTokens>3800</InputTokens>`, `<OutputTokens>300</OutputTokens>`, `<CacheReadTokens>2000</CacheReadTokens>`, `<CacheWriteTokens>600</CacheWriteTokens>`, `<AgentStepCount>1</AgentStepCount>`, `<DurationMs>1145</DurationMs>`, `<CostUSD>.000365</CostUSD>` and `<Model>claude-haiku-5-5</Model>`, in that order, after `FallbackReason` and before `Payload`.
+- **`$ZDateTime(<horolog>,-3)`** returns a UTC horolog, not a date string (decision 6). In `America/New_York` the first instants of 2025-03-09, 03-10, 11-02 and 11-03 are 05:00Z, 04:00Z, 04:00Z and 05:00Z; in `America/Havana`, 2025-03-09 starts at 05:00Z (local 01:00); in `Asia/Kolkata` it starts at 2025-03-08T18:30Z. A 250 ms old timestamp reads 251, 256 and 261 ms in an unset zone, New York and Kolkata.
+- **SQL collation.** `Agent`, `Model` and the other `%String` columns of `Usage` collate as upper case, so `MIN(Agent)` returns `TRIAGEAGENT` (decision 12). Reading the column itself returns the value as stored.
+
+**Mutations demonstrated** (Rule 19; each applied to the working tree, the test run on a throwaway of tag `e1s4a` and the tree restored byte-identical, checked by hash):
+- mutation: `InputTokens` = the prompt delta only (`Usage.FromStats`) -> `Bridge.Usage.TestFromStats` and `Agent.Decide.TestUsageDecide`, `TestUsageTurn` red
+- mutation: `Delta` ignores `before` (`Usage.Delta`) -> `Bridge.Usage.TestFromStats` and `TestHasSpend` red
+- mutation: the row written by `Conclude` from the `Reply` instead of by the runner (the adapter's `%Save` removed) -> `Agent.Decide.TestTimer` (no row for the late reply) and `TestCostOfFailedTurn` red
+- mutation: the row written only when `Chat` returns (the `HasSpend` branch removed from `Answer`) -> `Agent.Decide.TestCostOfFailedTurn` red
+- mutation: the cache write priced at the input rate (`Price.Cost`) -> `Bridge.Usage.TestCost` red
+- mutation: `>` replaced by `'<` (so `>=`) at the long-tier threshold (`Price.Cost`) -> `Bridge.Usage.TestCost` red at largest 100,000
+- mutation: `SeedPrices` opens and rewrites an existing row -> `Bridge.Usage.TestSeedPrices` red (the edited value does not stay)
+- mutation: `Conclude` reads `Usage.Totals("")`, so the row's totals stay empty -> `Bridge.Decide.TestTotals`, `TestTurnKeepsReply`, `TestResponseFromRow` and `Agent.Decide.TestUsageDecide` red
+- mutation: the totals taken from the runner's `Reply`, not the `Usage` rows (`Conclude`) -> `Bridge.Decide.TestTotals` (two rows) and `TestTurnKeepsReply` red
+- mutation: `ResponseFromRow` without `CarryTotals` -> `Bridge.Decide.TestResponseFromRow` and `Agent.Decide.TestRepeat` (the answer for a recorded row against the row) red
+- mutation: `DurationMs` not set on the row (`Conclude`) -> `Agent.Decide.TestUsageDecide` and `TestUsageTurn` red
+- mutation: `eval` rows counted (`Budget.UsageSpent`) -> `Bridge.Budget.TestStateDay` red
+- mutation: the day bounded at UTC midnight (`Time.DayStartUtc`) -> `Bridge.Time.TestDayBounds` and `Bridge.Budget.TestStateDay`, `TestStateCap` red
+- mutation: the gateway's spend added on any date (`Budget.State`) -> `Bridge.Budget.TestStateCap` red
+- mutation: the `$Data` check under the lock removed (`Budget.MarkCapped`) -> `Bridge.Budget.TestMarkOnce` (the second call returns 1 and sends an event) red
+- mutation: the `Lock` removed (`Budget.MarkCapped`) -> `Bridge.Budget.TestMarkUnderLock` red
+- mutation: the event fired before the node is set (`Budget.MarkCapped`) -> `Bridge.Budget.TestMarkOnce` (the probe sees no mark) red
+- mutation: `State` ignores the mark (`Budget.State`) -> `Bridge.Budget.TestMarkOnce` and `TestMarkSinkFails` red
+- mutation: the default day of `MarkCapped` is the UTC date (`Budget.MarkCapped`) -> `Bridge.Budget.TestMarkDefaultDay` red (in UTC+14 the sink is told the UTC date, not the zone's)
+- mutation: a lock that was not obtained counts as obtained (`Set locked = 1` in `Budget.MarkCapped`) -> `Bridge.Budget.TestMarkLockTimeout` red (result, mark, event and warning)
+- mutation: a day that does not exist is accepted (the `DayStartUtc` check of `Budget.MarkCapped` removed) -> `Bridge.Budget.TestMarkDefaultDay` red (`2025-13-45` and `2001-02-30`)
+- mutation: `MsSince` ignores the fraction of the second (`Time.MsSince`) -> `Bridge.Time.TestMsSinceFraction` red (reads 0 ms less, not 900)
+- mutation: the warning for a Usage row that cannot be saved removed (`Adapter.Agent.RecordUsage`) -> `Bridge.Runner.TestUsageRows` red (no warning that the usage is not recorded)
+
 **Residual risks:**
 - `State` scans the whole `Usage` table (decision 16).
 - The "largest request is the last" claim is an inference (decision 5).
@@ -543,5 +649,43 @@ deferred: []
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Every runner `Chat` now writes one priced `Usage` row from the `GetStats()` delta (also for a call that threw after it spent tokens, and for a reply that came after the timer). `Decide` puts the decision's totals (sums of the rows of its `DecisionRef`, the runner's step count, its own duration) on the `Decision` row and on its answer, and Visual Trace's XML shows them. `Budget.State(now)` reports spent, cap, capped and resetsAt for the instance-zone day, `Budget.MarkCapped(day, sinkClass)` marks a day once under a lock and fires `budget.capped` once, `OcuTalon.Bridge.Time` has the day boundaries, and the installer seeds the prices of Claude Haiku 5.5 and Claude Sonnet 5.5 (only when absent). Storage slots 5 to 7 of `Decide` hold the three budget settings. The lead's rulings U-16, U-17 and U-18 are implemented as written.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: `Answer` reads `GetStats()` around `Chat`; `RecordUsage` writes the row; the `Reply` carries the usage.
+- `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls`, `Price.cls`: `Delta`, `HasSpend`, `FromStats`, `Totals`; `Cost`, `CostFor` (no property or index change).
+- `src/bridge/cls/OcuTalon/Bridge/Installer.cls`: `Prices`, `SeedPrices`, called from `Run()`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: three budget settings and slots 5 to 7, `Conclude` totals and `durationMs`, `CarryTotals`, `FireEvent(type, payload)`.
+- `src/bridge/cls/OcuTalon/Bridge/Budget.cls`, `Time.cls`, `Ext/Accessor.cls`: `State`, `MarkCapped`; the day boundaries and `MsSince`; `ValueFor`.
+- `ci/mock/scenarios/A/usage-decide.json`, `usage-turn.json`: two marker scenarios with exact usage.
+- `release/standalone-bridge.sh`: the "bridge alone prices and counts" check.
+- Tests: new `Test.Bridge.Usage`, `Budget`, `Time`; changed `Test.Bridge.Decide`, `Runner`, `Ext`, `ProbeSink`, `Api`, `Example` and `Test.Agent.Decide`.
+
+**Review.** 42 findings (high 0, medium 4, low 30, false 8), all in the Review Triage Log.
+- **Patched (3 medium and 5 low, by entry):** the failure-path tests and the skip that asserted `1` (`Test.Bridge.Runner.TestUsageRows`, `TestMarkDefaultDay`); the default-day test (two zones); the lock-timeout test (`TestMarkLockTimeout`); the day guard of `MarkCapped` (`DayStartUtc`); the runner tests' Usage cleanup; the `MsSince` fraction test; the `DurationMs` assertion; three comments. Five mutation lines were added to `## Verification`.
+- **Deferred:** none.
+- **Rejected, with the reason recorded in the log:**
+  - by-design (spec-bound): BH4a, BH5 and E4, E9, E10, E11, E12, IA3, IA4, IA6;
+  - wontfix-theoretical or unlikely: BH2, E1, E2, E6, E8;
+  - wontfix-accepted with a `reopen_if`: BH3 and E5, BH6 and E3, BH8, V-O6, V-O8, the `GetStats()` throw of BH7 and IA2;
+  - not a defect: V-O1, V-O4, V-O5, V-O7, E13, IA1;
+  - disproved: BH9 (measured on the slot) and IA5 (`live storage-roundtrip` passed).
+
+**Follow-up review recommended: true.** Three medium entries were patched. The unverified risk is that the three new or changed tests with waits or zones (`TestMarkLockTimeout`, `TestMarkDefaultDay`, the save-failure case of `TestUsageRows`) have run on the ARM developer machine only, not on the x64 runners; their waits are polls with a 120 s ceiling and the lock test's lower bound is 4 of the 5 seconds MarkCapped waits.
+
+**Verification.**
+- Hosted: `bash ci/checks.sh` passed (twice, before and after the patches); `bash docker/tests/test-mock.sh` passed (94 of 94).
+- After the last patch, the `(loop)` lines: `ci/iris.sh build`; every class of the list passed through `ci/iris.sh class` (Usage, Budget, Time, Bridge.Decide, Agent.Decide, Runner, Agent.Runners, Api, Example, Ext, Contracts, CodeRules); `release/standalone-bridge.sh` passed with the new check; `shard lane-a` passed (26 classes, the only SKIP is the existing `TestStepHelpers`), forward and reversed; `ci/iris.sh teardown` removed nothing left over.
+- After the last patch, the `(once)` lines: `shard lane-b` passed (24 classes, `Test.Data.Tables` and `Test.Contract.Ac` among them); `live storage-roundtrip`, `production`, `production-restart`, `install-start`, `install-upgrade`, `audit`, `compose-start` and `demo-path` all passed; the final teardown found nothing left.
+- Matrix Test Audit: every row of the matrix has a covering test that ran and passed (the "Failed call, no spend" row through `Test.Bridge.Usage.TestHasSpend` and `Test.Bridge.Runner.TestUsageRows`; the others through the tests named in each AC).
+- Rule 19: 23 mutations are recorded under `## Verification`; the five added in review were applied, seen red and reverted (the sources were byte-identical afterwards, checked by hash).
+
+**Residual risks.**
+- `State` scans the whole `Usage` table (Decision 16).
+- The "largest request is the last" claim is an inference (Decision 5).
+- A model with no `Price` row has an unknown cost, so its rows are not counted toward the daily cap and `RecordUsage` warns on every call (BH5); the installer prices the default model, and Story 1.6's precheck should treat an unpriced model as a configuration fault.
+- An unreadable budget setting (no active production, or a production with no `Decide` item) counts as its default, so the cap is off without a trace (BH3).
+- The `Price` rows are editable before an admin editor exists; a row with a blank rate prices at 0 (BH6).

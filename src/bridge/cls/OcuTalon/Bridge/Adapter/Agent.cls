@@ -1,3 +1,5 @@
+Include Ensemble
+
 /// The adapter of the agent runners (AD-6, AD-7). It extends AI Hub's outbound agent adapter and changes three things.
 ///   - It refuses to start (OnInit) when a setting would put a policy, a tool, a skill, a system prompt or a session
 ///     configuration on the agent, or when its agent class is not on its allow-list. OnInit calls nothing in AI Hub, so a runner
@@ -8,8 +10,14 @@
 ///   - It composes the session config in one place (Compose) and uses it for every AI session it creates (NewSession) or opens
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort.
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
-/// text, the provider's stop reason, and the host data and taint that the tools put in the context. Inventory lists the tools of
-/// the live ToolManager. This class names no other OcuTalon package (AD-2).
+/// text, the provider's stop reason, and the host data and taint that the tools put in the context. Answer also counts the call
+/// (AD-6, AD-9, AD-20): it reads the session's GetStats() after the session is created and again after Chat, outside every
+/// callback, and RecordUsage writes one Usage row from the difference, priced from Price. That happens after every Chat that
+/// returns, whether or not Decide still waits for it, and after a Chat that threw when the difference holds a model request or a
+/// token; a call that threw before any request writes nothing. The reply carries the same counts, the cost and the model, the
+/// step count (model requests plus tool calls) and the wall time of Chat in milliseconds. A stats, price or save problem is logged
+/// as a warning and never changes the answer or its status. Inventory lists the tools of the live ToolManager. This class names no
+/// other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Adapter.Agent Extends EnsLib.AI.Agent.OutboundAdapter
 {
 
@@ -180,8 +188,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 
 /// Answers a request with a reply. It refuses kind tool ($$$NotImplemented), any kind that is not a request kind, and an Input
 /// that is empty once white space is removed; builds the agent if needed; sets the context with the super session before Chat; chats in a throwaway session; and
-/// fills the reply with the text, the provider's finish_reason and the host data and taint of the context. The context ends on
-/// every path. Errors come back as the status, with AI Hub's text.
+/// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, and the usage of the call
+/// (RecordUsage, which also writes the Usage row). The context ends on every path. Errors come back as the status, with AI Hub's text.
 Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = "", Output reply As OcuTalon.Bridge.Msg.Reply) As %Status
 {
 	Set reply = ""
@@ -198,13 +206,31 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 		Try {
 			Set sc = ..NewSession(.session)
 			If $$$ISOK(sc) {
-				Set response = ..Agent.Chat(session, request.Input)
+				Set before = ..ReadStats(session)
+				Set response = ""
+				Set thrown = ""
+				Set started = $ZHorolog
+				Try {
+					Set response = ..Agent.Chat(session, request.Input)
+				} Catch chatException {
+					Set thrown = chatException
+				}
+				Set durationMs = $Number(($ZHorolog - started) * 1000, 0)
+				Set after = ..ReadStats(session)
+				If '$IsObject(thrown) || ##class(OcuTalon.Bridge.Data.Usage).HasSpend(before, after) {
+					Set last = $Select($IsObject(response): response.Usage, 1: "")
+					Set row = ..RecordUsage(request, before, after, last)
+				} Else {
+					Set row = ""
+				}
+				If $IsObject(thrown) Throw thrown
 				Set context = ##class(OcuTalon.Bridge.Context).Current()
 				Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 				Set reply.Text = ..ContentText(response.Content)
 				Set reply.FinishReason = $Extract(..FinishReason(response.Extra), 1, 32)
 				Set reply.HostData = context.HostData
 				Set reply.Tainted = context.Tainted
+				Do ..CarryUsage(row, before, after, durationMs, reply)
 			}
 		} Catch exception {
 			Set reply = ""
@@ -214,6 +240,58 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If $$$ISERR(sc) Set reply = ""
 	Quit sc
+}
+
+/// session.GetStats(), or "" with a warning when it throws: AI Hub's counters of the session (total_interactions, total_tool_calls
+/// and the token counters). The session is attached.
+Method ReadStats(session As %AI.Agent.Session) As %DynamicObject [ Private ]
+{
+	Set stats = ""
+	Try {
+		Set stats = session.GetStats()
+	} Catch exception {
+		Set stats = ""
+		$$$LOGWARNING("The usage of the call is not counted: GetStats() of the AI session failed: "_exception.DisplayString())
+	}
+	Quit stats
+}
+
+/// Writes the Usage row of one Chat call (Usage.FromStats from the request, the config name of the runner item, the agent's model, the
+/// two readings and the usage of the last response, which is empty when Chat threw) and returns the row. A model with no Price row
+/// gets a row with no cost and a warning that names the model. A problem is logged as a warning, never raised: the row is then
+/// returned unsaved, or "" when none could be built.
+Method RecordUsage(request As OcuTalon.Bridge.Msg.Request, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject) As OcuTalon.Bridge.Data.Usage
+{
+	Set row = ""
+	Try {
+		Set model = ..Agent.Model
+		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromStats(request, ..BusinessHost.%ConfigName, model, before, after, last, .row)
+		If $$$ISOK(sc) {
+			If row.CostUSD = "" $$$LOGWARNING("The usage of the call is recorded with no cost: no Price row has the model '"_model_"'")
+			Set sc = row.%Save()
+		}
+		If $$$ISERR(sc) $$$LOGWARNING("The usage of the call is not recorded: "_$SYSTEM.Status.GetErrorText(sc))
+	} Catch exception {
+		$$$LOGWARNING("The usage of the call is not recorded: "_exception.DisplayString())
+	}
+	Quit row
+}
+
+/// Puts the usage of the call on the reply: the counts, the cost and the model of the row, the step count (the requests of the row
+/// plus the tool calls between the readings) and the wall time of Chat in milliseconds. Without a row the reply carries the step
+/// count and the duration only.
+Method CarryUsage(row As OcuTalon.Bridge.Data.Usage, before As %DynamicObject, after As %DynamicObject, durationMs As %Integer, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+{
+	If $IsObject(row) {
+		Set reply.InputTokens = row.InputTokens
+		Set reply.OutputTokens = row.OutputTokens
+		Set reply.CacheReadTokens = row.CacheReadTokens
+		Set reply.CacheWriteTokens = row.CacheWriteTokens
+		Set reply.CostUSD = row.CostUSD
+		Set reply.Model = row.Model
+	}
+	Set reply.AgentStepCount = ##class(OcuTalon.Bridge.Data.Usage).Delta(before, after, "total_interactions") + ##class(OcuTalon.Bridge.Data.Usage).Delta(before, after, "total_tool_calls")
+	Set reply.DurationMs = durationMs
 }
 
 /// The text of a response's Content: the string, or a stream read whole.

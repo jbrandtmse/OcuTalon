@@ -2,6 +2,7 @@
 /// a production, and nothing is written to the audit log.
 ///   - TestAccessorInAnotherJob: a job that did not start the production reads the three extension classes of Decide
 ///     from the production definition, and gets "" with an error for a bad setting, item, production or class;
+///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4);
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
 ///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter and ReplyGuard pass
 ///     text through and Classification classifies nothing;
@@ -55,6 +56,35 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertTrue($Get(@run@("checkEmptyText")) [ "names no class", "an empty class is refused as such: "_$Get(@run@("checkEmptyText")))
 	Do $$$AssertTrue($Get(@run@("checkMissingText")) [ "is not compiled", "a class that does not exist is refused as such: "_$Get(@run@("checkMissingText")))
 	Kill @run
+}
+
+/// ValueFor (Story 1.4) reads any host setting of the item, from the item's settings, the System Default Settings and the property's
+/// initial value, and gives "" with an error for an item, a setting or a production that is none; ClassFor builds on it.
+Method TestValueFor()
+{
+	Set accessor = "OcuTalon.Bridge.Ext.Accessor"
+	Set value = $ClassMethod(accessor, "ValueFor", "ReplyFilterClass", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "the ReplyFilterClass of Decide is read")
+	Do $$$AssertEquals(value, "OcuTalon.Checks.ReplyGuard", "it is the class that the production names")
+	Do $$$AssertEquals($ClassMethod(accessor, "ClassFor", "ReplyFilterClass", ..#PRODUCTION), value, "which is what ClassFor gives")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "a setting that is no extension class is read too")
+	Do $$$AssertTrue(value ? 1.N, "TimerSeconds is a whole number: "_value)
+	Set value = $ClassMethod(accessor, "ValueFor", "DailyCostCapUSD", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "so is DailyCostCapUSD")
+	Do $$$AssertTrue($IsValidNum(value, "", 0), "which is a number of 0 or more: "_value)
+	Set value = $ClassMethod(accessor, "ValueFor", "ZzNoSuchSetting", ..#PRODUCTION, , .sc)
+	Do $$$AssertEquals(value, "", "a setting that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, "ZzNoSuchItem", .sc)
+	Do $$$AssertEquals(value, "", "an item that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", "Zz.NoSuchProduction", , .sc)
+	Do $$$AssertEquals(value, "", "a production that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ClassFor", "TimerSeconds", ..#PRODUCTION, , .sc)
+	Do $$$AssertEquals(value, "", "ClassFor still refuses a setting that is no extension setting")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
 }
 
 /// The job body of TestAccessorInAnotherJob: reads each case and records the class and 1 for OK, 0 for an error.

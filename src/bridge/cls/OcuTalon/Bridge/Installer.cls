@@ -4,8 +4,9 @@
 Class OcuTalon.Bridge.Installer
 {
 
-/// Prepares what the bridge needs in the current namespace: it registers the audit events of OcuTalon.Bridge.Audit and
-/// writes the three model families of OcuTalon.Bridge.Data.ModelFamily (AD-7).
+/// Prepares what the bridge needs in the current namespace: it registers the audit events of OcuTalon.Bridge.Audit, writes the
+/// three model families of OcuTalon.Bridge.Data.ModelFamily (AD-7) and the prices of the two Claude models of
+/// OcuTalon.Bridge.Data.Price that the product ships (AD-19, AD-20).
 /// Returns an error naming the namespace when it is not an Interoperability namespace.
 ClassMethod Run() As %Status
 {
@@ -14,7 +15,9 @@ ClassMethod Run() As %Status
 	}
 	Set sc = ..RegisterAudit()
 	If $$$ISERR(sc) Quit sc
-	Quit ..SeedModelFamilies()
+	Set sc = ..SeedModelFamilies()
+	If $$$ISERR(sc) Quit sc
+	Quit ..SeedPrices()
 }
 
 /// The model families that the bridge writes, each a $ListBuild(Family, ModelPrefix, CapKey, EffortKey) (AD-7). The longest
@@ -46,6 +49,40 @@ ClassMethod SeedModelFamilies() As %Status
 		Set row.ModelPrefix = $List(family, 2)
 		Set row.CapKey = $List(family, 3)
 		Set row.EffortKey = $List(family, 4)
+		Set sc = row.%Save()
+		If $$$ISERR(sc) Return sc
+	}
+	Quit $$$OK
+}
+
+/// The prices that the bridge seeds, each a $ListBuild(Model, InputPerMTok, OutputPerMTok, CacheReadPerMTok, CacheWritePerMTok,
+/// LongThresholdTokens, LongInputPerMTok, LongOutputPerMTok), in US dollars per million tokens (AD-19, FR-2). The cache-write
+/// rate is the 5-minute rate, 1.25 times the input price, the only one AI Hub writes; the cache-read rate is 0.1 times the input
+/// price. Claude Haiku 5.5 has a long tier above 100,000 tokens, and Claude Sonnet 5.5 has none, so its base rates apply at every size.
+ClassMethod Prices() As %List
+{
+	Quit $ListBuild(
+		$ListBuild("claude-haiku-5-5", 0.1, 0.5, 0.01, 0.125, 100000, 0.5, 2.5),
+		$ListBuild("claude-sonnet-5-5", 2, 10, 0.2, 2.5, "", "", ""))
+}
+
+/// Creates the rows of Prices() that no row has the Model of. A row that exists is left alone, whatever it holds: the prices are
+/// seed values (AD-19), so an admin's edit survives every start, and a deleted row is created again.
+ClassMethod SeedPrices() As %Status
+{
+	Set prices = ..Prices()
+	Set position = 0
+	While $ListNext(prices, position, price) {
+		If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists($List(price, 1)) Continue
+		Set row = ##class(OcuTalon.Bridge.Data.Price).%New()
+		Set row.Model = $List(price, 1)
+		Set row.InputPerMTok = $List(price, 2)
+		Set row.OutputPerMTok = $List(price, 3)
+		Set row.CacheReadPerMTok = $List(price, 4)
+		Set row.CacheWritePerMTok = $List(price, 5)
+		Set row.LongThresholdTokens = $List(price, 6)
+		Set row.LongInputPerMTok = $List(price, 7)
+		Set row.LongOutputPerMTok = $List(price, 8)
 		Set sc = row.%Save()
 		If $$$ISERR(sc) Return sc
 	}

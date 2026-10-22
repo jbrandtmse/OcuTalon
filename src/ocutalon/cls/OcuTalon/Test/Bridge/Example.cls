@@ -9,7 +9,7 @@
 ///     AgentClass and on its AgentAllowList and DecisionPayload as its ReplyClass, and AgentSteps; no item names a provider
 ///     setting and the testing service is off (AD-19: a developer sets those in System Default Settings of their own namespace);
 ///   - TestDecideDefaults: Decide's three extension settings and its timer default to the do-nothing bases and 60 seconds, which
-///     is what the example runs with.
+///     is what the example runs with; its budget settings default to no cap (DailyCostCapUSD 0) and no gateway spend (Story 1.4).
 Class OcuTalon.Test.Bridge.Example Extends %UnitTest.TestCase
 {
 
@@ -99,6 +99,12 @@ Method TestDecideDefaults()
 	Do $$$AssertEquals(..Initial(class, "ReplyFilterClass"), """OcuTalon.Bridge.Ext.ReplyFilter""", "ReplyFilterClass defaults to the filter that passes the text through")
 	Do $$$AssertEquals(..Initial(class, "ClassificationClass"), """OcuTalon.Bridge.Ext.Classification""", "ClassificationClass defaults to the do-nothing classification")
 	Do $$$AssertEquals(..Initial(class, "TimerSeconds"), "60", "TimerSeconds defaults to 60")
+	Do $$$AssertEquals(..Initial(class, "DailyCostCapUSD"), "0", "DailyCostCapUSD defaults to 0, which is no cap")
+	Do $$$AssertEquals(..Initial(class, "GatewaySpendUSD"), $Char(34, 34), "GatewaySpendUSD defaults to the empty string, which is no spend")
+	Do $$$AssertEquals(..Initial(class, "GatewaySpendDate"), $Char(34, 34), "and GatewaySpendDate to the empty string, which is no date")
+	Do $$$AssertEquals(..Setting(class, "DailyCostCapUSD"), "DailyCostCapUSD:Bridge", "DailyCostCapUSD is a host setting of the category Bridge")
+	Do $$$AssertEquals(..Setting(class, "GatewaySpendUSD"), "GatewaySpendUSD:Bridge", "so is GatewaySpendUSD")
+	Do $$$AssertEquals(..Setting(class, "GatewaySpendDate"), "GatewaySpendDate:Bridge", "and GatewaySpendDate")
 }
 
 /// --- helpers ---
@@ -108,6 +114,18 @@ ClassMethod Initial(class As %String, property As %String) As %String [ Private 
 	Set compiled = ##class(%Dictionary.CompiledProperty).%OpenId(class_"||"_property)
 	If '$IsObject(compiled) Quit ""
 	Quit compiled.InitialExpression
+}
+
+/// The entry of the SETTINGS parameter of the class that starts with the name and a colon, or "".
+ClassMethod Setting(class As %String, name As %String) As %String [ Private ]
+{
+	Set found = ""
+	Set entries = $ListFromString($Parameter(class, "SETTINGS"))
+	Set position = 0
+	While $ListNext(entries, position, entry) {
+		If $Piece(entry, ":", 1) = name Set found = entry
+	}
+	Quit found
 }
 
 /// The INSTRUCTIONS block of a compiled class as text, with no carriage return.

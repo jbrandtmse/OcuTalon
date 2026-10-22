@@ -1,4 +1,8 @@
-/// One row per agent turn, written by the runner right after Chat (AD-20). Lane A.
+/// One row per agent turn, written by the runner right after Chat (AD-20). Lane A. The class methods serve the runner (Delta, HasSpend, FromStats) and Decide (Totals):
+///   - Delta: the change of one counter of AI Hub's session stats between two readings;
+///   - HasSpend: whether the turn spent a request or a token, so that a Chat that threw still gets its row;
+///   - FromStats: the unsaved row of one Chat, from the request, the two stats readings and the last response's usage;
+///   - Totals: the sums over the rows of one decision, which Decide puts on its Decision row and its answer.
 Class OcuTalon.Bridge.Data.Usage Extends %Persistent
 {
 
@@ -56,6 +60,98 @@ Property RecordedAt As %String(MAXLEN = 20);
 Index DecisionRefIndex On DecisionRef;
 
 Index OwnerRefIndex On OwnerRef;
+
+/// The change of the counter between two GetStats() readings (after minus before, at least 0). A reading that is not an object, and a
+/// counter that a reading does not hold, count as 0.
+ClassMethod Delta(before As %DynamicObject, after As %DynamicObject, key As %String) As %Integer
+{
+	Set was = $Select($IsObject(before): +before.%Get(key), 1: 0)
+	Set now = $Select($IsObject(after): +after.%Get(key), 1: 0)
+	Quit $Select(now > was: now - was, 1: 0)
+}
+
+/// 1 when the readings differ by a model request or by a token (a prompt, completion, cache-read or cache-write token), otherwise 0.
+ClassMethod HasSpend(before As %DynamicObject, after As %DynamicObject) As %Boolean
+{
+	Set spent = 0
+	For key = "total_interactions", "total_prompt_tokens", "total_completion_tokens", "total_cache_read_tokens", "total_cache_creation_tokens" {
+		If ..Delta(before, after, key) > 0 Set spent = 1
+	}
+	Quit spent
+}
+
+/// Builds the unsaved row of one Chat call (AD-20) in row and returns OK, or returns an error when after is not a stats reading.
+///   - DecisionRef, ItemId, Kind, OwnerRef and Channel come from the request; agent and model are given;
+///   - RequestCount is the delta of total_interactions, OutputTokens the delta of total_completion_tokens, and CacheReadTokens and
+///     CacheWriteTokens the deltas of total_cache_read_tokens and total_cache_creation_tokens;
+///   - InputTokens adds the delta of total_prompt_tokens to those two, because AI Hub's prompt tokens exclude the cached input;
+///   - LargestRequestTokens is the input of the last request, from last (the Usage of the response: prompt_tokens,
+///     cache_read_tokens and cache_creation_tokens), or empty when last is not an object, as after a Chat that threw;
+///   - CostUSD is Price.CostFor of the model, empty when no Price row has it; Estimated is 0; RecordedAt is the current UTC time.
+ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, model As %String, before As %DynamicObject, after As %DynamicObject, last As %DynamicObject, Output row As OcuTalon.Bridge.Data.Usage) As %Status
+{
+	Set row = ""
+	If '$IsObject(after) Quit $$$ERROR($$$GeneralError, "No stats reading after the call, so no usage row can be built")
+	Set prompt = ..Delta(before, after, "total_prompt_tokens")
+	Set cacheRead = ..Delta(before, after, "total_cache_read_tokens")
+	Set cacheWrite = ..Delta(before, after, "total_cache_creation_tokens")
+	Set output = ..Delta(before, after, "total_completion_tokens")
+	Set requests = ..Delta(before, after, "total_interactions")
+	Set largest = $Select($IsObject(last): +last.%Get("prompt_tokens") + last.%Get("cache_read_tokens") + last.%Get("cache_creation_tokens"), 1: "")
+	Set row = ..%New()
+	Set row.DecisionRef = request.DecisionRef
+	Set row.ItemId = request.ItemId
+	Set row.Kind = request.Kind
+	Set row.OwnerRef = request.OwnerRef
+	Set row.Channel = request.Channel
+	Set row.Agent = agent
+	Set row.Model = model
+	Set row.RequestCount = requests
+	Set row.InputTokens = prompt + cacheRead + cacheWrite
+	Set row.OutputTokens = output
+	Set row.CacheReadTokens = cacheRead
+	Set row.CacheWriteTokens = cacheWrite
+	Set row.LargestRequestTokens = largest
+	Set row.CostUSD = ##class(OcuTalon.Bridge.Data.Price).CostFor(model, prompt, cacheRead, cacheWrite, output, largest, requests)
+	Set row.Estimated = 0
+	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Quit $$$OK
+}
+
+/// The totals of the rows of a decision as {"inputTokens","outputTokens","cacheReadTokens","cacheWriteTokens","costUSD","model","rows"}
+/// (AD-20): the sums of the token counts and of the cost, the model of the newest row, and the number of rows. The values are empty
+/// ("") for an empty ref and for a ref with no row, except rows, which is 0; and costUSD is empty when any row has no cost, because an
+/// unknown cost is never 0.
+ClassMethod Totals(decisionRef As %String) As %DynamicObject
+{
+	Set totals = {"inputTokens": "", "outputTokens": "", "cacheReadTokens": "", "cacheWriteTokens": "", "costUSD": "", "model": "", "rows": 0}
+	If decisionRef = "" Quit totals
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, CostUSD, Model FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ? ORDER BY ID", decisionRef)
+	If result.%SQLCODE < 0 Quit totals
+	Set rows = 0, input = 0, output = 0, cacheRead = 0, cacheWrite = 0, cost = 0, unknown = 0, model = ""
+	While result.%Next() {
+		Set rows = rows + 1
+		Set input = input + result.%GetData(1)
+		Set output = output + result.%GetData(2)
+		Set cacheRead = cacheRead + result.%GetData(3)
+		Set cacheWrite = cacheWrite + result.%GetData(4)
+		If result.%GetData(5) = "" {
+			Set unknown = 1
+		} Else {
+			Set cost = cost + result.%GetData(5)
+		}
+		Set model = result.%GetData(6)
+	}
+	If 'rows Quit totals
+	Do totals.%Set("inputTokens", input, "number")
+	Do totals.%Set("outputTokens", output, "number")
+	Do totals.%Set("cacheReadTokens", cacheRead, "number")
+	Do totals.%Set("cacheWriteTokens", cacheWrite, "number")
+	If 'unknown Do totals.%Set("costUSD", $Number(cost, 6), "number")
+	Do totals.%Set("model", model)
+	Do totals.%Set("rows", rows, "number")
+	Quit totals
+}
 
 Storage Default
 {

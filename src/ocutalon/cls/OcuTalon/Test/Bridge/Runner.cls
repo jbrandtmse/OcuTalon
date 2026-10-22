@@ -17,13 +17,24 @@
 ///     its system block marked for the cache in the mock's log, so the cache block of the composed config reaches the provider;
 ///   - TestOpenKeepsConfig: a session that a freshly built adapter opens still has the cap and the effort;
 ///   - TestUnbuiltKinds: kind tool, an unknown kind and an Input that is empty or white space only send nothing and build nothing; a
-///     runner with no model sends nothing.
-/// Every AI session that a test saves is deleted again.
+///     runner with no model sends nothing;
+///   - TestUsageRows (Story 1.4; AD-6, AD-9, AD-20): the runner writes one Usage row for each Chat that returns, with the config name of
+///     the runner item as its agent, and puts the same counts, the cost, the model, the steps and the wall time on the Reply; a call
+///     that fails before any request writes none; a call that stalls in the tool loop after it spent tokens writes one; and a model with
+///     no Price row gets a row with no cost and a warning that names the model, and a row that cannot be saved is a warning and keeps
+///     no row, without changing the answer in either case.
+/// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
 
 /// The class of the runner, whose host is made in memory.
 Parameter RUNNER = "OcuTalon.Bridge.Operation.AgentRunner";
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
+	Quit $$$OK
+}
 
 /// The agent of the default runner of the tests.
 Parameter AGENT = "OcuTalon.Agent.Triage";
@@ -358,7 +369,127 @@ Method TestUnbuiltKinds()
 	Do $$$AssertEquals(entries.%Size(), 0, "and still nothing reached the mock")
 }
 
+/// The Usage row of a call (Story 1.4). A decide request to Triage's default script: one row for its ItemId, written by the runner item
+/// (here the shadow ZzRunner), with the model of the agent, one request, the tokens of the mock and the cost of the Price row; the Reply
+/// has the same counts, the cost and the model, one step and the wall time of the call. A provider failure that comes before any
+/// request is counted writes no row. A turn that stalls in the tool loop after it made requests writes one row with them, and a
+/// model with no Price row gets a row with no cost and one warning that names the model.
+Method TestUsageRows()
+{
+	If ..Guard() Quit
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewUsageRequest("decide", "Triage this item.")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the request is answered")
+	Set ids = ..UsageIds(request.ItemId)
+	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists for the item")
+	If (ids.%Size() = 1) && $IsObject(reply) {
+		Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
+		Do $$$AssertEquals(usage.Agent_"|"_usage.Model_"|"_usage.Kind_"|"_usage.DecisionRef_"|"_usage.OwnerRef_"|"_usage.Channel, "ZzRunner|claude-haiku-5-5|decide|"_request.DecisionRef_"|"_request.OwnerRef_"|"_request.Channel, "its agent is the config name of the runner item, and it has the model and the request's fields")
+		Do $$$AssertEquals(usage.RequestCount, 1, "one model request")
+		Do $$$AssertTrue((usage.InputTokens > 0) && (usage.OutputTokens > 0), "with the tokens of the mock: "_usage.InputTokens_" in, "_usage.OutputTokens_" out")
+		Do $$$AssertEquals(usage.InputTokens, usage.LargestRequestTokens, "the one request is the largest")
+		Do $$$AssertEquals(usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "0|0", "no cache tokens")
+		Do $$$AssertEquals(usage.CostUSD, ##class(OcuTalon.Bridge.Data.Price).CostFor("claude-haiku-5-5", usage.InputTokens, 0, 0, usage.OutputTokens, usage.LargestRequestTokens, 1), "the cost is the Price row's")
+		Do $$$AssertTrue(usage.CostUSD > 0, "which is above 0: "_usage.CostUSD)
+		Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.CacheReadTokens_"|"_reply.CacheWriteTokens_"|"_reply.CostUSD_"|"_reply.Model, usage.InputTokens_"|"_usage.OutputTokens_"|"_usage.CacheReadTokens_"|"_usage.CacheWriteTokens_"|"_usage.CostUSD_"|"_usage.Model, "the Reply carries the counts, the cost and the model of the row")
+		Do $$$AssertEquals(reply.AgentStepCount, 1, "and one step")
+		Do $$$AssertTrue((reply.DurationMs '= "") && (reply.DurationMs '< 0), "and the wall time of the call: "_reply.DurationMs)
+	}
+
+	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusNotOK(sc, "a provider failure gives an error status")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 0, "and, with no request counted, no Usage row")
+
+	Set chat = ..NewRunner("OcuTalon.Agent.Chat", "", ..ProviderConfig("chat"))
+	Set request = ..NewUsageRequest("turn", "Loop on the tool. [[mock:tool-loop]]")
+	Set sc = chat.OnMessage(request, .reply)
+	Do $$$AssertStatusNotOK(sc, "a turn that stalls in the tool loop gives an error status")
+	Do $$$AssertEquals(reply, "", "and no Reply")
+	Set ids = ..UsageIds(request.ItemId)
+	Do $$$AssertEquals(ids.%Size(), 1, "but its requests are counted in one Usage row")
+	If ids.%Size() = 1 {
+		Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
+		Do $$$AssertTrue((usage.RequestCount > 0) && (usage.InputTokens > 0), "with the requests and tokens of the turn: "_usage.RequestCount_" requests, "_usage.InputTokens_" in")
+		Do $$$AssertEquals(usage.LargestRequestTokens, "", "and no largest request, because Chat returned no response")
+		Do $$$AssertEquals(usage.Agent_"|"_usage.Kind, "ZzRunner|turn", "for the runner item and the kind")
+	}
+
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds")
+	Set host.Adapter.Agent.Model = "zz-unpriced"
+	Set request = ..NewUsageRequest("decide", "Triage this item.")
+	Set mark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "a model with no Price row is answered")
+	Set ids = ..UsageIds(request.ItemId)
+	Do $$$AssertEquals(ids.%Size(), 1, "and its call is counted")
+	If (ids.%Size() = 1) && $IsObject(reply) {
+		Set usage = ##class(OcuTalon.Bridge.Data.Usage).%OpenId(ids.%Get(0))
+		Do $$$AssertEquals(usage.Model_"|"_usage.CostUSD, "zz-unpriced|", "with the model and no cost")
+		Do $$$AssertTrue(usage.InputTokens > 0, "but with its tokens")
+		Do $$$AssertEquals(reply.Model_"|"_reply.CostUSD, "zz-unpriced|", "the Reply has the model and no cost either")
+	}
+	Do $$$AssertEquals(..WarningsAbout(mark, "zz-unpriced"), 1, "one warning names the model that has no price")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
+
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds again")
+	Set host.Adapter.Agent.Model = "zz-" _ $Translate($Justify("", 130), " ", "x")
+	Set request = ..NewUsageRequest("decide", "Triage this item.")
+	Set mark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "a call whose Usage row cannot be saved (a model id over the 128 characters of the column) is answered all the same")
+	Do $$$AssertTrue($IsObject(reply) && (reply.Text '= ""), "with its text")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 0, "no row is kept")
+	Do $$$AssertEquals(..WarningsAbout(mark, "is not recorded"), 1, "and one warning says that the usage is not recorded")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "and the context is over")
+}
+
 /// --- helpers ---
+/// A Request with the fields of a Decide request that the Usage row copies: an ItemId and a DecisionRef of its own, the owner instance
+/// and the channel system.
+Method NewUsageRequest(kind As %String, input As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ..NewRequest(kind, "user", input_" (test "_##class(OcuTalon.Bridge.Ids).NewRef()_")")
+	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = "instance"
+	Set request.Channel = "system"
+	Quit request
+}
+
+/// The number of warnings (type 3) of the adapter's RecordUsage after the log mark whose text holds the needle.
+ClassMethod WarningsAbout(mark As %Integer, needle As %String) As %Integer [ Private ]
+{
+	Set found = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Adapter.Agent", "RecordUsage")
+	While result.%Next() {
+		If result.%GetData(1) [ needle Set found = found + 1
+	}
+	Quit found
+}
+
+/// The ids of the Usage rows of the item, as a dynamic array.
+ClassMethod UsageIds(itemId As %String) As %DynamicArray [ Private ]
+{
+	Set ids = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ? ORDER BY ID", itemId)
+	While result.%Next() {
+		Do ids.%Push(result.%GetData(1))
+	}
+	Quit ids
+}
+
+/// The highest id of the event log.
+ClassMethod LogMark() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// Creates a session through a first adapter, chats once, saves it and returns its id. The adapter, its agent and the session are
 /// local, so none of them is open in the process when the method returns.
 Method SaveSession() As %String [ Private ]

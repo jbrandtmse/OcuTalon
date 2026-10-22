@@ -1,17 +1,20 @@
-/// A host sink for the tests of Decide (Story 1.3). Its mode comes from ^||ZzProbeSink("mode"):
+/// A host sink for the tests of Decide and Budget (Stories 1.3 and 1.4). Its mode comes from ^||ZzProbeSink("mode"):
 ///   - record (the default): OnEvent returns OK;
 ///   - error: OnEvent returns an error status;
 ///   - throw: OnEvent throws.
-/// Every call is kept in ^||ZzProbeSink(<call>) as a $ListBuild of the type, the owner, the payload as JSON, $TLevel, and 1 when
-/// the Decision row that the payload's ref names exists at that moment. ^||ZzProbeSink holds the number of calls. The test
-/// that sets the global kills it.
+/// Every call is kept in ^||ZzProbeSink(<call>) as a $ListBuild of the type, the owner, the payload as JSON, $TLevel, 1 when the
+/// Decision row that the payload's ref names exists at that moment (empty when the payload has no ref), and 1 when the day mark
+/// ^OcuTalonBP.UsageCapped(<the payload's day>) exists at that moment, else 0 (empty when the payload has no day).
+/// ^||ZzProbeSink holds the number of calls. The test that sets the global kills it.
 Class OcuTalon.Test.Bridge.ProbeSink Extends OcuTalon.Bridge.Ext.HostSink
 {
 
 ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObject) As %Status
 {
 	Set n = $Increment(^||ZzProbeSink)
-	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(payload.ref))
+	Set ref = payload.%Get("ref")
+	Set day = payload.%Get("day")
+	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 1: ""), $Select(day '= "": $Data(^OcuTalonBP.UsageCapped(day)) > 0, 1: ""))
 	Set mode = $Get(^||ZzProbeSink("mode"), "record")
 	If mode = "error" Quit $$$ERROR($$$GeneralError, "The probe sink was set to fail")
 	If mode = "throw" Throw ##class(%Exception.General).%New("ProbeSink", 5001, , "The probe sink was set to throw")

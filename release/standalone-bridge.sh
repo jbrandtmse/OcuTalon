@@ -17,7 +17,9 @@
 #      example's definition holds neither;
 #   4. the example production starts, the three extension settings of Decide give the three bases, and a decide request through
 #      EnsLib.Testing.Service gets a DecisionResponse with the outcome of the scenario bridge-example, tellnow, and a Decision row
-#      whose TraceSessionId is the session of the request;
+#      whose TraceSessionId is the session of the request; the bridge alone also counts and prices the call (Story 1.4; AD-2, AD-20):
+#      both Price rows that Installer.Run() seeds exist, and the decision's row holds the model claude-haiku-5-5 and tokens and a cost
+#      above 0, with one Usage row for its Ref that TriageAgent wrote;
 #   5. no web application of the namespace names an OcuTalon class or /ocutalon;
 #   6. the production stops.
 # Prints one PASS or FAIL line per check, and exits 1 when any fails. The trap of live_start removes the project, its volume and
@@ -140,6 +142,24 @@ CHK|row-trace|1" \
   'If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(rq.ItemId,"decide",.id) { Set row=##class(OcuTalon.Bridge.Data.Decision).%OpenId(id) } Else { Set row="" }' \
   'Write !,"CHK|row|",$IsObject(row)' \
   'If $IsObject(row)&&$IsObject(rs) { Write !,"CHK|row-ref|",(row.Ref=rs.DecisionRef),!,"CHK|row-outcome|",row.Outcome,!,"CHK|row-trace|",((sid'"'"'="")&&(row.TraceSessionId=sid)) }' \
+  'Halt'
+check_session "the bridge alone prices and counts the decision: both Price rows, and the decision has its model, tokens and cost, with one Usage row of TriageAgent" $NS \
+  "CHK|prices|2
+CHK|row|1
+CHK|model|claude-haiku-5-5
+CHK|input|1
+CHK|cost|1
+CHK|usage-rows|1
+CHK|usage-agent|TriageAgent
+CHK|usage-model|claude-haiku-5-5" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Price WHERE Model IN (?,?)","claude-haiku-5-5","claude-sonnet-5-5") Do rs.%Next() Write !,"CHK|prices|",rs.%GetData(1)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 ID FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ? ORDER BY ID DESC","Standalone bridge check") Set id="" If rs.%Next() { Set id=rs.%GetData(1) }' \
+  'If $Length(id) { Set row=##class(OcuTalon.Bridge.Data.Decision).%OpenId(id) } Else { Set row="" }' \
+  'Write !,"CHK|row|",$IsObject(row)' \
+  'If $IsObject(row) { Write !,"CHK|model|",row.Model,!,"CHK|input|",(row.InputTokens>0),!,"CHK|cost|",(row.CostUSD>0) }' \
+  'Set ref=$Select($IsObject(row):row.Ref,1:"")' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?",ref) Do rs.%Next() Write !,"CHK|usage-rows|",rs.%GetData(1)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 Agent, Model FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ? ORDER BY ID",ref) Set agent="",model="" If rs.%Next() { Set agent=rs.%GetData(1),model=rs.%GetData(2) } Write !,"CHK|usage-agent|",agent,!,"CHK|usage-model|",model' \
   'Halt'
 if [ "$fails" -ne 0 ]; then
   check_session "diagnosis: the event log of $NS holds these error rows" $NS \

@@ -39,6 +39,15 @@
 ///     event, no row;
 ///   - TestOnRequestAnswersRecorded: OnRequest answers a recorded decide or diagnose item from its row before it checks any
 ///     setting or sends anything, and refuses a recorded turn naming the item and the Ref.
+/// Added by Story 1.4 (AD-20, AD-26, AD-31):
+///   - TestTotals: Conclude puts the sums of the Usage rows of its DecisionRef on the Decision row and on the answer, a decide's and a
+///     turn's: the four token counts, the cost, the model of the newest row, the step count of the runner's reply and the duration it
+///     is given; with no row the token fields, cost and model are empty, and with a row of unknown cost the cost is empty;
+///   - TestTurnKeepsReply now takes the totals and the model from the Usage rows, and every other field from the runner's reply;
+///   - TestResponseFromRow also pins that an answer built from a recorded row carries the row's totals;
+///   - TestFireEventTypes: FireEvent sends decision.recorded with {"ref"} by default, and the given type with the given payload, and logs
+///     a failure with the sink, the event and the subject.
+/// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
 
@@ -54,6 +63,9 @@ Parameter REPLYCLASS = "OcuTalon.Bridge.Msg.DecisionPayload";
 /// The ItemIds of the requests that the test made.
 Property ItemIds As %List;
 
+/// The DecisionRefs of the Usage rows that the test made.
+Property UsageRefs As %List;
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set position = 0
@@ -61,6 +73,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
 	}
 	Set ..ItemIds = ""
+	Set position = 0
+	While $ListNext(..UsageRefs, position, ref) {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
+	}
+	Set ..UsageRefs = ""
 	Kill ^||ZzProbeFilter, ^||ZzProbeSink
 	Quit $$$OK
 }
@@ -391,6 +408,18 @@ Method TestResponseFromRow()
 	Set sc = ##class(OcuTalon.Bridge.Process.Decide).ResponseFromRow(row, .response)
 	Do $$$AssertStatusNotOK(sc, "a turn row gives no answer")
 	Do $$$AssertTrue(($SYSTEM.Status.GetErrorText(sc) [ request.ItemId) && ($SYSTEM.Status.GetErrorText(sc) [ row.Ref), "and an error that names the item and the Ref")
+
+	Set request = ..NewRequest("diagnose")
+	Set ref = ..NewUsageRef()
+	Do ..AddUsage(ref, "claude-haiku-5-5", 3800, 300, 2000, 600, .000365)
+	Set reply = ..NewReply(..#DIGEST)
+	Set reply.AgentStepCount = 3
+	Do $$$AssertStatusOK(..ConcludeWith(request, ref, reply, 987, .made), "a diagnose reply with a Usage row is recorded")
+	Set row = ..RowOf(request.ItemId, "diagnose")
+	Do $$$AssertEquals(..Totals(row), "3800|300|2000|600|.000365|claude-haiku-5-5|3|987", "its row holds the totals")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).ResponseFromRow(row, .response), "the answer for the row is built")
+	Do $$$AssertEquals(..Totals(response), "3800|300|2000|600|.000365|claude-haiku-5-5|3|987", "and carries the totals of the row")
+	Do $$$AssertEquals(..Totals(made), ..Totals(response), "as the answer that Conclude gave does")
 }
 
 /// A decision with no reason left once the filter has run, and a turn with no text left, are not answers: Conclude refuses them,
@@ -593,11 +622,14 @@ Method TestReasonLines()
 }
 
 /// The answer to a turn is a clone of the runner's Reply: its Text is filtered and its DecisionRef and Outcome are set, and every
-/// other field that the runner set (the taint flag of AD-10, the session and tool flags, the host data, the finish reason, the model
-/// and the totals) reaches the caller. The runner's own Reply is not changed.
+/// other field that the runner set (the taint flag of AD-10, the session and tool flags, the host data, the finish reason and the step
+/// count) reaches the caller. The totals and the model are those of the decision, the sums of its Usage rows, not the runner's own. The
+/// runner's own Reply is not changed.
 Method TestTurnKeepsReply()
 {
 	Set request = ..NewRequest("turn", "user")
+	Set ref = ..NewUsageRef()
+	Do ..AddUsage(ref, "zz-model-of-the-rows", 777, 88, 9, 10, .0042)
 	Set reply = ..NewReply("Everything is fine.", "end_turn")
 	Set reply.Tainted = 1
 	Set reply.SessionRotated = 1
@@ -606,7 +638,8 @@ Method TestTurnKeepsReply()
 	Set reply.Model = "claude-haiku-5-5"
 	Set reply.InputTokens = 123
 	Set reply.OutputTokens = 45
-	Set sc = ..Conclude(request, reply, .response, ..#FILTER)
+	Set reply.AgentStepCount = 4
+	Set sc = ..ConcludeWith(request, ref, reply, 250, .response, ..#FILTER)
 	Do $$$AssertStatusOK(sc, "a turn reply with the runner's flags and totals is recorded")
 	If '$IsObject(response) {
 		Do $$$AssertTrue(0, "the answer is a Reply")
@@ -615,14 +648,102 @@ Method TestTurnKeepsReply()
 	Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
 	Do $$$AssertEquals(response.Text, "[f] Everything is fine.", "its Text is the filtered text")
 	Do $$$AssertEquals(response.Tainted_"|"_response.SessionRotated_"|"_response.ToolsRun, "1|1|1", "the taint, session-rotated and tools-run flags of the runner reach the caller")
-	Do $$$AssertEquals(response.HostData_"|"_response.FinishReason_"|"_response.Model, "{""rows"":[1]}|end_turn|claude-haiku-5-5", "and so do the host data, the finish reason and the model")
-	Do $$$AssertEquals(response.InputTokens_"|"_response.OutputTokens, "123|45", "and the totals")
+	Do $$$AssertEquals(response.HostData_"|"_response.FinishReason, "{""rows"":[1]}|end_turn", "and so do the host data and the finish reason")
+	Do $$$AssertEquals(..Totals(response), "777|88|9|10|.0042|zz-model-of-the-rows|4|250", "the totals and the model are those of the Usage rows of the decision, the step count the runner's, the duration the one given")
 	Set row = ..RowOf(request.ItemId, "turn")
 	Do $$$AssertTrue($IsObject(row), "the turn is recorded")
 	If $IsObject(row) {
 		Do $$$AssertEquals(response.DecisionRef_"|"_response.Outcome, row.Ref_"|tellnow", "with the DecisionRef of its row and the outcome tellnow")
+		Do $$$AssertEquals(..Totals(row), ..Totals(response), "and its row holds the same totals")
 	}
 	Do $$$AssertEquals(reply.Text_"|"_reply.Outcome_"|"_reply.DecisionRef, "Everything is fine.||", "the runner's own Reply is not changed")
+	Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.Model_"|"_reply.AgentStepCount, "123|45|claude-haiku-5-5|4", "not even its totals")
+}
+
+/// Conclude puts the totals of the decision on the Decision row and on the answer, for a decide and for a turn (AD-20, AD-26): the
+/// sums of the Usage rows of its DecisionRef in InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens and CostUSD, the Model of
+/// the newest row, the AgentStepCount of the runner's reply, and the DurationMs it is given. A decision with no Usage row has empty
+/// token fields, cost and model, and one with a row of unknown cost has an empty cost. The reply's own totals are never used.
+Method TestTotals()
+{
+	For kind = "decide", "turn" {
+		Set request = ..NewRequest(kind, $Select(kind = "turn": "user", 1: "untrusted"))
+		Set ref = ..NewUsageRef()
+		Do ..AddUsage(ref, "claude-haiku-5-5", 3800, 300, 2000, 600, .000365)
+		Do ..AddUsage(ref, "claude-sonnet-5-5", 1200, 50, 0, 100, .0123)
+		Do ..AddUsage(..NewUsageRef(), "claude-haiku-5-5", 99999, 99999, 99999, 99999, 9)
+		Set reply = ..NewReply($Select(kind = "turn": "Everything is fine.", 1: ..#DIGEST))
+		Set reply.AgentStepCount = 5
+		Set reply.InputTokens = 1
+		Set reply.CostUSD = 1
+		Set reply.Model = "zz-model-of-the-reply"
+		Do $$$AssertStatusOK(..ConcludeWith(request, ref, reply, 1234, .response), "a "_kind_" with two Usage rows is recorded")
+		Set row = ..RowOf(request.ItemId, kind)
+		If '$IsObject(row) || '$IsObject(response) {
+			Do $$$AssertTrue(0, "the "_kind_" is recorded and answered")
+			Continue
+		}
+		Set expected = "5000|350|2000|700|.012665|claude-sonnet-5-5|5|1234"
+		Do $$$AssertEquals(..Totals(row), expected, "the "_kind_" row holds the sums, the model of the newest row, the runner's step count and the duration")
+		Do $$$AssertEquals(..Totals(response), expected, "and so does the answer")
+	}
+
+	Set request = ..NewRequest("decide")
+	Set reply = ..NewReply(..#DIGEST)
+	Set reply.AgentStepCount = 5
+	Set reply.InputTokens = 1
+	Do $$$AssertStatusOK(..ConcludeWith(request, ..NewUsageRef(), reply, 1234, .response), "a decide with no Usage row is recorded")
+	Set row = ..RowOf(request.ItemId, "decide")
+	Do $$$AssertEquals(..Totals(row), "||||||5|1234", "its row has empty token fields, cost and model, and the step count and the duration")
+	Do $$$AssertEquals(..Totals(response), "||||||5|1234", "and so does the answer")
+
+	Set request = ..NewRequest("turn", "user")
+	Do $$$AssertStatusOK(..ConcludeWith(request, ..NewUsageRef(), ..NewReply("Hello."), "", .response), "a turn with no Usage row and no duration is recorded")
+	Do $$$AssertEquals(..Totals(..RowOf(request.ItemId, "turn")), "|||||||", "its row has nothing but empty fields")
+	Do $$$AssertEquals(..Totals(response), "|||||||", "and so does the answer")
+
+	Set request = ..NewRequest("decide")
+	Set ref = ..NewUsageRef()
+	Do ..AddUsage(ref, "claude-haiku-5-5", 100, 10, 0, 0, .0001)
+	Do ..AddUsage(ref, "zz-unpriced", 200, 20, 5, 6, "")
+	Do $$$AssertStatusOK(..ConcludeWith(request, ref, ..NewReply(..#DIGEST), 10, .response), "a decide with a Usage row of unknown cost is recorded")
+	Set row = ..RowOf(request.ItemId, "decide")
+	Do $$$AssertEquals(..Totals(row), "300|30|5|6||zz-unpriced||10", "its cost is empty, never the sum of the others, and the other fields are the sums")
+	Do $$$AssertEquals(..Totals(response), "300|30|5|6||zz-unpriced||10", "and so is the answer's")
+}
+
+/// FireEvent sends decision.recorded with {"ref"} when it is given no type, and the type with the payload it is given; the warning of a
+/// sink that fails names the sink, the event and the subject (the day, for budget.capped). It returns 1 when the sink took the event.
+Method TestFireEventTypes()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Kill ^||ZzProbeSink
+	Do $$$AssertEquals($ClassMethod(decide, "FireEvent", ..#SINK, "ZzOwner", "ref1"), 1, "an event with no type is delivered")
+	Set call = $Get(^||ZzProbeSink(1))
+	Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 2)_"|"_$List(call, 3), "decision.recorded|ZzOwner|{""ref"":""ref1""}", "it is decision.recorded with the Ref as its payload")
+	Do $$$AssertEquals($ClassMethod(decide, "FireEvent", ..#SINK, "ZzOwner", "ref2", "approval.raised"), 1, "an event with a type and no payload is delivered")
+	Set call = $Get(^||ZzProbeSink(2))
+	Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 3), "approval.raised|{""ref"":""ref2""}", "it has that type and the Ref as its payload")
+	Kill ^||ZzProbeSink
+	Kill ^OcuTalonBP.UsageCapped("2001-02-03")
+	Set payload = ##class(OcuTalon.Bridge.Ext.HostSink).BudgetCappedPayload("2001-02-03")
+	Do $$$AssertEquals($ClassMethod(decide, "FireEvent", ..#SINK, "instance", "2001-02-03", "budget.capped", payload), 1, "budget.capped with its payload is delivered")
+	Set call = $Get(^||ZzProbeSink(1))
+	Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 2)_"|"_$List(call, 3), "budget.capped|instance|{""day"":""2001-02-03""}", "with the owner and the payload it was given")
+	Do $$$AssertEquals($List(call, 4)_"|"_$List(call, 5)_"|"_$List(call, 6), "0||0", "outside any transaction, with no ref and no mark")
+
+	For mode = "error", "throw" {
+		Kill ^||ZzProbeSink
+		Set ^||ZzProbeSink("mode") = mode
+		Set mark = ..LogMark()
+		Do $$$AssertEquals($ClassMethod(decide, "FireEvent", ..#SINK, "instance", "2001-02-03", "budget.capped", payload), 0, "in "_mode_" mode the event is not delivered")
+		Do ..AssertWarning(mark, ..#SINK, "2001-02-03", "budget.capped in "_mode_" mode", "budget.capped")
+	}
+	Kill ^||ZzProbeSink
+	Set mark = ..LogMark()
+	Do $$$AssertEquals($ClassMethod(decide, "FireEvent", "OcuTalon.Test.Bridge.ProbeNotASink", "instance", "2001-02-03", "budget.capped", payload), 0, "a class that is no host sink gets no event")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and the probe heard nothing")
+	Do ..AssertWarning(mark, "OcuTalon.Test.Bridge.ProbeNotASink", "2001-02-03", "budget.capped to a class that is no sink", "budget.capped")
 }
 
 /// A decision whose row cannot be saved is no answer: Conclude ends with the save error, gives no response, fires no event and
@@ -760,6 +881,43 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, reply As OcuTalon.B
 	Quit ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), reply, ..#REPLYCLASS, filter, sink, 4242, .response)
 }
 
+/// Conclude as the helper above does, for a DecisionRef that the test chose (the Usage rows of the decision carry it) and with the
+/// duration that Decide measured. response is the answer.
+ClassMethod ConcludeWith(request As OcuTalon.Bridge.Msg.Request, ref As %String, reply As OcuTalon.Bridge.Msg.Reply, durationMs As %Integer, Output response, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter", sink As %String = "OcuTalon.Bridge.Ext.HostSink") As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ref, reply, ..#REPLYCLASS, filter, sink, 4242, .response, durationMs)
+}
+
+/// A new DecisionRef for Usage rows, which the test deletes the rows of afterwards.
+Method NewUsageRef() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..UsageRefs = ..UsageRefs _ $ListBuild(ref)
+	Quit ref
+}
+
+/// Saves a Usage row of the DecisionRef.
+Method AddUsage(ref As %String, model As %String, input As %Integer, completion As %Integer, cacheRead As %Integer, cacheWrite As %Integer, cost As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
+	Set row.DecisionRef = ref
+	Set row.OwnerRef = "instance"
+	Set row.Model = model
+	Set row.InputTokens = input
+	Set row.OutputTokens = completion
+	Set row.CacheReadTokens = cacheRead
+	Set row.CacheWriteTokens = cacheWrite
+	Set row.CostUSD = cost
+	Do $$$AssertStatusOK(row.%Save(), "a Usage row of "_model_" is saved")
+}
+
+/// The eight total fields of a Decision row or an answer, in the order of Result: InputTokens, OutputTokens, CacheReadTokens,
+/// CacheWriteTokens, CostUSD, Model, AgentStepCount and DurationMs, joined by |.
+ClassMethod Totals(object As %RegisteredObject) As %String [ Private ]
+{
+	Quit object.InputTokens_"|"_object.OutputTokens_"|"_object.CacheReadTokens_"|"_object.CacheWriteTokens_"|"_object.CostUSD_"|"_object.Model_"|"_object.AgentStepCount_"|"_object.DurationMs
+}
+
 /// The number of Decision rows of the item.
 ClassMethod Rows(itemId As %String) As %Integer [ Private ]
 {
@@ -805,15 +963,15 @@ ClassMethod LogMark() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// Asserts that the event log holds, after the mark, one warning (type 3) of Decide's FireEvent whose text names the class and the
-/// Ref. Outside a production job its ConfigName is empty (measured in Story 1.3).
-Method AssertWarning(mark As %Integer, class As %String, ref As %String, label As %String) [ Private ]
+/// Asserts that the event log holds, after the mark, one warning (type 3) of Decide's FireEvent whose text names the class, the
+/// Ref and, when given, the event. Outside a production job its ConfigName is empty (measured in Story 1.3).
+Method AssertWarning(mark As %Integer, class As %String, ref As %String, label As %String, event As %String = "") [ Private ]
 {
 	Set found = 0
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Bridge.Process.Decide", "FireEvent")
 	While result.%Next() {
 		Set text = result.%GetData(1)
-		If (text [ class) && (text [ ref) Set found = found + 1
+		If (text [ class) && (text [ ref) && (text [ event) Set found = found + 1
 	}
 	Do $$$AssertEquals(found, 1, label_": one warning names "_class_" and the Ref")
 }

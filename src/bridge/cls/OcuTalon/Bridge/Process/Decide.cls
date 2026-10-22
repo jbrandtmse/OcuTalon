@@ -13,14 +13,21 @@ Include Ensemble
 ///     runner accepts, for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the
 ///     ReplyFilterClass, the user rule is applied, one Decision row is recorded, the event decision.recorded is fired after the
 ///     commit (FireEvent) and the answer is built. For a user's decide request an ignore or digest becomes tellnow.
+///   - The row and the answer carry the decision's totals (AD-20): the token counts, the cost and the model are the sums over the
+///     Usage rows of its DecisionRef, which the runner wrote (Usage.Totals); the step count is the runner's, and the duration is
+///     the time from the moment Decide began to handle the request to Conclude. CarryTotals copies the eight fields between a
+///     row and an answer, so an answer built from a recorded row carries the row's totals. A decision with no Usage row has empty
+///     totals, and one with a row of unknown cost has an empty cost.
 ///   - A runner error, a reply that fails its check and the timer end with an error status, and no row is recorded; the late
 ///     reply of a runner after the timer is discarded by the business process framework.
 /// The three extension settings name the classes through which the bridge reaches its host (AD-31); the production definition
-/// sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. This class names no other OcuTalon package (AD-2).
+/// sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
+/// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor. FireEvent delivers every event of the
+/// bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -42,6 +49,15 @@ Property ClassificationClass As %String(MAXLEN = 128) [ InitialExpression = "Ocu
 
 /// How long Decide waits for the runner's reply, in whole seconds from 1 to MAXTIMER (AD-5, AD-8).
 Property TimerSeconds As %Integer [ InitialExpression = 60 ];
+
+/// The daily cost cap in US dollars; 0 means off. A value that is not a number of 0 or more counts as 0 (OcuTalon.Bridge.Budget).
+Property DailyCostCapUSD As %Numeric [ InitialExpression = 0 ];
+
+/// The spend that the online demo's outbound gateway reports for GatewaySpendDate, in US dollars (AD-19, AD-20).
+Property GatewaySpendUSD As %Numeric;
+
+/// The instance-zone date, YYYY-MM-DD, that GatewaySpendUSD counts.
+Property GatewaySpendDate As %String(MAXLEN = 10);
 
 /// Admits the request, finds the decision that is recorded for its item, or sends it to the runner of its kind and sets the
 /// timer. The answer for a recorded decide or diagnose request is given here (response); otherwise the answer comes from
@@ -84,7 +100,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
-	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response)
+	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 }
 
 /// OK when the message is a Request that Decide serves. A message of another class, and a request of kind tool, give "not
@@ -218,11 +234,14 @@ ClassMethod CheckReplyShape(kind As %String, reply As OcuTalon.Bridge.Msg.Reply)
 ///   3. applies the user rule: for a decide request with provenance user, an ignore or digest becomes tellnow, and the first
 ///      reason line says so (USERANSWERED);
 ///   4. answers from the row that another call saved first for the item and kind, if there is one, and fires no event;
-///   5. saves one Decision row (Record), with the confidence rounded to two decimals and traceSessionId as TraceSessionId;
+///   5. saves one Decision row (Record), with the confidence rounded to two decimals, traceSessionId as TraceSessionId and the
+///      totals of the decision: the sums of the Usage rows of decisionRef (Usage.Totals), the reply's AgentStepCount and
+///      durationMs (whole milliseconds, "" when unknown);
 ///   6. fires decision.recorded after the save (FireEvent);
-///   7. builds the DecisionResponse, or a clone of the Reply with the filtered Text, the DecisionRef and the outcome tellnow.
+///   7. builds the DecisionResponse, or a clone of the Reply with the filtered Text, the DecisionRef, the outcome tellnow and the
+///      row's totals (CarryTotals).
 /// A reply that fails a step ends with an error status and records nothing.
-ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent) As %Status
+ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "") As %Status
 {
 	Set response = ""
 	Set kind = request.Kind
@@ -279,6 +298,15 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Set row.Payload = json
 	Set row.TraceSessionId = traceSessionId
 	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set totals = ##class(OcuTalon.Bridge.Data.Usage).Totals(decisionRef)
+	Set row.InputTokens = totals.inputTokens
+	Set row.OutputTokens = totals.outputTokens
+	Set row.CacheReadTokens = totals.cacheReadTokens
+	Set row.CacheWriteTokens = totals.cacheWriteTokens
+	Set row.CostUSD = totals.costUSD
+	Set row.Model = totals.model
+	Set row.AgentStepCount = reply.AgentStepCount
+	Set row.DurationMs = durationMs
 	Set sc = ..Record(row, .saved, .response)
 	If $$$ISERR(sc) || 'saved Quit sc
 	Do ..FireEvent(sinkClass, request.OwnerRef, decisionRef)
@@ -287,6 +315,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		Set response.Text = text
 		Set response.DecisionRef = decisionRef
 		Set response.Outcome = outcome
+		Do ..CarryTotals(row, response)
 		Quit $$$OK
 	}
 	Quit ..ResponseFromRow(row, .response)
@@ -310,26 +339,31 @@ ClassMethod Record(row As OcuTalon.Bridge.Data.Decision, Output saved As %Boolea
 	Quit sc
 }
 
-/// Fires decision.recorded to the host sink: OnEvent(type, ownerRef, {"ref": ref}). Call it after the save has committed. An
-/// error status, an exception and a sink class that fails OcuTalon.Bridge.Ext.Accessor.Check (then no event is sent) are
-/// logged as a warning that names the class, the event and the Ref, and never fail the caller. 1 when OnEvent returned OK.
-ClassMethod FireEvent(sinkClass As %String, ownerRef As %String, ref As %String) As %Boolean
+/// Fires an event to the host sink: OnEvent(type, ownerRef, payload), by default decision.recorded with {"ref": ref}. Every event
+/// of the bridge goes through this method (AD-31). Call it after the change it reports has committed. An error status, an
+/// exception and a sink class that fails OcuTalon.Bridge.Ext.Accessor.Check (then no event is sent) are logged as a warning that
+/// names the class, the event and the subject, and never fail the caller. 1 when OnEvent returned OK.
+///   - type: one of OcuTalon.Bridge.Ext.HostSink EVENTS; empty means decision.recorded;
+///   - ref: the subject of the event for the warning: the Ref of the decision, or the day of budget.capped;
+///   - payload: the payload object; empty means HostSink.RefPayload(ref).
+ClassMethod FireEvent(sinkClass As %String, ownerRef As %String, ref As %String, type As %String = "", payload As %DynamicObject = "") As %Boolean
 {
-	Set event = ##class(OcuTalon.Bridge.Ext.HostSink).#DECISIONRECORDED
+	Set event = $Select(type = "": ##class(OcuTalon.Bridge.Ext.HostSink).#DECISIONRECORDED, 1: type)
 	Set delivered = 0
 	Try {
+		If '$IsObject(payload) Set payload = ##class(OcuTalon.Bridge.Ext.HostSink).RefPayload(ref)
 		Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("HostSinkClass", sinkClass)
 		If $$$ISOK(sc) {
-			Set sc = $ClassMethod(sinkClass, "OnEvent", event, ownerRef, ##class(OcuTalon.Bridge.Ext.HostSink).RefPayload(ref))
+			Set sc = $ClassMethod(sinkClass, "OnEvent", event, ownerRef, payload)
 		}
 		If $$$ISOK(sc) {
 			Set delivered = 1
 		} Else {
-			$$$LOGWARNING("The host sink "_sinkClass_" did not take the event "_event_" for decision "_ref_": "_$SYSTEM.Status.GetErrorText(sc))
+			$$$LOGWARNING("The host sink "_sinkClass_" did not take the event "_event_" for "_ref_": "_$SYSTEM.Status.GetErrorText(sc))
 		}
 	} Catch exception {
 		Set delivered = 0
-		$$$LOGWARNING("The host sink "_sinkClass_" threw on the event "_event_" for decision "_ref_": "_exception.DisplayString())
+		$$$LOGWARNING("The host sink "_sinkClass_" threw on the event "_event_" for "_ref_": "_exception.DisplayString())
 	}
 	Quit delivered
 }
@@ -344,8 +378,8 @@ ClassMethod ResponseFromId(id As %String, Output response As %Persistent) As %St
 }
 
 /// The DecisionResponse for a recorded decide or diagnose row: its Ref as DecisionRef, outcome, reasons, confidence,
-/// fallback flag and reason, and payload. The row of a turn keeps no reply text, so a turn is refused with an error that
-/// names the item and the Ref.
+/// fallback flag and reason, payload and totals (CarryTotals). The row of a turn keeps no reply text, so a turn is refused with an
+/// error that names the item and the Ref.
 ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output response As %Persistent) As %Status
 {
 	Set response = ""
@@ -360,7 +394,17 @@ ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output respons
 	Set response.Fallback = row.Fallback
 	Set response.FallbackReason = row.FallbackReason
 	Set response.Payload = row.Payload
+	Do ..CarryTotals(row, response)
 	Quit $$$OK
+}
+
+/// Copies the eight total fields (InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, CostUSD, Model, AgentStepCount and
+/// DurationMs) from a Decision row to an answer, or the other way: both hold them under these names (AD-20, AD-26).
+ClassMethod CarryTotals(from As %RegisteredObject, to As %RegisteredObject)
+{
+	For name = "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "CostUSD", "Model", "AgentStepCount", "DurationMs" {
+		Set $Property(to, name) = $Property(from, name)
+	}
 }
 
 Storage Default
@@ -378,6 +422,15 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>TimerSeconds</Value>
+</Value>
+<Value name="5">
+<Value>DailyCostCapUSD</Value>
+</Value>
+<Value name="6">
+<Value>GatewaySpendUSD</Value>
+</Value>
+<Value name="7">
+<Value>GatewaySpendDate</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>
