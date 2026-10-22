@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-21'
 status: 'done'
 baseline_revision: '435d814263697bc7d66bed155130374ea8be82a7'
+baseline_commit: '435d814263697bc7d66bed155130374ea8be82a7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -399,7 +400,7 @@ It wraps CDK primitives instead of writing its own. `ModelName` is new: its only
 - A new Consistency Conventions row "README link" records `README_URL` (below).
 
 **Ruled at spec validation (veto, inbox U-9; the implement stage builds on it, no open question remains).** The About dialog's README link needs a target, and no planning artifact names one; no README exists yet (Story 10.2 writes it).
-- **Ruling:** `README_URL = 'https://github.com/jbrandtmse/OcuTalon#readme'`, from the repository's `origin` remote, defined once in `web/src/app/links.ts`; Stories 2.10, 16.x and 31.3 reuse it, and a section link appends its fragment to it. The spine's Conventions row "README link" records it.
+- **Ruling:** `README_URL = 'https://github.com/jbrandtmse/OcuTalon#readme'`, from the repository's `origin` remote, defined once in `web/src/app/links.ts`; Stories 2.10, 16.x and 31.3 reuse it, and a section link uses the same address with the section's anchor in place of `#readme` (corrected by the lead after the implement pass; it read "appends its fragment to it"). The spine's Conventions row "README link" records it.
 - **Note:** the link answers 404 to visitors until the owner makes the repository public, which stays the owner's release action.
 - **Reversal:** change that one constant and the Conventions row.
 
