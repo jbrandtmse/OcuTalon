@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-22-2026 11:43
+last_updated: 10-22-2026 13:36
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +68,7 @@ development_status:
   2-1-lay-out-the-main-page-frame: done
   2-2-keep-the-session-and-load-its-snapshot-with-live-updates: done
   2-3-route-every-command-by-verb-with-origin-checks: done
-  2-4-answer-every-chat-message-through-the-turn-pipeline: in-progress
+  2-4-answer-every-chat-message-through-the-turn-pipeline: review
   2-5-chat-with-ocutalon-in-the-page: backlog
   2-6-show-every-decision-with-its-reasons-and-cost: backlog
   2-7-route-untrusted-items-and-notifications-by-outcome: backlog
