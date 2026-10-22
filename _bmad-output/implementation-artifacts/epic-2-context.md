@@ -12,7 +12,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
 - Story 2.2: Keep the session and load its snapshot with live updates (done)
 - Story 2.3: Route every command by verb, with origin checks (done)
 - Story 2.4: Answer every chat message through the turn pipeline (done)
-- Story 2.5: Chat with OcuTalon in the page
+- Story 2.5: Chat with OcuTalon in the page (done)
 - Story 2.6: Show every decision with its reasons and cost
 - Story 2.7: Route untrusted items and notifications by outcome
 - Story 2.8: Show the status rail
@@ -24,16 +24,16 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
 ## Requirements & Constraints
 
 - **Replies.** Each message gets exactly one live reply, whatever its outcome. A message sent mid-turn becomes its own turn, as the user's message, never inside a tool result.
-- **Fallbacks.** A fallback reads "I couldn't answer that: {reason}. Nothing was changed." in the UX's words, with Tell now, the Fallback flag and no confidence. Tests force every `FallbackReason` and the error status through a `Decide` double.
+- **Fallbacks.** A fallback reads "I couldn't answer that: {reason}. Nothing was changed." in the UX's words, with Tell now, the Fallback flag and no confidence.
 - **Timing.** CI checks these against the mock: live content on the page within 2 s, a tell-now notice in the chat within 5 s, and every decision landing before its reply.
 - **Restarts.** The conversation, checks, reminders, pending approvals and queued turns survive. A running turn runs again.
 - **Text and times.**
-  - Fixed strings match the UX exactly. A string test checks them, including "…".
+  - Fixed strings match the UX exactly, as exported constants with non-ASCII characters escaped in the source. A string test checks them, including "…".
   - Times are UTC ISO 8601 in storage and the API. Message text uses the instance zone through `Data.Time`. The page uses the browser zone, and banner times are page times.
 - **Cost** is kept per turn and per decision, never per step. A reply shows `Ownership.TurnCost`; a rail row shows the decision's own cost.
 - **All-clear.** All-clear sentences and check rows come only from `Checks.Render`.
 - **Security.**
-  - Model-written and arriving text renders as text: no `bypassSecurityTrust*`, and CSP is `script-src 'self'`.
+  - Model-written and arriving text renders as text, by interpolation only: nothing in `web/src` writes HTML or calls `bypassSecurityTrust*` (a source scan checks), and CSP is `script-src 'self'`. A labelled reply link shows the host it opens after the label.
   - No endpoint takes a `SessionRef`.
   - Untrusted content never reaches a governance command or the conversation.
   - No key, pairing code or Telegram identity is logged or published.
@@ -56,7 +56,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - `Conversation` alone owns the `Turn` queue. It calls `Decide` (`decide`, then `turn`), stores both `DecisionRef`s and publishes `chat.message` at each stage.
   - `Intake` calls `decide`; on `act` it runs a read-only turn in a fresh session. It sends each `ItemDecision` to `OutcomeRouter`, or to `EvalSink` for `eval`.
   - Rules route only on named properties, and only Tell now and Act notify.
-- **Rendering.** Only `*Out` operations render, through `Msg.Catalog.Render`. Each records its row with `Delivery.Record`, which Story 2.7 implements.
+- **Rendering.** Only `*Out` operations render, through `Msg.Catalog.Render`. Each records its row with `Delivery.Record`, which Story 2.7 implements. The page renders catalog text only from the generated `web/src/app/msg/catalog.ts` (`web/scripts/catalog.mjs`, checked in the build); a story that renders a new key adds it to the generator's allowlist.
 - **`BridgeSink`** alone turns bridge events into live events.
   - It reads bridge rows through Ownership and keeps no copies.
   - It never fails its caller, and waits under 1 s on any lock.
@@ -69,6 +69,7 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - Write them only through `Live.Publish`, after the commit and never inside a transaction.
   - Each payload is the entity's full view, keyed by its `Ref`, never a delta.
   - Each type has one publisher: `chat.message` (`Conversation`), `notification` (`WebChatOut`), `decision`, `approval` and `turn.step` (`BridgeSink`), `reminder` (`ReminderOps`, `ReminderTimer`) and `status` (`StatusMonitor`).
+  - The snapshot's `chat` is the session's newest 100 entries (`CHATMAX`), oldest first; older turns stay stored and in Visual Trace. Notice and incident cards merge into it.
   - Polling is release 1's only live path.
 - **Status conditions** come from a closed catalog: `allowance`, `dailyCap`, `noModelKey`, `heartbeatStalled`, `telegramPaused` and `resetSoon`. `/state` computes them, and `StatusMonitor` publishes their changes every 15 s. Key and cap state come only from `Bridge.Keys.Status` and `Bridge.Budget.State`.
 - **Visual Trace.** Each session has one thread per day, from `Trace.Join`, which only channel services call. Work inside a turn, commands included, joins the turn's thread through the bridge context's `ThreadSessionId`; a command outside a turn takes the session's `TraceRef` as its `SuperSession`. `Web.TraceLink` is the only trace-URL builder.
@@ -86,33 +87,27 @@ Epic 2 turns the empty signed-in page into release 1's main page on a local or I
   - Focus moves only when the focused element is removed.
   - The chat, rail and timers are not live regions.
   - One announcer speaks each event once.
-- **Controls.** Reuse Story 2.1's buttons, server button, popovers, dialogs and tooltips. Disclosures open inline. Trace links sit beside rows and open in a new tab.
+- **Controls.** Reuse Story 2.1's buttons, server button, popovers, dialogs and tooltips. Disclosures open inline. Trace links sit beside rows. Trace, README and reply links open in a new tab and say "(opens in a new tab)" in their names.
 - **Banned.** Modal notifications, toast-only copy, sounds, hover-only controls, progress bars, celebrations and infinite scroll.
 - **Widths.** The rail is wide from 1440px, standard from 1280px and a drawer from 1024px. Below that the page is one column.
 
 ## Cross-Story Dependencies
 
-- **Built so far (Stories 2.1 to 2.4).**
-  - **Frame:** `MainPage`, `.banner-slot` and the shared controls.
-  - **Server:**
-    - `SessionEvents` attaches the durable `Session` at sign-in;
-    - `Ownership` provides `SessionRef`, `Rows`, `Watchers` and `Incident`, and `Session.Recipients` is built;
-    - `/state` holds `epoch`, `streams`, `chat`, `rail`, `telegram` and `status` (empty until Story 2.10), built by the `Live.Payload.*.FromRow` builders;
-    - `CommandsIn` routes every verb; its owners stay stubs until their own epics;
-    - `POST /api/v1/messages` (202 `{clientId}`, a repeat dropped, 400 `bad_message`) → `WebChatIn` → `Conversation`, which handles Busy, SessionBroken and Tainted, maps every failure to `conversation.turnFallback` with a reason, publishes `chat.message` at `queued`, `running` and `done`, and sends an `Outbound` to `Notify`;
-    - a `Turn` keeps the text, the reply as sent, the `clientId` and the trace target (`ChatMessage.FromRow` maps them); `Install.Step.Web.Reconcile` resumes turns after a restart.
-  - **Page:** the envelope interceptor, `SessionGate` (stops every call on a 401), the `live-store` keyed by `ref`, `LiveState` polling, skeletons with **Retry**, and sign-out through the API.
-  - **Test helpers:** `DecideDouble` (a scripted `Decide` stand-in that can also run in a throwaway production), `ConversationProbe`, and the `InProduction` base for throwaway production tests.
+- **Built so far (Stories 2.1 to 2.5).**
+  - **Server:** the durable `Session` at sign-in; `Ownership` (`SessionRef`, `Rows`, `Watchers`, `Incident`) and `Session.Recipients`; `/state` (`status` stays empty until Story 2.10); `CommandsIn`, whose owners stay stubs until their own epics; and `POST /api/v1/messages` → `WebChatIn` → `Conversation`, which maps every failure to `conversation.turnFallback` with a reason, publishes `chat.message` at `queued`, `running` and `done`, and sends an `Outbound` to `Notify`.
+  - **Page:** the frame (`.banner-slot`, shared controls), `SessionGate`, the `live-store` and `LiveState` polling, and the chat panel in `main` (`web/src/app/chat/`): `ChatOutbox` (`send(text, fromGuide)`; **Retry sending** reuses the `clientId`), the outcome chip, and one reply element per turn that shows the indicator, then the reply.
+  - **Test helpers:** `DecideDouble` (a scripted `Decide` stand-in, also in a throwaway production), `ConversationProbe`, the `InProduction` base, and the browser fixture user `PANEL` with `seedTurns`.
 - **Inside the epic.**
-  - Story 2.5 posts with a `clientId` (a resend reuses it) and renders `catalogKey` and `fallbackReason`. Story 2.6 adds decision fields to `Outbound` and `chat.message`. Story 2.7's `Notify` routes the `Outbound`, and its `Intake` tests reuse `DecideDouble`.
-  - Story 2.6's `BridgeSink` feeds Stories 2.5 and 2.8, and Story 2.8 adds the `approval.*` events.
-  - Story 2.9's `Trace.Join` goes in `WebChatIn` before its send. Its `TraceLink` serves Stories 2.6 and 2.8, and its menu tests the popover (DW-58).
+  - Story 2.6 adds the chip's tooltip, the decision strip in the reply's place, the indicator's step label from `turn.step`, and decision fields on `Outbound` and `chat.message`. Its `BridgeSink` feeds the chat and Story 2.8, which adds the `approval.*` events.
+  - Story 2.7's `Notify` routes the `Outbound`, its notice cards join the chat list and the capped snapshot, and its `Intake` tests reuse `DecideDouble`.
+  - Story 2.9's `Trace.Join` goes in `WebChatIn` before its send. Its `TraceLink` serves the turn (`traceHeaderId`), Stories 2.6 and 2.8, and its menu tests the popover (DW-58).
   - Story 2.11 uses Story 2.10's banner slot.
+  - Story 2.12 adds the chat's announcements ("OcuTalon replied:", "Message not sent"), focus replacement when **Retry sending** goes, the stacked layout and the Firefox and WebKit runs, and its string test extends `CHAT_TEXTS`.
 - **Routed ledger items.**
-  - **Story 2.5 (DW-65):** `ChatItems` loads the whole chat. Choose a cap or paging within the snapshot's shape, and test it on a long session.
   - **Story 2.7 (DW-62):** keep web notice cards where the snapshot can read them, merged into the chat in time order.
   - **Story 2.7 (DW-81):** with `DecideDouble` in a throwaway production, test `Busy` end to end: a 3 s wait through the real `Ens.Alarm`, then a resend on the reopened instance, at most 5 times before the fallback.
   - **Story 2.8 (DW-68):** `Recipients` reads watchers in a production job, not in the REST request (or the story asks to amend AD-13). A failed read is loud, and a test shows two watchers both get the `approval` event.
   - **Story 2.9 (DW-74):** a throwaway check settles whether `Commands.Submit` loses the calling job's job-local `SessionId`. If it does, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's thread.
+  - **Story 2.12 (DW-89):** the chat list and the rail scroll with no tab stop, so WebKit keyboard users can't scroll them. Give each scroller a tab stop and a name (for example `tabindex="0"` labelled by its heading), and check it in the WebKit run.
 - **Lane A.** Real decisions arrive with Story 1.3 and threads with Story 1.5. The key status comes from Story 1.6 and the cap from Story 1.4. Approvals arrive with Stories 3.4 and 3.5.
-- **Later.** Epic 5 uses `Recipients`, Story 16.3 extends `SessionRef`, Story 30.2 adds the purge task and Story 31.1 the WebSocket.
+- **Later.** Story 4.4 adds the empty panel's demo-mode line and guide sends through `ChatOutbox.send(text, true)`, Story 6.1 the chat's incident cards and Story 16.9 the composer's 429 refusal. Epic 5 uses `Recipients`, Story 16.3 extends `SessionRef`, Story 30.2 adds the purge task and Story 31.1 the WebSocket.
