@@ -1,7 +1,7 @@
 # Parallel epic execution — read by /epic-cycle (orchestrator mode).
 # Safe defaults; tune per project.
 
-max_parallel_epics: 2            # raise only after reviewing a full parallel run's telemetry
+max_parallel_epics: 3            # 2026-10-22, owner: "Okay, we'll start with 3 slots." (was 2); lanes A, B and C, one dev slot each (Rule 21)
 worktree_base: .worktrees        # short path under repo root; use e.g. C:\wt\<proj> if MAX_PATH bites
 runner_isolation: subagent       # subagent (supported) | headless (designed, Phase 3 — not yet implemented)
 submodule_mode: gitlink-worktree # gitlink-worktree (default; shared objects, teardown-safe)
@@ -26,7 +26,7 @@ integrate_conflicts: ask         # code conflicts when a runner merges the featu
 # Matrix Test Audit and self-review — add `implement` if those tests touch the shared runtime.
 runtime_locks:
   - name: runtime
-    stages: [smoke, qa, adr_verifications]   # add implement, or use [all-runtime] to include build-auto's test runs
+    stages: []   # 2026-10-22 (owner-approved, kit maintainer's advice): each lane has its own dev slot (Rule 21) and throwaways are tag-isolated, so no stage shares a runtime; was [smoke, qa, adr_verifications]
     stale_minutes: 45
   # docker/tests/lib-live.sh claims throwaway-iris.lock in the coordination folder while a throwaway IRIS stack runs, so that two
   # epics never run two stacks at once on this machine. No stage holds it: stages is empty and the live scripts take it themselves.

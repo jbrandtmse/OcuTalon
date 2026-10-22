@@ -15,14 +15,23 @@
 #     waiting_on) and continues with independent work; it is re-dispatched once that epic has merged.
 #   - Epic 11 may change either lane's files (AD-29): its stories that touch files of the in-flight Lane B epic wait
 #     until that epic merges (contended paths).
-epics_md_hash: "b697229525f0ce9bad1b3dcf8fd6419c653f86b0327ae11c2dcca5cbadfb03ad"
-analyzed_by: claude-opus-5-5
-approved: true
-approved_at: "2026-10-21"
+#
+# 2026-10-22 PROPOSAL for the third runner (owner: "Okay, we'll start with 3 slots."), drafted by the Contest Planner with
+# the kit maintainer's advice. NOT YET APPROVED: at the interactive resume the orchestrator re-analyzes the graph from the
+# amended epics.md, starts from this proposal, refines the per-epic paths_hint, and presents it to the owner for approval.
+#   - Lane C (runner C, slot ocutalon-slot-c) owns no packages; each epic keeps its home lane's files (AD-29).
+#   - paths_hint are now PER EPIC, not lane-wide: with lane-wide hints, two runners in one home lane (B with C, or A with C)
+#     would estimate 100% overlap and be serialized. Web component folders not yet built are estimates (inference).
+#   - Lane-order-only edges that now cross runners were removed; the story-level needs behind them are story_waits.
+epics_md_hash: "(recomputed at re-analysis)"
+analyzed_by: "Contest Planner (proposal; the orchestrator re-analyzes)"
+approved: false
+approved_at: ""
 
 lanes:
-  A: {slot: ocutalon-slot-a, order: [1, 3, 5, 7, 9, 11, 12, 30, 13, 14, 15]}
-  B: {slot: ocutalon-slot-b, order: [32, 2, 4, 6, 16, 29, 8, 10, 31]}
+  A: {slot: ocutalon-slot-a, order: [1, 3, 5, 7, 9, 11, 12]}
+  B: {slot: ocutalon-slot-b, order: [32, 2, 4, 6, 31]}
+  C: {slot: ocutalon-slot-c, order: [8, 16, 29, 10, 30, 13, 14, 15]}   # owns no packages: Lane B's files for 8, 16, 29, 10; Lane A's for 30, 13, 14, 15
 
 # Footprints (AD-29, AD-33). Lane-wide; each epic's own spec names its files.
 footprints:
@@ -67,29 +76,45 @@ footprints:
   epic_29_exception:                                   # AD-29: Lane B's Story 29.4 may change these Lane A files
     - release/**                                       # the online demo's load test, beside the rehearsal
 
+# Per-epic footprints (2026-10-22 proposal). O = src/ocutalon/cls/OcuTalon. Each epic's spec still names its exact files.
 epics:
-  epic-1:  {lane: A, depends_on: [], submodules: [], paths_hint: *lane_a}
-  epic-3:  {lane: A, depends_on: [epic-1], submodules: [], paths_hint: *lane_a}
-  epic-5:  {lane: A, depends_on: [epic-3, epic-2], submodules: [], paths_hint: *lane_a}        # epic-2: Session.Recipients
-  epic-7:  {lane: A, depends_on: [epic-5], submodules: [], paths_hint: *lane_a}
-  epic-9:  {lane: A, depends_on: [epic-7, epic-2], submodules: [], paths_hint: *lane_a}        # epic-2: Intake to EvalSink
-  epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: [either lane's files, AD-29]}
-  epic-12: {lane: A, depends_on: [epic-11], submodules: [], paths_hint: *lane_a,
+  epic-1:  {lane: A, depends_on: [], submodules: [], paths_hint: *lane_a}          # in flight at the hold; unchanged
+  epic-3:  {lane: A, depends_on: [epic-1], submodules: [],
+            paths_hint: ["src/bridge/**", "src/ocutalon/cls/OcuTalon/Install/**", "src/ocutalon/cls/OcuTalon/Test/{Bridge,Install}/**", "src/ocutalon/cls/OcuTalon/Data/Public/**", "ci/mock/scenarios/A/**"]}
+  epic-5:  {lane: A, depends_on: [epic-3, epic-2], submodules: [],                  # epic-2: Session.Recipients
+            paths_hint: ["src/ocutalon/cls/OcuTalon/{Watch,Tools,Checks}/**", "src/ocutalon/cls/OcuTalon/Test/{Watch,Tools,Checks}/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls", "ci/mock/scenarios/A/**"]}
+  epic-7:  {lane: A, depends_on: [epic-5], submodules: [],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Fix/**", "src/ocutalon/cls/OcuTalon/Test/Fix/**", "src/bridge/**", "ci/mock/scenarios/A/**"]}
+  epic-9:  {lane: A, depends_on: [epic-7, epic-2], submodules: [],                  # epic-2: Intake to EvalSink
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Eval/**", "src/ocutalon/cls/OcuTalon/Test/Eval/**", "eval/**", ".github/workflows/lane-a.yml"]}
+  epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: ["either lane's files", "AD-29"]}
+  epic-12: {lane: A, depends_on: [epic-11], submodules: [],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Test/Channel/**", "web/src/app/rail/telegram-card/**", "web/e2e/demo-path/telegram-*.spec.ts", "release/records/0.1.1/**"],
             story_waits: {"12.7": epic-16}}        # 12.7 turns on Story 16.3's Telegram-card check
-  epic-30: {lane: A, depends_on: [epic-1, epic-3, epic-5, epic-7], submodules: [], paths_hint: *lane_a, fill_ahead: true}   # its stories came from 1.9, 1.11, 3.6, 5.6, 7.5
-  epic-13: {lane: A, depends_on: [epic-30], submodules: [], paths_hint: *lane_a}               # 13.2 needs 30.3
-  epic-14: {lane: A, depends_on: [epic-13], submodules: [], paths_hint: *lane_a}
-  epic-15: {lane: A, depends_on: [epic-14], submodules: [], paths_hint: *lane_a}
-  epic-32: {lane: B, depends_on: [], submodules: [], paths_hint: [ci/**, .github/workflows/ci.yml]}
-  epic-2:  {lane: B, depends_on: [epic-32], submodules: [], paths_hint: *lane_b}
-  epic-4:  {lane: B, depends_on: [epic-2], submodules: [], paths_hint: *lane_b}
-  epic-6:  {lane: B, depends_on: [epic-4], submodules: [], paths_hint: *lane_b}
-  epic-8:  {lane: B, depends_on: [epic-6, epic-1], submodules: [], paths_hint: *lane_b}        # epic-1: the reminder tools; 8.4 turns on 16.4's cancel path
-  epic-10: {lane: B, depends_on: [epic-8], submodules: [], paths_hint: *lane_b}
-  epic-16: {lane: B, depends_on: [epic-6, epic-3], submodules: [], paths_hint: *lane_b}        # epic-3: Story 3.8; 16.4 uses a ReminderOps double until 8.4
-  epic-29: {lane: B, depends_on: [epic-16, epic-3], submodules: [], paths_hint: [web/e2e/demo-path/**, epic_29_exception],
-            story_waits: {"29.4": [epic-5, epic-7]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: story_waits added]
-            note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing in Lane A depends on Epic 29's merge; Story 31.4 waits on it."}   # [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: it said "Nothing depends on Epic 29's merge"]
-  epic-31: {lane: B, depends_on: [epic-10], submodules: [], paths_hint: *lane_b,
-            story_waits: {"31.3": [epic-12, epic-15], "31.4": [epic-12, epic-29]},   # 31.3 was 16.10; 31.4 holds 29.4's paired-chat cases [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: 31.3 was epic-15 alone; its Telegram cases need Epic 12, which epic-15's depends_on chain does not include]
-            note: "Story 31.3's measurement after launch needs the launched online demo (the owner's) and parks; Story 31.2 uses fixtures until 30.3. Epic 31 merges only after Story 31.3, which needs the launched online demo, which follows 0.1.1; so the WebSocket (Story 31.1) cannot reach the integration branch before 0.1.0 is cut, and release 1 stays on polling (the owner-fixed rule)."}   # [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the sentence on when Epic 31 merges added]
+  epic-32: {lane: B, depends_on: [], submodules: [], paths_hint: ["ci/**", ".github/workflows/ci.yml"]}
+  epic-2:  {lane: B, depends_on: [epic-32], submodules: [], paths_hint: *lane_b}   # in flight at the hold; unchanged
+  epic-4:  {lane: B, depends_on: [epic-2], submodules: [],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Demo/**", "src/ocutalon/cls/OcuTalon/Test/Demo/**", "src/ocutalon/cls/OcuTalon/Core/Admin*.cls", "web/src/app/{guide,phone,mailbox,feed}/**", "web/e2e/demo-path/0{1,2}-*.spec.ts", "ci/mock/scenarios/B/**"]}
+  epic-6:  {lane: B, depends_on: [epic-4], submodules: [],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Core/NoticesIn*.cls", "src/ocutalon/cls/OcuTalon/Live/Payload/**", "src/ocutalon/cls/OcuTalon/Data/Delivery.cls", "src/ocutalon/cls/OcuTalon/Test/{Core,Live}/**", "web/src/app/{incidents,approvals,notices}/**", "web/e2e/demo-path/0{4,5}-*.spec.ts"]}
+  epic-31: {lane: B, depends_on: [epic-6], submodules: [],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Live/**", "web/src/app/{live,api}/**", "README.md"],
+            story_waits: {"31.3": [epic-12, epic-15], "31.4": [epic-12, epic-29]},   # unchanged; 31.2 uses fixtures until 30.3
+            note: "Story 31.3's measurement after launch needs the launched online demo (the owner's) and parks; Story 31.2 uses fixtures until 30.3. Epic 31 merges only after Story 31.3, which needs the launched online demo, which follows 0.1.1; so the WebSocket (Story 31.1) cannot reach the integration branch before 0.1.0 is cut, and release 1 stays on polling (the owner-fixed rule)."}
+  epic-8:  {lane: C, depends_on: [epic-1], submodules: [],                          # epic-1: the reminder tools; was also epic-6 (lane order only)
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Schedule/**", "src/ocutalon/cls/OcuTalon/Test/Schedule/**", "src/ocutalon/cls/OcuTalon/Data/{StatusMark,Time}.cls", "src/ocutalon/cls/OcuTalon/Core/Commands*.cls", "src/ocutalon/cls/OcuTalon/Msg/Tick.cls", "web/src/app/{checks,reminders}/**", "web/e2e/demo-path/03-reminder.spec.ts"]}
+  epic-16: {lane: C, depends_on: [epic-3, epic-8], submodules: [],                  # epic-3: Story 3.8; epic-8: 16.4 uses the real ReminderOps
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Web/Public/**", "src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls", "src/ocutalon/cls/OcuTalon/Data/{Ownership,Session,AddressCounter,Setting}.cls", "src/ocutalon/cls/OcuTalon/Data/Public/**", "src/ocutalon/cls/OcuTalon/Core/{Allowance,BridgeSink}*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Test/{Web,Data}/**", "src/ocutalon/csp/**", "web/src/signin/**", "web/src/app/{header,splash,busy}/**", "web/e2e/demo-path/online-*.spec.ts"],
+            story_waits: {"16.9": epic-6}}         # 16.9 checks that Approve and Reject keep working (was the epic-6 lane-order edge)
+  epic-29: {lane: C, depends_on: [epic-16, epic-3], submodules: [], paths_hint: ["web/e2e/demo-path/**", epic_29_exception],
+            story_waits: {"29.4": [epic-5, epic-7]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path
+            note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing in Lane A depends on Epic 29's merge; Story 31.4 waits on it."}
+  epic-10: {lane: C, depends_on: [epic-8], submodules: [], fill_ahead: true,         # may run ahead of epic-16 while it waits for epic-3
+            paths_hint: ["README.md", "docker-compose.yml", "docker/**", "src/ocutalon/cls/OcuTalon/Channel/**", "src/ocutalon/cls/OcuTalon/Data/{Pairing,Delivery,StatusMark}.cls", "src/ocutalon/cls/OcuTalon/Demo/Guide*.cls", "src/ocutalon/cls/OcuTalon/Core/{Allowance,Trace}*.cls"],
+            story_waits: {"10.3": epic-16}}        # 10.3 reuses Story 16.4's unlink
+  epic-30: {lane: C, depends_on: [epic-1, epic-3, epic-5, epic-7], submodules: [],   # its stories came from 1.9, 1.11, 3.6, 5.6, 7.5
+            paths_hint: ["src/ocutalon/cls/OcuTalon/Agent/**", "src/ocutalon/cls/OcuTalon/Install/Task/**", "src/bridge/**", "src/ocutalon/cls/OcuTalon/Fix/Run*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/**", "src/ocutalon/cls/OcuTalon/Test/{Agent,Install,Bridge,Fix}/**"]}
+  epic-13: {lane: C, depends_on: [epic-30], submodules: [],                          # 13.2 needs 30.3; runner C's order
+            paths_hint: ["src/bridge/**", "ci/mock/scenarios/A/**"]}
+  epic-14: {lane: C, depends_on: [epic-13], submodules: [], paths_hint: ["docs/**", "src/ocutalon/cls/OcuTalon/Fix/Kind*.cls"]}
+  epic-15: {lane: C, depends_on: [epic-14], submodules: [], paths_hint: ["src/module.xml", "src/cpf/**", "docker/merge.cpf", "docker/ipm/**", "docs/install-ipm.md"]}
