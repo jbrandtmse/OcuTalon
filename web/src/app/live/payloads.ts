@@ -76,6 +76,8 @@ export interface ChatMessagePayload {
   state?: string;
   text?: string;
   replyText?: string;
+  catalogKey?: string;
+  fallbackReason?: string;
   createdAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;

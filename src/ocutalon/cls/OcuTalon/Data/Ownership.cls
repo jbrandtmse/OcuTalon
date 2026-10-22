@@ -2,10 +2,11 @@
 /// read what a session owns. Lane B.
 ///   - SessionRef resolves the caller's session from the CSP session, never from the client and never from the user
 ///     name; Attach records the user's durable session in the CSP session.
-///   - Every read takes the session's Ref and returns only that session's records: its turns, pending reminders,
-///     background checks, decisions, noticed incidents, pending approval requests and pairing. On a local install
-///     (onlineDemo off) a session also sees the noticed incidents of owner instance, and their pending approval
-///     requests, for the productions its own checks watch. A record of owner eval is never visible.
+///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
+///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision),
+///     pending reminders, background checks, decisions, noticed incidents, pending approval requests and pairing.
+///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
+///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
 ///   - A find (Incident, Approval) answers "" for a record the session can't see, exactly as for a missing one, so
 ///     the REST surface answers both with 404.
 ///   - The reads run as the signed-in user, who holds no SQL privilege on the tables, so Rows prepares its statements
@@ -74,6 +75,32 @@ ClassMethod Attach(irisUser As %String = {$Username}) As %Status
 ClassMethod Turns(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("turns", sessionRef, .sc)
+}
+
+/// The session's turn that came from the page's message with this clientId, or "" when it has none or clientId is empty.
+/// clientId may come from request input; it is only ever a bound value.
+ClassMethod TurnByClient(sessionRef As %String, clientId As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Set sc = $SYSTEM.Status.OK()
+	If clientId = "" Quit ""
+	Set rows = ..Rows("turnByClient", sessionRef, .sc, clientId)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The session's queued and running turns, by CreatedAt and then ID: the order in which Conversation starts them.
+ClassMethod TurnQueue(sessionRef As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("turnQueue", sessionRef, .sc)
+}
+
+/// The session's newest done turn that has a reply decision, or "": the turn whose Tainted flag decides how the next
+/// turn starts. A done turn with no reply decision (an error-status fallback) is skipped.
+ClassMethod LastRepliedTurn(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Set rows = ..Rows("lastReplied", sessionRef, .sc)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
 }
 
 /// The session's pending reminders, by DueAt.
@@ -235,6 +262,18 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "turns" {
 		Set class = "OcuTalon.Data.Turn", binds = "o"
 		Quit "SELECT ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? ORDER BY CreatedAt, ID"
+	}
+	If kind = "turnByClient" {
+		Set class = "OcuTalon.Data.Turn", binds = "oa"
+		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ClientId = ? ORDER BY ID"
+	}
+	If kind = "turnQueue" {
+		Set class = "OcuTalon.Data.Turn", binds = "o"
+		Quit "SELECT ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State IN ('queued', 'running') ORDER BY CreatedAt, ID"
+	}
+	If kind = "lastReplied" {
+		Set class = "OcuTalon.Data.Turn", binds = "o"
+		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State = 'done' AND TurnDecisionRef IS NOT NULL ORDER BY CreatedAt DESC, ID DESC"
 	}
 	If kind = "reminders" {
 		Set class = "OcuTalon.Data.Reminder", binds = "o"

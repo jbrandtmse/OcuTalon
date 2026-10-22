@@ -374,11 +374,22 @@ XData Contracts [ MimeType = application/json ]
    "FromGuide": "%Boolean",
    "TriageDecisionRef": "%String(MAXLEN=22)",
    "TurnDecisionRef": "%String(MAXLEN=22)",
-   "CreatedAt": "%String(MAXLEN=20)"
+   "CreatedAt": "%String(MAXLEN=20)",
+   "ItemId": "%String(MAXLEN=22)",
+   "ClientId": "%String(COLLATION=EXACT,MAXLEN=128)",
+   "Text": "%String(MAXLEN=)",
+   "ReplyText": "%String(MAXLEN=)",
+   "ReplyCatalogKey": "%String(MAXLEN=128)",
+   "FallbackReason": "%String(MAXLEN=32)",
+   "TraceHeaderId": "%Integer",
+   "Tainted": "%Boolean",
+   "Attempt": "%Integer"
   },
   "indexes": {
    "RefIndex": "Ref unique",
-   "SessionRefIndex": "SessionRef"
+   "SessionRefIndex": "SessionRef",
+   "ItemIdIndex": "ItemId unique",
+   "ClientIdIndex": "SessionRef,ClientId"
   }
  },
  "OcuTalon.Data.SimMessage": {

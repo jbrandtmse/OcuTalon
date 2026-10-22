@@ -9,7 +9,7 @@
 #     and CreateBusinessService("EvalIn") is refused as disabled;
 #   - row 15, outside Decide: a terminal session reads the three extension classes and a runner's model from the active
 #     production;
-#   - row 16, the stubs over the running production: a created CommandsIn service sends to SessionOps, Conversation,
+#   - row 16, the stubs over the running production: a created CommandsIn service sends to SessionOps, Intake,
 #     TriageAgent and OutcomeRouter. The operations answer code 5003, the process answers that it terminated because of
 #     5003, the router answers OK with nothing and sends nothing on, and every target keeps the job it had; then the same
 #     for every enabled stub with a pool, so that no stub kills its job on a request;
@@ -128,7 +128,7 @@ CHK|model|TriageAgent|claude-haiku-5-5" \
 item_jobs "$tmp/jobs.16.before"
 check_session "row 16: the stubs answer 'not implemented', and the router answers OK with nothing" OCUTALON \
   "CHK|sync|SessionOps|0|5003|1|0
-CHK|sync|Conversation|0|<Ens>ErrBPTerminated|1|0
+CHK|sync|Intake|0|<Ens>ErrBPTerminated|1|0
 CHK|sync|TriageAgent|0|5003|1|0
 CHK|sync|OutcomeRouter|1||0|0
 CHK|router-received|1
@@ -136,15 +136,15 @@ CHK|router-sent|0" \
   'Set q="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ?",q2="SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName <> ?"' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,q,"CommandsIn","OutcomeRouter") Do rs.%Next() Set in0=rs.%GetData(1) Set rs=##class(%SQL.Statement).%ExecDirect(,q2,"OutcomeRouter","CommandsIn") Do rs.%Next() Set out0=rs.%GetData(1)' \
   'Set sc=##class(Ens.Director).CreateBusinessService("CommandsIn",.svc)' \
-  'For t="SessionOps","Conversation","TriageAgent","OutcomeRouter" { Set req=##class(Ens.StringRequest).%New("x") Kill resp Set sc=svc.SendRequestSync(t,req,.resp,10) Write !,"CHK|sync|",t,"|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorCodes(sc),"|",($SYSTEM.Status.GetErrorText(sc)["#5003: Not implemented"),"|",$IsObject($Get(resp)) }' \
+  'For t="SessionOps","Intake","TriageAgent","OutcomeRouter" { Set req=##class(Ens.StringRequest).%New("x") Kill resp Set sc=svc.SendRequestSync(t,req,.resp,10) Write !,"CHK|sync|",t,"|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorCodes(sc),"|",($SYSTEM.Status.GetErrorText(sc)["#5003: Not implemented"),"|",$IsObject($Get(resp)) }' \
   'Hang 2 Set rs=##class(%SQL.Statement).%ExecDirect(,q,"CommandsIn","OutcomeRouter") Do rs.%Next() Write !,"CHK|router-received|",(rs.%GetData(1)>in0)' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,q2,"OutcomeRouter","CommandsIn") Do rs.%Next() Write !,"CHK|router-sent|",(rs.%GetData(1)-out0)' \
   'Halt'
 item_jobs "$tmp/jobs.16.after"
-targets='^(SessionOps|Conversation|TriageAgent|OutcomeRouter)'
+targets='^(SessionOps|Intake|TriageAgent|OutcomeRouter)'
 if [ "$(grep -cE "$targets" "$tmp/jobs.16.before")" = 4 ] \
   && [ "$(grep -E "$targets" "$tmp/jobs.16.before")" = "$(grep -E "$targets" "$tmp/jobs.16.after")" ]; then
-  pass "row 16: SessionOps, Conversation, TriageAgent and OutcomeRouter keep the jobs they had"
+  pass "row 16: SessionOps, Intake, TriageAgent and OutcomeRouter keep the jobs they had"
 else
   grep -E "$targets" "$tmp/jobs.16.before" | sed 's/^/  before: /'
   grep -E "$targets" "$tmp/jobs.16.after" | sed 's/^/  after:  /'

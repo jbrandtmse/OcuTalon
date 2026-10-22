@@ -1,6 +1,8 @@
 /// The REST surface of OcuTalon at /ocutalon/api (AD-13): JSON, versioned under /v1, one CSP session shared
 /// with /ocutalon and the trace applications.
-///   - GET /v1/state is the snapshot and GET /v1/events the poll (AD-12); POST /v1/session/end signs out. Every other
+///   - GET /v1/state is the snapshot and GET /v1/events the poll (AD-12); POST /v1/session/end signs out; POST /v1/messages
+///     takes the page's message, {clientId, text, fromGuide}, hands it to WebChatIn through the production (AD-1, AD-30) and
+///     answers 202 {clientId} (a repeat of a clientId included) or 400 bad_message for any other body. Every other
 ///     route of the release answers 501 not_built until its story ships, and the pairing routes answer 404 while
 ///     Telegram is not included. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
@@ -32,6 +34,8 @@ Parameter MESSAGENOHEADER = "OcuTalon refused this request because it didn't com
 
 Parameter MESSAGEWRONGORIGIN = "OcuTalon refused this request because it came from another site.";
 
+Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
+
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
 Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.";
@@ -45,7 +49,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Routes>
 <Route Url="/v1/state" Method="GET" Call="State"/>
 <Route Url="/v1/events" Method="GET" Call="Events"/>
-<Route Url="/v1/messages" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/messages" Method="POST" Call="Messages"/>
 <Route Url="/v1/approvals/:ref/answer" Method="POST" Call="AnswerApproval"/>
 <Route Url="/v1/incidents/:ref/dismiss" Method="POST" Call="DismissIncident"/>
 <Route Url="/v1/demo/break-feed" Method="POST" Call="NotBuilt"/>
@@ -81,16 +85,20 @@ ClassMethod ReportHttpStatusCode(pHttpStatus, pSC As %Status = {$$$OK}) As %Stat
 	Set status = +pHttpStatus
 	If status = 404 Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If status = 405 Quit ..Fail(405, "method_not_allowed", ..#MESSAGENOTALLOWED)
-	If status = 500 {
-		If $SYSTEM.Status.IsError(pSC) {
-			Try {
-				Do ##class(%SYS.System).WriteToConsoleLog("OcuTalon.Web.Api: "_$Translate($SYSTEM.Status.GetErrorText(pSC), $Char(13, 10), "  "), 0, 1)
-			} Catch {
-			}
-		}
-		Quit ..Fail(500, "server_error", ..#MESSAGESERVERERROR)
-	}
+	If status = 500 Quit ..ServerError(pSC)
 	Quit ##super(pHttpStatus, pSC)
+}
+
+/// The 500 answer: the cause is written to the console log, never sent.
+ClassMethod ServerError(sc As %Status = {$$$OK}) As %Status [ Private ]
+{
+	If $SYSTEM.Status.IsError(sc) {
+		Try {
+			Do ##class(%SYS.System).WriteToConsoleLog("OcuTalon.Web.Api: "_$Translate($SYSTEM.Status.GetErrorText(sc), $Char(13, 10), "  "), 0, 1)
+		} Catch {
+		}
+	}
+	Quit ..Fail(500, "server_error", ..#MESSAGESERVERERROR)
 }
 
 /// GET /v1/state
@@ -124,6 +132,61 @@ ClassMethod EndSession() As %Status
 	Set %session.EndSession = 1
 	Set %response.Status = ..#HTTP204NOCONTENT
 	Quit $SYSTEM.Status.OK()
+}
+
+/// POST /v1/messages: the page's message. The body is a JSON object with a clientId (a string of 1 to 128 characters), a text
+/// (a string with a non-space character) and fromGuide (true only when it is the JSON true); anything else, a body that is not
+/// a JSON object included, is 400 bad_message and nothing is sent. The session is the one that Ownership.SessionRef resolves
+/// (AD-4): a sessionRef in the body is ignored. A valid body is handed to WebChatIn (Post) and answers 202 {"clientId"}, a
+/// clientId that the session already used included. A session that can't be read, a production that can't take the message
+/// and an error of WebChatIn are 500 server_error.
+ClassMethod Messages() As %Status
+{
+	If '..MessageBody(.clientId, .text, .fromGuide) Quit ..Fail(400, "bad_message", ..#MESSAGEBADMESSAGE)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set post = ##class(OcuTalon.Channel.WebChat.Post).%New()
+	Set post.SessionRef = session.Ref
+	Set post.ClientId = clientId
+	Set post.Text = text
+	Set post.FromGuide = fromGuide
+	Set sc = ..Post(post, .output)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Set %response.Status = ..#HTTP202ACCEPTED
+	Write {"clientId": (clientId)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The fields of the request body, and 1 when it is a valid message: see Messages. Otherwise 0, with the fields empty.
+ClassMethod MessageBody(Output clientId As %String, Output text As %String, Output fromGuide As %Boolean) As %Boolean [ Private ]
+{
+	Set (clientId, text) = ""
+	Set fromGuide = 0
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(%request.Content)
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If (body.%GetTypeOf("clientId") '= "string") || (body.%GetTypeOf("text") '= "string") Quit 0
+	Set id = body.clientId, message = body.text
+	If ($Length(id) < 1) || ($Length(id) > 128) || ($ZStrip(message, "<>WC") = "") Quit 0
+	Set clientId = id
+	Set text = message
+	Set fromGuide = (body.%GetTypeOf("fromGuide") = "boolean") && body.fromGuide
+	Quit 1
+}
+
+/// Hands the input (a Channel.WebChat.Post) to WebChatIn: the service is created in this process and takes the input with
+/// ProcessInput, so that the message enters the production through its business service (AD-1). output is the service's
+/// answer. An error status means the message did not reach the production.
+ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Status [ Private ]
+{
+	Set output = ""
+	Set sc = ##class(Ens.Director).CreateBusinessService("WebChatIn", .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit service.ProcessInput(input, .output)
 }
 
 /// POST /v1/approvals/:ref/answer: 404 not_found for a request the session can't see (Ownership.Approval), and 501

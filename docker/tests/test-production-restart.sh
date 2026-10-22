@@ -17,6 +17,11 @@
 #     pending approval are printed, and the two must be equal and hold the four fixture refs. Journaling must be enabled
 #     (%SYS.Journal.System.GetState() 0), and the journal is synced before the kill, so that the kill cannot lose the seeded
 #     rows. The rows are removed afterwards.
+#     Story 2.4 adds the turn queue: before the kill a second fixture session holds a turn that was left running (Attempt 1)
+#     and a queued turn, each with its text; after the next start, within 60 s, both are done with the fallback reply
+#     conversation.turnFallback (the stub Decide answers an error status), the running one on its second attempt, and the
+#     session's stream holds exactly one done chat.message for each, the first turn's Seq below the second's. The rows are
+#     removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -132,6 +137,19 @@ if [ -n "$snapshot_session" ] && [ "$(printf '%s' "$snapshot_refs" | tr ',' '\n'
 else
   fail "row 20: the snapshot's fixture rows could not be seeded ('$seeded')"
 fi
+seeded_turns=$(printf '%s\n' \
+  'Set F="OcuTalon.Test.Data.Fixture"' \
+  'Set s=$ClassMethod(F,"Session","ZzRestartTurns")' \
+  'Write !,"CHK|session|",s' \
+  'Write !,"CHK|refs|",$ClassMethod(F,"Turn",s,"2030-01-01T10:00:01Z","running","zz restart one","zzrestartone",1),",",$ClassMethod(F,"Turn",s,"2030-01-01T10:00:02Z","queued","zz restart two","zzrestarttwo")' \
+  'Halt' | iris_script OCUTALON)
+turns_session=$(printf '%s\n' "$seeded_turns" | sed -n 's/^CHK|session|//p')
+turns_refs=$(printf '%s\n' "$seeded_turns" | sed -n 's/^CHK|refs|//p')
+if [ -n "$turns_session" ] && [ "$(printf '%s' "$turns_refs" | tr ',' '\n' | grep -c .)" = 2 ]; then
+  pass "row 20: a session with a turn left running and a queued turn is seeded"
+else
+  fail "row 20: the turn queue's fixture rows could not be seeded ('$seeded_turns')"
+fi
 check_session "row 20: journaling is enabled and the journal is synced to disk before the kill" OCUTALON \
   "CHK|journal|1" \
   'Try { Set state=##class(%SYS.Journal.System).GetState() Do ##class(%SYS.Journal.System).Sync() Write !,"CHK|journal|",(state=0) } Catch e { Write !,"CHK|journal|0" }' \
@@ -174,6 +192,31 @@ else
   printf '%s\n' "  before: $(printf '%s' "$snapshot_before" | cut -c1-300)" "  after:  $(printf '%s' "$snapshot_after" | cut -c1-300)"
   fail "row 20: the snapshot's epoch, chat and rail differ after the kill, or miss a fixture row"
 fi
+# turns_state <running turn ref> <queued turn ref>: the states of the two turns, as running|queued ('-' for a missing row).
+turns_state() {
+  printf '%s\n' \
+    "Set r=##class(OcuTalon.Data.Turn).RefIndexOpen(\"$1\"),q=##class(OcuTalon.Data.Turn).RefIndexOpen(\"$2\")" \
+    'Write !,"CHK|states|",$Select($IsObject(r):r.State,1:"-"),"|",$Select($IsObject(q):q.State,1:"-")' \
+    'Halt' | iris_script OCUTALON | sed -n 's/^CHK|states|//p'
+}
+turn_one=${turns_refs%%,*}
+turn_two=${turns_refs##*,}
+turns_done() { [ "$(turns_state "$turn_one" "$turn_two")" = "done|done" ]; }
+if [ -n "$turns_session" ] && wait_until 60 turns_done; then
+  pass "row 20: the turn left running and the queued turn are both done within 60 s of the start"
+else
+  fail "row 20: the turns of the queue were not both done within 60 s ('$(turns_state "$turn_one" "$turn_two")')"
+fi
+check_session "row 20: both turns have the fallback reply, the first on its second attempt, with one done event each, in order" OCUTALON \
+  "CHK|turns|done|2|conversation.turnFallback|unusable|done|1|conversation.turnFallback|unusable
+CHK|events|1|1|1" \
+  "Set b=\"$turns_session\",r1=\"$turn_one\",r2=\"$turn_two\"" \
+  'Set t1=##class(OcuTalon.Data.Turn).RefIndexOpen(r1),t2=##class(OcuTalon.Data.Turn).RefIndexOpen(r2)' \
+  'Write !,"CHK|turns|",t1.State,"|",t1.Attempt,"|",t1.ReplyCatalogKey,"|",t1.FallbackReason,"|",t2.State,"|",t2.Attempt,"|",t2.ReplyCatalogKey,"|",t2.FallbackReason' \
+  'Set e=##class(OcuTalon.Live.Event).Since(b,0,100,"session"),i=e.%GetIterator(),n1=0,n2=0,s1=0,s2=0' \
+  'While i.%GetNext(,.x) { If x.payload.state="done" { If x.payload.ref=t1.Ref { Set n1=n1+1,s1=x.seq } If x.payload.ref=t2.Ref { Set n2=n2+1,s2=x.seq } } }' \
+  'Write !,"CHK|events|",n1,"|",n2,"|",(s1<s2)' \
+  'Halt'
 check_session "row 20: the snapshot's fixture rows are removed" OCUTALON \
   "CHK|left|0" \
   'Do ##class(OcuTalon.Test.Data.Fixture).Clean()' \

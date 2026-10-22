@@ -12,6 +12,18 @@ ClassMethod Make(application As %String) As OcuTalon.Test.Web.StubRequest
 	Quit request
 }
 
+/// A request whose body is the text json, as a character stream positioned at its start, which is where a handler reads
+/// %request.Content.
+ClassMethod MakeBody(application As %String, json As %String) As OcuTalon.Test.Web.StubRequest
+{
+	Set request = ..Make(application)
+	Set stream = ##class(%CSP.CharacterStream).%New()
+	Do stream.Write(json)
+	Do stream.Rewind()
+	Set request.Content = stream
+	Quit request
+}
+
 /// A request with the parts that the API's browser-envelope check reads: the method, the Content-Type, the values
 /// of the X-OcuTalon-Request, Origin and Host headers (empty means the header is absent), and whether the
 /// connection is HTTPS. ContentType and Secure have setters that only this subclass may call.

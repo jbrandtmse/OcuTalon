@@ -4,7 +4,8 @@
 /// with the live events and counters of the fixture sessions' streams, so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
-/// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave.
+/// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers and
+/// Between read them.
 Class OcuTalon.Test.Data.Fixture
 {
 
@@ -20,8 +21,9 @@ ClassMethod Session(user As %String) As %String
 	Quit ..Keep(row)
 }
 
-/// A turn of the session; createdAt defaults to now.
-ClassMethod Turn(sessionRef As %String, createdAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, state As %String = "done") As %String
+/// A turn of the session; createdAt defaults to now and state to done. It always has a new ItemId (the ItemId index is
+/// unique); text, clientId and attempt are set when given.
+ClassMethod Turn(sessionRef As %String, createdAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, state As %String = "done", text As %String = "", clientId As %String = "", attempt As %Integer = 0) As %String
 {
 	Set row = ##class(OcuTalon.Data.Turn).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -30,6 +32,10 @@ ClassMethod Turn(sessionRef As %String, createdAt As %String = {##class(OcuTalon
 	Set row.Channel = "web"
 	Set row.FromGuide = 0
 	Set row.CreatedAt = createdAt
+	Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Text = text
+	Set row.ClientId = clientId
+	Set row.Attempt = attempt
 	Quit ..Keep(row)
 }
 
@@ -230,6 +236,29 @@ ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String 
 		}
 	}
 	Quit $$$OK
+}
+
+/// The headers of the SuperSession, in order, as an array of objects ({id, sessionId, superSession, type, source, target,
+/// bodyClass, bodyId, status, isError}).
+ClassMethod Headers(superSession As %String) As %DynamicArray
+{
+	Set headers = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, SuperSession, Type, SourceConfigName, TargetConfigName, MessageBodyClassName, MessageBodyId, Status, IsError FROM Ens.MessageHeader WHERE SuperSession = ? ORDER BY ID", superSession)
+	While result.%Next() {
+		Do headers.%Push({"id": (result.%Get("ID")), "sessionId": (result.%Get("SessionId")), "superSession": (result.%Get("SuperSession")), "type": (result.%Get("Type")), "source": (result.%Get("SourceConfigName")), "target": (result.%Get("TargetConfigName")), "bodyClass": (result.%Get("MessageBodyClassName")), "bodyId": (result.%Get("MessageBodyId")), "status": (result.%Get("Status")), "isError": (result.%Get("IsError"))})
+	}
+	Quit headers
+}
+
+/// The headers of the type (1 request, 2 response) from the source item to the target item among the headers.
+ClassMethod Between(headers As %DynamicArray, type As %Integer, source As %String, target As %String) As %DynamicArray
+{
+	Set found = []
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If (header.type = type) && (header.source = source) && (header.target = target) Do found.%Push(header)
+	}
+	Quit found
 }
 
 /// Saves the row and records it.

@@ -15,8 +15,11 @@
 #     live user (OCUTALON_LIVE_USER), the session user, who also holds the trace role (OCUTALON_SESSION_USER), and the sign-in
 #     user, whom nothing signs in before session.spec S4 (OCUTALON_SIGNIN_USER). The specs reach the IRIS container with
 #     docker exec, which OCUTALON_E2E_IRIS_CONTAINER names.
+#   - Story 2.4's chat (web/e2e/api/api.spec.ts): a further user with the user role, the chat user (OCUTALON_CHAT_USER), whose
+#     session is the one that posts messages, so that the turns it makes touch neither the README account's seeded events nor
+#     another spec's snapshot.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session and sign-in users
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in and chat users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -41,6 +44,8 @@ sessionuser=ZzSession
 sessionpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 signinuser=ZzSignIn
 signinpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+chatuser=ZzChat
+chatpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -98,7 +103,7 @@ fi
 
 # Story 2.2's users: the live user and the sign-in user hold the user role; the session user also holds the trace role, so that
 # session.spec S5 can sign in at a trace application. Nothing signs the sign-in user in before S4.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture"; do
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -145,7 +150,7 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -159,6 +164,8 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_SESSION_PASSWORD="$sessionpassword" \
   OCUTALON_SIGNIN_USER="$signinuser" \
   OCUTALON_SIGNIN_PASSWORD="$signinpassword" \
+  OCUTALON_CHAT_USER="$chatuser" \
+  OCUTALON_CHAT_PASSWORD="$chatpassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \

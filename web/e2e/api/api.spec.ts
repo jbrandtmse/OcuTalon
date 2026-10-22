@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Response } from '@playwright/test';
 
+import { fixtureUser } from '../support/iris';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
 /**
@@ -10,6 +11,7 @@ import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } f
  * trace-only user ZzTraceOnly and ZzFirstCall, a user with the user role and no session row. Every variable is
  * required: a test that reads one fails without it. Each is read every time a test uses it, never at import, so that
  * listing the specs (`playwright test --list`) needs none of them.
+ * Story 2.4's chat tests sign in as the chat user (OCUTALON_CHAT_USER), whose session no other spec reads.
  */
 function required(name: string): string {
   const value = process.env[name];
@@ -47,6 +49,8 @@ const EVENTS = '/ocutalon/api/v1/events';
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
 const BAD_CURSOR = 'The after and afterInstance values must be whole numbers of zero or more.';
 const MESSAGES = '/ocutalon/api/v1/messages';
+const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
+const BAD_MESSAGE = 'A message needs a clientId and some text.';
 const PAIRING = '/ocutalon/api/v1/pairing';
 
 /** The three refusals of the browser envelope, with their texts. */
@@ -60,9 +64,8 @@ const NOT_BUILT = "This part of OcuTalon isn't built yet.";
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 
-/** The routes that answer 501 not_built, with the method that each takes. Session/end is built (Story 2.2) and the two routes that name a record answer 404 first. */
+/** The routes that answer 501 not_built, with the method that each takes. Session/end (Story 2.2) and messages (Story 2.4) are built, and the two routes that name a record answer 404 first. */
 const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
-  ['POST', '/ocutalon/api/v1/messages'],
   ['POST', '/ocutalon/api/v1/demo/break-feed'],
   ['POST', '/ocutalon/api/v1/mailbox/incoming'],
   ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
@@ -233,35 +236,35 @@ test.describe('row 15: the browser envelope', () => {
   });
 
   test('the whole envelope is let through, with or without a charset', async () => {
-    await expectError(await call(signedIn, 'POST', MESSAGES), 501, 'not_built', NOT_BUILT);
-    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED), 501, 'not_built', NOT_BUILT);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'application/json; charset=utf-8' }), 501, 'not_built', NOT_BUILT);
   });
 
   test('only the Content-Type is wrong: not_json', async () => {
     for (const type of ['text/plain', 'application/x-www-form-urlencoded', 'application/jsonx']) {
-      await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': type }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+      await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': type }), 403, 'not_json', ENVELOPE_TEXT.not_json);
     }
   });
 
   test('only the X-OcuTalon-Request header is wrong: no_request_header', async () => {
     for (const value of [undefined, '0', 'true', '11']) {
-      await expectError(await call(signedIn, 'POST', MESSAGES, { 'x-ocutalon-request': value }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+      await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'x-ocutalon-request': value }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
     }
   });
 
   test('only the Origin is wrong: wrong_origin', async () => {
     const own = stackOrigin();
     for (const origin of [undefined, 'http://evil.example', 'null', own.replace('http://', 'https://'), `${own}.evil.example`, `${own}0`]) {
-      await expectError(await call(signedIn, 'POST', MESSAGES, { origin }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+      await expectError(await call(signedIn, 'POST', BREAK_FEED, { origin }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
     }
   });
 
   test('with more than one rule broken, the first in the order names the refusal', async () => {
     const evil = 'http://evil.example';
-    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined, origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
-    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
-    await expectError(await call(signedIn, 'POST', MESSAGES, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined }), 403, 'not_json', ENVELOPE_TEXT.not_json);
-    await expectError(await call(signedIn, 'POST', MESSAGES, { 'x-ocutalon-request': undefined, origin: evil }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined, origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'text/plain', origin: evil }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'content-type': 'text/plain', 'x-ocutalon-request': undefined }), 403, 'not_json', ENVELOPE_TEXT.not_json);
+    await expectError(await call(signedIn, 'POST', BREAK_FEED, { 'x-ocutalon-request': undefined, origin: evil }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
   });
 
   test('every state-changing method is checked, and before the route is looked up', async () => {
@@ -269,8 +272,8 @@ test.describe('row 15: the browser envelope', () => {
     await expectError(await call(signedIn, 'DELETE', PAIRING, { 'content-type': 'text/plain' }), 403, 'not_json', ENVELOPE_TEXT.not_json);
     await expectError(await call(signedIn, 'DELETE', PAIRING, { 'x-ocutalon-request': undefined }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
     await expectError(await call(signedIn, 'DELETE', PAIRING, { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
-    await expectError(await call(signedIn, 'PUT', MESSAGES, { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
-    await expectError(await call(signedIn, 'PATCH', MESSAGES, { 'x-ocutalon-request': undefined }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
+    await expectError(await call(signedIn, 'PUT', BREAK_FEED, { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
+    await expectError(await call(signedIn, 'PATCH', BREAK_FEED, { 'x-ocutalon-request': undefined }), 403, 'no_request_header', ENVELOPE_TEXT.no_request_header);
     // A route that does not exist is refused for its envelope first, and is 404 only with a whole one.
     await expectError(await call(signedIn, 'POST', '/ocutalon/api/v1/zz', { origin: evil }), 403, 'wrong_origin', ENVELOPE_TEXT.wrong_origin);
     await expectError(await call(signedIn, 'POST', '/ocutalon/api/v1/zz'), 404, 'not_found', NOT_FOUND);
@@ -378,4 +381,121 @@ test('row 19: /ocutalon/public/status answers without a session and does not dis
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
   await check(request);
   expect((await request.get(STATE)).status(), 'the signed-in session still works').toBe(200);
+});
+
+/** One live event of a poll. */
+interface LiveEvent {
+  seq: number;
+  stream: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+/** Posts a body as the page does: the whole browser envelope and the JSON text of data. */
+function post(request: APIRequestContext, path: string, data: unknown): Promise<APIResponse> {
+  return request.fetch(path, { method: 'POST', headers: envelope(), data: typeof data === 'string' ? data : JSON.stringify(data) });
+}
+
+/**
+ * The session stream's events after a cursor, polled every half second until the condition holds or the seconds are up, in
+ * the order served. The session's stream is the only one read; the instance cursor stays at 0.
+ */
+async function sessionEvents(request: APIRequestContext, after: number, until: (events: LiveEvent[]) => boolean, seconds = 20): Promise<LiveEvent[]> {
+  const collected: LiveEvent[] = [];
+  let cursor = after;
+  const deadline = Date.now() + seconds * 1000;
+  for (;;) {
+    const response = await request.get(`${EVENTS}?after=${cursor}&afterInstance=0`);
+    expect(response.status(), await response.text()).toBe(200);
+    const poll = (await response.json()) as { events: LiveEvent[] };
+    for (const event of poll.events.filter((one) => one.stream === 'session')) {
+      collected.push(event);
+      cursor = Math.max(cursor, event.seq);
+    }
+    if (until(collected) || Date.now() > deadline) return collected;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
+/**
+ * Story 2.4, the Integration AC: a message that the page posts becomes a turn through WebChatIn and Conversation, the live
+ * stream shows it queued, running and done, and the snapshot of a reload shows it with its text. Decide is still Epic 0's
+ * stub, which answers an error status, so the reply is the fallback conversation.turnFallback with the reason unusable. The
+ * chat user is the only one that posts, so the turns disturb no other spec.
+ */
+test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
+  test.describe.configure({ mode: 'serial' });
+  const clientId = `zz-chat-${Date.now()}`;
+  const text = 'zz hello from the chat spec';
+  let chat: APIRequestContext;
+  let cursor = 0;
+  let turnRef = '';
+
+  test.beforeAll(async ({ playwright }) => {
+    chat = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    const account = fixtureUser('CHAT');
+    await signInOverHttp(chat, account.user, account.password);
+    const state = (await (await chat.get(STATE)).json()) as { streams: { session: number } };
+    cursor = state.streams.session;
+  });
+
+  test.afterAll(async () => {
+    await chat.dispose();
+  });
+
+  test('a body that is not a message is 400 bad_message and starts nothing', async () => {
+    const long = 'c'.repeat(129);
+    for (const body of ['{}', '{"clientId":"zz"}', '{"text":"zz"}', `{"clientId":"${long}","text":"zz"}`, '{"clientId":"zz","text":"   "}', '{"clientId":5,"text":"zz"}', '[]', 'not json']) {
+      await expectError(await post(chat, MESSAGES, body), 400, 'bad_message', BAD_MESSAGE);
+    }
+    const quiet = await sessionEvents(chat, cursor, () => false, 2);
+    expect(quiet, 'no turn was started').toEqual([]);
+  });
+
+  test('POST /messages answers 202 with the clientId, and the turn goes queued, running, done with the fallback reply', async () => {
+    const response = await post(chat, MESSAGES, { clientId, text, fromGuide: true, sessionRef: 'zz-someone-else' });
+    expect(response.status(), await response.text()).toBe(202);
+    expect(await response.json()).toEqual({ clientId });
+
+    const events = await sessionEvents(chat, cursor, (seen) => seen.some((event) => event.type === 'chat.message' && event.payload['clientId'] === clientId && event.payload['state'] === 'done'));
+    const mine = events.filter((event) => event.type === 'chat.message' && event.payload['clientId'] === clientId);
+    expect(mine.map((event) => event.payload['state']), 'the three stages, in order').toEqual(['queued', 'running', 'done']);
+    const done = mine[2].payload;
+    turnRef = String(done['ref']);
+    expect(done).toMatchObject({ clientId, text, fromGuide: true, channel: 'web', state: 'done', catalogKey: 'conversation.turnFallback', fallbackReason: 'unusable' });
+    expect(done['replyText'] ?? '', 'a fallback has no text of its own').toBe('');
+    expect(typeof done['traceHeaderId'], 'the trace target is the Item header').toBe('number');
+    expect(done['traceNamespace']).toBe('OCUTALON');
+    expect(mine[0].payload['text'], 'every stage shows the text').toBe(text);
+    cursor = Math.max(cursor, ...events.map((event) => event.seq));
+  });
+
+  test('a repeat of the clientId answers 202 and queues nothing', async () => {
+    const response = await post(chat, MESSAGES, { clientId, text: 'zz the same message again', fromGuide: false });
+    expect(response.status(), await response.text()).toBe(202);
+    expect(await response.json()).toEqual({ clientId });
+    const quiet = await sessionEvents(chat, cursor, () => false, 3);
+    expect(quiet, 'no second turn, no new event').toEqual([]);
+    const state = (await (await chat.get(STATE)).json()) as { chat: Array<{ type: string; payload: Record<string, unknown> }> };
+    const turns = state.chat.filter((item) => item.type === 'chat.message');
+    expect(turns.map((item) => item.payload['clientId'])).toEqual([clientId]);
+  });
+
+  test('a reload shows the turn with its text and its fallback (DW-61)', async () => {
+    const state = (await (await chat.get(STATE)).json()) as { chat: Array<{ type: string; payload: Record<string, unknown> }> };
+    const turns = state.chat.filter((item) => item.type === 'chat.message');
+    expect(turns).toHaveLength(1);
+    expect(turns[0].payload).toMatchObject({
+      ref: turnRef,
+      clientId,
+      text,
+      fromGuide: true,
+      channel: 'web',
+      state: 'done',
+      catalogKey: 'conversation.turnFallback',
+      fallbackReason: 'unusable',
+      traceNamespace: 'OCUTALON',
+    });
+    expect(typeof turns[0].payload['traceHeaderId']).toBe('number');
+  });
 });

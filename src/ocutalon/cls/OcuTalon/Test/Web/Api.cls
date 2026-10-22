@@ -35,6 +35,7 @@ Property SavedModeUpdatedAt As %String(MAXLEN = 20);
 
 Method OnBeforeAllTests() As %Status
 {
+	Kill ^OcuTalonTest("ApiProbe")
 	Do ..Clean()
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Set ..Number = $Increment(^OcuTalonTest("WebApi", "n"))
@@ -48,6 +49,8 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Kill ^OcuTalonTest("ApiProbe")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
 	Do ..Clean()
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Kill ^OcuTalonTest("WebApi", "job")
@@ -525,6 +528,7 @@ Method TestErrorTexts()
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTJSON"), "OcuTalon refused this request because it wasn't sent as JSON.", "not_json")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOHEADER"), "OcuTalon refused this request because it didn't come from the OcuTalon page.", "no_request_header")
 	Do $$$AssertEquals($Parameter(api, "MESSAGEWRONGORIGIN"), "OcuTalon refused this request because it came from another site.", "wrong_origin")
+	Do $$$AssertEquals($Parameter(api, "MESSAGEBADMESSAGE"), "A message needs a clientId and some text.", "bad_message")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTFOUND"), "OcuTalon has nothing at this address.", "not_found")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTALLOWED"), "This address doesn't accept that kind of request.", "method_not_allowed")
 	Do $$$AssertEquals($Parameter(api, "MESSAGESERVERERROR"), "Something went wrong inside OcuTalon. Try again.", "server_error")
@@ -536,12 +540,108 @@ Method TestErrorTexts()
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages NotBuilt", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed NotBuilt", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers NotBuilt", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed NotBuilt", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers NotBuilt", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
 	Do $$$AssertEquals($ListLength(found), 12, "12 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HTTP501NOTIMPLEMENTED"), "501 Not Implemented", "the 501 status line")
+}
+
+/// POST /v1/messages with a valid body answers 202 {"clientId"} and hands WebChatIn a Post for the CSP session's own session
+/// (a sessionRef in the body is ignored), with the clientId, the text and fromGuide, which is true only for the JSON true.
+/// The call goes to Test.Web.ApiProbe, whose Post makes a shadow WebChatIn that records what it sends.
+Method TestMessagesAccepted()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiMessages", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set cases = $ListBuild($ListBuild("true", "{""clientId"":""zzc1"",""text"":""zz hello"",""fromGuide"":true,""sessionRef"":""zzsomeoneelse""}", "zz hello", 1), $ListBuild("false", "{""clientId"":""zzc2"",""text"":""zz second"",""fromGuide"":false}", "zz second", 0), $ListBuild("absent", "{""clientId"":""zzc3"",""text"":""zz third""}", "zz third", 0), $ListBuild("the string true", "{""clientId"":""zzc4"",""text"":""zz fourth"",""fromGuide"":""true""}", "zz fourth", 0), $ListBuild("the number 1", "{""clientId"":""zzc5"",""text"":"" zz fifth\n"",""fromGuide"":1}", " zz fifth"_$Char(10), 0))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^OcuTalonTest("WebChatIn", ..Number)
+		Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+		Set json = $List(case, 2)
+		Set body = ..PostMessage(csp, json, .response)
+		Set label = "fromGuide "_$List(case, 1)
+		Do $$$AssertEquals(response.Status, "202 Accepted", label_": 202")
+		Do $$$AssertEquals(body, "{""clientId"":"""_##class(%DynamicObject).%FromJSON(json).clientId_"""}", label_": the body is the clientId")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 2, label_": the allowance is asked and one request is sent")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "target"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "class")), "Conversation|OcuTalon.Msg.Item", label_": an Item goes to Conversation")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "sessionRef")), session, label_": for the CSP session's own session, never the body's")
+		Do $$$AssertEquals($Get(^OcuTalonTest("WebChatIn", ..Number, 2, "clientId"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "text"))_"|"_$Get(^OcuTalonTest("WebChatIn", ..Number, 2, "fromGuide")), ##class(%DynamicObject).%FromJSON(json).clientId_"|"_$List(case, 3)_"|"_$List(case, 4), label_": the clientId, the text and fromGuide")
+	}
+}
+
+/// A clientId that the session already has a turn for answers 202 again with its clientId, and nothing is sent.
+Method TestMessagesRepeat()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, , "done", "zz first", "zzrepeat"_..Number)
+	Set csp = ##class(%CSP.Session).%New("ZzApiRepeat", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set body = ..PostMessage(csp, "{""clientId"":""zzrepeat"_..Number_""",""text"":""zz again"",""fromGuide"":false}", .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a repeat answers 202")
+	Do $$$AssertEquals(body, "{""clientId"":""zzrepeat"_..Number_"""}", "with the clientId")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, "and nothing is sent")
+}
+
+/// Any other body is 400 bad_message with the plain-English text, and nothing is sent: not JSON, no body, an array, an object
+/// without a clientId or text, a clientId that is not a string, empty or over 128 characters, a text that is not a string,
+/// empty or only white space.
+Method TestMessagesBadBody()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiBad", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set long = $Translate($Justify("", 129), " ", "c")
+	Set bodies = $ListBuild("not json", "", "[]", "[{""clientId"":""a"",""text"":""b""}]", "{}", "{""text"":""zz""}", "{""clientId"":""zz""}", "{""clientId"":123,""text"":""zz""}", "{""clientId"":"""",""text"":""zz""}", "{""clientId"":"""_long_""",""text"":""zz""}", "{""clientId"":""zz"",""text"":5}", "{""clientId"":""zz"",""text"":""""}", "{""clientId"":""zz"",""text"":""   ""}", "{""clientId"":""zz"",""text"":"" \t\n ""}", "{""clientId"":null,""text"":""zz""}", "{""clientId"":""zz"",""text"":null}", "{""clientId"":[""zz""],""text"":""zz""}", "{""clientId"":""zz"",""text"":{""a"":1}}")
+	Set position = 0
+	While $ListNext(bodies, position, json) {
+		Kill ^OcuTalonTest("WebChatIn", ..Number)
+		Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+		Set body = ..PostMessage(csp, json, .response)
+		Set label = "'"_$Extract(json, 1, 40)_"'"
+		Do $$$AssertEquals(response.Status, "400 Bad Request", label_": 400")
+		Do $$$AssertEquals(body, "{""error"":{""code"":""bad_message"",""message"":""A message needs a clientId and some text.""}}", label_": bad_message with its text")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, label_": nothing is sent")
+	}
+	Set ok = ..PostMessage(csp, "{""clientId"":"""_$Extract(long, 1, 128)_""",""text"":""zz""}", .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "a clientId of 128 characters is accepted")
+}
+
+/// A session that can't be resolved, a production that can't take the message and an error of WebChatIn answer 500
+/// server_error with the plain-English text, and the cause is not in the body.
+Method TestMessagesServerError()
+{
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set csp = ##class(%CSP.Session).%New("ZzApiError", 0)
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set wanted = "{""error"":{""code"":""server_error"",""message"":""Something went wrong inside OcuTalon. Try again.""}}"
+	Set valid = "{""clientId"":""zzc"",""text"":""zz hello"",""fromGuide"":false}"
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set ^OcuTalonTest("ApiProbe", "run") = ..Number
+	Set ^OcuTalonTest("ApiProbe", "mode") = "fail"
+	Set body = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "a production that can't take the message: 500")
+	Do $$$AssertEquals(body, wanted, "with server_error and no cause")
+	Kill ^OcuTalonTest("ApiProbe", "mode")
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", valid)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ""
+	Set %response.ContentType = ""
+	Set body = ..Written(.sc, "OcuTalon.Test.Web.ApiProbe", "Messages")
+	Do $$$AssertStatusOK(sc, "Messages returns OK")
+	Do $$$AssertEquals(%response.Status, "500 Internal Server Error", "no CSP session to take the session from: 500")
+	Do $$$AssertEquals(body, wanted, "with server_error")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("WebChatIn", ..Number)), 0, "and nothing is sent")
+	Set ^OcuTalonTest("ApiProbe", "mode") = ""
+	Set csp.Data("OcuTalon.SessionRef") = session
+	Set refused = ..PostMessage(csp, valid, .response)
+	Do $$$AssertEquals(response.Status, "202 Accepted", "the same message is accepted once the production takes it")
 }
 
 /// A request without a session is answered 401 signed_out in the API's error shape, by the public superclass, with
@@ -682,6 +782,21 @@ Method PreDispatch(method As %String, contentType As %String, header As %String,
 	Set response = %response
 	Set ended = %session.EndSession
 	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Quit body
+}
+
+/// Calls Messages of Test.Web.ApiProbe with a stand-in request whose body is json and the given CSP session, and returns the
+/// body that it wrote.
+Method PostMessage(session As %CSP.Session, json As %String, Output response) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeBody("/ocutalon/api/", json)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = session
+	Set %response.ContentType = ""
+	Set body = ..Written(.sc, "OcuTalon.Test.Web.ApiProbe", "Messages")
+	Set response = %response
+	Do $$$AssertStatusOK(sc, "Messages returns OK")
 	Quit body
 }
 

@@ -11,8 +11,8 @@ function required(name: string): string {
   return value;
 }
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION or SIGNIN. */
-export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN'): { user: string; password: string } {
+/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN or CHAT. */
+export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT'): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 

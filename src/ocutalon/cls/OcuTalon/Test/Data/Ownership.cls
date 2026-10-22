@@ -99,7 +99,9 @@ Method TestOwnRecordsOnly()
 	Do ..Seed(a, .ra2)
 	Do ..Seed(b, .rb)
 	Do ..ReadAll(a, .seen)
-	Do $$$AssertEquals(seen("turns"), ra1("turn")_","_ra2("turn"), "A's turns")
+	Do $$$AssertEquals(seen("turns"), ra1("turn")_","_ra2("turn")_","_ra1("queued")_","_ra2("queued")_","_ra1("replied")_","_ra2("replied"), "A's turns, by CreatedAt and then ID")
+	Do $$$AssertEquals(seen("turnqueue"), ra1("queued")_","_ra2("queued"), "A's queued turns")
+	Do $$$AssertEquals(seen("lastreplied"), ra2("replied"), "A's newest replied turn: the later ID of the tie")
 	Do $$$AssertEquals(seen("reminders"), ra1("reminder")_","_ra2("reminder"), "A's reminders")
 	Do $$$AssertEquals(seen("checks"), ra1("check")_","_ra2("check"), "A's checks")
 	Do $$$AssertEquals(seen("decisions"), ra2("decision")_","_ra1("decision"), "A's decisions, newest first")
@@ -107,7 +109,9 @@ Method TestOwnRecordsOnly()
 	Do $$$AssertEquals(seen("approvals"), ra1("approval")_","_ra2("approval"), "A's approvals")
 	Do $$$AssertEquals(seen("pairing"), ra1("pairing"), "A's pairing, the first row")
 	Do ..ReadAll(b, .seen)
-	For kind = "turn", "reminder", "check", "decision", "incident", "approval" {
+	Do $$$AssertEquals(seen("turns"), rb("turns"), "B reads its own turn rows and no other")
+	Do $$$AssertEquals(seen("turnqueue")_"|"_seen("lastreplied")_"|"_seen("turnbyclient"), rb("queued")_"|"_rb("replied")_"|"_rb("queued"), "and its own queue, replied turn and clientId turn")
+	For kind = "reminder", "check", "decision", "incident", "approval" {
 		Do $$$AssertEquals(seen(kind_"s"), rb(kind), "B reads its own "_kind_" row and no other")
 	}
 	Do $$$AssertEquals(seen("pairing"), rb("pairing"), "B's pairing")
@@ -301,7 +305,7 @@ Method TestIsolationEveryRowKind()
 	Do ..Seed(b, .rb)
 	Do ..ReadAll(a, .seenA)
 	Do ..ReadAll(b, .seenB)
-	Set kinds = $ListBuild($ListBuild("turns", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"))
+	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"))
 	Set position = 0
 	While $ListNext(kinds, position, pair) {
 		Set read = $List(pair, 1), kind = $List(pair, 2)
@@ -340,17 +344,28 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
+	For kind = "turnByClient", "turnQueue", "lastReplied" {
+		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared")
+		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
+		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
+		Set rows = $ClassMethod(probe, "Call", kind, "eval", .sc, "zzownshared")
+		Do $$$AssertStatusNotOK(sc, kind_": eval is not a session's Ref")
+	}
 	Set rows = $ClassMethod(probe, "Call", "turns", a, .sc)
 	Do $$$AssertStatusOK(sc, "a session's Ref is accepted")
-	Do $$$AssertEquals(rows.Count(), 1, "and gives its row")
+	Do $$$AssertEquals(rows.Count(), 3, "and gives its rows")
 	Set rows = $ClassMethod(probe, "Call", "decisions", a, .sc, 1)
 	Do $$$AssertStatusOK(sc, "a further argument is bound")
 
-	For read = "Turns", "Reminders", "Checks", "Incidents", "Approvals", "Pairing" {
+	For read = "Turns", "TurnQueue", "LastRepliedTurn", "Reminders", "Checks", "Incidents", "Approvals", "Pairing" {
 		Kill sc
 		Set result = $ClassMethod("OcuTalon.Data.Ownership", read, "", .sc)
 		Do $$$AssertStatusNotOK(sc, read_" with an empty SessionRef is an error")
 	}
+	Kill sc
+	Set result = ##class(OcuTalon.Data.Ownership).TurnByClient("", "zzownshared", .sc)
+	Do $$$AssertEquals(result, "", "TurnByClient with an empty SessionRef finds nothing")
+	Do $$$AssertStatusNotOK(sc, "and says why")
 	Kill sc
 	Set result = ##class(OcuTalon.Data.Ownership).Decisions("", 20, .sc)
 	Do $$$AssertStatusNotOK(sc, "Decisions with an empty SessionRef is an error")
@@ -362,12 +377,81 @@ Method TestRowsRefuses()
 	Do $$$AssertStatusNotOK(sc, "and says why")
 }
 
+/// TurnByClient finds the session's turn of a page's clientId, matching the clientId exactly (case included), and answers ""
+/// for an empty clientId, an unknown one, and another session's: both sessions can hold the same clientId.
+Method TestTurnByClient()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Turn(a, , "done", "zz mine", "zzClient"_..Number)
+	Set theirs = ##class(OcuTalon.Test.Data.Fixture).Turn(b, , "queued", "zz theirs", "zzClient"_..Number)
+	Set only = ##class(OcuTalon.Test.Data.Fixture).Turn(b, , "queued", "zz only b", "zzOnlyB"_..Number)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzClient"_..Number, .sc).Ref, mine, "A finds its turn")
+	Do $$$AssertStatusOK(sc, "with an OK status")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(b, "zzClient"_..Number).Ref, theirs, "B finds its own turn for the same clientId")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzOnlyB"_..Number, .sc), "", "A does not find B's clientId")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzclient"_..Number), "", "the clientId matches exactly: another case finds nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, ""), "", "an empty clientId finds nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzunknown"), "", "an unknown clientId finds nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzClient"_..Number_"' OR '1'='1"), "", "a clientId is only ever a bound value")
+}
+
+/// TurnQueue holds the session's queued and running turns, never a done one, by CreatedAt and then ID.
+Method TestTurnQueueOrder()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
+	Set late = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:03Z", "queued")
+	Set early = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:01Z", "queued")
+	Set tied = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:01Z", "running")
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:00Z", "done")
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(b, "2030-01-01T10:00:02Z", "queued")
+	Set rows = ##class(OcuTalon.Data.Ownership).TurnQueue(a, .sc)
+	Do $$$AssertStatusOK(sc, "the queue is read")
+	Do $$$AssertEquals(..Refs(rows), early_","_tied_","_late, "queued and running only, by CreatedAt and then ID")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnQueue(##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"c")).Count(), 0, "a session with no turn has an empty queue")
+}
+
+/// LastRepliedTurn is the newest done turn that has a reply decision: a done turn without one, and a turn that is not done, are
+/// skipped; the newest by CreatedAt wins, and the later ID wins a tie.
+Method TestLastRepliedTurn()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).LastRepliedTurn(a, .sc), "", "no turn: none")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Set plain = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:05Z", "done")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).LastRepliedTurn(a), "", "a done turn with no reply decision is skipped")
+	Set old = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:01Z", "done")
+	Set first = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:02Z", "done")
+	Set second = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:02Z", "done")
+	Set running = ##class(OcuTalon.Test.Data.Fixture).Turn(a, "2030-01-01T10:00:09Z", "running")
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Turn(b, "2030-01-01T10:00:09Z", "done")
+	For ref = old, first, second, running, other {
+		Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+		Set row.TurnDecisionRef = "zzdecision"
+		Do row.%Save()
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).LastRepliedTurn(a).Ref, second, "the newest done turn with a reply decision: the later ID wins a tie, a running turn and another session's are skipped")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(second)
+	Set row.Tainted = 1
+	Do row.%Save()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).LastRepliedTurn(a).Tainted, 1, "and its Tainted flag is readable")
+}
+
 /// --- helpers ---
 /// One row of every kind for the session: ref(kind) = the row's Ref. Its incident is noticed and its approval pending.
 ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 {
 	Kill ref
-	Set ref("turn") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef)
+	Set ref("turn") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:01Z")
+	Set ref("queued") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:02Z", "queued", "zz queued", "zzownshared")
+	Set ref("replied") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:03Z", "done", "zz replied", "zzownreplied")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref("replied"))
+	Set row.TurnDecisionRef = "zzdecision"
+	Do row.%Save()
+	Set ref("turns") = ref("turn")_","_ref("queued")_","_ref("replied")
 	Set ref("reminder") = ##class(OcuTalon.Test.Data.Fixture).Reminder(sessionRef)
 	Set ref("check") = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, "ZZNS", "Zz.Seed."_$Extract(sessionRef, 1, 6))
 	Set ref("decision") = ##class(OcuTalon.Test.Data.Fixture).Decision(sessionRef)
@@ -389,6 +473,15 @@ Method ReadAll(sessionRef As %String, Output seen) [ Private ]
 	Set rows = ##class(OcuTalon.Data.Ownership).Decisions(sessionRef, 20, .sc)
 	Do $$$AssertStatusOK(sc, "Decisions reads")
 	Set seen("decisions") = ..Refs(rows)
+	Set rows = ##class(OcuTalon.Data.Ownership).TurnQueue(sessionRef, .sc)
+	Do $$$AssertStatusOK(sc, "TurnQueue reads")
+	Set seen("turnqueue") = ..Refs(rows)
+	Set turn = ##class(OcuTalon.Data.Ownership).LastRepliedTurn(sessionRef, .sc)
+	Do $$$AssertStatusOK(sc, "LastRepliedTurn reads")
+	Set seen("lastreplied") = $Select($IsObject(turn): turn.Ref, 1: "")
+	Set turn = ##class(OcuTalon.Data.Ownership).TurnByClient(sessionRef, "zzownshared", .sc)
+	Do $$$AssertStatusOK(sc, "TurnByClient reads")
+	Set seen("turnbyclient") = $Select($IsObject(turn): turn.Ref, 1: "")
 	Set pairing = ##class(OcuTalon.Data.Ownership).Pairing(sessionRef, .sc)
 	Do $$$AssertStatusOK(sc, "Pairing reads")
 	Set seen("pairing") = $Select($IsObject(pairing): pairing.Ref, 1: "")

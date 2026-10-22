@@ -2,12 +2,44 @@
 title: 'Story 2.4: Answer every chat message through the turn pipeline'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e0c77f82f405d05a3ee00ede8bbc57215d3a9cf7'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Nothing runs the Reconcile declarations when the production is started on its own (an IPM install's autostart, or a
+      production stop and start without an installer run), so a turn left running then waits for the next installer run.
+    evidence: |-
+      AD-23 says that on an IPM install the Reconcile declarations run on every production start, whatever started it. A search of
+      src/ for OnStart, OnProductionStart and Autostart finds nothing, and Install.Step.Reconcile (the only caller of
+      CallAreas("Reconcile")) runs only inside the installer's step order. Story 2.4 only adds Web.Reconcile() to that order, as its
+      spec says; Production.cls and the installer registry are Lane A's.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Registry.cls, src/ocutalon/cls/OcuTalon/Production.cls
+    severity: medium
+  - summary: >-
+      The Busy wait and resend run end to end only against a probe that replaces SetTimer, never through the real Ens.Alarm and the
+      reopened instance.
+    evidence: |-
+      TestBusyRequeues (ConversationTurns) drives Wait through ConversationProbe. Task 0 measured the timer path once with a
+      temporary change, which was reverted. ConversationProduction and restart row 20 reach only the Epic 0 Decide stub, which answers
+      an error status, so Busy is never produced in a production. It needs the real Decide (Story 1.3) or a Decide double inside a
+      test production (DecideDouble is an Ens.BusinessProcess for that).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/Conversation.cls (Delay, Resend, Wait)
+    severity: medium
+  - summary: >-
+      No test observes that WebChatIn's Allowed reaches Allowance.TryConsume, because TryConsume is a constant that cannot refuse yet.
+    evidence: |-
+      WebChatInProbe.Allowed records the call and either refuses or delegates to the real Allowed; TryConsume ignores its arguments and
+      answers 1, so replacing Allowed's body with Quit 1 changes no test. Story 16.9 makes TryConsume able to refuse, and its test
+      with the online-demo flag on closes the gap.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/WebChat/In.cls (Allowed)
+    severity: low
 ---
 
 <intent-contract>
@@ -381,6 +413,56 @@ Unit tests drive every reply shape through a `Decide` double at `Conversation`'s
 
 ## Review Triage Log
 
+### 2026-10-22 - Review pass
+- verdicts: 46 findings - high 0, medium 14, low 27, false 5, maybe-false 0. Four layers reported: blind-hunter (15 rows: 7 items, those with several claims split), edge-case-hunter (15), verification-gap (12: 5 gaps and 7 other findings), intent-alignment (4 divergences; the layer is descriptive). Rows that share a root cause share a route.
+- findings:
+  - `[medium]` `[patch]` A turn can be left `running` when `Begin` (Join, Request, Agent.Input.Render) throws on the OnRequest path - `Begin` is now inside a Try that logs and calls `Abandon`; `TestBeginFailureEndsTurn` (mutation line recorded).
+  - `[low]` `[reject]` `Start`'s lock timeout after `Take` saved the turn leaves a queued turn with no RunTurns - the lock is held for milliseconds and waited on for 5 s, the next message or the sweep starts the turn, and a retry adds a new loop; reopen_if a `ERRORBUSY` line appears in a production's event log.
+  - `[low]` `[reject]` No watchdog for a Decide answer that never comes - the queue is persistent, an error in Decide returns an error response, and a stop re-queues in-progress messages; AD-6 puts the model timeout in Decide; reopen_if a turn is seen `running` with no Decide message in flight.
+  - `[medium]` `[defer]` Nothing runs the Reconcile declarations on an IPM autostart or a production-only restart - AD-23's trigger is Lane A's (Production and Registry), the spec adds only `Web.Reconcile()`; deferred item 1.
+  - `[low]` `[reject]` The message text has no maximum length - Decide answers `too_large` for a request it cannot send, the web request and the long-string limit bound a post, and a cap needs its own user-facing text (a veto item); reopen_if Story 2.5's input limit or Story 16.9's allowance fixes a number.
+  - `[medium]` `[patch]` `WebChatIn.Accept`'s send-failure branch had no test (the Api test replaces `Post` whole) - `TestSendFailureAnswersError` uses `FailSend`; mutation line recorded. `PendingCount` stays as a harmless helper.
+  - `[medium]` `[patch]` An exception inside `OnResponse` (the Catch and `Abandon`) was untested - `ThrowIn` "decided" and `TestCallbackFailureEndsTurn`; mutation line recorded.
+  - `[low]` `[reject]` A failed `SetTimer` and `Requeue` returning -1 have no failure mode in the probe - each is a three-line branch that ends in the fallback or a log line; reopen_if the timer or the lock code changes.
+  - `[medium]` `[patch]` `Conversation.Reconcile` with no production was tested nowhere (matrix row Restart, error handling) - `TestReconcileWithoutProduction`, skipped where a production runs; mutation line recorded. The error branch with a production running stays throwaway-only.
+  - `[low]` `[patch]` `^OcuTalonTest("ApiProbe","mode")` survives an aborted run - `Test.Web.Api.OnBeforeAllTests` clears it.
+  - `[low]` `[reject]` `ConversationProduction` does no `Fixture.Clean` up front - it runs in a fresh throwaway and removes its own rows afterwards; reopen_if an interrupted run is seen to leave rows in a reused stack.
+  - `[low]` `[reject]` `ConversationTurns.Session()` also resets the probe's records - its comment says so and no test creates a session after it has recorded calls.
+  - `[low]` `[patch]` The `DecideDouble` header said every non-busy answer carries a DecisionRef - reworded to the DecisionResponse and Reply it makes.
+  - `[low]` `[patch]` `test-sign-in.sh` called the chat user "a fifth user" - reworded to "a further user".
+  - `[low]` `[patch]` The comment above `UNBUILT` in `api.spec.ts` did not name messages as built - reworded.
+  - `[medium]` `[patch]` Edge case: `Begin` has no Try/Catch - same root as the first row, patched with it.
+  - `[low]` `[reject]` Edge case: `Conclude`'s `%Save` can fail and leave the row `running` - a save of an unconstrained row fails only on a disk or lock fault, where the sweep resumes it; a retry timer is new machinery; reopen_if a `%Save` error is logged from `Conclude`.
+  - `[low]` `[reject]` Edge case: `Start` returns an error after the Item was queued - same as the lock-timeout row.
+  - `[low]` `[reject]` Edge case: the self-send of RunTurns fails after a turn is done - the target is this running item; reopen_if `Again` logs an error.
+  - `[low]` `[reject]` Edge case: a running turn has no age check - same as the watchdog row.
+  - `[low]` `[reject]` Edge case: a poison turn is requeued by every sweep with `Attempt` growing - needs a job-killing fault on one turn; an attempt cap would be a new fallback rule; reopen_if a turn's `Attempt` passes 3 in a real install.
+  - `[low]` `[reject]` Edge case: an empty `SessionRef` makes the sweep throw on a null subscript - `Take` refuses an Item with no session and no code writes such a row; a guard adds a branch for a corrupt row; reopen_if a row with an empty `SessionRef` is found.
+  - `[low]` `[patch]` Edge case: `AfterTaint` ignored a failed read and counted it untainted - it now counts it as tainted (fresh session with the recap); `TestTaintReadFailureStartsFresh`, mutation line recorded.
+  - `[false]` `[reject]` Edge case: a `Reply` with no fallback and empty Text gives a blank Outbound - Decide classifies an empty reply as the fallback `empty` (AD-8) and Conversation must not classify; the blank reply needs a Decide that breaks AD-8.
+  - `[low]` `[reject]` Edge case: a failed send after `Allowed` would consume the allowance once Story 16.9 counts - the order is the spec's (step 2 before steps 3 and 4), a duplicate returns before `Allowed`, and a refund belongs to Story 16.9's count; reopen_if Story 16.9 counts at `TryConsume`.
+  - `[low]` `[reject]` Edge case: no upper bound on the text - same as the text-length row.
+  - `[false]` `[reject]` Edge case: a failing `Reconcile` stops the installer's later steps - `CallAreas` reports a failing area in the step's result for every area, as for `ReminderTimer` and `ApprovalHold`; a production that runs and cannot create `WebChatIn` is broken, and Decided 18 records that.
+  - `[medium]` `[patch]` Edge case (claim): Conversation does not turn every failure into the fallback - covered by the `Begin` guard; the `Conclude` and `Start` rows are rejected above.
+  - `[medium]` `[defer]` Edge case (claim): the reconcile runs only from the installer - same as the IPM-autostart row, deferred item 1.
+  - `[false]` `[reject]` Edge case (claim): `lastReplied` hides a tainted reply with no `TurnDecisionRef` - Decided 9 sets the rule, and every non-Busy answer of Decide carries a `DecisionRef` (`Result`).
+  - `[medium]` `[patch]` Verification gap: the model-input assertions compare "" with "" (`Render` is a stub), so nothing observes `ItemOf` - `TestItemOfCarriesTheRow` through `ItemFor`; mutation line recorded.
+  - `[medium]` `[patch]` Verification gap: the 80-character cut of `Summary` has no test - `TestSummaryCut`; mutation line recorded.
+  - `[medium]` `[defer]` Verification gap: the Busy resend runs only against a probe that replaces `SetTimer` - needs the real Decide or a Decide double in a test production; deferred item 2.
+  - `[medium]` `[patch]` Verification gap: the Catch in `OnResponse` and `Abandon` have no test - same as the exception row, patched with it.
+  - `[low]` `[defer]` Verification gap: the hop from `Allowed` to `TryConsume` is unobserved while `TryConsume` is a constant - deferred item 3, Story 16.9.
+  - `[medium]` `[patch]` Other: `ConversationProduction` reads the Notify headers after the `done` event, which comes before the Outbound is sent - `WaitNotices` polls for the header.
+  - `[low]` `[reject]` Other: the production tests hard-code the Epic 0 stub's fallback `unusable` - the spec's ACs name it, and Story 1.3 (Consumed-by) updates them to the mock; reopen_if Story 1.3 lands with these tests unchanged.
+  - `[low]` `[patch]` Other: the last assertion of `TestRefusalQueuesNothing` could not fail on a leftover - it now checks the output is a new message and that it is sent.
+  - `[low]` `[reject]` Other: the `api.spec.ts` chat tests depend on each other - they are a serial describe by design, as a chat is a sequence; the unit classes are order-free.
+  - `[low]` `[patch]` Other: probe state left behind by an aborted run - same as the `ApiProbe` row.
+  - `[false]` `[reject]` Other: pinning tests with no `mutation:` line - every AC has a recorded mutation with a named red test; the sub-claims are not per-assertion requirements (Rule 19), and the new tests have their lines.
+  - `[medium]` `[patch]` Other: no catch on the OnRequest path - same root as the first row.
+  - `[false]` `[reject]` Intent alignment: the non-error reply shapes are driven only through the probe's emulation of the framework - Decided 5; the auditor compared the emulation with `Ens.BusinessProcess` and found it matches; the real error path runs in `ConversationProduction`.
+  - `[low]` `[reject]` Intent alignment: the real `Web.Api.Post` error branch and the refusal-to-500 chain are tested in two pieces - the branch is a pass-through of the status; reopen_if `Post` gains logic.
+  - `[low]` `[reject]` Intent alignment: the sweep and `Requeue` are not unit-tested on a slot - the spec limits them to throwaways because they re-queue every session (`TestReconcileResumesTurns`, restart row 20).
+  - `[low]` `[reject]` Intent alignment: a `SessionBroken` reply's `Tainted` and `TurnDecisionRef` are not kept when the retry then ends in an error status - an error status leaves no reply to copy from, and a second reply sets its own; reopen_if a broken first reply is seen to carry a Tainted flag that the retry hides.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -418,6 +500,15 @@ No AC contradicts an AD's Rule. Rule 5: no NFR here is unmeasurable as worded.
 10. **The checked sweep statement.** The sweep is the only read across sessions, so it can't be an `Ownership` kind, which requires an owner. It runs in `Conversation`'s production job, never in REST.
 11. **`ClientId` uses exact collation.** It is the page's own id and compares exactly.
 12. **The trace target is the `Item` header.** It is the user's message, where Story 2.9's turn link opens. `TraceNamespace` is the running namespace, so it isn't stored.
+13. **The error path is one callback pair.** Task 0 measured it (see `## Verification`): the framework calls `OnError` with the `<Ens>ErrBPTerminated` status and then `OnResponse` with no `callresponse`. `OnError` only keeps the status in `CallError` and answers OK; `OnResponse` does the work and reads `CallError` (`Decided` clears it, `Replied` reads and clears it). A turn never depends on `callresponse` being empty: a stored error always wins.
+14. **Sends and callbacks never strand a turn.** A decide send that fails is handled as an error answer (the turn request is still tried); a turn send that fails, a failed `SetTimer` and an exception inside `OnResponse` give the fallback `unusable` (the exception only while the instance is not stale). `Next`, `Tell` and `Announce` log a failure and go on.
+15. **`WebChatIn` answers a JSON text.** The output is the string `{"accepted":1,"duplicate":0|1}`, not an object, so the service's IO log and `ProcessInput` handle it as any string; a `RunTurns` forward has an empty output. Its private `Send` calls `SendRequestAsync(target, request)`: in `Ens.BusinessService` the third argument is a description, not "response required", so the spec's `, 0` is left out.
+16. **"A non-space character" means after `$ZStrip(text, "<>WC")`.** Measured on build 154: `W` alone leaves a line feed or carriage return, so the check also strips control characters at both ends. `Conversation` (an `Item` with only white space has no text), `WebChatIn` and `Messages` use the same test.
+17. **`Summary` and the recap cut.** The `Summary` strips leading white space and line breaks first, then takes the first line; a line over 80 characters is cut to 79 and the cut mark (80 in all). A recap side over 2,000 characters is cut to 1,999 and the cut mark (2,000 in all).
+18. **`Reconcile` returns an error status** when the production runs but `CreateBusinessService("WebChatIn")` or `ProcessInput` fails (a start that cannot resume the turns says so); with no production running it answers OK and does nothing.
+19. **Test seams.** `ConversationProbe` also has `Deliver(max)` (hand over at most `max` kept answers), `PendingCount()` and `FailTarget` (a target whose send fails); `WebChatInProbe` has `Refuse` and `FailSend`; `ApiProbe.Post` reads `^OcuTalonTest("ApiProbe","run")` and `"mode"` (`fail` answers an error status). `ApiProbe`'s override of the private class method `Post` is reached through `Messages` (measured: `..Post` in a class method is resolved against the class that was called). Extra tests: `TestStagesInOrder` (a turn waiting behind another), `TestSendFailuresNeverStrandTurn`, `TestTurnByClient`-style Ownership tests as listed, and a tainted-reply segment in `TestRecapFromTurnRows` (the recap never holds the `HostData`).
+20. **`Begin` and `AfterTaint` (review patches).** `Begin` runs its trace step and its decide send inside a Try; a failure there is logged and ends the turn with the fallback `unusable` through `Abandon`, as a failure inside `OnResponse` already does, so a started turn is never left `running` by an exception on the `OnRequest` path. `AfterTaint` counts a failed read of the last replied turn as tainted: the safe direction is a fresh session with the recap.
+21. **Review-pass tests.** `ConversationTurns` gains `TestBeginFailureEndsTurn`, `TestCallbackFailureEndsTurn`, `TestItemOfCarriesTheRow`, `TestSummaryCut`, `TestTaintReadFailureStartsFresh` and `TestReconcileWithoutProduction` (skipped where a production runs); `WebChatMessages` gains `TestSendFailureAnswersError`. `ConversationProbe` gains `ThrowIn` (`join`, `decided`), `ItemFor` and `FreshAfter`. `Test.Web.Api` clears `^OcuTalonTest("ApiProbe")` before its tests, and `ConversationProduction` waits for the Outbound's request header before it reads the headers (`Conversation` sends the Outbound after it saves the turn and publishes its last event).
 
 **Veto-window items for the lead** (ruled at spec validation: kept as planned, veto inbox U-20; the implement stage builds as planned unless the owner reverses it):
 1. **A change to how stored data is kept (schema, AD-5; Lane B tables by AD-33).**
@@ -519,6 +610,45 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 | Isolation | `turnByClient` without its owner check | `TestIsolationEveryRowKind` |
 | Built | `STUB` left on `Conversation` | `TestStubsAnswer` |
 
+**Task 0 (measured by the implement stage).** The first throwaway run of `ci/iris.sh class OcuTalon.Test.Core.ConversationProduction` (stack `e2s24i`, build 154) ran with temporary writes in `Conversation` (removed afterwards; `grep MEASURE` finds none) that recorded each callback with the instance's `%Id()`, `%SessionId`, primary header and `%SuperSession`:
+- measure 1, the stub `Decide`'s answer: the response header from `Decide` to `Conversation` is type 2 with `IsError` 1, no body class and the status `ERROR <Ens>ErrBPTerminated: Terminating BP Decide # due to error: ERROR #5003: Not implemented`. `Conversation` got `OnError` with that status and then `OnResponse` with no `callresponse` (`answer=[]`), in that order, for both `decide` and `turn`. It handles the error in `OnResponse`, with `OnError` only keeping the status (Decided 13).
+- measure 2, the session: a `%SessionId` set before `SendRequestAsync` is the request header's `SessionId` (the decide request, its error response and the Outbound to `Notify` all sit in the Item's session, e.g. 46, while the instance's own primary header, a `RunTurns`, was in session 44), and `OnError`/`OnResponse` after the reopen still read `%SessionId` 46 and `%SuperSession` = the `TraceRef`.
+- measure 3, the self-send: `SendRequestAsync("Conversation", RunTurns, 0)` from `Conversation` reached a new instance each time (instance ids 4, 7, 11 and 24, 30, 34, in the one job of the pool), so the finishing instance does not start the next turn itself.
+- measure 4, the trace target: the `Item` header's ID equals its `SessionId` (28/28, 36/36, 44/44, 46/46, 48/48): `WebChatIn`'s `ProcessInput` starts a session of its own, and there is no `Join` yet.
+- also, the timer path (measured with a temporary change to `Replied`, reverted: the first two error answers of each turn were treated as Busy): the wait that `Conversation` sets with `SetTimer` inside `OnResponse` fires through `Ens.Alarm`, reaches `OnResponse` with the key `busy`, and the turn request goes out again. Every turn still reached done inside the 20 s wait, with the extra requests as the only failed assertions (the request counts), so `Ens.Alarm` is present in the production and a timer set in `OnResponse` survives the framework's clean-up of pending timers.
+- also: the container start's `Reconcile` step sent one empty `RunTurns` through `WebChatIn` (a sweep over no turns, read in the production job with the checked statement, no error), and the test's `Web.Reconcile()` swept the three fixture turns as `TestReconcileResumesTurns` expects.
+
+**Mutations observed (Rule 19).** Each was applied, observed red, and reverted; `git status --short`, `git diff --stat` and a hash of `git diff` plus the untracked files were identical before the first and after the last.
+- mutation: `WebChatIn` sends provenance `untrusted` -> `TestBuildsItem` red (slot B)
+- mutation: `WebChatIn`'s and `Conversation`'s `TurnByClient` checks removed -> `TestRepeatClientId` and `TestDuplicateItemDropped` red (slot B)
+- mutation: `WebChatIn` ignores a refusal of `Allowed` -> `TestRefusalQueuesNothing` red (slot B)
+- mutation: the `decide` call skipped (`Begin` goes straight to the turn request) -> `TestDecideThenTurn` red (slot B)
+- mutation: `ThreadSessionId` left empty -> `TestDecideThenTurn` red (slot B)
+- mutation: the decision-landed `Announce` dropped from `Decided` -> `TestStagesPublished` red (slot B)
+- mutation: the "no turn running" check skipped in `Start` -> `TestSecondMessageWaits` red (slot B)
+- mutation: `BUSYMAX` 6 -> `TestBusyRequeues` red (slot B)
+- mutation: no fresh retry after `SessionBroken` -> `TestBrokenRetriedFresh` red (slot B)
+- mutation: `AfterTaint` always 0 (the next turn sent `continue`) -> `TestTaintedNextFresh` red (slot B)
+- mutation: a tainted reply's `HostData` appended to the reply that is stored -> `TestRecapFromTurnRows` red (slot B; its tainted-reply segment was added for this row, since `Turn` rows hold no `HostData` for a fixture to carry)
+- mutation: an error status mapped to the fallback `error` -> `TestEveryFallbackReason` red (slot B)
+- mutation: `ignore` ends the turn with no `turn` call -> `TestEveryTriageOutcomeRuns` red (slot B)
+- mutation: the sweep leaves `running` turns alone -> `TestReconcileResumesTurns` red (throwaway `e2s24i`); the restart row 20 was not re-run with it
+- mutation: the `Attempt` guard removed from `Current` -> `TestStaleAnswerDropped` red (slot B)
+- mutation: `FromRow` omits `Text` -> `TestFromRowBuilders` red (slot B); the API spec `/state` check was not re-run with it
+- mutation: `turnByClient` without its owner check -> `TestIsolationEveryRowKind` red (slot B)
+- mutation: `Parameter STUB = 1` left on `Conversation` -> `TestStubsAnswer` red (throwaway `e2s24i`)
+- not observed: the second variant of the Allowance row (`WebChatIn` sends before `Allowed`) and `TestUntrustedItemRefused`/`TestTurnThroughProduction`/`TestRepeatQueuesNothing` as the red test of the Post and Repeat rows; the unit tests above stand for them.
+- mutation (review pass): `Begin`'s Catch does not call `Abandon` -> `TestBeginFailureEndsTurn` red (slot B)
+- mutation (review pass): `OnResponse`'s Catch does not call `Abandon` -> `TestCallbackFailureEndsTurn` red (slot B)
+- mutation (review pass): `ItemOf` leaves out `Item.Text` -> `TestItemOfCarriesTheRow` red (slot B)
+- mutation (review pass): `Summary` cuts to 80 characters and adds the cut mark -> `TestSummaryCut` red (slot B)
+- mutation (review pass): `AfterTaint` ignores a failed read -> `TestTaintReadFailureStartsFresh` red (slot B)
+- mutation (review pass): `WebChatIn.Accept` ignores the status of its send -> `TestSendFailureAnswersError` red (slot B)
+- mutation (review pass): `Conversation.Reconcile` without the check for a running production -> `TestReconcileWithoutProduction` red (slot B)
+  Each was loaded from a copy outside the repository and then reloaded from the tree, so the working tree was never changed by a mutation (`git status` and a hash of `git diff` plus the untracked files were identical before and after).
+
+**Runs by the implement stage (the loop).** Slot B: `ConversationTurns` 15/15, `WebChatMessages` 6/6, `Data.Ownership` 13/13, `Data.Tables` 6/6, `Live.Payloads` 5/5, `Msg.Contracts` 6/6, `Web.Api` 22/22, `Contract.Ac` 6/6; the check scripts and `node web/scripts/payloads.mjs --check` pass with `ALLOW_UNCHECKED` unchanged; throwaway `e2s24i`: `build`, `ConversationProduction`, `CommandsInProduction`, `Install.Production` and `Install.Registry` pass, and `live production` (row 16 with `Intake`), `live production-restart` (row 20 with session B) and `live sign-in` (the API spec, 83 passed) pass.
+
 **Shared surfaces:**
 - the `Turn` table and its contract (`Test.Data.Tables`);
 - the `Item` contract (`Test.Msg.Contracts`);
@@ -541,5 +671,23 @@ Every test added or changed passes on a fresh environment, in either order. The 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** A message posted on the page now runs through the whole turn pipeline. `POST /api/v1/messages` validates `{clientId, text, fromGuide}` and calls `WebChatIn` through `CreateBusinessService` and `ProcessInput`; `WebChatIn` deduplicates on `clientId`, asks `Allowance.TryConsume` and sends an `Item` to `Conversation`. `Conversation` owns the per-session `Turn` queue: it sends `Decide` the `decide` and then the `turn` request asynchronously, handles Busy (3 s timer, 5 resends), SessionBroken (one fresh retry with a code-written recap) and Tainted (next turn fresh), turns every failure into the `conversation.turnFallback` reply, publishes `chat.message` at queued, running and done, sends the `Outbound` to `Notify`, and starts the next turn. `Install.Step.Web.Reconcile()` sweeps the queue through `WebChatIn` after a start, and a stale answer is dropped by the `Attempt` guard. `Turn` keeps the text, the reply as sent, the `clientId`, the fallback key and reason, the trace target, `Tainted` and `Attempt`, and `ChatMessage.FromRow` maps them (DW-61). Task 0's four measurements are recorded under `## Verification`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`: the turn queue, the reply shapes, the recap, the sweep and `Reconcile`.
+- `src/ocutalon/cls/OcuTalon/Channel/WebChat/In.cls`, `Post.cls`, `Core/Allowance.cls`, `Core/Msg/RunTurns.cls`: the service, its input, the allowance and the reconcile request.
+- `src/ocutalon/cls/OcuTalon/Data/Turn.cls`, `Msg/Item.cls`, `Live/Payload/ChatMessage.cls`, `web/src/app/live/payloads.ts`: the new columns, the `ClientId` of an `Item`, the payload fields.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: the row kinds `turnByClient`, `turnQueue` and `lastReplied`, with their wrappers.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`, `Install/Step/Web.cls`: the messages route and the Web step's `Reconcile`.
+- New tests and doubles under `src/ocutalon/cls/OcuTalon/Test/Core/` (`ConversationTurns`, `WebChatMessages`, `ConversationProduction`, `DecideDouble`, `ConversationProbe`, `WebChatInProbe`) and `Test/Web/ApiProbe.cls`.
+- Updated tests: `Test/Data/Fixture.cls`, `Test/Data/Ownership.cls`, `Test/Data/Tables.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Contracts.cls`, `Test/Contract/Ac.cls`, `Test/Core/CommandsInProduction.cls`, `Test/Core/ProductionItems.cls`, `Test/Web/Api.cls`, `Test/Web/StubRequest.cls`.
+- `docker/tests/test-production.sh` (row 16), `test-production-restart.sh` (row 20), `test-sign-in.sh` (the chat user), `web/e2e/api/api.spec.ts` and `web/e2e/support/iris.ts` (the chat specs).
+
+**Review findings (46 from four layers).** Patches applied: 18 rows, grouped into 13 entries (7 medium): `Begin` runs inside a Try that ends the turn with the fallback on a failure; `AfterTaint` counts a failed read as tainted; new tests for the `Begin` and `OnResponse` failures, the `Item` that Decide's input is rendered from, the `Summary` cut, the failed taint read, `Reconcile` with no production, and a send failure in `WebChatIn`; `ConversationProduction` waits for the Outbound's header; the probe state is cleared before `Test.Web.Api`; three comments corrected. Deferred (3, in the frontmatter): the Reconcile trigger on an IPM autostart (Lane A), the Busy resend through the real timer, and the `Allowed` to `TryConsume` hop (Story 16.9). Rejected: 24 rows, each with its reason in `## Review Triage Log` (19 low, 5 false). Follow-up review recommended: true, because 7 medium entries were patched; the unverified risk is that the patched failure paths (`Begin`'s Catch and `OnResponse`'s Catch) are exercised only through the probe's throw hooks, not through a real fault in a running production.
+
+**Verification.** Slot B (`ocutalon-slot-b`, build 154U): both `iris_doc_load` calls 0 errors; `ConversationTurns` 21, `WebChatMessages` 7, `CommandsRouting` 12, `Data.Ownership` 13, `Data.Tables` 6, `Live.Payloads` 5, `Msg.Contracts` 6, `Web.Api` 22 and `Contract.Ac` 6 all passed, run once before the review and once after the patches; no fixture row, event or `^OcuTalonTest` run was left. Seven review mutations and the implement stage's 18 were observed red and reverted. `test-class-rules.sh` (`ALLOW_UNCHECKED` unchanged), `test-boundaries.sh`, `test-ci-config.sh`, `test-storage.sh` and `payloads.mjs --check` pass. Throwaway `e2s24i`: `build`; `ConversationProduction`, `CommandsInProduction`, `Install.Production` and `Install.Registry` passed twice; after the last patch `ci/checks.sh`, `shard lane-b` (31 classes) and `shard lane-a` (9 classes), `live production` (row 16), `live production-restart` (row 20) and `live sign-in` (83 passed) all passed; teardown left nothing. Matrix Test Audit: every row has a covering test that ran and passed (Restart through `TestReconcileResumesTurns`, restart row 20 and `TestReconcileWithoutProduction`).
+
+**Residual risks.** The Reconcile trigger for a production that starts on its own is not built (deferred 1). The Busy timer is verified end to end only once, in Task 0, by a temporary change. The production tests expect Epic 0's `Decide` stub (fallback `unusable`), so Story 1.3 must update them. `Conversation.Reconcile()` returns an error when the production runs and `WebChatIn` cannot be created (Decided 18), which fails the installer's Reconcile step. The message text has no upper bound (rejected row, reopen_if noted).

@@ -171,7 +171,8 @@ XData Contracts [ MimeType = application/json ]
    "Subject": "%String(MAXLEN=1000)",
    "FromGuide": "%Boolean",
    "CatalogKey": "%String(MAXLEN=128)",
-   "Slots": "%String(MAXLEN=)"
+   "Slots": "%String(MAXLEN=)",
+   "ClientId": "%String(MAXLEN=128)"
   }
  },
  "OcuTalon.Msg.ItemDecision": {

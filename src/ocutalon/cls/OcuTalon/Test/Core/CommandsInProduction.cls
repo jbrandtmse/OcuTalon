@@ -87,7 +87,7 @@ Method TestStubOwnersAnswerPlainEnglish()
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_built", verb_" to "_owner_": nothing was carried out, the owner is not built")
 		Do $$$AssertEquals(result.Message, ..#NOTBUILT, verb_" to "_owner_": and the text is plain English")
 		Do $$$AssertEquals(..Sent(owner), before + 1, verb_" to "_owner_": the command reached the owner")
-		Set answers = ..Between(..Headers(trace), 2, owner, "CommandsIn")
+		Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, owner, "CommandsIn")
 		Do $$$AssertEquals(answers.%Size(), 1, verb_" to "_owner_": the owner's answer is a response header to CommandsIn")
 		If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 1, verb_" to "_owner_": that carries the owner's error")
 	}
@@ -108,9 +108,9 @@ Method TestTraceAndThread()
 	Set command.IdempotencyKey = "zzkey"_..Number_"first"
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
 	Do $$$AssertStatusOK(sc, "the command is submitted")
-	Set headers = ..Headers(trace)
-	Set requests = ..Between(headers, 1, "CommandsIn", "ReminderOps")
-	Set answers = ..Between(headers, 2, "ReminderOps", "CommandsIn")
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Set requests = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "CommandsIn", "ReminderOps")
+	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 2, "ReminderOps", "CommandsIn")
 	Do $$$AssertEquals(requests.%Size(), 1, "one request header goes from CommandsIn to ReminderOps")
 	Do $$$AssertEquals(answers.%Size(), 1, "and the owner's answer is one response header back to CommandsIn")
 	If (requests.%Size() '= 1) || (answers.%Size() '= 1) Quit
@@ -138,9 +138,9 @@ Method TestTraceAndThread()
 		Do $$$AssertTrue(0, "Submit inside a context threw: "_exception.DisplayString())
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
-	Set headers = ..Headers(trace)
-	Set requests = ..Between(headers, 1, "CommandsIn", "ReminderOps")
-	Set answers = ..Between(headers, 2, "ReminderOps", "CommandsIn")
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Set requests = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "CommandsIn", "ReminderOps")
+	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 2, "ReminderOps", "CommandsIn")
 	Do $$$AssertEquals(requests.%Size(), 2, "two request headers go from CommandsIn to ReminderOps")
 	Do $$$AssertEquals(answers.%Size(), 2, "and two responses come back")
 	If (requests.%Size() '= 2) || (answers.%Size() '= 2) Quit
@@ -260,28 +260,6 @@ ClassMethod Sent(owner As %String) As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SourceConfigName = ? AND TargetConfigName = ? AND Type = 1", "CommandsIn", owner)
 	Do result.%Next()
 	Quit +result.%GetData(1)
-}
-
-/// The headers of the SuperSession, in order, as an array of objects.
-ClassMethod Headers(super As %String) As %DynamicArray [ Private ]
-{
-	Set headers = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, SuperSession, Type, SourceConfigName, TargetConfigName, MessageBodyClassName, MessageBodyId, Status, IsError FROM Ens.MessageHeader WHERE SuperSession = ? ORDER BY ID", super)
-	While result.%Next() {
-		Do headers.%Push({"id": (result.%Get("ID")), "sessionId": (result.%Get("SessionId")), "superSession": (result.%Get("SuperSession")), "type": (result.%Get("Type")), "source": (result.%Get("SourceConfigName")), "target": (result.%Get("TargetConfigName")), "bodyClass": (result.%Get("MessageBodyClassName")), "bodyId": (result.%Get("MessageBodyId")), "status": (result.%Get("Status")), "isError": (result.%Get("IsError"))})
-	}
-	Quit headers
-}
-
-/// The headers of the type (1 request, 2 response) from the source item to the target item among the headers.
-ClassMethod Between(headers As %DynamicArray, type As %Integer, source As %String, target As %String) As %DynamicArray [ Private ]
-{
-	Set found = []
-	For i = 0:1:headers.%Size() - 1 {
-		Set header = headers.%Get(i)
-		If (header.type = type) && (header.source = source) && (header.target = target) Do found.%Push(header)
-	}
-	Quit found
 }
 
 }

@@ -76,6 +76,13 @@ ClassMethod Prepare(dataDirectory As %String) As %Status
 	Quit ..RemoveOldBundle(dataDirectory_..#OLDBUNDLEFOLDER, dataDirectory_..#BUNDLEFOLDER)
 }
 
+/// Lane B's areas reconcile here (AD-5, AD-23): the turn queue is started again, through WebChatIn, by Conversation.Reconcile.
+/// With no production running it answers OK and does nothing; the next start reconciles.
+ClassMethod Reconcile() As %Status
+{
+	Quit ##class(OcuTalon.Core.Conversation).Reconcile()
+}
+
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
 /// touched. This is Lane B's live-event retention, declared in the Web area, which the purge task calls (Story 30.2).
 ClassMethod Purge(daysToKeep As %Integer) As %Status

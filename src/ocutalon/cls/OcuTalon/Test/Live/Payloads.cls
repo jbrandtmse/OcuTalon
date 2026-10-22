@@ -238,8 +238,8 @@ Method TestFromRow()
 }
 
 /// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
-/// from the others, so a field copied from the wrong property is caught. The rows are not saved. A field with no source
-/// in the row stays empty. An approval's dry run is parsed; an empty one, a broken one and one without an item noun give a
+/// from the others, so a field copied from the wrong property is caught. The rows are not saved. A turn's payload has every
+/// field from the row, and the trace target only when the row has a TraceHeaderId. An approval's dry run is parsed; an empty one, a broken one and one without an item noun give a
 /// payload without the part that is missing.
 Method TestFromRowBuilders()
 {
@@ -253,7 +253,27 @@ Method TestFromRowBuilders()
 	Set turn.TurnDecisionRef = "ZzTurnDecision"
 	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
 	Do $$$AssertEquals(payload.Ref_"|"_payload.Channel_"|"_payload.FromGuide_"|"_payload.State_"|"_payload.CreatedAt, "ZzTurnRef"_..Number_"|telegram|1|queued|2026-10-19T09:00:01Z", "a turn: ref, channel, fromGuide, state, createdAt")
-	Do $$$AssertEquals(payload.ClientId_"|"_payload.Text_"|"_payload.ReplyText_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||||", "and the fields with no source in the row stay empty")
+	Do $$$AssertEquals(payload.ClientId_"|"_payload.Text_"|"_payload.ReplyText_"|"_payload.CatalogKey_"|"_payload.FallbackReason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||||||", "a row with none of them gives empty fields, and no trace target")
+	Set turn.ClientId = "ZzClient"_..Number
+	Set turn.Text = "ZzUserText"
+	Set turn.ReplyText = "ZzReplyText"
+	Set turn.ReplyCatalogKey = "zz.catalog.key"
+	Set turn.FallbackReason = "zz_reason"
+	Set turn.TraceHeaderId = 31337
+	Set turn.ItemId = "ZzItemId"
+	Set turn.Tainted = 1
+	Set turn.Attempt = 7
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
+	Do $$$AssertEquals(payload.ClientId, "ZzClient"_..Number, "a turn: clientId")
+	Do $$$AssertEquals(payload.Text, "ZzUserText", "a turn: text")
+	Do $$$AssertEquals(payload.ReplyText, "ZzReplyText", "a turn: replyText")
+	Do $$$AssertEquals(payload.CatalogKey, "zz.catalog.key", "a turn: catalogKey is the row's ReplyCatalogKey")
+	Do $$$AssertEquals(payload.FallbackReason, "zz_reason", "a turn: fallbackReason")
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "a turn: the trace target is the row's TraceHeaderId in the running namespace")
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Channel_"|"_payload.FromGuide_"|"_payload.State_"|"_payload.CreatedAt, "ZzTurnRef"_..Number_"|telegram|1|queued|2026-10-19T09:00:01Z", "and the other fields are as before")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the turn's payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.clientId_"|"_exported.text_"|"_exported.replyText_"|"_exported.catalogKey_"|"_exported.fallbackReason_"|"_exported.traceHeaderId_"|"_exported.traceNamespace, "ZzClient"_..Number_"|ZzUserText|ZzReplyText|zz.catalog.key|zz_reason|31337|"_$Namespace, "and the JSON carries each of them under its own name")
 
 	Set reminder = ##class(OcuTalon.Data.Reminder).%New()
 	Set reminder.Ref = "ZzRemRef"_..Number
@@ -376,6 +396,8 @@ XData Contracts [ MimeType = application/json ]
    "State": "%String(%JSONFIELDNAME=state,MAXLEN=32)",
    "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
    "ReplyText": "%String(%JSONFIELDNAME=replyText,MAXLEN=)",
+   "CatalogKey": "%String(%JSONFIELDNAME=catalogKey,MAXLEN=128)",
+   "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
    "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
