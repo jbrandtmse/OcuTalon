@@ -1306,6 +1306,7 @@ So that a refusal, an error or a missing key never leads to an action or a broke
 **Then** every production item runs and nothing in the production fails, every decision takes the fallback route with `no_key`, and `OcuTalon.Bridge.Keys.Status(agent)` reports each agent's key as absent without revealing any value (FR-38, AD-6, AD-20, AD-22, UX-DR98)
 
 - DW-76: The daily cost cap fails open and silently for an unpriced model's usage or an unreadable budget setting; the precheck logs it as a configuration fault (ledger; routed by harvest 2026-10-22)
+- DW-83: A failed Chat's buffered agent steps never reach Visual Trace (no reply carries them); the fallback carries them to AgentSteps (ledger; routed by spec_gate 2026-10-22)
 
 ### Story 1.7: Timeouts and rate limits end every decision on time
 

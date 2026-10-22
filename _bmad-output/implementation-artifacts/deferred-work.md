@@ -349,3 +349,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Test/Bridge/Budget.cls CleanRuns and WaitFor vs Test/Bridge/Ext.cls:230-247, same bodies with their own ^OcuTalonTest area; unifying them is about 40 lines over three files
 - 2026-10-22T12:43:46Z status=wontfix-accepted owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=reopen_if=a third Lane A test class copies WaitFor or CleanRuns: move both into Test.Agent.RunnerFixture beside EventMark
+
+### DW-83: A Chat that throws returns only an error status, so the steps its runner buffered (the model requests and tool calls before the failure) never reach Visual Trace
+- source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Story 1.5 decision 6: Answer's error path carries no Reply, so Reply.Steps cannot travel; Story 1.6 turns every failure into a fallback decision with a reply, where the buffered steps can ride
+- 2026-10-22T13:43:43Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=spec_gate note=1.6's fallback carries the failed call's buffered steps (redacted) to Decide, which sends them to AgentSteps like a completed turn's; FR-3 every model request and tool call recorded
