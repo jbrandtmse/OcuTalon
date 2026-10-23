@@ -50,6 +50,13 @@ Property FallbackReason As %String(MAXLEN = 32);
 /// The ID of the Item message's header, where the turn's trace opens (AD-26); the namespace is the running one.
 Property TraceHeaderId As %Integer;
 
+/// The position of the Item's header in the item list that Visual Trace draws for its session, with the event-log and
+/// rule-log rows shown (AD-26); empty until Conversation has taken the Item, and when the position could not be worked out.
+Property TraceItemIndex As %Integer;
+
+/// The same position with the event-log and rule-log rows hidden.
+Property TraceItemIndexNoEvents As %Integer;
+
 /// True when the reply let untrusted content into the conversation (AD-10): the next turn then starts a fresh session.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
@@ -141,6 +148,12 @@ Storage Default
 </Value>
 <Value name="20">
 <Value>CheckRows</Value>
+</Value>
+<Value name="21">
+<Value>TraceItemIndex</Value>
+</Value>
+<Value name="22">
+<Value>TraceItemIndexNoEvents</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

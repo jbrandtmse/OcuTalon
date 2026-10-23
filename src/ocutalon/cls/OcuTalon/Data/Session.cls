@@ -1,6 +1,7 @@
 /// A signed-in session (AD-4). Lane B. Each IRIS user has one durable row on a local install; ForUser finds or
 /// creates it. Only Ownership.Attach calls ForUser: the REST surface resolves the caller through Ownership.SessionRef.
-/// Recipients says which sessions an owner's records go to.
+/// Recipients says which sessions an owner's records go to. The row also keeps the session's trace thread for the day
+/// (AD-26): ThreadSessionId and ThreadDay, which Core.Trace reads and writes under the row's own lock.
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -22,6 +23,13 @@ Property CreatedAt As %String(MAXLEN = 20);
 /// The opaque epoch of the session (AD-13): it is not secret, and it changes only when the OcuTalon session itself
 /// ended. /state returns it, and the page compares it after a sign-in.
 Property Epoch As %String(MAXLEN = 22);
+
+/// The session id of today's trace thread (AD-26): the SessionId of the first Item header of ThreadDay, which every later
+/// Item of that day is sent in. Empty until the session's first message.
+Property ThreadSessionId As %Integer;
+
+/// The instance-zone local date, YYYY-MM-DD, of the thread in ThreadSessionId.
+Property ThreadDay As %String(MAXLEN = 10);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -116,6 +124,12 @@ Storage Default
 </Value>
 <Value name="6">
 <Value>Epoch</Value>
+</Value>
+<Value name="7">
+<Value>ThreadSessionId</Value>
+</Value>
+<Value name="8">
+<Value>ThreadDay</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SessionD</DataLocation>

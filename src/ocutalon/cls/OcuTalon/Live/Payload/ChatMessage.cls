@@ -38,6 +38,13 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The position of the turn's header in the item list that Visual Trace draws for its session, with the event-log rows shown
+/// (AD-26); absent until Conversation has worked it out.
+Property TraceItemIndex As %Integer(%JSONFIELDNAME = "traceItemIndex");
+
+/// The same position with the event-log rows hidden.
+Property TraceItemIndexNoEvents As %Integer(%JSONFIELDNAME = "traceItemIndexNoEvents");
+
 /// The decision the turn shows (AD-20): the reply decision of a fallback reply, else the triage decision; empty while the turn has none.
 Property Decision As OcuTalon.Live.Payload.Decision(%JSONFIELDNAME = "decision");
 
@@ -52,7 +59,8 @@ Property Checks As list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME = 
 
 /// The payload for a turn row, with every field set from the row: ref, clientId, channel, fromGuide, state, text, replyText,
 /// the fallback's catalogKey and fallbackReason, createdAt, the trace target (the row's TraceHeaderId, in the running
-/// namespace; both stay empty while the row has none), the shown decision (Decision.FromRow of the row ShownDecisionRef
+/// namespace; both stay empty while the row has none), the position of the trace target in its session's item list (both
+/// indexes, set only when the row has them), the shown decision (Decision.FromRow of the row ShownDecisionRef
 /// names, read as the session's own through Ownership) with the turn's cost, and the check key and rows. A read that fails
 /// leaves the decision, the cost and the rows empty; it never fails the payload.
 ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
@@ -72,6 +80,8 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 		Set payload.TraceHeaderId = row.TraceHeaderId
 		Set payload.TraceNamespace = $Namespace
 	}
+	If row.TraceItemIndex '= "" Set payload.TraceItemIndex = row.TraceItemIndex
+	If row.TraceItemIndexNoEvents '= "" Set payload.TraceItemIndexNoEvents = row.TraceItemIndexNoEvents
 	Do ..SetDecision(payload, row)
 	Set payload.CheckKey = row.CheckKey
 	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)

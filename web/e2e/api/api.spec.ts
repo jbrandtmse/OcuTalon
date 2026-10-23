@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Response } from '@playwright/test';
 
+import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
 import { fixtureUser } from '../support/iris';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
 
@@ -44,11 +45,8 @@ const SEEDED = {
 /** What a browser always sends, and what a request without a session must still be answered with. */
 const BROWSER_HEADERS = { 'accept-language': 'en-US,en;q=0.9' };
 
-const STATE = '/ocutalon/api/v1/state';
-const EVENTS = '/ocutalon/api/v1/events';
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
 const BAD_CURSOR = 'The after and afterInstance values must be whole numbers of zero or more.';
-const MESSAGES = '/ocutalon/api/v1/messages';
 const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
 const BAD_MESSAGE = 'A message needs a clientId and some text.';
 const PAIRING = '/ocutalon/api/v1/pairing';
@@ -383,38 +381,14 @@ test('row 19: /ocutalon/public/status answers without a session and does not dis
   expect((await request.get(STATE)).status(), 'the signed-in session still works').toBe(200);
 });
 
-/** One live event of a poll. */
-interface LiveEvent {
-  seq: number;
-  stream: string;
-  type: string;
-  payload: Record<string, unknown>;
-}
-
-/** Posts a body as the page does: the whole browser envelope and the JSON text of data. */
-function post(request: APIRequestContext, path: string, data: unknown): Promise<APIResponse> {
-  return request.fetch(path, { method: 'POST', headers: envelope(), data: typeof data === 'string' ? data : JSON.stringify(data) });
-}
-
 /**
- * The session stream's events after a cursor, polled every half second until the condition holds or the seconds are up, in
- * the order served. The session's stream is the only one read; the instance cursor stays at 0.
+ * The link to a turn's trace for a user who has set nothing in Visual Trace (Story 2.9; AD-26): the trace application of the
+ * namespace, the turn's header, and the page of its position at 40 items a page.
  */
-async function sessionEvents(request: APIRequestContext, after: number, until: (events: LiveEvent[]) => boolean, seconds = 20): Promise<LiveEvent[]> {
-  const collected: LiveEvent[] = [];
-  let cursor = after;
-  const deadline = Date.now() + seconds * 1000;
-  for (;;) {
-    const response = await request.get(`${EVENTS}?after=${cursor}&afterInstance=0`);
-    expect(response.status(), await response.text()).toBe(200);
-    const poll = (await response.json()) as { events: LiveEvent[] };
-    for (const event of poll.events.filter((one) => one.stream === 'session')) {
-      collected.push(event);
-      cursor = Math.max(cursor, event.seq);
-    }
-    if (until(collected) || Date.now() > deadline) return collected;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
+function traceUrlOf(payload: Record<string, unknown>): string {
+  const index = Number(payload['traceItemIndex']);
+  expect(Number.isInteger(index) && index >= 1, `the turn carries the position of its header (${String(payload['traceItemIndex'])})`).toBe(true);
+  return `/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=${String(payload['traceHeaderId'])}&PAGE=${Math.ceil(index / 40)}`;
 }
 
 /**
@@ -467,6 +441,7 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
     expect(done['replyText'] ?? '', 'a fallback has no text of its own').toBe('');
     expect(typeof done['traceHeaderId'], 'the trace target is the Item header').toBe('number');
     expect(done['traceNamespace']).toBe('OCUTALON');
+    expect(done['traceUrl'], "Story 2.9: the done event carries the link to the turn's trace, at the page of its position").toBe(traceUrlOf(done));
     expect(mine[0].payload['text'], 'every stage shows the text').toBe(text);
     cursor = Math.max(cursor, ...events.map((event) => event.seq));
   });
@@ -498,5 +473,6 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
       traceNamespace: 'OCUTALON',
     });
     expect(typeof turns[0].payload['traceHeaderId']).toBe('number');
+    expect(turns[0].payload['traceUrl'], "Story 2.9: so does the snapshot's turn").toBe(traceUrlOf(turns[0].payload));
   });
 });

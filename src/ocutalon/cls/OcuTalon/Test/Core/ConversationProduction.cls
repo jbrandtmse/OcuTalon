@@ -21,17 +21,16 @@
 ///     RunTurns request for each session is in that session's SuperSession, while the sweep request itself is in none.
 /// Before a reconcile a test checks that no other session has a queued or running turn, and after each test the turns of the
 /// run's sessions that are not done are removed, so that no test runs another's turns. The guard, the fixture sessions, the
-/// run's number (^OcuTalonTest("ConversationProduction","n")) and the clean-up are those of Test.Core.InProduction; the clean-up
-/// also removes the turns that Conversation made, with their events, and the Delivery rows that WebChatOut made for the
-/// fixture sessions.
+/// run's number (^OcuTalonTest("ConversationProduction","n")), the sending of a message (Send), the wait for a turn (WaitDone)
+/// and the clean-up are those of Test.Core.InProduction; the clean-up also removes the turns that Conversation made, with their
+/// events, and the Delivery rows that WebChatOut made for the fixture sessions. The Items of a session share its day's trace
+/// thread (Story 2.9; Core.Trace): the Item headers of the tests that send several messages for one session are in one trace
+/// session, so the assertions that compare a request's session with its Item's session hold for every message.
 Class OcuTalon.Test.Core.ConversationProduction Extends OcuTalon.Test.Core.InProduction
 {
 
 /// The start of the user name of each fixture session.
 Parameter SESSIONPREFIX = "zzprodconv";
-
-/// Seconds to wait for a turn to be done.
-Parameter WAIT = 20;
 
 /// After each test, the turns of the run's sessions that are not done are removed, so that a test that failed leaves no turn
 /// for the next test's sweep to run; an instance that still runs one of them finds no row and changes nothing.
@@ -326,35 +325,6 @@ Method TestReconcileResumesEverySession()
 }
 
 /// --- helpers ---
-/// Sends a message of the page through WebChatIn, created in this process as the REST surface creates it; output is the
-/// service's answer.
-Method Send(session As %String, clientId As %String, text As %String, Output output As %String) As %Status [ Private ]
-{
-	Set output = ""
-	Set post = ##class(OcuTalon.Channel.WebChat.Post).%New()
-	Set post.SessionRef = session
-	Set post.ClientId = clientId
-	Set post.Text = text
-	Set sc = ##class(Ens.Director).CreateBusinessService("WebChatIn", .service)
-	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit service.ProcessInput(post, .output)
-}
-
-/// The Turn of the clientId once it is done, opened afresh; after WAIT seconds, the Turn as it is, or "" when there is none.
-Method WaitDone(session As %String, clientId As %String) As OcuTalon.Data.Turn [ Private ]
-{
-	Set end = $ZHorolog + ..#WAIT
-	Set row = ""
-	For {
-		Kill row
-		Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, clientId)
-		If $IsObject(row) && (row.State = "done") Quit
-		If $ZHorolog > end Quit
-		Hang 0.25
-	}
-	Quit row
-}
-
 /// The chat.message events of the session's stream, once there are count of them or WAIT seconds have passed.
 Method WaitEvents(session As %String, count As %Integer) As %DynamicArray [ Private ]
 {

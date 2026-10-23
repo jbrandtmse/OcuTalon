@@ -96,6 +96,8 @@ export interface ChatMessagePayload {
   createdAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceItemIndex?: number;
+  traceItemIndexNoEvents?: number;
   decision?: DecisionPayload;
   turnCost?: Cost;
   checkKey?: string;

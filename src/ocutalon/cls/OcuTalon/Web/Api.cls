@@ -16,6 +16,8 @@
 ///     header X-OcuTalon-Request: 1 and an Origin that is the request's own origin (AD-13).
 ///   - No call takes a SessionRef from the client (AD-4): the session is the one that OcuTalon.Data.Ownership.SessionRef
 ///     resolves from the CSP session, and every record is read through Ownership.
+///   - Every payload object of /state and /events that carries traceHeaderId and traceNamespace also carries traceUrl, the path
+///     of its trace in Visual Trace for the signed-in user, when a trace application serves its namespace (Web.TraceLink, AD-26).
 ///   - Every error is {"error": {"code", "message"}} in plain English.
 Class OcuTalon.Web.Api Extends OcuTalon.Web.Public.ApiBase
 {
@@ -289,6 +291,8 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body
 }
 
@@ -435,7 +439,10 @@ ClassMethod EventsBody(session As OcuTalon.Data.Session, after As %Integer, afte
 	While iterator.%GetNext(, .event) {
 		Do events.%Push(event)
 	}
-	Quit {"epoch": (session.Epoch), "events": (events)}
+	Set body = {"epoch": (session.Epoch), "events": (events)}
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
+	Quit body
 }
 
 /// The code of the first browser-envelope rule that the request breaks, "" when it keeps them all. GET, HEAD and

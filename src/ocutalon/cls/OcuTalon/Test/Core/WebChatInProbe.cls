@@ -2,8 +2,11 @@
 /// slot with no production (Story 2.4; AD-22). It has no Test methods and the product never refers to it.
 ///   - Allowed records a call under ^OcuTalonTest("WebChatIn", RunNumber, n), with n counted in ^OcuTalonTest("WebChatIn",
 ///     RunNumber): target allowed, sessionRef, channel and text; it answers 0 when Refuse is 1, otherwise what the allowance says;
-///   - Send records a call the same way: target, class, the %SuperSession of the service, for an Item its itemId, sessionRef,
-///     channel, provenance, text, fromGuide and clientId, for a RunTurns its sessionRef. FailSend makes it answer an error.
+///   - Send records a call the same way: target, class, the %SessionId and the %SuperSession of the service, for an Item its
+///     itemId, sessionRef, channel, provenance, text, fromGuide and clientId, for a RunTurns its sessionRef. After it records,
+///     NewSession, when it is set and the service has no %SessionId, becomes the service's %SessionId, as the framework sets it
+///     from the header of a message that starts a session. FailSend makes it answer an error, ThrowSend makes it throw, and
+///     DropRow deletes the session's row, after the record in every case.
 Class OcuTalon.Test.Core.WebChatInProbe Extends OcuTalon.Channel.WebChat.In
 {
 
@@ -13,8 +16,17 @@ Property RunNumber As %String [ Transient ];
 /// 1 when Allowed refuses every message.
 Property Refuse As %Boolean [ InitialExpression = 0, Transient ];
 
+/// The session id that a send starts when the service has none, as the framework gives it after a send; empty for none.
+Property NewSession As %Integer [ Transient ];
+
 /// 1 when Send answers an error status after it records the call.
 Property FailSend As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 when Send throws after it records the call.
+Property ThrowSend As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 when Send deletes the row of the Item's session after it records the call.
+Property DropRow As %Boolean [ InitialExpression = 0, Transient ];
 
 Method Send(target As %String, request As %Library.Persistent) As %Status [ Private ]
 {
@@ -22,7 +34,9 @@ Method Send(target As %String, request As %Library.Persistent) As %Status [ Priv
 	Set call = $Name(^OcuTalonTest("WebChatIn", ..RunNumber, n))
 	Set @call@("target") = target
 	Set @call@("class") = $ClassName(request)
+	Set @call@("sessionId") = ..%SessionId
 	Set @call@("superSession") = ..%SuperSession
+	If (..NewSession '= "") && (..%SessionId = "") Set ..%SessionId = ..NewSession
 	If request.%Extends("OcuTalon.Msg.Item") {
 		Set @call@("itemId") = request.ItemId
 		Set @call@("sessionRef") = request.SessionRef
@@ -34,6 +48,8 @@ Method Send(target As %String, request As %Library.Persistent) As %Status [ Priv
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
 	}
+	If ..DropRow && request.%Extends("OcuTalon.Msg.Item") Do ##class(OcuTalon.Data.Session).RefIndexDelete(request.SessionRef)
+	If ..ThrowSend Throw ##class(%Exception.General).%New("zz send threw", 5001, , "zz send threw")
 	If ..FailSend Quit $SYSTEM.Status.Error(5001, "zz send failed")
 	Quit $SYSTEM.Status.OK()
 }

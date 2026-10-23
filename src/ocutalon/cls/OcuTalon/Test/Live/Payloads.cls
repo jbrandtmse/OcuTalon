@@ -343,13 +343,18 @@ Method TestFromRowBuilders()
 	Set turn.TurnDecisionRef = "ZzTurnDecision"
 	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
 	Do $$$AssertEquals(payload.Ref_"|"_payload.Channel_"|"_payload.FromGuide_"|"_payload.State_"|"_payload.CreatedAt, "ZzTurnRef"_..Number_"|telegram|1|queued|2026-10-19T09:00:01Z", "a turn: ref, channel, fromGuide, state, createdAt")
-	Do $$$AssertEquals(payload.ClientId_"|"_payload.Text_"|"_payload.ReplyText_"|"_payload.CatalogKey_"|"_payload.FallbackReason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||||||", "a row with none of them gives empty fields, and no trace target")
+	Do $$$AssertEquals(payload.ClientId_"|"_payload.Text_"|"_payload.ReplyText_"|"_payload.CatalogKey_"|"_payload.FallbackReason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "||||||||", "a row with none of them gives empty fields, and no trace target or position")
+	Do payload.%JSONExportToString(.bareJson)
+	Set bareExported = ##class(%DynamicObject).%FromJSON(bareJson)
+	Do $$$AssertEquals(bareExported.%IsDefined("traceItemIndex")_bareExported.%IsDefined("traceItemIndexNoEvents"), "00", "and the JSON has neither position")
 	Set turn.ClientId = "ZzClient"_..Number
 	Set turn.Text = "ZzUserText"
 	Set turn.ReplyText = "ZzReplyText"
 	Set turn.ReplyCatalogKey = "zz.catalog.key"
 	Set turn.FallbackReason = "zz_reason"
 	Set turn.TraceHeaderId = 31337
+	Set turn.TraceItemIndex = 41
+	Set turn.TraceItemIndexNoEvents = 30
 	Set turn.ItemId = "ZzItemId"
 	Set turn.Tainted = 1
 	Set turn.Attempt = 7
@@ -360,10 +365,12 @@ Method TestFromRowBuilders()
 	Do $$$AssertEquals(payload.CatalogKey, "zz.catalog.key", "a turn: catalogKey is the row's ReplyCatalogKey")
 	Do $$$AssertEquals(payload.FallbackReason, "zz_reason", "a turn: fallbackReason")
 	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "a turn: the trace target is the row's TraceHeaderId in the running namespace")
+	Do $$$AssertEquals(payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "41|30", "a turn: the positions are the row's TraceItemIndex and TraceItemIndexNoEvents")
 	Do $$$AssertEquals(payload.Ref_"|"_payload.Channel_"|"_payload.FromGuide_"|"_payload.State_"|"_payload.CreatedAt, "ZzTurnRef"_..Number_"|telegram|1|queued|2026-10-19T09:00:01Z", "and the other fields are as before")
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the turn's payload exports")
 	Set exported = ##class(%DynamicObject).%FromJSON(json)
 	Do $$$AssertEquals(exported.clientId_"|"_exported.text_"|"_exported.replyText_"|"_exported.catalogKey_"|"_exported.fallbackReason_"|"_exported.traceHeaderId_"|"_exported.traceNamespace, "ZzClient"_..Number_"|ZzUserText|ZzReplyText|zz.catalog.key|zz_reason|31337|"_$Namespace, "and the JSON carries each of them under its own name")
+	Do $$$AssertEquals(exported.traceItemIndex_"|"_exported.traceItemIndexNoEvents, "41|30", "with the two positions under traceItemIndex and traceItemIndexNoEvents")
 
 	Set reminder = ##class(OcuTalon.Data.Reminder).%New()
 	Set reminder.Ref = "ZzRemRef"_..Number
@@ -549,6 +556,8 @@ XData Contracts [ MimeType = application/json ]
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
    "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "TraceItemIndex": "%Integer(%JSONFIELDNAME=traceItemIndex)",
+   "TraceItemIndexNoEvents": "%Integer(%JSONFIELDNAME=traceItemIndexNoEvents)",
    "Decision": "OcuTalon.Live.Payload.Decision(%JSONFIELDNAME=decision)",
    "TurnCost": "OcuTalon.Live.Payload.Part.Cost(%JSONFIELDNAME=turnCost)",
    "CheckKey": "%String(%JSONFIELDNAME=checkKey,MAXLEN=128)",

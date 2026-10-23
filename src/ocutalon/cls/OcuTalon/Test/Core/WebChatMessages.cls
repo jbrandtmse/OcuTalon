@@ -13,7 +13,14 @@
 ///   - TestRunTurnsForwarded: a RunTurns request goes to Conversation as it is;
 ///   - TestAllowanceAllowsWithFlagOff: the allowance allows every message while the online-demo flag is off;
 ///   - TestAllowedAsksTheAllowance: the service's one allowance call returns what Core.Allowance.TryConsume answers for the
-///     session, the channel and the text, which no run can show while TryConsume allows everything.
+///     session, the channel and the text, which no run can show while TryConsume allows everything;
+///   - TestJoinsTodaysThread, TestFirstTurnStartsTheThread (Story 2.9; AD-26): a session whose row holds today's thread sends its
+///     Item in that thread, and a session with none sends it in a session of its own and records the session the send gave;
+///   - TestJoinFailureStillSends, TestFailedSendRecordsNoThread, TestThrownSendRecordsNoThread: a lock that stays busy still
+///     sends the message, in its own session, with one warning and no thread recorded, and a send that fails or throws records no
+///     thread and leaves the row's lock free for another job;
+///   - TestStartedFailureStillAccepts: a thread that cannot be recorded after a good send is one warning, and the message is
+///     accepted.
 /// The fixture sessions come from Test.Data.Fixture. The run's number is n from ^OcuTalonTest("WebChatMessages","n") (never
 /// reset); the probe records under ^OcuTalonTest("WebChatIn", n), which OnAfterAllTests deletes. onlineDemo is put back.
 Class OcuTalon.Test.Core.WebChatMessages Extends %UnitTest.TestCase
@@ -209,7 +216,167 @@ Method TestAllowedAsksTheAllowance()
 	Do $$$AssertEquals($ZStrip(code, "*WC"),"Quit##class(OcuTalon.Core.Allowance).TryConsume(sessionRef,channel,text,.retryAt,.firstRefusal)", "Allowed returns the answer of TryConsume for the session, the channel and the text")
 }
 
+/// A session whose row holds today's thread sends its Item in that thread: the probe sees the thread as the service's
+/// %SessionId and the session's TraceRef as its SuperSession, and the row stays as it was.
+Method TestJoinsTodaysThread()
+{
+	Set session = ..Session("today")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set trace = row.TraceRef
+	Set row.ThreadSessionId = 4242
+	Set row.ThreadDay = ##class(OcuTalon.Core.Trace).Day()
+	Do $$$AssertStatusOK(row.%Save(), "the session has today's thread")
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 9999
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"today", "zz in the thread", 0), .output)
+	Do $$$AssertStatusOK(sc, "the message is accepted")
+	Do $$$AssertEquals(..Calls(), 2, "the allowance is asked and one request is sent")
+	Do $$$AssertEquals(..Call(2, "sessionId")_"|"_..Call(2, "superSession"), "4242|"_trace, "the Item is sent in the thread, with the TraceRef as SuperSession")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "4242|"_##class(OcuTalon.Core.Trace).Day(), "and the row is unchanged")
+}
+
+/// A session with no thread sends its Item in no session (the framework starts one) and records the session that the send gave,
+/// with today's date.
+Method TestFirstTurnStartsTheThread()
+{
+	Set session = ..Session("first")
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 5150
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"first", "zz starts the thread", 0), .output)
+	Do $$$AssertStatusOK(sc, "the message is accepted")
+	Do $$$AssertEquals(..Call(2, "sessionId"), "", "the Item is sent with no session of the thread")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "5150|"_##class(OcuTalon.Core.Trace).Day(), "and the session it started is recorded for today")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 6160
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"second", "zz joins it", 0), .output), "the next message is accepted")
+	Do $$$AssertEquals(..Call(2, "sessionId"), 5150, "and joins that thread")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ThreadSessionId, 5150, "which stays the thread")
+}
+
+/// A row lock that stays busy for longer than Join waits sends the message all the same, in a session of its own, with one
+/// warning that starts with ERRORJOIN, and records no thread.
+Method TestJoinFailureStillSends()
+{
+	Set session = ..Session("busy")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()
+	Set key = "webchat"_..Number
+	Kill ^OcuTalonTest("Trace", "job", key)
+	Job ##class(OcuTalon.Test.Core.Trace).Hold(id, key)
+	Set deadline = $ZHorolog + 60
+	While '$Data(^OcuTalonTest("Trace", "job", key, "ready")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("Trace", "job", key, "ready")), 1, "another job holds the row's lock")
+	Set mark = ..LastLog()
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 5150
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"busy", "zz busy lock", 0), .output)
+	Set ^OcuTalonTest("Trace", "job", key, "release") = 1
+	While '$Data(^OcuTalonTest("Trace", "job", key, "done")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertStatusOK(sc, "the message is accepted")
+	Do $$$AssertEquals(output, "{""accepted"":1,""duplicate"":0}", "as a new message")
+	Do $$$AssertEquals(..Sends(), 1, "and sent")
+	Do $$$AssertEquals(..Call(2, "sessionId"), "", "in a session of its own")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "|", "and no thread is recorded")
+	Set count = ..Warnings(mark, ##class(OcuTalon.Channel.WebChat.In).#ERRORJOIN, .text)
+	Do $$$AssertEquals(count, 1, "one warning is logged: "_text)
+	Do ..RemoveWarnings(mark, ##class(OcuTalon.Channel.WebChat.In).#ERRORJOIN)
+	Kill ^OcuTalonTest("Trace", "job", key)
+}
+
+/// A send that fails records no thread, even when the framework had started a session, and leaves the row's lock free for
+/// another job: the next message starts the thread.
+Method TestFailedSendRecordsNoThread()
+{
+	Set session = ..Session("failed")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()
+	Set probe = ..NewProbe()
+	Set probe.FailSend = 1
+	Set probe.NewSession = 5150
+	Set mark = ..LastLog()
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"failed", "zz send fails", 0), .output)
+	Do $$$AssertStatusNotOK(sc, "the failed send is an error status")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "|", "and no thread is recorded")
+	Do $$$AssertEquals(..Warnings(mark, ##class(OcuTalon.Channel.WebChat.In).#ERRORJOIN), 0, "the thread was joined without a warning")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "and the row's lock is free for another job")
+	Kill ^OcuTalonTest("WebChatIn", ..Number)
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 6160
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Post(session, "zzc"_..Number_"failed", "zz tries again", 0), .output), "the same message goes through when it is sent again")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId, 6160, "and starts the thread")
+}
+
+/// A send that throws is the same: an error status, no thread recorded, and the row's lock free for another job.
+Method TestThrownSendRecordsNoThread()
+{
+	Set session = ..Session("thrown")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()
+	Set probe = ..NewProbe()
+	Set probe.ThrowSend = 1
+	Set probe.NewSession = 5150
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"thrown", "zz send throws", 0), .output)
+	Do $$$AssertStatusNotOK(sc, "the thrown send is an error status")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "|", "and no thread is recorded")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Trace).LockFree(id), 1, "and the row's lock is free for another job")
+}
+
+/// A thread that cannot be recorded after a good send (the session's row is gone) is one warning that starts with ERRORSTARTED,
+/// and the message, which was sent, is accepted.
+Method TestStartedFailureStillAccepts()
+{
+	Set session = ..Session("dropped")
+	Set id = ##class(OcuTalon.Data.Session).RefIndexOpen(session).%Id()
+	Set mark = ..LastLog()
+	Set probe = ..NewProbe()
+	Set probe.NewSession = 5150
+	Set probe.DropRow = 1
+	Set sc = probe.OnProcessInput(..Post(session, "zzc"_..Number_"dropped", "zz row gone", 0), .output)
+	Do ##class(OcuTalon.Data.Session).%UnlockId(id)
+	Do $$$AssertStatusOK(sc, "the message is accepted")
+	Do $$$AssertEquals(output, "{""accepted"":1,""duplicate"":0}", "as a new message")
+	Do $$$AssertEquals(..Sends(), 1, "and was sent")
+	Set count = ..Warnings(mark, ##class(OcuTalon.Channel.WebChat.In).#ERRORSTARTED, .text)
+	Do $$$AssertEquals(count, 1, "one warning is logged: "_text)
+	Do ..RemoveWarnings(mark, ##class(OcuTalon.Channel.WebChat.In).#ERRORSTARTED)
+}
+
 /// --- helpers ---
+/// The number of the newest row of the event log, 0 when it is empty.
+Method LastLog() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The number of warnings that start with the text, logged after the row mark by the service's Accept; text is the newest one's.
+Method Warnings(mark As %Integer, start As %String, Output text As %String) As %Integer [ Private ]
+{
+	Set text = ""
+	Set count = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ? ORDER BY ID", mark, "Accept", start)
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
+/// Removes the warnings that start with the text, logged after the row mark by the service's Accept.
+Method RemoveWarnings(mark As %Integer, start As %String) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Accept", start)
+}
+
 /// A fixture session; its Ref is kept for the clean-up.
 Method Session(name As %String) As %String [ Private ]
 {

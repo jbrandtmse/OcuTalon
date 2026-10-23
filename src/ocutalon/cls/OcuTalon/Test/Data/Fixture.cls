@@ -7,8 +7,8 @@
 /// (the rows that the production made included), so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
-/// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers and
-/// Between read them. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
+/// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers,
+/// SessionHeaders and Between read them. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
 /// of a stream's chat.message events.
 Class OcuTalon.Test.Data.Fixture
 {
@@ -299,10 +299,11 @@ ClassMethod Clean(refs As %String = "")
 	If refs = "" Kill ^OcuTalonTest("Fixture")
 }
 
-/// Deletes the headers, the bodies and the event-log rows of the sessions whose messages carry one of the SuperSessions
-/// (a dynamic array of strings), in the namespace (the current one by default). It switches to the namespace itself and
-/// calls only classes that resolve in both namespaces while it is there (Ens, EnsLib and % classes, and the body classes
-/// of the messages it deletes), and it returns to the namespace it was called in.
+/// Deletes the sessions whose messages carry one of the SuperSessions (a dynamic array of strings), in the namespace (the
+/// current one by default): every header of each such session, whatever its SuperSession (a response can carry none), with its
+/// body, and the session's event-log, rule-log and I/O-log rows. It switches to the namespace itself and calls only classes that
+/// resolve in both namespaces while it is there (Ens, EnsLib and % classes, and the body classes of the messages it deletes), and
+/// it returns to the namespace it was called in.
 ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String = {$Namespace}) As %Status
 {
 	New $NAMESPACE
@@ -312,7 +313,16 @@ ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String 
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SuperSession = ?", superSessions.%Get(i))
 		While rs.%Next() {
 			Set ids(rs.%Get("ID")) = $ListBuild(rs.%Get("MessageBodyClassName"), rs.%Get("MessageBodyId"))
-			Set sessions(rs.%Get("SessionId")) = ""
+			If rs.%Get("SessionId") '= "" Set sessions(rs.%Get("SessionId")) = ""
+		}
+		Set session = ""
+		For {
+			Set session = $Order(sessions(session))
+			Quit:session=""
+			Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ?", session)
+			While rs.%Next() {
+				Set ids(rs.%Get("ID")) = $ListBuild(rs.%Get("MessageBodyClassName"), rs.%Get("MessageBodyId"))
+			}
 		}
 		Set id = ""
 		For {
@@ -326,6 +336,8 @@ ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String 
 			Set session = $Order(sessions(session))
 			Quit:session=""
 			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
+			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Rule.Log WHERE SessionId = ?", session)
+			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.IOLog WHERE SessionId = ?", session)
 		}
 	}
 	Quit $$$OK
@@ -335,8 +347,20 @@ ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String 
 /// bodyClass, bodyId, status, isError}).
 ClassMethod Headers(superSession As %String) As %DynamicArray
 {
+	Quit ..HeadersWhere("SuperSession", superSession)
+}
+
+/// The headers of the trace session, in order, as Headers gives them.
+ClassMethod SessionHeaders(sessionId As %String) As %DynamicArray
+{
+	Quit ..HeadersWhere("SessionId", sessionId)
+}
+
+/// The headers whose column (SuperSession or SessionId, written by the two callers) holds the value, in ID order.
+ClassMethod HeadersWhere(column As %String, value As %String) As %DynamicArray [ Private ]
+{
 	Set headers = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, SuperSession, Type, SourceConfigName, TargetConfigName, MessageBodyClassName, MessageBodyId, Status, IsError FROM Ens.MessageHeader WHERE SuperSession = ? ORDER BY ID", superSession)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, SuperSession, Type, SourceConfigName, TargetConfigName, MessageBodyClassName, MessageBodyId, Status, IsError FROM Ens.MessageHeader WHERE "_column_" = ? ORDER BY ID", value)
 	While result.%Next() {
 		Do headers.%Push({"id": (result.%Get("ID")), "sessionId": (result.%Get("SessionId")), "superSession": (result.%Get("SuperSession")), "type": (result.%Get("Type")), "source": (result.%Get("SourceConfigName")), "target": (result.%Get("TargetConfigName")), "bodyClass": (result.%Get("MessageBodyClassName")), "bodyId": (result.%Get("MessageBodyId")), "status": (result.%Get("Status")), "isError": (result.%Get("IsError"))})
 	}

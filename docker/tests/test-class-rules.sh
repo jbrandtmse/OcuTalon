@@ -16,6 +16,10 @@
 #   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/, in any case, and no class
 #     query of type %SQLQuery, whose SELECT compiles to embedded SQL. Embedded SQL is not privilege-checked and the
 #     unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
+#   - trace-join (AD-26, Story 2.9): a call of OcuTalon.Core.Trace.Join, in any case, appears on a code line of src/ only in the
+#     packages OcuTalon.Channel and OcuTalon.Test (a package matches by whole name, a sub-package belongs to its package): only a
+#     channel service starts a session's trace thread; commands, approvals and notices inside a turn join through the bridge
+#     context's ThreadSessionId.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -171,6 +175,25 @@ embedded_sql() {
     FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
     !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
     tolower($0) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+# trace_join <file>...: file:line of each code line of a class, routine or include file that calls OcuTalon.Core.Trace.Join, in
+# any case, outside the packages OcuTalon.Channel and OcuTalon.Test (whole package names; a sub-package belongs to its package).
+trace_join() {
+  awk '
+    FNR == 1 {
+      cls = FILENAME
+      sub(/^.*\/cls\//, "", cls)
+      sub(/\.cls$/, "", cls)
+      gsub(/\//, ".", cls)
+      pkg = cls
+      sub(/\.[^.]*$/, "", pkg)
+      ok = (pkg == "OcuTalon.Channel" || index(pkg, "OcuTalon.Channel.") == 1 || pkg == "OcuTalon.Test" || index(pkg, "OcuTalon.Test.") == 1)
+      code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
+    }
+    ok || !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    tolower($0) ~ /ocutalon\.core\.trace\)[ \t]*\.join[ \t]*\(/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -375,6 +398,23 @@ expect_clean "no-embedded-sql" embedded_sql "$es_comment"
 if [ "$samples_ok" -eq 1 ]; then
   scan_rule "no-embedded-sql: no &sql( and no %SQLQuery class query on a code line of src/" embedded_sql \
     "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
+fi
+
+# --- trace-join ---
+
+tj_bad1=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzBad 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_bad2=$(write_class tj/src/ocutalon/cls OcuTalon/Web/ZzBadCase 'ClassMethod A()' '{' '	Set thread = ##class(ocutalon.core.TRACE).join(ref, .sc)' '}')
+tj_bad3=$(write_class tj/src/ocutalon/cls OcuTalon/Channels/ZzBadPackage 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good1=$(write_class tj/src/ocutalon/cls OcuTalon/Channel/WebChat/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc, now)' '}')
+tj_good2=$(write_class tj/src/ocutalon/cls OcuTalon/Test/Core/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good3=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzComment '/// Never call ##class(OcuTalon.Core.Trace).Join( from a Core class.' 'ClassMethod A()' '{' '	// ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	; ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	Quit 1' '}')
+tj_good4=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzOther 'ClassMethod A()' '{' '	Set sc = ##class(OcuTalon.Core.Trace).Started(ref, 5150)' '	Set sc = ##class(OcuTalon.Core.Trace).Position(id, .a, .b)' '	Quit ##class(OcuTalon.Core.TraceJoin).Join(ref)' '}')
+samples_ok=1
+for f in "$tj_bad1" "$tj_bad2" "$tj_bad3"; do expect_flagged "trace-join" trace_join "$f" 1; done
+for f in "$tj_good1" "$tj_good2" "$tj_good3" "$tj_good4"; do expect_clean "trace-join" trace_join "$f"; done
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "trace-join: OcuTalon.Core.Trace.Join is called only from OcuTalon.Channel and OcuTalon.Test" trace_join \
+    "$tj_bad1" "$tj_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 
 if [ "$fails" -ne 0 ]; then

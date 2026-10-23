@@ -2,12 +2,25 @@
 title: 'Story 2.9: Open anything in Visual Trace'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a28be97d5361c370513a85ee35c2fdfe6815e179'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A turn that is re-run after a restart that followed a broken first answer sends its first request under the turn's own
+      ItemId again, and whether the real Decide then answers from the existing (ItemId, turn) row or refuses is not settled.
+    evidence: |-
+      Conversation.Begin resets BrokenRetried to 0 (Conversation.cls:320), and Ask uses RetryItemId only while BrokenRetried is 1,
+      so a sweep that starts the turn again goes out under the turn's own ItemId, which already has the broken attempt's
+      fallback row. DecideDouble refuses a second turn request per ItemId (AD-20); the real Decide is Lane A's stub until Stories
+      1.3 and 1.5 (Epic 11). Settle it by running a restarted broken turn against the real Decide: if it refuses, a persisted
+      retry marker or the Attempt number must choose the derived ItemId (a stored-data change, so a veto item).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/Conversation.cls:320,403-406
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -340,6 +353,53 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 — Review pass
+- verdicts: 39 findings — high 0, medium 9, low 23, false 6, maybe-false 1
+- findings:
+  - Blind Hunter
+    - `[medium]` `[patch]` `ThreadProduction.UseDouble` sets `Swapped` only after `UpdateProduction` succeeds, so a failed update leaves the double saved and skips the restore — read: the save precedes the update; patched: `Swapped` is set right after the save, and `OnAfterAllTests` returns the restore's status.
+    - `[medium]` `[patch]` the `WebChatMessages` lock claims cannot fail (the test and `Accept` share one process, and `%LockId` is re-entrant) — patched: `Test.Core.Trace.LockFree` is a public class method, `TestFailedSendRecordsNoThread` asserts it, and `TestThrownSendRecordsNoThread` is new (mutation: `Started` only after a good send -> both red).
+    - `[low]` `[reject]` `Position` reads the session's whole log on every `Take` — a day of turns is thousands of rows at most (the demo allowance is 50 messages an hour) and a time bound is an extra guard; `reopen_if=` a measured `Take` above 1 s on a real day's thread.
+    - `[maybe-false]` `[defer]` `RetryItemId` depends on `BrokenRetried`, which `Begin` resets, so a turn re-run after a restart goes out under its own ItemId again — what the real Decide does with an existing (ItemId, turn) row is Lane A's and not built; deferred as medium (unverified) with what settles it.
+    - `[false]` `[reject]` the client does not consume `traceUrl` — the intent's Never list gives the page half to Story 2.13, and no client link to a trace exists today.
+    - `[low]` `[reject]` `traceUrl` is added for users without the trace role — spec-bound: `Url` is defined by namespace and demo mode only, the value is a path, and the page half decides what to show.
+    - `[medium]` `[patch]` the failed-position branch of `Conversation.Take` has no test — patched: `TestPositionFailureNeverStopsTurn` (mutation: `Locate` throws -> red).
+    - `[low]` `[reject]` the `trace-join` rule matches one spelling of the call — the rule is the one the spec defines; a `$ClassMethod` form is reviewable in a diff and the cost of a broader pattern is false positives.
+    - `[low]` `[patch]` stale comments (`Core.Trace` "Neither method", "TraceLink reads no table") — replaced in `Core/Trace.cls`, `Web/TraceLink.cls` and `Test/Web/TraceLink.cls`.
+    - `[low]` `[reject]` `Read` swallows errors and `Url` does not check the header id — the spec says any error falls back to 40 and on, and the id comes from an `%Integer` property.
+  - Edge Case Hunter
+    - `[medium]` `[patch]` `DecideDouble` sends AgentSteps from a probe's shadow instance, whose `%ConfigName` is 0, not "" — measured: slot B's log held 1,118 `AgentSteps is not registered` errors; patched: the gate is `(..%ConfigName '= "") && (..%ConfigName '= 0)` and the doc line says so (0 new rows after the fix; the old rows were deleted).
+    - `[medium]` `[patch]` same root cause as the first Blind Hunter row (`UseDouble` restore) — patched with it.
+    - `[low]` `[reject]` same as the Blind Hunter `trace-join` row.
+    - `[low]` `[reject]` `Started` leaves the lock when the session row has gone between `Join` and `Started` — a lock on an id no row has again is taken by nobody; `wontfix-theoretical`.
+    - `[low]` `[reject]` same as the Blind Hunter header-id row.
+    - `[low]` `[reject]` a viewer who can read the I/O log would see I/O rows that `Position` skips — recorded in "U-41 measured"; the production writes no I/O rows today; `reopen_if=` an item archives I/O or the trace role is granted `SELECT` on `Ens_Util.IOLog`.
+    - `[low]` `[reject]` a good send that leaves `%SessionId` empty records nothing without a warning — the framework sets it from the header; a guard would also warn in the probe tests that set no `NewSession`.
+    - `[low]` `[reject]` a throw inside `TraceLink` fails the whole `/state` poll — `Read` has its own Try and the rest is typed data; no reachable throw was shown.
+  - Verification Gap
+    - `[medium]` `[patch]` the send-failure paths never check that `WebChatIn` frees the lock — same root cause as the second Blind Hunter row.
+    - `[low]` `[patch]` `Started` failing after a good send is never exercised — patched: `TestStartedFailureStillAccepts` with the probe's `DropRow` (mutation: `Quit startedSc` -> red).
+    - `[medium]` `[patch]` `Conversation.Locate`'s failure branch is unpinned — same root cause as the third Blind Hunter row.
+    - `[low]` `[reject]` ACs "without a mutation line" for sub-clauses — Rule 19 asks one demonstrated mutation per AC and each AC has at least one line; the new pins have theirs.
+    - `[medium]` `[patch]` `trace.spec.ts` seeds right after the first turn without waiting for the Notify and WebChatOut headers — patched: the seed script waits up to 30 s for both.
+    - `[low]` `[patch]` T4 asserts the run's first header is on page 1, which fails on a reused stack — patched: the redundant assertion is removed (the day's thread id is asserted).
+    - `[low]` `[reject]` tests that compute `Day()` beside `Accept`'s clock straddle local midnight — a one-second window.
+    - `[low]` `[reject]` `TestBusyLockAndNoRowFail` asserts a wait of LOCKWAIT - 0.5 to LOCKWAIT + 5 seconds — the upper bound is generous and the lower is the contract.
+    - `[low]` `[reject]` `Test.Web.Api` and `Test.Web.TraceLink` restore the runner's Visual Trace settings in `OnAfterAllTests` — the pattern of the project's other save-and-restore tests.
+    - `[low]` `[reject]` `Fixture.RemoveMessages` ignores its deletes' results and no test asserts the log is empty — the slot check in the Verification does.
+    - `[low]` `[patch]` the comment of `TestFailedSendRecordsNoThread` claimed what the test could not show — fixed with the lock assertion (the first Blind Hunter lock row).
+    - `[low]` `[reject]` no test opens a link as a viewer who reads the I/O log — same as the Edge Case Hunter I/O row.
+    - `[low]` `[reject]` `trace-join` bypass by `$ClassMethod` — same as the Blind Hunter row.
+    - `[low]` `[reject]` `Day` on a UTC instance cannot show a UTC-date regression — Decided 8, known.
+  - Intent Alignment
+    - `[false]` `[reject]` `Position` drops the I/O rule of the contract's text — the owner's condition (U-41) says the measured behaviour wins; measured on the real page (the page's `[n]` labels equal both stored indexes in T1 and T3); the lead corrects AD-26 and the frozen text.
+    - `[false]` `[reject]` DW-112 is tested against a double that both defines and satisfies the refusal — AD-29: the double stands in until Stories 1.3 and 1.5.
+    - `[false]` `[reject]` thread membership is checked only by `ThreadProduction` and T4 — they run in the throwaway and in CI, as the spec plans.
+    - `[medium]` `[patch]` the position failure is exercised by no test — same root cause as the third Blind Hunter row.
+    - `[false]` `[reject]` "no Session row" never reaches `Join` through `WebChatIn` — `Accept` refuses a missing row first, as before this story; the `Join` branch is `TestBusyLockAndNoRowFail`.
+    - `[false]` `[reject]` the rail, check and incident targets are checked over HTTP only on chat turns — the AC names `Test.Web.Api` for them and `api.spec` for the turn.
+    - `[low]` `[patch]` "TraceLink reads no table" against `Setting.Get` — fixed with the stale-comment row.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -393,7 +453,27 @@ No AC contradicts an AD's Rule. Decided 3 refines AD-26's item-index wording; se
 11. **The double refuses a second `turn` call per ItemId** while Record is on, as AD-20's Decide does. Without that, DW-112's pin would pass against the bug.
 12. **"Only channel services call it"** becomes a static rule in `test-class-rules.sh`, the project's home for code rules.
 13. **`ZzThread`** is a new fixture user (user and trace roles), so T1-T4 own their thread and their Visual Trace settings.
-14. **I/O rows** always count, because Visual Trace's I/O switch is a per-CSP-session form value that the API cannot see, defaulting to on. Show internal items and ACK rows are left out (no OcuTalon message is either).
+14. **I/O rows are not counted** (U-41 measured, below, supersedes the plan's "always count"): the page of a trace-role user draws none, because the role cannot select from the I/O log. Show internal items and ACK rows are left out (no OcuTalon message is either).
+
+**U-41 measured** (implement stage, owner condition on AD-26; throwaway `e2s29i`, build 154). The counting model was held against the real Visual Trace page, opened by the trace-role user `ZzThread`, on a thread seeded with event-log, rule-log and I/O-log rows (hosts that first appear on a later header included).
+- **What disagreed:** the page draws no I/O-log row. The same thread laid out by `BuildTraceInfo` in a process with every privilege had two I/O items (the seeded rows, `1i:WebChatIn 2m278 ... 4i:Conversation 5m279`); the page for the trace user printed `[1]m278 [3]m279 ...`, two places lower for every later header, so the link to a turn at item 46 opened its page one page early at 45 items a page. With `SELECT` on `Ens_Util.IOLog` granted to `OcuTalonTraceViewer` in the throwaway (then revoked), the two I/O items appeared (`[1]i [2]m278 [4]i [5]m279`; 27 items instead of 26). The trace role holds `SELECT` on `Ens.MessageHeader` alone (`Install.Step.Web.GrantTraceSql`), and `BuildTraceInfo` reads the I/O log through `%SQL.Statement.%Prepare` and ignores a failed prepare, where it reads headers, events and rule rows through embedded SQL (the mechanism is an inference; the effect of the grant is measured).
+- **The measured counting rule, which `Trace.Position` now implements:** the session's headers in ID order up to the target; before each header, and again after it, the event-log and rule-log rows that sort before it (an earlier time, or the same time and a lower MessageId), each counted only when its host is the source or target of an earlier header (or of this header, in the pass after it), and a row that fails the test is passed over for good; **no I/O-log row, no ACK row and no internal item is counted.** Everything else of the spec's model held: on all 35 headers of the real thread `Position` equalled the layout of `BuildTraceInfo` with the I/O log off, with events shown and hidden, and the page's own `[n]` labels equalled `traceItemIndex` (events shown) and `traceItemIndexNoEvents` (hidden) in T1 and T3, at the default page size and at the sizes that put the turn first on the second page and last on the first.
+- **Oracle kept in the suite:** `Test.Core.Trace.TestPositionAgreesWithVisualTrace` lays out four synthetic sessions with `BuildTraceInfo` itself (I/O log off, events shown and hidden) and compares every header; T1 and T3 compare the page's labels.
+- **For the lead (Rule 5, apply-and-report):** AD-26's item-index bullet, as the owner's amendment words it, counts I/O-log rows, and the page of a trace user does not draw them. Recommended correction, with an inbox veto item: "The item index is the target's position in Visual Trace's own list of its session as the trace role sees it: the headers in ID order up to the target, and each event-log and rule-log row placed before the first header created after it once its host is the source or target of an earlier header. I/O-log rows are not counted: the trace role cannot read the I/O log, so the page draws none. `OcuTalon.Core.Trace.Position` computes it, with events shown and hidden, ..." (the rest as the amended bullet). Decided 14 above is superseded: I/O rows do not count. If the trace role is ever granted `SELECT` on `Ens_Util.IOLog`, `Position` and T1/T3 must count them again; the production writes none today (no item archives I/O).
+
+**Decided in-stage (implement)** (small, reversible, within the intent):
+1. **`Position` drops the I/O rows** (U-41 measured above). The Boundaries text of the frozen contract and its matrix row `Position` (h4's I/O row) describe the old rule; h3's numbers (4 with events, 3 without) are unchanged, and h4 is 5 and 4.
+2. **`WebChatIn` logs a warning when `Started` fails** (`Parameter ERRORSTARTED`), so that a split thread is not silent; it is a different text from `ERRORJOIN`.
+3. **`Send`, `WaitDone` and `Parameter WAIT` moved from `ConversationProduction` to `InProduction`** (Rule 2), so that `ThreadProduction` extends them instead of copying; `ConversationProduction` inherits them unchanged.
+4. **`Test.Data.Tables`' contract** of `Session` and `Turn` gained the new properties (the spec's task list missed this shared surface; the shard found it).
+5. **`TraceLink.Read` is public** (it takes the namespace and returns `$ListBuild(size, show)`), so that the "settings read throws: 40 and on" row is tested with a namespace that does not exist, on any instance.
+6. **`Trace.Started`** answers an error status for a session with no row when the session id is not empty, and OK for an empty id; a time that cannot be read is an error for `Join` and `Started` (no day, no thread).
+7. **A row of the event or rule log with no host at all is left out of `Position`**, where Visual Trace would fail on a null subscript.
+8. **`Turn`'s two properties are declared after `TraceHeaderId`**; their storage values (21, 22) are appended.
+9. **Added tests:** `TestPositionAgreesWithVisualTrace` (the oracle) and `ThreadProduction.TestStubFallsBackAfterTheRestore` (Task 0a's restore, kept as a regression test of the one switch).
+10. **T1 and T3 read the page's own labels** (`[n]` on the message row) and also open the links at the page sizes that put the turn first on the second page and last on the first, because a count that is one item off must land on the wrong page; the seeded rows carry the tag `zz e2e trace` and are removed in `afterAll`.
+11. **`payloads.ts` gains the two index fields only.** `traceUrl` is added by the web layer when it serves, so the generator does not see it; the page half (Story 2.13) types it.
+12. **The sweep (Task 24)** found no assertion on `/state` or `/events` payloads that needed widening: the exact-equality assertions in `web/e2e` and `web/scripts` compare keys of the snapshot's top level, empty arrays, the event envelope or selected fields; `api.spec`'s `STATE`, `EVENTS` and `MESSAGES` moved to `support/api.ts` with `post` and `sessionEvents`.
 
 **Veto-window items for the lead** (unattended policy):
 1. **The split**, which moves AC 3-5 and DW-58 to a not-yet-planned sibling in this epic (veto 7). The proposed block is under Decided 1. Nothing a release gate depends on moves: REL-2's trace step is Story 4.7's `notBuilt`.
@@ -515,6 +595,37 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 
 Not falsifiable on a UTC instance: `Day` using the UTC date (Decided 8). `Data.Time.ToLocal` is the one conversion.
 
+**Task 0 results (implement stage, build 154).**
+- **(a) The Decide swap on a throwaway works, in its first variant.** `Test.Core.ThreadProduction` swaps the running item with `Ens.Config.Production` (`FindItemByConfigName("Decide")`, `ClassName` to `OcuTalon.Test.Core.DecideDouble`, the item's two settings cleared and kept, `%Save()`) and `Ens.Director.UpdateProduction(30)`. Throwaway `e2s29i`: a turn is answered by the double ("zz reply to ...", decisions with the thread as `TraceSessionId`, two AgentSteps for each decision), and after the restore (class and settings back) a turn falls back through the stub again (`conversation.turnFallback`, `unusable`), which `TestStubFallsBackAfterTheRestore` pins. A swap or a restore takes about a second (the class runs in 1.4 to 3.8 s). The second variant (a second `Decide` item) was not needed.
+- **(b) Reaching Visual Trace's SVG from Playwright works through the frame element.** The page renders its SVG in an `<embed type="image/svg+xml">`; `embed.getSVGDocument()` from `page.evaluate` returns the SVG document, whose `g[id]` elements with an all-digit id are the messages and whose `text.MsgLabel` `[n]` is the place the page gives it. The frame tree and the fetch of the frame's URL were not needed.
+
+**Implement-stage results.**
+- Compile (`iris_doc_load`, `ck`) of `src/bridge` and `src/ocutalon` on slot B: 0 errors. Slot-safe classes, each passing: `Test.Core.Trace` 7, `Test.Web.TraceLink` 5, `Test.Core.WebChatMessages` 12, `Test.Core.ConversationTurns` 39, `Test.Web.Api` 29, `Test.Live.Payloads` 8, `Test.Core.Intake` 9, `Test.Contract.Ac` 6, `Test.Data.Session` 4, `Test.Data.Ownership` 18, `Test.Data.Tables` 5; no `zz` row, header, log row or `^EnsPortal.Settings` node is left on the slot.
+- `node web/scripts/payloads.mjs --check`, `npm --prefix web test` (312 tests), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, `test-class-rules.sh` (the `trace-join` rule and its samples), `test-boundaries.sh`, `test-storage.sh`, `test-ci-config.sh`, `bash ci/checks.sh`: exit 0.
+- Throwaway `e2s29i`: `ThreadProduction` and `ConversationProduction` pass; `live sign-in` passes (152 passed, 1 skipped, T1 to T4 among them); `shard lane-b` (40 classes) forward and reversed, `shard lane-a` (9 classes) pass; `live demo-path` passes with the floor at 3 of 3; `teardown` left nothing.
+
+**Mutations (Rule 19).** Each was applied, the red observed, and the tree restored to a byte-identical state (the same hash of `git status`, `git diff --stat`, `git diff` and the untracked files).
+- mutation: `Accept` sets `..%SessionId` to "" instead of the thread -> `TestJoinsTodaysThread` and `TestFirstTurnStartsTheThread` (slot), `TestTwoTurnsOneThread` (throwaway)
+- mutation: `Join` ignores `ThreadDay` (`If session.ThreadSessionId '= ""`) -> `TestNewThreadAfterLocalMidnight` (slot), `TestNewThreadAfterMidnight` (throwaway)
+- mutation: `Join` takes no lock (`If 0` for the `%LockId` failure test) -> `TestBusyLockAndNoRowFail`, `TestJoinStartsAndKeepsTheThread`, `TestStartedWithoutASessionRecordsNothing`
+- mutation: `Accept` quits on a Join error (`Quit joinSc`) -> `TestJoinFailureStillSends`
+- mutation: `Conversation.Join` calls `Trace.Join` -> `test-class-rules.sh` `trace-join` (`Core/Conversation.cls:348`)
+- mutation: `DecideDouble` sends no AgentStep (`If 0 Do ..Step(...)`) -> `TestTwoTurnsOneThread` (throwaway: 0 requests to AgentSteps, no step for any decision)
+- mutation: the host-on-diagram check dropped in `Trace.Inject` (`Set n = n + 1`) -> `TestPositionCountsAsVisualTraceDraws` and `TestPositionAgreesWithVisualTrace`
+- mutation: `Take` stores no index (`If 0 Do ..Locate(turn)`) -> `TestTwoTurnsOneThread` and `TestNewThreadAfterMidnight` (throwaway); `ChatMessage.FromRow` sets no `TraceItemIndex` -> `Test.Live.Payloads.TestFromRowBuilders`
+- mutation: `PAGE = i \ size + 1` in `TraceLink.Url` -> `Test.Web.TraceLink.TestPage` (40 gives 2)
+- mutation: a page size fixed at 40 (`If 0 Set size = read`) -> `Test.Web.TraceLink.TestPage` and `TestViewer`
+- mutation: `Add` does not recurse -> `Test.Web.TraceLink.TestNested`
+- mutation: `EventsBody` not walked -> `Test.Web.Api.TestEventsBody`
+- mutation: the OCUORDERS URL built without demo mode -> `Test.Web.TraceLink.TestNamespaces`
+- mutation: `Position` counts no events (`Set cursor = ""`) -> T1 in `live sign-in` (the page printed `[74]` for the turn where the mutated `Position` said `[50]`; T3's precondition `traceItemIndexNoEvents < traceItemIndex` could not hold either)
+- mutation: `Ask` keeps the turn's `ItemId` for the retry -> `TestBrokenRetryIsANewItem` (the double refuses the second turn request of the ItemId, as `Decide` does)
+- mutation (review pass): `Accept` calls `Started` only when the send succeeded (`&& $SYSTEM.Status.IsOK(sc)`) -> `TestFailedSendRecordsNoThread` and `TestThrownSendRecordsNoThread` (the row's lock stays held, so `Test.Core.Trace.LockFree` from a second job is 0)
+- mutation (review pass): `Accept` quits with `Started`'s error status instead of logging ERRORSTARTED -> `TestStartedFailureStillAccepts`
+- mutation (review pass): `Conversation.Locate` throws the status of a failed Position instead of leaving both indexes empty -> `TestPositionFailureNeverStopsTurn`
+- Measured, not a mutation (review pass): with `DecideDouble`'s step gate `..%ConfigName '= ""`, a shadow instance (`%ConfigName` is 0) sent AgentSteps outside a production, and slot B's event log held 1,118 `AgentSteps is not registered` errors from the slot-safe runs; with the gate `(..%ConfigName '= "") && (..%ConfigName '= 0)`, `Test.Core.ConversationTurns` adds none (query of `Ens_Util.Log` after the run: 0 new rows); the 2,236 rows were deleted.
+- Not reached: the browser pins of the Trace URLs mutations (`api.spec`'s `traceUrl` assertions for the `EventsBody` mutation, and T2 for the fixed page size) were not run in a throwaway; the slot-safe tests above are their pins. The U-41 old rule (I/O rows counted) was measured against the page itself (see U-41 measured) rather than as a mutation.
+
 **Shared surfaces:**
 - The `Session` row (`ThreadSessionId`, `ThreadDay`) and the `Turn` row (two indexes).
 - The `chat.message` payload (two keys), with `payloads.ts` and `Test.Live.Payloads`' oracle.
@@ -522,6 +633,7 @@ Not falsifiable on a UTC instance: `Day` using the UTC date (Decided 8). `Data.T
 - `DecideDouble`: production-mode AgentSteps, `TraceSessionId`, and the AD-20 refusal while Record is on (`ConversationTurns`, `Test.Core.Intake`).
 - `WebChatInProbe`'s records.
 - `Fixture.RemoveMessages`, which now also deletes the found sessions' remaining headers, rule-log rows and I/O-log rows; and the new `Fixture.SessionHeaders`.
+- `InProduction`, which now holds `Send`, `WaitDone` and `Parameter WAIT` (moved from `ConversationProduction`), and `Test.Data.Tables`' contract of `Session` and `Turn`.
 - `ConversationProduction`'s Items, which now share one thread per session.
 - `test-class-rules.sh`'s rules.
 - `fixtureUser`'s kinds, and `test-sign-in.sh`'s users and labels.
@@ -536,5 +648,31 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The server half of Visual Trace. `Core.Trace` gives a session one trace thread a day (`Join`, `Started`, `Day`, kept on the `Session` row under its own lock) and works out a header's position in Visual Trace's item list (`Position`); `WebChatIn` joins the thread before its send and records a new one after it, never failing a message for it; `Conversation.Take` keeps both positions on the Turn, and `chat.message` carries them; `Web.TraceLink` builds every trace URL (the namespace's trace application, `SESSIONID`, and `PAGE` from the viewer's own page size and "Show events"), and `/state` and `/events` add `traceUrl` to every payload object with a target; `Conversation` retries a broken turn under `RetryItemId` (DW-112). The counting model was proven on the real Visual Trace page (T1-T4, owner condition U-41), and the measured rule replaced the plan's: I/O-log rows are not counted.
+
+**Files changed.**
+- Product: `Core/Trace.cls` (new: thread and position), `Web/TraceLink.cls` (new: the one URL builder), `Channel/WebChat/In.cls` (joins the thread, `ERRORJOIN`, `ERRORSTARTED`), `Core/Conversation.cls` (`Locate`, `RetryItemId`, `Ask`), `Data/Session.cls` (`ThreadSessionId`, `ThreadDay`), `Data/Turn.cls` (two index properties), `Live/Payload/ChatMessage.cls` (two payload fields), `Web/Api.cls` (`TraceLink.Add` in `StateBody` and `EventsBody`).
+- Test support: `Test/Core/DecideDouble.cls` (AgentSteps in a production, thread as `TraceSessionId`, AD-20 refusal), `Test/Core/InProduction.cls` (`Send`, `WaitDone`, `WAIT` moved up), `Test/Core/WebChatInProbe.cls` (`%SessionId`, `NewSession`, `ThrowSend`, `DropRow`), `Test/Data/Fixture.cls` (`RemoveMessages` by session, `SessionHeaders`), `Test/Data/Tables.cls` (new properties in the contract).
+- Tests: `Test/Core/Trace.cls`, `Test/Web/TraceLink.cls`, `Test/Core/ThreadProduction.cls` (new); `Test/Core/WebChatMessages.cls`, `Test/Core/ConversationTurns.cls`, `Test/Core/ConversationProduction.cls`, `Test/Web/Api.cls`, `Test/Live/Payloads.cls` (extended); `web/e2e/trace/trace.spec.ts` (new, T1-T4), `web/e2e/support/api.ts` (new, moved from api.spec), `web/e2e/support/iris.ts` (`THREAD`, `setTraceSettings`), `web/e2e/api/api.spec.ts`; `web/src/app/live/payloads.ts` (regenerated); `docker/tests/test-class-rules.sh` (`trace-join`), `docker/tests/test-sign-in.sh` (`ZzThread`).
+
+**Review findings.** 39 findings in 4 layers (see the triage log): high 0, medium 9, low 23, false 6, maybe-false 1.
+- Patches applied (14 rows, five medium root causes): `ThreadProduction` restore after a failed update; the lock-release claim of the send-failure tests (lock probe from a second job, a thrown-send test, a Started-failure test); the failed-position test for `Conversation.Take`; `DecideDouble` sent AgentSteps from probe shadow instances (`%ConfigName` 0; 1,118 error rows were left on slot B, now none and deleted); `trace.spec.ts` waits for the turn's Notify and WebChatOut headers before seeding. Also T4's fragile second assertion and three stale comments. New pins have `mutation:` lines under `## Verification`, each seen red.
+- Deferred (1, frontmatter `deferred:`): a restarted turn whose first answer was broken goes out under the turn's own ItemId again; what the real Decide does is Lane A's (Epic 11). Medium, unverified.
+- Rejected (24, reasons in the triage log): the page half (Story 2.13), I/O-log rows for viewers who can read them (`reopen_if=` an item archives I/O or the trace role gains `SELECT` on `Ens_Util.IOLog`), `Position`'s whole-thread read (`reopen_if=` a `Take` over 1 s on a real day), static-rule bypass forms, duplicate sightings, and the intent-alignment readings that are the spec's own design.
+
+**Follow-up review recommended: true.** Five medium entries were patched. The unverified risk: `ThreadProduction.UseDouble`'s restore after a failed `UpdateProduction` is read, not run (no test can make the update fail), so if the swap-back fails in CI the later classes of the shard would still see the double.
+
+**Verification performed (all green after the last patch).**
+- Slot B (`ocutalon-slot-b`, build 154): compile 0 errors; `Test.Core.Trace` 7, `Test.Web.TraceLink` 5, `Test.Core.WebChatMessages` 14, `Test.Core.ConversationTurns` 40, `Test.Web.Api` 29, `Test.Live.Payloads` 8, `Test.Core.Intake` 9, `Test.Contract.Ac` 6, `Test.Data.Session` 4, `Test.Data.Ownership` 18, `Test.Data.Tables` 5 (the last nine before the review patches, on code those patches do not touch). No `zz` row, header, rule or I/O row or `^EnsPortal.Settings` node is left.
+- Static: `payloads.mjs --check`, `npm test` (312), lint, `test-web-build.sh`, `test-class-rules.sh` (`trace-join`), `test-boundaries.sh`, `test-storage.sh`, `test-ci-config.sh`, `ci/checks.sh`: exit 0.
+- Throwaway `e2s29i`: `ThreadProduction`, `ConversationProduction`, `live sign-in` (152 passed, T1-T4 among them), `shard lane-b` forward (40 classes) and reversed (40), `shard lane-a` (9), `live demo-path` (floor 3 of 3); teardown left nothing.
+- Mutations: the plan's 14 and the review pass's 3 (see `## Verification`); each tree restored byte-identical (same hash of status, diff and untracked files).
+
+**Residual risks and items for the lead.**
+- AD-26's item-index bullet still counts I/O-log rows; the page of a trace-role user draws none (U-41 measured, `## Design Notes`). Correct the bullet (the recommended wording is there) and add the inbox veto item. The frozen contract text (Boundaries "I/O rows count", and the matrix row `Position`'s I/O row, where h4 is now 5 and 4) is superseded by that note.
+- `Position` runs once, when `Conversation` takes the Item; a log row with an earlier time committed after `Take` would be missed (a millisecond race, inference).
+- Production writes no I/O-log rows today; a viewer with the privilege to read them would see them drawn.
+- The page half (trace links on the strip and rail rows, the menu, the sign-in popover, DW-58) is Story 2.13's.

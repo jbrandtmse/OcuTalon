@@ -14,8 +14,10 @@
 ///     (running); a turn request is fresh with a code-written recap (Recap) when the session's last replied turn was Tainted,
 ///     and continues otherwise;
 ///   - the turn's answer: Busy waits BUSYWAIT seconds (a timer) and sends the request again, at most BUSYMAX times, and the next
-///     Busy is the fallback rate_limited; SessionBroken sends the request once more, fresh with the recap, and the second one is
-///     the fallback with the reply's reason; a Reply with Fallback is the fallback with its reason; any other Reply is the reply
+///     Busy is the fallback rate_limited; SessionBroken sends the request once more as a new Decide call under a new ItemId
+///     (RetryItemId), fresh with the recap, and a second SessionBroken is the fallback with the reply's reason (the broken
+///     attempt keeps its row, the Turn keeps its own ItemId, and its TurnDecisionRef ends as the retry's); a Reply with
+///     Fallback is the fallback with its reason; any other Reply is the reply
 ///     as sent; an error status, no answer or an answer that is not a Reply is the fallback unusable. A reason outside Msg.Enum
 ///     FALLBACKREASON is unusable. Conversation never classifies a reply and never renders text: the fallback is the catalog key
 ///     FALLBACKKEY with the slot fallbackReason;
@@ -30,10 +32,13 @@
 ///   - an answer whose instance Attempt differs from the Turn's, or whose Turn is not running, changes nothing, so that a turn
 ///     that a sweep started again gives exactly one reply.
 /// The trace: before any send a turn sets %SessionId to the SessionId of the Item's header (the Turn's TraceHeaderId; without
-/// that header the instance's own session stays) and %SuperSession to the session's TraceRef (AD-26). The sweep sends its
-/// RunTurns requests with no SuperSession, so that the sweep itself stays outside every session's trace; each one takes the
-/// session's TraceRef from the instance that runs the turn, because the framework fills a request header's empty
-/// SuperSession from the instance that handled it when that instance ends.
+/// that header the instance's own session stays) and %SuperSession to the session's TraceRef (AD-26). The Items of a session
+/// share its day's thread (Core.Trace), so the turns of a day are one trace session. When it takes the Item, Conversation also
+/// keeps the Item header's position in Visual Trace's item list on the Turn, with and without the event-log rows
+/// (Core.Trace.Position, AD-26); a position that cannot be worked out is logged as a warning and left empty, and never stops
+/// the turn. The sweep sends its RunTurns requests with no SuperSession, so that the sweep itself stays outside every
+/// session's trace; each one takes the session's TraceRef from the instance that runs the turn, because the framework fills a
+/// request header's empty SuperSession from the instance that handled it when that instance ends.
 /// Reconcile is the way in for code outside the production. OnResponse and OnError read only the instance's own properties and
 /// the answer, never the request. Conversation needs the one job that the production gives it (PoolSize 1): Take checks an
 /// Item's ItemId and ClientId outside the session's queue lock.
@@ -92,6 +97,8 @@ Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't fr
 Parameter ERRORSWEEP = "The sweep could not read the turns: ";
 
 Parameter LOGCHECKS = "Conversation added no check results: ";
+
+Parameter LOGPOSITION = "Conversation could not work out where the Item is in the trace: ";
 
 /// The start of the warning for a dropped Item; one of the DROP texts follows it.
 Parameter LOGDROPPED = "Conversation dropped an item: ";
@@ -175,11 +182,27 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	Set turn.ClientId = item.ClientId
 	Set turn.Text = item.Text
 	Set turn.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	If $IsObject(..%PrimaryRequestHeader) Set turn.TraceHeaderId = ..%PrimaryRequestHeader.%Id()
+	If $IsObject(..%PrimaryRequestHeader) {
+		Set turn.TraceHeaderId = ..%PrimaryRequestHeader.%Id()
+		Do ..Locate(turn)
+	}
 	Set sc = turn.%Save()
 	If $$$ISERR(sc) Quit sc
 	Do ..Announce(turn)
 	Quit ..Start(item.SessionRef)
+}
+
+/// Keeps the position of the turn's Item header in the trace on the turn (both indexes). A failed read is logged as one warning
+/// and leaves both empty.
+Method Locate(turn As OcuTalon.Data.Turn) [ Private ]
+{
+	Set sc = ##class(OcuTalon.Core.Trace).Position(turn.TraceHeaderId, .withEvents, .withoutEvents)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGPOSITION_$SYSTEM.Status.GetErrorText(sc))
+		Quit
+	}
+	Set turn.TraceItemIndex = withEvents
+	Set turn.TraceItemIndexNoEvents = withoutEvents
 }
 
 /// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row.
@@ -371,13 +394,16 @@ Method Decided(answer As %RegisteredObject) As %Status [ Private ]
 }
 
 /// Sends the turn request: fresh with the recap when the session's history was rejected (BrokenRetried) or its last replied
-/// turn was Tainted, otherwise continue. A send that fails ends the turn with the fallback unusable.
+/// turn was Tainted, otherwise continue. After a broken session the request is a new Decide call, so it carries RetryItemId of
+/// the turn's ItemId instead of the ItemId itself (AD-20: one decision per ItemId and Kind); a Busy answer that is asked again
+/// after the retry carries the same one. A send that fails ends the turn with the fallback unusable.
 Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 {
 	Set request = ..Request(turn, "turn")
 	If ..BrokenRetried || ..AfterTaint(turn.SessionRef) {
 		Set request.SessionMode = "fresh"
 		Set request.SeedText = ..Recap(turn.SessionRef, turn.Ref)
+		If ..BrokenRetried Set request.ItemId = ..RetryItemId(turn.ItemId)
 	} Else {
 		Set request.SessionMode = "continue"
 	}
@@ -464,8 +490,16 @@ Method Resend() As %Status [ Private ]
 	Quit ..Ask(turn)
 }
 
-/// The provider rejected the stored history: the first time the request is sent again, fresh with the recap; the second time
-/// is the fallback with the reply's reason.
+/// The ItemId of the retry of a turn whose session the provider broke: the first 22 characters of the base64url form (+/ become
+/// -_, no =) of the SHA-256 of the turn's ItemId followed by /retry. It is the same on every run, is never the turn's own, and
+/// keeps the form of an ItemId (AD-6).
+ClassMethod RetryItemId(itemId As %String) As %String
+{
+	Quit $Extract($Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(256, itemId_"/retry"), 1), "+/=", "-_"), 1, 22)
+}
+
+/// The provider rejected the stored history: the first time the request is sent again as a new Decide call, fresh with the recap
+/// (Ask); the second time is the fallback with the reply's reason.
 Method Rebuild(turn As OcuTalon.Data.Turn, answer As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
 {
 	If ..BrokenRetried Quit ..Conclude(turn, "", ..Reason(answer.FallbackReason))

@@ -11,8 +11,8 @@ function required(name: string): string {
   return value;
 }
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION, NOTICE or RAIL. */
-export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL'): { user: string; password: string } {
+/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION, NOTICE, RAIL or THREAD. */
+export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD'): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
@@ -734,4 +734,42 @@ export async function setTelegramIncluded(value: 0 | 1): Promise<0 | 1> {
   const was = chk(lines, 'telegram');
   if (was !== '0' && was !== '1') throw new Error(`the Telegram seam could not be set (${lines.join(' ')})`);
   return was === '1' ? 1 : 0;
+}
+
+/** The Visual Trace settings of a user that setTraceSettings reads and writes (^EnsPortal.Settings(user, "VisualTrace", ...)): the page size and "Show events". */
+export interface TraceSettings {
+  itemsPerPage?: string | number | null;
+  showEvents?: string | number | null;
+}
+
+/** The settings of a user, with the node name of each key. */
+const TRACE_SETTING_NODES: ReadonlyArray<readonly [keyof TraceSettings, string]> = [
+  ['itemsPerPage', 'ItemsPerPage'],
+  ['showEvents', 'ShowEvents'],
+];
+
+/**
+ * Sets or kills the user's Visual Trace settings (EnsPortal.VisualTrace's own nodes, which its getters read) for each key given: a
+ * value sets the node, null kills it, and a key left out stays as it is. Returns the values the nodes had before, null for a node that
+ * was not set, for every key given, so that the caller can put the user's settings back with the same call: a spec that changes them
+ * restores them in finally. Every value goes through quoted(), and the user name through literal().
+ */
+export async function setTraceSettings(user: string, settings: TraceSettings): Promise<TraceSettings> {
+  const lines = [`Set u=${literal(user)}`];
+  for (const [key, node] of TRACE_SETTING_NODES) {
+    const value = settings[key];
+    if (value === undefined) continue;
+    const ref = `^EnsPortal.Settings(u,"VisualTrace","${node}")`;
+    lines.push(`Write !,"CHK|was|${key}|",$Select($Data(${ref})#10:1_$Get(${ref}),1:0)`);
+    lines.push(value === null ? `Kill ${ref}` : `Set ${ref}=${quoted(String(value))}`);
+  }
+  const out = await irisScript(lines.join('\n'));
+  const was: TraceSettings = {};
+  for (const [key] of TRACE_SETTING_NODES) {
+    if (settings[key] === undefined) continue;
+    const read = chk(out, `was|${key}`);
+    if (read === undefined) throw new Error(`the Visual Trace settings of ${user} could not be set (${out.join(' ')})`);
+    was[key] = read.startsWith('1') ? read.slice(1) : null;
+  }
+  return was;
 }

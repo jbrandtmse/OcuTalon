@@ -13,6 +13,10 @@
 ///   - TestEveryTriageOutcomeRuns: whatever the attention decision was, the turn request is sent and the turn has one reply;
 ///   - TestSecondMessageWaits: a message sent during a turn is its own turn that starts after the first is done (NFR-6);
 ///   - TestBusyRequeues, TestBrokenRetriedFresh, TestTaintedNextFresh: the reply shapes of AD-6 and AD-10;
+///   - TestBrokenRetryIsANewItem (DW-112; AD-20): the retry after a broken session is a new Decide call under RetryItemId of the
+///     turn's ItemId, which the double, recording like Decide, accepts because the broken attempt's row is under the turn's own;
+///   - TestPositionFailureNeverStopsTurn (Story 2.9; AD-26): an Item whose position in the trace cannot be worked out is one
+///     warning, and the turn is still taken, with both positions empty;
 ///   - TestRecapFromTurnRows: the recap is written from the Turn rows;
 ///   - TestEveryFallbackReason: the 12 reasons, an error status and an answer of the wrong class give the fallback sentences;
 ///   - TestDuplicateItemDropped, TestUntrustedItemRefused: an Item is taken once, and only when it is trusted;
@@ -387,6 +391,101 @@ Method TestBrokenRetriedFresh()
 	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"brokenthird")
 	Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 2, "a second SessionBroken is not retried again")
 	Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|error|", "it is the fallback with the reply's reason")
+}
+
+/// DW-112: with the double recording its decisions, as Decide does (one turn decision per ItemId, so it refuses a second turn
+/// request of the same ItemId), a broken session and then a reply: the third Decide call is a turn request, fresh, under
+/// RetryItemId of the turn's ItemId, which is a Ref of its own; the turn is done with the reply and keeps its ItemId; its
+/// TurnDecisionRef is the third answer's; and there are two turn Decision rows: the turn's own ItemId with the fallback error
+/// and the derived one. A second broken answer is still the fallback, and the retry's request carries the derived ItemId again
+/// when Decide was busy.
+Method TestBrokenRetryIsANewItem()
+{
+	Set session = ..Session("brokenretry")
+	Set double = "OcuTalon.Test.Core.DecideDouble"
+	Do $ClassMethod(double, "Record", session, 1)
+	Do $ClassMethod(double, "Script", session, "turn", $ListBuild("broken", "reply"))
+	Set item = ..Item(session, "zz the question", "zzc"_..Number_"brokenretry")
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(item, .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Kill probes
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"brokenretry")
+	Set retry = ##class(OcuTalon.Core.Conversation).RetryItemId(row.ItemId)
+	Set decides = ..Sent("Decide")
+	Do $$$AssertEquals($ListLength(decides), 3, "Decide gets three requests: the decide, the turn and its retry")
+	If $ListLength(decides) '= 3 Quit
+	Set third = $List(decides, 3)
+	Do $$$AssertEquals(..Call(third, "kind")_"|"_..Call(third, "sessionMode"), "turn|fresh", "the third is a turn request, fresh")
+	Do $$$AssertEquals(..Call(third, "itemId"), retry, "under the retry's ItemId")
+	Do $$$AssertTrue(retry ? 22(1AN,1"-",1"_"), "which is a Ref: "_retry)
+	Do $$$AssertTrue(retry '= row.ItemId, "and not the turn's own")
+	Do $$$AssertEquals(..Call($List(decides, 2), "itemId")_"|"_..Call($List(decides, 1), "itemId"), row.ItemId_"|"_row.ItemId, "while the first two carried the turn's ItemId")
+	Do $$$AssertEquals(retry, ##class(OcuTalon.Core.Conversation).RetryItemId(row.ItemId), "RetryItemId is the same on every call")
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText_"|"_row.ReplyCatalogKey, "done|zz reply to zz the question|", "the turn is done with the reply")
+	Do $$$AssertEquals(row.ItemId, item.ItemId, "and keeps its own ItemId")
+	Set written = $ClassMethod(double, "Written", session)
+	Do $$$AssertEquals($Length(written, ","), 3, "the double wrote three decisions: the triage, the broken attempt and the retry")
+	Do $$$AssertEquals(row.TurnDecisionRef, $Piece(written, ",", 3), "the turn's TurnDecisionRef is the third answer's")
+	Set broken = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(row.ItemId, "turn")
+	Set derived = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(retry, "turn")
+	Do $$$AssertTrue($IsObject(broken) && $IsObject(derived), "there is a turn decision under the turn's ItemId and one under the retry's")
+	If '$IsObject(broken) || '$IsObject(derived) Quit
+	Do $$$AssertEquals(broken.Fallback_"|"_broken.FallbackReason_"|"_broken.Ref, "1|error|"_$Piece(written, ",", 2), "the broken attempt keeps its row, the fallback error")
+	Do $$$AssertEquals(derived.Fallback_"|"_derived.Ref, "0|"_row.TurnDecisionRef, "and the retry has its own")
+	Do $$$AssertEquals($ListLength(..Sent("Notify")), 1, "there is one Outbound")
+
+	Kill ^OcuTalonTest("ConversationProbe", ..Number)
+	Set ..Handled = 0
+	Set other = ..Session("brokenbusy")
+	Do $ClassMethod(double, "Record", other, 1)
+	Do $ClassMethod(double, "Script", other, "turn", $ListBuild("broken", "busy", "reply"))
+	Set item = ..Item(other, "zz busy after the retry", "zzc"_..Number_"brokenbusy")
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(item, .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(other, "zzc"_..Number_"brokenbusy")
+	Set retry = ##class(OcuTalon.Core.Conversation).RetryItemId(row.ItemId)
+	Set turns = ..Sent("Decide", "turn")
+	Do $$$AssertEquals($ListLength(turns), 3, "a retry that was busy is asked again: three turn requests")
+	If $ListLength(turns) '= 3 Quit
+	Do $$$AssertEquals(..Call($List(turns, 1), "itemId")_"|"_..Call($List(turns, 2), "itemId")_"|"_..Call($List(turns, 3), "itemId"), row.ItemId_"|"_retry_"|"_retry, "the first under the turn's ItemId, the retry and the ask after its busy answer under the derived one")
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz busy after the retry", "the turn is done with the reply")
+
+	Kill ^OcuTalonTest("ConversationProbe", ..Number)
+	Set ..Handled = 0
+	Set twice = ..Session("brokentwice")
+	Do $ClassMethod(double, "Record", twice, 1)
+	Do $ClassMethod(double, "Script", twice, "turn", $ListBuild("broken", "broken"))
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(..Item(twice, "zz twice", "zzc"_..Number_"brokentwice"), .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(twice, "zzc"_..Number_"brokentwice")
+	Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|error|", "a second broken answer is the fallback with the reply's reason")
+	Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 2, "after one retry only")
+}
+
+/// An Item whose header has no ID (so its position in the trace cannot be worked out) is taken all the same: the Turn exists and
+/// is queued, both positions are empty, and one warning that starts with LOGPOSITION is logged by Locate.
+Method TestPositionFailureNeverStopsTurn()
+{
+	Set session = ..Session("nopos")
+	Set mark = ..LastLog()
+	Set probe = ..NewProbe()
+	Set probe.%PrimaryRequestHeader = ##class(Ens.MessageHeader).%New()
+	Do $$$AssertStatusOK(probe.OnRequest(..Item(session, "zz no position", "zzc"_..Number_"nopos"), .response), "the Item is taken")
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"nopos")
+	Do $$$AssertTrue($IsObject(row), "and has a Turn")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.TraceHeaderId_"|"_row.TraceItemIndex_"|"_row.TraceItemIndexNoEvents, "||", "with no header ID and no position")
+	Set sql = "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, mark, "Locate", ##class(OcuTalon.Core.Conversation).#LOGPOSITION)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "one warning says the position could not be worked out")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Locate", ##class(OcuTalon.Core.Conversation).#LOGPOSITION)
 }
 
 /// After a tainted reply the next turn is fresh, with a recap of the Turn rows that holds the user's text and the reply as

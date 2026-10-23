@@ -276,7 +276,9 @@ XData Contracts [ MimeType = application/json ]
    "TraceRef": "%String(MAXLEN=22)",
    "IrisUser": "%String(MAXLEN=128)",
    "CreatedAt": "%String(MAXLEN=20)",
-   "Epoch": "%String(MAXLEN=22)"
+   "Epoch": "%String(MAXLEN=22)",
+   "ThreadSessionId": "%Integer",
+   "ThreadDay": "%String(MAXLEN=10)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -373,6 +375,8 @@ XData Contracts [ MimeType = application/json ]
    "ReplyCatalogKey": "%String(MAXLEN=128)",
    "FallbackReason": "%String(MAXLEN=32)",
    "TraceHeaderId": "%Integer",
+   "TraceItemIndex": "%Integer",
+   "TraceItemIndexNoEvents": "%Integer",
    "Tainted": "%Boolean",
    "Attempt": "%Integer",
    "CheckKey": "%String(MAXLEN=128)",

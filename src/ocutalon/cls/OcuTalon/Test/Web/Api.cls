@@ -11,6 +11,10 @@
 /// public setting onlineDemo and the demo.mode row, which OnBeforeAllTests saves and OnAfterAllTests puts back; the row
 /// goes through Test.Demo.Step's row helpers. Capture, Collect and Written are shared with the other web tests that call
 /// a class method and read what it wrote.
+/// Story 2.9: a turn's chat entry and a decision of the rail carry traceUrl (Web.TraceLink), the turn's with the PAGE of its
+/// position for the user's page size and choice of events, and a check in a namespace with no trace application carries none; the
+/// chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
+/// tests (in a process-private global), unset before each test and put back after them.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -34,8 +38,14 @@ Property SavedModeValue As %String(MAXLEN = 1000);
 /// The UpdatedAt of the demo.mode row before the tests.
 Property SavedModeUpdatedAt As %String(MAXLEN = 20);
 
+/// 1 when the user had Visual Trace settings before the tests.
+Property SavedTraceSettings As %Boolean;
+
 Method OnBeforeAllTests() As %Status
 {
+	Kill ^||OcuTalonTest.WebApi
+	Set ..SavedTraceSettings = $Data(^EnsPortal.Settings($Username, "VisualTrace")) \ 10
+	If ..SavedTraceSettings Merge ^||OcuTalonTest.WebApi = ^EnsPortal.Settings($Username, "VisualTrace")
 	Kill ^OcuTalonTest("ApiProbe")
 	Do ..Clean()
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -48,8 +58,17 @@ Method OnBeforeAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+Method OnBeforeOneTest() As %Status
+{
+	Kill ^EnsPortal.Settings($Username, "VisualTrace")
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
+	Kill ^EnsPortal.Settings($Username, "VisualTrace")
+	If ..SavedTraceSettings Merge ^EnsPortal.Settings($Username, "VisualTrace") = ^||OcuTalonTest.WebApi
+	Kill ^||OcuTalonTest.WebApi
 	Kill ^OcuTalonTest("ApiProbe")
 	Kill ^OcuTalonTest("WebChatIn", ..Number)
 	Do ..Clean()
@@ -214,6 +233,7 @@ Method TestStateSections()
 	Do $$$AssertEquals(view.kind_"|"_view.namespace_"|"_view.production_"|"_view.displayName, "production|ZZNS|"_production_"|Zz display", "a check's payload is CheckView's")
 	Do $$$AssertEquals(view.nextDueAt_"|"_view.lastRunAt_"|"_view.result_"|"_view.finding, "2030-03-01T00:00:00Z|2030-02-01T00:00:00Z|failed|zz finding", "with its run")
 	Do $$$AssertEquals(view.traceHeaderId_"|"_view.traceNamespace, "31|ZZNS", "a check with a run carries its trace")
+	Do $$$AssertEquals(view.%IsDefined("traceUrl"), 0, "but a namespace with no trace application gives it no traceUrl")
 	Set bare = rail.checks.%Get(1)
 	Do $$$AssertEquals(bare.traceHeaderId_"|"_bare.traceNamespace, "|", "a check with no run carries none")
 	Do $$$AssertEquals(..Refs(rail.reminders), reminder2_","_reminder1, "reminders: pending only, by DueAt")
@@ -223,6 +243,7 @@ Method TestStateSections()
 	Set decision = rail.decisions.%Get(0)
 	Do $$$AssertEquals(decision.model_"|"_decision.traceHeaderId_"|"_decision.traceNamespace, "Claude Haiku 5.5|42|"_$Namespace, "a decision's payload is Decision.FromRow")
 	Do $$$AssertTrue(decision.itemSummary [ "zz summary", "its summary is the row's")
+	Do $$$AssertEquals(decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "and it carries its trace URL, with no PAGE")
 
 	Do $$$AssertEquals(body.telegram.included_"|"_body.telegram.paired_"|"_body.telegram.displayName_"|"_body.telegram.state, "1|1|Zz chat|off", "telegram: included, paired, the chat's name")
 	Set ^OcuTalonTest("TelegramIncluded") = 0
@@ -289,7 +310,10 @@ Method TestStateChatDecision()
 	Set row.TurnDecisionRef = reply
 	Set row.CheckKey = "checks.allPassed"
 	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz finding"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
-	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions and two check rows")
+	Set row.TraceHeaderId = 9001
+	Set row.TraceItemIndex = 41
+	Set row.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions, two check rows and a trace target at position 41 (30 without events)")
 	Set fallback = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(fallback)
 	Set row.TriageDecisionRef = triage
@@ -306,11 +330,19 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(+first.turnCost.inputTokens_"|"_+first.turnCost.outputTokens_"|"_+first.turnCost.costUSD, "1084|312|.0008", "and the turn's cost, the sum of both decisions and no other session's")
 	Do $$$AssertEquals(first.checkKey_"|"_first.checks.%Size(), "checks.allPassed|2", "and the check key with its two rows")
 	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
+	Do $$$AssertEquals(first.traceItemIndex_"|"_first.traceItemIndexNoEvents, "41|30", "the entry carries both positions of its trace target")
+	Do $$$AssertEquals(first.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL, at the page of position 41 for 40 items a page")
+	Do $$$AssertEquals(first.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "the nested decision has its own trace URL, with no PAGE")
 	Set second = body.chat.%Get(1).payload
+	Do $$$AssertEquals(second.%IsDefined("traceUrl")_"|"_second.%IsDefined("traceItemIndex"), "0|0", "a turn with no trace target has no traceUrl and no position")
 	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
 	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
 	Set third = body.chat.%Get(2).payload
 	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
+	Do ##class(EnsPortal.VisualTrace).SetItemsPerPage(10)
+	Do ##class(EnsPortal.VisualTrace).SetShowEvents(0)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Get(0).payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=3", "with 10 items a page and events hidden, position 30 is page 3: the viewer's own settings")
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
 }
 
@@ -570,6 +602,22 @@ Method TestEventsBody()
 	Set events = body.events
 	Do $$$AssertEquals(events.%Size(), 200, "the instance stream's cap counts from its own cursor")
 	Do $$$AssertEquals(events.%Get(0).stream_":"_events.%Get(0).seq_" "_events.%Get(199).stream_":"_events.%Get(199).seq, "instance:4 instance:203", "they are 4 to 203")
+
+	Set tracer = ##class(OcuTalon.Data.Session).ForUser("zzapieventstrace"_..Number, .sc)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(tracer.Ref, , "done", "zz traced")
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+	Set turn.TraceHeaderId = 9002
+	Set turn.TraceItemIndex = 81
+	Set turn.TraceItemIndexNoEvents = 70
+	Do $$$AssertStatusOK(turn.%Save(), "a turn with a trace target at position 81")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(tracer.Ref, "chat.message", ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)), "its chat.message is published")
+	Set empty = ##class(OcuTalon.Data.Session).ForUser("zzapieventsempty"_..Number, .sc).Ref
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(tracer, 0, 0, empty)
+	Do $$$AssertEquals(body.events.%Size(), 1, "the poll holds the event")
+	Set payload = body.events.%Get(0).payload
+	Do $$$AssertEquals(payload.traceItemIndex_"|"_payload.traceItemIndexNoEvents, "81|70", "the chat.message carries both positions")
+	Do $$$AssertEquals(payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9002&PAGE=3", "and its trace URL, at the page of position 81")
+	Do $$$AssertEquals(body.events.%Get(0).%IsDefined("traceUrl"), 0, "while the event envelope itself gets none")
 }
 
 /// The browser envelope: exempt methods, the valid request, and each rule in its order.
