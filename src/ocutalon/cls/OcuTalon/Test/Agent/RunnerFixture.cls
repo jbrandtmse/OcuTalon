@@ -21,7 +21,9 @@
 ///   - UseAgent and RestoreAgent (Story 1.5): put a test agent behind a runner item, and put the item back, by changing the item's
 ///     AgentClass and AgentAllowList settings in the stored configuration of the production and updating the running production;
 ///     StepsOf: the AgentStep rows of a decision, by Position; Headers also gives the id of each header; Run, Targets, HeaderTo and
-///     CountTo are the send to Decide and the readings of its headers, which Test.Agent.Decide and Test.Agent.Steps share;
+///     CountTo are the send to Decide and the readings of its headers, which Test.Agent.Decide and Test.Agent.Steps share (Run returns
+///     the session of the header that carries its request, SessionOf, never the first header to Decide after a mark: a message that
+///     Decide discards, such as an earlier decision's timer, can come first);
 ///     DeleteSteps (QA): the AgentStep messages of an item's requests are deleted once AgentSteps has handled them; LeakPlaces: where a
 ///     fake secret shows after a call (the steps, the runner's Reply, the event log and the stores of the key scan), which the redaction
 ///     tests of Test.Agent.Steps and Test.Bridge.Runner share, with TextControlsMissing, the controls of the scenario steps-secrets-text.
@@ -304,12 +306,15 @@ ClassMethod DeleteSteps(itemId As %String)
 }
 
 /// Sends the request to Decide and waits for the answer. response is the answer (or ""), and session is the session of the request,
-/// which holds every header of the call. The status is the one Send gives (superSession as there).
-ClassMethod Run(request As OcuTalon.Bridge.Msg.Request, Output response As %Persistent, Output session As %Integer, superSession As %String = "") As %Status
+/// which holds every header of the call: the session of the header whose body is the request (SessionOf), never that of the first
+/// header addressed to Decide after a mark, which can be another message's (the discarded response of an earlier decision's timer).
+/// The status is the one Send gives (superSession as there). mark is the header id (HeaderMark) from which the lookup reads, by
+/// default the highest id when Run begins; a test gives an earlier one to put another message to Decide between the mark and the send.
+ClassMethod Run(request As OcuTalon.Bridge.Msg.Request, Output response As %Persistent, Output session As %Integer, superSession As %String = "", mark As %Integer = "") As %Status
 {
-	Set mark = ..HeaderMark()
+	If mark = "" Set mark = ..HeaderMark()
 	Set sc = ..Send("Decide", request, .response, superSession)
-	Set session = ..SessionSince(mark, "Decide")
+	Set session = ..SessionOf(request, mark)
 	Quit sc
 }
 
@@ -352,16 +357,18 @@ ClassMethod CountTo(headers As %DynamicArray, target As %String) As %Integer
 	Quit count
 }
 
-/// The session of the header that carries the message body, or "": the session that holds a response, as Visual Trace shows it.
-ClassMethod SessionOf(body As %Persistent) As %Integer
+/// The session of the first header that carries the message body, or "": the session that holds a response, as Visual Trace shows
+/// it. With after (a header id, as HeaderMark gives), only the headers after it count, so the send that followed a mark is found
+/// even for a body that was sent before as well.
+ClassMethod SessionOf(body As %Persistent, after As %Integer = 0) As %Integer
 {
-	If '$IsObject(body) Quit ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ? ORDER BY ID", $ClassName(body), body.%Id())
+	If '$IsObject(body) || (body.%Id() = "") Quit ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = ? AND MessageBodyId = ? ORDER BY ID", +after, $ClassName(body), body.%Id())
 	If result.%Next() Quit result.%GetData(1)
 	Quit ""
 }
 
-/// The highest id of the message headers: the mark that SessionSince reads from.
+/// The highest id of the message headers: the mark that SessionOf (after) and SessionSince read from.
 ClassMethod HeaderMark() As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens.MessageHeader")
@@ -369,7 +376,9 @@ ClassMethod HeaderMark() As %Integer
 	Quit +result.%GetData(1)
 }
 
-/// The session of the first header after the mark that is addressed to the item, or "".
+/// The session of the first header after the mark that is addressed to the item, or "". It answers whether anything was sent to an
+/// item since the mark (a test that nothing reached a runner); it is never the way to find a call's own session, because the first
+/// header to an item after a mark can be another message's: that is SessionOf of the message the call sent.
 ClassMethod SessionSince(mark As %Integer, target As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = ? ORDER BY ID", mark, target)

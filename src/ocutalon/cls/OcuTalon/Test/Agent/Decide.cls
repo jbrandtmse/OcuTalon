@@ -73,6 +73,8 @@
 ///   - TestReplyFallbacks reads the AgentStep messages of each marker's call instead of inferring them from the targets;
 ///   - TestCostOfFailedTurn compares each AgentStep of the failed turn with the step that the runner buffered (both read), so that a step
 ///     that Decide drops or sends twice is seen.
+/// TestRunSessionIsItsOwn pins the session that RunnerFixture.Run returns: with another message to Decide between a mark and the send,
+/// it is the session of the header that carries the request, not that of the first header to Decide after the mark.
 /// OnAfterOneTest deletes the rows its test made (Decision, Usage and, since the QA stage of Story 1.5, the AgentStep messages, once
 /// AgentSteps has handled them) and the TimerSeconds row, starts Decide again if the test changed
 /// it, and waits until TriageAgent has answered the late request. Every wait is a poll with a generous ceiling.
@@ -701,6 +703,37 @@ Method TestRefused()
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock")
 	Do $$$AssertEquals($ClassMethod(fixture, "SessionSince", headerMark, "TriageAgent"), "", "and nothing was sent to a runner")
+}
+
+/// Run returns the session of the header that carries the request it sent, never that of the first header addressed to Decide after
+/// a mark: another message to Decide between the mark and the send, as the discarded response of an earlier decision's Ens.Alarm
+/// timer is, must not be taken for the call's own. A message of another class stands in for it: Decide refuses it in a session of its
+/// own. SessionOf counts only the headers after the mark it is given.
+Method TestRunSessionIsItsOwn()
+{
+	If '..Prepare() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set mark = $ClassMethod(fixture, "HeaderMark")
+	Set stray = ##class(Ens.StringRequest).%New("x")
+	Do $$$AssertStatusNotOK($ClassMethod(fixture, "Send", "Decide", stray, .none), "an unrelated message to Decide, sent after the mark, is refused")
+	Set strayId = $ClassMethod(fixture, "SessionOf", stray)
+	Do $$$AssertTrue(strayId '= "", "its header has a session of its own: "_strayId)
+	Set sc = $ClassMethod(fixture, "Run", request, .response, .session, "", mark)
+	Do $$$AssertStatusOK(sc, "Decide answers the request sent after it")
+	If '$IsObject(response) || 'response.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") {
+		Do $$$AssertTrue(0, "the answer is a DecisionResponse")
+		Quit
+	}
+	Do $$$AssertTrue(session '= strayId, "Run does not return the session of the unrelated message")
+	Do $$$AssertTrue($ClassMethod(fixture, "SessionSince", mark, "Decide") '= session, "and a lookup by the mark would not have: the first header to Decide after it is another message's")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionOf", request, $ClassMethod(fixture, "HeaderMark")), "", "SessionOf counts only the headers after the mark it is given, so none carries the request after the send")
+	Do $$$AssertEquals(session, $ClassMethod(fixture, "SessionOf", response), "it returns the session that holds the answer")
+	Do $$$AssertEquals(..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), "TriageAgent"), 1, "which holds the request to TriageAgent")
+	Do $$$AssertEquals(..CountTo($ClassMethod(fixture, "Headers", strayId, "Decide"), "TriageAgent"), 0, "and the session of the unrelated message holds none")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref, "decide")
+	Do $$$AssertTrue($IsObject(row) && (row.TraceSessionId = session), "the Decision row's TraceSessionId is that session")
 }
 
 /// The XML of the recorded DecisionResponse, which Visual Trace's contents pane shows, holds Outcome, Reasons, Confidence, Fallback

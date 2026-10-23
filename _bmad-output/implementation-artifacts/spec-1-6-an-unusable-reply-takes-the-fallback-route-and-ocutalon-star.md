@@ -2,11 +2,11 @@
 title: 'Story 1.6: An unusable reply takes the fallback route, and OcuTalon starts with no key'
 type: 'feature'
 created: '2026-10-22'
-status: 'in-progress'
-baseline_revision: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
+status: 'done'
+baseline_revision: '188e733a54d5e76baaf778513ec8716e7081f09e'
 baseline_commit: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-5, AD-6, AD-8, AD-9, AD-19, AD-20, AD-22, AD-26, AD-28, AD-30, AD-31 and AD-33, and the Redaction, Logging and errors and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
@@ -417,7 +417,7 @@ deferred:
 
   (`Test.Bridge.Budget.TestFaults`, `Test.Bridge.Decide.TestPrecheckLogs`)
 
-- [ ] [Smoke] Fresh check, rework 1: the forward `lane-a` shard failed `Test.Agent.Steps.TestTwoTools` (every trace assert; the class took 132 s, the 120 s ceiling of `WaitStepsDone`), and the class passed alone and on an unchanged rerun of the shard. `RunnerFixture.Run` takes the session from `SessionSince(mark, "Decide")`, the first header addressed to `Decide` after the mark, and that can be the discarded response of an earlier decision's `Ens.Alarm` timer (a timer that fires after its process completed is delivered to `Decide` and discarded, `irislib/Ens/BusinessProcess.cls:295`) — `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:308` — `Run` must return the session of the header whose body is the request it sent (`RunnerFixture.SessionOf`), never the first header to `Decide` after a mark, and any other helper that finds its own session by a mark gets the same fix. Pin it: a test (or a `mutation:` line) that puts an unrelated header addressed to `Decide` between the mark and the send and shows the old lookup red; `Test.Agent.Steps`, `Test.Agent.Decide` and `Test.Agent.Runners` stay green forward and reversed.
+- [x] [Smoke] Fresh check, rework 1: the forward `lane-a` shard failed `Test.Agent.Steps.TestTwoTools` (every trace assert; the class took 132 s, the 120 s ceiling of `WaitStepsDone`), and the class passed alone and on an unchanged rerun of the shard. `RunnerFixture.Run` takes the session from `SessionSince(mark, "Decide")`, the first header addressed to `Decide` after the mark, and that can be the discarded response of an earlier decision's `Ens.Alarm` timer (a timer that fires after its process completed is delivered to `Decide` and discarded, `irislib/Ens/BusinessProcess.cls:295`) — `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:308` — `Run` must return the session of the header whose body is the request it sent (`RunnerFixture.SessionOf`), never the first header to `Decide` after a mark, and any other helper that finds its own session by a mark gets the same fix. Pin it: a test (or a `mutation:` line) that puts an unrelated header addressed to `Decide` between the mark and the send and shows the old lookup red; `Test.Agent.Steps`, `Test.Agent.Decide` and `Test.Agent.Runners` stay green forward and reversed.
 
 ### Review Findings
 
@@ -514,6 +514,25 @@ Code review, 2026-10-23 (review tier full-opus; layers blind-hunter, edge-case-h
     - `[low]` `[reject]` the live `OnError` test shows only the default reason `error` — `TestOnErrorFallback` covers the texts of the other reasons through `OnError` then `OnResponse`.
     - `[low]` `[reject]` only the `BuildAgent` failure before `Chat` is tested in `TestFailureTextRedacted` — a refused request and an unbuilt kind keep their status in `TestUnbuiltKinds`, and `NewSession` and `Context.Begin` precede the `Try` that catches `Chat`.
     - `[false]` `[reject]` the timer path is not re-pinned — `TestTimer` is unchanged as the spec says, and the timer branch of `OnResponse` still comes first.
+
+### 2026-10-23 — Review pass (rework 1, follow-up)
+- verdicts: 11 findings — high 0, medium 3, low 6, false 2, maybe-false 0
+- findings:
+  - Blind Hunter:
+    - `[low]` `[patch]` the `after` filter of `SessionOf`, and the `mark` that `Run` passes to it, is observed by no test (one header per body) — a test assertion now reads `SessionOf(request, <mark after the send>)` as "", and a `mutation:` line drops `ID > ?`; its sub-claim that the Rework 1 note names the wrong reason for the two parameters was corrected in the note, which is the pass's own text.
+    - `[medium]` `[patch]` the precondition that the first header to `Decide` after the mark is the stray's can fail when an earlier decision's discarded timer response lands between the mark and the send — the same race the test pins; the assertion is now made after the call as `SessionSince(mark, "Decide") '= session`, which holds with or without another header in the window.
+    - `[low]` `[reject]` the stray is not a header inside an earlier decision's session, so it only approximates the discarded timer response — the test's doc states that the stand-in is refused "in a session of its own"; `Run` finds its session by body whichever session the other header is in, and a header built by hand inside another session is new fixture machinery; reopen_if a lookup is added that depends on the other header's session.
+    - `[false]` `[reject]` "forward and reversed" overstates the evidence — the spec says `shard lane-a` passes forward and with `--reverse`, which is what ran, and it now says that `--reverse` reverses the order of classes only.
+  - Edge Case Hunter:
+    - `[medium]` `[patch]` line 724 fails intermittently when another header to `Decide` lands in the window — same root as the Blind Hunter's second finding; fixed.
+    - `[low]` `[patch]` claim: the stray is first only when nothing else is sent to `Decide` between the mark and the send — same root; the claim is no longer asserted.
+  - Verification Gap:
+    - `[low]` `[patch]` `after` and `mark` are pinned by no assertion and no mutation — same root as the Blind Hunter's first finding; fixed, with the second `mutation:` line. The other Rule 19 checks came back clean (the pinning test has its line, its subject is constructed, it has a control, and no other helper finds its session by a mark).
+    - `[medium]` `[patch]` `TestRunSessionIsItsOwn` is not self-contained: its precondition assumes no other header to `Decide` in the window — same root as the Blind Hunter's second finding; fixed.
+  - Intent Alignment (descriptive report; one row for each divergence it names):
+    - `[false]` `[reject]` the diff lives at the test-harness surface and the intent's expectations at the bridge surface — the open item is the harness (`RunnerFixture.Run`), no contract behavior is changed, and the shard exercises every matrix row's test unchanged.
+    - `[low]` `[reject]` the stand-in is a synchronous request with a session of its own, not the timer's late response — same as the Blind Hunter's third finding.
+    - `[low]` `[reject]` the stray and its refusal sit outside the cleanup list — `TestRefused` leaves the same refusal, no listed state remains, and the shard passes forward and with `--reverse` with `Test.Agent.Runners`' event-log assertions on either side.
 
 ## Design Notes
 
@@ -765,6 +784,13 @@ No acceptance criterion contradicts an AD's Rule.
 
 The three mutations were applied together and attributed by the failed assertions' texts; the file was then put back, and `git status --short`, `git diff --stat` and the checksum of `git diff` were identical to what they were before.
 
+**Rework 1 (the session of a call; tag e1s6r1, 2026-10-23).** `RunnerFixture.Run` returns `SessionOf(request, mark)`, the session of the header whose body is the request it sent, where it took `SessionSince(mark, "Decide")`, the first header to `Decide` after the mark. `SessionOf` gains the optional `after` header id (only the headers after it count) and `Run` the optional `mark` that it passes on (by default the highest header id when `Run` begins), so that a test can put another message to `Decide` between the mark and the send. No other helper finds its own session by a mark: the two remaining `SessionSince` calls (`Test.Agent.Decide.TestTurn`, `TestRefused`) assert that nothing reached a runner, and its doc now says so. `Test.Agent.Decide.TestRunSessionIsItsOwn` pins it: an `Ens.StringRequest` sent to `Decide` after the mark is the first header to `Decide` (the test shows that `SessionSince` gives its session), and `Run` still returns the session that holds the answer and the request to `TriageAgent`.
+- **Verified (rework 1)**, in throwaways of the tag `e1s6r1`, one command per call: `bash ci/checks.sh` passes; `ci/iris.sh class` passes for `Test.Agent.Decide`, `.Agent.Steps` and `.Agent.Runners`; `ci/iris.sh teardown` left nothing of the tag. Then, in the tag `e1s6a`: `ci/iris.sh build` exits 0, and `shard lane-a` passes forward and with `--reverse` (31 classes each, about 2 min 30 s per run); teardown left nothing. The `(loop)` lines for `Test.Bridge.*` run inside that shard, and `release/standalone-bridge.sh` and the `(once)` lines were not repeated: this pass changes two test classes of `src/ocutalon` and nothing under `src/bridge`, `docker/` or `release/` (the rework's scope).
+- **Verified (rework 1, after the review patch)**, in throwaways of the tag `e1s6r1`, one command per call: `bash ci/checks.sh` passes; `shard lane-a` passes forward and with `--reverse` (31 classes each, `Test.Agent.Decide` 28.6 s and 28.3 s); teardown left nothing of the tag. `--reverse` reverses the order of the classes, not of the methods inside one.
+- mutation (the session): `RunnerFixture.Run` finds the session with `SessionSince(mark, "Decide")` again -> red: `Test.Agent.Decide.TestRunSessionIsItsOwn` alone ("Run does not return the session of the unrelated message", "and a lookup by the mark would not have", "it returns the session that holds the answer", "which holds the request to TriageAgent", "the Decision row's TraceSessionId is that session").
+- mutation (the mark): `RunnerFixture.SessionOf` drops its `ID > ?` condition -> red: `TestRunSessionIsItsOwn` ("SessionOf counts only the headers after the mark it is given, so none carries the request after the send"), which no other assertion reaches, because a body here has one header.
+- Both mutations were applied together in one run of `ci/iris.sh class OcuTalon.Test.Agent.Decide` and attributed by the failed assertions' texts (six `FAIL` lines, all of that one test; `Test.Agent.Decide` failed alone). The file was then put back, and `git status --short`, the checksum of `git diff` and those of the two changed classes were identical to what they were before.
+
 ## Clarification Record
 
 **For the veto window** (not blocking; recommended as planned):
@@ -832,3 +858,10 @@ Deferred: 2 items, in the frontmatter (the cut-off tool call that AI Hub continu
 - The `Usage` table is scanned on every decision (deferred item 2).
 - `Keys.Status` reads a runner's `ProviderConfig` only: a runner that takes its key from `ProviderName` or an agent class parameter, or a keyless provider, counts as having no key (spec-bound; reopen_if either is supported).
 - The pending timer after an error-status fallback was measured for 0.3 s only (Task 0 (d)); the normal path shows it completing after its seconds with a discarded response.
+
+**Rework 1 (this pass only; the lead's fresh-environment check).**
+- **Change.** `RunnerFixture.Run` returns the session of the header whose body is the request it sent (`SessionOf`), not the first header to `Decide` after a mark, which can be the discarded response of an earlier decision's timer. No other helper finds its own session by a mark. Files: `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` (`Run`, `SessionOf`) and `src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls` (`TestRunSessionIsItsOwn`). The `[Smoke]` item is ticked.
+- **Review.** 11 findings: high 0, medium 3, low 6, false 2. Patched: the pass's one test, 6 findings in 2 groups (the precondition that could fail on the very race it pins, and the `ID > ?` condition that no assertion reached). Rejected: 5, each with its reason in the log. Deferred: none.
+- **Follow-up review recommended: false.** No `high` was patched in this follow-up pass.
+- **Verification.** `bash ci/checks.sh` and `shard lane-a` forward and with `--reverse` pass on the patched tree (see `## Verification`, "Rework 1"); two `mutation:` lines were applied, seen red and reverted, with the tree byte-identical. The `(once)` lines and `release/standalone-bridge.sh` were not repeated: the pass changes two test classes and nothing under `src/bridge`, `docker/` or `release/`.
+- **Residual risk.** The stand-in for the timer's response is a request with a session of its own; the lookup does not depend on the other header's session. The race itself (a timer's response in the window) is not reproduced, only the condition (another header to `Decide` after the mark).
