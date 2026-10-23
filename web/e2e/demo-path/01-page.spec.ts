@@ -78,6 +78,40 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
   expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
 });
 
+/**
+ * The floor of the status rail (REL-2, UX-DR51): on a fresh install the README account sees the rail as the region Status with its four
+ * sections in order, each with its count and its empty state, both hints, no Telegram section and no live region in the rail.
+ */
+test('shows the status rail with its sections, counts and empty states', { tag: '@floor' }, async ({ page }) => {
+  const violations = watchViolations(page);
+
+  await signInReadme(page);
+
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  const rail = page.getByRole('region', { name: 'Status', exact: true });
+  await expect(rail, 'the rail is the region Status').toHaveCount(1);
+  const headings = rail.getByRole('heading', { level: 3 });
+  await expect(headings, 'four sections in order').toHaveCount(4);
+  const names = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
+  for (const [i, label] of names.entries()) {
+    await expect(headings.nth(i), `heading ${i + 1} is named with its count`).toHaveAccessibleName(`${label}, 0`);
+  }
+  await expect(rail.locator('h3 > [aria-hidden="true"]'), 'and shows it').toHaveText(names.map((label) => `${label} (0)`));
+  await expect(rail.locator('.empty'), 'each list shows its empty text').toHaveText([
+    'None waiting.',
+    'Ask OcuTalon to watch a production.',
+    'None pending.',
+    'No decisions yet.',
+  ]);
+  await expect(rail.locator('.hint'), 'the check and reminder hints sit under the lists').toHaveText([
+    'To stop, ask: "Stop watching Orders."',
+    'To cancel, ask: "Cancel my reminder to stretch."',
+  ]);
+  await expect(rail.getByRole('heading', { name: 'Telegram' }), 'a release without Telegram has no Telegram section').toHaveCount(0);
+  await expect(rail.locator('[aria-live], [role="log"], [role="status"], [role="alert"]'), 'nothing in the rail is a live region').toHaveCount(0);
+  expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
+});
+
 notBuilt('the simulated phone and the simulated mailbox, each labelled Simulated', '4.7');
 notBuilt('the demo guide lists the steps, each with its one-click prompt', '4.7');
 notBuilt('Break the feed is marked as a demo control', '4.7');

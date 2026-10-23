@@ -5,7 +5,8 @@
 /// unknown kind (condition 1). Story 2.6 adds the decision find (TestDecisionRead) and the cost totals over the usage rows
 /// (TestTurnCost, TestRunCost), whose figures are written out. Story 2.7 adds the notice cards and the delivery find (RecentNotices,
 /// DeliveryFor; TestRecentNotices). Every row comes from Test.Data.Fixture, which Clean removes; the users are zzown<n>, with n
-/// from ^OcuTalonTest("Ownership","n") (never reset). onlineDemo is saved and put back.
+/// from ^OcuTalonTest("Ownership","n") (never reset). onlineDemo is saved and put back. Story 2.8 adds ApprovalIncident
+/// (TestApprovalIncident) and the status of Watchers (TestInstanceScope).
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
 
@@ -156,12 +157,16 @@ Method TestInstanceScope()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Approval(requestTwo, a), "", "or its request")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Approval(requestNone, b), "", "nobody finds an instance request with no incident")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incident(incidentTwo, b).Ref, incidentTwo, "B finds it")
-	Set watchers = ##class(OcuTalon.Data.Ownership).Watchers("ZZNS", one)
+	Set watchers = ##class(OcuTalon.Data.Ownership).Watchers("ZZNS", one, .sc)
+	Do $$$AssertStatusOK(sc, "the read of the first production's watchers")
 	Do $$$AssertEquals($ListLength(watchers), 2, "two sessions watch the first production")
 	Do $$$AssertTrue($ListFind(watchers, a) && $ListFind(watchers, b), "A and B")
-	Do $$$AssertEquals($ListLength(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", two)), 1, "one watches the second")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", "Zz.Nobody"), "", "none watches another")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("", one), "", "an empty namespace gives none")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", two, .sc)), 1, "one watches the second")
+	Do $$$AssertStatusOK(sc, "the read of the second production's watchers")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", "Zz.Nobody", .sc), "", "none watches another")
+	Do $$$AssertStatusOK(sc, "nobody watching is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("", one, .sc), "", "an empty namespace gives none")
+	Do $$$AssertStatusOK(sc, "also without an error")
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do ..ReadAll(a, .seen)
@@ -173,8 +178,39 @@ Method TestInstanceScope()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incident(incidentOne, a), "", "an instance incident is not found")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Approval(requestOne, a), "", "nor its request")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incident(own, a).Ref, own, "the session's own incident still is")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", one), "", "and nobody watches")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Watchers("ZZNS", one, .sc), "", "and nobody watches")
+	Do $$$AssertStatusOK(sc, "with no error")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// ApprovalIncident gives the IncidentRef of an instance request, and "" for a session's request, an eval request, an unknown
+/// Ref, the Ref in another case and an empty Ref, always with an OK status (DW-68).
+Method TestApprovalIncident()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", "Zz.Own"_..Number_".Incident")
+	Set instance = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
+	Set instanceNone = ##class(OcuTalon.Test.Data.Fixture).Approval("instance")
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Approval(a, incident)
+	Set eval = ##class(OcuTalon.Test.Data.Fixture).Approval("eval", incident)
+	Set other = $ZConvert(instance, "U")
+	If other = instance Set other = $ZConvert(instance, "L")
+	Do $$$AssertTrue(other '= instance, "the Ref changes with its case")
+	Do ..AssertIncident(instance, incident, "an instance request gives its IncidentRef")
+	Do ..AssertIncident(instanceNone, "", "an instance request with no incident gives none")
+	Do ..AssertIncident(session, "", "a session's request gives none")
+	Do ..AssertIncident(eval, "", "an eval request gives none")
+	Do ..AssertIncident("zzunknown"_..Number, "", "an unknown Ref gives none")
+	Do ..AssertIncident(other, "", "the Ref in another case gives none")
+	Do ..AssertIncident("", "", "an empty Ref gives none")
+}
+
+/// Asserts what ApprovalIncident answers for the Ref, and that its status is OK.
+Method AssertIncident(ref As %String, expected As %String, text As %String) [ Private ]
+{
+	Set got = ##class(OcuTalon.Data.Ownership).ApprovalIncident(ref, .sc)
+	Do $$$AssertEquals(got, expected, text)
+	Do $$$AssertStatusOK(sc, "the status is OK: "_text)
 }
 
 /// An incident is visible only once NoticedAt is set: its own, and an instance incident of a watched production.

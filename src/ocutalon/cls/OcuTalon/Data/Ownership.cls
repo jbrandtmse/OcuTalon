@@ -21,8 +21,8 @@
 ///     statements are fixed texts, one per row kind; each has the owner check in its WHERE clause, bound to the owner's
 ///     Ref that the caller holds: SessionRef()'s value, or the session Ref of a record the product itself wrote (a row read
 ///     through this class, a Turn row, the owner of a bridge event), never request input.
-///   - Watchers reads across sessions and has no owner, so it prepares with the privilege check and runs only in
-///     production jobs and tests.
+///   - Watchers and ApprovalIncident read across owners, so they prepare with the privilege check, report a failed read
+///     in sc, and run only in production jobs and tests.
 Class OcuTalon.Data.Ownership
 {
 
@@ -293,21 +293,32 @@ ClassMethod Approval(ref As %String, sessionRef As %String, Output sc As %Status
 /// The distinct SessionRefs with a production check on the production, in SessionRef order (case-sensitive, as read
 /// from the rows); empty when onlineDemo is on. It reads across sessions and has no owner, so it is not a Rows
 /// statement: it is prepared with the privilege check and runs only in production jobs and tests, through
-/// Session.Recipients. No request path calls it.
-ClassMethod Watchers(namespace As %String, production As %String) As %List
+/// Session.Recipients. No request path calls it. sc is OK unless the read failed; then the result is "" and means
+/// nothing, and it never means that nobody watches.
+ClassMethod Watchers(namespace As %String, production As %String, Output sc As %Status) As %List
 {
+	Set sc = $SYSTEM.Status.OK()
 	If '..LocalFlag() Quit ""
 	If (namespace = "") || (production = "") Quit ""
-	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT SessionRef FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'production' AND Namespace = ? AND Production = ?")
-	If $SYSTEM.Status.IsError(sc) Quit ""
-	Set result = statement.%Execute(namespace, production)
-	If result.%SQLCODE < 0 Quit ""
 	Kill found
-	While result.%Next() {
-		Set ref = result.%Get("SessionRef")
-		If ref '= "" Set found(ref) = ""
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT SessionRef FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'production' AND Namespace = ? AND Production = ?")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute(namespace, production)
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the watchers failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					Set ref = result.%Get("SessionRef")
+					If ref '= "" Set found(ref) = ""
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
 	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
 	Set watchers = ""
 	Set ref = ""
 	For {
@@ -316,6 +327,39 @@ ClassMethod Watchers(namespace As %String, production As %String) As %List
 		Set watchers = watchers_$ListBuild(ref)
 	}
 	Quit watchers
+}
+
+/// The IncidentRef of the approval request whose Ref is exactly ref (case-sensitive) when its owner is instance, "" for
+/// every other request, an unknown Ref and an empty one. One fixed statement narrows the rows by the collated index and
+/// the Ref is then compared exactly. It reads across owners and has no session, so it is prepared with the privilege
+/// check and runs only in production jobs and tests, through BridgeSink. No request path calls it. ref may come from a
+/// bridge event; it is only ever a bound value. sc is OK unless the read failed; then the result is "".
+ClassMethod ApprovalIncident(ref As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set incidentRef = ""
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT Ref, IncidentRef FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Ref = ? AND OwnerRef = 'instance'")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute(ref)
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the approval request's incident failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					If result.%Get("Ref") = ref {
+						Set incidentRef = result.%Get("IncidentRef")
+						Quit
+					}
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit incidentRef
 }
 
 /// 1 on a local install, where instance records are visible to the sessions that watch their production; 0 when

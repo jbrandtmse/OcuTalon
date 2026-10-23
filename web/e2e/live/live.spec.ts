@@ -352,6 +352,13 @@ test('L7: an error answer shows the load error at once, and a failed Retry annou
   await expect(main.locator('.load-error p')).toHaveText(LOAD_FAILED);
   await expect(page.locator('.skeleton')).toHaveCount(0);
   await expect(page.locator('app-chat-panel, app-composer'), 'no chat panel and no composer after a failed load').toHaveCount(0);
+  await expect(page.locator('section.rail h3'), 'the rail keeps its four plain headings after a failed load').toHaveText([
+    'Approval requests',
+    'Background checks',
+    'Reminders',
+    'Recent decisions',
+  ]);
+  await expect(page.locator('app-status-rail'), 'and holds no status rail').toHaveCount(0);
   await expect.poll(() => announcements(page, LOAD_FAILED)).toBe(1);
   expect(answers, 'the snapshot was asked for once').toBe(1);
 

@@ -79,14 +79,18 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 ///   - instance with the Ref of an instance incident: the sessions that watch the incident's production, in
 ///     SessionRef order (Ownership.Watchers), none when onlineDemo is on;
 ///   - eval, an empty owner, an unknown Ref, instance without an instance incident: none, the empty list.
-ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "") As %List
+/// sc is OK unless the watcher read failed (DW-68). Then the result is "" and means nothing: it never means that nobody
+/// watches. That read prepares with the privilege check, so it runs only in production jobs and tests; a caller in a
+/// REST request gets the error.
+ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "", Output sc As %Status) As %List
 {
+	Set sc = $SYSTEM.Status.OK()
 	If (ownerRef = "") || (ownerRef = ##class(OcuTalon.Data.Ownership).#EVAL) Quit ""
 	If ownerRef = ##class(OcuTalon.Data.Ownership).#INSTANCE {
 		If incidentRef = "" Quit ""
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(incidentRef)
 		If '$IsObject(incident) || (incident.OwnerRef '= ownerRef) Quit ""
-		Quit ##class(OcuTalon.Data.Ownership).Watchers(incident.Namespace, incident.Production)
+		Quit ##class(OcuTalon.Data.Ownership).Watchers(incident.Namespace, incident.Production, .sc)
 	}
 	If ..RefIndexExists(ownerRef) Quit $ListBuild(ownerRef)
 	Quit ""

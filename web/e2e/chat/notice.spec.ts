@@ -140,14 +140,15 @@ test('N3: only Tell now and Act notify', async ({ page }) => {
   await expect(card.locator('.why'), 'and the first reason as its Why now line').toHaveText('Why now: zz reason.');
   await expect(cardOf(page, ignored), 'the ignore shows nothing').toHaveCount(0);
   await expect(cardOf(page, digested), 'nor does the digest').toHaveCount(0);
-  await expect(page.getByText(ignored), 'nowhere on the page').toHaveCount(0);
+  // The status rail lists every attention decision of the session, an ignored one too, so these absence checks look in the chat.
+  await expect(page.getByRole('main').getByText(ignored), 'nowhere in the chat').toHaveCount(0);
 
   await page.reload();
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(card, 'after a reload the act card is still there').toHaveCount(1);
   await expect(card.locator('app-decision-strip app-outcome-chip .chip')).toHaveText('Act');
-  await expect(page.getByText(ignored), 'and the ignore and the digest are still not').toHaveCount(0);
-  await expect(page.getByText(digested)).toHaveCount(0);
+  await expect(page.getByRole('main').getByText(ignored), 'and the ignore and the digest are still not').toHaveCount(0);
+  await expect(page.getByRole('main').getByText(digested)).toHaveCount(0);
 });
 
 /** N4: a fallback with no decision row shows Tell now and the Fallback flag, and no confidence, no cost and no Details. */

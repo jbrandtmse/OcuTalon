@@ -1,11 +1,20 @@
-/// Tests of BridgeSink (Story 2.6; AD-31, AD-33), which turns the bridge's decision.recorded and turn.step events into live
-/// events. The tests call OnEvent directly, with fixture rows from Test.Data.Fixture, and read the session's stream.
+/// Tests of BridgeSink (Stories 2.6 and 2.8; AD-31, AD-33), which turns the bridge's decision.recorded, turn.step and
+/// approval.* events into live events. The tests call OnEvent directly, with fixture rows from Test.Data.Fixture, and read the
+/// session's stream.
 ///   - TestDecisionRecordedPublishesTheDecision: a decide and a turn decision of a session each give one decision event with
 ///     every field of Decision.FromRow;
 ///   - TestEvalAndInstancePublishNothing, TestAnotherSessionsDecisionPublishesNothing: a decision of eval, of instance or of
 ///     another session is published nowhere;
-///   - TestBadPayloadsPublishNothing: an empty or unknown ref, a payload that is not an object, approval.*, budget.capped and
-///     an unknown type publish nothing;
+///   - TestBadPayloadsPublishNothing: an empty or unknown ref, a payload that is not an object, an approval.* event for a
+///     ref that is no request, budget.capped and an unknown type publish nothing;
+///   - TestApprovalEventsPublishTheRequest, TestApprovalOwnersThatPublishNothing: each of the five approval.* types gives one
+///     approval event with Approval.FromRow's fields on the owning session's stream, and a request of eval, of another session
+///     or that does not exist is published nowhere;
+///   - TestInstanceApprovalReachesEveryWatcher, TestFailedWatcherReadIsLoud (DW-68): an instance request reaches each session
+///     that watches its incident's production and no other, none with onlineDemo on or for an unnoticed incident; a failed
+///     read of the recipients logs one warning and publishes nothing, and nobody watching logs nothing;
+///   - TestAFailedRecipientReadDoesNotStopTheOthers: a recipient whose read fails logs one warning naming the event, the request and
+///     the recipient, and the next recipient still gets its event;
 ///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem: turn.step carries the running
 ///     turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the item the bridge context is for;
 ///   - TestNeverWaitsMoreThanASecond: a stream whose lock another job holds drops the event after about a second;
@@ -25,10 +34,14 @@ Property Refs As %String(MAXLEN = "");
 /// The number of the newest row of the event log when the test began.
 Property LogMark As %Integer;
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set ..Number = $Increment(^OcuTalonTest("BridgeSink", "n"))
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -36,15 +49,17 @@ Method OnBeforeOneTest() As %Status
 {
 	Set ..Refs = ""
 	Set ..LogMark = ..LastLog()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterOneTest() As %Status
 {
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?)", ..LogMark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?)", ..LogMark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe")
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -125,8 +140,8 @@ Method TestAnotherSessionsDecisionPublishesNothing()
 	Do $$$AssertEquals(..Events(mine).%Size(), 0, "never on the other's")
 }
 
-/// An empty or unknown ref, a payload that is not an object, the approval and budget events, which are not built yet, and a
-/// type the sink does not know publish nothing.
+/// An empty or unknown ref, a payload that is not an object, an approval event for a ref that is no request, the budget
+/// event, which does nothing, and a type the sink does not know publish nothing.
 Method TestBadPayloadsPublishNothing()
 {
 	Set session = ..Session("bad")
@@ -144,6 +159,155 @@ Method TestBadPayloadsPublishNothing()
 	Do $$$AssertStatusOK(..Sink("", session, {"ref": (decision)}), "so does an empty type")
 	Do $$$AssertEquals(..Holding(decision), 0, "no event holds the decision's Ref")
 	Do $$$AssertEquals(..Events(session).%Size(), 0, "and the session's stream is empty")
+}
+
+/// Each of the five approval.* types, for a pending fix request of the session, publishes one approval event on its stream
+/// with the fields of Approval.FromRow; once the row's state changes, the next event carries the new state.
+Method TestApprovalEventsPublishTheRequest()
+{
+	Set session = ..Session("approval")
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", "2030-01-01T10:00:00Z")
+	Set ..Refs = ..Refs_","_request
+	Do $$$AssertEquals(..Events(session).%Size(), 0, "the stream is empty to begin with")
+	Set types = $ListBuild("approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result")
+	Set position = 0
+	Set count = 0
+	While $ListNext(types, position, type) {
+		Do $$$AssertStatusOK(..Sink(type, session, {"ref": (request)}), type_": OnEvent returns OK")
+		Set count = count + 1
+		Set events = ..Events(session)
+		Do $$$AssertEquals(events.%Size(), count, type_" publishes one event")
+		Set event = events.%Get(count - 1)
+		Set payload = event.payload
+		Do $$$AssertEquals(event.type_"|"_payload.ref_"|"_payload.kind_"|"_payload.state_"|"_payload.incidentRef, "approval|"_request_"|fix|pending|", "an approval event for the request, its kind and its state")
+		Do $$$AssertEquals(+payload.dryRun.affected_"|"_payload.dryRun.itemNoun.one_"|"_payload.dryRun.itemNoun.other, "4|order|orders", "with the dry run's count and noun")
+		Do $$$AssertEquals(payload.raisedAt_"|"_payload.expiresAt, "2030-01-01T10:00:00Z|2030-01-02T09:00:00Z", "when it was raised and when it expires")
+	}
+	Set expected = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request))
+	Do expected.%JSONExportToString(.json)
+	Do $$$AssertEquals(..Events(session).%Get(0).payload.%ToJSON(), json, "the payload is Approval.FromRow's, member for member")
+
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request)
+	Set row.State = "approved"
+	Do $$$AssertStatusOK(row.%Save(), "the request is approved")
+	Do $$$AssertStatusOK(..Sink("approval.answered", session, {"ref": (request)}), "the next event: OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), count + 1, "it publishes one more event")
+	Do $$$AssertEquals(events.%Get(count).payload.state, "approved", "which carries the new state")
+}
+
+/// The owner eval, an owner that names another session's request, an unknown ref, an empty ref and a payload that is not an
+/// object publish nothing and return OK; the real owner's event publishes.
+Method TestApprovalOwnersThatPublishNothing()
+{
+	Set mine = ..Session("mine")
+	Set theirs = ..Session("theirs")
+	Set theirRequest = ##class(OcuTalon.Test.Data.Fixture).Approval(theirs)
+	Set evalRequest = ##class(OcuTalon.Test.Data.Fixture).Approval("eval")
+	Set ..Refs = ..Refs_","_theirRequest_","_evalRequest
+	For owner = "eval", mine, "instance", "", "zz" {
+		Do $$$AssertStatusOK(..Sink("approval.raised", owner, {"ref": (evalRequest)}), "the eval request, owner '"_owner_"': OnEvent returns OK")
+	}
+	Do $$$AssertStatusOK(..Sink("approval.raised", mine, {"ref": (theirRequest)}), "another session's request: OnEvent returns OK")
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (theirRequest)}), "a session's request under the owner instance: OnEvent returns OK")
+	Do $$$AssertStatusOK(..Sink("approval.raised", "eval", {"ref": (theirRequest)}), "a session's request under the owner eval: OnEvent returns OK")
+	For payload = {"ref": "zzunknown"}, {"ref": ""}, {}, {"ref": 5}, {"ref": {"a": 1}}, [], "text", 42, "" {
+		Do $$$AssertStatusOK(..Sink("approval.raised", mine, payload), "approval.raised with "_$Select($IsObject(payload): payload.%ToJSON(), 1: "'"_payload_"'")_" returns OK")
+	}
+	Do $$$AssertEquals(..Holding(evalRequest), 0, "no event holds the eval request")
+	Do $$$AssertEquals(..Holding(theirRequest), 0, "no event holds the other session's request")
+	Do $$$AssertEquals(..Events(mine).%Size()_"|"_..Events(theirs).%Size(), "0|0", "and no stream has an event")
+	Do $$$AssertStatusOK(..Sink("approval.raised", theirs, {"ref": (theirRequest)}), "the real owner's event returns OK")
+	Do $$$AssertEquals(..Events(theirs).%Size(), 1, "and publishes on the owner's stream")
+	Do $$$AssertEquals(..Events(mine).%Size(), 0, "never on the other's")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// An instance request of a noticed incident reaches each session that watches the incident's production (DW-68), one event
+/// each and none to a session that watches another production. With onlineDemo on, or for an unnoticed incident, nobody
+/// receives it.
+Method TestInstanceApprovalReachesEveryWatcher()
+{
+	Set a = ..Session("watcha")
+	Set b = ..Session("watchb")
+	Set c = ..Session("watchc")
+	Set production = "Zz.Sink"_..Number_".Watched"
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", production)
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(c, "ZZNS", "Zz.Sink"_..Number_".Other")
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
+	Set unnoticed = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", "", "ZZNS", production)
+	Set unnoticedRequest = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", unnoticed)
+	Set ..Refs = ..Refs_","_incident_","_request_","_unnoticed_","_unnoticedRequest
+
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (request)}), "approval.raised: OnEvent returns OK")
+	For session = a, b {
+		Set events = ..Events(session)
+		Do $$$AssertEquals(events.%Size(), 1, "a watching session gets one event")
+		If events.%Size() = 0 Continue
+		Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.ref_"|"_events.%Get(0).payload.incidentRef, "approval|"_request_"|"_incident, "an approval event for the request and its incident")
+	}
+	Do $$$AssertEquals(..Events(c).%Size(), 0, "a session that watches another production gets none")
+	Do $$$AssertEquals(..Holding(request), 2, "two events hold the request")
+	Do $$$AssertStatusOK(..Sink("approval.expired", "instance", {"ref": (request)}), "approval.expired: OnEvent returns OK")
+	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size()_"|"_..Events(c).%Size(), "2|2|0", "each watching session gets the next event too")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (request)}), "with onlineDemo on: OnEvent returns OK")
+	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Events(b).%Size()_"|"_..Events(c).%Size(), "2|2|0", "nobody receives it")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (unnoticedRequest)}), "an unnoticed incident's request: OnEvent returns OK")
+	Do $$$AssertEquals(..Holding(unnoticedRequest), 0, "no event holds it")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// A recipients read that fails logs one warning that names the event, the request and the incident, and publishes nothing,
+/// and OnEvent returns OK (DW-68). An incident that no session watches logs nothing and publishes nothing.
+Method TestFailedWatcherReadIsLoud()
+{
+	Set a = ..Session("loud")
+	Set production = "Zz.Sink"_..Number_".Loud"
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
+	Set lonelyIncident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", "Zz.Sink"_..Number_".Nobody")
+	Set lonelyRequest = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", lonelyIncident)
+	Set ..Refs = ..Refs_","_incident_","_request_","_lonelyIncident_","_lonelyRequest
+
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Core.BridgeSinkProbe", "OnEvent", "approval.raised", "instance", {"ref": (request)}), "a failed read: OnEvent returns OK")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Approved", ##class(OcuTalon.Core.BridgeSink).#ERRORRECIPIENTS)
+	Do $$$AssertEquals(count, 1, "it logs one warning that starts with ERRORRECIPIENTS")
+	Do $$$AssertTrue($Find(text, "approval.raised") && $Find(text, request) && $Find(text, incident) && $Find(text, "zz the watchers could not be read"), "naming the event, the request, the incident and the status: "_text)
+	Do $$$AssertEquals(..Warnings(mark), 1, "and no other warning")
+	Do $$$AssertEquals(..Holding(request), 0, "no event holds the request")
+	Do $$$AssertEquals(..Events(a).%Size(), 0, "and the watching session's stream is empty")
+
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (lonelyRequest)}), "an incident that nobody watches: OnEvent returns OK")
+	Do $$$AssertEquals(..Warnings(mark), 0, "it logs nothing")
+	Do $$$AssertEquals(..Holding(lonelyRequest), 0, "and publishes nothing")
+}
+
+/// A recipient whose read of the request fails (the owner eval, which Ownership refuses) logs one warning that names the event,
+/// the request and the recipient, and the next recipient still gets its event.
+Method TestAFailedRecipientReadDoesNotStopTheOthers()
+{
+	Set session = ..Session("refused")
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(session)
+	Set ..Refs = ..Refs_","_request
+
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Core.BridgeSinkRefusedProbe", "OnEvent", "approval.raised", session, {"ref": (request)}), "OnEvent returns OK")
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Approved", ##class(OcuTalon.Core.BridgeSink).#ERRORFAILED)
+	Do $$$AssertEquals(count, 1, "it logs one warning that starts with ERRORFAILED")
+	Do $$$AssertTrue($Find(text, "approval.raised") && $Find(text, request) && $Find(text, "recipient eval"), "naming the event, the request and the recipient: "_text)
+	Do $$$AssertEquals(..Warnings(mark), 1, "and no other warning")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), 1, "the next recipient gets its event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref, request, "for the request")
 }
 
 /// turn.step for a session with a running turn publishes one turn.step event with the running turn's Ref, the decision's Ref
@@ -244,8 +408,8 @@ Method TestNeverWaitsMoreThanASecond()
 }
 
 /// OnEvent returns OK for every type, owner and payload there is, including the ones that cannot be published; for an event
-/// that fails to publish (an open transaction), where it logs a warning; and for a handler that throws, where it logs a warning
-/// too.
+/// that fails to publish (an open transaction), where it logs a warning; for a handler that throws, where it logs a warning
+/// too; and for an approval event whose recipients can't be read, where it logs one.
 Method TestNeverFailsItsCaller()
 {
 	Set session = ..Session("never")
@@ -279,10 +443,10 @@ Method TestNeverFailsItsCaller()
 	Do $$$AssertEquals(..Events(session).%Size(), before, "and publishes nothing")
 
 	Set mark = ..LastLog()
-	For type = "decision.recorded", "turn.step" {
-		Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Core.BridgeSinkProbe", "OnEvent", type, session, {"ref": (decision), "label": "zz label"}), "a handler that throws: "_type_" returns OK")
+	For type = "decision.recorded", "turn.step", "approval.raised" {
+		Do $$$AssertStatusOK($ClassMethod("OcuTalon.Test.Core.BridgeSinkProbe", "OnEvent", type, session, {"ref": (decision), "label": "zz label"}), "a handler that throws or a read that fails: "_type_" returns OK")
 	}
-	Do $$$AssertEquals(..Warnings(mark), 2, "and a warning is logged for each")
+	Do $$$AssertEquals(..Warnings(mark), 3, "and a warning is logged for each")
 	Do $$$AssertEquals(..Events(session).%Size(), before, "with nothing published")
 }
 
@@ -370,7 +534,7 @@ Method LastLog() As %Integer [ Private ]
 Method Warnings(mark As %Integer = "") As %Integer [ Private ]
 {
 	If mark = "" Set mark = ..LogMark
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?)", mark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?)", mark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe")
 	Do result.%Next()
 	Quit +result.%GetData(1)
 }

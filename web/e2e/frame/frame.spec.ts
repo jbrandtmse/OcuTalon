@@ -9,6 +9,9 @@ import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helper
 const STATE = '/ocutalon/api/v1/state';
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
 const RAIL_LABELS = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
+/** The rail's headings for an account with nothing: the spoken name, and the visible text with its count. */
+const RAIL_SPOKEN = RAIL_LABELS.map((label) => `${label}, 0`);
+const RAIL_VISIBLE = RAIL_LABELS.map((label) => `${label} (0)`);
 
 type Snapshot = Record<string, unknown>;
 
@@ -74,7 +77,12 @@ test('F1: landmarks, headings and order', async ({ page }) => {
   await expect(h1).toHaveText('OcuTalon');
   await expectVisuallyHidden(h1, 'the h1');
   await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Status', 'Chat']);
-  await expect(page.getByRole('heading', { level: 3 })).toHaveText(RAIL_LABELS);
+  const rail = page.getByRole('heading', { level: 3 });
+  await expect(rail, 'the rail has four headings').toHaveCount(RAIL_LABELS.length);
+  for (const [i, name] of RAIL_SPOKEN.entries()) {
+    await expect(rail.nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
+  }
+  await expect(page.locator('section.rail h3 > [aria-hidden="true"]'), 'each shows its count').toHaveText(RAIL_VISIBLE);
 
   await expect(page.getByRole('banner')).toHaveCount(1);
   await expect(page.locator('app-header').getByRole('banner'), 'the banner is the app header').toHaveCount(1);

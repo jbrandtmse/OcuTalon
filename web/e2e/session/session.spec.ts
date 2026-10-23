@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { README_ACCOUNT, envelope, noRoleAccount, signIn, signInOverHttp, stackOrigin, submitSignIn } from '../sign-in/helpers';
-import { chk, fixtureUser, irisScript } from '../support/iris';
+import { chk, cleanFixtureRows, fixtureUser, irisScript } from '../support/iris';
 
 /**
  * Story 2.2, the session (S1 to S8), in a real browser and over HTTP against a real stack. The users are the fixture users
@@ -55,13 +55,6 @@ async function sessionRows(user: string): Promise<{ refs: string[]; count: numbe
     ].join('\n'),
   );
   return { refs: lines.filter((line) => line.startsWith('CHK|ref|')).map((line) => line.slice('CHK|ref|'.length)), count: Number(chk(lines, 'count')) };
-}
-
-/** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
-async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
-  const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
-  if (mine.length === 0) return;
-  await irisScript(`Do ##class(OcuTalon.Test.Data.Fixture).Clean("${mine.join(',')}")\nWrite !,"CHK|clean|1"`);
 }
 
 /** S1: Sign out goes through the API with the whole envelope; signing in again gives the same epoch, chat and rail. */

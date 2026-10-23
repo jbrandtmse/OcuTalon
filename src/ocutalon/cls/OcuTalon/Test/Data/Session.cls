@@ -66,7 +66,8 @@ Method TestFindsOrCreates()
 
 /// Recipients: a session-owned record goes to its session; an instance incident to every session that watches its
 /// production, on a local install; an unwatched one, an eval record, an unknown Ref and any instance record with
-/// onlineDemo on go to nobody.
+/// onlineDemo on go to nobody. The status is OK in every one of these cases: only a failed watcher read (DW-68) makes it
+/// an error.
 Method TestRecipients()
 {
 	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzsessrecip"_..Number_"a")
@@ -81,24 +82,33 @@ Method TestRecipients()
 	Set eval = ##class(OcuTalon.Test.Data.Fixture).Incident("eval", , "ZZNS", watched)
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients(a), $ListBuild(a), "a session-owned record goes to its session")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients(a, own), $ListBuild(a), "also when it names an incident")
-	Set list = ##class(OcuTalon.Data.Session).Recipients("instance", instanceWatched)
+	Do ..AssertRecipients(a, "", $ListBuild(a), "a session-owned record goes to its session")
+	Do ..AssertRecipients(a, own, $ListBuild(a), "also when it names an incident")
+	Set list = ##class(OcuTalon.Data.Session).Recipients("instance", instanceWatched, .sc)
+	Do $$$AssertStatusOK(sc, "the status of an instance incident is OK")
 	Do $$$AssertEquals($ListLength(list), 2, "an instance incident goes to the two sessions that watch its production")
 	Do $$$AssertTrue($ListFind(list, a) && $ListFind(list, b), "A and B")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("instance", instanceUnwatched), "", "an unwatched instance incident goes to nobody")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("instance", own), "", "an incident that a session owns is not an instance incident")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("instance", "zzmissing"_..Number), "", "nor is a missing one")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("instance"), "", "instance with no incident goes to nobody")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("eval", eval), "", "an eval record goes to nobody")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("eval"), "", "also with no incident")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("zzunknown"_..Number), "", "an unknown Ref goes to nobody")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients(""), "", "an empty owner goes to nobody")
+	Do ..AssertRecipients("instance", instanceUnwatched, "", "an unwatched instance incident goes to nobody")
+	Do ..AssertRecipients("instance", own, "", "an incident that a session owns is not an instance incident")
+	Do ..AssertRecipients("instance", "zzmissing"_..Number, "", "nor is a missing one")
+	Do ..AssertRecipients("instance", "", "", "instance with no incident goes to nobody")
+	Do ..AssertRecipients("eval", eval, "", "an eval record goes to nobody")
+	Do ..AssertRecipients("eval", "", "", "also with no incident")
+	Do ..AssertRecipients("zzunknown"_..Number, "", "", "an unknown Ref goes to nobody")
+	Do ..AssertRecipients("", "", "", "an empty owner goes to nobody")
 
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients("instance", instanceWatched), "", "with onlineDemo on, an instance incident goes to nobody")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).Recipients(a, own), $ListBuild(a), "and a session-owned record still goes to its session")
+	Do ..AssertRecipients("instance", instanceWatched, "", "with onlineDemo on, an instance incident goes to nobody")
+	Do ..AssertRecipients(a, own, $ListBuild(a), "and a session-owned record still goes to its session")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// Asserts what Recipients answers for the owner and the incident, and that its status is OK.
+Method AssertRecipients(owner As %String, incident As %String, expected As %List, text As %String) [ Private ]
+{
+	Set got = ##class(OcuTalon.Data.Session).Recipients(owner, incident, .sc)
+	Do $$$AssertEquals(got, expected, text)
+	Do $$$AssertStatusOK(sc, "the status is OK: "_text)
 }
 
 /// An empty user name is refused, and no row is created.

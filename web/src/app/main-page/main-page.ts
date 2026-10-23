@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 
 import { ChatPanel } from '../chat/chat-panel';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
+import { StatusRail } from '../rail/status-rail';
 import { ServerButton } from '../shared/server-button';
 
-/** The labels of the rail's sections, in order. The sections' rows and counts arrive with their own stories. */
+/** The labels of the rail's four list sections, in order, for the loading and failed states; the loaded rail has its own (Telegram is unknown until then). */
 const RAIL_SECTIONS = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'] as const;
 
 /** The skeleton rows of each rail section while the snapshot loads. */
@@ -12,35 +13,40 @@ const SKELETON_ROWS = [1, 2] as const;
 
 /**
  * The main page: the status rail and the chat region, under the page's one visually hidden h1. The h1 is the routed
- * page's own first element, so each later page names itself. The rail is a region named Status; main follows it and
- * takes the rest of the width.
+ * page's own first element, so each later page names itself. The rail is a region named Status, 288px wide and 320px from a
+ * 1440px viewport, which scrolls on its own; main follows it and takes the rest of the width.
  *
  * While the snapshot loads, both regions are aria-busy and show static skeletons, hidden from assistive technology:
- * two rows in each rail section and three entries in main. When the load fails (no data by 10 seconds, or an error
- * answer) the skeletons give way to the load error at the top of main, with Retry. Once it has loaded, main holds the chat
- * panel after its hidden heading. The page's data-snapshot says how the load went, and data-session-seq and
- * data-instance-seq the last event of each stream that the page has applied.
+ * two rows in each of the rail's four sections and three entries in main. When the load fails (no data by 10 seconds, or an error
+ * answer) the rail keeps its four headings alone, and the skeletons give way to the load error at the top of main, with Retry.
+ * Once it has loaded, the rail holds the status rail and main holds the chat panel after its hidden heading. The page's
+ * data-snapshot says how the load went, and data-session-seq and data-instance-seq the last event of each stream that the page has
+ * applied.
  */
 @Component({
   selector: 'app-main-page',
-  imports: [ChatPanel, ServerButton],
+  imports: [ChatPanel, ServerButton, StatusRail],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="visually-hidden">OcuTalon</h1>
     <section class="rail" aria-labelledby="rail-title" [attr.aria-busy]="loading() ? 'true' : null">
       <h2 id="rail-title" class="visually-hidden">Status</h2>
-      @for (label of sections; track label) {
-        <h3 class="rail-heading">{{ label }}</h3>
-        @if (loading()) {
-          <div class="skeleton-rows" aria-hidden="true">
-            @for (row of skeletonRows; track row) {
-              <div class="skeleton-row">
-                <span class="skeleton row-title"></span>
-                <span class="skeleton row-detail"></span>
-                <span class="skeleton row-meta"></span>
-              </div>
-            }
-          </div>
+      @if (live.status() === 'loaded') {
+        <app-status-rail />
+      } @else {
+        @for (label of sections; track label) {
+          <h3 class="rail-heading">{{ label }}</h3>
+          @if (loading()) {
+            <div class="skeleton-rows" aria-hidden="true">
+              @for (row of skeletonRows; track row) {
+                <div class="skeleton-row">
+                  <span class="skeleton row-title"></span>
+                  <span class="skeleton row-detail"></span>
+                  <span class="skeleton row-meta"></span>
+                </div>
+              }
+            </div>
+          }
         }
       }
     </section>
@@ -86,6 +92,11 @@ const SKELETON_ROWS = [1, 2] as const;
       padding: var(--space-3) var(--space-3) var(--space-4);
       background: var(--status-rail-background);
       border-right: var(--status-rail-border-right);
+    }
+    @media (min-width: 1440px) {
+      .rail {
+        width: var(--space-rail-width-wide);
+      }
     }
     .rail-heading {
       margin: 0;

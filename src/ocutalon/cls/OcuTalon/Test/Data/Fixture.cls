@@ -43,8 +43,9 @@ ClassMethod Turn(sessionRef As %String, createdAt As %String = {##class(OcuTalon
 	Quit ..Keep(row)
 }
 
-/// A reminder of the session; dueAt defaults to a fixed time in 2030 and state to pending.
-ClassMethod Reminder(sessionRef As %String, dueAt As %String = "2030-01-01T10:00:00Z", state As %String = "pending") As %String
+/// A reminder of the session; dueAt defaults to a fixed time in 2030 and state to pending. fields, an object of property
+/// names and values, is set after the defaults.
+ClassMethod Reminder(sessionRef As %String, dueAt As %String = "2030-01-01T10:00:00Z", state As %String = "pending", fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.Reminder).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -53,12 +54,13 @@ ClassMethod Reminder(sessionRef As %String, dueAt As %String = "2030-01-01T10:00
 	Set row.DueAt = dueAt
 	Set row.State = state
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }
 
 /// A production check of the session on a production; the namespace and the production default to a pair of
-/// fixture names that no real check uses.
-ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", production As %String = "Zz.Production") As %String
+/// fixture names that no real check uses. fields, an object of property names and values, is set after the defaults.
+ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", production As %String = "Zz.Production", fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -68,6 +70,7 @@ ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", producti
 	Set row.Production = production
 	Set row.DisplayName = "Zz "_production
 	Set row.AskedBy = "zzfixture"
+	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }
 
@@ -92,8 +95,8 @@ ClassMethod Incident(ownerRef As %String, noticedAt As %String = {##class(OcuTal
 }
 
 /// An approval request of the owner (a session's Ref, instance or eval), for the incident when incidentRef is set.
-/// raisedAt defaults to now.
-ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As %String = "pending", raisedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}) As %String
+/// raisedAt defaults to now. fields, an object of property names and values, is set after the defaults.
+ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As %String = "pending", raisedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -104,6 +107,7 @@ ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As 
 	Set row.DryRun = "{""affected"":4,""resend"":3,""leftOut"":1,""field"":""OrderDate"",""before"":""16/10/2026"",""after"":""2026-10-16"",""itemNoun"":{""one"":""order"",""other"":""orders""}}"
 	Set row.RaisedAt = raisedAt
 	Set row.ExpiresAt = "2030-01-02T09:00:00Z"
+	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }
 
@@ -142,6 +146,15 @@ ClassMethod Usage(decisionRef As %String, ownerRef As %String, fields As %Dynami
 	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Do ..SetFields(row, fields)
 	Quit ..Keep(row, decisionRef)
+}
+
+/// Sets the test seam that says whether this release includes Telegram (what Channel.Telegram.In's Included() reads) to
+/// value, 1 or 0, and returns the value it had, 0 when it was not set, so that a test can put it back.
+ClassMethod SetTelegramIncluded(value As %Boolean) As %Boolean
+{
+	Set was = +$Get(^OcuTalonTest("TelegramIncluded"))
+	Set ^OcuTalonTest("TelegramIncluded") = +value
+	Quit was
 }
 
 /// Sets each member of fields, an object of property names and values, on the row. Nothing for an empty fields.

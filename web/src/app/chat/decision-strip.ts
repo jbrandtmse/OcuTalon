@@ -15,6 +15,18 @@ let lastId = 0;
 const NEWEST_LINES = 3;
 
 /**
+ * The sentence for a fallback reason value, from the page's catalog (the generic one for a value the catalog does not know);
+ * undefined when there is no reason, which is not a fallback.
+ */
+export function fallbackSentence(reason: string | undefined): string | undefined {
+  if (reason === undefined) {
+    return undefined;
+  }
+  const suffix = Object.hasOwn(REASON_KEYS, reason) ? (REASON_KEYS[reason] ?? 'generic') : 'generic';
+  return sentenceOf(PAGE_TEXTS[`fallbackReason.${suffix}`] ?? '');
+}
+
+/**
  * The decision strip (UX-DR61, UX-DR62, UX-DR64, FR-1, FR-2, FR-4) under a reply: why OcuTalon answered as it did, what it cost.
  * - Line 1: the outcome chip (Tell now on a fallback, no chip for an outcome the page does not know), the Fallback flag on a
  *   fallback, then "Confidence 0.92" and the cost, joined by a decorative middle dot. A fallback omits the confidence, and the cost
@@ -196,17 +208,10 @@ export class DecisionStrip {
   });
 
   /** The fallback's reason as a sentence, from the page's catalog; undefined when the strip is not a fallback strip. */
-  private readonly fallbackSentence = computed(() => {
-    const reason = this.fallbackReason();
-    if (reason === undefined) {
-      return undefined;
-    }
-    const suffix = Object.hasOwn(REASON_KEYS, reason) ? (REASON_KEYS[reason] ?? 'generic') : 'generic';
-    return sentenceOf(PAGE_TEXTS[`fallbackReason.${suffix}`] ?? '');
-  });
-  protected readonly fallbackLine = computed(() => (this.fallbackSentence() ?? '') !== '');
+  private readonly sentence = computed(() => fallbackSentence(this.fallbackReason()));
+  protected readonly fallbackLine = computed(() => (this.sentence() ?? '') !== '');
 
-  protected readonly lines = computed(() => reasonLines(this.decision()?.reasons, this.fallbackSentence(), this.newest() ? NEWEST_LINES : 1));
+  protected readonly lines = computed(() => reasonLines(this.decision()?.reasons, this.sentence(), this.newest() ? NEWEST_LINES : 1));
 
   /** The items after the chip and the flag: the confidence (not on a fallback) and the cost. */
   protected readonly meta = computed(() => {

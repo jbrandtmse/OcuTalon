@@ -27,7 +27,7 @@ const files = listFiles(sources).map((path) => ({ name: relative(sources, path),
 describe('the page\'s sources', () => {
   it('scan the app, the sign-in script, the styles and the index', () => {
     const names = files.map((file) => file.name);
-    for (const expected of ['index.html', 'main.ts', 'app/app.ts', 'app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/chat-panel.ts', 'app/msg/catalog.ts', 'signin/signin.js', 'styles/base.css']) {
+    for (const expected of ['index.html', 'main.ts', 'app/app.ts', 'app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/chat-panel.ts', 'app/rail/status-rail.ts', 'app/rail/decision-row.ts', 'app/rail/rail-view.ts', 'app/rail/telegram-card/telegram-card.ts', 'app/msg/catalog.ts', 'signin/signin.js', 'styles/base.css']) {
       assert.ok(names.includes(expected), `${expected} is scanned`);
     }
   });
@@ -47,6 +47,21 @@ describe('the page\'s sources', () => {
     assert.ok(reply, 'the reply component exists');
     assert.ok(!/\[(inner|outer)html\]/i.test(reply.text));
     assert.ok(/\[href\]="run\.href"/.test(reply.text), 'a link binds [href]');
+  });
+
+  it('bind the status rail\'s texts (a decision\'s summary and reasons, a reminder\'s text, a check\'s name and finding) by interpolation only', () => {
+    const rail = files.find((file) => file.name === 'app/rail/status-rail.ts');
+    const decision = files.find((file) => file.name === 'app/rail/decision-row.ts');
+    assert.ok(rail && decision, 'the rail components exist');
+    for (const bound of ['{{ row.lead }}', '{{ row.detail }}', '{{ part }}', '{{ section.empty }}', '{{ section.hint }}']) {
+      assert.ok(rail.text.includes(bound), `${bound} is interpolated in the rail`);
+    }
+    for (const bound of ['{{ row().title }}', '{{ line }}', '{{ decision().firstReason }}', '{{ part }}']) {
+      assert.ok(decision.text.includes(bound), `${bound} is interpolated in the decision row`);
+    }
+    for (const file of [rail, decision]) {
+      assert.ok(!/\[(inner|outer)html\]/i.test(file.text), `${file.name} binds no HTML`);
+    }
   });
 
   it('bind a notice card\'s text, Why now line and caption by interpolation only', () => {

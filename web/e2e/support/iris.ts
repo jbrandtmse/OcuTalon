@@ -11,8 +11,8 @@ function required(name: string): string {
   return value;
 }
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION or NOTICE. */
-export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE'): { user: string; password: string } {
+/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION, NOTICE or RAIL. */
+export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL'): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
@@ -65,15 +65,28 @@ function literal(user: string): string {
   return `"${user}"`;
 }
 
-/** Publishes one fixture reminder on the user's own session stream and returns its Seq. */
-export async function publishReminder(user: string): Promise<number> {
+/** What publishReminder may set on the reminder it publishes; the ref is new unless given. */
+export interface ReminderFields {
+  ref?: string;
+  text?: string;
+  dueAt?: string;
+  state?: string;
+}
+
+/**
+ * Publishes one fixture reminder on the user's own session stream and returns its Seq: the text "e2e live reminder", the state
+ * pending and no due time, unless fields say otherwise. The ref is a new one unless fields name it (a later event with the same ref
+ * updates the row).
+ */
+export async function publishReminder(user: string, fields: ReminderFields = {}): Promise<number> {
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
       'Set p=##class(OcuTalon.Live.Payload.Reminder).%New()',
-      'Set p.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
-      'Set p.Text="e2e live reminder"',
-      'Set p.State="pending"',
+      fields.ref === undefined ? 'Set p.Ref=##class(OcuTalon.Bridge.Ids).NewRef()' : `Set p.Ref=${quoted(fields.ref)}`,
+      `Set p.Text=${quoted(fields.text ?? 'e2e live reminder')}`,
+      `Set p.State=${quoted(fields.state ?? 'pending')}`,
+      ...(fields.dueAt === undefined ? [] : [`Set p.DueAt=${quoted(fields.dueAt)}`]),
       'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"reminder",p,.q)',
       'Write !,"CHK|seq|",q',
     ].join('\n'),
@@ -133,6 +146,8 @@ export interface SeedDecision {
   costUSD?: number;
   model?: string;
   traceSessionId?: number;
+  /** When it was recorded (UTC, to the second); the default is now for seedDecision, and the turn's createdAt for a turn of seedTurns. */
+  recordedAt?: string;
 }
 
 /** One Usage row of a seeded turn (Bridge.Data.Usage): it belongs to the turn's triage decision or its reply decision. */
@@ -235,7 +250,7 @@ function decisionRowLines(variable: string, kind: 'decide' | 'turn', identity: s
 /** The lines that make one Decision row in the variable, for the turn in t and the session in s, and keep its status in bad. */
 function decisionLines(variable: string, kind: 'decide' | 'turn', decision: SeedDecision, createdAt: string): string[] {
   return [
-    ...decisionRowLines(variable, kind, [`Set ${variable}.ItemId=t.ItemId`, `Set ${variable}.OwnerRef=s.Ref`], decision, quoted(createdAt)),
+    ...decisionRowLines(variable, kind, [`Set ${variable}.ItemId=t.ItemId`, `Set ${variable}.OwnerRef=s.Ref`], decision, quoted(decision.recordedAt ?? createdAt)),
     'If $System.Status.IsError(sc) Set bad=1',
   ];
 }
@@ -334,19 +349,25 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
 }
 
 /**
- * Gives BridgeSink an event of the bridge for the user's own session, as the bridge's Decide would after its commit
- * (HostSink.OnEvent in the IRIS job that runs the script, with no bridge context), and checks that it returned OK. The payload is
- * passed as JSON through quoted().
+ * Gives BridgeSink an event of the bridge, as the bridge's Decide would after its commit (HostSink.OnEvent in the IRIS job that runs
+ * the script, with no bridge context), and checks that it returned OK. The owner is the user's own session, or with 'instance' the
+ * owner instance (an instance request reaches the sessions that watch its incident's production). The payload is passed as JSON
+ * through quoted(). Returns the last Seq of the user's session stream after the call, which is the Seq of the event it published when
+ * it published one for that session.
  */
-export async function sinkEvent(user: string, type: string, payload: Record<string, unknown>): Promise<void> {
+export async function sinkEvent(user: string, type: string, payload: Record<string, unknown>, owner: 'session' | 'instance' = 'session'): Promise<number> {
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
-      `Set sc=##class(OcuTalon.Core.BridgeSink).OnEvent(${quoted(type)},s.Ref,##class(%DynamicAbstractObject).%FromJSON(${quoted(JSON.stringify(payload))}))`,
+      `Set sc=##class(OcuTalon.Core.BridgeSink).OnEvent(${quoted(type)},${owner === 'instance' ? '"instance"' : 's.Ref'},##class(%DynamicAbstractObject).%FromJSON(${quoted(JSON.stringify(payload))}))`,
       'Write !,"CHK|sink|",$System.Status.IsOK(sc)',
+      'Write !,"CHK|seq|",##class(OcuTalon.Live.Publish).LastSeq(s.Ref)',
     ].join('\n'),
   );
   if (chk(lines, 'sink') !== '1') throw new Error(`BridgeSink did not return OK for ${type} (${lines.join(' ')})`);
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 0) throw new Error(`the stream's last Seq could not be read (${lines.join(' ')})`);
+  return seq;
 }
 
 /**
@@ -370,22 +391,45 @@ export async function finishTurn(user: string, ref: string, replyText = 'zz fini
   if (chk(lines, 'finish') !== '11') throw new Error(`the turn could not be finished (${lines.join(' ')})`);
 }
 
+/** A decision for seedDecisions: its fields, and its kind (decide, the attention decision, unless it says turn). */
+export type SeedDecisionRow = SeedDecision & { kind?: 'decide' | 'turn' };
+
 /**
- * Writes one Decision row of the user's own session (Bridge.Data.Decision, AD-20) with the fields given, as Decide would for an
- * item: a new Ref and ItemId, the kind decide, the owner the session, the model claude-haiku-5-5 and the time now. A card that
- * names the row (sendItemDecision's decisionRef) shows its strip. Returns the row's Ref. Every value goes through quoted() or
- * numeric(), and the user name through literal().
+ * Writes Decision rows of the user's own session (Bridge.Data.Decision, AD-20) with the fields given, in one script, as Decide would
+ * for an item: a new Ref and ItemId each, the owner the session, the model claude-haiku-5-5 and the time now unless recordedAt says
+ * otherwise. Each row is recorded for Test.Data.Fixture.Clean, so that cleanFixtureRows removes it by Ref. Every value goes through
+ * quoted() or numeric(), and the user name through literal(). Returns the Refs, in the order given.
  */
-export async function seedDecision(user: string, fields: SeedDecision): Promise<string> {
-  const lines = [
-    `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
-    ...decisionRowLines('d', 'decide', ['Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()', 'Set d.OwnerRef=s.Ref'], fields, '##class(OcuTalon.Data.Time).NowUtc()'),
-    'Write !,"CHK|decision|",d.Ref,"|",$System.Status.IsOK(sc)',
-  ];
+export async function seedDecisions(user: string, rows: SeedDecisionRow[]): Promise<string[]> {
+  const lines = [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`];
+  rows.forEach((row, i) => {
+    lines.push(
+      ...decisionRowLines(
+        'd',
+        row.kind ?? 'decide',
+        ['Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()', 'Set d.OwnerRef=s.Ref'],
+        row,
+        row.recordedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(row.recordedAt),
+      ),
+      'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(d)',
+      `Write !,"CHK|decision|${i}|",d.Ref,"|",$System.Status.IsOK(sc)`,
+    );
+  });
   const out = await irisScript(lines.join('\n'));
-  const [ref, saved] = (chk(out, 'decision') ?? '').split('|');
-  if (!ref || saved !== '1') throw new Error(`the decision could not be seeded (${out.join(' ')})`);
-  return ref;
+  return rows.map((_row, i) => {
+    const [ref, saved] = (chk(out, `decision|${i}`) ?? '').split('|');
+    if (!ref || saved !== '1') throw new Error(`decision ${i} could not be seeded (${out.join(' ')})`);
+    return ref;
+  });
+}
+
+/**
+ * Writes one Decision row of the user's own session (see seedDecisions): the kind decide unless kind says turn. A card that names
+ * the row (sendItemDecision's decisionRef) shows its strip. Returns the row's Ref.
+ */
+export async function seedDecision(user: string, fields: SeedDecision, kind: 'decide' | 'turn' = 'decide'): Promise<string> {
+  const [ref] = await seedDecisions(user, [{ ...fields, kind }]);
+  return ref!;
 }
 
 /** An untrusted item for sendItem. The channel is mailbox unless it says otherwise; the CatalogKey and its Slots are optional. */
@@ -513,4 +557,181 @@ export function sendNotification(user: string, notification: NotificationFields)
     ],
     'SessionRef',
   );
+}
+
+/** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
+export async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
+  const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
+  if (mine.length === 0) return;
+  await irisScript(`Do ##class(OcuTalon.Test.Data.Fixture).Clean("${mine.join(',')}")\nWrite !,"CHK|clean|1"`);
+}
+
+/** The IRIS statement that makes a Fixture row's `fields` object from the properties given: a JSON object, passed through quoted(). */
+const fieldsObject = (properties: Record<string, string>): string => `##class(%DynamicObject).%FromJSON(${quoted(JSON.stringify(properties))})`;
+
+/** The properties of an object that have a value, under the property names the rows use. */
+function properties(values: Record<string, string | undefined>): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+}
+
+/**
+ * The dry run of a fix request as the stored JSON (ApprovalRequest.DRYRUNKEYS): the count of items it affects and the noun that
+ * names one and many. null gives a request with no dry run.
+ */
+export interface SeedDryRun {
+  affected: number;
+  itemNoun?: { one: string; other: string };
+}
+
+/** The fields of an approval request that seedApproval sets; a field left out keeps Fixture.Approval's default (a pending fix of 4 orders raised now). */
+export interface ApprovalFields {
+  kind?: string;
+  state?: string;
+  incidentRef?: string;
+  toolName?: string;
+  raisedAt?: string;
+  expiresAt?: string;
+  dryRun?: SeedDryRun | null;
+}
+
+/**
+ * Writes an approval request through Test.Data.Fixture.Approval: owned by the user's own session, or with 'instance' by the owner
+ * instance (for the incident that incidentRef names). Returns its Ref; cleanFixtureRows removes it.
+ */
+export async function seedApproval(user: string, fields: ApprovalFields = {}, owner: 'session' | 'instance' = 'session'): Promise<string> {
+  const dryRun =
+    fields.dryRun === undefined
+      ? undefined
+      : fields.dryRun === null
+        ? ''
+        : JSON.stringify({ affected: fields.dryRun.affected, resend: fields.dryRun.affected, leftOut: 0, field: 'OrderDate', before: '', after: '', itemNoun: fields.dryRun.itemNoun });
+  const row = properties({ Kind: fields.kind, ToolName: fields.toolName, ExpiresAt: fields.expiresAt, DryRun: dryRun });
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Approval(${owner === 'instance' ? '"instance"' : 's.Ref'},${quoted(fields.incidentRef ?? '')},${quoted(fields.state ?? 'pending')},${fields.raisedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.raisedAt)},${fieldsObject(row)})`,
+      'Write !,"CHK|approval|",r',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'approval');
+  if (!ref) throw new Error(`the approval request could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */
+export async function setApprovalState(ref: string, state: string): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      `If '$IsObject(r) { Write !,"CHK|state|0" Halt }`,
+      `Set r.State=${quoted(state)}`,
+      'Write !,"CHK|state|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'state') !== '1') throw new Error(`the approval request could not be changed (${lines.join(' ')})`);
+}
+
+/** The fields of a background check that seedCheck and publishCheck set; the check is a production check unless kind says otherwise. */
+export interface CheckFields {
+  /** The ref of the check to publish an update for; seedCheck's row has a new one, which it returns. */
+  ref?: string;
+  kind?: string;
+  namespace?: string;
+  production?: string;
+  displayName?: string;
+  lastRunAt?: string;
+  result?: string;
+  finding?: string;
+}
+
+/** Writes a background check of the user's own session through Test.Data.Fixture.Check. Returns its Ref; cleanFixtureRows removes it. */
+export async function seedCheck(user: string, fields: CheckFields = {}): Promise<string> {
+  const row = properties({ Kind: fields.kind, DisplayName: fields.displayName, LastRunAt: fields.lastRunAt, Result: fields.result, Finding: fields.finding });
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Check(s.Ref,${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
+      'Write !,"CHK|check|",r',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'check');
+  if (!ref) throw new Error(`the check could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/**
+ * Publishes a check event on the user's own session stream, as Checks will, and returns its Seq. The payload is a Live.Payload.Check
+ * with the fields given; the ref is the one given, which a seeded check's row has, so that the event updates its row in place.
+ */
+export async function publishCheck(user: string, fields: CheckFields & { ref: string }): Promise<number> {
+  const set = (property: string, value: string | undefined): string[] => (value === undefined ? [] : [`Set p.${property}=${quoted(value)}`]);
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set p=##class(OcuTalon.Live.Payload.Check).%New()',
+      `Set p.Ref=${quoted(fields.ref)}`,
+      `Set p.Kind=${quoted(fields.kind ?? 'production')}`,
+      ...set('Namespace', fields.namespace),
+      ...set('Production', fields.production),
+      ...set('DisplayName', fields.displayName),
+      ...set('LastRunAt', fields.lastRunAt),
+      ...set('Result', fields.result),
+      ...set('Finding', fields.finding),
+      'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"check",p,.q)',
+      'Write !,"CHK|seq|",q',
+    ].join('\n'),
+  );
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the check could not be published (${lines.join(' ')})`);
+  return seq;
+}
+
+/** Writes a reminder of the user's own session through Test.Data.Fixture.Reminder (pending, due at dueAt when given). Returns its Ref; cleanFixtureRows removes it. */
+export async function seedReminder(user: string, fields: Omit<ReminderFields, 'ref'> = {}): Promise<string> {
+  const row = properties({ Text: fields.text });
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Reminder(s.Ref,${quoted(fields.dueAt ?? '')},${quoted(fields.state ?? 'pending')},${fieldsObject(row)})`,
+      'Write !,"CHK|reminder|",r',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'reminder');
+  if (!ref) throw new Error(`the reminder could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** The fields of an incident that seedIncident sets; it is noticed now unless noticedAt says otherwise ("" is an incident that has not been noticed). */
+export interface IncidentFields {
+  namespace?: string;
+  production?: string;
+  noticedAt?: string;
+}
+
+/**
+ * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance' or the user whose own session owns it. Returns its
+ * Ref; cleanFixtureRows removes it.
+ */
+export async function seedIncident(owner: string, fields: IncidentFields = {}): Promise<string> {
+  const lines = await irisScript(
+    [
+      ...(owner === 'instance' ? ['Set o="instance"'] : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')})`,
+      'Write !,"CHK|incident|",r',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'incident');
+  if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/**
+ * Sets the test seam that says whether this release includes Telegram (Test.Data.Fixture.SetTelegramIncluded, which Channel.Telegram.In's
+ * Included() reads) and returns the value it had, 0 when it was not set, so that the caller can put it back.
+ */
+export async function setTelegramIncluded(value: 0 | 1): Promise<0 | 1> {
+  const lines = await irisScript([`Set was=##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(${value})`, 'Write !,"CHK|telegram|",was'].join('\n'));
+  const was = chk(lines, 'telegram');
+  if (was !== '0' && was !== '1') throw new Error(`the Telegram seam could not be set (${lines.join(' ')})`);
+  return was === '1' ? 1 : 0;
 }
