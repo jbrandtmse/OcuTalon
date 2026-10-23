@@ -130,3 +130,4 @@
 2026-10-23T13:14:21Z	Epic 32	ledger_load	total=52 open=0 routed=16 escalated=0 decision_pending=0 terminal=36 owner_unknown=0 burndown=0 reowned_none=0
 2026-10-23T13:14:47Z	Epic 32	sprint_planning_complete	gate=PASS new_entries=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane validate=valid epic_32_kept=done(validate_accepts_done_epic_with_backlog_story) model=claude-opus-5-5
 2026-10-23T13:14:47Z	Epic 32	retro_review_skipped	reason=reopened_epic(handled_by_epic_1)
+2026-10-23T13:17:09Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(story_32.4_added_at_82568b0) spawn_at=2026-10-23T13:14:53Z model=claude-opus-5-5 lines=69
