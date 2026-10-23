@@ -141,9 +141,8 @@ development_status:
   9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
   epic-9-retrospective: optional
 
-  epic-10: backlog
-  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: 
-    ready-for-dev
+  epic-10: in-progress
+  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: in-progress
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: backlog
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: backlog
   epic-10-retrospective: optional
