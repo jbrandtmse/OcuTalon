@@ -511,3 +511,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: BridgeSink.Approved publishes each approval.* event only to Session.Recipients' current watchers, and the live store drops an approval only on its own event, while a reload's Rows(approvals) leaves it out
 - 2026-10-23T15:53:24Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=after Stop watching ships (Epic 5) a live rail keeps an instance request whose later event it never got
+
+### DW-126: A turn re-run after a restart that followed a broken first answer sends its first request under the turn's own ItemId again; whether the real Decide answers from the existing (ItemId, turn) row or refuses is not settled
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Conversation.Begin resets BrokenRetried to 0 (Conversation.cls:320) and Ask uses RetryItemId only while BrokenRetried is 1, so a restarted sweep goes out under the turn's own ItemId, which already has the broken attempt's fallback row; DecideDouble refuses a second turn request per ItemId; the real Decide is Lane A's stub until Stories 1.3 and 1.5
+- 2026-10-23T19:23:09Z status=open owner=2-9-open-anything-in-visual-trace by=harvest note=implement-stage defer (medium, unverified); code review settles it: a persisted retry marker or the Attempt number choosing the derived ItemId (a stored-data change, veto), or a reasoned disposition
