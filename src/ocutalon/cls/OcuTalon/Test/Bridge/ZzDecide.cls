@@ -3,7 +3,7 @@
 ///   - ^||ZzDecideCalls("timer", n) is $ListBuild(timeout, completion key, controlled keys) of the nth SetTimer;
 ///   - ^||ZzDecideCalls("send", n) is $ListBuild(dispatch name, DecisionRef of the request, response required, completion key, ItemId) of the nth
 ///     SendRequestAsync, with the Position of the step as a sixth member when the message is an AgentStep (which has no ItemId, so its fifth
-///     member is empty);
+///     member is empty), and, for a Request, an empty sixth member and the Compact flag of the sent request as its seventh;
 ///   - the count of each is the value of ^||ZzDecideCalls("timer") and ^||ZzDecideCalls("send").
 /// It is never started or saved.
 Class OcuTalon.Test.Bridge.ZzDecide Extends OcuTalon.Bridge.Process.Decide
@@ -22,6 +22,7 @@ Method SendRequestAsync(pTargetDispatchName As %String, pRequest As Ens.Request,
 	Set n = $Increment(^||ZzDecideCalls("send"))
 	Set call = $ListBuild(pTargetDispatchName, pRequest.DecisionRef, pResponseRequired, pCompletionKey, $Select(pRequest.%IsA("OcuTalon.Bridge.Msg.Request"): pRequest.ItemId, 1: ""))
 	If pRequest.%IsA("OcuTalon.Bridge.Msg.AgentStep") Set call = call _ $ListBuild(pRequest.Position)
+	If pRequest.%IsA("OcuTalon.Bridge.Msg.Request") Set call = call _ $ListBuild("", pRequest.Compact)
 	Set ^||ZzDecideCalls("send", n) = call
 	Quit $$$OK
 }

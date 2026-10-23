@@ -2,8 +2,8 @@
 /// tests read the source of the compiled OcuTalon classes, drop their comment lines (Test.Bridge.Source), and call nothing in AI Hub.
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
-///     %AI.Shell.StreamRenderer), and a class whose methods they call (CALLBACKHELPERS: the step buffer), names %AI on no code line except
-///     its Class line, and uses no Python, because on build 154 a session
+///     %AI.Shell.StreamRenderer), and a class whose methods they call (CALLBACKHELPERS: the step buffer and the context), names %AI on no code
+///     line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
 ///     StreamChat, StreamChatWithContent, SendChat, SendChatWithContent, RunAgent, ChatComplete, StreamChatComplete or an agent's Run
@@ -16,10 +16,13 @@
 ///     an AI session on an agent, or calls AI Hub's adapter methods that create one from its SessionConfig setting, so that every
 ///     session gets the config that the adapter composes (AD-7);
 ///   - TestOnlyTheRunnerWritesLinks (Story 1.8; AD-6, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter and
-///     Decide, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock and Unlock of it
-///     and nothing else, a system method such as %New or %DeleteId included; the adapter, the only caller of Point and SessionOf, calls those two and
-///     Lock and Unlock, and Point in one place; no line of either names the link class more often than it calls one of its methods, and none names its
+///     Decide, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock, Unlock and
+///     SessionOf of it (Story 1.9: SessionOf only reads) and nothing else, a system method such as %New or %DeleteId included, and never Point; the
+///     adapter, the only caller of Point, calls Point, SessionOf, Lock and Unlock, and Point in one place; no line of either names the link class more often than it calls one of its methods, and none names its
 ///     table or its globals; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
+///   - TestToolsReturnThroughResult (Story 1.9; AD-10, Consistency Conventions: Tool results): every product tool provider (a class of OcuTalon.Tools that
+///     extends %AI.Tool, is not a toolset and is not Result) extends OcuTalon.Tools.Result, and none of its code lines quits or returns a value other than
+///     the call ..Return(, so no tool returns a literal or a pre-encoded JSON string. The scanner is first shown to flag samples that break the rule;
 ///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
 ///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool.
@@ -30,8 +33,8 @@ Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Policy.Audit,%AI.Policy.Discovery,%AI.Shell.StreamRenderer";
 
 /// The classes that extend none of those bases but whose methods the callbacks call: the step buffer, which the step renderer and the
-/// step audit policy append to (AD-9).
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer";
+/// step audit policy append to (AD-9), and the context, which the gate, the step renderer and the tools read and put (AD-6, AD-10).
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -62,7 +65,8 @@ Parameter SESSIONMAKERS = "OcuTalon.Bridge.Adapter.Agent";
 /// or its lock (^OcuTalonBP.ConvLink..., ^OcuTalonBP.Conv).
 Parameter LINKREFERENCE = "conversationlink|ocutalonbp\.conv";
 
-/// The classes that may name the link class: the link itself, the adapter (which opens and writes links) and Decide (which probes the lock).
+/// The classes that may name the link class: the link itself, the adapter (which opens and writes links) and Decide (which probes the lock and reads the
+/// session that a link names).
 Parameter LINKNAMERS = "OcuTalon.Bridge.Data.ConversationLink,OcuTalon.Bridge.Adapter.Agent,OcuTalon.Bridge.Process.Decide";
 
 /// A call of a method of the link class, as ##class(...ConversationLink).Method(, a system method (%New, %OpenId, %DeleteId) included.
@@ -210,7 +214,12 @@ Method TestOnlyTheRunnerWritesLinks()
 	Do $$$AssertEquals(offending, "", "no class but ConversationLink, the adapter and Decide names the link class, its table or its globals")
 
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Process.Decide", .decide), "Decide has source")
-	Do $$$AssertEquals($ListToString(..LinkCalls(decide, calls), ","), "Lock,Unlock", "Decide calls Lock and Unlock of the link class and nothing else")
+	Set used = ..LinkCalls(decide, calls)
+	Do $$$AssertEquals($ListLength(used), 3, "Decide calls three methods of the link class and nothing else")
+	For method = "Lock", "Unlock", "SessionOf" {
+		Do $$$AssertTrue($ListFind(used, method), "Decide calls "_method)
+	}
+	Do $$$AssertEquals($ListFind(used, "Point"), 0, "and never Point: it only reads the link")
 	Do $$$AssertEquals(..LinkMentions(decide, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", decide, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Adapter.Agent", .adapter), "the adapter has source")
@@ -226,6 +235,54 @@ Method TestOnlyTheRunnerWritesLinks()
 	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", link, "\.%save\(")), 1, "the link class saves a row in one place")
 	Do $$$AssertEquals($ListToString(..LinkMethodsSaving(link), ","), "Point", "which is Point")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", link, writes), 0, "and it deletes none, runs no SQL and touches no global directly")
+}
+
+/// Every product tool provider returns only through OcuTalon.Tools.Result (Story 1.9; AD-10, Consistency Conventions: Tool results). A provider is a class of the
+/// package OcuTalon.Tools that extends %AI.Tool, is not a toolset and is not Result itself. ToolProblem names what breaks the rule: the class does not
+/// extend Result, or a code line quits or returns a value other than the call ..Return(. The scanner is first shown to flag a sample that returns a literal, one
+/// that returns a pre-encoded JSON string through a variable, one that uses Return, and one that does not extend Result, and to pass a sample that returns
+/// through ..Return( with comment lines, a bare Quit and look-alike words in strings.
+Method TestToolsReturnThroughResult()
+{
+	Set tab = $Char(9), lf = $Char(10)
+	Set head = "Class OcuTalon.Tools.Zz Extends OcuTalon.Tools.Result"_lf_"{"_lf_"ClassMethod A() As %DynamicObject"_lf_"{"_lf
+	Set tail = lf_"}"_lf_"}"
+	Set literal = head_tab_"Quit ""{""""items"""":[]}"""_tail
+	Set encoded = head_tab_"Set text = {""items"": []}.%ToJSON()"_lf_tab_"Quit text"_tail
+	Set returns = head_tab_"Return {""items"": []}"_tail
+	Set conditional = head_tab_"Quit:production="""" {""items"": []}"_tail
+	Set good = "/// Never Quit ""x"" in a comment."_lf_head_tab_"// Quit ""{}"""_lf_tab_"If production = ""x"" Quit"_lf_tab_"Set title = ""Return of the tool and Quit 1"""_lf_tab_"Quit ..Return({""items"": []})"_tail
+	Set commented = head_tab_"Quit ""x"" // note"_tail
+	Set bare = head_tab_"If production = ""x"" { Quit }"_lf_tab_"Quit   // nothing more to do"_lf_tab_"Quit ..Return({""items"": []}) ; the answer"_tail
+	Do $$$AssertTrue(..ToolProblem(1, literal) '= "", "the scanner flags a tool that returns a literal")
+	Do $$$AssertTrue(..ToolProblem(1, commented) '= "", "also when a comment follows the literal")
+	Do $$$AssertTrue(..ToolProblem(1, encoded) '= "", "and one that returns a pre-encoded JSON string through a variable")
+	Do $$$AssertTrue(..ToolProblem(1, returns) '= "", "and one that uses Return")
+	Do $$$AssertTrue(..ToolProblem(1, conditional) '= "", "and one that returns a value on a condition")
+	Do $$$AssertTrue(..ToolProblem(0, good) '= "", "and a class that does not extend Result, though its code is clean")
+	Do $$$AssertEquals(..ToolProblem(1, good), "", "and passes a tool that returns through ..Return(, with comment lines, a bare Quit and look-alike words in strings")
+	Do $$$AssertEquals(..ToolProblem(1, bare), "", "also a bare Quit in a block on one line, a bare Quit with a trailing comment and a return through ..Return( with one")
+
+	Set providers = 0
+	Set offending = ""
+	Set found = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.'")
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If (class = "OcuTalon.Tools.Result") || '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		If '..ClassExtends(class, "%AI.Tool") || ..ClassExtends(class, "%AI.ToolSet") Continue
+		Set providers = providers + 1
+		Set found = found _ $ListBuild(class)
+		If $$$ISERR(##class(OcuTalon.Test.Bridge.Source).Text(class, .text)) {
+			Set offending = offending _ " " _ class _ " (no source)"
+			Continue
+		}
+		Set problem = ..ToolProblem(..ClassExtends(class, "OcuTalon.Tools.Result"), text)
+		If problem '= "" Set offending = offending _ " " _ class _ " (" _ problem _ ")"
+	}
+	Do $$$AssertTrue(providers '< 1, "the scan found the tool providers of OcuTalon.Tools: "_$ListToString(found, ","))
+	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchFixture"), "the Watch fixture is one of them")
+	Do $$$AssertEquals(offending, "", "every one extends OcuTalon.Tools.Result and returns only through ..Return(")
 }
 
 /// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
@@ -439,6 +496,50 @@ ClassMethod LinkMethodsSaving(text As %String) As %List [ Private ]
 		If (current '= "") && $Locate(line, "(?i)\.%save\(") && '$ListFind(methods, current) Set methods = methods _ $ListBuild(current)
 	}
 	Quit methods
+}
+
+/// What breaks the rule of a tool provider (AD-10): "" when it extends Result (extendsResult is 1) and no code line of the text quits or returns a value other
+/// than the call ..Return(, otherwise the reasons separated by semicolons. A string literal is blanked first, so a word inside a string is no command, and a
+/// trailing comment is dropped; a Quit with no value, also one that ends a block on its line, is fine.
+ClassMethod ToolProblem(extendsResult As %Boolean, text As %String) As %String [ Private ]
+{
+	Set problems = ""
+	If 'extendsResult Set problems = "does not extend OcuTalon.Tools.Result"
+	Set returned = 0
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set code = ..WithoutStrings(line)
+		Set comment = $Locate(code, "(^|\s)(//|;|#;)")
+		If comment Set code = $Extract(code, 1, comment - 1)
+		If $Locate(code, "(?i)(^|[\s{;])(quit|return)(:\S+)?\s+(?!\.\.return\()[^\s}]") Set returned = returned + 1
+	}
+	If returned Set problems = problems _ $Select(problems = "": "", 1: "; ") _ returned _ " line(s) quit or return a value other than ..Return("
+	Quit problems
+}
+
+/// The line with the text of each string literal removed: only the quotes stay, so that a word inside a string is not read as code.
+ClassMethod WithoutStrings(line As %String) As %String [ Private ]
+{
+	Set out = ""
+	Set inside = 0
+	For i = 1:1:$Length(line) {
+		Set char = $Extract(line, i)
+		If char = """" {
+			Set inside = 'inside
+			Set out = out _ char
+		} ElseIf 'inside {
+			Set out = out _ char
+		}
+	}
+	Quit out
+}
+
+/// 1 when the compiled class extends the base. A class with no superclass has no %Extends method and extends none.
+ClassMethod ClassExtends(class As %String, base As %String) As %Boolean [ Private ]
+{
+	If '##class(%Dictionary.CompiledMethod).%ExistsId(class_"||%Extends") Quit 0
+	Quit ''$ClassMethod(class, "%Extends", base)
 }
 
 /// The non-test OcuTalon classes other than the allowed ones (a comma-separated list) whose code lines match the pattern, as

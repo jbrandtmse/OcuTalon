@@ -75,10 +75,9 @@
 ///   - TestPrecheckLogs: Precheck logs one warning for each fault that Budget.State names, naming it and redacted, and one for a
 ///     DecisionTokenBudget that is not a whole number of 0 or more, which counts as 0;
 ///   - TestPrecheckOrder (QA): Precheck with the real facts, in every combination of a missing key (the ProviderConfig of TriageAgent), a day
-///     that is capped (the mark) and an estimate over the budget, gives no_key before daily_cap before budget; and a cap reached by the
-///     gateway's spend, not by the mark, is daily_cap before budget too;
-///   - TestEstimateTokens: the estimate is the lengths of Input, SeedText and SystemNote at 4 characters a token, and the budget is over
-///     only above it;
+///     that is capped (the mark), an estimate over the budget and an estimate over the request-size limit, gives no_key before daily_cap
+///     before budget before too_large; and a cap reached by the gateway's spend, not by the mark, is daily_cap before budget too;
+///   - TestEstimateTokens: a budget is over only above the estimate, and 0 is off (what the estimate counts: Story 1.9, below);
 ///   - TestOnRequestPrecheck: OnRequest records a request that fails a precheck as a fallback and answers it from OnRequest, with the
 ///     settings checked first;
 ///   - TestStepsBeforeReplyClass: OnResponse handles the steps of the reply before it reads the runner's ReplyClass, so a reply whose
@@ -120,8 +119,23 @@
 ///     value, Fresh and a trailing space included, with an error that names SessionMode;
 ///   - TestConcludeFallbacks and AssertFallback: a fallback Reply carries the runner's SessionRotated (a reply with SessionRotated 1 is carried),
 ///     and carries SessionBroken and Busy as the case says.
+/// Added by Story 1.9 (AD-6, AD-8, AD-19, AD-20, NFR-3):
+///   - TestEstimateTokens: RequestSize.AgentChars of Triage and Chat is the system prompt of the live agent, of Diagnosis that and the JSON of the
+///     Watch toolset's tools, and 0 with an error status for a class that does not exist; the estimate of a decide, a diagnose, an untrusted turn, a
+///     user turn with no link and a user fresh turn with a seed and a note is the agent part plus the input that Chat gets, with the seed counted
+///     only on the user fresh turn; a linked turn that continues also counts the stored history of its session, which RequestSize.HistoryChars reads
+///     without the session being opened, and an untrusted, a fresh and a decide request of the same owner count none; a budget is over only above the
+///     estimate;
+///   - TestPrecheckOrder: also pins too_large after budget, the estimate that Precheck gives back, and Classify's order for the fact tooLarge;
+///   - TestRequestLimitSetting: RequestTokenLimit is a host setting of Decide with the initial value 100000, and its limit is 100000 for an empty value,
+///     the whole number from 1 to 100000 that is given, and 100000 with one warning that names the setting for 0, a negative number, text and a number
+///     above 100000, so it is never off and never above 100000;
+///   - TestOnRequestPrecheck and TestResendPrecheck: a decide, a user turn and a re-send whose estimate is above the limit record a too_large fallback
+///     and send nothing, no runner request and no timer;
+///   - TestCompactFlag: the request that Decide sends carries Compact 1 exactly for a turn estimated above 40,000 tokens (a user turn and an untrusted
+///     turn, any SessionMode), also on the re-send, and 0 for a turn at 40,000, a decide, a diagnose and a turn whose caller set the flag.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
-/// Every test removes the Usage rows it made.
+/// Every test removes the Usage rows it made, and the AI sessions it saved with the links that name them.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
 {
 
@@ -162,8 +176,19 @@ Property SavedRows As %List;
 /// 1 when the test may have set the mark of today's day, which OnAfterOneTest removes.
 Property DayMarked As %Boolean [ InitialExpression = 0 ];
 
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark): OnAfterOneTest deletes the sessions saved after it and the links that
+/// name them.
+Property SessionMark As %Integer;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Quit $$$OK
+}
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
@@ -1408,18 +1433,21 @@ Method TestPrecheckLogs()
 		Do $$$AssertEquals(..PrecheckWarnings(mark, "DecisionTokenBudget"), 1, "with one warning that names DecisionTokenBudget")
 		Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 1, "and no other")
 	}
-	For good = "", 0, "0", 7, "007", 1000000 {
+	Set estimate = $ClassMethod(decide, "EstimateTokens", request, "TriageAgent")
+	For good = "", 0, "0", estimate, "00"_estimate, 1000000 {
 		Set mark = ..LogMark()
 		Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", good), "", "a token budget of '"_good_"' passes this small request")
 		Do $$$AssertEquals(..PrecheckWarnings(mark, ""), 0, "with no warning")
 	}
 }
 
-/// Precheck applies its three facts in AD-8's order, no_key then daily_cap then budget, whichever of them hold. Each fact is made true by
+/// Precheck applies its four facts in AD-8's order, no_key then daily_cap then budget then too_large, whichever of them hold. Each fact is made true by
 /// what makes it true in the running system, not handed to Classify: a missing key is a ProviderConfig of TriageAgent with no api_key, a
-/// capped day is the day's mark, and a budget that is over is a token budget of 1 against a request of 5 tokens. Every one of the 8
-/// combinations gives the reason of the first fact that holds, and none gives ""; a cap reached by the gateway's spend alone (no mark) comes
-/// before the budget too. The rows and the mark are put back by OnAfterOneTest.
+/// capped day is the day's mark, a budget that is over is a token budget of 1 against a request of several hundred tokens, and a size that is
+/// over is a request-size limit one token below the estimate (a limit at the estimate is not over). Every one of the 16 combinations gives the reason
+/// of the first fact that holds, and the one combination with none gives ""; the estimate that Precheck works out is given back; a cap reached
+/// by the gateway's spend alone (no mark) comes before the budget too. Classify (pure) puts tooLarge after overBudget and before a timer that
+/// fired. The rows and the mark are put back by OnAfterOneTest.
 Method TestPrecheckOrder()
 {
 	Set decide = "OcuTalon.Bridge.Process.Decide"
@@ -1428,20 +1456,26 @@ Method TestPrecheckOrder()
 	Do ..Put("Decide", "GatewaySpendUSD", "")
 	Do ..Put("Decide", "GatewaySpendDate", "")
 	Set request = ..NewRequest("decide")
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 5, "control: the request is 5 tokens, so a budget of 1 is over and 0 is off")
+	Set estimate = $ClassMethod(decide, "EstimateTokens", request, "TriageAgent", "", .sc)
+	Do $$$AssertStatusOK(sc, "the estimate of the request is worked out: "_estimate)
+	Do $$$AssertTrue(estimate > 1, "control: the request is more than 1 token, so a budget of 1 is over and 0 is off, and a limit one token below the estimate is below it")
 	For key = 1, 0 {
 		For capped = 0, 1 {
 			For over = 0, 1 {
-				If key {
-					Do ..PutKey("TriageAgent")
-				} Else {
-					Do ..Put("TriageAgent", "ProviderConfig", "{}")
+				For large = 0, 1 {
+					If key {
+						Do ..PutKey("TriageAgent")
+					} Else {
+						Do ..Put("TriageAgent", "ProviderConfig", "{}")
+					}
+					Do ..Unmark()
+					If capped Set ^OcuTalonBP.UsageCapped(today) = ##class(OcuTalon.Bridge.Time).NowUtc()
+					Set expected = $Select('key: "no_key", capped: "daily_cap", over: "budget", large: "too_large", 1: "")
+					Set label = "a request with "_$Select(key: "a key", 1: "no key")_", "_$Select(capped: "the day capped", 1: "the day open")_", "_$Select(over: "an estimate over the budget", 1: "the budget off")_" and "_$Select(large: "an estimate over the limit", 1: "the limit at the estimate")
+					Set reason = $ClassMethod(decide, "Precheck", request, "TriageAgent", over, $Select(large: estimate - 1, 1: estimate), .estimated)
+					Do $$$AssertEquals(reason, expected, label_" gives '"_expected_"'")
+					Do $$$AssertEquals(estimated, estimate, label_" gives back the estimate")
 				}
-				Do ..Unmark()
-				If capped Set ^OcuTalonBP.UsageCapped(today) = ##class(OcuTalon.Bridge.Time).NowUtc()
-				Set expected = $Select('key: "no_key", capped: "daily_cap", over: "budget", 1: "")
-				Set label = "a request with "_$Select(key: "a key", 1: "no key")_", "_$Select(capped: "the day capped", 1: "the day open")_" and "_$Select(over: "an estimate over the budget", 1: "the budget off")
-				Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", over), expected, label_" gives '"_expected_"'")
 			}
 		}
 	}
@@ -1453,49 +1487,306 @@ Method TestPrecheckOrder()
 	Do ..Put("Decide", "GatewaySpendDate", today)
 	Do ..PutKey("TriageAgent")
 	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "control: the day has no mark")
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "daily_cap", "a cap reached by the gateway's spend comes before an estimate over the budget")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1, estimate - 1), "daily_cap", "a cap reached by the gateway's spend comes before an estimate over the budget and the limit")
 	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0), "daily_cap", "and is daily_cap alone")
 	Do ..Put("TriageAgent", "ProviderConfig", "{}")
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "no_key", "and a missing key comes before both")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1, estimate - 1), "no_key", "and a missing key comes before all of them")
+
+	// Classify is pure: the fact tooLarge gives too_large, after overBudget and before a timer that fired
+	Do $$$AssertEquals($ClassMethod(decide, "Classify", {"tooLarge": 1}), "too_large", "tooLarge alone gives too_large")
+	Do $$$AssertEquals($ClassMethod(decide, "Classify", {"tooLarge": 1, "timedOut": 1, "failure": "x"}), "too_large", "tooLarge comes before a timer that fired and a failure")
+	Do $$$AssertEquals($ClassMethod(decide, "Classify", {"tooLarge": 1, "overBudget": 1}), "budget", "overBudget comes before tooLarge")
+	Do $$$AssertEquals($ClassMethod(decide, "Classify", {"tooLarge": 1, "capped": 1, "noKey": 1}), "no_key", "and so do capped and noKey")
+	Do $$$AssertEquals($ClassMethod(decide, "Classify", {"tooLarge": 0, "timedOut": 1}), "timeout", "a tooLarge that is false changes nothing")
 }
 
-/// The estimate is the lengths of Input, SeedText and SystemNote added together, at 4 characters a token and rounded up; a budget is over
-/// only when the estimate is above it, and 0 is off.
+/// The estimate counts what the first model request of the runner carries (Story 1.9; AD-6, AD-20), at 4 characters a token and rounded up: the system
+/// prompt and the tool schemas of the runner's agent (RequestSize.AgentChars), the stored history of a linked turn that continues
+/// (RequestSize.HistoryChars) and the input that Chat gets (Adapter.Agent ChatInput).
+///   - The agent part: AgentChars of Triage and Chat is the length of the system prompt of the live agent, of Diagnosis that and the JSON of the Watch
+///     toolset's tools (a little less than the live tool catalog, which adds a status to each tool), and of a class that does not exist it is 0 with
+///     an error status;
+///   - the estimate of a decide, a diagnose, an untrusted turn, a user turn with no link and a user fresh turn with a seed and a note is the agent
+///     part plus the length of ChatInput, the seed counting on the user fresh turn only, also when the AgentClass setting of the runner gives the class;
+///   - the history: a user turn that continues the conversation of a link counts the stored size of the session that the link names, and an untrusted
+///     turn, a fresh turn, a decide and a turn of an owner with no link count none; HistoryChars is the size of the stored ContextData, 0 for no id
+///     and for an id that has no session;
+///   - a budget is over only above the estimate, and 0 is off.
 Method TestEstimateTokens()
 {
 	Set decide = "OcuTalon.Bridge.Process.Decide"
-	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
-	Set request.Input = "abcd"
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 1, "4 characters are 1 token")
-	Set request.Input = "abcde"
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 2, "5 characters are 2 tokens: the count is rounded up")
-	Set request.Input = ""
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 0, "nothing is 0 tokens")
-	Set request.Input = "abc", request.SeedText = "def", request.SystemNote = "gh"
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 2, "the three lengths are added before they are counted: 8 characters are 2 tokens, not 3")
-	Set request.SystemNote = "ghi"
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 3, "and 9 are 3")
-	Set request.Input = $Justify("", 400), request.SeedText = "", request.SystemNote = ""
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 100, "400 characters are 100 tokens")
+	Set size = "OcuTalon.Bridge.RequestSize"
+	Set triageClass = "OcuTalon.Agent.Triage"
+	Set diagnosisClass = "OcuTalon.Agent.Diagnosis"
+	Set chatClass = "OcuTalon.Agent.Chat"
 
-	// the budget against the estimate
+	// the agent part
+	Set triage = $ClassMethod(size, "AgentChars", triageClass, .sc)
+	Do $$$AssertStatusOK(sc, "AgentChars of Triage is worked out")
+	Do ..LiveSizes(triageClass, .prompt, .catalog)
+	Do $$$AssertEquals(triage, prompt, "Triage: the length of the system prompt of the live agent, "_prompt_", and no tool")
+	Set chat = $ClassMethod(size, "AgentChars", chatClass, .sc)
+	Do $$$AssertStatusOK(sc, "AgentChars of Chat is worked out")
+	Do ..LiveSizes(chatClass, .prompt, .catalog)
+	Do $$$AssertEquals(chat, prompt, "Chat: the length of the system prompt of the live agent, "_prompt_", and no tool")
+	Set diagnosis = $ClassMethod(size, "AgentChars", diagnosisClass, .sc)
+	Do $$$AssertStatusOK(sc, "AgentChars of Diagnosis is worked out")
+	Do ..LiveSizes(diagnosisClass, .prompt, .catalog)
+	Set tools = $Length(##class(OcuTalon.Tools.Watch).%New().%Discover().%Get("tools").%ToJSON())
+	Do $$$AssertTrue(tools > 500, "the JSON of the three Watch tools is measured: "_tools)
+	Do $$$AssertEquals(diagnosis, prompt + tools, "Diagnosis: the system prompt of the live agent, "_prompt_", and the JSON of the Watch toolset's tools, "_tools)
+	Do $$$AssertTrue((catalog '< tools) && ((catalog - tools) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)
+	Set missing = $ClassMethod(size, "AgentChars", "OcuTalon.Zz.NoSuchAgent", .sc)
+	Do $$$AssertEquals(missing, 0, "a class that does not exist counts 0")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Zz.NoSuchAgent", "that names the class: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($ClassMethod(size, "AgentChars", "", .sc), 0, "so does no class")
+	Do $$$AssertStatusNotOK(sc, "with an error status too")
+	Set forms = $ClassMethod(size, "AgentChars", "OcuTalon.Test.Bridge.ZzToolsets", .sc)
+	Do $$$AssertStatusOK(sc, "a class with no INSTRUCTIONS block and a TOOLSETS with white space, an empty name and a URI is read without an error")
+	Do $$$AssertEquals(forms, tools, "and counts the tools of the Watch toolset alone: no prompt, and nothing for the URI")
+
+	// the input is counted in tokens, rounded up
+	For n = 0:1:8 {
+		Set request = ..NewRequest("decide")
+		Set request.Input = $Justify("", n)
+		Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request, "TriageAgent", triageClass, .sc), (triage + n + 3) \ 4, "an input of "_n_" characters is counted with the agent part, rounded up")
+		Do $$$AssertStatusOK(sc, "and the estimate is worked out")
+	}
+
+	// the kinds
+	Set request = ..NewRequest("decide")
+	Set request.SystemNote = "A code-written note."
+	Do ..AssertEstimate(request, "TriageAgent", triageClass, 0, "a decide")
+	Set request.SeedText = "A recap of the conversation so far, which only a user's fresh turn sends."
+	Do ..AssertEstimate(request, "TriageAgent", triageClass, 0, "a decide that carries a seed")
+	Set request = ..NewRequest("diagnose")
+	Do ..AssertEstimate(request, "DiagnosisAgent", diagnosisClass, 0, "a diagnose")
+	Set untrusted = ..NewRequest("turn", "untrusted")
+	Set untrusted.SystemNote = "A code-written note."
+	Set untrusted.SeedText = "A recap that an untrusted turn never sends."
+	Set untrusted.SessionMode = "fresh"
+	Do ..AssertEstimate(untrusted, "ChatAgent", chatClass, 0, "an untrusted fresh turn")
+	Set continued = ..NewRequest("turn", "user")
+	Set continued.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set continued.SeedText = "A recap that a turn that continues ignores."
+	Do ..AssertEstimate(continued, "ChatAgent", chatClass, 0, "a user turn with no link")
+	Set fresh = ..NewRequest("turn", "user")
+	Set fresh.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set fresh.SessionMode = "fresh"
+	Set fresh.SeedText = "Earlier, the user said that the build server is called ORION-7."
+	Set fresh.SystemNote = "The user opened a new topic."
+	Do ..AssertEstimate(fresh, "ChatAgent", chatClass, 1, "a user fresh turn with a seed and a note")
+	Set withSeed = $ClassMethod(decide, "EstimateTokens", fresh, "ChatAgent", chatClass)
+	Set fresh.SessionMode = ""
+	Do ..AssertEstimate(fresh, "ChatAgent", chatClass, 0, "the same turn when it continues (no seed)")
+	Do $$$AssertTrue(withSeed > $ClassMethod(decide, "EstimateTokens", fresh, "ChatAgent", chatClass), "which is smaller than the fresh turn that sends the seed")
+
+	// the history of a linked turn that continues
+	Set history = 8000
+	Set id = ..NewSession(history)
+	Do $$$AssertTrue(id '= "", "a saved AI session with "_history_" characters of stored history: "_id)
+	Do $$$AssertEquals($ClassMethod(size, "HistoryChars", id), history, "HistoryChars is the size of its stored history")
+	Do $$$AssertEquals($ClassMethod(size, "HistoryChars", ""), 0, "0 for no id")
+	Do $$$AssertEquals($ClassMethod(size, "HistoryChars", id + 1000000), 0, "and for an id that has no session")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", id), "a link names the session for (owner, ChatAgent)")
+	Set linked = ..NewRequest("turn", "user")
+	Set linked.OwnerRef = owner
+	Set expected = $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", chat + history + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(linked, 0)))
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", linked, "ChatAgent", chatClass), expected, "a user turn of the owner counts the agent part, the stored history and the input")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", linked, "ChatAgent"), expected, "also with the AgentClass setting of the runner")
+	Set others = ..NewRequest("turn", "untrusted")
+	Set others.OwnerRef = owner
+	Do ..AssertEstimate(others, "ChatAgent", chatClass, 0, "an untrusted turn of the owner (no history)")
+	Set others = ..NewRequest("turn", "user")
+	Set others.OwnerRef = owner
+	Set others.SessionMode = "fresh"
+	Set others.SeedText = "A recap."
+	Do ..AssertEstimate(others, "ChatAgent", chatClass, 1, "a fresh turn of the owner (no history)")
+	Set others = ..NewRequest("decide", "user")
+	Set others.OwnerRef = owner
+	Do ..AssertEstimate(others, "TriageAgent", triageClass, 0, "a decide of the owner (no history)")
+	Set others = ..NewRequest("turn", "user")
+	Set others.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..AssertEstimate(others, "ChatAgent", chatClass, 0, "a user turn of an owner with no link (no history)")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", linked, "TriageAgent", chatClass), $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", chat + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(linked, 0))), "the same turn asked of a runner that has no link of the owner counts no history: the link is read for the runner")
+
+	// a budget is over only above the estimate
 	Do ..PutKey("TriageAgent")
 	Do ..Unmark()
 	Do ..Put("Decide", "DailyCostCapUSD", 0)
 	Set request = ..NewRequest("decide")
 	Set request.Input = "Triage this item."
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 5, "the input of the test is 5 tokens")
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 5), "", "a budget of 5 is not over")
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 4), "budget", "a budget of 4 is")
+	Set estimate = $ClassMethod(decide, "EstimateTokens", request, "TriageAgent")
+	Do $$$AssertEquals(estimate, (triage + $Length(request.Input) + 3) \ 4, "the estimate of the request is the agent part and the input: "_estimate)
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", estimate), "", "a budget at the estimate is not over")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", estimate - 1), "budget", "a budget one token below it is")
 	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "budget", "so is a budget of 1")
 	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0), "", "a budget of 0 is off")
-	Set request.SeedText = "0123456789"
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 7), "", "with 27 characters (7 tokens) in all, a budget of 7 is not over")
-	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 6), "budget", "and a budget of 6 is")
+	Set request.SeedText = $Justify("", 400)
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", estimate), "", "a seed on a decide changes nothing: it is never sent")
+
+	// an agent part that cannot be read counts 0, and Precheck logs one warning that names the runner
+	Set request = ..NewRequest("decide")
+	Set unreadable = $ClassMethod(decide, "EstimateTokens", request, "ZzNoSuchRunner", "", .sc)
+	Do $$$AssertStatusNotOK(sc, "the AgentClass of an item that is not in the production cannot be read")
+	Do $$$AssertEquals(unreadable, $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", $Length(request.Input)), "the agent part then counts 0: only the input is counted")
+	Set mark = ..LogMark()
+	Do $ClassMethod(decide, "Precheck", request, "ZzNoSuchRunner", 0, "", .estimated)
+	Do $$$AssertEquals(estimated, unreadable, "Precheck gives back the same estimate")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, "ZzNoSuchRunner"), 1, "and logs one warning that names the runner")
+	Set unreadable = $ClassMethod(decide, "EstimateTokens", request, "TriageAgent", "OcuTalon.Zz.NoSuchAgent", .sc)
+	Do $$$AssertStatusNotOK(sc, "an agent class that is not compiled gives an error status too")
+	Do $$$AssertEquals(unreadable, $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", $Length(request.Input)), "and counts 0 for the agent part")
+}
+
+/// RequestTokenLimit (Story 1.9; AD-8, AD-19, NFR-3) is a host setting of Decide in the category Bridge, with the initial value 100000 (MAXREQUESTTOKENS).
+/// The limit that the precheck applies is the whole number from 1 to 100000 that the setting holds; for an empty value it is 100000 with no warning;
+/// for 0, a negative number, text and a number above 100000 it is 100000 with one warning that names RequestTokenLimit, so it is never off and never above
+/// 100000. A value that is not made of digits is held as "" (AssignOneSetting, as for DecisionTokenBudget), and the precheck gets the text as it is
+/// written (SettingText). The limit is read from the requests at the edge: a request whose estimate is the limit passes, and one token more is too_large.
+Method TestRequestLimitSetting()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set agentChars = $ClassMethod("OcuTalon.Bridge.RequestSize", "AgentChars", "OcuTalon.Agent.Triage")
+	Do $$$AssertEquals($Parameter(decide, "MAXREQUESTTOKENS"), 100000, "the largest limit is 100000")
+	Do $$$AssertEquals($Parameter(decide, "COMPACTTOKENS"), 40000, "and a turn is flagged above 40000")
+	Do $$$AssertTrue($ListFind($ListFromString($Parameter(decide, "SETTINGS")), "RequestTokenLimit:Bridge"), "RequestTokenLimit is a setting of the category Bridge")
+	Do $$$AssertEquals(..NewProcess().RequestTokenLimit, 100000, "its initial value is 100000")
+	Do ..PutKey("TriageAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Set cases = $ListBuild($ListBuild("", 100000, 0), $ListBuild("5000", 5000, 0), $ListBuild("100000", 100000, 0), $ListBuild("0", 100000, 1), $ListBuild("-1", 100000, 1), $ListBuild("abc", 100000, 1), $ListBuild("100001", 100000, 1), $ListBuild("1.5", 100000, 1))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set value = $List(case, 1)
+		Set limit = $List(case, 2)
+		Set label = "RequestTokenLimit '"_value_"': "
+		Do ..Put("Decide", "RequestTokenLimit", value)
+		Set process = ..NewProcess()
+		Do $$$AssertStatusOK(process.AssignOneSetting("RequestTokenLimit", value, "RequestTokenLimit"), label_"the setting is assigned")
+		Set text = process.SettingText("RequestTokenLimit")
+		If value ? 1.N {
+			Do $$$AssertEquals(process.RequestTokenLimit, +value, label_"the process holds the number")
+		} ElseIf value '= "" {
+			Do $$$AssertEquals(process.RequestTokenLimit, "", label_"a value that is not made of digits is held as an empty value")
+			Do $$$AssertEquals(text, value, label_"and the precheck gets the text as it is written")
+		}
+		Set request = ..RequestOfTokens("decide", "untrusted", limit, agentChars)
+		Set mark = ..LogMark()
+		Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request, "TriageAgent"), limit, label_"control: the request is "_limit_" tokens")
+		Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0, text), "", label_"a request at "_limit_" tokens passes")
+		Do $$$AssertEquals(..PrecheckWarnings(mark, "RequestTokenLimit"), $List(case, 3), label_"with "_$Select($List(case, 3): "one warning that names the setting", 1: "no warning"))
+		Set request = ..RequestOfTokens("decide", "untrusted", limit + 1, agentChars)
+		Set mark = ..LogMark()
+		Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0, text), "too_large", label_"a request at "_(limit + 1)_" tokens is too_large")
+		Do $$$AssertEquals(..PrecheckWarnings(mark, "RequestTokenLimit"), $List(case, 3), label_"again with "_$Select($List(case, 3): "one warning", 1: "no warning"))
+	}
+
+	// the smallest limit, and the warning keeps the text out of the log when it holds a secret
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", ..NewRequest("decide"), "TriageAgent", 0, "1"), "too_large", "a limit of 1 is a limit: any request is over it")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", ..NewRequest("decide"), "TriageAgent", 0, "001"), "too_large", "also written with leading zeros")
+	Set fake = "zzfakebearer0123456789"
+	Set mark = ..LogMark()
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", ..NewRequest("decide"), "TriageAgent", 0, "Bearer "_fake), "", "a limit that is text counts as 100000")
+	Do $$$AssertEquals(..PrecheckWarnings(mark, "RequestTokenLimit"), 1, "with one warning")
+	Do $$$AssertEquals(..LogRowsHolding(mark, fake), 0, "which holds no Bearer token: it is redacted")
+}
+
+/// The request that Decide sends to a runner carries the flag Compact (Story 1.9; AD-6, AD-20), set by Decide alone: 1 exactly when the request is a turn
+/// (a user's or an untrusted one, any SessionMode) whose estimate is above 40000 tokens, and 0 for every other request, whatever the caller set. The
+/// first send and the re-send build the request in the same place. With the recorder (Test.Bridge.ZzDecide) the sent request's flag is its seventh
+/// member: a user turn at 40000 tokens gets 0, one at 40001 gets 1, a decide and a diagnose at 50000 get 0, an untrusted turn at 50000 gets 1, and a short
+/// user turn whose caller set Compact to 1 gets 0; the request itself is not changed; the re-send of the turn at 40001 carries 1 and that of the decide 0.
+Method TestCompactFlag()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set size = "OcuTalon.Bridge.RequestSize"
+	Do ..PutKey("TriageAgent")
+	Do ..PutKey("DiagnosisAgent")
+	Do ..PutKey("ChatAgent")
+	Do ..Put("DiagnosisAgent", "ReplyClass", ..#REPLYCLASS)
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Set chars("TriageAgent") = $ClassMethod(size, "AgentChars", "OcuTalon.Agent.Triage")
+	Set chars("DiagnosisAgent") = $ClassMethod(size, "AgentChars", "OcuTalon.Agent.Diagnosis")
+	Set chars("ChatAgent") = $ClassMethod(size, "AgentChars", "OcuTalon.Agent.Chat")
+	Set cases = $ListBuild(
+		$ListBuild("turn", "user", "ChatAgent", 40000, 0, 0),
+		$ListBuild("turn", "user", "ChatAgent", 40001, 0, 1),
+		$ListBuild("decide", "untrusted", "TriageAgent", 50000, 0, 0),
+		$ListBuild("diagnose", "untrusted", "DiagnosisAgent", 50000, 0, 0),
+		$ListBuild("turn", "untrusted", "ChatAgent", 50000, 0, 1),
+		$ListBuild("turn", "user", "ChatAgent", 0, 1, 0))
+	Set position = 0
+	Set number = 0
+	While $ListNext(cases, position, case) {
+		Set number = number + 1
+		Set kind = $List(case, 1)
+		Set runner = $List(case, 3)
+		Set tokens = $List(case, 4)
+		Set label = "a "_$List(case, 2)_" "_kind_" of "_$Select(tokens: tokens_" tokens", 1: "a few tokens")_$Select($List(case, 5): " whose caller set Compact to 1", 1: "")_": "
+		If tokens {
+			Set request = ..RequestOfTokens(kind, $List(case, 2), tokens, chars(runner))
+		} Else {
+			Set request = ..NewRequest(kind, $List(case, 2))
+			Set request.Input = "Say hello."
+		}
+		If kind = "turn" Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set request.Compact = $List(case, 5)
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set process = ..NewRecorder()
+		Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+		Set process.HostSinkClass = ..#SINK
+		Set process.TimerSeconds = 60
+		Set process.DecisionTokenBudget = 0
+		Set process.%SessionId = 4254
+		Set sc = process.OnRequest(request, .response)
+		Do $$$AssertStatusOK(sc, label_"OnRequest sends the request")
+		Do $$$AssertEquals(response, "", label_"and answers nothing yet")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "1|1", label_"it sent one request to the runner and set the timer")
+		Set call = $Get(^||ZzDecideCalls("send", 1))
+		Do $$$AssertEquals($ListGet(call, 1)_"|"_$ListGet(call, 2)_"|"_$ListGet(call, 4)_"|"_$ListGet(call, 5), runner_"|"_process.DecisionRef_"|reply|"_request.ItemId, label_"to its runner, with the DecisionRef of the process")
+		Do $$$AssertEquals($ListGet(call, 7), $List(case, 6), label_"the sent request's Compact is "_$List(case, 6))
+		Do $$$AssertEquals(request.Compact_"|"_request.DecisionRef, $List(case, 5)_"|", label_"and the request itself is not changed")
+		If number = 2 {
+			Set long = request
+			Set longProcess = process
+		}
+		If number = 3 {
+			Set decided = request
+			Set decideProcess = process
+		}
+	}
+
+	// the re-send builds the request in the same place
+	Do ..AssertResendFlag(longProcess, long, 1, "the turn at 40001 tokens")
+	Do ..AssertResendFlag(decideProcess, decided, 0, "the decide at 50000 tokens")
+}
+
+/// The key resend of the recorder's process for the request sends one request to the runner, whose Compact is the flag expected; the request itself is not
+/// changed.
+Method AssertResendFlag(process As OcuTalon.Test.Bridge.ZzDecide, request As OcuTalon.Bridge.Msg.Request, flag As %Boolean, label As %String) [ Private ]
+{
+	Kill ^||ZzDecideCalls
+	Set process.%TimeCreated = ..Ago(3)
+	Set response = ""
+	Set sc = process.OnResponse(request, .response, "", "", "resend")
+	Do $$$AssertStatusOK(sc, "the re-send of "_label_" is answered with status OK")
+	Do $$$AssertEquals(..Calls("send"), 1, "and sends one request")
+	Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 7), flag, "whose Compact is "_flag)
+	Do $$$AssertEquals(request.DecisionRef, "", "the request itself is not changed by it either")
 }
 
 /// OnRequest records a request that fails a precheck as a fallback and answers it itself, with no runner request and no timer; the settings
-/// are checked first, and an item that has a decision is answered from its row. No production is started.
+/// are checked first, and an item that has a decision is answered from its row. No production is started. A decide and a user turn whose estimate
+/// is above the request-size limit (Story 1.9) are answered with a too_large fallback: a DecisionResponse, or a Reply with no text and no flag, with one
+/// decision.recorded, and the recorder (Test.Bridge.ZzDecide) shows that nothing was sent and no timer was set.
 Method TestOnRequestPrecheck()
 {
 	Do ..PutKey("TriageAgent")
@@ -1535,6 +1826,48 @@ Method TestOnRequestPrecheck()
 	Do $$$AssertStatusNotOK(sc, "a Decide with a bad setting is an error, not a fallback, although this turn also fails the no-key and the budget prechecks")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "TimerSeconds", "that names the setting: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row")
+
+	// an estimate over the request-size limit: too_large, after the key and the budget, and nothing is sent
+	Do ..PutKey("TriageAgent")
+	Do ..PutKey("ChatAgent")
+	Do ..Put("DiagnosisAgent", "ReplyClass", ..#REPLYCLASS)
+	For case = $ListBuild("decide", "untrusted", "TriageAgent"), $ListBuild("turn", "user", "ChatAgent") {
+		Set kind = $List(case, 1)
+		Set runner = $List(case, 3)
+		Set label = "a "_kind_" over the limit: "
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set recorder = ..NewRecorder()
+		Set recorder.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+		Set recorder.HostSinkClass = ..#SINK
+		Set recorder.TimerSeconds = 60
+		Set recorder.DecisionTokenBudget = 0
+		Set recorder.%SessionId = 4255
+		Set request = ..NewRequest(kind, $List(case, 2))
+		If kind = "turn" Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set estimate = $ClassMethod("OcuTalon.Bridge.Process.Decide", "EstimateTokens", request, runner)
+		Set recorder.RequestTokenLimit = estimate
+		Set response = ""
+		Set sc = recorder.OnRequest(request, .passed)
+		Do $$$AssertStatusOK(sc, label_"control: with the limit at the estimate, "_estimate_" tokens, OnRequest sends it")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_..Rows(request.ItemId), "1|1|0", label_"control: one request to the runner, one timer and no row")
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set recorder.RequestTokenLimit = estimate - 1
+		Set sc = recorder.OnRequest(request, .response)
+		Do $$$AssertStatusOK(sc, label_"with the limit one token below the estimate OnRequest answers")
+		Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1), 1: "none"), $Select(kind = "turn": "OcuTalon.Bridge.Msg.Reply", 1: "OcuTalon.Bridge.Msg.DecisionResponse"), label_"with a "_$Select(kind = "turn": "Reply", 1: "DecisionResponse"))
+		Set row = ..RowOf(request.ItemId, kind)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(response, row, kind, "too_large"), "", label_"a tellnow fallback with the reason too_large, in the answer, its XML and the row")
+		If (kind = "turn") && $IsObject(response) Do $$$AssertEquals(response.Text_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "|0|0|0|0|0", label_"the Reply has no text and sets no flag")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "0|0", label_"nothing is sent and no timer is set")
+		Do $$$AssertEquals(..SinkTypes(), "decision.recorded", label_"one decision.recorded")
+		Set recorder.RequestTokenLimit = 1
+		Set request = ..NewRequest(kind, $List(case, 2))
+		If kind = "turn" Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set recorder.DecisionTokenBudget = 1
+		Kill ^||ZzProbeSink
+		Set sc = recorder.OnRequest(request, .response)
+		Do $$$AssertEquals($Select($IsObject(response): response.FallbackReason, 1: "none"), "budget", label_"a request that is also over the budget takes budget: too_large comes after it")
+	}
 }
 
 /// OnResponse for the key timer records a fallback for the DecisionRef that the process holds, and answers the caller (AD-6, AD-8, AD-20):
@@ -1635,15 +1968,15 @@ Method TestResendDelay()
 	Do $$$AssertEquals($ListToString(bad, " "), "", "with 2000 ms or more left every delay is a whole number of 1 to 8 seconds that leaves a second")
 }
 
-/// OnResponse for the key resend prechecks the request again with the token budget of OnRequest (AD-8, AD-20): a missing key, a token budget
-/// that the estimate is over and a daily cap that is reached are recorded as fallbacks (no_key, budget, daily_cap) and nothing is sent, and the
-/// day is marked capped, once, by the daily_cap one. With less than a second of the timer left it records rate_limited and sends nothing. In
+/// OnResponse for the key resend prechecks the request again with the token budget and the request-size limit of OnRequest (AD-8, AD-20): a missing key,
+/// a token budget that the estimate is over, a daily cap that is reached and a request-size limit that the estimate is over are recorded as fallbacks
+/// (no_key, budget, daily_cap, too_large) and nothing is sent, and the day is marked capped, once, by the daily_cap one. With less than a second of the timer left it records rate_limited and sends nothing. In
 /// each case Resends is unchanged and the row carries the steps of the earlier attempts. (A re-send that passes sends a request, which only a
 /// production can do: Test.Agent.Decide.TestRateLimitedResent.)
 Method TestResendPrecheck()
 {
 	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
-	Set cases = $ListBuild("no_key", "budget", "daily_cap", "rate_limited")
+	Set cases = $ListBuild("no_key", "budget", "daily_cap", "too_large", "rate_limited")
 	For i = 1:1:$ListLength(cases) {
 		Set reason = $List(cases, i)
 		Set label = "a re-send that is "_reason_": "
@@ -1665,6 +1998,7 @@ Method TestResendPrecheck()
 		Set process.DecisionRef = ref
 		If reason = "no_key" Do ..Put("TriageAgent", "ProviderConfig", "{}")
 		If reason = "budget" Set process.DecisionTokenBudget = 1
+		If reason = "too_large" Set process.RequestTokenLimit = 1
 		If reason = "daily_cap" {
 			Do ..Put("Decide", "DailyCostCapUSD", 1)
 			Do ..Put("Decide", "GatewaySpendUSD", 1)
@@ -1768,7 +2102,7 @@ Method TestResendWiring()
 	Do $$$AssertStatusOK(sc, "the key resend is answered with status OK")
 	Do $$$AssertEquals(response, "", "and nothing is answered")
 	Do $$$AssertEquals(process.Resends, 1, "Resends is 1")
-	Do $$$AssertEquals(..Calls("send")_"|"_..CallOf("send", 1), "1|TriageAgent|"_ref_"|1|reply|"_request.ItemId, "one request is sent to TriageAgent with the DecisionRef of the process, a response required and the key reply")
+	Do $$$AssertEquals(..Calls("send")_"|"_..CallOf("send", 1), "1|TriageAgent|"_ref_"|1|reply|"_request.ItemId_"||0", "one request is sent to TriageAgent with the DecisionRef of the process, a response required and the key reply, and its Compact flag 0")
 	Do $$$AssertEquals(request.DecisionRef, "", "and it is a clone: the request itself is not changed")
 	Set timer = $Get(^||ZzDecideCalls("timer", 1))
 	Do $$$AssertEquals(..Calls("timer"), 1, "one timer is set")
@@ -2190,6 +2524,46 @@ Method TestAdmitSessionMode()
 }
 
 /// --- helpers ---
+/// Asserts that the estimate of the request (Decide EstimateTokens) is the agent part of the class plus the input that Chat gets (ChatInput, with the seed when
+/// seeded is 1), in tokens, with the class given and with the AgentClass setting of the runner; and that the agent part could be read.
+Method AssertEstimate(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String, seeded As %Boolean, label As %String) [ Private ]
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set chars = $ClassMethod("OcuTalon.Bridge.RequestSize", "AgentChars", agentClass) + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, seeded))
+	Set expected = $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", chars)
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request, runner, agentClass, .sc), expected, label_": "_chars_" characters are "_expected_" tokens, with the seed "_$Select(seeded: "counted", 1: "left out"))
+	Do $$$AssertStatusOK(sc, label_": the agent part could be read")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request, runner), expected, label_": and so it is with the AgentClass setting of "_runner)
+}
+
+/// A request of the kind and provenance whose estimate is exactly the tokens for an agent part of agentChars characters: its input is 4 x tokens - agentChars
+/// characters, with no seed, no note and no history.
+Method RequestOfTokens(kind As %String, provenance As %String, tokens As %Integer, agentChars As %Integer) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ..NewRequest(kind, provenance)
+	Set request.Input = $Translate($Justify("", 4 * tokens - agentChars), " ", "a")
+	Quit request
+}
+
+/// The length of the system prompt (prompt) and of the tool catalog as JSON (catalog) of a live agent of the class, built with a placeholder key that sends nothing
+/// (the pattern of Test.Agent.RunnerFixture SessionExport), the way the runner's adapter builds it (%Init).
+Method LiveSizes(class As %String, Output prompt As %Integer, Output catalog As %Integer) [ Private ]
+{
+	Set agent = $ClassMethod(class, "%New", ##class(%AI.Provider).Create("anthropic", {"api_key": "ocutalon-estimate-reader"}))
+	Do $$$AssertStatusOK(agent.%Init(), "a live agent of "_class_" is built")
+	Set prompt = $Length(agent.SystemPrompt)
+	Set catalog = $Length(agent.ToolManager.%Discover().%ToJSON())
+}
+
+/// Saves an AI session whose stored history is chars characters long, built without an agent, and returns its id. OnAfterOneTest deletes it, and the link that names it.
+ClassMethod NewSession(chars As %Integer) As %String [ Private ]
+{
+	Set session = ##class(%AI.Agent.Session).%New()
+	Do session.ContextData.Write($Translate($Justify("", chars), " ", "a"))
+	If $$$ISERR(session.%Save()) Quit ""
+	Quit session.%Id()
+}
+
 /// A recorder (Test.Bridge.ZzDecide) for the key resend, for a process that began the number of seconds ago with that TimerSeconds, whose precheck
 /// passes: TriageAgent has a model key, the daily cap and the token budget are off and the day is not marked. The rows it puts are put back by
 /// RestoreRows (and OnAfterOneTest). The calls of an earlier recorder are forgotten.

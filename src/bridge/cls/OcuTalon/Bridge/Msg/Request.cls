@@ -48,6 +48,11 @@ Property SeedText As %String(MAXLEN = "");
 /// SeedText and before the Input, on every request that carries it.
 Property SystemNote As %String(MAXLEN = "");
 
+/// 1 when Decide flags the turn for compaction (AD-6, AD-20): the request is a turn whose estimated first model request is above
+/// Decide's COMPACTTOKENS. Decide sets it on every request it sends to a runner, the first send and every re-send, and a value the
+/// caller sets is replaced. The runner ignores it until Story 30.1 reads it, so a flagged turn is sent as it is.
+Property Compact As %Boolean [ InitialExpression = 0 ];
+
 Storage Default
 {
 <Data name="RequestDefaultData">
@@ -90,6 +95,9 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>SystemNote</Value>
+</Value>
+<Value name="14">
+<Value>Compact</Value>
 </Value>
 </Data>
 <DefaultData>RequestDefaultData</DefaultData>

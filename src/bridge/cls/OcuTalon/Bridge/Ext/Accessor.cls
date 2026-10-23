@@ -10,11 +10,13 @@ Class OcuTalon.Bridge.Ext.Accessor
 /// The settings of the Decide item, each with the base class that its class must extend.
 Parameter BASES = "HostSinkClass=OcuTalon.Bridge.Ext.HostSink,ReplyFilterClass=OcuTalon.Bridge.Ext.ReplyFilter,ClassificationClass=OcuTalon.Bridge.Ext.Classification";
 
-/// The value of the host setting on the item of the production, or "" with an error in sc.
-/// The setting is read from the production definition, the System Default Settings and the initial value of the host's property,
+/// The value of the setting on the item of the production, or "" with an error in sc (also when the director raises, as it does for an adapter
+/// setting of an item that has no adapter). target is the target of the setting: Host (the default) for a setting of the business host, and
+/// Adapter for a setting of its adapter, such as the AgentClass of a runner.
+/// The setting is read from the production definition, the System Default Settings and the initial value of the property of the target,
 /// in that order, so no production needs to be running when the production is named. An empty production is Ens.Director's
 /// active production: the running production, else the suspended one, else the last one used in the namespace.
-ClassMethod ValueFor(setting As %String, production As %String = "", item As %String = "Decide", Output sc As %Status) As %String
+ClassMethod ValueFor(setting As %String, production As %String = "", item As %String = "Decide", Output sc As %Status, target As %String = "Host") As %String
 {
 	Set sc = $$$OK
 	If production = "" Set production = ##class(Ens.Director).GetActiveProductionName()
@@ -22,7 +24,12 @@ ClassMethod ValueFor(setting As %String, production As %String = "", item As %St
 		Set sc = $$$ERROR($$$GeneralError, "No production is named and none is active, so the setting '"_setting_"' cannot be read")
 		Quit ""
 	}
-	Set value = ##class(Ens.Director).GetHostSettingValue(production_"||"_item, setting, .sc)
+	Try {
+		Set value = ##class(Ens.Director).GetItemSettingValue(production_"||"_item, target, setting, .sc)
+	} Catch exception {
+		Set value = ""
+		Set sc = $$$ERROR($$$GeneralError, "The "_target_" setting '"_setting_"' of "_item_" cannot be read: "_exception.DisplayString())
+	}
 	If $$$ISERR(sc) Quit ""
 	Quit value
 }

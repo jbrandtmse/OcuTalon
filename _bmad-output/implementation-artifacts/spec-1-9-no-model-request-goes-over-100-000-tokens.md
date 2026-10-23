@@ -2,13 +2,48 @@
 title: 'Story 1.9: No model request goes over 100,000 tokens'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1d77b318040447ae69ab637f49cfcec7089f9fa5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-6, AD-7, AD-8, AD-9, AD-10, AD-19 (the Bridge values bullet), AD-20, AD-22, AD-26, AD-31 and AD-33, and the Tool results, Settings, Redaction and Tests rows of Consistency Conventions)'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens (NFR-3).
+    evidence: |-
+      The check estimates the first model request only. AD-20 bounds the later ones by arithmetic that assumes compaction at 40,000 tokens (94,000 at most).
+      A turn estimated at 99,000 tokens passes, and each later step of Chat's 4 iterations can add up to 10,000 tokens of tool results and 8,000 of output, so the fourth request can reach about 153,000.
+      Nothing aborts inside AI Hub's tool loop (AD-20, S4), and the spec's Never list keeps that.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (Precheck, EstimateTokens)
+    severity: medium
+  - summary: >-
+      The cap counts the characters of a result before AI Hub encodes a string result again as a JSON string, so a cut result reaches the model larger than the room.
+    evidence: |-
+      Task 0 (d) measured a cut result of 10,000 characters as 10,006 at the mock, and the quotes and backslashes of a cut JSON text grow it by more (about a fifth for ordinary JSON).
+      AD-20's margin of 6,000 tokens absorbs this for ordinary JSON over three steps, not for text that is mostly quotes.
+      Closed as accepted, not scheduled (a low that is not a two-way door). reopen_if: the mock logs a tool_result of one step whose encoded content is more than 10 percent over the 40,000-character room, for example with Story 5.4's real readers; the fix would cut by the encoded length in Result.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Tools/Result.cls:Return
+    severity: low
+  - summary: >-
+      The stored history (ContextData) holds the system prompt and a version envelope, which the agent part counts too, so the estimate of a turn that continues is high.
+    evidence: |-
+      About 330 tokens high for Chat (24 percent on a 4,000-character first exchange, a few percent from 10,000 characters of history). It errs on the safe side of NFR-3, and the spec defines HistoryChars as the stored value.
+      Closed as accepted. reopen_if: Story 30.1 reads the stored history and can subtract the stored prompt, or Test.Bridge.Conversation.BANDPERCENT has to grow above 29.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/RequestSize.cls:HistoryChars
+    severity: low
+  - summary: >-
+      HistoryChars returns 0 with no status or log line when the SQL read of the stored history, or the stream open, fails.
+    evidence: |-
+      Its spec signature returns an integer only, and 0 is the specified answer for "no history". A failed read of the internal table %AI_Agent.Session on a changed base image would then count the history as 0 without a trace.
+      Closed as accepted: Test.Agent.RequestSize.TestTooLarge fails on such a change (its estimate with the history minus the estimate without it is checked above 1500 tokens). reopen_if: the base image changes the %AI_Agent.Session table or the ContextData stream class.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/RequestSize.cls:HistoryChars
+    severity: low
 ---
 
 <intent-contract>
@@ -340,6 +375,44 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 - Review pass
+- verdicts: 34 findings - high 0, medium 3, low 23, false 8, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind Hunter 1: `InstructionsChars` gives an error for a class with no INSTRUCTIONS block, against its own doc, so `Precheck` logs a spurious warning on every request - verified: `IDKEYOpen` with a status returns an error for a missing key, and AI Hub treats it as an empty prompt. Patched: the block is opened without a status; `Test.Bridge.ZzToolsets` and an assertion in `TestEstimateTokens` pin it (mutation recorded).
+  - `[low]` `[reject]` Blind Hunter 2: `HistoryChars` fails open without a status or log line - the spec fixes its signature and "0 for no history"; a changed base image goes red in `TestTooLarge` (history minus no-history above 1500 tokens). Shares its root cause with Edge Case Hunter 3; kept in `deferred:` with its `reopen_if`.
+  - `[low]` `[patch]` Blind Hunter 3: the warning for an unreadable agent part says "not counted" where the part may be partly counted; the estimate runs before `no_key` decides; the fail-open is visible only in the log - the wording is false for a partial read, so it is reworded in `Precheck`; the estimate before `no_key` costs 0.1 ms and the old code also ran the precheck facts before classifying; the fail-open choice is the spec's ("counts 0"), so no change.
+  - `[medium]` `[defer]` Blind Hunter 4: the limit covers the first request only, and the default equals the ceiling - verified: a turn estimated at 99,000 tokens passes and later steps add up to 18,000 tokens each; AD-20 bounds it only after compaction (Story 30.1) and the spec's Never list excludes aborting inside the loop. Not caused by this diff; in `deferred:` (medium). The `RequestTokenLimit` and `EstimateTokens` docs already say "first model request".
+  - `[low]` `[patch]` Blind Hunter 5: `ToolProblem` gaps (`Q` abbreviation, trailing comments, a postconditional with spaces, a one-line `{ Quit }`, scope of the scan) - the trailing comment and `{ Quit }` false positives are real and fixed in `ToolProblem` with samples; `Q` is not used in this code base and matching it would flag a variable named q, a postconditional with spaces is not used, and the scan's scope is the spec's ("a product tool provider of `OcuTalon.Tools`").
+  - `[low]` `[reject]` Blind Hunter 6: `WatchFixture` methods are declared `As %DynamicObject` but `Return` can give a string - the declaration is the spec's (Boundaries), ObjectScript does not enforce it, AI Hub passes both, and `Return` itself is `As %Any`; spec-bound, `by-design`.
+  - `[low]` `[patch]` Blind Hunter 7: new branches without a test (URI toolset, `%Discover` exception, name trimming, `HistoryChars` failure, `ValueFor` target check) - the URI skip, the trimming, the empty name and the missing block are specified behavior with no test: pinned now by `ZzToolsets` in `TestEstimateTokens` (two mutations recorded); the exception path, the failed read and a bad target are fail-safe branches with no user-reachable input, so no test.
+  - `[low]` `[reject]` Blind Hunter 8: the sort-and-join loop appears in three test helpers - the sources differ (a logged request, a toolset's `%Discover`, a toolset class) and the loop is six lines; unlikely to diverge in a way that hurts, and the fix is a refactor of three files.
+  - `[low]` `[reject]` Blind Hunter 9: `RunnerFixture.ToolResults` raises on an unexpected content shape - a loud failure of a test helper on an input the mock never logs is correct behavior.
+  - `[medium]` `[defer]` Edge Case Hunter 1: a later model request can exceed 100,000 after the precheck passed - same root cause as Blind Hunter 4; one `deferred:` entry.
+  - `[low]` `[reject]` Edge Case Hunter 2: a `RequestTokenLimit` of 150 or more digits makes `+requestLimit` raise MAXNUMBER - the exception fails closed (no request is sent) and `DecisionTokenBudget` has the same exposure today; no user types it, `wontfix-theoretical`.
+  - `[low]` `[reject]` Edge Case Hunter 3: `HistoryChars` swallows a failed read - same root cause as Blind Hunter 2.
+  - `[low]` `[patch]` Edge Case Hunter 4: an agent class with no INSTRUCTIONS block logs a spurious warning - same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Edge Case Hunter 5: `SettingText` drops the accessor's status, so an unreadable setting counts as the default with no warning - the default is the safe value (100,000, never off), and `TokenBudget()` did the same before this story.
+  - `[low]` `[patch]` Edge Case Hunter 6: `ToolProblem` misses `Q` and a `Quit` after a closing brace - the brace case is part of the Blind Hunter 5 fix; `Q` is rejected as there.
+  - `[low]` `[patch]` Edge Case Hunter 7: `ToolProblem` flags a bare `Quit` with a trailing comment - same fix as Blind Hunter 5.
+  - `[low]` `[reject]` Edge Case Hunter 8: the scan covers only classes named `OcuTalon.Tools.*` - the spec scopes the rule to that package; a provider in another package arrives with its own story (22.x) and its own scan; `by-design`.
+  - `[low]` `[reject]` Edge Case Hunter 9: `RunnerFixture` helpers raise on a logged tool with no name or a result with no content - a test helper failing loudly on a shape the mock never logs.
+  - `[low]` `[reject]` Edge Case Hunter 10: a step's results can reach about twice the stated characters because AI Hub encodes a string result again - verified (Task 0 (d): 10,000 shown as 10,006), but the spec defines the room in characters and the margin of AD-20 absorbs ordinary JSON; the fix changes what the room measures. Kept in `deferred:` with `reopen_if`.
+  - `[low]` `[reject]` Edge Case Hunter 11: `..Return(json)` passes the scan and AI Hub encodes the JSON twice - a static scan cannot see the type of a value; the runtime test pins the one product tool, and the scan is what the spec asks for.
+  - `[medium]` `[patch]` Verification Gap 1: `TestTooLarge` compares the saved session's data before and after with `SessionExport`, which gives "" on any exception, so both sides could be empty - verified: no assertion shows `export` holds anything. Patched: `Do $$$AssertTrue(export [ ref1, ...)` after the read, the pattern of `Test.Agent.Conversation`.
+  - `[low]` `[reject]` Verification Gap 2: assertions implied by the one before them (`limit '< without`, two lengths in `TestCut`, "more than without the history") - harmless redundancy, not a pinning assertion.
+  - `[low]` `[reject]` Verification Gap 3: sub-behaviours with no recorded mutation (AC5 plain text, AC7 "cannot be off", AC6 a toolset removed, AC2 prompt and input) - every AC has at least one recorded mutation, which is what Rule 19 asks; the tests named catch the others.
+  - `[false]` `[reject]` Verification Gap 4: the new `Test.Bridge.Decide` tests that omit the agent class read the `AgentClass` of the namespace's active production - the finding itself says it is loud (a failed assertion) and the same reliance as `PutDefault`; no hidden state.
+  - `[low]` `[patch]` Verification Gap 5: `Test.Bridge.Fallback` still says `too_large` is "never one of them yet ... which Story 1.9 adds" - true only because its facts never include `tooLarge`; the three lines are reworded and `TestPrecheckOrder` is named as the pin. Comment and message text only.
+  - `[low]` `[patch]` Verification Gap 6: `ToolProblem` flags a one-line `If x { Quit }` - same fix as Blind Hunter 5, with a sample.
+  - `[low]` `[reject]` Intent Alignment 1: the history band is 29 percent, not 10 - Task 0 (c) sanctions it (measured gap plus 5 points) and the equality half of the row holds; the gap is the stored prompt counted twice. In `deferred:` (low) with `reopen_if`.
+  - `[false]` `[reject]` Intent Alignment 2: the cut helper in the test encodes the same fit rule as `ShownChars` - the rule is the spec's ("the only way a step's results pass the room"), and the test also checks the totals and the note, not only the helper.
+  - `[false]` `[reject]` Intent Alignment 3: `Accessor.ValueFor` changed for every caller - decision 14 records why (`AgentClass` is an adapter setting); the default target keeps the old behavior and `Test.Bridge.Ext` pins both.
+  - `[false]` `[reject]` Intent Alignment 4: tool exposure is checked on the class's `%Discover()` and on the agents' live requests - both levels are checked; `Filler` of the fixture is a helper that its toolset does not name.
+  - `[false]` `[reject]` Intent Alignment 5: the live rows run only in throwaways and CI - Rule 21 and the spec's Verification say so; the recorder-based tests cover the same logic in process.
+  - `[false]` `[reject]` Intent Alignment 6: "no code reads `Compact` in the runner" has no scan - the spec's pin is behavioral (a flagged turn is sent as it is), with a recorded mutation.
+  - `[false]` `[reject]` Intent Alignment 7: the scan checks the call form, not the value's type - same as Edge Case Hunter 11.
+  - `[false]` `[reject]` Intent Alignment 8: the estimate counts less than the live request (tool catalog up to a tenth, MCP tools) - by design (decision 4); the step estimate keeps the live values.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -376,6 +449,16 @@ No acceptance criterion contradicts an AD's Rule. AD-20 also says that `Decide` 
 11. **A `too_large` turn leaves its conversation as it was.** Until Story 30.1 compacts, a conversation whose history alone passes the limit gets `too_large` on every turn that continues it, and a `fresh` turn starts it again. That needs about 400,000 characters of history. Recorded for the lead.
 12. **The live tests take their sizes from `EstimateTokens` at run time.** The limit is set between the estimate with the history and the estimate without it, so no constant hides a change in the agent's prompt.
 13. **The wording of the note** is code-written text for the model, never user-facing, and it is a class parameter.
+14. **The agent class is read as a setting of the adapter.**
+    - **Why:** Task 0 (a) measured that `GetHostSettingValue` does not find `AgentClass` (it is a setting of the runner's adapter, not of its host), so `Ext.Accessor.ValueFor` could not give it.
+    - **What:** `ValueFor` gains a trailing `target` (default `Host`), and `Decide` reads the setting with `target` `Adapter` (`Ens.Director.GetItemSettingValue`, the call that `Keys.Status` already makes for `ProviderConfig`). This is not the stop of Task 0 (a): the setting can be read, and the estimate keeps its design.
+    - **Errors:** `ValueFor` turns an exception of the director (an adapter setting of an item that has no adapter) into an error status.
+15. **`SentRequest` and `SettingText` are public.** `SentRequest(request, decisionRef, estimate)` is the one method that builds the sent clone, and a test calls it through `OnRequest` and `Resend`. `SettingText(name)` is `TokenBudget()` generalised, public so that the limit test can read the text the precheck gets.
+16. **`HistoryChars` reads the stream through SQL.** `SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?` gives the stream's OID in logical mode, `%Stream.GlobalCharacter.%Open(oid)` opens it, and `Size` is the number of characters (Task 0 (b)). The session is never opened, and no global is named.
+17. **The `Bridge.Conversation` band is 29 percent** (`BANDPERCENT`): Task 0 (c) measured a gap of 24.0 percent between Decide's estimate and the runner's own first-step estimate of a linked turn, because the stored history holds the system prompt that the agent part counts too. The gap is a few hundred characters whatever the conversation, so it shrinks as the history grows.
+18. **The cap's tests decode what the model got.** AI Hub encodes every string result as a JSON string (Task 0 (d)); `Test.Tools.Result.TestStepCap` decodes a content that starts with a quote and compares the characters the tool returned, so "at most 40,000" is the cap's own count. A dynamic object that fits is not a string and is read as it is.
+19. **The flag test of a diagnose** puts a `ReplyClass` row for `DiagnosisAgent` (the production names none until Story 5.4), restored by the test. `Test.Bridge.Contracts` gains `Compact` in the `Request` contract, and `Test.Bridge.Example` and `Test.Bridge.Ext` pin the new setting and the adapter target.
+20. **The spec's absolute lock folder in Verification (Targets)** is written as `<main checkout>/.worktrees/.coordination/locks/lane-a`, because a local path in a tracked file fails `docker/tests/test-boundaries.sh` (CON-5).
 
 **Integration ACs (Rule 1):**
 - **AC1:** `Decide`'s caller (the test, through the production's service) reads the `too_large` `Reply`. Lane B's catalog already renders it as `fallbackReason.tooLarge`.
@@ -424,7 +507,7 @@ No acceptance criterion contradicts an AD's Rule. AD-20 also says that `Decide` 
 **Targets:**
 - **The slot.** `ocutalon-slot-a` only (MCP `server: ocutalon-slot-a`, `namespace: OCUTALON`, after `iris_server_info` shows build 154), for `iris_doc_load` compiles and for facts that need no mock. No test class runs there.
 - **Throwaways.**
-  - Everything else runs through `ci/iris.sh` or the scripts, with `OCUTALON_RUN_TAG=e1s9a OCUTALON_LOCK_OWNER='epic=1 stage=implement' OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801`.
+  - Everything else runs through `ci/iris.sh` or the scripts, with `OCUTALON_RUN_TAG=e1s9a OCUTALON_LOCK_OWNER='epic=1 stage=implement' OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801`.
   - QA uses the tag `e1s9q` (`stage=qa`), and review uses `e1s9r` (`stage=code-review`).
   - One stack at a time, one command per call, each with `timeout: 600000`.
 - **Never** `ocutalon-aihub-test`, `ocupilot*`, `iris-community-edition`, `ocutalon-slot-b` or `ocutalon-slot-c`. No push, no `gh workflow run`, and never read `.env`.
@@ -492,6 +575,57 @@ No acceptance criterion contradicts an AD's Rule. AD-20 also says that `Decide` 
 | AC6 | Chat's runner also registers the Watch toolset (`UseToolSet` in `OnAfterAgentInit`) | `Agent.Runners.TestRequestsUnderTheModelRules` |
 | AC7 | a value above 100,000 is used as written | `Bridge.Decide.TestRequestLimitSetting` |
 
+**Mutations demonstrated (implement stage, Rule 19).** Each change was applied to the working tree, a throwaway ran the test class, the test went red as written, and the file was put back (`cmp` against the saved copy; `git status --short` and `git diff --stat` unchanged).
+- mutation: `Classify` has no rule for `tooLarge` -> `Agent.RequestSize.TestTooLarge` (no `too_large` fallback, the turn is sent) and `Bridge.Decide.TestPrecheckOrder` (the combinations with a size over, and `Classify` direct), also `TestOnRequestPrecheck`, `TestRequestLimitSetting` and `TestResendPrecheck`.
+- mutation: `Classify` tests `tooLarge` before `overBudget` -> `Bridge.Decide.TestPrecheckOrder` (a request over the budget and the limit gives `too_large`, not `budget`) and `TestOnRequestPrecheck`.
+- mutation: `Resend` drops a `too_large` reason -> `Bridge.Decide.TestResendPrecheck` (the `too_large` case sends the request).
+- mutation: `EstimateTokens` adds no stored history (`If 0` for the history line) -> `Agent.RequestSize.TestTooLarge` (246 tokens against 246 for the new owner), `Bridge.Conversation.TestPrecheckCountsHistory` and `Bridge.Decide.TestEstimateTokens` (the linked turn).
+- mutation: `AgentChars` reads no `TOOLSETS` (`toolsets = ""`) -> `Bridge.Decide.TestEstimateTokens` (Diagnosis: the system prompt and the Watch tools).
+- mutation: `EstimateTokens` calls `ChatInput(request, linked)`, so a seed counts on a turn that continues -> `Bridge.Decide.TestEstimateTokens` (a user turn with no link, with the seed left out).
+- mutation: the flag is `'< COMPACTTOKENS` (at least 40,000) -> `Bridge.Decide.TestCompactFlag` (the user turn at 40,000 tokens gets Compact 1).
+- mutation: the `turn` condition is removed from `SentRequest` -> `Bridge.Decide.TestCompactFlag` (the decide and the diagnose at 50,000 tokens get Compact 1).
+- mutation: `Resend` passes estimate 0 to `SentRequest` -> `Bridge.Decide.TestCompactFlag` (the re-send of the turn at 40,001 tokens carries 0).
+- mutation: `Adapter.Agent.Answer` refuses a request whose Compact is 1 -> `Agent.RequestSize.TestCompactFlag` (the long turn is a fallback, not the chat script's text).
+- mutation: `Result.Return` returns every value whole (`If 1`) -> `Tools.Result` `TestCut`, `TestLeftOut`, `TestNoContext`, `TestRoomResets` and `TestStepCap` (the two results together are 60,011 characters).
+- mutation: `StepRenderer.OnMessage` does not set `ToolResultChars` to 0 -> `Tools.Result.TestRoomResets` and `TestStepCap` (the 1,000 characters of the second step are cut).
+- mutation: a cut result is the piece alone, with no note -> `Tools.Result` `TestCut`, `TestNoContext` and `TestStepCap`.
+- mutation: `WatchFixture` returns the JSON string `{"items":[]}` -> `Agent.Runners.TestRequestsUnderTheModelRules` (Diagnosis's second request is a JSON string), `Bridge.CodeRules.TestToolsReturnThroughResult` and `Agent.Instructions.TestToolsets`.
+- mutation: Chat's runner also registers the Watch toolset (`UseToolSet` in `OnAfterAgentInit`) -> `Agent.Runners.TestRequestsUnderTheModelRules` (Chat's requests offer three tools) and `TestToolInventory`.
+- mutation: a `RequestTokenLimit` above 100,000 is used as written -> `Bridge.Decide.TestRequestLimitSetting` (the value 100001: no warning, and a request of 100,001 tokens passes).
+- mutation: `InstructionsChars` reads the block with its status, so a class with no INSTRUCTIONS block gives an error (review patch) -> `Bridge.Decide.TestEstimateTokens` (the `ZzToolsets` class: the status is not OK).
+- mutation: `AgentChars` does not skip a toolset named by a URI (review patch) -> `Bridge.Decide.TestEstimateTokens` (the status names the toolset `mcp:docs`).
+- mutation: `ToolProblem` keeps a trailing comment on the line it scans (review patch) -> `Bridge.CodeRules.TestToolsReturnThroughResult` (a bare `Quit` with a comment is flagged). The AC5 mutation above (`WatchFixture` returns the JSON string) was run again against the patched scanner and still goes red in `Bridge.CodeRules`.
+
+**Measured in implementation (Task 0).** Build 154. (a) and (f) on slot A; the rest in throwaway `e1s9a` with the CI mock.
+- **(a) The agent part.**
+  - **Against a live agent** (`%New(provider)` then `%Init()`): Triage `AgentChars` 1,245 (prompt 1,245, tools 0) against a live `SystemPrompt` of 1,245 and a live catalog of 2 (`[]`); Chat 901 against 901 and 2; `BridgeExample.Agent` 1,179 against 1,179 and 2; Diagnosis 2,053 (prompt 758, tools 1,295) against 758 and a live catalog of 1,358.
+  - **The 63 characters:** the live tool manager adds `"status":"available"` (21 characters) to each of the three Watch tools. The estimate is 4.6 percent under the live catalog, and the model's own tool form is shorter than both.
+  - **The generated `%Discover`** of `OcuTalon.Tools.Watch` makes no `$ZF` call and no `%AI.Utils` call (`iris_routine_intermediate`).
+  - **The setting:** `Ens.Director.GetHostSettingValue("OcuTalon.Production||TriageAgent", "AgentClass")` gives `<Ens>ErrGeneral: No Setting 'AgentClass' found for config item`, because `AgentClass` is a setting of the adapter. `GetItemSettingValue(<production>||<item>, "Adapter", "AgentClass")` gives `OcuTalon.Agent.Triage`, `.Diagnosis` and `.Chat` for the three runners and `OcuTalon.BridgeExample.Agent` for the example's `TriageAgent`. The setting can be read, so this is no stop; it is decision 14.
+- **(b) The stored history.**
+  - **The turns:** two linked turns through `ZzRunner` (Chat), turn 1 with 4,051 characters of input.
+  - **The reader:** `SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?` gives the stream's OID, `%Stream.GlobalCharacter.%Open` opens it and `Size` is the number of characters before compression (checked with a stream of 120,032 characters). The session is not opened.
+  - **The sizes after turn 1:** stored `ContextData` 5,350 characters, `Export()` 5,350, `GetContext().%ToJSON()` 4,121; the `messages` JSON of turn 2's logged request 4,306 (the history and turn 2's input of 81 characters).
+  - **The system prompt:** the stored value holds it (the first words of Chat's prompt are in it) inside a version envelope: 5,350 = 4,121 + 901 (prompt) + 328. So the agent part and the history both count the prompt.
+- **(c) The agreement** (Decide's estimate, the runner's first-step estimate, the mock's `input_tokens`; ratios of Decide to each):
+  - **A decide:** 329, 329, 377; 1.000 and 0.873.
+  - **A diagnose:** 531, 546, 408; 0.973 and 1.301 (the model's request carries the tool schemas in a shorter form than the tool manager's catalog).
+  - **Turn 1** (4,051 characters, no history): 1,238, 1,239, 1,281; 0.999 and 0.966.
+  - **Turn 2** (linked, 81 characters): 1,583, 1,277, 1,331; 1.240 and 1.189.
+  - **The band:** turn 2's gap to the runner's own estimate is 24.0 percent, above 10, so the `Bridge.Conversation` band is 24 + 5 = 29 percent (decision 17).
+- **(d) Tool results as the model sees them** (the mock's `tool_result` content):
+  - **(i) A pre-encoded JSON string** `{"items":[]}`: the JSON string literal `"{\"items\":[]}"`, 16 characters.
+  - **(ii) A dynamic object** `{"items": []}`: its JSON `{"items":[]}`, 12 characters, as an object. No stop.
+  - **(iii) The text** `plain text of the tool`: the JSON string literal `"plain text of the tool"`, 24 characters, not the bare text. Every string result is encoded again (a cut result of 10,000 characters is logged as 10,006); (i) and (ii) are logged differently, so the Runners test pins AC5 as well as the scan.
+  - **The messages:** AI Hub sends each tool result in a message of its own.
+  - **The base class:** `WatchFixture` is offered with `ReadEventLog`, `ReadFailedMessages` and `ReadItemSettings`, and `ZzResultTool` with `Filler`, `Object` and `Text`; `Return`, `Room`, `Note` and `ShownChars` are no tools.
+  - **`ExecuteTool`:** a fresh `%AI.ToolMgr` gives `result.value` as a `%Library.DynamicObject` for a tool that returns an object, and a string for a tool that returns a string.
+- **(e) Two tools in one response** (`result-cap`): the step records read model, tool, tool, model, tool, model, so OnMessage 1, tool a, tool b, OnMessage 2, tool, OnMessage 3. No tool of response n ran after OnMessage n+1.
+- **(f) The time:** `EstimateTokens` with the agent class given, 10 runs of each kind in a process of slot A: decide median 0.08 ms (maximum 0.54), diagnose 0.10 ms (0.14), user turn 0.07 ms (24.6 on the first call, which prepared the link query) and untrusted turn 0.06 ms (0.07); the read of the `AgentClass` setting 0.02 ms. All far under 20 ms, so `AgentChars` is not cached.
+- **The longest note** is 52 characters (`[cut by OcuTalon: 40000 of 3641144 characters shown]`), under the 56 of decision 7.
+
+**Run results (implement stage, this tree):** `bash ci/checks.sh` all blocks pass; `ci/iris.sh class` passes for `OcuTalon.Test.Tools.Result`, `.Bridge.Decide`, `.Bridge.Conversation`, `.Bridge.CodeRules`, `.Agent.RequestSize`, `.Agent.Runners` and `.Agent.Instructions`; `shard lane-a` passes forward and with `--reverse` (37 classes, the one SKIP is `TestStepHelpers`), `shard lane-b` passes forward (24 classes); `docker/tests/test-mock.sh` passes (94 tests, `result-cap` included); `release/standalone-bridge.sh` passes every check; `live storage-roundtrip` and `live demo-path` pass (`@floor` 1 of 1).
+
 ## Clarification Record
 
 **For the veto window** (not blocking; recommended as planned):
@@ -518,7 +652,7 @@ No acceptance criterion contradicts an AD's Rule. AD-20 also says that `Decide` 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-23, halted after planning as the dispatch asked).**
@@ -529,3 +663,47 @@ Blocking condition: none
 - **The ledger inbox** is empty.
 - **The Clarification Record** lists two items for the veto window and three for the lead. None blocks implementation.
 - **Footprint.** Every file the plan edits is in Epic 1's footprint: `src/bridge/**`, `src/ocutalon/cls/OcuTalon/Tools/**`, `Test/{Agent,Bridge,Tools}/**`, `ci/mock/scenarios/A/**`, and Lane A's `lane-a` entry of `ci/units.sh`. No contended path is touched.
+
+**Implement stage (2026-10-23).**
+- **Summary.**
+  - **The size check.** `Decide` estimates the first model request of every kind (the agent's system prompt and tool schemas, the stored history of a linked turn that continues, and the input that Chat gets) and records `too_large` after `budget`, on the first send and on every re-send. Nothing is sent for it.
+  - **The limit setting.** `RequestTokenLimit` is a `Decide` host setting. Its default and ceiling are 100,000, and it is never off.
+  - **The flag.** One method, `SentRequest`, builds the sent clone and sets the new `Request.Compact` on a turn above 40,000 tokens. The runner ignores it.
+  - **The cap.** `OcuTalon.Tools.Result` bounds the results of one model step at 10,000 tokens, with the total in the bridge context (`ToolResultChars`, reset by `StepRenderer.OnMessage`). `WatchFixture` returns dynamic objects through it.
+  - **The tools of each agent.** `Test.Agent.Runners` names them exactly, from `TOOLSETS` and as literals.
+- **Files changed.**
+  - **Bridge:**
+    - `src/bridge/cls/OcuTalon/Bridge/RequestSize.cls` (new): `AgentChars` and `HistoryChars`;
+    - `Process/Decide.cls`: the setting, `EstimateTokens`, `Precheck`, `Classify`, `SentRequest` and `SettingText`;
+    - `Msg/Request.cls`: `Compact`;
+    - `Context.cls` and `Adapter/StepRenderer.cls`: `ToolResultChars`;
+    - `Ext/Accessor.cls`: `ValueFor` reads an adapter setting (decision 14);
+    - `Data/ConversationLink.cls`: doc only.
+  - **OcuTalon:** `Tools/Result.cls` (new) and `Tools/WatchFixture.cls`.
+  - **CI:** `ci/units.sh` (`lane-a` gains `Tools`) and `ci/mock/scenarios/A/result-cap.json` (new).
+  - **Tests:**
+    - new: `Test/Tools/` (`Result` and three `ZzResult*` fixtures), `Test/Agent/RequestSize.cls` and `Test/Bridge/ZzToolsets.cls`;
+    - extended: `Test/Bridge/{Decide,Conversation,CodeRules,Contracts,Example,Ext,Fallback,StepsText,ZzDecide}.cls` and `Test/Agent/{Runners,Instructions,RunnerFixture}.cls`.
+- **Review.**
+  - **Findings:** 34 from the four layers (high 0, medium 3, low 23, false 8).
+  - **Patches applied (6 entries, all low or the one medium):**
+    - a class with no INSTRUCTIONS block is no longer an error in `AgentChars`;
+    - the unreadable-agent warning no longer says "not counted";
+    - `ToolProblem` ignores a trailing comment and a one-line `{ Quit }`;
+    - `TestTooLarge` shows that the session data it compares is not empty;
+    - the URI, trimming and empty-name forms of `TOOLSETS` have a test (`ZzToolsets`);
+    - the stale wording in `Test.Bridge.Fallback`.
+  - **Deferred (4 items in the frontmatter):** later requests of a turn can pass 100,000 tokens until Story 30.1 compacts (medium); the cap counts raw characters before AI Hub encodes a string again (low); the stored history counts the system prompt twice (low); `HistoryChars` fails open without a trace (low).
+  - **Rejected, with reasons in the triage log:** 14 lows and 8 non-defects (descriptive divergences of the intent audit and one hermeticity note).
+- **Follow-up review recommendation:** `false`. Patched entries this pass: high 0, medium 1 (a test assertion that could compare two empty values), low 5. No unverified risk is named.
+- **Verification performed.**
+  - **Loop commands, after the last patch:** `bash ci/checks.sh` (all pass), `ci/iris.sh build` (exit 0) and `ci/iris.sh class` for `Tools.Result`, `Bridge.Decide`, `Bridge.Conversation`, `Bridge.CodeRules`, `Agent.RequestSize`, `Agent.Runners` and `Agent.Instructions` (each passed), and `Bridge.Fallback` (passed).
+  - **Once commands, after the last patch:** `docker/tests/test-mock.sh` (94 tests, 0 failed), `shard lane-a` forward (37 classes passed, the one SKIP is `TestStepHelpers`), `shard lane-b` forward (24 classes passed), `release/standalone-bridge.sh` (all checks passed), `live storage-roundtrip` and `live demo-path` (passed, floor 1 of 1), and `ci/iris.sh teardown` (nothing of `e1s9a` left).
+  - **Mutations:** the 16 of the implement pass and 3 for the review patches are recorded under Verification, each applied, seen red and put back (`cmp` against the saved copy).
+  - **Not run:** `shard lane-a --reverse` after the review patches (the implement pass ran it before them, green), and `shard lane-b --reverse`. The lead's fresh-environment check covers both.
+- **Residual risks.**
+  - **NFR-3 in the loop:** until Story 30.1 compacts, a turn that passes the check can send a later request above 100,000 tokens (the first deferred item).
+  - **The estimate's accuracy:** it is high by the stored prompt for a turn that continues (24 percent on a short history), and low by up to a tenth for the tool catalog.
+  - **The cap's encoding:** a cut result is larger at the model than the room (the second deferred item).
+  - **The spec's Verification Targets:** the lock folder is written as `<main checkout>/.worktrees/.coordination/locks/lane-a`, because a local path in a tracked file fails `docker/tests/test-boundaries.sh` (decision 20).
+

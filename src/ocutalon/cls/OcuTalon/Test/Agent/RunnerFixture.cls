@@ -46,6 +46,8 @@
 ///     WaitForAnswer waits until a runner has answered every request that Decide sent it in a session (it moved here from
 ///     Test.Agent.Decide, which Test.Agent.Conversation shares); NewRequest gives each user turn an owner of its own (a new Ref), so
 ///     that no two tests share a conversation, unless the test names one.
+///   - ToolNames and ToolResults (Story 1.9): the names of the tools that a logged request offers, sorted, and the contents of its tool_result blocks in order,
+///     as the model got them (AI Hub encodes a string result as a JSON string, and a dynamic object stays an object).
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -867,6 +869,51 @@ ClassMethod Messages(logged As %DynamicObject) As %String
 		Set out = out _ $Select(out = "": "", 1: $Char(1)) _ message.role _ ":" _ text
 	}
 	Quit out
+}
+
+/// The names of the tools that a logged request offers (request.tools), sorted and joined by a comma; "" when it offers none.
+ClassMethod ToolNames(logged As %DynamicObject) As %String
+{
+	Set names = ""
+	If logged.request.%GetTypeOf("tools") '= "array" Quit names
+	Set iterator = logged.request.tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set sorted(tool.name) = ""
+	}
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name))
+		Quit:name=""
+		Set names = names _ $Select(names = "": "", 1: ",") _ name
+	}
+	Quit names
+}
+
+/// The contents of the tool_result blocks of a logged request, in the order of its messages, as a list: the text of each block's content, or the parts of an
+/// array content put together. A string result is a JSON string literal (it starts with a quote), and a dynamic object that came whole is its JSON.
+ClassMethod ToolResults(logged As %DynamicObject) As %List
+{
+	Set results = ""
+	Set messages = logged.request.messages
+	For m = 0:1:messages.%Size() - 1 {
+		Set message = messages.%Get(m)
+		If message.%GetTypeOf("content") '= "array" Continue
+		Set iterator = message.content.%GetIterator()
+		While iterator.%GetNext(, .block) {
+			If block.type '= "tool_result" Continue
+			Set text = ""
+			If block.%GetTypeOf("content") = "string" {
+				Set text = block.content
+			} Else {
+				Set parts = block.content.%GetIterator()
+				While parts.%GetNext(, .part) {
+					Set text = text _ part.text
+				}
+			}
+			Set results = results _ $ListBuild(text)
+		}
+	}
+	Quit results
 }
 
 /// The effort of a logged request: request.output_config.effort, or "" when the request has none.

@@ -9,8 +9,9 @@
 ///   - Decide takes it only to probe: it Locks and at once Unlocks, to learn whether an earlier turn, even one that Decide gave up on,
 ///     still holds the conversation (Process.Decide);
 ///   - Unlock runs outside any transaction.
-/// Only the adapter calls Point and SessionOf. The adapter and Decide are the only callers of Lock and Unlock. No other product class
-/// names this class.
+/// Only the adapter calls Point, which writes the link. Decide also calls SessionOf, which only reads, to size the stored history of a
+/// turn that continues a conversation (RequestSize). The adapter and Decide are the only callers of Lock, Unlock and SessionOf. No other
+/// product class names this class.
 Class OcuTalon.Bridge.Data.ConversationLink Extends %Persistent
 {
 

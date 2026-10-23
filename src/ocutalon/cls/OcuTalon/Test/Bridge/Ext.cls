@@ -2,7 +2,8 @@
 /// a production, and nothing is written to the audit log.
 ///   - TestAccessorInAnotherJob: a job that did not start the production reads the three extension classes of Decide
 ///     from the production definition, and gets "" with an error for a bad setting, item, production or class;
-///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4);
+///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4); since Story 1.9 also of a setting of
+///     an item's adapter, such as the AgentClass of a runner, when the target is Adapter;
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
 ///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter and ReplyGuard pass
 ///     text through and Classification classifies nothing;
@@ -120,6 +121,22 @@ Method TestValueFor()
 	Set value = $ClassMethod(accessor, "ClassFor", "TimerSeconds", ..#PRODUCTION, , .sc)
 	Do $$$AssertEquals(value, "", "ClassFor still refuses a setting that is no extension setting")
 	Do $$$AssertStatusNotOK(sc, "with an error status")
+
+	// a setting of the adapter: the AgentClass of a runner
+	Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, "TriageAgent", .sc)
+	Do $$$AssertEquals(value, "", "AgentClass is a setting of the adapter, so a read of a host setting does not find it")
+	Do $$$AssertStatusNotOK(sc, "and gives an error status")
+	For case = $ListBuild("TriageAgent", "OcuTalon.Agent.Triage"), $ListBuild("DiagnosisAgent", "OcuTalon.Agent.Diagnosis"), $ListBuild("ChatAgent", "OcuTalon.Agent.Chat") {
+		Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, $List(case, 1), .sc, "Adapter")
+		Do $$$AssertStatusOK(sc, "with the target Adapter the AgentClass of "_$List(case, 1)_" is read")
+		Do $$$AssertEquals(value, $List(case, 2), "it is "_$List(case, 2))
+	}
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, "Decide", .sc, "Adapter")
+	Do $$$AssertEquals(value, "", "a host setting is not found as a setting of the adapter")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, "ZzNoSuchItem", .sc, "Adapter")
+	Do $$$AssertEquals(value, "", "an item that does not exist gives an empty value for an adapter setting too")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
 }
 
 /// The job body of TestAccessorInAnotherJob: reads each case and records the class and 1 for OK, 0 for an error.
@@ -220,6 +237,7 @@ Method TestContext()
 		Do $$$AssertEquals(current.SuperSession, super, "Current carries the SuperSession")
 		Do $$$AssertEquals(current.Tainted, 0, "the taint starts at 0")
 		Do $$$AssertEquals(current.HostData, "", "and the host data is empty")
+		Do $$$AssertEquals(current.ToolResultChars, 0, "and the characters of the tool results start at 0")
 
 		Set run = $Name(^OcuTalonTest("BridgeExt", ..Number))
 		Kill @run

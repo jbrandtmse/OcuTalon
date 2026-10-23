@@ -14,7 +14,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Install" ;;
+    lane-a) echo "Agent Bridge Install Tools" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Web" ;;
     *) return 1 ;;
   esac

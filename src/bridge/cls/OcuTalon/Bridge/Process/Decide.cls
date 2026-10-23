@@ -7,12 +7,23 @@ Include Ensemble
 ///   - One decision per item (AD-6): a decide or diagnose request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
-///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Status), the daily cost cap reached (Budget.State) or an
-///     estimate over DecisionTokenBudget. A request that fails a precheck is never sent: RecordFallback records it as a fallback
-///     decision and the answer is given from OnRequest, with no runner request and no timer. Otherwise Decide sends a clone of the
-///     request that carries the DecisionRef to the runner of the kind (RUNNERS) and sets the timer of TimerSeconds, a whole number
-///     of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5). Besides the runner requests, the timers and the agent steps (below),
-///     Decide sends nothing; it answers only its caller.
+///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Status), the daily cost cap reached (Budget.State), an
+///     estimate over DecisionTokenBudget or an estimate over the request-size limit (RequestTokenLimit). A request that fails a precheck
+///     is never sent: RecordFallback records it as a fallback decision and the answer is given from OnRequest, with no runner request and
+///     no timer. Otherwise Decide sends the request that SentRequest builds, a clone that carries the DecisionRef, to the runner of the
+///     kind (RUNNERS) and sets the timer of TimerSeconds, a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
+///     Besides the runner requests, the timers and the agent steps (below), Decide sends nothing; it answers only its caller.
+///   - The estimate and the size limit (AD-8, AD-20, NFR-3): EstimateTokens works out the first model request of the runner of the request
+///     in tokens, at StepBuffer.CHARSPERTOKEN characters a token. It adds the system prompt and the tool schemas of the runner's agent
+///     class (RequestSize.AgentChars), the stored history of a linked turn that continues its conversation (RequestSize.HistoryChars of the
+///     session that the link names, Data.ConversationLink SessionOf) and the input that the runner sends (Adapter.Agent ChatInput). The
+///     limit is the RequestTokenLimit setting, a whole number from 1 to MAXREQUESTTOKENS; an empty value counts as MAXREQUESTTOKENS, and so
+///     does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A request whose estimate
+///     is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send. Decide never changes the
+///     conversation link; it only reads it.
+///   - The flag (AD-6, AD-20): SentRequest sets Request.Compact to 1 on the clone of a turn whose estimate is above COMPACTTOKENS, and to 0
+///     on every other request, whatever the caller set. The runner ignores it until Story 30.1, so a flagged turn within the limit is
+///     sent as it is.
 ///   - The steps (AD-9, AD-30): when the runner's reply arrives in time, and before anything reads it, EmitSteps sends each step record of
 ///     the reply's Steps to the AgentSteps operation (STEPSITEM) as an OcuTalon.Bridge.Msg.AgentStep, in order, so that the steps sit in
 ///     the caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). The Positions
@@ -21,7 +32,7 @@ Include Ensemble
 ///     the answer. An answer from a recorded row, a precheck fallback, a timer that fired and a late reply send no steps. Decide's
 ///     answer to a turn leaves Steps empty.
 ///   - The classification (AD-8): Classify picks the one FallbackReason, or "" for a usable reply, from the facts of a request, in AD-8's
-///     order: the prechecks (no_key, daily_cap, budget), a timer that fired (timeout, or rate_limited once Decide has re-sent), the text
+///     order: the prechecks (no_key, daily_cap, budget, too_large), a timer that fired (timeout, or rate_limited once Decide has re-sent), the text
 ///     of a failure (daily_cap, no_key, timeout, rate_limited, unusable for the agent's maximum iterations, otherwise error), the
 ///     provider's finish reason (refusal, cut_off), an empty text (empty, or unusable when the provider reports no finish reason) and a
 ///     reply that fails its check (invalid). Its literals are the class parameters DAILYCAPTEXT, NOKEYTEXT, TIMEOUTTEXT, RATELIMITTEXT
@@ -48,9 +59,10 @@ Include Ensemble
 ///     TimerSeconds left, it gives 1, 2, 4 and then 8 seconds of back-off (RESENDFIRST, RESENDMAX), the last one shortened so that the
 ///     re-send keeps at least 1 second before the timer. Decide then adds the attempt's steps to StepCount, sets a timer with the key
 ///     resend that cancels nothing, and answers nothing yet. The key resend prechecks the request again (the same token budget as
-///     OnRequest; a reason is recorded with RecordFallback, so a daily_cap marks the day), sends a clone with the stored DecisionRef to the
-///     same runner, adds 1 to Resends and sets the timer for the whole seconds left. A delay of 0 sends the reply to Conclude, so a tool
-///     that ran, an error status (which has no Reply), error, timeout and every other reason fall back at once. Decide never reads a
+///     OnRequest, and the same request-size limit; a reason is recorded with RecordFallback, so a daily_cap marks the day), sends the request
+///     that SentRequest builds, with the stored DecisionRef, to the same runner, adds 1 to Resends and sets the timer for the whole seconds
+///     left. A delay of 0 sends the reply to Conclude, so a tool that ran, an error status (which has no Reply), error, timeout and every
+///     other reason fall back at once. Decide never reads a
 ///     Retry-After: AI Hub's retry block caps it (Timeouts.Derive). A re-send is not a fault and logs no warning.
 ///   - The row and the answer carry the decision's totals (AD-20): the token counts, the cost and the model are the sums over the
 ///     Usage rows of its DecisionRef, which the runner wrote for every attempt (Usage.Totals); the step count is StepCount, the steps
@@ -72,12 +84,12 @@ Include Ensemble
 /// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount and StepsSent.
 /// None is a setting. The three extension settings name the classes through which the bridge reaches its host (AD-31); the production
 /// definition sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
-/// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget is a setting of Decide
-/// itself. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
+/// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
+/// settings of Decide itself. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -87,6 +99,13 @@ Parameter MAXTIMER = 110;
 
 /// The shortest timer, in seconds: (12 - 10) \ 2 is 1, the least whole attempt timeout that Timeouts.Derive gives AI Hub.
 Parameter MINTIMER = 12;
+
+/// The request-size limit in tokens, which RequestTokenLimit may not pass and which an empty or invalid RequestTokenLimit counts as: no
+/// model request goes over 100,000 tokens, where the price tier changes (NFR-3, AD-19, AD-20).
+Parameter MAXREQUESTTOKENS = 100000;
+
+/// The estimate in tokens above which SentRequest flags a turn for compaction (Request.Compact, AD-20).
+Parameter COMPACTTOKENS = 40000;
 
 /// The first back-off before a re-send, in seconds; each later one doubles it (ResendDelay).
 Parameter RESENDFIRST = 1;
@@ -152,6 +171,12 @@ Property GatewaySpendDate As %String(MAXLEN = 10);
 /// precheck logs it (AssignOneSetting, OnRequest).
 Property DecisionTokenBudget As %Integer [ InitialExpression = 0 ];
 
+/// The request-size limit in tokens (AD-8, AD-19, AD-20, NFR-3): a request whose estimate (EstimateTokens) is above it takes the fallback
+/// route with the reason too_large, and is never sent. A whole number from 1 to MAXREQUESTTOKENS is the limit. An empty value counts as
+/// MAXREQUESTTOKENS, and so does any other value (0, a value that is not a whole number, or one above MAXREQUESTTOKENS) with one warning
+/// that the precheck logs (AssignOneSetting, OnRequest), so the limit is never off and never above MAXREQUESTTOKENS.
+Property RequestTokenLimit As %Integer [ InitialExpression = 100000 ];
+
 /// The error status that a runner ended its call with, kept by OnError for OnResponse (the key reply). Not stored.
 Property RunnerError As %Status [ InitialExpression = 1, Internal, Transient ];
 
@@ -168,16 +193,16 @@ Property StepCount As %Integer [ InitialExpression = 0 ];
 /// across its attempts. Not a setting.
 Property StepsSent As %Integer [ InitialExpression = 0 ];
 
-/// Assigns a setting as Ens.Settings does, except for the four budget settings (AD-20, DW-76). A value of DailyCostCapUSD,
-/// GatewaySpendUSD or GatewaySpendDate that its property's datatype refuses, and a DecisionTokenBudget that is not made of digits only,
-/// is assigned as "", so that the process can still be saved before OnRequest and the setting counts as off. The value as written
-/// is still reported: Budget.State names the faults of the cap and of the gateway's spend, and OnRequest gives Precheck the text of a
-/// DecisionTokenBudget that was not assigned.
+/// Assigns a setting as Ens.Settings does, except for the five budget and size settings (AD-20, DW-76). A value of DailyCostCapUSD,
+/// GatewaySpendUSD or GatewaySpendDate that its property's datatype refuses, and a DecisionTokenBudget or RequestTokenLimit that is not
+/// made of digits only, is assigned as "", so that the process can still be saved before OnRequest and the setting counts as off (a
+/// RequestTokenLimit, as MAXREQUESTTOKENS). The value as written is still reported: Budget.State names the faults of the cap and of the
+/// gateway's spend, and OnRequest gives Precheck the text of a DecisionTokenBudget or RequestTokenLimit that was not assigned.
 Method AssignOneSetting(pProperty As %String, pValue As %String, pName As %String) As %Status
 {
 	Set sc = ##super(pProperty, pValue, pName)
-	If $$$ISERR(sc) || '$ListFind($ListBuild("DecisionTokenBudget", "DailyCostCapUSD", "GatewaySpendUSD", "GatewaySpendDate"), pProperty) Quit sc
-	If $$$ISERR($ClassMethod($ClassName(), pProperty_"IsValid", $Property($this, pProperty))) || ((pProperty = "DecisionTokenBudget") && (pValue '? 1.N)) {
+	If $$$ISERR(sc) || '$ListFind($ListBuild("DecisionTokenBudget", "RequestTokenLimit", "DailyCostCapUSD", "GatewaySpendUSD", "GatewaySpendDate"), pProperty) Quit sc
+	If $$$ISERR($ClassMethod($ClassName(), pProperty_"IsValid", $Property($this, pProperty))) || ($ListFind($ListBuild("DecisionTokenBudget", "RequestTokenLimit"), pProperty) && (pValue '? 1.N)) {
 		Set $Property($this, pProperty) = ""
 	}
 	Quit sc
@@ -211,13 +236,11 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
-	Set reason = ..Precheck(request, runner, ..TokenBudget())
+	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
 	If reason '= "" {
 		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 	}
-	Set clone = request.%ConstructClone()
-	Set clone.DecisionRef = decisionRef
-	Set sc = ..SendRequestAsync(runner, clone, 1, "reply")
+	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, decisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
 	Quit ..SetTimer(+..TimerSeconds, "timer")
 }
@@ -301,36 +324,45 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), failure, ..StepCount)
 }
 
-/// The key resend (AD-8, AD-20): prechecks the request again with the token budget of OnRequest (TokenBudget), and records a reason with
-/// RecordFallback, so that a daily_cap marks the day. With less than a second of the timer left it records rate_limited at once and
-/// sends nothing. Otherwise it sends a clone of the request with the stored DecisionRef to the runner (the key reply), adds 1 to
-/// Resends and sets the timer for the whole seconds left, because the framework dropped the first timer's pending entry when the
-/// runner's reply arrived.
+/// The key resend (AD-8, AD-20): prechecks the request again with the token budget and the request-size limit of OnRequest
+/// (SettingText), and records a reason with RecordFallback, so that a daily_cap marks the day. With less than a second of the timer left
+/// it records rate_limited at once and sends nothing. Otherwise it sends the request that SentRequest builds, with the stored DecisionRef,
+/// to the runner (the key reply), adds 1 to Resends and sets the timer for the whole seconds left, because the framework dropped the
+/// first timer's pending entry when the runner's reply arrived.
 Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output response As %Persistent) As %Status
 {
 	Set response = ""
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
-	Set reason = ..Precheck(request, runner, ..TokenBudget())
+	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
 	Set seconds = ..RemainingMs() \ 1000
 	If (reason = "") && (seconds < 1) Set reason = "rate_limited"
 	If reason '= "" {
 		Quit ..RecordFallback(request, ..DecisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount)
 	}
-	Set clone = request.%ConstructClone()
-	Set clone.DecisionRef = ..DecisionRef
-	Set sc = ..SendRequestAsync(runner, clone, 1, "reply")
+	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, ..DecisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
 	Set ..Resends = ..Resends + 1
 	Quit ..SetTimer(seconds, "timer")
 }
 
-/// The token budget of the precheck: the DecisionTokenBudget setting as the process holds it, or the setting as it is written when the
-/// process holds none (an invalid value is held as "", AssignOneSetting).
-Method TokenBudget() As %String [ Private ]
+/// The text that the precheck gets for DecisionTokenBudget or RequestTokenLimit (name): the setting as the process holds it, or the setting
+/// as it is written when the process holds none (an invalid value is held as "", AssignOneSetting).
+Method SettingText(name As %String) As %String
 {
-	Set tokenBudget = ..DecisionTokenBudget
-	If tokenBudget = "" Set tokenBudget = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("DecisionTokenBudget", "", ..%ConfigName)
-	Quit tokenBudget
+	Set value = $Property($this, name)
+	If value = "" Set value = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor(name, "", ..%ConfigName)
+	Quit value
+}
+
+/// The request that goes to a runner, for the first send and for every re-send (AD-6, AD-20): a clone of the request that carries the
+/// DecisionRef and the Compact flag, 1 exactly when the request is a turn (any provenance and any SessionMode) and the estimate that the
+/// precheck worked out is above COMPACTTOKENS, otherwise 0, whatever the caller set. The request itself is not changed.
+ClassMethod SentRequest(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, estimate As %Integer) As OcuTalon.Bridge.Msg.Request
+{
+	Set clone = request.%ConstructClone()
+	Set clone.DecisionRef = decisionRef
+	Set clone.Compact = (request.Kind = "turn") && (+$Get(estimate) > ..#COMPACTTOKENS)
+	Quit clone
 }
 
 /// The milliseconds of TimerSeconds that are left: TimerSeconds x 1000 minus the milliseconds since Decide began (0 at least, and 0 when
@@ -526,10 +558,15 @@ ClassMethod Unfenced(text As %String) As %String
 }
 
 /// The FallbackReason of a request that must not be sent, or "" (AD-8, AD-20). The facts are the model key (Keys.Status of the runner
-/// item), the daily cost cap (Budget.State: capped) and the estimate of the request against tokenBudget (the DecisionTokenBudget
-/// setting as it is), and Classify picks the reason. Each fault that State names (DW-76) is logged as one warning, and so is a
-/// tokenBudget that is not a whole number of 0 or more, which counts as 0 (off); empty is 0 too. Nothing is sent or recorded here.
-ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String) As %String
+/// item), the daily cost cap (Budget.State: capped), the estimate of the request (EstimateTokens, worked out once and given back in
+/// estimate) against tokenBudget (the DecisionTokenBudget setting as it is) and against requestLimit (the RequestTokenLimit setting as it
+/// is), and Classify picks the reason. Each fault that State names (DW-76) is logged as one warning, and so is a tokenBudget that is not
+/// a whole number of 0 or more, which counts as 0 (off; empty is 0 too). A requestLimit that is a whole number from 1 to
+/// MAXREQUESTTOKENS is the limit; an empty one counts as MAXREQUESTTOKENS, and any other one counts as MAXREQUESTTOKENS and is logged as
+/// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS. One more warning names the runner
+/// when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts 0). Nothing is sent or
+/// recorded here.
+ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
 {
 	Set facts = {}
 	Do facts.%Set("noKey", '##class(OcuTalon.Bridge.Keys).Status(runner), "boolean")
@@ -547,27 +584,55 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting DecisionTokenBudget of Decide is '"_$Extract(tokenBudget, 1, 40)_"'; it must be a whole number of 0 or more, so the token budget counts as 0 (off)"))
 		}
 	}
-	Do facts.%Set("overBudget", (budget > 0) && (..EstimateTokens(request) > budget), "boolean")
+	Set limit = ..#MAXREQUESTTOKENS
+	If requestLimit '= "" {
+		If (requestLimit ? 1.N) && (+requestLimit > 0) && (+requestLimit '> ..#MAXREQUESTTOKENS) {
+			Set limit = +requestLimit
+		} Else {
+			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting RequestTokenLimit of Decide is '"_$Extract(requestLimit, 1, 40)_"'; it must be a whole number from 1 to "_..#MAXREQUESTTOKENS_", so the request-size limit counts as "_..#MAXREQUESTTOKENS))
+		}
+	}
+	Set estimate = ..EstimateTokens(request, runner, , .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The system prompt or the tool schemas of "_runner_" could not be read in full, so the estimate of the request may count too few tokens: "_$SYSTEM.Status.GetErrorText(sc)))
+	}
+	Do facts.%Set("overBudget", (budget > 0) && (estimate > budget), "boolean")
+	Do facts.%Set("tooLarge", estimate > limit, "boolean")
 	Quit ..Classify(facts)
 }
 
-/// The estimated size of the request in tokens (AD-20): the lengths of its Input, SeedText and SystemNote added together, at
-/// StepBuffer.CHARSPERTOKEN characters a token, rounded up. The system prompt, the tool schemas and the history are not counted yet.
-ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request) As %Integer
+/// The estimated size in tokens of the first model request that the runner makes for the request (AD-6, AD-20): StepBuffer.Tokens of the
+/// sum of three parts, at StepBuffer.CHARSPERTOKEN characters a token, rounded up.
+///   1. The agent part: RequestSize.AgentChars of agentClass, the system prompt and the tool schemas of the agent. An empty agentClass
+///      means the AgentClass setting of the runner item (Ext.Accessor ValueFor, a setting of the adapter).
+///   2. The history: RequestSize.HistoryChars of the session that the conversation link of the request's OwnerRef and the runner names
+///      (Data.ConversationLink SessionOf), only for a linked turn (Adapter.Agent IsLinked) whose SessionMode is not fresh. It is 0 for
+///      every other request, and for a turn with no link.
+///   3. The input: the length of what the runner sends (Adapter.Agent ChatInput), with the seed only on a linked fresh turn.
+/// sc is an error when the agent part could not be read (the class is unknown or its setting cannot be read); that part then counts 0.
+ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status) As %Integer
 {
-	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens($Length(request.Input) + $Length(request.SeedText) + $Length(request.SystemNote))
+	Set sc = $$$OK
+	Set chars = 0
+	If agentClass = "" Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
+	If $$$ISOK(sc) Set chars = ##class(OcuTalon.Bridge.RequestSize).AgentChars(agentClass, .sc)
+	Set linked = ##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request)
+	Set fresh = linked && (request.SessionMode = "fresh")
+	If linked && 'fresh Set chars = chars + ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	Set chars = chars + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, fresh))
+	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars)
 }
 
 /// The one classification (AD-8): "" when the request and the reply are usable, otherwise exactly one value of Msg.Enum FALLBACKREASON.
 /// It is pure: it reads the facts and nothing else, and a fact that is missing counts as false or empty, so that no facts give "". The facts
 /// of a dynamic object:
-///   - noKey, capped and overBudget: booleans from the precheck;
+///   - noKey, capped, overBudget and tooLarge: booleans from the precheck;
 ///   - timedOut, a boolean, and resends, the number of times Decide sent the request again: the timer of an attempt fired;
 ///   - failure: the redacted text of a runner failure;
 ///   - finishReason and text: the runner's Reply;
 ///   - invalid: a boolean, true when the reply failed its ReplyClass check or nothing was left of it once the filter had run.
 /// The first rule that holds wins:
-///   1. noKey gives no_key, then capped gives daily_cap, then overBudget gives budget;
+///   1. noKey gives no_key, then capped gives daily_cap, then overBudget gives budget, then tooLarge gives too_large;
 ///   2. timedOut gives rate_limited when resends is above 0 (the retries ran out, FR-4), else timeout, whatever else the facts hold;
 ///   3. a failure is matched by its text, without regard to case: DAILYCAPTEXT gives daily_cap; NOKEYTEXT (both pieces) gives no_key;
 ///      TIMEOUTTEXT gives timeout; RATELIMITTEXT gives rate_limited (OnResponse weighs a re-send before it asks for the reason);
@@ -583,6 +648,7 @@ ClassMethod Classify(facts As %DynamicObject) As %String
 	If +facts.%Get("noKey") Quit "no_key"
 	If +facts.%Get("capped") Quit "daily_cap"
 	If +facts.%Get("overBudget") Quit "budget"
+	If +facts.%Get("tooLarge") Quit "too_large"
 	If +facts.%Get("timedOut") Quit $Select(+facts.%Get("resends") > 0: "rate_limited", 1: "timeout")
 	Set failure = $ZConvert(facts.%Get("failure"), "L")
 	If failure '= "" {
@@ -939,6 +1005,9 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>StepsSent</Value>
+</Value>
+<Value name="13">
+<Value>RequestTokenLimit</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

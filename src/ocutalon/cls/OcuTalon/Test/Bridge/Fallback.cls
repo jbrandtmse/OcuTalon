@@ -13,7 +13,8 @@
 ///   - TestTextMatching: the failure literals are matched without regard to case, the missing-key text needs both of its pieces, and
 ///     Invalid input is an error until a later story gives it a reason of its own;
 ///   - TestPure: facts that are not an object, a missing fact and a fact that Classify does not read change nothing, and the facts are
-///     not changed; every answer is "" or a value of Msg.Enum FALLBACKREASON, and too_large is never one of them yet;
+///     not changed; every answer is "" or a value of Msg.Enum FALLBACKREASON, and with none of these facts being tooLarge, too_large is never one of them
+///     (Test.Bridge.Decide TestPrecheckOrder pins the fact tooLarge);
 ///   - TestCatalogMap (AC5): each of the 12 reasons rendered through "conversation.turnFallback" gives exactly one of the 11
 ///     fallbackReason.* texts, invalid and unusable give the generic one, refusal and cut_off their own, and all 11 are reached.
 /// Added by Story 1.7 (AD-8, FR-4):
@@ -208,7 +209,7 @@ Method TestPure()
 	Do $$$AssertEquals(facts.%ToJSON(), before, "the facts are not changed")
 	Do $$$AssertEquals(..Classify(facts), first, "and the same facts give the same reason again")
 
-	// every combination of the facts gives "" or a value of FALLBACKREASON, and never too_large
+	// every combination of these facts (none of them tooLarge) gives "" or a value of FALLBACKREASON, and never too_large
 	Set allowed = ##class(OcuTalon.Bridge.Msg.Enum).#FALLBACKREASON
 	Set bad = ""
 	Set seen = ""
@@ -231,7 +232,7 @@ Method TestPure()
 		}
 	}
 	Do $$$AssertEquals($ListToString(bad), "", "no combination gives a word that is not a FALLBACKREASON")
-	Do $$$AssertEquals($Data(seen("r:too_large")), 0, "none gives too_large, which Story 1.9 adds")
+	Do $$$AssertEquals($Data(seen("r:too_large")), 0, "none gives too_large: only the fact tooLarge does")
 	Do $$$AssertEquals($Data(seen("r:")), 1, "and some combinations are usable")
 	Set reached = ""
 	Set reason = ""

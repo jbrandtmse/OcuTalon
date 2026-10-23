@@ -6,7 +6,7 @@
 ///   - TestDiagnosis: the INSTRUCTIONS say that the agent is read-only, never changes anything, proposes fixes only for approval
 ///     and takes tool results as data;
 ///   - TestToolsets: Triage and Chat have no toolset and Diagnosis has OcuTalon.Tools.Watch, whose three tools a fresh tool
-///     manager discovers, each once, as read-only and runs, each returning {"items":[]};
+///     manager discovers, each once, as read-only and runs, each returning the dynamic object {"items":[]} (Story 1.9: an object, not a JSON string);
 ///   - TestNoTemplates: no INSTRUCTIONS block of an OcuTalon class holds {{, and no OcuTalon class calls the AI Hub template
 ///     class on a code line (AD-7). Both scanners are first shown to flag a sample that breaks the rule.
 Class OcuTalon.Test.Agent.Instructions Extends %UnitTest.TestCase
@@ -79,7 +79,7 @@ Method TestDiagnosis()
 }
 
 /// Triage and Chat have no toolset, Diagnosis has the Watch toolset, and a fresh tool manager discovers exactly the three tools
-/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one to {"items":[]}.
+/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one to the dynamic object {"items":[]}.
 Method TestToolsets()
 {
 	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Triage", "TOOLSETS"), "", "Triage has no toolset")
@@ -100,7 +100,8 @@ Method TestToolsets()
 		Do $$$AssertEquals(tool.metadata.ReadOnly, "1", tool.name_" is read-only")
 		Do $$$AssertEquals(tool."requires_auth", 0, tool.name_" needs no authorization")
 		Set result = manager.ExecuteTool(tool.name, {"production": "OcuTalon.Production"})
-		Do $$$AssertEquals(result.value, "{""items"":[]}", tool.name_" returns {""items"":[]}")
+		Do $$$AssertTrue($IsObject(result.value) && result.value.%IsA("%Library.DynamicObject"), tool.name_" returns a dynamic object, not a JSON string")
+		Do $$$AssertEquals($Select($IsObject(result.value): result.value.%ToJSON(), 1: result.value), "{""items"":[]}", tool.name_" returns {""items"":[]}")
 	}
 	Set position = 0
 	While $ListNext(expected, position, name) {

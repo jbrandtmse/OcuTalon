@@ -17,7 +17,10 @@
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
 ///     8000, the effort of the runner (none for Chat), no sampling parameter and the cache marker where the cached prefix reaches
 ///     min_tokens_for_cache (Diagnosis's last tool; the short prefixes of Triage and Chat stay unmarked, and Test.Bridge.Runner
-///     shows the block reaching the provider for a long prompt), and the mock accepts every one;
+///     shows the block reaching the provider for a long prompt), and the mock accepts every one; since Story 1.9 (AD-7, AD-10) each request
+///     offers exactly the tools of its agent, and no other (the names of the toolsets named by the agent's TOOLSETS, which are also pinned as
+///     literals: none for Triage and Chat, read_event_log, read_failed_messages and read_item_settings for Diagnosis), and Diagnosis's second
+///     request carries the result of its tool as the JSON object {"items":[]}, not as a JSON string;
 ///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent and no AI Hub shell, filesystem, SQL or
 ///     web-search tool, and every tool is an OcuTalon tool of source iris whose code is clean (Test.Bridge.CodeRules.ToolCodeClean);
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
@@ -48,6 +51,9 @@ Parameter KEYVARIABLE = "ANTHROPIC_API_KEY";
 
 /// The model that every runner resolves.
 Parameter MODEL = "claude-haiku-5-5";
+
+/// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
+Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -257,18 +263,23 @@ Method TestRequestsUnderTheModelRules()
 		Do $$$AssertEquals(reply.HostData, "", "and holds no host data")
 	}
 	Do $$$AssertEquals(requests.%Size(), 1, "Triage makes one request")
-	Do ..AssertRequests(requests, "low", 0, "Triage")
+	Do ..AssertRequests(requests, "low", "OcuTalon.Agent.Triage", "", "Triage")
 
 	Set sc = $ClassMethod(fixture, "Ask", "DiagnosisAgent", "diagnose", "user", "Why did the messages of the Orders production fail?", .reply, .requests)
 	Do $$$AssertStatusOK(sc, "the diagnose Request to DiagnosisAgent is answered")
 	Do $$$AssertTrue($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"), "with a Reply")
 	If $IsObject(reply) Do $$$AssertEquals(reply.Text, $Parameter(fixture, "DIAGNOSISTEXT"), "whose text is the final text of diagnosis.json")
 	Do $$$AssertEquals(requests.%Size(), 2, "Diagnosis makes two requests, one more for the result of its tool")
-	Do ..AssertRequests(requests, "high", 1, "Diagnosis")
+	Do ..AssertRequests(requests, "high", "OcuTalon.Agent.Diagnosis", ..#WATCHTOOLS, "Diagnosis")
+	If requests.%Size() = 2 {
+		Set results = $ClassMethod(fixture, "ToolResults", requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, "Diagnosis's second request carries the result of its one tool call")
+		Do $$$AssertEquals($ListToString(results, "|"), "{""items"":[]}", "as the JSON object {""items"":[]}, not as a JSON string")
+	}
 
 	Set sc = $ClassMethod(fixture, "Ask", "ChatAgent", "turn", "user", "What is going on in my productions?", .reply, .requests)
 	Do $$$AssertTrue(requests.%Size() > 0, "the mock's log holds the requests of the turn to ChatAgent: "_requests.%Size())
-	Do ..AssertRequests(requests, "", 0, "Chat")
+	Do ..AssertRequests(requests, "", "OcuTalon.Agent.Chat", "", "Chat")
 }
 
 /// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and the three runners hold exactly
@@ -435,13 +446,15 @@ Method Point() As %Boolean [ Private ]
 }
 
 /// Asserts what the mock logged for the requests of one runner: the model of the runner, a cap of 8000, the effort (none when
-/// effort is ""), and no sampling parameter. AI Hub marks a block for the cache only when the prefix up to it reaches
-/// min_tokens_for_cache (512): the system prompts of the three agents are about 190 to 310 tokens, so no system block is marked,
-/// and a runner with tools (tools is 1) has the marker on its last tool, where the prefix of system and tools reaches the threshold,
-/// while a runner without tools has none at all (measured in Story 1.2). The mock accepted each one: status 200 and nothing
-/// rejected.
-Method AssertRequests(requests As %DynamicArray, effort As %String, tools As %Boolean, label As %String) [ Private ]
+/// effort is ""), and no sampling parameter. The tools that a request offers are exactly the tools of the agent class (OfferedTools: the names that the
+/// toolsets of its TOOLSETS discover), which must also be the literal list given (names, comma-separated, sorted; "" for none), and no other. AI Hub marks
+/// a block for the cache only when the prefix up to it reaches min_tokens_for_cache (512): the system prompts of the three agents are about 190 to 310
+/// tokens, so no system block is marked, and a runner with tools has the marker on its last tool, where the prefix of system and tools reaches the
+/// threshold, while a runner without tools has none at all (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected.
+Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String) [ Private ]
 {
+	Set expected = ..OfferedTools(agentClass)
+	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" give today's list of tools: '"_literal_"'")
 	Set iterator = requests.%GetIterator()
 	While iterator.%GetNext(.position, .logged) {
 		Set here = label_" request "_(position + 1)
@@ -451,7 +464,8 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, tools As %Bo
 		Do $$$AssertEquals(logged.%GetTypeOf("rejected"), "null", here_" is not rejected")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Effort(logged), effort, here_" asks for the effort '"_effort_"'")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).CacheMark(logged.request.system), "", here_" leaves the system block unmarked: its prefix is below min_tokens_for_cache")
-		If tools {
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(logged), expected, here_" offers exactly the tools of its agent, '"_expected_"', and no other")
+		If expected '= "" {
 			Set count = logged.request.tools.%Size()
 			Do $$$AssertTrue(count > 0, here_" offers tools: "_count)
 			For i = 0:1:count - 1 {
@@ -466,6 +480,29 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, tools As %Bo
 			Do $$$AssertTrue(json '[ ("""" _ key _ """"), here_" holds no "_key)
 		}
 	}
+}
+
+/// The names of the tools that the toolsets named by the TOOLSETS parameter of the agent class discover, sorted and joined by a comma ("" for none): the names
+/// in the "tools" of each toolset's Discover list.
+ClassMethod OfferedTools(agentClass As %String) As %String [ Private ]
+{
+	Set toolsets = $Parameter(agentClass, "TOOLSETS")
+	For i = 1:1:$Length(toolsets, ",") {
+		Set toolset = $ZStrip($Piece(toolsets, ",", i), "<>W")
+		If toolset = "" Continue
+		Set iterator = $ClassMethod(toolset, "%New").%Discover().%Get("tools").%GetIterator()
+		While iterator.%GetNext(, .tool) {
+			Set sorted(tool.name) = ""
+		}
+	}
+	Set names = ""
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name))
+		Quit:name=""
+		Set names = names _ $Select(names = "": "", 1: ",") _ name
+	}
+	Quit names
 }
 
 /// Asserts that the item does not run and that its event log, after the mark, holds an error row with the text. The wait is a poll

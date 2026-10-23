@@ -41,6 +41,10 @@
 ///     the two turns add up to the counters of the saved session, which GetStats() restores on the open (AD-20);
 ///   - TestResumeFollowsTheRunner: after the runner's Model setting and agent class change, the owner's next turn resumes the saved session with the
 ///     runner's model and its agent's system prompt, and its reply and Usage row name the model that was sent (AD-7, AD-20).
+/// Added by Story 1.9 (AD-6, AD-20):
+///   - TestPrecheckCountsHistory: the estimate that Decide works out before it sends a turn (EstimateTokens) is the agent part, the stored history of
+///     the owner's session and the input that Chat gets; it is the agent part and the input alone for the owner's first turn, for an untrusted turn and
+///     for a fresh turn; and for a turn that continues it is within BANDPERCENT of the runner's own estimate of the same turn.
 /// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
@@ -60,6 +64,12 @@ Parameter PROBEAGENT = "OcuTalon.Test.Bridge.ProbeAgent";
 
 /// The cap of the composed session config, in tokens.
 Parameter CAP = 8000;
+
+/// How far Decide's estimate of a turn that continues may be from the runner's own estimate of its first model step, in percent of the runner's: the stored
+/// history holds the system prompt that the agent part counts too, so the estimate is the larger (measured in Story 1.9: 24 percent for a first exchange of
+/// 4,000 characters, and the band is that and 5 points more). The gap is the same few hundred characters whatever the conversation, so it shrinks as the
+/// history grows.
+Parameter BANDPERCENT = 29;
 
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
@@ -414,6 +424,46 @@ Method TestFirstStepCountsHistory()
 	Do $$$AssertEquals(..FirstEstimate(fresh), $ClassMethod(buffer, "Tokens", base + expected), "a fresh turn counts the input that Chat gets, the seed and the note included, and no history")
 }
 
+/// Decide's estimate of a turn counts the stored history of the conversation (Story 1.9; AD-6, AD-20). Turn 1 of an owner, with 4,000 characters of input, is
+/// answered and saved. The estimate of turn 2, worked out before it is sent, is the agent part (RequestSize.AgentChars), the stored size of the saved session
+/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets, and it is within BANDPERCENT of the runner's own estimate of
+/// turn 2's first model step. An untrusted turn and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
+Method TestPrecheckCountsHistory()
+{
+	If ..Guard() Quit
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set size = "OcuTalon.Bridge.RequestSize"
+	Set chatClass = "OcuTalon.Agent.Chat"
+	Set host = ..NewHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set agent = $ClassMethod(size, "AgentChars", chatClass, .sc)
+	Do $$$AssertStatusOK(sc, "the agent part of Chat is worked out: "_agent_" characters")
+
+	Set one = ..NewTurn("[[mock:recall-tell]] "_$Translate($Justify("", 4000), " ", "a"), owner)
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", one, ..#AGENT, chatClass), ..Tokens(agent + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(one, 0))), "turn 1 of an owner with no link counts the agent part and its input, and no history")
+	Do $$$AssertStatusOK(..Send(host, one, .first), "turn 1 is answered")
+	Set id = ..LinkOf(owner)
+	Set history = $ClassMethod(size, "HistoryChars", id)
+	Do $$$AssertTrue(history > 4000, "the stored history of its session is more than the 4,000 characters of the input: "_history)
+
+	Set two = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Set estimate = $ClassMethod(decide, "EstimateTokens", two, ..#AGENT, chatClass, .sc)
+	Do $$$AssertStatusOK(sc, "the estimate of turn 2 is worked out")
+	Set input = $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(two, 0))
+	Do $$$AssertEquals(estimate, ..Tokens(agent + history + input), "turn 2 counts the agent part, the stored history and its input: "_estimate_" tokens")
+	Do $$$AssertTrue(estimate > ..Tokens(agent + input), "so it is more than it would be without the history")
+
+	Set untrusted = ..NewTurn("[[mock:recall-tell]] Say something.", owner, , "turn", "untrusted")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", untrusted, ..#AGENT, chatClass), ..Tokens(agent + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(untrusted, 0))), "an untrusted turn of the owner counts no history")
+	Set fresh = ..NewTurn("[[mock:recall-tell]] A fresh start.", owner, , "turn", "user", "fresh", "Earlier, the user said that the build server is called ORION-7.", "The user opened a new topic.")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", fresh, ..#AGENT, chatClass), ..Tokens(agent + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(fresh, 1))), "a fresh turn of the owner counts the seed and the note, and no history")
+
+	Do $$$AssertStatusOK(..Send(host, two, .next), "turn 2 is answered")
+	Set runner = ..FirstEstimate(next)
+	Do $$$AssertTrue(runner > 0, "the runner's own estimate of turn 2's first model step is read: "_runner)
+	Do $$$AssertTrue($ZAbs(estimate - runner) * 100 '> (..#BANDPERCENT * runner), "Decide's estimate, "_estimate_", is within "_..#BANDPERCENT_" percent of it, "_runner)
+}
+
 /// A user's turn with an empty OwnerRef has no conversation to link: the runner refuses it with an error that names OwnerRef, sends nothing to the
 /// mock, makes no link and leaves no context.
 Method TestEmptyOwner()
@@ -687,6 +737,12 @@ Method Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.B
 	Set sc = host.OnMessage(request, .reply)
 	If $$$ISOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Set logged = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, request.ItemId)
 	Quit sc
+}
+
+/// The count in characters as a count in tokens, rounded up (Adapter.StepBuffer Tokens).
+ClassMethod Tokens(chars As %Integer) As %Integer [ Private ]
+{
+	Quit $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", chars)
 }
 
 /// The estimate of the first model step of the reply (its first step record).

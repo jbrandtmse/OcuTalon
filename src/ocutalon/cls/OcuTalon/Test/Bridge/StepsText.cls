@@ -1,7 +1,7 @@
 /// The tool zz_steps_text of the step tests (Story 1.5 QA; AD-9, AD-31): a test fixture, never part of a production. Unlike
-/// OcuTalon.Test.Bridge.StepsNote, which answers a dynamic object, Read answers TEXT: a %String that holds JSON, which is the form of
-/// the product's own tools (OcuTalon.Tools.WatchFixture answers JSON text). AI Hub gives the policy such a result as a JSON string, so
-/// the redactor has to look inside the string (OcuTalon.Bridge.Redact.Literal). For the topic keys the text is a JSON object that holds
+/// OcuTalon.Test.Bridge.StepsNote, which answers a dynamic object, Read answers TEXT: a %String that holds JSON, the form of a tool that
+/// returns a pre-encoded JSON string (the product's own tools return a dynamic object or plain text through OcuTalon.Tools.Result). AI Hub
+/// gives the policy such a result as a JSON string, so the redactor has to look inside the string (OcuTalon.Bridge.Redact.Literal). For the topic keys the text is a JSON object that holds
 /// the five kinds of secret under their own keys (the "text" values of StepsNote.Secret) and, under a key that is not sensitive, a
 /// line of free text with four more (the "line" values): a model key and a bot token as they are, a password after "password=" and a chat id
 /// after "chat_id=". Otherwise it is {"topic", "note": "All systems normal."}. A tool method runs inside AI Hub's callback, so it makes
