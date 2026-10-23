@@ -158,3 +158,6 @@
 2026-10-23T16:47:25Z	Epic 32	model_tier_checkpoint_seen	note=runner_logged_it(record_only)
 2026-10-23T16:47:43Z	Epic 32	worktree_removed	worktree=.worktrees/epic-32
 2026-10-23T16:47:43Z	Epic 32	epic_branches_deleted	branch=OCT-epic32 local=deleted remote=deleted
+2026-10-23T16:49:12Z	Epic 32	owner_decision	id=DW-111 via=contest_planner by=Contest_Planner(owner_delegate) answer=parallel.yaml_gains_warm-iris(stages=[],stale_minutes=240) at=8bdd942 action_item=epic-32-retro-item-2-add-a-warm-iris-entry-to-_bmad-custom-pa:done
+2026-10-23T16:49:12Z	Epic 1-16,29-32	owner_decision	id=epic-10_depends_on_[] via=contest_planner by=Contest_Planner(owner_delegate) quote=Go_ahead_wth_the_rebalance_of_slots. answer=Epic_10's_epic-level_edge_on_Epic_2_removed(10.2->4,10.3->6_imply_2)_so_10.1_fills_runner_C's_idle_window
+2026-10-23T16:49:12Z	Epic 1-16,29-32	deps_approved	hash=0a48db9a81c0ee7227f753b5692159cb51b56df033d51aaf70242f4134147061 epics=20 approved_by=Contest_Planner(owner_delegate) change=epic-10_depends_on_[](was_[2]);epics.md_Epic_10_line_aligned(AMENDED_2026-10-23) analyzed_by=claude-opus-5-5

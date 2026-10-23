@@ -41,7 +41,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "1ba404b36cd9e359a2ae9689e8e10e3ab0469c565b75bca843c6d3d7005da55d"
+epics_md_hash: "0a48db9a81c0ee7227f753b5692159cb51b56df033d51aaf70242f4134147061"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-23T13:32:40Z"
@@ -150,7 +150,7 @@ epics:
   epic-29: {lane: C, depends_on: [epic-16, epic-3], submodules: [], paths_hint: ["web/e2e/demo-path/**", "release/**"],
             story_waits: {"29.4": [epic-5, epic-7]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path
             note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing in Lane A depends on Epic 29's merge; Story 31.4 waits on it."}
-  epic-10: {lane: B, depends_on: [epic-2], submodules: [],                          # epic-2: /state and TryConsume (2.4); 10.1 may start early on an idle runner (fill_ahead_any)
+  epic-10: {lane: B, depends_on: [], submodules: [],                                # no epic-level need (10.1 is the install script); 10.2->4 and 10.3->6 imply Epic 2; 10.1 may start early (fill_ahead_any)
             paths_hint: ["README.md", "install.sh", ".env.example", "docker-compose.yml", "docker/**", ".github/workflows/ci.yml", "ci/mock/**", "ci/compose.ci.yml", "src/ocutalon/cls/OcuTalon/Core/{SessionOps,AnswersIn,StatusMonitor,Allowance,Trace}*.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Data/{Pairing,Delivery,StatusMark}.cls", "src/ocutalon/cls/OcuTalon/Demo/Guide*.cls", "web/src/app/api/**"],
             story_waits: {"10.2": epic-4,                   # the README quotes SetDemoMode, Story 4.1 (3189)
                           "10.3": epic-6}}                  # 6.2's answer rules (3248); 10.3 BUILDS the unlink that 16.4 reuses (the swap)
