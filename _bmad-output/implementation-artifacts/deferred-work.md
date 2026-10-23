@@ -471,3 +471,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: the windows are the spec's matrix numbers (timer 12 s, late reply 18 s)
 - 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=a CI run goes red on an elapsed-window assertion of TestBusyWhileHeld, TestBusyAfterTimedOutTurn or TestRunnerBusy
+
+### DW-125: Until Story 30.1's compaction, a linked conversation whose stored history alone passes the request-size limit answers too_large on every turn that continues it (about 400,000 characters of history); Epic 2's Conversation starts a fresh session only after Tainted or SessionBroken, so the conversation stays stuck
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 1.9 Decide.Precheck too_large on the estimate (history + prompt + schemas + input); Story 1.8 resumes the linked history
+- 2026-10-23T18:29:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=spec_gate note=30.1 compacts (or rotates to a fresh seeded session) a flagged turn whose history alone passes the limit, and adds its summarizer time only to flagged turns it can compact
