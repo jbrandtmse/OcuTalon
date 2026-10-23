@@ -6,10 +6,12 @@
 # It checks everything before it changes anything: Docker runs, Docker Compose is 2.24 or later (the compose file's
 # long env_file form needs it), .env.example is here, and a build 154 image for this machine's CPU is loaded. A failed
 # check prints what is wrong and the exact fix, and exits 1.
-# Then it gives the image the name the OcuTalon build starts from (a name that exists is never moved), creates .env from
-# .env.example when there is none, runs `docker compose up -d`, shows a progress line every 10 s until the compose
-# health check passes, and prints the address and the README account. The elapsed time it prints, and the 15 minutes it
-# waits at most, count from the start of `docker compose up -d`, so they include the image build.
+# Then it gives the image the name the OcuTalon build starts from (a name that exists is never moved) and creates .env from
+# .env.example when there is none. An iris service that is already running and healthy is left alone: the script prints
+# the address and the README account at once, runs no `docker compose up` and no build, and names the command that applies
+# an update (docker compose up -d --build). In every other state it runs `docker compose up -d`, shows a progress line
+# every 10 s until the compose health check passes, and prints the address and the README account. The elapsed time it
+# prints, and the 15 minutes it waits at most, count from the start of `docker compose up -d`, so they include the image build.
 # It never removes a container, an image or a volume, and it never reads or prints .env.
 #
 # It runs in the shell that macOS ships (bash 3.2): no associative arrays, mapfile, ${v,,}, |&, &>>, empty "${a[@]}"
@@ -87,6 +89,18 @@ fmt_time() {
 short_id() {
   local id=${1#sha256:}
   printf '%s' "${id:0:12}"
+}
+
+# read_service: sets state and health to the iris service's container state and health check ("" for either when compose
+# answers nothing, as it does when there is no container).
+read_service() {
+  local line
+  state=""
+  health=""
+  line=$(docker compose ps --all --format '{{.State}} {{.Health}}' iris 2>/dev/null </dev/null) || line=""
+  read -r state health <<EOF
+$line
+EOF
 }
 
 echo "OcuTalon install"
@@ -300,58 +314,64 @@ if [ "$env_missing" -eq 1 ]; then
       "Copy it yourself (cp .env.example .env), then run ./install.sh again."
   fi
   echo "Created .env from .env.example. The model key (ANTHROPIC_API_KEY) in it is empty:"
-  echo "OcuTalon starts without one, and its page shows a notice about it. To set a key, add it to .env and run ./install.sh again."
+  echo "OcuTalon starts without one, and its page shows a notice about it. To set a key, add it to .env and run: docker compose up -d --force-recreate"
 else
   echo "Found .env. It was not changed."
 fi
 
 IRIS_IMAGE=$build_image
 export IRIS_IMAGE
-echo "Starting OcuTalon with docker compose up -d. The first start takes a few minutes; up to 15 minutes are allowed."
-started=$SECONDS
-if ! docker compose up -d </dev/null; then
-  die "Docker Compose could not start OcuTalon." \
-    "The messages above say why. To read the container's log, run:  docker compose logs iris" \
-    "The Troubleshooting section of README.md lists the usual causes and fixes." \
-    "Nothing was removed."
-fi
 
-# --- waiting until the compose health check passes ---
-
-while :; do
-  state=""
-  health=""
-  line=$(docker compose ps --all --format '{{.State}} {{.Health}}' iris 2>/dev/null </dev/null) || line=""
-  read -r state health <<EOF
-$line
-EOF
-  elapsed=$((SECONDS - started))
-  if [ "$state" = running ] && [ "$health" = healthy ]; then
-    break
-  fi
-  case $state in
-    '' | exited | dead)
-      die "OcuTalon stopped before it was ready after $(fmt_time "$elapsed") (container state: ${state:-no container})." \
-        "To read what happened, run:  docker compose logs iris" \
-        "The Troubleshooting section of README.md lists the usual causes and fixes." \
-        "Nothing was removed: this script never removes a container, an image or a volume."
-      ;;
-  esac
-  if [ "$elapsed" -ge "$max_wait" ]; then
-    die "OcuTalon was not ready after $(fmt_time "$elapsed"), the longest this script waits." \
-      "To read what is happening, run:  docker compose logs iris" \
+# A running, healthy OcuTalon is left alone: no `docker compose up`, no build, no restart. Every other state (no container,
+# stopped, failed part-way, starting, unhealthy) runs `docker compose up -d` and waits.
+already_healthy=0
+read_service
+if [ "$state" = running ] && [ "$health" = healthy ]; then
+  already_healthy=1
+  elapsed=0
+  echo "OcuTalon is already running and healthy, so it was not started again."
+else
+  echo "Starting OcuTalon with docker compose up -d. The first start takes a few minutes; up to 15 minutes are allowed."
+  started=$SECONDS
+  if ! docker compose up -d </dev/null; then
+    die "Docker Compose could not start OcuTalon." \
+      "The messages above say why. To read the container's log, run:  docker compose logs iris" \
       "The Troubleshooting section of README.md lists the usual causes and fixes." \
-      "Nothing was removed. The container (state: $state${health:+, health check: $health}) may still become ready later."
+      "Nothing was removed."
   fi
-  if [ -n "$health" ]; then
-    echo "Waiting, $(fmt_time "$elapsed") so far: container $state, health check $health"
-  else
-    echo "Waiting, $(fmt_time "$elapsed") so far: container $state"
-  fi
-  step=$poll
-  if [ "$step" -gt $((max_wait - elapsed)) ]; then step=$((max_wait - elapsed)); fi
-  sleep "$step"
-done
+
+  # --- waiting until the compose health check passes ---
+
+  while :; do
+    read_service
+    elapsed=$((SECONDS - started))
+    if [ "$state" = running ] && [ "$health" = healthy ]; then
+      break
+    fi
+    case $state in
+      '' | exited | dead)
+        die "OcuTalon stopped before it was ready after $(fmt_time "$elapsed") (container state: ${state:-no container})." \
+          "To read what happened, run:  docker compose logs iris" \
+          "The Troubleshooting section of README.md lists the usual causes and fixes." \
+          "Nothing was removed: this script never removes a container, an image or a volume."
+        ;;
+    esac
+    if [ "$elapsed" -ge "$max_wait" ]; then
+      die "OcuTalon was not ready after $(fmt_time "$elapsed"), the longest this script waits." \
+        "To read what is happening, run:  docker compose logs iris" \
+        "The Troubleshooting section of README.md lists the usual causes and fixes." \
+        "Nothing was removed. The container (state: $state${health:+, health check: $health}) may still become ready later."
+    fi
+    if [ -n "$health" ]; then
+      echo "Waiting, $(fmt_time "$elapsed") so far: container $state, health check $health"
+    else
+      echo "Waiting, $(fmt_time "$elapsed") so far: container $state"
+    fi
+    step=$poll
+    if [ "$step" -gt $((max_wait - elapsed)) ]; then step=$((max_wait - elapsed)); fi
+    sleep "$step"
+  done
+fi
 
 # --- ready ---
 
@@ -362,7 +382,7 @@ EOF
 port=${port_line##*:}
 case $port in
   '' | *[!0-9]*)
-    die "OcuTalon is healthy after $(fmt_time "$elapsed"), but Docker Compose reports no published web port, so there is no address to print." \
+    die "OcuTalon is healthy, but Docker Compose reports no published web port, so there is no address to print." \
       "To see the ports, run:  docker compose ps"
     ;;
 esac
@@ -373,4 +393,8 @@ echo
 echo "  Open:      http://localhost:$port/ocutalon/"
 echo "  User:      ocutalon"
 echo "  Password:  ocutalon"
+if [ "$already_healthy" -eq 1 ]; then
+  echo
+  echo "To apply an update, run: docker compose up -d --build"
+fi
 exit 0

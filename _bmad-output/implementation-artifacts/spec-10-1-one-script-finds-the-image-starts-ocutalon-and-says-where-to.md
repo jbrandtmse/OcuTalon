@@ -2,11 +2,11 @@
 title: 'One script finds the image, starts OcuTalon and says where to sign in'
 type: 'feature'
 created: '2026-10-23'
-status: 'in-progress'
-baseline_revision: '0ce80fd21437659672164fce39c7e4eb09705001'
+status: 'done'
+baseline_revision: '394e419563d0114e3af011c6f1709b12fc926607'
 baseline_commit: '0ce80fd21437659672164fce39c7e4eb09705001'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
 warnings: ['oversized']
 deferred: []
@@ -165,7 +165,7 @@ deferred: []
   - **inputs:** a live script may also read a path that no group claims, that `NOT_IRIS_INPUT_PATTERN` does not declare and that is not bookkeeping, because `ci/changes.sh` runs every group for it. A read of a declared non-input still fails. Add a pass sample and a fail sample, and update the header.
 - `docker/tests/test-boundaries.sh` -- add `install.sh` to the `scan_files` scope at line 96 and to the must-scan list at lines 107-111, and update the header.
 
-- [ ] [CI] iris (image): `live:install-script-live` failed 2 checks on the IRIS runner (x64, Docker Engine): the second run printed 2 progress lines, and `MEASURED: compose recreated the container on the second up -d` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40021886810 -- `install.sh`: before `docker compose up -d`, read the `iris` service's state with the allowed `docker compose ps --all --format '{{.State}} {{.Health}}' iris`; when it answers `running healthy`, print the ready block at once (the published port from `docker compose port iris 52773`, the README account, the elapsed time) and one line `To apply an update, run: docker compose up -d --build`, run no `compose up` and no build, and exit 0; in every other state keep today's `up -d` and wait. The base and architecture checks, the retag rule and the `.env` copy still run first, unchanged. `docker/tests/test-install-script.sh`: the "Already healthy" row asserts no `compose up` call and the update line; add rows for a container that is `running starting` and one that is `exited` before the run (both call `compose up -d` and wait). Keep the live unit's rerun checks exactly as written (same container, no progress line); they must pass on the IRIS runner. Update each touched pinning test's `mutation:` line.
+- [x] [CI] iris (image): `live:install-script-live` failed 2 checks on the IRIS runner (x64, Docker Engine): the second run printed 2 progress lines, and `MEASURED: compose recreated the container on the second up -d` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40021886810 -- `install.sh`: before `docker compose up -d`, read the `iris` service's state with the allowed `docker compose ps --all --format '{{.State}} {{.Health}}' iris`; when it answers `running healthy`, print the ready block at once (the published port from `docker compose port iris 52773`, the README account, the elapsed time) and one line `To apply an update, run: docker compose up -d --build`, run no `compose up` and no build, and exit 0; in every other state keep today's `up -d` and wait. The base and architecture checks, the retag rule and the `.env` copy still run first, unchanged. `docker/tests/test-install-script.sh`: the "Already healthy" row asserts no `compose up` call and the update line; add rows for a container that is `running starting` and one that is `exited` before the run (both call `compose up -d` and wait). Keep the live unit's rerun checks exactly as written (same container, no progress line); they must pass on the IRIS runner. Update each touched pinning test's `mutation:` line.
 
 **Acceptance Criteria:**
 - Given the hosted `checks` job, when CI runs, then `bash ci/checks.sh` runs `test-install-script.sh` on Linux with every matrix row passing, and the ShellCheck step passes on `install.sh` and the hermetic test.
@@ -272,6 +272,34 @@ Rejected:
     - `[false]` `[reject]` Intent: changes outside `install.sh` (`test-ci-config.sh`, `ci/units.sh`, `.gitattributes`, `test-boundaries.sh`) were not named by the intent — each one is a task of the spec or a listed footprint extension.
     - `[low]` `[reject]` Intent: a change to `install.sh` runs every IRIS group because no group claims it — Design Note 12 (by-design).
 
+### 2026-10-23 -- Review pass of rework 1 (the `[CI]` item; diff since 394e419)
+- verdicts: 23 findings -- high 0, medium 5, low 16, false 2, maybe-false 0
+- layers: Blind Hunter 7, Edge Case Hunter 5, Verification Gap 6, Intent Alignment 5 (its divergences, one row each)
+- findings:
+    - `[medium]` `[patch]` Blind: the key instruction "add it to .env and run ./install.sh again" no longer applies a key, because a healthy container is now left alone — real (a container reads `.env` when it is created). Patched: the instruction names `docker compose up -d --force-recreate` (Design Note 16); two checks pin it, with a mutation line.
+    - `[low]` `[patch]` Blind: the healthy path prints "ready after 0 s", a made-up time — the figure is the script's own wait, the ruling lists the elapsed time in the block, and the live unit matches the phrase. Kept; a check now pins it (`elapsed=754` goes red), and Design Note 16 says what the figure is.
+    - `[low]` `[reject]` Blind: Design Notes 6, 10 and 14 contradict the ruling — the fix edits this build's spec; Design Note 6 is the lead's record of the ruling (reported to the lead: its headline line and the Auto Run Result's old follow-up paragraph are stale).
+    - `[low]` `[patch]` Blind: the Auto Run Result describes the old tree and records no re-verification. Rewritten for this pass, with the final tree's results.
+    - `[low]` `[reject]` Blind: the `[CI]` item is ticked but its IRIS-runner proof is not observed, and the live side cannot tell old code from new — the runner's next CI run is the lead's gate. The live check does tell them apart: the live mutation of the healthy branch goes red (below). The item says to keep the live rerun checks as written, so no assertion is added there.
+    - `[low]` `[patch]` Blind: no row for `restarting` or `paused`, for a healthy service with a missing base or `.env`, or for the healthy path ending at the no-port message. Patched: rows for `restarting`, `paused`, `running` with no health check, and a healthy service with no base and no `.env`. The no-port message is shared with the first-run path and its row (`no-port`) stays.
+    - `[low]` `[reject]` Blind: a failed `docker compose ps` before `up` reads as "no container" and so runs `up -d` on a healthy install — it needs a transient failure of one call after others succeeded, and the fix adds a branch with no specified behavior. reopen_if: a judge reports a restart on a rerun.
+    - `[medium]` `[patch]` Edge: the same key instruction as the first Blind finding — patched there.
+    - `[low]` `[reject]` Edge: `compose ps --all` can print several rows for `iris` (leftover one-off containers or replicas), and only the first is read — wontfix-theoretical: the compose file has neither, and every poll has read the first row since the story began. reopen_if: a rerun reports "stopped" beside one-off containers.
+    - `[low]` `[patch]` Edge: no rows for `running` with no health check, `restarting` and `paused` — patched with the Blind rows.
+    - `[low]` `[patch]` Edge (claim): the healthy block's 0 s is hard-coded — the same root cause as the second Blind finding.
+    - `[low]` `[reject]` Edge (deletion): the no-published-port message no longer holds the elapsed time on the first-run path — the message names a case that cannot happen after a healthy start, and a figure there was not asked for; keeping it on one path adds a branch.
+    - `[medium]` `[patch]` Verification gap: nothing pins that the base, architecture, retag and `.env` steps run before the healthy shortcut — real (a scratch copy with the decision moved ahead of the checks passed every test). Patched: rows `already-healthy-base-wrong-cpu` and `already-healthy-no-base-no-env`, with a mutation line.
+    - `[medium]` `[patch]` Verification gap: the key instruction — the same root cause as the first Blind finding, patched there (the first-health row and the no-base healthy row assert the text).
+    - `[low]` `[patch]` Verification gap: the elapsed time of the healthy block is not pinned — the same root cause as the second Blind finding, patched there.
+    - `[low]` `[patch]` Verification gap (Rule 19): AC3's rerun checks have no `mutation:` line on the new code. Closed in the pass, not deferred: one live run on lane C (tag `e10s1k`) with `--force-recreate` in the healthy branch → red `MEASURED: compose recreated the container on the second up -d`, reverted, line written.
+    - `[low]` `[reject]` Verification gap (other): Design Note 6's headline is stale — the same root cause as the first stale-notes finding.
+    - `[false]` `[reject]` Verification gap (other): ShellCheck 0.9.0 was not confirmed on the new `for row` block and the `read_service` heredoc — `uvx --from shellcheck-py==0.9.0.6 shellcheck install.sh docker/tests/test-install-script.sh` ran clean on the reworked tree and again on the final one.
+    - `[low]` `[reject]` Intent: the outcome (same container on real Compose) is measured only by the live unit, which now passes by construction — the item keeps the live unit's checks as written; the live mutation above shows they still go red when the branch recreates, and the IRIS runner's CI run is the outcome proof.
+    - `[medium]` `[patch]` Intent: the retained "run ./install.sh again" key message points at a path that starts nothing — the same root cause as the first Blind finding.
+    - `[low]` `[patch]` Intent: the healthy block says "ready after 0 s", a figure measured from nothing — the same root cause as the second Blind finding.
+    - `[low]` `[reject]` Intent: the spec text is partly stale (Design Note 6, the follow-up paragraph) — the same root cause as the stale-notes finding; the paragraph is rewritten with the Auto Run Result.
+    - `[false]` `[reject]` Intent: the healthy decision sits after the tag and `.env` steps — that is what the item orders ("still run first"), and the new rows pin the order; no bad outcome.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -309,6 +337,9 @@ Rejected:
     - The macOS job uses `macos-15`, whose `/bin/bash` is 3.2. It costs about one hosted macOS minute per push, as the AC requires.
 14. **The elapsed time** printed in the progress lines and the ready block, and the 900 s wait, count from the start of `docker compose up -d`, so they include the image build. (decided at implement, then changed at review: the first version started the clock when `up -d` returned, which left the build out of the figure that Story 11.3 reads as the first-start time and out of the wait that the live unit bounds.)
 15. **One extra check before any change** (decided at implement): when `.env` is missing and `.env.example` is absent or the folder is not writable, the script exits 1 with the fix before tagging or starting anything. It keeps "every check passes before anything changes" true for the file copy too.
+16. **The healthy rerun** (decided at the rework of U-45, confirmed at its review):
+    - The ready block's figure is the script's own wait, so it reads `0 s` on the fast path. The line before the block says that the container was not started again, and the hermetic test pins the figure.
+    - The key instruction is "add it to .env and run: docker compose up -d --force-recreate". A rerun of the script now leaves a healthy container alone, and a container reads `.env` when it is created, so "run ./install.sh again" would no longer apply a key. The wording is the script's own (the UX banner says "restart OcuTalon"), and it is changed only to keep the text true.
 
 **Extend, don't copy:**
 - The live unit extends `lib-live.sh`'s throwaway helpers.
@@ -408,8 +439,9 @@ The review pass added these pinning tests and mutation lines (each applied, run,
 - AC2, the macOS job beyond `/bin/bash`;
   - mutation: remove `OCUTALON_TEST_BASH_MAJOR=3` from the step → red: rule `wiring`.
   - mutation: stop accepting `macos-15` in the `runners` rule → red: rules `runners` and `never-skipped` (the sample `skip-macos-job`).
-- AC3, the rest of the live unit (the rerun and the sign-in; one live run on lane C with two mutations at once);
-  - mutation: `docker compose up -d --force-recreate` and the printed password changed to `wrong` → red: `the second run prints ... progress line(s), or no ready block`, `MEASURED: compose recreated the container on the second up -d` and `the printed user and password do not sign in at the printed address`; the other checks stayed green, `ci/iris.sh teardown` removed nothing more, and the shared base kept its ID.
+- AC3, the rest of the live unit (the rerun and the sign-in);
+  - mutation: the printed password changed to `wrong` (one live run on lane C, before the rework; the line it touches is unchanged) → red: `the printed user and password do not sign in at the printed address`; the other sign-in checks stayed green, `ci/iris.sh teardown` removed nothing more, and the shared base kept its ID.
+  - mutation: `docker compose up -d --force-recreate` in the healthy branch of `install.sh` (the rerun checks, same container and no progress line; one live run on lane C, tag `e10s1k`, at the review of the rework) → red: only `MEASURED: compose recreated the container on the second up -d`; `ci/iris.sh teardown` removed nothing more, the shared base kept its ID, and no `.env` was left. The hermetic side of the same clause is the mutation `docker compose up -d` in the healthy branch, under "Already healthy" below.
 - AC4, the `test-boundaries.sh` scan;
   - mutation: drop `install.sh` from the arguments of `scan_files` → red: `scope: a file that must be scanned is not` (`not scanned: install.sh`).
 - AC5, `install.sh` stays unclassified;
@@ -465,8 +497,22 @@ Left unpinned on purpose (the survivors of the sweep, judged equivalent or cosme
   - mutation: `iris-community | */iris-community)` → `*iris-community)` → red: the three `look-alikes` checks.
 - No Docker:
   - mutation: `if ! command -v docker ...` → `if false` → red: `no docker: says to install Docker Desktop or Docker Engine`.
-- Already healthy prints at once (the hermetic side of AC3's "a rerun prints at once"):
-  - mutation: print a progress line as soon as `elapsed` is computed, before the healthy test → red: `already healthy: the ready block prints with no progress line`, `first run, Health: one progress line for each poll that is not ready`, `unhealthy: three progress lines` and `container stopped at the first poll: exit 1 with no progress line`.
+- Already healthy prints at once and starts nothing (the hermetic side of AC3's "a rerun prints at once"; rewritten at the rework of ruling U-45, which reads the service before `up`; the stub answers the `before` file until `up` runs and the `health` lines after it):
+  - mutation: print a progress line in the healthy branch → red: `already healthy: the ready block prints with no progress line`, and only that check.
+  - mutation: run `docker compose up -d` in the healthy branch → red: `already healthy: no compose up, so no restart and no build`, and only that check.
+  - mutation: ask only for `running` before `up` (drop the health test) → red: three checks each of the rows `running starting` and `running unhealthy` (`compose up -d runs once ...`, `it says it is starting and waits ...`, `no update line ...`).
+  - mutation: `case $state in exited | dead) exit 1 ;; esac` right after the first read → red: three checks each of the rows `exited` and `dead` (`exit 0 with the ready block`, `compose up -d runs once ...`, `it says it is starting and waits ...`).
+  - mutation: print the `Starting OcuTalon` line before the first read → red: `already healthy: it does not say it is starting`, and only that check.
+  - mutation: the update line names `docker compose up -d` without `--build` → red: `already healthy: says it was not started again, and names the command that applies an update`, and only that check.
+  - mutation: print the update line on every run (`if true`) → red: `first run, Health: says it is starting, and has no update line` and the `no update line` check of each of the five rows `running starting`, `running unhealthy`, `exited`, `dead` and `created`.
+  - mutation: the `die` after a failed `up -d` becomes an `echo` → red: `up fails: exit 1` and `up fails: no poll afterwards (the only read of the service is the one before up)`.
+  - mutation: move `started=$SECONDS` from before `docker compose up -d` to the start of the wait loop (re-run on the reworked script) → red: `the elapsed time counts from the start of compose up (the build is in it)`, and only that check.
+  - mutation: delete the line that caps `step` at `max_wait - elapsed` (re-run on the reworked script) → red: the same seven checks as at the code review.
+  - Review of the rework (each applied to the tracked file, run, seen red and reverted; `git diff` hashed the same before and after):
+    - mutation: an early `read_service` and an exit 0 with the ready line right after the `OcuTalon install` line, so the healthy answer is decided before the checks → red: `already healthy, base for another CPU: exit 1 ...`, the three `already healthy, no base and no .env` checks, and (from the extra `compose ps` call) four `already healthy` checks and `up fails: no poll afterwards`.
+    - mutation: `elapsed=0` → `elapsed=754` in the healthy branch → red: `already healthy: the wait it reports is 0 s, since the script waited for nothing`, and only that check.
+    - mutation: the key instruction back to "run ./install.sh again." → red: `first run, Health: the key instruction names the command ...` and `already healthy, no base and no .env: .env is a byte for byte copy ..., with the key instruction`.
+    - mutation: the healthy test before `up` loosened to "any state but exited, dead, created or none, with a health check that is not starting or unhealthy" → red: nine checks, three each of the rows `running` (no health check), `restarting` and `paused`.
 - The timeout message names the health check:
   - mutation: drop `${health:+, health check: $health}` → red: `never ready: names the container's state and its health check`.
 - An existing base's lines name its reference:
@@ -490,33 +536,27 @@ Left unpinned on purpose (the survivors of the sweep, judged equivalent or cosme
 Status: done
 Blocking condition: none
 
-**Summary.** A root `install.sh` (bash 3.2) checks Docker, the daemon, Compose 2.24 or later and a build 154 image for the daemon's CPU before it changes anything. It names the image it used, gives it the base name (an existing base is never moved), creates `.env` from `.env.example` when there is none, runs `docker compose up -d`, prints a progress line per 10 s poll, and prints the published address and the README account when the compose health check passes. A stop or the end of the 15 minutes exits 1 with the logs command and the README section. A hermetic stub-`docker` test (about 170 checks) runs in `checks` on Linux and in the new `install-macos` job under `/bin/bash`; a live unit in the `image` group runs the real script, a rerun, and the manual retag with a plain `docker compose up`, in a throwaway project.
+Rework pass 1 (the `[CI]` item; ruling U-45). This section covers this pass only; the first pass is in the story's history.
+
+**Summary.** `install.sh` now reads the `iris` service before it runs `docker compose up`. A service that answers `running healthy` gets the ready block at once (the published port, `ocutalon`/`ocutalon`, `0 s`), the line `To apply an update, run: docker compose up -d --build`, no `compose up`, no build, and exit 0. Every other state (none, starting, unhealthy, no health check, restarting, paused, exited, dead, created) runs `docker compose up -d` and waits as before. The Docker, Compose, image and architecture checks, the retag and the `.env` copy still run first. The key instruction now names `docker compose up -d --force-recreate`, because a rerun leaves a healthy container alone (Design Note 16).
 
 **Files changed.**
-- `install.sh` (new, 100755): the script.
-- `docker/tests/test-install-script.sh` (new): the hermetic test, one case per matrix row plus the review's additions.
-- `docker/tests/test-install-script-live.sh` (new): the live unit.
-- `ci/units.sh`: `install-script` in `CHECK_SCRIPTS`; `live:install-script-live` last in the `image` group; a comment that `install.sh` stays unclassified.
-- `.github/workflows/ci.yml`: the `ShellCheck` step in `checks` and the `install-macos` job.
-- `docker/tests/test-ci-config.sh`: `macos-15` as a hosted runner, the ShellCheck and macOS wiring pins with bad samples, and the widened `inputs` rule with its samples.
-- `docker/tests/test-boundaries.sh`: `install.sh` in the scan scope and the must-scan list.
-- `.gitattributes`: `install.sh text eol=lf`.
-- This spec: Design Notes 14 and 15, the mutation lines, the triage log.
+- `install.sh`: the pre-`up` read (`read_service`, shared with the wait loop), the healthy branch, the update line, the key instruction.
+- `docker/tests/test-install-script.sh`: the `before` answer of the stub; the "Already healthy" row; eight pre-state rows; two rows that pin the order of the checks before the healthy branch; checks for the `0 s` figure and the key instruction.
+- This spec: the `[CI]` item ticked, the mutation lines, Design Note 16 and the triage log. The live unit and every contended file are unchanged.
 
-**Review.** 41 findings from four layers: high 0, medium 6, low 30, false 5. Fifteen rows were patched, in eleven entries; three of the entries were medium: the clock of the elapsed time and the wait now starts at `compose up -d` (the build counts), the script's `TAG` is pinned to the compose file's default image tag, and the LF rule of `.gitattributes` is pinned by `git check-attr`. The low patches: `CDPATH` guard on the script's own `cd`, the timeout and stop messages claim only what is true, a test for the read-only folder and the failed `.env` copy, `fmt_time` pinned, the fallback of `OCUTALON_INSTALL_WAIT` observed, the order claim removed from the `wiring` header, a clearer `known` flag and a comment in `ci/units.sh`, and the missing mutation lines of Rule 19 demonstrated and written. Twenty-six rows were rejected with their reasons in the triage log; none was deferred (`deferred:` stays empty).
+**Review.** 23 findings from four layers: high 0, medium 5, low 16, false 2. Two root causes were patched at medium: the key instruction (four layers) and the missing pin on the order of the checks before the healthy branch. Low patches: the `0 s` pin, the extra pre-state rows, and the live mutation line for AC3's rerun clause (a live run on lane C, red as expected, closed in the pass). Nothing was deferred (`deferred:` stays empty). Rejected: Design Note 6's stale headline (the lead's record; reported here), a failed pre-read of `compose ps`, several `ps` rows, the elapsed time in the no-port message, and the rest with reasons in the triage log.
 
-**Follow-up review recommended: true.** The first pass patched three medium entries. The unverified risk: the live unit has run only on lane C (Apple silicon, containerd image store, Compose 5.5.0). Whether the second `up -d` keeps the container on the IRIS runner (x64, Docker Engine, an older Compose) is measured by the first `image` group run in CI; if compose recreates the container there, the check stands as written and "prints at once" becomes an intent question (Design Note 6). The `install-macos` job and the ShellCheck step (0.9.0 on the hosted image) have not run on a hosted runner either.
+**Follow-up review recommended: false.** This pass patched no high.
 
 **Verification performed (final tree).**
-- `bash docker/tests/test-install-script.sh` and `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh`: all checks pass; `BASH 3.2.57` printed.
+- `bash docker/tests/test-install-script.sh`: 243 checks pass. `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh`: 244 checks pass, `BASH 3.2.57` printed.
 - `uvx --from shellcheck-py==0.9.0.6 shellcheck install.sh docker/tests/test-install-script.sh`: no output, exit 0.
-- `test-ci-config.sh`, `test-boundaries.sh` and `test-ci-changes.sh` (unchanged): all pass.
-- Live: `ci/iris.sh live install-script-live` on lane C, tag `e10s1i`: every check passed (first run ready after 1 min 2 s; the rerun printed at once with the same container; the plain `docker compose up -d` reached healthy on the same volume). The shared base `ocutalon-iris-base:2026.3.0AI.154.0` kept its ID before and after every live run, `ci/iris.sh teardown` for the tag found nothing left, and no `.env` was left in the tree.
-- `bash ci/checks.sh` (once, after the last patch): `checks: all scripts passed`.
-- Falsifiability (Rule 19): every pinning test has a `mutation:` line in `## Verification`, each applied, seen red and reverted with the tree byte-identical.
+- `test-boundaries.sh`, `test-ci-config.sh` and `test-ci-changes.sh` (unchanged): all pass. `bash ci/checks.sh` (once, after the last patch): `checks: all scripts passed`.
+- Live: `ci/iris.sh live install-script-live` on lane C, tag `e10s1j`: every check passed; the rerun printed "already running and healthy", `ready after 0 s` and the update line, with the same container. The tag's teardown removed nothing more, the shared base kept its ID before and after every live run, and no `.env` was left.
+- Falsifiability (Rule 19): every pinning test touched has a `mutation:` line in `## Verification`, each applied, seen red and reverted.
 
 **Residual risks.**
-- The first CI runs are the only evidence for the hosted macOS job, ShellCheck 0.9.0 on the hosted image, and the live unit on the IRIS runner (its time inside the `image` group, 2 to 3 minutes on ARM, is for QA to record against the 1.25 balance rule).
-- `README.md` has no Troubleshooting section yet; Story 10.2 creates it, and the script's messages name it. DW-2's README half is Story 10.2's.
-- An edit to `install.sh` runs every IRIS group, by Design Note 12.
-- The edits outside the Code Map are the footprint extensions the spec lists (`test-ci-config.sh`, `test-boundaries.sh`, `.gitattributes`, `test-install-script-live.sh`); none of the contended files was edited.
+- The IRIS runner's next `image` group run is the proof that the rerun keeps the container on x64 with Docker Engine; lane C could not reproduce the recreate even before this change.
+- Design Note 6's headline still says the script always runs `up -d`, and the Auto Run Result's older claims are gone with this rewrite; the lead owns Design Note 6.
+- The key instruction's wording is the script's own (Design Note 16); it was changed only to stay true after the ruling.

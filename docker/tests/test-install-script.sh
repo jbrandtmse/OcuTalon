@@ -2,10 +2,11 @@
 # Hermetic test of install.sh (Story 10.1). Starts no container and reads no real Docker: a stub docker and a stub sleep come first on a
 # private PATH, with the few tools the script needs, so a machine's own docker is never reached. Each case gets its own judge folder
 # (install.sh and .env.example copied in), its own stub answers (the files of one data folder: the images that `docker image ls` lists,
-# what `docker image inspect` says of them, the daemon's architecture, the Compose version, one health line per poll with the last one
-# repeated, the exit code of `compose up -d` and the port line), and a clean environment. The stub logs every call, and the IRIS_IMAGE
-# that `compose up -d` sees. install.sh runs under the bash that runs this test; with OCUTALON_TEST_BASH_MAJOR=3 (the macOS job, which
-# runs /bin/bash) the test fails unless that bash has the major version 3.
+# what `docker image inspect` says of them, the daemon's architecture, the Compose version, the state of the iris service before
+# `compose up -d`, one health line per poll after it with the last one repeated, the exit code of `compose up -d` and the port line),
+# and a clean environment. The stub logs every call, and the IRIS_IMAGE that `compose up -d` sees. install.sh runs under the bash that
+# runs this test; with OCUTALON_TEST_BASH_MAJOR=3 (the macOS job, which runs /bin/bash) the test fails unless that bash has the major
+# version 3.
 # Rows, as in the matrix of the spec:
 #   - images: Health first; only non-Health (its own reference is the build argument); prefixes and look-alikes; ties go to the first
 #     reference in LC_ALL=C order; mixed CPUs; no image; wrong CPU; an image whose CPU cannot be read is never a match; architecture
@@ -16,10 +17,13 @@
 #     unreachable or answering nothing, no Compose plugin or one answering nothing, Compose older than 2.24 (DW-2) or unreadable,
 #     Compose 2.24 or later accepted, no .env.example, a tag that fails;
 #   - .env: created byte for byte from .env.example, an existing one (a link to nothing included) is never touched, read or printed;
-#   - waiting: already healthy prints at once, unhealthy keeps waiting, the published port is the one printed, a timeout and a stopped
-#     container (exited, dead, none) exit 1 with the logs command and the README section, `up -d` failing exits 1 with compose's own
-#     messages on screen, the folder of the script is the working folder (also for `bash install.sh`), the two overrides take whole
-#     seconds only, and the wait is 15 minutes (900 s) by default and by every fallback;
+#   - waiting: a service that is already running and healthy prints at once (no compose up, no build, the update line) after the
+#     checks and the changes, not before them, every other state before the run (none, starting, unhealthy, no health check, restarting,
+#     paused, exited, dead, created) runs `compose up -d` and waits, unhealthy keeps waiting,
+#     the published port is the one printed, a timeout and a stopped container (exited, dead, none) exit 1 with the logs command and
+#     the README section, `up -d` failing exits 1 with compose's own messages on screen, the folder of the script is the working
+#     folder (also for `bash install.sh`), the two overrides take whole seconds only, and the wait is 15 minutes (900 s) by default
+#     and by every fallback;
 #   - across all cases: every docker call is on the allow-list with its exact arguments, no sudo, every sleep of the judges' path is at
 #     most 15 s; docker-compose.yml has the service and the port that the script asks about; and install.sh holds
 #     OCUTALON_INSTALL_WAIT:-900, is ASCII with LF line endings, is executable (git mode 100755 when git tracks it), and its text holds no
@@ -94,6 +98,7 @@ case $1 in
         cat "$d/compose-version"
         ;;
       up)
+        : > "$d/up-ran"
         printf 'IRIS_IMAGE=%s\n' "${IRIS_IMAGE-unset}" >> "$d/up-env"
         echo "stub: compose up"
         echo "stub: compose up, message on standard error" >&2
@@ -101,11 +106,15 @@ case $1 in
         exit "$(cat "$d/up-exit")"
         ;;
       ps)
-        n=$(cat "$d/polls" 2>/dev/null || echo 0)
-        n=$((n + 1))
-        echo "$n" > "$d/polls"
-        line=$(sed -n "${n}p" "$d/health")
-        if [ -z "$line" ]; then line=$(tail -n 1 "$d/health"); fi
+        if [ ! -f "$d/up-ran" ]; then
+          line=$(cat "$d/before")
+        else
+          n=$(cat "$d/polls" 2>/dev/null || echo 0)
+          n=$((n + 1))
+          echo "$n" > "$d/polls"
+          line=$(sed -n "${n}p" "$d/health")
+          if [ -z "$line" ]; then line=$(tail -n 1 "$d/health"); fi
+        fi
         if [ "$line" != NONE ]; then printf '%s\n' "$line"; fi
         ;;
       port)
@@ -174,7 +183,7 @@ chmod 755 "$stubs/docker" "$stubs/sleep" "$stubs/sudo"
 # --- the cases ---
 
 # new_case <name> [nodocker]: a fresh case folder $c with the judge folder, the stubs and the default answers (an arm64 daemon, Compose
-# 2.40.3, no image, a healthy container, port 52773, `up -d` exits 0). $d is its data folder.
+# 2.40.3, no image, no container before `up -d` and a healthy one after it, port 52773, `up -d` exits 0). $d is its data folder.
 new_case() {
   c="$tmp/$1"
   d="$c/data"
@@ -188,6 +197,7 @@ new_case() {
   : > "$d/inspect"
   echo arm64 > "$d/server-arch"
   echo 2.40.3 > "$d/compose-version"
+  echo NONE > "$d/before"
   echo 'running healthy' > "$d/health"
   echo 0.0.0.0:52773 > "$d/port"
   echo 0 > "$d/up-exit"
@@ -258,6 +268,8 @@ check "first run, Health: one progress line for each poll that is not ready" tes
 check "first run, Health: the progress line holds the elapsed time and the state" out_has_re '^Waiting, [0-9]+ s so far: container running, health check starting$'
 check "first run, Health: the ready block holds the port, the account and the elapsed time" ready_block 52773
 check "first run, Health: it sleeps the poll interval between polls" test "$(tr '\n' ' ' < "$d/sleeps")" = "1 1 "
+check "first run, Health: says it is starting, and has no update line" test "$(out_has 'Starting OcuTalon with docker compose up -d' && out_lacks 'To apply an update' && out_lacks 'already running' && echo ok)" = ok
+check "first run, Health: the key instruction names the command that applies a key to a running install" out_has "add it to .env and run: docker compose up -d --force-recreate"
 
 new_case both-images
 add_image "registry.example/iris-community:$TAG" $NON_HEALTH_ID arm64
@@ -574,13 +586,53 @@ new_case already-healthy
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 add_base $HEALTH_ID arm64
 printf 'ANTHROPIC_API_KEY=\n' > "$c/judge/.env"
+echo 'running healthy' > "$d/before"
 run_install
 check "already healthy: exit 0" exit_is 0
 check "already healthy: the ready block prints with no progress line" test "$(out_count '^Waiting, ')" -eq 0
 check "already healthy: the ready block is complete" ready_block 52773
+check "already healthy: the wait it reports is 0 s, since the script waited for nothing" out_has "OcuTalon is ready after 0 s."
 check "already healthy: no docker tag" no_tag
-check "already healthy: one poll" test "$(call_count '^compose ps')" -eq 1
+check "already healthy: no compose up, so no restart and no build" test "$(call_count '^compose up')" -eq 0
+check "already healthy: one read of the service state, then the port" test "$(call_count '^compose ps')-$(call_count '^compose port')" = 1-1
+check "already healthy: says it was not started again, and names the command that applies an update" test "$(out_has 'already running and healthy, so it was not started again' && out_has 'To apply an update, run: docker compose up -d --build' && echo ok)" = ok
+check "already healthy: it does not say it is starting" out_lacks "Starting OcuTalon"
 check "already healthy: it never sleeps" test ! -s "$d/sleeps"
+
+# A healthy service does not skip the checks and the changes before it: a base for another CPU still stops the script, and a missing
+# base and a missing .env are still made before the ready block.
+new_case already-healthy-base-wrong-cpu
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+add_base $ID_X amd64
+echo 'running healthy' > "$d/before"
+run_install
+check "already healthy, base for another CPU: exit 1 with no ready block, nothing changed, the service not read" test "$(exit_is 1 && out_lacks 'OcuTalon is ready after' && no_change && echo ok)-$(call_count '^compose ps')" = ok-0
+
+new_case already-healthy-no-base-no-env
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+echo 'running healthy' > "$d/before"
+run_install
+check "already healthy, no base and no .env: exit 0 with the ready block, no compose up" test "$(exit_is 0 && ready_block 52773 && echo ok)-$(call_count '^compose up')" = ok-0
+check "already healthy, no base and no .env: the base name is tagged once, from the image id" tagged_once $HEALTH_ID
+check "already healthy, no base and no .env: .env is a byte for byte copy of .env.example, with the key instruction" test "$(env_is_example && out_has 'add it to .env and run: docker compose up -d --force-recreate' && echo ok)" = ok
+
+# Any other state of the service runs `compose up -d` and waits: no container (the default of every other case), starting, unhealthy,
+# stopped, dead, created, and a running one with no health check or a restarting or paused one. Each row is <state>|<health check>.
+for row in 'running|starting' 'running|unhealthy' 'running|' 'restarting|' 'paused|' 'exited|' 'dead|' 'created|'; do
+  before_state=${row%|*}
+  before_health=${row#*|}
+  label="container '$before_state${before_health:+ $before_health}' before the run"
+  new_case "before-$before_state${before_health:+-$before_health}"
+  add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+  add_base $HEALTH_ID arm64
+  echo "$before_state $before_health" > "$d/before"
+  printf '%s\n' 'running starting' 'running healthy' > "$d/health"
+  run_install
+  check "$label: exit 0 with the ready block" test "$(exit_is 0 && ready_block 52773 && echo ok)" = ok
+  check "$label: compose up -d runs once, with IRIS_IMAGE set to the base name" test "$(call_count '^compose up -d$')-$(up_env_is "$BASE" && echo ok)" = 1-ok
+  check "$label: it says it is starting and waits (one progress line)" test "$(out_count '^Waiting, ')-$(out_has 'Starting OcuTalon' && echo ok)" = 1-ok
+  check "$label: no update line (that is for a healthy install)" out_lacks "To apply an update"
+done
 
 new_case custom-port
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -642,7 +694,7 @@ echo 1 > "$d/up-exit"
 run_install
 check "up fails: exit 1" exit_is 1
 check "up fails: plain message with the logs command and the README section" test "$(out_has 'Docker Compose could not start OcuTalon' && failure_help && echo ok)" = ok
-check "up fails: no poll afterwards" test "$(call_count '^compose ps')" -eq 0
+check "up fails: no poll afterwards (the only read of the service is the one before up)" test "$(call_count '^compose ps')" -eq 1
 check "up fails: compose's own messages (both streams) stay on screen, as the message above says" test "$(out_has 'stub: compose up' && out_has 'message on standard error' && echo ok)" = ok
 
 new_case other-folder
