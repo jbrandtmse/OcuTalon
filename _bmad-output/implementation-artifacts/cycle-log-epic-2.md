@@ -248,3 +248,5 @@
 2026-10-23T16:43:23Z	Story 2.13	ledger_routed_planned	story=2-13-open-visual-trace-from-the-page entries=1(DW-58,moved_with_the_split) excess=0 by=spec_gate
 2026-10-23T16:43:23Z	Story 2.9	plan_clarification_requested	question=AD-26_item-index_wording(the_formula_over-counts_rows_Visual_Trace_does_not_draw;spec_counts_what_VT_draws) category=AD_amendment(U7,U14)->orchestrator note=AD-26_cited_by_Epic_1_in-flight_specs(1.3,1.4,1.5,1.6,1.7,1.8)_and_done_Epic_2_specs cycle_iteration=1
 2026-10-23T16:43:29Z	Story 2.8	ci_resolved	story=2.8 sha=68d5fd1 runs=39984019043,39984019045 result=success failed=none via=none resolved_at=next_plan first_ci=success
+2026-10-23T16:44:55Z	Story 2.9	unattended_stop	unit=Story_2.9 reason=AD-26_re-architecture inbox=U-41 by=orchestrator(U7c,U14) note=no_code_yet(no_set-aside);spec_kept_as_is;answer_routes:(a)amend_with_owner_marker,(b)literal_formula,(c)stays_stopped
+2026-10-23T16:44:55Z	Story 2.13	story_waiting	story=2-13-open-visual-trace-from-the-page on=Story_2.9(U-41) note=consumes_2.9_traceUrl;not_independent(U10)
