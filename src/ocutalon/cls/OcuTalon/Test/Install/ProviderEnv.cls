@@ -4,8 +4,8 @@
 /// out here as JSON text, not taken from the step's builder. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): it sets
 /// and removes the three variables in the process, rewrites the entries AI.LLM.OcuTalonTriage, ...Diagnosis and ...Chat and the
 /// ProviderConfig rows of OcuTalon.Production, and puts the variables, the entries and the rows back, a missing one as missing.
-///   - TestJudgesInstall: no variable set; each entry is the provider and the key placeholder alone, with no base_url and no
-///     http_config;
+///   - TestJudgesInstall: no variable set; each entry is the provider and the key placeholder, with no base_url and an http_config
+///     that holds the timeouts of the bridge timer alone (since Story 1.7: the request timeout and the whole retry block of the timer 60);
 ///   - TestFlagAlone: the flag 1 alone; each entry has the header with its agent's own mock key and no base_url;
 ///   - TestBaseUrlAlone: the base URL with the flag unset, 0, true, " 1" or "1 "; each entry has base_url and no header;
 ///   - TestCiEnvironment: the base URL and the flag 1; each entry has base_url and the header with its agent's own mock key;
@@ -13,6 +13,9 @@
 ///   - TestBadEnvironment: a base URL that is not http(s)://host/.../v1/ and a CA file that does not exist each fail Run(), naming
 ///     the variable, and leave every entry and row as they were;
 ///   - TestDescriptions: an entry that Run() creates and the rows that it writes say that the step writes them at every start.
+/// Every expected entry holds the timeouts of the timer 60 in http_config, after the headers and the tls block (Story 1.7; AD-8, AD-19). A
+/// TimerSeconds row of Decide would change them, so Begin takes the row away and End puts it back: the test does not depend on the timer that
+/// an earlier test left.
 Class OcuTalon.Test.Install.ProviderEnv Extends %UnitTest.TestCase
 {
 
@@ -27,6 +30,12 @@ Parameter VARIABLES = "OCUTALON_MODEL_BASE_URL,OCUTALON_EXTRA_CA_FILE,OCUTALON_M
 
 /// A base URL that is not the CI mock's, so that the value is shown to come from the environment.
 Parameter URL = "http://env-test.invalid/v1/";
+
+/// The timeouts of the timer 60 in http_config, written out: (60 - 10) \ 2 is 25.
+Parameter BLOCK = """request_timeout_secs"":25,""retry"":{""max_retries"":1,""attempt_timeout_secs"":25,""initial_backoff_ms"":500,""max_backoff_ms"":2000}";
+
+/// The TimerSeconds row of Decide as the test found it (Test.Agent.RunnerFixture.SnapshotDefault), or "".
+Property TimerRow As %List;
 
 /// The environment variables as the test found them: for each, present (1 or 0) and value.
 Property Env As %DynamicObject;
@@ -154,11 +163,14 @@ Method TestDescriptions()
 }
 
 /// --- helpers ---
-/// Takes the environment, the entries and the rows as found, and returns the state text.
+/// Takes the environment, the entries and the rows as found, and returns the state text. The TimerSeconds row of Decide is taken away
+/// (End puts it back), so that the entries are those of the timer 60.
 Method Begin() As %String [ Private ]
 {
 	Set ..Env = {}
 	Set ..Saved = {}
+	Set ..TimerRow = ##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault("Decide", "TimerSeconds")
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault($ListBuild("Decide", "TimerSeconds", 0))
 	Set list = $ListFromString(..#VARIABLES)
 	Set position = 0
 	While $ListNext(list, position, variable) {
@@ -197,11 +209,13 @@ Method End(before As %String) [ Private ]
 	}
 }
 
-/// Puts back what Begin took, and does nothing when it took nothing. The row is removed or written around the entry, because
-/// writing a row validates it against the entry.
+/// Puts back what Begin took (the TimerSeconds row of Decide included), and does nothing when it took nothing. The row is removed or
+/// written around the entry, because writing a row validates it against the entry.
 Method Restore() [ Private ]
 {
 	If '$IsObject(..Env) || '$IsObject(..Saved) Quit
+	If ..TimerRow '= "" Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..TimerRow)
+	Set ..TimerRow = ""
 	Set list = $ListFromString(..#VARIABLES)
 	Set position = 0
 	While $ListNext(list, position, variable) {
@@ -261,19 +275,17 @@ Method ExpectStored(label As %String, url As %String, header As %Boolean, file A
 }
 
 /// The JSON text of the entry that the matrix gives an agent: the provider and the placeholder, base_url when there is a URL,
-/// and http_config with the agent's mock key header when header is 1 and the tls block when there is a CA file. The agent's
-/// mock key is its name in lower case.
+/// and http_config with the agent's mock key header when header is 1, the tls block when there is a CA file, and the timeouts of the
+/// timer 60 last. The agent's mock key is its name in lower case.
 ClassMethod Entry(agent As %String, url As %String, header As %Boolean, file As %String) As %String [ Private ]
 {
 	Set json = "{""model_provider"":""anthropic"",""api_key"":""@{env:ANTHROPIC_API_KEY}"""
 	If url '= "" Set json = json _ ",""base_url"":""" _ url _ """"
-	If header || (file '= "") {
-		Set parts = ""
-		If header Set parts = """custom_headers"":{""x-ocutalon-mockkey"":""" _ $ZConvert(agent, "L") _ """}"
-		If file '= "" Set parts = parts _ $Select(parts = "": "", 1: ",") _ """tls"":{""ca_certificates"":[""" _ file _ """],""accept_invalid_certs"":false,""accept_invalid_hostnames"":false}"
-		Set json = json _ ",""http_config"":{" _ parts _ "}"
-	}
-	Quit json _ "}"
+	Set parts = ""
+	If header Set parts = """custom_headers"":{""x-ocutalon-mockkey"":""" _ $ZConvert(agent, "L") _ """}"
+	If file '= "" Set parts = parts _ $Select(parts = "": "", 1: ",") _ """tls"":{""ca_certificates"":[""" _ file _ """],""accept_invalid_certs"":false,""accept_invalid_hostnames"":false}"
+	Set parts = parts _ $Select(parts = "": "", 1: ",") _ ..#BLOCK
+	Quit json _ ",""http_config"":{" _ parts _ "}}"
 }
 
 /// The details of an agent's entry as JSON text, or "" when there is no such entry.

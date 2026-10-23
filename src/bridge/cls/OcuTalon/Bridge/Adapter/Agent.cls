@@ -8,7 +8,8 @@ Include Ensemble
 ///     not kept, so the next request builds again. The built agent has no Temperature, so that AI Hub adds no temperature to a
 ///     session.
 ///   - It composes the session config in one place (Compose) and uses it for every AI session it creates (NewSession) or opens
-///     (OpenSession), because a session that is resumed without its config loses the cap and the effort.
+///     (OpenSession), because a session that is resumed without its config loses the cap and the effort. The config carries timeout_ms,
+///     which Timeouts.Derive gives for the TimerSeconds setting of Decide as it stands when the config is composed (SessionConfigFor).
 ///   - It adds the step audit policy to every agent it builds (OnAfterAgentInit), after any policy that a setting names, and refuses
 ///     the AuditPolicy setting (REFUSED), so that every tool call is a step (AD-6, AD-9).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
@@ -18,7 +19,9 @@ Include Ensemble
 /// returns, whether or not Decide still waits for it, and after a Chat that threw when the difference holds a model request or a
 /// token; a call that threw before any request writes nothing. The reply carries the same counts, the cost and the model, the
 /// step count (model requests plus tool calls) and the wall time of Chat in milliseconds. A stats, price or save problem is logged
-/// as a warning and never changes the answer or its status. Inventory lists the tools of the live ToolManager.
+/// as a warning and never changes the answer or its status. Every reply, a failure reply included, also says whether a tool ran
+/// (ToolsRan: AI Hub's tool-call counter went up between the two readings, a step record is of kind tool, or a reading could not be
+/// read), because Decide sends a rate-limited attempt again only when no tool ran. Inventory lists the tools of the live ToolManager.
 /// Answer also records the agent steps of the call (AD-9): it starts the step buffer right before Chat, with the size of what the
 /// first request carries, and passes the step renderer to Chat; the renderer records one step for every model response and the step
 /// audit policy one for every tool call, in the runner's job. After Chat, outside every callback, Answer reads the buffer: the
@@ -129,9 +132,10 @@ ClassMethod ClearSampling(agent As %AI.Agent)
 ///   - CAP goes to the family's CapKey, a dotted path such as max_tokens or extra_params.max_completion_tokens;
 ///   - the effort goes to the family's EffortKey when both are not empty;
 ///   - max_iterations is set when the agent has one;
-///   - the cache block is always set.
+///   - the cache block is always set;
+///   - timeout_ms is set last, when timeoutMs is not empty (Timeouts.Derive gives it from the bridge timer).
 /// No sampling parameter is ever set.
-ClassMethod Compose(maxIterations As %Integer, model As %String, effort As %String, Output config As %DynamicObject) As %Status
+ClassMethod Compose(maxIterations As %Integer, model As %String, effort As %String, Output config As %DynamicObject, timeoutMs As %Integer = "") As %Status
 {
 	Set config = ""
 	If model = "" Quit $$$ERROR($$$GeneralError, "No model resolves for this runner, so no request is sent: set the Model setting of the item or give the agent class a MODEL")
@@ -156,6 +160,7 @@ ClassMethod Compose(maxIterations As %Integer, model As %String, effort As %Stri
 	If (effort '= "") && (effortKey '= "") Do ..SetPath(config, effortKey, effort, "string")
 	If maxIterations '= "" Do config.%Set("max_iterations", +maxIterations, "number")
 	Do config.%Set("cache", {"enabled": 1, "cache_system_prompt": 1, "cache_tool_definitions": 1, "min_tokens_for_cache": 512})
+	If timeoutMs '= "" Do config.%Set("timeout_ms", +timeoutMs, "number")
 	Quit $$$OK
 }
 
@@ -171,10 +176,21 @@ ClassMethod SetPath(target As %DynamicObject, path As %String, value, type As %S
 	Do target.%Set($Piece(path, ".", count), value, type)
 }
 
-/// The session config for the built agent: Compose for its MaxIterations, its model and the Effort setting. The agent is built.
+/// The session config for the built agent: Compose for its MaxIterations, its model, the Effort setting and the timeout_ms of the
+/// bridge timer (TimeoutMs). The agent is built.
 Method SessionConfigFor(Output config As %DynamicObject) As %Status
 {
-	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config)
+	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs())
+}
+
+/// The timeout_ms that Timeouts.Derive gives for the TimerSeconds setting of the Decide item of the active production, as Ext.Accessor
+/// ValueFor reads it now, or "" when the setting cannot be read or Timeouts.Check refuses it: the config then carries no timeout_ms,
+/// and Decide refuses every request in that state (CheckSettings).
+ClassMethod TimeoutMs() As %String
+{
+	Set timer = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", "", "Decide", .sc)
+	If $$$ISERR(sc) Quit ""
+	Quit ##class(OcuTalon.Bridge.Timeouts).Derive(timer).%Get("timeout_ms")
 }
 
 /// Creates an AI session with a newly composed config. The agent is built.
@@ -250,6 +266,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 					Set row = ""
 				}
 				Set context = ##class(OcuTalon.Bridge.Context).Current()
+				Set records = ..StepRecords()
 				Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 				If $IsObject(thrown) {
 					Set reply.FailureText = failureText
@@ -259,7 +276,8 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				}
 				Set reply.HostData = context.HostData
 				Set reply.Tainted = context.Tainted
-				Set reply.Steps = ..StepsJson()
+				Set reply.Steps = ..StepsJson(records)
+				Set reply.ToolsRun = ..ToolsRan(before, after, records)
 				Do ..CarryUsage(row, before, after, durationMs, reply)
 			}
 		} Catch exception {
@@ -305,18 +323,42 @@ Method FailureText(thrown As %Exception.AbstractException, request As OcuTalon.B
 	Quit text
 }
 
-/// The step records of the call as a JSON array (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after
-/// Chat, outside every callback.
-Method StepsJson() As %String [ Private ]
+/// The step records of the call (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after Chat, outside every
+/// callback.
+Method StepRecords() As %DynamicArray [ Private ]
 {
-	Set json = ""
+	Set records = ""
 	Try {
-		Set json = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records().%ToJSON()
+		Set records = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records()
 	} Catch exception {
-		Set json = ""
+		Set records = ""
 		$$$LOGWARNING("The steps of the call are not returned: "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
-	Quit json
+	Quit records
+}
+
+/// The step records as a JSON array, or "" for records that could not be read (StepRecords).
+ClassMethod StepsJson(records As %DynamicArray) As %String [ Private ]
+{
+	Quit $Select($IsObject(records): records.%ToJSON(), 1: "")
+}
+
+/// 1 when a tool may have run in the call, otherwise 0 (DW-56). It is pure. A tool ran when:
+///   - the total_tool_calls counter of the two GetStats() readings went up (Usage.Delta above 0);
+///   - a step record is of kind tool (records, the step records of the call: a dynamic array, ignored when it is not one);
+///   - or either reading is not an object, because an unknown counts as a tool that ran, so that Decide never sends again an attempt in
+///     which a tool may have run. A call to a tool that does not exist, and one that the gate denied, count too.
+ClassMethod ToolsRan(before As %DynamicObject, after As %DynamicObject, records As %DynamicArray) As %Boolean
+{
+	If '$IsObject($Get(before)) || '$IsObject($Get(after)) Quit 1
+	If ##class(OcuTalon.Bridge.Data.Usage).Delta(before, after, "total_tool_calls") > 0 Quit 1
+	If '$IsObject($Get(records)) || 'records.%IsA("%Library.DynamicArray") Quit 0
+	Set ran = 0
+	Set iterator = records.%GetIterator()
+	While iterator.%GetNext(, .record, .type) {
+		If (type = "object") && (record.%Get("kind") = "tool") Set ran = 1
+	}
+	Quit ran
 }
 
 /// session.GetStats(), or "" with a warning when it throws: AI Hub's counters of the session (total_interactions, total_tool_calls

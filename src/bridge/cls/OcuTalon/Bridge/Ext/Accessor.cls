@@ -1,8 +1,9 @@
-/// The one reader of the bridge's host settings (AD-19, AD-31). The Decide item names three extension classes in its
+/// The one reader and writer of the bridge's host settings (AD-19, AD-31). The Decide item names three extension classes in its
 /// host settings, and any job can read them through ClassFor, the AnswersIn job that calls Approval.Answer included.
 /// A named class that is missing, or that does not extend its base, is an error and never silently the do-nothing
 /// base, so a misconfigured reply filter cannot disable the all-clear guard without a trace. ValueFor is the general read
-/// of a setting, which ClassFor builds on and which the budget reads its three settings through (AD-20).
+/// of a setting, which ClassFor builds on and which the budget reads its three settings through (AD-20). WriteDefault is the
+/// one writer of a System Default Settings row, for the bridge and for the install steps that call it.
 Class OcuTalon.Bridge.Ext.Accessor
 {
 
@@ -24,6 +25,27 @@ ClassMethod ValueFor(setting As %String, production As %String = "", item As %St
 	Set value = ##class(Ens.Director).GetHostSettingValue(production_"||"_item, setting, .sc)
 	If $$$ISERR(sc) Quit ""
 	Quit value
+}
+
+/// Writes the System Default Settings row (production, item, any class, setting) with the value and the description: it
+/// changes the row when it exists and creates it otherwise. A row that matches every class applies to the director's
+/// lookup of the item and to the job of the item alike.
+ClassMethod WriteDefault(production As %String, item As %String, setting As %String, value As %String, description As %String) As %Status
+{
+	Set id = production_"||"_item_"||*||"_setting
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id, , .sc)
+		If $$$ISERR(sc) Quit sc
+	} Else {
+		Set row = ##class(Ens.Config.DefaultSettings).%New()
+		Set row.ProductionName = production
+		Set row.ItemName = item
+		Set row.HostClassName = "*"
+		Set row.SettingName = setting
+	}
+	Set row.SettingValue = value
+	Set row.Description = description
+	Quit row.%Save()
 }
 
 /// The class that the setting names on the item of the production, or "" with an error in sc (ValueFor reads the setting).

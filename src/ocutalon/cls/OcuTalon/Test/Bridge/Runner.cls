@@ -53,16 +53,29 @@
 ///   - TestFailureTextRedacted: the provider's text with a fake Bearer token (the scenario provider-error-secret) shows [redacted] in
 ///     FailureText, and the token is in no FailureText, Steps, reply XML, event-log row or what the key scan names; a failure text over
 ///     2,000 characters is cut to Reply.#MAXFAILURE, with its line breaks as spaces; an error before Chat keeps its error status.
-/// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote.
+/// Added by Story 1.7 (AD-6, AD-7, AD-8, DW-56):
+///   - TestSessionTimeout: the session config that the adapter composes carries timeout_ms, which Timeouts.Derive gives for the TimerSeconds
+///     setting of Decide as it stands when the config is composed: 55000 with no row (the setting's initial value of 60), 15000 for a row of
+///     20, and none for a row that Timeouts.Check refuses (111), the rest of the config unchanged;
+///   - TestToolsRun: the Reply says whether a tool ran: 1 for a turn that called two tools and for a call that failed after a tool, 0 for
+///     Triage's default script and for a call that failed at its first request; ToolsRan is 1 for an unreadable reading and for a tool
+///     counter that went up or a tool step, and 0 otherwise.
+/// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote, and every System
+/// Default Settings row that a test put is put back.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
 
 /// The class of the runner, whose host is made in memory.
 Parameter RUNNER = "OcuTalon.Bridge.Operation.AgentRunner";
 
+/// The System Default Settings rows before the test touched them (Test.Agent.RunnerFixture.RememberDefault), to be put back.
+Property SavedRows As %List;
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
+	Set ..SavedRows = ""
 	Quit $$$OK
 }
 
@@ -788,6 +801,87 @@ Method TestStatsReadFails()
 	Do $$$AssertEquals(raised, "", "a session whose stats cannot be read raises nothing")
 	Do $$$AssertEquals(stats, "", "and gives no reading")
 	Do $$$AssertEquals(..WarningsAbout(mark, "GetStats", "ReadStats", "OcuTalon.Test.Bridge.ZzStatsAdapter"), 1, "one warning says that GetStats of the AI session failed")
+}
+
+/// The session config carries timeout_ms (AD-7, AD-8): Timeouts.Derive of the TimerSeconds setting of the Decide item of the active production,
+/// read each time the config is composed. With no row the setting has its initial value, 60, and the config 55000; a row of 20 gives 15000
+/// (the next config, with no restart of the test's adapter: the runners are restarted by Timeouts.Apply for their Config Store entries); a
+/// row of 111, which Timeouts.Check refuses, composes no timeout_ms, and the rest of the config is the same in each case.
+Method TestSessionTimeout()
+{
+	If ..Guard() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set adapter = host.Adapter
+	Do $$$AssertStatusOK(adapter.BuildAgent(), "the agent is built")
+	Set saved = ..SavedRows
+	Do $ClassMethod(fixture, "RememberDefault", .saved, "Decide", "TimerSeconds")
+	Set ..SavedRows = saved
+	Do $ClassMethod(fixture, "RestoreDefault", $ListBuild("Decide", "TimerSeconds", 0))
+	Set base = "{""max_tokens"":8000,""extra_params"":{""output_config"":{""effort"":""low""}},""cache"":"_##class(OcuTalon.Test.Bridge.SessionConfig).#CACHE
+	Do $$$AssertStatusOK(adapter.SessionConfigFor(.config), "with no TimerSeconds row a config is composed")
+	If $IsObject(config) Do $$$AssertEquals(config.%ToJSON(), base_",""timeout_ms"":55000}", "with timeout_ms 55000: the timer's initial value of 60 less 5 s")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 20), "a TimerSeconds row of 20 is written")
+	Do $$$AssertStatusOK(adapter.SessionConfigFor(.config), "the next config is composed")
+	If $IsObject(config) Do $$$AssertEquals(config.%ToJSON(), base_",""timeout_ms"":15000}", "with timeout_ms 15000")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 111), "a TimerSeconds row of 111 is written")
+	Do $$$AssertStatusOK(adapter.SessionConfigFor(.config), "a config is composed")
+	If $IsObject(config) Do $$$AssertEquals(config.%ToJSON(), base_"}", "and has no timeout_ms: a timer that Check refuses gives none, and the rest is unchanged")
+	Do $$$AssertEquals(adapter.TimeoutMs(), "", "TimeoutMs gives none for it")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 12), "a TimerSeconds row of 12 is written")
+	Do $$$AssertEquals(adapter.TimeoutMs(), 7000, "TimeoutMs gives 7000 for the shortest timer")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 110), "a TimerSeconds row of 110 is written")
+	Do $$$AssertEquals(adapter.TimeoutMs(), 105000, "and 105000 for the longest")
+}
+
+/// The Reply says whether a tool ran (DW-56): ToolsRun is 1 for a turn that called two tools, and for a call that failed with a rate limit after
+/// a tool ran (a failure Reply carries it too, with the usage and the steps of the call), and 0 for Triage's default script and for a call
+/// that failed at its first request. ToolsRan is pure: an unreadable reading is a tool that may have run, so is a tool counter that went up
+/// and a tool step; a model step and a counter that did not move are not.
+Method TestToolsRun()
+{
+	If ..Guard() Quit
+	Set agent = "OcuTalon.Bridge.Adapter.Agent"
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set request = ..NewUsageRequest("turn", "[[mock:steps-two-tools]] Read the note and the card.")
+	Do $$$AssertStatusOK(host.OnMessage(request, .tools), "a turn that calls two tools is answered")
+	If $IsObject(tools) Do $$$AssertEquals(tools.ToolsRun_"|"_tools.AgentStepCount, "1|5", "its Reply says that tools ran")
+	Set request = ..NewUsageRequest("turn", "[[mock:rate-limited-after-tool]] Read the note.")
+	Do $$$AssertStatusOK(host.OnMessage(request, .failed), "a turn that fails with a rate limit after a tool is answered with status OK")
+	If $IsObject(failed) {
+		Do $$$AssertTrue(failed.FailureText [ "Rate limit exceeded", "its failure Reply holds the provider's text: "_$Extract(failed.FailureText, 1, 200))
+		Do $$$AssertEquals(failed.ToolsRun_"|"_failed.AgentStepCount, "1|2", "and says that a tool ran, with the two steps of the call")
+		Set kinds = ""
+		Set iterator = ..StepsOf(failed).%GetIterator()
+		While iterator.%GetNext(, .step) {
+			Set kinds = kinds _ $Select(kinds = "": "", 1: ",") _ step.kind
+		}
+		Do $$$AssertEquals(kinds, "model,tool", "the steps are a model step and the tool step")
+	}
+	Set triage = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Do $$$AssertStatusOK(..Ask(triage, "A new email arrived. Should the user hear about it now?", .normal), "Triage's default script is answered")
+	If $IsObject(normal) Do $$$AssertEquals(normal.ToolsRun_"|"_normal.AgentStepCount, "0|1", "its Reply says that no tool ran")
+	Set request = ..NewUsageRequest("decide", "Fail this. [[mock:provider-error]]")
+	Do $$$AssertStatusOK(triage.OnMessage(request, .failure), "a call that fails at its first request is answered with status OK")
+	If $IsObject(failure) Do $$$AssertEquals(failure.ToolsRun_"|"_failure.AgentStepCount_"|"_(failure.FailureText '= ""), "0|0|1", "its failure Reply says that no tool ran")
+
+	// ToolsRan
+	Set none = {"total_interactions": 3, "total_tool_calls": 0}
+	Set same = {"total_interactions": 4, "total_tool_calls": 0}
+	Set up = {"total_interactions": 4, "total_tool_calls": 1}
+	Set model = [{"kind": "model", "label": "Model request 1"}]
+	Set tool = [{"kind": "model"}, {"kind": "tool", "label": "Reading the test note"}]
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", "", "", []), 1, "readings that cannot be read: a tool may have run")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, "", model), 1, "no reading after the call: a tool may have run")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", "", same, model), 1, "no reading before the call: a tool may have run")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, same, model), 0, "a counter that did not move and a model step: no tool ran")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, same, []), 0, "and no step at all")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, same, tool), 1, "a tool step: a tool ran, whatever the counter says")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, up, []), 1, "a counter that went up: a tool ran, whatever the steps say")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, up, model), 1, "also with a model step")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", up, none, model), 0, "a counter that went down is not a tool call")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, same, ""), 0, "records that cannot be read count for nothing when the counters are readable")
+	Do $$$AssertEquals($ClassMethod(agent, "ToolsRan", none, same, [5, "tool", null]), 0, "and so do records that are no objects")
 }
 
 /// --- helpers ---

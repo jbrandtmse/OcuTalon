@@ -1,6 +1,7 @@
 /// The Config Store API (AD-19). Merge changes some fields of an AI Hub LLM entry and leaves the others as they are; it is
 /// the one run-time writer of those entries, and the first caller is the model-change API of Story 17.3. Details reads an entry
-/// with its placeholders unresolved, for Merge and for OcuTalon.Bridge.Keys. The bridge names no other OcuTalon package here (AD-2).
+/// with its placeholders unresolved, for Merge and for OcuTalon.Bridge.Keys, and EntryOf reads the entry name out of a runner's
+/// @{config:<name>} reference, for Keys and for Timeouts. The bridge names no other OcuTalon package here (AD-2).
 /// What Merge guards (AD-19): an api_key field, at any depth, takes only one environment placeholder, @{env:NAME}, which
 /// AI Hub resolves inside its provider, and an @{ in any other string or field name is refused, so that no merged value can
 /// expand an environment variable that is not a key placeholder. Merge judges nothing else: not the variable a placeholder
@@ -17,6 +18,9 @@ Parameter TYPE = "LLM";
 
 /// The only form of an api_key value: one environment placeholder (an ICU pattern, anchored at both ends).
 Parameter KEYPATTERN = "^@\{env:[A-Za-z0-9_]+\}\z";
+
+/// The only form of a reference to an entry: @{config:<name>}, where the name holds no braces (an ICU pattern, anchored at both ends).
+Parameter REFERENCEPATTERN = "^@\{config:[^{}]+\}\z";
 
 /// Merges fields into the entry and leaves the entry's other fields as they are. entry is the fully qualified name of the
 /// entry (AI.LLM.OcuTalonTriage), or a name of fewer than three dotted parts, which names the entry AI.LLM.<name>.
@@ -73,6 +77,15 @@ ClassMethod Details(entry As %String, Output details As %DynamicObject) As %Stat
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// The entry name of a provider configuration that is exactly one @{config:<name>} reference (surrounding white space and control
+/// characters are ignored), otherwise "". The name is as written, so it is a name that Details and FullName take.
+ClassMethod EntryOf(providerConfig As %String) As %String
+{
+	Set text = $ZStrip($Get(providerConfig), "<>WC")
+	If '$Match(text, ..#REFERENCEPATTERN) Quit ""
+	Quit $Piece($Piece(text, "@{config:", 2), "}", 1)
 }
 
 /// The fully qualified name of an entry: a name of fewer than three dotted parts is an AI.LLM entry.

@@ -6,7 +6,7 @@
   "replies": [
     {
       "status": 200,
-      "delayMs": 6000,
+      "delayMs": 18000,
       "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers late.\"],\"confidence\":0.5}"
     }
   ]

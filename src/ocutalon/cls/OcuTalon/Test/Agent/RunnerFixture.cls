@@ -36,6 +36,9 @@
 ///   - Drain and FallbackProblems (QA, Story 1.6): Drain waits until a runner has handled every message sent to it before the call, so that
 ///     a test that asserts that nothing reached the mock reads the log after a request of Decide's could have arrived; FallbackProblems
 ///     names whatever is missing from the guarantees of a fallback (the answer, its XML and the Decision row), for every live test of a fallback.
+///   - UseTimer and RestoreTimer (Story 1.7): change the bridge timer for a test the way the product does, through Timeouts.Apply (the row of
+///     TimerSeconds, the block of every runner's entry and the restarts of Decide and the runners), and put it back through Apply with the
+///     earlier timer and then RestoreDefaults for the row as it was.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -646,6 +649,31 @@ ClassMethod RestoreDefaults(saved As %List) As %Status
 	Quit first
 }
 
+/// Changes the bridge timer for a test through Timeouts.Apply of OcuTalon.Production, as the product does: the TimerSeconds row of Decide, the
+/// timeouts of every runner's entry, and new jobs for Decide and the runners (the status is Apply's, so the error of a restart that did not
+/// finish too). saved says what RestoreTimer needs: $ListBuild(the rows before, the timer before). It is set before Apply is called, so that
+/// RestoreTimer puts back whatever Apply did. THIS CHANGES THE RUNNING PRODUCTION: throwaways and CI only (Rule 21).
+ClassMethod UseTimer(timer As %Integer, Output saved As %List) As %Status
+{
+	Set saved = ""
+	Set rows = ""
+	Do ..RememberDefault(.rows, "Decide", "TimerSeconds")
+	Set previous = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", ..#PRODUCTION, "Decide", .sc)
+	If $$$ISERR(sc) Quit sc
+	Set saved = $ListBuild(rows, previous)
+	Quit ##class(OcuTalon.Bridge.Timeouts).Apply(timer, ..#PRODUCTION)
+}
+
+/// Puts the timer back as UseTimer found it: Timeouts.Apply with the earlier timer (the entries and the jobs again), and then the TimerSeconds row as it
+/// was, deleted when there was none (RestoreDefaults). The status is the first error. Nothing to restore (saved is "") is OK.
+ClassMethod RestoreTimer(saved As %List) As %Status
+{
+	If $Get(saved) = "" Quit $$$OK
+	Set sc = ##class(OcuTalon.Bridge.Timeouts).Apply($List(saved, 2), ..#PRODUCTION)
+	Set restored = ..RestoreDefaults($List(saved, 1))
+	Quit $Select($$$ISERR(sc): sc, 1: restored)
+}
+
 /// The rows of the event log after the mark (EventMark) of Type 2 (error) or 6 (alert), as a list of "<type>: <item>: <text>" (the text
 /// cut to 200 characters), oldest first. A start with no key writes none (FR-38). A statement that fails gives one row that says so,
 /// never an empty list.
@@ -699,7 +727,8 @@ ClassMethod Drain(item As %String) As %Status
 /// nothing is (QA, Story 1.6; AD-8, AD-26, AD-28, AD-30): the guarantees of every fallback in one place, so that no test leaves one out.
 ///   - the answer is a DecisionResponse for a decide or diagnose request and a Reply for a turn, with the outcome tellnow, Fallback true and
 ///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and no
-///     flag of the runner's set (SessionRotated, ToolsRun, SessionBroken, Busy; Tainted is the runner's own and is not judged here);
+///     flag of the runner's set that Decide does not carry (SessionRotated, SessionBroken, Busy; Tainted and ToolsRun are the runner's own and
+///     are not judged here: a fallback after a tool ran says so);
 ///   - the XML of the answer, which Visual Trace shows, holds all three of <Outcome>tellnow</Outcome>, <Fallback>true</Fallback> and
 ///     <FallbackReason>the reason</FallbackReason>;
 ///   - the row exists, is of the kind, and holds the outcome tellnow, Fallback 1, the reason, no reasons, confidence or payload, and the
@@ -717,7 +746,7 @@ ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObje
 		If (answer.Reasons '= "") || (answer.Confidence '= "") Set problems = problems _ $ListBuild("the answer has reasons or a confidence")
 		If kind = "turn" {
 			If (answer.Text _ answer.HostData _ answer.Steps _ answer.FailureText _ answer.FinishReason) '= "" Set problems = problems _ $ListBuild("the Reply has a text, host data, steps, a failure text or a finish reason")
-			If (answer.SessionRotated _ answer.ToolsRun _ answer.SessionBroken _ answer.Busy) '= "0000" Set problems = problems _ $ListBuild("the Reply has a flag of the runner's set")
+			If (answer.SessionRotated _ answer.SessionBroken _ answer.Busy) '= "000" Set problems = problems _ $ListBuild("the Reply has a flag of the runner's set")
 		} Else {
 			If answer.Payload '= "" Set problems = problems _ $ListBuild("the DecisionResponse has a payload")
 		}

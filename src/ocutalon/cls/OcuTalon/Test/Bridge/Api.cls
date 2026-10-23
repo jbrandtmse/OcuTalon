@@ -4,7 +4,7 @@
 ///   - TestApprovalStubs: Raise, Expire, Cancel, StartExecution and FinishExecution; Answer answers not_found with an
 ///     empty winner;
 ///   - TestNeutralValues: Keys.Status of an item that is not in the production (Keys.Status is no stub since Story 1.6; Test.Bridge.Keys
-///     pins it), Timeouts.Derive, Agent.Input.Render of an empty Item (which renders "" since Story 1.3) and
+///     pins it), Timeouts.Derive of a timer that is refused (Derive is no stub since Story 1.7; Test.Bridge.Timeouts pins it), Agent.Input.Render of an empty Item (which renders "" since Story 1.3) and
 ///     Checks.Render.Render (Budget.State is no stub since Story 1.4; Test.Bridge.Budget pins it);
 ///   - TestStubAdapter: the runners' adapter extends AI Hub's outbound agent adapter and overrides its OnInit, which builds
 ///     the agent at start, so that a runner starts with no model key (the adapter builds the agent on the first request instead),
@@ -29,13 +29,14 @@ Method TestApprovalStubs()
 	Do $$$AssertEquals(winner.%ToJSON(), "{}", "which is empty")
 }
 
-/// Keys.Status of an item that is not in the production is 0 (Test.Bridge.Keys pins the rest); Timeouts.Derive(60) is {}; Agent.Input.Render of an empty Item gives "" (the rule of its renderer: an Item
+/// Keys.Status of an item that is not in the production is 0 (Test.Bridge.Keys pins the rest); Timeouts.Derive(111) is {} (the rest of Derive is no stub:
+/// Test.Bridge.Timeouts); Agent.Input.Render of an empty Item gives "" (the rule of its renderer: an Item
 /// with no text renders nothing); Checks.Render.Render([]) gives "" and rows []. Budget.State is not here: it is implemented
 /// (Story 1.4) and Test.Bridge.Budget pins it.
 Method TestNeutralValues()
 {
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Keys).Status("ZzNoSuchItem"), 0, "Keys.Status of an item that is not in the production is 0")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Timeouts).Derive(60).%ToJSON(), "{}", "Timeouts.Derive is an empty object")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Timeouts).Derive(111).%ToJSON(), "{}", "Timeouts.Derive of a timer that Check refuses is an empty object")
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(##class(OcuTalon.Msg.Item).%New()), "", "Agent.Input.Render gives an empty string")
 	Set key = ##class(OcuTalon.Checks.Render).Render([], .rows)
 	Do $$$AssertEquals(key, "", "Checks.Render.Render gives an empty catalog key")

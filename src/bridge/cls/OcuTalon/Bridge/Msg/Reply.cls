@@ -14,7 +14,10 @@ Property Tainted As %Boolean [ InitialExpression = 0 ];
 /// True when the runner moved the conversation to a fresh AI session.
 Property SessionRotated As %Boolean [ InitialExpression = 0 ];
 
-/// True when any tool ran.
+/// True when a tool call was made in the call this reply answers, or when that could not be told: AI Hub's tool-call counter went up
+/// or a tool step was recorded, or the counter could not be read (OcuTalon.Bridge.Adapter.Agent.ToolsRan). False means that no tool
+/// ran, and only then does Decide send a rate-limited request again (AD-8). A fallback reply carries the runner's value; one that Decide
+/// builds with no runner reply (a precheck, or the timer of a call still in flight) leaves it false, which then says nothing about a tool.
 Property ToolsRun As %Boolean [ InitialExpression = 0 ];
 
 /// True when the provider rejected the stored history (AD-8).

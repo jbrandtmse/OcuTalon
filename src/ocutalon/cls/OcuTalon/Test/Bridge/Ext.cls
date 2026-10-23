@@ -6,6 +6,8 @@
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
 ///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter and ReplyGuard pass
 ///     text through and Classification classifies nothing;
+///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
+///     description, changes the row when it exists, and ValueFor reads the value;
 ///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current; the
 ///     process-private context is invisible to another job; Put changes it; End removes it.
 /// The run's number is n from ^OcuTalonTest("BridgeExt","n") (never reset); the child jobs report through
@@ -56,6 +58,39 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertTrue($Get(@run@("checkEmptyText")) [ "names no class", "an empty class is refused as such: "_$Get(@run@("checkEmptyText")))
 	Do $$$AssertTrue($Get(@run@("checkMissingText")) [ "is not compiled", "a class that does not exist is refused as such: "_$Get(@run@("checkMissingText")))
 	Kill @run
+}
+
+/// WriteDefault (the one writer of System Default Settings rows, AD-19): a row of the Decide item of the example production (which no one starts)
+/// is created with the value and the description for any host class, ValueFor then reads the value, and a second write changes the same row
+/// instead of making another. The row is deleted again.
+Method TestWriteDefault()
+{
+	Set accessor = "OcuTalon.Bridge.Ext.Accessor"
+	Set production = "OcuTalon.BridgeExample.Production"
+	Set id = production_"||Decide||*||TimerSeconds"
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", 33, "First write."), "a row is written")
+		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id), "it exists, with the host class *")
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+		Do $$$AssertEquals(row.ProductionName_"|"_row.ItemName_"|"_row.HostClassName_"|"_row.SettingName_"|"_row.SettingValue_"|"_row.Description, production_"|Decide|*|TimerSeconds|33|First write.", "with the production, the item, the setting, the value and the description")
+		Do $$$AssertEquals($ClassMethod(accessor, "ValueFor", "TimerSeconds", production, "Decide"), 33, "ValueFor reads the value")
+		Do $$$AssertStatusOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", 44, "Second write."), "the row is written again")
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+		Do $$$AssertEquals(row.SettingValue_"|"_row.Description, "44|Second write.", "which changed the row")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = 'Decide' AND SettingName = 'TimerSeconds'", production)
+		Do result.%Next()
+		Do $$$AssertEquals(result.%GetData(1), 1, "and made no second row")
+		Kill row
+		Do $$$AssertStatusNotOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", "x", "Not a number."), "a value that the setting's datatype refuses is an error status")
+		Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT SettingValue FROM Ens_Config.DefaultSettings WHERE ID = ?", id)
+		Do stored.%Next()
+		Do $$$AssertEquals(stored.%GetData(1), 44, "and the stored row keeps its value")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%ExistsId(id), 0, "the row is deleted again")
 }
 
 /// ValueFor (Story 1.4) reads any host setting of the item, from the item's settings, the System Default Settings and the property's

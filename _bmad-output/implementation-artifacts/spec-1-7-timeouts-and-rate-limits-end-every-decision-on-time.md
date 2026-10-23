@@ -2,9 +2,10 @@
 title: 'Story 1.7: Timeouts and rate limits end every decision on time'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '84f7691daaf967a9dde7d794acdd0f1e32823280'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-5, AD-6, AD-7, AD-8, AD-9, AD-19, AD-20, AD-22, AD-23, AD-26, AD-30, AD-31 and AD-33, the S2 and S18 rows of Spikes, and the Redaction, Logging and errors and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
@@ -371,6 +372,57 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 — Review pass
+- verdicts: 44 findings — high 0, medium 7, low 28, false 9, maybe-false 0
+- findings (Blind Hunter, BH1 to BH10):
+  - `[false]` `[reject]` BH1: `WarningRows` in `Test.Agent.Decide` can never fail — `RunnerFixture.EventRows` (`RunnerFixture.cls:189`) selects every type; the "Type 2 or 6" doc belongs to the method at :676. The verification-gap layer read the same code and found `WarningRows` counts type 3.
+  - `[low]` `[patch]` BH2: a timer fallback reports `ToolsRun` false while the call may run tools — the behaviour is the spec's (Design Notes 10: a fallback with no runner reply sets no runner flag); the `Reply.ToolsRun` doc now says that a fallback Decide builds with no runner reply leaves it false and says nothing about a tool (shared with EC11).
+  - `[false]` `[reject]` BH3: `ToolsRan` treats a falling tool counter as no tool — `before` and `after` are two readings of the one throwaway session around one `Chat` (`Agent.Answer`), so the counter cannot fall; the rule (delta above 0, unreadable counts as ran) is the spec's.
+  - `[low]` `[reject]` BH4: `Apply` can end half-applied after a failed step-4 merge, and two calls can interleave — a failed merge of a validated, existing entry is not reachable in normal use, the Provider step derives every entry from the row at the next start, and a lock or a rollback adds branches. reopen_if=Story 17.4's `SettingsOps` gives `Apply` concurrent callers, or a failed merge is seen in the field. (The implementer's `deferred:` item for this was removed.)
+  - `[medium]` `[patch]` BH5: `Restart` can leave an item stopped when its stop or start fails, and the docs do not say that in-flight decisions are cut — `Ens.Director.TempStopConfigItem` sets the stop flag before the update that can time out (`irislib/Ens/Director.cls:2467` ff.), so a busy runner keeps the flag. `Restart` now lifts the stop again on either failure, and the docs of `Apply` and `Restart` say that decisions in flight end at their timers.
+  - `[low]` `[reject]` BH6: `Entries` is stricter than the Provider step about a disabled runner with no entry — the spec requires every runner item the production has to carry an `@{config:}` entry, and `OcuTalon.Production` has all three. reopen_if=a production with a disabled runner that has no entry needs `Apply`.
+  - `[medium]` `[patch]` BH7: `Apply` returns raw error text of other components against its own claim — the Redaction convention puts error details through `Redact.Text`; the four messages of `Timeouts` (setting read, merge, runner read, restart), the value named in the "stays at" message and `Provider.CheckTimer` now pass it.
+  - `[low]` `[reject]` BH8: step Positions repeat after a skipped non-object record — `StepBuffer` only builds object records, so the case needs a malformed `Steps` value, and the fix adds an output parameter to `StepMessages`. reopen_if=a non-object record is seen in a `Reply.Steps`.
+  - `[low]` `[patch]` BH9: `OnAfterOneTest` restores the timer only when the production runs and drops the status — it now restores always and asserts on a failure (shared with VG6).
+  - `[low]` `[reject]` BH10: no in-process tests of the step-4 failure, `Restart`, `Jobs`, job-id reuse, a non-running production or a disabled runner — each needs a stub of `Ens.Director` or the Config Store; `TestApplyTimer` pins the success path. reopen_if as BH4.
+- findings (Edge Case Hunter, EC1 to EC16):
+  - `[medium]` `[patch]` EC1: a failing stop or start leaves the item temp-stopped (`Restart`) — same root as BH5, fixed there.
+  - `[low]` `[reject]` EC2: a failing restore of the `TimerSeconds` row (after the definition overrides it) is ignored — needs `WriteDefault` of an existing row to fail; the error already says the timer is not changed.
+  - `[low]` `[reject]` EC3: `Check` throws `<MAXNUMBER>` on a digit string of about a thousand digits — measured on slot A: 160 and 300 digits are refused cleanly, the throw starts near 1000 digits, which no settings editor produces; the fix is a length guard.
+  - `[low]` `[reject]` EC4: `%OpenId` of the `TimerSeconds` row could fail between the exists test and the open — needs the row deleted in that window.
+  - `[false]` `[reject]` EC5: `Apply` returns OK when the production has none of the runner items — with no runner item there is no entry to align and nothing that AI Hub could run; the row is all that has to be written.
+  - `[low]` `[reject]` EC6: `Apply` and the Provider step can interleave with no lock — same as BH4.
+  - `[low]` `[reject]` EC7: `StepsSent` advances by messages built, not by slots — same as BH8.
+  - `[low]` `[reject]` EC8: a `Decide` persisted before `DecisionRef` existed has an empty Ref when its timer fires — only an in-flight process across an upgrade; no release exists yet (0.1.0 is cut at Epic 11), so none is persisted.
+  - `[low]` `[reject]` EC9: a re-send runs for an item that another request decided during the back-off — two concurrent requests for one item each sent one request before this story; `RecordFallback` and `Conclude` answer from the row that won.
+  - `[low]` `[reject]` EC10: a failed `SendRequestAsync` or `SetTimer` at a re-send ends with an error status and no row — the same as `OnRequest`'s own send; an infrastructure fault, not a model fault.
+  - `[low]` `[patch]` EC11: a timer fallback leaves `ToolsRun` 0 — same as BH2.
+  - `[false]` `[reject]` EC12: `TimeoutMs` gives "" with no log when the setting cannot be read — the spec says no usable timer composes no `timeout_ms` and `Decide` refuses every request in that state (`CheckSettings` names `TimerSeconds`), so the fault is not silent.
+  - `[low]` `[reject]` EC13: `ToolsRan` relies on the step records when a reading lacks `total_tool_calls` — AD-9's audit policy records every tool call as a step, so the records are the second signal, and an unreadable reading counts as ran.
+  - `[false]` `[reject]` EC14: `Resend` gives `rate_limited` 2 to 3 s before the timer — Design Notes 8 (the spec): under 2 s left a failed attempt falls back at once, and the last re-send keeps 1 s before the timer.
+  - `[low]` `[patch]` EC15: `UseTimer` leaves `saved` undefined when the setting cannot be read — `saved` is set to "" first.
+  - `[low]` `[reject]` EC16: no event-log warning when the timer fires — not required: the timer is a recorded fallback (Decision row, `decision.recorded`, Fallback and FallbackReason in the trace, AD-26). reopen_if=operators ask for a log line.
+- findings (Verification Gap, VG1 to VG11):
+  - `[medium]` `[patch]` VG1: the timer that `Resend` sets is never observed — scenario `overloaded-then-held.json` and the live `TestRateLimitedThenHeld` (the answer 10 to 13 s after the send, two requests with one DecisionRef, the late reply discarded, its Usage row counted), and the in-process `TestResendWiring` (the seconds left, the key `timer`, the clone, the runner). Mutation "`Resend` sets no timer" went red in both.
+  - `[low]` `[reject]` VG2: the step-4 failure, `Restart` errors and a non-running production have no test — as BH10; the layer's own disposition was defer, and Rule 15 closes a low that is not a two-way door.
+  - `[medium]` `[patch]` VG3a: the `AgentStepCount` sum and the `StepsSent` offset cannot be observed live (a rate-limited attempt has no steps, Task 0 (a)), so the live assertion cannot fail — in-process pins added: `TestResendWiring` (StepCount 1 + 2 = 3, the back-off timer) and `TestEmitStepsFails` (a second `EmitSteps` numbers 3 and 4; the warning now names the Position). Both mutations went red.
+  - `[false]` `[reject]` VG3b: `TestRateLimitedUntilTimer` asserts `ToolsRun` 0, which the default also gives — it fails if the flag is set for a no-tool failure (AC6's `Answer` mutation is the other direction, pinned by `TestToolsRun`); the carried direction is pinned by `TestToolRanNoResend` and `TestConcludeFallbacks`.
+  - `[low]` `[patch]` VG4: pinning tests with no mutation line of their own — Rule 19 asks one demonstrated mutation per AC (AC1 has three, AC2 two, AC5 shares one); `SessionConfig.TestTimeoutMs`, an AC1 pinning test named by no line, now has its line, and the three tests patched here have theirs. `TestWriteDefault` and `TestEntryOf` pin helper methods, not an AC.
+  - `[low]` `[reject]` VG5: `TestTimer` assumes the entries hold the 60 derivation — every test that merges a block restores it (`RestoreTimer`), and `TestTimer` fails on its time window if not.
+  - `[low]` `[patch]` VG6: `OnAfterOneTest` discards the `RestoreTimer` status — same as BH9.
+  - `[low]` `[reject]` VG7: `TestSessionTimeout`'s guard does not check the active production — it runs in the shard and in CI, where `OcuTalon.Production` is the active one; a failure would name the 55000.
+  - `[medium]` `[patch]` VG8: `TestApplyDefinedTimer` leaves the `Ens.Config.Production` row of `ZzTimerProduction` loaded — `OnAfterOneTest` now deletes it when the test loaded it.
+  - `[false]` `[reject]` VG9: `Example.TestDecideDefaults` and `Ext.TestWriteDefault` share a row key — `TestWriteDefault` deletes the row at its start and end; only a killed job could leave one.
+  - `[low]` `[reject]` VG10: `docker/tests/test-install-upgrade.sh` does not name the block — `docker/tests/**` is Lane B's; `Test.Install.Provider.TestRerun` pins the upgrade-shaped path (a stale entry rewritten whole), and the live script passed.
+- findings (Intent Alignment, IA1 to IA7):
+  - `[low]` `[reject]` IA1: the bridge-alone row is proven by a proxy — `release/standalone-bridge.sh` must not change (spec) and passed; `Runner.TestSessionTimeout` pins the runner's composed 55000 and `Example.TestDecideDefaults` pins the example's timer and `Derive(60)`.
+  - `[medium]` `[patch]` IA2: two live rows end on the failure-text path, so the timer after a re-send was reached only in process — same as VG1 (the held-request row is meant to end by AI Hub's attempt timeout, AC1).
+  - `[low]` `[reject]` IA3: `timeout_ms` is not shown to act in AI Hub, and `Apply` restarts only items with a job — S2 says `timeout_ms` does not stop a request in flight; the restart scope is Decided in implement 2.
+  - `[low]` `[reject]` IA4: the Provider step and `Apply` read the timer of a named production, the adapter that of the active one — the adapter has only the active one, and they are the same in every stack that has one production.
+  - `[false]` `[reject]` IA5: the entry check uses `Configuration.Exists`, not `ConfigStore.Details` — the same existence test, and `TestApplyRefuses` pins the missing-entry case.
+  - `[low]` `[reject]` IA6: additions the intent does not name (`EntryOf`, `TimeoutMs`, `Resend`, `TokenBudget`, `RemainingMs`, the `ZzTimerProduction` fixture) — they follow the Design Notes (Rule 2) or are test fixtures; no product structure was added.
+  - `[false]` `[reject]` IA7: other consumers of the old 1 to 110 bound — the auditor found none in `ci/`, `docker/`, `release/` or `web/`; nothing diverges.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -435,6 +487,29 @@ No acceptance criterion contradicts an AD's Rule. One wording of AD-8 is reconci
     - **The example's runner** composes `timeout_ms` from its `Decide`'s default.
     - **Its inline `ProviderConfig`** gets no block from OcuTalon's Provider step, and `Apply` refuses it; its configuration belongs to the example (Story 13.1).
     - **`release/standalone-bridge.sh`** does not change.
+
+**Decided in implement:**
+1. **`Timeouts.Check` takes any value** (its argument is a `%String`, and an argument that is not passed counts as ""), so that `Derive`, `Check` and the Provider step never throw for a refused timer. `Derive` keeps Epic 0's `%Integer` signature.
+2. **`Apply` restarts the items that have a job.** An item with no job (disabled, or stopped by hand) is not restarted and not waited for, because `TempStopConfigItem` does nothing for a disabled item and the wait would then end in an error that no restart can cure. The wait is for a job that is not one of the item's earlier jobs.
+3. **`Apply` merges `{"http_config": Derive(timer).http_config}`**, not the block at the top of the entry, so that the block lands inside `http_config` and `custom_headers` and `tls` stay (Task 0 found the first reading of the merge, which wrote the two members at the top of the entry, make every runner fail at once). A write that fails after the row is written leaves what was written; the Provider step derives every entry from the row at the next start.
+4. **`Resend` takes the time left once, before the send.** With less than 1 s left it records `rate_limited` and sends nothing, where the spec's order sends first and then records. The time between the two readings is some milliseconds, so the only difference is a request that would have been sent and answered by a late reply nobody reads. With 1 s or more left it sets the timer for the whole seconds of that one reading.
+5. **Helpers of `Decide`:** `Resend` (the key `resend`), `TokenBudget` (OnRequest's rule for the budget, used by OnRequest and `Resend`) and `RemainingMs` (0 when `%TimeCreated` cannot be read, which stops a re-send).
+6. **`EmitSteps` counts the records it handled** (messages built), so a record whose send failed still uses its Position and the Positions of a later attempt do not collide with it.
+7. **`NewRow` keeps the reply's `AgentStepCount` as it is when `StepCount` is 0** (an unset value stays unset), and adds `StepCount` to it otherwise. A row with no reply holds `StepCount`.
+8. **`ToolsRan` takes records that are not an array as none.** The counters decide then; only an unreadable reading counts as a tool that ran. A counter that neither reading holds counts as 0 (`Usage.Delta`).
+9. **`Compose` puts `timeout_ms` last,** after the cache block. `SessionConfigFor` reads the timer through the public class method `Adapter.Agent.TimeoutMs()`.
+10. **`rate-limited-after-tool` carries no `Retry-After`;** AI Hub never sends a 529 again, so a header would change nothing.
+11. **`TestLongRetryAfterCapped` has the Provider step write the entries again** and starts the runners with them, because `TestApplyTimer` merges its own block into the entries and the test must show the step's block (the mutation "no `retry` block" went green without it).
+12. **`TestApplyDefinedTimer` and the class `Test.Bridge.ZzTimerProduction`** pin the branch of `Apply` in which the production definition sets the timer. The production is a test fixture: every item is disabled and it is never started.
+13. **Tests beyond the list:** `Test.Bridge.ConfigStore.TestEntryOf`, `Test.Bridge.Ext.TestWriteDefault` and the timer lines of `Test.Bridge.Example.TestDecideDefaults` pin the new public methods and the matrix row "The bridge alone" (the example's Decide reads 60, which gives `timeout_ms` 55000); `Test.Install.Provider.TestTimerRow` and `TestBadTimer` pin the Provider step against a `TimerSeconds` row, and `ProviderEnv` takes the row away for its own run.
+14. **The `Apply` row's description** says that the row is written by `Timeouts.Apply` together with the entries.
+
+**Decided in review:**
+15. **`TestResendWiring` records what `OnResponse` asks the framework for** instead of sending it. `SetTimer` needs a started process and a production to answer, so `Test.Bridge.ZzDecide` (a `Decide` that records its timers and sends in `^||ZzDecideCalls`) stands in. It carries the `Storage Default` block that the storage check requires of every `Decide` subclass.
+16. **`TestRateLimitedThenHeld` and the scenario `overloaded-then-held`** (a 529, then a 200 after 18 s; Lane A's folder) pin the timer that `Resend` sets, which no other live test reaches. The `TimerSeconds` row is written directly, as in `TestTimer`.
+17. **`EmitSteps` and the skipped-record warning name the step's Position** (offset + slot), not its place in this attempt's list, so a later attempt's warning is not ambiguous.
+18. **`Restart` lifts the temporary stop again** when a stop or a start fails: `TempStopConfigItem` sets the stop flag before the update that can time out, so a busy runner would otherwise stay stopped.
+19. **`Apply`'s and the Provider step's messages pass the text of another component's error through `Redact.Text`** (Redaction convention: error details).
 
 **Integration ACs (Rule 1):**
 - **AC1:** AI Hub's provider reads the block that the Provider step and `Apply` wrote. A held request ends as `timeout` before the timer (`TestApplyTimer`), and a 30-s `Retry-After` waits 2 s (`TestLongRetryAfterCapped`, AC5).
@@ -527,6 +602,22 @@ No acceptance criterion contradicts an AD's Rule. One wording of AD-8 is reconci
   - `ChatAgent` swapped to `StepsAgent` in `Test.Agent.Steps`.
 - **The mock:** the new `rate-limited-after-tool`, `decide-late`'s delay, and the countdowns, which each test arms on its own key and clears.
 
+**Measured in implementation** (Task 0; slot `ocutalon-slot-a` build 154 for the process-local facts, throwaway `e1s7a` with the CI mock for the rest; each fact is a measurement unless it says `(inference)`):
+- **(a) A rate-limited attempt** (a `ZzRunner` of Triage with `Derive(60)`'s `http_config`, `overloaded` armed 1 and `rate-limited` armed 2):
+  - **`FailureText`:** `ERROR <%AICore>ProviderError: Provider 'anthropic' error: Rate limit exceeded: CI mock: overloaded.` for the 529, and `... Rate limit exceeded: CI mock: rate limited.` for the 429.
+  - **The deltas of `GetStats()`:** `total_interactions` 0 and `total_tool_calls` 0 in both cases. `Steps` is `[]`, `AgentStepCount` is 0, and no `Usage` row is written.
+  - **The mock's log:** one 529 for the attempt, because AI Hub does not send a 529 again; for the 429, two 429s 1.00 s apart (AI Hub's one retry, after min(`Retry-After` 1 s, the 2 s cap)), and the call took 1.02 s. The stop condition did not hold.
+- **(b) A tool before the rate limit** (`rate-limited-after-tool` through `StepsAgent`): `FailureText` `... Rate limit exceeded: CI mock: overloaded after a tool.`; `total_interactions` 0 to 1 and `total_tool_calls` 0 to 1; `Steps` a model step (`Model request 1`) and the tool step (`Reading the test note`, status `ok`); `AgentStepCount` 2; one `Usage` row. The log holds a 200 (the tool use) and a 529, no third request.
+- **(c) The derived request timeout** (`http_config` of `Derive(20)`: request timeout 5 s, retry block 1 / 5 / 500 / 2000, with `held-past-timer`):
+  - **The time:** `Chat` threw after 10.52 s, and the log holds two requests 5.5 s apart: two attempts of 5 s and the 0.5 s first back-off.
+  - **The text:** `ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: error sending request for url (http://mock:8080/v1/messages): error sending request for url (http://mock:8080/v1/messages): operation timed out`. It holds `operation timed out`, so the stop condition did not hold. `AgentStepCount` is 0 and no `Usage` row is written.
+- **(d) The re-send timers** (`Apply(15)`, a turn with `overloaded:<key>` not armed, from the headers of Decide's session): the five requests reached the mock at 0, 1.05, 3.09, 7.14 and 13.22 s. The `resend` timers were set when each failure was handled and fired 1.04, 2.03, 4.04 and 6.07 s later; the fourth is the cut one (7.85 s were left, so (7850 - 1000) \ 1000 = 6). The fifth request found 1.77 s left and set a timer of 1 s; its 529 came with less than 2 s left, so the answer was the `rate_limited` fallback, 13.24 s after the send.
+- **(e) `Apply`** (`Apply(15)` on `OcuTalon.Production`):
+  - **The call:** it returned OK after 1.1 s, and `Decide`, `TriageAgent`, `DiagnosisAgent` and `ChatAgent` ran in new jobs.
+  - **The next decide:** its `Ens.AlarmRequest` had a Timeout of 15.
+  - **A held request:** it met an attempt timeout of 2 s ((15 - 10) \ 2) and was answered with a `timeout` fallback 4.52 s after the send: two attempts of 2 s and the 0.5 s back-off, two requests at the mock.
+- **Other facts:** the 60-s derivation gives a worst case of 52 s (2 x 25 + 2) and the mock's `decide-late` (18 s) is below the 25-s attempt timeout. Apart from the first reading of the merge in `Apply` (decision 3), no fact contradicted an acceptance criterion.
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order. The lead runs `shard lane-a` and `shard lane-b` forward, then both with `--reverse`.
 
 **Mutations to demonstrate (Rule 19),** one or more per AC. Record each as `mutation: <change> -> <test went red>`.
@@ -547,6 +638,28 @@ No acceptance criterion contradicts an AD's Rule. One wording of AD-8 is reconci
 | AC4 | `Classify` drops the `resends` part of the `timedOut` rule | `Bridge.Fallback`, `Bridge.Decide.TestTimerFallback` |
 | AC6 | `Answer` leaves `ToolsRun` 0 | `Bridge.Runner.TestToolsRun`, `Agent.Steps.TestTwoTools`, `TestToolRanNoResend` |
 | AC6 | `ToolsRan` counts an unreadable reading as 0 | `Bridge.Runner.TestToolsRun` |
+
+**Mutations demonstrated (Rule 19).** Each was applied to the code under test, built into a throwaway, run, and reverted; `git status --short` and `git diff --stat` were identical before and after each.
+- mutation: `Derive`'s request timeout is `timer \ 2` -> `Test.Bridge.Timeouts.TestDerive` went red (every exact JSON and the range)
+- mutation: `SessionConfigFor` passes no `timeoutMs` to `Compose` -> `Test.Bridge.Runner.TestSessionTimeout` went red (55000 and 15000 missing)
+- mutation: `Details` writes no `retry` block -> `Test.Install.Provider.TestDetails` (with `TestTimerRow`) and `Test.Agent.Decide.TestLongRetryAfterCapped` (30.1 s, not 1.5 to 10) went red
+- mutation: `Check` accepts 111 (the upper bound plus 1, the message kept) -> `Test.Bridge.Timeouts.TestRefused` and `TestApplyRefuses`, and `Test.Bridge.Decide.TestBadSettings` and `TestOnRequestUsesItsSettings` went red
+- mutation: `Apply` restarts nothing -> `Test.Agent.Decide.TestApplyTimer` went red (the same jobs, and the next decide's timer not 20)
+- mutation: the timer key returns its old error -> `Test.Agent.Decide.TestTimer`, `Test.Bridge.Decide.TestTimerFallback` and `TestOnResponseUsesItsSettings` went red
+- mutation: the timer is set with controlled keys "" -> `Test.Agent.Decide.TestTimer` went red (the answer came after 18 s, with the late reply)
+- mutation: `ResendDelay` ignores `toolsRun` -> `Test.Bridge.Decide.TestResendDelay` and `Test.Agent.Steps.TestToolRanNoResend` (58.5 s, no longer one request) went red
+- mutation: `ResendDelay` always gives 0 -> `Test.Agent.Decide.TestRateLimitedResent` and `TestRateLimitedUntilTimer` went red
+- mutation: `error` is re-sent too (`ResendDelay` takes `error` as `rate_limited`) -> `Test.Agent.Decide.TestReplyFallbacks` went red (provider-error: more than one request)
+- mutation: the `resend` key skips the precheck (`Resend` takes the reason as "") -> `Test.Bridge.Decide.TestResendPrecheck` went red (no_key, budget and daily_cap)
+- mutation: `Classify` drops the `resends` part of the `timedOut` rule -> `Test.Bridge.Fallback.TestTimedOut` and `Test.Bridge.Decide.TestTimerFallback` went red
+- mutation: `Answer` leaves `ToolsRun` 0 -> `Test.Bridge.Runner.TestToolsRun`, `Test.Agent.Steps.TestTwoTools` and `TestToolRanNoResend` went red
+- mutation: `ToolsRan` counts an unreadable reading as 0 -> `Test.Bridge.Runner.TestToolsRun` went red
+- mutation (beyond the table, for `TestApplyDefinedTimer`): `Apply` leaves the row when the production definition sets the timer -> `Test.Bridge.Timeouts.TestApplyDefinedTimer` went red
+- mutation (review pass): `Resend` sets no timer after the re-send -> `Test.Agent.Decide.TestRateLimitedThenHeld` went red (the answer came 19.1 s after the send, with the held reply, not 10 to 13 s) and `Test.Bridge.Decide.TestResendWiring` (the timer of the key resend)
+- mutation (review pass): `OnResponse` does not add the attempt's `AgentStepCount` to `StepCount` before the back-off timer -> `Test.Bridge.Decide.TestResendWiring` went red (the steps added)
+- mutation (review pass): `EmitSteps` passes the offset 0 to `StepMessages` -> `Test.Bridge.Decide.TestEmitStepsFails` went red (the second `EmitSteps` numbers its steps 3 and 4)
+- mutation (review pass): `Compose` ignores `timeoutMs` -> `Test.Bridge.SessionConfig.TestTimeoutMs` went red (five assertions)
+- The four review-pass mutations were applied together, one build, and `Test.Bridge.Decide`, `Test.Bridge.SessionConfig` and `Test.Agent.Decide` were run once each; every one went red in its own assertion. The tree was byte-identical to the one before them afterwards (`git status --short` and the digest of `git diff` equal).
 
 ## Clarification Record
 
@@ -572,7 +685,26 @@ No acceptance criterion contradicts an AD's Rule. One wording of AD-8 is reconci
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Timers and rate limits now end every decision on time. `Timeouts` derives `timeout_ms` and the AI Hub `http_config` block from the bridge timer (`Derive`), checks the timer (`Check`, 12 to 110 s) and changes it at run time (`Apply`: the row, every runner entry, the restarts). The adapter puts `timeout_ms` in every session config, and the Provider step writes the block into every entry at every start. `Decide` records a `timeout` fallback when its timer fires (never an error), re-sends a rate-limited attempt that ran no tool with a back-off of 1, 2, 4 and 8 s until its timer fires (`rate_limited` once it has re-sent), prechecks every re-send, and sums steps, tokens and cost across attempts. `Reply.ToolsRun` is set from AI Hub's tool-call counter and the step records (DW-56). Task 0 found no fact that contradicts an AC; its one surprise (the merge of `Apply` must land inside `http_config`) is in Decided in implement 3.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Timeouts.cls`: `Derive`, `Check`, `Apply` (and `Entries`, `Restart`, `Jobs`).
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: timer fallback, re-send (`Resend`, `ResendDelay`), the `timedOut` rule of `Classify`, state slots 9 to 12, steps across attempts.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: `Compose(timeoutMs)`, `TimeoutMs`, `ToolsRan`, `ToolsRun` on every `Reply`.
+- `src/bridge/cls/OcuTalon/Bridge/{Ext/Accessor,ConfigStore,Keys,Msg/Reply}.cls`: `WriteDefault`, `EntryOf`, `Keys.Present` on `EntryOf`, the `ToolsRun` doc.
+- `src/ocutalon/cls/OcuTalon/Install/Step/{Provider,Production}.cls`: the timer check and the block in every entry; `WriteDefault` delegates to the bridge.
+- `ci/mock/scenarios/A/`: `rate-limited-after-tool.json` and `overloaded-then-held.json` (new), `decide-late.json` (18 s).
+- Tests under `src/ocutalon/cls/OcuTalon/Test/`: new `Bridge/Timeouts`, `Bridge/ZzTimerProduction`, `Bridge/ZzDecide`; changed `Agent/{Decide,RunnerFixture,Steps}`, `Bridge/{Api,ConfigStore,Decide,Example,Ext,Fallback,Runner,SessionConfig}`, `Install/{Provider,ProviderEnv}`.
+
+**Review.** Four layers, 44 findings: high 0, medium 7, low 28, false 9 (the Review Triage Log has every row). Patched (13 rows: five medium root causes and four small items): `Restart` left an item stopped after a failed stop or start (it lifts the stop again; the docs say that decisions in flight end at their timers); the error text of other components passes `Redact.Text` in `Apply` and the Provider step; the timer set at a re-send had no test (live `TestRateLimitedThenHeld` with the new scenario, in-process `TestResendWiring` with `Test.Bridge.ZzDecide`); the step sum and the Position offset could not be observed live (in-process pins; the `EmitSteps` warning names the Position); `TestApplyDefinedTimer` left a production definition loaded; and four small items (the `Reply.ToolsRun` doc, `OnAfterOneTest`'s restore and status, `UseTimer`'s `saved`, the mutation line of `TestTimeoutMs`). Deferred: none (the implementer's `deferred:` item was rejected as a low and removed). Rejected: 31 rows (22 low, 9 false), each with its reason in the log. Rejected lows with a probe, for the ledger: `Apply` half-applied after a failed step-4 merge and no lock (BH4, EC6; reopen_if=Story 17.4's `SettingsOps` gives `Apply` concurrent callers, or a failed merge is seen in the field); step Positions after a skipped non-object record (BH8, EC7; reopen_if=a non-object record is seen in a `Reply.Steps`); `Apply` and a disabled runner with no entry (BH6; reopen_if=such a production needs `Apply`); no log line when the timer fires (EC16; reopen_if=operators ask for it).
+
+**Follow-up review recommended: true.** Five medium root causes were patched in this pass (the `Restart` stop, the redaction, the re-send timer test, the step-sum pins, the leftover production). The unverified risk is the `Restart` cleanup (`TempStopConfigItem(item, 0)` after a failed stop or start): it is defensive, no test can make `TempStopConfigItem` fail, and it was verified only by reading `Ens/Director.cls`; the new test double `ZzDecide` and the live `TestRateLimitedThenHeld` (a 10 to 13 s window on wall-clock time) are also new code that no independent layer has read.
+
+**Verification.** `bash ci/checks.sh`: all scripts passed (the storage check needed the `Storage Default` block of `ZzDecide`). `ci/iris.sh build`: exit 0. Each of the 12 classes of the Verification list, one per call, passed (`Agent.Decide` 102 s, `Agent.Steps` 14 s); `release/standalone-bridge.sh`: 12 checks, all passed; `shard lane-a`: 32 classes passed, the only SKIP the existing `TestStepHelpers`. The `(once)` lines, after the last patch: `docker/tests/test-mock.sh` 94 of 94; `shard lane-b` 24 classes passed (`Contract.Ac` and `Contract.Mock` included); `live` `storage-roundtrip` (58 classes, `Decide` slots 9 to 12 equal the compiled block), `production` (23 checks), `production-restart` (15), `install-start` (94), `install-upgrade` (34), `compose-start` (36) and `demo-path` (the `@floor` test passed) all passed. Teardown of tag `e1s7a` left nothing. Four mutations of the review pass were applied together and reverted byte-identically (Verification, Mutations demonstrated). Not run here (the lead's): the reverse-order shards.
+
+**Residual risks.** The rejected lows above; `Apply` restarts `Decide` and the runners without waiting for decisions in flight, which then end at their timers (documented); `TestRateLimitedThenHeld`, `TestRateLimitedUntilTimer`, `TestTimer` and `TestApplyTimer` are wall-clock tests with windows of a few seconds; the throwaway lock was held by epic 2 several times (waits and retries only).
 
 **Plan stage (2026-10-22, halted after planning as the dispatch asked).** The spec was planned from the cached `epic-1-context.md`, with Story 1.6's spec (done) as the continuity source and the spine's AD-2, 5 to 9, 19, 20, 22, 23, 26, 30, 31 and 33 and the S2 and S18 spikes. It meets the READY FOR DEVELOPMENT standard. Nothing was measured or run against a runtime in this stage; Task 0 holds the measurements. The ledger inbox (DW-56) is addressed by AC6. The Clarification Record lists three items for the veto window and four for the lead, and none of them blocks implementation.

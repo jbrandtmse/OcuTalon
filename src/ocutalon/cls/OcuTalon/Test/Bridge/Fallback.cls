@@ -16,6 +16,10 @@
 ///     not changed; every answer is "" or a value of Msg.Enum FALLBACKREASON, and too_large is never one of them yet;
 ///   - TestCatalogMap (AC5): each of the 12 reasons rendered through "conversation.turnFallback" gives exactly one of the 11
 ///     fallbackReason.* texts, invalid and unusable give the generic one, refusal and cut_off their own, and all 11 are reached.
+/// Added by Story 1.7 (AD-8, FR-4):
+///   - TestTimedOut: a timer that fired (timedOut) gives timeout, and rate_limited once Decide has re-sent (resends above 0); the precheck
+///     reasons win over it, and it wins over the text of a failure, the finish reason, an empty text and invalid; resends without timedOut
+///     gives nothing, and a missing fact counts as false or 0.
 Class OcuTalon.Test.Bridge.Fallback Extends %UnitTest.TestCase
 {
 
@@ -73,6 +77,36 @@ Method TestOrder()
 	Do ..AssertReason({"finishReason": "refusal", "invalid": true, "text": "A refusal"}, "refusal", "refusal before invalid")
 	Do ..AssertReason({"finishReason": "end_turn", "text": "  ", "invalid": true}, "empty", "an empty text before invalid")
 	Do ..AssertReason({"finishReason": "", "text": "", "invalid": true}, "unusable", "and so is the unusable one")
+}
+
+/// The rule for a timer that fired comes after the prechecks and before the failure text (AD-8): timedOut gives timeout, or rate_limited when
+/// resends is above 0, because the retries then ran out (FR-4). resends alone, and resends with a timedOut that is false, give nothing.
+Method TestTimedOut()
+{
+	Do ..AssertReason({"timedOut": true}, "timeout", "timedOut alone")
+	Do ..AssertReason({"timedOut": true, "resends": 0}, "timeout", "timedOut with no re-send")
+	Do ..AssertReason({"timedOut": true, "resends": 1}, "rate_limited", "timedOut after one re-send")
+	Do ..AssertReason({"timedOut": true, "resends": 4}, "rate_limited", "timedOut after four re-sends")
+	Do ..AssertReason({"timedOut": true, "resends": "x"}, "timeout", "timedOut with resends that is not a number")
+	Do ..AssertReason({"resends": 3}, "", "resends without timedOut")
+	Do ..AssertReason({"timedOut": false, "resends": 3}, "", "resends with timedOut false")
+	Do ..AssertReason({"timedOut": false}, "", "timedOut false")
+	// the prechecks win, with and without a re-send
+	Set reasons = $ListBuild("no_key", "daily_cap", "budget")
+	Set facts = $ListBuild("noKey", "capped", "overBudget")
+	For i = 1:1:3 {
+		For resends = 0, 2 {
+			Set one = {"timedOut": true}
+			Do one.%Set("resends", resends, "number")
+			Do one.%Set($List(facts, i), 1, "boolean")
+			Do ..AssertReason(one, $List(reasons, i), $List(facts, i)_" with timedOut and "_resends_" re-sends")
+		}
+	}
+	// and it wins over everything after them
+	Do ..AssertReason({"timedOut": true, "failure": (..#DAILYCAP)}, "timeout", "timedOut before the text of a failure")
+	Do ..AssertReason({"timedOut": true, "failure": (..#OVERLOADED)}, "timeout", "and before a rate limit")
+	Do ..AssertReason({"timedOut": true, "resends": 1, "failure": (..#NOKEY)}, "rate_limited", "after a re-send, before a missing key found by the runner")
+	Do ..AssertReason({"timedOut": true, "finishReason": "refusal", "text": "", "invalid": true}, "timeout", "timedOut before the finish reason, an empty text and invalid")
 }
 
 /// The failure rules are applied in one order, whatever the order of the words in the text: daily_cap, no_key, timeout, rate_limited, unusable

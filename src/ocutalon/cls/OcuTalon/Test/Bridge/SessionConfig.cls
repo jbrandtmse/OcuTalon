@@ -12,6 +12,9 @@
 ///   - TestInstallerRun: Installer.Run, the call of the after-start installer, writes the three families (it needs an Interoperability
 ///     namespace, and registers the audit events as it does at every start);
 ///   - TestComposeBranches: a family row that has no CapKey fails the compose, naming the model, and gives no config.
+/// Added by Story 1.7 (AD-7, AD-8):
+///   - TestTimeoutMs: Compose with no timeoutMs ("" or not passed) gives exactly the config it gave before, and with a timeoutMs adds
+///     "timeout_ms" last, as a number, for every family; a compose that fails still gives no config.
 Class OcuTalon.Test.Bridge.SessionConfig Extends %UnitTest.TestCase
 {
 
@@ -190,6 +193,41 @@ Method TestComposeBranches()
 		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "CapKey", "and says that the CapKey is missing")
 		Do $$$AssertEquals(config, "", "and gives no config")
 		Do ..AssertCompose("", "claude-haiku-5-5", "low", "{""max_tokens"":8000,""extra_params"":{""output_config"":{""effort"":""low""}},""cache"":"_..#CACHE_"}", "while a model of a family with a CapKey still composes")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Restore()
+}
+
+/// timeout_ms is the last key of the config, set only when timeoutMs is given (Timeouts.Derive gives it from the bridge timer): without it the
+/// config is exactly what it was, for every family, and a compose that fails gives no config with or without it.
+Method TestTimeoutMs()
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).SeedModelFamilies(), "the installer's families are written")
+	Try {
+		Set agent = "OcuTalon.Bridge.Adapter.Agent"
+		Set anthropic = "{""max_tokens"":8000,""extra_params"":{""output_config"":{""effort"":""low""}},""max_iterations"":4,""cache"":"_..#CACHE_"}"
+		Do ..AssertCompose(4, "claude-haiku-5-5", "low", anthropic, "no timeoutMs gives the config as it was")
+		Set sc = $ClassMethod(agent, "Compose", 4, "claude-haiku-5-5", "low", .empty, "")
+		Do $$$AssertStatusOK(sc, "an empty timeoutMs composes")
+		If $$$ISOK(sc) Do $$$AssertEquals(empty.%ToJSON(), anthropic, "and gives the config as it was: no timeout_ms")
+		Set sc = $ClassMethod(agent, "Compose", 4, "claude-haiku-5-5", "low", .with, 55000)
+		Do $$$AssertStatusOK(sc, "a timeoutMs of 55000 composes")
+		If $$$ISOK(sc) {
+			Do $$$AssertEquals(with.%ToJSON(), $Extract(anthropic, 1, *-1)_",""timeout_ms"":55000}", "and adds ""timeout_ms"":55000 after the cache block, as a number")
+			Do $$$AssertEquals(with.%GetTypeOf("timeout_ms"), "number", "its type is number")
+		}
+		Set sc = $ClassMethod(agent, "Compose", 4, "claude-haiku-5-5", "low", .text, "55000")
+		If $$$ISOK(sc) Do $$$AssertEquals(text.%GetTypeOf("timeout_ms"), "number", "a timeoutMs given as text is a number too")
+		Set derived = ##class(OcuTalon.Bridge.Timeouts).Derive(60).%Get("timeout_ms")
+		Set sc = $ClassMethod(agent, "Compose", "", "gpt-5-mini", "high", .gpt, derived)
+		Do $$$AssertStatusOK(sc, "the timeout_ms that Timeouts.Derive gives for 60 composes")
+		If $$$ISOK(sc) Do $$$AssertEquals(gpt.%ToJSON(), "{""extra_params"":{""max_completion_tokens"":8000},""cache"":"_..#CACHE_",""timeout_ms"":55000}", "for a GPT-5 model as well")
+		Set sc = $ClassMethod(agent, "Compose", "", "zz-other-model", "", .other, 15000)
+		If $$$ISOK(sc) Do $$$AssertEquals(other.%ToJSON(), "{""max_tokens"":8000,""cache"":"_..#CACHE_",""timeout_ms"":15000}", "and for the default family")
+		Set sc = $ClassMethod(agent, "Compose", "", "", "low", .none, 55000)
+		Do $$$AssertStatusNotOK(sc, "an empty model still fails with a timeoutMs")
+		Do $$$AssertEquals(none, "", "and gives no config")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

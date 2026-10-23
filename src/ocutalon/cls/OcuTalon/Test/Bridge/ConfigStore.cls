@@ -18,6 +18,9 @@
 ///     reference stays what is stored (Merge reads with resolveSecrets 0);
 ///   - TestExpansionSeesMerge: AI Hub's @{config:} expansion of the entry shows the merged and the untouched fields, and the
 ///     key is still the literal placeholder.
+/// Added by Story 1.7 (AD-19):
+///   - TestEntryOf: EntryOf gives the entry name of a provider configuration that is exactly one @{config:<name>}, ignoring white space around
+///     it, and "" for anything else (an inline JSON object, an environment placeholder, two references, braces in the name, text around it).
 Class OcuTalon.Test.Bridge.ConfigStore Extends %UnitTest.TestCase
 {
 
@@ -248,6 +251,22 @@ Method TestDetails()
 }
 
 /// --- helpers ---
+/// EntryOf reads the name out of a runner's ProviderConfig when it is exactly one @{config:<name>} (Keys.Present and Timeouts.Apply use it).
+Method TestEntryOf()
+{
+	Set store = "OcuTalon.Bridge.ConfigStore"
+	Do $$$AssertEquals($ClassMethod(store, "EntryOf", "@{config:OcuTalonTriage}"), "OcuTalonTriage", "a reference gives the name")
+	Do $$$AssertEquals($ClassMethod(store, "EntryOf", " "_$Char(9, 10)_"@{config:OcuTalonChat}"_$Char(13, 10, 32)), "OcuTalonChat", "also with white space and line ends around it")
+	Do $$$AssertEquals($ClassMethod(store, "EntryOf", "@{config:AI.LLM.OcuTalonTriage}"), "AI.LLM.OcuTalonTriage", "a full name is given as written")
+	Do $$$AssertEquals($ClassMethod(store, "EntryOf", "@{config:Zz-1.x_y}"), "Zz-1.x_y", "so is a name with other punctuation")
+	For text = "", " ", "OcuTalonTriage", "{""api_key"":""@{env:ANTHROPIC_API_KEY}""}", "@{env:ANTHROPIC_API_KEY}", "@{config:}", "@{config:a}{b}", "@{config:a{b}", "@{config:a}@{config:b}", "x@{config:a}", "@{config:a}x", "@{CONFIG:a}", "@{config: }x}" {
+		Do $$$AssertEquals($ClassMethod(store, "EntryOf", text), "", "'"_text_"' names no entry")
+	}
+	Do $$$AssertEquals($ClassMethod(store, "EntryOf"), "", "no argument names none")
+	Set name = $ClassMethod(store, "EntryOf", "@{config:OcuTalonTriage}")
+	Do $$$AssertEquals($ClassMethod(store, "FullName", name), "AI.LLM.OcuTalonTriage", "and the name is one that FullName takes")
+}
+
 /// The name of this run's entry, without the area and type.
 Method EntryName() As %String [ Private ]
 {

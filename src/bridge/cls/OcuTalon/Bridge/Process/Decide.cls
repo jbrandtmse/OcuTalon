@@ -6,23 +6,26 @@ Include Ensemble
 ///     field, before anything is sent.
 ///   - One decision per item (AD-6): a decide or diagnose request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
-///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef and prechecks the request (Precheck, AD-8, AD-20):
-///     no model key (Keys.Status), the daily cost cap reached (Budget.State) or an estimate over DecisionTokenBudget. A request that fails
-///     a precheck is never sent: RecordFallback records it as a fallback decision and the answer is given from OnRequest, with no runner
-///     request and no timer. Otherwise Decide sends a clone of the request that carries the DecisionRef to the runner of the kind
-///     (RUNNERS) and sets the timer of TimerSeconds, a whole number of seconds from 1 to MAXTIMER (AD-5). Besides the runner request and
-///     the timer, Decide sends only the agent steps (below); it answers only its caller.
+///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
+///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Status), the daily cost cap reached (Budget.State) or an
+///     estimate over DecisionTokenBudget. A request that fails a precheck is never sent: RecordFallback records it as a fallback
+///     decision and the answer is given from OnRequest, with no runner request and no timer. Otherwise Decide sends a clone of the
+///     request that carries the DecisionRef to the runner of the kind (RUNNERS) and sets the timer of TimerSeconds, a whole number
+///     of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5). Besides the runner requests, the timers and the agent steps (below),
+///     Decide sends nothing; it answers only its caller.
 ///   - The steps (AD-9, AD-30): when the runner's reply arrives in time, and before anything reads it, EmitSteps sends each step record of
 ///     the reply's Steps to the AgentSteps operation (STEPSITEM) as an OcuTalon.Bridge.Msg.AgentStep, in order, so that the steps sit in
-///     the caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). The reply of a
-///     call whose Chat threw carries its steps like any other. A Steps value that does not parse and a send that fails are warnings that
-///     name the DecisionRef and never change the answer. An answer from a recorded row, a precheck fallback, a timer that fired and a
-///     late reply send no steps. Decide's answer to a turn leaves Steps empty.
+///     the caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). The Positions
+///     of a decision run on across its attempts: they start at StepsSent + 1. The reply of a call whose Chat threw carries its steps
+///     like any other. A Steps value that does not parse and a send that fails are warnings that name the DecisionRef and never change
+///     the answer. An answer from a recorded row, a precheck fallback, a timer that fired and a late reply send no steps. Decide's
+///     answer to a turn leaves Steps empty.
 ///   - The classification (AD-8): Classify picks the one FallbackReason, or "" for a usable reply, from the facts of a request, in AD-8's
-///     order: the prechecks (no_key, daily_cap, budget), the text of a failure (daily_cap, no_key, timeout, rate_limited, unusable for the
-///     agent's maximum iterations, otherwise error), the provider's finish reason (refusal, cut_off), an empty text (empty, or unusable
-///     when the provider reports no finish reason) and a reply that fails its check (invalid). Its literals are the class parameters
-///     DAILYCAPTEXT, NOKEYTEXT, TIMEOUTTEXT, RATELIMITTEXT and ITERATIONCODES, each with its source.
+///     order: the prechecks (no_key, daily_cap, budget), a timer that fired (timeout, or rate_limited once Decide has re-sent), the text
+///     of a failure (daily_cap, no_key, timeout, rate_limited, unusable for the agent's maximum iterations, otherwise error), the
+///     provider's finish reason (refusal, cut_off), an empty text (empty, or unusable when the provider reports no finish reason) and a
+///     reply that fails its check (invalid). Its literals are the class parameters DAILYCAPTEXT, NOKEYTEXT, TIMEOUTTEXT, RATELIMITTEXT
+///     and ITERATIONCODES, each with its source.
 ///   - The runner's reply goes to Conclude, with the text of the runner's failure when it failed (OnError keeps a runner's error status,
 ///     and a call whose Chat threw is answered with a failure Reply that holds FailureText). Conclude works out the facts and calls
 ///     Classify once. A reply that is usable is checked (CheckReply: one JSON object that the ReplyClass setting of the runner accepts,
@@ -32,16 +35,33 @@ Include Ensemble
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
 ///     reasons, confidence or payload, so that no model text is kept; decision.recorded after the commit; and, for daily_cap, the day is
 ///     marked as capped once (Budget.MarkCapped). A decide or diagnose request is answered with the row's DecisionResponse, and a turn
-///     with a new Reply that holds no text, host data, steps or failure text. A fallback triggers no tool, fix or approval (AD-8, AD-30).
+///     with a new Reply that holds no text, host data, steps or failure text, and the runner's Tainted and ToolsRun when there was a
+///     runner reply. A fallback triggers no tool, fix or approval (AD-8, AD-30).
+///   - The timer (AD-6, AD-8): the timer of an attempt ends the decision with a fallback, never an error. OnResponse for the key timer
+///     records the fallback (RecordFallback) for the stored DecisionRef, with the reason that Classify gives for a timer that fired:
+///     timeout, or rate_limited once Decide has re-sent (Resends above 0, because the retries then ran out, FR-4). The timer keeps
+///     SetTimer's controlled keys, so the runner request in flight leaves the pending list and the framework discards its late reply:
+///     no step is sent for it, and the totals of the row are those of the Usage rows when the timer fired. The runner still writes the
+///     Usage row of the late call, under the same DecisionRef, and the day's spend and Usage.Totals count it.
+///   - The re-send (AD-8, FR-4, NFR-23): when the runner answers with a Reply and no error status, the FailureText of the Reply gives
+///     the reason (Classify) and ResendDelay decides: for rate_limited, with no tool run (Reply.ToolsRun false) and at least 2 seconds of
+///     TimerSeconds left, it gives 1, 2, 4 and then 8 seconds of back-off (RESENDFIRST, RESENDMAX), the last one shortened so that the
+///     re-send keeps at least 1 second before the timer. Decide then adds the attempt's steps to StepCount, sets a timer with the key
+///     resend that cancels nothing, and answers nothing yet. The key resend prechecks the request again (the same token budget as
+///     OnRequest; a reason is recorded with RecordFallback, so a daily_cap marks the day), sends a clone with the stored DecisionRef to the
+///     same runner, adds 1 to Resends and sets the timer for the whole seconds left. A delay of 0 sends the reply to Conclude, so a tool
+///     that ran, an error status (which has no Reply), error, timeout and every other reason fall back at once. Decide never reads a
+///     Retry-After: AI Hub's retry block caps it (Timeouts.Derive). A re-send is not a fault and logs no warning.
 ///   - The row and the answer carry the decision's totals (AD-20): the token counts, the cost and the model are the sums over the
-///     Usage rows of its DecisionRef, which the runner wrote (Usage.Totals); the step count is the runner's, and the duration is
-///     the time from the moment Decide began to handle the request to Conclude. CarryTotals copies the eight fields between a
-///     row and an answer, so an answer built from a recorded row carries the row's totals. A decision with no Usage row has empty
-///     totals, and one with a row of unknown cost has an empty cost.
-///   - A request that is refused (Admit, the settings) and the timer end with an error status, and no row is recorded; the late
-///     reply of a runner after the timer is discarded by the business process framework.
-/// The three extension settings name the classes through which the bridge reaches its host (AD-31); the production definition
-/// sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
+///     Usage rows of its DecisionRef, which the runner wrote for every attempt (Usage.Totals); the step count is StepCount, the steps
+///     of the earlier attempts, plus the last reply's; and the duration is the time from the moment Decide began to handle the request
+///     to Conclude. CarryTotals copies the eight fields between a row and an answer, so an answer built from a recorded row carries the
+///     row's totals. A decision with no Usage row has empty totals, and one with a row of unknown cost has an empty cost.
+///   - A request that is refused (Admit, the settings) ends with an error status, and no row is recorded; the late reply of a runner
+///     after the timer is discarded by the business process framework.
+/// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount and StepsSent.
+/// None is a setting. The three extension settings name the classes through which the bridge reaches its host (AD-31); the production
+/// definition sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget is a setting of Decide
 /// itself. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
@@ -54,6 +74,15 @@ Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
 
 /// The longest timer, in seconds (AD-5, AD-8).
 Parameter MAXTIMER = 110;
+
+/// The shortest timer, in seconds: (12 - 10) \ 2 is 1, the least whole attempt timeout that Timeouts.Derive gives AI Hub.
+Parameter MINTIMER = 12;
+
+/// The first back-off before a re-send, in seconds; each later one doubles it (ResendDelay).
+Parameter RESENDFIRST = 1;
+
+/// The longest back-off before a re-send, in seconds.
+Parameter RESENDMAX = 8;
 
 /// The operation that records the agent steps (AD-9).
 Parameter STEPSITEM = "AgentSteps";
@@ -90,7 +119,8 @@ Property ReplyFilterClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTal
 /// The class that classifies tools beyond code and settings; it extends OcuTalon.Bridge.Ext.Classification.
 Property ClassificationClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.Classification" ];
 
-/// How long Decide waits for the runner's reply, in whole seconds from 1 to MAXTIMER (AD-5, AD-8).
+/// How long Decide waits for the runner's reply, in whole seconds from MINTIMER to MAXTIMER (AD-5, AD-8). Timeouts.Apply changes it
+/// together with the Config Store entries of the runners.
 Property TimerSeconds As %Integer [ InitialExpression = 60 ];
 
 /// The daily cost cap in US dollars; 0 means off. A value that is not a number of 0 or more counts as 0 (OcuTalon.Bridge.Budget).
@@ -109,6 +139,18 @@ Property DecisionTokenBudget As %Integer [ InitialExpression = 0 ];
 
 /// The error status that a runner ended its call with, kept by OnError for OnResponse (the key reply). Not stored.
 Property RunnerError As %Status [ InitialExpression = 1, Internal, Transient ];
+
+/// The DecisionRef of this decision, set in OnRequest before the send (AD-20); the timer and the re-sends use it. Not a setting.
+Property DecisionRef As %String(MAXLEN = 22);
+
+/// The number of times Decide has sent the request again after a rate limit. Not a setting.
+Property Resends As %Integer [ InitialExpression = 0 ];
+
+/// The AgentStepCount of the attempts before the last one. Not a setting.
+Property StepCount As %Integer [ InitialExpression = 0 ];
+
+/// The number of step records that EmitSteps has sent so far, so that the Positions of a decision run on across its attempts. Not a setting.
+Property StepsSent As %Integer [ InitialExpression = 0 ];
 
 /// Assigns a setting as Ens.Settings does, except for the four budget settings (AD-20, DW-76). A value of DailyCostCapUSD,
 /// GatewaySpendUSD or GatewaySpendDate that its property's datatype refuses, and a DecisionTokenBudget that is not made of digits only,
@@ -129,7 +171,7 @@ Method AssignOneSetting(pProperty As %String, pValue As %String, pName As %Strin
 /// the timer. The answer for a recorded decide or diagnose request, and the fallback answer of a request that fails a precheck
 /// (Precheck), are given here (response): the second is recorded (RecordFallback) and nothing is sent, no runner request and no timer.
 /// Otherwise the answer comes from OnResponse. The settings are checked first, so that a misconfigured Decide stays an error status and
-/// is never hidden behind a fallback.
+/// is never hidden behind a fallback. The DecisionRef is allocated here and kept in DecisionRef, before the send.
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
@@ -148,9 +190,8 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Set sc = ..CheckSettings(kind, runner, replyClass, ..ReplyFilterClass, ..TimerSeconds)
 	If $$$ISERR(sc) Quit sc
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set tokenBudget = ..DecisionTokenBudget
-	If tokenBudget = "" Set tokenBudget = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("DecisionTokenBudget", "", ..%ConfigName)
-	Set reason = ..Precheck(request, runner, tokenBudget)
+	Set ..DecisionRef = decisionRef
+	Set reason = ..Precheck(request, runner, ..TokenBudget())
 	If reason '= "" {
 		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 	}
@@ -173,46 +214,125 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 	Quit pErrorStatus
 }
 
-/// The timer ends Decide with an error that names it and the runner; the runner's reply ends in Conclude. For the reply, the steps are
-/// sent first (EmitSteps), so that a reply that is then refused, or a call that failed, still shows its steps in the trace; Conclude
-/// then gets the text of the runner's failure: the runner's error status (RunnerError, cut by StepBuffer.Part to Reply.#MAXFAILURE) or
-/// the FailureText of its failure Reply.
+/// The completion keys (AD-6, AD-8):
+///   - timer: the timer ended the attempt, so the decision is recorded as a fallback for the stored DecisionRef (RecordFallback), with
+///     the reason that Classify gives for a timer that fired (timeout, or rate_limited after a re-send), and the caller is answered;
+///   - resend: the back-off of a re-send is over (Resend);
+///   - reply: the runner answered. The steps are sent first (EmitSteps), so that a reply that is then refused, or a call that failed,
+///     still shows its steps in the trace. Conclude then gets the text of the runner's failure: the runner's error status
+///     (RunnerError, cut by StepBuffer.Part to Reply.#MAXFAILURE) or the FailureText of its failure Reply. When the runner answered
+///     with a Reply and no error status, ResendDelay weighs a re-send first (above); a delay above 0 adds the attempt's steps to
+///     StepCount, sets the timer resend and answers nothing yet.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set kind = request.Kind
 	Set runner = ..RunnerFor(kind)
 	If pCompletionKey = "timer" {
-		Quit $$$ERROR($$$GeneralError, "The timer of "_..TimerSeconds_" seconds ended before "_runner_" answered the "_kind_" request for item "_request.ItemId)
+		Set facts = {}
+		Do facts.%Set("timedOut", 1, "boolean")
+		Do facts.%Set("resends", ..Resends, "number")
+		Quit ..RecordFallback(request, ..DecisionRef, ..Classify(facts), "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), ..StepCount)
 	}
+	If pCompletionKey = "resend" Quit ..Resend(request, runner, .response)
 	If pCompletionKey '= "reply" Quit $$$ERROR($$$GeneralError, "Decide got a response with the unknown completion key '"_pCompletionKey_"'")
 	Do ..EmitSteps(callrequest.DecisionRef, callresponse)
 	Set failure = ""
+	Set answered = 0
 	If $$$ISERR(..RunnerError) {
 		Set failure = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part($SYSTEM.Status.GetErrorText(..RunnerError), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
 		Set ..RunnerError = $$$OK
 	} ElseIf $IsObject(callresponse) && callresponse.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Set failure = callresponse.FailureText
+		Set answered = 1
+	}
+	If answered && (failure '= "") {
+		Set facts = {}
+		Do facts.%Set("failure", failure)
+		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs())
+		If delay > 0 {
+			Set ..StepCount = ..StepCount + callresponse.AgentStepCount
+			Quit ..SetTimer(delay, "resend", "")
+		}
 	}
 	Set replyClass = ""
 	If kind '= "turn" {
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
-	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), failure)
+	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), failure, ..StepCount)
+}
+
+/// The key resend (AD-8, AD-20): prechecks the request again with the token budget of OnRequest (TokenBudget), and records a reason with
+/// RecordFallback, so that a daily_cap marks the day. With less than a second of the timer left it records rate_limited at once and
+/// sends nothing. Otherwise it sends a clone of the request with the stored DecisionRef to the runner (the key reply), adds 1 to
+/// Resends and sets the timer for the whole seconds left, because the framework dropped the first timer's pending entry when the
+/// runner's reply arrived.
+Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output response As %Persistent) As %Status
+{
+	Set response = ""
+	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
+	Set reason = ..Precheck(request, runner, ..TokenBudget())
+	Set seconds = ..RemainingMs() \ 1000
+	If (reason = "") && (seconds < 1) Set reason = "rate_limited"
+	If reason '= "" {
+		Quit ..RecordFallback(request, ..DecisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount)
+	}
+	Set clone = request.%ConstructClone()
+	Set clone.DecisionRef = ..DecisionRef
+	Set sc = ..SendRequestAsync(runner, clone, 1, "reply")
+	If $$$ISERR(sc) Quit sc
+	Set ..Resends = ..Resends + 1
+	Quit ..SetTimer(seconds, "timer")
+}
+
+/// The token budget of the precheck: the DecisionTokenBudget setting as the process holds it, or the setting as it is written when the
+/// process holds none (an invalid value is held as "", AssignOneSetting).
+Method TokenBudget() As %String [ Private ]
+{
+	Set tokenBudget = ..DecisionTokenBudget
+	If tokenBudget = "" Set tokenBudget = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("DecisionTokenBudget", "", ..%ConfigName)
+	Quit tokenBudget
+}
+
+/// The milliseconds of TimerSeconds that are left: TimerSeconds x 1000 minus the milliseconds since Decide began (0 at least, and 0 when
+/// the start cannot be read).
+Method RemainingMs() As %Integer [ Private ]
+{
+	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
+	If elapsed = "" Quit 0
+	Quit $Select(..TimerSeconds * 1000 > elapsed: ..TimerSeconds * 1000 - elapsed, 1: 0)
+}
+
+/// The seconds of back-off before the next re-send, or 0 for no re-send (AD-8, FR-4, NFR-23). It is pure. A re-send needs all of:
+///   - reason is rate_limited (Classify of the failure text of the runner's Reply);
+///   - toolsRun is false: a tool that ran may have acted, and the request is never sent again then;
+///   - remainingMs, the time left of TimerSeconds, is at least 2000.
+/// The delay is the least of RESENDFIRST x 2 to the power of resends (the re-sends so far), RESENDMAX and (remainingMs - 1000) \ 1000, so
+/// that the last re-send still has at least a second before the timer.
+ClassMethod ResendDelay(reason As %String, toolsRun As %Boolean, resends As %Integer, remainingMs As %Integer) As %Integer
+{
+	If ($Get(reason) '= "rate_limited") || +$Get(toolsRun) || (+$Get(remainingMs) < 2000) Quit 0
+	Set steps = $Select(+$Get(resends) > 10: 10, +$Get(resends) > 0: +resends, 1: 0)
+	Set delay = ..#RESENDFIRST * (2 ** steps)
+	Set fits = (remainingMs - 1000) \ 1000
+	If delay > ..#RESENDMAX Set delay = ..#RESENDMAX
+	Quit $Select(delay > fits: fits, 1: delay)
 }
 
 /// Sends each step record of the runner's reply to the AgentSteps operation, in order, without waiting for an answer: the sends
-/// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). A send that fails
-/// is a warning that names the step, the DecisionRef and the codes of its error, never the content (the text of a validation error
-/// echoes the value that failed), and so is a Steps value that does not parse; nothing changes the answer.
+/// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). The Positions start
+/// after the steps that were sent for the earlier attempts of the decision (StepsSent), which then grows by the number of records.
+/// A send that fails is a warning that names the step (its Position), the DecisionRef and the codes of its error, never the content (the
+/// text of a validation error echoes the value that failed), and so is a Steps value that does not parse; nothing changes the answer.
 Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
 {
 	Try {
-		Set messages = ..StepMessages(decisionRef, reply)
+		Set messages = ..StepMessages(decisionRef, reply, ..StepsSent)
+		Set ..StepsSent = ..StepsSent + messages.Count()
 		For i = 1:1:messages.Count() {
 			Set sc = ..SendRequestAsync(..#STEPSITEM, messages.GetAt(i), 0)
 			If $$$ISERR(sc) {
-				$$$LOGWARNING("Step "_i_" of the decision "_decisionRef_" was not sent to "_..#STEPSITEM_" (error codes "_$SYSTEM.Status.GetErrorCodes(sc)_")")
+				$$$LOGWARNING("Step "_messages.GetAt(i).Position_" of the decision "_decisionRef_" was not sent to "_..#STEPSITEM_" (error codes "_$SYSTEM.Status.GetErrorCodes(sc)_")")
 			}
 		}
 	} Catch exception {
@@ -221,10 +341,10 @@ Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
 }
 
 /// The AgentStep messages for the step records in the reply's Steps, as a list of messages in the order of the records. Position is the
-/// place in the array, from 1, and DecisionRef is the one given. No Steps, a reply of another class and a Steps value that is not a
-/// JSON array give an empty list; the last also logs a warning that names the DecisionRef and not the content. A record that is not
-/// an object is skipped with the same warning.
-ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply) As %ListOfObjects
+/// place in the array, from offset + 1 (the steps of the earlier attempts of the decision come first), and DecisionRef is the one given.
+/// No Steps, a reply of another class and a Steps value that is not a JSON array give an empty list; the last also logs a warning that
+/// names the DecisionRef and not the content. A record that is not an object is skipped with the same warning.
+ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, offset As %Integer = 0) As %ListOfObjects
 {
 	Set messages = ##class(%ListOfObjects).%New()
 	Try {
@@ -241,12 +361,12 @@ ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Re
 				Set iterator = records.%GetIterator()
 				While iterator.%GetNext(.index, .record, .type) {
 					If type '= "object" {
-						$$$LOGWARNING("Step "_(index + 1)_" of the decision "_decisionRef_" is not a step record, so it is not sent")
+						$$$LOGWARNING("Step "_(offset + index + 1)_" of the decision "_decisionRef_" is not a step record, so it is not sent")
 						Continue
 					}
 					Set message = ##class(OcuTalon.Bridge.Msg.AgentStep).%New()
 					Set message.DecisionRef = decisionRef
-					Set message.Position = index + 1
+					Set message.Position = offset + index + 1
 					Set message.StepKind = $Extract(record.%Get("kind"), 1, 32)
 					Set message.Label = $Extract(record.%Get("label"), 1, 1000)
 					Set message.Summary = $Extract(record.%Get("summary"), 1, 1000)
@@ -305,15 +425,14 @@ ClassMethod ReplyClassOf(runner As %String, Output sc As %Status) As %String
 }
 
 /// OK when the settings allow the request to be sent; otherwise an error that names the setting:
-///   - timer (TimerSeconds): a whole number from 1 to MAXTIMER;
+///   - timer (TimerSeconds): a whole number from MINTIMER to MAXTIMER (Timeouts.Check);
 ///   - filterClass (ReplyFilterClass): passes OcuTalon.Bridge.Ext.Accessor.Check, so that no text is ever recorded unfiltered;
 ///   - replyClass (the ReplyClass setting of the runner), for kind decide and diagnose: a compiled %JSON.Adaptor class. A
 ///     runner with no ReplyClass cannot answer these kinds. A turn needs no ReplyClass.
 ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %String, filterClass As %String, timer As %String) As %Status
 {
-	If (timer '? 1.N) || (+timer < 1) || (+timer > ..#MAXTIMER) {
-		Quit $$$ERROR($$$GeneralError, "The setting TimerSeconds of Decide is '"_timer_"'; it must be a whole number of seconds from 1 to "_..#MAXTIMER)
-	}
+	Set sc = ##class(OcuTalon.Bridge.Timeouts).Check(timer)
+	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("ReplyFilterClass", filterClass)
 	If $$$ISERR(sc) Quit sc
 	If kind = "turn" Quit $$$OK
@@ -400,25 +519,28 @@ ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request) As %Integer
 /// It is pure: it reads the facts and nothing else, and a fact that is missing counts as false or empty, so that no facts give "". The facts
 /// of a dynamic object:
 ///   - noKey, capped and overBudget: booleans from the precheck;
+///   - timedOut, a boolean, and resends, the number of times Decide sent the request again: the timer of an attempt fired;
 ///   - failure: the redacted text of a runner failure;
 ///   - finishReason and text: the runner's Reply;
 ///   - invalid: a boolean, true when the reply failed its ReplyClass check or nothing was left of it once the filter had run.
 /// The first rule that holds wins:
 ///   1. noKey gives no_key, then capped gives daily_cap, then overBudget gives budget;
-///   2. a failure is matched by its text, without regard to case: DAILYCAPTEXT gives daily_cap; NOKEYTEXT (both pieces) gives no_key;
-///      TIMEOUTTEXT gives timeout; RATELIMITTEXT gives rate_limited (taken at once, no re-send yet); one of ITERATIONCODES gives
-///      unusable; anything else gives error;
-///   3. finishReason refusal gives refusal, and max_tokens gives cut_off, because a cut-off reply is never an answer (NFR-5);
-///   4. a text fact that is blank once white space and control characters are removed gives empty when finishReason is not empty,
+///   2. timedOut gives rate_limited when resends is above 0 (the retries ran out, FR-4), else timeout, whatever else the facts hold;
+///   3. a failure is matched by its text, without regard to case: DAILYCAPTEXT gives daily_cap; NOKEYTEXT (both pieces) gives no_key;
+///      TIMEOUTTEXT gives timeout; RATELIMITTEXT gives rate_limited (OnResponse weighs a re-send before it asks for the reason);
+///      one of ITERATIONCODES gives unusable; anything else gives error;
+///   4. finishReason refusal gives refusal, and max_tokens gives cut_off, because a cut-off reply is never an answer (NFR-5);
+///   5. a text fact that is blank once white space and control characters are removed gives empty when finishReason is not empty,
 ///      and unusable when it is, because a provider that reports no stop reason cannot tell an empty reply from a refusal or a cut-off
 ///      (with no text fact at all there is no reply to judge, so the rule does not apply);
-///   5. invalid gives invalid.
+///   6. invalid gives invalid.
 ClassMethod Classify(facts As %DynamicObject) As %String
 {
 	If '$IsObject($Get(facts)) Quit ""
 	If +facts.%Get("noKey") Quit "no_key"
 	If +facts.%Get("capped") Quit "daily_cap"
 	If +facts.%Get("overBudget") Quit "budget"
+	If +facts.%Get("timedOut") Quit $Select(+facts.%Get("resends") > 0: "rate_limited", 1: "timeout")
 	Set failure = $ZConvert(facts.%Get("failure"), "L")
 	If failure '= "" {
 		If failure [ $ZConvert(..#DAILYCAPTEXT, "L") Quit "daily_cap"
@@ -465,14 +587,14 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      reason line says so (USERANSWERED);
 ///   5. answers from the row that another call saved first for the item and kind, if there is one, and fires no event;
 ///   6. saves one Decision row (Record), with the confidence rounded to two decimals, traceSessionId as TraceSessionId and the
-///      totals of the decision: the sums of the Usage rows of decisionRef (Usage.Totals), the reply's AgentStepCount and
-///      durationMs (whole milliseconds, "" when unknown);
+///      totals of the decision: the sums of the Usage rows of decisionRef (Usage.Totals), the reply's AgentStepCount added to stepCount
+///      (the steps of the earlier attempts) and durationMs (whole milliseconds, "" when unknown);
 ///   7. fires decision.recorded after the save (FireEvent);
 ///   8. builds the DecisionResponse, or a clone of the Reply with the filtered Text, the DecisionRef, the outcome tellnow and the
 ///      row's totals (CarryTotals), and with no Steps (Decide sent them) and no FailureText.
 /// An unusable reply is recorded and answered by RecordFallback; only a filter class that fails its check, a row that cannot be saved
 /// and a payload that cannot be exported end with an error status.
-ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", failure As %String = "") As %Status
+ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", failure As %String = "", stepCount As %Integer = 0) As %Status
 {
 	Set response = ""
 	Set kind = request.Kind
@@ -505,12 +627,12 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set reason = ..Classify(facts)
 	If reason '= "" {
-		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs)
+		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
 		Quit ..ResponseFromId(id, .response)
 	}
-	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs)
+	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
 	Set row.Outcome = outcome
 	Set row.Reasons = reasons
 	Set row.Confidence = confidence
@@ -565,21 +687,22 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 }
 
 /// Records an unusable request or reply as a fallback decision and answers it (AD-8, AD-20, AD-26, AD-31). reason is one value of
-/// Msg.Enum FALLBACKREASON, and reply is the runner's Reply, or "" when nothing was sent. The Decision row is NewRow with the outcome
+/// Msg.Enum FALLBACKREASON, and reply is the runner's Reply, or "" when nothing was sent or the runner has not answered (a timer).
+/// stepCount is the AgentStepCount of the earlier attempts, which the row adds to the reply's. The Decision row is NewRow with the outcome
 /// tellnow, Fallback true and the reason; Reasons, Confidence and Payload stay empty, so that no model text is kept. A row that another
 /// call saved first for the item and kind is answered instead (the row of a turn is refused as ResponseFromRow says), and fires nothing.
 /// When this call saved the row, decision.recorded is fired after the save (FireEvent) and, for daily_cap only, the day is marked as
 /// capped (Budget.MarkCapped), outside any transaction. The answer to a decide or diagnose request is the DecisionResponse of the row;
 /// the answer to a turn is a new Reply, never a clone of the runner's: it holds the DecisionRef, the outcome tellnow, Fallback, the
-/// reason, the totals of the row and the runner's Tainted, and no text, host data, steps, failure text or finish reason. Nothing else is
-/// sent: a fallback triggers no tool, fix or approval request.
-ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "") As %Status
+/// reason, the totals of the row and the runner's Tainted and ToolsRun (a fallback with no runner reply sets neither), and no text,
+/// host data, steps, failure text or finish reason. Nothing else is sent: a fallback triggers no tool, fix or approval request.
+ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0) As %Status
 {
 	Set response = ""
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
 		Quit ..ResponseFromId(id, .response)
 	}
-	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs)
+	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
 	Set row.Outcome = "tellnow"
 	Set row.Reasons = ""
 	Set row.Confidence = ""
@@ -596,15 +719,19 @@ ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef A
 	Set response.Outcome = "tellnow"
 	Set response.Fallback = 1
 	Set response.FallbackReason = reason
-	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") Set response.Tainted = reply.Tainted
+	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Set response.Tainted = reply.Tainted
+		Set response.ToolsRun = reply.ToolsRun
+	}
 	Do ..CarryTotals(row, response)
 	Quit $$$OK
 }
 
 /// A new Decision row for the request: Ref, Kind, ItemId, OwnerRef, Summary, traceSessionId as TraceSessionId, RecordedAt (now, UTC), the
-/// totals of the decision (the sums of the Usage rows of decisionRef, Usage.Totals), AgentStepCount from the reply (0 when there is none)
-/// and durationMs as DurationMs. The caller sets the outcome, the reasons, the confidence, the fallback and the payload.
-ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As %RegisteredObject, traceSessionId As %Integer, durationMs As %Integer = "") As OcuTalon.Bridge.Data.Decision
+/// totals of the decision (the sums of the Usage rows of decisionRef, Usage.Totals), AgentStepCount (stepCount, the steps of the earlier
+/// attempts, plus the reply's, which is 0 when there is none) and durationMs as DurationMs. The caller sets the outcome, the reasons, the
+/// confidence, the fallback and the payload.
+ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As %RegisteredObject, traceSessionId As %Integer, durationMs As %Integer = "", stepCount As %Integer = 0) As OcuTalon.Bridge.Data.Decision
 {
 	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
 	Set row.Ref = decisionRef
@@ -621,7 +748,11 @@ ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Strin
 	Set row.CacheWriteTokens = totals.cacheWriteTokens
 	Set row.CostUSD = totals.costUSD
 	Set row.Model = totals.model
-	Set row.AgentStepCount = $Select($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"): reply.AgentStepCount, 1: 0)
+	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Set row.AgentStepCount = $Select(+stepCount: stepCount + reply.AgentStepCount, 1: reply.AgentStepCount)
+	} Else {
+		Set row.AgentStepCount = +stepCount
+	}
 	Set row.DurationMs = durationMs
 	Quit row
 }
@@ -739,6 +870,18 @@ Storage Default
 </Value>
 <Value name="8">
 <Value>DecisionTokenBudget</Value>
+</Value>
+<Value name="9">
+<Value>DecisionRef</Value>
+</Value>
+<Value name="10">
+<Value>Resends</Value>
+</Value>
+<Value name="11">
+<Value>StepCount</Value>
+</Value>
+<Value name="12">
+<Value>StepsSent</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

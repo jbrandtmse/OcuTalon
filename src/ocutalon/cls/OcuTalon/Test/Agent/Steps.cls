@@ -34,6 +34,12 @@
 ///     headers has a ceiling of 120 s;
 ///   - TestCutOffToolCall (Task 0 (e)): a tool call that the provider cut at the output cap (the scenario cut-off-tool) is run by AI Hub, which
 ///     goes on to the later reply: the turn is answered with that reply's text, three steps (model, tool, model), no fallback.
+/// Added by Story 1.7 (AD-6, AD-8, DW-56):
+///   - TestTwoTools also pins ToolsRun (DW-56): both ChatAgent's Reply and Decide's answer say that tools ran;
+///   - TestToolRanNoResend: a turn whose call is answered with a rate limit after a tool ran (the scenario rate-limited-after-tool) is not sent
+///     again: Decide answers at once with a rate_limited fallback Reply that says a tool ran; ChatAgent's Reply says so and holds the provider's
+///     text; Decide sent one request, and the mock's log, read after the runner is drained, holds two requests for the ref and no third; a model
+///     step and the tool step reach AgentSteps.
 Class OcuTalon.Test.Agent.Steps Extends %UnitTest.TestCase
 {
 
@@ -183,6 +189,11 @@ Method TestTwoTools()
 	Do $$$AssertEquals(first.status_"|"_second.status_"|"_third.status, "ok|ok|ok", "and are ok")
 
 	Do $$$AssertEquals(row.AgentStepCount_"|"_answer.AgentStepCount, "5|5", "the decision and the answer carry AgentStepCount 5")
+	Set toolsBack = $ClassMethod(fixture, "HeaderTo", $ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
+	Set toolsReply = $Select($IsObject(toolsBack): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(toolsBack.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(toolsReply), "ChatAgent sent Decide a Reply")
+	If $IsObject(toolsReply) Do $$$AssertEquals(toolsReply.ToolsRun, 1, "which says that tools ran (DW-56)")
+	Do $$$AssertEquals(answer.ToolsRun, 1, "and so does Decide's answer, a clone of it")
 	Do $$$AssertEquals(answer.Steps, "", "and the answer has no Steps: Decide sent them")
 
 	// The trace. AgentSteps handles the steps while Decide answers, so the test waits for them to be Completed before it reads them.
@@ -465,6 +476,59 @@ Method TestCutOffToolCall()
 	}
 	Do $$$AssertEquals(kinds, "model,tool,model", "the steps are a model request, the tool that ran and a model request")
 	If steps.%Size() = 3 Do $$$AssertEquals(steps.%Get(1).label_"|"_steps.%Get(1).status, "Reading the test note|ok", "the tool step has its label and the status ok")
+}
+
+/// A rate limit after a tool ran is not sent again (AD-8, DW-56; the row "A tool ran (live)"). A user's turn with the scenario
+/// rate-limited-after-tool (a zz_steps_note tool use, then a 529) is answered at once with a rate_limited fallback Reply that says a tool ran.
+/// ChatAgent's Reply to Decide says so too and holds the provider's text ("Rate limit exceeded"); Decide sent it one request; the mock's log,
+/// read once the runner has handled everything sent to it (RunnerFixture.Drain), holds two requests for the ref, the tool use and the 529, and
+/// no third. A model step and the tool step ("Reading the test note") reach AgentSteps.
+Method TestToolRanNoResend()
+{
+	If ..Failed() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:rate-limited-after-tool]] Read the note.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set started = $ZHorolog
+	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Set elapsed = $ZHorolog - started
+	Do $$$AssertStatusOK(sc, "Decide answers the turn")
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertTrue(elapsed < 10, "at once, with no back-off: "_$Number(elapsed, 1)_" s")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "rate_limited"), "", "a rate_limited fallback Reply with every guarantee, in the answer, its XML and the row")
+	Do $$$AssertEquals(answer.ToolsRun, 1, "which says that a tool ran")
+	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", headers, "ChatAgent"), 1, "Decide sent ChatAgent one request")
+	Set back = $ClassMethod(fixture, "HeaderTo", $ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
+	Set reply = $Select($IsObject(back): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(back.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
+	If $IsObject(reply) {
+		Do $$$AssertEquals(reply.ToolsRun, 1, "whose ToolsRun is 1")
+		Do $$$AssertTrue(reply.FailureText [ "Rate limit exceeded", "and whose FailureText holds the provider's text: "_$Extract(reply.FailureText, 1, 200))
+	}
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Drain", "ChatAgent"), "ChatAgent answered a request of its own, so it had handled everything sent to it before")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
+	Set requests = $ClassMethod(fixture, "FindRequests", entries, ref)
+	Do $$$AssertEquals(requests.%Size(), 2, "the log holds two requests for the ref: the tool use and the 529, and no third")
+	Set statuses = ""
+	Set iterator = requests.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set statuses = statuses _ $Select(statuses = "": "", 1: ",") _ entry.status
+	}
+	Do $$$AssertEquals(statuses, "200,529", "the first was answered with the tool use and the second with the 529")
+	Set steps = $ClassMethod(fixture, "StepsOf", answer.DecisionRef)
+	Set kinds = ""
+	For i = 0:1:steps.%Size() - 1 {
+		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
+	}
+	Do $$$AssertEquals(kinds, "model,tool", "a model step and the tool step reach AgentSteps")
+	If steps.%Size() = 2 Do $$$AssertEquals(steps.%Get(1).label_"|"_steps.%Get(1).status, "Reading the test note|ok", "the tool step has its label and the status ok")
 }
 
 /// --- helpers ---

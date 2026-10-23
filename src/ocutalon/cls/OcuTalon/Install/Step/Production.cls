@@ -263,25 +263,11 @@ ClassMethod SetEval(enabled As %Boolean) As %Status
 	Quit ..WriteDefault(..#PRODUCTION, ..#EVALITEM, "Enabled", $Select(enabled: 1, 1: 0), "Written by the Production install step at every start from OCUTALON_EVAL; do not edit.")
 }
 
-/// Writes the System Default Setting row (production, item, any class, setting) with the value and the description: it
-/// changes the row when it exists and creates it otherwise. A row that matches every class applies to the director's
-/// lookup of the item and to the job of the item alike.
+/// Writes the System Default Setting row (production, item, any class, setting) with the value and the description, through the
+/// bridge's one writer (OcuTalon.Bridge.Ext.Accessor.WriteDefault): it changes the row when it exists and creates it otherwise.
 ClassMethod WriteDefault(production As %String, item As %String, setting As %String, value As %String, description As %String) As %Status
 {
-	Set id = production_"||"_item_"||*||"_setting
-	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
-		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id, , .sc)
-		If $$$ISERR(sc) Quit sc
-	} Else {
-		Set row = ##class(Ens.Config.DefaultSettings).%New()
-		Set row.ProductionName = production
-		Set row.ItemName = item
-		Set row.HostClassName = "*"
-		Set row.SettingName = setting
-	}
-	Set row.SettingValue = value
-	Set row.Description = description
-	Quit row.%Save()
+	Quit ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(production, item, setting, value, description)
 }
 
 /// The failure for a production other than this one that is not stopped.

@@ -4,7 +4,7 @@
 /// and kills the process-private globals ^||ZzProbeFilter and ^||ZzProbeSink.
 ///   - TestRefusedRequests: Admit gives "not implemented" (5003) for a foreign message class and for kind tool, and an error that
 ///     names the field for a kind, provenance, ItemId, OwnerRef or Input that is missing or unknown;
-///   - TestBadSettings: CheckSettings names TimerSeconds (0, 111, x), ReplyFilterClass (missing, not an extension class) and
+///   - TestBadSettings: CheckSettings names TimerSeconds (0, 11, 111, x), ReplyFilterClass (missing, not an extension class) and
 ///     ReplyClass (missing, not a JSON class; DiagnosisAgent has none);
 ///   - TestReplyCheck: a JSON object, also inside one code fence, passes; an outcome that is not one of OUTCOME, no reason, a blank
 ///     reason, no confidence, a confidence over 1, an extra field, text that is not JSON, an array and an empty text fail; and
@@ -83,6 +83,24 @@
 ///     settings checked first;
 ///   - TestStepsBeforeReplyClass: OnResponse handles the steps of the reply before it reads the runner's ReplyClass, so a reply whose
 ///     ReplyClass cannot be read still has its steps handled before the error.
+/// Added by Story 1.7 (AD-5, AD-6, AD-8, AD-9, AD-20, DW-56):
+///   - TestBadSettings and TestOnRequestUsesItsSettings: the shortest timer is 12 (11 and 1 are refused, 12 and 110 pass);
+///   - TestOnResponseUsesItsSettings: the timer's key is no longer an error: it records a timeout fallback for the DecisionRef of the process
+///     and answers the caller;
+///   - TestTimerFallback: OnResponse for the key timer, for a decide and for a turn, with no re-send and with one: a row with the process's
+///     DecisionRef and session, timeout and then rate_limited, a DecisionResponse or a fallback Reply that sets no runner flag, the totals of the
+///     Usage rows and the steps of the earlier attempts, a duration from the start of the process, and one decision.recorded;
+///   - TestResendDelay: ResendDelay is pure: 1, 2, 4 and 8 seconds of back-off (RESENDFIRST doubled up to RESENDMAX), cut so that the last
+///     re-send keeps a second before the timer, and 0 for every reason but rate_limited, a tool that ran and less than 2 seconds left;
+///   - TestResendPrecheck: OnResponse for the key resend prechecks the request again: no_key, budget and daily_cap are recorded as fallbacks
+///     with nothing sent (the day is marked capped), and so is a timer with less than a second left, which records rate_limited;
+///   - TestResendWiring: OnResponse wires the re-send, with the timers and sends of the process recorded (Test.Bridge.ZzDecide): the back-off
+///     timer and the steps added to StepCount for a rate limit, the timer left out when under 2 s remain, and the clone, the runner, the
+///     counter and the timer of the key resend;
+///   - TestStepMessages and TestEmitStepsFails: the Positions start after the steps already sent (offset, StepsSent), also for a second
+///     EmitSteps of the same decision;
+///   - TestConcludeFallbacks and TestOnErrorFallback: a fallback Reply carries the runner's ToolsRun as it carries Tainted, and a rate limit
+///     after a tool ran falls back at once.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
@@ -179,7 +197,7 @@ Method TestRefusedRequests()
 	Do ..AssertNamed(request, "Input", "an empty Input")
 }
 
-/// CheckSettings names the setting: TimerSeconds outside 1 to 110 or not a whole number, a ReplyFilterClass that is missing or
+/// CheckSettings names the setting: TimerSeconds outside 12 to 110 or not a whole number, a ReplyFilterClass that is missing or
 /// does not extend its base, and a ReplyClass that is missing or is not a compiled JSON class. A turn needs no ReplyClass, and
 /// DiagnosisAgent names none until Story 5.4.
 Method TestBadSettings()
@@ -187,10 +205,10 @@ Method TestBadSettings()
 	Set filter = "OcuTalon.Bridge.Ext.ReplyFilter"
 	Set class = "OcuTalon.Bridge.Process.Decide"
 	Do $$$AssertStatusOK($ClassMethod(class, "CheckSettings", "decide", "TriageAgent", ..#REPLYCLASS, filter, 60), "the default settings pass")
-	Do $$$AssertStatusOK($ClassMethod(class, "CheckSettings", "decide", "TriageAgent", ..#REPLYCLASS, filter, 1), "a timer of 1 passes")
+	Do $$$AssertStatusOK($ClassMethod(class, "CheckSettings", "decide", "TriageAgent", ..#REPLYCLASS, filter, 12), "a timer of 12 passes")
 	Do $$$AssertStatusOK($ClassMethod(class, "CheckSettings", "decide", "TriageAgent", ..#REPLYCLASS, filter, 110), "and so does a timer of 110")
 	Do $$$AssertStatusOK($ClassMethod(class, "CheckSettings", "turn", "ChatAgent", "", filter, 60), "a turn needs no ReplyClass")
-	For timer = 0, 111, "x", "", "60.5", -1 {
+	For timer = 0, 1, 11, 111, "x", "", "60.5", -1 {
 		Set sc = $ClassMethod(class, "CheckSettings", "decide", "TriageAgent", ..#REPLYCLASS, filter, timer)
 		Do $$$AssertStatusNotOK(sc, "a timer of '"_timer_"' is refused")
 		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "TimerSeconds", "and the error names TimerSeconds: "_$SYSTEM.Status.GetErrorText(sc))
@@ -602,8 +620,9 @@ Method TestRecord()
 }
 
 /// OnResponse hands the item's own settings to Conclude: a Decide instance whose ReplyFilterClass and HostSinkClass are the probes
-/// filters the turn's text once, fires decision.recorded once and records its own session; with the timer's key it ends with an
-/// error that holds its TimerSeconds and the runner. No production is started: a turn needs no ReplyClass.
+/// filters the turn's text once, fires decision.recorded once and records its own session; with the timer's key it records a timeout
+/// fallback for the DecisionRef that the process holds, in its own session, and answers the caller (TestTimerFallback pins the rest).
+/// No production is started: a turn needs no ReplyClass.
 Method TestOnResponseUsesItsSettings()
 {
 	Set process = ..NewProcess()
@@ -625,11 +644,17 @@ Method TestOnResponseUsesItsSettings()
 		Do $$$AssertEquals(row.Ref, ref, "with the DecisionRef of the runner's request")
 		Do $$$AssertEquals(row.TraceSessionId, 4243, "and the session of the process")
 	}
-	Set process.TimerSeconds = 7
-	Set sc = process.OnResponse(request, .response, sent, "", "timer")
-	Do $$$AssertStatusNotOK(sc, "the timer's key ends with an error")
-	Set text = $SYSTEM.Status.GetErrorText(sc)
-	Do $$$AssertTrue((text [ "7 seconds") && (text [ "ChatAgent"), "that holds the TimerSeconds of the item and the runner: "_text)
+	Set process.TimerSeconds = 12
+	Set later = ..NewRequest("turn", "user")
+	Set laterRef = ..NewUsageRef()
+	Set process.DecisionRef = laterRef
+	Set sc = process.OnResponse(later, .response, later.%ConstructClone(), "", "timer")
+	Do $$$AssertStatusOK(sc, "the timer's key is not an error: it records a fallback")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Fallback_"|"_response.FallbackReason_"|"_response.DecisionRef, 1: "none"), "OcuTalon.Bridge.Msg.Reply|1|timeout|"_laterRef, "a timeout fallback Reply with the DecisionRef of the process")
+	Set row = ..RowOf(later.ItemId, "turn")
+	Do $$$AssertTrue($IsObject(row), "and a row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.Ref_"|"_row.FallbackReason_"|"_row.TraceSessionId, laterRef_"|timeout|4243", "with that DecisionRef, the reason and the session of the process")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 2, "the sink class of the item got a second call")
 }
 
 /// OnResponse sends the steps of the runner's reply before it reads the ReplyClass setting of the runner (DW-83), so that a reply whose
@@ -655,13 +680,13 @@ Method TestStepsBeforeReplyClass()
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no row is recorded")
 }
 
-/// OnRequest hands the item's own TimerSeconds and ReplyFilterClass to the settings check: a value outside 1 to 110, and a filter
+/// OnRequest hands the item's own TimerSeconds and ReplyFilterClass to the settings check: a value outside 12 to 110, and a filter
 /// class that is no filter, refuse a turn before anything is sent or recorded. No production is started.
 Method TestOnRequestUsesItsSettings()
 {
 	Set process = ..NewProcess()
 	Set request = ..NewRequest("turn", "user")
-	For timer = 0, 111 {
+	For timer = 0, 11, 111 {
 		Set process.TimerSeconds = timer
 		Set sc = process.OnRequest(request, .response)
 		Do $$$AssertStatusNotOK(sc, "a TimerSeconds of "_timer_" refuses the request")
@@ -786,6 +811,11 @@ Method TestStepMessages()
 		Do $$$AssertEquals(second.Summary, "zz_steps_note. Inputs: {}. Result: {}. About 1 tokens added to the next request (an estimate).", "and its summary")
 	}
 	Do $$$AssertEquals(..WarningsOf(mark, ref), 0, "and there is no warning")
+	Set messages = $ClassMethod(decide, "StepMessages", ref, reply, 3)
+	Do $$$AssertEquals(messages.Count(), 2, "with an offset of 3 there are the same two messages")
+	If messages.Count() = 2 Do $$$AssertEquals(messages.GetAt(1).Position_"|"_messages.GetAt(2).Position_"|"_messages.GetAt(1).StepKind_"|"_messages.GetAt(2).StepKind, "4|5|model|tool", "numbered 4 and 5: they follow the 3 steps of the earlier attempts")
+	Set messages = $ClassMethod(decide, "StepMessages", ref, reply, 0)
+	If messages.Count() = 2 Do $$$AssertEquals(messages.GetAt(1).Position_"|"_messages.GetAt(2).Position, "1|2", "and an offset of 0 is the same as none")
 
 	For text = "", " ", $Char(10, 9), "[]" {
 		Set reply.Steps = text
@@ -854,6 +884,7 @@ Method TestEmitStepsFails()
 		Set raised = exception.DisplayString()
 	}
 	Do $$$AssertEquals(raised, "", "EmitSteps raises nothing when the sends fail")
+	Do $$$AssertEquals(process.StepsSent, 2, "and it counts the two records, so that the Positions of a later attempt run on from 3")
 	Do $$$AssertEquals(..EmitWarnings(mark, ref), 2, "and logs one warning for each step that was not sent")
 	Do $$$AssertEquals(..EmitWarnings(mark, ref, "Step 1 of the decision " _ ref _ " was not sent to AgentSteps"), 1, "the first names the step, the DecisionRef and AgentSteps")
 	Do $$$AssertEquals(..EmitWarnings(mark, ref, "Step 2 of the decision " _ ref _ " was not sent to AgentSteps"), 1, "and so does the second")
@@ -864,6 +895,12 @@ Method TestEmitStepsFails()
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ?", ref)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 0, "and no AgentStep was saved for the DecisionRef")
+
+	// a second attempt of the same decision numbers its steps from StepsSent + 1
+	Set markLater = ..LogMark()
+	Do process.EmitSteps(ref, reply)
+	Do $$$AssertEquals(process.StepsSent, 4, "a second EmitSteps of the decision counts its two records too")
+	Do $$$AssertEquals(..EmitWarnings(markLater, ref, "Step 3 of the decision " _ ref _ " was not sent to AgentSteps") + ..EmitWarnings(markLater, ref, "Step 4 of the decision " _ ref _ " was not sent to AgentSteps"), 2, "and numbers them 3 and 4: the Positions run on across the attempts")
 
 	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
 	Set process.HostSinkClass = "OcuTalon.Bridge.Ext.HostSink"
@@ -1057,7 +1094,7 @@ Method TestRecordedAtIsUtc()
 /// status OK; one row with the outcome tellnow, Fallback true and the reason, no reasons, confidence or payload, the DecisionRef given and
 /// the totals of its Usage rows; one decision.recorded after the save, outside any transaction; and the answer: a DecisionResponse of the row
 /// for a decide or diagnose request, and for a turn a new Reply that holds no text, host data, steps, failure text or finish reason, with
-/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted.
+/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted and ToolsRun.
 Method TestConcludeFallbacks()
 {
 	Set json = ..#DIGEST
@@ -1096,6 +1133,10 @@ Method TestConcludeFallbacks()
 	Do ..AssertFallback("a decide whose Chat stalled in a loop", ..NewRequest("decide"), ..NewReply(""), ..#LOOP, "unusable")
 	Do ..AssertFallback("a failure with a reply that is a usable text", ..NewRequest("turn", "user"), ..NewReply("Everything is fine."), "ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: [api_error] zz", "error")
 	Do ..AssertFallback("a rate limit", ..NewRequest("decide"), ..NewReply(""), ..#OVERLOADED, "rate_limited")
+	Set failed = ..NewReply("")
+	Set failed.FailureText = ..#OVERLOADED
+	Set failed.ToolsRun = 1
+	Do ..AssertFallback("a rate limit after a tool ran", ..NewRequest("turn", "user"), failed, ..#OVERLOADED, "rate_limited")
 	Do ..AssertFallback("a provider timeout", ..NewRequest("turn", "user"), ..NewReply(""), "ERROR <%AICore>ProviderError: Provider 'anthropic' error: operation timed out", "timeout")
 	Do ..AssertFallback("a missing key found by the runner", ..NewRequest("decide"), ..NewReply(""), "ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ANTHROPIC_API_KEY} has no value and no :-fallback was given", "no_key")
 	// no Reply at all
@@ -1172,6 +1213,19 @@ Method TestOnErrorFallback()
 	Set sc = process.OnResponse(request, .response, sent, ..NewReply("Everything is fine."), "reply")
 	Do $$$AssertStatusOK(sc, "an error status and a Reply together are recorded")
 	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.Text, 1: "none"), "1|error|", "the error wins: the Reply's text is not an answer")
+
+	// a rate limit after a tool ran is not sent again: the fallback is recorded at once, and carries the flag
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set failed = ..NewReply("")
+	Set failed.FailureText = ..#OVERLOADED
+	Set failed.ToolsRun = 1
+	Set failed.AgentStepCount = 2
+	Set sc = process.OnResponse(request, .response, sent, failed, "reply")
+	Do $$$AssertStatusOK(sc, "the failure Reply of a rate limit after a tool ran is recorded at once")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.ToolsRun_"|"_response.AgentStepCount, 1: "none"), "1|rate_limited|1|2", "as a rate_limited fallback that says a tool ran, with the steps of the attempt")
+	Do $$$AssertEquals(process.Resends, 0, "and Decide sent nothing again")
 }
 
 /// A fallback for an item that already has a row answers with that row and fires nothing, also when the other call saves its row inside
@@ -1460,7 +1514,297 @@ Method TestOnRequestPrecheck()
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and records no row")
 }
 
+/// OnResponse for the key timer records a fallback for the DecisionRef that the process holds, and answers the caller (AD-6, AD-8, AD-20):
+/// timeout when Decide has sent nothing again, rate_limited when it has (Resends above 0), for a decide and for a turn. The row has the
+/// DecisionRef and the session of the process and the totals of the Usage rows of the ref when the timer fired, the steps of the earlier
+/// attempts (StepCount) and a duration from the start of the process; the answer is a DecisionResponse, or a fallback Reply that sets no
+/// flag of a runner (there is none), carries the same totals and holds nothing of a runner; one decision.recorded is sent; and the process
+/// keeps its state (Resends, StepCount).
+Method TestTimerFallback()
+{
+	For kind = "decide", "turn" {
+		For resends = 0, 1, 3 {
+			Set reason = $Select(resends > 0: "rate_limited", 1: "timeout")
+			Set label = "a "_kind_" whose timer fired after "_resends_" re-sends: "
+			Kill ^||ZzProbeSink
+			Set process = ..NewProcess()
+			Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+			Set process.HostSinkClass = ..#SINK
+			Set process.%SessionId = 4248
+			Set process.%TimeCreated = ..Ago(5)
+			Set process.TimerSeconds = 60
+			Set process.Resends = resends
+			Set process.StepCount = 2
+			Set ref = ..NewUsageRef()
+			Set process.DecisionRef = ref
+			Do ..AddUsage(ref, "claude-haiku-5-5", 3800, 300, 2000, 600, .000365)
+			Set request = ..NewRequest(kind, $Select(kind = "turn": "user", 1: "untrusted"))
+			Set response = ""
+			Set sc = process.OnResponse(request, .response, request.%ConstructClone(), "", "timer")
+			Do $$$AssertStatusOK(sc, label_"the timer's key is answered with status OK")
+			Set row = ..RowOf(request.ItemId, kind)
+			If '$IsObject(row) || '$IsObject(response) {
+				Do $$$AssertTrue(0, label_"a row is recorded and an answer is given")
+				Continue
+			}
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(response, row, kind, reason), "", label_"every guarantee of a fallback holds with the reason "_reason_", in the answer, its XML and the row")
+			Do $$$AssertEquals(row.Ref_"|"_row.TraceSessionId, ref_"|4248", label_"the row has the DecisionRef and the session of the process")
+			Do $$$AssertEquals(..Totals(response), ..Totals(row), label_"the answer carries the totals of the row")
+			Do $$$AssertEquals($Piece(..Totals(row), "|", 1, 7), "3800|300|2000|600|.000365|claude-haiku-5-5|2", label_"the totals of the Usage rows of the ref, and the 2 steps of the earlier attempts")
+			Do $$$AssertTrue((row.DurationMs '< 5000) && (row.DurationMs < 60000), label_"the duration runs from the start of the process: "_row.DurationMs)
+			Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, label_"one event is sent")
+			Set call = $Get(^||ZzProbeSink(1))
+			Do $$$AssertEquals($List(call, 1)_"|"_$List(call, 3), "decision.recorded|{""ref"":"""_ref_"""}", label_"decision.recorded for the ref")
+			If kind = "turn" Do $$$AssertEquals(response.Tainted_"|"_response.ToolsRun_"|"_response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0|0|0", label_"the Reply sets no flag of a runner")
+			Do $$$AssertEquals(process.Resends_"|"_process.StepCount, resends_"|2", label_"and Decide keeps its state")
+		}
+	}
+	// a request that has a row already is answered with the row, and nothing is recorded twice
+	Kill ^||ZzProbeSink
+	Set process = ..NewProcess()
+	Set process.HostSinkClass = ..#SINK
+	Set request = ..NewRequest("decide")
+	Set first = ..NewRow(request.ItemId, "decide", "act")
+	Do $$$AssertStatusOK(first.%Save(), "a decide that another call recorded first")
+	Set process.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set response = ""
+	Set sc = process.OnResponse(request, .response, request.%ConstructClone(), "", "timer")
+	Do $$$AssertStatusOK(sc, "its timer's key is answered")
+	Do $$$AssertEquals($Select($IsObject(response): response.DecisionRef_"|"_response.Outcome, 1: "none"), first.Ref_"|act", "with the row that won")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink)_"|"_..Rows(request.ItemId), "0|1", "and no second row and no event")
+	Do $$$AssertStatusNotOK(process.OnResponse(request, .response, request.%ConstructClone(), "", "zz"), "any other key but timer, resend and reply is an error")
+}
+
+/// ResendDelay is pure (AD-8, FR-4, NFR-23). For rate_limited with no tool run: 1, 2, 4 and 8 seconds for 0, 1, 2 and 3 re-sends so far, and 8
+/// beyond; with less than 2000 ms left, 0; the delay is cut to (ms left - 1000) \ 1000, so that the last re-send keeps a second before the timer.
+/// Every other reason, a tool that ran and a missing argument give 0.
+Method TestResendDelay()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set expected = $ListBuild(1, 2, 4, 8, 8, 8)
+	Set resends = $ListBuild(0, 1, 2, 3, 4, 9)
+	For i = 1:1:$ListLength(resends) {
+		Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, $List(resends, i), 60000), $List(expected, i), "after "_$List(resends, i)_" re-sends with 60000 ms left the back-off is "_$List(expected, i))
+	}
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 0, 1999), 0, "with 1999 ms left there is no re-send")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 0, 2000), 1, "with 2000 ms left the first back-off of 1 s fits")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 0, 2500), 1, "and so it does with 2500")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 0, 0), 0, "with nothing left there is none")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 3, 5000), 4, "a back-off of 8 s is cut to 4 with 5000 ms left, so that the re-send keeps a second")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 2, 3000), 2, "4 is cut to 2 with 3000 ms left")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 1, 3000), 2, "and 2 is not cut")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 0, 6, 120000), 8, "the back-off never passes RESENDMAX with a lot of time left")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", 1, 0, 60000), 0, "a tool that ran is never sent again")
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited", "1", 3, 60000), 0, "whatever the re-sends so far")
+	For reason = "error", "timeout", "", "no_key", "daily_cap", "budget", "too_large", "refusal", "cut_off", "empty", "invalid", "unusable" {
+		Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", reason, 0, 0, 60000), 0, "the reason '"_reason_"' is not sent again")
+	}
+	Do $$$AssertEquals($ClassMethod(decide, "ResendDelay", "rate_limited"), 0, "no other argument gives 0")
+
+	// the last re-send keeps at least a second before the timer, and the delay is a whole number of seconds
+	Set bad = ""
+	For left = 2000:500:61000 {
+		For sent = 0:1:12 {
+			Set delay = $ClassMethod(decide, "ResendDelay", "rate_limited", 0, sent, left)
+			If (delay '? 1.N) || (delay < 1) || (delay > 8) || ((left - (delay * 1000)) < 1000) Set bad = bad _ $ListBuild(left_"/"_sent_"="_delay)
+		}
+	}
+	Do $$$AssertEquals($ListToString(bad, " "), "", "with 2000 ms or more left every delay is a whole number of 1 to 8 seconds that leaves a second")
+}
+
+/// OnResponse for the key resend prechecks the request again with the token budget of OnRequest (AD-8, AD-20): a missing key, a token budget
+/// that the estimate is over and a daily cap that is reached are recorded as fallbacks (no_key, budget, daily_cap) and nothing is sent, and the
+/// day is marked capped, once, by the daily_cap one. With less than a second of the timer left it records rate_limited and sends nothing. In
+/// each case Resends is unchanged and the row carries the steps of the earlier attempts. (A re-send that passes sends a request, which only a
+/// production can do: Test.Agent.Decide.TestRateLimitedResent.)
+Method TestResendPrecheck()
+{
+	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	Set cases = $ListBuild("no_key", "budget", "daily_cap", "rate_limited")
+	For i = 1:1:$ListLength(cases) {
+		Set reason = $List(cases, i)
+		Set label = "a re-send that is "_reason_": "
+		Do ..PutKey("TriageAgent")
+		Do ..Unmark()
+		Do ..Put("Decide", "DailyCostCapUSD", 0)
+		Do ..Put("Decide", "GatewaySpendUSD", "")
+		Do ..Put("Decide", "GatewaySpendDate", "")
+		Kill ^||ZzProbeSink
+		Set process = ..NewProcess()
+		Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+		Set process.HostSinkClass = ..#SINK
+		Set process.%SessionId = 4249
+		Set process.%TimeCreated = ..Ago(3)
+		Set process.TimerSeconds = 60
+		Set process.DecisionTokenBudget = 0
+		Set process.StepCount = 3
+		Set ref = ..NewUsageRef()
+		Set process.DecisionRef = ref
+		If reason = "no_key" Do ..Put("TriageAgent", "ProviderConfig", "{}")
+		If reason = "budget" Set process.DecisionTokenBudget = 1
+		If reason = "daily_cap" {
+			Do ..Put("Decide", "DailyCostCapUSD", 1)
+			Do ..Put("Decide", "GatewaySpendUSD", 1)
+			Do ..Put("Decide", "GatewaySpendDate", today)
+			Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, label_"control: the day is not marked yet")
+		}
+		If reason = "rate_limited" {
+			Set process.TimerSeconds = 12
+			Set process.%TimeCreated = ..Ago(20)
+		}
+		Set request = ..NewRequest("decide")
+		Set response = ""
+		Set sc = process.OnResponse(request, .response, "", "", "resend")
+		Do $$$AssertStatusOK(sc, label_"it is answered with status OK, and nothing is sent: a send from this process would be an error")
+		Set row = ..RowOf(request.ItemId, "decide")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(response, row, "decide", reason), "", label_"a tellnow fallback with that reason, in the answer, its XML and the row")
+		If $IsObject(row) Do $$$AssertEquals(row.Ref_"|"_row.AgentStepCount_"|"_row.TraceSessionId, ref_"|3|4249", label_"with the DecisionRef of the process, the steps of the earlier attempts and its session")
+		Do $$$AssertEquals(process.Resends, 0, label_"and Resends is unchanged")
+		If reason = "daily_cap" {
+			Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, label_"the day is marked capped")
+			Do $$$AssertEquals(..SinkTypes(), "decision.recorded,budget.capped", label_"with decision.recorded and then one budget.capped")
+		} Else {
+			Do $$$AssertEquals(..SinkTypes(), "decision.recorded", label_"one decision.recorded")
+		}
+		Do ..RestoreRows()
+	}
+}
+
+/// OnResponse wires the re-send (AD-8, AD-9, FR-4), with the timers and the sends of the process recorded instead of made (Test.Bridge.ZzDecide):
+///   - the key reply with a rate limit, no tool run and time left adds the attempt's steps to StepCount and sets the back-off as a timer with the
+///     key resend and no controlled key: 1 s before the first re-send, 4 s after two. It answers nothing, records no row and sends nothing;
+///   - the same reply with less than 2 s of the timer left is concluded at once as a rate_limited fallback, with no timer;
+///   - the key resend, with a precheck that passes, sends a clone of the request that carries the DecisionRef of the process to the runner of
+///     the kind (TriageAgent for a decide request) with the key reply, adds 1 to Resends and sets the timer for the whole seconds left with the
+///     key timer and the default controlled keys; the request itself is not changed, and nothing is answered.
+Method TestResendWiring()
+{
+	For case = $ListBuild(0, "1|resend|"), $ListBuild(2, "4|resend|") {
+		Set resends = $List(case, 1)
+		Set label = "after "_resends_" re-sends: "
+		Kill ^||ZzDecideCalls
+		Set process = ..NewRecorder()
+		Set process.TimerSeconds = 60
+		Set process.%TimeCreated = ..Ago(1)
+		Set process.Resends = resends
+		Set process.StepCount = 1
+		Set request = ..NewRequest("turn", "user")
+		Set sent = request.%ConstructClone()
+		Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set failed = ..NewReply("")
+		Set failed.FailureText = ..#OVERLOADED
+		Set failed.AgentStepCount = 2
+		Set response = ""
+		Set sc = process.OnResponse(request, .response, sent, failed, "reply")
+		Do $$$AssertStatusOK(sc, label_"a rate limit with no tool run and time left is answered with status OK")
+		Do $$$AssertEquals(response, "", label_"and nothing is answered yet")
+		Do $$$AssertEquals(process.StepCount_"|"_process.Resends, "3|"_resends, label_"the 2 steps of the attempt are added to the 1 of the earlier ones, and nothing is sent again yet")
+		Do $$$AssertEquals(..Calls("timer")_"|"_..CallOf("timer", 1), "1|"_$List(case, 2), label_"one timer is set: the back-off, the key resend and no controlled key")
+		Do $$$AssertEquals(..Calls("send"), 0, label_"and nothing is sent")
+		Do $$$AssertEquals(..Rows(request.ItemId), 0, label_"and no row is recorded")
+	}
+
+	// with less than 2 s of the timer left the reply is concluded at once
+	Kill ^||ZzDecideCalls, ^||ZzProbeSink
+	Set process = ..NewRecorder()
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = ..#SINK
+	Set process.%SessionId = 4250
+	Set process.TimerSeconds = 60
+	Set process.%TimeCreated = ..Ago(59)
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set failed = ..NewReply("")
+	Set failed.FailureText = ..#OVERLOADED
+	Set response = ""
+	Set sc = process.OnResponse(request, .response, sent, failed, "reply")
+	Do $$$AssertStatusOK(sc, "a rate limit with under 2 s of the timer left is concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "1|rate_limited", "as a rate_limited fallback")
+	Do $$$AssertEquals(..Calls("timer")_"|"_..Calls("send")_"|"_..Rows(request.ItemId), "0|0|1", "with no timer, no send and one row")
+
+	// the key resend
+	Do ..PutKey("TriageAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Kill ^||ZzDecideCalls
+	Set process = ..NewRecorder()
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = ..#SINK
+	Set process.%SessionId = 4251
+	Set process.TimerSeconds = 60
+	Set process.%TimeCreated = ..Ago(3.5)
+	Set process.DecisionTokenBudget = 0
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set process.DecisionRef = ref
+	Set request = ..NewRequest("decide")
+	Set response = ""
+	Set sc = process.OnResponse(request, .response, "", "", "resend")
+	Do $$$AssertStatusOK(sc, "the key resend is answered with status OK")
+	Do $$$AssertEquals(response, "", "and nothing is answered")
+	Do $$$AssertEquals(process.Resends, 1, "Resends is 1")
+	Do $$$AssertEquals(..Calls("send")_"|"_..CallOf("send", 1), "1|TriageAgent|"_ref_"|1|reply|"_request.ItemId, "one request is sent to TriageAgent with the DecisionRef of the process, a response required and the key reply")
+	Do $$$AssertEquals(request.DecisionRef, "", "and it is a clone: the request itself is not changed")
+	Set timer = $Get(^||ZzDecideCalls("timer", 1))
+	Do $$$AssertEquals(..Calls("timer"), 1, "one timer is set")
+	Do $$$AssertTrue(($List(timer, 1) '< 55) && ($List(timer, 1) '> 56) && ($List(timer, 1) = (+$List(timer, 1) \ 1)), "for the whole seconds left of the 60, 3.5 of them gone: "_$List(timer, 1))
+	Do $$$AssertEquals($List(timer, 2)_"|"_$List(timer, 3), "timer|*", "with the key timer and the default controlled keys")
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "and no row is recorded")
+	Do ..RestoreRows()
+}
+
 /// --- helpers ---
+/// A Decide that records its timers and its sends (Test.Bridge.ZzDecide), never started or saved.
+ClassMethod NewRecorder() As OcuTalon.Test.Bridge.ZzDecide [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Bridge.ZzDecide).%New("Decide")
+}
+
+/// The number of timers ("timer") or sends ("send") that the recorder made.
+ClassMethod Calls(kind As %String) As %Integer [ Private ]
+{
+	Quit +$Get(^||ZzDecideCalls(kind))
+}
+
+/// The nth timer or send of the recorder, its arguments joined with a bar.
+ClassMethod CallOf(kind As %String, n As %Integer) As %String [ Private ]
+{
+	Quit $ListToString($Get(^||ZzDecideCalls(kind, n)), "|")
+}
+
+/// A UTC time the number of seconds ago, as the process stores %TimeCreated.
+ClassMethod Ago(seconds As %Numeric) As %String [ Private ]
+{
+	Set now = $ZTimeStamp
+	Set day = +now
+	Set time = $Piece(now, ",", 2) - seconds
+	While time < 0 {
+		Set time = time + 86400
+		Set day = day - 1
+	}
+	Quit $ZDateTime(day_","_time, 3, 1, 3)
+}
+
+/// The types of the events that the probe sink got in this process, in order, comma-separated.
+ClassMethod SinkTypes() As %String [ Private ]
+{
+	Set types = ""
+	For n = 1:1:+$Get(^||ZzProbeSink) {
+		Set types = types _ $Select(types = "": "", 1: ",") _ $List($Get(^||ZzProbeSink(n)), 1)
+	}
+	Quit types
+}
+
+/// Puts back the System Default Settings rows that the test put, so that the next case starts from the same rows.
+Method RestoreRows() [ Private ]
+{
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
+	Set ..SavedRows = ""
+	Do ..Unmark()
+}
+
 /// A Decide instance for the in-process tests: it is never started or saved. Its settings are those of the Decide item of the
 /// active production (Ens.Host's initConfig), so a test sets every setting that it relies on.
 ClassMethod NewProcess() As OcuTalon.Bridge.Process.Decide [ Private ]
@@ -1644,8 +1988,8 @@ Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, 
 	If request.Kind = "turn" {
 		Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), label_": a turn is answered with a Reply")
 		Do $$$AssertEquals(response.Text_"|"_response.HostData_"|"_response.Steps_"|"_response.FailureText_"|"_response.FinishReason, "||||", label_": with no text, host data, steps, failure text or finish reason")
-		Do $$$AssertEquals(response.SessionRotated_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0|0", label_": and no flag of the runner's")
-		Do $$$AssertEquals(response.Tainted, $Select(isReply: +reply.Tainted, 1: 0), label_": but the taint of the runner's reply")
+		Do $$$AssertEquals(response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0", label_": and no flag of the runner's that Decide does not carry")
+		Do $$$AssertEquals(response.Tainted_"|"_response.ToolsRun, $Select(isReply: +reply.Tainted_"|"_+reply.ToolsRun, 1: "0|0"), label_": but the taint and the tools-run flag of the runner's reply (none when there is no reply)")
 		If $IsObject(reply) Do $$$AssertTrue(response '= reply, label_": it is a new Reply, not the runner's")
 		If isReply Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason_"|"_reply.Steps_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.Tainted, before, label_": and the runner's own Reply is not changed")
 	} Else {

@@ -50,10 +50,10 @@ ClassMethod Present(providerConfig As %String) As %Boolean
 	Set present = 1
 	Try {
 		Set text = $ZStrip($Get(providerConfig), "<>WC")
+		Set name = ##class(OcuTalon.Bridge.ConfigStore).EntryOf(text)
 		If text = "" {
 			Set present = 0
-		} ElseIf $Match(text, "^@\{config:[^{}]+\}\z") {
-			Set name = $Piece($Piece(text, "@{config:", 2), "}", 1)
+		} ElseIf name '= "" {
 			Set sc = ##class(OcuTalon.Bridge.ConfigStore).Details(name, .details)
 			If $$$ISOK(sc) {
 				Set present = ..KeyPresent(details)
