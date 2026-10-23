@@ -151,15 +151,19 @@ export function reasonLines(reasons: string | undefined, fallbackSentence: strin
 }
 
 /**
- * The cost row of the details: "Decision $0.0003", the separator and "Turn $0.0008" when the turn's cost is above the decision's, otherwise the
- * decision's cost alone.
+ * The cost row of the details: "Decision $0.0003", the separator and "Turn $0.0008" when the turn's cost is above the decision's as
+ * shown, otherwise the decision's cost alone: two amounts that show the same figure are shown once.
  */
 export function costRow(decisionCost: number | undefined, turnCost: number | undefined): string {
   const decision = formatCost(decisionCost);
   if (turnCost === undefined || finite(turnCost) <= finite(decisionCost)) {
     return decision;
   }
-  return DECISION_TEXTS.costBoth.replace('{decision}', () => decision).replace('{turn}', () => formatCost(turnCost));
+  const turn = formatCost(turnCost);
+  if (turn === decision) {
+    return decision;
+  }
+  return DECISION_TEXTS.costBoth.replace('{decision}', () => decision).replace('{turn}', () => turn);
 }
 
 /** The chip a decision shows: Tell now for a fallback, else its outcome; none for an outcome the page does not know. */

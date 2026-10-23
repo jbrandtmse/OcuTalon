@@ -511,6 +511,42 @@ deferred:
   Tests: `TestCheckRowsFromRender`, `TestStubRenderAddsNothing`, D7, `catalog.test.mjs`.
 - **Restart (Epic 2).** **Given** a session with decisions and check rows, **when** the page reloads, **then** every strip, details panel and row returns from `/state` (D8, `TestStateChatDecision`).
 
+### Review Findings
+
+Code review, 2026-10-23 (`bmad-code-review`, four layers, 23 findings, 7 entries after triage: 0 high, 2 medium, 5 low; 14 rejected).
+
+- [x] [Review][Patch] A check key with no rows has no test from Conversation to the page (`checks.nothingWatched` with no rows; a `||` in `Checked` or an `@if (turn().checks)` guard stays green) — medium, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Core/Conversation.cls:441, web/src/app/chat/ocutalon-reply.ts:73]
+- [x] [Review][Patch] `TestStubRenderAddsNothing`, the Integration AC's pin of "Conversation calls Checks.Render", cannot fail when the seam stops calling Render (the stub gives empty either way) — medium, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Core/Conversation.cls:450]
+- [x] [Review][Patch] `costRow` compares the raw amounts and shows the rounded ones, so a turn above the decision by less than the shown precision reads "Decision $0.0003 · Turn $0.0003" — low, fix-risk low, in-story [web/src/app/chat/decision-view.ts:157]
+- [x] [Review][Patch] The always-rendered, empty details wrapper is a flex item, so every closed strip ends with an extra 6 px gap — low, fix-risk low, in-story [web/src/app/chat/decision-strip.ts:82]
+- [x] [Review][Patch] `ConversationTurns.OnAfterOneTest` calls `DecideDouble.Written("")` when no session was made yet (a method run alone), which raises `<SUBSCRIPT>` (measured on slot B) — low, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls:92]
+- [x] [Review][Patch] `TestTurnStepWithNoRunningTurn`, the only pin of "the running turn, not the queue head" and of the empty-label guard, has no `mutation:` line — low, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:74]
+- [x] [Review][Patch] `Ownership`'s class comment and `Rows`' doc list the owner's sources as SessionRef or a row this class read, but BridgeSink passes the bridge event's owner and `ChatMessage.FromRow` a Turn's SessionRef (none is request input; AD-13 holds) — low, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Data/Ownership.cls:20,303]
+
+All seven patches were applied in the review pass, and their mutations are under `## Verification` (Code-review records):
+- `TestCheckKeyWithoutRows` and a key-only turn in D7;
+- `TestStubRenderAddsNothing` reads the seam's source;
+- `costRow` compares the amounts as shown;
+- `.details:empty` hides the closed wrapper, and D1 checks that no gap is left;
+- `OnAfterOneTest` skips an empty session piece;
+- a `mutation:` line for `TestTurnStepWithNoRunningTurn`;
+- `Ownership`'s two comments name every owner source.
+
+**Ledger.** DW-97 (owned by this story) is decided: `wontfix-theoretical`. Under AD-20 a `Decision` is unique on (`ItemId`, `Kind`), and Lane A's `Decide` (branch `OCT-epic1`, `ResponseFromRow`) refuses a second turn for an item, so a retried turn has no second `DecisionRef` and `TurnCost`'s two refs hold every usage row. How a `SessionBroken` attempt and its retry fit that key is Story 1.8's to settle (spec 1.3, Decided 5). DW-98, DW-90 and DW-91 are unchanged.
+
+**Rejected** (one line each):
+- `false` DW-97, `TurnCost` misses an earlier attempt's usage after a broken-session retry (blind-hunter, acceptance-auditor): AD-20's unique (`ItemId`, `Kind`) and Lane A's refusal of a repeated turn leave one turn `DecisionRef` per item, and `Replied` keeps it when the retry fails (`CallError` returns before the overwrite).
+- `false` `ChatMessage.FromRow` drops the decision when the cost read fails (acceptance-auditor): the Boundaries and the doc comment say a failed read leaves the decision, the cost and the rows empty. `TurnCost` fails only for an unknown turn or a read error, and every caller passes a saved row.
+- `low` Conversation's own fallbacks (busy retries out, an error, no answer) show the triage decision's reasons, cost and Details (blind-hunter, acceptance-auditor): this is spec-bound. The Boundaries rule `ShownDecisionRef` names `TriageDecisionRef` when a fallback has no reply decision, and Decided 3 and the matrix row "No decision" cover a turn with no decision row at all (the stub). Closed `by-design`.
+- `low` D6 starts its 2 s clock when `sinkEvent` returns, not at the publish (blind-hunter, edge-case-hunter, verification-gap): the uncounted tail (the script's last `Write`, `Halt` and the exec's exit) is small against a 1 s poll, so publish to label stays well under 2 s. The fix needs server and browser clocks compared across the container boundary.
+- `low` The Auto Run Result's residual risks and counts are older than QA's records (blind-hunter): the fix is an edit of build-auto's section of the spec. QA's records under `## Verification` supersede them.
+- `low` `Turn.CheckKey` (128) could be overrun by a long key from Render (edge-case-hunter): theoretical. Render returns catalog keys, and the longest `checks.*` key has 30 characters. It would become real if Render returned a key of more than 128 characters.
+- `low` `RunCost` does not check the format of `since` (edge-case-hunter): theoretical. No caller exists in this story, and Story 4.7's caller passes a run start in `RecordedAt`'s own form.
+- `low` `TestNeverWaitsMoreThanASecond` does not release its holder job in the clean-up (acceptance-auditor): the release only matters after an exception in the test body, and then the holder ends by itself within 60 s on a fixture stream that is already deleted.
+- `low` D6 loads its running turn from `/state` and does not show the "{label} · N s" form in the browser (acceptance-auditor): the snapshot fills the same store as the event, and the AC names `chat-view.test.mjs` for the 10 s form.
+- `low` `Test.Data.Ownership`'s class-wide `Fixture.Clean()` and the log clean-ups by source class reach beyond the test's own rows (acceptance-auditor): this pattern is older than this story. The classes run one at a time (shards and Rule 18), and no other job writes these warnings.
+- Rows from several layers are grouped: DW-97 and the triage-on-fallback row came from two layers each, D6 from three, and the `costRow` entry from three (blind-hunter, edge-case-hunter, acceptance-auditor).
+
 ## Spec Change Log
 
 - 2026-10-22, spec validation (lead):
@@ -772,6 +808,35 @@ Review-pass mutations (Rule 19), restored byte-identical and compared with `git 
 - mutation: the fall-through arms of `ShownDecisionRef` returned the first ref alone (`Quit ..TurnDecisionRef`, `Quit ..TriageDecisionRef`) -> `TestShownDecisionRef` red (the reply with only the reply decision, the fallback with only the triage decision)
 - mutation: `Holding` returned 0 whatever the events -> `TestDecisionRecordedPublishesTheDecision` red (the positive control, "the search finds the event that holds the decision's Ref")
 - mutation: the Digest and Tell now meanings swapped in `CHIPS`, the Details button moved before the reasons, and the fallback-only strip dropped from `chatView` (`strip = decision !== undefined`), applied together in one `live sign-in` run and read from its JSON report -> D3 red (the group's description), D5 red (the Digest tooltip), D2 red (the button's place), C15 red (the fallback strip with no decision); the other 108 specs passed
+
+**QA-stage records (Rule 19; QA).** Files added to or changed by the QA stage (no new test class; every test joins a suite the default run already discovers: the node tests by `web/scripts/*.test.mjs`, the specs by the chromium project, the `%UnitTest` method by the `lane-b` shard):
+- (QA) `web/scripts/decision-view.test.mjs`: `formatCost` over the whole stated range (three tests: the amounts next to the limit of a billion dollars, every tie of each tier, 6000 amounts of 1 to 15 digits), against a BigInt reference on whole micro-dollars. The bound of `roundHalfUp` (15 significant digits: amounts of up to six decimals and under $1,000,000,000) is pinned; beyond it is not claimed (measured: 1,234,567,890.124999 shows "$1234567890.13" where the decimal amount gives .12, a cost the daily cap makes unreachable).
+- (QA) `web/e2e/chat/decision.spec.ts`: D11 (markup in a reason, a check entry and a finding shows as text), D12 (Decision details leaves out the model and the duration a decision has none of, and shows absent counts as 0), D13 (a reply the model wrote whose own decision fell back shows the fallback strip with the decision's reason).
+- (QA) `docker/tests/test-sign-in.sh`: the header and the pass and fail labels now read D1-D13.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls`: `TestBusyAndBrokenRepliesAreNotChecked`; `Finish` takes several answers separated by commas. `src/ocutalon/cls/OcuTalon/Test/Core/DecideDouble.cls`: the answers `busychecks` and `brokenchecks`.
+
+Runs: slot B `Test.Core.ConversationTurns` 37/37 and no `zz` row, event or log row left; `npm --prefix web test` 240/240, lint exit 0, `bash ci/checks.sh` exit 0, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh` and `test-ci-changes.sh` exit 0; throwaway (tag e2s26q) `live sign-in` 115 passed (D1 to D13 and C1 to C15 among them), then `teardown` left nothing. Epic 1's `LOCK busy` (exit 75) was waited out and rerun.
+
+Mutations (QA), each applied, observed red and restored, the tree compared with `git status --short`, `git diff --stat` and a checksum of every changed file before and after:
+- mutation: `roundHalfUp` rounded on `toPrecision(12)` instead of 15 -> `decision-view.test.mjs` red (the amounts next to the limit: 999999999.994999 showed "$1000000000.00"; the 6000-amount sweep: 226043214.854847 showed "$226043214.86"); the 28 older tests stay green, so the range tests are the only pin of the bound's lower side
+- mutation: the strip's reason lines bound with `[innerHTML]` instead of interpolation -> D11 red and `page-safety.test.mjs` red; the check rows' entry and finding bound with `[innerHTML]` -> D11 red (expected "<i>zz entry</i>", received "zz entry"), the other 114 specs green
+- mutation: the `@if (decision().model)` guard of `decision-details.ts` removed -> D12 red (five `dt` instead of four, an empty Model value)
+- mutation: the branch of `chatView` that makes a decision's own fallback a fallback strip removed -> D13 red (no Fallback flag) and `chat-view.test.mjs` red
+- mutation: `Replied` called `Checked` for a busy reply and for a session-broken reply before returning -> `TestBusyAndBrokenRepliesAreNotChecked` red in both cases ("Render is given nothing"); the key and rows stay empty on the Turn, because the next callback reopens the Turn from its saved row, so the pin is on Render's inputs
+
+Measurements (QA):
+- `Msg.Catalog.Cost` on slot B agrees with the reference at the edge of the range: 999999999.994999 gives "$999999999.99", 999999999.995 gives "$1000000000.00", 226043214.854847 gives "$226043214.85".
+- The five new icons against lucide-static 1.61.0 (ISC, fetched for the comparison only, nothing added to the repository): `life-buoy`, `circle-x`, `circle-dashed` and `chevron-up` are identical; `circle-check` keeps the check stroke `m9 12 2 2 4-4` of the earlier Lucide set, as Story 2.5's `zap` keeps its earlier path, so the page's set is of one vintage. The residual risk named in the Auto Run Result (paths written from memory) is closed.
+
+**Code-review records (Rule 19; code review, 2026-10-23).** Tests added or changed by the review's patches: `Test.Core.ConversationTurns` `TestCheckKeyWithoutRows` (new) and `TestStubRenderAddsNothing` (it now also reads the seam's source); D1 (a closed strip has no gap below its reason line) and D7 (a fourth turn, a key with no rows); `decision-view.test.mjs` (the `costRow` case of two amounts that show the same figure). Each mutation below was applied, seen red and reverted. The server and node mutations were run from copies outside the tree, and the two browser mutations were restored from saved copies. After each one the tree was compared with `git status --short`, `git diff --stat` and a checksum of the files:
+- mutation: `Checked` kept a result only when the key and the rows were both set (`If (key = "") || (size = 0) Quit`) -> `TestCheckKeyWithoutRows` red (the Turn, the Outbound and the done chat.message lost the key)
+- mutation: `RenderChecks` no longer called Render (`Set rows = [] Quit ""`) -> `TestStubRenderAddsNothing` red ("the seam calls Checks.Render with the results and the rows"); the other 36 tests of the class stayed green
+- mutation: `Step` took the head of the queue whatever its state (`If 1 {` for the `running` test) -> `TestTurnStepWithNoRunningTurn` red (four assertions: a queued turn's step was published); the other 8 tests of `Test.Core.BridgeSink` stayed green. `TestTurnStepForTheRunningTurn` cannot see this mutation, because its running turn is also the head of its queue
+- mutation: `costRow` compared only the raw amounts (the shown-figure check removed) -> `decision-view.test.mjs` red ("shows the decision alone when the turn cost more by less than the shown figure")
+- mutation: the strip's `.details:empty { display: none }` removed, and the reply's check-rows guard narrowed to `@if (turn().checks)`, together in one `live sign-in` run (tag e2s26r) -> D1 red ("a closed strip ends with its reason line, with no gap below") and D7 red ("a key with no rows shows its sentence"); the other 113 specs passed
+- (no mutation line needed) `ConversationTurns.OnAfterOneTest`'s guard: without it, `TestSummaryCut` run alone failed with `<SUBSCRIPT>Written+1^OcuTalon.Test.Core.DecideDouble.1`; with it, the method passes alone
+
+Runs (code review, after the patches): slot B (`ocutalon-slot-b`, build 154, port 52791) `Test.Core.ConversationTurns` 38/38, `TestSummaryCut` alone 1/1, `Test.Core.BridgeSink` 9/9, `Test.Data.Ownership` 16/16, with no fixture row, `zz` turn or `zz` decision left; `npm --prefix web test` 241/241, lint exit 0, `test-web-build.sh` and `bash ci/checks.sh` exit 0; throwaway (tag e2s26r) `live sign-in` 115 passed (D1 to D13 and C15 among them), then `teardown` left nothing.
 
 **Shared surfaces:**
 - the `chat.message` payload: `Test.Live.Payloads`, the api.spec rows (`toMatchObject`, additive), the restart row's snapshot comparison (a one-turn stub session, which has no decision and so stays unchanged), and `chat-view.test.mjs`;

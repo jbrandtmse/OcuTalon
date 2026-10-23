@@ -5,7 +5,7 @@ import { finishTurn, fixtureUser, seedTurns, sinkEvent, type SeedDecision, type 
 import { clock, plain, tokenColor } from '../support/page';
 
 /**
- * Story 2.6, the decision strip under every reply (D1 to D10), in a real browser against a real stack. Every case signs in as the
+ * Story 2.6, the decision strip under every reply (D1 to D13), in a real browser against a real stack. Every case signs in as the
  * decision fixture user that test-sign-in.sh created (OCUTALON_DECISION_USER) and seeds turns, decisions, usage rows and check
  * rows into its own session, so that nothing here publishes on the README session or the instance stream (api.spec pins their
  * counts), sends a message or touches another spec's chat; C15 of chat.spec is the one case that sends, as the panel user.
@@ -127,6 +127,8 @@ test('D1: a reply shows its decision strip', async ({ page }) => {
   const stripBox = (await strip.boundingBox())!;
   expect(stripBox.y, 'the strip comes after the reply text').toBeGreaterThanOrEqual(textBox.y + textBox.height - 1);
   expect(Math.abs(stripBox.x - textBox.x), 'under the text, left-aligned with it').toBeLessThanOrEqual(1);
+  const line2Box = (await strip.locator('.line2').boundingBox())!;
+  expect(stripBox.y + stripBox.height, 'a closed strip ends with its reason line, with no gap below').toBeLessThanOrEqual(line2Box.y + line2Box.height + 1);
 
   const group = reply.getByRole('group', { name: 'Act', exact: true });
   await expect(group, 'the strip is a group named by its chip').toHaveCount(1);
@@ -305,6 +307,7 @@ test('D7: check rows show under a reply, never an all-clear from the rows', asyn
     turn('D7 all', { createdAt: '2025-03-01T10:00:00Z', checkKey: 'checks.allPassed', checks: passed }),
     turn('D7 mixed', { createdAt: '2025-03-01T10:05:00Z', checkKey: 'checks.notEverything', checks: mixed }),
     turn('D7 bare', { createdAt: '2025-03-01T10:10:00Z', checks: passed }),
+    turn('D7 key only', { createdAt: '2025-03-01T10:15:00Z', checkKey: 'checks.nothingWatched' }),
   ]);
   await open(page);
 
@@ -341,6 +344,10 @@ test('D7: check rows show under a reply, never an all-clear from the rows', asyn
   await expect(bare.locator('li.row'), 'rows with no key still show').toHaveCount(2);
   await expect(bare.locator('.sentence'), 'but every row passing is no all-clear without the key').toHaveCount(0);
   await expect(replyOf(page, refs[2]!)).not.toContainText('Everything I checked passed');
+
+  const keyOnly = replyOf(page, refs[3]!).locator('app-check-rows');
+  await expect(keyOnly.locator('.sentence'), 'a key with no rows shows its sentence').toHaveText("I'm not watching any productions yet, so I can't say. Ask me to watch one.");
+  await expect(keyOnly.locator('li.row'), 'and no row').toHaveCount(0);
 });
 
 /** What D8 reads of a turn. */
@@ -467,4 +474,72 @@ test('D10: /events serves BridgeSink\'s decision event', async ({ page }) => {
   expect(String(event.payload['itemId']), 'the item').toMatch(/^[A-Za-z0-9_-]{22}$/);
   expect(event.payload['fallback'] ?? false, 'not a fallback').toBe(false);
   expect(event.payload['fallbackReason'] ?? '', 'with no fallback reason').toBe('');
+});
+
+/**
+ * D11: what a model or a tool wrote is text on the page, never markup: a reason line, a check's entry and its finding show as the
+ * characters they are, and nothing made of them is an element or runs.
+ */
+test('D11: markup in a reason, a check entry and a finding shows as text', async ({ page }) => {
+  const reason = '<b>zz bold reason</b> <img src="x" onerror="window.zzMarkup = 1">';
+  const entry = '<i>zz entry</i>';
+  const finding = '<u>zz finding</u> <img src="y" onerror="window.zzMarkup = 2">';
+  const { refs } = await seed([
+    turn('D11', {
+      createdAt: '2025-03-05T10:00:00Z',
+      triage: { ...ACT, reasons: `${reason}\nSecond reason.` },
+      checks: [{ result: 'failed', entry, finding, checkedAt: '2025-03-05T10:00:00Z' }],
+    }),
+  ]);
+  await open(page);
+  const reply = replyOf(page, refs[0]!);
+  await expect(stripOf(page, refs[0]!).locator('.reason').first(), 'the reason line is its own characters').toHaveText(reason);
+  const row = reply.locator('app-check-rows li.row');
+  await expect(row.locator('.entry'), 'so is the check\'s entry').toHaveText(entry);
+  await expect(row.locator('.finding'), 'and its finding').toHaveText(finding);
+  await expect(reply.locator('b, i, u, img[src="x"], img[src="y"]'), 'none of it became an element').toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { zzMarkup?: number }).zzMarkup), 'and no handler ran').toBeUndefined();
+});
+
+/** D12: Decision details leaves out the rows it has no figure for (the model, the duration), and shows an absent count as 0. */
+test('D12: Decision details leaves out the model and the duration a decision has none of', async ({ page }) => {
+  const { refs, decisions } = await seed([
+    turn('D12', {
+      createdAt: '2025-03-06T10:00:00Z',
+      triage: { outcome: 'act', reasons: 'Bare reason.', confidence: 0.5, model: '' },
+      turn: undefined,
+      usage: [],
+    }),
+  ]);
+  await open(page);
+  const strip = stripOf(page, refs[0]!);
+  await expect(strip.locator('.line1 .meta'), 'a turn with no usage costs less than $0.0001').toHaveText(`Confidence 0.50${DOT}<$0.0001`);
+  await strip.getByRole('button', { name: 'Decision details' }).click();
+  const details = strip.locator('dl.details');
+  await expect(details).toBeVisible();
+  await expect.soft(details.locator('dt'), 'no Model and no Duration').toHaveText(['Tokens', 'Agent steps', 'Decision message', 'Cost']);
+  await expect.soft(details.locator('dd'), 'every absent count is 0').toHaveText([`Input 0${DOT}Output (includes thinking) 0${DOT}Cache read 0${DOT}Cache write 0`, '0', decisions[0]!.triage, '<$0.0001']);
+});
+
+/**
+ * D13: a reply the model wrote, whose own decision fell back, still shows the fallback strip: Tell now, the Fallback flag and the
+ * decision's reason first, with no confidence; the reply's text is the model's.
+ */
+test('D13: a reply whose decision fell back shows the fallback strip with the decision\'s reason', async ({ page }) => {
+  const { refs } = await seed([
+    turn('D13', {
+      createdAt: '2025-03-07T10:00:00Z',
+      triage: { outcome: 'tellnow', fallback: true, fallbackReason: 'empty', reasons: 'Fixed rules chose this.', confidence: 0.5, costUSD: 0.0003 },
+      turn: undefined,
+      usage: [USAGE[0]!],
+    }),
+  ]);
+  await open(page);
+  const reply = replyOf(page, refs[0]!);
+  const strip = stripOf(page, refs[0]!);
+  await expect(reply.locator('.text'), 'the reply is the model\'s own text, not the fallback sentence').toHaveText('zz reply to D13');
+  await expect(strip.locator('app-outcome-chip .chip')).toHaveText('Tell now');
+  await expect(strip.locator('app-fallback-flag .flag')).toHaveText('Fallback');
+  await expect(strip, 'no confidence on a fallback').not.toContainText('Confidence');
+  await expect(strip.locator('.reason').first(), 'the decision\'s reason, as a sentence, comes first').toHaveText("The model's reply was empty.");
 });

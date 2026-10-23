@@ -116,6 +116,62 @@ describe('formatCost', () => {
       assert.equal(formatCost(amount), '<$0.0001', String(amount));
     }
   });
+
+  describe('over the whole range its rounding is exact: every amount of up to six decimals and under a billion dollars', () => {
+    /** The cost rule on whole micro-dollars (BigInt, no binary double): the tier of the amount as shown, rounded half up. */
+    const reference = (micros) => {
+      if (micros < 100n) return '<$0.0001';
+      const roundedAt = (places) => {
+        const unit = 10n ** BigInt(6 - places);
+        return (micros + unit / 2n) / unit;
+      };
+      let places = micros < 10_000n ? 4 : micros < 1_000_000n ? 3 : 2;
+      if (places === 4 && roundedAt(4) >= 100n) places = 3;
+      if (places === 3 && roundedAt(3) >= 1000n) places = 2;
+      const scale = 10n ** BigInt(places);
+      const rounded = roundedAt(places);
+      return `$${rounded / scale}.${String(rounded % scale).padStart(places, '0')}`;
+    };
+    /** The amount a Usage row of scale 6 holds for these micro-dollars, as the page reads it from JSON. */
+    const amountOf = (micros) => Number(micros) / 1e6;
+    const check = (micros) => assert.equal(formatCost(amountOf(micros)), reference(micros), `${micros} micro-dollars`);
+    const LIMIT = 999_999_999_999_999n;
+
+    it('shows the amounts next to the limit of a billion dollars as the decimal amount rounds', () => {
+      for (const micros of [LIMIT, LIMIT - 1n, 999_999_999_995_000n, 999_999_999_994_999n, 999_999_995_000_000n, 999_999_994_999_999n, 100_000_000_000_000n, 99_999_999_999_999n, 123_456_789_125_000n, 123_456_789_124_999n]) {
+        check(micros);
+      }
+      assert.equal(formatCost(amountOf(999_999_999_995_000n)), '$1000000000.00', 'a tie at the top rounds up');
+      assert.equal(formatCost(amountOf(999_999_999_994_999n)), '$999999999.99', 'and a hair under it does not');
+    });
+
+    it('rounds every tie of each tier up: the amount that ends in a 5 one place past the shown ones', () => {
+      for (const [places, ks] of [
+        [4, Array.from({ length: 101 }, (_, k) => k)],
+        [3, Array.from({ length: 1001 }, (_, k) => k)],
+        [2, [...Array.from({ length: 2001 }, (_, k) => k), 99_999, 100_000, 100_001, 12_345_678, 99_999_999, 100_000_000, 99_999_999_999]],
+      ]) {
+        const unit = 10n ** BigInt(6 - places);
+        for (const k of ks) {
+          const micros = BigInt(k) * unit + unit / 2n;
+          if (micros <= LIMIT) check(micros);
+        }
+      }
+    });
+
+    it('agrees with the reference on 6000 amounts of every length from 1 to 15 digits', () => {
+      let state = 0x2545f491n;
+      const next = () => {
+        state = (state * 6364136223846793005n + 1442695040888963407n) & 0xffffffffffffffffn;
+        return state >> 11n;
+      };
+      for (let i = 0; i < 6000; i += 1) {
+        const digits = 1 + (i % 15);
+        const micros = next() % 10n ** BigInt(digits);
+        check(micros);
+      }
+    });
+  });
 });
 
 describe('formatTokens, formatConfidence and confidenceText', () => {
@@ -214,6 +270,12 @@ describe('costRow', () => {
     assert.equal(costRow(0.0003, 0.0002), '$0.0003');
     assert.equal(costRow(0.0003, undefined), '$0.0003');
     assert.equal(costRow(undefined, undefined), '<$0.0001');
+  });
+
+  it('shows the decision alone when the turn cost more by less than the shown figure', () => {
+    assert.equal(costRow(0.00031, 0.00034), '$0.0003');
+    assert.equal(costRow(0.00002, 0.00005), '<$0.0001');
+    assert.equal(costRow(1.501, 1.504), '$1.50');
   });
 
   it('shows "Decision $x \u00B7 Turn $y" when the turn cost more', () => {

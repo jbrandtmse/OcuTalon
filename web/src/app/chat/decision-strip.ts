@@ -79,7 +79,7 @@ const NEWEST_LINES = 3;
           </button>
         }
       </div>
-      <div [id]="detailsId">
+      <div class="details" [id]="detailsId">
         @if (open() && decision(); as shown) {
           <app-decision-details [decision]="shown" [turnCost]="turnCost()" />
         }
@@ -112,6 +112,9 @@ const NEWEST_LINES = 3;
       align-items: flex-start;
       gap: 2px;
       max-width: var(--chat-panel-text-max);
+    }
+    .details:empty {
+      display: none;
     }
     .line2.collapsed {
       flex-direction: row;

@@ -30,9 +30,12 @@
 ///   - TestDecisionOnChatMessage, TestOutboundCarriesTheDecision (Story 2.6): with the double recording its decisions, chat.message
 ///     carries the shown decision and the turn's cost (the triage decision while the turn runs and after it is done, the reply
 ///     decision of a fallback), and the Outbound carries the shown decision's Ref;
-///   - TestCheckRowsFromRender, TestStubRenderAddsNothing, TestNoCheckRowsWithoutResults: the check key and rows that
-///     Checks.Render makes for a reply's HostData are on the Turn, the Outbound and chat.message; the real stub adds nothing, and
-///     a fallback, bad JSON, HostData with no checks and a failing Render add none;
+///   - TestCheckRowsFromRender, TestCheckKeyWithoutRows, TestStubRenderAddsNothing, TestNoCheckRowsWithoutResults: the check
+///     key and rows that Checks.Render makes for a reply's HostData are on the Turn, the Outbound and chat.message, a key with no
+///     rows included; the seam is the call of Checks.Render and the real stub adds nothing, and a fallback, bad JSON, HostData
+///     with no checks and a failing Render add none;
+///   - TestBusyAndBrokenRepliesAreNotChecked: a busy reply and a broken session with check results in their HostData are never
+///     given to Render, so the answer that ends the turn is the only one that can leave a key or rows;
 ///   - TestAnswerForNonRunningTurnDropped: an answer for a turn that is no longer running changes nothing, whatever its Attempt;
 ///   - TestDecideAnswerOfAnotherClassStillRuns: a decide answer that is not a DecisionResponse keeps no DecisionRef and the turn
 ///     runs on;
@@ -88,6 +91,7 @@ Method OnAfterOneTest() As %Status
 {
 	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) = "" Continue
 		Set written = ##class(OcuTalon.Test.Core.DecideDouble).Written($Piece(..Sessions, ",", i))
 		If written '= "" Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_written
 	}
@@ -1143,10 +1147,32 @@ Method TestCheckRowsFromRender()
 	Do $$$AssertEquals(second.result_"|"_second.entry_"|"_second.finding_"|"_second.checkedAt, "failed|Warehouse queue|zz 12 messages waiting|2030-01-01T10:01:00Z", "the second row, with its finding")
 }
 
+/// A key that Render makes with no rows (checks.nothingWatched) is kept on its own: the Turn has the key and no rows, and the
+/// Outbound and the done chat.message carry the key with no rows.
+Method TestCheckKeyWithoutRows()
+{
+	Set row = ..Finish("keyonly", "checks", $ListBuild("checks.nothingWatched", "[]"), , .session)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz keyonly", "the turn ends normally with its reply")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("ConversationProbe", ..Number, "rendered")), 1, "Render was called once")
+	Do $$$AssertEquals(row.CheckKey_"|"_row.CheckRows, "checks.nothingWatched|", "the Turn keeps the key, with no rows")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkKey")_"|"_..Call($List(sent, 1), "checkRows"), "checks.nothingWatched|", "the Outbound carries the key, with no rows")
+	Set done = ..ChatEvents(session).%Get(2).payload
+	Do $$$AssertEquals(done.checkKey_"|"_done.%IsDefined("checks"), "checks.nothingWatched|0", "done: the key, with no rows")
+}
+
 /// With the real Render, which is a stub, a reply with checks gets no key and no rows: nothing is on the Turn, the Outbound or
-/// chat.message, and the turn ends normally.
+/// chat.message, and the turn ends normally. The seam RenderChecks is the call of Checks.Render with the results and the rows, the
+/// one part of the path that the stub's empty answer cannot show.
 Method TestStubRenderAddsNothing()
 {
+	Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Core.Conversation||RenderChecks")
+	Set code = ""
+	If $IsObject(method) {
+		Do method.Implementation.Rewind()
+		Set code = method.Implementation.Read(30000)
+	}
+	Do $$$AssertEquals($ZStrip(code, "<>WC"), "Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)", "the seam calls Checks.Render with the results and the rows")
 	Set row = ..Finish("stub", "checks", , , .session)
 	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz stub", "the turn ends normally with its reply")
 	Do $$$AssertEquals(row.CheckKey_row.CheckRows, "", "no key and no rows on the Turn")
@@ -1187,14 +1213,38 @@ Method TestNoCheckRowsWithoutResults()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Checked", "Conversation added no check results")
 }
 
+/// A busy reply and a session-broken reply whose HostData holds check results are not read for checks: the turn asks again and
+/// ends with the answer that follows, which has none, so it gets no key and no rows, and Render is never given the earlier
+/// answer's results. The turn request was sent twice in each case, so the busy and the broken branch did run.
+Method TestBusyAndBrokenRepliesAreNotChecked()
+{
+	Set render = $ListBuild("checks.allPassed", "[{""result"":""passed"",""entry"":""zz"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""}]")
+	Set cases = $ListBuild("busychecks,reply|a busy reply", "brokenchecks,reply|a broken session")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set answers = $Piece(case, "|", 1), label = $Piece(case, "|", 2)
+		Set row = ..Finish("sofar"_position, answers, render, , .session)
+		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz sofar"_position, label_": the turn ends with the answer that follows")
+		Do $$$AssertEquals($ListLength(..Sent("Decide", "turn")), 2, label_": the turn request was sent again")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("ConversationProbe", ..Number, "rendered")), 0, label_": Render is given nothing")
+		Do $$$AssertEquals(row.CheckKey_row.CheckRows, "", label_": no key and no rows on the Turn")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "checkKey")_..Call($List(sent, 1), "checkRows"), "", label_": none on the Outbound")
+		Set events = ..ChatEvents(session)
+		Set done = events.%Get(events.%Size() - 1).payload
+		Do $$$AssertEquals(done.state_"|"_done.replyText, "done|"_row.ReplyText, label_": the newest chat.message is the done one")
+		Do $$$AssertEquals(done.%IsDefined("checkKey")_"|"_done.%IsDefined("checks"), "0|0", label_": none on chat.message")
+	}
+}
+
 /// --- helpers ---
-/// Runs a message of a new session to its end, with the turn answer scripted, and returns the turn. render, when it is not "",
-/// is what the probe's Render stand-in returns ($ListBuild(key, rowsJSON)); throwIn is set on the probe. The session is returned
-/// in session.
+/// Runs a message of a new session to its end, with the turn answers scripted (answer is one answer, or several separated by
+/// commas, given in turn), and returns the turn. render, when it is not "", is what the probe's Render stand-in returns
+/// ($ListBuild(key, rowsJSON)); throwIn is set on the probe. The session is returned in session.
 Method Finish(name As %String, answer As %String, render As %List = "", throwIn As %String = "", Output session As %String) As OcuTalon.Data.Turn [ Private ]
 {
 	Set session = ..Session(name)
-	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListBuild(answer))
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListFromString(answer))
 	If render '= "" Set ^OcuTalonTest("ConversationProbe", ..Number, "render") = render
 	Set probe = ..NewProbe()
 	Set probe.ThrowIn = throwIn

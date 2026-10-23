@@ -454,6 +454,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Conversation.Replied overwrites TurnDecisionRef (SessionBroken answer included); Ownership.TurnCost sums only TriageDecisionRef and TurnDecisionRef (unverified: Decide is a stub)
 - 2026-10-23T02:34:42Z status=open owner=2-6-show-every-decision-with-its-reasons-and-cost by=harvest note=code review settles it: keep every attempt's DecisionRef (or sum usage by turn) with a test, or a reasoned disposition
+- 2026-10-23T04:43:23Z status=wontfix-theoretical owner=2-6-show-every-decision-with-its-reasons-and-cost by=cr note=real only if Story 1.8 gives a retried SessionBroken turn a second DecisionRef; AD-20 unique (ItemId,Kind) forbids it
 
 ### DW-98: No test drives the bridge's own emission of decision.recorded and turn.step into BridgeSink; every test calls OnEvent directly
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint

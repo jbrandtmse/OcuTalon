@@ -19,8 +19,9 @@
 ///     (Reply.NewBusy()), broken (SessionBroken 1 and Fallback 1 with the reason error), fallback:<reason> (a Reply with
 ///     Fallback 1 and the reason), taintedfallback:<reason> (the same with Tainted 1 and ToolsRun 1), error (an error
 ///     status), wrong (an Ens.StringResponse, which is not a Reply), checks (a Reply with the HostData {"checks":[{"zz":"result"}]}),
-///     checksfallback:<reason> (a fallback Reply with those HostData), badjson (a Reply whose HostData is not JSON) and nochecks (a
-///     Reply whose HostData is an object with no checks).
+///     checksfallback:<reason> (a fallback Reply with those HostData), busychecks and brokenchecks (a busy Reply, and a broken one,
+///     with those HostData), badjson (a Reply whose HostData is not JSON) and nochecks (a Reply whose HostData is an object with no
+///     checks).
 Class OcuTalon.Test.Core.DecideDouble Extends Ens.BusinessProcess
 {
 
@@ -54,6 +55,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	If request.Kind = "turn" {
 		If answer = "busy" {
 			Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+		} ElseIf answer = "busychecks" {
+			Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+			Set response.HostData = ..#CHECKSDATA
 		} ElseIf answer = "wrong" {
 			Set response = ##class(Ens.StringResponse).%New("zz")
 		} Else {
@@ -64,11 +68,12 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 				Set response.Tainted = 1
 				Set response.ToolsRun = 1
 				Set response.HostData = "{""zz"":""tool result""}"
-			} ElseIf answer = "broken" {
+			} ElseIf (answer = "broken") || (answer = "brokenchecks") {
 				Set response.SessionBroken = 1
 				Set response.Fallback = 1
 				Set response.FallbackReason = "error"
 				Set response.Text = ""
+				If answer = "brokenchecks" Set response.HostData = ..#CHECKSDATA
 			} ElseIf $Piece(answer, ":", 1) = "fallback" {
 				Set response.Fallback = 1
 				Set response.FallbackReason = $Piece(answer, ":", 2, *)

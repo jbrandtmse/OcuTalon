@@ -16,8 +16,9 @@
 ///     of owner eval, instance or another session is never counted, and neither total reads a record that has no owner.
 ///   - The reads run as the signed-in user, who holds no SQL privilege on the tables, so Rows prepares its statements
 ///     without the privilege check (AD-13 as amended, inbox U-15). Rows is the one such method of this class: its
-///     statements are fixed texts, one per row kind; each has the owner check in its WHERE clause, bound to the
-///     caller's SessionRef, which comes from SessionRef or from a row this class itself read, never from request input.
+///     statements are fixed texts, one per row kind; each has the owner check in its WHERE clause, bound to the owner's
+///     Ref that the caller holds: SessionRef()'s value, or the session Ref of a record the product itself wrote (a row read
+///     through this class, a Turn row, the owner of a bridge event), never request input.
 ///   - Watchers reads across sessions and has no owner, so it prepares with the privilege check and runs only in
 ///     production jobs and tests.
 Class OcuTalon.Data.Ownership
@@ -300,7 +301,8 @@ ClassMethod LocalFlag() As %Integer [ Private ]
 /// where the statement's bind pattern says. An empty ownerRef, an ownerRef that the SQL equality takes for the literal
 /// instance or eval (the default collation, SQLUPPER: any case, trailing blanks ignored), or an unknown kind gives an error
 /// status in sc and an empty list, and no statement is prepared. This is the one unchecked prepare of the class: the
-/// callers pass only SessionRef()'s value or a Ref read through this class. Final, with Statement and the owner literals,
+/// callers pass only SessionRef()'s value or the session Ref of a record the product itself wrote (a row read through this
+/// class, a Turn row, the owner of a bridge event), never request input. Final, with Statement and the owner literals,
 /// so that no subclass can change what it prepares.
 ClassMethod Rows(kind As %String, ownerRef As %String, Output sc As %Status, args...) As %ListOfObjects [ Final, Private ]
 {
