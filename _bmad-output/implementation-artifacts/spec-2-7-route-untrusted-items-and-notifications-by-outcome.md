@@ -2,7 +2,7 @@
 title: 'Story 2.7: Route untrusted items and notifications by outcome'
 type: 'feature'
 created: '2026-10-22'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -154,7 +154,7 @@ deferred: []
 - **Contended paths are read-only** (Lane A and the other running epics):
   - `src/bridge/**`;
   - `OcuTalon/{Agent,Tools,Digest,Checks,Eval,Watch}/**`;
-  - `Install/**` and `Test/{Agent,Bridge,Install,Tools,Digest,Schedule}/**`, where `Test/Install/Production.cls` is the intent gap below;
+  - `Install/**` and `Test/{Agent,Bridge,Install,Tools,Digest,Schedule}/**`, except the one ruled edit of `Test/Install/Production.cls` (Tasks & Acceptance: TestStubsAnswer's rule-class loop only);
   - `Data/Public/**`, `Data/{StatusMark,Time,Reminder}.cls`, `Core/Commands*.cls`, `Schedule/**` and `Msg/Tick.cls`;
   - `ci/mock/scenarios/{A,B}/**`, `web/e2e/demo-path/0{2,3}-*.spec.ts`, `release/**` and `lane-a.yml`;
   - `test-pinned-sources.sh`, and every row of `test-production.sh` but Lane B's Intake line.
@@ -283,8 +283,8 @@ deferred: []
 - `Test/Contract/Ac.cls:292-293,313,339`: the pinned leading parameters of `Delivery.Record` and `FindByApproval`, `Agent.Input.Render` and `Msg.Catalog.Render`.
 - `docker/tests/test-production.sh:129-152`: row 16's line `CHK|sync|Intake|0|<Ens>ErrBPTerminated|1|0` (`:131`) is Lane B's, and the header's Intake clause is at `:12-13`.
 
-**Blocked, contended (Lane A)**
-- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:158-166`: `TestStubsAnswer` asserts that both rule classes carry STUB and have one rule set with no rule. On `OCT-epic1` the same lines are `:173-181`. See the Auto Run Result.
+**Contended (Lane A), one ruled edit (orchestrator ruling, 2026-10-23, U14, option (a))**
+- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:158-166`: `TestStubsAnswer`'s rule-class loop (`For class = "OcuTalon.Core.Rule.Outcome", "OcuTalon.Core.Rule.Notify"`) asserts that both rule classes carry STUB and have one rule set with no rule. On `OCT-epic1` the same lines are `:173-181`. Only this loop may change; the class header comment (lines 1-20) and every other line of the file stay as they are.
 
 **Page (Lane B, edit or new)**
 - `web/src/app/chat/chat-view.ts`:
@@ -330,7 +330,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- **Precondition (the lead): the intent gap.** `Test.Install.Production.TestStubsAnswer` stops requiring the two rule classes to carry STUB, as the Auto Run Result recommends, on this branch, before the implement stage.
+- **The ruled Lane A edit (orchestrator ruling 2026-10-23, U14, option (a); a one-time footprint extension).** In `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`, inside `TestStubsAnswer`'s rule-class loop only (`For class = "OcuTalon.Core.Rule.Outcome", "OcuTalon.Core.Rule.Notify" {`), add as the loop's first statement a guard that skips a class whose `STUB` parameter is not 1 (`If +$Parameter(class, "STUB") '= 1 Continue`), with its explanation as an inline comment beside the loop (the STUB and empty-rule-set assertions hold only while a rule class is still a stub). Do NOT touch the class header comment (lines 1-20; Epic 1 rewrote it on `OCT-epic1`) or any other line of the file. The `lane-a` shard's `Test.Install.Production` then passes with both rule classes built (Verification's `shard lane-a`).
 - **Task 0** (implement stage; recorded under `## Verification`).
   - On slot B, a temporary test evaluates the built rules with `Ens.Rule.RuleDefinition.EvaluateRulesEx(rule, "", context, "", .ret, .reason, 1, "e")`. The context is an `EnsLib.MsgRouter.RoutingEngine` shadow instance with `Document`, `MsgClass` and `Source` set. Record the `ret` format (for example `send:WebChatOut:;send:SimPhoneOut:`).
   - If rules cannot be evaluated off a production on slot B, `Test.Core.Routing`'s rule methods move into `Test.Core.RoutingProduction` (throwaway only) and read the headers each router sent; say which.
@@ -453,6 +453,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-23, lead (spec gate): the plan halted on an intent gap (the contended `Test.Install.Production.TestStubsAnswer`). The orchestrator ruled option (a): a one-time footprint extension for that test's rule-class loop only, with the guard and an inline comment, never the class header. The precondition became an implement task (Tasks & Acceptance), and the status was set to `ready-for-dev` without a re-plan. The four veto-window items were ruled as planned (veto); the spine notes went in as a Conventions row, "Notice cards", not as AD amendments; DW-81 was re-owned to `burndown`.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -513,6 +515,12 @@ There is no new dependency, privilege or secret. `ZzNotice` exists only on throw
 - **AD-32:** a fallback tell now uses `notice.tellNowFallback`; a reminder Notification carries `dueAt` in its slots; an `instance` tell now creates no Notification until a story gives it recipients.
 - **Conventions, "Live events":** the snapshot's chat merges the web notice cards (tell now and reminder) by time, a turn, then an incident, then a card at the same second. The `notification` payload carries the shown `decision` and `fallbackReason`, and `text` without the "Why now:" line, which is `whyNow`.
 - **AD-13** needs no amendment: its amendment provides for new row kinds.
+
+**Lead's rulings at the spec gate (2026-10-23).**
+- **Contended Lane A test (orchestrator ruling, U14, option (a), category decide):** a one-time footprint extension for `Test/Install/Production.cls`, `TestStubsAnswer`'s rule-class loop only, with the guard and an inline comment; the class header comment (lines 1-20) is never touched (Tasks & Acceptance). Reported under `footprint_extensions:`.
+- **Veto U-35:** the four veto-window items above are kept as planned (keep (a)); the owner may reverse any one before the release.
+- **Spine:** the notes above went in as one Conventions row, "Notice cards" (AD-14 is extended, not contradicted; AD-32 does not address a fallback decision), not as AD amendments.
+- **DW-81** is re-owned to `burndown` (`by=spec_gate`), with the reason under Ledger.
 
 **Integration ACs (Rule 1).**
 - The page reads `WebChatOut`'s `notification` events and `/state`'s cards, and renders the card (N1-N8, on a real throwaway).
@@ -638,8 +646,10 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: building the two routing rules (the OutcomeRouter and Notify ACs) turns `OcuTalon.Test.Install.Production.TestStubsAnswer` red. That test lives in `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`, a contended Lane A path that this story may not edit. At lines 158-166 here (173-181 on `OCT-epic1`) it asserts that `OcuTalon.Core.Rule.Outcome` and `OcuTalon.Core.Rule.Notify` each "carries STUB" and holds one rule set "with no rule". The `lane-a` shard runs it, so this story's push would fail the `shards` group. No reading of the ACs avoids it: the rule classes must route, `BusinessRuleName` is pinned by `Test.Install.ProductionRules:131` (also contended), and the rule-set count is checked. **Recommended amendment** (a test-only change in Lane A's file, about 3 lines): run the loop's rule-set checks only while a rule class carries STUB (`If '$Parameter(class, "STUB") Continue`), with the class comment updated, or read each rule class's stub flag from Lane B's oracle `OcuTalon.Test.Core.ProductionItems`, as the item rows already are. Either Lane A makes the change on `OCT-epic1` and the same change lands on `OCT-epic2`, or the orchestrator grants Lane B a one-time footprint extension for exactly those lines. Once it is resolved, the spec above is planned in full: reset `status` to `draft` (or rule it ready) and re-dispatch.
+Status: ready-for-dev
+Blocking condition: none
+
+The plan's original halt, resolved by the orchestrator's ruling (Spec Change Log, 2026-10-23), read: intent gap: building the two routing rules (the OutcomeRouter and Notify ACs) turns `OcuTalon.Test.Install.Production.TestStubsAnswer` red. That test lives in `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`, a contended Lane A path that this story may not edit. At lines 158-166 here (173-181 on `OCT-epic1`) it asserts that `OcuTalon.Core.Rule.Outcome` and `OcuTalon.Core.Rule.Notify` each "carries STUB" and holds one rule set "with no rule". The `lane-a` shard runs it, so this story's push would fail the `shards` group. No reading of the ACs avoids it: the rule classes must route, `BusinessRuleName` is pinned by `Test.Install.ProductionRules:131` (also contended), and the rule-set count is checked. **Recommended amendment** (a test-only change in Lane A's file, about 3 lines): run the loop's rule-set checks only while a rule class carries STUB (`If '$Parameter(class, "STUB") Continue`), with the class comment updated, or read each rule class's stub flag from Lane B's oracle `OcuTalon.Test.Core.ProductionItems`, as the item rows already are. Either Lane A makes the change on `OCT-epic1` and the same change lands on `OCT-epic2`, or the orchestrator grants Lane B a one-time footprint extension for exactly those lines. Once it is resolved, the spec above is planned in full: reset `status` to `draft` (or rule it ready) and re-dispatch.
 
 **Plan summary.** The spec is written in full and verified against the READY FOR DEVELOPMENT standard, apart from the precondition above.
 - **Scope.** Intake, the two rules with their transform and function set, WebChatOut, Delivery, the notice-card store and its merge into `/state` (DW-62), the notice cards, zone-named page times, and the 5 s check.

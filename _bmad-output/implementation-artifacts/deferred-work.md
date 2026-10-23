@@ -418,6 +418,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: TestBusyRequeues drives Wait through ConversationProbe; Task 0 measured the timer path once with a reverted temporary change; production tests reach only the Epic 0 Decide stub
 - 2026-10-22T13:35:56Z status=open owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=harvest note=code review closes it: a throwaway test production with DecideDouble answering Busy, or a reasoned disposition
 - 2026-10-22T16:01:16Z status=routed owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=probe now replaces only SetTimer (Wait runs); real Ens.Alarm resend e2e once 2.7 puts DecideDouble in a production
+- 2026-10-23T05:47:06Z status=routed owner=burndown by=spec_gate note=declined by Story 2.7's plan: an end-to-end Busy wait and resend needs a production of its own with DecideDouble as Decide, which stops and restarts the lane-b shard's production; nothing else in 2.7 needs one; a test-infrastructure item for Epic 2's burn-down
 
 ### DW-82: No test observes that WebChatIn's Allowed reaches Allowance.TryConsume, because TryConsume cannot refuse yet
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: low | fix-risk: low | footprint: in-story
