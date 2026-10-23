@@ -6,14 +6,22 @@
 ///     retry block with attempt_timeout_secs equal to request_timeout_secs, the numbers as numbers, and a worst case of one Chat request,
 ///     (max_retries + 1) x attempt + max_retries x the back-off cap, of at most the timer minus 8 seconds (52 for 60);
 ///   - TestRefused: 11, 111, 0, -1, "", "x", "60.5", " 60" and "6e1" give {} from Derive and an error from Check that names TimerSeconds and
-///     "12 to 110", with the value cut to 40 characters and redacted; Decide.CheckSettings refuses each and accepts 12 and 110;
+///     "12 to 110", with the value cut to 40 characters and redacted; Decide.CheckSettings refuses each and accepts 12 and 110; a string of
+///     1,000 digits is refused too, and nothing throws;
 ///   - TestApplyRefuses: Apply of a timer outside 12 to 110 or not a whole number, of a production whose runner has no @{config:} entry
 ///     (OcuTalon.BridgeExample.Production) and of a production one of whose runners names an entry that does not exist, is an error that
 ///     names TimerSeconds or the runner, and changes nothing: not the System Default Settings row of TimerSeconds, not an entry, not a job;
 ///   - TestApplyDefinedTimer: for a production whose definition sets the TimerSeconds of Decide (OcuTalon.Test.Bridge.ZzTimerProduction), Apply
 ///     writes the System Default Settings row, finds that the setting does not take it, puts the row back (deleted when there was none, as it
 ///     was when there was one) and fails naming TimerSeconds, with no entry changed.
-/// Every row that a test puts is put back by OnAfterOneTest, and so is the definition of the test production that a test loaded.
+/// Added by the QA stage of Story 1.7 (AD-5, AD-19):
+///   - TestApplyStopped: Apply to a production that does not run (OcuTalon.Test.Bridge.ZzStoppedProduction, whose TriageAgent names an entry of
+///     its own) writes the production's TimerSeconds row and merges the block into the entry, keeps the entry's other fields, restarts nothing and
+///     leaves the running production as it was: its row, its entries and its jobs;
+///   - TestRestartError: Restart of an item that the production cannot stop (Ens.Alarm, which the production adds itself and its definition does
+///     not list) is an error that names the item, and the item is not left stopped.
+/// Every row that a test puts is put back by OnAfterOneTest, and so are the definition of the test production that a test loaded and the
+/// Config Store entry that a test created.
 Class OcuTalon.Test.Bridge.Timeouts Extends %UnitTest.TestCase
 {
 
@@ -26,6 +34,12 @@ Parameter TIMEOUTS = "OcuTalon.Bridge.Timeouts";
 /// The production whose definition sets the timer of Decide.
 Parameter ZZPRODUCTION = "OcuTalon.Test.Bridge.ZzTimerProduction";
 
+/// The production that is not started, whose TriageAgent names the Config Store entry ZZENTRY and whose Decide sets no timer.
+Parameter ZZSTOPPED = "OcuTalon.Test.Bridge.ZzStoppedProduction";
+
+/// The name of the Config Store entry (AI.LLM) that a test creates for the TriageAgent of ZZSTOPPED and of ZZPRODUCTION (CreateEntry).
+Parameter ZZENTRY = "OcuTalonZzStopped";
+
 /// The System Default Settings rows before the test touched them (Test.Agent.RunnerFixture.RememberDefault), to be put back.
 Property SavedRows As %List;
 
@@ -37,6 +51,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..#ZZPRODUCTION_"||Decide||*||TimerSeconds")
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(..#ZZSTOPPED_"||Decide||*||TimerSeconds")
+	If ##class(%ConfigStore.Configuration).Exists("AI.LLM."_..#ZZENTRY) Do ##class(%ConfigStore.Configuration).Delete("AI.LLM."_..#ZZENTRY)
 	If ..Loaded '= "" {
 		Do ##class(Ens.Config.Production).%DeleteId(..Loaded)
 		Set ..Loaded = ""
@@ -126,6 +142,16 @@ Method TestRefused()
 		Set thrown = exception.DisplayString()
 	}
 	Do $$$AssertEquals(thrown, "", "Check and Derive with no argument throw nothing")
+	Set huge = $Translate($Justify("", 1000), " ", "9")
+	Set thrown = ""
+	Try {
+		Set sc = $ClassMethod(timeouts, "Check", huge)
+		Set derived = $ClassMethod(timeouts, "Derive", huge).%ToJSON()
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "a string of 1,000 digits throws nothing")
+	If thrown = "" Do $$$AssertTrue($$$ISERR(sc) && (derived = "{}"), "and is refused: Check gives an error and Derive gives {}")
 }
 
 /// Apply refuses what it should, and a refusal changes nothing. The timers outside 12 to 110, and "x", are refused first, naming TimerSeconds.
@@ -175,7 +201,7 @@ Method TestApplyRefuses()
 /// Apply writes the row of TimerSeconds, reads the setting again and, when the timer it reads is not the one given, because the production
 /// definition sets it, puts the row back and fails naming TimerSeconds, before it changes an entry or a job. The test production sets 45 in its
 /// definition: Apply(30) to it fails whether the row was absent (it is absent again) or held 33 (it holds 33 again), and the Config Store entries
-/// of the runners are as they were.
+/// of the runners are as they were: the product's, and the one that the test creates for the test production's TriageAgent (CreateEntry).
 Method TestApplyDefinedTimer()
 {
 	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
@@ -184,6 +210,8 @@ Method TestApplyDefinedTimer()
 		Quit
 	}
 	Set production = ..#ZZPRODUCTION
+	Do ..CreateEntry({"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "base_url": "http://zz.invalid/v1/", "http_config": {"request_timeout_secs": 99}})
+	Set entry = ..EntryJson()
 	If '##class(Ens.Config.Production).%ExistsId(production) {
 		Do ##class(Ens.Config.Production).LoadFromClass(production)
 		Set ..Loaded = production
@@ -198,13 +226,92 @@ Method TestApplyDefinedTimer()
 	Do $$$AssertTrue((text [ "TimerSeconds") && (text [ "production definition"), "naming TimerSeconds and the production definition: "_text)
 	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%ExistsId(id), 0, "the row of TimerSeconds is not there: Apply put it back by deleting it")
 	Do $$$AssertTrue(..State() = before, "and no entry and no job changed")
+	Do $$$AssertTrue((entry '= "none") && (..EntryJson() = entry), "and neither did the entry of the test production's runner")
 
 	Do $$$AssertStatusOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", 33, "Written by a test; the test deletes it."), "a row of 33 is written")
 	Set sc = $ClassMethod(..#TIMEOUTS, "Apply", 30, production)
 	Do $$$AssertStatusNotOK(sc, "Apply of 30 fails again")
 	Do $$$AssertEquals($Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue_"|"_##class(Ens.Config.DefaultSettings).%OpenId(id).Description, 1: "none"), "33|Written by a test; the test deletes it.", "and the row is back as it was, with its value and its description")
-	Do $$$AssertTrue(..State() = before, "and no entry and no job changed either")
+	Do $$$AssertTrue((..State() = before) && (..EntryJson() = entry), "and no entry and no job changed either")
 	Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+}
+
+/// Apply to a production that does not run (AD-5, AD-19): the System Default Settings row of TimerSeconds is written for that production, the
+/// block of Derive is merged into the entry that its TriageAgent names, whose other fields stay (the key placeholder, the base URL, a header),
+/// and no item is restarted, because Restart acts only for the production that runs. The call is OK. The running production is as it was: its
+/// row, the JSON of its entries and the jobs of Decide and the runners. The test creates the entry and loads the production, and OnAfterOneTest
+/// deletes them and the row.
+Method TestApplyStopped()
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set production = ..#ZZSTOPPED
+	Do ..CreateEntry({"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "base_url": "http://zz.invalid/v1/", "http_config": {"custom_headers": {"x-keep": "1"}, "request_timeout_secs": 99, "retry": {"max_retries": 7}}})
+	If '##class(Ens.Config.Production).%ExistsId(production) {
+		Do ##class(Ens.Config.Production).LoadFromClass(production)
+		Set ..Loaded = production
+	}
+	Do $$$AssertTrue(##class(Ens.Config.Production).%ExistsId(production), "the test production's definition is loaded")
+	Set id = production_"||Decide||*||TimerSeconds"
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%ExistsId(id), 0, "control: it has no row of TimerSeconds")
+	Set before = ..State()
+	Set sc = $ClassMethod(..#TIMEOUTS, "Apply", 30, production)
+	Do $$$AssertStatusOK(sc, "Apply of 30 to a production that does not run is OK")
+	Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id), "its row of TimerSeconds is written")
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue, 30, "and is 30")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Bridge.Ext.Accessor", "ValueFor", "TimerSeconds", production, "Decide"), 30, "which is the timer that its Decide reads")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(..#ZZENTRY, .details), "the entry is read")
+	If $IsObject($Get(details)) {
+		Set block = details."http_config"
+		Set retry = block.%Get("retry")
+		Do $$$AssertEquals(block."request_timeout_secs", 10, "its request timeout is 10, from (30 - 10) \ 2")
+		Do $$$AssertTrue($IsObject(retry), "and it has a retry block")
+		If $IsObject(retry) Do $$$AssertEquals(retry."max_retries"_"|"_retry."attempt_timeout_secs"_"|"_retry."initial_backoff_ms"_"|"_retry."max_backoff_ms"_"|"_retry.%Size(), "1|10|500|2000|4", "whole: the four members of Derive's block, the stale max_retries of 7 replaced")
+		Do $$$AssertEquals(block."custom_headers"."x-keep", "1", "the header of the entry stays")
+		Do $$$AssertEquals(details."api_key"_"|"_details."base_url"_"|"_details."model_provider", "@{env:ANTHROPIC_API_KEY}|http://zz.invalid/v1/|anthropic", "and so do the key placeholder, the base URL and the provider")
+	}
+	Do $$$AssertTrue(..State() = before, "the running production is as it was: its row, its entries and the jobs of Decide and the runners")
+}
+
+/// Restart acts item by item and says which item could not be restarted (AD-5, AD-19). Ens.Alarm is an item that the running production adds
+/// itself and that its definition does not list, so the director cannot stop it temporarily: Restart (Decide first, which it restarts) ends
+/// with an error that names Ens.Alarm and says that it could not be restarted, and the item is not left stopped: it has the job it had, and
+/// every item of the production runs.
+Method TestRestartError()
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set alarm = $ClassMethod(fixture, "Jobs", "Ens.Alarm")
+	Do $$$AssertTrue(alarm '= "", "control: Ens.Alarm has a job")
+	If alarm = "" Quit
+	Set sc = $ClassMethod(..#TIMEOUTS, "Restart", ..#PRODUCTION, $ListBuild($ListBuild("Ens.Alarm", "OcuTalonTriage")))
+	Do $$$AssertStatusNotOK(sc, "Restart of an item that cannot be stopped is an error")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue((text [ "The item Ens.Alarm could not be restarted") && (text '[ "within"), "that names the item and says that it could not be restarted, not that it did not run again in time: "_text)
+	Do $$$AssertEquals($ClassMethod(fixture, "Jobs", "Ens.Alarm"), alarm, "control: Ens.Alarm keeps the job it had (its stop fails before any stop flag is set, so this does not exercise the clean-up of a stop that set one)")
+	Do $$$AssertTrue($ClassMethod(fixture, "WaitAllRun"), "and every item of the production runs")
+}
+
+/// Creates the Config Store entry ZZENTRY, the one that the TriageAgent of the test productions names, with the details start, after the
+/// registry is built. OnAfterOneTest deletes it.
+Method CreateEntry(start As %DynamicObject) [ Private ]
+{
+	Do $$$AssertStatusOK(##class(%ConfigStore.DescriptorManager).RebuildRegistry(), "the Config Store registry is built")
+	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Create("AI", "LLM", "", ..#ZZENTRY, start), "the entry of the test production's runner is created")
+}
+
+/// The JSON of the entry ZZENTRY (compared, never shown), or "none".
+ClassMethod EntryJson() As %String [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.ConfigStore).Details(..#ZZENTRY, .details)
+	Quit $Select($IsObject($Get(details)): details.%ToJSON(), 1: "none")
 }
 
 /// What Apply may change, as a list: whether the row of TimerSeconds exists and its value, the JSON of the entry of each runner (compared,

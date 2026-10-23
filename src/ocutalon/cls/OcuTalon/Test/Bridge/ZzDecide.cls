@@ -2,7 +2,8 @@
 /// ^||ZzDecideCalls instead of making them, so that a test sees what OnResponse asked the framework for without a production to answer.
 ///   - ^||ZzDecideCalls("timer", n) is $ListBuild(timeout, completion key, controlled keys) of the nth SetTimer;
 ///   - ^||ZzDecideCalls("send", n) is $ListBuild(dispatch name, DecisionRef of the request, response required, completion key, ItemId) of the nth
-///     SendRequestAsync;
+///     SendRequestAsync, with the Position of the step as a sixth member when the message is an AgentStep (which has no ItemId, so its fifth
+///     member is empty);
 ///   - the count of each is the value of ^||ZzDecideCalls("timer") and ^||ZzDecideCalls("send").
 /// It is never started or saved.
 Class OcuTalon.Test.Bridge.ZzDecide Extends OcuTalon.Bridge.Process.Decide
@@ -19,7 +20,9 @@ Method SetTimer(pTimeout As %String, pCompletionKey As %String = "", pControlled
 Method SendRequestAsync(pTargetDispatchName As %String, pRequest As Ens.Request, pResponseRequired As %Boolean = 1, pCompletionKey As %String = "", pDescription As %String = "") As %Status
 {
 	Set n = $Increment(^||ZzDecideCalls("send"))
-	Set ^||ZzDecideCalls("send", n) = $ListBuild(pTargetDispatchName, pRequest.DecisionRef, pResponseRequired, pCompletionKey, pRequest.ItemId)
+	Set call = $ListBuild(pTargetDispatchName, pRequest.DecisionRef, pResponseRequired, pCompletionKey, $Select(pRequest.%IsA("OcuTalon.Bridge.Msg.Request"): pRequest.ItemId, 1: ""))
+	If pRequest.%IsA("OcuTalon.Bridge.Msg.AgentStep") Set call = call _ $ListBuild(pRequest.Position)
+	Set ^||ZzDecideCalls("send", n) = call
 	Quit $$$OK
 }
 

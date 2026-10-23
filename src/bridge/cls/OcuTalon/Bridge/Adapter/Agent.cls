@@ -184,8 +184,10 @@ Method SessionConfigFor(Output config As %DynamicObject) As %Status
 }
 
 /// The timeout_ms that Timeouts.Derive gives for the TimerSeconds setting of the Decide item of the active production, as Ext.Accessor
-/// ValueFor reads it now, or "" when the setting cannot be read or Timeouts.Check refuses it: the config then carries no timeout_ms,
-/// and Decide refuses every request in that state (CheckSettings).
+/// ValueFor reads it now, or "" when the setting cannot be read or Timeouts.Check refuses it: the config then carries no timeout_ms.
+/// Decide checks its own TimerSeconds (CheckSettings), which it takes when it starts: once it runs with such a value it refuses every
+/// request. Timeouts.Apply restarts it with every change, and a row written another way reaches the runners' sessions at once and
+/// Decide at its next start.
 ClassMethod TimeoutMs() As %String
 {
 	Set timer = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", "", "Decide", .sc)
@@ -226,8 +228,9 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 /// that is empty once white space is removed; builds the agent if needed; sets the context with the super session before Chat; starts
 /// the step buffer (StepBuffer.Start, with BaseChars); chats in a throwaway session, passing the step renderer; and
 /// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, the usage of the call
-/// (RecordUsage, which also writes the Usage row) and the redacted step records (Steps). When Chat throws, the reply is a failure
-/// reply instead (FailureText holds the redacted error text) and the status is OK. The context and the step buffer end on every path. Any other error comes back as
+/// (RecordUsage, which also writes the Usage row), the redacted step records (Steps) and whether a tool ran (ToolsRun, from ToolsRan).
+/// When Chat throws, the reply is a failure reply instead (FailureText holds the redacted error text, and ToolsRun is set as on any
+/// reply) and the status is OK. The context and the step buffer end on every path. Any other error comes back as
 /// the status, with AI Hub's text.
 Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = "", Output reply As OcuTalon.Bridge.Msg.Reply) As %Status
 {

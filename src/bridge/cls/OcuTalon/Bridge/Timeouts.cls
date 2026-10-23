@@ -23,14 +23,15 @@ Parameter RESTARTSECONDS = 60;
 /// The words of the description of the System Default Settings row that Apply writes.
 Parameter ROWDESCRIPTION = "Written by OcuTalon.Bridge.Timeouts.Apply together with the Config Store entries of the runners; change the timer through Apply.";
 
-/// OK for a whole number (digits only) from Decide.#MINTIMER to Decide.#MAXTIMER; otherwise an error that names the setting
-/// TimerSeconds of Decide and the range, with the value cut to 40 characters and redacted. It is pure and never throws.
+/// OK for a whole number (digits only, at most 15 of them) from Decide.#MINTIMER to Decide.#MAXTIMER; otherwise an error that names the
+/// setting TimerSeconds of Decide and the range, with the value cut to 40 characters and redacted. It is pure and never throws: a longer
+/// string of digits is refused before it is read as a number.
 ClassMethod Check(timer As %String) As %Status
 {
 	Set timer = $Get(timer)
 	Set min = ##class(OcuTalon.Bridge.Process.Decide).#MINTIMER
 	Set max = ##class(OcuTalon.Bridge.Process.Decide).#MAXTIMER
-	If (timer ? 1.N) && (+timer '< min) && (+timer '> max) Quit $$$OK
+	If (timer ? 1.N) && ($Length(timer) < 16) && (+timer '< min) && (+timer '> max) Quit $$$OK
 	Quit $$$ERROR($$$GeneralError, "The setting TimerSeconds of Decide is '"_##class(OcuTalon.Bridge.Redact).Text($Extract(timer, 1, 40))_"'; it must be a whole number of seconds from "_min_" to "_max)
 }
 
@@ -61,8 +62,8 @@ ClassMethod Derive(timer As %Integer) As %DynamicObject
 ///   2. every runner item of Decide.#RUNNERS that the production has must have a ProviderConfig of the form @{config:<name>} whose
 ///      Config Store entry exists, and Decide must read its TimerSeconds; all are checked before anything is written;
 ///   3. the System Default Settings row of TimerSeconds for the item Decide is written (Ext.Accessor.WriteDefault). When the
-///      timer that Ext.Accessor.ValueFor then reads is not the one given, because the production definition sets it, the row is put
-///      back and the call fails, naming the setting;
+///      timer that Ext.Accessor.ValueFor then reads is not the one given, because the production definition or a more specific System
+///      Default Settings row sets it, the row is put back and the call fails, naming the setting;
 ///   4. Derive(timer).http_config is merged into the http_config of the entry of each runner (ConfigStore.Merge), so that its api_key, base_url,
 ///      custom_headers and tls stay;
 ///   5. when the production runs, Decide and each runner item that has a job are stopped and started again
@@ -99,7 +100,7 @@ ClassMethod Apply(timer As %Integer, production As %String = "") As %Status
 		} Else {
 			Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
 		}
-		Quit $$$ERROR($$$GeneralError, "The setting TimerSeconds of Decide in "_production_" stays at '"_##class(OcuTalon.Bridge.Redact).Text($Extract(read, 1, 40))_"' whatever is written to the System Default Settings, because the production definition sets it, so the timer is not changed")
+		Quit $$$ERROR($$$GeneralError, "The setting TimerSeconds of Decide in "_production_" stays at '"_##class(OcuTalon.Bridge.Redact).Text($Extract(read, 1, 40))_"' whatever is written to its System Default Settings row, because the production definition or a more specific System Default Settings row (of the item's class, or for the Host target) sets it, so the timer is not changed")
 	}
 
 	For i = 1:1:$ListLength(runners) {

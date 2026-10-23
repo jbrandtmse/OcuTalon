@@ -149,7 +149,8 @@ Property Resends As %Integer [ InitialExpression = 0 ];
 /// The AgentStepCount of the attempts before the last one. Not a setting.
 Property StepCount As %Integer [ InitialExpression = 0 ];
 
-/// The number of step records that EmitSteps has sent so far, so that the Positions of a decision run on across its attempts. Not a setting.
+/// The Position of the last step that EmitSteps built for the decision so far (0 for none), so that the Positions of a decision run on
+/// across its attempts. Not a setting.
 Property StepsSent As %Integer [ InitialExpression = 0 ];
 
 /// Assigns a setting as Ens.Settings does, except for the four budget settings (AD-20, DW-76). A value of DailyCostCapUSD,
@@ -321,14 +322,15 @@ ClassMethod ResendDelay(reason As %String, toolsRun As %Boolean, resends As %Int
 
 /// Sends each step record of the runner's reply to the AgentSteps operation, in order, without waiting for an answer: the sends
 /// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). The Positions start
-/// after the steps that were sent for the earlier attempts of the decision (StepsSent), which then grows by the number of records.
+/// after the steps of the earlier attempts of the decision (StepsSent), which then becomes the Position of the last step built, so that
+/// no Position repeats, even after a record that StepMessages skipped.
 /// A send that fails is a warning that names the step (its Position), the DecisionRef and the codes of its error, never the content (the
 /// text of a validation error echoes the value that failed), and so is a Steps value that does not parse; nothing changes the answer.
 Method EmitSteps(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply)
 {
 	Try {
 		Set messages = ..StepMessages(decisionRef, reply, ..StepsSent)
-		Set ..StepsSent = ..StepsSent + messages.Count()
+		If messages.Count() Set ..StepsSent = messages.GetAt(messages.Count()).Position
 		For i = 1:1:messages.Count() {
 			Set sc = ..SendRequestAsync(..#STEPSITEM, messages.GetAt(i), 0)
 			If $$$ISERR(sc) {

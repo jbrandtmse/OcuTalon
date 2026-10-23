@@ -369,6 +369,97 @@ deferred: []
 
   (`Test.Bridge.Runner.TestToolsRun`, `Test.Agent.Steps.TestTwoTools`, `TestToolRanNoResend`)
 
+### Review Findings
+
+Code review, 2026-10-23 (`bmad-code-review`, full mode; layers Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor, all on the session's model; the diff `84f7691` to the working tree, QA's uncommitted work included). The layers reported 32 rows and the reviewer added 2 (Rule 2), 34 in all. After grouping there are 19 entries (high 0, medium 3, low 16), and 11 rows were rejected (appendix). Each entry gives its severity, its fix-risk, its footprint, its spec-status and its disposition (Rule 15).
+
+- [x] [Review][Patch] (med) `TestRateLimitedUntilTimer`'s upper bound is the timer itself, measured outside Decide [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:775]
+  - VG1. `elapsed < 15` under `Apply(15)`.
+  - The last re-send leaves 1 to 2 s of the timer, and its timer of 1 s can fire at Decide's 15 s.
+  - The send before Decide starts and the return after it are added on top. A host with in-IRIS hops about 6 times the developer machine's, or one stall of a second in the last attempt, misses the bound with nothing wrong in the product.
+  - Fix-risk low (one bound in a test). In-story; spec-clear (the matrix's 15 s is the timer on Decide's clock). Disposition: patch, a window of 12 to 16 s.
+- [x] [Review][Patch] (med) `NewestStatus` and `WaitForNewestStatus` are near-copies of `AnswerStatus` and `WaitForStatus` [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:1457, 1467; siblings :1436, :1478]
+  - Reviewer (Rule 2). They differ by one token (`ORDER BY ID DESC`, and the reader they call), with no stated reason.
+  - Fix-risk low (private test helpers, one caller). In-story; spec-clear. Disposition: patch, a `newest` parameter on the two siblings.
+- [x] [Review][Patch] (med) `MarkerEntries` is a near-copy of `RunnerFixture.FindRequests` [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:1557; sibling src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:782]
+  - Reviewer (Rule 2). Both are the same POST /v1/messages filter of the mock's log, by the marker field versus by a text that the entry holds. Each test's marker carries a fresh Ref, so `FindRequests(entries, marker)` selects the same entries.
+  - Fix-risk low (4 call sites in one test class). In-story; spec-clear. Disposition: patch, `FindRequests` is used and the copy deleted.
+- [x] [Review][Patch] (low) Step Positions repeat after a record that is no object, and DW-102 describes the opposite [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:331]
+  - BH1, AA3. `StepMessages` numbers by slot, while `EmitSteps` adds the messages built to `StepsSent`. Attempt 1 `[7, A]` sends A as Position 2 and sets `StepsSent` to 1, so attempt 2's first step is Position 2 again.
+  - It is unreachable with today's `StepBuffer`, and the fix is one line: `StepsSent` becomes the Position of the last step built.
+  - Fix-risk low. In-story; spec-clear (Boundaries: "1 to n across its attempts"). Disposition: patch, then DW-102 `resolved-by`.
+- [x] [Review][Patch] (low) The skipped-record warning's Position with an offset has no test [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:364]
+  - VG3. This is Decided in review 17, pinned by no test.
+  - Fix-risk low (test lines). In-story; spec-clear. Disposition: patch, pinned together with the entry above in `Test.Bridge.Decide.TestStepPositionsAcrossResends`.
+- [x] [Review][Patch] (low) `Timeouts.Check` says it never throws, but `+timer` throws `<MAXNUMBER>` on a digit string past 308 digits [src/bridge/cls/OcuTalon/Bridge/Timeouts.cls:33]
+  - BH2, EC6, AA4. The implement review measured it (EC3). `Derive`, `Agent.TimeoutMs` and the Provider step reach it from a hand-edited row.
+  - Fix-risk low (one condition). In-story; spec-clear (the matrix says "Never throws"). Disposition: patch, a length guard of 15 digits and a pin in `TestRefused`.
+- [x] [Review][Patch] (low) `ZzTimerProduction`'s TriageAgent names the product's live entry `OcuTalonTriage` [src/ocutalon/cls/OcuTalon/Test/Bridge/ZzTimerProduction.cls:16]
+  - BH3. A regression of `Apply`'s definition branch would merge a block of 30 s into the running production's entry, which no cleanup restores, and later tests would then go red with the wrong cause.
+  - Fix-risk low (fixture and test). In-story; spec-clear. Disposition: patch. It names the test's own entry (`OcuTalonZzStopped`), which `TestApplyDefinedTimer` creates and checks is unchanged, through one helper that `TestApplyStopped` shares.
+- [x] [Review][Patch] (low) The headers of `TestTimer` and `TestRateLimitedThenHeld` do not say that the runners' sessions compose `timeout_ms` 7000 from the row of 12 [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:515, 797]
+  - BH8. They depend on S2 (timeout_ms does not stop a request in flight), which they do not name.
+  - Fix-risk low (doc). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) `Apply` blames the production definition when a more specific System Default Settings row shadows its row [src/bridge/cls/OcuTalon/Bridge/Timeouts.cls:102]
+  - EC1. `Ens.Config.DefaultSettings.%GetSetting` tries `Host:TimerSeconds` and the class-specific rows before (production, Decide, *). `Apply` then refuses correctly, but names the wrong cause.
+  - Fix-risk low (text). In-story; spec-clear. Disposition: patch, the message and the doc name both causes.
+- [x] [Review][Patch] (low) `TestRateLimitedResent` throws `<INVALID OREF>` when the log holds fewer than 3 entries [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:735]
+  - EC4. The error skips the `rate-limited` case of an already red run.
+  - Fix-risk low (a guard in a test). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) `TestRateLimitedThenHeld`'s early exit leaves its held call running [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:823, 1446]
+  - EC5, VG5b. `OnAfterOneTest`'s `WaitForAnswer` returns at the first TriageAgent header (the 529). The held call of 18 s, and its `Usage` row, then outlive the cleanup on a red run.
+  - Fix-risk low (test helper). In-story; spec-clear. Disposition: patch. `WaitForAnswer` waits until the item has answered every request that Decide sent it in the session.
+- [x] [Review][Patch] (low) `Agent.TimeoutMs` says that Decide refuses every request when no timer is usable [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:186]
+  - EC7. Decide checks its own `TimerSeconds`, which changes only when it restarts. A row written outside `Apply` reaches the runners' sessions at once, and reaches Decide at its next start.
+  - Fix-risk low (doc). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) `Example.TestDecideDefaults`' label claims that the runner composes 55000, but the test computes only `Derive(60)` [src/ocutalon/cls/OcuTalon/Test/Bridge/Example.cls:116]
+  - VG6. `TimeoutMs` reads the active production, so the label overstates what is checked (IA1 accepted the proxy).
+  - Fix-risk low (label). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) `Answer`'s doc does not name `ToolsRun` [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:225]
+  - AA1. The task asked for "the class doc and `Answer`'s doc".
+  - Fix-risk low (doc). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) The `ConfigStore` doc still names Story 17.3 as Merge's first caller [src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls:2]
+  - AA6. `Timeouts.Apply` is its caller now.
+  - Fix-risk low (doc). In-story; spec-clear. Disposition: patch.
+- [x] [Review][Patch] (low) AC6's 0 on Decide's usable answer is asserted nowhere [src/ocutalon/cls/OcuTalon/Test/Agent/Decide.cls:706]
+  - AA7. The 0 is pinned at the runner and on fallbacks, but no usable answer is checked.
+  - Fix-risk low (one assertion). In-story; spec-clear. Disposition: patch, `TestRateLimitedResent`'s answers assert `ToolsRun` 0.
+- [x] [Review][Defer] (low) `Restart`'s clean-up after a stop that set its flag and then failed has no test that fails without it [src/bridge/cls/OcuTalon/Bridge/Timeouts.cls:167] — deferred
+  - VG2. `TestRestartError`'s `Ens.Alarm` fails before any flag (`Ens/Director.cls:2492-2499`).
+  - Fix-risk med: a red needs `UpdateProduction` to fail after the flag, through a lock held from a second job for over 60 s (QA). It is not a two-way door.
+  - In-story; spec-clear. Disposition: `wontfix-accepted` (DW-108), with reopen_if from QA. The assertion's label becomes a control (patched).
+- [x] [Review][Defer] (low) `Apply` puts its row back with `Ens.Config.DefaultSettings.%DeleteId`, outside the one writer `Ext.Accessor.WriteDefault` [src/bridge/cls/OcuTalon/Bridge/Timeouts.cls:100] — deferred
+  - AA2. The fix needs a new public bridge method (a delete through the accessor). It is not a two-way door.
+  - Fix-risk low. In-story; spec-clear. Disposition: `wontfix-accepted` (DW-109), reopen_if the writer gains auditing.
+- [x] [Review][Defer] (low) `Apply`'s step-4 error does not say that the row and the earlier entries were written [src/bridge/cls/OcuTalon/Bridge/Timeouts.cls:112] — deferred
+  - BH5. This is the root cause of DW-101 (`Apply` is not atomic), already `wontfix-accepted`. The restart half of BH5 is false: its message is about the item it names.
+  - Disposition: an occurrence on DW-101.
+
+*Applied.*
+- All 16 patches are in. DW-102 is `resolved-by` this story.
+- Verification: `bash ci/checks.sh` passed; `shard lane-a` passed forward and `--reverse` (32 classes each; the only SKIP is the existing `TestStepHelpers`); `release/standalone-bridge.sh` passed (12 checks); `teardown` of `e1s7r` left nothing.
+- Rule 19 mutations: see Verification, "Mutations demonstrated (code review)".
+
+*Rejected (verdict and reason):*
+- BH4, `false`: `TestApplyActiveProduction`'s control cannot fail after `Prepare`. `ReadyReason` requires `OcuTalon.Production` to run, and only one production runs in a namespace.
+- BH6, `low`, `by-design`: a timer fallback's `ToolsRun` is false while a call is in flight. The spec decides it (Boundaries: "A fallback with no runner reply (a precheck or the timer) sets neither"; Design Notes 10), and `Reply.ToolsRun`'s doc says so. Fix-risk med (it changes the contract Story 2.4 reads).
+- BH7, `false`:
+  - `tls` sits beside `custom_headers` in `http_config`, and `ConfigStore.Merge` is a generic deep merge, so `tls` cannot be lost while the pinned `custom_headers` stays.
+  - `custom_headers` is always present under `Prepare`, whose `GuardReason` requires `OCUTALON_MOCK_KEY_HEADER=1`.
+- BH9, rejected: the fix edits the spec under review (the Auto Run Result is build-auto's).
+- BH10, `low`, `by-design`: `Details(..., timer = 60)` is the spec's signature (Boundaries, the Provider step).
+- EC2, `low`: a hand-added key inside `retry` outlives `Apply`'s deep merge until the next start, which rewrites the entry whole. It is unlikely, and the fix adds a second merge.
+- EC3, `low`: in a Troubled production, `TempStopConfigItem` does nothing and `Apply` waits 60 s. It then reports, correctly, that the new timer applies at the next start. Unlikely, and the fix adds a branch.
+- VG4, `false` by Rule 19's scope:
+  - Rule 19 asks for one demonstrated mutation per AC, not per assertion, and AC1, AC2 and AC6 each have theirs.
+  - The `MINTIMER` mutation was demonstrated in this pass all the same (Verification).
+- VG5a, `low`: `TestTimer` and `TestRateLimitedThenHeld` need the entries at the 60 derivation. That is the installed baseline, and every test that changes it puts it back through `RestoreTimer`, which asserts.
+- VG5c, `low`: `WarningRows` counts Decide's warnings after a mark, not by session. Nothing else runs through Decide during a shard, and the fix adds a parameter.
+- AA5, `false`:
+  - The "No new structures" list is about product structures (AD-33's tables).
+  - `ZzTimerProduction`, `ZzStoppedProduction` and `ZzDecide` are test fixtures, like Story 1.2's `ZzRunner`, recorded in Decided in implement 12 and Decided in review 15.
+  - `TimerSeconds`' doc follows the spec's own bound.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -661,6 +752,64 @@ No acceptance criterion contradicts an AD's Rule. One wording of AD-8 is reconci
 - mutation (review pass): `EmitSteps` passes the offset 0 to `StepMessages` -> `Test.Bridge.Decide.TestEmitStepsFails` went red (the second `EmitSteps` numbers its steps 3 and 4)
 - mutation (review pass): `Compose` ignores `timeoutMs` -> `Test.Bridge.SessionConfig.TestTimeoutMs` went red (five assertions)
 - The four review-pass mutations were applied together, one build, and `Test.Bridge.Decide`, `Test.Bridge.SessionConfig` and `Test.Agent.Decide` were run once each; every one went red in its own assertion. The tree was byte-identical to the one before them afterwards (`git status --short` and the digest of `git diff` equal).
+
+**QA stage (2026-10-23; Rule 8, Rule 19).** Throwaway tag `e1s7q`, one class or shard per call, foreground. All new tests are methods of classes in the `lane-a` shard (`Test.Bridge`, `Test.Agent`), so `ci/units.sh` does not change.
+
+*Files (QA).*
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzStoppedProduction.cls` (QA, new): a production that is never started, whose `TriageAgent` names the Config Store entry `OcuTalonZzStopped` and whose `Decide` sets no timer. A fixture, like `ZzTimerProduction`; it has no `Test` method.
+- Changed (QA): `Test/Bridge/Decide.cls`, `Test/Bridge/Timeouts.cls`, `Test/Bridge/ZzDecide.cls` (its recorded sends now hold an AgentStep's Position as a sixth member and no longer fail on a message with no ItemId), `Test/Agent/Decide.cls`.
+
+*Gaps found and tests added (QA).* Each row names the criterion, what had no pin or a pin that could not fail, and the test.
+- AC4, matrix row "A re-send succeeds (live)" item 4 (steps across attempts): the live assertion compares the answer's `AgentStepCount` with the sum of the runner replies', but the attempts that failed have no steps (Task 0 (a)), so `Conclude` could ignore `StepCount` and it stayed green. No test passed a `stepCount` above 0 together with a `Reply` to `Conclude`, `NewRow` or `RecordFallback`. Pinned in process by `Test.Bridge.Decide.TestStepsAcrossAttempts` (a usable turn and a fallback after a tool ran through `OnResponse`, a decide request through `Conclude`: 2 steps of earlier attempts + 3, the sums of two `Usage` rows, a duration from the start of the process). `Test.Agent.Decide.TestRateLimitedResent` also asserts that the answer carries the row's `DurationMs` and that it is 3000 or more across the back-offs of 1 s and 2 s (3152 ms measured).
+- AC4, the re-send's second boundary ("with less than 1 s left it records `rate_limited` at once") and the unreadable start (`RemainingMs` is 0): only far-from-the-boundary cases existed. `Test.Bridge.Decide.TestResendBoundary`: 1.8 s left sends with a timer of 1; 0.5 s left records; a process whose start cannot be read records at the key `resend` and concludes a rate-limited reply at once.
+- AC4 and AD-9, positions across attempts: `TestEmitStepsFails` pinned `EmitSteps` alone. `Test.Bridge.Decide.TestStepPositionsAcrossResends` pins `OnResponse`: the steps of a rate-limited reply are sent before the back-off, numbered after those already sent, with `StepsSent` and `StepCount` counting them.
+- AC2, `Apply`'s default (Boundaries: an empty `production` means the active production): every live caller passed the production. `Test.Agent.Decide.TestApplyActiveProduction` calls `Apply(25)` with none: the row of `OcuTalon.Production`, every entry's block (7) and a new `Decide` job.
+- AC2, `Apply` for a production that does not run (Boundaries step 5, "when the production runs"): no test. `Test.Bridge.Timeouts.TestApplyStopped` (with `ZzStoppedProduction` and an entry of its own that it creates and deletes): OK, the production's row is 30, the entry gets the block and keeps its key placeholder, base URL and header, and the running production's row, entries and jobs are as before.
+- AC2, `Restart`'s error (step 5, "an error that names the item that did not start"): VG2 and BH10 closed it as untestable without a stub of `Ens.Director`. `Test.Bridge.Timeouts.TestRestartError` needs no stub: `Ens.Alarm` has a job in the running production and no item in its definition, so `TempStopConfigItem` answers `ErrConfigItemNotFound`; `Restart` (after `Decide`, which it restarts) ends with `The item Ens.Alarm could not be restarted ...`, `Ens.Alarm` keeps its job and every item runs.
+- Not testable, recorded: the cleanup call itself (`TempStopConfigItem(item, 0)` after a stop that set its flag and then failed in `UpdateProduction`). A stop that fails before the flag (as `Ens.Alarm`'s) executes the cleanup call, which then answers the same error; one that fails after it needs `UpdateProduction` to fail: a lock timeout of 30 s, held by a second job, twice in a row (60 s and more), with the production's runtime lock taken from under it. That is slower and more fragile than the defect it guards, so the cleanup stays verified by reading `Ens/Director.cls` (reopen_if: `Restart` is called by a settings page whose operators see an item left stopped).
+
+*Wall-clock windows on a slower host (QA).* Measured on this machine (ARM, Docker Desktop, one run, the elapsed time at the test and the time that `Decide` itself measured, which differ by 2 to 4 ms). The CI runner is 2 to 3 times slower at starting stacks; inside one running IRIS a hop (an alarm, a message, an AI Hub call) is a few tens of milliseconds, so a 3 times slower host adds well under a second to each figure below, and none of the figures depends on a start.
+
+| Test | Window | Measured | What sets the figure | Holds on a host 3 times slower? |
+| --- | --- | --- | --- | --- |
+| `TestTimer` | 11 to 17 s (spec) | 12.07 s | the timer of 12 s plus the hops; the late reply at 18 s | yes: 5 s of room above, and the answer cannot come before 12 s |
+| `TestApplyTimer` (held request) | 4 to 20 s (spec) | 10.53 s | two attempts of 5 s and 0.5 s of back-off | yes: 9.5 s of room above |
+| `TestRateLimitedUntilTimer` | 12 to 15 s (spec) | 13.32 s | the last re-send is cut to leave 1 s, so it is sent at 14 s at the latest plus one alarm hop, and its failure comes a request later | yes (inference from the schedule, not measured on a slower host): about 13 s plus 5 hops (13.3 s now, about 13.8 s at 3 times), and under 14.5 s unless a hop takes half a second; the request count (4 or more) and the gaps (1, 2 and 4 s at least) are floors |
+| `TestRateLimitedThenHeld` (review-added, not a spec number) | was 10 to 13 s, now 10 to 16 s | 11.11 s | the timer of the re-send is the whole seconds left of the 12, so it fires at 11 to 12 s; the held reply comes at about 19 s | widened: the old upper bound left 1 s above 12 s; the new one keeps 3 s from the held reply and 4 s from the timer. The mutation "`Resend` sets no timer" still goes red (19.1 s) |
+| `TestLongRetryAfterCapped` | 1.5 to 10 s (spec) | 2.04 s | the cap of 2 s | yes (the mutation gives 30 s) |
+
+Only `TestRateLimitedThenHeld` was widened, because its number is the review's and not the spec's; the three windows that the spec fixes stay as written, and their reasoning is the third column. `TestRateLimitedResent` has lower bounds only (the gaps of the mock's arrival times, and now the duration), which a slower host only widens.
+
+*`Test.Bridge.ZzDecide`, read independently (QA).* Its `SetTimer` and `SendRequestAsync` have the signatures of `Ens.BusinessProcess` (checked against `irislib/Ens/BusinessProcess.cls:160,189`), so a call from `Decide` binds as it does in a production. It read `pRequest.ItemId` of every message, which an `AgentStep` does not have: the first reply with steps would have thrown inside `EmitSteps`' `Try` and logged a warning instead of recording a send. It records the sends and the Position now (`TestStepPositionsAcrossResends` needs it), and `TestResendWiring` is unchanged.
+
+**Mutations demonstrated (QA; Rule 19).** Each was applied to `src/bridge/` only, built into a throwaway (`e1s7q`), run, and reverted from a copy taken before; `git diff HEAD -- src/bridge ci` was empty afterwards (the test files were not touched between a mutation and its revert, except the `$ListGet` of `TestResendBoundary` made after the first run, which threw `<NULL VALUE>` instead of failing the assertion).
+- mutation (QA): `Resend` refuses with under 2 s left (`seconds < 2`) -> `Test.Bridge.Decide.TestResendBoundary` went red (the 1.8 s case: an answer, no send, no timer)
+- mutation (QA): `RemainingMs` counts a start that cannot be read as the whole timer -> `Test.Bridge.Decide.TestResendBoundary` went red (the unreadable-start cases: the key `resend` and the rate-limited reply were sent again)
+- mutation (QA): `OnResponse` gives `Conclude` 0 steps of earlier attempts -> `Test.Bridge.Decide.TestStepsAcrossAttempts` went red (the row and the answer, the usable turn and the fallback)
+- mutation (QA): `OnResponse` gives `Conclude` the runner's duration instead of the time since the process began -> `Test.Bridge.Decide.TestStepsAcrossAttempts` and `Test.Agent.Decide.TestRateLimitedResent` went red (2 ms, not 3000 or more)
+- mutation (QA): `EmitSteps` numbers from 0 -> `Test.Bridge.Decide.TestStepPositionsAcrossResends` (attempt 2: Position 1, not 3) and `TestEmitStepsFails` went red
+- mutation (QA): `Timeouts.Restart` acts for a production that does not run (the `running '= production` clause removed) -> `Test.Bridge.Timeouts.TestApplyStopped` went red (`Item is not in the current running production.`)
+- mutation (QA): `Timeouts.Restart` sets OK where an item could not be stopped (the run applied it together with the one above) -> `Test.Bridge.Timeouts.TestRestartError` went red (the error came 60 s later, naming the items that "did not run again", not that the item could not be restarted)
+- mutation (QA): `Timeouts.Apply` does not name the active production for an empty one -> `Test.Agent.Decide.TestApplyActiveProduction` went red (`No production is named and none is active`)
+- mutation (QA): `Resend` sets no timer, run again with the window of `TestRateLimitedThenHeld` at 10 to 16 s -> `Test.Agent.Decide.TestRateLimitedThenHeld` went red (the answer at 19.1 s, with the held reply)
+- Verification after the mutations: `bash ci/checks.sh` all scripts passed; `Test.Bridge.Decide`, `Test.Bridge.Timeouts` and `Test.Agent.Decide` passed; `shard lane-a` forward and `--reverse` (32 classes each, the only SKIP the existing `TestStepHelpers`); `ci/iris.sh teardown` for `e1s7q` left nothing.
+
+**Mutations demonstrated (code review, 2026-10-23; Rule 19).**
+- How they were run:
+  - The four mutations were applied together to `src/bridge/` only, after the review's patches.
+  - `Test.Bridge.Timeouts` and `Test.Bridge.Decide` ran once each in a throwaway (`e1s7r`).
+  - The two files were then restored from copies taken before. `git status --short` and the digest of `git diff` were equal before and after.
+- mutation (code review): `Timeouts.Check` without the guard of 15 digits -> `Test.Bridge.Timeouts.TestRefused` went red ("a string of 1,000 digits throws nothing": `+timer` throws).
+- mutation (code review): `EmitSteps` adds the messages built to `StepsSent` (the code before the review) -> `Test.Bridge.Decide.TestStepPositionsAcrossResends` went red (StepsSent 4, not 5, after a skipped record).
+- mutation (code review): `Apply` leaves the row when the production definition sets the timer, run again with `ZzTimerProduction` on the test's own entry -> `Test.Bridge.Timeouts.TestApplyDefinedTimer` went red. Apply was OK, the row stayed, and the test production's entry changed; no product entry was touched.
+- mutation (code review, VG4): `Decide.MINTIMER` is 1, the bound the story changed -> red in:
+  - `Test.Bridge.Timeouts.TestRefused` and `TestApplyRefuses` (11 is accepted);
+  - `Test.Bridge.Decide.TestBadSettings` and `TestOnRequestUsesItsSettings`.
+- Window since the review: `Test.Agent.Decide.TestRateLimitedUntilTimer` asserts 12 to 16 s after the send (VG1).
+  - The matrix's 15 s is the timer on Decide's own clock.
+  - The second above it is for the hops before Decide begins and after it answers, which a slower host stretches.
+  - Its pinning mutation (`ResendDelay` always gives 0) still fails it on the lower bound.
+- Verification after the review: `bash ci/checks.sh` passed; `shard lane-a` passed forward (232 s) and `--reverse` (231 s), 32 classes each, the only SKIP the existing `TestStepHelpers`, with `Agent.Decide` at 104 s; `release/standalone-bridge.sh` passed (12 checks); `ci/iris.sh teardown` for `e1s7r` left nothing.
 
 ## Clarification Record
 

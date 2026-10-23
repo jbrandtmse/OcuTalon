@@ -11,7 +11,8 @@
 ///   - TestDecideDefaults: Decide's three extension settings and its timer default to the do-nothing bases and 60 seconds, which
 ///     is what the example runs with; its budget settings default to no cap (DailyCostCapUSD 0) and no gateway spend (Story 1.4), and its
 ///     token budget per decision to 0, which is off (DecisionTokenBudget, Story 1.6). Since Story 1.7 the timer that the example's Decide reads
-///     is 60, which Timeouts.Check accepts and Derive turns into timeout_ms 55000, the value that the example's runner composes.
+///     is 60, which Timeouts.Check accepts and Derive turns into timeout_ms 55000, the value that the example's runner composes when the
+///     example's production is the active one (Adapter.Agent.TimeoutMs reads the Decide of the active production).
 Class OcuTalon.Test.Bridge.Example Extends %UnitTest.TestCase
 {
 
@@ -113,7 +114,7 @@ Method TestDecideDefaults()
 	Do $$$AssertStatusOK(sc, "the timer of the example's Decide is read")
 	Do $$$AssertEquals(timer, 60, "it is 60, as the production sets none and no System Default Settings row names the example")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Timeouts).Check(timer), "which Timeouts.Check accepts")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Timeouts).Derive(timer).%Get("timeout_ms"), 55000, "and the example's runner composes timeout_ms 55000 from it (SessionConfigFor)")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Timeouts).Derive(timer).%Get("timeout_ms"), 55000, "and Derive gives timeout_ms 55000 for it, what SessionConfigFor composes for the example's runner when its production is the active one")
 }
 
 /// --- helpers ---

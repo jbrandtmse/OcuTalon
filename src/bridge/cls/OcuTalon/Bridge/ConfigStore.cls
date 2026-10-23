@@ -1,5 +1,5 @@
 /// The Config Store API (AD-19). Merge changes some fields of an AI Hub LLM entry and leaves the others as they are; it is
-/// the one run-time writer of those entries, and the first caller is the model-change API of Story 17.3. Details reads an entry
+/// the one run-time writer of those entries: Timeouts.Apply calls it, and so will the model-change API of Story 17.3. Details reads an entry
 /// with its placeholders unresolved, for Merge and for OcuTalon.Bridge.Keys, and EntryOf reads the entry name out of a runner's
 /// @{config:<name>} reference, for Keys and for Timeouts. The bridge names no other OcuTalon package here (AD-2).
 /// What Merge guards (AD-19): an api_key field, at any depth, takes only one environment placeholder, @{env:NAME}, which

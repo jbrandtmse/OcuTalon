@@ -313,6 +313,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-2-agent-runners-send-every-request-under-the-model-rules.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: AD-6 gives Reply ToolsRun; Story 1.7 re-sends after a rate limit only when no tool ran (ToolsRun false); Adapter/Agent.cls Answer builds the Reply; %AI.LLM.Response carries the tool-call count
 - 2026-10-21T22:30:46Z status=routed owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=1.7 sets ToolsRun in Adapter.Agent Answer (or where the step audit sees a tool run) and pins it; its rate-limit AC depends on it
+- 2026-10-23T11:56:20Z status=resolved-by:1-7-timeouts-and-rate-limits-end-every-decision-on-time by=adjudication note=Adapter.Agent.Answer_sets_Reply.ToolsRun_from_AI_Hub's_tool-call_counter_or_the_step_records(unreadable=1);Decide_re-sends_only_with_ToolsRun_0;tests_Test.Bridge.Runner.TestToolsRun,Test.Agent.Steps.TestToolRanNoResend,TestTwoTools(766bf3b)
 
 ### DW-63: No hermetic check pins the content of lane-a.yml's standalone-bridge job: its step that runs release/standalone-bridge.sh could be removed or turned back into an echo with every check green
 - source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -408,11 +409,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: 1.7 implement review rows BH4, EC6 (rejected low): Apply writes the row, then merges each entry, then restarts; no lock
 - 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=Story 17.4's SettingsOps gives Apply concurrent callers, or a failed merge is seen in the field
+- 2026-10-23T11:54:57Z occurrence=1-7-timeouts-and-rate-limits-end-every-decision-on-time
 
 ### DW-102: Agent step Positions skip a number after a non-object record in Reply.Steps (EmitSteps skips the record but StepsSent counts it)
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 1.7 implement review rows BH8, EC7 (rejected low)
 - 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=a non-object record is seen in a Reply.Steps
+- 2026-10-23T11:54:57Z status=resolved-by:1-7-timeouts-and-rate-limits-end-every-decision-on-time owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=StepsSent is now the last Position built (the defect was a repeat, not a skip); TestStepPositionsAcrossResends pins it
 
 ### DW-103: Timeouts.Apply refuses a production whose disabled runner has no @{config:} entry, so such a production cannot change its timer through Apply
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
@@ -423,3 +426,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 1.7 implement review row EC16 (rejected low)
 - 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=operators ask for a log line when the timer fires
+
+### DW-108: Timeouts.Restart's clean-up (TempStopConfigItem(item, 0) after a stop or start that failed once the stop flag was set) has no test that fails without it
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 1.7 code review VG2: TestRestartError's Ens.Alarm fails in findItemByName before any stop flag (Ens/Director.cls:2492-2499), so removing Timeouts.cls:167 stays green; a red needs UpdateProduction to fail after the flag (a lock held over 60 s)
+- 2026-10-23T11:54:57Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=reopen_if=Restart runs under SettingsOps (Story 17.4) and a runner item is seen left temporarily stopped
+
+### DW-109: Timeouts.Apply puts its TimerSeconds row back with Ens.Config.DefaultSettings.%DeleteId, outside Ext.Accessor.WriteDefault, the one writer of System Default Settings rows
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 code review AA2: Timeouts.cls:100 deletes the row it wrote when the definition or a more specific row shadows it; the fix is a new public bridge method (a delete through the accessor), not a two-way door
+- 2026-10-23T11:54:58Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=reopen_if=Ext.Accessor.WriteDefault gains auditing or a hook (SettingsOps, Story 17.4) that a %DeleteId bypasses

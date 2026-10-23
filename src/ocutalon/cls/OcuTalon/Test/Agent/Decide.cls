@@ -78,12 +78,13 @@
 ///   - TestApplyTimer: Timeouts.Apply(20) writes Decide's TimerSeconds row, merges the block into every runner's entry (the api_key, base_url and
 ///     custom_headers stay), starts Decide and the runners in new jobs, and the next decide's timer is 20 s; a held request then ends as a
 ///     timeout fallback before the timer, because AI Hub's attempts of 5 s end first, and the runner's Reply holds "operation timed out";
+///   - TestApplyActiveProduction (QA): Timeouts.Apply with no production names the active production: the same row, entries and new jobs;
 ///   - TestRateLimitedResent: a rate limit is sent again with back-off until an attempt succeeds (overloaded armed 2, rate-limited armed 3), with
-///     the one DecisionRef, the steps of the attempts added, and no warning;
+///     the one DecisionRef, the steps of the attempts added, a duration that runs across the back-offs, and no warning;
 ///   - TestRateLimitedUntilTimer: a rate limit that does not end is sent again at least 4 times, 1 s, 2 s and 4 s apart, and ends as rate_limited
-///     12 to 15 s after the send, with the timer at 15 s;
+///     12 to 16 s after the send, with the timer at 15 s and a second for the hops outside Decide;
 ///   - TestRateLimitedThenHeld: the timer that Decide sets at a re-send ends the decision when the re-sent request is held: a rate_limited fallback
-///     10 to 13 s after the send with a TimerSeconds row of 12, two requests with one DecisionRef, the late reply discarded and its Usage row written;
+///     10 to 16 s after the send with a TimerSeconds row of 12, two requests with one DecisionRef, the late reply discarded and its Usage row written;
 ///   - TestLongRetryAfterCapped: a Retry-After of 30 waits only the back-off cap of the entry's retry block, so the reply comes in 1.5 to 10 s.
 ///   OnAfterOneTest puts the timer back (RunnerFixture.RestoreTimer) and clears the countdowns that the test armed.
 /// TestRunSessionIsItsOwn pins the session that RunnerFixture.Run returns: with another message to Decide between a mark and the send,
@@ -512,9 +513,10 @@ Method TestReplyFallbacks()
 }
 
 /// The timer fires (AD-6, AD-8; row "The timer fires (live)"). The TimerSeconds row of Decide is written directly, with Decide started again and
-/// the runners kept at the derivation of 60 (so a reply held for 18 s is not stopped by AI Hub: the timer is the only thing that ends the wait,
-/// which under the derived values happens only when a timer is changed outside Timeouts.Apply). A decide with the scenario decide-late, whose
-/// reply comes after 18 s, gets a timeout fallback DecisionResponse 11 to 17 s after it was sent, never an error. The row has the DecisionRef
+/// the runners' entries kept at the derivation of 60 (so a reply held for 18 s is not stopped by AI Hub: the timer is the only thing that ends the wait,
+/// which under the derived values happens only when a timer is changed outside Timeouts.Apply). The runners' sessions compose timeout_ms 7000
+/// from the row (Adapter.Agent.TimeoutMs), which does not stop a request in flight (S2); the test needs that. A decide with the scenario
+/// decide-late, whose reply comes after 18 s, gets a timeout fallback DecisionResponse 11 to 17 s after it was sent, never an error. The row has the DecisionRef
 /// of the runner's request, a duration of 11 to 17 s and empty token totals, because the late call had not finished when the timer fired. The late
 /// reply is discarded (its header is Discarded and no AgentStep is sent), and TriageAgent still writes its Usage row for the ref, which
 /// Usage.Totals counts.
@@ -642,10 +644,45 @@ Method TestApplyTimer()
 	If $IsObject(reply) Do $$$AssertTrue(reply.FailureText [ "operation timed out", "whose FailureText holds the provider's timeout: "_$Extract(reply.FailureText, 1, 200))
 }
 
+/// Timeouts.Apply with no production changes the timer of the active production (AD-5, AD-8; an empty production means the active one). After
+/// Apply(25): the TimerSeconds row of OcuTalon.Production's Decide is 25, the entry of each runner has a request timeout of 7 and the retry block with
+/// an attempt timeout of 7 ((25 - 10) \ 2), and Decide runs in a new job. OnAfterOneTest puts the timer back.
+Method TestApplyActiveProduction()
+{
+	If '..Prepare() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set rows = ""
+	Do $ClassMethod(fixture, "RememberDefault", .rows, "Decide", "TimerSeconds")
+	Set previous = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", ..#PRODUCTION, "Decide")
+	Set ..TimerSaved = $ListBuild(rows, previous)
+	Do $$$AssertEquals(##class(Ens.Director).GetActiveProductionName(), ..#PRODUCTION, "control: the active production is "_..#PRODUCTION)
+	Set decide = $ClassMethod(fixture, "Jobs", "Decide")
+	Set sc = ##class(OcuTalon.Bridge.Timeouts).Apply(25)
+	Do $$$AssertStatusOK(sc, "Timeouts.Apply(25) with no production changes the timer of the active production, and the items run again")
+	Set id = ..#PRODUCTION_"||Decide||*||TimerSeconds"
+	Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id), "the TimerSeconds row of its Decide exists")
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue, 25, "and is 25")
+	Set names = $ListBuild("OcuTalonTriage", "OcuTalonDiagnosis", "OcuTalonChat")
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Set now = {}.%FromJSON(##class(OcuTalon.Test.Install.Provider).EntryJson(name))
+		Set retry = now."http_config".%Get("retry")
+		Do $$$AssertEquals(now."http_config"."request_timeout_secs"_"|"_$Select($IsObject(retry): retry.%ToJSON(), 1: "none"), "7|{""max_retries"":1,""attempt_timeout_secs"":7,""initial_backoff_ms"":500,""max_backoff_ms"":2000}", name_": the request timeout is 7 and the whole retry block has an attempt timeout of 7")
+	}
+	Set after = $ClassMethod(fixture, "Jobs", "Decide")
+	Set shared = 0
+	Set at = 0
+	While $ListNext(after, at, job) {
+		If $ListFind(decide, job) Set shared = 1
+	}
+	Do $$$AssertTrue((after '= "") && 'shared, "Decide runs in a new job after the restart")
+}
+
 /// A rate limit is sent again until an attempt succeeds (AD-8, FR-4, NFR-23; the row "A re-send succeeds (live)"). A user's turn with
-/// overloaded:<key> armed 2 (529, 529, then 200) is answered with the text "Answered after the overload.", with no fallback: ChatAgent got 3
+/// overloaded:<key> armed 2 (529, 529, then 200) is answered with the text "Answered after the overload.", with no fallback and ToolsRun 0: ChatAgent got 3
 /// requests, all with the one DecisionRef; the mock's log holds 529, 529, 200, the second request at least 1 s after the first and the third at
-/// least 2 s after the second; the answer's AgentStepCount is the sum of the three runner replies'; and Decide logged no warning. Another turn with
+/// least 2 s after the second; the answer's AgentStepCount is the sum of the three runner replies'; the answer's DurationMs is the row's, which is
+/// 3000 or more across the back-offs of 1 s and 2 s; and Decide logged no warning. Another turn with
 /// rate-limited:<key> armed 3 (AI Hub sends each 429 again once) logs 429, 429, 429, 200, and Decide sent 2 requests.
 Method TestRateLimitedResent()
 {
@@ -667,7 +704,7 @@ Method TestRateLimitedResent()
 			Do $$$AssertTrue(0, label_"the answer is a Reply")
 			Continue
 		}
-		Do $$$AssertEquals(answer.Text_"|"_answer.Fallback_"|"_answer.FallbackReason, $List(case, 3)_"|0|", label_"the text of the successful attempt, and no fallback")
+		Do $$$AssertEquals(answer.Text_"|"_answer.Fallback_"|"_answer.FallbackReason_"|"_answer.ToolsRun, $List(case, 3)_"|0||0", label_"the text of the successful attempt, no fallback, and ToolsRun 0: no tool ran (AC6)")
 		Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
 		Do $$$AssertTrue($IsObject(row) && (row.Fallback = 0) && (row.FallbackReason = "") && (row.Ref = answer.DecisionRef), label_"the row is no fallback, and has the DecisionRef of the answer")
 		If '$IsObject(row) Continue
@@ -689,17 +726,19 @@ Method TestRateLimitedResent()
 		}
 		Do $$$AssertTrue(same && (answer.DecisionRef '= ""), label_"all with the one DecisionRef, the answer's")
 		Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), label_"the mock's log is read")
-		Set logged = ..MarkerEntries(entries, marker)
+		Set logged = $ClassMethod(fixture, "FindRequests", entries, marker)
 		Set statuses = ""
 		Set iterator = logged.%GetIterator()
 		While iterator.%GetNext(, .entry) {
 			Set statuses = statuses _ $Select(statuses = "": "", 1: ",") _ entry.status
 		}
 		Do $$$AssertEquals(statuses, $List(case, 4), label_"the log holds "_$List(case, 4)_" for the marker")
-		If name = "overloaded" {
+		If (name = "overloaded") && (logged.%Size() '< 3) {
 			Do $$$AssertTrue(..Millis(logged.%Get(1).ts) - ..Millis(logged.%Get(0).ts) '< 1000, label_"the second request comes at least 1 s after the first")
 			Do $$$AssertTrue(..Millis(logged.%Get(2).ts) - ..Millis(logged.%Get(1).ts) '< 2000, label_"and the third at least 2 s after the second")
 		}
+		Do $$$AssertEquals(answer.DurationMs, row.DurationMs, label_"the answer carries the duration of the decision, not that of the last attempt")
+		If name = "overloaded" Do $$$AssertTrue(row.DurationMs '< 3000, label_"which runs from the start of the first attempt, across the back-offs of 1 s and 2 s: "_row.DurationMs)
 		Set sum = 0
 		Set back = $ClassMethod(fixture, "Headers", session, "ChatAgent")
 		Set iterator = back.%GetIterator()
@@ -715,7 +754,8 @@ Method TestRateLimitedResent()
 }
 
 /// A rate limit that does not end is sent again until the timer fires (AD-8, FR-4; the row "The re-sends run out (live)"). After Apply(15), a
-/// user's turn with overloaded:<key> not armed (always 529) is answered with a rate_limited fallback Reply 12 to 15 s after the send: Decide kept
+/// user's turn with overloaded:<key> not armed (always 529) is answered with a rate_limited fallback Reply 12 to 16 s after the send (the timer of
+/// 15 s on Decide's clock, and up to a second for the hops before Decide begins and after it answers, on a slower host): Decide kept
 /// sending until the timer. It sent at least 4 requests, each a 529 in the mock's log (AI Hub never sends a 529 again), the re-sends coming at least
 /// 1 s, 2 s and then 4 s after the failure before them (the back-off, which the last re-send keeps a second before the timer).
 Method TestRateLimitedUntilTimer()
@@ -734,7 +774,7 @@ Method TestRateLimitedUntilTimer()
 	Set sc = ..Run(request, .answer, .session)
 	Set elapsed = $ZHorolog - started
 	Do $$$AssertStatusOK(sc, "Decide answers the turn")
-	Do $$$AssertTrue((elapsed '< 12) && (elapsed < 15), "12 to 15 s after the send: "_$Number(elapsed, 1)_" s")
+	Do $$$AssertTrue((elapsed '< 12) && (elapsed < 16), "12 to 16 s after the send, the timer of 15 s and the hops outside Decide: "_$Number(elapsed, 1)_" s")
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
 	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "rate_limited"), "", "a rate_limited fallback Reply with every guarantee, in the answer, its XML and the row")
 	Do $$$AssertEquals($Select($IsObject(answer): answer.ToolsRun, 1: ""), 0, "that says that no tool ran")
@@ -742,7 +782,7 @@ Method TestRateLimitedUntilTimer()
 	Do $$$AssertTrue(sent '< 4, "Decide sent ChatAgent at least 4 requests: "_sent)
 	Do $ClassMethod(fixture, "Drain", "ChatAgent")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Set logged = ..MarkerEntries(entries, marker)
+	Set logged = $ClassMethod(fixture, "FindRequests", entries, marker)
 	Do $$$AssertEquals(logged.%Size(), sent, "the log holds one entry for each request Decide sent: "_logged.%Size())
 	Set all529 = 1
 	Set iterator = logged.%GetIterator()
@@ -757,10 +797,11 @@ Method TestRateLimitedUntilTimer()
 }
 
 /// The timer that Decide sets at a re-send ends the decision (AD-6, AD-8, FR-4; the timer after "the re-sends run out"). The TimerSeconds row of
-/// Decide is written directly, 12, with Decide started again and the runners kept at the derivation of 60, so that AI Hub's attempts of 25 s do not
-/// end the wait: only a timer can. A decide with overloaded-then-held:<key> armed 1 gets a 529 at once and, after a back-off of 1 s, a re-sent
-/// request that the mock holds for 18 s. The timer of the re-send fires with 10 s of the 12 left, so the answer is a rate_limited fallback
-/// DecisionResponse (the retries ran out) 10 to 13 s after the send, not 19 s. Decide sent TriageAgent two requests with the one DecisionRef,
+/// Decide is written directly, 12, with Decide started again and the runners' entries kept at the derivation of 60, so that AI Hub's attempts of
+/// 25 s do not end the wait: only a timer can (the sessions' timeout_ms of 7000, from the row, does not stop a request in flight, S2). A decide
+/// with overloaded-then-held:<key> armed 1 gets a 529 at once and, after a back-off of 1 s, a re-sent request that the mock holds for 18 s. The timer of the re-send is set for the whole seconds left of the 12 (10 or 9), so it fires at 11 to 12 s
+/// and the answer is a rate_limited fallback DecisionResponse (the retries ran out) 10 to 16 s after the send, not about 19 s, when the held reply
+/// comes: the window keeps 3 s from the held reply and 4 s from the timer for a slow host. Decide sent TriageAgent two requests with the one DecisionRef,
 /// the second at least 1 s after the first in the mock's log (a 529, then a 200); the late reply is discarded, and TriageAgent still writes its
 /// Usage row, which Usage.Totals counts.
 Method TestRateLimitedThenHeld()
@@ -785,7 +826,7 @@ Method TestRateLimitedThenHeld()
 		Do $$$AssertTrue(0, "the answer is a DecisionResponse")
 		Quit
 	}
-	Do $$$AssertTrue((elapsed '< 10) && (elapsed < 13), "the answer comes 10 to 13 s after the send, when the timer of the re-send fires and not when the held reply comes: "_$Number(elapsed, 1)_" s")
+	Do $$$AssertTrue((elapsed '< 10) && (elapsed < 16), "the answer comes 10 to 16 s after the send, when the timer of the re-send fires and not when the held reply comes at about 19 s: "_$Number(elapsed, 1)_" s")
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "decide")
 	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", response, row, "decide", "rate_limited"), "", "a rate_limited fallback with every guarantee, in the answer, its XML and the row")
 	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
@@ -800,7 +841,7 @@ Method TestRateLimitedThenHeld()
 	Do $$$AssertTrue(($ListLength(refs) = 2) && ($List(refs, 1) '= "") && ($List(refs, 1) = $List(refs, 2)), "both with the one DecisionRef")
 	If $IsObject(row) Do $$$AssertEquals(row.Ref, $List(refs, 1), "which is the row's")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Set logged = ..MarkerEntries(entries, marker)
+	Set logged = $ClassMethod(fixture, "FindRequests", entries, marker)
 	Set statuses = ""
 	Set iterator = logged.%GetIterator()
 	While iterator.%GetNext(, .entry) {
@@ -815,7 +856,7 @@ Method TestRateLimitedThenHeld()
 		Hang 1
 	}
 	Do $$$AssertEquals($ClassMethod(fixture, "Headers", session, "TriageAgent").%Size(), 2, "TriageAgent answers the held request too, within the ceiling")
-	Do $$$AssertTrue(..WaitForNewestStatus(session, "TriageAgent", "Discarded"), "and Decide discards that reply")
+	Do $$$AssertTrue(..WaitForStatus(session, "TriageAgent", "Discarded", 1), "and Decide discards that reply")
 	Set ids = $ClassMethod(fixture, "UsageIds", "DecisionRef", $List(refs, 1))
 	Do $$$AssertEquals(ids.%Size(), 1, "TriageAgent wrote one Usage row for the ref: the held attempt is counted, the 529 wrote none")
 	If ids.%Size() = 1 Do $$$AssertTrue(##class(OcuTalon.Bridge.Data.Usage).Totals($List(refs, 1)).inputTokens > 0, "and Usage.Totals counts its tokens")
@@ -848,7 +889,7 @@ Method TestLongRetryAfterCapped()
 	Do $$$AssertEquals(..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), "ChatAgent"), 1, "Decide sent ChatAgent one request")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Set statuses = ""
-	Set iterator = ..MarkerEntries(entries, marker).%GetIterator()
+	Set iterator = $ClassMethod(fixture, "FindRequests", entries, marker).%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		Set statuses = statuses _ $Select(statuses = "": "", 1: ",") _ entry.status
 	}
@@ -1393,56 +1434,38 @@ ClassMethod HeaderTo(headers As %DynamicArray, target As %String) As %DynamicObj
 	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderTo(headers, target)
 }
 
-/// The status of the first header that the item sent in the session, as its display name, or "" when there is none.
-ClassMethod AnswerStatus(session As %Integer, source As %String) As %String [ Private ]
+/// The status of the first header that the item sent in the session (the newest with newest 1), as its display name, or "" when there
+/// is none.
+ClassMethod AnswerStatus(session As %Integer, source As %String, newest As %Boolean = 0) As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Status FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID", session, source)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Status FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID"_$Select(newest: " DESC", 1: ""), session, source)
 	If 'result.%Next() Quit ""
 	Set status = result.%GetData(1)
 	If status '? 1.N Quit status
 	Quit $Piece(##class(Ens.DataType.MessageStatus).#DISPLAYLIST, ",", status + 1)
 }
 
-/// Waits, up to WAITSECONDS, until the item has sent a header in the session. 1 when it has.
+/// Waits, up to WAITSECONDS, until the item has answered in the session every request that Decide sent it there (one header back for
+/// each), so that no call of the test is still running when the next test begins. 1 when it has.
 ClassMethod WaitForAnswer(session As %Integer, source As %String) As %Boolean [ Private ]
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While ($ClassMethod(fixture, "Headers", session, source).%Size() = 0) && ($ZHorolog < deadline) {
+	While ($ClassMethod(fixture, "Headers", session, source).%Size() < ..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), source)) && ($ZHorolog < deadline) {
 		Hang 1
 	}
-	Quit $ClassMethod(fixture, "Headers", session, source).%Size() > 0
+	Quit $ClassMethod(fixture, "Headers", session, source).%Size() '< ..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), source)
 }
 
-/// The status of the newest header that the item answered in the session, or "".
-ClassMethod NewestStatus(session As %Integer, source As %String) As %String [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Status FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? ORDER BY ID DESC", session, source)
-	If 'result.%Next() Quit ""
-	Set status = result.%GetData(1)
-	If status '? 1.N Quit status
-	Quit $Piece(##class(Ens.DataType.MessageStatus).#DISPLAYLIST, ",", status + 1)
-}
-
-/// 1 when the newest header that the item answered in the session gets the status within the ceiling.
-ClassMethod WaitForNewestStatus(session As %Integer, source As %String, status As %String) As %Boolean [ Private ]
+/// Waits, up to WAITSECONDS, until the first header that the item sent in the session (the newest with newest 1) has the status (its
+/// display name). 1 when it has. The wait is a poll once a second.
+ClassMethod WaitForStatus(session As %Integer, source As %String, status As %String, newest As %Boolean = 0) As %Boolean [ Private ]
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While (..NewestStatus(session, source) '= status) && ($ZHorolog < deadline) {
+	While (..AnswerStatus(session, source, newest) '= status) && ($ZHorolog < deadline) {
 		Hang 1
 	}
-	Quit ..NewestStatus(session, source) = status
-}
-
-/// Waits, up to WAITSECONDS, until the first header that the item sent in the session has the status (its display name). 1 when it
-/// has. The wait is a poll once a second.
-ClassMethod WaitForStatus(session As %Integer, source As %String, status As %String) As %Boolean [ Private ]
-{
-	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While (..AnswerStatus(session, source) '= status) && ($ZHorolog < deadline) {
-		Hang 1
-	}
-	Quit ..AnswerStatus(session, source) = status
+	Quit ..AnswerStatus(session, source, newest) = status
 }
 
 /// The number of headers in the array that are addressed to the target (Test.Agent.RunnerFixture.CountTo).
@@ -1512,17 +1535,6 @@ Method Arm(marker As %String, remaining As %Integer) [ Private ]
 {
 	Set ..Armed = ..Armed _ $ListBuild(marker)
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).Arm(marker, remaining), "the countdown of "_marker_" is armed with "_remaining)
-}
-
-/// The entries of the mock's log (Test.Contract.Mock.LogSince) for the model requests of the marker, in order, as a dynamic array.
-ClassMethod MarkerEntries(entries As %DynamicArray, marker As %String) As %DynamicArray [ Private ]
-{
-	Set found = []
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") && (entry.marker = marker) Do found.%Push(entry)
-	}
-	Quit found
 }
 
 /// A time of the log (ts, UTC ISO 8601 to the millisecond: 2026-10-23T05:57:33.411Z) in milliseconds since the day count began, for differences.
