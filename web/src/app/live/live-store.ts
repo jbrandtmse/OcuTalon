@@ -48,7 +48,7 @@ export const COLLECTIONS: Readonly<Record<LiveEventType, CollectionRule>> = {
   mailbox: { collection: 'mailboxes', key: 'ref' },
   'watch.progress': { collection: 'watchProgress', key: 'ref' },
   status: { collection: 'status', key: 'condition' },
-  'turn.step': { collection: 'turnSteps', key: 'decisionRef' },
+  'turn.step': { collection: 'turnSteps', key: 'turnRef' },
   pairing: { collection: 'telegram', key: null },
   'guide.state': { collection: 'guideState', key: null },
   reset: { collection: 'reset', key: null },
@@ -77,7 +77,7 @@ export interface LiveStore {
   watchProgress: Readonly<Record<string, WatchProgressPayload>>;
   /** By condition. */
   status: Readonly<Record<string, StatusPayload>>;
-  /** By the decision that the step belongs to. */
+  /** By the ref of the running turn that the step belongs to: the latest step of each turn. */
   turnSteps: Readonly<Record<string, TurnStepPayload>>;
   telegram: TelegramState;
   guideState: GuideStatePayload | undefined;
@@ -119,7 +119,7 @@ export function fromSnapshot(snapshot: StateSnapshot): LiveStore {
     mailboxes: keyed([], 'ref'),
     watchProgress: keyed([], 'ref'),
     status: keyed(snapshot.status, 'condition'),
-    turnSteps: keyed([], 'decisionRef'),
+    turnSteps: keyed([], 'turnRef'),
     telegram: { ...snapshot.telegram },
     guideState: undefined,
     reset: undefined,

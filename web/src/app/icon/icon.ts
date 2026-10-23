@@ -5,13 +5,18 @@ export type IconName =
   | 'bell-ring'
   | 'check'
   | 'chevron-down'
+  | 'chevron-up'
   | 'circle-alert'
+  | 'circle-check'
+  | 'circle-dashed'
+  | 'circle-x'
   | 'contrast'
   | 'external-link'
   | 'eye'
   | 'eye-off'
   | 'inbox'
   | 'info'
+  | 'life-buoy'
   | 'loader-circle'
   | 'triangle-alert'
   | 'x'
@@ -49,10 +54,32 @@ export type IconName =
         @case ('chevron-down') {
           <path d="m6 9 6 6 6-6" />
         }
+        @case ('chevron-up') {
+          <path d="m18 15-6-6-6 6" />
+        }
         @case ('circle-alert') {
           <circle cx="12" cy="12" r="10" />
           <line x1="12" x2="12" y1="8" y2="12" />
           <line x1="12" x2="12.01" y1="16" y2="16" />
+        }
+        @case ('circle-check') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="m9 12 2 2 4-4" />
+        }
+        @case ('circle-dashed') {
+          <path d="M10.1 2.182a10 10 0 0 1 3.8 0" />
+          <path d="M13.9 21.818a10 10 0 0 1-3.8 0" />
+          <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7" />
+          <path d="M2.182 13.9a10 10 0 0 1 0-3.8" />
+          <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69" />
+          <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
+          <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
+          <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+        }
+        @case ('circle-x') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="m15 9-6 6" />
+          <path d="m9 9 6 6" />
         }
         @case ('contrast') {
           <circle cx="12" cy="12" r="10" />
@@ -83,6 +110,14 @@ export type IconName =
           <circle cx="12" cy="12" r="10" />
           <path d="M12 16v-4" />
           <path d="M12 8h.01" />
+        }
+        @case ('life-buoy') {
+          <circle cx="12" cy="12" r="10" />
+          <path d="m4.93 4.93 4.24 4.24" />
+          <path d="m14.83 9.17 4.24-4.24" />
+          <path d="m14.83 14.83 4.24 4.24" />
+          <path d="m9.17 14.83-4.24 4.24" />
+          <circle cx="12" cy="12" r="4" />
         }
         @case ('loader-circle') {
           <path d="M21 12a9 9 0 1 1-6.219-8.56" />

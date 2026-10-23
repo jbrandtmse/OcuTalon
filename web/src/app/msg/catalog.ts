@@ -3,6 +3,9 @@
 /** The page wording of each catalog key that the page renders, with {name} placeholders for its slots. */
 export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'conversation.turnFallback': "I couldn't answer that: {fallbackReason}. Nothing was changed.",
+  'checks.allPassed': 'Everything I checked passed.',
+  'checks.everythingElsePassed': 'Everything else I checked passed.',
+  'checks.nothingWatched': "I'm not watching any productions yet, so I can't say. Ask me to watch one.",
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",

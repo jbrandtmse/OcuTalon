@@ -2,7 +2,8 @@
 /// each read returns and in which order, the scope of instance records, that an incident is visible only once noticed,
 /// that an eval record never is, that a find answers "" for everything a session can't see, that a second session gets
 /// none of the first session's rows for every row kind (condition 3), and that Rows refuses an empty owner and an
-/// unknown kind (condition 1). Every row comes from Test.Data.Fixture, which Clean removes; the users are zzown<n>, with n
+/// unknown kind (condition 1). Story 2.6 adds the decision find (TestDecisionRead) and the cost totals over the usage rows
+/// (TestTurnCost, TestRunCost), whose figures are written out. Every row comes from Test.Data.Fixture, which Clean removes; the users are zzown<n>, with n
 /// from ^OcuTalonTest("Ownership","n") (never reset). onlineDemo is saved and put back.
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
@@ -310,9 +311,11 @@ Method TestIsolationEveryRowKind()
 	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
 	Do ..Seed(a, .ra)
 	Do ..Seed(b, .rb)
-	Do ..ReadAll(a, .seenA)
-	Do ..ReadAll(b, .seenB)
-	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"))
+	Do ..ReadAll(a, .seenA, ra("decision"))
+	Do ..ReadAll(b, .seenB, rb("decision"))
+	Do ..ReadAll(b, .crossB, ra("decision"))
+	Do ..ReadAll(a, .crossA, rb("decision"))
+	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"))
 	Set position = 0
 	While $ListNext(kinds, position, pair) {
 		Set read = $List(pair, 1), kind = $List(pair, 2)
@@ -320,6 +323,11 @@ Method TestIsolationEveryRowKind()
 		Do $$$AssertEquals(seenB(read), rb(kind), "B reads only its own "_kind)
 		Do $$$AssertTrue(seenB(read) '[ ra(kind), "B's "_read_" holds none of A's")
 		Do $$$AssertTrue(seenA(read) '[ rb(kind), "A's "_read_" holds none of B's")
+	}
+	Do $$$AssertEquals(seenA("runusage")_"|"_seenA("rundecisions"), ra("decision")_"|"_ra("decision"), "A's usage and decisions since a time are its own, with one usage row and one decision")
+	For read = "decision", "turnusage" {
+		Do $$$AssertEquals(crossB(read), "", "B reads nothing of A's decision through "_read)
+		Do $$$AssertEquals(crossA(read), "", "A reads nothing of B's decision through "_read)
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incident(ra("incident"), b), "", "B does not find A's incident")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Approval(ra("approval"), b), "", "B does not find A's approval")
@@ -351,12 +359,15 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnQueue", "lastReplied", "recentTurns", "recentIncidents" {
-		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared")
+	For kind = "turnByClient", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions" {
+		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
-		Set rows = $ClassMethod(probe, "Call", kind, "eval", .sc, "zzownshared")
-		Do $$$AssertStatusNotOK(sc, kind_": eval is not a session's Ref")
+		For owner = "eval", "instance", "EVAL " {
+			Set rows = $ClassMethod(probe, "Call", kind, owner, .sc, "zzownshared", "zzownshared")
+			Do $$$AssertStatusNotOK(sc, kind_": "_owner_" is not a session's Ref")
+			Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
+		}
 	}
 	Set rows = $ClassMethod(probe, "Call", "turns", a, .sc)
 	Do $$$AssertStatusOK(sc, "a session's Ref is accepted")
@@ -390,6 +401,148 @@ Method TestRowsRefuses()
 	Set found = ##class(OcuTalon.Data.Ownership).Approval(ra("approval"), "", .sc)
 	Do $$$AssertEquals(found, "", "Approval with an empty SessionRef finds nothing")
 	Do $$$AssertStatusNotOK(sc, "and says why")
+	Set found = ##class(OcuTalon.Data.Ownership).Decision(ra("decision"), "", .sc)
+	Do $$$AssertEquals(found, "", "Decision with an empty SessionRef finds nothing")
+	Do $$$AssertStatusNotOK(sc, "and says why")
+	Set cost = ##class(OcuTalon.Data.Ownership).RunCost("", "", .sc)
+	Do $$$AssertEquals(cost.%ToJSON(), "{}", "RunCost with an empty SessionRef gives {}")
+	Do $$$AssertStatusNotOK(sc, "and says why")
+	Set cost = ##class(OcuTalon.Data.Ownership).RunCost("eval", "", .sc)
+	Do $$$AssertEquals(cost.%ToJSON(), "{}", "RunCost for the owner eval gives {}")
+	Do $$$AssertStatusNotOK(sc, "and says why")
+}
+
+/// Decision finds a decision of any kind that the session owns, and answers "" for another session's, an eval one, an
+/// instance one, an empty or unknown Ref and an empty or eval owner.
+Method TestDecisionRead()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"a")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"b")
+	Set triage = $ClassMethod(fixture, "Decision", a, "decide")
+	Set reply = $ClassMethod(fixture, "Decision", a, "turn")
+	Set theirs = $ClassMethod(fixture, "Decision", b, "decide")
+	Set eval = $ClassMethod(fixture, "Decision", "eval", "decide")
+	Set instance = $ClassMethod(fixture, "Decision", "instance", "decide")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", triage, a, .sc).Ref, triage, "A finds its decide decision")
+	Do $$$AssertStatusOK(sc, "with an OK status")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", reply, a).Kind, "turn", "and its turn decision")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", triage, b, .sc), "", "B does not find A's decision")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", theirs, a), "", "A does not find B's")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", eval, a), "", "an eval decision is not found")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", instance, a), "", "nor an instance decision")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", "", a, .sc), "", "an empty Ref finds nothing")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", "zzmissing"_..Number, a), "", "an unknown Ref finds nothing")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", triage_"' OR '1'='1", a), "", "a Ref is only ever a bound value")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", eval, "eval", .sc), "", "the owner eval finds nothing, even for its own decision")
+	Do $$$AssertStatusNotOK(sc, "and says why")
+	Do $$$AssertEquals($ClassMethod(ownership, "Decision", instance, "instance", .sc), "", "the owner instance finds nothing, even for its own decision")
+	Do $$$AssertStatusNotOK(sc, "and says why")
+}
+
+/// TurnCost totals the usage rows of the turn's two decisions that the turn's session owns. Session A's turn has a triage
+/// decision with two usage rows (1,000 + 10 input, 300 + 1 output, 50 cache read, 10 cache write, $0.0003 + $0.0001) and a
+/// reply decision with one estimated row (84 input, 12 output, $0.0005): 1,094 input, 313 output, 50 cache read, 10 cache
+/// write and $0.0009. Rows of session B, of eval and of instance with the same DecisionRefs, and a row of A's for another
+/// decision, are not counted. A turn with no usage rows totals 0, a turn with one decision totals that decision's rows, and an
+/// unknown turn gives {} and an error.
+Method TestTurnCost()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"a")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"b")
+	Set triage = $ClassMethod(fixture, "Decision", a, "decide")
+	Set reply = $ClassMethod(fixture, "Decision", a, "turn")
+	Set other = $ClassMethod(fixture, "Decision", a, "decide")
+	Set turn = $ClassMethod(fixture, "Turn", a)
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn)
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Do $$$AssertStatusOK(row.%Save(), "the turn has both decisions")
+	Do $ClassMethod(fixture, "Usage", triage, a, {"InputTokens": 1000, "OutputTokens": 300, "CacheReadTokens": 50, "CacheWriteTokens": 10, "CostUSD": 0.0003})
+	Do $ClassMethod(fixture, "Usage", triage, a, {"InputTokens": 10, "OutputTokens": 1, "CostUSD": 0.0001})
+	Do $ClassMethod(fixture, "Usage", reply, a, {"InputTokens": 84, "OutputTokens": 12, "CostUSD": 0.0005, "Estimated": 1})
+	Do $ClassMethod(fixture, "Usage", other, a, {"InputTokens": 5000, "OutputTokens": 5000, "CostUSD": 0.9})
+	For ref = triage, reply {
+		Do $ClassMethod(fixture, "Usage", ref, b, {"InputTokens": 7000, "OutputTokens": 7000, "CacheReadTokens": 7000, "CacheWriteTokens": 7000, "CostUSD": 0.7})
+		Do $ClassMethod(fixture, "Usage", ref, "eval", {"InputTokens": 8000, "OutputTokens": 8000, "CacheReadTokens": 8000, "CacheWriteTokens": 8000, "CostUSD": 0.8})
+		Do $ClassMethod(fixture, "Usage", ref, "instance", {"InputTokens": 6000, "OutputTokens": 6000, "CacheReadTokens": 6000, "CacheWriteTokens": 6000, "CostUSD": 0.6})
+	}
+	Set cost = $ClassMethod(ownership, "TurnCost", turn, .sc)
+	Do $$$AssertStatusOK(sc, "the totals are read")
+	Do $$$AssertEquals(+cost.inputTokens, 1094, "input tokens: 1,000 + 10 + 84 and no other owner's")
+	Do $$$AssertEquals(+cost.outputTokens, 313, "output tokens: 300 + 1 + 12")
+	Do $$$AssertEquals(+cost.cacheReadTokens, 50, "cache-read tokens")
+	Do $$$AssertEquals(+cost.cacheWriteTokens, 10, "cache-write tokens")
+	Do $$$AssertEquals(+cost.costUSD, 0.0009, "cost: 0.0003 + 0.0001 + 0.0005")
+	Do $$$AssertEquals(cost.%GetTypeOf("costUSD")_"|"_cost.%GetTypeOf("inputTokens"), "number|number", "the totals are numbers")
+
+	Set lone = $ClassMethod(fixture, "Turn", a)
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(lone)
+	Set row.TurnDecisionRef = reply
+	Do $$$AssertStatusOK(row.%Save(), "a turn with a reply decision only")
+	Set cost = $ClassMethod(ownership, "TurnCost", lone, .sc)
+	Do $$$AssertStatusOK(sc, "is read")
+	Do $$$AssertEquals(+cost.inputTokens_"|"_+cost.outputTokens_"|"_+cost.costUSD, "84|12|.0005", "and totals that decision's rows")
+	Set none = $ClassMethod(fixture, "Turn", a)
+	Set cost = $ClassMethod(ownership, "TurnCost", none, .sc)
+	Do $$$AssertStatusOK(sc, "a turn with no decision is read")
+	Do $$$AssertEquals(+cost.inputTokens_"|"_+cost.outputTokens_"|"_+cost.cacheReadTokens_"|"_+cost.cacheWriteTokens_"|"_+cost.costUSD, "0|0|0|0|0", "and totals 0 for each figure")
+	Do $$$AssertEquals(cost.%GetTypeOf("costUSD"), "number", "as numbers")
+	Set missing = $ClassMethod(ownership, "TurnCost", "zzmissing"_..Number, .sc)
+	Do $$$AssertEquals(missing.%ToJSON(), "{}", "an unknown turn gives {}")
+	Do $$$AssertStatusNotOK(sc, "and an error")
+	Set missing = $ClassMethod(ownership, "TurnCost", "", .sc)
+	Do $$$AssertEquals(missing.%ToJSON(), "{}", "so does an empty Ref")
+	Do $$$AssertStatusNotOK(sc, "with an error")
+}
+
+/// RunCost totals the session's usage rows recorded since a time and counts its decisions from then on. Session A has usage
+/// rows at 10:00 (claude-haiku-5-5; 100 input, 10 output, 5 cache read, 1 cache write, $0.0010), 10:05 (claude-sonnet-5-5; 200,
+/// 20, 6, 2, $0.0020) and 10:10 (claude-haiku-5-5; 300, 30, 7, 3, $0.0030), and decisions at the same times. Since 10:05 the
+/// totals are those of the last two rows (500, 50, 13, 5, $0.0050), with 2 decisions and the models in first-use order
+/// (sonnet, haiku); an empty since counts all three (600, 60, 18, 6, $0.0060; 3 decisions; haiku, sonnet). Rows of session B
+/// and of eval are not counted. A read that fails gives {} and an error.
+Method TestRunCost()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"a")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"b")
+	Set haiku = "claude-haiku-5-5", sonnet = "claude-sonnet-5-5"
+	Set d1 = $ClassMethod(fixture, "Decision", a, "decide", "2030-01-01T10:00:00Z")
+	Set d2 = $ClassMethod(fixture, "Decision", a, "decide", "2030-01-01T10:05:00Z")
+	Set d3 = $ClassMethod(fixture, "Decision", a, "turn", "2030-01-01T10:10:00Z")
+	Do $ClassMethod(fixture, "Usage", d1, a, {"RecordedAt": "2030-01-01T10:00:00Z", "Model": (haiku), "InputTokens": 100, "OutputTokens": 10, "CacheReadTokens": 5, "CacheWriteTokens": 1, "CostUSD": 0.001})
+	Do $ClassMethod(fixture, "Usage", d2, a, {"RecordedAt": "2030-01-01T10:05:00Z", "Model": (sonnet), "InputTokens": 200, "OutputTokens": 20, "CacheReadTokens": 6, "CacheWriteTokens": 2, "CostUSD": 0.002})
+	Do $ClassMethod(fixture, "Usage", d3, a, {"RecordedAt": "2030-01-01T10:10:00Z", "Model": (haiku), "InputTokens": 300, "OutputTokens": 30, "CacheReadTokens": 7, "CacheWriteTokens": 3, "CostUSD": 0.003})
+	Set e1 = $ClassMethod(fixture, "Decision", "eval", "decide", "2030-01-01T10:10:00Z")
+	Do $ClassMethod(fixture, "Usage", e1, "eval", {"RecordedAt": "2030-01-01T10:10:00Z", "InputTokens": 9000, "OutputTokens": 9000, "CostUSD": 0.9})
+	Set b1 = $ClassMethod(fixture, "Decision", b, "decide", "2030-01-01T10:10:00Z")
+	Do $ClassMethod(fixture, "Usage", b1, b, {"RecordedAt": "2030-01-01T10:10:00Z", "InputTokens": 8000, "OutputTokens": 8000, "CostUSD": 0.8})
+
+	Set cost = $ClassMethod(ownership, "RunCost", a, "2030-01-01T10:05:00Z", .sc)
+	Do $$$AssertStatusOK(sc, "the totals are read")
+	Do $$$AssertEquals(+cost.decisions, 2, "decisions since 10:05: the one at 10:05 and the one at 10:10")
+	Do $$$AssertEquals(+cost.inputTokens_"|"_+cost.outputTokens_"|"_+cost.cacheReadTokens_"|"_+cost.cacheWriteTokens_"|"_+cost.costUSD, "500|50|13|5|.005", "the last two rows' totals")
+	Do $$$AssertEquals(cost.models.%ToJSON(), "[""claude-sonnet-5-5"",""claude-haiku-5-5""]", "models in first-use order")
+	Set cost = $ClassMethod(ownership, "RunCost", a, "", .sc)
+	Do $$$AssertStatusOK(sc, "an empty since is read")
+	Do $$$AssertEquals(+cost.decisions, 3, "an empty since counts every decision")
+	Do $$$AssertEquals(+cost.inputTokens_"|"_+cost.outputTokens_"|"_+cost.cacheReadTokens_"|"_+cost.cacheWriteTokens_"|"_+cost.costUSD, "600|60|18|6|.006", "and every row")
+	Do $$$AssertEquals(cost.models.%ToJSON(), "[""claude-haiku-5-5"",""claude-sonnet-5-5""]", "with the models in first-use order")
+	Set cost = $ClassMethod(ownership, "RunCost", a, "2030-01-01T10:10:01Z", .sc)
+	Do $$$AssertStatusOK(sc, "a time after every row is read")
+	Do $$$AssertEquals(+cost.decisions_"|"_+cost.inputTokens_"|"_+cost.costUSD_"|"_cost.models.%Size(), "0|0|0|0", "and totals nothing")
+	Set cost = $ClassMethod(ownership, "RunCost", b, "", .sc)
+	Do $$$AssertEquals(+cost.decisions_"|"_+cost.inputTokens_"|"_+cost.costUSD, "1|8000|.8", "B totals only its own rows")
+	Set cost = $ClassMethod(ownership, "RunCost", "eval", "", .sc)
+	Do $$$AssertEquals(cost.%ToJSON(), "{}", "the owner eval gives {}")
+	Do $$$AssertStatusNotOK(sc, "and an error")
 }
 
 /// TurnByClient finds the session's turn of a page's clientId, matching the clientId exactly (case included), and answers ""
@@ -471,15 +624,33 @@ ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 	Set ref("reminder") = ##class(OcuTalon.Test.Data.Fixture).Reminder(sessionRef)
 	Set ref("check") = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, "ZZNS", "Zz.Seed."_$Extract(sessionRef, 1, 6))
 	Set ref("decision") = ##class(OcuTalon.Test.Data.Fixture).Decision(sessionRef)
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(ref("decision"), sessionRef)
 	Set ref("incident") = ##class(OcuTalon.Test.Data.Fixture).Incident(sessionRef)
 	Set ref("approval") = ##class(OcuTalon.Test.Data.Fixture).Approval(sessionRef, ref("incident"))
 	Set ref("pairing") = ##class(OcuTalon.Test.Data.Fixture).Pairing(sessionRef)
 }
 
-/// Every read of the session: seen(read) = the Refs it returned, comma-separated.
-Method ReadAll(sessionRef As %String, Output seen) [ Private ]
+/// Every read of the session: seen(read) = the Refs it returned, comma-separated (a usage row stands for its DecisionRef).
+/// With decisionRef, also the decision find and the usage reads that name it: seen("decision"), seen("turnusage") (both the
+/// turn's decision refs set to it), seen("runusage") and seen("rundecisions") (since a time long ago).
+Method ReadAll(sessionRef As %String, Output seen, decisionRef As %String = "") [ Private ]
 {
 	Kill seen
+	If decisionRef '= "" {
+		Set found = ##class(OcuTalon.Data.Ownership).Decision(decisionRef, sessionRef, .sc)
+		Do $$$AssertStatusOK(sc, "Decision reads")
+		Set seen("decision") = $Select($IsObject(found): found.Ref, 1: "")
+		Set probe = "OcuTalon.Test.Data.OwnershipProbe"
+		Set rows = $ClassMethod(probe, "Call", "turnUsage", sessionRef, .sc, decisionRef, decisionRef)
+		Do $$$AssertStatusOK(sc, "the turn usage reads")
+		Set seen("turnusage") = ..Refs(rows)
+		Set rows = $ClassMethod(probe, "Call", "runUsage", sessionRef, .sc, "2000-01-01T00:00:00Z")
+		Do $$$AssertStatusOK(sc, "the run usage reads")
+		Set seen("runusage") = ..Refs(rows)
+		Set rows = $ClassMethod(probe, "Call", "runDecisions", sessionRef, .sc, "2000-01-01T00:00:00Z")
+		Do $$$AssertStatusOK(sc, "the run decisions read")
+		Set seen("rundecisions") = ..Refs(rows)
+	}
 	Set ownership = "OcuTalon.Data.Ownership"
 	For read = "Turns", "Reminders", "Checks", "Incidents", "Approvals" {
 		Set rows = $ClassMethod(ownership, read, sessionRef, .sc)
@@ -509,12 +680,13 @@ Method ReadAll(sessionRef As %String, Output seen) [ Private ]
 	Set seen("pairing") = $Select($IsObject(pairing): pairing.Ref, 1: "")
 }
 
-/// The Refs of the rows of a list, in order, comma-separated.
+/// The Refs of the rows of a list, in order, comma-separated. A usage row has no Ref, and stands for its DecisionRef.
 ClassMethod Refs(rows As %ListOfObjects) As %String [ Private ]
 {
 	Set refs = ""
 	For i = 1:1:rows.Count() {
-		Set refs = refs_$Select(refs = "": "", 1: ",")_rows.GetAt(i).Ref
+		Set row = rows.GetAt(i)
+		Set refs = refs_$Select(refs = "": "", 1: ",")_$Select(row.%IsA("OcuTalon.Bridge.Data.Usage"): row.DecisionRef, 1: row.Ref)
 	}
 	Quit refs
 }

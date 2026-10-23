@@ -1,27 +1,35 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { Icon, type IconName } from '../icon/icon';
+import { Tooltip } from '../shared/tooltip';
 import { CHAT_TEXTS } from './chat-view';
 
 /** The four attention outcomes. */
 export type Outcome = 'ignore' | 'digest' | 'tell-now' | 'act';
 
-const CHIPS: Readonly<Record<Outcome, { icon: IconName; label: string }>> = {
-  ignore: { icon: 'eye-off', label: CHAT_TEXTS.chipIgnore },
-  digest: { icon: 'inbox', label: CHAT_TEXTS.chipDigest },
-  'tell-now': { icon: 'bell-ring', label: CHAT_TEXTS.chipTellNow },
-  act: { icon: 'zap', label: CHAT_TEXTS.chipAct },
+const CHIPS: Readonly<Record<Outcome, { icon: IconName; label: string; meaning: string }>> = {
+  ignore: { icon: 'eye-off', label: CHAT_TEXTS.chipIgnore, meaning: CHAT_TEXTS.meaningIgnore },
+  digest: { icon: 'inbox', label: CHAT_TEXTS.chipDigest, meaning: CHAT_TEXTS.meaningDigest },
+  'tell-now': { icon: 'bell-ring', label: CHAT_TEXTS.chipTellNow, meaning: CHAT_TEXTS.meaningTellNow },
+  act: { icon: 'zap', label: CHAT_TEXTS.chipAct, meaning: CHAT_TEXTS.meaningAct },
 };
+
+/** What an outcome means in release 1, in the UX's words. */
+export function meaningOf(outcome: Outcome): string {
+  return CHIPS[outcome].meaning;
+}
 
 /**
  * The outcome chip (UX-DR63): a borderless pill with an icon (hidden from assistive technology) and the outcome's label, coloured
- * by the outcome-chip tokens. It is not focusable. Story 2.6 adds its tooltip and its place in the decision strip.
+ * by the outcome-chip tokens. It is not focusable. A pointer resting on it for 300 ms shows a tooltip with the outcome's meaning,
+ * wherever the chip renders; the tooltip never holds the only copy: the decision strip describes itself with the meaning, and the
+ * empty chat panel prints it beside each chip.
  */
 @Component({
   selector: 'app-outcome-chip',
-  imports: [Icon],
+  imports: [Icon, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<span class="chip" [class]="outcome()"><app-icon [name]="chip().icon" [size]="12" />{{ chip().label }}</span>`,
+  template: `<span class="chip" [class]="outcome()" [appTooltip]="chip().meaning"><app-icon [name]="chip().icon" [size]="12" />{{ chip().label }}</span>`,
   styles: `
     :host {
       display: inline-flex;

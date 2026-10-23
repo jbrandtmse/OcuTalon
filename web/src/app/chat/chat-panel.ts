@@ -49,7 +49,8 @@ const landed = (turn: TurnView): boolean => turn.reply.kind === 'text' || turn.r
  * the list is at the bottom. A new message that this page sends (ChatOutbox.send, from the composer or later from the demo guide) scrolls the list to the bottom, as the user's own action.
  *
  * A 1 s clock ticks only while a turn is running, for the elapsed seconds that the indicator adds after 10 s. The page notes
- * when it first saw each turn running.
+ * when it first saw each turn running. The step labels of the live store (turn.step events, by the running turn's ref) reach the
+ * indicator through chatView.
  */
 @Component({
   selector: 'app-chat-panel',
@@ -183,7 +184,7 @@ export class ChatPanel {
         }
       }
     }
-    return chatView(chat, this.outbox.entries(), this.since, now);
+    return chatView(chat, this.outbox.entries(), this.since, now, this.live.store()?.turnSteps);
   });
 
   /** True while the New messages button shows. */

@@ -2,9 +2,11 @@ import { expect, test, type Locator, type Page, type Request, type Route } from 
 
 import { signIn, signInReadme, watchViolations } from '../sign-in/helpers';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
+import { clock, plain, tokenColor } from '../support/page';
 
 /**
- * Story 2.5, the chat panel (C1 to C14), in a real browser against a real stack. C1 reads the README account and sends nothing;
+ * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the fallback strip of a reply through the stub Decide; the rest of
+ * Story 2.6 is decision.spec.ts), in a real browser against a real stack. C1 reads the README account and sends nothing;
  * every other case signs in as the panel fixture user that test-sign-in.sh created (OCUTALON_PANEL_USER) and sends or seeds on
  * its own session, so that no spec publishes on the README session or the instance stream (api.spec pins their counts) or
  * touches the chat user's chat. Each case asserts only on the clientIds and refs it made. The browser runs in Asia/Kolkata with
@@ -39,13 +41,6 @@ const DECIDING = 'Deciding\u2026';
 const WORKING = 'Working\u2026';
 
 const isPath = (url: string, path: string): boolean => new URL(url).pathname === path;
-
-/** A time as the page shows it for the test's zone and locale, with the narrow no-break space read as a space. */
-const clock = (iso: string): string =>
-  new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }).format(new Date(iso)).replace(/\u202F/g, ' ');
-
-/** A text with its whitespace collapsed and the narrow no-break space read as a space. */
-const plain = (text: string | null): string => (text ?? '').replace(/\u202F/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** The bodies of the page's POST /messages requests, in order, as they are made. */
 function watchPosts(page: Page): () => Posted[] {
@@ -124,18 +119,6 @@ async function turnsWith(page: Page, clientId: string): Promise<Json[]> {
   return state.chat.filter((item) => item.type === 'chat.message' && item.payload['clientId'] === clientId).map((item) => item.payload);
 }
 
-/** The computed colour of a token, as the page paints it. */
-function tokenColor(page: Page, token: string): Promise<string> {
-  return page.evaluate((name) => {
-    const probe = document.createElement('span');
-    probe.style.color = `var(${name})`;
-    document.body.append(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  }, token);
-}
-
 /** The distance in px between the bottom of the list's content and the bottom of its view. */
 const fromBottom = (list: Locator): Promise<number> => list.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
 
@@ -196,6 +179,11 @@ test('C1: the empty chat panel, the composer, no live region and the page policy
     await expect(chip).toHaveCSS('color', await tokenColor(page, `--outcome-chip-${outcome}-foreground`));
     await expect(chip, `${outcome} is not focusable`).not.toHaveAttribute('tabindex', /.*/);
   }
+  await chips.first().locator('.chip').hover();
+  await expect(page.locator('.cdk-overlay-container app-tooltip'), 'a pointer resting on a chip shows its meaning, here too').toHaveText('Recorded; nobody notified');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.cdk-overlay-container app-tooltip'), 'and Esc hides it').toHaveCount(0);
+  await page.mouse.move(0, 0);
   const meaning = empty.locator('.meaning').first();
   await expect(meaning).toHaveCSS('font-size', '13px');
   await expect(meaning).toHaveCSS('color', await tokenColor(page, '--ink-muted'));
@@ -901,4 +889,23 @@ test.describe('C14: another zone and locale', () => {
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     await expect(userOf(page, seeded.refs[0]!).locator('.when'), '14:11 UTC is 16:11 in Berlin summer time, as a 24-hour time').toHaveText('16:11');
   });
+});
+
+/**
+ * C15: a reply through the stack's stub Decide is a fallback that has no decision row, so its strip is the fallback strip alone:
+ * Tell now, the Fallback flag and the reason as a sentence, with no confidence, no cost and no Details button.
+ */
+test('C15: a fallback reply through the stub Decide shows the fallback strip', async ({ page }) => {
+  const field = await open(page);
+  const { posted } = await sendWithEnter(page, field, unique('C15'));
+  const reply = replyOf(page, posted.clientId);
+  await expect(reply.locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+  const strip = reply.locator('app-decision-strip');
+  await expect(strip, 'the reply has one strip').toHaveCount(1);
+  await expect(strip.locator('app-outcome-chip')).toHaveText('Tell now');
+  await expect(strip.locator('app-fallback-flag')).toHaveText('Fallback');
+  await expect(strip.locator('.reason')).toHaveText(["The model's reply couldn't be used."]);
+  await expect(strip, 'no confidence').not.toContainText('Confidence');
+  await expect(strip, 'no cost').not.toContainText('$');
+  await expect(strip.getByRole('button'), 'no Details button').toHaveCount(0);
 });

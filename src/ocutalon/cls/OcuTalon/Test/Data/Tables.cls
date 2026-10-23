@@ -383,7 +383,9 @@ XData Contracts [ MimeType = application/json ]
    "FallbackReason": "%String(MAXLEN=32)",
    "TraceHeaderId": "%Integer",
    "Tainted": "%Boolean",
-   "Attempt": "%Integer"
+   "Attempt": "%Integer",
+   "CheckKey": "%String(MAXLEN=128)",
+   "CheckRows": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

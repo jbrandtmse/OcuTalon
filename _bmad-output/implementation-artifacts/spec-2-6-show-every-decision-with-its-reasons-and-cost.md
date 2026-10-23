@@ -2,12 +2,29 @@
 title: 'Story 2.6: Show every decision with its reasons and cost'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'bc5e0b5db389d10a8eb6a7195b0127c04f8ad67f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      TurnCost can leave out the usage of an earlier attempt's decision when a broken session is retried.
+    evidence: |-
+      Conversation.Replied overwrites Turn.TurnDecisionRef with the DecisionRef of every non-busy answer, the SessionBroken answer included, and Ownership.TurnCost sums only TriageDecisionRef and TurnDecisionRef.
+      Whether a SessionBroken answer carries a DecisionRef with a Usage row is Lane A's Decide (a stub in this tree); reading that code once it records decisions would settle it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/Conversation.cls (Replied)
+    severity: medium (unverified)
+  - summary: >-
+      No test drives the bridge's own emission of decision.recorded and turn.step into BridgeSink.
+    evidence: |-
+      Every BridgeSink test and the D6 and D10 sinkEvent helper call OnEvent directly. Decide is Epic 0's stub and no Lane A story that emits events is merged, so nothing in this tree calls HostSink.OnEvent from the bridge.
+      When the emitter lands, add one test in which a real Decide records a decision for a session and a decision event reaches that session's stream.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls (OnEvent)
+    severity: medium
 ---
 
 <intent-contract>
@@ -504,6 +521,51 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-22 — Review pass
+- verdicts: 37 findings — high 0, medium 5, low 25, false 6, maybe-false 1
+- findings:
+  - Blind Hunter
+    - `[medium]` `patch` `formatCost` rounds a tie on the binary double, so 0.00015 shows "$0.0001" where the server's `Msg.Catalog.Cost` shows "$0.0002" — confirmed on slot B (`$FNumber` rounds the decimal half up; `Render` of 0.00015, 0.00035, 0.00045, 0.1235, 1.005 and 0.009995 gives $0.0002, $0.0004, $0.0005, $0.124, $1.01, $0.010). Patched: `roundHalfUp` in `decision-view.ts`, the six ties in `decision-view.test.mjs` and in `Test.Msg.Catalog.TestCost`.
+    - `[low]` `reject` The failing-check sentences (`checks.notEverything*`) cannot reach the page — spec-bound (Decided 12; DW-90 routes the `whatFailed` slot to Story 5.7); D7 and `catalog.test.mjs` pin the absence.
+    - `[maybe-false]` `defer` `TurnCost` could drop the usage of an earlier attempt's decision when a broken session is retried (`Replied` overwrites `TurnDecisionRef`). Would settle it: whether Lane A's `Decide` records a Decision/Usage row for a `SessionBroken` answer; the stub does not. Deferred, medium (unverified).
+    - `[low]` `reject` `SetDecision` drops a failed read without a log line — the spec says a failed read leaves the fields empty; the failure is a database error that `/state`'s other reads surface; a log call would add an Ensemble dependency to a payload class.
+    - `[low]` `patch` The `Outbound.CheckRows` comment named raw HostData — replaced by the rows `Checks.Render` made, with their four members.
+    - `[low]` `reject` A `checks.allPassed` key beside a `failed` row prints the all-clear — by design (AD-28, UX): the sentence comes only from the key and never from the rows; a contradictory pair is a `Render` fault (Story 5.7), and the mutation "All-clear from rows" pins the page's side.
+    - `[low]` `reject` A reload mid-turn loses the running turn's step label — the page shows "Working…" until the next step; the snapshot's key list is fixed by the spec; cosmetic.
+    - `[low]` `reject` D6's 2 s bound leaves little slack on slow hosts and its second check repeats the first — the 2 s is the AC (FR-12); the repeated check cannot fail alone.
+  - Edge Case Hunter
+    - `[low]` `reject` `SetDecision` swallows failures without a trace — the same root cause as the Blind Hunter's fourth finding.
+    - `[false]` `reject` `TurnCost` re-reads the turn although `FromRow` holds it — `TurnCost(turnRef)` is the pinned one-argument call (Decided 9); the turns `FromRow` receives are saved rows, and an unknown turn is the only way the read fails.
+    - `[low]` `reject` A step label over 1000 characters or with inner newlines — labels are fixed text from the tool (AD-9), never model text; `$ZStrip` removes the control characters at the ends.
+    - `[low]` `reject` The warning logged in `OnEvent`'s `Catch` could itself throw — theoretical: `Ens.Util.Log` inserts with embedded SQL that sets SQLCODE; only a storage fault would throw.
+    - `[low]` `reject` A restarted turn shows its previous attempt's step label until the next step — cosmetic and rare (a sweep restart); the fix would change the store's event rules.
+    - `[low]` `reject` A reload loses the step label — the same root cause as the Blind Hunter's seventh finding.
+    - `[low]` `reject` `RunCost` opens every row of a long session when `since` is empty — the four statements are fixed by the spec and AD-13; the only consumer (Story 4.7) passes the run's start.
+    - `[false]` `reject` No context check when `Bridge.Context` is inactive — Decided 6 says so: with no context the running turn alone decides.
+    - `[false]` `reject` `turn.step` carries `decisionRef` beside `turnRef` and the label — the AC lists `{turnRef, decisionRef, label}`; "label only" means no other step content.
+    - `[false]` `reject` Details shows fewer than six rows when Model, Duration or Decision message is absent — the spec leaves those three out when absent.
+    - `[low]` `reject` `DecideDouble` writes confidence 0 for a fallback answer — a test-double detail no test depends on; no named harm.
+  - Verification Gap Reviewer
+    - `[medium]` `patch` `ShownDecisionRef`'s fall-through arms were asserted nowhere. Patched: `TestShownDecisionRef` in `Test.Live.Payloads` (seven combinations of the two refs and the fallback key); mutation recorded (red on two assertions).
+    - `[low]` `reject` `TestNeverWaitsMoreThanASecond`'s upper bound of 4 s cannot tell 1 s from 3 s — by design: the spec fixes the window (0.9 s to 4 s) to tell the 1 s wait from `Publish`'s 5 s and to hold on slow slot B.
+    - `[medium]` `patch` The Digest and Tell now meanings were never read, so swapped meanings stayed green. Patched: D3 asserts the Tell now description, D5 hovers a Digest chip; red under the swap.
+    - `[low]` `patch` "Decision details comes last" was asserted by nothing. Patched: D2 compares the button's place with the last reason line (newest strip) and the one line (an older strip); red when the button moves first.
+    - `[medium]` `defer` No test drives the bridge's own emission into `BridgeSink`; every test calls `OnEvent` directly. The emitter (`Decide`) is Lane A's stub and out of footprint; deferred until it emits.
+    - `[low]` `patch` C15 had no recorded red. Mutation recorded: the fallback-only strip dropped from `chatView` turns C15 red.
+    - `[low]` `reject` `TestStubRenderAddsNothing` compares empty with empty — it pins "the real stub adds nothing"; the Checks AC's pinning test is `TestCheckRowsFromRender`, which has its mutation.
+    - `[low]` `reject` D9 is named by no AC and no mutation row — it asserts a property of the Strip AC, which has mutation lines (D1, D2, D3).
+    - `[low]` `reject` Sub-parts of the Decision event, Steps, Chip-and-flag and Check-rows ACs have no mutation of their own — Rule 19 asks one demonstrated mutation per AC, and each AC has several.
+    - `[low]` `reject` `Test.Core.BridgeSink` counts event-log rows of its source class by id mark — no concurrent writer of BridgeSink warnings exists (the shards run serially and the stub `Decide` emits nothing); a scoped count would need a column the log lacks.
+    - `[low]` `reject` `Test.Data.Ownership` cleans class-wide in `OnBeforeAllTests`/`OnAfterAllTests` — pre-existing; the new methods use fresh sessions and depend on no leftover or order.
+    - `[low]` `reject` `Test.Bridge.Ext`'s "BridgeSink adds nothing" comment is stale — Lane A's file; DW-91 closed with a probe at spec validation.
+    - `[low]` `patch` The `decision-view.test.mjs` title claimed "not as a literal" but asserts only the character set — title corrected (`test-boundaries.sh` enforces the literal rule).
+    - `[medium]` `patch` `Holding` had no positive control, so "no event holds the Ref" could pass on a broken query. Patched: `TestDecisionRecordedPublishesTheDecision` asserts 0 before and 1 after the publish; red when `Holding` returns 0.
+  - Intent Alignment Auditor
+    - `[low]` `reject` The chain from the real bridge's emission through `BridgeSink` to the DOM is never joined in one test — by design: `Decide` is Epic 0's stub and no Lane A story is merged; the same gap is deferred above.
+    - `[false]` `reject` Esc is bound on the whole strip, where the AC says "Esc on it" — Esc on the Details button bubbles to the strip; D4 presses it on the button; the behaviour is the same.
+    - `[low]` `reject` An unknown outcome gives a group with no name, and a normal reply whose decision is itself a fallback has no DOM test — Decided 17 (unknown values fail safe); the view rules are node-tested.
+    - `[false]` `reject` The fallback sentence is derived on the page from the lower-case catalog clause — Decided 13 specifies it.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -668,6 +730,48 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 | Nested payload | `tsType` maps a direct payload class to `unknown` | `payloads.test.mjs` |
 | Outbound | `Tell` omits `DecisionRef` | `TestOutboundCarriesTheDecision` |
 
+**Implement-stage records.**
+
+Task 0, on slot B (build 154), through `Test.Web.Api` with a temporary `TestMeasureStateDecisions` (100 done turns, a triage and a turn decision and two usage rows each; `/state` three times through `StateJob`). The method is removed and `grep -rn MEASURE src/` finds none:
+- `MEASURE state runs ms: 3.8 2.6 2.6 median 2.6 body length 23057` (the old `FromRow`)
+- `MEASURE state runs ms: 205.4 18.5 17.9 median 18.5 body length 72557` (the new `FromRow`; the first run includes the statement preparation)
+- The new median is 18.5 ms, far under the 1 s limit, so there is no `## Clarification Needed`. The seeding of the 500 rows took about 260 s on slot B.
+
+Mutations (Rule 19). Each was applied, observed red, and restored; the tree was compared with `git status --short`, `git diff --stat` and a checksum of every changed file before and after. The browser rounds were run as 5 throwaway runs of `live sign-in` (tag e2s26i), several mutations per round, each mutation on a different D-test, and each test read separately:
+- mutation: `Recorded` cleared the payload's `Reasons` before publishing -> `TestDecisionRecordedPublishesTheDecision` red; D10 red (the served event had no `reasons`)
+- mutation: `Recorded` opened the row with `Decision.RefIndexOpen` (no owner) -> `TestEvalAndInstancePublishNothing` and `TestAnotherSessionsDecisionPublishesNothing` red
+- mutation: the `decision` kind without `AND OwnerRef = ?` (binds `a`) -> `TestIsolationEveryRowKind` red (B read A's decision and A read B's)
+- mutation: `Step` set no `TurnRef` -> `TestTurnStepForTheRunningTurn` red (and the turnRef check of `TestTurnStepOfAnotherItem`); D6 red (the label never replaced "Working")
+- mutation: the context `ItemId` check removed from `Step` -> `TestTurnStepOfAnotherItem` red
+- mutation: `Publish` called without `lockWait` -> `TestNeverWaitsMoreThanASecond` red (it waited 5.00 s)
+- mutation: `OnEvent` returned an exception's status -> `TestNeverFailsItsCaller` red
+- mutation: `indicatorOf` ignored `reply.step` -> `chat-view.test.mjs` red (3 tests); D6 red
+- mutation: line 1 showed `decision.costUSD` instead of the turn's cost -> D1 red (it expects the turn's `$0.0008`)
+- mutation: every strip showed one line (the newest-strip count ignored) -> D2 red (3 lines expected, 1 found)
+- mutation: confidence shown on a fallback -> D3 red; the fallback sentence pushed after the reasons -> `decision-view.test.mjs` red (`reasonLines`). C15 stays green for the first: its fallback has no decision, so it has no confidence to show
+- mutation: `ShownDecisionRef` always gave the triage decision -> `TestDecisionOnChatMessage` red; D3 red (its details name the attention decision, not the reply decision)
+- mutation: `aria-describedby` removed from the strip -> D1 red (empty description)
+- mutation: the chip without `appTooltip` -> D5 and C1 red; the chip with `tabindex="0"` -> D5 and C1 red
+- mutation: the details wrapper given the class `app-popover` -> D4 red (6 found, 0 expected); the Esc handler removed -> D4 red (Esc did not collapse)
+- mutation: the cost row showed "Decision ... Turn ..." when equal -> `decision-view.test.mjs` red; D4 red (soft assertion on the equal-cost turn)
+- mutation: the tier taken from the unrounded amount (no re-tier of 0.99996 and 0.009996), and no token grouping -> `decision-view.test.mjs` red (`formatCost`, `formatTokens`, `tokensLine`); the missing grouping also makes D4 red (soft assertion on the tokens line)
+- mutation: `TurnCost` passed the reply decision's Ref for both (no triage Ref) -> `TestTurnCost` red; D1 red (also D3, D4 and D8, which read the same cost); `turnUsage` without the owner check -> `TestTurnCost` red
+- mutation: `RunCost` ignored `since` -> `TestRunCost` red; `runUsage` without the owner check -> `TestRunCost` red
+- mutation: `Checked` not called -> `TestCheckRowsFromRender` red
+- mutation: `Checked` called before the fallback test -> `TestNoCheckRowsWithoutResults` red
+- mutation: the check sentence taken from the rows when every row passed, whatever the key -> D7 red
+- mutation: `checkRowView` mapped an unknown result to passed -> `decision-view.test.mjs` red (2 tests); D7 red
+- mutation: `ChatItems` used a `FromRow` with the decision and cost cleared -> `TestStateChatDecision` red; D8 red (the strips are gone after the reload; D1 to D7, which load from `/state`, are red too)
+- mutation: the Watch catalog not read -> `catalog.test.mjs` red (14 tests) and `catalog.mjs --check` exit 1
+- mutation: `tsType` mapped a direct payload class to `unknown` -> `payloads.test.mjs` red (3 tests) and `payloads.mjs --check` exit 1
+- mutation: `Tell` omitted `DecisionRef` -> `TestOutboundCarriesTheDecision` red
+
+Review-pass mutations (Rule 19), restored byte-identical and compared with `git status --short` and `git diff --stat`:
+- mutation: `formatCost` rounded the binary double (`toFixed`, with the tier test on `toFixed`) -> `decision-view.test.mjs` red ("rounds a tie up on the decimal amount": 0.00015 showed "$0.0001", the server's "$0.0002")
+- mutation: the fall-through arms of `ShownDecisionRef` returned the first ref alone (`Quit ..TurnDecisionRef`, `Quit ..TriageDecisionRef`) -> `TestShownDecisionRef` red (the reply with only the reply decision, the fallback with only the triage decision)
+- mutation: `Holding` returned 0 whatever the events -> `TestDecisionRecordedPublishesTheDecision` red (the positive control, "the search finds the event that holds the decision's Ref")
+- mutation: the Digest and Tell now meanings swapped in `CHIPS`, the Details button moved before the reasons, and the fallback-only strip dropped from `chatView` (`strip = decision !== undefined`), applied together in one `live sign-in` run and read from its JSON report -> D3 red (the group's description), D5 red (the Digest tooltip), D2 red (the button's place), C15 red (the fallback strip with no decision); the other 108 specs passed
+
 **Shared surfaces:**
 - the `chat.message` payload: `Test.Live.Payloads`, the api.spec rows (`toMatchObject`, additive), the restart row's snapshot comparison (a one-turn stub session, which has no decision and so stays unchanged), and `chat-view.test.mjs`;
 - the `turn.step` payload and the store's `turnSteps` key (`live-store.test.mjs`);
@@ -689,5 +793,35 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The bridge's decisions and steps now reach the page, and every reply shows its decision strip.
+- **Server.** `BridgeSink` publishes `decision` and `turn.step` events (session owners only, never fails, waits at most 1 s, `Live.Publish` gained `lockWait`). `Ownership` gained the row kinds `decision`, `turnUsage`, `runUsage` and `runDecisions` and the real `TurnCost` and `RunCost`. `Turn` keeps `CheckKey`, `CheckRows` and `ShownDecisionRef()`; `Conversation` calls `Checks.Render` through `RenderChecks` on a usable reply; `Outbound` carries `DecisionRef` and `CheckKey`; `chat.message` carries the shown decision, the turn cost and the check rows.
+- **Page.** The decision strip (chip with tooltip, Fallback flag, confidence and the turn's cost, reason lines, inline Decision details), the indicator's step label, and the check rows. `catalog.ts` renders the three all-clear sentences from the check key only.
+- Task 0 measured `/state` with the new reads at a median of 18.5 ms on slot B (old 2.6 ms), far under 1 s.
+
+**Files changed.**
+- Server: `Core/BridgeSink.cls`, `Core/Conversation.cls`, `Data/Ownership.cls`, `Data/Turn.cls`, `Live/Publish.cls`, `Live/Payload/ChatMessage.cls`, `Live/Payload/TurnStep.cls`, new `Live/Payload/Part/Cost.cls` and `Part/CheckRow.cls`, `Msg/Outbound.cls`.
+- Server tests: new `Test/Core/BridgeSink.cls` and `BridgeSinkProbe.cls`; changed `Test/Core/Commands.cls`, `ConversationProbe.cls`, `ConversationTurns.cls`, `DecideDouble.cls`, `Test/Data/Fixture.cls`, `Ownership.cls`, `Tables.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Contracts.cls`, `Test/Msg/Catalog.cls`, `Test/Web/Api.cls`.
+- Page: new `decision-view.ts`, `decision-strip.ts`, `decision-details.ts`, `check-rows.ts`, `fallback-flag.ts`; changed `chat-view.ts`, `ocutalon-reply.ts`, `chat-panel.ts`, `outcome-chip.ts`, `icon.ts`, `live-store.ts`, `tooltip.ts`, and the generated `payloads.ts` and `catalog.ts`; generators `payloads.mjs` and `catalog.mjs`.
+- Page tests and CI: new `decision-view.test.mjs`, `e2e/chat/decision.spec.ts`, `e2e/support/page.ts`; changed `chat-view.test.mjs`, `catalog.test.mjs`, `payloads.test.mjs`, `live-store.test.mjs`, `e2e/chat/chat.spec.ts` (C15), `e2e/support/iris.ts`, `docker/tests/test-sign-in.sh`, `docker/tests/test-ci-changes.sh`, `ci/units.sh`.
+
+**Review findings.** 37 findings from the four layers: patches applied 8, deferred 2, rejected 27 (each with its reason in the Review Triage Log).
+- Patches (4 medium, 4 low): `formatCost` rounds half up on the decimal amount, as the server does (the six ties are in both oracles); `TestShownDecisionRef`; the Digest and Tell now meanings in D3 and D5; `Holding`'s positive control; "Decision details comes last" in D2; the `Outbound.CheckRows` comment; the `decision-view.test.mjs` title; and C15's recorded red.
+- Deferred (frontmatter `deferred:`): `TurnCost` after a retried broken session (medium, unverified), and an integration test from the bridge's emission into `BridgeSink` (medium, Lane A's emitter).
+- Rejected with a reason: the `whatFailed` slot (DW-90, Story 5.7), the all-clear key beside failing rows (AD-28), a reload losing the step label, the tolerance windows the spec fixed, theoretical log failures, and the claims that contradict Decided 6, 9, 13 and 17.
+
+**Follow-up review recommended: true.** Four medium findings were patched. The unverified risk: `formatCost`'s new `roundHalfUp` rounds on 15 significant digits, which is exact for an amount of up to six decimals (`Usage.CostUSD` has scale 6) and under about a billion dollars; no test covers an amount outside that.
+
+**Verification performed (after the last patch).**
+- Slot B (`ocutalon-slot-b`, build 154): both trees compile with 0 errors; `Test.Core.BridgeSink` 9/9, `Test.Data.Ownership` 16/16, `Test.Core.ConversationTurns` 36/36, `Test.Live.Payloads` 7/7, `Test.Web.Api` 27/27, `Test.Msg.Contracts` 6/6, `Test.Data.Tables` 6/6, `Test.Core.Commands` 4/4, `Test.Contract.Ac` 6/6, `Test.Bridge.Ext` 3/3 (unedited), and `Test.Msg.Catalog` 22/22 after its patch; no fixture row, event or log row is left.
+- Web: `npm --prefix web test` 237/237, lint exit 0, the `catalog`, `payloads` and `tokens` generators `--check` exit 0, `test-web-build.sh` passes.
+- Shell checks `test-class-rules.sh` (`ALLOW_UNCHECKED` unchanged), `test-boundaries.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `test-mock.sh` pass; `bash ci/checks.sh` passes.
+- Throwaway (tag e2s26i): `build`, `live sign-in` 112 passed (D1 to D10 and C1 to C15 among them), `live demo-path` (`DEMO-PATH 1 of 6 steps ran (1 partly skipped), 11 skipped, 0 failed; floor 2 of 2 passed`), `shard lane-b` 32 classes passed, and `teardown` left nothing. Epic 1's `LOCK busy` (exit 75) was waited out and rerun.
+- Mutations (Rule 19): the implement stage's 27 and the review pass's four are recorded in `## Verification`, each observed red and restored byte-identical.
+
+**Residual risks.**
+- `Test.Bridge.Ext`'s comment "BridgeSink adds nothing" is stale (Lane A's file, DW-91).
+- The Lucide paths of `circle-dashed` and `circle-x` were written from memory of the upstream set (the repository holds no Lucide copy to compare them with); the review agreed with them from its own recall, and nothing tests the drawn shape beyond a stroke selector.
+- The `decision` events feed `store().decisions` with no page consumer until Story 2.8; the live bridge end is a stub until Lane A's `Decide` emits (deferred above).

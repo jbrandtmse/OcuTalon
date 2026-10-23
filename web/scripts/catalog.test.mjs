@@ -1,7 +1,8 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
-// check, the fallback sentence for each of the 12 reasons and for one that is none, and fixtures for the output's shape, the
-// web text over the text, and each way the generator refuses (a missing listed key, a slot type the page does not render, a
-// broken XData block, a reason with no text) and a stale file.
+// check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
+// catalog, and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs, and each
+// way the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
+// block, a reason with no text) and a stale file.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -36,13 +37,29 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts and the sentence', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence and the three check sentences', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 12);
+    const checks = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 15);
+  });
+});
+
+describe('the check sentences', () => {
+  it('read as the UX words them, from the Watch catalog', () => {
+    assert.equal(real.renderPageText('checks.allPassed'), 'Everything I checked passed.');
+    assert.equal(real.renderPageText('checks.everythingElsePassed'), 'Everything else I checked passed.');
+    assert.equal(real.renderPageText('checks.nothingWatched'), "I'm not watching any productions yet, so I can't say. Ask me to watch one.");
+  });
+
+  it('are the only check keys the page renders: the two that need a text slot are not listed', () => {
+    for (const key of ['checks.notEverything', 'checks.notEverythingRestPassed']) {
+      assert.ok(!Object.hasOwn(real.PAGE_TEXTS, key), key);
+      assert.throws(() => real.renderPageText(key), /no catalog text/, key);
+    }
   });
 });
 
@@ -96,6 +113,7 @@ describe('the fallback sentence', () => {
 
 /** The text of a Core.cls fixture holding these entries in an XData block like the real one. */
 const coreClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Core\n{\n\nXData Entries [ MimeType = application/json ]\n{\n${entries}\n}\n\n}\n`;
+const watchClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Watch\n{\n\nXData Entries [ MimeType = application/json ]\n{\n${entries}\n}\n\n}\n`;
 const catalogClass = (reasons) => `/// A fixture.\nClass OcuTalon.Msg.Catalog\n{\n\nParameter REASONKEYS = "${reasons}";\n\n}\n`;
 
 const GOOD = {
@@ -105,24 +123,35 @@ const GOOD = {
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
 };
 
-/** Writes a fixture pair and returns the arguments that point the generator at it. */
-function fixture(name, { entries = GOOD, reasons = 'timeout=timeout,invalid=generic', core = coreClass(JSON.stringify(entries, null, 1)) } = {}) {
+/** The Watch catalog of the fixtures: the three check sentences the page renders, and a key it does not. */
+const WATCH = {
+  'checks.allPassed': { text: 'All fine.', slots: {}, source: 'fixture' },
+  'checks.everythingElsePassed': { text: 'The rest was fine.', slots: {}, source: 'fixture' },
+  'checks.nothingWatched': { text: "Nothing's watched.", slots: {}, source: 'fixture' },
+  'checks.notEverything': { text: 'Not everything: {whatFailed}.', slots: { whatFailed: 'text' }, source: 'fixture' },
+};
+
+/** Writes a fixture trio and returns the arguments that point the generator at it (the --watch pair is last). */
+function fixture(name, { entries = GOOD, reasons = 'timeout=timeout,invalid=generic', core = coreClass(JSON.stringify(entries, null, 1)), watchEntries = WATCH, watch = watchClass(JSON.stringify(watchEntries, null, 1)) } = {}) {
   const dir = join(work, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'Core.cls'), core);
+  writeFileSync(join(dir, 'Watch.cls'), watch);
   writeFileSync(join(dir, 'Catalog.cls'), catalogClass(reasons));
-  return ['--core', join(dir, 'Core.cls'), '--catalog', join(dir, 'Catalog.cls'), '--out', join(dir, 'catalog.ts')];
+  return ['--core', join(dir, 'Core.cls'), '--catalog', join(dir, 'Catalog.cls'), '--out', join(dir, 'catalog.ts'), '--watch', join(dir, 'Watch.cls')];
 }
 
 const without = (key) => Object.fromEntries(Object.entries(GOOD).filter(([name]) => name !== key));
 
 describe('the generator on a fixture', () => {
-  it('keeps the listed keys only, in the Core order, and fills the reason map', async () => {
+  it('keeps the listed keys only, in the listed order and then the reasons\' in the Core order, and fills the reason map', async () => {
     const args = fixture('good');
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.equal(module.renderPageText('checks.allPassed'), 'All fine.');
+    assert.equal(module.renderPageText('checks.nothingWatched'), "Nothing's watched.");
     assert.deepEqual({ ...module.REASON_KEYS }, { timeout: 'timeout', invalid: 'generic' });
     assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: 'timeout' }), "I couldn't answer that: it timed out. Nothing was changed.");
     assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: 'other' }), "I couldn't answer that: it failed. Nothing was changed.");
@@ -154,6 +183,43 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /Core\.cls/);
     assert.match(r.stderr, /conversation\.turnFallback/);
     assert.match(r.stderr, /missing/);
+  });
+
+  it('fails, naming the Watch file and the key, on a listed key that the Watch catalog lacks', () => {
+    for (const key of ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched']) {
+      const watchEntries = Object.fromEntries(Object.entries(WATCH).filter(([name]) => name !== key));
+      const r = run(...fixture(`no-${key}`, { watchEntries }));
+      assert.equal(r.status, 1, key);
+      assert.match(r.stderr, /Watch\.cls/, key);
+      assert.ok(r.stderr.includes(`'${key}'`), `${key}: ${r.stderr}`);
+      assert.match(r.stderr, /missing/, key);
+    }
+  });
+
+  it('fails on a key that both catalogs define', () => {
+    const entries = { ...GOOD, 'checks.allPassed': { text: 'Twice.', slots: {} } };
+    const r = run(...fixture('both', { entries }));
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Watch\.cls/);
+    assert.match(r.stderr, /'checks\.allPassed' is in both/);
+  });
+
+  it('fails on a check sentence with a slot, which the page cannot fill', () => {
+    const watchEntries = { ...WATCH, 'checks.allPassed': { text: 'All fine: {what}.', slots: { what: 'text' } } };
+    const r = run(...fixture('check-slot', { watchEntries }));
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Watch\.cls/);
+    assert.match(r.stderr, /checks\.allPassed/);
+    assert.match(r.stderr, /slot 'what' of type 'text'/);
+  });
+
+  it('reads the Watch catalog from the file that --watch names, and refuses one that is not there', () => {
+    const args = fixture('watch-flag');
+    const absent = [...args.slice(0, 6), '--watch', join(work, 'absent-watch.cls')];
+    assert.equal(run(...absent).status, 1, 'a --watch file that does not exist is refused');
+    const other = fixture('watch-flag-other', { watchEntries: { ...WATCH, 'checks.allPassed': { text: 'Another text.', slots: {} } } });
+    assert.equal(run(...args.slice(0, 6), '--watch', other[7]).status, 0);
+    assert.match(readFileSync(args[5], 'utf8'), /'checks\.allPassed': 'Another text\.'/, 'the text comes from the file --watch names');
   });
 
   it('fails on the generic reason when it is missing', () => {
@@ -205,6 +271,18 @@ describe('the generator on a fixture', () => {
       const r = run(...fixture(name, { core }));
       assert.equal(r.status, 1, name);
       assert.match(r.stderr, /Core\.cls/, name);
+      assert.match(r.stderr, /XData/, name);
+    }
+  });
+
+  it('fails on a Watch XData block it cannot parse', () => {
+    for (const [name, watch] of Object.entries({
+      'watch-not-an-object': watchClass('[\n]'),
+      'watch-no-xdata': '/// A fixture.\nClass OcuTalon.Msg.Catalog.Watch\n{\n}\n',
+    })) {
+      const r = run(...fixture(name, { watch }));
+      assert.equal(r.status, 1, name);
+      assert.match(r.stderr, /Watch\.cls/, name);
       assert.match(r.stderr, /XData/, name);
     }
   });

@@ -1,5 +1,6 @@
 /// The one helper for the fixture rows of the tests that read through Ownership or the snapshot. It has no Test
-/// methods. Each creating method saves one row of the table it is named for and returns the row's Ref; every row it
+/// methods. Each creating method saves one row of the table it is named for and returns the row's Ref (Usage, whose rows have
+/// no Ref, returns and is recorded under the Ref of its decision); every row it
 /// creates is recorded under ^OcuTalonTest("Fixture", <class>, <id>), and Clean deletes exactly the recorded rows,
 /// with the live events and counters of the fixture sessions' streams, so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
@@ -104,9 +105,10 @@ ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As 
 	Quit ..Keep(row)
 }
 
-/// A decision of the owner. kind defaults to decide, the attention decision; recordedAt to now. Its item is new, so the
-/// (item, kind) key stays unique.
-ClassMethod Decision(ownerRef As %String, kind As %String = "decide", recordedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}) As %String
+/// A decision of the owner. kind defaults to decide, the attention decision; recordedAt to now; the outcome is tellnow. Its
+/// item is new, so the (item, kind) key stays unique. fields, an object of property names and values (Ref and ItemId
+/// included), is set after the defaults.
+ClassMethod Decision(ownerRef As %String, kind As %String = "decide", recordedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -114,11 +116,40 @@ ClassMethod Decision(ownerRef As %String, kind As %String = "decide", recordedAt
 	Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set row.OwnerRef = ownerRef
 	Set row.Summary = "zz summary "_row.Ref
-	Set row.Outcome = "notify"
+	Set row.Outcome = "tellnow"
 	Set row.Model = "claude-haiku-5-5"
 	Set row.TraceSessionId = 42
 	Set row.RecordedAt = recordedAt
+	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
+}
+
+/// A usage row of the owner for the decision (the Ref of a Decision row, or any Ref). fields, an object of property names
+/// and values, is set after the defaults (the model is claude-haiku-5-5 and the time now). The row has no Ref of its own, so
+/// it is recorded under decisionRef: Clean(decisionRef) removes it with the decision. Returns decisionRef.
+ClassMethod Usage(decisionRef As %String, ownerRef As %String, fields As %DynamicObject = "") As %String
+{
+	Set row = ##class(OcuTalon.Bridge.Data.Usage).%New()
+	Set row.DecisionRef = decisionRef
+	Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = "decide"
+	Set row.Agent = "zz"
+	Set row.Channel = "web"
+	Set row.OwnerRef = ownerRef
+	Set row.Model = "claude-haiku-5-5"
+	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..SetFields(row, fields)
+	Quit ..Keep(row, decisionRef)
+}
+
+/// Sets each member of fields, an object of property names and values, on the row. Nothing for an empty fields.
+ClassMethod SetFields(row As %Persistent, fields As %DynamicObject) [ Private ]
+{
+	If '$IsObject(fields) Quit
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Set $Property(row, name) = value
+	}
 }
 
 /// The session's Telegram pairing.
@@ -288,18 +319,20 @@ ClassMethod Between(headers As %DynamicArray, type As %Integer, source As %Strin
 	Quit found
 }
 
-/// Saves the row and records it.
-ClassMethod Keep(row As %Persistent) As %String [ Private ]
+/// Saves the row and records it under ref, which is the row's Ref by default, and returns ref.
+ClassMethod Keep(row As %Persistent, ref As %String = "") As %String [ Private ]
 {
 	Set sc = row.%Save()
 	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
-	Do ..Record(row)
-	Quit row.Ref
+	Set ref = $Select(ref '= "": ref, 1: row.Ref)
+	Do ..Record(row, ref)
+	Quit ref
 }
 
-ClassMethod Record(row As %Persistent) [ Private ]
+/// Records the row under ref, which is the row's Ref by default: Clean deletes the row with the others of that ref.
+ClassMethod Record(row As %Persistent, ref As %String = "") [ Private ]
 {
-	Set ^OcuTalonTest("Fixture", $ClassName(row), row.%Id()) = row.Ref
+	Set ^OcuTalonTest("Fixture", $ClassName(row), row.%Id()) = $Select(ref '= "": ref, 1: row.Ref)
 }
 
 /// Removes the live events of a stream and its counter.

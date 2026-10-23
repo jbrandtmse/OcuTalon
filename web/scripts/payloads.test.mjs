@@ -30,6 +30,7 @@ const ALPHA = [
   'Property Tags As list Of %String(%JSONFIELDNAME = "tags");',
   'Property Thing As OcuTalon.Live.Payload.Part.Thing(%JSONFIELDNAME = "thing");',
   'Property Things As list Of OcuTalon.Live.Payload.Part.Thing(%JSONFIELDNAME = "things");',
+  'Property Peer As OcuTalon.Live.Payload.Beta(%JSONFIELDNAME = "peer");',
 ];
 
 /** A fixture tree: Publish.cls, Payload/Alpha.cls (with `alpha`'s properties), Payload/Beta.cls, Payload/Part/Thing.cls. */
@@ -78,6 +79,14 @@ describe('the real tree', () => {
     assert.match(text, /^export interface DecisionPayload \{[\s\S]*?\n  costUSD\?: number;/m);
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  fallback\?: boolean;/m);
   });
+
+  it('nests the decision payload, the cost and the check rows in ChatMessagePayload', () => {
+    const text = readFileSync(realOut, 'utf8');
+    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n\}/m);
+    assert.match(text, /^export interface Cost \{\n  inputTokens\?: number;[\s\S]*?\n  costUSD\?: number;\n\}/m);
+    assert.match(text, /^export interface CheckRow \{\n  result\?: string;\n  entry\?: string;\n  finding\?: string;\n  checkedAt\?: string;\n\}/m);
+    assert.match(text, /^export interface TurnStepPayload \{\n  turnRef\?: string;\n  decisionRef\?: string;/m);
+  });
 });
 
 describe('a fixture tree', () => {
@@ -93,7 +102,7 @@ describe('a fixture tree', () => {
         '',
         'export interface Thing {\n  name?: string;\n}',
         '',
-        'export interface AlphaPayload {\n  ref?: string;\n  count?: number;\n  price?: number;\n  done?: boolean;\n  tags?: string[];\n  thing?: Thing;\n  things?: Thing[];\n}',
+        'export interface AlphaPayload {\n  ref?: string;\n  count?: number;\n  price?: number;\n  done?: boolean;\n  tags?: string[];\n  thing?: Thing;\n  things?: Thing[];\n  peer?: BetaPayload;\n}',
         '',
         'export interface BetaPayload {\n  text?: string;\n}',
         '',
@@ -150,6 +159,7 @@ describe('refusals name the file and line', () => {
     refuse('date', { alpha: withLine('Property When As %Date(%JSONFIELDNAME = "when");') }, /Payload\/Alpha\.cls:7: property When has the type %Date, which the generator does not map/);
     refuse('listint', { alpha: withLine('Property Counts As list Of %Integer(%JSONFIELDNAME = "counts");') }, /Payload\/Alpha\.cls:7: property Counts has the type list Of %Integer/);
     refuse('foreign', { alpha: withLine('Property Other As OcuTalon.Data.Session(%JSONFIELDNAME = "other");') }, /Payload\/Alpha\.cls:7: property Other has the type OcuTalon\.Data\.Session/);
+    refuse('nodirect', { alpha: withLine('Property Gone As OcuTalon.Live.Payload.Gone(%JSONFIELDNAME = "gone");') }, /Payload\/Alpha\.cls:7: property Gone has the type OcuTalon\.Live\.Payload\.Gone/);
     refuse('nopart', { alpha: withLine('Property Gone As OcuTalon.Live.Payload.Part.Gone(%JSONFIELDNAME = "gone");') }, /Payload\/Alpha\.cls:7: property Gone has the type OcuTalon\.Live\.Payload\.Part\.Gone/);
   });
 

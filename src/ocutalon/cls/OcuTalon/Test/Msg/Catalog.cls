@@ -286,6 +286,8 @@ Method TestCost()
 	Set cases = $ListBuild($ListBuild("5", "$5.00"), $ListBuild("1.24", "$1.24"), $ListBuild("0.042", "$0.042"), $ListBuild("0.0006", "$0.0006"), $ListBuild("0.00004", "<$0.0001"))
 	Set cases = cases_$ListBuild($ListBuild("0", "<$0.0001"), $ListBuild("0.0001", "$0.0001"), $ListBuild("0.01", "$0.010"), $ListBuild("1", "$1.00"), $ListBuild("12.5", "$12.50"))
 	Set cases = cases_$ListBuild($ListBuild("0.99996", "$1.00"), $ListBuild("0.99949", "$0.999"), $ListBuild("0.009996", "$0.010"), $ListBuild("0.009949", "$0.0099"))
+	// The ties round up on the decimal amount; the page's formatter (web/scripts/decision-view.test.mjs) holds the same six.
+	Set cases = cases_$ListBuild($ListBuild("0.00015", "$0.0002"), $ListBuild("0.00035", "$0.0004"), $ListBuild("0.00045", "$0.0005"), $ListBuild("0.1235", "$0.124"), $ListBuild("1.005", "$1.01"), $ListBuild("0.009995", "$0.010"))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $ListGet(cases, i)
 		Set slots = ##class(%DynamicAbstractObject).%FromJSON("{""cap"": "_$List(case, 1)_", ""time"": ""2026-10-16T18:15:00Z""}")

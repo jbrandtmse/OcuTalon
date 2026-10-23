@@ -41,14 +41,14 @@ group_units() {
 BROWSER_UNITS="demo-path sign-in"
 
 # The paths whose change makes the web job run (ci/changes.sh): the web sources, the Live payload classes, the catalog
-# classes that the page's generated catalog module and its tests read (Msg/Catalog.cls, Msg/Catalog/Core.cls and
-# Msg/Enum.cls, whose fallback reasons the tests compare with the module) and the generated
-# sign-in assets that the web build reads or writes, the UX design documents, the logo, the CI recipe (which holds the model
-# mock and its scenarios) and the scripts that build the web and run the mock's tests, the files that the mock's tests read
-# (the agent classes' MOCKKEY, the tool names, the compaction prefix and the example agent of the bridge), the workflow itself,
-# and the root .gitignore and .gitattributes, which decide whether the build leaves the checkout clean and how git checks
-# out the files it reads.
-WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
+# classes that the page's generated catalog module and its tests read (Msg/Catalog.cls, Msg/Catalog/Core.cls,
+# Msg/Catalog/Watch.cls, whose check sentences the page renders, and Msg/Enum.cls, whose fallback reasons the tests compare
+# with the module) and the generated sign-in assets that the web build reads or writes, the UX design documents, the logo,
+# the CI recipe (which holds the model mock and its scenarios) and the scripts that build the web and run the mock's tests,
+# the files that the mock's tests read (the agent classes' MOCKKEY, the tool names, the compaction prefix and the example
+# agent of the bridge), the workflow itself, and the root .gitignore and .gitattributes, which decide whether the build
+# leaves the checkout clean and how git checks out the files it reads.
+WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
 
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'

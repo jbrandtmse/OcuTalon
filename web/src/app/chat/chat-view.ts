@@ -8,11 +8,15 @@
  *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its
  *   status was. Incident and notice entries render nothing yet (Stories 6.1 and 2.7).
  * - A turn's reply is none (no indicator: the post is in flight or failed), deciding (the post was accepted, or the turn is
- *   queued), working (the turn is running; with the whole seconds once the page has seen it running for ELAPSED_AFTER_MS), the
- *   reply text, or a fallback by its catalog key and reason.
+ *   queued), working (the turn is running; with the whole seconds once the page has seen it running for ELAPSED_AFTER_MS, and
+ *   with the label of the step the bridge reported for it), the reply text, or a fallback by its catalog key and reason.
+ * - A turn has a decision strip when its chat.message carries a decision or its reply is a fallback; the newest such turn of the
+ *   chat shows three reason lines and the others one. The strip's fallback state, the turn's cost and its check rows come from
+ *   the same chat.message.
+ * - indicatorOf says what the turn indicator shows for a reply: the text, the form it is spoken in and whether the dots animate.
  */
 import type { LiveItem } from '../api/api-types';
-import type { ChatMessagePayload } from '../live/payloads';
+import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, TurnStepPayload } from '../live/payloads';
 
 /** Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. */
 export const CHAT_TEXTS = {
@@ -25,6 +29,9 @@ export const CHAT_TEXTS = {
   working: 'Working\u2026',
   workingElapsed: 'Working \u00B7 {n} s',
   workingElapsedSpoken: 'Working \u00B7 {n} seconds',
+  stepWorking: '{label}\u2026',
+  stepElapsed: '{label} \u00B7 {n} s',
+  stepElapsedSpoken: '{label} \u00B7 {n} seconds',
   seconds: '{n} seconds',
   newMessages: 'New messages',
   name: 'OcuTalon',
@@ -65,7 +72,7 @@ export interface OutboxEntry {
 export type ReplyView =
   | { kind: 'none' }
   | { kind: 'deciding' }
-  | { kind: 'working'; seconds?: number }
+  | { kind: 'working'; seconds?: number; step?: string }
   | { kind: 'text'; replyText: string }
   | { kind: 'fallback'; catalogKey: string; fallbackReason: string };
 
@@ -80,6 +87,28 @@ export interface TurnView {
   caption: string;
   send: OutboxStatus | 'stored';
   reply: ReplyView;
+  /** The decision the turn shows (the triage decision, or the reply decision of a fallback), when its chat.message carries one. */
+  decision?: DecisionPayload;
+  /** The cost of the whole turn, with the decision. */
+  turnCost?: Cost;
+  /** The fallback reason of the strip, set when the strip is a fallback strip: the turn's own for a fallback reply, else the decision's. */
+  fallbackReason?: string;
+  /** True when the turn has a decision strip: it has a decision, or its reply is a fallback. */
+  strip: boolean;
+  /** True for the last turn of the chat that has a strip. */
+  newest: boolean;
+  /** The catalog key of the check results of the reply. */
+  checkKey?: string;
+  /** The check results of the reply, one row each. */
+  checks?: readonly CheckRow[];
+}
+
+/** What the turn indicator shows: the text, the text it is spoken as, the whole seconds once past 10 s, and whether the dots animate. */
+export interface IndicatorView {
+  text: string;
+  spoken: string;
+  seconds?: number;
+  dots: boolean;
 }
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -110,17 +139,38 @@ function keyOf(message: ChatMessagePayload): string {
   return message.clientId || message.ref || '';
 }
 
+/** The label of the step a running turn is at, trimmed; "" when the store holds none for it. */
+function stepOf(message: ChatMessagePayload, steps: Readonly<Record<string, TurnStepPayload>>): string {
+  const ref = message.ref ?? '';
+  if (ref === '' || !Object.hasOwn(steps, ref)) {
+    return '';
+  }
+  const label = steps[ref]?.label;
+  return typeof label === 'string' ? label.trim() : '';
+}
+
 /** The reply of a stored turn. */
-function replyOf(message: ChatMessagePayload, key: string, runningSince: ReadonlyMap<string, number>, now: number): ReplyView {
+function replyOf(
+  message: ChatMessagePayload,
+  key: string,
+  runningSince: ReadonlyMap<string, number>,
+  now: number,
+  steps: Readonly<Record<string, TurnStepPayload>>,
+): ReplyView {
   switch (message.state) {
     case 'queued':
       return { kind: 'deciding' };
     case 'running': {
+      const step = stepOf(message, steps);
       const since = runningSince.get(key);
-      if (since === undefined || now - since < ELAPSED_AFTER_MS) {
-        return { kind: 'working' };
+      const reply: { kind: 'working'; seconds?: number; step?: string } = { kind: 'working' };
+      if (since !== undefined && now - since >= ELAPSED_AFTER_MS) {
+        reply.seconds = Math.floor((now - since) / 1000);
       }
-      return { kind: 'working', seconds: Math.floor((now - since) / 1000) };
+      if (step !== '') {
+        reply.step = step;
+      }
+      return reply;
     }
     case 'done':
       if (message.catalogKey) {
@@ -142,13 +192,14 @@ function captionOf(channel: string | undefined, fromGuide: boolean | undefined):
 
 /**
  * The entries to render. runningSince holds, by key, when (ms, the page's clock) the page first saw each turn running; now is
- * the page's clock in ms.
+ * the page's clock in ms; steps are the store's turn steps by the ref of the running turn.
  */
 export function chatView(
   chat: readonly LiveItem[],
   outbox: readonly OutboxEntry[],
   runningSince: ReadonlyMap<string, number>,
   now: number,
+  steps: Readonly<Record<string, TurnStepPayload>> = {},
 ): TurnView[] {
   const views: TurnView[] = [];
   const held = new Set<string>();
@@ -161,14 +212,37 @@ export function chatView(
     if (message.clientId) {
       held.add(message.clientId);
     }
-    views.push({
+    const reply = replyOf(message, key, runningSince, now, steps);
+    const view: TurnView = {
       key,
       text: message.text ?? '',
       time: message.createdAt ?? '',
       caption: captionOf(message.channel, message.fromGuide),
       send: 'stored',
-      reply: replyOf(message, key, runningSince, now),
-    });
+      reply,
+      strip: false,
+      newest: false,
+    };
+    const decision = message.decision;
+    if (decision !== undefined) {
+      view.decision = decision;
+      if (message.turnCost !== undefined) {
+        view.turnCost = message.turnCost;
+      }
+    }
+    if (reply.kind === 'fallback') {
+      view.fallbackReason = reply.fallbackReason;
+    } else if (decision?.fallback) {
+      view.fallbackReason = decision.fallbackReason ?? '';
+    }
+    view.strip = decision !== undefined || reply.kind === 'fallback';
+    if (message.checkKey) {
+      view.checkKey = message.checkKey;
+    }
+    if (message.checks !== undefined && message.checks.length > 0) {
+      view.checks = message.checks;
+    }
+    views.push(view);
   }
   for (const entry of outbox) {
     if (held.has(entry.clientId)) {
@@ -181,9 +255,49 @@ export function chatView(
       caption: captionOf(undefined, entry.fromGuide),
       send: entry.status,
       reply: entry.status === 'sent' ? { kind: 'deciding' } : { kind: 'none' },
+      strip: false,
+      newest: false,
     });
   }
+  for (let i = views.length - 1; i >= 0; i -= 1) {
+    const view = views[i];
+    if (view?.strip) {
+      view.newest = true;
+      break;
+    }
+  }
   return views;
+}
+
+/**
+ * What the turn indicator shows for a reply, or undefined when the reply is not in progress. Deciding and Working end in the
+ * animated ellipsis, and a step label stands in place of the word Working in the same way. From 10 s on the whole seconds replace
+ * the ellipsis, after a middle dot, and the spoken form says "seconds" in full.
+ */
+export function indicatorOf(reply: ReplyView): IndicatorView | undefined {
+  if (reply.kind === 'deciding') {
+    return { text: CHAT_TEXTS.deciding.slice(0, -1), spoken: CHAT_TEXTS.deciding, dots: true };
+  }
+  if (reply.kind !== 'working') {
+    return undefined;
+  }
+  const label = reply.step;
+  if (reply.seconds === undefined) {
+    if (label === undefined) {
+      return { text: CHAT_TEXTS.working.slice(0, -1), spoken: CHAT_TEXTS.working, dots: true };
+    }
+    return { text: label, spoken: CHAT_TEXTS.stepWorking.replace('{label}', () => label), dots: true };
+  }
+  const n = String(reply.seconds);
+  if (label === undefined) {
+    return { text: CHAT_TEXTS.workingElapsed.replace('{n}', n), spoken: CHAT_TEXTS.workingElapsedSpoken.replace('{n}', n), seconds: reply.seconds, dots: false };
+  }
+  return {
+    text: CHAT_TEXTS.stepElapsed.replace('{n}', n).replace('{label}', () => label),
+    spoken: CHAT_TEXTS.stepElapsedSpoken.replace('{n}', n).replace('{label}', () => label),
+    seconds: reply.seconds,
+    dots: false,
+  };
 }
 
 /** True while the panel shows the empty chat panel: the store's chat holds no entry of any type and no message of this page waits. */

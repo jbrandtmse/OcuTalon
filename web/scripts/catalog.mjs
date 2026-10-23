@@ -4,17 +4,20 @@
 //   node scripts/catalog.mjs            writes src/app/msg/catalog.ts
 //   node scripts/catalog.mjs --check    writes nothing; exits 1 when the file differs from its fresh output
 //
-// Options: --core <file> --catalog <file> --out <file> (the defaults are the repository's own files; tests point them at
-// fixtures).
+// Options: --core <file> --watch <file> --catalog <file> --out <file> (the defaults are the repository's own files; tests
+// point them at fixtures).
 //
-// It reads the XData block Entries of Msg/Catalog/Core.cls (one JSON object, the catalog keys with their texts and slot
-// types) and the REASONKEYS parameter of Msg/Catalog.cls (each fallback reason value with the suffix of its
-// fallbackReason.* key), and keeps an allowlist of the keys the page renders: conversation.turnFallback and every
-// fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, REASON_KEYS and renderPageText.
+// It reads the XData block Entries of Msg/Catalog/Core.cls and of Msg/Catalog/Watch.cls (one JSON object each, the catalog
+// keys with their texts and slot types; the two are merged, and a key in both is refused) and the REASONKEYS parameter of
+// Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key), and keeps an allowlist of the
+// keys the page renders: conversation.turnFallback, the check sentences checks.allPassed, checks.everythingElsePassed and
+// checks.nothingWatched, and every fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS,
+// REASON_KEYS and renderPageText.
 //
-// It fails closed (exit 1, with the file) on a listed key that is missing, a listed key with a slot of a type other than
-// fallbackReason or with a placeholder that is not a declared slot, a listed key with a one form, a reason value whose
-// fallbackReason.* key is missing, and an XData block or a REASONKEYS parameter it cannot read.
+// It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
+// other than fallbackReason or with a placeholder that is not a declared slot, a listed key with a one form, a reason value
+// whose fallbackReason.* key is missing, a key that both catalogs define, and an XData block or a REASONKEYS parameter it
+// cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
@@ -28,7 +31,7 @@ const repoRoot = resolve(here, '..', '..');
 const msgDir = resolve(repoRoot, 'src/ocutalon/cls/OcuTalon/Msg');
 
 /** The keys the page renders, besides every key under REASON_PREFIX. */
-export const LISTED_KEYS = ['conversation.turnFallback'];
+export const LISTED_KEYS = ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
 export const REASON_PREFIX = 'fallbackReason.';
 /** The one slot type the page renders. */
 const SLOT_TYPE = 'fallbackReason';
@@ -152,20 +155,30 @@ export function renderPageText(key: string, slots: PageSlots = {}): string {
 }
 `;
 
-/** The text of catalog.ts for the catalog classes at opts.core and opts.catalog. */
+/** The text of catalog.ts for the catalog classes at opts.core, opts.watch and opts.catalog. */
 export function generate(opts) {
   const coreName = shown(opts.core);
+  const watchName = shown(opts.watch);
   const catalogName = shown(opts.catalog);
-  const { entries } = readEntries(readFileSync(opts.core, 'utf8'), coreName);
+  const core = readEntries(readFileSync(opts.core, 'utf8'), coreName).entries;
+  const watch = readEntries(readFileSync(opts.watch, 'utf8'), watchName).entries;
+  /** Each key with its entry and the file it came from. */
+  const entries = new Map();
+  for (const [key, entry] of Object.entries(core)) entries.set(key, { entry, file: coreName });
+  for (const [key, entry] of Object.entries(watch)) {
+    if (entries.has(key)) throw new CatalogError(watchName, 0, `the key '${key}' is in both ${coreName} and ${watchName}`);
+    entries.set(key, { entry, file: watchName });
+  }
   const reasons = readReasonKeys(readFileSync(opts.catalog, 'utf8'), catalogName);
 
   const texts = new Map();
   for (const key of LISTED_KEYS) {
-    if (!Object.hasOwn(entries, key)) throw new CatalogError(coreName, 0, `the key '${key}', which the page renders, is missing`);
-    texts.set(key, pageText(key, entries[key], coreName));
+    if (!entries.has(key)) throw new CatalogError(`${coreName} and ${watchName}`, 0, `the key '${key}', which the page renders, is missing`);
+    const { entry, file } = entries.get(key);
+    texts.set(key, pageText(key, entry, file));
   }
-  for (const key of Object.keys(entries)) {
-    if (key.startsWith(REASON_PREFIX)) texts.set(key, pageText(key, entries[key], coreName));
+  for (const [key, { entry, file }] of entries) {
+    if (key.startsWith(REASON_PREFIX)) texts.set(key, pageText(key, entry, file));
   }
   for (const [value, suffix] of reasons) {
     if (!texts.has(REASON_PREFIX + suffix)) {
@@ -198,10 +211,11 @@ function parseArgs(argv) {
   const opts = {
     check: false,
     core: join(msgDir, 'Catalog/Core.cls'),
+    watch: join(msgDir, 'Catalog/Watch.cls'),
     catalog: join(msgDir, 'Catalog.cls'),
     out: resolve(repoRoot, 'web/src/app/msg/catalog.ts'),
   };
-  const names = { '--core': 'core', '--catalog': 'catalog', '--out': 'out' };
+  const names = { '--core': 'core', '--watch': 'watch', '--catalog': 'catalog', '--out': 'out' };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--check') opts.check = true;
@@ -215,7 +229,7 @@ function parseArgs(argv) {
 
 function main() {
   const opts = parseArgs(process.argv.slice(2));
-  for (const file of [opts.core, opts.catalog]) {
+  for (const file of [opts.core, opts.watch, opts.catalog]) {
     if (!existsSync(file)) throw new CatalogError(shown(file), 0, 'the file does not exist');
   }
   const { outputs } = generate(opts);

@@ -2,7 +2,8 @@
 /// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 12 routes,
 /// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
 /// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
-/// The rows of the Story 2.2 tests come from Test.Data.Fixture.
+/// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of
+/// TestStateChatDecision (Story 2.6).
 /// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
@@ -266,6 +267,51 @@ Method TestStateChatCapped()
 	Do $$$AssertTrue(('$Find(..Items(body.chat), oldest)), "the incident older than every turn is dropped")
 	Do $$$AssertTrue(('$Find(body.%ToJSON(), theirTurn)), "the other session's turn is not in the snapshot")
 	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// Story 2.6: the snapshot's chat entry for a turn carries what chat.message carries, so a reload rebuilds every strip: the
+/// shown decision (the triage decision of a reply, the reply decision of a fallback), the turn's cost over both decisions'
+/// usage rows, and the check key and rows. A turn with no decision has none of them, and another session's decision and usage
+/// rows are not read into the entry.
+Method TestStateChatDecision()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapidecision"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapidecisionother"_..Number)
+	Set triage = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz one\nzz two", "Confidence": 0.92, "Model": "claude-haiku-5-5"})
+	Set reply = $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T10:00:05Z", {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "timeout"})
+	Do $ClassMethod(fixture, "Usage", triage, mine, {"InputTokens": 1000, "OutputTokens": 300, "CostUSD": 0.0003})
+	Do $ClassMethod(fixture, "Usage", reply, mine, {"InputTokens": 84, "OutputTokens": 12, "CostUSD": 0.0005})
+	Do $ClassMethod(fixture, "Usage", triage, theirs, {"InputTokens": 7000, "OutputTokens": 7000, "CostUSD": 0.7})
+	Set replied = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(replied)
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Set row.CheckKey = "checks.allPassed"
+	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz finding"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
+	Do $$$AssertStatusOK(row.%Save(), "the first turn has both decisions and two check rows")
+	Set fallback = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(fallback)
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Set row.ReplyCatalogKey = "conversation.turnFallback"
+	Set row.FallbackReason = "timeout"
+	Do $$$AssertStatusOK(row.%Save(), "the second turn is a fallback with the same decisions")
+	Set bare = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z", "queued")
+
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_replied_",chat.message:"_fallback_",chat.message:"_bare, "the chat holds the three turns")
+	Set first = body.chat.%Get(0).payload
+	Do $$$AssertEquals(first.decision.ref_"|"_first.decision.outcome_"|"_first.decision.reasons, triage_"|act|zz one"_$Char(10)_"zz two", "a reply: the triage decision, with its outcome and reasons")
+	Do $$$AssertEquals(+first.turnCost.inputTokens_"|"_+first.turnCost.outputTokens_"|"_+first.turnCost.costUSD, "1084|312|.0008", "and the turn's cost, the sum of both decisions and no other session's")
+	Do $$$AssertEquals(first.checkKey_"|"_first.checks.%Size(), "checks.allPassed|2", "and the check key with its two rows")
+	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
+	Set second = body.chat.%Get(1).payload
+	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
+	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
+	Set third = body.chat.%Get(2).payload
+	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
+	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
 }
 
 /// DW-65: where the cut falls inside a group of entries with the same time, the chat keeps the later rows, and the entries

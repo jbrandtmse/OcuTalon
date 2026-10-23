@@ -19,8 +19,14 @@
 ///     as sent; an error status, no answer or an answer that is not a Reply is the fallback unusable. A reason outside Msg.Enum
 ///     FALLBACKREASON is unusable. Conversation never classifies a reply and never renders text: the fallback is the catalog key
 ///     FALLBACKKEY with the slot fallbackReason;
-///   - finishing: the Turn is done and saved, then chat.message is published, an Outbound goes to Notify, and RunTurns goes to
-///     Conversation itself when the session has a queued turn. A failed publish or send is logged and never stops the turn;
+///   - a usable reply's HostData (AD-6) is read before the turn is saved done: when it is a JSON object with an array checks,
+///     Checks.Render makes the catalog key and the rows (AD-28), which the Turn keeps as CheckKey and CheckRows (JSON). Bad JSON,
+///     no checks or a failing Render add nothing. The guard has already run in Decide; a fallback, a busy and a broken reply
+///     are never read;
+///   - finishing: the Turn is done and saved, then chat.message is published (it carries the turn's shown decision, cost and
+///     check rows), an Outbound goes to Notify with the shown decision's Ref (Turn.ShownDecisionRef) and the check key and
+///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
+///     and never stops the turn;
 ///   - an answer whose instance Attempt differs from the Turn's, or whose Turn is not running, changes nothing, so that a turn
 ///     that a sweep started again gives exactly one reply.
 /// The trace: before any send a turn sets %SessionId to the SessionId of the Item's header (the Turn's TraceHeaderId; without
@@ -84,6 +90,8 @@ Parameter ERRORREQUEST = "Conversation takes an Item or a RunTurns request, and 
 Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't free in the time allowed.";
 
 Parameter ERRORSWEEP = "The sweep could not read the turns: ";
+
+Parameter LOGCHECKS = "Conversation added no check results: ";
 
 /// The start of the warning for a dropped Item; one of the DROP texts follows it.
 Parameter LOGDROPPED = "Conversation dropped an item: ";
@@ -415,7 +423,33 @@ Method Replied(answer As %RegisteredObject) As %Status [ Private ]
 	If answer.Busy Quit ..Delay(turn)
 	If answer.SessionBroken Quit ..Rebuild(turn, answer)
 	If answer.Fallback Quit ..Conclude(turn, "", ..Reason(answer.FallbackReason))
+	Do ..Checked(turn, answer.HostData)
 	Quit ..Conclude(turn, answer.Text, "")
+}
+
+/// The check results of a usable reply (AD-28): HostData, when it is a JSON object with an array checks, goes to Checks.Render
+/// through RenderChecks, and a catalog key or rows that come back are kept on the turn as CheckKey and CheckRows (JSON). Bad
+/// JSON, HostData with no checks or an error in Render add nothing; the turn ends normally in every case.
+Method Checked(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If ($ClassName(data) '= "%Library.DynamicObject") || (data.%GetTypeOf("checks") '= "array") Quit
+		Set key = ..RenderChecks(data.checks, .rows)
+		Set size = $Select($IsObject($Get(rows)): rows.%Size(), 1: 0)
+		If (key = "") && (size = 0) Quit
+		Set turn.CheckKey = key
+		Set turn.CheckRows = $Select(size > 0: rows.%ToJSON(), 1: "")
+	} Catch exception {
+		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
+	}
+}
+
+/// The one call of Checks.Render (AD-28): the catalog key of the results, with the rows to show in rows.
+Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)
 }
 
 /// Decide was busy: waits BUSYWAIT seconds and sends the request again, BUSYMAX times at most; then the fallback rate_limited.
@@ -505,8 +539,8 @@ Method Announce(turn As OcuTalon.Data.Turn) [ Private ]
 	}
 }
 
-/// Sends the Outbound of the done turn to Notify: the reply text, or for a fallback the catalog key with its slot. A failure is
-/// logged and goes no further.
+/// Sends the Outbound of the done turn to Notify: the reply text, or for a fallback the catalog key with its slot, the Ref of
+/// the decision the turn shows, and the check key and rows. A failure is logged and goes no further.
 Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 {
 	Try {
@@ -514,6 +548,9 @@ Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 		Set outbound.SessionRef = turn.SessionRef
 		Set outbound.OriginChannel = turn.Channel
 		Set outbound.Text = turn.ReplyText
+		Set outbound.DecisionRef = turn.ShownDecisionRef()
+		Set outbound.CheckKey = turn.CheckKey
+		Set outbound.CheckRows = turn.CheckRows
 		If turn.ReplyCatalogKey '= "" {
 			Set outbound.CatalogKey = turn.ReplyCatalogKey
 			Set outbound.Slots = {"fallbackReason": (turn.FallbackReason)}.%ToJSON()

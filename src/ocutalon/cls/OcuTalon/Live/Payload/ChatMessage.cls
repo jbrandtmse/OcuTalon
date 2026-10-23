@@ -38,9 +38,23 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The decision the turn shows (AD-20): the reply decision of a fallback reply, else the triage decision; empty while the turn has none.
+Property Decision As OcuTalon.Live.Payload.Decision(%JSONFIELDNAME = "decision");
+
+/// The cost of the whole turn: both decisions' usage. Set only when decision is.
+Property TurnCost As OcuTalon.Live.Payload.Part.Cost(%JSONFIELDNAME = "turnCost");
+
+/// The catalog key of the check results of the reply (AD-28); empty for a reply with none.
+Property CheckKey As %String(%JSONFIELDNAME = "checkKey", MAXLEN = 128);
+
+/// The check results of the reply, one row each.
+Property Checks As list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME = "checks");
+
 /// The payload for a turn row, with every field set from the row: ref, clientId, channel, fromGuide, state, text, replyText,
-/// the fallback's catalogKey and fallbackReason, createdAt and the trace target (the row's TraceHeaderId, in the running
-/// namespace; both stay empty while the row has none).
+/// the fallback's catalogKey and fallbackReason, createdAt, the trace target (the row's TraceHeaderId, in the running
+/// namespace; both stay empty while the row has none), the shown decision (Decision.FromRow of the row ShownDecisionRef
+/// names, read as the session's own through Ownership) with the turn's cost, and the check key and rows. A read that fails
+/// leaves the decision, the cost and the rows empty; it never fails the payload.
 ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
 {
 	Set payload = ..%New()
@@ -58,7 +72,29 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 		Set payload.TraceHeaderId = row.TraceHeaderId
 		Set payload.TraceNamespace = $Namespace
 	}
+	Do ..SetDecision(payload, row)
+	Set payload.CheckKey = row.CheckKey
+	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)
+	For i = 1:1:list.Count() Do payload.Checks.Insert(list.GetAt(i))
 	Quit payload
+}
+
+/// Sets the payload's decision and turn cost from the row's shown decision, when the session owns it and the cost can be read.
+ClassMethod SetDecision(payload As OcuTalon.Live.Payload.ChatMessage, row As OcuTalon.Data.Turn) [ Private ]
+{
+	Set ref = row.ShownDecisionRef()
+	If (ref = "") || (row.SessionRef = "") Quit
+	Try {
+		Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, row.SessionRef, .sc)
+		If $SYSTEM.Status.IsError(sc) || '$IsObject(decision) Quit
+		Set cost = ##class(OcuTalon.Data.Ownership).TurnCost(row.Ref, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit
+		Set payload.Decision = ##class(OcuTalon.Live.Payload.Decision).FromRow(decision)
+		Set payload.TurnCost = ##class(OcuTalon.Live.Payload.Part.Cost).FromObject(cost)
+	} Catch exception {
+		Set payload.Decision = ""
+		Set payload.TurnCost = ""
+	}
 }
 
 }

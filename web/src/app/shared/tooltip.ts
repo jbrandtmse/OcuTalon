@@ -8,7 +8,7 @@ export const TOOLTIP_DELAY_MS = 300;
 /** How long a tooltip waits after the pointer leaves, so that the pointer can cross the gap onto the tooltip. */
 const LEAVE_GRACE_MS = 100;
 
-/** The tooltip's bubble. It is hidden from assistive technology: the host's own name already carries the text. */
+/** The tooltip's bubble. It is hidden from assistive technology: the text reaches assistive technology through the host's name or its description. */
 @Component({
   selector: 'app-tooltip',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,7 +37,8 @@ export class TooltipBubble {
  * A tooltip for a control, for the pointer only: it reacts to a mouse or a pen resting on the host, never to focus.
  * It shows after 300 ms, stays while the host or the tooltip is hovered, and hides when the pointer leaves, when
  * the host is pressed, or on Escape, which does not move focus. A pointer that leaves within the 300 ms shows nothing,
- * and none shows while the host's popup is open. The host must carry the same text as its name.
+ * and none shows while the host's popup is open. The host carries the same text as its name, or the text also reaches assistive
+ * technology another way (the strip's description).
  */
 @Directive({
   selector: '[appTooltip]',

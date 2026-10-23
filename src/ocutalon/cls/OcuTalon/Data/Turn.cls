@@ -56,6 +56,21 @@ Property Tainted As %Boolean [ InitialExpression = 0 ];
 /// How many times the turn has started; a Conversation instance whose count differs from the row's is stale (AD-30).
 Property Attempt As %Integer [ InitialExpression = 0 ];
 
+/// The catalog key of the check results that Checks.Render made for the reply (AD-28); empty for a reply with none.
+Property CheckKey As %String(MAXLEN = 128);
+
+/// The check rows that Checks.Render made for the reply, as a JSON array of {result, entry, finding, checkedAt}; empty for
+/// a reply with none.
+Property CheckRows As %String(MAXLEN = "");
+
+/// The Ref of the decision whose figures the turn shows (AD-20): for a fallback reply the reply decision, else the triage
+/// decision; the other one when the first is empty.
+Method ShownDecisionRef() As %String
+{
+	If ..ReplyCatalogKey '= "" Quit $Select(..TurnDecisionRef '= "": ..TurnDecisionRef, 1: ..TriageDecisionRef)
+	Quit $Select(..TriageDecisionRef '= "": ..TriageDecisionRef, 1: ..TurnDecisionRef)
+}
+
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefIndex On SessionRef;
@@ -120,6 +135,12 @@ Storage Default
 </Value>
 <Value name="18">
 <Value>Attempt</Value>
+</Value>
+<Value name="19">
+<Value>CheckKey</Value>
+</Value>
+<Value name="20">
+<Value>CheckRows</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

@@ -190,6 +190,7 @@ paths_case "a web change next to documentation runs the web groups" true "$web_g
 paths_case "the Live payload classes run web and every group (src/)" true all src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls
 paths_case "the generated sign-in assets run web and every group (src/)" true all src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls
 paths_case "the Core catalog runs web and every group (the page's catalog module is generated from it)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls
+paths_case "the Watch catalog runs web and every group (the page's catalog module renders its check sentences)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
 paths_case "the catalog renderer runs web and every group (its REASONKEYS feed the page's catalog module)" true all src/ocutalon/cls/OcuTalon/Msg/Catalog.cls
 paths_case "the message enums run web and every group (the page's catalog tests compare the fallback reasons with the module)" true all src/ocutalon/cls/OcuTalon/Msg/Enum.cls
 paths_case "an agent class runs web and every group (the mock's tests read its MOCKKEY)" true all src/ocutalon/cls/OcuTalon/Agent/Chat.cls

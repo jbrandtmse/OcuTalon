@@ -4,8 +4,8 @@
 ///   - Send records each call under ^OcuTalonTest("ConversationProbe", RunNumber, n), with n counted in
 ///     ^OcuTalonTest("ConversationProbe", RunNumber): target, class, key, required and the trace session the instance had set
 ///     (sessionId, superSession); for a Bridge.Msg.Request kind, provenance, input, itemId, summary, ownerRef, traceRef,
-///     channel, threadSessionId, sessionMode and seedText; for an Outbound sessionRef, originChannel, text, catalogKey and
-///     slots; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
+///     channel, threadSessionId, sessionMode and seedText; for an Outbound sessionRef, originChannel, text, catalogKey,
+///     slots, decisionRef, checkKey and checkRows; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
 ///     and how many done chat.message events of that Turn the session's stream already holds (doneEvents), which tell the order
 ///     of saving, publishing and sending. A request to Decide goes to a shadow instance of Test.Core.DecideDouble and its answer
 ///     is kept; a send to Conversation or Notify is recorded only. FailTarget names a target whose send fails;
@@ -14,7 +14,10 @@
 ///   - Deliver hands the kept answers, and the ends of the waits, in the order they were sent, to OnError and OnResponse as the
 ///     framework does: an answer that is an error status goes to OnError and then to OnResponse with no answer; any other answer,
 ///     and the Ens.AlarmResponse of a wait, goes to OnResponse.
-///   - ThrowIn makes Join (join) or Decided (decided) throw, for the tests of a failure inside the class;
+///   - RenderChecks, the seam of Checks.Render: when ^OcuTalonTest("ConversationProbe", RunNumber, "render") holds
+///     $ListBuild(key, rowsJSON), it records the results it was given under ^OcuTalonTest("ConversationProbe", RunNumber,
+///     "rendered", n) as JSON and returns that key and those rows; otherwise it calls the class it extends, the real stub;
+///   - ThrowIn makes Join (join), Decided (decided) or RenderChecks (render) throw, for the tests of a failure inside the class;
 ///   - ItemFor and FreshAfter expose the private ItemOf and AfterTaint to the tests.
 Class OcuTalon.Test.Core.ConversationProbe Extends OcuTalon.Core.Conversation
 {
@@ -25,7 +28,7 @@ Property RunNumber As %String [ Transient ];
 /// The target whose send fails with an error status.
 Property FailTarget As %String [ Transient ];
 
-/// The method that throws: join (Begin's trace step), decided (the decide answer), or empty for none.
+/// The method that throws: join (Begin's trace step), decided (the decide answer), render (the call of Checks.Render), or empty for none.
 Property ThrowIn As %String [ Transient ];
 
 /// The kept answers: Pending(n) = $ListBuild(key, status), Pending(n, "response") = the answer object.
@@ -52,6 +55,9 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("text") = request.Text
 		Set @call@("catalogKey") = request.CatalogKey
 		Set @call@("slots") = request.Slots
+		Set @call@("decisionRef") = request.DecisionRef
+		Set @call@("checkKey") = request.CheckKey
+		Set @call@("checkRows") = request.CheckRows
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
 	}
@@ -86,6 +92,17 @@ Method Decided(answer As %RegisteredObject) As %Status [ Private ]
 {
 	If ..ThrowIn = "decided" Throw ##class(%Exception.General).%New("zz decided threw", 5001, , "zz decided threw")
 	Quit ##super(answer)
+}
+
+Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %String [ Private ]
+{
+	If ..ThrowIn = "render" Throw ##class(%Exception.General).%New("zz render threw", 5001, , "zz render threw")
+	Set render = $Get(^OcuTalonTest("ConversationProbe", ..RunNumber, "render"))
+	If render = "" Quit ##super(results, .rows)
+	Set n = $Increment(^OcuTalonTest("ConversationProbe", ..RunNumber, "rendered"))
+	Set ^OcuTalonTest("ConversationProbe", ..RunNumber, "rendered", n) = results.%ToJSON()
+	Set rows = ##class(%DynamicAbstractObject).%FromJSON($List(render, 2))
+	Quit $List(render, 1)
 }
 
 /// The Item that Conversation builds from the row for Agent.Input.Render.

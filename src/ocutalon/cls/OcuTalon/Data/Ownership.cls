@@ -4,20 +4,22 @@
 ///     name; Attach records the user's durable session in the CSP session.
 ///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision),
-///     pending reminders, background checks, decisions, noticed incidents, pending approval requests and pairing.
+///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
+///     decisions or since a time, noticed incidents, pending approval requests and pairing.
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
 ///   - The snapshot's chat reads only the newest turns and the newest noticed incidents (RecentTurns, RecentIncidents), so
 ///     that a long session's snapshot does not open and serialize every row (DW-65).
-///   - A find (Incident, Approval) answers "" for a record the session can't see, exactly as for a missing one, so
-///     the REST surface answers both with 404.
+///   - A find (Incident, Approval, Decision) answers "" for a record the session can't see, exactly as for a missing one,
+///     so the REST surface answers both with 404.
+///   - TurnCost and RunCost (AD-20) total the usage rows of one owner: the turn's own session, or the session given. A row
+///     of owner eval, instance or another session is never counted, and neither total reads a record that has no owner.
 ///   - The reads run as the signed-in user, who holds no SQL privilege on the tables, so Rows prepares its statements
 ///     without the privilege check (AD-13 as amended, inbox U-15). Rows is the one such method of this class: its
 ///     statements are fixed texts, one per row kind; each has the owner check in its WHERE clause, bound to the
 ///     caller's SessionRef, which comes from SessionRef or from a row this class itself read, never from request input.
 ///   - Watchers reads across sessions and has no owner, so it prepares with the privilege check and runs only in
 ///     production jobs and tests.
-/// TurnCost and RunCost are Story 2.6's.
 Class OcuTalon.Data.Ownership
 {
 
@@ -35,16 +37,76 @@ Parameter EVAL [ Final ] = "eval";
 /// the owner again (o, a, o).
 Parameter INCIDENTVISIBLE [ Final ] = "i.NoticedAt <> '' AND (i.OwnerRef = ? OR (? = 1 AND i.OwnerRef = 'instance' AND EXISTS (SELECT 1 FROM OcuTalon_Data.BackgroundCheck c WHERE c.SessionRef = ? AND c.Kind = 'production' AND c.Namespace = i.Namespace AND c.Production = i.Production)))";
 
-/// The cost of one turn, as an object. Not implemented yet: it answers an empty object. Story 2.6.
-ClassMethod TurnCost(turnRef As %String) As %DynamicObject
+/// The cost of one turn (AD-20), as an object: the sums of the Usage rows of the turn's two decisions (TriageDecisionRef
+/// and TurnDecisionRef) that belong to the turn's own session, {"inputTokens", "outputTokens", "cacheReadTokens",
+/// "cacheWriteTokens", "costUSD"}, each 0 when the turn has no usage rows. An unknown turn gives {} and an error status
+/// in sc, and so does a failed read. turnRef comes from a row read through this class or held by Conversation, never from
+/// request input.
+ClassMethod TurnCost(turnRef As %String, Output sc As %Status) As %DynamicObject
 {
-	Quit {}
+	Set sc = $SYSTEM.Status.OK()
+	Set turn = $Select(turnRef = "": "", 1: ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef))
+	If '$IsObject(turn) {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no turn to total")
+		Quit {}
+	}
+	Set triage = turn.TriageDecisionRef
+	Set reply = turn.TurnDecisionRef
+	If triage = "" Set triage = reply
+	If reply = "" Set reply = triage
+	Set rows = ""
+	If triage '= "" {
+		Set rows = ..Rows("turnUsage", turn.SessionRef, .sc, triage, reply)
+		If $SYSTEM.Status.IsError(sc) Quit {}
+	}
+	Set cost = {}
+	Do ..Sum(rows, cost)
+	Quit cost
 }
 
-/// The cost of the session's runs since a UTC time, as an object. Not implemented yet: it answers an empty object.
-ClassMethod RunCost(sessionRef As %String, since As %String) As %DynamicObject
+/// The cost of the session's runs since a UTC time (an empty since counts all), as an object: {"decisions", "inputTokens",
+/// "outputTokens", "cacheReadTokens", "cacheWriteTokens", "costUSD", "models"}. decisions counts the session's Decision rows
+/// recorded since then, the totals sum its Usage rows recorded since then, and models holds the model ids of those Usage
+/// rows in the order of first use. A record of owner eval, instance or another session is never counted. A failed read
+/// gives {} and an error status in sc.
+ClassMethod RunCost(sessionRef As %String, since As %String, Output sc As %Status) As %DynamicObject
 {
-	Quit {}
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(since) = "" Set since = "0000-01-01T00:00:00Z"
+	Set usage = ..Rows("runUsage", sessionRef, .sc, since)
+	If $SYSTEM.Status.IsError(sc) Quit {}
+	Set decisions = ..Rows("runDecisions", sessionRef, .sc, since)
+	If $SYSTEM.Status.IsError(sc) Quit {}
+	Set cost = {"decisions": (decisions.Count())}
+	Do ..Sum(usage, cost, .models)
+	Set cost.models = models
+	Quit cost
+}
+
+/// Sets the four token totals and the cost of the Usage rows (none when rows is not a list) in cost, 0 for a total with no
+/// rows, and returns the model ids of the rows in the order of first use in models.
+ClassMethod Sum(rows As %ListOfObjects, cost As %DynamicObject, Output models As %DynamicArray) [ Private ]
+{
+	Set models = []
+	Kill seen
+	Set input = 0, output = 0, cacheRead = 0, cacheWrite = 0, usd = 0
+	For i = 1:1:$Select($IsObject(rows): rows.Count(), 1: 0) {
+		Set row = rows.GetAt(i)
+		Set input = input + row.InputTokens
+		Set output = output + row.OutputTokens
+		Set cacheRead = cacheRead + row.CacheReadTokens
+		Set cacheWrite = cacheWrite + row.CacheWriteTokens
+		Set usd = usd + row.CostUSD
+		If (row.Model '= "") && '$Data(seen(row.Model)) {
+			Set seen(row.Model) = ""
+			Do models.%Push(row.Model)
+		}
+	}
+	Set cost.inputTokens = input
+	Set cost.outputTokens = output
+	Set cost.cacheReadTokens = cacheRead
+	Set cost.cacheWriteTokens = cacheWrite
+	Set cost.costUSD = usd
 }
 
 /// The Ref of the caller's durable session. It is the Ref recorded in the CSP session when that session row exists
@@ -172,6 +234,17 @@ ClassMethod Incident(ref As %String, sessionRef As %String, Output sc As %Status
 	Set sc = $SYSTEM.Status.OK()
 	If ref = "" Quit ""
 	Set rows = ..Rows("incident", sessionRef, .sc, ref, ..LocalFlag())
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The decision with this Ref when it is the session's own, otherwise "": a decision of owner eval, instance or another
+/// session answers like a missing one. ref may come from a bridge event or request input; it is only ever a bound value.
+ClassMethod Decision(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Bridge.Data.Decision
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("decision", sessionRef, .sc, ref)
 	If rows.Count() = 0 Quit ""
 	Quit rows.GetAt(1)
 }
@@ -311,6 +384,22 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "decisions" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"
 		Quit "SELECT TOP ? ID FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND Kind = 'decide' ORDER BY RecordedAt DESC, ID DESC"
+	}
+	If kind = "decision" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE Ref = ? AND OwnerRef = ?"
+	}
+	If kind = "turnUsage" {
+		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND (DecisionRef = ? OR DecisionRef = ?) ORDER BY ID"
+	}
+	If kind = "runUsage" {
+		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND RecordedAt >= ? ORDER BY ID"
+	}
+	If kind = "runDecisions" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND RecordedAt >= ? ORDER BY ID"
 	}
 	If kind = "incidents" {
 		Set class = "OcuTalon.Data.Incident", binds = "oao"

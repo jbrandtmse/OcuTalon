@@ -15,7 +15,8 @@
 // A property is read as `Property <Name> As [list Of ]<Type>[(<parameters>)] [<keywords>];` on one line, from the
 // first column; a line that starts with `property` in any case or indentation and is not in that form is refused.
 //   %String -> string; %Integer, %Numeric -> number; %Boolean -> boolean; list Of %String -> string[];
-//   a class of the Part package, or a list of one -> its interface.
+//   a class of the Part package, or a list of one -> its interface;
+//   a class that is one of the payload classes of TYPES (a property that nests another event's payload) -> <Class>Payload.
 // It fails closed (exit 1, with file:line) on a property it cannot read, a missing %JSONFIELDNAME, a key that is not
 // the property name with a lower-case first letter, a type it does not map, a type in TYPES with no class, and a
 // payload class that is not in TYPES.
@@ -100,12 +101,15 @@ export function readClass(text, file) {
   return { name, file, properties };
 }
 
-function tsType(property, file, parts) {
+function tsType(property, file, parts, direct) {
   const scalar = SCALARS.get(property.type);
   let element = scalar;
   if (!element && property.type.startsWith(PART_PACKAGE)) {
     const short = property.type.slice(PART_PACKAGE.length);
     if (parts.has(short)) element = short;
+  } else if (!element && property.type.startsWith(PAYLOAD_PACKAGE)) {
+    const short = property.type.slice(PAYLOAD_PACKAGE.length);
+    if (direct.has(short)) element = `${short}Payload`;
   }
   if (!element || (property.list && scalar !== undefined && scalar !== 'string')) {
     throw new PayloadError(file, property.line, `property ${property.name} has the type ${property.list ? 'list Of ' : ''}${property.type}, which the generator does not map`);
@@ -113,8 +117,8 @@ function tsType(property, file, parts) {
   return property.list ? `${element}[]` : element;
 }
 
-function renderInterface(name, cls, parts) {
-  const fields = cls.properties.map((property) => `  ${property.key}?: ${tsType(property, cls.file, parts)};`);
+function renderInterface(name, cls, parts, direct) {
+  const fields = cls.properties.map((property) => `  ${property.key}?: ${tsType(property, cls.file, parts, direct)};`);
   return [`export interface ${name} {`, ...fields, '}'].join('\n');
 }
 
@@ -142,8 +146,8 @@ export function generate(opts) {
   }
 
   const blocks = [];
-  for (const short of [...parts.keys()].sort()) blocks.push(renderInterface(short, parts.get(short), parts));
-  for (const { cls } of types) blocks.push(renderInterface(`${cls}Payload`, direct.get(cls), parts));
+  for (const short of [...parts.keys()].sort()) blocks.push(renderInterface(short, parts.get(short), parts, direct));
+  for (const { cls } of types) blocks.push(renderInterface(`${cls}Payload`, direct.get(cls), parts, direct));
   const union = types.map(({ type }) => `  | '${type}'`).join('\n');
   const map = types.map(({ type, cls }) => `  '${type}': ${cls}Payload;`).join('\n');
   const text = [

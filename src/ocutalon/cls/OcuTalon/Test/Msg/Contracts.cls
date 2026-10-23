@@ -213,7 +213,9 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=)",
    "CatalogKey": "%String(MAXLEN=128)",
    "Slots": "%String(MAXLEN=)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "DecisionRef": "%String(MAXLEN=22)",
+   "CheckKey": "%String(MAXLEN=128)"
   }
  },
  "OcuTalon.Msg.Tick": {

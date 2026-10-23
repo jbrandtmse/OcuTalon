@@ -3,7 +3,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 import { Icon } from '../icon/icon';
 import { PAGE_TEXTS, renderPageText } from '../msg/catalog';
-import { CHAT_TEXTS, type TurnView } from './chat-view';
+import { CheckRows } from './check-rows';
+import { CHAT_TEXTS, indicatorOf, type TurnView } from './chat-view';
+import { DecisionStrip } from './decision-strip';
 import { parseReply, type ReplyBlock } from './reply-text';
 
 /** The catalog key of the sentence for a fallback reply whose own key the page does not render. */
@@ -11,16 +13,18 @@ const FALLBACK_KEY = 'conversation.turnFallback';
 
 /**
  * OcuTalon's side of a turn, in the reply's place (UX-DR60, UX-DR66, UX-DR42, AD-13). While the turn is in progress it is the
- * turn indicator, a row with the 24px mark and "Deciding" or "Working" followed by the one-character ellipsis U+2026 (after 10 s
- * the whole seconds instead): the ellipsis is revealed in three steps unless the user prefers reduced motion. Once the turn is done it is the
- * reply, left-aligned and unboxed under the mark and the name "OcuTalon": the catalog's fallback sentence for a fallback, else
- * the model's text as paragraphs and lists. The model's text is bound by interpolation and `[href]` only, never as HTML; its
+ * turn indicator, a row with the 24px mark and "Deciding", "Working" or the label of the step the bridge reported, followed by the
+ * one-character ellipsis U+2026 (after 10 s the whole seconds instead): the ellipsis is revealed in three steps unless the user
+ * prefers reduced motion. Once the turn is done it is the reply, left-aligned and unboxed under the mark and the name "OcuTalon":
+ * the catalog's fallback sentence for a fallback, else the model's text as paragraphs and lists, and then the check results of the
+ * reply. The decision strip comes last, after the indicator while the turn runs and after the text and the check rows once it is
+ * done. The model's text is bound by interpolation and `[href]` only, never as HTML; its
  * links open in a new tab and say so in their names, and a labelled link shows the host it opens after its label. Nothing here is a live region, and the element takes focus only when the
  * New messages button sends it there.
  */
 @Component({
   selector: 'app-ocutalon-reply',
-  imports: [Icon, NgTemplateOutlet],
+  imports: [CheckRows, DecisionStrip, Icon, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (turn().reply.kind !== 'none') {
@@ -29,7 +33,7 @@ const FALLBACK_KEY = 'conversation.turnFallback';
           <p class="indicator">
             <img class="mark" src="assets/brand/icon-192.png" alt="" width="24" height="24" />
             <span>
-              @if (shown.seconds === undefined) {
+              @if (shown.dots) {
                 <span>{{ shown.text }}</span><span class="dots">{{ ellipsis }}</span>
               } @else {
                 <span aria-hidden="true">{{ shown.text }}</span><span class="visually-hidden">{{ shown.spoken }}</span>
@@ -66,6 +70,18 @@ const FALLBACK_KEY = 'conversation.turnFallback';
               }
             }
           </div>
+          @if (turn().checkKey || turn().checks) {
+            <app-check-rows [checkKey]="turn().checkKey" [checks]="turn().checks" />
+          }
+        }
+        @if (turn().strip) {
+          <app-decision-strip
+            [decision]="turn().decision"
+            [cost]="turn().turnCost?.costUSD"
+            [turnCost]="turn().turnCost"
+            [fallbackReason]="turn().fallbackReason"
+            [newest]="turn().newest"
+          />
         }
       </div>
     }
@@ -170,20 +186,7 @@ export class OcutalonReply {
   protected readonly ellipsis = CHAT_TEXTS.deciding.slice(-1);
 
   /** The indicator while the turn is in progress, with its spoken form and, once past 10 s, the whole seconds. */
-  protected readonly indicator = computed(() => {
-    const reply = this.turn().reply;
-    if (reply.kind === 'deciding') {
-      return { text: CHAT_TEXTS.deciding.slice(0, -1), spoken: CHAT_TEXTS.deciding, seconds: undefined };
-    }
-    if (reply.kind !== 'working') {
-      return undefined;
-    }
-    if (reply.seconds === undefined) {
-      return { text: CHAT_TEXTS.working.slice(0, -1), spoken: CHAT_TEXTS.working, seconds: undefined };
-    }
-    const n = String(reply.seconds);
-    return { text: CHAT_TEXTS.workingElapsed.replace('{n}', n), spoken: CHAT_TEXTS.workingElapsedSpoken.replace('{n}', n), seconds: reply.seconds };
-  });
+  protected readonly indicator = computed(() => indicatorOf(this.turn().reply));
 
   /** A fallback's sentence from the catalog; a key that the page does not render gives the turn fallback's sentence with the turn's own reason. */
   protected readonly fallback = computed(() => {

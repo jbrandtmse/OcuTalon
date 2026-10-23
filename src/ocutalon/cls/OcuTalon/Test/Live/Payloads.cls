@@ -1,7 +1,8 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 25 payload
-/// and part classes that Story 0.5 adds, every JSON key, the incident payload with its nested shapes and its FromRow
-/// builder, and the FromRow builders of the chat message, reminder, approval and decision payloads (Story 2.2), which
-/// build from unsaved rows. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 27 payload
+/// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow), every JSON key, the incident payload with its
+/// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
+/// (Story 2.2), which build from unsaved rows, and the chat message's shown decision, turn cost and check rows (Story 2.6),
+/// which build from fixture rows, and which decision a turn shows (from unsaved rows). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -86,7 +87,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 25, "the contracts hold the 25 new classes")
+	Do $$$AssertEquals(classes, 27, "the contracts hold the 27 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -235,6 +236,94 @@ Method TestFromRow()
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "no item noun in the row gives none")
 	Set row.ItemNoun = "not json"
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Incident).FromRow(row).ItemNoun, "", "a broken item noun gives none")
+}
+
+/// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
+/// payload, the turn's cost as the sum of both decisions' usage, and the check key and rows: the rows of the JSON that are
+/// objects, in order, and none for text that is not a JSON array. A decision the session does not own, and a row with no
+/// session, give no decision and no cost.
+Method TestChatMessageCarriesItsDecision()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set session = $ClassMethod(fixture, "Session", "zzpay"_..Number)
+	Set other = $ClassMethod(fixture, "Session", "zzpayother"_..Number)
+	Set triage = $ClassMethod(fixture, "Decision", session, "decide", "2030-01-01T10:00:00Z", {"Outcome": "act", "Reasons": "zz reason", "Confidence": 0.92, "InputTokens": 1000, "OutputTokens": 300, "CostUSD": 0.0003, "Model": "claude-haiku-5-5"})
+	Set reply = $ClassMethod(fixture, "Decision", session, "turn", "2030-01-01T10:00:05Z", {"Outcome": "tellnow", "Fallback": 1, "FallbackReason": "timeout", "CostUSD": 0.0005})
+	Set theirs = $ClassMethod(fixture, "Decision", other, "decide")
+	Do $ClassMethod(fixture, "Usage", triage, session, {"InputTokens": 1000, "OutputTokens": 300, "CacheReadTokens": 20, "CacheWriteTokens": 4, "CostUSD": 0.0003})
+	Do $ClassMethod(fixture, "Usage", reply, session, {"InputTokens": 84, "OutputTokens": 12, "CostUSD": 0.0005})
+	Set ref = $ClassMethod(fixture, "Turn", session, "2030-01-01T10:00:00Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+	Set row.TriageDecisionRef = triage
+	Set row.TurnDecisionRef = reply
+	Set row.CheckKey = "checks.everythingElsePassed"
+	Set row.CheckRows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},""skipped"",5,null,[1],{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz 12 waiting"",""checkedAt"":""2030-01-01T10:01:00Z"",""other"":""ignored""}]"
+	Do $$$AssertStatusOK(row.%Save(), "the turn has both decisions and its check rows")
+
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Set expected = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(triage))
+	Do expected.%JSONExportToString(.expectedJson)
+	Do payload.Decision.%JSONExportToString(.actualJson)
+	Do $$$AssertEquals(actualJson, expectedJson, "the decision is Decision.FromRow of the triage decision")
+	Do $$$AssertEquals(payload.Decision.Ref_"|"_payload.Decision.Outcome, triage_"|act", "which is the row ShownDecisionRef names")
+	Do $$$AssertEquals(payload.TurnCost.InputTokens_"|"_payload.TurnCost.OutputTokens_"|"_payload.TurnCost.CacheReadTokens_"|"_payload.TurnCost.CacheWriteTokens_"|"_payload.TurnCost.CostUSD, "1084|312|20|4|.0008", "the turn's cost is the sum of both decisions' usage")
+	Do $$$AssertEquals(payload.CheckKey_"|"_payload.Checks.Count(), "checks.everythingElsePassed|2", "the check key and the two rows that are objects")
+	Set first = payload.Checks.GetAt(1), second = payload.Checks.GetAt(2)
+	Do $$$AssertEquals(first.Result_"|"_first.Entry_"|"_first.Finding_"|"_first.CheckedAt, "passed|Orders production||2030-01-01T10:00:00Z", "the first row")
+	Do $$$AssertEquals(second.Result_"|"_second.Entry_"|"_second.Finding_"|"_second.CheckedAt, "failed|Warehouse queue|zz 12 waiting|2030-01-01T10:01:00Z", "the second row, without the member it does not know")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.decision.ref_"|"_exported.turnCost.inputTokens_"|"_exported.checkKey_"|"_exported.checks.%Size(), triage_"|1084|checks.everythingElsePassed|2", "the JSON nests the decision, the cost and the rows under their own names")
+
+	Set row.ReplyCatalogKey = "conversation.turnFallback"
+	Set row.FallbackReason = "timeout"
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals(payload.Decision.Ref_"|"_payload.Decision.Fallback_"|"_payload.Decision.FallbackReason, reply_"|1|timeout", "a fallback reply shows the reply decision")
+	Do $$$AssertEquals(payload.TurnCost.CostUSD, .0008, "with the same turn cost")
+
+	Set row.TriageDecisionRef = theirs
+	Set row.ReplyCatalogKey = ""
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals($IsObject(payload.Decision)_"|"_$IsObject(payload.TurnCost), "0|0", "a decision of another session is not shown, nor a cost for it")
+	Set row.TriageDecisionRef = "zzmissing"_..Number
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals($IsObject(payload.Decision)_"|"_$IsObject(payload.TurnCost), "0|0", "nor one that does not exist")
+	Do $$$AssertEquals(payload.CheckKey_"|"_payload.Checks.Count(), "checks.everythingElsePassed|2", "while the check rows stay")
+
+	For text = "not json", "{""result"":""passed""}", "[", "" {
+		Set row.CheckRows = text
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do $$$AssertEquals(payload.Checks.Count(), 0, "check rows of '"_text_"' give no row")
+	}
+
+	Set bare = ##class(OcuTalon.Data.Turn).%New()
+	Set bare.Ref = "ZzBare"_..Number
+	Set bare.TriageDecisionRef = triage
+	Set bare.TurnDecisionRef = reply
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(bare)
+	Do $$$AssertEquals($IsObject(payload.Decision)_"|"_$IsObject(payload.TurnCost)_"|"_payload.CheckKey_"|"_payload.Checks.Count(), "0|0||0", "a row with no session gives no decision, cost, key or rows")
+	Do $ClassMethod(fixture, "Clean", session_","_other_","_triage_","_reply_","_theirs_","_ref)
+}
+
+/// The decision a turn shows (Turn.ShownDecisionRef): the reply decision for a fallback reply and the triage decision for any
+/// other reply, and the other one when the first is empty. The rows are not saved.
+Method TestShownDecisionRef()
+{
+	Set turn = ##class(OcuTalon.Data.Turn).%New()
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "", "a turn with no decision shows none")
+	Set turn.TriageDecisionRef = "ZzTriage"
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzTriage", "a reply with only the triage decision shows it")
+	Set turn.TriageDecisionRef = ""
+	Set turn.TurnDecisionRef = "ZzReply"
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzReply", "a reply with only the reply decision shows it")
+	Set turn.TriageDecisionRef = "ZzTriage"
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzTriage", "a reply with both shows the triage decision")
+	Set turn.ReplyCatalogKey = "conversation.turnFallback"
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzReply", "a fallback with both shows the reply decision")
+	Set turn.TurnDecisionRef = ""
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "ZzTriage", "a fallback with only the triage decision shows it")
+	Set turn.TriageDecisionRef = ""
+	Do $$$AssertEquals(turn.ShownDecisionRef(), "", "a fallback with none shows none")
 }
 
 /// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
@@ -400,7 +489,11 @@ XData Contracts [ MimeType = application/json ]
    "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
-   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "Decision": "OcuTalon.Live.Payload.Decision(%JSONFIELDNAME=decision)",
+   "TurnCost": "OcuTalon.Live.Payload.Part.Cost(%JSONFIELDNAME=turnCost)",
+   "CheckKey": "%String(%JSONFIELDNAME=checkKey,MAXLEN=128)",
+   "Checks": "list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME=checks)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -525,6 +618,7 @@ XData Contracts [ MimeType = application/json ]
  "OcuTalon.Live.Payload.TurnStep": {
   "super": "%RegisteredObject,%JSON.Adaptor",
   "props": {
+   "TurnRef": "%String(%JSONFIELDNAME=turnRef,MAXLEN=22)",
    "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
    "Label": "%String(%JSONFIELDNAME=label,MAXLEN=1000)"
   }
@@ -534,6 +628,25 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
    "Stage": "%String(%JSONFIELDNAME=stage,MAXLEN=32)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.CheckRow": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
+   "Entry": "%String(%JSONFIELDNAME=entry,MAXLEN=1000)",
+   "Finding": "%String(%JSONFIELDNAME=finding,MAXLEN=1000)",
+   "CheckedAt": "%String(%JSONFIELDNAME=checkedAt,MAXLEN=32)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Cost": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "InputTokens": "%Integer(%JSONFIELDNAME=inputTokens)",
+   "OutputTokens": "%Integer(%JSONFIELDNAME=outputTokens)",
+   "CacheReadTokens": "%Integer(%JSONFIELDNAME=cacheReadTokens)",
+   "CacheWriteTokens": "%Integer(%JSONFIELDNAME=cacheWriteTokens)",
+   "CostUSD": "%Numeric(%JSONFIELDNAME=costUSD,SCALE=6)"
   }
  },
  "OcuTalon.Live.Payload.Part.DryRun": {

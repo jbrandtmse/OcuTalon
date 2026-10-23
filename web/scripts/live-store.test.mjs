@@ -180,23 +180,25 @@ describe('an entity is replaced by its key, or added', () => {
     assert.deepEqual(added.decisions.map((decision) => decision.ref), ['dec-3', 'dec-2', 'dec-1']);
   });
 
-  it('replaces by ref in the maps, and by condition and by decision ref where those are the keys', () => {
+  it('replaces by ref in the maps, and by condition and by turn ref where those are the keys', () => {
     const store = fromSnapshot(snapshot());
     const result = apply(store, [
       event('session', 6, 'approval', { ref: 'app-1', state: 'answered' }),
       event('session', 7, 'check', { ref: 'chk-2', production: 'Zz.Other' }),
       event('session', 8, 'check', { ref: 'chk-1', production: 'Zz.Renamed' }),
-      event('session', 9, 'turn.step', { decisionRef: 'dec-3', label: 'Looking' }),
-      event('session', 10, 'turn.step', { decisionRef: 'dec-3', label: 'Writing' }),
-      event('session', 11, 'phone', { ref: 'ph-1' }),
-      event('session', 12, 'mailbox', { ref: 'mb-1', unread: true }),
-      event('session', 13, 'watch.progress', { ref: 'chk-1', stage: 'first' }),
+      event('session', 9, 'turn.step', { turnRef: 'turn-3', decisionRef: 'dec-3', label: 'Looking' }),
+      event('session', 10, 'turn.step', { turnRef: 'turn-3', decisionRef: 'dec-3', label: 'Writing' }),
+      event('session', 11, 'turn.step', { turnRef: 'turn-4', decisionRef: 'dec-3', label: 'Reading' }),
+      event('session', 12, 'phone', { ref: 'ph-1' }),
+      event('session', 13, 'mailbox', { ref: 'mb-1', unread: true }),
+      event('session', 14, 'watch.progress', { ref: 'chk-1', stage: 'first' }),
     ]).store;
     assert.equal(result.approvals['app-1'].state, 'answered');
     assert.deepEqual(Object.keys(result.checks), ['chk-1', 'chk-2']);
     assert.equal(result.checks['chk-1'].production, 'Zz.Renamed');
-    assert.deepEqual(Object.keys(result.turnSteps), ['dec-3']);
-    assert.equal(result.turnSteps['dec-3'].label, 'Writing');
+    assert.deepEqual(Object.keys(result.turnSteps), ['turn-3', 'turn-4']);
+    assert.equal(result.turnSteps['turn-3'].label, 'Writing');
+    assert.equal(result.turnSteps['turn-4'].label, 'Reading', 'a step of another turn with the same decision ref is its own');
     assert.deepEqual(Object.keys(result.phones), ['ph-1']);
     assert.equal(result.mailboxes['mb-1'].unread, true);
     assert.equal(result.watchProgress['chk-1'].stage, 'first');
@@ -282,7 +284,7 @@ describe('COLLECTIONS', () => {
     assert.deepEqual(COLLECTIONS['incident'], { collection: 'chat', key: 'ref' });
     assert.deepEqual(COLLECTIONS['decision'], { collection: 'decisions', key: 'ref' });
     assert.deepEqual(COLLECTIONS['status'], { collection: 'status', key: 'condition' });
-    assert.deepEqual(COLLECTIONS['turn.step'], { collection: 'turnSteps', key: 'decisionRef' });
+    assert.deepEqual(COLLECTIONS['turn.step'], { collection: 'turnSteps', key: 'turnRef' });
     assert.deepEqual(COLLECTIONS['pairing'], { collection: 'telegram', key: null });
     for (const type of ['guide.state', 'reset', 'breakfeed.progress']) {
       assert.equal(COLLECTIONS[type].key, null, `${type} is a single value`);

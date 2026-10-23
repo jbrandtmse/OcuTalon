@@ -27,6 +27,12 @@
 ///     trace session, which is its thread (AD-26);
 ///   - TestFinishingOrder: three queued turns start in the order of the messages, and each is saved done, then its done event is
 ///     published, then its Outbound goes to Notify, then the RunTurns request for the next queued turn goes to Conversation;
+///   - TestDecisionOnChatMessage, TestOutboundCarriesTheDecision (Story 2.6): with the double recording its decisions, chat.message
+///     carries the shown decision and the turn's cost (the triage decision while the turn runs and after it is done, the reply
+///     decision of a fallback), and the Outbound carries the shown decision's Ref;
+///   - TestCheckRowsFromRender, TestStubRenderAddsNothing, TestNoCheckRowsWithoutResults: the check key and rows that
+///     Checks.Render makes for a reply's HostData are on the Turn, the Outbound and chat.message; the real stub adds nothing, and
+///     a fallback, bad JSON, HostData with no checks and a failing Render add none;
 ///   - TestAnswerForNonRunningTurnDropped: an answer for a turn that is no longer running changes nothing, whatever its Attempt;
 ///   - TestDecideAnswerOfAnotherClassStillRuns: a decide answer that is not a DecisionResponse keeps no DecisionRef and the turn
 ///     runs on;
@@ -81,6 +87,10 @@ Method OnBeforeOneTest() As %Status
 Method OnAfterOneTest() As %Status
 {
 	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set written = ##class(OcuTalon.Test.Core.DecideDouble).Written($Piece(..Sessions, ",", i))
+		If written '= "" Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_written
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -1032,7 +1042,168 @@ Method TestDroppedItemIsLogged()
 	Do ..RemoveWarnings(mark)
 }
 
+/// With the double recording its decisions (triage: act, $0.0003; reply: $0.0005), chat.message carries the shown decision and
+/// the turn's cost. While the turn runs it has the triage decision with its own cost; once it is done it has the triage decision
+/// and the cost of both; a fallback reply's done message has the reply decision. The message queued before any decision has
+/// neither.
+Method TestDecisionOnChatMessage()
+{
+	Set session = ..Session("shown")
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Record(session, 1)
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "decide", $ListBuild("act"))
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(..Item(session, "zz shown", "zzc"_..Number_"shown"), .response)
+	Do probe.Deliver(1)
+	Do probe.Deliver()
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"shown")
+	Set events = ..ChatEvents(session)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the three stages are published")
+	Do $$$AssertEquals(events.%Get(0).payload.%IsDefined("decision")_"|"_events.%Get(0).payload.%IsDefined("turnCost"), "0|0", "queued: no decision and no cost")
+	Set running = events.%Get(1).payload
+	Do $$$AssertEquals(running.decision.ref_"|"_running.decision.kind_"|"_running.decision.outcome, row.TriageDecisionRef_"|decide|act", "running: the triage decision")
+	Do $$$AssertEquals(+running.turnCost.costUSD_"|"_+running.turnCost.inputTokens_"|"_+running.turnCost.outputTokens, ".0003|1084|312", "with its own cost")
+	Set done = events.%Get(2).payload
+	Do $$$AssertEquals(done.decision.ref_"|"_done.decision.kind, row.TriageDecisionRef_"|decide", "done: still the triage decision")
+	Do $$$AssertEquals(+done.decision.confidence_"|"_done.decision.reasons_"|"_done.decision.model, ".9|zz reason one"_$Char(10)_"zz reason two|Claude Haiku 5.5", "with the reasons, the confidence and the model's name")
+	Do $$$AssertEquals(+done.turnCost.costUSD_"|"_+done.turnCost.inputTokens_"|"_+done.turnCost.outputTokens, ".0008|2168|624", "and the cost of both decisions")
+	Do $$$AssertEquals(done.%IsDefined("checkKey")_"|"_done.%IsDefined("checks"), "0|0", "no check key and no check rows")
+
+	Set second = ..Session("shownfallback")
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Record(second, 1)
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(second, "decide", $ListBuild("digest"))
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(second, "turn", $ListBuild("fallback:timeout"))
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(..Item(second, "zz shown fallback", "zzc"_..Number_"shownfallback"), .response)
+	Do probe.Deliver(1)
+	Set events = ..ChatEvents(second)
+	Do $$$AssertEquals(events.%Get(1).payload.decision.outcome, "digest", "a running turn shows its triage decision")
+	Do probe.Deliver()
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(second, "zzc"_..Number_"shownfallback")
+	Set done = ..ChatEvents(second).%Get(2).payload
+	Do $$$AssertEquals(row.ReplyCatalogKey '= "", 1, "the reply is a fallback")
+	Do $$$AssertTrue((row.TriageDecisionRef '= "") && (row.TurnDecisionRef '= "") && (row.TriageDecisionRef '= row.TurnDecisionRef), "with two decisions")
+	Do $$$AssertEquals(done.decision.ref_"|"_done.decision.kind_"|"_done.decision.fallback_"|"_done.decision.fallbackReason, row.TurnDecisionRef_"|turn|1|timeout", "the done message shows the reply decision")
+	Do $$$AssertEquals(+done.turnCost.costUSD, .0008, "with the cost of both decisions")
+}
+
+/// The Outbound carries the Ref of the decision the turn shows: the triage decision of a reply, the reply decision of a fallback,
+/// and, when the double wrote no row, the Ref the answers carried.
+Method TestOutboundCarriesTheDecision()
+{
+	Set session = ..Session("outbound")
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Record(session, 1)
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(..Item(session, "zz outbound", "zzc"_..Number_"outbound"), .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"outbound")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals($ListLength(sent), 1, "one Outbound")
+	Do $$$AssertTrue(row.TriageDecisionRef '= row.TurnDecisionRef, "the turn has two decisions")
+	Do $$$AssertEquals(..Call($List(sent, 1), "decisionRef"), row.TriageDecisionRef, "a reply: the triage decision's Ref")
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkKey")_..Call($List(sent, 1), "checkRows"), "", "and no check key or rows")
+
+	Set second = ..Session("outboundfallback")
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(second, "turn", $ListBuild("fallback:budget"))
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(..Item(second, "zz outbound fallback", "zzc"_..Number_"outboundfallback"), .response)
+	Kill probes
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(second, "zzc"_..Number_"outboundfallback")
+	Set sent = ..SentFor("Notify", second)
+	Do $$$AssertEquals($ListLength(sent), 1, "one Outbound for the fallback")
+	Do $$$AssertEquals(..Call($List(sent, 1), "catalogKey"), "conversation.turnFallback", "it is the fallback's")
+	Do $$$AssertTrue((row.TurnDecisionRef '= "") && (row.TriageDecisionRef '= row.TurnDecisionRef), "the turn has two decision Refs, and the double wrote no row")
+	Do $$$AssertEquals(..Call($List(sent, 1), "decisionRef"), row.TurnDecisionRef, "a fallback: the reply decision's Ref")
+}
+
+/// A reply whose HostData holds checks goes to Checks.Render (here the probe's stand-in, which records the results it was given
+/// and returns a key and two rows): the key and the rows are on the Turn, on the Outbound and on the done chat.message, and not
+/// on the messages before it.
+Method TestCheckRowsFromRender()
+{
+	Set rows = "[{""result"":""passed"",""entry"":""Orders production"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""},{""result"":""failed"",""entry"":""Warehouse queue"",""finding"":""zz 12 messages waiting"",""checkedAt"":""2030-01-01T10:01:00Z""}]"
+	Set row = ..Finish("render", "checks", $ListBuild("checks.everythingElsePassed", rows), , .session)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz render", "the turn ends normally with its reply")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("ConversationProbe", ..Number, "rendered")), 1, "Render was called once")
+	Do $$$AssertEquals($Get(^OcuTalonTest("ConversationProbe", ..Number, "rendered", 1)), "[{""zz"":""result""}]", "with the checks of the HostData, unread")
+	Do $$$AssertEquals(row.CheckKey, "checks.everythingElsePassed", "the Turn keeps the key")
+	Do $$$AssertEquals(row.CheckRows, ##class(%DynamicAbstractObject).%FromJSON(rows).%ToJSON(), "and the rows, as JSON")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkKey"), "checks.everythingElsePassed", "the Outbound carries the key")
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkRows"), row.CheckRows, "and the rows")
+	Set events = ..ChatEvents(session)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the three stages are published")
+	Do $$$AssertEquals(events.%Get(1).payload.%IsDefined("checkKey")_"|"_events.%Get(1).payload.%IsDefined("checks"), "0|0", "running: no key and no rows")
+	Set done = events.%Get(2).payload
+	Do $$$AssertEquals(done.checkKey_"|"_done.checks.%Size(), "checks.everythingElsePassed|2", "done: the key and two rows")
+	Set first = done.checks.%Get(0), second = done.checks.%Get(1)
+	Do $$$AssertEquals(first.result_"|"_first.entry_"|"_first.%IsDefined("finding")_"|"_first.checkedAt, "passed|Orders production|0|2030-01-01T10:00:00Z", "the first row, with no finding")
+	Do $$$AssertEquals(second.result_"|"_second.entry_"|"_second.finding_"|"_second.checkedAt, "failed|Warehouse queue|zz 12 messages waiting|2030-01-01T10:01:00Z", "the second row, with its finding")
+}
+
+/// With the real Render, which is a stub, a reply with checks gets no key and no rows: nothing is on the Turn, the Outbound or
+/// chat.message, and the turn ends normally.
+Method TestStubRenderAddsNothing()
+{
+	Set row = ..Finish("stub", "checks", , , .session)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz stub", "the turn ends normally with its reply")
+	Do $$$AssertEquals(row.CheckKey_row.CheckRows, "", "no key and no rows on the Turn")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "checkKey")_..Call($List(sent, 1), "checkRows"), "", "none on the Outbound")
+	Set done = ..ChatEvents(session).%Get(2).payload
+	Do $$$AssertEquals(done.%IsDefined("checkKey")_"|"_done.%IsDefined("checks"), "0|0", "none on chat.message")
+}
+
+/// A fallback reply whose HostData holds checks, a reply whose HostData is not JSON, one whose HostData has no checks, and one
+/// whose Render fails, get no key and no rows, though Render would have made some: the first never reaches Render, the next two
+/// are not checks, and an error in Render adds nothing. Each turn ends normally.
+Method TestNoCheckRowsWithoutResults()
+{
+	Set render = $ListBuild("checks.allPassed", "[{""result"":""passed"",""entry"":""zz"",""finding"":"""",""checkedAt"":""2030-01-01T10:00:00Z""}]")
+	Set cases = $ListBuild("checksfallback:timeout|a fallback reply", "badjson|bad JSON", "nochecks|HostData with no checks", "checks|a Render that fails")
+	Set mark = ..LastLog()
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set answer = $Piece(case, "|", 1), label = $Piece(case, "|", 2)
+		Set row = ..Finish("none"_position, answer, render, $Select(label = "a Render that fails": "render", 1: ""), .session)
+		Do $$$AssertEquals(row.State, "done", label_": the turn ends normally")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("ConversationProbe", ..Number, "rendered")), 0, label_": Render makes nothing for it")
+		Do $$$AssertEquals(row.CheckKey_row.CheckRows, "", label_": no key and no rows on the Turn")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "checkKey")_..Call($List(sent, 1), "checkRows"), "", label_": none on the Outbound")
+		Set done = ..ChatEvents(session).%Get(2).payload
+		Do $$$AssertEquals(done.%IsDefined("checkKey")_"|"_done.%IsDefined("checks"), "0|0", label_": none on chat.message")
+		If $Piece(answer, ":", 1) = "checksfallback" {
+			Do $$$AssertTrue(row.ReplyCatalogKey '= "", label_": the reply is a fallback")
+		} Else {
+			Do $$$AssertEquals(row.ReplyText, "zz reply to zz none"_position, label_": the reply is the model's")
+		}
+	}
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Checked", "Conversation added no check results")
+	Do result.%Next()
+	Do $$$AssertEquals(+result.%GetData(1), 2, "bad JSON and the failing Render are each logged as one warning, the others are not")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Checked", "Conversation added no check results")
+}
+
 /// --- helpers ---
+/// Runs a message of a new session to its end, with the turn answer scripted, and returns the turn. render, when it is not "",
+/// is what the probe's Render stand-in returns ($ListBuild(key, rowsJSON)); throwIn is set on the probe. The session is returned
+/// in session.
+Method Finish(name As %String, answer As %String, render As %List = "", throwIn As %String = "", Output session As %String) As OcuTalon.Data.Turn [ Private ]
+{
+	Set session = ..Session(name)
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListBuild(answer))
+	If render '= "" Set ^OcuTalonTest("ConversationProbe", ..Number, "render") = render
+	Set probe = ..NewProbe()
+	Set probe.ThrowIn = throwIn
+	Do probe.OnRequest(..Item(session, "zz "_name, "zzc"_..Number_name), .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Quit ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_name)
+}
+
 /// A fixture session; its Ref is kept for the clean-up and the double's scripts are cleared.
 Method Session(name As %String) As %String [ Private ]
 {

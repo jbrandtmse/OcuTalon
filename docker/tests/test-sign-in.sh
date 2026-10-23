@@ -20,8 +20,11 @@
 #     another spec's snapshot.
 #   - Story 2.5's chat panel (web/e2e/chat/chat.spec.ts): the panel user (OCUTALON_PANEL_USER), whose session the specs send
 #     on and seed turns into (C2 to C14); C1 reads the README account and sends nothing.
+#   - Story 2.6's decision strip (web/e2e/chat/decision.spec.ts D1 to D10, and chat.spec C15): the decision user
+#     (OCUTALON_DECISION_USER), whose session the D specs seed turns, decisions and usage rows into and publish on (they send
+#     nothing); only C15 sends, as the panel user.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat and panel users
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel and decision users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -50,6 +53,8 @@ chatuser=ZzChat
 chatpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 paneluser=ZzPanel
 panelpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+decisionuser=ZzDecision
+decisionpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -107,8 +112,9 @@ fi
 
 # Story 2.2's users: the live user and the sign-in user hold the user role; the session user also holds the trace role, so that
 # session.spec S5 can sign in at a trace application. Nothing signs the sign-in user in before S4. The chat user is Story
-# 2.4's, and the panel user holds the user role for the specs of Story 2.5, which send and seed on its session.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture"; do
+# 2.4's, the panel user holds the user role for the specs of Story 2.5, which send and seed on its session, and the decision user
+# holds it for the specs of Story 2.6, which seed decisions into its session.
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -155,7 +161,7 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -173,6 +179,8 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_CHAT_PASSWORD="$chatpassword" \
   OCUTALON_PANEL_USER="$paneluser" \
   OCUTALON_PANEL_PASSWORD="$panelpassword" \
+  OCUTALON_DECISION_USER="$decisionuser" \
+  OCUTALON_DECISION_PASSWORD="$decisionpassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \
@@ -183,13 +191,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C14: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14 and Story 2.6's D1-D10 and C15: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8 and Story 2.5's C1-C14: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14 and Story 2.6's D1-D10 and C15: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then
