@@ -247,3 +247,4 @@
 2026-10-23T16:43:23Z	Epic 2	spine_updated	ad=conv(SessionBroken_retry_added) reason=orchestrator_ruling(DW-112) by=runner story=2-9-open-anything-in-visual-trace lint=baseline(4_low_placeholder) memlog=appended(worktree-local)
 2026-10-23T16:43:23Z	Story 2.13	ledger_routed_planned	story=2-13-open-visual-trace-from-the-page entries=1(DW-58,moved_with_the_split) excess=0 by=spec_gate
 2026-10-23T16:43:23Z	Story 2.9	plan_clarification_requested	question=AD-26_item-index_wording(the_formula_over-counts_rows_Visual_Trace_does_not_draw;spec_counts_what_VT_draws) category=AD_amendment(U7,U14)->orchestrator note=AD-26_cited_by_Epic_1_in-flight_specs(1.3,1.4,1.5,1.6,1.7,1.8)_and_done_Epic_2_specs cycle_iteration=1
+2026-10-23T16:43:29Z	Story 2.8	ci_resolved	story=2.8 sha=68d5fd1 runs=39984019043,39984019045 result=success failed=none via=none resolved_at=next_plan first_ci=success
