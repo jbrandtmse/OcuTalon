@@ -403,3 +403,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
 - 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
+
+### DW-101: Timeouts.Apply is not atomic: a failed entry merge after Decide's TimerSeconds row is written leaves the timer changed for some runners, and two concurrent Apply calls are not serialized (no lock)
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 1.7 implement review rows BH4, EC6 (rejected low): Apply writes the row, then merges each entry, then restarts; no lock
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=Story 17.4's SettingsOps gives Apply concurrent callers, or a failed merge is seen in the field
+
+### DW-102: Agent step Positions skip a number after a non-object record in Reply.Steps (EmitSteps skips the record but StepsSent counts it)
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review rows BH8, EC7 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=a non-object record is seen in a Reply.Steps
+
+### DW-103: Timeouts.Apply refuses a production whose disabled runner has no @{config:} entry, so such a production cannot change its timer through Apply
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review row BH6 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=such a production needs Apply
+
+### DW-104: Decide writes no event-log line when its timer fires; the timeout is visible only in the Decision row and the trace
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review row EC16 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=operators ask for a log line when the timer fires
