@@ -2,7 +2,7 @@
 title: 'One script finds the image, starts OcuTalon and says where to sign in'
 type: 'feature'
 created: '2026-10-23'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '0ce80fd21437659672164fce39c7e4eb09705001'
 baseline_commit: '0ce80fd21437659672164fce39c7e4eb09705001'
 review_loop_iteration: 0
@@ -38,7 +38,7 @@ deferred: []
 - **Architectures.** The daemon's architecture comes from `docker version --format '{{.Server.Arch}}'`. Image architectures come from `docker image inspect --format '{{.Architecture}}'`. `aarch64` counts as `arm64` and `x86_64` as `amd64`. Messages say "arm64" and "x64".
 - **Where it runs.** The script `cd`s to its own folder, so it works from any directory.
 - **Starting and waiting.**
-  - It always runs `docker compose up -d`, so a rerun after an update rebuilds in place.
+  - When the `iris` service is already running and healthy, it prints the ready block at once, plus one line saying that `docker compose up -d --build` applies an update, and runs no `docker compose up` and no build, so a rerun never restarts or recreates a healthy OcuTalon. In every other state (no container, stopped, failed part-way, starting, unhealthy) it runs `docker compose up -d` and waits. [AMENDED 2026-10-23, CI rework, unattended ruling U-45 (veto): it read "It always runs `docker compose up -d`, so a rerun after an update rebuilds in place."; on the IRIS runner that second `up -d` rebuilt the image and recreated the healthy container, CI run 40021886810]
   - It polls `docker compose ps --all --format '{{.State}} {{.Health}}' iris` every 10 s and prints one progress line per poll, with the elapsed time and the state.
   - It waits up to 900 s. Two test-only overrides exist, `OCUTALON_INSTALL_POLL` and `OCUTALON_INSTALL_WAIT`. They take whole seconds, anything else falls back to the default, and nothing on the judges' path sets them.
 - **When it is ready,** it prints:
@@ -77,7 +77,7 @@ deferred: []
 | Compose too old (DW-2) | `--short` gives `2.23.3` or `v2.20.2` | Refuses before any change. Names the found version, the minimum of 2.24, and how to upgrade. | exit 1 |
 | Compose new enough (DW-2) | `2.24.0`, `v2.40.3-desktop.1`, `5.5.0` (measured locally) | Accepted | No error expected |
 | Existing `.env` | `.env` holds a sentinel value | `.env` is byte-identical afterwards. The sentinel never appears in stdout or stderr. | No error expected |
-| Already healthy | Base and `.env` exist; the first poll answers `running healthy` | Prints the ready block without a progress line. No tag. | No error expected |
+| Already healthy | Base and `.env` exist; the `iris` service answers `running healthy` before any `up` | Prints the ready block without a progress line, and the update line. No tag, no `compose up`. [AMENDED 2026-10-23, U-45] | No error expected |
 | Custom port | `compose port` prints `0.0.0.0:52999` | Address uses 52999 | No error expected |
 | Never ready | Polls stay `running starting` past `OCUTALON_INSTALL_WAIT` | Prints the timeout message with the logs command and the README Troubleshooting section | exit 1, nothing removed |
 | Container stops | A poll answers `exited` or `dead`, or answers nothing | Stop message with the logs command and the README section | exit 1, nothing removed |
@@ -165,6 +165,8 @@ deferred: []
   - **inputs:** a live script may also read a path that no group claims, that `NOT_IRIS_INPUT_PATTERN` does not declare and that is not bookkeeping, because `ci/changes.sh` runs every group for it. A read of a declared non-input still fails. Add a pass sample and a fail sample, and update the header.
 - `docker/tests/test-boundaries.sh` -- add `install.sh` to the `scan_files` scope at line 96 and to the must-scan list at lines 107-111, and update the header.
 
+- [ ] [CI] iris (image): `live:install-script-live` failed 2 checks on the IRIS runner (x64, Docker Engine): the second run printed 2 progress lines, and `MEASURED: compose recreated the container on the second up -d` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40021886810 -- `install.sh`: before `docker compose up -d`, read the `iris` service's state with the allowed `docker compose ps --all --format '{{.State}} {{.Health}}' iris`; when it answers `running healthy`, print the ready block at once (the published port from `docker compose port iris 52773`, the README account, the elapsed time) and one line `To apply an update, run: docker compose up -d --build`, run no `compose up` and no build, and exit 0; in every other state keep today's `up -d` and wait. The base and architecture checks, the retag rule and the `.env` copy still run first, unchanged. `docker/tests/test-install-script.sh`: the "Already healthy" row asserts no `compose up` call and the update line; add rows for a container that is `running starting` and one that is `exited` before the run (both call `compose up -d` and wait). Keep the live unit's rerun checks exactly as written (same container, no progress line); they must pass on the IRIS runner. Update each touched pinning test's `mutation:` line.
+
 **Acceptance Criteria:**
 - Given the hosted `checks` job, when CI runs, then `bash ci/checks.sh` runs `test-install-script.sh` on Linux with every matrix row passing, and the ShellCheck step passes on `install.sh` and the hermetic test.
 - Given the `install-macos` job, when CI runs, then the hermetic test passes under `/bin/bash` 3.x.
@@ -219,6 +221,8 @@ Rejected:
 - false (settled by measurement): "the Linux side of AC1 has never run". In `ubuntu:24.04` (bash 5.2.21, dash, mawk, non-root), 200 checks passed. The only red was the `git check-attr` check, because the image has no git.
 
 ## Spec Change Log
+
+- 2026-10-23, rework iteration 1 (trigger `ci`, run 40021886810): the healthy-rerun rule in Boundaries & Constraints and the "Already healthy" matrix row amended per ruling U-45 (veto); one `[CI]` item opened under Tasks & Acceptance; Design Note 6 records the CI measurement.
 
 ## Review Triage Log
 
@@ -290,6 +294,7 @@ Rejected:
    - (inference) Compose keeps a container whose image ID and configuration are unchanged.
    - The live unit's rerun check measures this. If compose recreates the container anyway, the implement stage records it and escalates "at once" as an intent question. It does not weaken the check.
    - (measured, implement stage) With Docker Compose 5.5.0 and the containerd image store on Apple silicon, the second `up -d` rebuilt from cache and kept the healthy iris container: the container ID was unchanged and the ready block printed at once, with no progress line. The check stands as written and no intent question arises.
+   - (measured, CI run 40021886810, IRIS runner, x64, Docker Engine) The second `up -d` recreated the healthy container: the live unit's rerun printed 2 progress lines and the container ID changed. Ruled by the runner (unattended, veto U-45): a healthy install is detected first and gets the ready block at once with no `up` and no build, plus a one-line update hint (`docker compose up -d --build`); every other state still runs `up -d`. The planner's "a rerun after `git pull` upgrades in place" is dropped: no criterion of this story asks for it, and restarting a judge's running OcuTalon on a rerun is the unsafe side of the trade.
 7. **Waiting.** It polls every 10 s, with one line per poll. `unhealthy` keeps waiting until the 15 minutes are up. Only `exited`, `dead` or no container counts as stopped.
 8. **The archive** is named by product, build and CPU. No planning artifact records the download's file name, so the load command is `docker load -i <the archive file>`. Story 10.2's README says where to get it.
 9. **`.env`** is a plain copy, the same as the manual `cp`. A stricter mode was not taken, because it is a security-posture change outside this story.
