@@ -156,3 +156,5 @@
 2026-10-23T16:47:25Z	Epic 32	decision_sheet_recorded	decided=1 to_action_items=1(DW-111) to_x0=0 by=unattended
 2026-10-23T16:47:25Z	Epic 32	deps_hash_rerecorded	hash=1ba404b36cd9e359a2ae9689e8e10e3ab0469c565b75bca843c6d3d7005da55d reason=rule5_amendment note=Story_32.4_AC2(warm-iris.lock)_merged
 2026-10-23T16:47:25Z	Epic 32	model_tier_checkpoint_seen	note=runner_logged_it(record_only)
+2026-10-23T16:47:43Z	Epic 32	worktree_removed	worktree=.worktrees/epic-32
+2026-10-23T16:47:43Z	Epic 32	epic_branches_deleted	branch=OCT-epic32 local=deleted remote=deleted
