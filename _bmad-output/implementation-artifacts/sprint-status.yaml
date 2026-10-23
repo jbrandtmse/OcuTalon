@@ -60,7 +60,7 @@ development_status:
   1-7-timeouts-and-rate-limits-end-every-decision-on-time: done
   1-8-conversations-survive-restarts: done
   1-9-no-model-request-goes-over-100-000-tokens: done
-  1-10-the-chat-agent-sets-lists-and-cancels-reminders: ready-for-dev
+  1-10-the-chat-agent-sets-lists-and-cancels-reminders: in-progress
   1-12-items-saved-for-the-digest-are-kept-for-it: backlog
   epic-1-retrospective: optional
 
