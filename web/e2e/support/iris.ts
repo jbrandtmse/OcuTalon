@@ -11,8 +11,8 @@ function required(name: string): string {
   return value;
 }
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL or DECISION. */
-export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION'): { user: string; password: string } {
+/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION or NOTICE. */
+export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE'): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
@@ -211,16 +211,15 @@ const DECISION_FIELDS: ReadonlyArray<readonly [keyof SeedDecision, string, 'stri
   ['traceSessionId', 'TraceSessionId', 'number'],
 ];
 
-/** The lines that make one Decision row in the variable, for the turn in t and the session in s, and keep its status in bad. */
-function decisionLines(variable: string, kind: 'decide' | 'turn', decision: SeedDecision, createdAt: string): string[] {
+/** The lines that make one Decision row in the variable, from the identity lines given, and save it into sc. */
+function decisionRowLines(variable: string, kind: 'decide' | 'turn', identity: string[], decision: SeedDecision, recordedAt: string): string[] {
   const lines = [
     `Set ${variable}=##class(OcuTalon.Bridge.Data.Decision).%New()`,
     `Set ${variable}.Ref=##class(OcuTalon.Bridge.Ids).NewRef()`,
     `Set ${variable}.Kind=${quoted(kind)}`,
-    `Set ${variable}.ItemId=t.ItemId`,
-    `Set ${variable}.OwnerRef=s.Ref`,
+    ...identity,
     `Set ${variable}.Model=${quoted(decision.model ?? 'claude-haiku-5-5')}`,
-    `Set ${variable}.RecordedAt=${quoted(createdAt)}`,
+    `Set ${variable}.RecordedAt=${recordedAt}`,
   ];
   for (const [key, property, type] of DECISION_FIELDS) {
     const value = decision[key];
@@ -229,8 +228,16 @@ function decisionLines(variable: string, kind: 'decide' | 'turn', decision: Seed
     else if (type === 'boolean') lines.push(`Set ${variable}.${property}=${value ? 1 : 0}`);
     else lines.push(`Set ${variable}.${property}=${numeric(Number(value), key)}`);
   }
-  lines.push(`Set sc=${variable}.%Save()`, 'If $System.Status.IsError(sc) Set bad=1');
+  lines.push(`Set sc=${variable}.%Save()`);
   return lines;
+}
+
+/** The lines that make one Decision row in the variable, for the turn in t and the session in s, and keep its status in bad. */
+function decisionLines(variable: string, kind: 'decide' | 'turn', decision: SeedDecision, createdAt: string): string[] {
+  return [
+    ...decisionRowLines(variable, kind, [`Set ${variable}.ItemId=t.ItemId`, `Set ${variable}.OwnerRef=s.Ref`], decision, quoted(createdAt)),
+    'If $System.Status.IsError(sc) Set bad=1',
+  ];
 }
 
 /** The lines that make one Usage row for the decision in the variable. */
@@ -361,4 +368,149 @@ export async function finishTurn(user: string, ref: string, replyText = 'zz fini
     ].join('\n'),
   );
   if (chk(lines, 'finish') !== '11') throw new Error(`the turn could not be finished (${lines.join(' ')})`);
+}
+
+/**
+ * Writes one Decision row of the user's own session (Bridge.Data.Decision, AD-20) with the fields given, as Decide would for an
+ * item: a new Ref and ItemId, the kind decide, the owner the session, the model claude-haiku-5-5 and the time now. A card that
+ * names the row (sendItemDecision's decisionRef) shows its strip. Returns the row's Ref. Every value goes through quoted() or
+ * numeric(), and the user name through literal().
+ */
+export async function seedDecision(user: string, fields: SeedDecision): Promise<string> {
+  const lines = [
+    `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+    ...decisionRowLines('d', 'decide', ['Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()', 'Set d.OwnerRef=s.Ref'], fields, '##class(OcuTalon.Data.Time).NowUtc()'),
+    'Write !,"CHK|decision|",d.Ref,"|",$System.Status.IsOK(sc)',
+  ];
+  const out = await irisScript(lines.join('\n'));
+  const [ref, saved] = (chk(out, 'decision') ?? '').split('|');
+  if (!ref || saved !== '1') throw new Error(`the decision could not be seeded (${out.join(' ')})`);
+  return ref;
+}
+
+/** An untrusted item for sendItem. The channel is mailbox unless it says otherwise; the CatalogKey and its Slots are optional. */
+export interface ItemFields {
+  text?: string;
+  sender?: string;
+  subject?: string;
+  channel?: string;
+  catalogKey?: string;
+  slots?: Record<string, unknown>;
+}
+
+/** An ItemDecision for sendItemDecision: what Intake would send OutcomeRouter for an item of the user's own session. */
+export interface ItemDecisionFields {
+  outcome: string;
+  summary: string;
+  decisionRef?: string;
+  fallback?: boolean;
+  fallbackReason?: string;
+  catalogKey?: string;
+  slots?: Record<string, unknown>;
+  channel?: string;
+}
+
+/** A Notification for sendNotification: what a producer sends Notify for the user's own session. */
+export interface NotificationFields {
+  kind: string;
+  catalogKey: string;
+  slots: Record<string, unknown>;
+  decisionRef?: string;
+  approvalRef?: string;
+}
+
+/**
+ * Sends a message from a service host that the script creates in the OCUTALON namespace (Ens.Director.CreateBusinessService, as
+ * the production's tests do) to the item, asynchronously, with the session's TraceRef as the host's SuperSession (AD-26), and
+ * checks both statuses. The lines build the message in the variable m from the session in s.
+ */
+async function sendFrom(user: string, host: string, target: string, build: string[], idProperty: string): Promise<string> {
+  const lines = [
+    `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+    `Set sc1=##class(Ens.Director).CreateBusinessService(${quoted(host)},.h)`,
+    'Set h.%SuperSession=s.TraceRef',
+    ...build,
+    `Set sc2=h.SendRequestAsync(${quoted(target)},m)`,
+    `Write !,"CHK|sent|",m.${idProperty},"|",$System.Status.IsOK(sc1),$System.Status.IsOK(sc2)`,
+  ];
+  const out = await irisScript(lines.join('\n'));
+  const [id = '', status] = (chk(out, 'sent') ?? '').split('|');
+  if (status !== '11') throw new Error(`the message could not be sent from ${host} to ${target} (${out.join(' ')})`);
+  return id;
+}
+
+/** The lines that set a property of the message m from a string. */
+const setText = (property: string, value: string | undefined): string[] => (value === undefined ? [] : [`Set m.${property}=${quoted(value)}`]);
+
+/**
+ * Sends an untrusted Item of the user's own session from a SimMailboxIn host to Intake, as the mailbox service will, with the
+ * session's TraceRef as SuperSession. Returns the ItemId.
+ */
+export function sendItem(user: string, item: ItemFields): Promise<string> {
+  return sendFrom(
+    user,
+    'SimMailboxIn',
+    'Intake',
+    [
+      'Set m=##class(OcuTalon.Msg.Item).%New()',
+      'Set m.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()',
+      'Set m.SessionRef=s.Ref',
+      `Set m.Channel=${quoted(item.channel ?? 'mailbox')}`,
+      'Set m.Provenance="untrusted"',
+      ...setText('Text', item.text ?? ''),
+      ...setText('Sender', item.sender),
+      ...setText('Subject', item.subject),
+      ...setText('CatalogKey', item.catalogKey),
+      ...setText('Slots', item.slots === undefined ? undefined : JSON.stringify(item.slots)),
+    ],
+    'ItemId',
+  );
+}
+
+/**
+ * Sends an ItemDecision of the user's own session to OutcomeRouter from a SimMailboxIn host, as Intake would, with the session's
+ * TraceRef as SuperSession. Returns the ItemId.
+ */
+export function sendItemDecision(user: string, decision: ItemDecisionFields): Promise<string> {
+  return sendFrom(
+    user,
+    'SimMailboxIn',
+    'OutcomeRouter',
+    [
+      'Set m=##class(OcuTalon.Msg.ItemDecision).%New()',
+      'Set m.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()',
+      'Set m.OwnerRef=s.Ref',
+      `Set m.Channel=${quoted(decision.channel ?? 'mailbox')}`,
+      `Set m.Outcome=${quoted(decision.outcome)}`,
+      `Set m.Summary=${quoted(decision.summary)}`,
+      `Set m.Fallback=${decision.fallback ? 1 : 0}`,
+      ...setText('DecisionRef', decision.decisionRef),
+      ...setText('FallbackReason', decision.fallbackReason),
+      ...setText('CatalogKey', decision.catalogKey),
+      ...setText('Slots', decision.slots === undefined ? undefined : JSON.stringify(decision.slots)),
+    ],
+    'ItemId',
+  );
+}
+
+/**
+ * Sends a Notification for the user's own session to Notify from a NoticesIn host, as the producers of notices will, with the
+ * session's TraceRef as SuperSession. Returns the session's Ref.
+ */
+export function sendNotification(user: string, notification: NotificationFields): Promise<string> {
+  return sendFrom(
+    user,
+    'NoticesIn',
+    'Notify',
+    [
+      'Set m=##class(OcuTalon.Msg.Notification).%New()',
+      'Set m.SessionRef=s.Ref',
+      `Set m.Kind=${quoted(notification.kind)}`,
+      `Set m.CatalogKey=${quoted(notification.catalogKey)}`,
+      `Set m.Slots=${quoted(JSON.stringify(notification.slots))}`,
+      ...setText('DecisionRef', notification.decisionRef),
+      ...setText('ApprovalRef', notification.approvalRef),
+    ],
+    'SessionRef',
+  );
 }

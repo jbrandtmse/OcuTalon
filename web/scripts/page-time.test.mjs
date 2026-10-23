@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { pageTime } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { pageTime, pageTimeBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
 
 const INSTANT = '2026-10-22T14:11:00Z';
 
@@ -45,5 +45,48 @@ describe('pageTime', () => {
   it('answers an empty text for an empty or unreadable time', () => {
     assert.equal(pageTime(''), '');
     assert.equal(pageTime('not a time'), '');
+  });
+});
+
+describe('pageTimeBeside', () => {
+  const SUMMER = '2026-07-15T12:00:00Z';
+  const WINTER = '2026-01-15T12:00:00Z';
+
+  it('adds no zone name in the instance\'s own zone: 12:00 stays 12:00', () => {
+    assert.equal(pageTimeBeside(SUMMER, 'UTC', 'en-GB', 'UTC'), '12:00');
+    assert.equal(spaced(pageTimeBeside(SUMMER, 'America/New_York', 'en-US', 'America/New_York')), '8:00 AM');
+  });
+
+  it('names the browser\'s zone when its offset differs: Berlin in en-GB reads 14:00 CEST in summer and 13:00 CET in winter', () => {
+    assert.equal(pageTimeBeside(SUMMER, 'UTC', 'en-GB', 'Europe/Berlin'), '14:00 CEST');
+    assert.equal(pageTimeBeside(WINTER, 'UTC', 'en-GB', 'Europe/Berlin'), '13:00 CET');
+  });
+
+  it('names a zone that has no abbreviation in the locale by its offset: Kolkata in en-US is GMT+5:30', () => {
+    const text = pageTimeBeside('2026-10-22T14:11:00Z', 'UTC', 'en-US', 'Asia/Kolkata');
+    assert.equal(spaced(text), '7:41 PM GMT+5:30');
+    assert.match(text, /^7:41[ \u202F]PM GMT\+5:30$/);
+  });
+
+  it('compares offsets at the instant, not zone names: London in January and UTC read alike, London in July does not', () => {
+    assert.equal(pageTimeBeside(WINTER, 'UTC', 'en-GB', 'Europe/London'), '12:00');
+    assert.equal(pageTimeBeside(SUMMER, 'UTC', 'en-GB', 'Europe/London'), '13:00 BST');
+    assert.equal(pageTimeBeside(WINTER, 'Europe/London', 'en-GB', 'UTC'), '12:00');
+    assert.equal(pageTimeBeside(SUMMER, 'Europe/Berlin', 'en-GB', 'Europe/Paris'), '14:00', 'two names, one offset');
+  });
+
+  it('shows the name when the instance zone is not a valid zone, or is empty', () => {
+    assert.equal(pageTimeBeside(SUMMER, 'Not/AZone', 'en-GB', 'UTC'), '12:00 UTC');
+    assert.equal(pageTimeBeside(SUMMER, '', 'en-GB', 'UTC'), '12:00 UTC');
+  });
+
+  it('uses the browser\'s own zone and locale when none is named', () => {
+    const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.equal(pageTimeBeside(SUMMER, own), pageTime(SUMMER), 'in the instance zone');
+  });
+
+  it('answers an empty text for an empty or unreadable time, whatever the zones', () => {
+    assert.equal(pageTimeBeside('', 'UTC', 'en-GB', 'Europe/Berlin'), '');
+    assert.equal(pageTimeBeside('not a time', 'Not/AZone', 'en-GB', 'Europe/Berlin'), '');
   });
 });

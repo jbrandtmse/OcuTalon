@@ -1,8 +1,9 @@
 /// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 27 payload
 /// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
-/// (Story 2.2), which build from unsaved rows, and the chat message's shown decision, turn cost and check rows (Story 2.6),
-/// which build from fixture rows, and which decision a turn shows (from unsaved rows). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
+/// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, and which decision a turn
+/// shows (from unsaved rows). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -434,6 +435,64 @@ Method TestFromRowBuilders()
 	Do $$$AssertEquals(payload.Model_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "Claude Sonnet 5.5|77|"_$Namespace, "the model's display name, the trace of the decision's session")
 }
 
+/// The notification payload's FromRow copies each field of a card's Delivery row to its own name: ref is the ChannelMessageId, and
+/// createdAt the RecordedAt. A tell-now card whose text has two or more lines splits at its last line (text, whyNow); any other
+/// text, and a tell-now text of one line, stays whole with an empty whyNow. The decision is the owner's own row, embedded as a
+/// decision payload; a decision of another owner, an unknown Ref and a failed read leave it empty and never fail the payload.
+/// The rows are not saved but for the fixture decisions.
+Method TestNotificationFromRow()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set owner = $ClassMethod(fixture, "Session", "zzpay"_..Number_"own")
+	Set other = $ClassMethod(fixture, "Session", "zzpay"_..Number_"oth")
+	Set mine = $ClassMethod(fixture, "Decision", owner, "decide", , {"Outcome": "tellnow", "Reasons": "zz reason one\nzz reason two", "Confidence": 0.9, "CostUSD": 0.0003})
+	Set theirs = $ClassMethod(fixture, "Decision", other, "decide")
+	Set row = ##class(OcuTalon.Data.Delivery).%New()
+	Set row.OwnerRef = owner
+	Set row.Channel = "web"
+	Set row.ChannelMessageId = "ZzCardRef"_..Number
+	Set row.ApprovalRef = "ZzApproval"
+	Set row.Kind = "tellnow"
+	Set row.Text = "zz what happened"_$Char(10)_"Why now: zz why"
+	Set row.DecisionRef = mine
+	Set row.DueAt = "2030-02-03T04:05:06Z"
+	Set row.FallbackReason = "refusal"
+	Set row.RecordedAt = "2026-10-22T09:00:00Z"
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.DecisionRef_"|"_payload.ApprovalRef, "ZzCardRef"_..Number_"|tellnow|"_mine_"|ZzApproval", "ref is the ChannelMessageId; kind, decisionRef and approvalRef are the row's")
+	Do $$$AssertEquals(payload.DueAt_"|"_payload.FallbackReason_"|"_payload.CreatedAt_"|"_payload.IncidentRef, "2030-02-03T04:05:06Z|refusal|2026-10-22T09:00:00Z|", "dueAt, fallbackReason and createdAt (the RecordedAt) are the row's, and there is no incident")
+	Do $$$AssertEquals(payload.Text_"|"_payload.WhyNow, "zz what happened|Why now: zz why", "a tell-now text splits at its last line")
+	Do $$$AssertEquals($IsObject(payload.Decision) && (payload.Decision.Ref = mine) && (payload.Decision.Reasons = ("zz reason one"_$Char(10)_"zz reason two")) && (payload.Decision.Confidence = 0.9), 1, "the decision is the owner's row")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.ref_"|"_exported.text_"|"_exported.whyNow_"|"_exported.fallbackReason_"|"_exported.decision.ref, "ZzCardRef"_..Number_"|zz what happened|Why now: zz why|refusal|"_mine, "and the JSON carries each field under its own name")
+
+	Set row.Text = "line one"_$Char(10)_"line two"_$Char(10)_"Why now: last"
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Text_"|"_payload.WhyNow, "line one"_$Char(10)_"line two|Why now: last", "with three lines, the text keeps every line but the last")
+	Set row.Text = "only one line"
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Text_"|"_payload.WhyNow, "only one line|", "a one-line text stays whole")
+	Set row.Kind = "reminder"
+	Set row.Text = "Reminder: stretch."_$Char(10)_"second"
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Text_"|"_payload.WhyNow, "Reminder: stretch."_$Char(10)_"second|", "a reminder's text stays whole, with an empty whyNow")
+
+	Set row.Kind = "tellnow"
+	Set row.DecisionRef = theirs
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(row)
+	Do $$$AssertEquals(payload.Decision, "", "a decision of another owner is not embedded")
+	Do $$$AssertEquals(payload.DecisionRef, theirs, "though its Ref is carried")
+	Set row.DecisionRef = "ZzNoSuchDecision"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).Decision, "", "an unknown decision gives none")
+	Set row.DecisionRef = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).Decision, "", "a row with no decision gives none")
+	Set row.DecisionRef = mine
+	Set row.OwnerRef = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(row).Decision, "", "a row with no owner reads no decision, and the payload is still made")
+	Do $ClassMethod(fixture, "Clean", owner_","_other_","_mine_","_theirs)
+}
+
 /// --- helpers ---
 /// Deletes every fixture incident row.
 ClassMethod Clean() [ Private ]
@@ -569,7 +628,9 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRef": "%String(%JSONFIELDNAME=incidentRef,MAXLEN=22)",
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
    "DueAt": "%String(%JSONFIELDNAME=dueAt,MAXLEN=20)",
-   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
+   "Decision": "OcuTalon.Live.Payload.Decision(%JSONFIELDNAME=decision)",
+   "FallbackReason": "%String(%JSONFIELDNAME=fallbackReason,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.Pairing": {

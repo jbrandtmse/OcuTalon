@@ -4,9 +4,12 @@
  * and uses only erasable TypeScript syntax, so Node runs it as it is. The components call parseReply, renderPageText and
  * pageTime themselves.
  *
- * - chatView lists the store's chat.message entries in store order, then the page's own messages that the store does not hold
- *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its
- *   status was. Incident and notice entries render nothing yet (Stories 6.1 and 2.7).
+ * - chatView lists the store's chat.message entries (turns) and its notification entries of the kinds tellnow and reminder
+ *   (notices) in store order, then the page's own messages that the store does not hold yet, in send order. A local message is
+ *   gone as soon as the store holds a chat.message with its clientId, whatever its status was. Incident entries render nothing
+ *   yet (Story 6.1), and neither does a notification of any other kind (Stories 6.x and 16.x).
+ * - A notice is a card (UX-DR69): its text as the server rendered it, split from its "Why now:" line, the times of a reminder, and
+ *   for a tell now the decision strip's inputs. Its key is notification:<ref>, the store's key of the entry.
  * - A turn's reply is none (no indicator: the post is in flight or failed), deciding (the post was accepted, or the turn is
  *   queued), working (the turn is running; with the whole seconds once the page has seen it running for ELAPSED_AFTER_MS, and
  *   with the label of the step the bridge reported for it), the reply text, or a fallback by its catalog key and reason.
@@ -16,7 +19,7 @@
  * - indicatorOf says what the turn indicator shows for a reply: the text, the form it is spoken in and whether the dots animate.
  */
 import type { LiveItem } from '../api/api-types';
-import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, TurnStepPayload } from '../live/payloads';
+import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, NotificationPayload, TurnStepPayload } from '../live/payloads';
 
 /** Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. */
 export const CHAT_TEXTS = {
@@ -53,6 +56,12 @@ export const CHAT_TEXTS = {
   meaningAct: 'OcuTalon took or requested an action',
 } as const;
 
+/** The fixed strings of a notice card's caption, joined by CHAT_TEXTS.separator: "Due 12:00 \u00B7 arrived 12:01". */
+export const NOTICE_TEXTS = {
+  due: 'Due {time}',
+  arrived: 'arrived {time}',
+} as const;
+
 /** How long the page must have seen a turn running before the indicator adds the elapsed seconds. */
 export const ELAPSED_AFTER_MS = 10_000;
 
@@ -78,6 +87,7 @@ export type ReplyView =
 
 /** One message and what answers it. send is stored for a message the server holds. */
 export interface TurnView {
+  entry: 'turn';
   /** The clientId when the message has one, else the turn's ref: the same for a local message and its stored turn. */
   key: string;
   text: string;
@@ -102,6 +112,34 @@ export interface TurnView {
   /** The check results of the reply, one row each. */
   checks?: readonly CheckRow[];
 }
+
+/** The kinds of notification that the chat shows as a notice card. */
+export type NoticeKind = 'tellnow' | 'reminder';
+
+/** One notice card of the chat: a notification of the kind tellnow or reminder. */
+export interface NoticeView {
+  entry: 'notice';
+  /** `notification:<ref>`, the key of the entry in the live store's chat. */
+  key: string;
+  kind: NoticeKind;
+  /** The card's text as the server rendered it; for a tell now without its last line, the "Why now:" line. */
+  text: string;
+  /** The "Why now:" line of a tell-now card, "" for a reminder. */
+  whyNow: string;
+  /** An ISO time: when the card arrived. */
+  time: string;
+  /** An ISO time: when a reminder was due, "" when it has none. */
+  dueAt: string;
+  /** The decision the card shows, when its notification carries one. */
+  decision?: DecisionPayload;
+  /** The fallback reason of the strip, set when the strip is a fallback strip: the notification's own, else the decision's. */
+  fallbackReason?: string;
+  /** True when the card has a decision strip: it is a tell now with a decision, or a fallback. A reminder has none. */
+  strip: boolean;
+}
+
+/** An entry of the chat list. */
+export type ChatEntryView = TurnView | NoticeView;
 
 /** What the turn indicator shows: the text, the text it is spoken as, the whole seconds once past 10 s, and whether the dots animate. */
 export interface IndicatorView {
@@ -132,6 +170,38 @@ export function newClientId(
 /** The chat.message payload of a chat entry, or undefined for any other type. */
 function messageOf(item: LiveItem): ChatMessagePayload | undefined {
   return item.type === 'chat.message' ? item.payload : undefined;
+}
+
+/** The notice card of a chat entry: a notification of the kind tellnow or reminder; undefined for any other entry. */
+export function noticeOf(item: LiveItem): NoticeView | undefined {
+  if (item.type !== 'notification') {
+    return undefined;
+  }
+  const payload: NotificationPayload = item.payload;
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder') {
+    return undefined;
+  }
+  const view: NoticeView = {
+    entry: 'notice',
+    key: `notification:${payload.ref ?? ''}`,
+    kind: payload.kind,
+    text: payload.text ?? '',
+    whyNow: payload.whyNow ?? '',
+    time: payload.createdAt ?? '',
+    dueAt: payload.dueAt ?? '',
+    strip: false,
+  };
+  const decision = payload.decision;
+  if (decision !== undefined) {
+    view.decision = decision;
+  }
+  if (payload.fallbackReason) {
+    view.fallbackReason = payload.fallbackReason;
+  } else if (decision?.fallback) {
+    view.fallbackReason = decision.fallbackReason ?? '';
+  }
+  view.strip = view.kind === 'tellnow' && (decision !== undefined || view.fallbackReason !== undefined);
+  return view;
 }
 
 /** The key of a stored turn. */
@@ -191,7 +261,7 @@ function captionOf(channel: string | undefined, fromGuide: boolean | undefined):
 }
 
 /**
- * The entries to render. runningSince holds, by key, when (ms, the page's clock) the page first saw each turn running; now is
+ * The entries to render, turns and notices in the store's order. runningSince holds, by key, when (ms, the page's clock) the page first saw each turn running; now is
  * the page's clock in ms; steps are the store's turn steps by the ref of the running turn.
  */
 export function chatView(
@@ -200,12 +270,16 @@ export function chatView(
   runningSince: ReadonlyMap<string, number>,
   now: number,
   steps: Readonly<Record<string, TurnStepPayload>> = {},
-): TurnView[] {
-  const views: TurnView[] = [];
+): ChatEntryView[] {
+  const views: ChatEntryView[] = [];
   const held = new Set<string>();
   for (const item of chat) {
     const message = messageOf(item);
     if (message === undefined) {
+      const notice = noticeOf(item);
+      if (notice !== undefined) {
+        views.push(notice);
+      }
       continue;
     }
     const key = keyOf(message);
@@ -214,6 +288,7 @@ export function chatView(
     }
     const reply = replyOf(message, key, runningSince, now, steps);
     const view: TurnView = {
+      entry: 'turn',
       key,
       text: message.text ?? '',
       time: message.createdAt ?? '',
@@ -249,6 +324,7 @@ export function chatView(
       continue;
     }
     views.push({
+      entry: 'turn',
       key: entry.clientId,
       text: entry.text,
       time: entry.sentAt,
@@ -261,7 +337,7 @@ export function chatView(
   }
   for (let i = views.length - 1; i >= 0; i -= 1) {
     const view = views[i];
-    if (view?.strip) {
+    if (view?.entry === 'turn' && view.strip) {
       view.newest = true;
       break;
     }

@@ -1,8 +1,10 @@
 /// The one helper for the fixture rows of the tests that read through Ownership or the snapshot. It has no Test
 /// methods. Each creating method saves one row of the table it is named for and returns the row's Ref (Usage, whose rows have
-/// no Ref, returns and is recorded under the Ref of its decision); every row it
+/// no Ref, returns and is recorded under the Ref of its decision; Delivery, whose rows have none either, under its
+/// ChannelMessageId); every row it
 /// creates is recorded under ^OcuTalonTest("Fixture", <class>, <id>), and Clean deletes exactly the recorded rows,
-/// with the live events and counters of the fixture sessions' streams, so that an interrupted run is cleaned by the
+/// with the live events and counters of the fixture sessions' streams and every Delivery row of a fixture session it deletes
+/// (the rows that the production made included), so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
 /// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers and
@@ -152,6 +154,23 @@ ClassMethod SetFields(row As %Persistent, fields As %DynamicObject) [ Private ]
 	}
 }
 
+/// A web notice card of the owner, a Delivery row of channel web: its kind is tellnow, its text "zz card <ref>" and its
+/// RecordedAt now unless fields, an object of property names and values, sets others. The row is recorded under its
+/// ChannelMessageId, a new Ref unless fields gives one (a row that fields leaves with no ChannelMessageId is recorded under a new
+/// Ref, which is returned). Clean removes it with the others, and with its owner when the owner is a fixture session.
+ClassMethod Delivery(ownerRef As %String, fields As %DynamicObject = "") As %String
+{
+	Set row = ##class(OcuTalon.Data.Delivery).%New()
+	Set row.OwnerRef = ownerRef
+	Set row.Channel = "web"
+	Set row.ChannelMessageId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Kind = "tellnow"
+	Set row.Text = "zz card "_row.ChannelMessageId
+	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..SetFields(row, fields)
+	Quit ..Keep(row, $Select(row.ChannelMessageId '= "": row.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef()))
+}
+
 /// The session's Telegram pairing.
 ClassMethod Pairing(sessionRef As %String, displayName As %String = "Zz chat") As %String
 {
@@ -256,7 +275,10 @@ ClassMethod Clean(refs As %String = "")
 			Set id = $Order(^OcuTalonTest("Fixture", class, id), 1, ref)
 			Quit:id=""
 			If refs '= "", '$Data(only(ref)) Continue
-			If class = "OcuTalon.Data.Session" Do ..DropStream(ref)
+			If class = "OcuTalon.Data.Session" {
+				Do ..DropStream(ref)
+				Do ..DropDeliveries(ref)
+			}
 			Do $ClassMethod(class, "%DeleteId", id)
 			Kill ^OcuTalonTest("Fixture", class, id)
 		}
@@ -333,6 +355,14 @@ ClassMethod Keep(row As %Persistent, ref As %String = "") As %String [ Private ]
 ClassMethod Record(row As %Persistent, ref As %String = "") [ Private ]
 {
 	Set ^OcuTalonTest("Fixture", $ClassName(row), row.%Id()) = $Select(ref '= "": ref, 1: row.Ref)
+}
+
+/// Removes the Delivery rows of an owner, the rows that the production made for a fixture session included.
+ClassMethod DropDeliveries(ownerRef As %String) [ Private ]
+{
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?")
+	Do statement.%Execute(ownerRef)
 }
 
 /// Removes the live events of a stream and its counter.

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page, type Request, type Route } from 
 
 import { signIn, signInReadme, watchViolations } from '../sign-in/helpers';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
-import { clock, plain, tokenColor } from '../support/page';
+import { clock, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
  * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the fallback strip of a reply through the stub Decide; the rest of
@@ -117,26 +117,6 @@ async function holdEvents(page: Page): Promise<{ release: () => void }> {
 async function turnsWith(page: Page, clientId: string): Promise<Json[]> {
   const state = (await (await page.request.get(STATE)).json()) as { chat: Array<{ type: string; payload: Json }> };
   return state.chat.filter((item) => item.type === 'chat.message' && item.payload['clientId'] === clientId).map((item) => item.payload);
-}
-
-/** The distance in px between the bottom of the list's content and the bottom of its view. */
-const fromBottom = (list: Locator): Promise<number> => list.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
-
-/**
- * Scrolls the list to its top or its bottom, as the user would, and returns once the page has delivered the scroll event: the
- * event fires in the rendering step that precedes the animation-frame callbacks of the same frame, so the panel has measured
- * the new position by then. A test that changes the page's content next acts on a list the panel knows is scrolled, on a host
- * of any speed.
- */
-async function scrollListTo(list: Locator, where: 'top' | 'bottom'): Promise<void> {
-  await list.evaluate(
-    (el, target) =>
-      new Promise<void>((resolve) => {
-        el.scrollTop = target === 'top' ? 0 : el.scrollHeight;
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }),
-    where,
-  );
 }
 
 /** C1: a fresh session shows the empty chat panel and the composer; nothing in main is a live region; the page sends script-src 'self'. */

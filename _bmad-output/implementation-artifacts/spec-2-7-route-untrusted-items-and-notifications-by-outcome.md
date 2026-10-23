@@ -2,7 +2,8 @@
 title: 'Story 2.7: Route untrusted items and notifications by outcome'
 type: 'feature'
 created: '2026-10-22'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'cd7264f1b5e461d0326a93413277441363efcf64'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -457,6 +458,45 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 — Review pass
+- verdicts: 35 findings — high 0, medium 5, low 22, false 8, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: `ChatItems` builds every card payload (and its decision read) before the cap trims the list — the turn and incident reads build up to `CHATMAX` payloads before the merge in the same way; at most 100 reads, and a fix restructures the merge (more than a direct correction)
+  - `[low]` `[reject]` Blind: `recentNotices` scans every web `Delivery` row of the session, because `OwnerRefChannelIndex` stops at `Channel` and replies are rows too — the index and the SQL are fixed by the intent, so a fix changes specified behaviour
+  - `[low]` `[patch]` Blind: the card kinds are written in three places and no test ties them — `TestRecentNotices` now records a row of every kind in `WebChatOut.CARDKINDS` and expects each as a card; mutation: a kind the SQL lacks, red
+  - `[low]` `[reject]` Blind: `Rule.Notice` sends nothing when the Decision row is not visible or its first reason line is empty — the intent states it (an error the router logs; Decided 5: loud, never a mislabelled fallback)
+  - `[low]` `[reject]` Blind: `dueAt` is copied from the slot without a UTC check (a value over 20 characters fails the save, a short non-time shows "Due ") — the producer is code (Epic 8) and a bad value fails loudly at the save; a check adds a branch with no reachable trigger (grouped with the Edge rows on `dueAt`)
+  - `[low]` `[patch]` Blind: the refusal warning does not say which Item was refused — it now ends with the Item's ItemId and channel when the message is an Item; `TestRefusedItems` asserts it; mutation: the warning without it, red
+  - `[medium]` `[patch]` Blind: nothing tests a notice card that lands while the list is scrolled up (New messages and its focus) — new browser case N12 (scrolled up, the card shows New messages, the press goes to the bottom and focuses the card); mutation: the arrival part always `user`, N12 red alone (grouped with the verification-gap row)
+  - `[medium]` `[patch]` Blind: `seedDecision` copies the field loop and preamble of `decisionLines` (Rule 2) — both now build the row from `decisionRowLines`
+  - `[medium]` `[patch]` Blind: test helpers copied across classes (`Deliveries`, `WaitDeliveries`, `Notifications`, `WaitEvents`, `Count`, the event-log warning helpers) (Rule 2) — the new tests share `Test.Core.Observe`; the two production classes, Intake, WebChatOut and Delivery tests delegate to it. The earlier copies in `ConversationTurns` and `BridgeSink` (Stories 2.4 and 2.3) are not part of this change
+  - `[low]` `[reject]` Blind: `Conversation` and `Intake` call each other for stateless helpers — the intent names both calls (`Conversation.Request` calls `Intake.RequestFor`; `Summary` reuses `Conversation.Summary`)
+  - `[low]` `[reject]` Edge: an error from the send of the ItemDecision loses it, because `Sent` is set before the send — `SendRequestAsync` fails only for an item that is not configured; the error is returned to the framework and logged, and the intent names no other target
+  - `[low]` `[reject]` Edge: an Item whose owner is no session, `instance` or `eval` is decided (a paid call) and then dropped by the router — the intent's refusals are an empty owner; the fix adds a read and a branch for a race
+  - `[low]` `[reject]` Edge: a reminder `dueAt` over 20 characters fails the `Delivery` save and loses the reminder — same root as the Blind `dueAt` row
+  - `[low]` `[reject]` Edge: the caption reads "Due " when `dueAt` is not a readable time — same root as the Blind `dueAt` row
+  - `[low]` `[reject]` Edge: `FromRow` splits the last line as `whyNow` whatever it says — the intent states the split, and every tell-now key's text ends in its "Why now:" line
+  - `[low]` `[patch]` Edge: a reminder with a decision would show a decision strip — `noticeOf` now gives a strip only to a tell now (`chat-view.test.mjs` asserts a reminder has none); mutation: the kind condition removed, red
+  - `[low]` `[reject]` Edge: a fallback ItemDecision that carries a CatalogKey loses its fallback reason — the intent's first case is "that key and its slots, as they are"
+  - `[low]` `[reject]` Edge: a tell now whose CatalogKey or Slots cannot be rendered is lost — the intent says a render error returns the error with no row and no event; the keys are code-written
+  - `[low]` `[reject]` Edge (claim): the header's promise of a fallback after an exception holds not when the failure is in the send of the ItemDecision — same root as the send-failure row
+  - `[medium]` `[patch]` Verification gap: no test pins the New messages path of a notice card — same root as the Blind row, closed by N12
+  - `[medium]` `[patch]` Verification gap: the exception path of `Intake.OnRequest` (a decide request that cannot be sent, then `Decided` throws) and the `Sent` guard are not tested — `TestCallbackFailureSendsTheFallback` now covers both; mutations: no `Abandon` in the catch and no `Sent` guard, each red
+  - `[low]` `[reject]` Verification gap (other): the guard in `TestStubsAnswer` makes the STUB assertion after it unable to fail — the edit is the orchestrator's ruling, limited to that guard in a Lane A file; `Test.Core.Routing` pins that the rule classes route
+  - `[low]` `[patch]` Verification gap (other): the absence assertions (the router sends nothing on an ignore; no notification event for a reply) have no readiness signal — `Observe.WaitProcessed` waits for the inbound header to be Completed before `RoutingProduction` and `ConversationProduction` assert absence
+  - `[low]` `[reject]` Verification gap (other): five Planned-mutation rows rest on a variant or on one combined throwaway — every acceptance criterion has a recorded mutation, and the combined run mapped four mutations to four distinct red cases
+  - `[low]` `[reject]` Verification gap (other): `Test.Data.Delivery` tracks its `instance` and `eval` rows in memory only, so an interrupted run leaves them — the Refs are run-numbered and collide with nothing
+  - `[low]` `[reject]` Verification gap (other): the Telegram-included half of the routing tests rests on the stub's global — the intent directs `^OcuTalonTest("TelegramIncluded")`
+  - `[false]` `[reject]` Verification gap (other): source-text assertions are not coverage — the layer states no defect, and the executed pins are N9 and N5
+  - `[false]` `[reject]` Intent: the slot tests sit at the class and table surfaces and the production surface is CI-only — the intent bars `Test.Core.RoutingProduction` and the browser specs from slot B, and runs them in the throwaway
+  - `[false]` `[reject]` Intent: the pass label says N1-N11 while the spec file has N1-N10 and a placeholder — the intent names N11 as the declared placeholder; the label now reads N1-N12
+  - `[false]` `[reject]` Intent: the comments on Decide differ between `RoutingProduction` (the stub's error) and N10 (the future mock) — both describe the same fallback, now and after Story 1.3
+  - `[low]` `[reject]` Intent: additions the spec does not list (the `Output row` of `Record`, `ProbeSeam`, `Intake`'s stored properties, the strip's `reasons` input) — `ProbeSeam` and `reasons` are in the spec; the other two are recorded under Decided in-stage 16 and by the class contract
+  - `[false]` `[reject]` Intent: a tell-now card with neither a decision nor a fallback has no strip, where the intent could be read as a bare chip — the strip component has no outcome to show without a decision or a fallback, recorded as Decided in-stage 17
+  - `[false]` `[reject]` Intent: the non-fallback card cases send the ItemDecision straight to the router and no test sends an act or a DecisionRef through the real Intake and Decide — the intent's "Until Story 1.3" criterion makes the stub Decide the real path in this tree
+  - `[false]` `[reject]` Intent: only the reminder caption uses the zone name — the intent scopes it to the caption
+  - `[false]` `[reject]` Intent: the intent is silent on an act whose turn never answers — Decide always answers (its own timeouts end in an error status or a fallback), and the intent says the ItemDecision follows whatever the turn answers
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -496,6 +536,9 @@ No AC contradicts an AD's Rule. **Rule 5:** the 5 s check is measurable. Its clo
 13. **A web reply's row has no `ChannelMessageId`.** The page shows the turn, so no web message exists for it. No `TurnRef` is added to `Outbound`.
 14. **Demo mode sends to Story 4.5's `SimPhoneOut` stub.** It answers "not implemented" and logs it at the stub, with no effect on the router (no `ResponseFrom`), until Story 4.5.
 15. **The 5 s check uses Lane A's existing `refusal` marker,** because `ci/mock/scenarios/B/` is contended. A model-written tell now through B markers is Story 4.6's.
+16. **`Delivery.Record` takes a trailing `Output row`** (implement stage): the saved row, so that `WebChatOut` publishes `Notification.FromRow(row)` without a read back. The leading parameters are the ones the spec lists, and `Test.Contract.Ac` pins them.
+17. **A tell-now card has a strip only with a decision or a fallback reason** (implement stage). A code-written notice with neither (N2) has no strip, because the strip shows a decision's outcome or the Fallback flag and has nothing else to show; a reminder card never has one.
+18. **`DemoOn()` reads the setting through `Setting.Get`** (implement stage), so a change of demo mode can take up to the setting cache's 60 seconds to reach a long-running router job.
 
 **Veto-window items for the lead** (unattended policy):
 1. **Stored data.** `Delivery` gains `Kind`, `Text`, `DecisionRef`, `DueAt`, `FallbackReason` and `OwnerRefChannelIndex`, the store of DW-62. `Delivery` had no rows before this story, because `Record` was a stub, so the new index needs no build.
@@ -563,6 +606,7 @@ The Integration ACs run against a real throwaway.
 - `Notification.FromRow` follows `ChatMessage.FromRow`.
 - The card reuses `app-decision-strip` (a `reasons` input) and `pageTime` (`pageTimeBeside` wraps it).
 - The senders in `iris.ts` follow `sinkEvent`. `Fixture.Delivery` follows `Fixture.Usage`.
+- `Test.Core.Observe` holds the Delivery, event, processed-header and event-log reads that the tests of Intake, WebChatOut, Delivery and the two production classes share, and `iris.ts` builds a Decision row's lines in one function for `seedTurns` and `seedDecision` (review patches, Rule 2).
 
 **Ledger (Rule 17).**
 - **DW-62** is addressed by the `Delivery` card fields, `RecentNotices`, the rank-2 merge, `TestStateChatNotices` and N7.
@@ -623,6 +667,55 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 | Notices | `chatView` skips notices | `chat-view.test.mjs`; N1 |
 | Five seconds | `Hang 6` in `OnNotification` | N10 |
 
+**Task 0 (implement stage, recorded).**
+- **Rules off a production.** A rule is evaluated on slot B with `Ens.Rule.RuleDefinition.EvaluateRulesEx(rule, 0, engine, "", .ret, .reason, 1, "e")`, where `engine` is `Ens.Host.GetShadowInstance("class||EnsLib.MsgRouter.RoutingEngine")` with `Document`, `MsgClass` and `Source` set. The session id must be a non-empty value (the tests pass 0): with `""` the call reads `pContext.%Process.%SessionId`, which a shadow engine lacks. A rule log row is written only on an error, so the "e" level leaves none. `Test.Core.Routing` is therefore slot-safe, and `Test.Core.RoutingProduction` is for the wiring only.
+- **The `ret` format** is `send:<targets>:<transform>` for each action, actions joined by `;`, and "" for none. Examples: `send:DigestStore:`, `send:Notify:OcuTalon.Core.Rule.Notice`, `send:WebChatOut,SimPhoneOut,TelegramOut:`. `reason` reads `rule#1(ItemDecision):when#2`.
+- **Function names.** `rg` over `irislib` and `src` finds `IsSession`, `DemoOn`, `TelegramOn` and `TelegramPaired` declared only in `OcuTalon.Core.Rule.Functions` (the one other `IsSession`, `Core.BridgeSink.IsSession`, is a private method of a class that is not a function set). `TestFunctions` pins it by listing every `Ens.Rule.FunctionSet` subclass.
+- **Row 16, Lane B's Intake line.** Measured in the throwaway for the real Intake: `CHK|sync|Intake|1||0|0` (a message that is not an Item is refused with a warning and answered OK with nothing), in place of `CHK|sync|Intake|0|<Ens>ErrBPTerminated|1|0`. `live production` passes with it.
+- **The host.** `Ens.Director.CreateBusinessService("SimMailboxIn")` and then `SendRequestAsync("Intake", item)` reach Intake: `RoutingProduction` finds the SimMailboxIn to Intake header, and the N cases send through the same hosts.
+
+**Mutations demonstrated (Rule 19).** Each was applied, run red and reverted; `git status --short`, `git diff --stat` and the hash of every changed file matched the tree before the mutations. Slot B unless the line says otherwise.
+- mutation: `Intake.Refusal` without the provenance check (a `user` Item accepted) -> `TestRefusedItems` red
+- mutation: the act's turn request sent with SessionMode `continue` -> `TestActRunsAnUntrustedFreshTurn` red
+- mutation: the ItemDecision sent right after the turn request, before the turn's answer -> `TestActRunsAnUntrustedFreshTurn` red
+- mutation: `Finish` without `decision.CatalogKey = item.CatalogKey` -> `TestEachOutcomeSendsOneItemDecision` red (N2 not run with this one)
+- mutation: `Finish` always sends to OutcomeRouter (eval included) -> `TestEvalGoesToEvalSinkOnly` red; throwaway `RoutingProduction`: `TestEvalItemWritesNoDeliveryOrEvent` red
+- mutation: `Decided` quits after a Decide error, so no ItemDecision goes -> `TestDecideFailureIsAFallback` red; throwaway `RoutingProduction`: `TestUntrustedItemReachesTheWebChat` (and `TestEvalItemWritesNoDeliveryOrEvent`) red
+- mutation: `Finish` also sends the Item to Conversation -> `TestNeverTouchesTheConversation` red
+- mutation: Outcome rule sends digest to Notify -> `TestOutcomeRoutes` red (N3 not run)
+- mutation: Outcome rule sends ignore to Notify -> `TestOutcomeRoutes` red (N3 not run)
+- mutation: the `IsSession` condition removed from the tell-now rule -> `TestOutcomeRoutes` red
+- mutation: `Notice` reads the Decision row with `Bridge.Data.Decision.RefIndexOpen` (no owner) -> `TestNoticeTransform` red (N1 not run)
+- mutation: a fallback ItemDecision keyed `notice.tellNow` -> `TestNoticeTransform` red (N4 not run)
+- mutation: Notify's last otherwise also sends to SimPhoneOut -> `TestNotifyTargets` red
+- mutation: allowance also sent to SimPhoneOut -> `TestNotifyTargets` red
+- mutation: pairing sent to WebChatOut -> `TestNotifyTargets` red
+- mutation: `OnOutbound` publishes a notification -> `Test.Core.WebChatOut` `TestReplyRecordsItsDeliveryOnly` red
+- mutation: the raw catalog key stored as the card's text -> `TestTellNowCard` red (N1 not run)
+- mutation: no Delivery row for a card -> `TestTellNowCard` red; throwaway `RoutingProduction`: `TestUntrustedItemReachesTheWebChat` and `TestEachOutcomeThroughTheRouter` red
+- mutation: `OnNotification` publishes the notification of an `incident` -> `TestOtherKindsRecordOnly` red
+- mutation: `Ownership.DeliveryFor` without its exact comparison (a case-insensitive match) -> `Test.Data.Delivery` `TestFindByApproval` red
+- mutation: `recentNotices` with `? <> ''` in place of `OwnerRef = ?` -> `Test.Data.Ownership` `TestIsolationEveryRowKind` red
+- mutation: `ChatItems` skips the cards -> `TestStateChatNotices` red (N7 not run)
+- mutation: `Notification.FromRow` leaves `whyNow` empty -> `Test.Core.WebChatOut` `TestTellNowCard` red (N1 not run)
+- mutation: `pageTimeBeside` adds " UTC" in the same zone, and (separately) never adds the name -> `page-time.test.mjs` red both times (N5, N6 not run)
+- mutation: `noticeOf` ignores the notification's `fallbackReason` -> `chat-view.test.mjs` red
+- mutation: `chatView` skips notices -> `chat-view.test.mjs` red (N1 not run)
+- mutation: the card binds its text with `[innerHTML]` -> `page-safety.test.mjs` red
+- mutation: the card's strip with `[reasons]="true"`, WebChatOut's `Hang 6`, `noticeOf` ignoring `fallbackReason` and the `[innerHTML]` text, applied together in one throwaway `live sign-in` -> N1, N10, N4 and N9 red, and 121 others green
+- mutation: Intake's `OnRequest` catch without `Do ..Abandon(request)` (the decide request cannot be sent, and `Decided` throws) -> `Test.Core.Intake` `TestCallbackFailureSendsTheFallback` red ("one ItemDecision is sent")
+- mutation: `Finish` without `If ..Sent Quit $$$OK` (a second answer after the ItemDecision went) -> `TestCallbackFailureSendsTheFallback` red ("a second answer sends no second one")
+- mutation: the refusal warning without the Item's ItemId and channel -> `TestRefusedItems` red
+- mutation: `WebChatOut.CARDKINDS` holding a kind that the `recentNotices` SQL lacks (`incident`) -> `Test.Data.Ownership` `TestRecentNotices` red ("every kind that WebChatOut makes a card of is a card of the snapshot's chat")
+- mutation: `noticeOf` gives a reminder a strip (the `kind === 'tellnow'` condition removed) -> `chat-view.test.mjs` red
+- mutation: the arrival part of a notice always `user` (`chat-panel.ts` `noteArrivals`), in one throwaway `live sign-in` -> N12 red (the card is not focused), and 125 others green
+- Not demonstrated on their own: the N5 and N6 zone mutation, N2, N3, N7, and N1 under the Reason, Render and Split mutations; their unit pins above went red.
+
+**Implement-stage results** (the last pass, after the review patches).
+- Slot B (build 154): `Test.Core.Intake` (9), `Routing` (4), `WebChatOut` (8), `Test.Data.Delivery` (3), `Ownership` (17), `Test.Web.Api` (28), `Test.Live.Payloads` (8), `Test.Msg.Catalog` (22), `Msg.Contracts` (6), `Test.Data.Tables` (5), `ConversationTurns` (38), `BridgeSink` (9) and `Test.Contract.Ac` (6) all pass, and no `zz` session, Delivery row, Turn, live event, Decision or log row of Intake or WebChatOut is left.
+- Throwaway (tag `e2s27i`, torn down, nothing left): `class RoutingProduction` and `class ConversationProduction` pass; `live sign-in` passes (126 passed, N11 skipped) and prints N10's time on a passing run (1349 ms from before the send); `live production` and `live demo-path` pass (`floor 2 of 2 passed`); `shard lane-b` (37 classes) and `shard lane-a` (9 classes, `Test.Install.Production` green with both rule classes built) pass.
+- Host: `npm --prefix web test` (257), `npm --prefix web run lint`, the three `--check` generators, `test-web-build.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-mock.sh` and `ci/checks.sh` pass.
+
 **Shared surfaces:**
 - `Data.Delivery`'s properties and indexes (`Test.Data.Tables`); `TestDeliveryStubs` goes;
 - `Ownership`'s row kinds (`TestIsolationEveryRowKind`, `Seed`, `ReadAll`, `Refs`, `TestRowsRefuses`);
@@ -646,12 +739,33 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-The plan's original halt, resolved by the orchestrator's ruling (Spec Change Log, 2026-10-23), read: intent gap: building the two routing rules (the OutcomeRouter and Notify ACs) turns `OcuTalon.Test.Install.Production.TestStubsAnswer` red. That test lives in `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`, a contended Lane A path that this story may not edit. At lines 158-166 here (173-181 on `OCT-epic1`) it asserts that `OcuTalon.Core.Rule.Outcome` and `OcuTalon.Core.Rule.Notify` each "carries STUB" and holds one rule set "with no rule". The `lane-a` shard runs it, so this story's push would fail the `shards` group. No reading of the ACs avoids it: the rule classes must route, `BusinessRuleName` is pinned by `Test.Install.ProductionRules:131` (also contended), and the rule-set count is checked. **Recommended amendment** (a test-only change in Lane A's file, about 3 lines): run the loop's rule-set checks only while a rule class carries STUB (`If '$Parameter(class, "STUB") Continue`), with the class comment updated, or read each rule class's stub flag from Lane B's oracle `OcuTalon.Test.Core.ProductionItems`, as the item rows already are. Either Lane A makes the change on `OCT-epic1` and the same change lands on `OCT-epic2`, or the orchestrator grants Lane B a one-time footprint extension for exactly those lines. Once it is resolved, the spec above is planned in full: reset `status` to `draft` (or rule it ready) and re-dispatch.
+**Summary of the implemented change.** Intake decides an untrusted Item (`RequestFor`, the `Send` seam, the fallback, the fresh untrusted turn on an act) and sends the ItemDecision to OutcomeRouter or, for the owner `eval`, to EvalSink only. `OutcomeRouter` and `Notify` now route (rule sets, the `Notice` transform and the `Functions` set). `WebChatOut` renders a card through the catalog, keeps it on its `Delivery` row, and publishes `notification`; a reply records its row only. `Delivery.Record` and `FindByApproval` are built, with the two Ownership row kinds (`recentNotices`, `deliveryByApproval`), the snapshot's chat merging the kept cards (DW-62), `Notification.FromRow`, and the catalog key `notice.tellNowFallback`. The page has `app-notice-card` (tell now and reminder), `pageTimeBeside`, the `bell` icon, the strip's `reasons` input, and the chat list of turns and notices. The ruled Lane A edit is the one guard in `Test.Install.Production.TestStubsAnswer`'s rule-class loop.
 
-**Plan summary.** The spec is written in full and verified against the READY FOR DEVELOPMENT standard, apart from the precondition above.
+**Files changed.**
+- Server: `Core/Intake.cls` (built), `Core/Conversation.cls` (`Request` calls `Intake.RequestFor`), `Core/Rule/{Outcome,Notify}.cls` (built) and `Core/Rule/{Notice,Functions}.cls` (new), `Channel/WebChat/Out.cls` (built), `Data/Delivery.cls`, `Data/Ownership.cls`, `Web/Api.cls`, `Live/Payload/Notification.cls`, `Msg/Catalog/Core.cls`.
+- Server tests: `Test/Core/{Intake,Routing,WebChatOut,RoutingProduction,IntakeProbe,ProbeSeam,Observe}.cls` and `Test/Data/Delivery.cls` (new); `Test/Core/{ConversationProbe,ConversationProduction,ProductionItems}.cls`, `Test/Data/{Fixture,Ownership,Tables}.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Catalog.cls`, `Test/Web/Api.cls`; the ruled line pair in `Test/Install/Production.cls`.
+- Page: `chat/notice-card.ts` (new), `chat/{chat-view,chat-panel,decision-strip,page-time}.ts`, `icon/icon.ts`, `live/payloads.ts` (regenerated); tests `e2e/chat/notice.spec.ts` (new, N1-N12), `e2e/chat/chat.spec.ts` and `e2e/support/{iris,page}.ts`, and the node tests `chat-view`, `page-time` and `page-safety`.
+- CI scripts: `docker/tests/test-sign-in.sh` (the `ZzNotice` user, the labels N1-N12, N10's time on a passing run) and Lane B's Intake line and header clause in `docker/tests/test-production.sh` (`CHK|sync|Intake|1||0|0`, measured by Task 0).
+
+**Review findings.** First pass, 35 findings from four layers: high 0, medium 5, low 22, false 8, maybe-false 0 (rows in `## Review Triage Log`).
+- Patches applied (medium 4, low 4, by root cause): the New messages path of a notice card (N12); Intake's `OnRequest` exception path and `Sent` guard; `seedDecision` copying `decisionLines` (one `decisionRowLines`); the test helpers copied across classes (one `Test.Core.Observe`); the card kinds tied across WebChatOut and `recentNotices`; the refusal warning naming the Item; a reminder has no strip; the absence assertions wait for the router and WebChatOut to complete. N10's elapsed time is also printed on a passing run (the implement stage's own note).
+- Deferred: none (`deferred: []`).
+- Rejected with reasons: see the log; every `reject` row names the intent text or the refutation. The larger groups are the `dueAt` value checks (producers are code), the send-failure rows (no other target exists), and rows that restate the intent (transform errors, the `Conversation`/`Intake` calls, the specified index, the ruled guard).
+
+**Follow-up review recommended: false.** Four medium and four low entries were patched, all in tests and test support except the refusal warning's text and `noticeOf`'s strip condition; each pin has a recorded mutation that went red, and the whole loop (slot B classes, node tests, the throwaway pieces, both shards, `ci/checks.sh`) passed after the last patch. No unverified risk can be named.
+
+**Verification performed.** Every `(loop)` command of `## Verification` on two passes (before the review and after the last patch) and every `(once)` command once after the last patch: see `Implement-stage results`. Task 0 is recorded under `## Verification`. The Matrix rows are covered by tests that ran and passed (Intake, Routing, WebChatOut, Delivery, Ownership, Web.Api, RoutingProduction, ConversationProduction, N1-N10, `chat-view.test.mjs`, `page-time.test.mjs`); N11 is the declared placeholder for Story 4.5.
+
+**Residual risks.**
+- `DemoOn()` reads `demo.mode` through `Setting.Get` (AD-19's 60-second per-process cache), so a change of demo mode can take up to a minute to reach a running router job (Decided in-stage 18).
+- With the Epic 0 stub for `Decide`, the production and browser cases take the fallback path; the real decide path (a `DecisionRef` through Intake) is tested through `DecideDouble` on the slot and needs no edit when Story 1.3 merges.
+- The earlier copies of the event-log helpers in `ConversationTurns` and `BridgeSink` (Stories 2.3 and 2.4) remain; `Test.Core.Observe` is where a later story can fold them.
+- `Test.Install.Production.TestStubsAnswer` no longer asserts anything for a built rule class; `Test.Core.Routing` pins that both route.
+
+**Plan summary.** The spec is written in full and verified against the READY FOR DEVELOPMENT standard, apart from the contended-test precondition, which the orchestrator's ruling resolved (Spec Change Log, 2026-10-23).
 - **Scope.** Intake, the two rules with their transform and function set, WebChatOut, Delivery, the notice-card store and its merge into `/state` (DW-62), the notice cards, zone-named page times, and the 5 s check.
 - **For the lead.**
   - **No split** (Decided 1).

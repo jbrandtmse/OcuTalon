@@ -27,7 +27,7 @@ const files = listFiles(sources).map((path) => ({ name: relative(sources, path),
 describe('the page\'s sources', () => {
   it('scan the app, the sign-in script, the styles and the index', () => {
     const names = files.map((file) => file.name);
-    for (const expected of ['index.html', 'main.ts', 'app/app.ts', 'app/chat/ocutalon-reply.ts', 'app/chat/chat-panel.ts', 'app/msg/catalog.ts', 'signin/signin.js', 'styles/base.css']) {
+    for (const expected of ['index.html', 'main.ts', 'app/app.ts', 'app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/chat-panel.ts', 'app/msg/catalog.ts', 'signin/signin.js', 'styles/base.css']) {
       assert.ok(names.includes(expected), `${expected} is scanned`);
     }
   });
@@ -47,5 +47,14 @@ describe('the page\'s sources', () => {
     assert.ok(reply, 'the reply component exists');
     assert.ok(!/\[(inner|outer)html\]/i.test(reply.text));
     assert.ok(/\[href\]="run\.href"/.test(reply.text), 'a link binds [href]');
+  });
+
+  it('bind a notice card\'s text, Why now line and caption by interpolation only', () => {
+    const card = files.find((file) => file.name === 'app/chat/notice-card.ts');
+    assert.ok(card, 'the notice card component exists');
+    assert.ok(!/\[(inner|outer)html\]/i.test(card.text));
+    for (const bound of ['{{ notice().text }}', '{{ notice().whyNow }}', '{{ line }}']) {
+      assert.ok(card.text.includes(bound), `${bound} is interpolated`);
+    }
   });
 });

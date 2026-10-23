@@ -112,6 +112,8 @@ export interface NotificationPayload {
   approvalRef?: string;
   dueAt?: string;
   createdAt?: string;
+  decision?: DecisionPayload;
+  fallbackReason?: string;
 }
 
 export interface PhonePayload {

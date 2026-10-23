@@ -23,6 +23,7 @@ const NEWEST_LINES = 3;
  *   lines on the newest strip, the first line only, on one line with an ellipsis, on the others.
  * - Last, when there is a decision, the Details button named "Decision details": it opens the details inline below, with
  *   aria-expanded; Esc collapses them and focus stays on the button.
+ * - With reasons off (a notice card's strip, whose text already says why now) line 2 holds the Details button alone.
  * The strip is a group named by its chip's label and described by the outcome's meaning, from a hidden element. A fallback with no
  * decision has the chip, the flag and the reason alone. It is not a live region, and nothing here moves focus. Every text is bound by
  * interpolation.
@@ -57,28 +58,30 @@ const NEWEST_LINES = 3;
           </span>
         }
       </div>
-      <div class="line2" [class.collapsed]="!newest()">
-        @if (lines().length > 0) {
-          <div class="reasons">
-            @for (line of lines(); track $index) {
-              <p class="reason" [class.fallback]="$index === 0 && fallbackLine()">{{ line }}</p>
-            }
-          </div>
-        }
-        @if (decision()) {
-          <button
-            type="button"
-            class="details-button"
-            [attr.aria-label]="texts.detailsName"
-            [attr.aria-expanded]="open()"
-            [attr.aria-controls]="detailsId"
-            (click)="open.set(!open())"
-          >
-            {{ texts.details }}
-            <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="13" />
-          </button>
-        }
-      </div>
+      @if (reasons() || decision()) {
+        <div class="line2" [class.collapsed]="!newest()">
+          @if (reasons() && lines().length > 0) {
+            <div class="reasons">
+              @for (line of lines(); track $index) {
+                <p class="reason" [class.fallback]="$index === 0 && fallbackLine()">{{ line }}</p>
+              }
+            </div>
+          }
+          @if (decision()) {
+            <button
+              type="button"
+              class="details-button"
+              [attr.aria-label]="texts.detailsName"
+              [attr.aria-expanded]="open()"
+              [attr.aria-controls]="detailsId"
+              (click)="open.set(!open())"
+            >
+              {{ texts.details }}
+              <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="13" />
+            </button>
+          }
+        </div>
+      }
       <div class="details" [id]="detailsId">
         @if (open() && decision(); as shown) {
           <app-decision-details [decision]="shown" [turnCost]="turnCost()" />
@@ -172,6 +175,8 @@ export class DecisionStrip {
   readonly fallbackReason = input<string | undefined>();
   /** True for the newest strip of the chat. */
   readonly newest = input(false);
+  /** False leaves the reason lines out, so that line 2 holds the Details button alone (a notice card). */
+  readonly reasons = input(true);
 
   protected readonly texts = DECISION_TEXTS;
   protected readonly separator = DECISION_TEXTS.separator;

@@ -328,17 +328,7 @@ Method Join(turn As OcuTalon.Data.Turn) [ Private ]
 /// The request to Decide for the turn (AD-6): rendered input and code-written fields only.
 Method Request(turn As OcuTalon.Data.Turn, kind As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
-	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
-	Set request.Kind = kind
-	Set request.Provenance = "user"
-	Set request.Input = ##class(OcuTalon.Agent.Input).Render(..ItemOf(turn))
-	Set request.ItemId = turn.ItemId
-	Set request.Summary = ..Summary(turn.Text)
-	Set request.OwnerRef = turn.SessionRef
-	Set request.TraceRef = ..%SuperSession
-	Set request.Channel = turn.Channel
-	Set request.ThreadSessionId = ..%SessionId
-	Quit request
+	Quit ##class(OcuTalon.Core.Intake).RequestFor(..ItemOf(turn), kind, ..%SuperSession, ..%SessionId)
 }
 
 /// The Item that the turn's row stands for, built for Agent.Input.Render.

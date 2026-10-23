@@ -1,5 +1,5 @@
-// Tests the chat panel's view model (src/app/chat/chat-view.ts): the order of the entries and the merge of the page's own
-// messages, every reply state of a turn, the elapsed seconds and the step label of a running one, the decision strip's inputs of
+// Tests the chat panel's view model (src/app/chat/chat-view.ts): the order of the entries (turns and notice cards) and the merge
+// of the page's own messages, the notice cards (their kinds, keys, times, decision and fallback strip), every reply state of a turn, the elapsed seconds and the step label of a running one, the decision strip's inputs of
 // a turn (strip, newest, fallback reason, decision, cost, check rows), what the turn indicator shows, the captions, when the chat is
 // fresh, the client ids, and the fixed strings against the UX's wording. The module is imported as it is: Node strips its types, which
 // holds only while it keeps to erasable syntax and imports only types.
@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { CHAT_TEXTS, chatView, indicatorOf, isFreshChat, newClientId } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
+const { CHAT_TEXTS, NOTICE_TEXTS, chatView, indicatorOf, isFreshChat, newClientId, noticeOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
 
 const NOW = 1_000_000;
 const NO_RUNNING = new Map();
@@ -21,16 +21,25 @@ const turn = (ref, over = {}) => ({
   payload: { ref, clientId: `c-${ref}`, channel: 'web', fromGuide: false, state: 'done', text: `text ${ref}`, replyText: `reply ${ref}`, createdAt: '2026-10-22T14:11:00Z', ...over },
 });
 const incident = (ref) => ({ type: 'incident', payload: { ref, state: 'open' } });
-const notice = (ref) => ({ type: 'notification', payload: { ref, text: 'Reminder: stretch.' } });
+const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
+const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Dana: Invoice', whyNow: 'Why now: zz first.', dueAt: '', ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
 const keys = (views) => views.map((view) => view.key);
 
 describe('the order of the entries', () => {
-  it('lists the store\'s chat.message entries in store order and renders nothing for incidents and notices', () => {
-    const chat = [turn('B'), incident('I1'), turn('A'), notice('N1'), turn('C')];
-    assert.deepEqual(keys(chatView(chat, [], NO_RUNNING, NOW)), ['c-B', 'c-A', 'c-C']);
+  it('lists the store\'s chat.message entries and notice cards in store order and renders nothing for incidents', () => {
+    const chat = [turn('B'), incident('I1'), turn('A'), notice('N1'), tellNow('N2'), turn('C')];
+    const views = chatView(chat, [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['c-B', 'c-A', 'notification:N1', 'notification:N2', 'c-C']);
+    assert.deepEqual(views.map((view) => view.entry), ['turn', 'turn', 'notice', 'notice', 'turn']);
+  });
+
+  it('puts a card between the turns around it, as the server held it, and the page\'s own messages after them', () => {
+    const views = chatView([turn('A'), tellNow('N1'), turn('B')], [local('x1', 'sent')], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['c-A', 'notification:N1', 'c-B', 'x1']);
+    assert.deepEqual(views.map((view) => view.entry), ['turn', 'notice', 'turn', 'turn']);
   });
 
   it('follows the store\'s entries with the page\'s own messages that the store does not hold, in send order', () => {
@@ -264,6 +273,69 @@ describe('the decision strip of a turn', () => {
   });
 });
 
+describe('the notice cards', () => {
+  const decision = (over = {}) => ({ ref: 'D1', kind: 'decide', outcome: 'tellnow', reasons: 'zz first.\nzz second.', confidence: 0.9, costUSD: 0.0003, ...over });
+  const view = (item) => chatView([item], [], NO_RUNNING, NOW)[0];
+
+  it('shows a tell now and a reminder, keyed notification:<ref>, and nothing for any other kind', () => {
+    assert.equal(view(tellNow('A')).kind, 'tellnow');
+    assert.equal(view(notice('B')).kind, 'reminder');
+    for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'allowance', 'pairing', 'status', 'digest', '', undefined]) {
+      assert.deepEqual(chatView([notice('X', { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
+      assert.equal(noticeOf(notice('X', { kind })), undefined, `noticeOf: a ${kind} notification`);
+    }
+    assert.equal(noticeOf(turn('T')), undefined, 'a turn is no notice');
+    assert.equal(noticeOf(incident('I')), undefined, 'an incident is no notice');
+    assert.equal(view(tellNow('A')).key, 'notification:A');
+    assert.equal(view(tellNow(undefined)).key, 'notification:', 'a card with no ref still has a key');
+  });
+
+  it('carries the text, the Why now line, the times and the decision of its payload', () => {
+    const card = view(tellNow('A', { decision: decision(), createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.text, card.whyNow, card.time, card.dueAt], ['zz Dana: Invoice', 'Why now: zz first.', '2026-10-22T14:11:09Z', '']);
+    assert.equal(card.decision.ref, 'D1');
+    const reminder = view(notice('B', { dueAt: '2026-10-22T12:00:00Z' }));
+    assert.deepEqual([reminder.text, reminder.whyNow, reminder.time, reminder.dueAt], ['Reminder: stretch.', '', '2026-10-22T14:12:00Z', '2026-10-22T12:00:00Z']);
+    assert.equal(view(notice('C', {})).dueAt, '', 'a reminder with no due time');
+    const bare = view({ type: 'notification', payload: { kind: 'tellnow' } });
+    assert.deepEqual([bare.text, bare.whyNow, bare.time, bare.dueAt, bare.strip], ['', '', '', '', false], 'a payload with only its kind');
+  });
+
+  it('has a strip when a tell now carries a decision or a fallback reason, and none otherwise', () => {
+    assert.equal(view(tellNow('A')).strip, false, 'a code-written notice with no decision');
+    assert.equal(view(tellNow('B', { decision: decision() })).strip, true);
+    assert.equal(view(tellNow('C', { fallbackReason: 'refusal' })).strip, true);
+    assert.equal(view(notice('D')).strip, false);
+    assert.equal(view(notice('E', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'a reminder has no strip, whatever it carries');
+  });
+
+  it('is a fallback strip with the notification\'s own reason, else the decision\'s, else none', () => {
+    const own = view(tellNow('A', { fallbackReason: 'refusal', decision: decision({ fallback: true, fallbackReason: 'timeout' }) }));
+    assert.equal(own.fallbackReason, 'refusal');
+    const decided = view(tellNow('B', { decision: decision({ fallback: true, fallbackReason: 'budget' }) }));
+    assert.equal(decided.fallbackReason, 'budget');
+    assert.equal(view(tellNow('C', { decision: decision({ fallback: true }) })).fallbackReason, '', 'a fallback decision with no reason');
+    assert.equal(view(tellNow('D', { decision: decision() })).fallbackReason, undefined, 'a decision that is not a fallback');
+    assert.equal(view(tellNow('E', { fallbackReason: '' })).fallbackReason, undefined, 'an empty reason');
+    assert.equal(view(tellNow('F', { fallbackReason: 'refusal' })).decision, undefined, 'a fallback with no decision shows none');
+  });
+
+  it('leaves the newest mark to the turns: a card never has one, and the last turn strip keeps it', () => {
+    const views = chatView([turn('A', { decision: decision() }), tellNow('N', { decision: decision() }), turn('B')], [], NO_RUNNING, NOW);
+    assert.equal(views[1].newest, undefined);
+    assert.deepEqual([views[0].newest, views[2].newest], [true, false], 'the last turn that has a strip, though a card with one follows it');
+    const only = chatView([tellNow('N', { decision: decision() })], [], NO_RUNNING, NOW);
+    assert.equal(only[0].newest, undefined);
+  });
+
+  it('is replaced in place by the store when the same card arrives again (the key is the store\'s)', () => {
+    const first = chatView([tellNow('A')], [], NO_RUNNING, NOW);
+    const again = chatView([tellNow('A', { text: 'changed' })], [], NO_RUNNING, NOW);
+    assert.equal(first[0].key, again[0].key);
+    assert.equal(again[0].text, 'changed');
+  });
+});
+
 describe('a fresh chat', () => {
   it('is a chat with no entry of any type and no message of this page pending', () => {
     assert.equal(isFreshChat([], []), true);
@@ -272,7 +344,7 @@ describe('a fresh chat', () => {
     assert.equal(isFreshChat([], [local('x', 'failed')]), false);
   });
 
-  it('is not fresh with an incident or a notice alone, though the page draws neither yet', () => {
+  it('is not fresh with an incident or a notice alone, though the page draws no incident yet', () => {
     assert.equal(isFreshChat([incident('I1')], []), false);
     assert.equal(isFreshChat([notice('N1')], []), false);
   });
@@ -341,6 +413,12 @@ describe('the fixed strings', () => {
         meaningAct: 'OcuTalon took or requested an action',
       },
     );
+  });
+
+  it('say a notice card\'s caption as "Due 12:00 \u00B7 arrived 12:01", joined by the chat\'s separator', () => {
+    assert.deepEqual({ ...NOTICE_TEXTS }, { due: 'Due {time}', arrived: 'arrived {time}' });
+    const line = [NOTICE_TEXTS.due.replace('{time}', '12:00'), NOTICE_TEXTS.arrived.replace('{time}', '12:01')].join(CHAT_TEXTS.separator);
+    assert.equal(line, 'Due 12:00 \u00B7 arrived 12:01');
   });
 
   it('write Deciding and Working with the one-character ellipsis U+2026, never three dots', () => {

@@ -3,7 +3,7 @@
 /// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
 /// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
 /// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of
-/// TestStateChatDecision (Story 2.6).
+/// TestStateChatDecision (Story 2.6) and the notice cards of TestStateChatNotices (Story 2.7).
 /// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
@@ -1045,6 +1045,63 @@ ClassMethod WaitsOnLock(pid As %Integer, seconds As %Integer) As %Boolean [ Priv
 		Hang 0.02
 	}
 	Quit run = 5
+}
+
+/// DW-62: the snapshot's chat holds the web notice cards that WebChatOut kept (the tell-now and reminder Delivery rows of the
+/// session) among its turns and incidents, so a reload shows them where they arrived.
+///   - A session with a turn of 2024, a card now and a turn of 2099 has the chat turn, card, turn; the card's entry is the
+///     notification payload of its row. Another session's card, a card of another channel, a row of another kind and a reply's
+///     row (kind empty) are not in it;
+///   - at the same second a turn comes first, then an incident, then a card, whatever the order they were made in;
+///   - the cap of 100 counts all three: 40 turns, 40 incidents and 40 cards one second apart in turn, incident, card order have
+///     120 entries, and the chat keeps the newest 100, from the 7th card to the last.
+Method TestStateChatNotices()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapinotice"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapinoticeother"_..Number)
+	Set before = $ClassMethod(fixture, "Turn", mine, "2024-01-01T10:00:00Z")
+	Set card = $ClassMethod(fixture, "Delivery", mine, {"Text": ("zz card text"_$Char(10)_"Why now: zz why."), "Kind": "tellnow"})
+	Set after = $ClassMethod(fixture, "Turn", mine, "2099-01-01T10:00:00Z")
+	Set refs = mine_","_theirs_","_before_","_card_","_after
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", theirs)
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Channel": "telegram"})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Kind": "incident"})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", mine, {"Kind": "", "ChannelMessageId": ""})
+	Set refs = refs_","_$ClassMethod(fixture, "Delivery", "instance")
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_before_",notification:"_card_",chat.message:"_after, "the card sits between the turn of 2024 and the turn of 2099, and no other row is in the chat")
+	Set entry = body.chat.%Get(1).payload
+	Do $$$AssertEquals(entry.kind_"|"_entry.text_"|"_entry.whyNow, "tellnow|zz card text|Why now: zz why.", "the card's entry is its notification payload, split at the Why now line")
+	Do $$$AssertTrue(entry.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "with its time: "_entry.createdAt)
+	Do $ClassMethod(fixture, "Clean", refs)
+
+	Set tied = "2030-01-01T10:00:00Z"
+	Set mine = $ClassMethod(fixture, "Session", "zzapinoticeties"_..Number)
+	Set card = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": (tied)})
+	Set incident = $ClassMethod(fixture, "Incident", mine, tied)
+	Set turn = $ClassMethod(fixture, "Turn", mine, tied)
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_turn_",incident:"_incident_",notification:"_card, "at the same second: the turn, the incident, then the card, whatever the order they were made in")
+	Do $ClassMethod(fixture, "Clean", mine_","_card_","_incident_","_turn)
+
+	Set mine = $ClassMethod(fixture, "Session", "zzapinoticecap"_..Number)
+	Set refs = mine
+	Set expected = ""
+	For i = 1:1:40 {
+		Set second = 3 * i
+		Set turn = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:"_$Extract(100 + (second \ 60), 2, 3)_":"_$Extract(100 + (second # 60), 2, 3)_"Z")
+		Set incident = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:"_$Extract(100 + ((second + 1) \ 60), 2, 3)_":"_$Extract(100 + ((second + 1) # 60), 2, 3)_"Z")
+		Set card = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": ("2030-01-01T10:"_$Extract(100 + ((second + 2) \ 60), 2, 3)_":"_$Extract(100 + ((second + 2) # 60), 2, 3)_"Z")})
+		Set refs = refs_","_turn_","_incident_","_card
+		If i > 7 Set expected = expected_",chat.message:"_turn_",incident:"_incident
+		If i >= 7 Set expected = expected_",notification:"_card
+		If i = 7 Set expected = $Piece(expected, ",", 2, *)
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 120")
+	Do $$$AssertEquals(..Items(body.chat), expected, "the newest 100 across turns, incidents and cards, from the 7th card to the last")
+	Do $ClassMethod(fixture, "Clean", refs)
 }
 
 /// Waits up to seconds for the global node named by ref to reach count.

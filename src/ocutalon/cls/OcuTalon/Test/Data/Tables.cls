@@ -1,7 +1,7 @@
 /// Tests of the cross-lane table contracts (Story 0.4): every OcuTalon.Data and OcuTalon.Bridge.Data table, and the live
 /// event table, has exactly its contract, its default global is its registry row's and resolves to the private
-/// database, no persistent class projects an SQL reserved word, and the Delivery stubs refuse and find nothing. The
-/// tests create no rows, but for the fixture mark of TestStatusMarkRecord, which the test removes.
+/// database, and no persistent class projects an SQL reserved word. The tests create no rows, but for the fixture mark of
+/// TestStatusMarkRecord, which the test removes.
 Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 {
 
@@ -80,15 +80,6 @@ Method TestSqlNames()
 	For process = "OcuTalon.Bridge.Process.Decide", "OcuTalon.Bridge.Process.ApprovalHold", "OcuTalon.Watch.IncidentManager", "OcuTalon.Checks.Process", "OcuTalon.Core.Conversation", "OcuTalon.Core.Intake", "OcuTalon.Schedule.ReminderTimer" {
 		Do $$$AssertTrue($Data(checked(process)), process_" is among the checked classes")
 	}
-}
-
-/// The Delivery stubs: Record is an error that says it is not implemented yet, and FindByApproval finds nothing.
-Method TestDeliveryStubs()
-{
-	Set sc = ##class(OcuTalon.Data.Delivery).Record("zz", "web", "1", "")
-	Do $$$AssertStatusNotOK(sc, "Record returns an error status")
-	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "not implemented yet", "the error says it is not implemented yet")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval("zz", "web", "zz"), "", "FindByApproval returns an empty string")
 }
 
 /// Record creates or replaces the row of a mark with RecordedAt in UTC to the second, Get reads the value ("" with no row),
@@ -417,10 +408,16 @@ XData Contracts [ MimeType = application/json ]
    "Channel": "%String(MAXLEN=32)",
    "ChannelMessageId": "%String(MAXLEN=128)",
    "ApprovalRef": "%String(MAXLEN=22)",
-   "RecordedAt": "%String(MAXLEN=20)"
+   "RecordedAt": "%String(MAXLEN=20)",
+   "Kind": "%String(MAXLEN=32)",
+   "Text": "%String(MAXLEN=)",
+   "DecisionRef": "%String(MAXLEN=22)",
+   "DueAt": "%String(MAXLEN=20)",
+   "FallbackReason": "%String(MAXLEN=32)"
   },
   "indexes": {
-   "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef"
+   "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",
+   "OwnerRefChannelIndex": "OwnerRef,Channel"
   }
  },
  "OcuTalon.Data.Reminder": {

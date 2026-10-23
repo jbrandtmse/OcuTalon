@@ -7,10 +7,13 @@
 ///   - TestTurnThroughProduction: a message becomes a Turn that reaches done within 20 seconds with the text, the ClientId,
 ///     the ItemId, the Item's header as the trace target and the fallback key and reason; the session's stream holds the
 ///     three chat.message events; the Item, the two Decide requests (decide and turn, in the Item's trace session) and the
-///     one Outbound to Notify are all in the session's SuperSession (the TraceRef);
+///     one Outbound to Notify are all in the session's SuperSession (the TraceRef). The Outbound goes on through Notify to
+///     WebChatOut, which leaves one Delivery row for the web with the reply's DecisionRef and no ChannelMessageId, and
+///     publishes no notification event (Story 2.7);
 ///   - TestRepeatQueuesNothing: a second message with the same clientId is accepted as a duplicate and queues nothing;
 ///   - TestTurnsRunInOrder: three messages are three turns that run one after another, in the order they were posted, each
-///     with one done event, and each turn's requests and Outbound are in its own Item's trace session (AD-26);
+///     with one done event, and each turn's requests and Outbound are in its own Item's trace session (AD-26), and each
+///     Outbound leaves one reply Delivery row;
 ///   - TestReconcileResumesTurns: a running turn and two queued turns are run, in order, by Install.Step.Web.Reconcile(),
 ///     each with one reply, and every RunTurns request is in the session's SuperSession (AD-26);
 ///   - TestReconcileResumesEverySession: the same sweep resumes the turns of three sessions at once (one with a running and a
@@ -19,7 +22,8 @@
 /// Before a reconcile a test checks that no other session has a queued or running turn, and after each test the turns of the
 /// run's sessions that are not done are removed, so that no test runs another's turns. The guard, the fixture sessions, the
 /// run's number (^OcuTalonTest("ConversationProduction","n")) and the clean-up are those of Test.Core.InProduction; the clean-up
-/// also removes the turns that Conversation made, with their events.
+/// also removes the turns that Conversation made, with their events, and the Delivery rows that WebChatOut made for the
+/// fixture sessions.
 Class OcuTalon.Test.Core.ConversationProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -114,6 +118,17 @@ Method TestTurnThroughProduction()
 		Do $$$AssertEquals(notices.%Get(0).superSession, trace, "in the session's SuperSession")
 		Do $$$AssertEquals(outbound.SessionRef_"|"_outbound.OriginChannel_"|"_outbound.CatalogKey_"|"_outbound.Slots_"|"_outbound.Text, session_"|web|conversation.turnFallback|{""fallbackReason"":""unusable""}|", "carrying the key and the slots")
 	}
+	Do ..WaitDeliveries(session, 1)
+	Do $$$AssertTrue(..Handled(trace, 1), "WebChatOut has handled the Outbound")
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "WebChatOut").%Size(), 1, "the Outbound goes on from Notify to WebChatOut, in the session's SuperSession")
+	Set deliveries = ..Deliveries(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "WebChatOut leaves one Delivery row for the session")
+	If deliveries.Count() = 1 {
+		Set delivery = deliveries.GetAt(1)
+		Do $$$AssertEquals(delivery.OwnerRef_"|"_delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.Text_"|"_delivery.DecisionRef, session_"|web||||", "it is the reply's row: the web, no message id, no kind or text, and the reply's DecisionRef (none for the stub Decide)")
+	}
+	Do $$$AssertEquals(..Notifications(session), 0, "and no notification event is published for a reply")
 }
 
 /// A second message with the same clientId answers as a duplicate: no second Turn, no second Item request, no second set of
@@ -209,6 +224,10 @@ Method TestTurnsRunInOrder()
 		Set noticeSessions = noticeSessions_$Select(noticeSessions = "": "", 1: ",")_notices.%Get(i).sessionId
 	}
 	Do $$$AssertEquals(noticeSessions, itemSessions, "each Outbound is in its own turn's Item session, in order")
+	Do ..WaitDeliveries(session, 3)
+	Do $$$AssertTrue(..Handled(trace, 3), "WebChatOut has handled the three Outbounds")
+	Do $$$AssertEquals(..Deliveries(session).Count(), 3, "and each leaves one Delivery row")
+	Do $$$AssertEquals(..Notifications(session), 0, "with no notification event")
 }
 
 /// A turn left running and two queued turns of a session are run by the reconcile, in order, each with one reply: Reconcile
@@ -339,18 +358,7 @@ Method WaitDone(session As %String, clientId As %String) As OcuTalon.Data.Turn [
 /// The chat.message events of the session's stream, once there are count of them or WAIT seconds have passed.
 Method WaitEvents(session As %String, count As %Integer) As %DynamicArray [ Private ]
 {
-	Set end = $ZHorolog + ..#WAIT
-	For {
-		Set found = []
-		Set events = ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
-		Set iterator = events.%GetIterator()
-		While iterator.%GetNext(, .event) {
-			If event.type = "chat.message" Do found.%Push(event)
-		}
-		If (found.%Size() >= count) || ($ZHorolog > end) Quit
-		Hang 0.25
-	}
-	Quit found
+	Quit ##class(OcuTalon.Test.Core.Observe).Events(session, "chat.message", count, ..#WAIT)
 }
 
 /// Waits until count requests have gone from Conversation to Notify in the SuperSession, or WAIT seconds have passed:
@@ -364,6 +372,33 @@ Method WaitNotices(trace As %String, count As %Integer) [ Private ]
 		If (found >= count) || ($ZHorolog > end) Quit
 		Hang 0.25
 	}
+}
+
+/// Waits until the session has count Delivery rows or WAIT seconds have passed: the Outbound reaches WebChatOut after the turn is
+/// done.
+Method WaitDeliveries(session As %String, count As %Integer) [ Private ]
+{
+	Do ##class(OcuTalon.Test.Core.Observe).WaitDeliveries(session, count, ..#WAIT)
+}
+
+/// 1 once WebChatOut has handled count Outbounds that Notify sent it in the SuperSession, so that what it would publish has been
+/// published; 0 after WAIT seconds.
+Method Handled(trace As %String, count As %Integer) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "WebChatOut", count, ..#WAIT)
+}
+
+/// The Delivery rows of the session, whatever their kind, in the order they were recorded (the test reads the table directly,
+/// as a test may).
+Method Deliveries(session As %String) As %ListOfObjects [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+}
+
+/// The number of notification events on the session's stream.
+Method Notifications(session As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Core.Observe).Events(session, "notification").%Size()
 }
 
 /// The sessions, other than the given ones (comma-separated Refs), that have a queued or running turn, comma-separated: a

@@ -5,11 +5,13 @@
 ///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
-///     decisions or since a time, noticed incidents, pending approval requests and pairing.
+///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
+///     cards (RecentNotices) and the delivery of an approval message (DeliveryFor).
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
-///   - The snapshot's chat reads only the newest turns and the newest noticed incidents (RecentTurns, RecentIncidents), so
-///     that a long session's snapshot does not open and serialize every row (DW-65).
+///   - The snapshot's chat reads only the newest turns, the newest noticed incidents and the newest notice cards
+///     (RecentTurns, RecentIncidents, RecentNotices), so that a long session's snapshot does not open and serialize every
+///     row (DW-65).
 ///   - A find (Incident, Approval, Decision) answers "" for a record the session can't see, exactly as for a missing one,
 ///     so the REST surface answers both with 404.
 ///   - TurnCost and RunCost (AD-20) total the usage rows of one owner: the turn's own session, or the session given. A row
@@ -227,6 +229,33 @@ ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Dat
 	Quit rows.GetAt(1)
 }
 
+/// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow or reminder, newest RecordedAt
+/// first and then newest ID first, at most max. sc is an error status when the read failed.
+ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentNotices", sessionRef, .sc, +max)
+}
+
+/// The session's newest Delivery row for the approval request and channel, or "": a row of owner eval, instance or another
+/// session, a row with another approval Ref or channel, and one whose Ref differs only in case all answer like a missing
+/// one. The statement narrows the rows by the collated index; the values are then compared exactly. The values may come
+/// from a bridge event or request input; they are only ever bound values.
+ClassMethod DeliveryFor(approvalRef As %String, channel As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Delivery
+{
+	Set sc = $SYSTEM.Status.OK()
+	If (approvalRef = "") || (channel = "") Quit ""
+	Set rows = ..Rows("deliveryByApproval", sessionRef, .sc, approvalRef, channel)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (row.ApprovalRef = approvalRef) && (row.Channel = channel) && (row.OwnerRef = sessionRef) {
+			Set found = row
+			Quit
+		}
+	}
+	Quit found
+}
+
 /// The incident with this Ref when the session can see it (noticed; its own, or an instance incident of a watched
 /// production on a local install), otherwise "": a record the session can't see answers like a missing one. ref may
 /// come from request input; it is only ever a bound value.
@@ -426,6 +455,14 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "pairing" {
 		Set class = "OcuTalon.Data.Pairing", binds = "o"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Pairing WHERE SessionRef = ? ORDER BY ID"
+	}
+	If kind = "recentNotices" {
+		Set class = "OcuTalon.Data.Delivery", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder') ORDER BY RecordedAt DESC, ID DESC"
+	}
+	If kind = "deliveryByApproval" {
+		Set class = "OcuTalon.Data.Delivery", binds = "aao"
+		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ? AND OwnerRef = ? ORDER BY ID DESC"
 	}
 	Quit ""
 }

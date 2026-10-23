@@ -16,35 +16,36 @@ import {
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { ChatOutbox } from './chat-outbox';
-import { CHAT_TEXTS, chatView, isFreshChat, type TurnView } from './chat-view';
+import { CHAT_TEXTS, chatView, isFreshChat, type ChatEntryView } from './chat-view';
 import { Composer } from './composer';
 import { EmptyChat } from './empty-chat';
+import { NoticeCard } from './notice-card';
 import { OcutalonReply } from './ocutalon-reply';
 import { UserMessage } from './user-message';
 
 /** How far from the bottom (px) the list still counts as at the bottom. */
 const BOTTOM_SLACK_PX = 24;
 
-/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key. */
+/** An element of the list that the New messages button focuses: a user message or a reply, by the turn's key, or a notice card. */
 interface Target {
   key: string;
-  part: 'user' | 'reply';
+  part: 'user' | 'reply' | 'notice';
 }
 
-/** True once a turn's reply is the model's text or a fallback: the reply has landed. */
-const landed = (turn: TurnView): boolean => turn.reply.kind === 'text' || turn.reply.kind === 'fallback';
+/** True once a turn's reply is the model's text or a fallback: the reply has landed. A notice card has landed when it is there. */
+const landed = (entry: ChatEntryView): boolean => entry.entry === 'notice' || entry.reply.kind === 'text' || entry.reply.kind === 'fallback';
 
 /**
  * The chat panel (UX-DR58, UX-DR67, UX-DR126), inside the page's main landmark once the snapshot has loaded. The list shows the
- * live store's chat.message entries in store order and then this page's own messages that the store does not hold yet; a fresh
- * session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region and nothing moves
+ * live store's chat.message entries and its tell-now and reminder notice cards in store order and then this page's own messages
+ * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region and nothing moves
  * focus except the New messages button.
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
  * the bottom, new content keeps it there (a ResizeObserver on the list and its content). It leaves the bottom only when it is
  * scrolled up (its scrollTop falls), so content that grows between the panel's own scroll to the bottom and that scroll's
  * event does not stop it following. When it is scrolled up, content from
- * elsewhere (a new entry, or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
+ * elsewhere (a new entry, a notice card or a reply that lands) changes nothing about its scroll, and the New messages button shows. Pressing
  * it scrolls to the bottom with no smooth scroll and focuses the first entry that arrived or changed meanwhile; it hides once
  * the list is at the bottom. A new message that this page sends (ChatOutbox.send, from the composer or later from the demo guide) scrolls the list to the bottom, as the user's own action.
  *
@@ -54,7 +55,7 @@ const landed = (turn: TurnView): boolean => turn.reply.kind === 'text' || turn.r
  */
 @Component({
   selector: 'app-chat-panel',
-  imports: [Composer, EmptyChat, Icon, OcutalonReply, UserMessage],
+  imports: [Composer, EmptyChat, Icon, NoticeCard, OcutalonReply, UserMessage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="list" #list (scroll)="onScroll()">
@@ -63,11 +64,15 @@ const landed = (turn: TurnView): boolean => turn.reply.kind === 'text' || turn.r
           <app-empty-chat />
         } @else {
           <div class="entries">
-            @for (turn of turns(); track turn.key) {
-              <div class="turn">
-                <app-user-message [turn]="turn" (retry)="outbox.retry(turn.key)" />
-                <app-ocutalon-reply [turn]="turn" />
-              </div>
+            @for (entry of entries(); track entry.key) {
+              @if (entry.entry === 'turn') {
+                <div class="turn">
+                  <app-user-message [turn]="entry" (retry)="outbox.retry(entry.key)" />
+                  <app-ocutalon-reply [turn]="entry" />
+                </div>
+              } @else {
+                <app-notice-card [notice]="entry" [instanceZone]="instanceZone()" />
+              }
             }
           </div>
         }
@@ -171,8 +176,11 @@ export class ChatPanel {
     (this.live.store()?.chat ?? []).some((item) => item.type === 'chat.message' && item.payload.state === 'running'),
   );
 
-  /** The entries to render. */
-  protected readonly turns = computed(() => {
+  /** The instance's time zone, from the snapshot; the notice cards' times name the browser's zone when its offset differs. */
+  protected readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');
+
+  /** The entries to render: turns and notice cards in the store's order, then the page's own messages. */
+  protected readonly entries = computed(() => {
     const chat = this.live.store()?.chat ?? [];
     this.clock();
     const now = Date.now();
@@ -191,7 +199,7 @@ export class ChatPanel {
   protected readonly unseen = signal(false);
 
   constructor() {
-    effect(() => this.noteArrivals(this.turns()));
+    effect(() => this.noteArrivals(this.entries()));
     let sends = this.outbox.sendCount();
     effect(() => {
       const count = this.outbox.sendCount();
@@ -257,17 +265,17 @@ export class ChatPanel {
   }
 
   /** Remembers the first entry that arrived or whose reply landed since the last look; with the list scrolled up it shows the button. */
-  private noteArrivals(turns: readonly TurnView[]): void {
+  private noteArrivals(entries: readonly ChatEntryView[]): void {
     let first: Target | undefined;
-    for (const turn of turns) {
-      const before = this.landedBefore.get(turn.key);
-      const now = landed(turn);
+    for (const entry of entries) {
+      const before = this.landedBefore.get(entry.key);
+      const now = landed(entry);
       if (first === undefined && before === undefined) {
-        first = { key: turn.key, part: 'user' };
+        first = { key: entry.key, part: entry.entry === 'notice' ? 'notice' : 'user' };
       } else if (first === undefined && !before && now) {
-        first = { key: turn.key, part: 'reply' };
+        first = { key: entry.key, part: 'reply' };
       }
-      this.landedBefore.set(turn.key, now);
+      this.landedBefore.set(entry.key, now);
     }
     if (first !== undefined && !this.atBottom) {
       this.target ??= first;

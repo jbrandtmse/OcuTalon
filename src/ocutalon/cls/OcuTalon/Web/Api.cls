@@ -247,9 +247,9 @@ ClassMethod Pairing() As %Status
 
 /// The snapshot of a session, keys in this order: the version, the instance zone, the session's epoch, each stream's
 /// last Seq (read before any section, so that every change after the cursors is an event the page will apply), the chat
-/// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns and visible noticed
-/// incidents merged by time, oldest first; the rail its pending approval requests, checks, pending reminders and newest
-/// decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
+/// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns, visible noticed
+/// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
+/// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, and status: the active status conditions. instanceStream is the stream reported as
 /// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
@@ -292,10 +292,11 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	Quit body
 }
 
-/// The chat: the newest CHATMAX of the session's turns and its visible noticed incidents, as live items ({"type",
-/// "payload"}), oldest first. Both reads are newest first and at most CHATMAX, so the newest CHATMAX of the two together
-/// are among them. They are merged by time (a turn's CreatedAt, an incident's NoticedAt), a turn before an incident of the
-/// same time, then by row ID; the merge is walked from its newest end and the entries kept are pushed oldest first.
+/// The chat: the newest CHATMAX of the session's turns, its visible noticed incidents and its web notice cards (the tell-now
+/// and reminder cards that WebChatOut kept, DW-62), as live items ({"type", "payload"}), oldest first. The three reads are
+/// newest first and at most CHATMAX, so the newest CHATMAX of the three together are among them. They are merged by time (a
+/// turn's CreatedAt, an incident's NoticedAt, a card's RecordedAt), at the same time a turn before an incident before a
+/// card, then by row ID; the merge is walked from its newest end and the entries kept are pushed oldest first.
 ClassMethod ChatItems(sessionRef As %String) As %DynamicArray [ Private ]
 {
 	Kill merged
@@ -310,6 +311,12 @@ ClassMethod ChatItems(sessionRef As %String) As %DynamicArray [ Private ]
 	For i = 1:1:incidents.Count() {
 		Set incident = incidents.GetAt(i)
 		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
+	}
+	Set notices = ##class(OcuTalon.Data.Ownership).RecentNotices(sessionRef, ..#CHATMAX, .sc)
+	Do ..Check(sc)
+	For i = 1:1:notices.Count() {
+		Set notice = notices.GetAt(i)
+		Set merged("T"_notice.RecordedAt, 2, notice.%Id()) = {"type": "notification", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Notification).FromRow(notice)))}
 	}
 	Kill newest
 	Set kept = 0

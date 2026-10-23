@@ -10,9 +10,10 @@
 #   - row 15, outside Decide: a terminal session reads the three extension classes and a runner's model from the active
 #     production;
 #   - row 16, the stubs over the running production: a created CommandsIn service sends to SessionOps, Intake,
-#     TriageAgent and OutcomeRouter. The operations answer code 5003, the process answers that it terminated because of
-#     5003, the router answers OK with nothing and sends nothing on, and every target keeps the job it had; then the same
-#     for every enabled stub with a pool, so that no stub kills its job on a request;
+#     TriageAgent and OutcomeRouter. The operations answer code 5003, Intake (built in Story 2.7) refuses a message that is
+#     not an Item with a warning and answers OK with nothing, the router answers OK with nothing and sends nothing on, and
+#     every target keeps the job it had; then the same for every enabled stub with a pool, so that no stub kills its job on a
+#     request;
 #   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context, and
 #     CommandsIn answers both with ReminderOps' plain-English not_built result (status OK, Ok 0) after sending the command from
 #     CommandsIn to ReminderOps; an origin outside the enumeration is refused naming it;
@@ -128,7 +129,7 @@ CHK|model|TriageAgent|claude-haiku-5-5" \
 item_jobs "$tmp/jobs.16.before"
 check_session "row 16: the stubs answer 'not implemented', and the router answers OK with nothing" OCUTALON \
   "CHK|sync|SessionOps|0|5003|1|0
-CHK|sync|Intake|0|<Ens>ErrBPTerminated|1|0
+CHK|sync|Intake|1||0|0
 CHK|sync|TriageAgent|0|5003|1|0
 CHK|sync|OutcomeRouter|1||0|0
 CHK|router-received|1
