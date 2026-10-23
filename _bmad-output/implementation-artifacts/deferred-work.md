@@ -441,3 +441,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.8 links every user turn by (OwnerRef, agent) (AD-6); an eval turn case is a user turn with owner eval (AD-30)
 - 2026-10-23T12:47:58Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=spec_gate note=each eval turn case starts fresh (SessionMode fresh with no SeedText) or gets an OwnerRef of its own
+
+### DW-114: Decide probes the conversation lock inside its one job (PoolSize 1), so each user turn that finds its conversation held stalls every other Decide request for the probe's 2 seconds
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: high | footprint: in-epic
+- evidence: Production.cls:18 Decide PoolSize 1; Decide.Held waits LOCKSECONDS (2) in OnRequest (AD-6 fixes the 2-s wait); Busy arises only while a late Chat of the same conversation holds the lock
+- 2026-10-23T15:50:33Z status=escalated owner=burndown by=harvest note=a spine call: a larger Decide pool (AD-30 ordering) or a probe of Conversation's own (Lane B); for the decision sheet
+
+### DW-115: A saved conversation holds the tool results the model saw, verbatim, in OCUTALON_PRIVATE; the redaction convention covers steps, audit, logs and errors, not the stored history
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Adapter/Agent.cls SaveLinked; the four redaction tests drop their turn's session before the key scan (measured: without the drop the scan names the saved session)
+- 2026-10-23T15:50:33Z status=by-design owner=1-8-conversations-survive-restarts by=harvest note=spine-bound: AD-3 puts AI sessions in the private database; AD-20's compaction keeps every tool result verbatim in facts_learned; AD-4/AD-14 keep keys out of tool results structurally; veto item U-39 for the owner
+
+### DW-116: A ConversationLink Point failure after a successful session %Save leaves the saved session unlinked; the only reachable cause is an OwnerRef over the link column's 22 characters
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Adapter/Agent.cls SaveLinked; Test.Bridge.Conversation.TestSaveProblem pins the warning and SessionRotated 0
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=a caller sends an OwnerRef over 22 characters (then Admit should refuse it)
+
+### DW-117: A fresh turn that outlives Decide's timer is answered with a timeout fallback whose SessionRotated is 0, yet its late untainted Chat still moves the link to the new seeded session
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.RecordFallback sets no runner flag for a timer fallback; AnswerLinked saves the late Chat and Points the link
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=Epic 2's Conversation retries or continues after a timed-out fresh turn and expects the old session
+
+### DW-118: A continue turn whose link names an AI session that no longer exists fails with an error status on every turn, with no signal to send fresh
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec decision 14: unreachable today (retention purges only unlinked sessions, AD-20); Test.Bridge.Conversation.TestLockReleased pins the error and the lock release
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=Story 30.2's purge or a restore of the private database leaves a link whose session is gone
+
+### DW-119: Test.Agent.Conversation asserts elapsed-time windows (Busy 2-5 s, the timed-out turn 11-17 s, turn 2 within 6 s) that a loaded CI runner could miss
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the windows are the spec's matrix numbers (timer 12 s, late reply 18 s)
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=a CI run goes red on an elapsed-window assertion of TestBusyWhileHeld, TestBusyAfterTimedOutTurn or TestRunnerBusy
