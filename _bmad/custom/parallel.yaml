@@ -33,6 +33,12 @@ runtime_locks:
   - name: throwaway-iris
     stages: []
     stale_minutes: 20
+  # Story 32.4: ci/warm.sh holds warm-iris.lock in the lane's lock folder (Rule 21) for a whole stage while the lane's warm
+  # stack is up, so its stale age is long. As for every lock, the orchestrator sweeps it only after its owner is confirmed dead.
+  # [2026-10-23, the Contest Planner under the owner's delegation, closing DW-111 from Epic 32's decision sheet]
+  - name: warm-iris
+    stages: []
+    stale_minutes: 240
 
 # Optional worktree bootstrap: untracked prerequisites a fresh checkout lacks (installed dependencies,
 # generated or reference trees). The orchestrator runs `bootstrap` in each new worktree after provisioning
