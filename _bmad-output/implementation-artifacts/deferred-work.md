@@ -381,3 +381,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
 - 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend
+
+### DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Task 0 (b) measured ci/mock/scenarios/A/daily-cap.json (permission_error JSON) only and did not try a plain-text body; Story 29.3's AC names HTTP 403 and the fixed text only; Classify finds daily_cap by the text
+- 2026-10-23T02:11:46Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=unverified; settled by the gateway sending the measured JSON body, or a plain-text 403 measured to give daily_cap
+
+### DW-95: RecordFallback marks the day of the call (MarkCapped with no day), so a cap reached within one call's latency before local midnight marks the next day as capped
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.RecordFallback calls Budget.MarkCapped("", sinkClass), which takes the day when the mark is written, after the precheck or the gateway's 403 has seen the cap
+- 2026-10-23T02:11:52Z status=by-design owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=cr note=spec-bound: the Boundaries prescribe MarkCapped("", sinkClass); the window is one call's latency, once a day
+
+### DW-96: Classify knows only Anthropic's refusal and max_tokens stop reasons, so another provider's cut-off (length) or Anthropic's model_context_window_exceeded with text reads as usable
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.Classify rule 3 matches refusal and max_tokens only; AD-8 maps those two and treats other providers as reporting none until checked; release 1 runs Anthropic only
+- 2026-10-23T02:11:52Z status=wontfix-theoretical owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=cr note=real once a provider other than Anthropic runs (Story 17.3) or a request can come near the model's context window
