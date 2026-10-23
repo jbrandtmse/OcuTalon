@@ -449,6 +449,8 @@ Story 2.1's popover service has never run in a browser (DW-58).
 - "An approval request carries its incident's `TraceHeaderId`."
 - "The page's 'Open my conversation' is the newest turn's `traceUrl`."
 
+**Lead's rulings at the spec gate (2026-10-23).** The three spine notes above are written into the Conventions "Live events" row (decide; AD-26 extended, not contradicted). No veto item: the accessible names follow UX-DR42's own rule and the popover heading is the mockup's label. DW-129's turn-page landing (the decision may sit on the next page when its user message ends a page, the same limit a turn link has) is decided as within the AC's "at the decision message's session".
+
 **Integration ACs (Rule 1).**
 - The reply strip, notice strip, rail rows and header menu read `app-trace-link` and `TraceHelp`, and open real Visual Trace pages (V1 to V8, over real HTTP).
 - `Decision.FromRow` reads `Ownership.TurnOfItem`, and `/state`'s rail decision and the `decision` event carry the turn's `traceUrl` (`Test.Web.Api`, `Test.Core.BridgeSink`, V2).
