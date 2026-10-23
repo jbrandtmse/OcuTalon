@@ -18,7 +18,7 @@ deferred: []
 
 **Problem:** A judge who has loaded the build 154 image must today know the retag rule, the compose details and how to tell when OcuTalon is ready. Nothing checks the image's CPU, Docker, or the Compose 2.24 that the compose file's `env_file` form needs (DW-2), so a wrong setup fails late and unclearly.
 
-**Approach:** Add a root `install.sh` (bash 3.2). It checks Docker, Compose and the image, and retags the image to the name the build uses. It creates `.env` from `.env.example` when none exists, then runs `docker compose up -d`. It shows progress until the compose health check passes, then prints the address and the README account. Two tests cover it:
+**Approach:** Add a root `install.sh` (bash 3.2). It checks Docker, Compose and the image, and retags the image to the name the build uses. It creates `.env` from `.env.example` when none exists, then runs `docker compose up -d` (unless OcuTalon is already running and healthy [AMENDED 2026-10-23, ruling U-45]). It shows progress until the compose health check passes, then prints the address and the README account. Two tests cover it:
 - a stub-`docker` test on hosted Linux and on hosted macOS with `/bin/bash`, plus ShellCheck;
 - a live unit on the IRIS runner that runs the real script, then the manual retag and a plain `docker compose up`, all in a throwaway project.
 
@@ -220,8 +220,67 @@ Rejected:
 - low: whole-number overrides longer than six digits fall back to the default. These are test-only overrides with an overflow cap, and QA pinned the case.
 - false (settled by measurement): "the Linux side of AC1 has never run". In `ubuntu:24.04` (bash 5.2.21, dash, mawk, non-root), 200 checks passed. The only red was the `git check-attr` check, because the image has no git.
 
+Code review of the rework (2026-10-23, iteration 1 of 3; the diff since 394e419; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). The layers reported 23 rows, which grouped into 13 entries: 0 high, 2 medium, 11 low. 3 were patched in the pass, 1 was routed (DW-134), 1 was closed by-design and 8 were rejected.
+
+The previous round's open items:
+- **The `[CI]` item:** confirmed. A `running healthy` service gets the ready block, the update line and no `compose up` or build. Every other state runs `up -d` and waits.
+  - Rows pin both sides, and two rows pin that the checks, the retag and the `.env` copy run before the healthy branch.
+  - The live unit passes on the final tree, with its rerun checks unchanged.
+  - The IRIS runner's next `image` run is the lead's CI gate.
+- **The key instruction:** confirmed true under that rule. A container reads `.env` only when it is created, the healthy rerun creates nothing, and `--force-recreate` always creates.
+- **DW-127:** stays routed to Story 10.2.
+
+- [x] [Review][Patch] (low, fix-risk low: tracking text only; Rule 19, closed in the pass) Three "Already healthy" mutation lines named red sets that the final test no longer gives, because the rework's review added rows after the lines were written. Each mutation was re-run on the final tree, seen red and reverted, with `shasum` and `git status` unchanged, and the lines under `## Verification` were corrected:
+  - `compose up -d` in the healthy branch also turns the no-base healthy row red;
+  - dropping the health test also turns the `running` row with no health check red, nine checks in all;
+  - printing the update line on every run turns all eight pre-state rows red.
+
+  [_bmad-output/implementation-artifacts/spec-10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to.md, ## Verification]
+- [x] [Review][Patch] (low, fix-risk low: one live run, tree restored; Rule 19, closed in the pass) AC3's live "a rerun prints at once" check (`the second run prints the ready block at once, with no progress line`) had no mutation line on the reworked script.
+  - The rework's live mutation turned only the same-container check red.
+  - On lane C, dropping the healthy branch alone stays green (Design Note 6).
+  - One live run on lane C (tag `e10s1v`) set the healthy test to `if false` and `up -d` to `up -d --force-recreate`, which reproduces the IRIS runner's recreate. That turned this check and the same-container check red. The line is under `## Verification`, AC3.
+
+  [docker/tests/test-install-script-live.sh:115]
+- [x] [Review][Patch] (low, fix-risk low: evidence only) No passing live run was recorded on the final tree. The Auto Run Result's run (`e10s1j`) came before the rework's own review patched the key instruction in `install.sh`. Run at this review: `ci/iris.sh live install-script-live` on lane C, tag `e10s1v`, on the final tree (`install.sh` sha 4da29d3).
+  - Every check passed in 66 s, and the first run was ready after 51 s.
+  - The rerun printed "already running and healthy", `ready after 0 s` and the update line, with the same container.
+  - The teardown removed nothing more, and no `.env` was left.
+  - The shared base kept its ID before and after both live runs.
+
+  [docker/tests/test-install-script-live.sh]
+- [x] [Review][Defer] (medium, fix-risk low: README text) Story 10.2's README must give the commands the script now prints. A rerun of `./install.sh` leaves a healthy OcuTalon alone (U-45), so it applies neither a new key nor an update. The README must:
+  - give `docker compose up -d --force-recreate` for a key, and `docker compose up -d --build` for an update;
+  - not say "run ./install.sh again" for either, or to wait for a start in progress (on Docker Engine, its `up -d` recreates a starting container);
+  - not leave the banner's "restart OcuTalon" to be read as `docker compose restart`, which does not re-read `.env`.
+
+  [install.sh:317,398] — deferred: in-epic, and README.md is Story 10.2's file (contended here). Ledger: DW-134, `routed owner=10-2-the-readme-gets-a-judge-from-download-to-sign-in`.
+
+Dismissed, by-design (spec-bound, Rule 15):
+- (medium) A rerun while OcuTalon is still starting (`running starting`) runs `docker compose up -d`. On Docker Engine, that rebuild recreates the container (CI run 40021886810), so the start begins again.
+  - The amended "Starting and waiting" rule lists "starting" among the states that run `up -d` (ruling U-45), so a wait-only branch would change specified behavior.
+  - Data is safe: the volume is kept, and the after-start steps run again (AD-5).
+  - It reopens only through an amendment of U-45.
+
+Rejected:
+- low: the Auto Run Result still calls Design Note 6's headline stale, although the lead's commit 62b7924 superseded it. The fix edits build-auto's section of the spec under review (reported to the lead).
+- low: the intent's Approach still says the script "then runs `docker compose up -d`", with no condition. The amended Boundaries rule and the "Already healthy" row govern, and the fix edits the frozen intent (reported to the lead).
+- low: the `[CI]` item is ticked before the IRIS runner has passed. The runner's next `image` run is the lead's CI gate, and the live mutation above shows the rerun checks go red on a recreate.
+- low: the rewritten Auto Run Result drops the residual risk that README.md and its Troubleshooting section do not exist yet. The fix edits the spec, and Story 10.2 creates both (Consumed-by, DW-2, DW-134).
+- low: the printed `--force-recreate` and `--build` commands assume a shell in the OcuTalon folder, although the script also runs as `bash <dir>/install.sh`.
+  - The README runs it from the repository root, and Compose's own "no configuration file provided" names the problem.
+  - The `docker compose logs iris` lines have always had the same form.
+  - reopen_if: a judge reports a failed printed command after running install.sh from another folder.
+- low: the printed commands leave out an `IRIS_IMAGE` or `OCUTALON_WEB_PORT` that was given inline to install.sh. `OCUTALON_WEB_PORT` belongs in `.env` (`.env.example`), which Compose reads itself, and an inline `IRIS_IMAGE` is test-only.
+- low (maybe-false): the `paused` and `dead` pre-state rows stub a successful `up -d`, although real Compose may refuse to start such a container.
+  - The rows pin install.sh's control flow: any state that is not healthy runs `up -d`.
+  - A refusal takes the tested "Docker Compose could not start OcuTalon" path, with Compose's own message on screen.
+  - A paused OcuTalon needs a manual `docker pause`.
+- low: the QA pass's "left unpinned" list still names the "Starting OcuTalon" and "To set a key" wording, which the rework pins. It is a dated record of the QA sweep, not a mutation line.
+
 ## Spec Change Log
 
+- 2026-10-23, after the re-review: the Approach line carries the same U-45 condition (lead edit).
 - 2026-10-23, rework iteration 1 (trigger `ci`, run 40021886810): the healthy-rerun rule in Boundaries & Constraints and the "Already healthy" matrix row amended per ruling U-45 (veto); one `[CI]` item opened under Tasks & Acceptance; Design Note 6 records the CI measurement.
 
 ## Review Triage Log
@@ -442,6 +501,7 @@ The review pass added these pinning tests and mutation lines (each applied, run,
 - AC3, the rest of the live unit (the rerun and the sign-in);
   - mutation: the printed password changed to `wrong` (one live run on lane C, before the rework; the line it touches is unchanged) → red: `the printed user and password do not sign in at the printed address`; the other sign-in checks stayed green, `ci/iris.sh teardown` removed nothing more, and the shared base kept its ID.
   - mutation: `docker compose up -d --force-recreate` in the healthy branch of `install.sh` (the rerun checks, same container and no progress line; one live run on lane C, tag `e10s1k`, at the review of the rework) → red: only `MEASURED: compose recreated the container on the second up -d`; `ci/iris.sh teardown` removed nothing more, the shared base kept its ID, and no `.env` was left. The hermetic side of the same clause is the mutation `docker compose up -d` in the healthy branch, under "Already healthy" below.
+  - mutation: the healthy test before `up` → `if false`, and `docker compose up -d` → `docker compose up -d --force-recreate`, which reproduces on lane C the recreate that CI run 40021886810 measured on the IRIS runner (dropping the healthy branch alone stays green on lane C, Design Note 6; one live run on lane C, tag `e10s1v`, at the re-review of the rework) → red: `the second run printed 1 progress line(s), or no ready block` and `MEASURED: compose recreated the container on the second up -d`; every other check stayed green, `ci/iris.sh teardown` removed nothing more, the shared base kept its ID, no `.env` was left, and `install.sh` was byte-identical afterwards (`cmp`, `shasum`).
 - AC4, the `test-boundaries.sh` scan;
   - mutation: drop `install.sh` from the arguments of `scan_files` → red: `scope: a file that must be scanned is not` (`not scanned: install.sh`).
 - AC5, `install.sh` stays unclassified;
@@ -499,12 +559,12 @@ Left unpinned on purpose (the survivors of the sweep, judged equivalent or cosme
   - mutation: `if ! command -v docker ...` → `if false` → red: `no docker: says to install Docker Desktop or Docker Engine`.
 - Already healthy prints at once and starts nothing (the hermetic side of AC3's "a rerun prints at once"; rewritten at the rework of ruling U-45, which reads the service before `up`; the stub answers the `before` file until `up` runs and the `health` lines after it):
   - mutation: print a progress line in the healthy branch → red: `already healthy: the ready block prints with no progress line`, and only that check.
-  - mutation: run `docker compose up -d` in the healthy branch → red: `already healthy: no compose up, so no restart and no build`, and only that check.
-  - mutation: ask only for `running` before `up` (drop the health test) → red: three checks each of the rows `running starting` and `running unhealthy` (`compose up -d runs once ...`, `it says it is starting and waits ...`, `no update line ...`).
+  - mutation: run `docker compose up -d` in the healthy branch → red: `already healthy: no compose up, so no restart and no build` and `already healthy, no base and no .env: exit 0 with the ready block, no compose up` (re-run on the final tree at the re-review of the rework, after the second row was added).
+  - mutation: ask only for `running` before `up` (drop the health test) → red: three checks each of the rows `running starting`, `running unhealthy` and `running` with no health check, nine in all (`compose up -d runs once ...`, `it says it is starting and waits ...`, `no update line ...`; re-run on the final tree at the re-review of the rework).
   - mutation: `case $state in exited | dead) exit 1 ;; esac` right after the first read → red: three checks each of the rows `exited` and `dead` (`exit 0 with the ready block`, `compose up -d runs once ...`, `it says it is starting and waits ...`).
   - mutation: print the `Starting OcuTalon` line before the first read → red: `already healthy: it does not say it is starting`, and only that check.
   - mutation: the update line names `docker compose up -d` without `--build` → red: `already healthy: says it was not started again, and names the command that applies an update`, and only that check.
-  - mutation: print the update line on every run (`if true`) → red: `first run, Health: says it is starting, and has no update line` and the `no update line` check of each of the five rows `running starting`, `running unhealthy`, `exited`, `dead` and `created`.
+  - mutation: print the update line on every run (`if true`) → red: `first run, Health: says it is starting, and has no update line` and the `no update line` check of each of the eight pre-state rows (`running starting`, `running unhealthy`, `running`, `restarting`, `paused`, `exited`, `dead` and `created`), nine checks in all (re-run on the final tree at the re-review of the rework).
   - mutation: the `die` after a failed `up -d` becomes an `echo` → red: `up fails: exit 1` and `up fails: no poll afterwards (the only read of the service is the one before up)`.
   - mutation: move `started=$SECONDS` from before `docker compose up -d` to the start of the wait loop (re-run on the reworked script) → red: `the elapsed time counts from the start of compose up (the build is in it)`, and only that check.
   - mutation: delete the line that caps `step` at `max_wait - elapsed` (re-run on the reworked script) → red: the same seven checks as at the code review.

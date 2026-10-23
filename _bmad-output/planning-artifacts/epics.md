@@ -3209,6 +3209,7 @@ So that I can try it without help and trust that it claims only what the release
 - DW-45: Where the README explains demo mode off, it quotes the owner's sentence for a kept OCUORDERS: "OcuTalon left the OCUORDERS namespace in place because it holds {what was kept}. To remove it, delete the namespace OCUORDERS and its databases OCUORDERS_CODE and OCUORDERS_DATA in the Management Portal." (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
 - DW-2: The README's install sections state Docker Compose 2.24 or later as the minimum (the judges' compose file uses `env_file` with `required: false`); `install.sh` already refuses an older Compose with the exact fix (Story 10.1) (ledger; routed by adjudication 2026-10-23)
 - DW-127: The first CI run with `live:install-script-live` in the `image` group records the `image` job's x64 time against Story 32.3's balance rule (no IRIS job over about 1.25 times the six-job mean); if it is over, move one unit in `ci/units.sh` (Story 10.1's Design Note 11) (ledger; routed by cr 2026-10-23)
+- DW-134: The README's key and update steps give the commands `install.sh` prints: after adding a key to `.env`, `docker compose up -d --force-recreate`; to apply an update, `docker compose up -d --build`; never "run ./install.sh again" for either, because a rerun leaves a healthy OcuTalon alone (Story 10.1, ruling U-45), and never `docker compose restart`, which does not re-read `.env` (ledger; routed by cr 2026-10-23)
 
 ### Story 10.3: The session side of Telegram is ready and stays off
 

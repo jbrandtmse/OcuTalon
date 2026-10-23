@@ -337,3 +337,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: lane C ARM runs 95 s and 83 s (two IRIS starts); image was 552 s on ci-b (run 39675383146); at compose-start's ARM-to-x64 ratio (80 to 246 s) image is about 810-920 s against a mean near 710-730, at or under the limit (inference)
 - 2026-10-23T20:32:41Z status=routed owner=10-2-the-readme-gets-a-judge-from-download-to-sign-in by=cr note=unverified: compare image job with 1.25x six-job mean on first CI run with the unit; if over, move one unit (DN 11)
+
+### DW-134: The README's key and update steps must use the commands install.sh prints: a rerun of ./install.sh now leaves a healthy OcuTalon alone (U-45), so it applies neither a new key nor an update
+- source: spec-10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: install.sh:317 prints 'add it to .env and run: docker compose up -d --force-recreate' and :398 'To apply an update, run: docker compose up -d --build'; the healthy branch (:329) runs no compose up, and a container reads .env only when created; the banner text (epics.md:1781) says only 'restart OcuTalon'
+- 2026-10-23T22:06:04Z status=routed owner=10-2-the-readme-gets-a-judge-from-download-to-sign-in by=cr note=README must not say rerun install.sh for a key/update or to wait for a start in progress; docker compose restart does not reread .env
