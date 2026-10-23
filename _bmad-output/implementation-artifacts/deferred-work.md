@@ -436,3 +436,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 1.7 code review AA2: Timeouts.cls:100 deletes the row it wrote when the definition or a more specific row shadows it; the fix is a new public bridge method (a delete through the accessor), not a two-way door
 - 2026-10-23T11:54:58Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=reopen_if=Ext.Accessor.WriteDefault gains auditing or a hook (SettingsOps, Story 17.4) that a %DeleteId bypasses
+
+### DW-110: Evaluation turn cases (EvalIn, Stories 9.1 to 9.3) would share one linked conversation per (OwnerRef eval, ChatAgent) from Story 1.8 on, so one case's history leaks into the next, unless each case is sent with SessionMode fresh (or its own OwnerRef)
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 1.8 links every user turn by (OwnerRef, agent) (AD-6); an eval turn case is a user turn with owner eval (AD-30)
+- 2026-10-23T12:47:58Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=spec_gate note=each eval turn case starts fresh (SessionMode fresh with no SeedText) or gets an OwnerRef of its own
