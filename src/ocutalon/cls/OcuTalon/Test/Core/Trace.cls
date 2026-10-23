@@ -16,7 +16,14 @@
 ///   - TestPositionAgreesWithVisualTrace: the same synthetic sessions, and others that hold log rows around every header, are laid
 ///     out by Visual Trace's own BuildTraceInfo (called as the page calls it for the trace role, with the events shown and hidden
 ///     and the I/O log not read), and the position of every header in that layout is the position Core.Trace gives it;
-///   - TestPositionOfAnUnknownHeader: an unknown header is an error and leaves both positions empty.
+///   - TestPositionOfAnUnknownHeader: an unknown header is an error and leaves both positions empty;
+///   - TestSecondJoinWaitsForTheFirstThread (QA): while one job holds a day's first message, another job's Join waits for the
+///     lock, then reads the thread the first one recorded, even with the Session row open from before (as WebChatIn holds it),
+///     so that two first messages of a day cannot start two threads;
+///   - TestPositionAgreesWithVisualTraceOnRandomSessions (QA): 28 sessions of pseudo-random headers (ties in time, equal
+///     source and target), event rows of every type and rule rows (hosts on and off the diagram, no host, MessageIds of every
+///     kind, times at, before and after the headers') are laid out by Visual Trace's own BuildTraceInfo, and Position gives every
+///     header the place of that layout, with the events shown and hidden.
 /// The run's number is n from ^OcuTalonTest("Trace","n") (never reset); the lock holder's records are under ^OcuTalonTest("Trace",
 /// "job", key), which the tests remove.
 Class OcuTalon.Test.Core.Trace Extends %UnitTest.TestCase
@@ -284,6 +291,76 @@ Method TestPositionOfAnUnknownHeader()
 	}
 }
 
+/// Two first messages of a day cannot start two threads (the class comment): while a job holds the first message's lock, between
+/// Join and Started, the Join of another waits for the lock and then reads the row afresh, so it gets the thread that the first
+/// recorded, without an error, after having waited. The second caller holds the Session row open from before the first message
+/// recorded its thread, as WebChatIn's Accept does, so a Join that trusted that copy would start a second thread. The job lets go
+/// of the lock half a second after it is told to.
+Method TestSecondJoinWaitsForTheFirstThread()
+{
+	Set ref = ..Session("race")
+	Set held = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set id = held.%Id()
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Kill ^OcuTalonTest("Trace", "job", "race")
+	Job ##class(OcuTalon.Test.Core.Trace).First(ref, now, "race", 4711, 0.5)
+	Do ..WaitFor($Name(^OcuTalonTest("Trace", "job", "race", "joined")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Trace", "job", "race", "joined")), 1, "the first message's job joined: no thread, and it holds the row's lock")
+	Set ^OcuTalonTest("Trace", "job", "race", "go") = 1
+	Set started = $ZHorolog
+	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc, now)
+	Set waited = $ZHorolog - started
+	Do $$$AssertStatusOK(sc, "the second Join is fine")
+	Do $$$AssertEquals(thread, 4711, "and gives the thread the first message recorded")
+	Do $$$AssertTrue((waited >= 0.2) && (waited < ##class(OcuTalon.Core.Trace).#LOCKWAIT), "after waiting for the lock: "_waited_" seconds")
+	Do $$$AssertEquals(..LockFree(id), 1, "and it holds nothing")
+	Do ..WaitFor($Name(^OcuTalonTest("Trace", "job", "race", "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Trace", "job", "race", "done")), 1, "the first message's job is done")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.ThreadSessionId_"|"_row.ThreadDay, "4711|"_##class(OcuTalon.Core.Trace).Day(now), "the row holds the one thread")
+	If thread = "" Do ##class(OcuTalon.Core.Trace).Started(ref, "", now)
+	Kill held
+	Kill ^OcuTalonTest("Trace", "job", "race")
+}
+
+/// Position against Visual Trace's own layout on sessions that nobody chose: 28 sessions whose headers, event rows and rule
+/// rows come from a fixed pseudo-random sequence. The headers are 3 to 10, at times 0, 100 or 200 ms apart (so some have the time
+/// of the one before), from and to one of five hosts. The event rows (up to 14, of any type 2 to 6) and rule rows (up to 4) are
+/// at multiples of 50 ms from the start to a little after the last header (so many sit at a header's time), by one of the five
+/// hosts, by a host no header has, or by none, with the MessageId of a header, of the one after it, of one beyond the last, or none.
+/// For every header of every session, Position gives the place that BuildTraceInfo lays it out at, events shown and hidden.
+Method TestPositionAgreesWithVisualTraceOnRandomSessions()
+{
+	Set seed = 20261023
+	Set pool = $ListBuild("ZzH1", "ZzH2", "ZzH3", "ZzH4", "ZzH5")
+	For scenario = 1:1:28 {
+		Set super = ..Super("fuzz"_scenario)
+		Set count = 3 + ..Next(.seed, 8)
+		Kill ids
+		Set session = ""
+		Set at = 0
+		For i = 1:1:count {
+			Set at = at + (..Next(.seed, 3) * 100)
+			Set ids(i) = ..Header(super, session, ..Stamp(scenario, at), $List(pool, 1 + ..Next(.seed, 5)), $List(pool, 1 + ..Next(.seed, 5)))
+			If i = 1 Set session = ids(1)
+		}
+		Set last = at + 300
+		For j = 1:1:..Next(.seed, 15) {
+			Set host = ..Host(.seed, pool)
+			Set time = ..Stamp(scenario, ..Next(.seed, last \ 50 + 1) * 50)
+			Do ..Event(session, time, host, ..Message(.seed, .ids, count), 2 + ..Next(.seed, 5))
+		}
+		For j = 1:1:..Next(.seed, 5) {
+			Set host = ..Host(.seed, pool)
+			Set time = ..Stamp(scenario, ..Next(.seed, last \ 50 + 1) * 50)
+			Do ..Rule(session, time, host, ..Message(.seed, .ids, count))
+		}
+		Set list = ""
+		For i = 1:1:count Set list = list_$ListBuild(ids(i))
+		Do ..AssertAgainstViewer(session, list)
+	}
+}
+
 /// --- helpers ---
 /// A fixture session; its Ref is kept for the clean-up.
 Method Session(name As %String) As %String [ Private ]
@@ -301,35 +378,24 @@ Method Super(name As %String) As %String [ Private ]
 	Quit super
 }
 
-/// A synthetic request header from source to target, created at the time (a UTC time stamp with milliseconds) and processed within
-/// the same second; the first header of a session is given no session and starts its own.
+/// A synthetic request header from source to target (Fixture.Header); the first header of a session is given no session and starts
+/// its own.
 Method Header(super As %String, session As %String, created As %String, source As %String, target As %String) As %String [ Private ]
 {
-	Set header = ##class(Ens.MessageHeader).%New()
-	Set header.SuperSession = super
-	Set header.TimeCreated = created
-	Set header.TimeProcessed = $Extract(created, 1, 20)_"999"
-	Set header.SourceConfigName = source
-	Set header.TargetConfigName = target
-	Set header.Type = 1
-	Set header.SessionId = session
-	Do $$$AssertStatusOK(header.%Save(), "a synthetic header "_source_" to "_target_" is saved")
-	If session = "" {
-		Set header.SessionId = header.%Id()
-		Do $$$AssertStatusOK(header.%Save(), "and starts its own session")
-	}
-	Quit header.%Id()
+	Set id = ##class(OcuTalon.Test.Data.Fixture).Header(super, session, created, source, target, .sc)
+	Do $$$AssertStatusOK(sc, "a synthetic header "_source_" to "_target_" is saved")
+	Quit id
 }
 
-/// An event-log row of the session logged at the time by the host, in the context of the message.
-Method Event(session As %String, time As %String, host As %String, message As %String) [ Private ]
+/// An event-log row of the session logged at the time by the host, in the context of the message (of the type, Info by default).
+Method Event(session As %String, time As %String, host As %String, message As %String, type As %Integer = 4) [ Private ]
 {
 	Set log = ##class(Ens.Util.Log).%New()
 	Set log.SessionId = session
 	Set log.TimeLogged = time
 	Set log.ConfigName = host
 	Set log.MessageId = message
-	Set log.Type = 4
+	Set log.Type = type
 	Set log.Text = "zz event"
 	Do $$$AssertStatusOK(log.%Save(), "an event row of "_host_" is saved")
 }
@@ -400,14 +466,58 @@ Method Layout(session As %String, events As %Boolean, Output layout) [ Private ]
 	Do ##class(EnsPortal.SVG.VisualTrace).ClearTraceData()
 }
 
-/// 1 when another job can take the Session row's lock now (a lock is held per process, so only a second job can tell). Other
-/// tests of the thread call it too.
+/// The next number from 0 to n - 1 of the pseudo-random sequence (the Park-Miller generator), advancing the seed.
+ClassMethod Next(ByRef seed As %Integer, n As %Integer) As %Integer [ Private ]
+{
+	Set seed = (seed * 16807) # 2147483647
+	Quit (seed \ 7) # n
+}
+
+/// The time stamp of the scenario's day, 10:00 plus ms milliseconds, as the Ens tables write them.
+ClassMethod Stamp(scenario As %Integer, ms As %Integer) As %String [ Private ]
+{
+	Quit "2030-04-"_$Translate($Justify(scenario, 2), " ", "0")_" 10:"_$Translate($Justify(ms \ 60000, 2), " ", "0")_":"_$Translate($Justify((ms # 60000) \ 1000, 2), " ", "0")_"."_$Translate($Justify(ms # 1000, 3), " ", "0")
+}
+
+/// A host for a log row: one of the pool, "ZzX" that no header has, or none.
+ClassMethod Host(ByRef seed As %Integer, pool As %List) As %String [ Private ]
+{
+	Set pick = ..Next(.seed, 7)
+	Quit $Case(pick, 5: "ZzX", 6: "", : $List(pool, pick + 1))
+}
+
+/// A MessageId for a log row: none (one in five), the ID of a header, the ID after a header's, or one beyond the last header's.
+ClassMethod Message(ByRef seed As %Integer, ByRef ids, count As %Integer) As %String [ Private ]
+{
+	Set kind = ..Next(.seed, 5)
+	Set which = 1 + ..Next(.seed, count)
+	Quit $Case(kind, 0: "", 1: ids(which), 2: ids(which), 3: ids(which) + 1, : ids(count) + 5)
+}
+
+/// The job body of a day's first message: Join gives no thread and keeps the row's lock; the job says so, waits to be told to go,
+/// holds the lock for the pause, records the thread (Started) and says so.
+ClassMethod First(ref As %String, now As %String, key As %String, thread As %Integer, pause As %Numeric)
+{
+	Set joined = ##class(OcuTalon.Core.Trace).Join(ref, .sc, now)
+	Set ^OcuTalonTest("Trace", "job", key, "joined") = $Select($SYSTEM.Status.IsOK(sc) && (joined = ""): 1, 1: -1)
+	Set deadline = $ZHorolog + 60
+	While '$Get(^OcuTalonTest("Trace", "job", key, "go")) && ($ZHorolog < deadline) {
+		Hang 0.02
+	}
+	Hang pause
+	Do ##class(OcuTalon.Core.Trace).Started(ref, thread, now)
+	Set ^OcuTalonTest("Trace", "job", key, "done") = 1
+}
+
+/// 1 when another job can take the Session row's lock now, 0 when it cannot (a lock is held per process, so only a second job
+/// can tell), and "" when the job gave no answer within 60 seconds, which no assertion takes for either. Other tests of the
+/// thread call it too.
 ClassMethod LockFree(id As %String) As %Boolean
 {
 	Kill ^OcuTalonTest("Trace", "job", "try")
 	Job ##class(OcuTalon.Test.Core.Trace).TryLock(id, "try")
 	Do ..WaitFor($Name(^OcuTalonTest("Trace", "job", "try", "result")), 60)
-	Quit +$Get(^OcuTalonTest("Trace", "job", "try", "result"))
+	Quit $Get(^OcuTalonTest("Trace", "job", "try", "result"))
 }
 
 /// Waits up to seconds for the global node named by ref to hold a value.

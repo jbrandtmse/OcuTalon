@@ -31,7 +31,8 @@ Parameter ERRORHEADER = "There is no message header to find in the trace.";
 
 Parameter ERRORREAD = "The read of the trace failed: ";
 
-/// The session's thread for the day of now (a UTC time, by default the current time). When the Session row holds a thread
+/// The session's thread for the day of now (a UTC time, by default the current time). The row is read from disk once the lock
+/// is held, so a Session object the caller opened before is refreshed, not trusted. When the Session row holds a thread
 /// for that day it is released and returned. Otherwise "" is returned with sc OK and the row's lock KEPT: the caller sends its
 /// message and calls Started, whatever the send did. When there is no Session row, the time is unreadable or the lock is not
 /// free within LOCKWAIT seconds, "" is returned with an error sc and the lock is not held.
@@ -62,6 +63,8 @@ ClassMethod Join(sessionRef As %String, Output sc As %Status, now As %String = "
 			Set sc = $SYSTEM.Status.Error(5001, ..#ERRORNOSESSION)
 			Quit
 		}
+		Set sc = session.%Reload()
+		If $SYSTEM.Status.IsError(sc) Quit
 		If (session.ThreadDay = day) && (session.ThreadSessionId '= "") {
 			Set thread = session.ThreadSessionId
 			Do ..Release(id)
@@ -75,8 +78,9 @@ ClassMethod Join(sessionRef As %String, Output sc As %Status, now As %String = "
 	Quit thread
 }
 
-/// Records sessionId as the session's thread for the day of now, and releases the lock that Join kept, in every case. An empty
-/// sessionId records nothing. A session with no row, or a time that cannot be read, is an error status and records nothing.
+/// Records sessionId as the session's thread for the day of now, on the row as read from disk, and releases the lock that Join
+/// kept. An empty sessionId records nothing. A session with no row, or a time that cannot be read, is an error status and
+/// records nothing; a row that is gone leaves no id to unlock, so a lock Join kept on it stays with the process.
 ClassMethod Started(sessionRef As %String, sessionId As %Integer, now As %String = "") As %Status
 {
 	Set sc = $SYSTEM.Status.OK()
@@ -86,6 +90,7 @@ ClassMethod Started(sessionRef As %String, sessionId As %Integer, now As %String
 			If sessionId '= "" {
 				Set day = ..Day(now)
 				Set session = ##class(OcuTalon.Data.Session).%OpenId(id, , .sc)
+				If $SYSTEM.Status.IsOK(sc) && $IsObject(session) Set sc = session.%Reload()
 				If $SYSTEM.Status.IsOK(sc) {
 					If (day = "") || '$IsObject(session) {
 						Set sc = $SYSTEM.Status.Error(5001, $Select(day = "": ..#ERRORTIME, 1: ..#ERRORNOSESSION))
@@ -212,8 +217,8 @@ ClassMethod Open(sql As %String, Output result As %SQL.StatementResult, args...)
 }
 
 /// The header's place in the drawn list, "" when the header is not among the headers. Visual Trace draws the headers in ID
-/// order; before each header (and again after it, once its hosts are on the diagram) it draws, while they sort before it, the
-/// event and rule rows whose host is on the diagram. With withEvents 0 no event or rule row is drawn.
+/// order; before each header it draws, while they sort before it, the event and rule rows whose host is on the diagram (the
+/// source or target of an earlier header). With withEvents 0 no event or rule row is drawn.
 ClassMethod Count(headerId As %String, ByRef headers, ByRef events, withEvents As %Boolean) As %Integer [ Private ]
 {
 	Kill hosts
@@ -228,7 +233,6 @@ ClassMethod Count(headerId As %String, ByRef headers, ByRef events, withEvents A
 		If +id = +headerId Quit
 		If $List(headers(i), 3) '= "" Set hosts($List(headers(i), 3)) = ""
 		If $List(headers(i), 4) '= "" Set hosts($List(headers(i), 4)) = ""
-		Do ..Inject(id, created, .events, .cursor, .hosts, .n)
 	}
 	Quit $Select(+id = +headerId: n, 1: "")
 }

@@ -1871,6 +1871,8 @@ So that I can follow the assistant's work from the page in one click.
 
 - DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; moved from Story 2.9 with its first consumer, the Visual Trace menu; routed by cr 2026-10-22)
 
+- DW-129: A decision's trace link opens on the decision itself, not on page 1 of the day's thread with its first Item selected: with Story 2.9's day thread a decision's `traceHeaderId` is the thread and no index is known, so the link needs the decision message's place (or its own header) (ledger; routed by cr 2026-10-23)
+
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
 Every action is classified safe or risky by fixed rules the model and arriving content can't change; each risky action becomes one IRIS Workflow approval request fixed to exact targets, answered once (first answer wins), expiring after 24 hours and surviving restarts; every action and governance event is written to the IRIS audit log; roles and the service user decide who may do what.

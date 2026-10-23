@@ -8,7 +8,8 @@
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
 /// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers,
-/// SessionHeaders and Between read them. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
+/// SessionHeaders and Between read them. Header makes a synthetic message header in a SuperSession of the test, which is not
+/// recorded for Clean: RemoveMessages removes it with that SuperSession. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
 /// of a stream's chat.message events.
 Class OcuTalon.Test.Data.Fixture
 {
@@ -341,6 +342,27 @@ ClassMethod RemoveMessages(superSessions As %DynamicArray, namespace As %String 
 		}
 	}
 	Quit $$$OK
+}
+
+/// A synthetic request header from source to target in the SuperSession, created at the time (a UTC time stamp with
+/// milliseconds) and processed within the same second, in the session; with no session it starts its own. Its ID, and "" with
+/// the error in sc when a save fails.
+ClassMethod Header(superSession As %String, sessionId As %String, created As %String, source As %String, target As %String, Output sc As %Status) As %String
+{
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.SuperSession = superSession
+	Set header.TimeCreated = created
+	Set header.TimeProcessed = $Extract(created, 1, 20)_"999"
+	Set header.SourceConfigName = source
+	Set header.TargetConfigName = target
+	Set header.Type = 1
+	Set header.SessionId = sessionId
+	Set sc = header.%Save()
+	If $SYSTEM.Status.IsOK(sc) && (sessionId = "") {
+		Set header.SessionId = header.%Id()
+		Set sc = header.%Save()
+	}
+	Quit $Select($SYSTEM.Status.IsOK(sc): header.%Id(), 1: "")
 }
 
 /// The headers of the SuperSession, in order, as an array of objects ({id, sessionId, superSession, type, source, target,

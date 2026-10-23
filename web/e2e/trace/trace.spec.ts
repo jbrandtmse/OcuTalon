@@ -8,7 +8,8 @@ import { signInOverHttp } from '../sign-in/helpers';
  * Story 2.9, Visual Trace opened on a turn (T1 to T4), in a real browser against a real stack and the real Visual Trace pages. Every
  * case signs in as the thread fixture user that test-sign-in.sh created (OCUTALON_THREAD_USER; the user role and the trace role),
  * whose session no other spec reads. The set-up posts messages through the API, one turn at a time, until the newest
- * turn sits beyond the 45th item of its trace session (at most 15 turns), after seeding the session with event-log, rule-log and
+ * turn sits beyond the 45th item of its trace session (at least one turn after the seed, at most 15 turns in all, so a thread that a
+ * run before left longer is no different), after seeding the session with event-log, rule-log and
  * I/O-log rows: the first turn's session gets, before the later turns exist, an event and a rule row whose host first appears on a
  * later header (which Visual Trace does not draw before it), the same for a host that has appeared (which it draws), and two I/O rows
  * (which the page of the trace role does not draw at all: the role may not select from the I/O log).
@@ -204,8 +205,8 @@ test.beforeAll(async ({ playwright }) => {
   const lines = await irisScript(`Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT SessionId FROM Ens.MessageHeader WHERE %ID = ?",${firstHeader})\nDo rs.%Next()\nWrite !,"CHK|thread|",rs.%Get("SessionId")`);
   thread = chk(lines, 'thread') ?? '';
   await seed(thread);
-  let newest = first;
-  for (let n = 1; n < MOST_TURNS && !(newest.traceItemIndex > BEYOND); n += 1) {
+  let newest = await postTurn(1);
+  for (let n = 2; n < MOST_TURNS && !(newest.traceItemIndex > BEYOND); n += 1) {
     newest = await postTurn(n);
   }
   expect(newest.traceItemIndex, `the newest turn sits beyond item ${BEYOND} after at most ${MOST_TURNS} turns`).toBeGreaterThan(BEYOND);

@@ -11,12 +11,16 @@
 ///   - TestTwoTurnsOneThread: two messages of one session on one day are two turns, answered by the double, whose Items are in one
 ///     trace session T: the first Item's own id. The Session row holds T and today; every header of the session's SuperSession is in
 ///     T, and T holds, for each turn, its two requests to Decide with their two responses, the agent steps of every decision and
-///     the Outbound to Notify. The decisions the double wrote have T as their TraceSessionId, and the Turns keep the positions of
+///     the Outbound to Notify, every request of T with the session's TraceRef as its SuperSession. The decisions the double wrote
+///     have T as their TraceSessionId, and the Turns keep the positions of
 ///     their Item headers (the second after the first, and both what Core.Trace.Position says afterwards);
 ///   - TestNewThreadAfterMidnight: with the Session row's day set to yesterday, the next message starts a new thread, its own Item's
 ///     id, which the row then holds with today, and everything of that turn is in it;
 ///   - TestStubFallsBackAfterTheRestore: with Decide put back, a turn falls back through the stub (the reason unusable), and the
-///     double is swapped in again for the tests after it.
+///     double is swapped in again for the tests after it;
+///   - TestBrokenRetryThroughTheProduction (QA; DW-112): a turn whose first answer is a broken session is retried through the
+///     running production as a new Decide call under RetryItemId of the turn's ItemId, in the day's thread, and gets the reply, the
+///     double refusing a second turn request of one ItemId as Decide does (AD-20).
 /// Both thread tests also check that every session id among the headers of the run is the ID of a header whose SessionId is itself.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("ThreadProduction","n")), the sending and the clean-up are those
 /// of Test.Core.InProduction; the clean-up also removes the turns that Conversation made with their events, the decisions the
@@ -110,6 +114,12 @@ Method TestTwoTurnsOneThread()
 		If requests.%Get(i).superSession = trace Set superOK = superOK + 1
 	}
 	Do $$$AssertEquals(superOK, 4, "each with the TraceRef as its SuperSession")
+	Set unmarked = ""
+	For i = 0:1:inThread.%Size() - 1 {
+		Set header = inThread.%Get(i)
+		If (header.type = 1) && (header.superSession '= trace) Set unmarked = unmarked_" "_header.id_":"_header.source_">"_header.target
+	}
+	Do $$$AssertEquals(unmarked, "", "every request of the thread carries the TraceRef as its SuperSession: the Items, the decide and turn requests, the agent steps and the replies")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(inThread, 2, "Decide", "Conversation").%Size(), 4, "and their four responses")
 	Set steps = ##class(OcuTalon.Test.Data.Fixture).Between(inThread, 1, "Decide", "AgentSteps")
 	Do $$$AssertTrue(steps.%Size() >= 4, "and the agent steps: "_steps.%Size()_" requests to AgentSteps, at least two for each turn")
@@ -195,6 +205,47 @@ Method TestStubFallsBackAfterTheRestore()
 		Do $$$AssertTrue(0, "the test threw: "_exception.DisplayString())
 	}
 	Do $$$AssertStatusOK(..UseDouble(1), "the double is swapped in again")
+}
+
+/// DW-112 through the running production: the double, recording like Decide, answers the turn request with a broken session and
+/// then, when the same turn asks again, with a reply. Decide gets the retry as a new request under RetryItemId of the turn's ItemId,
+/// in the day's thread with the TraceRef as SuperSession (a request under the turn's own ItemId would be refused, as Decide
+/// refuses it), the turn is done with the reply and keeps its own ItemId, and the broken attempt keeps its fallback row.
+Method TestBrokenRetryThroughTheProduction()
+{
+	If '..Guard() Quit
+	Set session = ..Session("broken")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set double = "OcuTalon.Test.Core.DecideDouble"
+	Do $ClassMethod(double, "Record", session, 1)
+	Do $ClassMethod(double, "Script", session, "turn", $ListBuild("broken", "reply"))
+	Set row = ..Turn(session, "broken1", "zz broken then fine")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz broken then fine", "the turn is done with the reply of the retry")
+	Set retry = ##class(OcuTalon.Core.Conversation).RetryItemId(row.ItemId)
+	Set seen = $ClassMethod(double, "Seen", session)
+	Set itemIds = ""
+	For i = 0:1:seen.%Size() - 1 {
+		If seen.%Get(i).kind = "turn" Set itemIds = itemIds_$ListBuild(seen.%Get(i).itemId)
+	}
+	Do $$$AssertEquals($ListLength(itemIds), 2, "Decide got two turn requests")
+	If $ListLength(itemIds) '= 2 Quit
+	Do $$$AssertTrue(retry '= row.ItemId, "the retry's ItemId is not the turn's")
+	Do $$$AssertEquals($List(itemIds, 1)_"|"_$List(itemIds, 2), row.ItemId_"|"_retry, "the first under the turn's own ItemId, the retry under the derived one")
+	Set thread = ##class(OcuTalon.Data.Session).RefIndexOpen(session).ThreadSessionId
+	Set requests = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(thread), 1, "Conversation", "Decide")
+	Do $$$AssertEquals(requests.%Size(), 3, "the day's thread holds three requests to Decide: the decide, the turn and its retry")
+	Set superOK = 0
+	For i = 0:1:requests.%Size() - 1 {
+		If requests.%Get(i).superSession = trace Set superOK = superOK + 1
+	}
+	Do $$$AssertEquals(superOK, requests.%Size(), "each with the TraceRef as its SuperSession")
+	Set broken = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(row.ItemId, "turn")
+	Set derived = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(retry, "turn")
+	Do $$$AssertTrue($IsObject(broken) && $IsObject(derived), "there is a turn decision under the turn's own ItemId and one under the retry's")
+	If '$IsObject(broken) || '$IsObject(derived) Quit
+	Do $$$AssertEquals(broken.Fallback_"|"_broken.FallbackReason, "1|error", "the broken attempt keeps its fallback row")
+	Do $$$AssertEquals(derived.Fallback_"|"_derived.Ref_"|"_derived.TraceSessionId, "0|"_row.TurnDecisionRef_"|"_thread, "the retry's decision is the turn's, in the thread")
 }
 
 /// --- helpers ---

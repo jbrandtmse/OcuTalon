@@ -475,6 +475,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Slot B, 2026-10-23: Ens_Util.Log holds 112 rows of SourceClass OcuTalon.Test.Core.ConversationProbe (first 2026-10-22 12:02, last 09:50), no ConfigName; ConversationTurns (Stories 2.4, 2.6) never removes them; Rule 19 hermeticity
 - 2026-10-23T11:06:38Z status=routed owner=burndown by=cr note=in-epic MED, owning stories done; fix: remove the probe's log rows in ConversationTurns' teardown (Observe.RemoveWarnings shape)
+- 2026-10-23T20:36:31Z occurrence=2-9-open-anything-in-visual-trace
 
 ### DW-106: Lane B's production tests assert the Epic 0 stub Decide's fallback unusable, so they need new expectations when Story 1.3's real Decide merges
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
@@ -490,6 +491,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: src/ocutalon/cls/OcuTalon/Core/Conversation.cls:469 (Story 2.4) | severity: high | fix-risk: low | footprint: in-footprint
 - evidence: Rebuild calls Ask(turn), whose Request(turn) is built from ItemOf(turn), so the retry carries the turn's ItemId; Decide.ResponseFromRow (src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls ~825) refuses a second turn decision for an ItemId (AD-20); latent until Epic 1's Story 1.8 (linked sessions, error fallback row for the broken attempt)
 - 2026-10-23T14:14:25Z status=routed owner=2-9-open-anything-in-visual-trace by=cr note=orchestrator cross-epic ruling 2026-10-23 (U14, decide): comply with AD-20, AD-20 and AD-30 unchanged; fix Rebuild so the retry is a new Decide call under a new ItemId (e.g. derived from the turn's), the broken attempt keeps its error fallback row, the Turn keeps its own ItemId and links to the retry's decision; pinning test: a SessionBroken retry reaches Decide under a new ItemId and gets an answer; add the Conventions row with the fix; must be resolved before the integrate-forward, never overflowed
+- 2026-10-23T20:50:47Z status=resolved-by:2-9-open-anything-in-visual-trace by=adjudication note=build 94806a0 plus review patch: Conversation.Rebuild retries under Conversation.RetryItemId(turn.ItemId), a new Decide call; the broken attempt keeps its row; the Turn keeps its own ItemId and TurnDecisionRef is the retry's; pinned by TestBrokenRetryIsANewItem, TestBrokenRetryAfterATaintedTurn and ThreadProduction.TestBrokenRetryThroughTheProduction (red on the old code); Conventions row 'SessionBroken retry'; leftovers DW-126 (escalated) and DW-128 (burndown)
 
 ### DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green
 - source: spec-2-8-show-the-status-rail.md | severity: med | fix-risk: med | footprint: in-story
@@ -516,3 +518,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Conversation.Begin resets BrokenRetried to 0 (Conversation.cls:320) and Ask uses RetryItemId only while BrokenRetried is 1, so a restarted sweep goes out under the turn's own ItemId, which already has the broken attempt's fallback row; DecideDouble refuses a second turn request per ItemId; the real Decide is Lane A's stub until Stories 1.3 and 1.5
 - 2026-10-23T19:23:09Z status=open owner=2-9-open-anything-in-visual-trace by=harvest note=implement-stage defer (medium, unverified); code review settles it: a persisted retry marker or the Attempt number choosing the derived ItemId (a stored-data change, veto), or a reasoned disposition
+- 2026-10-23T20:36:31Z status=escalated owner=burndown by=cr note=settled: real Decide refuses (OCT-epic1 ResponseFromRow), turn ends unusable; fix-risk high: persisted marker = veto 3
+
+### DW-128: BridgeSink.Step drops every turn.step of a SessionBroken retry: the bridge context carries RetryItemId(turn.ItemId), and Step publishes only when the context's ItemId is the running turn's own
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Conversation.Ask sends the retry under RetryItemId (Conversation.cls:406); Bridge.Context.Begin copies request.ItemId (src/bridge Context.cls:52); BridgeSink.Step quits when Context.Current().ItemId '= running.ItemId (BridgeSink.cls:145); no test covers a retried turn's steps; reachable once Stories 1.3/1.5 emit steps
+- 2026-10-23T20:36:21Z status=routed owner=burndown by=cr note=in-epic MED (Core/BridgeSink.cls, Stories 2.6/2.8 done); fix: Step also accepts RetryItemId(running.ItemId), plus a test
+
+### DW-129: A decision's traceUrl opens page 1 of the day's thread with the first Item selected, not the decision: traceHeaderId is the decision's TraceSessionId (now the thread) and no index is known
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Live.Payload.Decision.FromRow sets traceHeaderId = row.TraceSessionId (Decision.cls:88); DecideDouble and Lane A's Decide write the thread there (AD-26: a decision's target is the session holding its message); TraceLink.Url adds PAGE only with an index; Decided 5's details pane on the target held only while each turn was its own session
+- 2026-10-23T20:36:24Z status=routed owner=2-13-open-visual-trace-from-the-page by=cr note=2.13 owns where decision-strip links open; likely needs the decision message's header id and position (AD-26 decision-target wording)

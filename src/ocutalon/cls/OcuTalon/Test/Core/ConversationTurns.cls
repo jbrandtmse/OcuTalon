@@ -17,6 +17,12 @@
 ///     turn's ItemId, which the double, recording like Decide, accepts because the broken attempt's row is under the turn's own;
 ///   - TestPositionFailureNeverStopsTurn (Story 2.9; AD-26): an Item whose position in the trace cannot be worked out is one
 ///     warning, and the turn is still taken, with both positions empty;
+///   - TestTakeKeepsTheItemsPosition (QA): an Item whose header is in a session of a trace keeps the header's position in Visual
+///     Trace's item list, with and without the event rows, on the Turn and on every chat.message of the turn;
+///   - TestRetryItemIdIsTheSpecifiedDerivation (QA): RetryItemId is the first 22 characters of the base64url form of the SHA-256 of
+///     the ItemId and /retry, checked against values worked out outside IRIS, so the derivation is the same on every run;
+///   - TestBrokenRetryAfterATaintedTurn (QA; DW-112): a turn that is fresh only because the turn before it was tainted still sends
+///     its first request under its own ItemId, so that its retry after a broken session is a new Item and not the first request again;
 ///   - TestRecapFromTurnRows: the recap is written from the Turn rows;
 ///   - TestEveryFallbackReason: the 12 reasons, an error status and an answer of the wrong class give the fallback sentences;
 ///   - TestDuplicateItemDropped, TestUntrustedItemRefused: an Item is taken once, and only when it is trusted;
@@ -481,11 +487,92 @@ Method TestPositionFailureNeverStopsTurn()
 	Do $$$AssertTrue($IsObject(row), "and has a Turn")
 	If '$IsObject(row) Quit
 	Do $$$AssertEquals(row.TraceHeaderId_"|"_row.TraceItemIndex_"|"_row.TraceItemIndexNoEvents, "||", "with no header ID and no position")
-	Set sql = "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?"
-	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, mark, "Locate", ##class(OcuTalon.Core.Conversation).#LOGPOSITION)
-	Do result.%Next()
-	Do $$$AssertEquals(result.%GetData(1), 1, "one warning says the position could not be worked out")
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Locate", ##class(OcuTalon.Core.Conversation).#LOGPOSITION)
+	Set start = ##class(OcuTalon.Core.Conversation).#LOGPOSITION
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Locate", start), 1, "one warning says the position could not be worked out: "_text)
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Locate", start)
+}
+
+/// An Item whose header sits in a session of a trace keeps the header's position in Visual Trace's item list. The session holds
+/// a header from ZzA to ZzB, an event of ZzB (which is on the diagram once that header is) and then the Item's header, so the Item
+/// is the 3rd item with the event row and the 2nd without. The Turn keeps both, and so does every chat.message of the turn. The
+/// stand-in headers carry a SuperSession of the test and are removed with their log rows.
+Method TestTakeKeepsTheItemsPosition()
+{
+	Set session = ..Session("position")
+	Set super = "zzconv"_..Number_"position"
+	Try {
+		Set first = ##class(OcuTalon.Test.Data.Fixture).Header(super, "", "2030-05-01 10:00:00.100", "ZzA", "ZzB", .sc)
+		Do $$$AssertStatusOK(sc, "a stand-in header ZzA to ZzB starts a session")
+		Set item = ##class(OcuTalon.Test.Data.Fixture).Header(super, first, "2030-05-01 10:00:00.300", "WebChatIn", "Conversation", .sc)
+		Do $$$AssertStatusOK(sc, "and the Item's stand-in header is in it")
+		Set log = ##class(Ens.Util.Log).%New()
+		Set log.SessionId = first
+		Set log.TimeLogged = "2030-05-01 10:00:00.200"
+		Set log.ConfigName = "ZzB"
+		Set log.MessageId = first
+		Set log.Type = 4
+		Set log.Text = "zz event"
+		Do $$$AssertStatusOK(log.%Save(), "an event of ZzB between the two headers")
+		Set probe = ..NewProbe()
+		Set probe.%PrimaryRequestHeader = ##class(Ens.MessageHeader).%OpenId(item)
+		Do $$$AssertStatusOK(probe.OnRequest(..Item(session, "zz where am I", "zzc"_..Number_"position"), .response), "the Item is taken")
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+		Set row = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"position")
+		Do $$$AssertEquals(row.State, "done", "and the turn runs")
+		Do $$$AssertEquals(row.TraceHeaderId_"|"_row.TraceItemIndex_"|"_row.TraceItemIndexNoEvents, item_"|3|2", "the Turn keeps its header and the 3rd place with the event row, the 2nd without")
+		Set events = ..ChatEvents(session)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the three stages are published")
+		For i = 0:1:events.%Size() - 1 {
+			Set payload = events.%Get(i).payload
+			Do $$$AssertEquals(payload.traceHeaderId_"|"_payload.traceItemIndex_"|"_payload.traceItemIndexNoEvents, item_"|3|2", payload.state_": chat.message carries the target and both places")
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the test threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages([(super)])
+}
+
+/// RetryItemId is the first 22 characters of the base64url form (+/ become -_, no =) of the SHA-256 of the ItemId followed by
+/// /retry. The values are worked out outside IRIS (Python's hashlib and base64), among them ones whose base64 form has a + or a /
+/// in its first 22 characters, so the derivation is the specified one and the same on every run.
+Method TestRetryItemIdIsTheSpecifiedDerivation()
+{
+	Set expected = $ListBuild("zzitem1", "tOUZ_BAv_nSFoITJIUXOek", "zzitem2", "bXnxIpvgekRAwiau3yaWY1", "zzitem4", "npYm0f6kL-YJEPENhqKbTI", "zzvec5", "uKr35bCzo1_7fqsgU8-0du", "AbCdEfGhIjKlMnOpQrStUv", "8u2XEqVk0OqNUwZuhvqK0u")
+	For i = 1:2:$ListLength(expected) {
+		Set itemId = $List(expected, i)
+		Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).RetryItemId(itemId), $List(expected, i + 1), "the retry of "_itemId)
+	}
+	Do $$$AssertNotEquals(##class(OcuTalon.Core.Conversation).RetryItemId("zzitem1"), ##class(OcuTalon.Core.Conversation).RetryItemId("zzitem2"), "two ItemIds have two retries")
+}
+
+/// DW-112 and a tainted turn: the turn after a tainted reply is fresh, but that is not a retry. Its first request is under the
+/// turn's own ItemId; when the provider rejects the history, the retry is under the derived one, a different Item, which the double
+/// (recording, as Decide does) accepts. A retry under the same ItemId as the first request would be refused.
+Method TestBrokenRetryAfterATaintedTurn()
+{
+	Set session = ..Session("taintbroken")
+	Set double = "OcuTalon.Test.Core.DecideDouble"
+	Do $ClassMethod(double, "Record", session, 1)
+	Do $ClassMethod(double, "Script", session, "turn", $ListBuild("tainted", "broken", "reply"))
+	For i = 1:1:2 {
+		Set probe = ..NewProbe()
+		Do probe.OnRequest(..Item(session, "zz message "_i, "zzc"_..Number_"taintbroken"_i), .response)
+		Kill probes
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+	}
+	Set second = ##class(OcuTalon.Data.Ownership).TurnByClient(session, "zzc"_..Number_"taintbroken2")
+	Set retry = ##class(OcuTalon.Core.Conversation).RetryItemId(second.ItemId)
+	Set turns = ..Sent("Decide", "turn")
+	Do $$$AssertEquals($ListLength(turns), 3, "three turn requests: the tainted turn's, the next turn's and its retry")
+	If $ListLength(turns) '= 3 Quit
+	Do $$$AssertEquals(..Call($List(turns, 2), "sessionMode")_"|"_..Call($List(turns, 3), "sessionMode"), "fresh|fresh", "the next turn's request is fresh because of the taint, and so is the retry")
+	Do $$$AssertEquals(..Call($List(turns, 2), "itemId"), second.ItemId, "the next turn's first request is under its own ItemId")
+	Do $$$AssertEquals(..Call($List(turns, 3), "itemId"), retry, "and its retry under the derived one")
+	Do $$$AssertEquals(second.State_"|"_second.ReplyText, "done|zz reply to zz message 2", "the turn is done with the retry's reply")
+	Set broken = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(second.ItemId, "turn")
+	Do $$$AssertEquals($IsObject(broken) && broken.Fallback, 1, "the broken attempt keeps its fallback row under the turn's own ItemId")
 }
 
 /// After a tainted reply the next turn is fresh, with a recap of the Turn rows that holds the user's text and the reply as
