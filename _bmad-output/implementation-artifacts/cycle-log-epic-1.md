@@ -239,3 +239,4 @@
 2026-10-23T12:19:09Z	Story 1.7	fresh_check	env=recipe(ci/iris.sh_throwaways,tag=e1s7fc) tests=shard_lane-a(32),shard_lane-b(24),live_production(23),live_install-start(94),release/standalone-bridge.sh result=pass order=forward,reverse checks_sh=pass teardown=clean(0_left)
 2026-10-23T12:19:22Z	Story 1.7	committed	sha=0777625 submodules= ci=pending runs=39952420768,39952420822 amendments=none footprint_extensions=none pushed_with=766bf3b(implement)+bookkeeping
 2026-10-23T12:19:22Z	Story 1.7	story_cycle	plan_to_commit_min=430 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=0(gate_rulings:decide_3;veto_U-32,U-33,U-34)
+2026-10-23T12:19:45Z	Story 1.8	stage_spawned	stage=plan spawn_at=2026-10-23T12:19:45Z model=claude-opus-5-5 agent_name=1-8-plan-1 cycle_iteration=1
