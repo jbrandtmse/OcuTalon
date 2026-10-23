@@ -16,7 +16,8 @@
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
-#   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>)
+#   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
+#                                         and the tag's warm state and warm-iris.lock (ci/warm.sh)
 #   ci/iris.sh all                        every group in turn
 # OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, at least 3 characters, no "slot") names the run: the pieces of one run
 # share it and `teardown` needs it. It defaults to local-<epoch>-<pid>, which makes each call its own run. In CI the web port of
@@ -25,6 +26,9 @@
 # on a developer machine) the browser units probe for the first free port of 52800-52819, which a fixed-port runner of the same host
 # may be about to publish. A set OCUTALON_TEST_WEB_PORT always wins.
 # Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
+# OCUTALON_WARM=1 ci/iris.sh class|shard ... runs on the warm throwaway of the tag (ci/warm.sh up) after reloading the changed
+# classes, with no new start, and exits 1 when that stack is missing, stopped or stale or the reload fails; live, group and all never
+# run warm. A value of OCUTALON_WARM other than 1, 0 or empty exits 2.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
@@ -211,13 +215,38 @@ EOT
   [ "$verdict" = passed ]
 }
 
-# run_classes <label> <title> <class>...: one throwaway, then every class in the order given. The project is torn down on exit.
-run_classes() {
-  local label=$1 title=$2 started=$SECONDS bad=0 n=0 c ready total word=RUN
-  shift 2
-  case $label in shard-*) word=SHARD ;; esac
+# --- one throwaway: its start, and the warm mode that reuses one ---
+
+# warm_mode: prints warm for OCUTALON_WARM=1 and fresh when it is unset, empty or 0. Any other value prints the FAIL line and
+# returns 2.
+warm_mode() {
+  case ${OCUTALON_WARM:-} in
+    1) echo warm ;;
+    '' | 0) echo fresh ;;
+    *)
+      echo "FAIL OCUTALON_WARM must be 1 (warm), or 0 or unset (fresh)"
+      return 2
+      ;;
+  esac
+}
+
+# warm_check: sets WARM_MODE to warm or fresh; a bad OCUTALON_WARM ends the run with exit 2.
+warm_check() {
+  WARM_MODE=$(warm_mode) || {
+    echo "$WARM_MODE"
+    exit 2
+  }
+}
+
+# stack_start <label>: the preflight, then the lock, the project name and the exit trap (live_start).
+stack_start() {
   preflight
-  live_start "$label"
+  live_start "$1"
+}
+
+# stack_ready <title> <start second>: the STACK line, the build and start of the project, and the READY line.
+stack_ready() {
+  local title=$1 started=$2 ready
   echo "STACK $title: project $P"
   if ! dc up -d --build --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>&1; then
     tail -n 30 "$tmp/up.log"
@@ -227,6 +256,22 @@ run_classes() {
   live_track_image
   ready=$((SECONDS - started))
   echo "READY $title ${ready}s"
+}
+
+# run_classes <label> <title> <class>...: one throwaway, then every class in the order given. The project is torn down on exit.
+# With OCUTALON_WARM=1 the classes run on the warm throwaway of the tag instead (ci/warm.sh), which starts nothing.
+run_classes() {
+  local label=$1 title=$2 started=$SECONDS bad=0 n=0 c total word=RUN
+  shift 2
+  case $label in shard-*) word=SHARD ;; esac
+  warm_check
+  if [ "$WARM_MODE" = warm ]; then
+    . "$root/ci/warm.sh"
+    warm_attach "$title" || exit 1
+  else
+    stack_start "$label"
+    stack_ready "$title" "$started"
+  fi
   for c in "$@"; do
     n=$((n + 1))
     run_class "$c" || bad=$((bad + 1))
@@ -327,6 +372,11 @@ cmd_live() {
     echo "unknown live unit '$name'; see: ci/iris.sh list"
     exit 2
   fi
+  warm_check
+  if [ "$WARM_MODE" = warm ]; then
+    echo "FAIL live units never run warm: unset OCUTALON_WARM"
+    exit 2
+  fi
   setup_tag
   echo "PORT the web port of the browser units: ${OCUTALON_TEST_WEB_PORT:-auto}"
   preflight
@@ -336,12 +386,20 @@ cmd_live() {
   bash "docker/tests/test-$name.sh"
 }
 
+# fresh_only <what>: a command whose units all start fresh stacks. A warm request is dropped with one line, and no unit sees it.
+fresh_only() {
+  warm_check
+  if [ "$WARM_MODE" = warm ]; then echo "WARM ignored: $1 runs every unit on a fresh stack"; fi
+  unset OCUTALON_WARM
+}
+
 cmd_group() {
   local name=${1:-} units unit kind arg started rc failed="" total=$SECONDS
   if ! units=$(group_units "$name"); then
     echo "unknown group '$name'; groups: $IRIS_GROUPS"
     exit 2
   fi
+  fresh_only "group $name"
   setup_tag
   preflight
   ensure_web_bundle || exit 1
@@ -368,6 +426,7 @@ cmd_group() {
 
 cmd_all() {
   local group failed=""
+  fresh_only all
   setup_tag
   for group in $IRIS_GROUPS; do
     bash "$root/ci/iris.sh" group "$group" || failed="$failed $group"
@@ -379,9 +438,28 @@ cmd_all() {
   echo "ALL passed"
 }
 
+# warm_state_dir <tag>: the folder that holds the state of the tag's warm stack (ci/warm.sh).
+warm_state_dir() { printf '%s\n' "${TMPDIR:-/tmp}/ocutalon-warm-$1"; }
+
+# warm_lock_release <project pattern>: deletes the lane's warm-iris.lock when the project it names matches the pattern of the tag being
+# torn down (a warm stack that was killed before ci/warm.sh down), and keeps a lock of any other project.
+warm_lock_release() {
+  local dir file held
+  dir=$(live_lock_dir)
+  [ -n "$dir" ] || return 0
+  file="$dir/warm-iris.lock"
+  [ -f "$file" ] || return 0
+  held=$(sed -n 's/.* project=\([^ ]*\).*/\1/p' "$file" 2>/dev/null | head -n 1)
+  if [ -n "$held" ] && printf '%s\n' "$held" | grep -Eq -- "$1"; then
+    rm -f "$file"
+    echo "LOCK released warm-iris project=$held"
+  fi
+}
+
 # teardown: removes only what carries the tag. A name qualifies when it is ocutalon-<label>-<tag>-<epoch>-<pid> (the project name of
 # live_start) or that name followed by -, _ or : and a suffix (container, volume, network, image), and it holds no "slot"; the
-# preloaded base image and another run's resources never match. A tag must not end another run's tag.
+# preloaded base image and another run's resources never match. A tag must not end another run's tag. It also releases the lane's
+# warm-iris.lock of the tag and removes the tag's warm state folder.
 cmd_teardown() {
   local tag=${OCUTALON_RUN_TAG:-} pattern projects p name c v n i
   if [ -z "$tag" ]; then
@@ -414,6 +492,8 @@ cmd_teardown() {
   for name in $(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E -- "$pattern" | grep -v slot); do
     if docker image rm -f "$name" >/dev/null 2>&1; then i=$((i + 1)); fi
   done
+  warm_lock_release "$pattern"
+  rm -rf "$(warm_state_dir "$tag")"
   echo "TEARDOWN tag $tag: $(printf '%s\n' "$projects" | grep -c .) project(s) removed, $c leftover container(s), $v leftover volume(s), $n leftover network(s), $i leftover image(s)"
 }
 

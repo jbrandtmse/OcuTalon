@@ -6427,7 +6427,7 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 
 **Given** the run tag and the lane's lock folder (Rule 21: `OCUTALON_LOCK_DIR` per lane)
 **When** a stage starts a warm stack (`ci/iris.sh warm up`, or a new `ci/warm.sh up`)
-**Then** one throwaway starts for the lane and holds the lane's throwaway lock until `warm down`, and `class <Class>` and `shard <name>` run on it when `OCUTALON_WARM=1` is set, without starting another stack
+**Then** one throwaway starts for the lane and holds the lane's own warm lock (`warm-iris.lock` in the lane's lock folder, beside the fresh stacks' `throwaway-iris.lock`) until `warm down`, and `class <Class>` and `shard <name>` run on it when `OCUTALON_WARM=1` is set, without starting another stack; so a lane holds at most one warm and one fresh stack at a time, and its `live` units and fresh-environment check never wait on its own warm stack [AMENDED 2026-10-23 - see the story change log (spec-32-4, Spec Change Log): Rule 5 tier 1, intent kept, pre-ruled with the Contest Planner under the owner's delegation; it read "holds the lane's throwaway lock until `warm down`", which would make a `live` unit or the fresh check in the same lane wait on its own warm stack and exit 75 (`LOCK busy`)]
 
 **Given** a warm stack and a working tree that changed since the stack's last run
 **When** `class` or `shard` runs warm
