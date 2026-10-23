@@ -170,3 +170,13 @@
 2026-10-23T02:34:53Z	Epic 2	hold_ordered	reason=owner:almost_out_of_quota;pause_to_switch_accounts(HOLD_requested_at=2026-10-23T01:29:12Z,relayed_by_Contest_Planner,via_orchestrator) seen_at=stage_boundary_after_2.6_implement
 2026-10-23T02:34:53Z	Story 2.6	hold_saved	story=2-6-show-every-decision-with-its-reasons-and-cost stage=implement patch=none tree=clean note=implement_finalize_commit_5019ead_holds_all_code;nothing_uncommitted_by_design(QA_and_review_not_yet_run);not_pushed(unsmoked_code_never_goes_to_origin) next=adr_verifications(none_required)_then_qa
 2026-10-23T02:34:53Z	Epic 2	hold_complete	shas=pushed_head_b4f3da5(Story_2.5,CI_green);local_only=00a6d54,8823c69,6aa8a78,bc5e0b5(bookkeeping),5019ead(Story_2.6_build,unreviewed),+this_bookkeeping_commit runtimes=none_up locks=none_held
+2026-10-23T03:24:52Z	Epic 2	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=47276b47bcefe7a748180a78fb5b05ce962debcc doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 hold_at=none resume=after_owner_hold_2(account_switch) note=policy_hash_changed_by_owner_commit_1f9c4e5(Lane_C)_during_the_hold;orchestrator_logged_unattended_resumed_with_it;hashes_verified_on_main_checkout
+2026-10-23T03:24:52Z	Epic 2	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-23T03:24:52Z	Epic 2	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-23T03:24:52Z	Epic 2	launch_env	depth=default watchdog=0 bash_max_ms=default note=unset_in_this_session(default_depth_3_covers_runner>stage>layers)
+2026-10-23T03:24:52Z	Epic 2	telemetry_gate	pending=0 action=none
+2026-10-23T03:24:52Z	Epic 2	bootstrap_check	result=ok
+2026-10-23T03:24:52Z	Epic 2	ci_resolved	story=none sha=b4f3da5 runs=39868384740,39868384658 result=success failed=none via=none resolved_at=resume note=pushed_head;local_only_98d806a(6_commits,2.6_build_unreviewed)
+2026-10-23T03:24:52Z	Epic 2	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-23T03:24:52Z	Epic 2	runtime_lock_policy	lock=runtime stages=none note=owner-approved_2026-10-22(runner_brief);QA_smoke_AD_verifications_take_no_lock;throwaway-iris_taken_by_lib-live.sh
+2026-10-23T03:25:00Z	Story 30.3	ledger_routed_planned	story=30-3-an-approved-tool-call-runs-exactly-once-with-no-model entries=1(DW-99) excess=0 by=load note=Contest_Planner_routing_at_graph_review;other_epic_bullet_written_by_orchestrator_post-merge;filed_before_2.8_plan
