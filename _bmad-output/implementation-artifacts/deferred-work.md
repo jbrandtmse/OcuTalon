@@ -476,3 +476,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 1.9 Decide.Precheck too_large on the estimate (history + prompt + schemas + input); Story 1.8 resumes the linked history
 - 2026-10-23T18:29:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=spec_gate note=30.1 compacts (or rotates to a fresh seeded session) a flagged turn whose history alone passes the limit, and adds its summarizer time only to flagged turns it can compact
+
+### DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 1.9 checks the first request only; the AC's amendment sends a flagged turn as it is until 30.1 merges; AD-20 bounds the loop by compaction at 40,000
+- 2026-10-23T21:02:46Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=harvest note=30.1's compaction of every flagged turn closes it; its tests should show a four-iteration turn staying under 100,000
+
+### DW-131: The tool-result cap counts a result's characters before AI Hub encodes a string result again as a JSON string, so a cut result reaches the model slightly larger than the room (10,006 tokens against 10,000 measured)
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Tools/Result.cls Return
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=the mock logs a tool_result of one step whose encoded content is more than 10 percent over the 40,000-character room (e.g. Story 5.4's real readers)
+
+### DW-132: The request-size estimate of a continuing turn counts the system prompt twice: the stored history (ContextData) holds it and a version envelope, and the agent part counts it too (about 24% high on a short history)
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge/RequestSize.cls HistoryChars; Test.Bridge.Conversation BANDPERCENT 29
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=Story 30.1 reads the stored history and can subtract the stored prompt, or BANDPERCENT has to grow above 29
+
+### DW-133: RequestSize.HistoryChars returns 0 with no status or log line when the SQL read of the stored history or the stream open fails, so the estimate fails open silently
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge/RequestSize.cls HistoryChars; Test.Agent.RequestSize.TestTooLarge checks the history adds more than 1,500 tokens
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=the base image changes the %AI_Agent.Session table or the ContextData stream class
