@@ -199,13 +199,18 @@ Method TestRestart()
 
 /// While another turn holds the conversation (the test holds the lock of (owner, ChatAgent)), Decide refuses a user's turn after the lock's 2 seconds with a Busy
 /// Reply: nothing else is set, there is no Decision row, no request to ChatAgent and no step, and it is not a fallback or an error. An untrusted turn of the same
-/// owner is never refused this way. With the lock released, the same user turn sent again with the same ItemId is answered, with its row.
+/// owner is never refused this way, and its request carries none of the owner's history, which a first turn made before the test holds the lock. With the
+/// lock released, the same user turn sent again with the same ItemId is answered, with its row.
 Method TestBusyWhileHeld()
 {
 	If '..Prepare() Quit
 	Set fixture = ..#FIXTURE
 	Set mock = ..#MOCK
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set first = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:recall-tell]] A turn before the conversation is held.", .ref0, owner)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref0)
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Run", first, .answer0), "the owner's first turn is answered")
+	Do $$$AssertEquals($Select($IsObject(answer0): answer0.Busy_"|"_answer0.Text, 1: "none"), "0|"_..#TELLTEXT, "with the text of the mock, so the owner's conversation has a history")
 	Do $$$AssertTrue(..Hold(owner), "the test holds the conversation lock of (owner, ChatAgent)")
 	Set turn = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:recall-tell]] A turn while the conversation is held.", .ref, owner)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
@@ -295,7 +300,8 @@ Method TestBusyAfterTimedOutTurn()
 
 /// A linked turn sent straight to ChatAgent, with the conversation lock held by the test, gets a Busy Reply after about 2 seconds: the runner takes the lock with
 /// the same wait, and refuses with NewBusy when it cannot. It writes no Usage row and sends nothing to the mock. Sent again with the lock released, it is answered
-/// and writes its row.
+/// and writes its row. The window is 1.9 to 6 seconds: the lock's 2 seconds, with room for a slower host, and short of a wait of several times
+/// LOCKSECONDS.
 Method TestRunnerBusy()
 {
 	If '..Prepare() Quit
@@ -483,18 +489,10 @@ Method Hold(owner As %String) As %Boolean [ Private ]
 /// Releases one hold of the conversation lock of (owner, ChatAgent) that Hold took.
 Method Release(owner As %String) [ Private ]
 {
-	Set kept = ""
-	Set released = 0
-	Set position = 0
-	While $ListNext(..Held, position, hold) {
-		If 'released && ($List(hold, 1) = owner) && ($List(hold, 2) = ..#RUNNER) {
-			Set released = 1
-			Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(owner, ..#RUNNER)
-		} Else {
-			Set kept = kept _ $ListBuild(hold)
-		}
-	}
-	Set ..Held = kept
+	Set held = ..Held
+	Set released = ##class(OcuTalon.Test.Bridge.Link).Forget(.held, owner, ..#RUNNER)
+	Set ..Held = held
+	If released Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(owner, ..#RUNNER)
 	Do $$$AssertTrue(released, "the test releases the conversation lock")
 }
 

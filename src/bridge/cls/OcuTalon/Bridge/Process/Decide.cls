@@ -222,12 +222,13 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Quit ..SetTimer(+..TimerSeconds, "timer")
 }
 
-/// 1 when the request is a turn with provenance user whose conversation lock, (OwnerRef, the runner item), is not taken in the lock's
-/// seconds (Data.ConversationLink LOCKSECONDS): an earlier turn, even one that Decide gave up on, still holds the conversation (AD-6).
-/// The lock is taken only to probe and released at once. Every other request is never held.
+/// 1 when the request is linked to a conversation by the runner's own rule (Adapter.Agent IsLinked: a turn with provenance user) and its
+/// conversation lock, (OwnerRef, the runner item), is not taken in the lock's seconds (Data.ConversationLink LOCKSECONDS): an earlier turn,
+/// even one that Decide gave up on, still holds the conversation (AD-6). The lock is taken only to probe and released at once. Every other
+/// request is never held.
 ClassMethod Held(request As OcuTalon.Bridge.Msg.Request, runner As %String) As %Boolean
 {
-	If (request.Kind '= "turn") || (request.Provenance '= "user") Quit 0
+	If '##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request) Quit 0
 	If ##class(OcuTalon.Bridge.Data.ConversationLink).Lock(request.OwnerRef, runner) {
 		Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(request.OwnerRef, runner)
 		Quit 0
@@ -605,12 +606,13 @@ ClassMethod Classify(facts As %DynamicObject) As %String
 	Quit ""
 }
 
-/// 1 when the failure of a request says that the provider rejected the stored history of the conversation (AD-8): the request is a turn
-/// with provenance user, the only kind with a stored history, and the failure text holds INVALIDINPUTTEXT, without regard to case. It is
-/// pure, and it does not classify: the reason of such a failure stays what Classify gives (error).
+/// 1 when the failure of a request says that the provider rejected the stored history of the conversation (AD-8): the request is linked to
+/// a conversation (the runner's own rule, Adapter.Agent IsLinked: a turn with provenance user, the only kind with a stored history), and the
+/// failure text holds INVALIDINPUTTEXT, without regard to case. It is pure, and it does not classify: the reason of such a failure stays what
+/// Classify gives (error).
 ClassMethod Broken(request As OcuTalon.Bridge.Msg.Request, failure As %String) As %Boolean
 {
-	If '$IsObject(request) || (request.Kind '= "turn") || (request.Provenance '= "user") Quit 0
+	If '##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request) Quit 0
 	Quit $ZConvert($Get(failure), "L") [ $ZConvert(..#INVALIDINPUTTEXT, "L")
 }
 

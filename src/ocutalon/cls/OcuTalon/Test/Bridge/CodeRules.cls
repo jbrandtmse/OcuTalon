@@ -18,8 +18,8 @@
 ///   - TestOnlyTheRunnerWritesLinks (Story 1.8; AD-6, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter and
 ///     Decide, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock and Unlock of it
 ///     and nothing else, a system method such as %New or %DeleteId included; the adapter, the only caller of Point and SessionOf, calls those two and
-///     Lock and Unlock; no line of either names the link class, its table or its globals outside such a call; and Point is the only writer of the
-///     link class;
+///     Lock and Unlock, and Point in one place; no line of either names the link class more often than it calls one of its methods, and none names its
+///     table or its globals; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
 ///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
 ///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool.
@@ -67,6 +67,11 @@ Parameter LINKNAMERS = "OcuTalon.Bridge.Data.ConversationLink,OcuTalon.Bridge.Ad
 
 /// A call of a method of the link class, as ##class(...ConversationLink).Method(, a system method (%New, %OpenId, %DeleteId) included.
 Parameter LINKCALL = "conversationlink\)?\.[%\w]+\(";
+
+/// A line that deletes a row, runs SQL or writes a global directly, which the link class never holds: a delete or kill, a dynamic or embedded
+/// statement ($SYSTEM.SQL, %ExecDirect, %Prepare, an Execute, &sql), a Kill or Merge of a global (K and M too), a Set of a global (S too, with a
+/// condition, or after other targets of the same Set) and $Increment of a global.
+Parameter LINKWRITES = "%delete|%killextent|%execdirect|%prepare|&sql\(|\$system\.sql|\.%?execute\(|\bkill\b|\b(k|m|merge)\s+\^|\b(s|set)\b(:\S+)?\s+([^\s,=]+\s*=\s*[^,]+,\s*)*\^|\$i(ncrement)?\(\s*\^";
 
 /// The statements that change data, as a word.
 Parameter SQLVERBS = "insert|update|delete|drop|create|alter|truncate";
@@ -167,8 +172,8 @@ Method TestSessionsOnlyThroughTheComposer()
 
 /// Only the runner writes conversation links (AD-6, AD-33). No class outside the Test package, except ConversationLink, the adapter and Decide, names the
 /// link class, its table or the globals of its rows and its lock. Decide calls Lock and Unlock of the class and nothing else (it takes the lock only to
-/// probe it); the adapter calls Point, SessionOf, Lock and Unlock and nothing else; and Point is the only method of ConversationLink that saves or
-/// deletes a row. The scanners are first shown to flag samples and to pass look-alikes and comment lines.
+/// probe it); the adapter calls Point, SessionOf, Lock and Unlock and nothing else, and Point in one place; and Point is the only method of
+/// ConversationLink that saves or deletes a row. The scanners are first shown to flag samples and to pass look-alikes and comment lines.
 Method TestOnlyTheRunnerWritesLinks()
 {
 	Set pattern = ..#LINKREFERENCE
@@ -191,6 +196,13 @@ Method TestOnlyTheRunnerWritesLinks()
 	Do $$$AssertEquals(..LinkMentions(mentions, calls), 0, "a line that calls a method of the link class, a comment line and a look-alike are no stray mention")
 	Do $$$AssertEquals(..LinkMentions(tab_"Set sc = $ClassMethod(""OcuTalon.Bridge.Data.ConversationLink"", ""Point"", a, b, c)", calls), 1, "a class name in a string is a stray mention")
 	Do $$$AssertEquals(..LinkMentions(tab_"&sql(DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = :owner)", calls), 1, "and so is the table in embedded SQL")
+	Do $$$AssertEquals(..LinkMentions(tab_"If ##class(OcuTalon.Bridge.Data.ConversationLink).Lock(o, a) { Set sc = $ClassMethod(""OcuTalon.Bridge.Data.ConversationLink"", ""Point"", o, a, id) }", calls), 1, "a stray mention on a line that also calls a method of the link class is flagged")
+	Do $$$AssertEquals(..LinkMentions(tab_"If ##class(OcuTalon.Bridge.Data.ConversationLink).Lock(o, a) { Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(o, a) }", calls), 0, "and a line with two calls is no stray mention")
+	Set writes = ..#LINKWRITES
+	For sample = "Do ##class(OcuTalon.Bridge.Data.ConversationLink).%DeleteId(id)", "Do $SYSTEM.SQL.Execute(""DELETE FROM OcuTalon_Bridge_Data.ConversationLink"")", "Set rs = statement.%Execute(id)", "&sql(DELETE FROM OcuTalon_Bridge_Data.ConversationLink)", "Kill ^OcuTalonBP.ConvLinkD", "K ^OcuTalonBP.ConvLinkD(1)", "Merge ^OcuTalonBP.ConvLinkD(2) = ^OcuTalonBP.ConvLinkD(1)", "S ^OcuTalonBP.ConvLinkD(1) = 1", "Set:x ^OcuTalonBP.ConvLinkD(1) = 1", "Set x = 1, ^OcuTalonBP.ConvLinkD(1) = 2", "If $Increment(^OcuTalonBP.ConvLinkD)" {
+		Do $$$AssertTrue($ClassMethod(source, "Matches", tab_sample, writes), "the write scanner flags: "_sample)
+	}
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", tab_"Set link.SessionId = sessionId"_$Char(10)_tab_"Lock +^OcuTalonBP.Conv(ownerRef, agent):seconds"_$Char(10)_tab_"Lock -^OcuTalonBP.Conv(ownerRef, agent)"_$Char(10)_tab_"Quit link.%Save()", writes), "and passes the link class's own Set, Lock and save")
 
 	Set offending = ..Offenders(pattern, ..#LINKNAMERS, .scanned, .unreadable)
 	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
@@ -207,12 +219,13 @@ Method TestOnlyTheRunnerWritesLinks()
 	For method = "Point", "SessionOf", "Lock", "Unlock" {
 		Do $$$AssertTrue($ListFind(used, method), "the adapter calls "_method)
 	}
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 1, "and it calls Point in one place, the save of a linked turn")
 	Do $$$AssertEquals(..LinkMentions(adapter, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", adapter, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Data.ConversationLink", .link), "the link class has source")
 	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", link, "\.%save\(")), 1, "the link class saves a row in one place")
 	Do $$$AssertEquals($ListToString(..LinkMethodsSaving(link), ","), "Point", "which is Point")
-	Do $$$AssertEquals($ClassMethod(source, "Matches", link, "%delete|&sql\("), 0, "and it deletes none and runs no embedded SQL")
+	Do $$$AssertEquals($ClassMethod(source, "Matches", link, writes), 0, "and it deletes none, runs no SQL and touches no global directly")
 }
 
 /// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
@@ -387,15 +400,25 @@ ClassMethod LinkCalls(text As %String, pattern As %String) As %List [ Private ]
 	Quit names
 }
 
-/// The number of code lines of the text that name the link class (any case) and hold no call of one of its methods (pattern is LINKCALL): a
-/// class name in a string, the table in a statement, anything that would reach the link without a call the scan lists.
+/// The number of code lines of the text that name the link class (any case) more often than they call one of its methods (pattern is LINKCALL): a
+/// class name in a string, the table in a statement, anything that would reach the link without a call the scan lists, also on a line that calls a
+/// method as well.
 ClassMethod LinkMentions(text As %String, pattern As %String) As %Integer [ Private ]
 {
 	Set count = 0
 	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
 	Set position = 0
 	While $ListNext(lines, position, line) {
-		If $Locate(line, "(?i)conversationlink") && '$Locate(line, "(?i)"_pattern) Set count = count + 1
+		Set named = $Length($ZConvert(line, "L"), "conversationlink") - 1
+		Set called = 0
+		Set start = 1
+		For {
+			Set at = $Locate(line, "(?i)"_pattern, start, end)
+			Quit:'at
+			Set called = called + 1
+			Set start = end
+		}
+		If named > called Set count = count + 1
 	}
 	Quit count
 }
@@ -409,7 +432,7 @@ ClassMethod LinkMethodsSaving(text As %String) As %List [ Private ]
 	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
 	Set position = 0
 	While $ListNext(lines, position, line) {
-		If $Locate(line, "(?i)^(class)?method\s+\w+") {
+		If $Locate(line, "(?i)^(class)?method\s+[%\w]+") {
 			Set heading = $ZStrip(line, "<W")
 			Set current = $Piece($Piece(heading, " ", 2), "(", 1)
 		}

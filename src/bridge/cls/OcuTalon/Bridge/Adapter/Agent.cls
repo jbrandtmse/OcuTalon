@@ -9,7 +9,8 @@ Include Ensemble
 ///     session.
 ///   - It composes the session config in one place (Compose) and uses it for every AI session it creates (NewSession) or opens
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort. The config carries timeout_ms,
-///     which Timeouts.Derive gives for the TimerSeconds setting of Decide as it stands when the config is composed (SessionConfigFor).
+///     which Timeouts.Derive gives for the TimerSeconds setting of Decide as it stands when the config is composed (SessionConfigFor). A
+///     saved session is opened with the agent's model and system prompt too, because AI Hub resumes a session with the ones it was saved with.
 ///   - It adds the step audit policy to every agent it builds (OnAfterAgentInit), after any policy that a setting names, and refuses
 ///     the AuditPolicy setting (REFUSED), so that every tool call is a step (AD-6, AD-9).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
@@ -219,17 +220,29 @@ Method NewSession(Output session As %AI.Agent.Session) As %Status
 	Quit sc
 }
 
-/// Opens the saved AI session with the id, with a newly composed config. The agent is built. AI Hub ignores the config of a
-/// session that is already attached to the agent, and the open returns the session object that is still open in the process, so a
-/// caller opens with an adapter whose agent has not attached it and that no one else holds: Answer releases every session at the end of
-/// a request (ReleaseSession).
+/// Opens the saved AI session with the id on the runner as it is now (AD-7), with a newly composed config and the agent's model and system
+/// prompt, because AI Hub resumes a session with the ones it was saved with and takes neither from the config: the model is set before AI
+/// Hub attaches the session (the agent's ResumeSession builds it with the model that it holds), and the system prompt after (the attach
+/// restores the prompt of the saved history). The agent is built. AI Hub ignores the config of a session that is already attached to the
+/// agent, and %OpenId returns the session object that is still open in the process, so a caller opens with an adapter whose agent has not
+/// attached it and that no one else holds: Answer releases every session at the end of a request (ReleaseSession). An id that no saved
+/// session has is an error status.
 Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Status
 {
 	Set session = ""
 	Set sc = ..SessionConfigFor(.config)
 	If $$$ISERR(sc) Quit sc
 	Try {
-		Set session = ..Agent.OpenSession(id, config)
+		Set opened = ##class(%AI.Agent.Session).%OpenId(id, , .sc)
+		If '$IsObject(opened) {
+			If $$$ISOK(sc) Set sc = $$$ERROR($$$GeneralError, "No saved AI session has the id '"_id_"'")
+		} Else {
+			Set attach = 'opened.IsAttached()
+			If attach Set opened.Model = ..Agent.Model
+			Set sc = ..Agent.ResumeSession(opened, config)
+			If $$$ISOK(sc) && attach Set opened.SystemPrompt = ..Agent.SystemPrompt
+			If $$$ISOK(sc) Set session = opened
+		}
 	} Catch exception {
 		Set sc = ##class(%AI.System).HandleError(exception, 1)
 	}
@@ -295,7 +308,8 @@ ClassMethod IsLinked(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 ///   1. The lock: Data.ConversationLink Lock of (OwnerRef, the config name of the runner item) waits LOCKSECONDS. When it is not taken,
 ///      the reply is Reply.NewBusy() with status OK, and nothing else happens: no Chat, no Usage row, no steps.
 ///   2. The session: a turn with SessionMode fresh, or one whose conversation has no link, gets NewSession. Any other turn opens the AI
-///      session that the link names (OpenSession), composing the config as for a new session. A failure keeps its error status.
+///      session that the link names (OpenSession), composing the config as for a new session, with the agent's model and system prompt. A
+///      failure keeps its error status.
 ///   3. The call (Converse) with ChatInput, whose seed is sent on a fresh turn only.
 ///   4. The save (SaveLinked), after a completed Chat whose context is not tainted: the session is saved and the link points at it.
 ///      Nothing is saved after a Chat that threw or a tainted one, and the link stays as it was.

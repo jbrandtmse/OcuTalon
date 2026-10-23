@@ -8,8 +8,9 @@
 ///   - TestFirstAndNextTurn: a user's first turn creates a link, (owner, ZzRunner), that names a saved AI session, and SessionRotated is 0; the next
 ///     turn of the owner keeps the same link and session, carries the first exchange before its input in the logged request, and the saved session
 ///     then holds both exchanges;
-///   - TestThrowawayKinds: decide, diagnose and an untrusted turn, for a new owner and for an owner with a link, make no link and save no session; the
-///     link and the saved session of the owner stay as they were, and each request carries its note and its input, with no seed and no history;
+///   - TestThrowawayKinds: decide, diagnose and an untrusted turn, with the SessionMode empty and with fresh and a SeedText, for a new owner and for
+///     an owner with a link, make no link and save no session; the link and the saved session of the owner stay as they were, and each request
+///     carries its note and its input, with no seed and no history;
 ///   - TestFailedChat: a provider failure on a linked owner leaves the link and the saved session's data as they were, and on a first turn leaves no
 ///     link and no session; the failure Reply is the one of Story 1.6;
 ///   - TestTaintedTurn: a turn that the probe tool taints is answered with Tainted 1 and saves nothing: the link and the saved session's data of the
@@ -29,7 +30,17 @@
 ///   - TestLockReleasedOnException: an exception inside the linked turn (a runner whose adapter raises in Converse) comes back as an error status with
 ///     no reply, and the lock is free, the agent holds no Session, the context is over, no link was made and nothing reached the mock;
 ///   - TestSaveProblem: a link that cannot be saved (an OwnerRef over the length of the column) is one warning that names the runner, the OwnerRef and
-///     the DecisionRef, changes nothing of the reply, and leaves SessionRotated 0.
+///     the DecisionRef, changes nothing of the reply, leaves SessionRotated 0, and the conversation lock free;
+///   - TestLockHeldFromOpenToSave (QA): a runner whose adapter notes, at the open or creation of the AI session, right before Chat, right before the
+///     save and when the agent's Session is cleared, whether another process can take the conversation lock (Test.Bridge.ZzLockSpyAdapter) shows the
+///     lock held at each of them (the session is cleared before the lock is released), for a first turn, a continue turn, a fresh turn and a failed one
+///     (which never reaches the save), and free after each;
+///   - TestOwnersAreSeparate (QA): two owners of the same runner have conversations of their own: each request carries its owner's exchange and not
+///     the other's, the links name different sessions, and each saved session holds only its owner's words;
+///   - TestResumedTurnCountsItsOwnUsage (QA): the Usage row of a turn on a resumed session counts that turn alone (one request), so that the rows of
+///     the two turns add up to the counters of the saved session, which GetStats() restores on the open (AD-20);
+///   - TestResumeFollowsTheRunner: after the runner's Model setting and agent class change, the owner's next turn resumes the saved session with the
+///     runner's model and its agent's system prompt, and its reply and Usage row name the model that was sent (AD-7, AD-20).
 /// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
@@ -49,6 +60,9 @@ Parameter PROBEAGENT = "OcuTalon.Test.Bridge.ProbeAgent";
 
 /// The cap of the composed session config, in tokens.
 Parameter CAP = 8000;
+
+/// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
+Parameter OTHERMODEL = "claude-sonnet-5-5";
 
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
@@ -109,19 +123,23 @@ Method TestThrowawayKinds()
 	Set host = ..NewHost()
 	Set cases = $ListBuild($ListBuild("decide", "user"), $ListBuild("diagnose", "untrusted"), $ListBuild("turn", "untrusted"))
 
-	// an owner with no link
+	// an owner with no link: with the SessionMode empty, and with fresh and a SeedText, which only a linked turn sends
 	Set stranger = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 	Set position = 0
 	While $ListNext(cases, position, case) {
-		Set label = $List(case, 1)_" ("_$List(case, 2)_")"
-		Set request = ..NewTurn("[[mock:recall-tell]] Say something.", stranger, , $List(case, 1), $List(case, 2))
-		Set sc = ..Send(host, request, .reply, .logged)
-		Do $$$AssertStatusOK(sc, label_" is answered for an owner with no link")
-		Set seen = $Select($IsObject(reply): reply.Text_"|"_reply.SessionRotated, 1: "none")
-		Do $$$AssertEquals(seen, "Noted.|0", label_" with the text of the mock and no rotation: "_seen_" "_$Select($IsObject(reply): $Extract(reply.FailureText, 1, 300), 1: "")_" "_$SYSTEM.Status.GetErrorText(sc))
-		Do $$$AssertEquals(..LinkOf(stranger), "", label_" makes no link")
-		Do $$$AssertEquals(host.Adapter.Agent.Session, "", label_" leaves no Session on the agent")
+		For mode = "", "fresh" {
+			Set label = $List(case, 1)_" ("_$List(case, 2)_", SessionMode '"_mode_"')"
+			Set request = ..NewTurn("[[mock:recall-tell]] Say something.", stranger, , $List(case, 1), $List(case, 2), mode, $Select(mode = "fresh": "A recap that a throwaway request never sends.", 1: ""))
+			Set sc = ..Send(host, request, .reply, .logged)
+			Do $$$AssertStatusOK(sc, label_" is answered for an owner with no link")
+			Set seen = $Select($IsObject(reply): reply.Text_"|"_reply.SessionRotated, 1: "none")
+			Do $$$AssertEquals(seen, "Noted.|0", label_" with the text of the mock and no rotation: "_seen_" "_$Select($IsObject(reply): $Extract(reply.FailureText, 1, 300), 1: "")_" "_$SYSTEM.Status.GetErrorText(sc))
+			Do $$$AssertEquals(logged.%Size(), 1, label_" made one model request")
+			If logged.%Size() = 1 Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Messages(logged.%Get(0)), "user:"_request.Input, label_" carries its input alone: the seed of a fresh request is not sent")
+			Do $$$AssertEquals(..LinkOf(stranger), "", label_" makes no link")
+			Do $$$AssertEquals(host.Adapter.Agent.Session, "", label_" leaves no Session on the agent")
+		}
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), mark, "and saves no AI session")
 
@@ -136,13 +154,16 @@ Method TestThrowawayKinds()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 	Set position = 0
 	While $ListNext(cases, position, case) {
-		Set label = $List(case, 1)_" ("_$List(case, 2)_")"
-		Set request = ..NewTurn("[[mock:recall-tell]] Say something else.", owner, , $List(case, 1), $List(case, 2), "", "A recap that a throwaway request never sends.", "A note for the throwaway request.")
-		Do $$$AssertStatusOK(..Send(host, request, .reply, .logged), label_" is answered for the owner with a link")
-		Do $$$AssertEquals(logged.%Size(), 1, label_" made one model request")
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Messages(logged.%Get(0)), "user:"_request.SystemNote_$Char(10, 10)_request.Input, label_" carries its note and its input alone: no seed, no history of the conversation")
-		Do $$$AssertEquals(..LinkOf(owner), id, label_" leaves the link as it was")
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionExport(id), export, label_" leaves the saved session as it was")
+		For mode = "", "fresh" {
+			Set label = $List(case, 1)_" ("_$List(case, 2)_", SessionMode '"_mode_"')"
+			Set request = ..NewTurn("[[mock:recall-tell]] Say something else.", owner, , $List(case, 1), $List(case, 2), mode, "A recap that a throwaway request never sends.", "A note for the throwaway request.")
+			Do $$$AssertStatusOK(..Send(host, request, .reply, .logged), label_" is answered for the owner with a link")
+			Do $$$AssertEquals($Select($IsObject(reply): reply.SessionRotated, 1: "none"), 0, label_" is no rotation")
+			Do $$$AssertEquals(logged.%Size(), 1, label_" made one model request")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Messages(logged.%Get(0)), "user:"_request.SystemNote_$Char(10, 10)_request.Input, label_" carries its note and its input alone: no seed, no history of the conversation")
+			Do $$$AssertEquals(..LinkOf(owner), id, label_" leaves the link as it was")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionExport(id), export, label_" leaves the saved session as it was")
+		}
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), mark, "and saves no AI session")
 }
@@ -487,6 +508,145 @@ Method TestSaveProblem()
 	Do $$$AssertEquals(warnings, 1, "one warning names the runner, the OwnerRef and the DecisionRef")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Bridge.Adapter.Agent", "SaveLinked"), 1, "and it is the only one of the save")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, "the context is over")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and the conversation lock is free")
+}
+
+/// The conversation lock is held at the three points of a linked turn that the spec names (AD-6): from the open of the AI session (OpenSession for a
+/// continue turn, NewSession for a first or a fresh one), through Chat, to the save. The runner here is Test.Bridge.ZzLockSpyRunner, whose adapter asks
+/// another process, at each of those points, whether it can take the lock, and the lock is free again when the turn is over. A turn that fails never
+/// reaches the save.
+Method TestLockHeldFromOpenToSave()
+{
+	If ..Guard() Quit
+	Set host = $ClassMethod(..#RUNNERTEST, "NewRunner", "OcuTalon.Agent.Chat", "low", , , "OcuTalon.Test.Bridge.ZzLockSpyRunner")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set host.Adapter.SpyOwner = owner
+	Do $$$AssertEquals(..LockFree(owner), 1, "control: nobody holds the lock before the first turn")
+
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "a first turn is answered")
+	Do $$$AssertEquals(host.Adapter.Noted(), "new=1,converse=1,save=1,release=1,release=0", "the lock is held when the session is created, before Chat and before the save, and when the session is released; Answer clears it once more after the lock is gone")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and free after the turn")
+
+	Do host.Adapter.Forget()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner), .next), "a continue turn is answered")
+	Do $$$AssertEquals(host.Adapter.Noted(), "open=1,converse=1,save=1,release=1,release=0", "the lock is held when the linked session is opened, before Chat and before the save, and when the session is released")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and free after the turn")
+
+	Do host.Adapter.Forget()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] A fresh start.", owner, , "turn", "user", "fresh", "Earlier, the user said that the build server is called ORION-7."), .fresh), "a fresh turn is answered")
+	Do $$$AssertEquals(fresh.SessionRotated, 1, "with SessionRotated 1")
+	Do $$$AssertEquals(host.Adapter.Noted(), "new=1,converse=1,save=1,release=1,release=0", "the lock is held when the new session is created, before Chat and before the save, and when the session is released")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and free after the turn")
+
+	Do host.Adapter.Forget()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:provider-error]] Fail this.", owner), .failed), "a turn that fails is answered")
+	Do $$$AssertEquals(host.Adapter.Noted(), "open=1,converse=1,release=1,release=0", "the lock is held when the session is opened, before Chat and when the session is released, and the save is never reached")
+	Do $$$AssertEquals(..LockFree(owner), 1, "the lock is free after it")
+}
+
+/// Two owners of the same runner have conversations of their own (AD-6: the link is keyed by the owner and the agent). Each request carries its owner's
+/// exchange and not the other's, the links name different sessions, and each saved session holds the words of its owner only.
+Method TestOwnersAreSeparate()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set host = ..NewHost()
+	Set ownerA = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ownerB = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set tellA = ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", ownerA)
+	Set tellB = ..NewTurn("[[mock:recall-tell]] My laptop is called ZEBRA-3.", ownerB)
+	Do $$$AssertStatusOK(..Send(host, tellA, .a1), "owner A's first turn is answered")
+	Do $$$AssertStatusOK(..Send(host, tellB, .b1, .loggedB1), "owner B's first turn is answered")
+	Do $$$AssertEquals(loggedB1.%Size(), 1, "owner B's first turn made one model request")
+	If loggedB1.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", loggedB1.%Get(0)), "user:"_tellB.Input, "which carries B's input alone: A's conversation is not B's")
+	Set idA = ..LinkOf(ownerA)
+	Set idB = ..LinkOf(ownerB)
+	Do $$$AssertTrue((idA '= "") && (idB '= "") && (idA '= idB), "the two links name two sessions: "_idA_" and "_idB)
+
+	Set askA = ..NewTurn("[[mock:recall-ask]] What is my build server called?", ownerA)
+	Set askB = ..NewTurn("[[mock:recall-tell]] And what else?", ownerB)
+	Do $$$AssertStatusOK(..Send(host, askA, .a2, .loggedA2), "owner A's next turn is answered")
+	Do $$$AssertStatusOK(..Send(host, askB, .b2, .loggedB2), "owner B's next turn is answered")
+	Do $$$AssertEquals(loggedA2.%Size(), 1, "owner A's next turn made one model request")
+	If loggedA2.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", loggedA2.%Get(0)), "user:"_tellA.Input_$Char(1)_"assistant:Noted."_$Char(1)_"user:"_askA.Input, "A's request carries A's exchange before its input, and nothing of B's")
+	Do $$$AssertEquals(loggedB2.%Size(), 1, "owner B's next turn made one model request")
+	If loggedB2.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", loggedB2.%Get(0)), "user:"_tellB.Input_$Char(1)_"assistant:Noted."_$Char(1)_"user:"_askB.Input, "B's request carries B's exchange before its input, and nothing of A's")
+	Do $$$AssertEquals(..LinkOf(ownerA), idA, "A's link still names A's session")
+	Do $$$AssertEquals(..LinkOf(ownerB), idB, "and B's link B's")
+	Set savedA = $ClassMethod(fixture, "SessionExport", idA)
+	Set savedB = $ClassMethod(fixture, "SessionExport", idB)
+	Do $$$AssertTrue((savedA [ tellA.ItemId) && (savedA [ askA.ItemId) && (savedA '[ tellB.ItemId) && (savedA '[ askB.ItemId), "A's saved session holds A's two turns and none of B's")
+	Do $$$AssertTrue((savedB [ tellB.ItemId) && (savedB [ askB.ItemId) && (savedB '[ tellA.ItemId) && (savedB '[ askA.ItemId), "and B's holds B's two turns and none of A's")
+}
+
+/// The Usage row of a turn on a resumed session counts that turn alone (AD-20): the stats of an opened session are restored, not zero, and the call is
+/// counted from the reading taken after the open. Each turn has one request, and the rows of the two turns add up to the counters of the saved
+/// session, which another open of it reads (GetStats() restores them).
+Method TestResumedTurnCountsItsOwnUsage()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "turn 1 is answered")
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner), .next), "turn 2 is answered")
+	Set rows = ..UsageOf(owner)
+	Do $$$AssertEquals($ListLength(rows), 2, "the owner has one Usage row for each turn")
+	If $ListLength(rows) = 2 {
+		Set one = ##class(OcuTalon.Bridge.Data.Usage).%OpenId($List(rows, 1))
+		Set two = ##class(OcuTalon.Bridge.Data.Usage).%OpenId($List(rows, 2))
+		Do $$$AssertEquals(one.RequestCount_"|"_two.RequestCount, "1|1", "each row counts one model request: the second turn does not count the first")
+		Set stats = ..SessionStats(host, ..LinkOf(owner))
+		Do $$$AssertTrue($IsObject(stats), "the saved session's counters are read")
+		If $IsObject(stats) {
+			Do $$$AssertEquals(stats.%Get("total_interactions"), one.RequestCount + two.RequestCount, "the interactions of the session are the requests of the two rows")
+			Do $$$AssertEquals(+stats.%Get("total_prompt_tokens") + stats.%Get("total_cache_read_tokens") + stats.%Get("total_cache_creation_tokens"), one.InputTokens + two.InputTokens, "its input tokens are the input tokens of the two rows")
+			Do $$$AssertEquals(+stats.%Get("total_completion_tokens"), one.OutputTokens + two.OutputTokens, "and its output tokens the output tokens of the two rows")
+		}
+	}
+}
+
+/// A resumed conversation runs on the runner as it is now (AD-7): the owner's first turn is answered by ZzRunner on the Chat agent and its model; then
+/// ZzRunner runs the probe agent with the Model setting OTHERMODEL, and the owner's next turn opens the same saved session, carries the first exchange,
+/// sends that model, and its reply and Usage row name the model that was sent; the saved session then holds that model and the system prompt that a new
+/// session of the probe agent holds (AI Hub stores the prompt of the session as it attached it).
+Method TestResumeFollowsTheRunner()
+{
+	If ..Guard() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set first = ..NewHost()
+	Set one = ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner)
+	Do $$$AssertStatusOK(..Send(first, one, , .loggedOne), "the first turn is answered by the runner as it was")
+	Set id = ..LinkOf(owner)
+	Do $$$AssertTrue(id '= "", "and is saved and linked: "_id)
+	Do $$$AssertEquals(loggedOne.%Size(), 1, "it made one model request")
+	If (id = "") || (loggedOne.%Size() '= 1) Quit
+	Do $$$AssertTrue(loggedOne.%Get(0).model '= ..#OTHERMODEL, "control: with a model other than "_..#OTHERMODEL_": "_loggedOne.%Get(0).model)
+	Set chatPrompt = ..Stored(id, "SystemPrompt")
+
+	Set changed = ..NewHost(..#PROBEAGENT)
+	Set changed.Adapter.Model = ..#OTHERMODEL
+	Set stranger = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(changed, ..NewTurn("[[mock:recall-tell]] Say something.", stranger)), "a new conversation of the changed runner is answered")
+	Set probePrompt = ..Stored(..LinkOf(stranger), "SystemPrompt")
+	Do $$$AssertTrue((probePrompt '= "") && (probePrompt '= chatPrompt), "control: its saved session holds a system prompt other than the Chat agent's")
+	Set two = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Do $$$AssertStatusOK(..Send(changed, two, .next, .loggedTwo), "the owner's next turn is answered by the changed runner")
+	Do $$$AssertEquals(loggedTwo.%Size(), 1, "it made one model request")
+	If loggedTwo.%Size() '= 1 Quit
+	Set sent = loggedTwo.%Get(0)
+	Do $$$AssertEquals(..LinkOf(owner), id, "the next turn resumed the same saved session")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Messages(sent), "user:"_one.Input_$Char(1)_"assistant:Noted."_$Char(1)_"user:"_two.Input, "with the first exchange before its input")
+	Do $$$AssertEquals(sent.model, ..#OTHERMODEL, "it sends the runner's model now, not the one the session was created with")
+	Do $$$AssertEquals($Select($IsObject(next): next.Model, 1: "none"), sent.model, "the reply, from its Usage row, names the model that was sent")
+	Do $$$AssertEquals(..Stored(id, "Model"), ..#OTHERMODEL, "the saved session now holds the runner's model")
+	Do $$$AssertTrue(..Stored(id, "SystemPrompt") = probePrompt, "and the system prompt of the runner's agent")
+}
+
+/// A property of the saved AI session with the id, as it is stored (the object is not attached and is released before the method returns), or "".
+ClassMethod Stored(id As %String, property As %String) As %String [ Private ]
+{
+	Set session = ##class(%AI.Agent.Session).%OpenId(id)
+	Quit $Select($IsObject(session): $Property(session, property), 1: "")
 }
 
 /// --- helpers ---
@@ -545,6 +705,29 @@ Method HistoryChars(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String
 	Quit chars
 }
 
+/// The ids of the Usage rows that ZzRunner wrote for the owner, oldest first, as a list.
+ClassMethod UsageOf(owner As %String) As %List [ Private ]
+{
+	Set ids = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ? AND OwnerRef = ? ORDER BY ID", ..#AGENT, owner)
+	While result.%Next() {
+		Set ids = ids _ $ListBuild(result.%GetData(1))
+	}
+	Quit ids
+}
+
+/// The counters of the saved AI session with the id (GetStats(), restored by the open), read through the host's adapter, which does not keep the
+/// session.
+Method SessionStats(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String) As %DynamicObject [ Private ]
+{
+	Set stats = ""
+	Do host.Adapter.OpenSession(id, .session)
+	If $IsObject(session) Set stats = session.GetStats()
+	Set session = ""
+	Set host.Adapter.Agent.Session = ""
+	Quit stats
+}
+
 /// The id of the AI session that the link of the owner and ZzRunner names, or "".
 ClassMethod LinkOf(owner As %String) As %String [ Private ]
 {
@@ -593,12 +776,13 @@ Method AssertFailureReply(reply As OcuTalon.Bridge.Msg.Reply, label As %String) 
 	Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason_"|"_reply.SessionRotated_"|"_reply.Busy, "||0|0", label_" Reply has no text or finish reason, and is not rotated or Busy")
 }
 
-/// 1 when a second process takes the conversation lock of (owner, ZzRunner) at once, and releases it. The lock is incremental, so a process that holds
-/// it takes it again: only another job tells whether it is free.
-ClassMethod LockFree(owner As %String) As %Boolean [ Private ]
+/// 1 when a second process takes the conversation lock of (owner, agent: ZzRunner unless another is given) at once, and releases it. The lock is
+/// incremental, so a process that holds it takes it again: only another job tells whether it is free. Test.Bridge.ZzLockSpyAdapter and
+/// Test.Bridge.Link ask it too.
+ClassMethod LockFree(owner As %String, agent As %String = {..#AGENT}) As %Boolean
 {
 	Set token = $Increment(^IRIS.Temp.ZzConversation)
-	Job ##class(OcuTalon.Test.Bridge.Conversation).TryLock(owner, ..#AGENT, token)
+	Job ##class(OcuTalon.Test.Bridge.Conversation).TryLock(owner, agent, token)
 	Set deadline = $ZHorolog + 30
 	While '$Data(^IRIS.Temp.ZzConversation(token)) && ($ZHorolog < deadline) {
 		Hang 0.1

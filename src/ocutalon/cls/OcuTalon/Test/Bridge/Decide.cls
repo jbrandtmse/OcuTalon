@@ -1964,7 +1964,7 @@ Method TestStepPositionsAcrossResends()
 /// else, status OK, with no Decision row, no event and no state kept, although nothing in it is usable. OnRequest probes the conversation lock of a user's
 /// turn, (OwnerRef, ChatAgent), before the DecisionRef, the precheck and a row: while another process holds it, the answer is the same Busy reply after the
 /// lock's 2 seconds, and nothing else happens (the precheck would otherwise end this turn in a no_key fallback, as ChatAgent has no key here). An untrusted turn
-/// of the same owner, and a decide or diagnose request, are never probed, and Held is 0 once the lock is free.
+/// of the same owner (its SessionMode fresh or not), and a decide or diagnose request, are never probed, and Held is 0 once the lock is free.
 Method TestBusyRelayed()
 {
 	Set class = "OcuTalon.Bridge.Msg.Reply"
@@ -2009,18 +2009,16 @@ Method TestBusyRelayed()
 	Set turn.OwnerRef = owner
 	Set untrusted = ..NewRequest("turn", "untrusted")
 	Set untrusted.OwnerRef = owner
+	Set freshUntrusted = ..NewRequest("turn", "untrusted")
+	Set freshUntrusted.OwnerRef = owner
+	Set freshUntrusted.SessionMode = "fresh"
+	Set freshUntrusted.SeedText = "A recap that an untrusted turn never gets."
 	Set decide = ..NewRequest("decide", "user")
 	Set decide.OwnerRef = owner
 	Set diagnose = ..NewRequest("diagnose", "user")
 	Set diagnose.OwnerRef = owner
 	Set stranger = ..NewRequest("turn", "user")
-	Kill ^IRIS.Temp.ZzDecideStop(owner), ^IRIS.Temp.ZzDecideHeld(owner)
-	Job ##class(OcuTalon.Test.Bridge.Decide).Hold(owner, "ChatAgent")
-	Set deadline = $ZHorolog + 30
-	While '$Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
-		Hang 0.1
-	}
-	Do $$$AssertTrue($Data(^IRIS.Temp.ZzDecideHeld(owner)), "another process holds the conversation lock of (owner, ChatAgent)")
+	Do $$$AssertTrue(..StartHolder(owner, "ChatAgent"), "another process holds the conversation lock of (owner, ChatAgent)")
 	Try {
 		Set logMark = ..LogMark()
 		Set started = $ZHorolog
@@ -2041,9 +2039,17 @@ Method TestBusyRelayed()
 		Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Busy_"|"_response.Fallback_"|"_response.FallbackReason, 1: "none"), class_"|0|1|no_key", "not as Busy: it is not probed, so the precheck ends it in a no_key fallback")
 		Do $$$AssertTrue(elapsed < 1.5, "and it did not wait: "_$Number(elapsed, 2)_" s")
 
-		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(decide, "TriageAgent"), 0, "Held is 0 for a decide request of the same owner")
-		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(diagnose, "DiagnosisAgent"), 0, "and for a diagnose request")
+		Set started = $ZHorolog
+		Set sc = process.OnRequest(freshUntrusted, .response)
+		Set elapsed = $ZHorolog - started
+		Do $$$AssertStatusOK(sc, "OnRequest answers an untrusted turn of the same owner that asks for a fresh session")
+		Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Busy_"|"_response.Fallback_"|"_response.FallbackReason, 1: "none"), class_"|0|1|no_key", "not as Busy either: the SessionMode makes no turn a conversation")
+		Do $$$AssertTrue(elapsed < 1.5, "and it did not wait: "_$Number(elapsed, 2)_" s")
+
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(decide, "ChatAgent"), 0, "Held is 0 for a decide request of the same owner, even against the held lock of (owner, ChatAgent)")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(diagnose, "ChatAgent"), 0, "and for a diagnose request")
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(untrusted, "ChatAgent"), 0, "and for an untrusted turn")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(freshUntrusted, "ChatAgent"), 0, "and for an untrusted turn with the SessionMode fresh")
 		Set started = $ZHorolog
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(stranger, "ChatAgent"), 0, "Held is 0 for a user's turn of an owner whose conversation is free")
 		Do $$$AssertTrue($ZHorolog - started < 1.5, "at once")
@@ -2051,13 +2057,7 @@ Method TestBusyRelayed()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
-	Set ^IRIS.Temp.ZzDecideStop(owner) = 1
-	Set deadline = $ZHorolog + 30
-	While $Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
-		Hang 0.1
-	}
-	Kill ^IRIS.Temp.ZzDecideStop(owner)
-	Do $$$AssertEquals($Data(^IRIS.Temp.ZzDecideHeld(owner)), 0, "the other process released the lock")
+	Do $$$AssertTrue(..StopHolder(owner), "the other process released the lock")
 	Set started = $ZHorolog
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(turn, "ChatAgent"), 0, "Held is 0 once the lock is free")
 	Set sc = process.OnRequest(turn, .response)
@@ -2302,7 +2302,34 @@ ClassMethod FailedReply(failure As %String) As OcuTalon.Bridge.Msg.Reply [ Priva
 	Quit reply
 }
 
-/// The job of TestBusyRelayed: holds the conversation lock of (owner, agent) until the test says stop, reporting through
+/// Starts a process that holds the conversation lock of (owner, agent) (Hold), and waits up to 30 seconds until it holds it. 1 when it does. Each
+/// StartHolder is paired with a StopHolder of the owner on every path. TestBusyRelayed and Test.Bridge.Link use it.
+ClassMethod StartHolder(owner As %String, agent As %String) As %Boolean
+{
+	Kill ^IRIS.Temp.ZzDecideStop(owner), ^IRIS.Temp.ZzDecideHeld(owner)
+	Job ##class(OcuTalon.Test.Bridge.Decide).Hold(owner, agent)
+	Set deadline = $ZHorolog + 30
+	While '$Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Quit ''$Data(^IRIS.Temp.ZzDecideHeld(owner))
+}
+
+/// Tells the process of StartHolder for the owner to release the lock and end, and waits up to 30 seconds until it has. 1 when it has (also when no
+/// such process runs). Its marks are removed either way.
+ClassMethod StopHolder(owner As %String) As %Boolean
+{
+	Set ^IRIS.Temp.ZzDecideStop(owner) = 1
+	Set deadline = $ZHorolog + 30
+	While $Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Set stopped = '$Data(^IRIS.Temp.ZzDecideHeld(owner))
+	Kill ^IRIS.Temp.ZzDecideStop(owner), ^IRIS.Temp.ZzDecideHeld(owner)
+	Quit stopped
+}
+
+/// The job of StartHolder: holds the conversation lock of (owner, agent) until StopHolder says stop, reporting through
 /// ^IRIS.Temp.ZzDecideHeld(owner) while it holds it. It gives up after 60 seconds on its own.
 ClassMethod Hold(owner As %String, agent As %String)
 {
