@@ -186,3 +186,6 @@
 2026-10-22T23:49:48Z	Story 1.6	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_1.6's_ACs_to_lead-run_agent-time_tooling;the_Visual_Trace_fallback_flag_is_message_fields_pinned_by_tests model=claude-opus-5-5
 2026-10-22T23:49:54Z	Epic 1	runtime_lock_acquired	lock=runtime stage=qa waited_s=0
 2026-10-22T23:49:54Z	Story 1.6	stage_spawned	stage=qa spawn_at=2026-10-22T23:49:54Z model=claude-sonnet-5-5 agent_name=1-6-qa-1 cycle_iteration=1
+2026-10-23T00:58:18Z	Epic 1	runtime_lock_released	lock=runtime stage=qa
+2026-10-23T00:58:18Z	Story 1.6	qa_complete	spawn_at=2026-10-22T23:49:54Z model=claude-sonnet-5-5 tests=Test/Bridge/{Fallback.TestFailureOrder,Decide.TestPrecheckOrder,Keys},Test/Agent/{RunnerFixture.Drain+FallbackProblems,Decide.AssertNotSent+TestPrechecks+TestDailyCapBothPaths,Runners,Steps} tests_added=2_methods+2_helpers+5_rewritten/strengthened mutations_demonstrated=10 first_run_failures=0 waits=polls_120s clarifications=0 checks=pass shard_lane_a=31/31_forward+reverse stray_files=3_copied_to_root_then_removed_by_QA(verified_clean) closing_sections_present=true agent=a13a8fd14d4e66630 cycle_iteration=1
+2026-10-23T00:58:23Z	Story 1.6	stage_spawned	stage=code-review spawn_at=2026-10-23T00:58:23Z model=claude-opus-5-5 agent_name=1-6-code-review-1 cycle_iteration=1
