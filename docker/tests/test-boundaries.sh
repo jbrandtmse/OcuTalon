@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scans the files of docker/, the compose files, src/, the text sources of web/, the repository-root files of the image,
-# .github/ and ci/ for the boundaries that no other test pins:
+# install.sh (the install script, Story 10.1), .github/ and ci/ for the boundaries that no other test pins:
 #   - ASCII only;
 #   - no image push, save or export, no registry sign-in and no --cache-to (CON-1, REL-4);
 #   - `docker compose config` only with --quiet and `docker inspect` only with --format, because
@@ -93,7 +93,7 @@ in_scope() {
   return 0
 }
 
-files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes src web .github ci | while IFS= read -r f; do
+files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes install.sh src web .github ci | while IFS= read -r f; do
   if in_scope "$f"; then echo "$f"; fi
 done)
 all_files=$(scan_files)
@@ -108,7 +108,7 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
   docker-compose.dev.yml docker/after-start.sh docker/after-start.cos docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/lib-live.sh \
   web/package.json web/package-lock.json web/angular.json web/src/index.html web/src/app/app.ts web/src/styles/tokens.css web/src/signin/signin.css \
   web/scripts/tokens.mjs web/e2e/sign-in/helpers.ts web/src/signin/signin.js src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls \
-  .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml; do
+  .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml install.sh; do
   if ! printf '%s\n' "$files" | grep -qx -- "$f"; then
     echo "  not scanned: $f"
     scope_ok=0
@@ -122,7 +122,7 @@ for f in CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artif
   fi
 done
 if [ "$scope_ok" -eq 1 ]; then
-  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, .github/, ci/ and the IPM release are scanned; every tracked or new file is scanned for paths and keys"
+  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/ and the IPM release are scanned; every tracked or new file is scanned for paths and keys"
 else
   echo "FAIL scope: a file that must be scanned is not"
   fails=$((fails + 1))

@@ -2,9 +2,10 @@
 title: 'One script finds the image, starts OcuTalon and says where to sign in'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0ce80fd21437659672164fce39c7e4eb09705001'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
 warnings: ['oversized']
 deferred: []
@@ -180,6 +181,52 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 -- Review pass
+- verdicts: 41 findings -- high 0, medium 6, low 30, false 5, maybe-false 0
+- layers: Blind Hunter 10, Edge Case Hunter 15, Verification Gap 8, Intent Alignment 8 (its divergences, one row each)
+- findings:
+    - `[low]` `[patch]` Blind: Design Note 15's read-only branch (and the failed `cp` branch) has no test and no mutation line — real: deleting `[ ! -w . ]` left every test green. Patched: hermetic rows `read-only-folder` (skipped where the user can write to a mode 555 folder) and `cp-fails`, plus the mutation line.
+    - `[medium]` `[patch]` Blind: the elapsed time and the 15-minute wait start when `up -d` returns, so the build is left out of "ready after" and of the wait — real: the figure feeds Story 11.3's first-start time. Patched: `started=$SECONDS` moved before `docker compose up -d`; the header comment, Design Note 14 and the hermetic row `up-takes-time` follow.
+    - `[low]` `[reject]` Blind: `docker-compose.yml` is never checked before the tag and `.env` are written — the script lives beside the compose file, so a missing one means the script was copied away (not a supported use); the fix is a guard plus a row and the `.env.example` check already names the folder. reopen_if: a judge reports a failed `up` after a copied script.
+    - `[low]` `[reject]` Blind: the `up -d` failure message does not name a busy port 52773 — the spec's row asks for the logs command and the README section, and the Troubleshooting section of Story 10.2 is where the usual causes (a busy port included) belong; extra text here is unspecified public wording.
+    - `[low]` `[reject]` Blind: the README Troubleshooting section does not exist yet — Story 10.2 creates it and the spec's Consumed-by names the section; nothing in this story can add it (README.md is contended).
+    - `[low]` `[patch]` Blind: the widened `inputs` rule — the comment in `ci/units.sh` did not say that `install.sh` stays unclassified, and `unclassified=0` meant "known". Patched: the comment now names the exception, and the variable is `known`. That every edit to `install.sh` runs all six groups is Design Note 12 (by-design; `test-ci-changes.sh` pins it).
+    - `[low]` `[reject]` Blind: `macos-15` is accepted for any job by the `runners` rule — the spec's task says to accept `macos-15` as a hosted runner so never-skipped applies; the `install-macos` job's runner is pinned by the wiring rule (`macos-runner` sample).
+    - `[medium]` `[patch]` Blind: the image tag is repeated in `install.sh`, the tests and the compose file, and nothing ties the script's copy to the compose default — real: a bump in one place leaves the judges' path tagging a different name, with every test green. Patched: a check that the script's `TAG` is the test's tag and the compose default's tag, with a mutation line.
+    - `[low]` `[reject]` Blind: Ctrl-C during the wait prints nothing — the container keeps starting and a rerun is safe by design; a trap adds a branch and unspecified text. reopen_if: a judge reports confusion after an interrupted install.
+    - `[low]` `[reject]` Blind: a failed `docker compose ps` is treated as a stopped container — the matrix row says a poll that "answers nothing" is a stop (exit 1, nothing removed), and a rerun resumes.
+    - `[low]` `[patch]` Edge: a relative script path with `CDPATH` set resolves the folder through `CDPATH` — reproduced by the reviewer with a stub. Patched: `CDPATH='' cd -- "$here"`, with the row `cdpath` and a mutation line.
+    - `[low]` `[reject]` Edge: a failed `docker image inspect` of the base name for a reason other than absence is read as absent — it needs a daemon that failed one call right after `docker version` passed; the guard adds a branch. reopen_if: a judge's existing base is re-pointed.
+    - `[low]` `[reject]` Edge: a `cp` that fails midway (disk full) leaves a truncated `.env` — Design Note 9 makes `.env` a plain copy, the same as the manual `cp`.
+    - `[low]` `[reject]` Edge: `.env.example` unreadable or `docker-compose.yml` missing is not checked — same root cause as the compose-file row above.
+    - `[low]` `[reject]` Edge: a transient `docker compose ps` failure counts as a stop — same row as the Blind finding above (matrix: "answers nothing").
+    - `[low]` `[reject]` Edge: command-line arguments (`--help`) are ignored and a full install starts — the script takes none by design; a usage branch is unspecified public text.
+    - `[low]` `[reject]` Edge: a symlinked script cd's to the link's folder — the spec forbids `readlink -f` and names no symlink use.
+    - `[low]` `[reject]` Edge: `OCUTALON_INSTALL_POLL=0` passes the whole-seconds check and spins — a test-only override that nothing on the judges' path sets.
+    - `[low]` `[reject]` Edge: a docker call that never returns is not bounded — theoretical, and `timeout` is forbidden by the spec's portability list.
+    - `[low]` `[reject]` Edge: a remote `DOCKER_HOST` makes `http://localhost` wrong — the spec's scope is a local Docker (macOS, Windows with WSL, Linux).
+    - `[low]` `[patch]` Edge: the timeout message says the container "is still running" for any state, and the stop message says the container is "still there" when there is none — false claims in public text. Patched: the timeout names the state, the stop message says the script never removes anything.
+    - `[low]` `[reject]` Edge: the live unit would pick another `irishealth-community` build 154 image with a different ID on a machine that holds one — the CI runner holds only the base name and a developer machine fails with a clear id mismatch.
+    - `[false]` `[reject]` Edge (claim): `.env.example` stays a declared non-input, so an edit to it runs no group — Design Note 12 (by-design); `test-ci-changes.sh:241` pins it and its content is pinned to two empty variables.
+    - `[medium]` `[patch]` Edge (claim): the live unit's `OCUTALON_INSTALL_WAIT` is computed before the script runs but the wait started after `up -d` — the same root cause as the clock finding; with the clock moved, the wait bounds the whole `up` and the poll.
+    - `[low]` `[patch]` Edge (claim): the `wiring` header and PASS text say ShellCheck runs "before" the checks, which the rule does not compare. Patched: the order claim is removed from `test-ci-config.sh`.
+    - `[medium]` `[patch]` Verification gap: `install.sh text eol=lf` is pinned by no test — real: deleting the line left every test green. Patched: `git check-attr eol` check in the hermetic test, with a mutation line.
+    - `[low]` `[patch]` Verification gap: `fmt_time` (`N min M s`) is unpinned — swapping its operands left every test green. Patched: the function is cut out of `install.sh` and called with 45, 60 and 125, with a mutation line.
+    - `[low]` `[reject]` Verification gap: the `LC_ALL=C` tie-break is unpinned — the effect is small (two same-tag, same-CPU candidates) and a pin needs a locale that sorts differently. reopen_if: a judge reports the wrong one of two same-CPU images used on a non-C locale.
+    - `[low]` `[patch]` Verification gap: the 900 s default is pinned by source text only and the fallback value is unobserved — `max_wait=1` left every test green. Patched: the fallback rows (`soon`, empty) wait two real seconds, with a mutation line.
+    - `[low]` `[patch]` Verification gap: the read-only folder and the `.env` copy failure have no test — same root cause as the first Blind finding (patched there).
+    - `[low]` `[patch]` Verification gap (Rule 19): ACs and changes without a `mutation:` line (ShellCheck wiring and `CHECK_SCRIPTS`, the macOS pins beyond `/bin/bash`, the live rerun and sign-in, the boundaries scope, `install.sh` staying unclassified, the other inputs-widening branches). Patched: each mutation applied, seen red, reverted and written into `## Verification`.
+    - `[low]` `[reject]` Verification gap (other): the live test is not linted and no hosted job syntax-checks it — Design Note 13 (it sources the contended `lib-live.sh`); it runs in the `image` group.
+    - `[false]` `[reject]` Verification gap (hermeticity): the mode check reads git's index and the live unit needs the preloaded base — both are declared prerequisites (the AC names the mode; the unit's `die` names the missing base), and each test creates and removes the state it asserts on.
+    - `[medium]` `[patch]` Intent: the elapsed time and the 900 s window start after `up -d` (the reading the diff took) — the same finding as the clock row above; patched there.
+    - `[medium]` `[patch]` Intent: nothing compares the script's default base name with the compose file or the Dockerfile — the same finding as the tag row above; patched there.
+    - `[low]` `[reject]` Intent: no README exists in the tree, so the "README account" and the Troubleshooting section are tied to nothing here — Story 10.2; the live unit pins the account by signing in.
+    - `[false]` `[reject]` Intent: the Never rules are enforced by `test-boundaries.sh` more weakly than the intent states — the hermetic test scans every code line of `install.sh` for the forbidden words and checks the allow-list of the calls its cases reach; the two layers together cover the list.
+    - `[low]` `[reject]` Intent: the matrix is checked against stub output only and the IRIS runner is a different Docker (overlay2, other Compose) than the machine of the measurement — the live unit runs the same `version`, `image ls`, `image inspect`, `compose ps` and `compose port` calls on real Docker; the runner difference is a residual risk, settled by the first `image` group run. reopen_if: the live unit is red on the runner.
+    - `[false]` `[reject]` Intent: while untracked, the 100755 check falls back to the executable bit — the check reads git's mode once the file is tracked, and the finalize commit tracks it as 100755.
+    - `[false]` `[reject]` Intent: changes outside `install.sh` (`test-ci-config.sh`, `ci/units.sh`, `.gitattributes`, `test-boundaries.sh`) were not named by the intent — each one is a task of the spec or a listed footprint extension.
+    - `[low]` `[reject]` Intent: a change to `install.sh` runs every IRIS group because no group claims it — Design Note 12 (by-design).
+
 ## Design Notes
 
 **Governing ADs:**
@@ -201,6 +248,7 @@ deferred: []
 6. **The script always runs `up -d`,** so a rerun after `git pull` upgrades in place (Stories 11.2 and 11.3). "At once" means the first poll is already healthy.
    - (inference) Compose keeps a container whose image ID and configuration are unchanged.
    - The live unit's rerun check measures this. If compose recreates the container anyway, the implement stage records it and escalates "at once" as an intent question. It does not weaken the check.
+   - (measured, implement stage) With Docker Compose 5.5.0 and the containerd image store on Apple silicon, the second `up -d` rebuilt from cache and kept the healthy iris container: the container ID was unchanged and the ready block printed at once, with no progress line. The check stands as written and no intent question arises.
 7. **Waiting.** It polls every 10 s, with one line per poll. `unhealthy` keeps waiting until the 15 minutes are up. Only `exited`, `dead` or no container counts as stopped.
 8. **The archive** is named by product, build and CPU. No planning artifact records the download's file name, so the load command is `docker load -i <the archive file>`. Story 10.2's README says where to get it.
 9. **`.env`** is a plain copy, the same as the manual `cp`. A stricter mode was not taken, because it is a security-posture change outside this story.
@@ -213,6 +261,8 @@ deferred: []
     - CI uses the 0.9.0 that the ubuntu-24.04 image ships (runner-images readme), so no new action or dependency is needed. Locally, `uvx --from shellcheck-py==0.9.0.6` runs 0.9.0 (measured), as a dev tool only.
     - The live test is not linted, because it sources the contended `lib-live.sh`.
     - The macOS job uses `macos-15`, whose `/bin/bash` is 3.2. It costs about one hosted macOS minute per push, as the AC requires.
+14. **The elapsed time** printed in the progress lines and the ready block, and the 900 s wait, count from the start of `docker compose up -d`, so they include the image build. (decided at implement, then changed at review: the first version started the clock when `up -d` returned, which left the build out of the figure that Story 11.3 reads as the first-start time and out of the wait that the live unit bounds.)
+15. **One extra check before any change** (decided at implement): when `.env` is missing and `.env.example` is absent or the folder is not writable, the script exits 1 with the fix before tagging or starting anything. It keeps "every check passes before anything changes" true for the file copy too.
 
 **Extend, don't copy:**
 - The live unit extends `lib-live.sh`'s throwaway helpers.
@@ -265,20 +315,92 @@ Never write the absolute home path in this file: `test-boundaries.sh`'s local-pa
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-**Pinning tests** (the implement stage writes one `mutation:` line for each):
+**Pinning tests** (the implement stage wrote one `mutation:` line for each; every mutation was applied, run, seen red and reverted, and the file was byte-identical afterwards by `cmp` and `shasum`):
 - the Health-first choice: swap the preference → the "both images" row goes red;
+  - mutation: swap the two `pick` calls of the missing-base branch, so non-Health is tried first → red: `both images: Health is the only docker tag source` and six more checks of `test-install-script.sh`.
 - the non-Health `IRIS_IMAGE` value;
+  - mutation: set `build_image` to the base name in the non-Health branch → red: `only non-Health: IRIS_IMAGE is the non-Health reference`, its prefixed twin and `mixed CPUs: IRIS_IMAGE is the non-Health reference`.
 - the arch refusal: skip the check → the "wrong CPU" row;
+  - mutation: make `pick` accept any candidate whose CPU is known → red: `wrong CPU: exit 1`, `wrong CPU: names each image's CPU`, the other `wrong CPU` checks that name the fix, three `mixed CPUs` checks and `tie: a candidate for another CPU is skipped`.
 - the Compose minimum (DW-2): accept 2.23 → red;
+  - mutation: change the minor-version test from 24 to 23 → red: `Compose 2.23.3: refused (exit 1) with the found version and the minimum` and `Compose 2.23.3: nothing changed`.
 - `.env` never overwritten;
+  - mutation: make the `.env` test always true, so the script copies `.env.example` over an existing file → red: `existing .env: byte for byte the same afterwards`, `existing .env: says that it was not changed`, `existing .env: no copy message` and `existing empty .env: stays empty`.
 - the published port, not 52773;
+  - mutation: set `port` to 52773 instead of the port compose reports → red: the three `custom port` checks and `no published port: exit 1 and says so`.
 - timeout and stop exit 1;
+  - mutation: `exit 0` before the timeout message → red: `never ready: exit 1` and three more, including `the last sleep never goes past the wait`.
+  - mutation: `exit 0` before the stopped-container message → red: `container stops (exited|dead|NONE): exit 1` and the two checks that follow each.
 - the call allow-list: add an unconditional `compose down` → red;
+  - mutation: run `docker compose $cmd` with `cmd=down` right after the first message (hidden from the text rule on purpose) → red: `calls: every docker call of every case is on the allow-list`, and only that check.
 - the live manual-retag phase: skip the manual `docker tag` → the plain `up` fails;
+  - mutation: replace the manual `docker tag "$src_ref" "$test_base"` of `test-install-script-live.sh` by `true`, then `ci/iris.sh live install-script-live` on lane C → red: `a plain docker compose up -d exited 1` and `the plain docker compose up did not reach healthy`; `ci/iris.sh teardown` for the tag removed nothing more, and the shared base kept its ID.
 - the macOS pin: remove `/bin/bash` from the job → `test-ci-config` goes red;
+  - mutation: `run: OCUTALON_TEST_BASH_MAJOR=3 docker/tests/test-install-script.sh` in the `install-macos` job → red: `wiring: ci.yml does not run what its jobs are for, or a sample is not flagged`.
 - the inputs widening: a declared-path read still fails.
+  - mutation: delete the line of `inputs_violations` that counts a `NOT_IRIS_INPUT_PATTERN` match as known → red: the samples `i-reads-declared-test`, `i-reads-declared-md` and `i-reads-declared-example` no longer draw their violation, and `inputs` fails.
+  - mutation: delete the line that counts a bookkeeping path as known → red: `inputs: the sample i-reads-bookkeeping does not draw ...`. Delete the line that asks every other group's pattern → red: `inputs: the sample i-reads-other-group does not draw ...`.
+
+The review pass added these pinning tests and mutation lines (each applied, run, seen red and reverted; the tree was byte-identical afterwards by `git status`, `git diff --stat` and a hash of the diff):
+- the clock of the elapsed time and the wait starts at `compose up -d` (`up-takes-time`: a stub `up` that takes 1 s);
+  - mutation: move `started=$SECONDS` from before `docker compose up -d` to the start of the wait loop → red: `the elapsed time counts from the start of compose up (the build is in it)`.
+- the read-only folder check of Design Note 15 (`read-only-folder`, skipped where the user can write to a mode 555 folder anyway, such as root);
+  - mutation: replace `[ ! -w . ]` by `false` → red: `read-only folder, no .env: exit 1 with the fix` and `read-only folder, no .env: nothing changed`.
+- the script's own folder with a relative path and `CDPATH` set (`cdpath`);
+  - mutation: replace `CDPATH='' cd -- "$here"` by `cd "$here"` → red: `relative script path with CDPATH set: exit 0 in the script's own folder` and `...: .env is created in the script's folder`.
+- `fmt_time` (the function is cut out of `install.sh` and called with 45, 60 and 125);
+  - mutation: swap the quotient and the remainder in the `N min M s` branch → red: `fmt_time: 60 s is '1 min 0 s'` and `fmt_time: 125 s is '2 min 5 s'`.
+- the fallback of `OCUTALON_INSTALL_WAIT` (`soon` and the empty value, with real 1 s sleeps, so a fallback of 1 s ends the wait);
+  - mutation: set the default and the case fallback to 1 → red: both `OCUTALON_INSTALL_WAIT=... falls back to the default` rows (and the source-text check).
+- `.gitattributes` keeps `install.sh` at LF (`git check-attr eol`);
+  - mutation: delete the `install.sh text eol=lf` line → red: `.gitattributes: install.sh keeps LF on every checkout`.
+- the script's `TAG` is the tag of the compose file's default image;
+  - mutation: change the default image tag in `docker-compose.yml` to `.153.0` → red: `install.sh: its TAG is this test's tag and the tag of the compose file's default image`.
+- AC1, `CHECK_SCRIPTS` and the ShellCheck step;
+  - mutation: remove `install-script` from `CHECK_SCRIPTS` → red: `test-ci-config` rule `units: the test scripts, the shards and the areas`.
+  - mutation: remove the `ShellCheck` step from `ci.yml` → red: `test-ci-config` rule `wiring`.
+- AC2, the macOS job beyond `/bin/bash`;
+  - mutation: remove `OCUTALON_TEST_BASH_MAJOR=3` from the step → red: rule `wiring`.
+  - mutation: stop accepting `macos-15` in the `runners` rule → red: rules `runners` and `never-skipped` (the sample `skip-macos-job`).
+- AC3, the rest of the live unit (the rerun and the sign-in; one live run on lane C with two mutations at once);
+  - mutation: `docker compose up -d --force-recreate` and the printed password changed to `wrong` → red: `the second run prints ... progress line(s), or no ready block`, `MEASURED: compose recreated the container on the second up -d` and `the printed user and password do not sign in at the printed address`; the other checks stayed green, `ci/iris.sh teardown` removed nothing more, and the shared base kept its ID.
+- AC4, the `test-boundaries.sh` scan;
+  - mutation: drop `install.sh` from the arguments of `scan_files` → red: `scope: a file that must be scanned is not` (`not scanned: install.sh`).
+- AC5, `install.sh` stays unclassified;
+  - mutation: add `|install\.sh$` to `IRIS_INPUT` → red: `test-ci-changes` (`classifier: a top-level script: the reason of ... does not name install.sh`).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** A root `install.sh` (bash 3.2) checks Docker, the daemon, Compose 2.24 or later and a build 154 image for the daemon's CPU before it changes anything. It names the image it used, gives it the base name (an existing base is never moved), creates `.env` from `.env.example` when there is none, runs `docker compose up -d`, prints a progress line per 10 s poll, and prints the published address and the README account when the compose health check passes. A stop or the end of the 15 minutes exits 1 with the logs command and the README section. A hermetic stub-`docker` test (about 170 checks) runs in `checks` on Linux and in the new `install-macos` job under `/bin/bash`; a live unit in the `image` group runs the real script, a rerun, and the manual retag with a plain `docker compose up`, in a throwaway project.
+
+**Files changed.**
+- `install.sh` (new, 100755): the script.
+- `docker/tests/test-install-script.sh` (new): the hermetic test, one case per matrix row plus the review's additions.
+- `docker/tests/test-install-script-live.sh` (new): the live unit.
+- `ci/units.sh`: `install-script` in `CHECK_SCRIPTS`; `live:install-script-live` last in the `image` group; a comment that `install.sh` stays unclassified.
+- `.github/workflows/ci.yml`: the `ShellCheck` step in `checks` and the `install-macos` job.
+- `docker/tests/test-ci-config.sh`: `macos-15` as a hosted runner, the ShellCheck and macOS wiring pins with bad samples, and the widened `inputs` rule with its samples.
+- `docker/tests/test-boundaries.sh`: `install.sh` in the scan scope and the must-scan list.
+- `.gitattributes`: `install.sh text eol=lf`.
+- This spec: Design Notes 14 and 15, the mutation lines, the triage log.
+
+**Review.** 41 findings from four layers: high 0, medium 6, low 30, false 5. Fifteen rows were patched, in eleven entries; three of the entries were medium: the clock of the elapsed time and the wait now starts at `compose up -d` (the build counts), the script's `TAG` is pinned to the compose file's default image tag, and the LF rule of `.gitattributes` is pinned by `git check-attr`. The low patches: `CDPATH` guard on the script's own `cd`, the timeout and stop messages claim only what is true, a test for the read-only folder and the failed `.env` copy, `fmt_time` pinned, the fallback of `OCUTALON_INSTALL_WAIT` observed, the order claim removed from the `wiring` header, a clearer `known` flag and a comment in `ci/units.sh`, and the missing mutation lines of Rule 19 demonstrated and written. Twenty-six rows were rejected with their reasons in the triage log; none was deferred (`deferred:` stays empty).
+
+**Follow-up review recommended: true.** The first pass patched three medium entries. The unverified risk: the live unit has run only on lane C (Apple silicon, containerd image store, Compose 5.5.0). Whether the second `up -d` keeps the container on the IRIS runner (x64, Docker Engine, an older Compose) is measured by the first `image` group run in CI; if compose recreates the container there, the check stands as written and "prints at once" becomes an intent question (Design Note 6). The `install-macos` job and the ShellCheck step (0.9.0 on the hosted image) have not run on a hosted runner either.
+
+**Verification performed (final tree).**
+- `bash docker/tests/test-install-script.sh` and `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh`: all checks pass; `BASH 3.2.57` printed.
+- `uvx --from shellcheck-py==0.9.0.6 shellcheck install.sh docker/tests/test-install-script.sh`: no output, exit 0.
+- `test-ci-config.sh`, `test-boundaries.sh` and `test-ci-changes.sh` (unchanged): all pass.
+- Live: `ci/iris.sh live install-script-live` on lane C, tag `e10s1i`: every check passed (first run ready after 1 min 2 s; the rerun printed at once with the same container; the plain `docker compose up -d` reached healthy on the same volume). The shared base `ocutalon-iris-base:2026.3.0AI.154.0` kept its ID before and after every live run, `ci/iris.sh teardown` for the tag found nothing left, and no `.env` was left in the tree.
+- `bash ci/checks.sh` (once, after the last patch): `checks: all scripts passed`.
+- Falsifiability (Rule 19): every pinning test has a `mutation:` line in `## Verification`, each applied, seen red and reverted with the tree byte-identical.
+
+**Residual risks.**
+- The first CI runs are the only evidence for the hosted macOS job, ShellCheck 0.9.0 on the hosted image, and the live unit on the IRIS runner (its time inside the `image` group, 2 to 3 minutes on ARM, is for QA to record against the 1.25 balance rule).
+- `README.md` has no Troubleshooting section yet; Story 10.2 creates it, and the script's messages name it. DW-2's README half is Story 10.2's.
+- An edit to `install.sh` runs every IRIS group, by Design Note 12.
+- The edits outside the Code Map are the footprint extensions the spec lists (`test-ci-config.sh`, `test-boundaries.sh`, `.gitattributes`, `test-install-script-live.sh`); none of the contended files was edited.

@@ -8,7 +8,8 @@
 #   - concurrency: a push has a group of its own run id and is never cancelled; only a pull request cancels its superseded run;
 #   - pins: every action is owner/repo@<40 hex> followed by a version comment, and no docker:// image;
 #   - persist-credentials: every checkout sets persist-credentials: false;
-#   - runners: ubuntu-24.04 or [self-hosted, ocutalon];
+#   - runners: ubuntu-24.04, macos-15 (the install-macos job: macOS's own bash 3.2) or [self-hosted, ocutalon]; the hosted ones
+#     are never skipped, and macos-latest is flagged like ubuntu-latest;
 #   - fork-guard: every self-hosted job carries the job-level guard that keeps a fork's pull request off the IRIS runner;
 #   - secrets: no secrets reference (a run block, any case, a bracket or the whole context, as in toJSON(secrets), included), and
 #     github.token only as GH_TOKEN (the whole github context, which holds the token, counts as a use of it);
@@ -16,8 +17,10 @@
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
-#   - wiring: ci.yml runs ci/checks.sh, each script of WEB_SCRIPTS (the web build and the mock's tests, the step "Mock tests" among
-#     them), lint and unit tests, each gated by the classifier's web output; the iris job asks the classifier for its own group
+#   - wiring: the checks job of ci.yml runs the ShellCheck step of install.sh and its hermetic test (Story 10.1) and ci/checks.sh, the install-macos job
+#     on macos-15 runs that test as OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh, and the web job runs each
+#     script of WEB_SCRIPTS (the web build and the mock's tests, the step "Mock tests" among them), lint and unit tests, each gated by
+#     the classifier's web output; the iris job asks the classifier for its own group
 #     (ci/changes.sh ci.yml --group <its group>), runs ci/iris.sh build and group unless the run output is `false`, and otherwise
 #     runs the step Skipped with the reason; every step reads only step ids that exist, and the iris job sets the run tag, the
 #     image and the deadline;
@@ -32,7 +35,9 @@
 #   - inputs (Story 32.2): every unit of NO_WEB_BUNDLE_UNITS is a unit of a group and no live script of it has a code line that names the
 #     web bundle (each of the markers alone is enough); group_input_pattern answers for each group with a pattern that matches
 #     ci/units.sh, the workflow and src/, and for no unknown group; and every file that a live script of the group sources or adds
-#     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern;
+#     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern, or by no group at all: a path that no
+#     group claims, that NOT_IRIS_INPUT_PATTERN does not declare and that is not bookkeeping makes ci/changes.sh run every group (install.sh
+#     is one), so reading it is safe, while the read of a path that another group claims, or that is declared a non-input, is not;
 #   - recipe: ci/iris.sh (with no OCUTALON_WARM from the caller: Story 32.4's warm mode has its own pins in test-ci-warm.sh) refuses a bad
 #     run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with exit 1; its web port is 52810 plus the runner's number on runners 0 to 9 and 52819 minus it on runners 10 to 19, a set
 #     OCUTALON_TEST_WEB_PORT wins (whatever the runner, none included), any other runner name (a number of 20 or more, a letter after
@@ -206,7 +211,7 @@ kind == "conc:cancel" { sawcancel = 1; if (text != cancel) bad(ln, "concurrency"
 kind == "job" { jobs[job] = ln }
 kind == "job:runs-on" {
   runsline[job] = ln
-  if (text == "ubuntu-24.04") hosted[job] = 1
+  if (text == "ubuntu-24.04" || text == "macos-15") hosted[job] = 1
   else if (text == "[self-hosted, ocutalon]") selfhosted[job] = 1
   else bad(ln, "runners")
 }
@@ -364,6 +369,8 @@ make_bad pin-no-comment 'sub(/ # v7.0.1$/, "") { print; next } { print }'
 make_bad pin-short-sha 'sub(/@3d3c42e5aac5ba805825da76410c181273ba90b1/, "@3d3c42e") { print; next } { print }'
 make_bad pin-docker '{ print } $0 == "      - name: What changed" { print "        uses: docker://alpine:3.20" }'
 make_bad runner-latest 'sub(/runs-on: ubuntu-24.04/, "runs-on: ubuntu-latest") { print; next } { print }'
+make_bad runner-macos-latest 'sub(/runs-on: ubuntu-24.04/, "runs-on: macos-latest") { print; next } { print }'
+make_bad runner-macos-14 'sub(/runs-on: ubuntu-24.04/, "runs-on: macos-14") { print; next } { print }'
 make_bad runner-label 'sub(/runs-on: \[self-hosted, ocutalon\]/, "runs-on: [self-hosted, linux]") { print; next } { print }'
 make_bad fork-guard-missing 'index($0, "    if: github.event_name") == 1 { next } { print }'
 make_bad fork-guard-weak 'index($0, "    if: github.event_name") == 1 { print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
@@ -387,6 +394,7 @@ insert_after image-docker-upper "      - name: Run" "        uses: Docker/Login-
 insert_after image-cache-upper "      - name: Run" "        uses: Actions/Cache@$sha # v4.0.0"
 insert_after image-upload-upper "      - name: Run" "        uses: Actions/Upload-Artifact@$sha # v4.0.0"
 make_bad skip-hosted-job '$0 == "  hosted:" { print; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
+make_bad skip-macos-job '$0 == "    runs-on: ubuntu-24.04" { print "    runs-on: macos-15"; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
 make_bad coe-job '$0 == "    runs-on: ubuntu-24.04" { print; print "    continue-on-error: true"; next } { print }'
 make_bad coe-step '$0 == "      - name: What changed" { print; print "        continue-on-error: true"; next } { print }'
 make_bad matrix-extra 'sub(/group: \[install, production\]/, "group: [install, production, other]") { print; next } { print }'
@@ -448,12 +456,12 @@ rule triggers "push on main, feature/OCT_OcuTalon_MVP and OCT-epic*, every pull 
 rule concurrency "a push group is its own run id, and only a pull request cancels its superseded run" conc-cancel-true conc-group-branch
 rule pins "every action is owner/repo@<40 hex> with a version comment, and no docker:// image" pin-tag pin-no-comment pin-short-sha pin-docker
 rule persist-credentials "every checkout sets persist-credentials: false" persist-true persist-missing
-rule runners "ubuntu-24.04 or [self-hosted, ocutalon]" runner-latest runner-label
+rule runners "ubuntu-24.04, macos-15 or [self-hosted, ocutalon]" runner-latest runner-macos-latest runner-macos-14 runner-label
 rule fork-guard "every self-hosted job keeps a fork's pull request off the IRIS runner" fork-guard-missing fork-guard-weak
 rule secrets "no secrets reference (a run block, any case, a bracket or the whole context included), and github.token only as GH_TOKEN" secret-ref token-other secret-block secret-bracket token-block secret-context token-context
 rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job, whatever the case of the name" \
   image-docker image-cache image-cache-restore image-upload image-docker-upper image-cache-upper image-upload-upper
-rule never-skipped "no hosted job has a job-level if, and no job or step ignores a failure with continue-on-error" skip-hosted-job coe-job coe-step
+rule never-skipped "no hosted job (macOS included) has a job-level if, and no job or step ignores a failure with continue-on-error" skip-hosted-job skip-macos-job coe-job coe-step
 rule teardown "every job that runs ci/iris.sh has an if: always() step that runs ci/iris.sh teardown" teardown-no-always teardown-missing teardown-early
 rule matrix "the group list of ci.yml is ci/iris.sh groups" matrix-extra matrix-order matrix-block matrix-missing
 
@@ -506,6 +514,7 @@ BEGIN { FS = "\t" }
 kind == "step:name" { snames[job, st] = unq(text) }
 kind == "step:env" && index(text, "REASON: ") == 1 { reasonenv[job, st] = text }
 kind == "step:run" { runs[job, st] = text }
+kind == "job:runs-on" { runson[job] = text }
 kind == "step:if" { ifs[job, st] = text }
 kind == "step:id" { ids[job, text] = 1 }
 kind == "job:env" { i = index(text, ": "); env[job, substr(text, 1, i - 1)] = substr(text, i + 2) }
@@ -517,6 +526,9 @@ END {
   web = "steps.changes.outputs.web == 'true'"
   iris = "steps.changes.outputs.run != 'false'"
   need("checks", "bash ci/checks.sh", "")
+  need("checks", "shellcheck --version && shellcheck install.sh docker/tests/test-install-script.sh", "")
+  need("install-macos", "OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh", "")
+  if (runson["install-macos"] != "macos-15") bad("install-macos: the job does not run on macos-15")
   need("web", "bash ci/changes.sh ci.yml", "")
   nw = split(webscripts, ws, " ")
   if (nw == 0) bad("ci/units.sh: WEB_SCRIPTS is empty")
@@ -564,8 +576,15 @@ wiring_bad lint '$0 == "        run: npm --prefix web run lint" { print "       
 wiring_bad test '$0 == "        run: npm --prefix web test" { print "        run: echo test"; next } { print }'
 wiring_bad group '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: echo group"; next } { print }'
 wiring_bad mock '$0 == "        run: bash docker/tests/test-mock.sh" { print "        run: echo mock"; next } { print }'
+wiring_bad shellcheck 'index($0, "        run: shellcheck --version") == 1 { print "        run: echo lint"; next } { print }'
+wiring_bad shellcheck-scope 'index($0, "        run: shellcheck --version") == 1 { sub(/ install\.sh docker/, " docker") } { print }'
+wiring_bad macos-bash 'sub(/ \/bin\/bash docker\/tests\/test-install-script\.sh/, " docker/tests/test-install-script.sh") { print; next } { print }'
+wiring_bad macos-major 'sub(/OCUTALON_TEST_BASH_MAJOR=3 /, "") { print; next } { print }'
+wiring_bad macos-runner 'sub(/runs-on: macos-15/, "runs-on: ubuntu-24.04") { print; next } { print }'
+wiring_bad macos-job-gone '$0 == "  install-macos:" { skip = 1 } skip && /^  web:$/ { skip = 0 } skip { next } { print }'
 wiring_ok=1
-for n in id iris-gate group-gate gate-truthy web-gate skip-step skip-reason skip-text skip-split group-arg tag checks lint test group mock; do
+for n in id iris-gate group-gate gate-truthy web-gate skip-step skip-reason skip-text skip-split group-arg tag checks lint test group mock \
+  shellcheck shellcheck-scope macos-bash macos-major macos-runner macos-job-gone; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
     echo "FAIL wiring: the rule does not flag the sample $n"
     wiring_ok=0
@@ -580,7 +599,7 @@ for extra in "$web_scripts zz-web" ""; do
 done
 hits=$(wf_wiring "$ci_yml" | sed "s#^[0-9]*\twiring\t#  $ci_yml: #")
 if [ "$wiring_ok" -eq 1 ] && [ -z "$hits" ]; then
-  echo "PASS wiring: ci.yml runs the checks, each script of WEB_SCRIPTS, the lint and the unit tests, gated by the classifier's web output, and the iris job asks the classifier for its group and runs the build and the group unless run is false"
+  echo "PASS wiring: the checks job of ci.yml runs ShellCheck on install.sh and its hermetic test and the checks, the install-macos job runs that test on macos-15 under /bin/bash with OCUTALON_TEST_BASH_MAJOR=3, and the web job runs each script of WEB_SCRIPTS, the lint and the unit tests, gated by the classifier's web output, and the iris job asks the classifier for its group and runs the build and the group unless run is false"
 else
   printf '%s\n' "$hits" | head -n 10
   echo "FAIL wiring: ci.yml does not run what its jobs are for, or a sample is not flagged"
@@ -956,14 +975,24 @@ inputs_violations() {
         for path in ci/units.sh .github/workflows/ci.yml src/x; do
           printf '%s\n' "$path" | grep -Eq -- "$p" || echo "ci/units.sh: group_input_pattern $g does not match $path"
         done
-        # A file that a live script of the group sources or adds is an input of the group: its pattern must claim it.
+        # A file that a live script of the group sources or adds is an input of the group: its pattern must claim it. A read that no
+        # group claims, that NOT_IRIS_INPUT_PATTERN does not declare and that is not bookkeeping is also safe: ci/changes.sh runs every
+        # group for a changed path of that kind. A read that another group claims, or that is declared a non-input, is not.
         for u in $(group_units "$g"); do
           case $u in
             live:*)
               f="docker/tests/test-${u#live:}.sh"
               [ -f "$f" ] || continue
               for rel in $(unit_reads "$f"); do
-                printf '%s\n' "$rel" | grep -Eq -- "$p" || echo "$f: it reads $rel, which the input pattern of group $g does not claim"
+                printf '%s\n' "$rel" | grep -Eq -- "$p" && continue
+                known=0
+                for g2 in $IRIS_GROUPS; do
+                  p2=$(group_input_pattern "$g2" 2>/dev/null) || continue
+                  if printf '%s\n' "$rel" | grep -Eq -- "$p2"; then known=1; fi
+                done
+                if printf '%s\n' "$rel" | grep -Eq -- "$NOT_IRIS_INPUT_PATTERN"; then known=1; fi
+                if printf '%s\n' "$rel" | grep -Eq -- "$BOOKKEEPING_PATTERN" && ! printf '%s\n' "$rel" | grep -Eq -- "$NOT_BOOKKEEPING_PATTERN"; then known=1; fi
+                if [ "$known" -eq 1 ]; then echo "$f: it reads $rel, which the input pattern of group $g does not claim"; fi
               done
               ;;
           esac
@@ -1003,7 +1032,8 @@ mkinputs "$tmp/i-fn-fails" 'group_input_pattern() { return 1; }'
 mkinputs "$tmp/i-fn-empty" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; }'
 mkinputs "$tmp/i-fn-narrow" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; echo "^(ci/|\.github/workflows/ci\.yml\$)"; }'
 mkinputs "$tmp/i-fn-any" 'group_input_pattern() { echo "^(src/|ci/|\.github/workflows/ci\.yml\$)"; }'
-# A live script reads the files its group claims (a comment may name any): clean. A file that its group does not claim is not.
+# A live script reads the files its group claims (a comment may name any): clean. So is a read that no group claims and that is neither
+# declared a non-input nor bookkeeping (install.sh, .env, a new helper or compose file: ci/changes.sh runs every group for it).
 mkinputs "$tmp/i-reads-claimed"
 script_line "$tmp/i-reads-claimed" install-start 'live_add_file "$root/docker-compose.dev.yml"'
 script_line "$tmp/i-reads-claimed" install-start '. "$(dirname "$0")/lib-scan.sh"'
@@ -1012,15 +1042,27 @@ mkinputs "$tmp/i-reads-comment"
 script_line "$tmp/i-reads-comment" production '# live_add_file "$root/docker/tests/extra/compose.x.yml"'
 script_line "$tmp/i-reads-comment" demo-path '  # . "$(dirname "$0")/helper.sh"'
 script_line "$tmp/i-reads-comment" sign-in 'cd "$root/web"'
-mkinputs "$tmp/i-reads-compose"
-script_line "$tmp/i-reads-compose" production 'live_add_file "$root/docker/tests/extra/compose.x.yml"'
-mkinputs "$tmp/i-reads-helper"
-script_line "$tmp/i-reads-helper" demo-path '. "$(dirname "$0")/helper.sh"'
+mkinputs "$tmp/i-reads-unclassified"
+script_line "$tmp/i-reads-unclassified" production 'live_add_file "$root/docker/tests/extra/compose.x.yml"'
+script_line "$tmp/i-reads-unclassified" demo-path '. "$(dirname "$0")/helper.sh"'
+script_line "$tmp/i-reads-unclassified" install-script-live 'bash "$root/install.sh"'
+script_line "$tmp/i-reads-unclassified" install-script-live '[ -e "$root/.env" ]'
+# A read of a path that a group other than the script's claims, or that is declared a non-input or bookkeeping, still fails.
+mkinputs "$tmp/i-reads-other-group"
+script_line "$tmp/i-reads-other-group" production 'cat "$root/web/src/app/app.ts"'
+mkinputs "$tmp/i-reads-declared-test"
+script_line "$tmp/i-reads-declared-test" demo-path '. "$(dirname "$0")/test-x.sh"'
+mkinputs "$tmp/i-reads-declared-md"
+script_line "$tmp/i-reads-declared-md" production 'cat "$root/README.md"'
+mkinputs "$tmp/i-reads-declared-example"
+script_line "$tmp/i-reads-declared-example" install-script-live 'cp "$root/.env.example" "$tmp/x"'
+mkinputs "$tmp/i-reads-bookkeeping"
+script_line "$tmp/i-reads-bookkeeping" production 'cat "$root/_bmad-output/x.md"'
 mkdir -p "$tmp/i-unread/ci" && : > "$tmp/i-unread/ci/units.sh"
 
 ok=1
 # The comment-only tree lists two units whose scripts name the bundle only in a comment: it stays clean.
-for good in i-good i-comment-only i-reads-claimed i-reads-comment; do
+for good in i-good i-comment-only i-reads-claimed i-reads-comment i-reads-unclassified; do
   if [ -n "$(inputs_violations "$tmp/$good")" ]; then
     echo "FAIL inputs: the rule flags the good tree $good ($(inputs_violations "$tmp/$good" | head -n 3 | tr '\n' ';'))"
     ok=0
@@ -1032,8 +1074,11 @@ for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names
   "i-unknown-unit|NO_WEB_BUNDLE_UNITS names live:nosuch-unit, which is a unit of no group" \
   "i-fn-fails|group_input_pattern production fails" "i-fn-empty|group_input_pattern production prints nothing" \
   "i-fn-narrow|group_input_pattern production does not match src/x" "i-fn-any|group_input_pattern answers for the unknown group nosuch-group" \
-  "i-reads-compose|docker/tests/test-production.sh: it reads docker/tests/extra/compose.x.yml, which the input pattern of group production does not claim" \
-  "i-reads-helper|docker/tests/test-demo-path.sh: it reads docker/tests/helper.sh, which the input pattern of group browser does not claim"; do
+  "i-reads-other-group|docker/tests/test-production.sh: it reads web/src/app/app.ts, which the input pattern of group production does not claim" \
+  "i-reads-declared-test|docker/tests/test-demo-path.sh: it reads docker/tests/test-x.sh, which the input pattern of group browser does not claim" \
+  "i-reads-declared-md|docker/tests/test-production.sh: it reads README.md, which the input pattern of group production does not claim" \
+  "i-reads-declared-example|docker/tests/test-install-script-live.sh: it reads .env.example, which the input pattern of group image does not claim" \
+  "i-reads-bookkeeping|docker/tests/test-production.sh: it reads _bmad-output/x.md, which the input pattern of group production does not claim"; do
   s=${pair%%|*}
   want=${pair#*|}
   got=$(inputs_violations "$tmp/$s")
@@ -1069,7 +1114,7 @@ if [ -n "$hits" ]; then
   ok=0
 fi
 if [ "$ok" -eq 1 ]; then
-  echo "PASS inputs: every unit that is not checked against the web bundle is a unit of a group and names no bundle input in a code line, and each group has an input pattern that claims ci/units.sh, the workflow, src/ and every file that its live scripts source or add"
+  echo "PASS inputs: every unit that is not checked against the web bundle is a unit of a group and names no bundle input in a code line, and each group has an input pattern that claims ci/units.sh, the workflow, src/ and every file that its live scripts source or add, unless no group claims the file and it is neither declared a non-input nor bookkeeping"
 else
   echo "FAIL inputs: the input patterns of the IRIS groups and NO_WEB_BUNDLE_UNITS"
   fails=$((fails + 1))
