@@ -398,3 +398,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Decide.Classify rule 3 matches refusal and max_tokens only; AD-8 maps those two and treats other providers as reporting none until checked; release 1 runs Anthropic only
 - 2026-10-23T02:11:52Z status=wontfix-theoretical owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=cr note=real once a provider other than Anthropic runs (Story 17.3) or a request can come near the model's context window
+
+### DW-100: The catalog's fallbackReason.timeout says 'the model didn't answer within 60 seconds', which is inexact once the bridge timer can be changed (Timeouts.Apply, Story 1.7; SettingsOps, Story 17.4); fallbackReason.rateLimited ('retries ran out') also shows when a tool ran and Decide, by AD-8, did not re-send
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
+- 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
