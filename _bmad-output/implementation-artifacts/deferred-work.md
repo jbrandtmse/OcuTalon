@@ -320,3 +320,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md (plan, For the lead) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 32.4 adds warm-iris.lock in each lane folder (held from ci/warm.sh up to down); _bmad/custom/parallel.yaml runtime_locks names only runtime and throwaway-iris (stale_minutes 20); _bmad/ is owner-only
 - 2026-10-23T13:41:30Z status=decision-pending owner=burndown by=spec_gate note=human=decide whether parallel.yaml gains a warm-iris entry (stale_minutes about a stage, e.g. 240) or the sweep rule names warm-iris.lock; the orchestrator's sweep already confirms the owner is dead before it deletes
+
+### DW-123: Two warm calls at once on one warm stack (or a killed call's IRIS session still running in it) race on its stored manifest and its test results; ci/warm.sh takes no run lock
+- source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: warm_reload reads and rewrites the stored manifest with no exclusion, so an interleaving can record a file as loaded that the stack holds in an older version (exit 0 on stale code)
+- 2026-10-23T16:14:17Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=theoretical under Rule 18 (one call at a time, a warm tag per stage); real if a stage runs warm calls in parallel
+
+### DW-124: A warm reload trusts the IRIS session to print one CHK row per delete and import; an item with no row is neither counted nor failed, so a Load or Delete that threw mid-line could end in exit 0
+- source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
+- 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete

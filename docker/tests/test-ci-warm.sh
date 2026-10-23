@@ -7,31 +7,49 @@
 #                                              iris_script, preflight and bash where a check needs it. Each scanner first flags a
 #                                              synthetic bad sample. The checks:
 #   - the CI rule: no workflow names OCUTALON_WARM or ci/warm.sh, and no code line under ci/ assigns or exports OCUTALON_WARM;
+#   - registration (Rule 8): ci-warm is in CHECK_SCRIPTS and nowhere else, and ci/warm.sh and this script are executable;
 #   - the fresh checks stay fresh: `live` refuses OCUTALON_WARM=1 with exit 2 before a PORT line or a preflight, `group` and `all`
-#     drop it with one WARM ignored line and no unit sees it, a bad value gives exit 2 for class, shard, live, group and all, and the
-#     fresh branch of run_classes still preflights, takes the lock, starts the stack and prints the same STACK and READY lines;
+#     drop it with one WARM ignored line and no unit sees it (also a 0 or an empty value reaches no unit), a bad value gives exit 2 for
+#     class, shard, live, group and all, and the fresh branch of run_classes (OCUTALON_WARM unset, 0 or empty) still preflights, takes
+#     the lock, starts the stack and prints the same STACK and READY lines;
 #   - a warm run: with no stack, another checkout, a stopped stack, a missing stored manifest or a changed non-class input (the mock's
-#     files included) it refuses (exit 1) and starts nothing; with nothing changed it reloads 0 and 0 once for a whole shard and
-#     calls neither stack_start, stack_ready nor live_start;
+#     files included) it refuses (exit 1) and starts nothing; with nothing changed it reloads 0 and 0 once for a whole shard (also
+#     with --reverse) and calls neither stack_start, stack_ready nor live_start; with a changed class the session runs against the
+#     project and the compose files of the state, and the stack is left as found (only docker ps, no lock, no temporary folder); a
+#     compile error through cmd_class exits 1 with no READY, CLASS or RUN line, and the next run compiles every class of the tree;
+#   - the manifest: a change to each non-class input of the matrix's list (Dockerfile, .dockerignore, docker/ipm, merge.cpf, the
+#     after-start files, healthcheck.sh, module.xml, short-names.tsv, the web bundle, the compose files, the mock) refuses the run in
+#     a synthetic tree, and the manifest of the real tree names every one of them and all its classes;
 #   - warm_reload over synthetic trees: changed, added, removed and renamed classes give the right import, delete and compile lists
 #     and the right "WARM reloaded n, deleted m" line; every class is compiled after a delete or a failed reload; a compile error
 #     exits 1 with the marker set; a class imported but not compiled is deleted once it leaves the tree; a failed import is tried
 #     again; a failed delete is tried again; a session that prints nothing, prints no compile result, or fails the compile with no
-#     error text fails and says so;
+#     error text fails and says so; the failed marker is set while the session runs and removed when the reload ends OK;
 #   - the lock: the derived pair claims warm-iris.lock with lib-live's protocol (the content grammar, LOCK waiting and busy with
 #     exit 75, a foreign lock untouched), a held throwaway-iris.lock does not block it and lib-live's own claim still takes
 #     throwaway-iris.lock beside it, the release removes only its own lock, and a drifted derivation fails closed;
-#   - warm up, up again, up with no lock folder, up beside a held lock, a failed and a killed up (no project, no lock, no state);
-#   - warm down, status, and the state they read, also run as commands (bash ci/warm.sh status|down).
+#   - warm up (it takes the manifest after the web bundle is ensured and before the build), up again, up with no lock folder, up
+#     beside a held lock, a failed up (the start, the base image) and a killed up (no project, no lock, no state);
+#   - warm down, status, and the state they read, also run as commands (bash ci/warm.sh status|down), and up, down and status
+#     refuse a missing or bad tag with exit 2 and no Docker call;
+#   - the recipe is recorded (AC 1, AC 6): Rule 21 holds the warm-mode bullet, which names ci/warm.sh up and down, OCUTALON_WARM=1
+#     and ci/iris.sh teardown, and the measured bullet. Only that: the rest of the text is the owner's to edit (_bmad/), so --record
+#     checks it on demand and the hosted job never does. WARM_TEST_RULES names another copy of the rules text (for a mutation run).
+#
+# bash docker/tests/test-ci-warm.sh --record    on demand, never CI (it reads owner-edited text): Rule 21's warm-mode bullet holds each
+#                                              piece of the recipe, and the measured bullet's memory figures add up (the other
+#                                              containers plus 3 x (fresh + after both shards) is the projected use, at most 85 % of
+#                                              the VM) and its warm times are below the fresh times. Run it after editing either bullet.
 #
 # bash docker/tests/test-ci-warm.sh --live      the developer machine only, never CI: real stacks, with the lane variables of Rule 21
 #                                              (OCUTALON_LOCK_DIR, OCUTALON_TEST_WEB_PORT, OCUTALON_LOCK_OWNER, OCUTALON_LOCK_WAIT)
 #                                              and OCUTALON_RUN_TAG=<T>, with no warm stack in the lane. T is the warm tag and <T>f the
-#                                              fresh one. Steps: up and up again; a fresh class beside the warm stack takes
-#                                              throwaway-iris.lock without waiting; a warm class and shard on the one project;
+#                                              fresh one. Steps: up and up again, status; a fresh class beside the warm stack takes
+#                                              throwaway-iris.lock without waiting; a warm class (at most a quarter of the time of the
+#                                              fresh call of the same class) and shard on the one project;
 #                                              untracked ZzWarm<k> probe classes (new, changed, renamed, subclassed, a removed
-#                                              superclass that must fail the compile, all removed); down. The tree is byte-identical
-#                                              afterwards (git status --short). About 4 minutes.
+#                                              superclass that must fail the compile, all removed); down, status. The tree is byte-identical
+#                                              afterwards (git status --short). About 2 minutes.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -63,7 +81,7 @@ check() {
 
 # --- the live mode ---
 
-# probe_class <kind> ...: the text of an untracked probe class of the live mode.
+# probe_target, probe_test and probe_child: the text of the untracked probe classes of the live mode.
 probe_target() { # probe_target <class> <answer>
   printf 'Class %s\n{\n\nClassMethod Answer() As %%Integer\n{\n\tQuit %s\n}\n\n}\n' "$1" "$2"
 }
@@ -92,6 +110,7 @@ live_checks() {
     echo "test-ci-warm --live needs OCUTALON_RUN_TAG (the warm tag) and OCUTALON_LOCK_DIR (an existing lane folder), with the other lane variables of Rule 21"
     return 2
   fi
+  unset OCUTALON_WARM
   tf="${t}f"
   if [ -e "$lockd/warm-iris.lock" ] || [ "$(warm_projects "$t")" -ne 0 ]; then
     echo "FAIL live: a warm stack of the lane (or of tag $t) is up: run ci/warm.sh down first"
@@ -126,25 +145,39 @@ live_checks() {
   rc=$?
   check "live 1: up again says that the stack is already up, with no new project" "$out" "$rc" 0 "^WARM up: project ocutalon-warm-$t-.* is already up\$" '!^LOCK'
   [ "$(warm_projects "$t")" -eq 1 ] || fail "live 1: up again changed the number of projects of tag $t"
+  out=$(OCUTALON_RUN_TAG=$t bash ci/warm.sh status 2>&1)
+  rc=$?
+  check "live 1: status reports the running stack with its project and tag" "$out" "$rc" 0 "^WARM up project=ocutalon-warm-$t-[0-9]{10}-[0-9]+ tag=$t since=[0-9T:Z-]+\$" '!^LOCK'
 
   # 2. a fresh run beside the warm stack takes throwaway-iris.lock without waiting
+  t0=$(date +%s)
   out=$(OCUTALON_RUN_TAG=$tf bash ci/iris.sh class OcuTalon.Test.Agent.Constants 2>&1)
   rc=$?
+  fresh_s=$(($(date +%s) - t0))
   check "live 2: a fresh class beside the warm stack takes throwaway-iris.lock with no wait, and passes" "$out" "$rc" 0 \
     '^LOCK acquired throwaway-iris project=' '!^LOCK waiting' "^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-$tf-" \
     '^CLASS OcuTalon.Test.Agent.Constants passed' '!WARM'
   [ -e "$lockd/warm-iris.lock" ] || fail "live 2: the fresh run released the warm lock"
 
   # 3 and 4. warm runs on the one project
+  t0=$(date +%s)
   out=$(OCUTALON_WARM=1 OCUTALON_RUN_TAG=$t bash ci/iris.sh class OcuTalon.Test.Agent.Constants 2>&1)
   rc=$?
+  warm_s=$(($(date +%s) - t0))
   check "live 3: a warm class reloads nothing, starts nothing, takes no lock, and passes" "$out" "$rc" 0 \
     '^WARM reloaded 0, deleted 0$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s \(warm\)$' '^CLASS OcuTalon.Test.Agent.Constants passed' '!^LOCK' '!^PORT'
+  # AC 7: faster than the fresh call of the same class (a warm call that started a stack would take as long as the fresh one).
+  if [ "$((warm_s * 4))" -le "$fresh_s" ]; then
+    pass "live 3: the warm call of the class took ${warm_s}s, the fresh call of the same class ${fresh_s}s"
+  else
+    fail "live 3: the warm call took ${warm_s}s, and the fresh call of the same class ${fresh_s}s: the warm call must take at most a quarter of it"
+  fi
   [ "$(warm_projects "$t")" -eq 1 ] || fail "live 3: a warm run changed the number of projects of tag $t"
   out=$(OCUTALON_WARM=1 OCUTALON_RUN_TAG=$t bash ci/iris.sh shard lane-a 2>&1)
   rc=$?
-  check "live 4: a warm shard lane-a passes on the same project" "$out" "$rc" 0 '^WARM reloaded 0, deleted 0$' '^SHARD lane-a passed' '!FAIL'
+  check "live 4: a warm shard lane-a passes on the same project, and takes no lock" "$out" "$rc" 0 '^WARM reloaded 0, deleted 0$' '^SHARD lane-a passed' '!FAIL' '!^LOCK'
   [ "$(printf '%s\n' "$out" | grep -c '^WARM reloaded')" -eq 1 ] || fail "live 4: a warm shard printed more than one WARM reloaded line"
+  [ "$(warm_projects "$t")" -eq 1 ] || fail "live 4: a warm shard changed the number of projects of tag $t"
 
   # 5. probes: a class of a mapped package and a test class that uses it
   warm_class() { OCUTALON_WARM=1 OCUTALON_RUN_TAG=$t bash ci/iris.sh class "$@" 2>&1; }
@@ -193,6 +226,9 @@ live_checks() {
   else
     fail "live 6: the lock, a project of tag $t or the state is left"
   fi
+  out=$(OCUTALON_RUN_TAG=$t bash ci/warm.sh status 2>&1)
+  rc=$?
+  check "live 6: status says that the tag has no warm stack" "$out" "$rc" 1 "^WARM none for tag $t\$"
   live_cleanup_all
   after=$(git status --short)
   if [ "$before" = "$after" ]; then
@@ -207,14 +243,121 @@ live_checks() {
   echo "test-ci-warm: all live checks passed"
 }
 
+# --- the recipe in Rule 21 (AC 1, AC 6) ---
+
+# rule21_recipe_gaps <file>: one line per piece that the hosted job pins and the file lacks (the warm-mode bullet with the commands
+# the code provides, and the measured bullet); nothing when all is there.
+rule21_recipe_gaps() {
+  local f=$1 w piece
+  w=$(grep -F 'Warm mode (Story 32.4' "$f" 2> /dev/null | head -n 1)
+  if [ -n "$w" ]; then
+    for piece in 'ci/warm.sh up' 'ci/warm.sh down' 'OCUTALON_WARM=1' 'ci/iris.sh teardown'; do
+      printf '%s\n' "$w" | grep -qF -- "$piece" || echo "the warm-mode bullet lacks: $piece"
+    done
+  else
+    echo "no 'Warm mode (Story 32.4' bullet"
+  fi
+  grep -qF 'Measured (Story 32.4' "$f" 2> /dev/null || echo "no 'Measured (Story 32.4' bullet"
+}
+rule21_gaps() { # rule21_gaps <file>: one line per piece of the recipe or of its figures that is missing or does not add up; nothing when all is there
+  local f=$1 w m piece vm fresh after other proj vm2 pct t a
+  w=$(grep -F 'Warm mode (Story 32.4' "$f" 2> /dev/null | head -n 1)
+  m=$(grep -F 'Measured (Story 32.4' "$f" 2> /dev/null | head -n 1)
+  [ -n "$w" ] || echo "no 'Warm mode (Story 32.4' bullet"
+  [ -n "$m" ] || echo "no 'Measured (Story 32.4' bullet"
+  if [ -n "$w" ]; then
+    for piece in 'ci/warm.sh up' 'ci/warm.sh down' 'OCUTALON_WARM=1 OCUTALON_RUN_TAG=<warm tag> ci/iris.sh class' 'shard <name> [--reverse]' \
+      'followed by `w`' 'WARM reloaded <n>, deleted <m>' 'warm-iris.lock' 'throwaway-iris.lock' 'never export it' 'Stages that use it' 'Never warm:' \
+      '`live` (it refuses' 'destructive tests' '`group` and `all`' 'fresh-environment check' 'comes from `warm up`' 'ci/iris.sh teardown'; do
+      printf '%s\n' "$w" | grep -qF -- "$piece" || echo "the warm-mode bullet lacks: $piece"
+    done
+  fi
+  if [ -n "$m" ]; then
+    for piece in 'Docker VM' 'CPUs' 'a slot' 'a fresh throwaway' 'a throwaway after both shards' 'other long-running containers' \
+      'three lanes with one warm and one fresh stack each' '`ci/warm.sh up`'; do
+      printf '%s\n' "$m" | grep -qF -- "$piece" || echo "the measured bullet lacks: $piece"
+    done
+    vm=$(printf '%s\n' "$m" | sed -n 's/.*Docker VM \([0-9.]*\) GiB.*/\1/p')
+    fresh=$(printf '%s\n' "$m" | sed -n 's/.*a fresh throwaway \([0-9.]*\) GiB.*/\1/p')
+    after=$(printf '%s\n' "$m" | sed -n 's/.*a throwaway after both shards \([0-9.]*\) GiB.*/\1/p')
+    other=$(printf '%s\n' "$m" | sed -n 's/.*other long-running containers[^0-9]*\([0-9.]*\) GiB.*/\1/p')
+    proj=$(printf '%s\n' "$m" | sed -n 's/.*beside them: \([0-9.]*\) GiB of [0-9.]* GiB (.*/\1/p')
+    vm2=$(printf '%s\n' "$m" | sed -n 's/.*beside them: [0-9.]* GiB of \([0-9.]*\) GiB (.*/\1/p')
+    pct=$(printf '%s\n' "$m" | sed -n 's/.*beside them: [0-9.]* GiB of [0-9.]* GiB (\([0-9]*\) %.*/\1/p')
+    if [ -z "$vm" ] || [ -z "$fresh" ] || [ -z "$after" ] || [ -z "$other" ] || [ -z "$proj" ] || [ -z "$vm2" ] || [ -z "$pct" ]; then
+      echo "the memory figures could not be read from the measured bullet"
+    elif ! awk -v vm="$vm" -v f="$fresh" -v a="$after" -v o="$other" -v p="$proj" -v vm2="$vm2" -v pct="$pct" 'BEGIN {
+        c = o + 3 * (f + a); d = c - p; if (d < 0) d = -d
+        s = 100 * p / vm; e = s - pct; if (e < 0) e = -e
+        exit !(d <= 0.15 && vm == vm2 && p <= 0.85 * vm && e <= 1)
+      }'; then
+      echo "the projected use ($proj GiB of $vm2 GiB, $pct %) is not the other containers ($other) plus 3 x ($fresh + $after), the VM, or within 85 % of it"
+    fi
+    for t in 'shard lane-a' 'shard lane-b' 'class OcuTalon.Test.Install.Users'; do
+      a=$(printf '%s\n' "$m" | sed -n "s/.*$t. fresh \([0-9.]*\) s, warm \([0-9.]*\) s.*/\1 \2/p")
+      if [ -z "$a" ]; then
+        echo "no fresh and warm time for $t"
+      elif ! awk -v f="${a% *}" -v w="${a#* }" 'BEGIN { exit !(w + 0 < f + 0) }'; then
+        echo "the warm time of $t (${a#* } s) is not below its fresh time (${a% *} s)"
+      fi
+    done
+  fi
+}
+# rule21_flags <gaps function> <label> <sed expression>: the scanner must flag the rules text changed by the expression. Reads rules
+# and rule_dir (a scratch folder), and sets rule_bad_ok to 0 when it does not.
+rule21_flags() {
+  sed "$3" "$rules" > "$rule_dir/rules-bad.md"
+  if cmp -s "$rules" "$rule_dir/rules-bad.md"; then
+    fail "Rule 21 sample '$2' is the real text: the expression found nothing to change"
+    rule_bad_ok=0
+  elif [ -z "$($1 "$rule_dir/rules-bad.md")" ]; then
+    fail "the Rule 21 scanner does not flag: $2"
+    rule_bad_ok=0
+  fi
+}
+# rule21_verdict <gaps function> <label>: PASS when the rules text has no gap and every sample was flagged.
+rule21_verdict() {
+  local gaps
+  gaps=$($1 "$rules")
+  if [ -z "$gaps" ]; then
+    [ "$rule_bad_ok" -eq 0 ] || pass "$2"
+  else
+    printf '%s\n' "$gaps" | sed 's/^/  /'
+    fail "Rule 21 does not hold the warm-mode recipe or its figures"
+  fi
+}
+# WARM_TEST_RULES names another copy of the rules text (for a mutation run of Rule 19); it is unset otherwise.
+rules=${WARM_TEST_RULES:-_bmad/custom/skill-rules.md}
+
+record_checks() {
+  rule_dir=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-cw-record.XXXXXX") || return 1
+  rule_bad_ok=1
+  rule21_flags rule21_gaps "a warm-mode bullet that allows exporting OCUTALON_WARM" 's/never export it/export it/'
+  rule21_flags rule21_gaps "a warm-mode bullet without ci/warm.sh down" 's#ci/warm\.sh down#ci/warm.sh stop#g'
+  rule21_flags rule21_gaps "a projected use above the gate" 's/beside them: [0-9.]* GiB/beside them: 99.9 GiB/'
+  rule21_flags rule21_gaps "a warm time above its fresh time" 's/Users. fresh [0-9.]* s, warm [0-9.]* s/Users` fresh 9 s, warm 99 s/'
+  rule21_flags rule21_gaps "no measured bullet" 's/Measured (Story 32.4/Measured (Story 99.9/'
+  rule21_verdict rule21_gaps "Rule 21 records the warm-mode recipe, and the memory figures (projected use within 85 % of the VM) and the warm and fresh times"
+  rm -rf "$rule_dir"
+  if [ "$fails" -ne 0 ]; then
+    echo "test-ci-warm: $fails record check(s) failed"
+    return 1
+  fi
+  echo "test-ci-warm: all record checks passed"
+}
+
 case ${1:-} in
   --live)
     live_checks
     exit $?
     ;;
+  --record)
+    record_checks
+    exit $?
+    ;;
   '') ;;
   *)
-    echo "usage: bash docker/tests/test-ci-warm.sh [--live]"
+    echo "usage: bash docker/tests/test-ci-warm.sh [--live|--record]"
     exit 2
     ;;
 esac
@@ -254,6 +397,29 @@ else
   scan_rule "the CI rule: no code line under ci/ assigns or exports OCUTALON_WARM" warm_assigned_in_ci "$work/bad-ci.sh" "$work/good-ci.sh" "$(scan_files ci)"
 fi
 
+# --- registration (Rule 8): the hermetic mode runs in the hosted `checks` job ---
+
+# in_list "<space-separated list>" <word>: the word is one of the list.
+in_list() { printf '%s\n' $1 | grep -qxF -- "$2"; }
+if in_list "ci-config lib-live" ci-warm || ! in_list "ci-config ci-warm" ci-warm; then
+  fail "registration: the list matcher cannot tell a list that holds ci-warm from one that does not"
+else
+  reg_bad=""
+  in_list "$CHECK_SCRIPTS" ci-warm || reg_bad="$reg_bad [ci-warm is not in CHECK_SCRIPTS]"
+  if in_list "$WEB_SCRIPTS" ci-warm; then reg_bad="$reg_bad [ci-warm is in WEB_SCRIPTS]"; fi
+  for reg_g in $IRIS_GROUPS; do
+    if in_list "$(group_units "$reg_g")" live:ci-warm; then reg_bad="$reg_bad [ci-warm is a live unit of the group $reg_g]"; fi
+  done
+  for reg_f in ci/warm.sh ci/iris.sh docker/tests/test-ci-warm.sh; do
+    [ -x "$reg_f" ] || reg_bad="$reg_bad [$reg_f is not executable]"
+  done
+  if [ -z "$reg_bad" ]; then
+    pass "registration: ci-warm is in CHECK_SCRIPTS only (ci/checks.sh runs it with no argument: the hermetic mode), and ci/warm.sh and this script are executable like ci/iris.sh"
+  else
+    fail "registration:$reg_bad"
+  fi
+fi
+
 # --- the fresh checks stay fresh ---
 
 # cli <env assignments...> -- <ci/iris.sh arguments...>: ci/iris.sh in a process, with a base image that does not exist, so that a
@@ -286,9 +452,9 @@ if [ "$bad_value_ok" -eq 1 ]; then pass "OCUTALON_WARM=yes gives exit 2 and the 
 
 # group and all: every unit's process sees no OCUTALON_WARM, and one WARM ignored line is printed. `bash` is a stub that prints
 # what each unit's process would see.
-unit_env_run() { # unit_env_run <function and arguments...>
+unit_env_run() { # unit_env_run <function and arguments...>: OCUTALON_WARM is $UNIT_WARM (1 when that is unset)
   (
-    export OCUTALON_WARM=1 OCUTALON_RUN_TAG=abc-1
+    export OCUTALON_WARM=${UNIT_WARM-1} OCUTALON_RUN_TAG=abc-1
     preflight() { :; }
     ensure_web_bundle() { return 0; }
     bash() { echo "UNIT-PROCESS $2 $3 warm=${OCUTALON_WARM-unset}"; return 0; }
@@ -305,21 +471,36 @@ rc=$?
 check "all with OCUTALON_WARM=1: one WARM ignored line, and every group's process sees no OCUTALON_WARM" "$out" "$rc" 0 \
   '^WARM ignored: all runs every unit on a fresh stack$' '^UNIT-PROCESS group install-fresh warm=unset$' '^UNIT-PROCESS group image warm=unset$' '!warm=1'
 if [ "$(printf '%s\n' "$out" | grep -c '^WARM ignored')" -eq 1 ]; then pass "all prints its WARM ignored line once"; else fail "all printed WARM ignored more than once"; fi
+# 0 and an empty value are fresh: no WARM ignored line, and no unit sees even those (every unit runs without OCUTALON_WARM).
+for v in 0 ""; do
+  out=$(UNIT_WARM=$v unit_env_run cmd_group shards)
+  rc=$?
+  check "group with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
+    '!^WARM' '^UNIT-PROCESS shard lane-a warm=unset$' '^UNIT-PROCESS shard lane-b warm=unset$' '!warm=[01]'
+  out=$(UNIT_WARM=$v unit_env_run cmd_all)
+  rc=$?
+  check "all with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and every group's process sees no OCUTALON_WARM" "$out" "$rc" 0 \
+    '!^WARM' '^UNIT-PROCESS group install-fresh warm=unset$' '^UNIT-PROCESS group image warm=unset$' '!warm=[01]'
+done
 
-# The fresh branch of run_classes: preflight, live_start, the build and start, and the same STACK and READY lines as before.
+# The fresh branch of run_classes: preflight, live_start, the build and start, and the same STACK and READY lines as before. It is the
+# branch of an unset OCUTALON_WARM, of 0 and of an empty value.
 calls=$work/fresh.calls
-: > "$calls"
-out=$(
-  unset OCUTALON_WARM
-  OCUTALON_RUN_TAG=cw-f
-  preflight() { echo preflight >> "$calls"; }
-  live_start() { echo "live_start $1" >> "$calls"; P=ocutalon-class-cw-f-1700000000-1; tmp=$work/fresh-tmp; mkdir -p "$tmp"; deadline=$((SECONDS + 100)); }
-  dc() { echo "dc $1 $2 $3 $4" >> "$calls"; return 0; }
-  live_track_image() { :; }
-  iris_script() { cat > /dev/null; printf '%s\n' 'CHK|compiled|1' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Agent.Constants|1|0.01|1'; }
-  cmd_class OcuTalon.Test.Agent.Constants
-)
-rc=$?
+fresh_class_run() { # fresh_class_run <unset | the value of OCUTALON_WARM>: cmd_class with the start stubbed. Sets out, rc, and the calls in $calls.
+  : > "$calls"
+  out=$(
+    if [ "$1" = unset ]; then unset OCUTALON_WARM; else export OCUTALON_WARM=$1; fi
+    OCUTALON_RUN_TAG=cw-f
+    preflight() { echo preflight >> "$calls"; }
+    live_start() { echo "live_start $1" >> "$calls"; P=ocutalon-class-cw-f-1700000000-1; tmp=$work/fresh-tmp; mkdir -p "$tmp"; deadline=$((SECONDS + 100)); }
+    dc() { echo "dc $1 $2 $3 $4" >> "$calls"; return 0; }
+    live_track_image() { :; }
+    iris_script() { cat > /dev/null; printf '%s\n' 'CHK|compiled|1' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Agent.Constants|1|0.01|1'; }
+    cmd_class OcuTalon.Test.Agent.Constants
+  )
+  rc=$?
+}
+fresh_class_run unset
 check "the fresh branch of run_classes prints the STACK and READY lines of a fresh stack" "$out" "$rc" 0 \
   '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
   '^CLASS OcuTalon.Test.Agent.Constants passed' '^RUN OcuTalon.Test.Agent.Constants passed \(1 classes\)' '!WARM' '!warm'
@@ -328,6 +509,17 @@ if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build 
 else
   fail "the fresh branch made the calls '$(tr '\n' '|' < "$calls")'"
 fi
+for v in 0 ""; do
+  fresh_class_run "$v"
+  check "class with OCUTALON_WARM='$v' takes the fresh branch: the same STACK and READY lines, and no WARM line" "$out" "$rc" 0 \
+    '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
+    '^CLASS OcuTalon.Test.Agent.Constants passed' '!WARM' '!warm'
+  if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|" ]; then
+    pass "class with OCUTALON_WARM='$v' calls preflight, live_start and dc up, in that order"
+  else
+    fail "class with OCUTALON_WARM='$v' made the calls '$(tr '\n' '|' < "$calls")'"
+  fi
+done
 
 # --- the warm tag and the state ---
 
@@ -364,7 +556,7 @@ fixture_state() {
   printf '%s\n' "$root/docker-compose.yml" "$d/decoy.yml" "$root/docker/tests/compose.throwaway.yml" "$root/ci/compose.ci.yml" "$d/warm.yml" > "$d/files"
 }
 
-# warm_cli <tag> <warm: 1|0> <path stub: 1|0> <args...>: `bash ci/iris.sh` in a process with a stub docker first on the PATH and the
+# warm_cli <tag> <args...>: `OCUTALON_WARM=1 bash ci/iris.sh <args...>` in a process with a stub docker first on the PATH and the
 # lock folder $work/locks-cli. Sets cli_out, cli_rc, and the stub's calls in $work/cli.calls.
 mkdir -p "$work/locks-cli"
 printf '#!/bin/sh\necho "docker $*" >> "%s"\ncase "$*" in\n  *status=running*) [ "${STUB_RUNNING:-0}" = 1 ] && echo abc123 ;;\nesac\nexit 0\n' "$work/cli.calls" > "$work/bin/docker"
@@ -377,6 +569,31 @@ warm_cli() {
     ${STUB_RUNNING:+STUB_RUNNING=$STUB_RUNNING} bash "$root/ci/iris.sh" "$@" 2>&1)
   cli_rc=$?
 }
+# up, down and status all need a valid tag, and none of them reaches Docker without one.
+: > "$work/cli.calls"
+notag_ok=1
+for sub in up down status; do
+  out=$(env -u OCUTALON_RUN_TAG -u OCUTALON_WARM PATH="$work/bin:$PATH" bash ci/warm.sh $sub 2>&1)
+  rc=$?
+  if [ "$rc" -ne 2 ] || [ "$out" != "ci/warm.sh needs OCUTALON_RUN_TAG: the warm stack's tag" ]; then
+    notag_ok=0
+    fail "ci/warm.sh $sub without a tag: exit $rc, output $(printf '%s' "$out" | tr '\n' '|' | head -c 200)"
+  fi
+  for bad in Bad_Tag ab; do
+    out=$(env -u OCUTALON_WARM OCUTALON_RUN_TAG=$bad PATH="$work/bin:$PATH" bash ci/warm.sh $sub 2>&1)
+    rc=$?
+    if [ "$rc" -ne 2 ] || ! printf '%s\n' "$out" | grep -q "^FAIL OCUTALON_RUN_TAG '$bad' must match"; then
+      notag_ok=0
+      fail "ci/warm.sh $sub with the tag $bad: exit $rc, output $(printf '%s' "$out" | tr '\n' '|' | head -c 200)"
+    fi
+  done
+done
+if [ "$notag_ok" -eq 1 ] && [ ! -s "$work/cli.calls" ]; then
+  pass "ci/warm.sh up, down and status each give exit 2 without a tag, with a bad tag and with a too short one, and make no Docker call"
+elif [ "$notag_ok" -eq 1 ]; then
+  fail "ci/warm.sh without a valid tag called Docker: $(tr '\n' '|' < "$work/cli.calls" | head -c 300)"
+fi
+
 warm_cli cw-none class OcuTalon.Test.Agent.Constants
 check "a warm run with no warm stack fails with exit 1, starts nothing and takes no lock" "$cli_out" "$cli_rc" 1 \
   '^FAIL WARM no warm stack for tag cw-none: run ci/warm.sh up first$' '!^LOCK' '!^STACK' '!^CLASS'
@@ -457,12 +674,17 @@ fi
 
 # --- warm_reload over synthetic trees ---
 
-mk_tree() { # mk_tree <dir>: a tree with the layout of the repository, small enough to read
+mk_tree() { # mk_tree <dir>: a tree with the layout of the repository (the COPY lines of the real Dockerfile), small enough to read
   local d=$1 c
-  mkdir -p "$d/docker/tests" "$d/ci/mock/test" "$d/src/ocutalon/cls/OcuTalon/Data/Public" "$d/src/bridge/cls/OcuTalon/Bridge" "$d/src/ocutalon/csp"
-  printf 'FROM scratch\nCOPY src/ /opt/ocutalon/src/\nCOPY docker/merge.cpf docker/healthcheck.sh /opt/ocutalon/\n' > "$d/docker/Dockerfile"
+  mkdir -p "$d/docker/tests" "$d/docker/ipm" "$d/ci/mock/test" "$d/src/ocutalon/cls/OcuTalon/Data/Public" "$d/src/bridge/cls/OcuTalon/Bridge" "$d/src/ocutalon/csp"
+  printf 'FROM scratch\nCOPY src/ /opt/ocutalon/src/\nCOPY docker/ipm/ /opt/ocutalon/ipm/\n' > "$d/docker/Dockerfile"
+  printf 'COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\n' >> "$d/docker/Dockerfile"
   printf 'merge\n' > "$d/docker/merge.cpf"
   printf 'health\n' > "$d/docker/healthcheck.sh"
+  printf 'start\n' > "$d/docker/after-start.sh"
+  printf 'start\n' > "$d/docker/after-start.cos"
+  printf 'ipm\n' > "$d/docker/ipm/zpm.xml"
+  printf 'short\n' > "$d/src/short-names.tsv"
   printf '*\n' > "$d/.dockerignore"
   printf 'services:\n' > "$d/docker-compose.yml"
   printf 'services:\n' > "$d/docker/tests/compose.throwaway.yml"
@@ -483,11 +705,13 @@ tree_classes=5
 # of the answer is checked against the lists it sent. STUB_EMPTY=1 prints nothing, STUB_IMPORT_FAIL=<text> fails the imports whose file
 # holds the text, STUB_COMPILE_FAIL=1 fails the compile with one error on the first class of the list, STUB_COMPILE_NOROWS=1 fails it
 # with no error row, STUB_NO_COMPILE=1 prints no compile result, and STUB_DELETE_FAIL=<class> fails the delete of that class.
+# STUB_MARKER=<file> writes "set" or "unset" to $work/marker-at-session: whether that file exists while the session runs.
 reload_session_stub() {
   local s n
   s=$(cat)
   n=$(ls "$sessions" | wc -l | tr -d ' ')
   printf '%s\n' "$s" > "$sessions/$((n + 1))"
+  if [ -n "${STUB_MARKER:-}" ]; then if [ -f "$STUB_MARKER" ]; then echo set; else echo unset; fi > "$work/marker-at-session"; fi
   if [ "${STUB_EMPTY:-0}" = 1 ]; then return 0; fi
   printf '%s\n' "$s" | awk -v failimp="${STUB_IMPORT_FAIL:-}" -v failcomp="${STUB_COMPILE_FAIL:-0}" -v faildel="${STUB_DELETE_FAIL:-}" \
     -v norows="${STUB_COMPILE_NOROWS:-0}" -v nocomp="${STUB_NO_COMPILE:-0}" '
@@ -512,6 +736,7 @@ reload_session_stub() {
 
 # reload_case <label> <tree> <tag> <env assignments...>: warm_reload in the tree against the state of the tag. Sets rl_out, rl_rc and
 # the sessions folder $work/sessions-<label>.
+reload_multi=0
 reload_case() {
   local label=$1 dir=$2 tag=$3
   shift 3
@@ -530,6 +755,10 @@ reload_case() {
   )
   rl_rc=$?
   rl_last=$(ls "$sessions" | wc -l | tr -d ' ')
+  if [ "$(printf '%s\n' "$rl_out" | grep -c '^WARM reloaded')" -gt 1 ]; then
+    reload_multi=1
+    fail "reload $label: more than one WARM reloaded line ($(printf '%s' "$rl_out" | tr '\n' '|' | head -c 300))"
+  fi
 }
 session_has() { grep -qxF -- "$1" "$sessions/$rl_last" 2> /dev/null; }
 session_count() { grep -c -- "$1" "$sessions/$rl_last" 2> /dev/null; }
@@ -684,6 +913,171 @@ reload_case q4 "$work/tree-cw-q4" cw-q4 STUB_COMPILE_NOROWS=1
 check "reload: a failed compile with no error text still says so, and exits 1" "$rl_out" "$rl_rc" 1 \
   '^WARM reloaded 1, deleted 0$' '^FAIL WARM compile: the compile of ocutalon-warm-cw-q4-1700000000-1 failed and gave no error text$'
 [ -f "$(state_of cw-q4)/failed" ] || fail "reload: no failed marker after a compile that failed with no error text"
+# The failed marker is set while the session runs, so a reload that is interrupted counts as failed, and it goes when the reload ends OK.
+own_fixture cw-q6
+printf 'changed\n' >> "$work/tree-cw-q6/src/ocutalon/cls/OcuTalon/A.cls"
+rm -f "$work/marker-at-session"
+reload_case q6 "$work/tree-cw-q6" cw-q6 STUB_MARKER="$(state_of cw-q6)/failed"
+check "reload: a changed class reloads, and the run passes" "$rl_out" "$rl_rc" 0 '^WARM reloaded 1, deleted 0$'
+if [ "$(cat "$work/marker-at-session" 2> /dev/null)" = set ] && [ ! -e "$(state_of cw-q6)/failed" ]; then
+  pass "reload: the failed marker is set while the session runs, and removed when the reload ends OK"
+else
+  fail "reload: the failed marker was '$(cat "$work/marker-at-session" 2> /dev/null)' while the session ran, and the marker after it: '$(ls "$(state_of cw-q6)/failed" 2> /dev/null)'"
+fi
+
+# Every non-class input of the manifest refuses the run when it changes: the Dockerfile, .dockerignore, docker/ipm, merge.cpf, the
+# after-start files, healthcheck.sh, module.xml, short-names.tsv, the web bundle, the stack's compose files and the mock's files.
+own_fixture cw-q5
+qt=$work/tree-cw-q5
+q5_ok=1
+q5_n=0
+q5_tried=" "
+for p in $(cut -d' ' -f2 "$(state_of cw-q5)/manifest"); do
+  if warm_is_class "$p"; then continue; fi
+  q5_n=$((q5_n + 1))
+  q5_tried="$q5_tried$p "
+  cp "$qt/$p" "$work/input.bak"
+  printf 'changed\n' >> "$qt/$p"
+  reload_case "q5-$q5_n" "$qt" cw-q5
+  if [ "$rl_rc" -ne 1 ] || [ "$rl_last" -ne 0 ] \
+    || ! printf '%s\n' "$rl_out" | grep -qxF "FAIL WARM stale: $p changed since warm up, and only classes reload: run ci/warm.sh down, then ci/warm.sh up"; then
+    q5_ok=0
+    fail "reload: a change to $p did not refuse the run: exit $rl_rc, $rl_last session(s), output $(printf '%s' "$rl_out" | tr '\n' '|' | head -c 300)"
+  fi
+  cp "$work/input.bak" "$qt/$p"
+done
+q5_missing=""
+for p in docker/Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml ci/mock/server.mjs docker/ipm/zpm.xml \
+  docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos src/module.xml src/short-names.tsv src/ocutalon/csp/index.html; do
+  case $q5_tried in *" $p "*) ;; *) q5_missing="$q5_missing $p" ;; esac
+done
+reload_case q5-end "$qt" cw-q5
+if [ "$q5_ok" -eq 1 ] && [ -z "$q5_missing" ] && [ "$rl_rc" -eq 0 ] && printf '%s\n' "$rl_out" | grep -qx 'WARM reloaded 0, deleted 0'; then
+  pass "reload: a change to each of the $q5_n non-class inputs (the matrix's list) refuses the run, names the path and opens no session, and the restored tree runs"
+else
+  fail "reload: the non-class inputs not tried:$q5_missing; every one tried must refuse, and the restored tree must run (exit $rl_rc)"
+fi
+if [ "$reload_multi" -eq 0 ]; then
+  pass "reload: no case printed more than one WARM reloaded line"
+fi
+
+# The manifest of the real tree names every file of the matrix's list, and every class of the tree, and not the mock's node tests.
+real_paths=$(warm_manifest | cut -d' ' -f2)
+real_missing=""
+for p in docker/Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml docker/merge.cpf docker/healthcheck.sh \
+  docker/after-start.sh docker/after-start.cos src/module.xml src/short-names.tsv; do
+  printf '%s\n' "$real_paths" | grep -qxF -- "$p" || real_missing="$real_missing $p"
+done
+for p in docker/ipm/ ci/mock/ src/ocutalon/cls/ src/bridge/cls/; do
+  printf '%s\n' "$real_paths" | grep -q -- "^$p" || real_missing="$real_missing $p*"
+done
+if [ -d src/ocutalon/csp ] && ! printf '%s\n' "$real_paths" | grep -q '^src/ocutalon/csp/'; then real_missing="$real_missing src/ocutalon/csp/*"; fi
+real_classes=$(find src/*/cls -name '*.cls' | wc -l | tr -d ' ')
+check "the manifest of the real tree holds every input of the matrix's list and all $real_classes classes, and not the mock's node tests" \
+  "$(printf 'missing:%s\nclasses:%s\n' "$real_missing" "$(printf '%s\n' "$real_paths" | grep -c '^src/.*/cls/.*\.cls$')")" 0 0 \
+  '^missing:$' "^classes:$real_classes\$"
+check "the manifest of the real tree holds no node test of the mock and no .DS_Store" "$real_paths" 0 0 '!^ci/mock/test/' '!\.DS_Store$'
+
+# --- a warm run through ci/iris.sh: it reloads, it leaves the stack as it found it, and its verdicts are the session's ---
+
+mkdir -p "$work/locks-wr"
+# wr_run <tag> <cmd_class | cmd_shard> <arguments> [env assignments...]: a warm run in a process of its own with a running stack, no
+# start function allowed, the class run stubbed and the IRIS session of the reload from reload_session_stub. Sets wr_out and wr_rc;
+# the sessions are in $work/sessions-wr-<tag>, and what each session saw (the project, LIVE_FILES) in $work/wr.seen-<tag>.
+wr_run() {
+  local tag=$1 fn=$2 arg=$3 kv
+  shift 3
+  : > "$work/docker.calls"
+  : > "$work/wr.forbidden"
+  sessions=$work/sessions-wr-$tag
+  mkdir -p "$sessions"
+  wr_out=$(
+    {
+      export OCUTALON_WARM=1 OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$work/locks-wr STUB_RUNNING=1
+      for kv in "$@"; do export "${kv?}"; done
+      docker() { docker_stub "$@"; }
+      preflight() { echo preflight >> "$work/wr.forbidden"; }
+      live_start() { echo live_start >> "$work/wr.forbidden"; }
+      stack_start() { echo stack_start >> "$work/wr.forbidden"; }
+      stack_ready() { echo stack_ready >> "$work/wr.forbidden"; }
+      run_class() { echo "CLASS $1 passed 0.00s"; }
+      iris_script() { printf '%s|%s\n' "$P" "${LIVE_FILES[*]-}" >> "$work/wr.seen-$tag"; reload_session_stub; }
+      "$fn" $arg
+    } 2>&1
+  )
+  wr_rc=$?
+}
+# tamper <tag> <path>: the stored hash of the path is wrong, as if the file had changed since the stack's last load.
+tamper() {
+  local m
+  m=$(state_of "$1")/manifest
+  sed "s#^[0-9a-f]* $2\$#0000000000000000000000000000000000000000 $2#" "$m" > "$m.new" && mv "$m.new" "$m"
+  grep -q "^0000000000000000000000000000000000000000 $2\$" "$m"
+}
+# wr_untouched <tag>: the stack of the tag was left as it was found.
+wr_untouched() {
+  local d
+  d=$(state_of "$1")
+  [ -s "$work/docker.calls" ] && [ -z "$(grep -v '^docker ps ' "$work/docker.calls")" ] && [ ! -s "$work/wr.forbidden" ] \
+    && [ -z "$(ls "$work/locks-wr")" ] && [ -f "$d/project" ] && [ -s "$d/manifest" ] && [ -s "$d/files" ] \
+    && [ "$(ls "$TMPDIR" | grep -c '^ocutalon-warm-run\.')" -eq 0 ]
+}
+cf=src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls
+
+# A changed class: the session runs against the project and the compose files of the state; the stack stays up.
+fixture_state cw-w1 ocutalon-warm-cw-w1-1700000000-1
+tamper cw-w1 "$cf" || fail "warm run: the test could not change the stored hash of $cf"
+wr_run cw-w1 cmd_class OcuTalon.Test.Agent.Constants
+check "warm class with one changed class: STACK, WARM reloaded 1, READY (warm) and the CLASS verdict, with no LOCK line" "$wr_out" "$wr_rc" 0 \
+  '^STACK OcuTalon.Test.Agent.Constants: warm project ocutalon-warm-cw-w1-1700000000-1$' '^WARM reloaded 1, deleted 0$' \
+  '^READY OcuTalon.Test.Agent.Constants [0-9]+s \(warm\)$' '^CLASS OcuTalon.Test.Agent.Constants passed' '^RUN OcuTalon.Test.Agent.Constants passed' '!^LOCK' '!compiled every class'
+w1_files=$(tr '\n' ' ' < "$(state_of cw-w1)/files" | sed 's/ $//')
+if [ "$(cat "$work/wr.seen-cw-w1" 2> /dev/null)" = "ocutalon-warm-cw-w1-1700000000-1|$w1_files" ]; then
+  pass "warm class: the reload's session ran against the project of the state, with the compose files of the up (decoy, throwaway, CI and warm.yml)"
+else
+  fail "warm class: the session saw '$(cat "$work/wr.seen-cw-w1" 2> /dev/null)', wanted the project and '$w1_files'"
+fi
+if wr_untouched cw-w1; then
+  pass "warm class: only docker ps ran (the stack is not stopped, removed or rebuilt), no start function and no lock was used, the state is intact and the run's temporary folder is gone"
+else
+  fail "warm class: the stack was not left as found: docker calls '$(tr '\n' '|' < "$work/docker.calls" | head -c 300)', forbidden calls '$(tr '\n' '|' < "$work/wr.forbidden")', locks '$(ls "$work/locks-wr" | tr '\n' ' ')', runs left '$(ls "$TMPDIR" | grep '^ocutalon-warm-run\.' | tr '\n' ' ')'"
+fi
+
+# A compile error through the command: exit 1, the error line, no READY and no CLASS; the next run compiles every class again.
+fixture_state cw-w2 ocutalon-warm-cw-w2-1700000000-1
+tamper cw-w2 "$cf" || fail "warm run: the test could not change the stored hash of $cf"
+wr_run cw-w2 cmd_class OcuTalon.Test.Agent.Constants STUB_COMPILE_FAIL=1
+check "warm class whose compile fails: exit 1, FAIL WARM compile naming the class, and no READY, CLASS or RUN line" "$wr_out" "$wr_rc" 1 \
+  '^STACK OcuTalon.Test.Agent.Constants: warm project ocutalon-warm-cw-w2-1700000000-1$' '^WARM reloaded 1, deleted 0$' \
+  '^FAIL WARM compile: OcuTalon.Test.Agent.Constants: compile boom$' '!^READY' '!^CLASS' '!^RUN'
+if [ -f "$(state_of cw-w2)/failed" ] && wr_untouched cw-w2; then
+  pass "warm class whose compile fails: the failed marker is set, and the stack is left as found"
+else
+  fail "warm class whose compile fails: the marker is missing, or the stack was touched"
+fi
+wr_run cw-w2 cmd_class OcuTalon.Test.Agent.Constants
+check "the next warm run compiles every class of the tree again, and passes" "$wr_out" "$wr_rc" 0 \
+  '^WARM reloaded 0, deleted 0$' "^WARM compiled every class \\($real_classes\\): after a failed reload\$" '^READY OcuTalon.Test.Agent.Constants [0-9]+s \(warm\)$' \
+  '^CLASS OcuTalon.Test.Agent.Constants passed'
+w2_sent=$(grep -c '^Set c("' "$work/sessions-wr-cw-w2/2" 2> /dev/null)
+if [ ! -f "$(state_of cw-w2)/failed" ] && [ "${w2_sent:-0}" -eq "$real_classes" ]; then
+  pass "the next warm run sent all $real_classes classes to the compile, and cleared the failed marker"
+else
+  fail "the next warm run left the failed marker, or sent ${w2_sent:-0} classes to the compile"
+fi
+
+# A warm shard with --reverse: the classes in reverse name order, and one reload.
+fixture_state cw-w3 ocutalon-warm-cw-w3-1700000000-1
+wr_run cw-w3 cmd_shard "lane-a --reverse"
+want_order=$(test_classes $(shard_areas lane-a) | LC_ALL=C sort -r)
+got_order=$(printf '%s\n' "$wr_out" | sed -n 's/^CLASS \([^ ]*\) passed.*/\1/p')
+check "a warm shard with --reverse prints one WARM reloaded line and the SHARD verdict" "$wr_out" "$wr_rc" 0 \
+  '^STACK lane-a \(reversed\): warm project ocutalon-warm-cw-w3-1700000000-1$' '^WARM reloaded 0, deleted 0$' '^READY lane-a \(reversed\) [0-9]+s \(warm\)$' '^SHARD lane-a \(reversed\) passed'
+if [ -n "$want_order" ] && [ "$got_order" = "$want_order" ] && [ "$(printf '%s\n' "$want_order" | grep -c .)" -gt 1 ] && [ "$(printf '%s\n' "$wr_out" | grep -c '^WARM reloaded')" -eq 1 ]; then
+  pass "a warm shard with --reverse runs its classes in reverse name order, after one reload"
+else
+  fail "a warm shard with --reverse ran '$(printf '%s' "$got_order" | tr '\n' ' ')', wanted '$(printf '%s' "$want_order" | tr '\n' ' ')'"
+fi
 
 # --- the lock ---
 
@@ -796,15 +1190,22 @@ up_run() {
   shift 2
   : > "$work/dc.calls"
   : > "$work/live.calls"
+  : > "$work/order.calls"
   up_out=$(
     {
       export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$lockd OCUTALON_LOCK_OWNER='epic=0 stage=qa'
       for kv in "$@"; do export "${kv?}"; done
       preflight() { :; }
-      ensure_web_bundle() { return 0; }
+      ensure_web_bundle() {
+        if [ -e "$(warm_state_dir "$tag")/manifest" ]; then echo "bundle: manifest"; else echo "bundle: no manifest"; fi >> "$work/order.calls"
+        return 0
+      }
       docker() { docker_stub "$@"; }
       dc() {
         echo "dc $*" >> "$work/dc.calls"
+        if [ "$1" = up ]; then
+          if [ -s "$(warm_state_dir "$tag")/manifest" ]; then echo "up: manifest"; else echo "up: no manifest"; fi >> "$work/order.calls"
+        fi
         if [ "$1" = up ] && [ "${STUB_UP_FAIL:-0}" = 1 ]; then return 1; fi
         return 0
       }
@@ -834,6 +1235,12 @@ else
   fail "up: the state folder is incomplete: $(ls "$sd" | tr '\n' ' ')"
 fi
 if grep -q '^dc up -d --build --wait' "$work/dc.calls" && ! grep -q '^dc down' "$work/dc.calls"; then pass "up: the project is built and started, and not torn down"; else fail "up: the dc calls were '$(tr '\n' '|' < "$work/dc.calls")'"; fi
+# The manifest is taken after the web bundle is ensured and before the build, so a class edited during the build is reloaded later.
+if [ "$(tr '\n' '|' < "$work/order.calls")" = "bundle: no manifest|up: manifest|" ]; then
+  pass "up: the manifest is taken after the web bundle is ensured and before the build"
+else
+  fail "up: the manifest was not taken between the web bundle and the build: $(tr '\n' '|' < "$work/order.calls")"
+fi
 holder=$(cat "$locku/warm-iris.lock")
 [ -n "$holder" ] || fail "up: the first up made no warm-iris.lock"
 STUB_RUNNING=1 up_run cw-u "$locku"
@@ -873,6 +1280,25 @@ if [ -z "$(ls "$locku")" ] && [ ! -e "$(state_of cw-u5)" ] && grep -q '^dc down 
 else
   fail "a failed up left '$(ls "$locku" | tr '\n' ' ')' in the lane folder, the state '$(ls "$(state_of cw-u5)" 2> /dev/null | tr '\n' ' ')', dc calls '$(tr '\n' '|' < "$work/dc.calls")'"
 fi
+# A failed up because the image is missing: the preflight ends the run before the lock, the project or the state.
+locpf=$work/locks-pf
+mkdir -p "$locpf"
+: > "$work/pf.dc"
+out=$(
+{
+  export OCUTALON_RUN_TAG=cw-pf OCUTALON_LOCK_DIR=$locpf OCUTALON_LOCK_OWNER='epic=0 stage=qa' IRIS_IMAGE=ocutalon-no-such-image:0
+  dc() { echo "dc $*" >> "$work/pf.dc"; return 0; }
+  warm_up
+} 2>&1
+)
+rc=$?
+check "a failed up because the base image is missing exits 1 before any lock, project or state" "$out" "$rc" 1 \
+  '^FAIL the base image ocutalon-no-such-image:0 is not on this machine' '!^LOCK' '!^STACK' '!^WARM up'
+if [ -z "$(ls "$locpf")" ] && [ ! -e "$(state_of cw-pf)" ] && [ ! -s "$work/pf.dc" ]; then
+  pass "a failed up because the base image is missing leaves no lock file, no state folder and no dc call"
+else
+  fail "a failed up because the base image is missing left '$(ls "$locpf" | tr '\n' ' ')' in the lane folder, the state '$(ls "$(state_of cw-pf)" 2> /dev/null | tr '\n' ' ')', dc calls '$(tr '\n' '|' < "$work/pf.dc")'"
+fi
 out=$(
 {
   warm_lock_text() { echo 'live_lock_claim() { echo throwaway-iris; }'; }
@@ -906,7 +1332,7 @@ dc() {
 }
 warm_up
 EOS
-rm -f "$work/kill-up.started"
+rm -f "$work/kill-up.started" "$locku"/*
 (ROOT=$root WORK=$work OCUTALON_RUN_TAG=cw-k OCUTALON_LOCK_DIR=$locku OCUTALON_LOCK_OWNER='epic=0 stage=qa' bash "$work/kill-up.sh" > "$work/kill-up.out" 2>&1) &
 kill_pid=$!
 waited=0
@@ -995,6 +1421,16 @@ check "ci/warm.sh status, run as a command, says none for a stack that is not ru
 cmd_run cw-c1 0 down
 check "ci/warm.sh down, run as a command, tears the tag down and ends with WARM down" "$out" "$rc" 0 '^TEARDOWN tag cw-c1: 0 project\(s\) removed' '^WARM down tag cw-c1$'
 if [ -e "$(state_of cw-c1)" ]; then fail "ci/warm.sh down, run as a command, left the state folder"; else pass "ci/warm.sh down, run as a command, removed the state folder"; fi
+
+# --- the recipe is recorded (AC 1, AC 6): Rule 21 holds the warm-mode bullet with the commands the code provides, and the measured
+# bullet. The rest of their text is the owner's to edit, so only --record checks it. ---
+
+rule_dir=$work
+rule_bad_ok=1
+rule21_flags rule21_recipe_gaps "no warm-mode bullet" 's/Warm mode (Story 32.4/Warm mode (Story 99.9/'
+rule21_flags rule21_recipe_gaps "a warm-mode bullet without ci/warm.sh down" 's#ci/warm\.sh down#ci/warm.sh stop#g'
+rule21_flags rule21_recipe_gaps "no measured bullet" 's/Measured (Story 32.4/Measured (Story 99.9/'
+rule21_verdict rule21_recipe_gaps "Rule 21 holds the warm-mode recipe (ci/warm.sh up and down, OCUTALON_WARM=1, ci/iris.sh teardown) and the measured bullet"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-ci-warm: $fails check(s) failed"

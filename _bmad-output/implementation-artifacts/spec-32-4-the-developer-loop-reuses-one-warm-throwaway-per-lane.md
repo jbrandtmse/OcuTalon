@@ -269,6 +269,40 @@ Rows assume the lane's variables (Rule 21) and a warm tag W, unless the row says
 - **AC 7, integration (Rule 1).** Given a stage on any lane that follows the appended recipe, when it runs `OCUTALON_WARM=1 OCUTALON_RUN_TAG=<warm tag> ci/iris.sh class <Class>` against its real warm stack, then the call prints `WARM reloaded`, `READY ... (warm)` and the class's real `CLASS` verdict. It finishes without a new IRIS start, in less time than the fresh call of the same class measured in this story. The evidence is `test-ci-warm.sh --live` steps 3 to 5 and the warm-against-fresh measurement.
 - **AC 8, nothing else changed.** Given the finished tree, when `bash ci/checks.sh` runs, then it ends `checks: all scripts passed`. Fresh `shard lane-a` and `shard lane-b` pass with their usual lines. And `git diff --stat` of every contended path in Never is empty.
 
+### Review Findings
+
+Code review, 2026-10-23, lane C (four layers; 33 raw findings, 12 entries after grouping: high 0, medium 3, low 8, maybe-false 1; 13 rejected).
+
+- [x] [Review][Decision] The hosted `checks` job pinned owner-edited Rule 21 text (medium; lead's point 1) — QA's check read `_bmad/custom/skill-rules.md` on every hosted run and pinned 17 phrases and the figures' arithmetic, so an owner rewording or a new measurement would turn `checks` red on every lane, and the repair needs Lane B's test file. Resolved as a patch: the default mode now pins only the recipe's presence by the commands the code provides (`ci/warm.sh up` and `down`, `OCUTALON_WARM=1`, `ci/iris.sh teardown`) and the measured bullet; the full check (phrases, the memory arithmetic, warm below fresh) moved to `bash docker/tests/test-ci-warm.sh --record`, run on demand after editing either bullet, never in CI. [docker/tests/test-ci-warm.sh]
+- [x] [Review][Decision] Two warm calls at once on one stack race on its manifest; no run lock (medium; lead's point 2, plus a killed call's orphan session) — closed `wontfix-theoretical` (DW-123): under Rule 18 a stage makes one call at a time on its own warm tag, a warm call lasts seconds, and a lock needs stale-lock handling and an output line the matrix does not specify. Real if a stage runs warm calls in parallel.
+- [x] [Review][Patch] The manifest's place in `warm up` (after the web bundle, before the build) was unpinned (medium) [docker/tests/test-ci-warm.sh `up_run`] — the stubs record whether the manifest exists at `ensure_web_bundle` and at `dc up`; wanted `bundle: no manifest|up: manifest|`.
+- [x] [Review][Patch] The recipe did not say that a warm stack keeps earlier runs' data (low) [_bmad/custom/skill-rules.md, Rule 21 warm-mode bullet] — one clause: a red a leftover could explain, a mutation's included, counts only when the class is green again on the same stack after the revert. (The finding's AD-22 claim is refuted: see Rejected.)
+- [x] [Review][Patch] `ci/iris.sh`'s header did not state the warm exits or teardown's warm lock and state (low) [ci/iris.sh:19, :28]
+- [x] [Review][Patch] `--live` step 4 asserted no `!^LOCK` and no project count for the warm shard (low) [docker/tests/test-ci-warm.sh `live_checks`]
+- [x] [Review][Patch] Comments that no longer matched the code (low): `--live` "About 4 minutes" (2 minutes measured), `probe_class`, `warm_cli`'s parameters, `warm_usage` [docker/tests/test-ci-warm.sh, ci/warm.sh:46]
+- [x] [Review][Patch] An interrupt between the manifest update and the `failed` marker could leave failed imports recorded as loaded (low) [ci/warm.sh `warm_reload`] — the marker is set before the session and removed only when the reload ends OK; new hermetic case q6.
+- [x] [Review][Patch] `--live` inherited an exported `OCUTALON_WARM` (low) [docker/tests/test-ci-warm.sh `live_checks`] — unset at its start.
+- [x] [Review][Patch] The killed-up check relied on the failed-up check having emptied the lane folder (low) [docker/tests/test-ci-warm.sh] — it empties the folder itself.
+- [x] [Review][Patch] The measured bullet's "every class of the tree compiled after a delete 1.5 s" read as the compile time; it is the call's wall-clock (low) [_bmad/custom/skill-rules.md, Rule 21 measured bullet]
+- [x] [Review][Defer] A warm reload trusts the session to print one `CHK` row per delete and import (maybe-false, unverified medium) [ci/warm.sh `warm_reload`] — deferred: `%apiOBJ`'s source is not exported, so whether `$SYSTEM.OBJ.Load` or `Delete` can throw instead of returning a status is unsettled; a warm session whose output lacks a row for a listed item would settle it. Closed `wontfix-theoretical` (DW-124).
+
+**Rejected.**
+- `false` — The warm stack breaks AD-22's "each shard in its own compose project": the Rule names the self-hosted IRIS runner and CI's groups; its developer-machine clause is "always in throwaway compose projects", which the warm stack is, and the mock keys its state by each test's marker, as within one fresh shard.
+- `false` — The reload bypasses IPM, against AD-23: AD-23 governs the product's install path, which `warm up` runs unchanged; a class reload is a test loop, and the fresh check before every push keeps IPM's path the evidence.
+- `false` — AC 6, 7 and 8 lack `mutation:` lines: Rule 19 asks one demonstrated mutation per AC, and each has one; the git-diff clauses are checked by the `(once)` commands.
+- `false` — The fresh-environment check has no code gate: a warm run prints `STACK ...: warm project` and `WARM` lines, which that evidence excludes, and refuses unless a warm stack of that exact tag exists.
+- `false` — `all` prints `WARM ignored: all ...` where the matrix shows `group <g>`: the row covers `group <g>` "(or `all`)".
+- `false` — `test-ci-config.sh`'s `down_ok` reads the last fixture call: every call removes the same three projects with the same arguments, made by the fixture itself. The reload chain (r1 to r14, s1 to s9) and the `cw-u` up chain are steps of one scenario inside one script that builds its own tree and state; each fails closed.
+- `low` — A class in both source trees, copied then removed: rare, and it fails closed (`FAIL WARM compile` until `down`/`up`); the fix is a new guard.
+- `low` — `warm_running` cannot tell a failing `docker ps` from a stopped stack, and checks neither IRIS health nor the mock: needs a daemon that fails while its containers run; `ci/iris.sh teardown` of the tag clears any orphan.
+- `low` — A `.cls` file that declares another class than its path: needs a merge-tool backup or a broken file in `src/`; the fix is a new guard.
+- `low` — A lost state folder with the tag's own `warm-iris.lock`: fails closed with `LOCK busy` naming the tag's project; the same root cause as the implement review's rejected `TMPDIR` row.
+- `low` — `git hash-object` failing during `up`: fails closed (the stored manifest is missing or partial, and the next run refuses).
+- `low` — The base image (`IRIS_IMAGE`, or a retag) is not part of the manifest: the tag is fixed and preloaded, and no stage sets `IRIS_IMAGE`; the fix adds a `docker image inspect`, a state file and a refusal line.
+- `low` — A symlinked path to the same checkout is refused as another checkout: every call runs from the worktree root, and the refusal is loud.
+- `low` — AC 4's "every `ci/` code line is free of it" cannot hold literally: the fix edits the spec; the code follows the matrix row.
+- `low` — The usage addition is two wrapped lines, not one: cosmetic.
+
 ## Spec Change Log
 
 ### 2026-10-23: AC 2 amended before planning (Rule 5 tier 1, intent kept, pre-ruled with the Contest Planner under the owner's delegation)
@@ -517,6 +551,48 @@ Rows assume the lane's variables (Rule 21) and a warm tag W, unless the row says
   - mutation (review pass, the state folder after a teardown): `ci/iris.sh` `cmd_teardown` without its `rm -rf` of the tag's state folder -> `FAIL teardown` in `test-ci-config.sh`.
   - Every mutation was applied to a saved copy of `ci/iris.sh` or `ci/warm.sh` (both in this story's footprint), observed red, and restored; the checksums of the tree equal the ones taken before the first mutation (and, for the review pass, before each one).
 - **AC 1 and AC 6** are a measurement and a record: no local mutation. **AC 8** aggregates the others. **AC 7** is `--live`'s evidence; its mutation is AC 3's first.
+
+**QA stage (2026-10-23, lane C; tags `e32s4qt` and `e32s4qtf`; the QA pass supersedes the line above for AC 1, 6, 7 and 8, which now have pinning tests and mutations).**
+- Test files changed (QA):
+  - `docker/tests/test-ci-warm.sh` (QA): 125 hermetic checks.
+  - `docker/tests/test-ci-config.sh` (QA): the teardown fixture.
+- Added to `test-ci-warm.sh` (QA), by matrix row or AC:
+  - registration (Rule 8): `ci-warm` is in `CHECK_SCRIPTS` and in no other list, and `ci/warm.sh`, `ci/iris.sh` and the script are executable (AC 8);
+  - "No tag": `up`, `down` and `status` each give exit 2 with no tag, a bad tag and a 2-character tag, and make no Docker call;
+  - "Bad value" and "Group and all": `OCUTALON_WARM=0` and an empty value are fresh for `class` (same calls, same lines, no `WARM` line), and `group` and `all` pass no `OCUTALON_WARM` at all to a unit (AC 4);
+  - "Failed up": a missing base image ends `warm up` with exit 1 before a lock, a project or a state (AC 5);
+  - "Other input changed": a change to each of the 14 non-class inputs of a synthetic tree built from the real Dockerfile's COPY lines (Dockerfile, `.dockerignore`, `docker/ipm`, `merge.cpf`, `after-start.*`, `healthcheck.sh`, `module.xml`, `short-names.tsv`, the web bundle, the three compose files, the mock) refuses with its path and opens no session; the manifest of the real tree names every one of them and all its classes (AC 3);
+  - every reload case prints at most one `WARM reloaded` line (AC 3);
+  - warm runs through `cmd_class` and `cmd_shard`: the session runs on the project and compose files of the state; only `docker ps` runs, no start function, no lock, no leftover temporary folder (the stack is left as found); a compile error exits 1 with no `READY`, `CLASS` or `RUN` line and the next run compiles all 208 classes; `shard --reverse` keeps the reverse order after one reload (AC 2, AC 3, AC 7);
+  - Rule 21 (AC 1, AC 6): the warm-mode and measured bullets exist with their pieces, the projected use equals the other containers plus 3 x (fresh + after both shards) within 0.15 GiB, is at most 85 % of the VM, and every warm time is below its fresh time; five synthetic bad samples are flagged first (`WARM_TEST_RULES` names a copy of the rules text for a mutation run);
+  - `--live`: `ci/warm.sh status` while up and after down, and the warm class call takes at most a quarter of the time of the fresh call of the same class (AC 7): observed 0 s against 54 s.
+- Added to `test-ci-config.sh` (QA): the teardown fixture also holds the warm stack of the tag (an orphan: the project goes and its lock is released), another tag's warm stack, and the tag with a `w` after it (stack, lock and state folder kept), so Rule 21's "fresh tag followed by `w`" convention is pinned (AC 5).
+- Mutations (QA). Each was applied to a saved copy of a footprint file (or, for the Rule 21 text, to a copy named by `WARM_TEST_RULES`, so that no contended file was touched), observed red, reverted, and the file, `git status --short` and `git diff` were byte-identical afterwards. `mutations_demonstrated=16`.
+  - AC 1: mutation: a copy of the Rule 21 text with the projected use `31.4 GiB` changed to `60.0 GiB` -> `test-ci-warm.sh --record` 1 check (the projected use is not the other containers plus 3 x (fresh + after both shards), or not within 85 % of the VM). (Code review: this check moved from the default mode to `--record`; the mutation was applied again there and went red.)
+  - AC 2: mutation: `ci/warm.sh` `warm_attach` without the loop that restores `LIVE_FILES` from the state -> `test-ci-warm.sh` 1 check (the session sees the project but no compose file).
+  - AC 2: mutation: `ci/warm.sh` `warm_attach` with `trap live_cleanup EXIT` instead of removing only its temporary folder -> `test-ci-warm.sh` 2 checks (`docker compose ... down` ran: the stack was not left as found).
+  - AC 3: mutation: `ci/warm.sh` `warm_manifest` ignoring `docker/ipm/` -> `test-ci-warm.sh` 2 checks (the non-class input `docker/ipm/zpm.xml` is no longer tried, and the real manifest lacks `docker/ipm/*`).
+  - AC 3: mutation: `ci/warm.sh` `warm_reload` without setting the `failed` marker -> `test-ci-warm.sh` 11 checks (no marker after a compile error, a failed delete, a session without a compile result or without error text, or while the session runs (q6); the next run does not compile every class, through `cmd_class` too). (Code review: the marker is now set before the session; the mutation removes that line, applied again after the change.)
+  - AC 4: mutation: `ci/iris.sh` `fresh_only` unsetting `OCUTALON_WARM` only when it said `1` -> `test-ci-warm.sh` 4 checks (`group` and `all` leave `OCUTALON_WARM=0` or an empty value to each unit).
+  - AC 5: mutation: `ci/iris.sh` `cmd_teardown` with the pattern `-$tag[a-z]*-` (the fresh tag reaches the tag followed by `w`) -> `FAIL teardown` twice in `test-ci-config.sh` (the warm stack, lock and folder of `abc-7w` removed; the project count).
+  - AC 5: mutation: `ci/iris.sh` `stack_start` with `live_start` before `preflight` -> `test-ci-warm.sh` 5 checks (the failed-up case prints `LOCK acquired` before the base-image failure and runs `dc down`; the fresh-branch call order).
+  - AC 6: mutation: a copy of the Rule 21 text without `never export it` -> `test-ci-warm.sh --record` 2 checks (`the warm-mode bullet lacks: never export it`, and the sample that cannot change an already mutated copy). (Code review: moved to `--record` with the check; applied again there.)
+  - AC 7: mutation: `ci/warm.sh` `warm_attach` printing `READY ... <s>s` without ` (warm)` -> `test-ci-warm.sh` 5 checks (a warm class, a warm shard, a warm class with one changed class, the next run after a failed one, and `shard --reverse`). The time half of AC 7 is `--live` step 3 (0 s against 54 s, not mutated: it needs a second live run).
+  - AC 8: mutation: `ci/units.sh` `CHECK_SCRIPTS` without `ci-warm` -> `test-ci-config.sh` `FAIL units` (the script is in 0 of the lists).
+  - AC 8: mutation: `ci/units.sh` with `ci-warm` moved from `CHECK_SCRIPTS` to `WEB_SCRIPTS` (still in exactly one list) -> `test-ci-warm.sh` 1 check (registration: not in `CHECK_SCRIPTS`, in `WEB_SCRIPTS`).
+  - AC 8: mutation: `ci/iris.sh` `stack_ready` printing `READY <title> <s>s (fresh)` -> `test-ci-warm.sh` 4 checks (the fresh lines of `class` with `OCUTALON_WARM` unset, `0` and empty, and the lines of `warm up`).
+  - matrix "No tag": mutation: `ci/warm.sh` accepting `down` without a tag -> `test-ci-warm.sh` 1 check (exit 0 where 2 is wanted).
+  - matrix "Nothing changed" (a warm `shard --reverse`): mutation: `ci/iris.sh` `cmd_shard` ignoring `--reverse` when `OCUTALON_WARM=1` -> `test-ci-warm.sh` 1 check (the warm shard ran in name order).
+  - registration: mutation: `chmod -x ci/warm.sh` -> `test-ci-warm.sh` 1 check (`ci/warm.sh is not executable`); the mode was restored.
+- Results after the QA changes: `test-ci-warm.sh` all checks passed (125 PASS, 10 s); `test-ci-config.sh` all rules passed (29 PASS, 8 s); the two in both orders pass; `bash ci/checks.sh` ended `checks: all scripts passed` with a block for `ci-warm` (58 s); `test-ci-warm.sh --live` ended `all live checks passed` in 117 s with `git status --short` unchanged, and both tag teardowns removed 0 projects; the diff of the contended paths is empty and `git diff` of `_bmad/custom/skill-rules.md` against the baseline adds 2 lines and removes none.
+
+**Code review stage (2026-10-23, lane C; tags `e32s4rt` and `e32s4rtf`).**
+- Command added: `(once, after editing either Rule 21 warm bullet)` `bash docker/tests/test-ci-warm.sh --record`. Expected: `test-ci-warm: all record checks passed`. Never in CI: it reads owner-edited text (`_bmad/`), as `--live` needs real stacks; the default mode keeps a pin for AC 1 and AC 6 (the bullets exist, with the commands the code provides), so Rule 8 holds.
+- Mutations (code review), each on a saved copy of `ci/warm.sh` or on a copy of the rules text named by `WARM_TEST_RULES`, observed red and reverted; the checksums of `ci/warm.sh` and `_bmad/custom/skill-rules.md` equal the ones taken before the first mutation:
+  - AC 3 (the manifest of `warm up`): mutation: `ci/warm.sh` `warm_up` taking the manifest after `stack_ready` -> `test-ci-warm.sh` 1 check (`up: the manifest was not taken between the web bundle and the build: bundle: no manifest|up: no manifest|`).
+  - AC 3 (an interrupted reload counts as failed): mutation: `ci/warm.sh` `warm_reload` setting the `failed` marker only after the session, as before the review -> `test-ci-warm.sh` 1 check (q6: the marker was `unset` while the session ran).
+  - AC 6 (the hosted pin): mutation: a copy of the rules text with `OCUTALON_WARM=1 OCUTALON_RUN_TAG=<warm tag>` changed to `OCUTALON_HOT=1 ...` -> `test-ci-warm.sh` 1 check (`the warm-mode bullet lacks: OCUTALON_WARM=1`). Control: a copy with `never export it` reworded and the projected use changed passes the default mode, so the hosted job no longer pins the owner's wording.
+- Results: `test-ci-warm.sh` all checks passed (128 PASS, 10 s); `--record` all record checks passed; `test-ci-config.sh` all rules passed; `test-ci-warm.sh --live` ended `all live checks passed` in 127 s (the warm class 0 s against the fresh 59 s), with `git status --short` unchanged, and both tag teardowns removed 0 projects; `git diff db24acf -- _bmad/custom/skill-rules.md` adds 2 lines and removes none.
 
 **Shared surfaces:**
 - `ci/units.sh` `CHECK_SCRIPTS` (+`ci-warm`). `units_violations` and `ci/checks.sh` read it, and `ci/iris.sh list` prints it.

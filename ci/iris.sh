@@ -16,7 +16,8 @@
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
-#   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>)
+#   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
+#                                         and the tag's warm state and warm-iris.lock (ci/warm.sh)
 #   ci/iris.sh all                        every group in turn
 # OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, at least 3 characters, no "slot") names the run: the pieces of one run
 # share it and `teardown` needs it. It defaults to local-<epoch>-<pid>, which makes each call its own run. In CI the web port of
@@ -26,7 +27,8 @@
 # may be about to publish. A set OCUTALON_TEST_WEB_PORT always wins.
 # Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
 # OCUTALON_WARM=1 ci/iris.sh class|shard ... runs on the warm throwaway of the tag (ci/warm.sh up) after reloading the changed
-# classes, with no new start; live, group and all never run warm.
+# classes, with no new start, and exits 1 when that stack is missing, stopped or stale or the reload fails; live, group and all never
+# run warm. A value of OCUTALON_WARM other than 1, 0 or empty exits 2.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 

@@ -50,9 +50,10 @@
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
 #     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else, the lane's
-#     warm-iris.lock and the warm state folder included: a lock or folder of the tag is released, and one of another tag, or of a
-#     tag that extends this one, is kept (ci/iris.sh is sourced with a stub for dc, docker and run_classes, and a lock folder and
-#     a temporary folder of its own);
+#     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
+#     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
+#     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
+#     run_classes, and a lock folder and a temporary folder of its own);
 #   - yaml: ruby -ryaml parses each file (SKIP, and never a PASS, when Ruby is missing).
 # A failing rule prints file:line and its name, never the text of the file. Prints one PASS or FAIL line per rule; exits 0
 # only when none fails.
@@ -1546,16 +1547,21 @@ fi
 
 # --- ci/iris.sh teardown: it removes what carries its tag, and nothing else ---
 
-# The fixtures: two projects of the tag abc-7; and another tag, a tag that extends this one, a slot, a name outside ocutalon- and the
-# preloaded base image, none of which may be touched. `docker` is a stub that answers the listings and records each removal. The lane
+# The fixtures: two projects of the tag abc-7, and the warm stack of that tag (what a killed stage leaves behind); and another tag, a tag
+# that extends this one, the same tag with a w after it (the warm tag of a stage whose fresh tag is abc-7, so that the teardown of the
+# fresh tag never reaches the warm stack), another tag's warm stack, a slot, a name outside ocutalon- and the preloaded base image,
+# none of which may be touched. `docker` is a stub that answers the listings and records each removal. The lane
 # has a lock folder of its own, with a warm-iris.lock that names the project given to teardown_fixture (none when it is empty), and a
 # temporary folder of its own with the warm state folders of the tag, of another tag and of the tag abc-7-1.
 mine1=ocutalon-shard-lane-a-abc-7-1792446641-23730
 mine2=ocutalon-class-abc-7-1792446700-111
+mine3=ocutalon-warm-abc-7-1792446641-23730
 others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792446641-23730 ocutalon-slot-abc-7-1792446641-23730 other-abc-7-1792446641-23730"
+others="$others ocutalon-warm-abc-7w-1792446641-23730 ocutalon-warm-abd-7-1792446641-23730"
 teardown_fixture() { # teardown_fixture <project that the warm lock names>: the sorted calls in $tmp/teardown-removed, the output in $tmp/teardown-out
   rm -rf "$tmp/teardown-locks" "$tmp/teardown-tmp"
-  mkdir -p "$tmp/teardown-locks" "$tmp/teardown-tmp/ocutalon-warm-abc-7" "$tmp/teardown-tmp/ocutalon-warm-abd-7" "$tmp/teardown-tmp/ocutalon-warm-abc-7-1"
+  mkdir -p "$tmp/teardown-locks" "$tmp/teardown-tmp/ocutalon-warm-abc-7" "$tmp/teardown-tmp/ocutalon-warm-abd-7" "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" \
+    "$tmp/teardown-tmp/ocutalon-warm-abc-7w"
   if [ -n "$1" ]; then printf 'epic=0 stage=qa project=%s acquired_at=2026-10-23T00:00:00Z\n' "$1" > "$tmp/teardown-locks/warm-iris.lock"; fi
   (
     OCUTALON_RUN_TAG=abc-7
@@ -1569,8 +1575,8 @@ teardown_fixture() { # teardown_fixture <project that the warm lock names>: the 
       case "$1" in
         ps)
           case "$*" in
-            *label=*) printf '%s\n' $mine1 $mine2 $others ;;
-            *) for n in $mine1 $mine2 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
+            *label=*) printf '%s\n' $mine1 $mine2 $mine3 $others ;;
+            *) for n in $mine1 $mine2 $mine3 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
           esac
           ;;
         volume) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_durable\n' "$n"; done; else echo "volume $4" >> "$calls"; fi ;;
@@ -1589,8 +1595,9 @@ teardown_fixture() { # teardown_fixture <project that the warm lock names>: the 
     sort "$calls"
   ) > "$tmp/teardown-removed"
 }
-# A warm lock of the tag is released; the lock of another tag, and of a tag that extends this one (abc-7-1), is kept.
-teardown_fixture ocutalon-warm-abc-7-1792446641-23730
+# The warm stack of the tag goes with the rest (an orphan), and its lock is released; the stack and the lock of another tag, of a tag that
+# extends this one (abc-7-1) and of the tag with a w after it (abc-7w) are kept.
+teardown_fixture $mine3
 removed=$(cat "$tmp/teardown-removed")
 lock_ok=1
 lock_note=""
@@ -1599,11 +1606,12 @@ if [ -e "$tmp/teardown-locks/warm-iris.lock" ] || ! grep -qx 'LOCK released warm
   lock_ok=0
   lock_note="$lock_note [the warm lock of the tag was not released, or TEARDOWN is not the last line]"
 fi
-if [ -e "$tmp/teardown-tmp/ocutalon-warm-abc-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abd-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" ]; then
+if [ -e "$tmp/teardown-tmp/ocutalon-warm-abc-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abd-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" ] \
+  || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7w" ]; then
   lock_ok=0
-  lock_note="$lock_note [the warm state folder of the tag was kept, or the folder of another tag, or of the tag abc-7-1, was removed]"
+  lock_note="$lock_note [the warm state folder of the tag was kept, or the folder of another tag, of the tag abc-7-1 or of the tag abc-7w was removed]"
 fi
-for other_lock in ocutalon-warm-abd-7-1792446641-23730 ocutalon-warm-abc-7-1-1792446641-23730; do
+for other_lock in ocutalon-warm-abd-7-1792446641-23730 ocutalon-warm-abc-7-1-1792446641-23730 ocutalon-warm-abc-7w-1792446641-23730; do
   teardown_fixture "$other_lock"
   if [ ! -e "$tmp/teardown-locks/warm-iris.lock" ] || grep -q '^LOCK released' "$tmp/teardown-out"; then
     lock_ok=0
@@ -1615,9 +1623,9 @@ if grep -q '^LOCK released' "$tmp/teardown-out"; then
   lock_ok=0
   lock_note="$lock_note [a LOCK released line with no warm lock]"
 fi
-want=$(printf '%s\n' "compose $mine1" "compose $mine2" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "volume ${mine1}_durable" | sort)
+want=$(printf '%s\n' "compose $mine1" "compose $mine2" "compose $mine3" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "rm $mine3-iris-1" "volume ${mine1}_durable" | sort)
 if [ "$removed" = "$want" ] && [ "$lock_ok" -eq 1 ]; then
-  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image, and releases the lane's warm-iris.lock and removes the warm state folder of its tag only (not another tag's, nor the tag abc-7-1's)"
+  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image, and also the warm stack of its tag (an orphan), releases the lane's warm-iris.lock and removes the warm state folder of its tag only (not another tag's, nor the tag abc-7-1's, nor the tag abc-7w's)"
 else
   echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'$lock_note"
   fails=$((fails + 1))
@@ -1626,7 +1634,7 @@ fi
 # Each project comes down with the CI override among its files and with `down -v --rmi local --remove-orphans`: the volumes and
 # the images built for the project go, and a pulled public image such as the mock's stays.
 down_ok=1
-[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 2 ] || down_ok=0
+[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 3 ] || down_ok=0
 while IFS= read -r line; do
   case $line in *" -f "*"/ci/compose.ci.yml down -v --rmi local --remove-orphans") ;; *) down_ok=0 ;; esac
 done < "$tmp/teardown-compose-args"

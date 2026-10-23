@@ -43,7 +43,7 @@ warm_running() {
   [ -n "$(docker ps --filter "label=com.docker.compose.project=$1" --filter label=com.docker.compose.service=iris --filter status=running --format '{{.ID}}' 2>/dev/null)" ]
 }
 
-# warm_usage: the header's command lines.
+# warm_usage: the header, which gives the commands and the contract.
 warm_usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$root/ci/warm.sh" >&2
 }
@@ -230,7 +230,8 @@ warm_script() {
 
 # warm_reload: brings the stack's classes in line with the tree, as the header says. Prints one "WARM reloaded <n>, deleted <m>" line,
 # and "WARM compiled every class (<k>): <why>" when it compiled the whole tree. Returns 1, saying why, for a stale input, an import,
-# delete or compile that failed, or a session that printed nothing. Needs P, LIVE_FILES and tmp.
+# delete or compile that failed, or a session that printed nothing. The failed marker is set before the session and removed only when
+# the reload ends OK, so a reload that was interrupted counts as failed. Needs P, LIVE_FILES and tmp.
 warm_reload() {
   local state kind hash path class out line what rest n=0 m=0 flags why="" total=0 bad=0 compile_seen=0 session_ok=1
   state=$(warm_state_dir "$OCUTALON_RUN_TAG")
@@ -273,9 +274,9 @@ warm_reload() {
     echo "WARM reloaded 0, deleted 0"
     return 0
   fi
+  : > "$state/failed"
   out=$(warm_script "$flags" | iris_script OCUTALON)
   if [ -z "$out" ]; then
-    : > "$state/failed"
     echo "FAIL WARM the IRIS session of $P printed nothing"
     return 1
   fi
@@ -330,7 +331,6 @@ EOT
     rm -f "$state/failed"
     return 0
   fi
-  : > "$state/failed"
   cat "$tmp/errors"
   return 1
 }
