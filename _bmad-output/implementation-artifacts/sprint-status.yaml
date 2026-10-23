@@ -310,7 +310,7 @@ development_status:
   32-1-the-install-group-runs-as-two-jobs: done
   32-2-an-iris-group-runs-only-when-something-it-tests-changed: done
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
-  32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: ready-for-dev
+  32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: in-progress
   epic-32-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
