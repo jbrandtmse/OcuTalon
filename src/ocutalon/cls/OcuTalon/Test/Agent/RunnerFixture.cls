@@ -13,7 +13,7 @@
 ///     Provider step left them;
 ///   - GuardReason: "" only when the environment is the CI override's (the mock's base URL and the mock-key switch), so that no
 ///     test can send a request to a real model API;
-///   - FindRequest, FindRequests, Effort, CacheMark and Has: read the entries of the mock's log (Test.Contract.Mock.LogSince);
+///   - FindRequest, FindRequests, Effort, CacheMark, Has and Messages: read the entries of the mock's log (Test.Contract.Mock.LogSince);
 ///   - EventMark, EventRows, LogRowsHolding and Warnings: the rows of the event log after a mark, the number of them that hold a value,
 ///     and the warnings that one method logged after it;
 ///   - UsageIds, AddUsage and Totals (Story 1.4): the Usage rows of an item or a decision, a fixture Usage row, and the total fields
@@ -39,6 +39,13 @@
 ///   - UseTimer and RestoreTimer (Story 1.7): change the bridge timer for a test the way the product does, through Timeouts.Apply (the row of
 ///     TimerSeconds, the block of every runner's entry and the restarts of Decide and the runners), and put it back through Apply with the
 ///     earlier timer and then RestoreDefaults for the row as it was.
+///   - SessionMark, DropSince, SessionExport and WaitForAnswer (Story 1.8): every user turn now saves an AI session and a link, so a test takes a mark
+///     of the saved sessions before it begins and DropSince deletes the sessions saved after it and the links that name them;
+///     SessionExport reads the data of a saved session, so that a test can show it unchanged;
+///     WarningRows counts the warnings of the event log after a mark (a Busy refusal logs none);
+///     WaitForAnswer waits until a runner has answered every request that Decide sent it in a session (it moved here from
+///     Test.Agent.Decide, which Test.Agent.Conversation shares); NewRequest gives each user turn an owner of its own (a new Ref), so
+///     that no two tests share a conversation, unless the test names one.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -208,17 +215,19 @@ ClassMethod Send(target As %String, message As %Persistent, Output response As %
 	Quit service.SendRequestSync(target, message, .response, ..#SENDSECONDS)
 }
 
-/// A Request of the kind and provenance for a new item: ref is a fresh reference, which is the request's ItemId, OwnerRef is
-/// instance, Channel is system, Summary is "Test <ref>", and Input is the input with " (test <ref>)" appended, so that the
-/// request can be found in the mock's log by its reference.
-ClassMethod NewRequest(kind As %String, provenance As %String, input As %String, Output ref As %String) As OcuTalon.Bridge.Msg.Request
+/// A Request of the kind and provenance for a new item: ref is a fresh reference, which is the request's ItemId, OwnerRef is the
+/// ownerRef given, else a new reference for a turn with provenance user (each such turn is a conversation of its own, as it has a link
+/// and a saved AI session, so that two tests never share a history) and instance for any other request, Channel is system, Summary is
+/// "Test <ref>", and Input is the input with " (test <ref>)" appended, so that the request can be found in the mock's log by its
+/// reference.
+ClassMethod NewRequest(kind As %String, provenance As %String, input As %String, Output ref As %String, ownerRef As %String = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = kind
 	Set request.Provenance = provenance
 	Set request.ItemId = ref
-	Set request.OwnerRef = "instance"
+	Set request.OwnerRef = $Select(ownerRef '= "": ownerRef, (kind = "turn") && (provenance = "user"): ##class(OcuTalon.Bridge.Ids).NewRef(), 1: "instance")
 	Set request.Channel = "system"
 	Set request.Summary = "Test "_ref
 	Set request.Input = input_" (test "_ref_")"
@@ -726,9 +735,10 @@ ClassMethod Drain(item As %String) As %Status
 /// What is wrong with the answer of a fallback and the Decision row that records it, as a text of problems joined by "; ", or "" when
 /// nothing is (QA, Story 1.6; AD-8, AD-26, AD-28, AD-30): the guarantees of every fallback in one place, so that no test leaves one out.
 ///   - the answer is a DecisionResponse for a decide or diagnose request and a Reply for a turn, with the outcome tellnow, Fallback true and
-///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and no
-///     flag of the runner's set that Decide does not carry (SessionRotated, SessionBroken, Busy; Tainted and ToolsRun are the runner's own and
-///     are not judged here: a fallback after a tool ran says so);
+///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and is
+///     not Busy (a Busy answer is never a fallback; Tainted, ToolsRun and SessionRotated are the runner's own, which a fallback carries, and
+///     SessionBroken is Decide's, for a user's turn whose history the provider rejected: none of the four is judged here, because a
+///     fallback after a tool ran, a rotation or a rejected history says so);
 ///   - the XML of the answer, which Visual Trace shows, holds all three of <Outcome>tellnow</Outcome>, <Fallback>true</Fallback> and
 ///     <FallbackReason>the reason</FallbackReason>;
 ///   - the row exists, is of the kind, and holds the outcome tellnow, Fallback 1, the reason, no reasons, confidence or payload, and the
@@ -746,7 +756,7 @@ ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObje
 		If (answer.Reasons '= "") || (answer.Confidence '= "") Set problems = problems _ $ListBuild("the answer has reasons or a confidence")
 		If kind = "turn" {
 			If (answer.Text _ answer.HostData _ answer.Steps _ answer.FailureText _ answer.FinishReason) '= "" Set problems = problems _ $ListBuild("the Reply has a text, host data, steps, a failure text or a finish reason")
-			If (answer.SessionRotated _ answer.SessionBroken _ answer.Busy) '= "000" Set problems = problems _ $ListBuild("the Reply has a flag of the runner's set")
+			If answer.Busy Set problems = problems _ $ListBuild("the Reply is Busy")
 		} Else {
 			If answer.Payload '= "" Set problems = problems _ $ListBuild("the DecisionResponse has a payload")
 		}
@@ -771,6 +781,55 @@ ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObje
 	Quit $ListToString(problems, "; ")
 }
 
+/// The mark of the saved AI sessions: the highest id that AI Hub's session table has given so far. DropSince(mark) deletes whatever was saved
+/// after it.
+ClassMethod SessionMark() As %Integer
+{
+	Quit +$Get(^AI.Agent.SessionD)
+}
+
+/// Deletes the AI sessions saved after the mark (SessionMark) and the conversation links that name them, so that a test puts back what its
+/// user turns saved (Story 1.8). The links go first, so that no link ever names a session that is gone. The status is the first error.
+ClassMethod DropSince(mark As %Integer) As %Status
+{
+	Set first = $$$OK
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM %AI_Agent.Session WHERE ID > ?", +mark)
+	While result.%Next() {
+		Set id = result.%GetData(1)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE SessionId = ?", id)
+		Set sc = ##class(%AI.Agent.Session).%DeleteId(id)
+		If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
+	}
+	Quit first
+}
+
+/// The export of the saved AI session with the id (the messages of its history as JSON text), read through an agent of this process that is
+/// gone when the method returns, or "" when it cannot be read. It is the data of the session: two readings that are equal say that the session
+/// was not changed between them. Like Test.Agent.KeyScan, it opens the session on an agent with a placeholder key, which sends nothing.
+ClassMethod SessionExport(id As %String) As %String
+{
+	Set text = ""
+	Try {
+		Set agent = ##class(%AI.Agent).%New(##class(%AI.Provider).Create("anthropic", {"api_key": "ocutalon-session-reader"}))
+		Set session = agent.OpenSession(id)
+		Set text = session.Export()
+	} Catch exception {
+		Set text = ""
+	}
+	Quit text
+}
+
+/// Waits, up to WAITSECONDS, until the item has answered in the session every request that Decide sent it there (one header back for each),
+/// so that no call of the test is still running when the next test begins. 1 when it has. The wait is a poll once a second.
+ClassMethod WaitForAnswer(session As %Integer, source As %String) As %Boolean
+{
+	Set deadline = $ZHorolog + ..#WAITSECONDS
+	While (..Headers(session, source).%Size() < ..CountTo(..Headers(session, "Decide"), source)) && ($ZHorolog < deadline) {
+		Hang 1
+	}
+	Quit ..Headers(session, source).%Size() '< ..CountTo(..Headers(session, "Decide"), source)
+}
+
 /// The first entry of FindRequests, or "".
 ClassMethod FindRequest(entries As %DynamicArray, ref As %String) As %DynamicObject
 {
@@ -787,6 +846,27 @@ ClassMethod FindRequests(entries As %DynamicArray, ref As %String) As %DynamicAr
 		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), ref) Do found.%Push(entry)
 	}
 	Quit found
+}
+
+/// The messages of a logged request (a mock log entry) as role:text, joined by $Char(1): the text of a message is its string content, or its text
+/// blocks put together. It shows the history that a request carried and the order of its messages (Story 1.8).
+ClassMethod Messages(logged As %DynamicObject) As %String
+{
+	Set out = ""
+	Set iterator = logged.request.messages.%GetIterator()
+	While iterator.%GetNext(, .message) {
+		Set text = ""
+		If message.%GetTypeOf("content") = "string" {
+			Set text = message.content
+		} Else {
+			Set blocks = message.content.%GetIterator()
+			While blocks.%GetNext(, .block) {
+				If block.%GetTypeOf("text") = "string" Set text = text _ block.text
+			}
+		}
+		Set out = out _ $Select(out = "": "", 1: $Char(1)) _ message.role _ ":" _ text
+	}
+	Quit out
 }
 
 /// The effort of a logged request: request.output_config.effort, or "" when the request has none.
@@ -816,6 +896,18 @@ ClassMethod Has(names As %DynamicArray, name As %String) As %Boolean
 		}
 	}
 	Quit has
+}
+
+/// The number of event-log rows of Type 3 (warning) after the mark (EventMark) that an item of the production logged (its ConfigName) or that the class
+/// logged (its SourceClass): the rows that match every one of the two that is given.
+ClassMethod WarningRows(mark As %Integer, item As %String = "", class As %String = "") As %Integer
+{
+	Set sql = "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3"
+	If item '= "" Set sql = sql_" AND ConfigName = '"_$Replace(item, "'", "''")_"'"
+	If class '= "" Set sql = sql_" AND SourceClass = '"_$Replace(class, "'", "''")_"'"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, mark)
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 /// The number of warnings (type 3) that the method of the class logged after the event-log mark (EventMark) whose text holds every

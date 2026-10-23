@@ -32,6 +32,8 @@
 /// Every wait is a poll with a generous ceiling (RunnerFixture.WAITSECONDS and this class's WAITSECONDS): it returns as soon as the
 /// system shows what the test waits for, so a slower machine takes longer and does not fail.
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
+/// Added by Story 1.8 (AD-6): the turn that TestRequestsUnderTheModelRules sends to ChatAgent is linked to a conversation, so it saves an AI session
+/// and a link, which OnAfterOneTest deletes (RunnerFixture.DropSince).
 Class OcuTalon.Test.Agent.Runners Extends %UnitTest.TestCase
 {
 
@@ -64,6 +66,16 @@ Property Pointed As %Boolean [ InitialExpression = 0 ];
 /// The ItemIds of the requests that the test sent through Decide, whose rows OnAfterOneTest deletes.
 Property ItemIds As %List;
 
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark): a user's turn is linked to a conversation, so it saves an
+/// AI session and a link (Story 1.8), which OnAfterOneTest deletes (RunnerFixture.DropSince).
+Property SessionMark As %Integer;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Quit $$$OK
+}
+
 Method OnBeforeAllTests() As %Status
 {
 	Set id = ..AllowId()
@@ -80,6 +92,7 @@ Method OnBeforeAllTests() As %Status
 /// runs or not, and, when it runs, the keys of the entries, and starts every runner that does not run.
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)

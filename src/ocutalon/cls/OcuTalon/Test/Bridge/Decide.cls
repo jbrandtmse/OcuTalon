@@ -106,6 +106,20 @@
 ///     StepsSent and StepCount count them; a record that is no object keeps its slot, its warning names its Position, and no Position repeats;
 ///   - TestStepsAcrossAttempts: the row and the answer hold the steps of the earlier attempts (StepCount) plus the last reply's, the sums of the
 ///     Usage rows of the ref and a duration from the start of the process, for a usable turn, a fallback after a tool ran and a decide request.
+/// Added by Story 1.8 (AD-6, AD-8, AD-20, AD-30):
+///   - TestBusyRelayed: OnResponse answers a runner Reply whose Busy is 1 with a new Reply from NewBusy (Busy 1 and nothing else, status OK), with
+///     no row, no event and no state kept; OnRequest answers a user's turn whose conversation lock another process holds with the same Busy after
+///     the lock's 2 seconds, before the DecisionRef, the precheck, a row or a send, while an untrusted turn of the same owner, and a decide or
+///     diagnose request, are never probed; Held is 0 once the lock is free;
+///   - TestSessionBroken: Broken (pure) is 1 for a user's turn whose failure text holds "Invalid input" in any case, and 0 for an untrusted turn, a
+///     decide, a diagnose request and any other text; Conclude and OnResponse answer such a user's turn with an error fallback Reply whose
+///     SessionBroken is 1, and the untrusted turn and the decide with the same text with the reason error and no SessionBroken;
+///   - TestFallbackCarriesRotation: RecordFallback carries the runner's SessionRotated as it carries Tainted and ToolsRun, sets none of them when
+///     there is no runner reply, and sets SessionBroken only when told; a usable answer is a clone that keeps every flag;
+///   - TestAdmitSessionMode: Admit accepts a SessionMode of "", continue and fresh, for a turn and for the other kinds, and refuses any other
+///     value, Fresh and a trailing space included, with an error that names SessionMode;
+///   - TestConcludeFallbacks and AssertFallback: a fallback Reply carries the runner's SessionRotated (a reply with SessionRotated 1 is carried),
+///     and carries SessionBroken and Busy as the case says.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
@@ -128,6 +142,10 @@ Parameter OVERLOADED = "ERROR <%AICore>ProviderError: Provider 'anthropic' error
 Parameter LOOP = "ERROR <%AICore>LoopDetected: Agentic loop stalled: no new evidence from tool results after 4 assessment(s)";
 
 Parameter MAXITERATIONS = "ERROR <%AICore>MaxIterationsReached: Max iterations (4) reached without a final response";
+
+/// The failure text of a conversation history that the provider rejects, as AI Hub raised it on build 154 (Story 1.8, Task 0 (c): the scenario
+/// invalid-input answers HTTP 400).
+Parameter INVALIDINPUT = "ERROR <%AICore>ProviderError: Provider 'anthropic' error: Invalid input: CI mock: messages: the stored conversation is not valid input.";
 
 /// The ItemIds of the requests that the test made.
 Property ItemIds As %List;
@@ -1099,7 +1117,7 @@ Method TestRecordedAtIsUtc()
 /// status OK; one row with the outcome tellnow, Fallback true and the reason, no reasons, confidence or payload, the DecisionRef given and
 /// the totals of its Usage rows; one decision.recorded after the save, outside any transaction; and the answer: a DecisionResponse of the row
 /// for a decide or diagnose request, and for a turn a new Reply that holds no text, host data, steps, failure text or finish reason, with
-/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted and ToolsRun.
+/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted, ToolsRun and SessionRotated.
 Method TestConcludeFallbacks()
 {
 	Set json = ..#DIGEST
@@ -1942,6 +1960,235 @@ Method TestStepPositionsAcrossResends()
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no row is recorded")
 }
 
+/// A Busy answer (Story 1.8; AD-6, AD-20, AD-31). OnResponse answers a runner Reply whose Busy is 1 with a new Reply from NewBusy: Busy 1 and nothing
+/// else, status OK, with no Decision row, no event and no state kept, although nothing in it is usable. OnRequest probes the conversation lock of a user's
+/// turn, (OwnerRef, ChatAgent), before the DecisionRef, the precheck and a row: while another process holds it, the answer is the same Busy reply after the
+/// lock's 2 seconds, and nothing else happens (the precheck would otherwise end this turn in a no_key fallback, as ChatAgent has no key here). An untrusted turn
+/// of the same owner, and a decide or diagnose request, are never probed, and Held is 0 once the lock is free.
+Method TestBusyRelayed()
+{
+	Set class = "OcuTalon.Bridge.Msg.Reply"
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = ..#FILTER
+	Set process.HostSinkClass = ..#SINK
+	Set process.%SessionId = 4260
+	Kill ^||ZzProbeSink, ^||ZzProbeFilter
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set busy = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+	Do $$$AssertEquals(busy.Busy_"|"_busy.Text_"|"_busy.DecisionRef_"|"_busy.Fallback_"|"_busy.FailureText, "1|||0|", "NewBusy is a Reply with Busy 1 and nothing else set")
+	Set sc = process.OnResponse(request, .response, sent, busy, "reply")
+	Do $$$AssertStatusOK(sc, "the runner's Busy reply is answered, never with an error status")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA(class), "the answer is a Reply")
+	If $IsObject(response) {
+		Do $$$AssertTrue(response '= busy, "a new one, not the runner's")
+		Do $$$AssertEquals(response.Busy, 1, "with Busy 1")
+		Do $$$AssertEquals(response.Text_"|"_response.DecisionRef_"|"_response.Outcome_"|"_response.FallbackReason_"|"_response.FailureText_"|"_response.Steps_"|"_response.HostData, "||||||", "and no text, DecisionRef, outcome, reason, failure text, steps or host data")
+		Do $$$AssertEquals(response.Fallback_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionRotated_"|"_response.SessionBroken, "0|0|0|0|0", "it is not a fallback and carries no other flag")
+	}
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no Decision row is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "no event is sent")
+	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 0, "and the filter did not run")
+	Do $$$AssertStatusOK(process.RunnerError, "no runner error is kept")
+	Do $$$AssertEquals(process.Resends_"|"_process.StepCount_"|"_process.StepsSent, "0|0|0", "and the process keeps no state of a re-send")
+
+	// the probe of OnRequest, with the lock held by another process
+	Do ..Put("ChatAgent", "ProviderConfig", "{}")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = ..#SINK
+	Set process.TimerSeconds = 60
+	Set process.DecisionTokenBudget = 0
+	Set process.%SessionId = 4261
+	Kill ^||ZzProbeSink
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set turn = ..NewRequest("turn", "user")
+	Set turn.OwnerRef = owner
+	Set untrusted = ..NewRequest("turn", "untrusted")
+	Set untrusted.OwnerRef = owner
+	Set decide = ..NewRequest("decide", "user")
+	Set decide.OwnerRef = owner
+	Set diagnose = ..NewRequest("diagnose", "user")
+	Set diagnose.OwnerRef = owner
+	Set stranger = ..NewRequest("turn", "user")
+	Kill ^IRIS.Temp.ZzDecideStop(owner), ^IRIS.Temp.ZzDecideHeld(owner)
+	Job ##class(OcuTalon.Test.Bridge.Decide).Hold(owner, "ChatAgent")
+	Set deadline = $ZHorolog + 30
+	While '$Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Do $$$AssertTrue($Data(^IRIS.Temp.ZzDecideHeld(owner)), "another process holds the conversation lock of (owner, ChatAgent)")
+	Try {
+		Set logMark = ..LogMark()
+		Set started = $ZHorolog
+		Set sc = process.OnRequest(turn, .response)
+		Set elapsed = $ZHorolog - started
+		Do $$$AssertStatusOK(sc, "OnRequest answers a user's turn whose conversation is held")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).WarningRows(logMark, , "OcuTalon.Bridge.Process.Decide"), 0, "a Busy refusal logs no warning")
+		Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Busy_"|"_response.Fallback_"|"_response.DecisionRef_"|"_response.Text, 1: "none"), class_"|1|0||", "with a Busy Reply: not a fallback, no DecisionRef, no text")
+		Do $$$AssertTrue((elapsed '< 1.9) && (elapsed < 6), "after the 2 seconds of the lock: "_$Number(elapsed, 2)_" s")
+		Do $$$AssertEquals(..Rows(turn.ItemId), 0, "no row is recorded, although the precheck would have recorded a no_key fallback")
+		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "no event is sent")
+		Do $$$AssertEquals(process.DecisionRef, "", "and no DecisionRef was allocated")
+
+		Set started = $ZHorolog
+		Set sc = process.OnRequest(untrusted, .response)
+		Set elapsed = $ZHorolog - started
+		Do $$$AssertStatusOK(sc, "OnRequest answers an untrusted turn of the same owner")
+		Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Busy_"|"_response.Fallback_"|"_response.FallbackReason, 1: "none"), class_"|0|1|no_key", "not as Busy: it is not probed, so the precheck ends it in a no_key fallback")
+		Do $$$AssertTrue(elapsed < 1.5, "and it did not wait: "_$Number(elapsed, 2)_" s")
+
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(decide, "TriageAgent"), 0, "Held is 0 for a decide request of the same owner")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(diagnose, "DiagnosisAgent"), 0, "and for a diagnose request")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(untrusted, "ChatAgent"), 0, "and for an untrusted turn")
+		Set started = $ZHorolog
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(stranger, "ChatAgent"), 0, "Held is 0 for a user's turn of an owner whose conversation is free")
+		Do $$$AssertTrue($ZHorolog - started < 1.5, "at once")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(turn, "ChatAgent"), 1, "and 1 for the user's turn whose conversation is held")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Set ^IRIS.Temp.ZzDecideStop(owner) = 1
+	Set deadline = $ZHorolog + 30
+	While $Data(^IRIS.Temp.ZzDecideHeld(owner)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Kill ^IRIS.Temp.ZzDecideStop(owner)
+	Do $$$AssertEquals($Data(^IRIS.Temp.ZzDecideHeld(owner)), 0, "the other process released the lock")
+	Set started = $ZHorolog
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).Held(turn, "ChatAgent"), 0, "Held is 0 once the lock is free")
+	Set sc = process.OnRequest(turn, .response)
+	Do $$$AssertStatusOK(sc, "OnRequest answers the same turn again")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Busy_"|"_response.Fallback_"|"_response.FallbackReason, 1: "none"), class_"|0|1|no_key", "now past the probe: a no_key fallback, recorded")
+	Do $$$AssertEquals(..Rows(turn.ItemId), 1, "with its row")
+	Do $$$AssertTrue($ZHorolog - started < 3, "and without waiting")
+}
+
+/// SessionBroken (Story 1.8; AD-8). Broken is pure: 1 for a turn with provenance user whose failure text holds "Invalid input", in any case; 0 for an
+/// untrusted turn, a decide, a diagnose request, any other text and no text. Conclude and OnResponse answer a user's turn whose failure holds it with
+/// an error fallback Reply (the reason stays error) whose SessionBroken is 1; an untrusted turn and a decide with the same text get the reason error
+/// and no SessionBroken (a DecisionResponse has none).
+Method TestSessionBroken()
+{
+	Set class = "OcuTalon.Bridge.Process.Decide"
+	Set text = ..#INVALIDINPUT
+	Do $$$AssertEquals($Parameter(class, "INVALIDINPUTTEXT"), "Invalid input", "the text that marks a rejected history is 'Invalid input'")
+	Set user = ..NewRequest("turn", "user")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, text), 1, "the failure text that AI Hub raised marks a user's turn")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, "x error: INVALID INPUT: y"), 1, "in upper case too")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, "x error: invalid input"), 1, "and in lower case")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, ""), 0, "no text marks nothing")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, ..#OVERLOADED), 0, "nor does a rate limit")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", user, "ERROR <%AICore>ProviderError: Provider 'anthropic' error: invalid_input"), 0, "nor does a look-alike")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", ..NewRequest("turn", "untrusted"), text), 0, "an untrusted turn is never broken")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", ..NewRequest("decide", "user"), text), 0, "nor is a decide")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", ..NewRequest("diagnose", "user"), text), 0, "nor a diagnose request")
+	Do $$$AssertEquals($ClassMethod(class, "Broken", "", text), 0, "nor no request")
+
+	Do ..AssertFallback("a user's turn whose stored history the provider rejects", ..NewRequest("turn", "user"), ..NewReply(""), text, "error", , 1)
+	Do ..AssertFallback("the same with the failure Reply of the runner", ..NewRequest("turn", "user"), ..FailedReply(text), text, "error", , 1)
+	Do ..AssertFallback("an untrusted turn with the same text", ..NewRequest("turn", "untrusted"), ..NewReply(""), text, "error")
+	Do ..AssertFallback("a decide with the same text", ..NewRequest("decide", "user"), ..NewReply(""), text, "error")
+	Do ..AssertFallback("a diagnose request with the same text", ..NewRequest("diagnose", "untrusted"), ..NewReply(""), text, "error")
+	Do ..AssertFallback("a user's turn with another failure", ..NewRequest("turn", "user"), ..NewReply(""), "ERROR <%AICore>ProviderError: Provider 'anthropic' error: API error: [api_error] zz", "error")
+
+	// the wiring: OnResponse takes the failure from the runner's Reply
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = ..#FILTER
+	Set process.HostSinkClass = ..#SINK
+	Set process.%SessionId = 4262
+	Set request = ..NewRequest("turn", "user")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = process.OnResponse(request, .response, sent, ..FailedReply(text), "reply")
+	Do $$$AssertStatusOK(sc, "OnResponse answers a failure Reply that holds the rejection")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1)_"|"_response.Fallback_"|"_response.FallbackReason_"|"_response.SessionBroken_"|"_response.Busy, 1: "none"), "OcuTalon.Bridge.Msg.Reply|1|error|1|0", "with an error fallback Reply that says SessionBroken")
+	Do $$$AssertEquals($Select($IsObject(..RowOf(request.ItemId, "turn")): ..RowOf(request.ItemId, "turn").FallbackReason, 1: "none"), "error", "the row is recorded like any fallback, with the reason error")
+	Do $$$AssertEquals(process.Resends, 0, "and Decide did not send again")
+	Set later = ..NewRequest("turn", "untrusted")
+	Set sent = later.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = process.OnResponse(later, .response, sent, ..FailedReply(text), "reply")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.SessionBroken, 1: "none"), "1|error|0", "an untrusted turn with the same failure: the reason error and no SessionBroken")
+}
+
+/// A fallback Reply carries the runner's SessionRotated, as it carries Tainted and ToolsRun (Story 1.8; AD-6): a fresh turn whose reply is then refused did
+/// move the link, and the caller must know. A fallback with no runner reply (a precheck, or the timer) sets none of them; SessionBroken is set only when
+/// RecordFallback is told (Broken). A usable answer is a clone of the runner's reply and keeps every flag.
+Method TestFallbackCarriesRotation()
+{
+	Set class = "OcuTalon.Bridge.Process.Decide"
+	Set sink = "OcuTalon.Bridge.Ext.HostSink"
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
+	Set reply.SessionRotated = 1
+	Set reply.Tainted = 1
+	Set reply.ToolsRun = 1
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "refusal", reply, sink, 4263, .response)
+	Do $$$AssertStatusOK(sc, "a refusal of a fresh turn is recorded")
+	Do $$$AssertEquals(response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "1|1|1|0|0", "the fallback Reply carries SessionRotated, Tainted and ToolsRun of the runner's reply, and says neither SessionBroken nor Busy")
+
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "refusal", reply, sink, 4263, .response)
+	Do $$$AssertEquals(response.SessionRotated, 0, "a reply that rotated nothing carries 0")
+
+	Set request = ..NewRequest("turn", "user")
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "timeout", "", sink, 4263, .response)
+	Do $$$AssertEquals(response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0|0|0", "a fallback with no runner reply sets none of the flags")
+	Set request = ..NewRequest("turn", "user")
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", "", sink, 4263, .response, , , 1)
+	Do $$$AssertEquals(response.SessionBroken_"|"_response.SessionRotated, "1|0", "SessionBroken is set when RecordFallback is told that the history was rejected, with no runner reply")
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
+	Set reply.SessionRotated = 1
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", reply, sink, 4263, .response, , , 1)
+	Do $$$AssertEquals(response.SessionBroken_"|"_response.SessionRotated, "1|1", "and both are carried together")
+
+	// the other kinds answer with a DecisionResponse of the row, which has no such flag
+	Set request = ..NewRequest("decide", "user")
+	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "refusal", reply, sink, 4263, .response)
+	Do $$$AssertStatusOK(sc, "a decide fallback with such a reply is recorded")
+	Do $$$AssertEquals($Select($IsObject(response): response.%ClassName(1), 1: "none"), "OcuTalon.Bridge.Msg.DecisionResponse", "and answered with a DecisionResponse")
+
+	// a usable answer is a clone of the runner's reply
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("Everything is fine.", "end_turn")
+	Set reply.SessionRotated = 1
+	Set reply.Tainted = 1
+	Set reply.ToolsRun = 1
+	Set reply.SessionBroken = 1
+	Set sc = ..Conclude(request, reply, .response)
+	Do $$$AssertStatusOK(sc, "a usable turn is concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, 1: "none"), "0|1|1|1|1|0", "the answer is a clone that keeps every flag of the runner's reply")
+}
+
+/// Admit refuses a SessionMode other than "", continue and fresh (Request SESSIONMODES; Story 1.8; AD-6), naming SessionMode, for every kind: a mode that
+/// is misspelt can never continue a session that should have rotated. The match is exact.
+Method TestAdmitSessionMode()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Msg.Request).#SESSIONMODES, "continue,fresh", "the modes are continue and fresh; an empty mode means continue")
+	Set cases = $ListBuild($ListBuild("turn", "user"), $ListBuild("turn", "untrusted"), $ListBuild("decide", "user"), $ListBuild("diagnose", "untrusted"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set kind = $List(case, 1)
+		Set provenance = $List(case, 2)
+		For mode = "", "continue", "fresh" {
+			Set request = ..NewRequest(kind, provenance)
+			Set request.SessionMode = mode
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(request), "a "_provenance_" "_kind_" with the SessionMode '"_mode_"' is admitted")
+		}
+		For mode = "Fresh", "FRESH", "x", "continue ", " fresh", "restart" {
+			Set request = ..NewRequest(kind, provenance)
+			Set request.SessionMode = mode
+			Do ..AssertNamed(request, "SessionMode", "a "_provenance_" "_kind_" with the SessionMode '"_mode_"'")
+		}
+	}
+}
+
 /// --- helpers ---
 /// A recorder (Test.Bridge.ZzDecide) for the key resend, for a process that began the number of seconds ago with that TimerSeconds, whose precheck
 /// passes: TriageAgent has a model key, the daily cap and the token budget are off and the day is not marked. The rows it puts are put back by
@@ -2045,6 +2292,29 @@ Method NewRequest(kind As %String, provenance As %String = "untrusted") As OcuTa
 	Set request.Input = "Triage this item."
 	Set ..ItemIds = ..ItemIds _ $ListBuild(request.ItemId)
 	Quit request
+}
+
+/// A runner's failure Reply: no text, and the failure text as the runner's FailureText.
+ClassMethod FailedReply(failure As %String) As OcuTalon.Bridge.Msg.Reply [ Private ]
+{
+	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	Set reply.FailureText = failure
+	Quit reply
+}
+
+/// The job of TestBusyRelayed: holds the conversation lock of (owner, agent) until the test says stop, reporting through
+/// ^IRIS.Temp.ZzDecideHeld(owner) while it holds it. It gives up after 60 seconds on its own.
+ClassMethod Hold(owner As %String, agent As %String)
+{
+	Lock +^OcuTalonBP.Conv(owner, agent):5
+	If '$Test Quit
+	Set ^IRIS.Temp.ZzDecideHeld(owner) = $Job
+	Set deadline = $ZHorolog + 60
+	While '$Data(^IRIS.Temp.ZzDecideStop(owner)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Lock -^OcuTalonBP.Conv(owner, agent)
+	Kill ^IRIS.Temp.ZzDecideHeld(owner)
 }
 
 /// A runner's reply with the text, and the finish reason if one is given.
@@ -2164,8 +2434,9 @@ Method AssertWarning(mark As %Integer, class As %String, ref As %String, label A
 /// assertions that every fallback shares: status OK; one row with the outcome tellnow, Fallback true, the reason expected and no reasons,
 /// confidence or payload; the totals of the decision; one decision.recorded, after the save and outside any transaction; and an answer
 /// that holds none of the model's refused text (the marker zzrefusedtext), is a new Reply with nothing but the verdict, the totals and the
-/// taint for a turn, and a DecisionResponse of the row otherwise.
-Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, reply As %RegisteredObject, failure As %String, expected As %String, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter") [ Private ]
+/// flags of the runner's reply (Tainted, ToolsRun and SessionRotated; SessionBroken as broken says, and never Busy) for a turn, and a
+/// DecisionResponse of the row otherwise.
+Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, reply As %RegisteredObject, failure As %String, expected As %String, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter", broken As %Boolean = 0) [ Private ]
 {
 	Kill ^||ZzProbeSink, ^||ZzProbeFilter
 	Set ref = ..NewUsageRef()
@@ -2197,7 +2468,7 @@ Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, 
 	If request.Kind = "turn" {
 		Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), label_": a turn is answered with a Reply")
 		Do $$$AssertEquals(response.Text_"|"_response.HostData_"|"_response.Steps_"|"_response.FailureText_"|"_response.FinishReason, "||||", label_": with no text, host data, steps, failure text or finish reason")
-		Do $$$AssertEquals(response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "0|0|0", label_": and no flag of the runner's that Decide does not carry")
+		Do $$$AssertEquals(response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, $Select(isReply: +reply.SessionRotated, 1: 0)_"|"_(+broken)_"|0", label_": the runner's SessionRotated is carried, SessionBroken is Decide's ("_(+broken)_") and the answer is not Busy")
 		Do $$$AssertEquals(response.Tainted_"|"_response.ToolsRun, $Select(isReply: +reply.Tainted_"|"_+reply.ToolsRun, 1: "0|0"), label_": but the taint and the tools-run flag of the runner's reply (none when there is no reply)")
 		If $IsObject(reply) Do $$$AssertTrue(response '= reply, label_": it is a new Reply, not the runner's")
 		If isReply Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason_"|"_reply.Steps_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.Tainted, before, label_": and the runner's own Reply is not changed")

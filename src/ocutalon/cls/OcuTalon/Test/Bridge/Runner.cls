@@ -60,6 +60,11 @@
 ///   - TestToolsRun: the Reply says whether a tool ran: 1 for a turn that called two tools and for a call that failed after a tool, 0 for
 ///     Triage's default script and for a call that failed at its first request; ToolsRan is 1 for an unreadable reading and for a tool
 ///     counter that went up or a tool step, and 0 otherwise.
+/// Added by Story 1.8 (AD-6): a turn with provenance user is linked to a conversation, so the runner now saves an AI session and a link for
+/// each such turn that completes untainted (Test.Bridge.Conversation pins that). These tests therefore give each user turn an owner of its own
+/// (NewUsageRequest, TestContext, TestFailureKeepsContext), and OnAfterOneTest deletes the sessions saved since the test began and the links
+/// that name them. TestStepsRedacted and TestStepsRedactedText drop the session of their turn before they scan: the saved conversation holds what
+/// the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote, and every System
 /// Default Settings row that a test put is put back.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
@@ -71,8 +76,18 @@ Parameter RUNNER = "OcuTalon.Bridge.Operation.AgentRunner";
 /// The System Default Settings rows before the test touched them (Test.Agent.RunnerFixture.RememberDefault), to be put back.
 Property SavedRows As %List;
 
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
+Property SessionMark As %Integer;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Quit $$$OK
+}
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
@@ -344,6 +359,7 @@ Method TestFailureKeepsContext()
 	Set request = ..NewRequest("turn", "user", "Run the probe. [[mock:context-probe-fail]] (test "_ref_")")
 	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set sc = host.OnMessage(request, .response)
 	Do $$$AssertStatusOK(sc, "a call that fails after the tool ran is answered with status OK")
 	If '$IsObject(response) || 'response.%IsA("OcuTalon.Bridge.Msg.Reply") {
@@ -664,6 +680,7 @@ Method TestStepsRedacted()
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets]] Read the secret note.")
 	Set mark = ..LogMark()
 	Set sc = host.OnMessage(request, .reply)
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do $$$AssertStatusOK(sc, "the request is answered, though a tool failed")
 	If '$IsObject(reply) {
 		Do $$$AssertTrue(0, "the answer is a Reply")
@@ -723,6 +740,7 @@ Method TestStepsRedactedText()
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets-text]] Read the secret report.")
 	Set mark = ..LogMark()
 	Set sc = host.OnMessage(request, .reply)
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do $$$AssertStatusOK(sc, "the request is answered, though a tool failed")
 	If '$IsObject(reply) {
 		Do $$$AssertTrue(0, "the answer is a Reply")
@@ -898,13 +916,13 @@ ClassMethod SeenArguments(n As %Integer) As %DynamicObject [ Private ]
 }
 
 /// A Request with the fields of a Decide request that the Usage row copies: an ItemId and a DecisionRef of its own, the owner instance
-/// and the channel system.
+/// (a new Ref for a turn, which is linked to a conversation of its own, so that no two turns share a history) and the channel system.
 Method NewUsageRequest(kind As %String, input As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set request = ..NewRequest(kind, "user", input_" (test "_##class(OcuTalon.Bridge.Ids).NewRef()_")")
 	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set request.OwnerRef = "instance"
+	Set request.OwnerRef = $Select(kind = "turn": ##class(OcuTalon.Bridge.Ids).NewRef(), 1: "instance")
 	Set request.Channel = "system"
 	Quit request
 }
@@ -945,10 +963,11 @@ Method SaveSession() As %String [ Private ]
 }
 
 /// A runner host made in memory, a shadow named configName (ZzRunner unless another is given), whose adapter has the agent class, an
-/// allow-list of that class, the effort and the provider configuration. The key is the non-secret CI variable.
-Method NewRunner(agentClass As %String, effort As %String = "", providerConfig As %String = "", configName As %String = "ZzRunner") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+/// allow-list of that class, the effort and the provider configuration. The key is the non-secret CI variable. Test.Bridge.Conversation
+/// makes its runners with it too, with the runner class it names (an AgentRunner class, RUNNER by default).
+ClassMethod NewRunner(agentClass As %String, effort As %String = "", providerConfig As %String = "", configName As %String = "ZzRunner", runnerClass As %String = "") As OcuTalon.Bridge.Operation.AgentRunner
 {
-	Set host = $ClassMethod(..#RUNNER, "%New", configName)
+	Set host = $ClassMethod($Select(runnerClass '= "": runnerClass, 1: ..#RUNNER), "%New", configName)
 	Set adapter = host.Adapter
 	Set adapter.AgentClass = agentClass
 	Set adapter.AgentAllowList = agentClass
@@ -960,7 +979,7 @@ Method NewRunner(agentClass As %String, effort As %String = "", providerConfig A
 /// The ProviderConfig JSON of a runner for the mock: the Anthropic provider, the key placeholder (the non-secret CI variable by
 /// default), the mock's base URL and, when a mock key is given, the header that picks an agent's default script
 /// (Test.Contract.Mock.CustomHeaders, with the mock-key switch of this process).
-ClassMethod ProviderConfig(mockKey As %String = "", key As %String = "") As %String [ Private ]
+ClassMethod ProviderConfig(mockKey As %String = "", key As %String = "") As %String
 {
 	If key = "" Set key = "@{env:"_##class(OcuTalon.Test.Agent.RunnerFixture).#MOCKKEYVARIABLE_"}"
 	Set config = {"model_provider": "anthropic", "api_key": (key), "base_url": (##class(OcuTalon.Test.Contract.Mock).#BASEURL)}

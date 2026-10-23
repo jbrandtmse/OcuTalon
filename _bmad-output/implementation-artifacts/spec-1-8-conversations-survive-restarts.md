@@ -2,13 +2,56 @@
 title: 'Story 1.8: Conversations survive restarts'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4a69a24c0c78dc38c065fd225d4b332bbca8938e'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-3, AD-5, AD-6, AD-7, AD-8, AD-9, AD-10 rule 3 and 3a, AD-20, AD-22, AD-26, AD-30, AD-31 and AD-33, the AI Hub Capability Map row "Persistent conversations", and the Redaction, Logging and errors and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Decide probes the conversation lock inside its one job (PoolSize 1), so each refused user turn costs every other Decide request the lock's 2 seconds.
+    evidence: |-
+      Production.cls:18 gives Decide one job, and Decide.Held waits LOCKSECONDS (2) inside OnRequest. AD-6 fixes the 2-second wait; a larger pool for Decide, or a probe of Conversation's own, is a spine decision for Epic 2. Busy arises only while an earlier turn of the same conversation still holds the lock (a late Chat), so it is rare.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (Held, OnRequest)
+    severity: medium
+  - summary: >-
+      A saved conversation holds the tool results that the model saw, verbatim, so a tool that returns a secret leaves it in the stored history in OCUTALON_PRIVATE.
+    evidence: |-
+      The redaction convention covers steps, audit, logs and errors, not the stored history. The four redaction tests (Test.Bridge.Runner TestStepsRedacted and TestStepsRedactedText, Test.Agent.Steps TestRedacted and TestRedactedText) drop their turn's session before the key scan: measured, without the drop the scan names the saved session. Structural rules (AD-4, AD-14) keep keys out of tool results, so the exposure is what the model was shown. Whether redaction must reach the stored history belongs to the tool-result and gate stories (Epic 3) or to Story 30.1.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls (SaveLinked)
+    severity: medium
+  - summary: >-
+      A Point failure after a successful %Save leaves the saved session unlinked, and the only reachable cause is an OwnerRef over the 22 characters of the link column.
+    evidence: |-
+      No purge names an unlinked session until Story 30.2 removes sessions that no link names. Test.Bridge.Conversation.TestSaveProblem pins the one warning and SessionRotated 0. Every OwnerRef today is a 22-character Ref or the literals instance and eval. reopen_if: a caller sends an OwnerRef over 22 characters (then Admit should refuse it).
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls (SaveLinked)
+    severity: low
+  - summary: >-
+      A fresh turn that outlives Decide's timer is answered with a timeout fallback whose SessionRotated is 0, yet its late untainted Chat still moves the link to the new seeded session.
+    evidence: |-
+      The timer fallback has no runner reply, so RecordFallback sets no flag (spec: a fallback with no runner reply sets none), while AnswerLinked saves the late Chat and Points the link. The next continue turn then sees the seed and the late exchange, which is a recap of the same conversation. reopen_if: Story 2.4's Conversation (Lane B) retries or continues after a timed-out fresh turn and expects the earlier session.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (RecordFallback)
+    severity: low
+  - summary: >-
+      A continue turn whose link names an AI session that no longer exists fails with an error status on every turn, with no signal to send fresh.
+    evidence: |-
+      Spec decision 14 calls this unreachable: retention purges only sessions that no link names (AD-20) and nothing else deletes one; Test.Bridge.Conversation.TestLockReleased pins the error status and the lock release. reopen_if: Story 30.2's purge or a restore of the private database leaves a link whose session is gone.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls (AnswerLinked)
+    severity: low
+  - summary: >-
+      Test.Agent.Conversation asserts elapsed-time windows (Busy 2 to 5 s, the timed-out turn 11 to 17 s, turn 2 within 6 s) that a loaded CI runner could miss.
+    evidence: |-
+      The windows are the spec's own numbers (the matrix rows of Busy while held and Busy after a timed-out turn: the timer at 12 s, the late reply at 18 s). reopen_if: a CI run goes red on an elapsed-window assertion of Test.Agent.Conversation (TestBusyWhileHeld, TestBusyAfterTimedOutTurn, TestRunnerBusy).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Agent/Conversation.cls
+    severity: low
 ---
 
 <intent-contract>
@@ -349,6 +392,47 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 - Review pass
+- verdicts: 33 findings - high 0, medium 6, low 21, false 6, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` No up-front OwnerRef length check; a link that cannot be saved is one warning and leaves an orphan session - every OwnerRef today is a 22-character Ref or a literal, the spec pins the warning (`TestSaveProblem`, the Saving step), and the orphan is covered by the third `deferred:` item (reopen_if an OwnerRef over 22 characters).
+    - `[low]` `[reject]` `Broken` flags a fresh turn and a first turn too - spec-bound (AD-8 and the matrix: a user turn whose failure text holds `Invalid input`); the caller retries once (AD-30), so no loop; closed by-design.
+    - `[low]` `[reject]` A link to a session that is gone is a permanent plain error - spec decision 14 calls it unreachable (AD-20: only unlinked sessions are purged); recorded as a probe in `deferred:` with its reopen_if.
+    - `[medium]` `[patch]` The link-writer scan misses `%`-prefixed methods and non-call mentions in the adapter and `Decide` - `LINKCALL` used `\w+`, so `ConversationLink).%New(` and `$ClassMethod("...ConversationLink", ...)` passed while the AC1 pin claims "only the runner writes links"; fixed: `LINKCALL` takes `[%\w]+`, a new `LinkMentions` count (code lines naming the class outside a call) and a global check run on both classes, with sample assertions; mutation recorded.
+    - `[low]` `[reject]` `FallbackProblems` no longer checks the runner flags - spec-bound (Tasks: "`FallbackProblems` judges `Busy` only"); `Test.Bridge.Decide.AssertFallback` and `TestFallbackCarriesRotation` pin the flags exactly.
+    - `[medium]` `[defer]` The 2-second lock probe holds Decide's only job - real but fixed by AD-6's 2-second wait; already the first `deferred:` item (a spine decision for Epic 2).
+    - `[low]` `[reject]` A fresh turn that hits the timer reports `SessionRotated` 0 though the late Chat moves the link - spec-bound (a fallback with no runner reply sets none); recorded as a probe in `deferred:` (fourth item).
+    - `[medium]` `[defer]` Saved sessions keep tool results verbatim with no redaction or retention rule - real, intrinsic to AD-6's saved history and outside this story's scope (Epic 3 or Story 30.1); already the second `deferred:` item.
+    - `[low]` `[reject]` `TestBusyAfterTimedOutTurn` and the other elapsed windows have little slack on a loaded runner - the numbers are the spec's own (12 s, 18 s, 2 to 5 s); recorded as a probe in `deferred:` (sixth item).
+    - `[low]` `[reject]` `Admit` accepts `fresh` and a seed on requests that have no conversation - spec-bound (`Admit` refuses values other than "", `continue` and `fresh` for every kind); the runner ignores the seed there; closed by-design.
+  - Edge Case Hunter
+    - `[low]` `[reject]` Save succeeds, `Point` fails (OwnerRef over 22 characters) and leaves an orphan session - same root cause as the first Blind Hunter row; rejected on the same grounds.
+    - `[low]` `[reject]` Continue turn with a link to a missing session errors forever - same root cause as the third Blind Hunter row; rejected on the same grounds.
+    - `[low]` `[reject]` A completed untainted Chat that finishes with `refusal` or `max_tokens` is saved - spec-bound (AD-6: save after a completed untainted Chat; `Decide` classifies in a later job, and decision 7 accepts a history that holds an answer the user did not see); closed by-design.
+    - `[low]` `[reject]` A runner Busy on a re-send leaves the first attempt's Usage rows under a DecisionRef with no row - no product path reaches it (the re-send follows the first attempt's reply on a pool of 1, the lock is free by then, and `Conversation` serializes a session's turns); closed as theoretical; the Usage rows still count in the totals.
+    - `[low]` `[reject]` OwnerRef or Agent values that differ only in case reach one unique link row under SQLUPPER collation but two lock names - a Ref is 22 random base64url characters, so an accidental case-fold collision is negligible, and an index change is excluded by the spec (no property, index or Storage change); closed as theoretical.
+    - `[low]` `[reject]` `Broken` ignores whether a stored session was opened - same root cause as the second Blind Hunter row; rejected on the same grounds.
+    - `[low]` `[reject]` Timer fallback of a fresh turn carries `SessionRotated` 0 while the late Chat moves the link - same root cause as the seventh Blind Hunter row; rejected on the same grounds.
+  - Verification Gap
+    - `[medium]` `[patch]` The exception path of `Answer` and `AnswerLinked` (lock, session and context release) has no test - none of the four `TestLockReleased` paths throws out to the Catch; fixed: `Test.Bridge.ZzThrowAdapter` and `ZzThrowRunner` (a runner whose adapter raises in `Converse`), `Test.Bridge.Runner.NewRunner` takes a runner class, and `Test.Bridge.Conversation.TestLockReleasedOnException` asserts an error status, no reply, a free lock, no Session, no context, no link and nothing at the mock; mutation recorded.
+    - `[medium]` `[patch]` The throwaway path's `ChatInput(request, 0)` is not pinned at the runner - `TestThrowawayKinds` sent no note or seed; fixed: its requests carry a `SystemNote` and a `SeedText`, and the assertion expects the note and the input with no seed; mutation recorded.
+    - `[low]` `[patch]` `TestEmptyOwner` asserts `LinkOf("")`, which is "" whatever the runner does - fixed: it compares the ZzRunner link rows and Usage rows before and after the refused turn.
+    - `[low]` `[patch]` `TestFreshFailsOrTainted` compares two session exports that could both be empty - fixed: it asserts the link names a session and the export is not empty, as its siblings do.
+    - `[low]` `[patch]` `Test.Bridge.Conversation` counts all ZzRunner Usage rows (exactly 2 and 0) - fixed: both assertions compare against a baseline taken at the start of the test.
+    - `[medium]` `[defer]` The four redaction tests are green only because they delete the saved session before the key scan - the known secret-at-rest question, the second `deferred:` item; no new item.
+    - `[false]` `[reject]` Missing mutation lines (AC5's live pin, AC7's `TestResendReopens`, and tests that pin no AC) - every AC has a recorded, demonstrated mutation (AC5 has two, in `Bridge.Conversation`; AC7's re-send mutation is red in the no-session-kept row, as the spec foresaw); the rule asks one per AC.
+    - `[low]` `[reject]` Timed-out fresh turn - same root cause as the seventh Blind Hunter row; rejected on the same grounds.
+    - `[low]` `[reject]` The lock name is hard-coded in `TryLock` and `Hold` - AC2 itself names `^OcuTalonBP.Conv(<OwnerRef>, <agent>)`, so the literal pins the name; a rename would turn `TestBusyRelayed` and `TestRunnerBusy` red, so only `TestLockReleased` alone would read free.
+  - Intent Alignment
+    - `[false]` `[reject]` The Decide and runner lock keys agree only through the live tests - `TestBusyWhileHeld` and `TestRunnerBusy` hold `(owner, ChatAgent)` and get Busy from both sides, so the agreement is demonstrated.
+    - `[low]` `[reject]` "Unlock outside any transaction" is not asserted - the spec states it as a contract of the call site; `Held` and `AnswerLinked` run in a business operation or process call, outside a transaction; theoretical.
+    - `[false]` `[reject]` Durability is shown by a production restart and a storage-location proxy, not an IRIS or container restart - AC4 and the matrix name the production restart; `compose-start` checks the mapping.
+    - `[false]` `[reject]` The late-save test depends on AI Hub not aborting an 18-second reply under the derived `timeout_ms` - the same pattern as Story 1.7's late test, and `TestBusyAfterTimedOutTurn` passed live in this run.
+    - `[false]` `[reject]` Additions beyond the intent's list (the `Answer` split, `Runners.cls` and fixture hooks, public `NewRunner`) - all inside Epic 1's footprint and needed by the spec's own shared-surface rules.
+    - `[false]` `[reject]` Only the status text of the new warning passes `Redact.Text` - the `OwnerRef` and `DecisionRef` are Refs, and the Steps warning in the same class does the same.
+    - `[low]` `[reject]` The shared fallback guarantee moved from `FallbackProblems` to `AssertFallback` - same root cause as the fifth Blind Hunter row; rejected on the same grounds.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -428,6 +512,9 @@ No acceptance criterion contradicts an AD's Rule. AC6 and AD-20 together have on
     - **The rule:** `NewRequest` gives each user turn a new Ref unless a test names one, and `DropSince` removes what a test saved.
 18. **The restart is `Install.Step.Production.Start`,** the product's own restart, which waits until every item runs again. A test asserts `ChatAgent`'s new jobs. A whole-production restart, not one item's, matches the AC.
 19. **`ChatAgent`'s `Effort` is `low` for the resume check.** The Chat agent declares no `EFFORT` and sends none, so without a value the effort half of AC2 could not fail. The row is put back afterwards.
+20. **Implement stage: `Test.Agent.Runners` drops its sessions too.** Its ChatAgent user turn (`TestRequestsUnderTheModelRules`) saves an AI session and a link, so it takes `SessionMark` and `DropSince` like the classes the spec names (Shared surfaces: every user turn saves). In Epic 1's footprint.
+21. **Implement stage: the four redaction tests drop their turn's session before the key scan.** The saved conversation holds what the model was shown, the tools' results with their fake secrets included, and the key scan names it (measured). The exposure of the stored history is the second `deferred:` item, not a change to the tests' claim about steps, logs and errors.
+22. **Review pass: a runner whose adapter raises.** `Test.Bridge.ZzThrowAdapter` and `ZzThrowRunner` follow `ZzStatsAdapter` and `ZzStatsRunner`; `Test.Bridge.Runner.NewRunner` gains a trailing `runnerClass` (Rule 2: the existing helper is extended, not copied). They exist so that `TestLockReleasedOnException` can drive the Catch of `AnswerLinked`.
 
 **Integration ACs (Rule 1):**
 - **AC3:** `Decide`'s caller (the test, through the production's service) reads `Busy`.
@@ -546,6 +633,52 @@ No acceptance criterion contradicts an AD's Rule. AC6 and AD-20 together have on
 | AC7 | A tainted turn is saved | `Bridge.Conversation` (the tainted row) |
 | AC7 | A re-sent attempt reuses the kept object (decision 5 undone) | `Agent.Conversation.TestResendReopens`, if Task 0 (a) shows that a failed `Chat` grows the live history; otherwise the no-session-kept row stands for it |
 
+**Measured in implementation (Task 0, 2026-10-23; build 154; throwaway `e1s8a` with the CI mock).** No fact contradicts an AC, and no stop condition holds.
+- **(a) The object cache.**
+  - **Kept reference:** after `%Save`, with a reference kept, `%OpenId(id)` returns the same object (equal OREF), attached, with 2 messages.
+  - **Released:** with every reference released (the local, the response and `Agent.Session` set to ""), `%OpenId(id)` gives an object that is not attached.
+  - **A Chat that threw** on an attached session (`provider-error`): `MessageCount()` was 2 before and 2 after, and a reopen from the database also gives 2. A failed Chat does not grow the live history, so `TestResendReopens` cannot tell a kept object from a released one; the no-session-kept row of `Test.Bridge.Conversation` stands for AC7's re-send mutation, as the spec foresaw.
+- **(b) A resumed request.**
+  - **Shape:** the mock logs `messages` as a list of `{"content":[{"text":...,"type":"text"}],"role":...}`.
+  - **Order:** user turn 1 (its text exactly the input), assistant `Noted.`, user turn 2.
+  - **Config:** `maxTokens` 8000 and the effort `low` (`output_config.effort`) on the resumed request.
+- **(c) `Invalid input`.**
+  - **Text:** `invalid-input` on an opened session through the runner gives the FailureText `ERROR <%AICore>ProviderError: Provider 'anthropic' error: Invalid input: CI mock: messages: the stored conversation is not valid input.`
+  - **Effect:** the next turn's request carries turn 1's exchange only: the failed turn is not in the history.
+- **(d) The restart.**
+  - **Time:** `Install.Step.Production.Start()` on the running production returned OK after 1.1 s.
+  - **Jobs:** ChatAgent's job was 2886 before and 2909 after, so none is shared.
+  - **Keys:** turn 2 was answered with no further `PointKeys`, because the Config Store entries persist.
+  - **Request:** turn 2's request had the history of (b), `maxTokens` 8000 and the effort `low`.
+- **(e) The lock.**
+  - **While held:** ChatAgent was in a Chat (`turn-late`, sent without waiting). `LOCK +^OcuTalonBP.Conv(owner, "ChatAgent"):2` from the test process failed after 2 s, 5 s after the send.
+  - **After the save:** the link appeared 18 s after the send, and the lock was then taken at once.
+- **(f) The stats of an opened session.** `GetStats()` right after `OpenSession` is restored, not 0 (`total_interactions` 1, `total_prompt_tokens` 289, ...). The `Usage` delta is taken from the reading after the open, so it is right either way.
+- **(g) Where things are stored.** The first saved session had the id 1. `GetGlobalDest` of `^AI.Agent.SessionD`, `^OcuTalonBP.ConvLinkD`, `^OcuTalonBP.ConvLinkI` and `^OcuTalonBP.Conv` is `^/durable/iris/mgr/ocutalon_private/`: OCUTALON_PRIVATE, under the manager directory `/durable/iris/mgr/`.
+
+**Mutations demonstrated (Rule 19).** Each was applied alone, the named class was run in a throwaway of tag `e1s8a`, and the tree was put back byte-identical (a hash of `git status`, `git diff` and the untracked files was equal before and after).
+- mutation: `IsLinked` drops the provenance test, so `Answer` links an untrusted turn too -> `Bridge.Conversation.TestThrowawayKinds` went red (the untrusted turn made a link and saved a session).
+- mutation: a product class other than the adapter calls `Point` (a method in `Bridge.Time`) -> `Bridge.CodeRules.TestOnlyTheRunnerWritesLinks` went red.
+- mutation: the runner takes no lock (`AnswerLinked` skips `Lock`) -> `Agent.Conversation.TestRunnerBusy` and `TestBusyAfterTimedOutTurn` went red.
+- mutation: the session is saved after a `Chat` that threw (`completed` dropped from the save condition) -> `Bridge.Conversation.TestFailedChat` (the first turn made a link and a session) and `TestFreshFailsOrTainted` went red.
+- mutation: `OpenSession` composes no config (`Agent.OpenSession(id)`) -> `Agent.Conversation.TestRestart` went red (turn 2's cap and effort).
+- mutation: `Decide` skips its probe (`Held` quits 0) -> `Agent.Conversation.TestBusyWhileHeld` went red (Decide sent a request to ChatAgent), and `TestBusyAfterTimedOutTurn` too.
+- mutation: a Busy refusal records a fallback row (`OnRequest` calls `RecordFallback`, and `OnResponse` no longer relays a runner Busy) -> `Agent.Conversation.TestBusyWhileHeld` and `TestBusyAfterTimedOutTurn`, and `Bridge.Decide.TestBusyRelayed`, went red.
+- mutation: untrusted turns are probed too (`Held` drops the provenance test) -> `Agent.Conversation.TestBusyWhileHeld` went red (the untrusted turn was answered Busy).
+- mutation: a linked turn always opens a new session (`Set id = ""` in `AnswerLinked`) -> `Bridge.Conversation.TestFirstAndNextTurn`, `TestFresh` and `TestNoSessionKept`, and `Agent.Conversation.TestRestart`, `TestResendReopens` and `TestBusyAfterTimedOutTurn`, went red.
+- mutation: the adapter keeps the session object between requests (`ReleaseSession` no longer clears `Agent.Session`) -> `Bridge.Conversation.TestNoSessionKept` (also `TestFailedChat`, `TestTaintedTurn`, `TestThrowawayKinds` and `TestLockReleased`) went red.
+- mutation: `fresh` is treated as `continue` (`Set fresh = 0`) -> `Bridge.Conversation.TestFresh` and `TestFreshFailsOrTainted` went red.
+- mutation: `ChatInput` drops `SystemNote` -> `Bridge.Conversation.TestChatInput` and `TestFresh` went red.
+- mutation: `Invalid input` sets no `SessionBroken` (`Broken` quits 0) -> `Bridge.Decide.TestSessionBroken` and `Agent.Conversation.TestSessionBroken` went red.
+- mutation: `SessionBroken` is set on an untrusted turn (`Broken` drops the provenance test) -> `Bridge.Decide.TestSessionBroken` went red.
+- mutation: a tainted turn is saved (`'reply.Tainted` dropped from the save condition) -> `Bridge.Conversation.TestTaintedTurn` and `TestFreshFailsOrTainted` went red.
+- mutation: a re-sent attempt reuses the kept object (decision 5 undone: the same `ReleaseSession` mutation as above) -> `Bridge.Conversation.TestNoSessionKept` went red; `Agent.Conversation.TestResendReopens` does not go red for it, because Task 0 (a) shows that a failed `Chat` leaves the live history as it was, so the no-session-kept row stands for it.
+- mutation: the first step's estimate ignores the history and the composed input (`BaseChars(request.Input, "")`) -> `Bridge.Conversation.TestFirstStepCountsHistory` went red.
+- mutation: `DropSince` taken out of `Bridge.Runner.TestStepsRedacted` -> that test went red for all ten secrets (the key scan names the saved session, whose history holds the tools' results): the finding in `deferred:`.
+- mutation (review pass, after the scan was widened): `Decide` calls a system method of the link class (`##class(OcuTalon.Bridge.Data.ConversationLink).%New()`) and names the class in a string (`$ClassMethod("OcuTalon.Bridge.Data.ConversationLink", "SessionOf", ...)`) -> `Bridge.CodeRules.TestOnlyTheRunnerWritesLinks` went red twice ("Decide calls Lock and Unlock of the link class and nothing else" and "its code names the link class nowhere but in those calls"); the tree was put back byte-identical (`shasum` of the file and `git diff --stat` equal).
+- mutation (review pass): the release of the session and then the lock moves from after the Catch into the Try of `AnswerLinked` -> `Bridge.Conversation.TestLockReleasedOnException` went red ("the conversation lock is free"), and the unit-test harness reported the leaked lock; reverted byte-identical.
+- mutation (review pass): the throwaway path of `Answer` sends `request.Input` instead of `ChatInput(request, 0)` -> `Bridge.Conversation.TestThrowawayKinds` went red for decide, diagnose and the untrusted turn ("carries its note and its input alone"); reverted byte-identical.
+
 ## Clarification Record
 
 **For the veto window** (not blocking; recommended as planned):
@@ -572,8 +705,49 @@ No acceptance criterion contradicts an AD's Rule. AC6 and AD-20 together have on
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement and review stage (2026-10-23, baseline `4a69a24c0c78dc38c065fd225d4b332bbca8938e`).**
+
+**Summary of the change.**
+- **User turns are linked.** `Adapter.Agent.Answer` now sends a `turn` with provenance `user` through `AnswerLinked`: it holds the conversation lock from the open or creation of the AI session to its save, opens the linked session with the composed config (or creates and links one; a `fresh` turn rotates the link), and saves the session and points the link only after a completed Chat whose context is not tainted. Every path clears the agent's `Session` before it releases the lock, so no session object outlives a request. `decide`, `diagnose` and untrusted turns keep their throwaway session.
+- **`ChatInput` and `BaseChars`.** `ChatInput` joins the seed (fresh turns), the system note and the input with a blank line; the first step's estimate counts that text and an opened session's history.
+- **`Decide` answers the conversation states.** A user turn probes the lock (`Held`, 2 seconds) and is answered `Reply.NewBusy()` with no row, no event and no send; a runner Busy reply is relayed the same way; `Invalid input` on a user turn sets `SessionBroken` on the `error` fallback; a fallback carries the runner's `SessionRotated`; `Admit` refuses a `SessionMode` other than "", `continue` and `fresh`.
+- **`ConversationLink`** gains `SessionOf`, `Point`, `Lock`, `Unlock` and `LOCKSECONDS`, with no property, index or Storage change. Three mock scenarios (`recall-tell`, `recall-ask`, `turn-late`) are new under `ci/mock/scenarios/A/`.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: the linked path (`IsLinked`, `AnswerLinked`, `Converse`, `SaveLinked`, `ReleaseSession`), `ChatInput`, `BaseChars`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: the Busy probe and relay, `INVALIDINPUTTEXT` and `Broken`, the carried flags, `Admit`'s `SessionMode` check.
+- `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: the lock and the two accessors.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls`, `Msg/Reply.cls`, `Operation/AgentRunner.cls`: `SESSIONMODES` and the docs of the flags.
+- `ci/mock/scenarios/A/recall-tell.json`, `recall-ask.json`, `turn-late.json`: the three new scenarios.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` (new, 13 in-process tests) and `Test/Agent/Conversation.cls` (new, the six live tests): the matrix rows.
+- `Test/Bridge/Decide.cls`, `CodeRules.cls`, `Runner.cls`: the `Decide` tests, the link-writer scan, and the per-test sessions and owners.
+- `Test/Bridge/ZzThrowAdapter.cls`, `ZzThrowRunner.cls` (new): a runner whose adapter raises, for the exception-path test.
+- `Test/Agent/RunnerFixture.cls`, `Decide.cls`, `Runners.cls`, `Steps.cls`: `NewRequest(ownerRef)`, `SessionMark`, `DropSince`, `SessionExport`, `WaitForAnswer`, `Messages`, `WarningRows`, and the per-test cleanup.
+
+**Review.** Four layers reported 33 findings (high 0, medium 6, low 21, false 6); the Review Triage Log above holds each row with its verdict and reason.
+- **Patches applied (6):**
+  - medium: the link-writer scan now lists `%`-prefixed methods and flags any line of the adapter or `Decide` that names the link class outside a call (`TestOnlyTheRunnerWritesLinks`);
+  - medium: `TestLockReleasedOnException` drives the Catch of `AnswerLinked` through `ZzThrowRunner`;
+  - medium: `TestThrowawayKinds` pins `ChatInput` on the throwaway path with a note and a seed;
+  - low: `TestEmptyOwner` compares link and Usage rows against a baseline, `TestFreshFailsOrTainted` asserts a non-empty export, and `TestFirstAndNextTurn` counts Usage rows against a baseline.
+- **Deferred (6, in the frontmatter `deferred:` list):** Decide's 2-second probe inside its one job (medium); the stored history keeps tool results verbatim, which the four redaction tests step around (medium); the orphan session after a failed `Point` (low); a timed-out fresh turn that still rotates the link (low); a dangling link (low); the elapsed-time windows of `Test.Agent.Conversation` (low).
+- **Rejected (21 low, 6 false):** spec-bound or by-design (`Broken` on fresh and first turns, `FallbackProblems` judging `Busy` only, `Admit` admitting `fresh` for every kind, saving a refused answer, the dangling link), theoretical (a runner Busy on a re-send, case-folded OwnerRefs, the transaction level of `Unlock`), duplicates of the rows above, and claims the live tests disprove (lock-key agreement, the 18-second late reply, the restart surface).
+- **Follow-up review recommendation: `true`.** Three medium findings were patched. The unverified risk: the widened link-writer scan and the new exception-path test were each shown red by one mutation and then green, but no review layer has read the patched code.
+
+**Verification performed (all in throwaways of tag `e1s8a`, foreground, one command per call).**
+- `bash ci/checks.sh`, `bash ci/iris.sh build`, and each of the seven classes of the Verification section (`Bridge.Conversation`, `.Decide`, `.Runner`, `.CodeRules`, `Agent.Conversation`, `.Decide`, `.Steps`): all passed, before and after the review patches; `ci/iris.sh teardown` left nothing.
+- After the last patch: `bash docker/tests/test-mock.sh` passed; `shard lane-a` passed (34 classes; the only SKIP is the existing `TestStepHelpers`); `shard lane-b` passed (24 classes); `release/standalone-bridge.sh` passed every check; `live production-restart`, `live compose-start` and `live demo-path` passed (`@floor` 1 of 1). Not run: `live storage-roundtrip` (no Storage change; the storage check passed) and the `--reverse` shards (the lead runs them, per the standing criterion).
+- Mutations (Rule 19): every AC has a demonstrated mutation in `## Verification`; the three of the review pass (the widened scan, the exception path, the throwaway `ChatInput`) were each applied, shown red, and reverted byte-identical.
+- Task 0 measured facts are under `## Verification`; none contradicts an AC.
+
+**Residual risks.**
+- The stored history keeps tool results as the model saw them (second `deferred:` item); the spine's redaction convention does not cover it. A veto-window question for the lead; Epic 3 or Story 30.1 owns the answer.
+- `Decide` waits 2 seconds inside its one job when a user turn finds its conversation held; rare, bounded, and an AD-6 value.
+- Story 2.4's `Conversation.Rebuild` retries with the same `ItemId` (the orchestrator's ruling assigns the fix to Epic 2); until then a `SessionBroken` retry is refused by `Decide`. Not touched here (contended path).
+- The elapsed-time windows of the live class could miss on a loaded CI runner (sixth `deferred:` item).
 
 **Plan stage (2026-10-23, halted after planning as the dispatch asked).**
 - **Sources.** The cached `epic-1-context.md`, Story 1.7's spec (done) for continuity, the Story 1.8 block of `epics.md`, and the spine's AD-2, 3, 5 to 10, 20, 22, 26, 30, 31 and 33.

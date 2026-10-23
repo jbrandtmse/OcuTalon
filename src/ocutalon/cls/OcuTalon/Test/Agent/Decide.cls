@@ -92,6 +92,10 @@
 /// OnAfterOneTest deletes the rows its test made (Decision, Usage and, since the QA stage of Story 1.5, the AgentStep messages, once
 /// AgentSteps has handled them), puts back the timer a test changed through Timeouts.Apply (and the TimerSeconds row that a test wrote), starts
 /// Decide again if the test changed it, and waits until TriageAgent has answered the late request. Every wait is a poll with a generous ceiling.
+/// Added by Story 1.8 (AD-6): a user's turn is linked to a conversation, so each such turn saves an AI session and a link; each of these turns
+/// has an owner of its own (RunnerFixture.NewRequest), and OnAfterOneTest deletes the sessions saved since the test began and the links that name
+/// them (RunnerFixture.DropSince). WaitForAnswer moved to RunnerFixture, which Test.Agent.Conversation shares. The conversations themselves are
+/// pinned in Test.Agent.Conversation and Test.Bridge.Conversation.
 Class OcuTalon.Test.Agent.Decide Extends %UnitTest.TestCase
 {
 
@@ -145,6 +149,16 @@ Property ChatChanged As %Boolean [ InitialExpression = 0 ];
 /// The default model family before the test took it out, $ListBuild(Family, ModelPrefix, CapKey, EffortKey), or "".
 Property FamilySaved As %List;
 
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark): a user's turn is linked to a conversation, so it saves an
+/// AI session and a link (Story 1.8), which OnAfterOneTest deletes (RunnerFixture.DropSince).
+Property SessionMark As %Integer;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Quit $$$OK
+}
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set position = 0
@@ -153,9 +167,10 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set ..Armed = ""
 	If ..LateSession '= "" {
-		Do ..WaitForAnswer(..LateSession, "TriageAgent")
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).WaitForAnswer(..LateSession, "TriageAgent")
 		Set ..LateSession = ""
 	}
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
@@ -1445,18 +1460,6 @@ ClassMethod AnswerStatus(session As %Integer, source As %String, newest As %Bool
 	Quit $Piece(##class(Ens.DataType.MessageStatus).#DISPLAYLIST, ",", status + 1)
 }
 
-/// Waits, up to WAITSECONDS, until the item has answered in the session every request that Decide sent it there (one header back for
-/// each), so that no call of the test is still running when the next test begins. 1 when it has.
-ClassMethod WaitForAnswer(session As %Integer, source As %String) As %Boolean [ Private ]
-{
-	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
-	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While ($ClassMethod(fixture, "Headers", session, source).%Size() < ..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), source)) && ($ZHorolog < deadline) {
-		Hang 1
-	}
-	Quit $ClassMethod(fixture, "Headers", session, source).%Size() '< ..CountTo($ClassMethod(fixture, "Headers", session, "Decide"), source)
-}
-
 /// Waits, up to WAITSECONDS, until the first header that the item sent in the session (the newest with newest 1) has the status (its
 /// display name). 1 when it has. The wait is a poll once a second.
 ClassMethod WaitForStatus(session As %Integer, source As %String, status As %String, newest As %Boolean = 0) As %Boolean [ Private ]
@@ -1546,16 +1549,10 @@ ClassMethod Millis(ts As %String) As %Integer [ Private ]
 	Quit ($ZDateH(date, 3) * 86400000) + ($Piece(time, ":", 1) * 3600000) + ($Piece(time, ":", 2) * 60000) + ($Piece(seconds, ".", 1) * 1000) + $Piece(seconds, ".", 2)
 }
 
-/// The number of warnings (type 3) that the item logged after the event-log mark (RunnerFixture.EventMark).
+/// The number of warnings (type 3) that the item logged after the event-log mark (RunnerFixture.EventMark, WarningRows).
 ClassMethod WarningRows(mark As %Integer, item As %String) As %Integer [ Private ]
 {
-	Set count = 0
-	Set rows = ##class(OcuTalon.Test.Agent.RunnerFixture).EventRows(mark, item)
-	Set position = 0
-	While $ListNext(rows, position, row) {
-		If $Piece(row, ":", 1) = 3 Set count = count + 1
-	}
-	Quit count
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).WarningRows(mark, item)
 }
 
 /// Puts the System Default Settings row of the setting of the item (Test.Agent.RunnerFixture.PutDefault) and remembers the row that was

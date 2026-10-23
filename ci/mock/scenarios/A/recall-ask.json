@@ -1,0 +1,12 @@
+{
+  "name": "recall-ask",
+  "match": {
+    "marker": "recall-ask"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Your build server is called ORION-7."
+    }
+  ]
+}

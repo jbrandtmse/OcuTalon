@@ -2,6 +2,9 @@
 Class OcuTalon.Bridge.Msg.Request Extends Ens.Request
 {
 
+/// The values of SessionMode that Decide admits, comma-separated. An empty SessionMode means continue, and any other value is refused.
+Parameter SESSIONMODES = "continue,fresh";
+
 /// One of Msg.Enum REQUESTKIND.
 Property Kind As %String(MAXLEN = 32);
 
@@ -32,13 +35,17 @@ Property Channel As %String(MAXLEN = 32);
 /// The caller's own trace session id (AD-26).
 Property ThreadSessionId As %Integer;
 
-/// continue or fresh (AD-6).
+/// continue or fresh (AD-6), or empty for continue (SESSIONMODES). Only a turn with provenance user has a conversation to continue. The
+/// runner opens the linked AI session for a continue turn, and moves the link to a new AI session for a fresh turn, after that turn is
+/// answered and saved.
 Property SessionMode As %String(MAXLEN = 32);
 
-/// A code-written recap for a fresh session.
+/// A code-written recap for a fresh session. The runner sends it only on a fresh turn of a conversation, as the start of the turn's one
+/// user message: the seed, a blank line, the SystemNote, a blank line and the Input (Adapter.Agent ChatInput). A continue turn ignores it.
 Property SeedText As %String(MAXLEN = "");
 
-/// Code-written text sent before the input, never a tool result (AD-30).
+/// Code-written text sent before the input, never a tool result (AD-30). The runner sends it in the turn's one user message, after the
+/// SeedText and before the Input, on every request that carries it.
 Property SystemNote As %String(MAXLEN = "");
 
 Storage Default

@@ -11,7 +11,9 @@ Property Text As %String(MAXLEN = "");
 /// True when untrusted content reached the turn (AD-10).
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
-/// True when the runner moved the conversation to a fresh AI session.
+/// True when the runner moved the conversation to a fresh AI session: the turn was fresh, and after its Chat completed untainted the
+/// link names the new session (the link was created or moved). Always false for a continue turn, and when the save failed. Only the
+/// runner sets it, and a fallback that Decide builds from the runner's reply carries it (AD-6).
 Property SessionRotated As %Boolean [ InitialExpression = 0 ];
 
 /// True when a tool call was made in the call this reply answers, or when that could not be told: AI Hub's tool-call counter went up
@@ -20,10 +22,14 @@ Property SessionRotated As %Boolean [ InitialExpression = 0 ];
 /// builds with no runner reply (a precheck, or the timer of a call still in flight) leaves it false, which then says nothing about a tool.
 Property ToolsRun As %Boolean [ InitialExpression = 0 ];
 
-/// True when the provider rejected the stored history (AD-8).
+/// True when the provider rejected the stored history (AD-8). Decide sets it, on the fallback Reply of a user's turn whose failure text
+/// holds "Invalid input" (Process.Decide Broken); the fallback reason stays error. The runner saves nothing for that turn, so the stored
+/// history and the link stay as they were, and the caller can retry once in a fresh, seeded session.
 Property SessionBroken As %Boolean [ InitialExpression = 0 ];
 
-/// True when Decide refused a turn because its conversation lock was still held after 2 seconds; such a reply has no text and no decision (AD-6).
+/// True when a turn was refused because its conversation lock was still held after 2 seconds; such a reply has no text and no decision
+/// (AD-6). Decide sets it when it cannot take the lock, and relays the runner's Busy reply the same way (NewBusy). It is never an error
+/// status and never a fallback.
 Property Busy As %Boolean [ InitialExpression = 0 ];
 
 /// JSON a tool may fill, such as check rows (AD-6).

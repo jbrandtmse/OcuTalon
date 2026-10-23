@@ -35,8 +35,8 @@ Include Ensemble
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
 ///     reasons, confidence or payload, so that no model text is kept; decision.recorded after the commit; and, for daily_cap, the day is
 ///     marked as capped once (Budget.MarkCapped). A decide or diagnose request is answered with the row's DecisionResponse, and a turn
-///     with a new Reply that holds no text, host data, steps or failure text, and the runner's Tainted and ToolsRun when there was a
-///     runner reply. A fallback triggers no tool, fix or approval (AD-8, AD-30).
+///     with a new Reply that holds no text, host data, steps or failure text, and the runner's Tainted, ToolsRun and SessionRotated when
+///     there was a runner reply (and SessionBroken for a user's turn, below). A fallback triggers no tool, fix or approval (AD-8, AD-30).
 ///   - The timer (AD-6, AD-8): the timer of an attempt ends the decision with a fallback, never an error. OnResponse for the key timer
 ///     records the fallback (RecordFallback) for the stored DecisionRef, with the reason that Classify gives for a timer that fired:
 ///     timeout, or rate_limited once Decide has re-sent (Resends above 0, because the retries then ran out, FR-4). The timer keeps
@@ -57,6 +57,16 @@ Include Ensemble
 ///     of the earlier attempts, plus the last reply's; and the duration is the time from the moment Decide began to handle the request
 ///     to Conclude. CarryTotals copies the eight fields between a row and an answer, so an answer built from a recorded row carries the
 ///     row's totals. A decision with no Usage row has empty totals, and one with a row of unknown cost has an empty cost.
+///   - Busy (AD-6): a turn with provenance user is linked to a conversation, whose lock the runner holds from opening the AI session to
+///     saving it (Data.ConversationLink). After CheckSettings and before the DecisionRef and the precheck, OnRequest takes that lock and at
+///     once releases it (Held); when it is not taken in the lock's 2 seconds, the answer is Reply.NewBusy(): Busy is 1 and nothing else is
+///     set, and nothing else happens: no Decision row, no decision.recorded, no timer, no runner request and no steps. A Reply of the
+///     runner whose Busy is 1 (the key reply) is answered the same way, after the steps. A Busy answer is never an error status, a
+///     fallback or a row. Untrusted turns, decide and diagnose are never probed. The re-send takes no probe: the runner reopens the saved
+///     history of the conversation, which a Chat that failed never saved.
+///   - SessionBroken (AD-8): a user's turn whose failure text holds INVALIDINPUTTEXT is answered with a fallback Reply whose SessionBroken
+///     is 1 (Broken). The reason stays error, the row is recorded like any fallback, and the runner saved nothing, so the stored history
+///     and the link stay as they were. A fallback Reply also carries the runner's SessionRotated, as it carries Tainted and ToolsRun.
 ///   - A request that is refused (Admit, the settings) ends with an error status, and no row is recorded; the late reply of a runner
 ///     after the timer is discarded by the business process framework.
 /// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount and StepsSent.
@@ -104,6 +114,11 @@ Parameter TIMEOUTTEXT = "operation timed out";
 /// The words of the provider's error for HTTP 429 and 529: rate_limited (source: AD-8, S2; Story 0.11 measured the 529 text). Matched
 /// without regard to case.
 Parameter RATELIMITTEXT = "Rate limit exceeded";
+
+/// The words of the provider's error for a conversation history that it rejects (HTTP 400, "... error: Invalid input: <msg>"), which Broken
+/// finds in the failure text of a user's turn: SessionBroken (source: AD-8; Story 0.11 measured the text for a 400). Matched without regard
+/// to case.
+Parameter INVALIDINPUTTEXT = "Invalid input";
 
 /// The codes of the errors that end a turn in AI Hub's tool loop, comma-separated, each found in a failure text: unusable (source: Story 1.6
 /// Task 0 (a), measured on build 154: MaxIterationsReached when the agent's iterations are used up, and LoopDetected when the loop stalls
@@ -190,6 +205,10 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	}
 	Set sc = ..CheckSettings(kind, runner, replyClass, ..ReplyFilterClass, ..TimerSeconds)
 	If $$$ISERR(sc) Quit sc
+	If ..Held(request, runner) {
+		Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+		Quit $$$OK
+	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
 	Set reason = ..Precheck(request, runner, ..TokenBudget())
@@ -201,6 +220,19 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Set sc = ..SendRequestAsync(runner, clone, 1, "reply")
 	If $$$ISERR(sc) Quit sc
 	Quit ..SetTimer(+..TimerSeconds, "timer")
+}
+
+/// 1 when the request is a turn with provenance user whose conversation lock, (OwnerRef, the runner item), is not taken in the lock's
+/// seconds (Data.ConversationLink LOCKSECONDS): an earlier turn, even one that Decide gave up on, still holds the conversation (AD-6).
+/// The lock is taken only to probe and released at once. Every other request is never held.
+ClassMethod Held(request As OcuTalon.Bridge.Msg.Request, runner As %String) As %Boolean
+{
+	If (request.Kind '= "turn") || (request.Provenance '= "user") Quit 0
+	If ##class(OcuTalon.Bridge.Data.ConversationLink).Lock(request.OwnerRef, runner) {
+		Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(request.OwnerRef, runner)
+		Quit 0
+	}
+	Quit 1
 }
 
 /// An error status of the runner's call (the completion key reply) is kept in RunnerError, and OK is returned, so that Ens calls
@@ -220,7 +252,8 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 ///     the reason that Classify gives for a timer that fired (timeout, or rate_limited after a re-send), and the caller is answered;
 ///   - resend: the back-off of a re-send is over (Resend);
 ///   - reply: the runner answered. The steps are sent first (EmitSteps), so that a reply that is then refused, or a call that failed,
-///     still shows its steps in the trace. Conclude then gets the text of the runner's failure: the runner's error status
+///     still shows its steps in the trace. A Reply whose Busy is 1 is then answered with Reply.NewBusy(), with no row, no event and no
+///     re-send. Otherwise Conclude gets the text of the runner's failure: the runner's error status
 ///     (RunnerError, cut by StepBuffer.Part to Reply.#MAXFAILURE) or the FailureText of its failure Reply. When the runner answered
 ///     with a Reply and no error status, ResendDelay weighs a re-send first (above); a delay above 0 adds the attempt's steps to
 ///     StepCount, sets the timer resend and answers nothing yet.
@@ -237,6 +270,10 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	If pCompletionKey = "resend" Quit ..Resend(request, runner, .response)
 	If pCompletionKey '= "reply" Quit $$$ERROR($$$GeneralError, "Decide got a response with the unknown completion key '"_pCompletionKey_"'")
 	Do ..EmitSteps(callrequest.DecisionRef, callresponse)
+	If $$$ISOK(..RunnerError) && $IsObject(callresponse) && callresponse.%IsA("OcuTalon.Bridge.Msg.Reply") && callresponse.Busy {
+		Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+		Quit $$$OK
+	}
 	Set failure = ""
 	Set answered = 0
 	If $$$ISERR(..RunnerError) {
@@ -387,7 +424,8 @@ ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Re
 
 /// OK when the message is a Request that Decide serves. A message of another class, and a request of kind tool, give "not
 /// implemented"; any other problem is an error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not
-/// one of PROVENANCE), ItemId, OwnerRef, or Input (empty once white space and control characters are removed).
+/// one of PROVENANCE), ItemId, OwnerRef, Input (empty once white space and control characters are removed), or SessionMode (not
+/// empty, which means continue, and not one of Request SESSIONMODES; the match is exact, so Fresh is refused).
 ClassMethod Admit(request As %Library.Persistent) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Bridge.Msg.Request") Quit $$$ERROR($$$NotImplemented)
@@ -399,6 +437,8 @@ ClassMethod Admit(request As %Library.Persistent) As %Status
 	If request.ItemId = "" Quit $$$ERROR($$$GeneralError, "The ItemId of the request is empty")
 	If request.OwnerRef = "" Quit $$$ERROR($$$GeneralError, "The OwnerRef of the request is empty")
 	If $ZStrip(request.Input, "*WC") = "" Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
+	Set modes = ##class(OcuTalon.Bridge.Msg.Request).#SESSIONMODES
+	If (request.SessionMode '= "") && '$ListFind($ListFromString(modes), request.SessionMode) Quit $$$ERROR($$$GeneralError, "The SessionMode '"_request.SessionMode_"' of the request is not empty or one of "_modes)
 	Quit $$$OK
 }
 
@@ -565,6 +605,15 @@ ClassMethod Classify(facts As %DynamicObject) As %String
 	Quit ""
 }
 
+/// 1 when the failure of a request says that the provider rejected the stored history of the conversation (AD-8): the request is a turn
+/// with provenance user, the only kind with a stored history, and the failure text holds INVALIDINPUTTEXT, without regard to case. It is
+/// pure, and it does not classify: the reason of such a failure stays what Classify gives (error).
+ClassMethod Broken(request As OcuTalon.Bridge.Msg.Request, failure As %String) As %Boolean
+{
+	If '$IsObject(request) || (request.Kind '= "turn") || (request.Provenance '= "user") Quit 0
+	Quit $ZConvert($Get(failure), "L") [ $ZConvert(..#INVALIDINPUTTEXT, "L")
+}
+
 /// 1 when the (lower case) text holds every piece of the pieces, which are separated by | and compared in lower case.
 ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 {
@@ -629,7 +678,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set reason = ..Classify(facts)
 	If reason '= "" {
-		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
+		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, ..Broken(request, failure))
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
 		Quit ..ResponseFromId(id, .response)
@@ -696,9 +745,11 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 /// When this call saved the row, decision.recorded is fired after the save (FireEvent) and, for daily_cap only, the day is marked as
 /// capped (Budget.MarkCapped), outside any transaction. The answer to a decide or diagnose request is the DecisionResponse of the row;
 /// the answer to a turn is a new Reply, never a clone of the runner's: it holds the DecisionRef, the outcome tellnow, Fallback, the
-/// reason, the totals of the row and the runner's Tainted and ToolsRun (a fallback with no runner reply sets neither), and no text,
-/// host data, steps, failure text or finish reason. Nothing else is sent: a fallback triggers no tool, fix or approval request.
-ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0) As %Status
+/// reason, the totals of the row, the runner's Tainted, ToolsRun and SessionRotated (a fallback with no runner reply sets none of them;
+/// a fresh turn whose reply is refused did move the link, and the caller must know), SessionBroken when broken is 1 (Broken: the
+/// provider rejected the stored history of a user's turn), and no text, host data, steps, failure text or finish reason. Nothing else is
+/// sent: a fallback triggers no tool, fix or approval request.
+ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0, broken As %Boolean = 0) As %Status
 {
 	Set response = ""
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
@@ -724,7 +775,9 @@ ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef A
 	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Set response.Tainted = reply.Tainted
 		Set response.ToolsRun = reply.ToolsRun
+		Set response.SessionRotated = reply.SessionRotated
 	}
+	Set response.SessionBroken = +broken
 	Do ..CarryTotals(row, response)
 	Quit $$$OK
 }

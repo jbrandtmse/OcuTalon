@@ -40,6 +40,9 @@
 ///     again: Decide answers at once with a rate_limited fallback Reply that says a tool ran; ChatAgent's Reply says so and holds the provider's
 ///     text; Decide sent one request, and the mock's log, read after the runner is drained, holds two requests for the ref and no third; a model
 ///     step and the tool step reach AgentSteps.
+/// Added by Story 1.8 (AD-6): a user's turn is linked to a conversation, so each such turn saves an AI session and a link, which OnAfterOneTest
+/// deletes (RunnerFixture.DropSince). TestRedacted and TestRedactedText drop the session of their turn right after the answer: the saved
+/// conversation holds what the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
 Class OcuTalon.Test.Agent.Steps Extends %UnitTest.TestCase
 {
 
@@ -74,6 +77,16 @@ Property DefinitionText As %String(MAXLEN = "");
 /// The ItemIds of the requests that the test made.
 Property ItemIds As %List;
 
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark): a user's turn is linked to a conversation, so it saves an
+/// AI session and a link (Story 1.8), which OnAfterOneTest deletes (RunnerFixture.DropSince).
+Property SessionMark As %Integer;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Quit $$$OK
+}
+
 Method OnBeforeAllTests() As %Status
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -94,6 +107,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
@@ -245,6 +259,7 @@ Method TestRedacted()
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 	Set mark = $ClassMethod(fixture, "EventMark")
 	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Do $ClassMethod(fixture, "DropSince", ..SessionMark)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn, though a tool failed")
 	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Do $$$AssertTrue(0, "the answer is a Reply")
@@ -296,6 +311,7 @@ Method TestRedactedText()
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 	Set mark = $ClassMethod(fixture, "EventMark")
 	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session, ..#SUPER)
+	Do $ClassMethod(fixture, "DropSince", ..SessionMark)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn, though a tool failed")
 	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Do $$$AssertTrue(0, "the answer is a Reply")
