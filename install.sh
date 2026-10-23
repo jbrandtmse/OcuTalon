@@ -16,6 +16,12 @@
 # under set -u, timeout, sed -i, grep -P, date -d or readlink -f.
 # Two overrides exist for the tests only (whole seconds; anything else means the default): OCUTALON_INSTALL_POLL, the
 # seconds between two polls (10), and OCUTALON_INSTALL_WAIT, the seconds to wait for a healthy container (900).
+# It needs bash: run by another shell (sh is dash on Debian and Ubuntu), it stops at once with the command to use.
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "install.sh needs bash. Run it as ./install.sh, or as bash install.sh." >&2
+  echo "Nothing was changed." >&2
+  exit 1
+fi
 set -u
 
 TAG=2026.3.0AI.154.0
@@ -132,7 +138,7 @@ if [ ! -e .env ] && [ ! -L .env ]; then
   env_missing=1
   if [ ! -f .env.example ]; then
     die "This folder has no .env.example, so .env cannot be created." \
-      "Run install.sh from the OcuTalon folder, the one that holds docker-compose.yml." \
+      "Keep install.sh in the OcuTalon folder, beside docker-compose.yml and .env.example, and get .env.example back from the OcuTalon repository if it is missing. Then run ./install.sh again." \
       "Nothing was changed."
   fi
   if [ ! -w . ]; then
@@ -237,12 +243,12 @@ Then point the name at the loaded image:  docker tag <the loaded image, ending i
 $records
 EOF
   case $base_kind in
-    h) image_lines="Image: IRIS for Health, build 154. The existing $base is that image, so it is not tagged again." ;;
+    h) image_lines="Image: IRIS for Health, build 154 ($base_ref). The existing $base is that image, so it is not tagged again." ;;
     n)
-      image_lines="Image: IRIS (non-Health), build 154. The existing $base is that image, so it is not tagged again."
+      image_lines="Image: IRIS (non-Health), build 154 ($base_ref). The existing $base is that image, so it is not tagged again."
       build_image=$base_ref
       ;;
-    *) image_lines="Image: the existing $base. It matches neither the IRIS for Health nor the IRIS (non-Health) image loaded here, so it is used as it is." ;;
+    *) image_lines="Image: the existing $base. No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID, so it is used as it is." ;;
   esac
 else
   if pick h; then
@@ -335,7 +341,7 @@ EOF
     die "OcuTalon was not ready after $(fmt_time "$elapsed"), the longest this script waits." \
       "To read what is happening, run:  docker compose logs iris" \
       "The Troubleshooting section of README.md lists the usual causes and fixes." \
-      "Nothing was removed. The container (state: $state) may still become ready later."
+      "Nothing was removed. The container (state: $state${health:+, health check: $health}) may still become ready later."
   fi
   if [ -n "$health" ]; then
     echo "Waiting, $(fmt_time "$elapsed") so far: container $state, health check $health"

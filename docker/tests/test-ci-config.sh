@@ -18,7 +18,7 @@
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
 #   - wiring: the checks job of ci.yml runs the ShellCheck step of install.sh and its hermetic test (Story 10.1) and ci/checks.sh, the install-macos job
-#     on macos-15 runs that test as OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh, and the web job runs each
+#     on macos-15 runs that test as OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh within timeout-minutes: 10, and the web job runs each
 #     script of WEB_SCRIPTS (the web build and the mock's tests, the step "Mock tests" among them), lint and unit tests, each gated by
 #     the classifier's web output; the iris job asks the classifier for its own group
 #     (ci/changes.sh ci.yml --group <its group>), runs ci/iris.sh build and group unless the run output is `false`, and otherwise
@@ -142,6 +142,7 @@ BEGIN { job = ""; step = 0; sec = ""; sub2 = ""; inblock = 0 }
       else if (key == "if") emit("job:if", FNR, val)
       else if (key == "permissions") emit("job:permissions", FNR, val)
       else if (key == "continue-on-error") emit("job:coe", FNR, val)
+      else if (key == "timeout-minutes") emit("job:timeout", FNR, val)
       next
     }
     if (sub2 == "permissions" && ind == 6) { emit("job:permissions:entry", FNR, key ": " val); next }
@@ -515,6 +516,7 @@ kind == "step:name" { snames[job, st] = unq(text) }
 kind == "step:env" && index(text, "REASON: ") == 1 { reasonenv[job, st] = text }
 kind == "step:run" { runs[job, st] = text }
 kind == "job:runs-on" { runson[job] = text }
+kind == "job:timeout" { timeouts[job] = unq(text) }
 kind == "step:if" { ifs[job, st] = text }
 kind == "step:id" { ids[job, text] = 1 }
 kind == "job:env" { i = index(text, ": "); env[job, substr(text, 1, i - 1)] = substr(text, i + 2) }
@@ -529,6 +531,7 @@ END {
   need("checks", "shellcheck --version && shellcheck install.sh docker/tests/test-install-script.sh", "")
   need("install-macos", "OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh", "")
   if (runson["install-macos"] != "macos-15") bad("install-macos: the job does not run on macos-15")
+  if (timeouts["install-macos"] != "10") bad("install-macos: the job has no timeout-minutes of 10")
   need("web", "bash ci/changes.sh ci.yml", "")
   nw = split(webscripts, ws, " ")
   if (nw == 0) bad("ci/units.sh: WEB_SCRIPTS is empty")
@@ -581,10 +584,12 @@ wiring_bad shellcheck-scope 'index($0, "        run: shellcheck --version") == 1
 wiring_bad macos-bash 'sub(/ \/bin\/bash docker\/tests\/test-install-script\.sh/, " docker/tests/test-install-script.sh") { print; next } { print }'
 wiring_bad macos-major 'sub(/OCUTALON_TEST_BASH_MAJOR=3 /, "") { print; next } { print }'
 wiring_bad macos-runner 'sub(/runs-on: macos-15/, "runs-on: ubuntu-24.04") { print; next } { print }'
+wiring_bad macos-timeout-gone '$0 == "  install-macos:" { inmac = 1 } inmac && index($0, "    timeout-minutes:") == 1 { inmac = 0; next } { print }'
+wiring_bad macos-timeout-long '$0 == "  install-macos:" { inmac = 1 } inmac && index($0, "    timeout-minutes:") == 1 { inmac = 0; print "    timeout-minutes: 360"; next } { print }'
 wiring_bad macos-job-gone '$0 == "  install-macos:" { skip = 1 } skip && /^  web:$/ { skip = 0 } skip { next } { print }'
 wiring_ok=1
 for n in id iris-gate group-gate gate-truthy web-gate skip-step skip-reason skip-text skip-split group-arg tag checks lint test group mock \
-  shellcheck shellcheck-scope macos-bash macos-major macos-runner macos-job-gone; do
+  shellcheck shellcheck-scope macos-bash macos-major macos-runner macos-timeout-gone macos-timeout-long macos-job-gone; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
     echo "FAIL wiring: the rule does not flag the sample $n"
     wiring_ok=0
@@ -599,7 +604,7 @@ for extra in "$web_scripts zz-web" ""; do
 done
 hits=$(wf_wiring "$ci_yml" | sed "s#^[0-9]*\twiring\t#  $ci_yml: #")
 if [ "$wiring_ok" -eq 1 ] && [ -z "$hits" ]; then
-  echo "PASS wiring: the checks job of ci.yml runs ShellCheck on install.sh and its hermetic test and the checks, the install-macos job runs that test on macos-15 under /bin/bash with OCUTALON_TEST_BASH_MAJOR=3, and the web job runs each script of WEB_SCRIPTS, the lint and the unit tests, gated by the classifier's web output, and the iris job asks the classifier for its group and runs the build and the group unless run is false"
+  echo "PASS wiring: the checks job of ci.yml runs ShellCheck on install.sh and its hermetic test and the checks, the install-macos job runs that test on macos-15 under /bin/bash with OCUTALON_TEST_BASH_MAJOR=3 and a timeout of 10 minutes, and the web job runs each script of WEB_SCRIPTS, the lint and the unit tests, gated by the classifier's web output, and the iris job asks the classifier for its group and runs the build and the group unless run is false"
 else
   printf '%s\n' "$hits" | head -n 10
   echo "FAIL wiring: ci.yml does not run what its jobs are for, or a sample is not flagged"

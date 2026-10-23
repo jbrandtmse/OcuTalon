@@ -178,6 +178,46 @@ deferred: []
 - Given `test-boundaries.sh`, when it scans, then `install.sh` is in scope for the ASCII, push or sign-in, `config --quiet` and `inspect --format` rules.
 - Given `test-ci-changes.sh` (unchanged), when it runs, then it still passes: `install.sh` stays unclassified (every group runs on its change, the new unit included) and `.env.example` stays declared.
 
+### Review Findings
+
+Code review of 2026-10-23 (epic-cycle, four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). The layers reported 29 rows, which grouped into 23 entries: 0 high, 2 medium, 20 low and 1 false. 11 were patched, 1 was deferred (DW-127), and 11 were dismissed (3 by-design, 8 rejected). Every patch was applied in the review pass, with its mutation line under `## Verification`.
+
+- [x] [Review][Patch] (medium) The check `the last sleep never goes past the wait` was flaky: it expected the first sleep to be exactly 3 s, but the clock's second can tick between `started=$SECONDS` and the first poll, so the sleep is 2 s. Two layers reproduced it, one 3 times in 300 runs. It is now an awk check that every sleep is 1 to 3 s, and the stale mutation line was re-run. [docker/tests/test-install-script.sh:733]
+- [x] [Review][Patch] (low) `sh install.sh` on Debian or Ubuntu (dash) stopped with `arithmetic expression: expecting EOF`, with no plain message. A bash guard now prints the command to use and "Nothing was changed.", and the new row `not-bash` runs the script under dash, skipped where the machine has none. [install.sh:20]
+- [x] [Review][Patch] (low) The live unit's cleanup removed a `.env` that is a link to nothing, which install.sh keeps as an existing `.env`. It now treats a link as existing, with the same test as the script. [docker/tests/test-install-script-live.sh:64]
+- [x] [Review][Patch] (low) An existing base on the wrong CPU with only a non-Health image of this CPU loaded had no row: dropping `|| pick n` left every test green. Added the row `base-wrong-cpu-non-health`. [docker/tests/test-install-script.sh:437]
+- [x] [Review][Patch] (low) An unmatched existing base printed "matches neither the ... image loaded here", even when no image is loaded. It now says that no build 154 image loaded here has its ID, and the no-candidate row checks this. [install.sh:251]
+- [x] [Review][Patch] (low) The forbidden-word scan missed `docker system|builder|buildx|network prune`, and `sudo` after `if`, `then`, `do`, `else`, `elif`, `while`, `until`, `(` or `!`. The pattern now covers them. [docker/tests/test-install-script.sh:800]
+- [x] [Review][Patch] (low) The read-only folder row and the unreadable `.env` row printed `PASS` when they were skipped (a user who can write to mode 555 or read mode 000, such as root). They now print `SKIP`. [docker/tests/test-install-script.sh:564,678]
+- [x] [Review][Patch] (low) The timeout message named the container state but not the health check (`unhealthy` or `starting`). It now prints `(state: running, health check: starting)`, and a check pins it. [install.sh:344]
+- [x] [Review][Patch] (low) The lines for an existing Health or non-Health base did not name the image's reference, although the non-Health reference is what the build gets (the "What it says" rule). They now print it. [install.sh:246-248]
+- [x] [Review][Patch] (low) The no-`.env.example` fix said to run install.sh from the OcuTalon folder, which the script already does with its `cd`. It now says to keep install.sh beside `docker-compose.yml` and `.env.example`, and to get `.env.example` back from the repository. [install.sh:141]
+- [x] [Review][Patch] (low, Rule 19, closed in the pass) Some pins had no mutation line:
+  - AC3's "on the same volume" (a live run with `dc down -v`);
+  - the "Existing base" row, which is also AC3's "keeps its ID" (the live checks of the shared ID cannot be failed by install.sh);
+  - the rows look-alikes, existing base on the wrong CPU, no Docker and already healthy.
+  Each was applied, seen red and reverted, and written under `## Verification`. [_bmad-output/implementation-artifacts/spec-10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to.md, ## Verification]
+- [x] [Review][Defer] (medium, unverified) `live:install-script-live` joins `image` with no x64 time on record, so Story 32.3's balance rule has not been checked for it. The rule is that no IRIS job runs more than about 25% over the mean of the six. [ci/units.sh:35] — deferred: maybe-false.
+  - The estimate at compose-start's ARM-to-x64 ratio is about 810 to 920 s against a mean near 710 to 730 (inference).
+  - The first CI run with the unit settles it: compare the `image` job's time with 1.25 times the mean of the six jobs. If it is over, move one unit (Design Note 11).
+  - Ledger: DW-127, `routed owner=10-2-the-readme-gets-a-judge-from-download-to-sign-in`, the next story that touches `ci/units.sh`.
+  - It does not re-open this story, because the time exists only after the push.
+
+Dismissed, by-design (spec-bound, Rule 15):
+- A crash loop (`restarting`) or a container left `unhealthy` by a failed start makes the script, and a rerun, wait the full 15 minutes. That is Design Note 7: only `exited`, `dead` or no container counts as a stop. The progress lines show the state, and the timeout message now names the health check.
+- The live unit does not track a rebuilt `$P-iris` image. The spec's Never rules forbid putting an image ID into `LIVE_IMAGES`, because identical builds share an ID across concurrent projects. A rebuild that changed the image would also recreate the container, and the rerun check fails on that.
+- An `IRIS_IMAGE` set only in `.env` is replaced by the value the script exports. The script never reads `.env` (Never rule), and `IRIS_IMAGE` is not a variable of `.env.example`.
+
+Rejected:
+- low: the ShellCheck step runs before `bash ci/checks.sh`, so a ShellCheck failure hides that run's check results. Linting first is a deliberate fail-fast order: moving the step only swaps which result hides the other, and the alternative is a step condition in a pinned workflow.
+- low: the Auto Run Result's "about 170 checks" and the residual-risk line are stale. The fix would edit build-auto's sections of the spec under review.
+- low: a base whose ID is tagged both `iris-community` and `irishealth-community` is reported as non-Health on a rerun (the build is the same image). This needs a hand-made double tag, and the fix is a second loop.
+- low (wontfix-theoretical): a `docker version` answer that is only whitespace would make the daemon's CPU empty. It would become real if a Docker CLI answered `version --format '{{.Server.Arch}}'` with blank output and exit 0.
+- low: a sourced `. install.sh` would close the user's shell on a failure. Nobody sources an install script, and the guard would add a branch.
+- low: the `git check-attr` check fails outside a git checkout. The test always runs in a checkout.
+- low: whole-number overrides longer than six digits fall back to the default. These are test-only overrides with an overflow cap, and QA pinned the case.
+- false (settled by measurement): "the Linux side of AC1 has never run". In `ubuntu:24.04` (bash 5.2.21, dash, mawk, non-root), 200 checks passed. The only red was the `git check-attr` check, because the image has no git.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -330,7 +370,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - the published port, not 52773;
   - mutation: set `port` to 52773 instead of the port compose reports → red: the three `custom port` checks and `no published port: exit 1 and says so`.
 - timeout and stop exit 1;
-  - mutation: `exit 0` before the timeout message → red: `never ready: exit 1` and three more, including `the last sleep never goes past the wait`.
+  - mutation: `exit 0` before the timeout message → red: `never ready: exit 1`, the three other `never ready` checks and `the last sleep never goes past the wait: every sleep is capped at the wait that is left (1 to 3 s)` (re-run at code review, after that check changed).
   - mutation: `exit 0` before the stopped-container message → red: `container stops (exited|dead|NONE): exit 1` and the two checks that follow each.
 - the call allow-list: add an unconditional `compose down` → red;
   - mutation: run `docker compose $cmd` with `cmd=down` right after the first message (hidden from the text rule on purpose) → red: `calls: every docker call of every case is on the allow-list`, and only that check.
@@ -369,6 +409,76 @@ The review pass added these pinning tests and mutation lines (each applied, run,
   - mutation: drop `install.sh` from the arguments of `scan_files` → red: `scope: a file that must be scanned is not` (`not scanned: install.sh`).
 - AC5, `install.sh` stays unclassified;
   - mutation: add `|install\.sh$` to `IRIS_INPUT` → red: `test-ci-changes` (`classifier: a top-level script: the reason of ... does not name install.sh`).
+
+**QA pass (QA).** The qa stage read the matrix and the epic's criteria against the tests, measured which lines of `install.sh` the hermetic test never reaches (xtrace over a scratch copy), and ran 288 line-level mutants of `install.sh` against the hermetic test in a scratch copy (statement deleted, condition forced, operator or number swapped; 16 did not parse, 208 went red, 64 survived). It added no new test file: every gap went into an existing script. Files (QA):
+- `docker/tests/test-install-script.sh` (QA, extended in place; 169 checks became 196, 197 with the bash-major check): the 15-minute wait observed through the capped first sleep (default and all three fallbacks, and a leading zero); `bash install.sh` with a bare name; image-side and base-side `aarch64`/`x86_64`; an image whose CPU cannot be read is never a match; a daemon or Compose that answers with nothing; `IRIS_IMAGE` names the base; `.env` as a link to nothing and `.env` that cannot be read; a poll with no health state; compose's messages stay on screen; the allow-list holds the exact arguments (`--short`, the formats, the service `iris`); `docker-compose.yml` has the service and port the script asks about. The old `OCUTALON_INSTALL_POLL=007` row could not fail (007 is 7 in octal too) and is now `08`.
+- `docker/tests/test-ci-config.sh` (QA, extended in place): the `install-macos` job must have `timeout-minutes: 10`, with two bad samples (`macos-timeout-gone`, `macos-timeout-long`).
+
+Mutations of the QA pass (each applied to the tracked file, run, seen red and reverted; `git status --short`, `git diff --stat` and a hash of `git diff` were identical before and after each):
+- the 15 minutes, AC3 (progress for up to 15 minutes):
+  - mutation: the fallback `max_wait=900` of the non-numeric case → `600` → red: `OCUTALON_INSTALL_WAIT='soon' waits 15 minutes (900 s)` and the `-5` row.
+  - mutation: the default `:-900` → `:-600` → red: `OCUTALON_INSTALL_WAIT='' waits 15 minutes (900 s)`.
+  - mutation: the seven-digit fallback `max_wait=900` → `600` → red: the `1234567` and the 20-digit rows.
+  - mutation: `max_wait=$((10#$max_wait))` → `$(($max_wait))` → red: the `0900` row. Same for `poll=$((10#$poll))` → `$(($poll))` → red: `OCUTALON_INSTALL_POLL=08 is 8 s, in base 10`.
+- run from any folder: mutation: `*) here=. ;;` → `here=/` → red: `bash install.sh, a name with no slash, from the script's own folder: exit 0` and `...: .env is created in that folder`.
+- the CPU check (epic AC "checks that its CPU architecture matches"):
+  - mutation: delete the `norm_arch` of the image's CPU → red: `an image that reports aarch64 is arm64` and the `x86_64` row.
+  - mutation: delete the `norm_arch` of the base's CPU → red: `an existing base that reports x86_64 is amd64`.
+  - mutation: `pick` also accepts an image with no readable CPU → red: the three `unreadable CPU` checks.
+  - mutation: delete the empty-reference guard in `other_cpu_lines` → red: `wrong CPU: no line for an unknown CPU`.
+- stop before any change (Docker, Compose):
+  - mutation: `||` → `&&` in the daemon check → red: `daemon that answers with no architecture`.
+  - mutation: `||` → `&&` in the Compose check → red: `Compose that answers with no version`.
+- `.env` is never overwritten, read or printed:
+  - mutation: drop `&& [ ! -L .env ]` → red: `a .env that is a link to nothing is an existing .env` and `...: nothing was written through it`.
+  - mutation: after "Found .env", `grep -q ANTHROPIC_API_KEY .env` → red: `an unreadable .env: exit 0 with no permission error, so the script never reads .env`.
+- the exact calls (AC "never `docker compose config`... without `--quiet`", allow-list):
+  - mutation: `docker compose version --short` → `docker compose version` → red: `calls: every docker call of every case is on the allow-list`.
+  - mutation: the poll names the service `iriz` → red: the same check.
+  - mutation: rename the service `iris` to `oci` in `docker-compose.yml` → red: `docker-compose.yml: the service is iris and it publishes container port 52773`.
+- the base name: mutation: `base=${IRIS_IMAGE:-...}` → `base=ocutalon-iris-base:$TAG` → red: `IRIS_IMAGE set: the image is tagged once, as that name` and `...: compose up gets that name`.
+- progress lines: mutation: `if [ -n "$health" ]` → `if true` → red: `a poll with no health state: the line holds the elapsed time and the state only`.
+- failure help: mutation: `docker compose up -d` gets `2>/dev/null` → red: `up fails: compose's own messages (both streams) stay on screen`.
+- AC2, the macOS job's cost: mutation: `timeout-minutes: 10` → `60` in the `install-macos` job → red: `test-ci-config` rule `wiring`.
+
+Left unpinned on purpose (the survivors of the sweep, judged equivalent or cosmetic): `set -u`; the `local` lines; the resets of `pick_ref`, `pick_id`, `state`, `health`, `base_info` and `image_lines`; `cp -n` for `cp`; the blank line before a failure message; the `here=/` branch for a script at the root of the disk (no test can put a file there); `-ge` against `-gt` at the exact end of the wait and at six digits; the words of the "Docker is running on", "Tagged it as", "Starting OcuTalon" and "To set a key" lines and the repository names inside the no-image message; the first of two same-ID refs (`break`); `live:install-script-live` being last, not first, in `group_units image` (no rule reads the order); `needs:` or `fetch-depth` added to the `install-macos` job.
+
+**Live unit (QA).** `ci/iris.sh live install-script-live` on lane C, tag `e10s1q`, final tree: every check passed in 95 s wall (the implement stage measured 2 to 3 minutes). `ci/iris.sh teardown` for the tag removed nothing more, the shared base kept its ID before and after, and no `.env` was left in the tree.
+
+**Code review pass.** Each mutation below was applied to the tracked file, run once, seen red and reverted. `git diff` hashed the same before and after each one.
+- `install.sh` stops under a shell that is not bash. The row `not-bash` runs it with `dash` where the machine has one; ubuntu-24.04 and macOS both do.
+  - mutation: the guard `if [ -z "${BASH_VERSION:-}" ]` → `if false` → red: `run by dash, not bash: exit 1 with the command to use`.
+- The cap on each sleep. The check accepts 1 to 3 s, because the clock's second can tick between the start of `up -d` and the first poll.
+  - mutation: delete the line that caps `step` at `max_wait - elapsed` → red: `the last sleep never goes past the wait: every sleep is capped at the wait that is left (1 to 3 s)` and the six `OCUTALON_INSTALL_WAIT=... waits 15 minutes` rows.
+- An existing base is never tagged again (matrix row "Existing base").
+  - This is also the pin for AC3's "keeps its ID throughout": the live unit's two shared-ID checks only guard the shared name against the test itself.
+  - mutation: `if pick h || pick n; then tag_id=$pick_id; fi` before `case $base_kind in` → red: `existing base, Health|non-Health|unknown: no docker tag`, `already healthy: no docker tag` and `architecture names: an existing base that reports x86_64 is amd64 ...`.
+- An existing base on the wrong CPU:
+  - mutation: `if [ "$base_arch" != "$daemon_arch" ]` → `if false` → red: the eight `existing base, wrong CPU ...` checks.
+  - mutation: `if pick h || pick n` → `if pick h` in that branch → red: `existing base, wrong CPU, only a non-Health image of this CPU: names it in the docker tag fix, nothing changed`.
+- Prefixes and look-alikes:
+  - mutation: `iris-community | */iris-community)` → `*iris-community)` → red: the three `look-alikes` checks.
+- No Docker:
+  - mutation: `if ! command -v docker ...` → `if false` → red: `no docker: says to install Docker Desktop or Docker Engine`.
+- Already healthy prints at once (the hermetic side of AC3's "a rerun prints at once"):
+  - mutation: print a progress line as soon as `elapsed` is computed, before the healthy test → red: `already healthy: the ready block prints with no progress line`, `first run, Health: one progress line for each poll that is not ready`, `unhealthy: three progress lines` and `container stopped at the first poll: exit 1 with no progress line`.
+- The timeout message names the health check:
+  - mutation: drop `${health:+, health check: $health}` → red: `never ready: names the container's state and its health check`.
+- An existing base's lines name its reference:
+  - mutation: drop ` ($base_ref)` from the Health and non-Health lines → red: `existing base, Health: says IRIS for Health, its reference and the existing wording` and `existing base, non-Health: says IRIS (non-Health) and the reference the build uses`.
+- The two corrected messages:
+  - mutation: restore the old texts "It matches neither ... image loaded here" and "Run install.sh from the OcuTalon folder ..." → red: `existing base, unknown: says it matches neither`, `existing base, no candidate loaded: claims no loaded image, only that none has its ID` and `no .env.example: exit 1 before any change, with the fix`.
+- The text scan's prune and sudo words:
+  - mutation: an unreached `if false; then docker system prune -f; if sudo true; then :; fi; fi` before the changes → red: `install.sh text: no forbidden docker word or sudo command`. The old pattern matched neither line.
+- AC3, "on the same volume":
+  - mutation: `dc down` → `dc down -v` in step 4 of `test-install-script-live.sh`, then one live run on lane C (127 s, tag `e10s1r`) → red: only `the durable volume's CreatedAt changed ...`.
+  - Every other check stayed green, `ci/iris.sh teardown` for the tag removed nothing more, and the shared base kept its ID.
+- The Linux side of AC1, run before the first push:
+  - `bash docker/tests/test-install-script.sh` in `ubuntu:24.04` (bash 5.2.21, dash as `/bin/sh`, mawk 1.3.4), as a non-root user with the tree mounted read-only and no network: 200 checks passed, and the read-only and unreadable rows ran.
+  - The one red was `.gitattributes: install.sh keeps LF on every checkout`, because the image has no git. CI's checkout has git.
+- Live unit on the final tree: `ci/iris.sh live install-script-live` on lane C, tag `e10s1r`.
+  - Every check passed in 83 s. The rerun printed `ready after 1 s` with the same container.
+  - Teardown removed nothing more, the shared base kept its ID, and no `.env` was left in the tree.
 
 ## Auto Run Result
 

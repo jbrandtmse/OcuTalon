@@ -8,15 +8,20 @@
 # runs /bin/bash) the test fails unless that bash has the major version 3.
 # Rows, as in the matrix of the spec:
 #   - images: Health first; only non-Health (its own reference is the build argument); prefixes and look-alikes; ties go to the first
-#     reference in LC_ALL=C order; mixed CPUs; no image; wrong CPU; architecture names (aarch64, x86_64);
-#   - an existing base: never re-tagged, named by ID match (Health, non-Health, neither), refused with the fix on the wrong CPU;
-#   - the checks, all before any change: no docker, daemon unreachable, no Compose plugin, Compose older than 2.24 (DW-2) or unreadable,
+#     reference in LC_ALL=C order; mixed CPUs; no image; wrong CPU; an image whose CPU cannot be read is never a match; architecture
+#     names (aarch64, x86_64) for the daemon, an image and the base; IRIS_IMAGE names the base;
+#   - an existing base: never re-tagged, named by ID match (Health, non-Health, neither) with the reference, refused on the wrong CPU
+#     with the fix (a loaded Health or non-Health image of this CPU named in it);
+#   - the checks, all before any change: run by a shell that is not bash (dash, where the machine has it), no docker, daemon
+#     unreachable or answering nothing, no Compose plugin or one answering nothing, Compose older than 2.24 (DW-2) or unreadable,
 #     Compose 2.24 or later accepted, no .env.example, a tag that fails;
-#   - .env: created byte for byte from .env.example, an existing one is never touched and never printed;
+#   - .env: created byte for byte from .env.example, an existing one (a link to nothing included) is never touched, read or printed;
 #   - waiting: already healthy prints at once, unhealthy keeps waiting, the published port is the one printed, a timeout and a stopped
-#     container (exited, dead, none) exit 1 with the logs command and the README section, `up -d` failing exits 1, the folder of the
-#     script is the working folder, and the two overrides take whole seconds only;
-#   - across all cases: every docker call is on the allow-list, no sudo, every sleep is at most 15 s; and install.sh holds
+#     container (exited, dead, none) exit 1 with the logs command and the README section, `up -d` failing exits 1 with compose's own
+#     messages on screen, the folder of the script is the working folder (also for `bash install.sh`), the two overrides take whole
+#     seconds only, and the wait is 15 minutes (900 s) by default and by every fallback;
+#   - across all cases: every docker call is on the allow-list with its exact arguments, no sudo, every sleep of the judges' path is at
+#     most 15 s; docker-compose.yml has the service and the port that the script asks about; and install.sh holds
 #     OCUTALON_INSTALL_WAIT:-900, is ASCII with LF line endings, is executable (git mode 100755 when git tracks it), and its text holds no
 #     forbidden docker word.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -91,6 +96,7 @@ case $1 in
       up)
         printf 'IRIS_IMAGE=%s\n' "${IRIS_IMAGE-unset}" >> "$d/up-env"
         echo "stub: compose up"
+        echo "stub: compose up, message on standard error" >&2
         if [ -f "$d/up-sleep" ]; then "$STUB_REAL_SLEEP" "$(cat "$d/up-sleep")"; fi
         exit "$(cat "$d/up-exit")"
         ;;
@@ -187,6 +193,7 @@ new_case() {
   echo 0 > "$d/up-exit"
   RUN_CWD=""
   RUN_SCRIPT=""
+  RUN_SHELL=""
 }
 
 # add_image <reference> <id> <architecture>: a loaded image, as `docker image ls` lists it and as `docker image inspect` answers for its id.
@@ -201,14 +208,14 @@ add_base() {
   printf '%s sha256:%s%s %s\n' "$BASE" "$1" "$zeros" "$2" >> "$d/inspect"
 }
 
-# run_install [NAME=value]...: runs the case's install.sh with the bash that runs this test, the case's private PATH and a clean
-# environment, from RUN_CWD (default: the judge folder), as RUN_SCRIPT (default: the absolute path of the judge folder's install.sh).
-# Sets out (standard output and error together) and rc.
+# run_install [NAME=value]...: runs the case's install.sh with RUN_SHELL (default: the bash that runs this test), the case's private
+# PATH and a clean environment, from RUN_CWD (default: the judge folder), as RUN_SCRIPT (default: the absolute path of the judge
+# folder's install.sh). Sets out (standard output and error together) and rc.
 run_install() {
   local cwd=${RUN_CWD:-$c/judge}
   mkdir -p "$cwd"
   out=$(cd "$cwd" && env -i PATH="$c/bin:$toolbin" HOME="$tmp" STUB_DIR="$d" STUB_REAL_SLEEP="$real_sleep" STUB_SLEEP=0 \
-    OCUTALON_INSTALL_POLL=1 OCUTALON_INSTALL_WAIT=30 "$@" "$BASH" "${RUN_SCRIPT:-$c/judge/install.sh}" 2>&1)
+    OCUTALON_INSTALL_POLL=1 OCUTALON_INSTALL_WAIT=30 "$@" "${RUN_SHELL:-$BASH}" "${RUN_SCRIPT:-$c/judge/install.sh}" 2>&1)
   rc=$?
 }
 
@@ -260,6 +267,12 @@ check "both images: exit 0" exit_is 0
 check "both images: Health is the only docker tag source" tagged_once $HEALTH_ID
 check "both images: the build argument is the base name" up_env_is "$BASE"
 check "both images: says IRIS for Health, not non-Health" out_lacks "IRIS (non-Health), build 154 ("
+
+new_case custom-base-name
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+run_install IRIS_IMAGE=my.example/base:7
+check "IRIS_IMAGE set: the image is tagged once, as that name" test "$(call_count '^tag ')-$(grep -cx "tag $HEALTH_ID my.example/base:7" "$d/calls")" = 1-1
+check "IRIS_IMAGE set: compose up gets that name as the build argument" up_env_is my.example/base:7
 
 new_case only-non-health
 add_image "iris-community:$TAG" $NON_HEALTH_ID arm64
@@ -342,6 +355,14 @@ check "wrong CPU: names each image's CPU" test "$(out_count "is for x64$")" -eq 
 check "wrong CPU: names the machine's CPU and the archive for it" out_has "archive for arm64 and load it"
 check "wrong CPU: gives the load command" out_has "docker load -i <the archive file>"
 check "wrong CPU: nothing changed" no_change
+check "wrong CPU: no line for an unknown CPU (one line for each image, and no more)" out_lacks "an unknown CPU"
+
+new_case unreadable-cpu
+printf '%s %s\n' "x/irishealth-community:$TAG" $HEALTH_ID >> "$d/images"
+run_install
+check "unreadable CPU (the call that reads an image fails): exit 1, never taken as a match" exit_is 1
+check "unreadable CPU: names the image and says its CPU is unknown" out_has "x/irishealth-community:$TAG is for an unknown CPU"
+check "unreadable CPU: nothing changed" no_change
 
 new_case arch-names
 echo x86_64 > "$d/server-arch"
@@ -353,6 +374,21 @@ echo aarch64 > "$d/server-arch"
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 run_install
 check "architecture names: aarch64 is arm64" tagged_once $HEALTH_ID
+new_case arch-names-image
+add_image "x/irishealth-community:$TAG" $HEALTH_ID aarch64
+run_install
+check "architecture names: an image that reports aarch64 is arm64 (daemon arm64)" tagged_once $HEALTH_ID
+new_case arch-names-image-x64
+echo amd64 > "$d/server-arch"
+add_image "x/irishealth-community:$TAG" $HEALTH_ID x86_64
+run_install
+check "architecture names: an image that reports x86_64 is amd64 (daemon amd64)" tagged_once $HEALTH_ID
+new_case arch-names-base
+echo amd64 > "$d/server-arch"
+add_image "x/irishealth-community:$TAG" $HEALTH_ID amd64
+add_base $HEALTH_ID x86_64
+run_install
+check "architecture names: an existing base that reports x86_64 is amd64 (daemon amd64): used, no docker tag" test "$(exit_is 0 && echo ok)-$(call_count '^tag ')" = ok-0
 
 # --- an existing base ---
 
@@ -362,7 +398,7 @@ add_base $HEALTH_ID arm64
 run_install
 check "existing base, Health: exit 0" exit_is 0
 check "existing base, Health: no docker tag" test "$(call_count '^tag ')" -eq 0
-check "existing base, Health: says IRIS for Health and the existing wording" out_has "Image: IRIS for Health, build 154. The existing $BASE is that image"
+check "existing base, Health: says IRIS for Health, its reference and the existing wording" out_has "Image: IRIS for Health, build 154 (x/irishealth-community:$TAG). The existing $BASE is that image"
 check "existing base, Health: IRIS_IMAGE is the base name" up_env_is "$BASE"
 
 new_case base-non-health
@@ -370,7 +406,7 @@ add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
 add_base $NON_HEALTH_ID arm64
 run_install
 check "existing base, non-Health: no docker tag" test "$(call_count '^tag ')" -eq 0
-check "existing base, non-Health: says IRIS (non-Health)" out_has "Image: IRIS (non-Health), build 154. The existing $BASE is that image"
+check "existing base, non-Health: says IRIS (non-Health) and the reference the build uses" out_has "Image: IRIS (non-Health), build 154 (x/iris-community:$TAG). The existing $BASE is that image"
 check "existing base, non-Health: IRIS_IMAGE is the non-Health reference" up_env_is "x/iris-community:$TAG"
 
 new_case base-unknown
@@ -379,7 +415,7 @@ add_base $ID_X arm64
 run_install
 check "existing base, unknown: exit 0" exit_is 0
 check "existing base, unknown: no docker tag" test "$(call_count '^tag ')" -eq 0
-check "existing base, unknown: says it matches neither" out_has "Image: the existing $BASE. It matches neither"
+check "existing base, unknown: says it matches neither" out_has "Image: the existing $BASE. No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID"
 check "existing base, unknown: IRIS_IMAGE is the base name" up_env_is "$BASE"
 
 new_case base-unknown-no-candidate
@@ -387,6 +423,7 @@ add_base $ID_X arm64
 run_install
 check "existing base, no candidate loaded: exit 0" exit_is 0
 check "existing base, no candidate loaded: no docker tag" no_tag
+check "existing base, no candidate loaded: claims no loaded image, only that none has its ID" out_has "No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID"
 
 new_case base-wrong-cpu
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -397,6 +434,12 @@ check "existing base, wrong CPU: says what is wrong" out_has "The image $BASE ex
 check "existing base, wrong CPU: names the loaded image in the docker tag fix" out_has "docker tag x/irishealth-community:$TAG $BASE"
 check "existing base, wrong CPU: nothing changed" no_change
 
+new_case base-wrong-cpu-non-health
+add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
+add_base $ID_X amd64
+run_install
+check "existing base, wrong CPU, only a non-Health image of this CPU: names it in the docker tag fix, nothing changed" test "$(exit_is 1 && out_has "docker tag x/iris-community:$TAG $BASE" && no_change && echo ok)" = ok
+
 new_case base-wrong-cpu-none
 add_base $ID_X amd64
 run_install
@@ -405,6 +448,17 @@ check "existing base, wrong CPU, no image loaded: gives the load and the tag com
 check "existing base, wrong CPU, no image loaded: nothing changed" no_change
 
 # --- the checks that come before any change ---
+
+new_case not-bash
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+RUN_SHELL=$(command -v dash 2>/dev/null)
+if [ -z "$RUN_SHELL" ]; then
+  echo "SKIP run by a shell that is not bash: this machine has no dash"
+else
+  run_install
+  check "run by dash, not bash: exit 1 with the command to use" test "$(exit_is 1 && out_has 'install.sh needs bash. Run it as ./install.sh, or as bash install.sh.' && echo ok)" = ok
+  check "run by dash, not bash: no docker call and nothing changed" test "$(test ! -s "$d/calls" && no_change && echo ok)" = ok
+fi
 
 new_case no-docker nodocker
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -422,6 +476,13 @@ check "daemon unreachable: says Docker is not running or not reachable" out_has 
 check "daemon unreachable: gives the three fixes" test "$(out_has 'Start Docker Desktop' && out_has 'sudo systemctl start docker' && out_has 'docker group' && echo ok)" = ok
 check "daemon unreachable: nothing changed" no_change
 
+new_case daemon-empty
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+: > "$d/server-arch"
+run_install
+check "daemon that answers with no architecture (exit 0, empty): exit 1 with the daemon fixes" test "$(exit_is 1 && out_has 'it is not running, or this user cannot reach it' && echo ok)" = ok
+check "daemon that answers with no architecture: nothing changed" no_change
+
 new_case no-compose
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 : > "$d/no-compose"
@@ -429,6 +490,13 @@ run_install
 check "no Compose plugin: exit 1" exit_is 1
 check "no Compose plugin: says to install the plugin 2.24 or later" test "$(out_has 'Install the Compose plugin, version 2.24 or later' && out_has 'docker-compose-plugin' && echo ok)" = ok
 check "no Compose plugin: nothing changed" no_change
+
+new_case compose-empty
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+: > "$d/compose-version"
+run_install
+check "Compose that answers with no version (exit 0, empty): exit 1 with the install fix" test "$(exit_is 1 && out_has 'Install the Compose plugin, version 2.24 or later' && echo ok)" = ok
+check "Compose that answers with no version: nothing changed" no_change
 
 for v in 2.23.3 v2.20.2 2.9.0 1.29.2 dev; do
   new_case "compose-old-$v"
@@ -451,7 +519,7 @@ new_case no-env-example
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 rm "$c/judge/.env.example"
 run_install
-check "no .env.example: exit 1 before any change" test "$(exit_is 1 && out_has 'This folder has no .env.example' && echo ok)" = ok
+check "no .env.example: exit 1 before any change, with the fix" test "$(exit_is 1 && out_has 'This folder has no .env.example' && out_has 'beside docker-compose.yml and .env.example' && echo ok)" = ok
 check "no .env.example: nothing changed" no_change
 
 new_case tag-fails
@@ -480,6 +548,25 @@ add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 : > "$c/judge/.env"
 run_install
 check "existing empty .env: stays empty" test ! -s "$c/judge/.env"
+
+new_case env-dangling-link
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+ln -s "$c/missing-target" "$c/judge/.env"
+run_install
+check "a .env that is a link to nothing is an existing .env: exit 0, not changed" test "$(exit_is 0 && out_has 'Found .env. It was not changed.' && out_lacks 'Created .env' && echo ok)" = ok
+check "a .env that is a link to nothing: still the same link, and nothing was written through it" test "$(test -L "$c/judge/.env" && test ! -e "$c/missing-target" && echo ok)" = ok
+
+new_case env-unreadable
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+printf 'SENTINEL_VALUE=keep-this-sentinel-text\n' > "$c/judge/.env"
+chmod 000 "$c/judge/.env"
+if [ -r "$c/judge/.env" ]; then
+  echo "SKIP unreadable .env: this user can read a file of mode 000"
+else
+  run_install
+  check "an unreadable .env: exit 0 with no permission error, so the script never reads .env" test "$(exit_is 0 && out_lacks 'Permission denied' && out_has 'Found .env. It was not changed.' && echo ok)" = ok
+fi
+chmod 600 "$c/judge/.env"
 
 # --- waiting ---
 
@@ -522,6 +609,7 @@ printf '%s\n' 'running unhealthy' 'running unhealthy' 'restarting ' 'running hea
 run_install
 check "unhealthy and restarting keep waiting until healthy" test "$(exit_is 0 && ready_block 52773 && echo ok)" = ok
 check "unhealthy: three progress lines" test "$(out_count '^Waiting, ')" -eq 3
+check "a poll with no health state: the line holds the elapsed time and the state only" out_has_re '^Waiting, [0-9]+ s so far: container restarting$'
 
 new_case never-ready
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -530,6 +618,7 @@ run_install OCUTALON_INSTALL_WAIT=2 STUB_SLEEP=1
 check "never ready: exit 1" exit_is 1
 check "never ready: says it was not ready after the wait" out_has_re '^OcuTalon was not ready after [0-9]+ s, the longest this script waits\.$'
 check "never ready: the logs command, the README section, and nothing removed" failure_help
+check "never ready: names the container's state and its health check" out_has "(state: running, health check: starting) may still become ready later"
 check "never ready: a progress line was printed" test "$(out_count '^Waiting, ')" -ge 1
 
 for st in "exited" "dead" "NONE"; do
@@ -554,6 +643,7 @@ run_install
 check "up fails: exit 1" exit_is 1
 check "up fails: plain message with the logs command and the README section" test "$(out_has 'Docker Compose could not start OcuTalon' && failure_help && echo ok)" = ok
 check "up fails: no poll afterwards" test "$(call_count '^compose ps')" -eq 0
+check "up fails: compose's own messages (both streams) stay on screen, as the message above says" test "$(out_has 'stub: compose up' && out_has 'message on standard error' && echo ok)" = ok
 
 new_case other-folder
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -562,6 +652,14 @@ run_install
 check "other folder: exit 0" exit_is 0
 check "other folder: .env is created in the script's folder" env_is_example
 check "other folder: nothing is written to the working folder" test -z "$(ls -A "$c/elsewhere")"
+
+new_case bare-script-name
+add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+RUN_CWD="$c/judge"
+RUN_SCRIPT="install.sh"
+run_install
+check "bash install.sh, a name with no slash, from the script's own folder: exit 0" exit_is 0
+check "bash install.sh, a name with no slash: .env is created in that folder" env_is_example
 
 new_case cdpath
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -577,7 +675,7 @@ new_case read-only-folder
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 chmod 555 "$c/judge"
 if [ -w "$c/judge" ]; then
-  pass "read-only folder: skipped, because this user can write to a folder of mode 555"
+  echo "SKIP read-only folder: this user can write to a folder of mode 555"
 else
   run_install
   check "read-only folder, no .env: exit 1 with the fix" test "$(exit_is 1 && out_has 'This folder is read-only for you' && echo ok)" = ok
@@ -611,8 +709,8 @@ done
 new_case poll-leading-zero
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 printf '%s\n' 'running starting' 'running healthy' > "$d/health"
-run_install OCUTALON_INSTALL_POLL=007
-check "OCUTALON_INSTALL_POLL=007 is 7 s, in base 10" test "$(cat "$d/sleeps")" = 7
+run_install OCUTALON_INSTALL_POLL=08
+check "OCUTALON_INSTALL_POLL=08 is 8 s, in base 10 (08 is not an octal number)" test "$(cat "$d/sleeps")" = 8
 for bad in soon ""; do
   new_case "wait-bad-$bad"
   add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -620,11 +718,24 @@ for bad in soon ""; do
   run_install OCUTALON_INSTALL_WAIT="$bad" OCUTALON_INSTALL_POLL=1 STUB_SLEEP=1
   check "OCUTALON_INSTALL_WAIT='$bad' falls back to the default: two real seconds of waiting do not end the wait" test "$(exit_is 0 && ready_block 52773 && echo ok)" = ok
 done
+# The 15 minutes. A poll longer than the wait that is left makes the first sleep the wait that is left (the stub sleep returns at once), so
+# the default and both fallbacks of OCUTALON_INSTALL_WAIT are observed without waiting 15 minutes. These cases keep their sleep log under
+# another name, because a sleep of 900 s is not a poll of the judges' path (every sleep of that path is checked below).
+for w in "" soon 1234567 99999999999999999999 -5 0900; do
+  new_case "wait-default-$w"
+  add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
+  printf '%s\n' 'running starting' 'running healthy' > "$d/health"
+  run_install OCUTALON_INSTALL_POLL=1000 OCUTALON_INSTALL_WAIT="$w"
+  first=$(head -n 1 "$d/sleeps" 2>/dev/null)
+  mv "$d/sleeps" "$d/sleeps.capped" 2>/dev/null
+  check "OCUTALON_INSTALL_WAIT='$w' waits 15 minutes (900 s): the first sleep is capped at the time that is left" test "$(exit_is 0 && test "${first:-0}" -ge 890 && test "${first:-0}" -le 900 && echo ok)" = ok
+done
 new_case wait-caps-sleep
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
 echo 'running starting' > "$d/health"
 run_install OCUTALON_INSTALL_POLL=10 OCUTALON_INSTALL_WAIT=3 STUB_SLEEP=1
-check "the last sleep never goes past the wait" test "$(exit_is 1 && head -n 1 "$d/sleeps")" = 3
+# The wait that is left is 3 s at the first poll, or less when the clock's second ticks between the start of `up -d` and that poll.
+check "the last sleep never goes past the wait: every sleep is capped at the wait that is left (1 to 3 s)" test "$(exit_is 1 && test -s "$d/sleeps" && awk '$1 < 1 || $1 > 3 { bad = 1 } END { exit bad }' "$d/sleeps" && echo ok)" = ok
 
 # --- across all cases ---
 
@@ -632,13 +743,14 @@ all_calls="$tmp/all-calls"
 cat "$tmp"/*/data/calls > "$all_calls"
 call_allowed() {
   case $1 in
-    "version --format "*) ;;
-    "compose version"*) ;;
-    "image ls --format "*) ;;
-    "image inspect --format "*) ;;
+    "version --format {{.Server.Arch}}") ;;
+    "compose version --short") ;;
+    "image ls --format {{.Repository}}:{{.Tag}} {{.ID}}") ;;
+    "image inspect --format {{.Architecture}} "*) ;;
+    "image inspect --format {{.Id}} {{.Architecture}} "*) ;;
     "tag "*) ;;
     "compose up -d") ;;
-    "compose ps --all --format "*) ;;
+    "compose ps --all --format {{.State}} {{.Health}} iris") ;;
     "compose port iris 52773") ;;
     *) return 1 ;;
   esac
@@ -677,6 +789,7 @@ eol=$(git check-attr eol -- install.sh 2>/dev/null | sed 's/.*: //')
 check ".gitattributes: install.sh keeps LF on every checkout" test "$eol" = lf
 script_tag=$(sed -n 's/^TAG=//p' "$script")
 check "install.sh: its TAG is this test's tag and the tag of the compose file's default image" test "$(test "$script_tag" = "$TAG" && grep -qF "IRIS_IMAGE:-ocutalon-iris-base:$script_tag}" "$root/docker-compose.yml" && echo ok)" = ok
+check "docker-compose.yml: the service is iris and it publishes container port 52773 (what install.sh polls and asks about)" test "$(grep -qE '^  iris:$' "$root/docker-compose.yml" && grep -qF ':52773"' "$root/docker-compose.yml" && echo ok)" = ok
 sed -n '/^fmt_time() {/,/^}/p' "$script" > "$tmp/fmt_time.sh"
 # shellcheck source=/dev/null
 . "$tmp/fmt_time.sh"
@@ -684,7 +797,7 @@ check "fmt_time: 45 s is '45 s'" test "$(fmt_time 45)" = "45 s"
 check "fmt_time: 60 s is '1 min 0 s'" test "$(fmt_time 60)" = "1 min 0 s"
 check "fmt_time: 125 s is '2 min 5 s'" test "$(fmt_time 125)" = "2 min 5 s"
 code=$(grep -v '^[[:space:]]*#' "$script")
-forbidden='docker( (compose|image|volume|container))? +(push|login|logout|pull|save|export|rm|rmi|prune|kill)([[:space:]]|$)|compose +(down|stop|rm|config|convert)([[:space:]]|$)|(image|volume) +rm([[:space:]]|$)|(^|[;&|])[[:space:]]*sudo([[:space:]]|$)|[$][(][[:space:]]*sudo'
+forbidden='docker( (compose|image|volume|container|system|builder|buildx|network))? +(push|login|logout|pull|save|export|rm|rmi|prune|kill)([[:space:]]|$)|compose +(down|stop|rm|config|convert)([[:space:]]|$)|(image|volume) +rm([[:space:]]|$)|(^|[;&|(!])[[:space:]]*sudo([[:space:]]|$)|(^|[[:space:]])(if|then|do|else|elif|while|until)[[:space:]]+sudo([[:space:]]|$)|[$][(][[:space:]]*sudo'
 check "install.sh text: no forbidden docker word or sudo command" test -z "$(printf '%s\n' "$code" | grep -nE "$forbidden")"
 insp=inspect
 check "install.sh text: every image inspect call has --format" test -z "$(printf '%s\n' "$code" | grep -E "docker( image)? $insp" | grep -v -e '--format')"

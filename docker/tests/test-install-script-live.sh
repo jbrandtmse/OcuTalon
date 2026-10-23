@@ -61,7 +61,7 @@ plain_healthy() { [ "$(dc ps --all --format '{{.State}} {{.Health}}' iris 2>/dev
 
 # --- 1. the Health image of this run ---
 
-if [ ! -e "$root/.env" ]; then env_created=1; fi
+if [ ! -e "$root/.env" ] && [ ! -L "$root/.env" ]; then env_created=1; fi
 if docker tag "$base_image" "$src_ref"; then
   pass "$src_ref is a second name of the shared base's id"
 else
