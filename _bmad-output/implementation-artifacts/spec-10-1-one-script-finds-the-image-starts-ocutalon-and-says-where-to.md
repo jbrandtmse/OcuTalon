@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-10-23'
 status: 'done'
 baseline_revision: '394e419563d0114e3af011c6f1709b12fc926607'
-baseline_commit: '0ce80fd21437659672164fce39c7e4eb09705001'
+baseline_commit: '394e419563d0114e3af011c6f1709b12fc926607'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
@@ -318,7 +318,7 @@ Rejected:
 3. **An existing base is used as it is,** and is identified by ID. Its CPU is checked. The fix for a wrong CPU is a `docker tag`, which moves the name. The script never re-points the name itself.
 4. **"Compose v2"** means the `docker compose` plugin, version 2.24 or later. Version 5.5.0 is installed here, so a `^2\.` test would wrongly refuse it.
 5. **The machine's CPU** is the daemon's architecture, not `uname -m`, which is wrong in a Rosetta shell.
-6. **The script always runs `up -d`,** so a rerun after `git pull` upgrades in place (Stories 11.2 and 11.3). "At once" means the first poll is already healthy.
+6. **[Superseded by ruling U-45, 2026-10-23: a healthy install gets no `up`; see the last bullet and Design Note 16.]** The plan's reading was: the script always runs `up -d`, so a rerun after `git pull` upgrades in place (Stories 11.2 and 11.3). "At once" means the first poll is already healthy.
    - (inference) Compose keeps a container whose image ID and configuration are unchanged.
    - The live unit's rerun check measures this. If compose recreates the container anyway, the implement stage records it and escalates "at once" as an intent question. It does not weaken the check.
    - (measured, implement stage) With Docker Compose 5.5.0 and the containerd image store on Apple silicon, the second `up -d` rebuilt from cache and kept the healthy iris container: the container ID was unchanged and the ready block printed at once, with no progress line. The check stands as written and no intent question arises.
