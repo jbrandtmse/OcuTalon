@@ -153,3 +153,6 @@
 2026-10-23T16:39:55Z	Epic 32	epic_status_done	stories=4 note=kept_done_through_the_reopen(validate_accepted_done_epic_with_open_story)
 2026-10-23T16:39:55Z	Epic 32	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=3.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false gate=record_only scope=story_32.4
 2026-10-23T16:39:55Z	Epic 32	epic_retro_skipped	reason=policy
+2026-10-23T16:43:24Z	Epic 32	smoke_complete	scope=integrated_tree method=cli result=pass evidence=ci/checks.sh_all_passed(55s);test-ci-warm.sh_--live_all_live_checks_passed(117s,lane_c,e32s4lt);tree_byte-identical;source_tree_identical_to_c89f5ca(CI_green) model=claude-opus-5-5
+2026-10-23T16:43:24Z	Epic 32	integrated_forward	feature=21eba88 head=989729d conflicts_resolved=none
+2026-10-23T16:43:24Z	Epic 32	epic_runner_complete	stories_completed=1 scope=reopen(story_32.4)
