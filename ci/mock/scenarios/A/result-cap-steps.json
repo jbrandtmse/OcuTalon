@@ -1,0 +1,58 @@
+{
+  "name": "result-cap-steps",
+  "match": {
+    "marker": "result-cap-steps"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 25000
+          }
+        },
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 25000
+          }
+        },
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 100
+          }
+        },
+        {
+          "name": "zz_result_object",
+          "input": {
+            "chars": 10
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 39000
+          }
+        },
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 2000
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the results of every step."
+    }
+  ]
+}

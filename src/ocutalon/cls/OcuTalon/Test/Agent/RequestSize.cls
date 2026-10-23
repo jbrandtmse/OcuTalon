@@ -10,7 +10,10 @@
 ///     no Usage row was written, and the link and the saved session's data are as they were; B's turn, of the same size without the history, is answered;
 ///   - TestCompactFlag: a user turn with about 170,000 characters of input (an estimate between 40,000 and 100,000 tokens) is sent to ChatAgent with Compact 1,
 ///     a short user turn with Compact 0; the long turn is sent as it is, answered with the chat script's text, and the mock logged one request that carries the
-///     whole input; the Usage row of the long turn records a largest request above 40,000 tokens and under 100,000.
+///     whole input; the Usage row of the long turn records a largest request above 40,000 tokens and under 100,000;
+///   - TestLimitIsNeverOff: with Decide's RequestTokenLimit row at 0, at abc and at 100001, in turn, a user turn estimated at 100,001 tokens is answered with
+///     a too_large fallback Reply, Decide sends ChatAgent nothing for it and the mock sees nothing of it, a short user turn is answered and reaches the mock
+///     once, and every precheck logs one warning that names RequestTokenLimit.
 /// OnAfterOneTest puts back what a test changed, also when it failed: the Decision, Usage and AgentStep rows of its items, the System Default Settings row it wrote
 /// (Decide's RequestTokenLimit) with the item it restarted, and the AI sessions it saved with the links that name them.
 Class OcuTalon.Test.Agent.RequestSize Extends %UnitTest.TestCase
@@ -66,7 +69,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..SavedRows = ""
 	If ..DecideChanged && running {
 		Set ..DecideChanged = 0
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).Restart(..#PRODUCTION_"||Decide")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Restart(..#PRODUCTION_"||Decide"), "Decide is started again with the settings it had")
 	}
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Quit $$$OK
@@ -175,7 +178,52 @@ Method TestCompactFlag()
 	Do $$$AssertEquals(..SentCompact(sessionShort), 0, "the request that Decide sent to ChatAgent has Compact 0")
 }
 
+/// The limit cannot be turned off or raised by a bad setting (AC7), in the running production. For each of the rows 0, abc and 100001 of Decide's
+/// RequestTokenLimit, Decide is started again and takes it. A user turn whose estimate is 100,001 tokens, one above the largest limit, is answered with a
+/// too_large fallback Reply (every guarantee of a fallback holds): Decide sent no request to ChatAgent and the mock saw nothing of it. A short user turn is
+/// answered with the text of the chat script and reached the mock once, so the limit is not 0 either. Each precheck logs one warning that names
+/// RequestTokenLimit, so the value is reported and not used.
+Method TestLimitIsNeverOff()
+{
+	If '..Prepare() Quit
+	Set fixture = ..#FIXTURE
+	Set mock = ..#MOCK
+	For value = "0", "abc", "100001" {
+		Set label = "RequestTokenLimit '"_value_"': "
+		Do ..Put("Decide", "RequestTokenLimit", value)
+		Set ..DecideChanged = 1
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Restart", ..#PRODUCTION_"||Decide"), label_"Decide is started again with it")
+		Set over = ..OverTurn(.refOver)
+		Set short = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:recall-tell]] Say hello.", .refShort)
+		Set ..ItemIds = ..ItemIds _ $ListBuild(refOver, refShort)
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).EstimateTokens(over, ..#RUNNER), 100001, label_"control: the long turn is estimated at 100,001 tokens")
+		Set mark = $ClassMethod(mock, "LogMark")
+		Set events = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Run", over, .answer, .session), label_"the long turn is answered")
+		Set row = $ClassMethod(fixture, "DecisionOf", refOver, "turn")
+		Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "too_large"), "", label_"a tellnow fallback Reply with the reason too_large, in the answer, its XML and the row")
+		Do $$$AssertEquals($ClassMethod(fixture, "CountTo", $ClassMethod(fixture, "Headers", session, "Decide"), ..#RUNNER), 0, label_"Decide sent no request to ChatAgent")
+		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", events, "OcuTalon.Bridge.Process.Decide", "Precheck", $ListBuild("RequestTokenLimit")), 1, label_"its precheck logged one warning that names RequestTokenLimit")
+		Set events = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Run", short, .answerShort), label_"the short turn is answered")
+		Do $$$AssertEquals($Select($IsObject(answerShort): answerShort.Fallback_"|"_answerShort.Text, 1: "none"), "0|"_..#TELLTEXT, label_"with the text of the chat script and no fallback")
+		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", events, "OcuTalon.Bridge.Process.Decide", "Precheck", $ListBuild("RequestTokenLimit")), 1, label_"and its precheck logged one warning too")
+		Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), label_"the mock's log is read")
+		Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, refOver).%Size(), 0, label_"nothing of the long turn reached the mock")
+		Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, refShort).%Size(), 1, label_"and the short turn reached it once")
+	}
+}
+
 /// --- helpers ---
+/// A user turn for ChatAgent whose estimate is 100,001 tokens (EstimateTokens: the agent part and the input, with no history), with a new reference in ref.
+ClassMethod OverTurn(Output ref As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ##class(OcuTalon.Test.Agent.RunnerFixture).NewRequest("turn", "user", "[[mock:recall-tell]] A turn above the largest request.", .ref)
+	Set agent = ##class(OcuTalon.Bridge.RequestSize).AgentChars("OcuTalon.Agent.Chat")
+	Set request.Input = request.Input_$Translate($Justify("", 400004 - agent - $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, 0))), " ", "a")
+	Quit request
+}
+
 /// The Compact flag of the request that Decide sent to ChatAgent in the session: the message body of the header to ChatAgent, or "none" when there is none.
 ClassMethod SentCompact(session As %Integer) As %String [ Private ]
 {

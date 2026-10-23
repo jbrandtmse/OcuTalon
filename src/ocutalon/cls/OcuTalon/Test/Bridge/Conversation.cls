@@ -67,8 +67,8 @@ Parameter CAP = 8000;
 
 /// How far Decide's estimate of a turn that continues may be from the runner's own estimate of its first model step, in percent of the runner's: the stored
 /// history holds the system prompt that the agent part counts too, so the estimate is the larger (measured in Story 1.9: 24 percent for a first exchange of
-/// 4,000 characters, and the band is that and 5 points more). The gap is the same few hundred characters whatever the conversation, so it shrinks as the
-/// history grows.
+/// 4,000 characters, and the band is that and 5 points more). The gap is the agent's system prompt and the envelope of the stored value, 901 + 328 = 1,229
+/// characters (about 310 tokens) for Chat, the same whatever the conversation, so it shrinks as the history grows.
 Parameter BANDPERCENT = 29;
 
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.

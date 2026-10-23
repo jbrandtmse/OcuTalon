@@ -609,7 +609,8 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 ///      (Data.ConversationLink SessionOf), only for a linked turn (Adapter.Agent IsLinked) whose SessionMode is not fresh. It is 0 for
 ///      every other request, and for a turn with no link.
 ///   3. The input: the length of what the runner sends (Adapter.Agent ChatInput), with the seed only on a linked fresh turn.
-/// sc is an error when the agent part could not be read (the class is unknown or its setting cannot be read); that part then counts 0.
+/// sc is an error when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
+/// INSTRUCTIONS or a toolset cannot be read (that piece counts 0 and the rest is counted, RequestSize.AgentChars).
 ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status) As %Integer
 {
 	Set sc = $$$OK

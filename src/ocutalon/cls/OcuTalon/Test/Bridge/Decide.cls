@@ -133,7 +133,11 @@
 ///   - TestOnRequestPrecheck and TestResendPrecheck: a decide, a user turn and a re-send whose estimate is above the limit record a too_large fallback
 ///     and send nothing, no runner request and no timer;
 ///   - TestCompactFlag: the request that Decide sends carries Compact 1 exactly for a turn estimated above 40,000 tokens (a user turn and an untrusted
-///     turn, any SessionMode), also on the re-send, and 0 for a turn at 40,000, a decide, a diagnose and a turn whose caller set the flag.
+///     turn, any SessionMode), also on the re-send, and 0 for a turn at 40,000, a decide, a diagnose and a turn whose caller set the flag;
+///   - TestResendTooLargeSendsNothing: the key resend of a decide and of a user turn whose estimate is above the limit sends no request and sets no timer
+///     (the recorder shows it), leaves Resends at 0 and records a too_large fallback with one decision.recorded; at the limit it sends;
+///   - TestRequestLimitThroughOnRequest: the limit that OnRequest and the key resend apply is the one the setting row gives (an empty row, 5000 and the
+///     invalid 0, -1, abc, 1.5 and 100001 as 100000 with one warning that names RequestTokenLimit), so a decide one token above it sends nothing.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
 /// Every test removes the Usage rows it made, and the AI sessions it saved with the links that name them.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
@@ -1696,6 +1700,78 @@ Method TestRequestLimitSetting()
 	Do $$$AssertEquals(..LogRowsHolding(mark, fake), 0, "which holds no Bearer token: it is redacted")
 }
 
+/// The limit that OnRequest applies comes from the setting row, also for a value that is not a number (Story 1.9; AD-8, AD-19, NFR-3). Each case writes the
+/// System Default Settings row of Decide's RequestTokenLimit and assigns the value to a recorder as the host does (AssignOneSetting). OnRequest then sends a
+/// decide estimated at the limit (one request to TriageAgent and one timer) and answers a decide one token above it with a too_large DecisionResponse,
+/// sending nothing and setting no timer, and so does the key resend of that decide. The limit is the whole number from 1 to 100000 that the row holds
+/// (5000); it is 100000 for an empty row, with no warning, and for 0, -1, abc, 1.5 and 100001, with one warning that names RequestTokenLimit at each
+/// precheck, so it is never off and never above 100000.
+Method TestRequestLimitThroughOnRequest()
+{
+	Set size = "OcuTalon.Bridge.RequestSize"
+	Set agentChars = $ClassMethod(size, "AgentChars", "OcuTalon.Agent.Triage")
+	Set cases = $ListBuild($ListBuild("", 100000, 0), $ListBuild("5000", 5000, 0), $ListBuild("0", 100000, 1), $ListBuild("-1", 100000, 1), $ListBuild("abc", 100000, 1), $ListBuild("1.5", 100000, 1), $ListBuild("100001", 100000, 1))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set value = $List(case, 1)
+		Set limit = $List(case, 2)
+		Set warnings = $List(case, 3)
+		Set label = "RequestTokenLimit '"_value_"': "
+		Do ..PutKey("TriageAgent")
+		Do ..Unmark()
+		Do ..Put("Decide", "DailyCostCapUSD", 0)
+		Do ..Put("Decide", "GatewaySpendUSD", "")
+		Do ..Put("Decide", "GatewaySpendDate", "")
+		Do ..Put("Decide", "RequestTokenLimit", value)
+		For over = 0, 1 {
+			Set request = ..RequestOfTokens("decide", "untrusted", limit + over, agentChars)
+			Set what = "a decide of "_(limit + over)_" tokens"
+			Kill ^||ZzDecideCalls, ^||ZzProbeSink
+			Set process = ..NewRecorder()
+			Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+			Set process.HostSinkClass = ..#SINK
+			Set process.TimerSeconds = 60
+			Set process.DecisionTokenBudget = 0
+			Set process.%SessionId = 4256
+			Do $$$AssertStatusOK(process.AssignOneSetting("RequestTokenLimit", value, "RequestTokenLimit"), label_"the setting is assigned")
+			Set mark = ..LogMark()
+			Set response = ""
+			Set sc = process.OnRequest(request, .response)
+			Do $$$AssertStatusOK(sc, label_what_" is answered by OnRequest")
+			Do $$$AssertEquals(..RecorderWarnings(mark, "RequestTokenLimit"), warnings, label_what_" gets "_$Select(warnings: "one warning that names the setting", 1: "no warning"))
+			If 'over {
+				Do $$$AssertEquals(response, "", label_what_" is at the limit: nothing is answered yet")
+				Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_..Rows(request.ItemId), "1|1|0", label_what_" is sent to its runner, with one timer and no row")
+				Continue
+			}
+			Set row = ..RowOf(request.ItemId, "decide")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(response, row, "decide", "too_large"), "", label_what_" is one token above the limit: a tellnow fallback with the reason too_large")
+			Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "0|0", label_what_" is not sent, and no timer is set")
+
+			// the key resend of the same decide
+			Kill ^||ZzDecideCalls, ^||ZzProbeSink
+			Set resender = ..NewRecorder()
+			Set resender.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+			Set resender.HostSinkClass = ..#SINK
+			Set resender.TimerSeconds = 60
+			Set resender.DecisionTokenBudget = 0
+			Set resender.%SessionId = 4256
+			Set resender.%TimeCreated = ..Ago(3)
+			Set resender.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Do $$$AssertStatusOK(resender.AssignOneSetting("RequestTokenLimit", value, "RequestTokenLimit"), label_"the setting is assigned to the process of the re-send")
+			Set request = ..RequestOfTokens("decide", "untrusted", limit + 1, agentChars)
+			Set mark = ..LogMark()
+			Set again = ""
+			Do $$$AssertStatusOK(resender.OnResponse(request, .again, "", "", "resend"), label_"the key resend is answered")
+			Set row = ..RowOf(request.ItemId, "decide")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(again, row, "decide", "too_large"), "", label_"the re-send of a decide of "_(limit + 1)_" tokens is a too_large fallback too")
+			Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_resender.Resends, "0|0|0", label_"and sends nothing")
+			Do $$$AssertEquals(..RecorderWarnings(mark, "RequestTokenLimit"), warnings, label_"with "_$Select(warnings: "one warning that names the setting", 1: "no warning"))
+		}
+		Do ..RestoreRows()
+	}
+}
+
 /// The request that Decide sends to a runner carries the flag Compact (Story 1.9; AD-6, AD-20), set by Decide alone: 1 exactly when the request is a turn
 /// (a user's or an untrusted one, any SessionMode) whose estimate is above 40000 tokens, and 0 for every other request, whatever the caller set. The
 /// first send and the re-send build the request in the same place. With the recorder (Test.Bridge.ZzDecide) the sent request's flag is its seventh
@@ -1745,6 +1821,7 @@ Method TestCompactFlag()
 		Set process.HostSinkClass = ..#SINK
 		Set process.TimerSeconds = 60
 		Set process.DecisionTokenBudget = 0
+		Set process.RequestTokenLimit = 100000
 		Set process.%SessionId = 4254
 		Set sc = process.OnRequest(request, .response)
 		Do $$$AssertStatusOK(sc, label_"OnRequest sends the request")
@@ -1993,6 +2070,7 @@ Method TestResendPrecheck()
 		Set process.%TimeCreated = ..Ago(3)
 		Set process.TimerSeconds = 60
 		Set process.DecisionTokenBudget = 0
+		Set process.RequestTokenLimit = 100000
 		Set process.StepCount = 3
 		Set ref = ..NewUsageRef()
 		Set process.DecisionRef = ref
@@ -2023,6 +2101,48 @@ Method TestResendPrecheck()
 		} Else {
 			Do $$$AssertEquals(..SinkTypes(), "decision.recorded", label_"one decision.recorded")
 		}
+		Do ..RestoreRows()
+	}
+}
+
+/// A re-send whose estimate is above the request-size limit sends nothing (Story 1.9; AD-1, AD-8, AD-20, NFR-3), for a decide and for a user turn. With the
+/// recorder (Test.Bridge.ZzDecide) the key resend of a process whose limit is the estimate sends one request to the runner and sets one timer (Resends 1,
+/// no row, nothing answered); with the limit one token below the estimate it sends no request and sets no timer, leaves Resends at 0, records a tellnow
+/// fallback with the reason too_large for the DecisionRef of the process (every guarantee of a fallback, in the answer, its XML and the row), answers with
+/// a DecisionResponse or a Reply with no text, and fires one decision.recorded.
+Method TestResendTooLargeSendsNothing()
+{
+	For case = $ListBuild("decide", "untrusted", "TriageAgent"), $ListBuild("turn", "user", "ChatAgent") {
+		Set kind = $List(case, 1)
+		Set runner = $List(case, 3)
+		Set label = "the re-send of a "_$List(case, 2)_" "_kind_": "
+		Do ..PutKey(runner)
+		Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set request = ..NewRequest(kind, $List(case, 2))
+		If kind = "turn" Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set estimate = $ClassMethod("OcuTalon.Bridge.Process.Decide", "EstimateTokens", request, runner)
+
+		// the limit at the estimate: the request is sent again
+		Set process = ..ResendRecorder(60, 3, ref)
+		Set process.RequestTokenLimit = estimate
+		Set response = ""
+		Set sc = process.OnResponse(request, .response, "", "", "resend")
+		Do $$$AssertStatusOK(sc, label_"control: with the limit at the estimate, "_estimate_" tokens, the key resend is answered with status OK")
+		Do $$$AssertEquals(response, "", label_"control: and nothing is answered")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_process.Resends_"|"_..Rows(request.ItemId), "1|1|1|0", label_"control: one request is sent to the runner and one timer is set, with no row")
+
+		// one token below the estimate: nothing is sent
+		Set process = ..ResendRecorder(60, 3, ref)
+		Set process.RequestTokenLimit = estimate - 1
+		Set response = ""
+		Set sc = process.OnResponse(request, .response, "", "", "resend")
+		Do $$$AssertStatusOK(sc, label_"with the limit one token below the estimate the key resend is answered with status OK")
+		Set row = ..RowOf(request.ItemId, kind)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FallbackProblems(response, row, kind, "too_large"), "", label_"a tellnow fallback with the reason too_large, in the answer, its XML and the row")
+		If $IsObject(row) Do $$$AssertEquals(row.Ref_"|"_row.TraceSessionId, ref_"|4253", label_"the row has the DecisionRef and the session of the process")
+		If (kind = "turn") && $IsObject(response) Do $$$AssertEquals(response.Text_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "|0|0|0|0|0", label_"the Reply has no text and sets no flag")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_process.Resends, "0|0|0", label_"no request is sent, no timer is set and Resends is unchanged")
+		Do $$$AssertEquals(..SinkTypes(), "decision.recorded", label_"one decision.recorded")
 		Do ..RestoreRows()
 	}
 }
@@ -2565,8 +2685,8 @@ ClassMethod NewSession(chars As %Integer) As %String [ Private ]
 }
 
 /// A recorder (Test.Bridge.ZzDecide) for the key resend, for a process that began the number of seconds ago with that TimerSeconds, whose precheck
-/// passes: TriageAgent has a model key, the daily cap and the token budget are off and the day is not marked. The rows it puts are put back by
-/// RestoreRows (and OnAfterOneTest). The calls of an earlier recorder are forgotten.
+/// passes: TriageAgent has a model key, the daily cap and the token budget are off, the request-size limit is 100,000 and the day is not marked. The rows
+/// it puts are put back by RestoreRows (and OnAfterOneTest). The calls of an earlier recorder are forgotten.
 Method ResendRecorder(timer As %Integer, ago As %Numeric, ref As %String) As OcuTalon.Test.Bridge.ZzDecide [ Private ]
 {
 	Do ..PutKey("TriageAgent")
@@ -2582,6 +2702,7 @@ Method ResendRecorder(timer As %Integer, ago As %Numeric, ref As %String) As Ocu
 	Set process.TimerSeconds = timer
 	Set process.%TimeCreated = ..Ago(ago)
 	Set process.DecisionTokenBudget = 0
+	Set process.RequestTokenLimit = 100000
 	Set process.DecisionRef = ref
 	Quit process
 }
@@ -2900,6 +3021,13 @@ Method Unmark() [ Private ]
 {
 	Set ..DayMarked = 1
 	Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
+}
+
+/// The number of warnings of a recorder's Precheck (Test.Bridge.ZzDecide, a subclass of Decide) after the mark that hold the needle: a class method logs under the
+/// class of the instance that calls it, so the recorder's warnings are those of ZzDecide.
+ClassMethod RecorderWarnings(mark As %Integer, needle As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Test.Bridge.ZzDecide", "Precheck", $ListBuild(needle))
 }
 
 /// The number of warnings of Decide's Precheck after the mark that hold the needle.

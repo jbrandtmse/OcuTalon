@@ -22,7 +22,8 @@
 ///     table or its globals; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
 ///   - TestToolsReturnThroughResult (Story 1.9; AD-10, Consistency Conventions: Tool results): every product tool provider (a class of OcuTalon.Tools that
 ///     extends %AI.Tool, is not a toolset and is not Result) extends OcuTalon.Tools.Result, and none of its code lines quits or returns a value other than
-///     the call ..Return(, so no tool returns a literal or a pre-encoded JSON string. The scanner is first shown to flag samples that break the rule;
+///     the call ..Return(, or passes that call, on the same line, a JSON text built beforehand (%ToJSON, a conversion to JSON, a JSON literal), so no tool returns a literal or
+///     a pre-encoded JSON string. The scanner is first shown to flag samples that break the rule and to pass plain text;
 ///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
 ///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool.
@@ -64,6 +65,12 @@ Parameter SESSIONMAKERS = "OcuTalon.Bridge.Adapter.Agent";
 /// A reference to the conversation link: the class (as a class or as the table OcuTalon_Bridge_Data.ConversationLink), or a global that holds its rows
 /// or its lock (^OcuTalonBP.ConvLink..., ^OcuTalonBP.Conv).
 Parameter LINKREFERENCE = "conversationlink|ocutalonbp\.conv";
+
+/// A call of ..Return( whose argument, on the same line, is a JSON text that was built beforehand: it holds a call of %ToJSON or the literal "JSON" (a
+/// conversion to a JSON string), or it is a string literal of a JSON object or array: an empty one, an object whose first name is quoted, or an array whose
+/// first member is a quoted string or an object. A literal that starts with a bracket and a word, such as "[reminder set]", is plain text. AI Hub encodes a
+/// string result again, so the model would get a JSON string literal; a dynamic object is what the tool has to pass (AD-10).
+Parameter PREENCODED = "(?i)\.\.Return\((.*(\.%ToJSON\s*\(|""JSON"")|\s*""(\{\s*(""""|\})|\[\s*(""""|\{|\])))";
 
 /// The classes that may name the link class: the link itself, the adapter (which opens and writes links) and Decide (which probes the lock and reads the
 /// session that a link names).
@@ -254,7 +261,19 @@ Method TestToolsReturnThroughResult()
 	Set good = "/// Never Quit ""x"" in a comment."_lf_head_tab_"// Quit ""{}"""_lf_tab_"If production = ""x"" Quit"_lf_tab_"Set title = ""Return of the tool and Quit 1"""_lf_tab_"Quit ..Return({""items"": []})"_tail
 	Set commented = head_tab_"Quit ""x"" // note"_tail
 	Set bare = head_tab_"If production = ""x"" { Quit }"_lf_tab_"Quit   // nothing more to do"_lf_tab_"Quit ..Return({""items"": []}) ; the answer"_tail
+	Set viaToJson = head_tab_"Quit ..Return({""items"": []}.%ToJSON())"_tail
+	Set viaVariable = head_tab_"Set object = {""items"": []}"_lf_tab_"Quit ..Return(object.%ToJSON()) // the answer"_tail
+	Set viaLiteral = head_tab_"Quit ..Return(""{""""items"""":[]}"")"_tail
+	Set viaConvert = head_tab_"Quit ..Return($ZConvert(text, ""O"", ""JSON""))"_tail
+	Set viaShapes = head_tab_"If a Quit ..Return(""[]"")"_lf_tab_"If b Quit ..Return(""{}"")"_lf_tab_"If c Quit ..Return(""[{""""a"""":1}]"")"_lf_tab_"Quit ..Return(""{ """"a"""": 1 }"")"_tail
+	Set plain =head_tab_"Quit ..Return(""[reminder set]"")"_lf_tab_"Quit ..Return(""The JSON of the item is shown below."")"_lf_tab_"Quit ..Return($ZConvert(text, ""L""))"_tail
 	Do $$$AssertTrue(..ToolProblem(1, literal) '= "", "the scanner flags a tool that returns a literal")
+	Do $$$AssertTrue(..ToolProblem(1, viaToJson) '= "", "and one that passes ..Return( the JSON text of an object")
+	Do $$$AssertTrue(..ToolProblem(1, viaVariable) '= "", "also through a variable and with a comment after it")
+	Do $$$AssertTrue(..ToolProblem(1, viaLiteral) '= "", "and one that passes ..Return( a JSON literal")
+	Do $$$AssertTrue(..ToolProblem(1, viaConvert) '= "", "and one that passes ..Return( a conversion to a JSON string")
+	Do $$$AssertTrue(..ToolProblem(1, viaShapes) [ "4 line(s) pass a pre-encoded JSON text", "and each of an empty array, an empty object, an array of objects and an object with space after its brace: "_..ToolProblem(1, viaShapes))
+	Do $$$AssertEquals(..ToolProblem(1, plain), "", "but not plain text: a literal that starts with a bracket, a text that mentions JSON and a text conversion")
 	Do $$$AssertTrue(..ToolProblem(1, commented) '= "", "also when a comment follows the literal")
 	Do $$$AssertTrue(..ToolProblem(1, encoded) '= "", "and one that returns a pre-encoded JSON string through a variable")
 	Do $$$AssertTrue(..ToolProblem(1, returns) '= "", "and one that uses Return")
@@ -498,14 +517,15 @@ ClassMethod LinkMethodsSaving(text As %String) As %List [ Private ]
 	Quit methods
 }
 
-/// What breaks the rule of a tool provider (AD-10): "" when it extends Result (extendsResult is 1) and no code line of the text quits or returns a value other
-/// than the call ..Return(, otherwise the reasons separated by semicolons. A string literal is blanked first, so a word inside a string is no command, and a
+/// What breaks the rule of a tool provider (AD-10): "" when it extends Result (extendsResult is 1), no code line of the text quits or returns a value other
+/// than the call ..Return(, and no call of ..Return( passes a JSON text built beforehand (PREENCODED), otherwise the reasons separated by semicolons. A string literal is blanked first, so a word inside a string is no command, and a
 /// trailing comment is dropped; a Quit with no value, also one that ends a block on its line, is fine.
 ClassMethod ToolProblem(extendsResult As %Boolean, text As %String) As %String [ Private ]
 {
 	Set problems = ""
 	If 'extendsResult Set problems = "does not extend OcuTalon.Tools.Result"
 	Set returned = 0
+	Set encoded = 0
 	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
 	Set position = 0
 	While $ListNext(lines, position, line) {
@@ -513,8 +533,10 @@ ClassMethod ToolProblem(extendsResult As %Boolean, text As %String) As %String [
 		Set comment = $Locate(code, "(^|\s)(//|;|#;)")
 		If comment Set code = $Extract(code, 1, comment - 1)
 		If $Locate(code, "(?i)(^|[\s{;])(quit|return)(:\S+)?\s+(?!\.\.return\()[^\s}]") Set returned = returned + 1
+		If $Locate(line, ..#PREENCODED) Set encoded = encoded + 1
 	}
 	If returned Set problems = problems _ $Select(problems = "": "", 1: "; ") _ returned _ " line(s) quit or return a value other than ..Return("
+	If encoded Set problems = problems _ $Select(problems = "": "", 1: "; ") _ encoded _ " line(s) pass a pre-encoded JSON text to ..Return("
 	Quit problems
 }
 

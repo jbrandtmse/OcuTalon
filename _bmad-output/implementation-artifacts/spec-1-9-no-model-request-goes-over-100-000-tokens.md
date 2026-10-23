@@ -372,6 +372,46 @@ deferred:
 
   (`Test.Bridge.Decide.TestRequestLimitSetting`)
 
+### Review Findings
+
+Code review of 2026-10-23 (`bmad-code-review`, review tier full-opus: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor all ran). 29 raw rows, grouped into 9 entries (high 0, medium 1, low 8), with 16 rows dismissed. Each entry gives its severity, fix-risk, footprint and spec status (Rule 15).
+
+- [x] [Review][Patch] The pre-encoded JSON scan misses the literals `"[]"`, `"{}"`, `"[{..."`, `"[[..."` and `"{ ""..."`, and its doc claims any literal that starts with a JSON object or array [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:72] - low; fix-risk low (one regex, its doc and two samples, test code only); in-story; spec-clear (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] The recorder tests of Decide take `RequestTokenLimit` from the active production instead of setting it, against their own helper's rule ("a test sets every setting that it relies on"), so a leftover row fails `TestCompactFlag` at 40,001 and 50,000 tokens in a later class; `Test.Agent.RequestSize.OnAfterOneTest` drops the status of its restore restart [src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls:1823] - medium (Rule 19 hermeticity); fix-risk low (one property in three set-ups and one assertion); in-story; spec-clear (verification-gap)
+- [x] [Review][Patch] `TestNote` asserts only on the test's own `Note` helper, never on `Result.Note` [src/ocutalon/cls/OcuTalon/Test/Tools/Result.cls:191] - low; fix-risk low (two assertions); in-story; spec-clear (verification-gap)
+- [x] [Review][Patch] The test helper `ExpectedShown` returns 1 when no k fits and leaves k undefined when `left` is below 1; no current caller reaches either [src/ocutalon/cls/OcuTalon/Test/Tools/Result.cls:359] - low; fix-risk low (direct correction); in-story; spec-clear (edge-case-hunter)
+- [x] [Review][Patch] The `EstimateTokens` doc says that an unreadable agent part counts 0, but a partly readable one keeps what was read (`AgentChars`) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:612] - low; fix-risk low (doc only); in-story; spec-clear (acceptance-auditor)
+- [x] [Review][Patch] The `BANDPERCENT` doc gives the gap as "a few hundred characters". Task 0 (b) measured 901 + 328 = 1,229 characters, about 310 tokens [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:70] - low; fix-risk low (doc only); in-story; spec-clear (blind-hunter)
+- [x] [Review][Defer] The cap measures a result before AI Hub encodes a string again: DW-131's summary says 10,006 tokens where Task 0 (d) measured characters; a cut object grows about a fifth when encoded, so its `reopen_if` may fire with Story 5.4; AC4's count is the cap's own (decision 18) [src/ocutalon/cls/OcuTalon/Tools/Result.cls:57] - deferred: adjudicated as DW-131 (`wontfix-accepted`, low); `occurrence` with the unit correction appended by cr. The part about a Spec Change Log entry edits the spec, so it is rejected (blind-hunter+acceptance-auditor)
+- [x] [Review][Defer] DW-130's exposure is described through Chat's tool loop, but Chat has no tools until Story 1.10, so the loop opens there (and with Epic 22's MCP proxy) [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:569] - deferred: adjudicated as DW-130 (`routed` to 30.1, medium; the owner's NFR-3 amendment of 2026-10-20); `occurrence` with the note appended by cr (blind-hunter)
+- [x] [Review][Defer] `HistoryChars` fails open with no signal: `%ExecDirect` returns `%SQLCODE < 0` and throws nothing, so the `Catch` never runs; a missing privilege would do the same [src/bridge/cls/OcuTalon/Bridge/RequestSize.cls:73] - deferred: adjudicated as DW-133 (`wontfix-accepted`, low); `occurrence` appended by cr. The shipped configuration's privilege is pinned by the live `TestTooLarge`, which runs in Decide's own job (blind-hunter+edge-case-hunter)
+
+**Rejected** (16 rows):
+- low, Blind Hunter 6: the triage log marks `[reject]` on items that are also deferred. The fix edits the spec's own triage log, and the item is cosmetic.
+- low, Blind Hunter 7 + Edge Case Hunter 4: an object without `%ToJSON` (a stream) becomes "0 of unknown". `Return` takes a dynamic object or a string (Boundaries), no caller passes anything else, and the fix adds a branch.
+- maybe-false, Blind Hunter 8 + Edge Case Hunter 3: a cut can split a UTF-16 surrogate pair. Whether the provider rejects a lone surrogate is unmeasured (it needs a provider run). At most low: it needs a cut point exactly inside an astral character, and the fix adds a guard. It becomes real if Story 5.4's readers return text with astral characters and a provider rejects the request.
+- false, Blind Hunter 9: `OfferedTools` does not skip a URI toolset. No agent names one, a failure there is a loud test error, and the test's own derivation is an independent oracle.
+- false, Blind Hunter 11: `tests/test-summary.md` is a generic path. It is the kit's own path (Rule 16), and it holds no absolute local path (CON-5, checked).
+- low, Edge Case Hunter 1: a queued earlier turn can grow the history after Decide's estimate. This needs Decide to give up on a turn still queued at ChatAgent, in a conversation within one turn's growth of the limit. Story 30.1's compaction at 40,000 removes that headroom, and the fix (a second estimate in the runner) adds a branch.
+- false, Edge Case Hunter 5: the reset in `OnMessage` could be skipped if `StepBuffer.Model` raised. `Model` cannot raise once `Start` has set its nodes, and it quits when there is no buffer.
+- by-design, Edge Case Hunter 6: an agent that overrides `ToolSets` or uses `UseToolSet` is undercounted. `AgentChars` reads `TOOLSETS` as the spec defines (decision 4), and no agent does either.
+- low, Edge Case Hunter 7: an `AgentClass` edited but not applied to the running production. This is a developer-only state, the error is bounded by one prompt, and it lasts until the update.
+- low, Edge Case Hunter 9: `Quit ..Return(x)_suffix` passes the scan. The code is contrived, and the fix needs paren matching.
+- by-design, Edge Case Hunter 11: the claim that one step is bounded at 10,000 tokens. The note-only result at the cap's edge is the ruling that stands (U-43), and the class doc states that edge.
+- false, Acceptance Auditor 1: QA's files are uncommitted. By protocol the lead commits them; the untracked `ci/mock/scenarios/A/result-cap-steps.json` must be added with `git add`.
+- rejected, Acceptance Auditor 4: the spine lags (`lane-a` gains Tools, AD-6's `Compact`). The lead's ruling "No spine change" stands.
+- rejected, Acceptance Auditor 5: the matrix says 10 percent and the test uses 29. Task 0 (c) sanctions the band, and the fix edits the spec.
+- low, Blind Hunter 1 (part): a `%ToJSON(` in a trailing comment is flagged falsely. It is a loud failure of a test scan, and the comment cannot be cut from the raw line without parsing strings. The two-line `Set json = ...%ToJSON()` form is out of a line scan's reach (as in the earlier triage); the doc now says "on the same line".
+- Rule 2 (own check): the three sort-and-join loops (`RunnerFixture.ToolNames`, `Runners.OfferedTools`, `Test.Tools.Result.ToolNames`) are about seven lines each over three different sources. That is a weak reason, so low, and the fix is a three-file refactor that no developer would notice. The `ZzResult*` fixtures follow `StepsAgent`, `StepsTools` and `StepsNote` as the spec names, and `RequestSize.AgentChars` carries its stated copy reason (decision 4).
+
+**Rules checked:**
+- **Rule 1:** Integration ACs are present (AC1, AC4; AC3 names Story 30.1).
+- **Rule 3:** the story has no UI or HTTP surface of its own. The live tests (`Test.Agent.RequestSize`, `Test.Agent.Runners`, `Test.Tools.Result.TestStepCap*`) exercise the production, the AI Hub runner and the model API mock in a throwaway.
+- **Rule 5:** the NFR-3 gap until Story 30.1 is the owner's amendment (DW-130).
+- **Rule 6:** AD-2, AD-6, AD-7, AD-8, AD-10, AD-19, AD-20, AD-22, AD-26, AD-31 and AD-33 match. The bridge names only `OcuTalon.Bridge` and `Result` names `%AI` only on its Class line.
+- **Rule 14:** the added lines of `src/` and `ci/` are ASCII.
+- **CON-5:** no absolute path in a tracked or new file.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -596,6 +636,25 @@ No acceptance criterion contradicts an AD's Rule. AD-20 also says that `Decide` 
 - mutation: `InstructionsChars` reads the block with its status, so a class with no INSTRUCTIONS block gives an error (review patch) -> `Bridge.Decide.TestEstimateTokens` (the `ZzToolsets` class: the status is not OK).
 - mutation: `AgentChars` does not skip a toolset named by a URI (review patch) -> `Bridge.Decide.TestEstimateTokens` (the status names the toolset `mcp:docs`).
 - mutation: `ToolProblem` keeps a trailing comment on the line it scans (review patch) -> `Bridge.CodeRules.TestToolsReturnThroughResult` (a bare `Quit` with a comment is flagged). The AC5 mutation above (`WatchFixture` returns the JSON string) was run again against the patched scanner and still goes red in `Bridge.CodeRules`.
+
+**Tests added by QA (Rule 8, Rule 19).** All are in `lane-a` (the `Tools`, `Bridge` and `Agent` areas) and ran in throwaway `e1s9q`.
+- `ci/mock/scenarios/A/result-cap-steps.json` (QA, new): four tools in one response (25,000, 25,000, 100 characters of text and an object of 10), then two (39,000 and 2,000), then the text.
+- `Test.Tools.Result.TestStepCapManyTools` (QA, AC4, live): the first of four tools of one step is whole, the second is cut to what is left, the third and the fourth are the note alone; the next step has a full room again and its two tools share it.
+- `Test.Bridge.Decide.TestResendTooLargeSendsNothing` (QA, AC1): the key resend of a decide and of a user turn over the limit sends no request, sets no timer and records `too_large` (with the recorder); at the limit it sends.
+- `Test.Bridge.Decide.TestRequestLimitThroughOnRequest` (QA, AC7): the limit that `OnRequest` and the key resend apply is the one the setting row gives (an empty row, 5000, and 0, -1, abc, 1.5 and 100001 as 100,000 with one warning that names `RequestTokenLimit`).
+- `Test.Agent.RequestSize.TestLimitIsNeverOff` (QA, AC7, live): rows 0, abc and 100001 of `RequestTokenLimit` with `Decide` started again: a turn at 100,001 tokens is a `too_large` fallback, nothing reaches `ChatAgent` or the mock, a short turn is answered, and each precheck logs one warning.
+- `Test.Bridge.CodeRules.TestToolsReturnThroughResult` (QA, AC5, strengthened): the scan also flags `..Return(` with a JSON text built beforehand (`%ToJSON`, a conversion to JSON, a JSON literal), with samples that pass plain text.
+- Run results: `class` for `Tools.Result`, `Bridge.Decide`, `Agent.RequestSize` and `Bridge.CodeRules` passed; `shard lane-a` passed forward and with `--reverse` (37 classes, the one SKIP is `TestStepHelpers`); `docker/tests/test-mock.sh` passed (94 tests); `bash ci/checks.sh` passed; `ci/iris.sh teardown` left nothing of `e1s9q`.
+
+**Mutations demonstrated (QA stage, Rule 19).** Each change was applied to the working tree, a throwaway ran the class, the test went red as written, and the file was put back (`cmp` against the saved copy; `git status --short` and `git diff --stat` unchanged).
+- mutation: `Resend` still sends the request after it records a `too_large` fallback (the status of the send is ignored) -> `Bridge.Decide.TestResendTooLargeSendsNothing` (one request sent for the decide and for the turn) and `TestRequestLimitThroughOnRequest` (the re-send half); `TestResendPrecheck` stayed green, which is the gap this test closes.
+- mutation: `OnRequest` passes the property `RequestTokenLimit` to `Precheck` instead of `SettingText("RequestTokenLimit")`, so an invalid value is held as "" and logs no warning -> `Bridge.Decide.TestRequestLimitThroughOnRequest` (no warning for -1, abc and 1.5) and `Agent.RequestSize.TestLimitIsNeverOff` (no warning for abc); `TestRequestLimitSetting` stayed green.
+- mutation: `StepRenderer.OnMessage` starts the next step with the overflow of the last (the total less 40,000, 0 at least) instead of 0 -> `Tools.Result.TestStepCapManyTools` (the 2,000 characters of the second step are not cut to the 952 that a full room leaves) and `TestRoomResets`; `TestStepCap` stayed green.
+- mutation: `WatchFixture.ReadEventLog` returns `..Return({"items": []}.%ToJSON())` -> `Bridge.CodeRules.TestToolsReturnThroughResult` (the scan flags the JSON text passed to `..Return(`; the earlier quit/return pattern does not match this line, checked by evaluating it, not by a run).
+
+**Mutations demonstrated (code review, Rule 19).** Throwaway `e1s9r`.
+- mutation: `PREENCODED`'s literal branch matches only a quoted name after the bracket (the regex as QA left it), with the review's new samples in place -> `Bridge.CodeRules.TestToolsReturnThroughResult` (no line of `..Return("[]")`, `..Return("{}")`, `..Return("[{""a"":1}]")` and `..Return("{ ""a"": 1 }")` is flagged). The run was red, the patched regex then ran green, and the `plain` sample (`"[reminder set]"`) still passes.
+- Run results after the review patches: `ci/iris.sh class` passed for `Bridge.CodeRules`, `Tools.Result`, `Bridge.Decide` and `Agent.RequestSize`; `bash ci/checks.sh` passed; `ci/iris.sh teardown` left nothing of `e1s9r`.
 
 **Measured in implementation (Task 0).** Build 154. (a) and (f) on slot A; the rest in throwaway `e1s9a` with the CI mock.
 - **(a) The agent part.**

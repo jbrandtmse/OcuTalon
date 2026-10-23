@@ -13,11 +13,13 @@
 ///   - TestBegin: a new context starts the total at 0, and ToolResultChars is a field of the context;
 ///   - TestNoContext: with no context Return measures against a fresh room and keeps nothing;
 ///   - TestUnknownTotal: a value whose text cannot be built whole (it is longer than the longest string) is left out, and the note gives unknown as the total;
-///   - TestNote: the note is ASCII and at most 56 characters for the longest numbers;
+///   - TestNote: the note of Result is ASCII, at most 56 characters for the longest numbers, and the note that the other tests expect;
 ///   - TestOwnMethodsAreTools: a class that extends Result is offered to the model with its own methods only, never Return or the other methods of Result;
 ///   - TestStepCap: through the real runner and the mock (scenario result-cap), a first response asks for a text and an object of 30,000 characters each:
 ///     the model's next request carries the text whole and the object's JSON cut to fit, ending with the note, together at most 40,000 characters; a second
-///     response asks for a text of 1,000 characters and the request after it carries it whole, because the room started again; the reply is the scenario's text.
+///     response asks for a text of 1,000 characters and the request after it carries it whole, because the room started again; the reply is the scenario's text;
+///   - TestStepCapManyTools: through the real runner and the mock (scenario result-cap-steps), four tools of one response share one room (whole, cut, then the
+///     note alone twice, a text and an object), and the next response's two tools (39,000 and 2,000 characters) have a full room again and share it.
 /// Every test ends the context it began, and removes the Usage rows that ZzRunner wrote.
 Class OcuTalon.Test.Tools.Result Extends %UnitTest.TestCase
 {
@@ -185,18 +187,21 @@ Method TestUnknownTotal()
 	Do $$$AssertEquals(..Total(), $Length(back), "and its length is added to the total")
 }
 
-/// The note is ASCII, it holds the two numbers, and it is at most 56 characters for the longest numbers (a result of the longest string: 3,641,144 characters).
+/// The note of Result (Result.Note, from CUTNOTE) is ASCII, it holds the two numbers, and it is at most 56 characters for the longest numbers (a result of the
+/// longest string: 3,641,144 characters); it is the note that the other tests expect (the helper Note).
 Method TestNote()
 {
-	Set note = ..Note(40000, 3641144)
+	Set note = $ClassMethod(..#RESULT, "Note", 40000, 3641144)
 	Do $$$AssertEquals(note, "[cut by OcuTalon: 40000 of 3641144 characters shown]", "the note for the longest numbers")
 	Do $$$AssertTrue($Length(note) '> 56, "is "_$Length(note)_" characters, at most 56")
+	Set note = $ClassMethod(..#RESULT, "Note", 9950, 30011)
+	Do $$$AssertEquals(note, ..Note(9950, 30011), "the note of Result is the one the other tests expect")
 	Set ascii = 1
-	For i = 1:1:$Length(..Note(9950, 30011)) {
-		If $Ascii(..Note(9950, 30011), i) > 126 Set ascii = 0
+	For i = 1:1:$Length(note) {
+		If $Ascii(note, i) > 126 Set ascii = 0
 	}
 	Do $$$AssertTrue(ascii, "the note is ASCII")
-	Do $$$AssertEquals(..Note(0, "unknown"), "[cut by OcuTalon: 0 of unknown characters shown]", "and gives unknown for a total that is not known")
+	Do $$$AssertEquals($ClassMethod(..#RESULT, "Note", 0, "unknown"), "[cut by OcuTalon: 0 of unknown characters shown]", "and gives unknown for a total that is not known")
 }
 
 /// A class that extends Result is offered to the model with its own methods only: Return, Room, Note and ShownChars are inherited, and AI Hub exposes a
@@ -259,6 +264,70 @@ Method TestStepCap()
 	}
 }
 
+/// Several tools in one model step share one room, and the next step has its own, through the real runner and the CI mock (AC4; scenario result-cap-steps).
+/// The first response asks for four tools: a text of 25,000 characters, another of 25,000, a text of 100 and an object with 10 characters of data. The
+/// request after it carries the first whole, the second cut to what is left of the room with the note (the two together fill the room and are at most
+/// 40,000 characters), and the third and the fourth as the note alone, with 0 characters shown and the length of the result as the total. The second response asks for a text of 39,000 characters and one of 2,000: the request after it still
+/// carries the four results of the first step as they were, the 39,000 whole although the step before ended above its room, and the 2,000 cut to the 1,000
+/// characters that are left. The reply is the scenario's text.
+Method TestStepCapManyTools()
+{
+	If ..Guard() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set host = $ClassMethod(..#RUNNERTEST, "NewRunner", "OcuTalon.Test.Tools.ZzResultAgent", "low")
+	Set request = ..NewRequest("[[mock:result-cap-steps]] Read all the results.")
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the request is answered")
+	If '$IsObject(reply) {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(reply.Text_"|"_reply.FailureText, "The CI mock read the results of every step.|", "with the text of the scenario's last reply and no failure")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
+	Set logged = $ClassMethod(fixture, "FindRequests", entries, request.ItemId)
+	Do $$$AssertEquals(logged.%Size(), 3, "the mock logged three requests")
+	If logged.%Size() '= 3 Quit
+
+	// the first step: four tools, one room
+	Set second = $ClassMethod(fixture, "ToolResults", logged.%Get(1))
+	Do $$$AssertEquals($ListLength(second), 4, "request 2 carries four tool results")
+	If $ListLength(second) '= 4 Quit
+	Set whole = ..Filler(25000)
+	Set left = ..#ROOM - 25000
+	Set shown = ..ExpectedShown(left, 25000)
+	Set first = ..Decoded($List(second, 1))
+	Set cut = ..Decoded($List(second, 2))
+	Set third = ..Decoded($List(second, 3))
+	Set fourth = ..Decoded($List(second, 4))
+	Do $$$AssertEquals(first, whole, "the first text, 25,000 characters, comes whole")
+	Do $$$AssertEquals(cut, $Extract(whole, 1, shown)_$Char(10)_..Note(shown, 25000), "the second is cut to its first "_shown_" characters and the note, which gives 25000 as the total")
+	Do $$$AssertTrue($Length(first) + $Length(cut) '> ..#ROOM, "together the two are at most "_..#ROOM_" characters: "_($Length(first) + $Length(cut)))
+	Do $$$AssertTrue($Length(first) + $Length(cut) > ..#ROOM - 100, "and they use the room: nothing was cut that fitted")
+	Set objectJson = {"data": (..Filler(10))}.%ToJSON()
+	Do $$$AssertEquals(third, ..Note(0, 100), "the third, a text of 100 characters that arrives with the room used up, is the note alone")
+	Do $$$AssertEquals(fourth, ..Note(0, $Length(objectJson)), "so is the fourth, an object, with the length of its JSON, "_$Length(objectJson)_", as the total")
+	Do $$$AssertEquals($Extract($List(second, 4)), """", "which is a string, not an object")
+
+	// the second step: a full room again, and shared again
+	Set later = $ClassMethod(fixture, "ToolResults", logged.%Get(2))
+	Do $$$AssertEquals($ListLength(later), 6, "request 3 carries six tool results")
+	If $ListLength(later) '= 6 Quit
+	Set same = 1
+	For i = 1:1:4 {
+		If $List(later, i) '= $List(second, i) Set same = 0
+	}
+	Do $$$AssertTrue(same, "the first four are the results of request 2, as they were")
+	Set text = ..Filler(2000)
+	Set shown = ..ExpectedShown(..#ROOM - 39000, 2000)
+	Set fifth = ..Decoded($List(later, 5))
+	Set sixth = ..Decoded($List(later, 6))
+	Do $$$AssertEquals(fifth, ..Filler(39000), "the text of 39,000 characters comes whole: the room started again, though the step before ended above it")
+	Do $$$AssertEquals(sixth, $Extract(text, 1, shown)_$Char(10)_..Note(shown, 2000), "and the text of 2,000 is cut to its first "_shown_" characters and the note: the two tools of the step share the room")
+	Do $$$AssertTrue($Length(fifth) + $Length(sixth) '> ..#ROOM, "together they are at most "_..#ROOM_" characters: "_($Length(fifth) + $Length(sixth)))
+}
+
 /// --- helpers ---
 /// Begins a context for an untrusted turn, with the total at 0.
 Method Begin() [ Private ]
@@ -292,10 +361,11 @@ ClassMethod Note(shown As %Integer, total As %String) As %String [ Private ]
 /// trying them from the top; 0 when there is none.
 ClassMethod ExpectedShown(left As %Integer, length As %Integer) As %Integer [ Private ]
 {
+	Set found = 0
 	For k = $Select(length < left: length, 1: left):-1:1 {
-		If k + 1 + $Length(..Note(k, length)) '> left Quit
+		If k + 1 + $Length(..Note(k, length)) '> left Set found = k Quit
 	}
-	Quit $Select(k < 1: 0, 1: k)
+	Quit found
 }
 
 /// A text of chars characters: the digits 0 to 9 over and over (OcuTalon.Test.Tools.ZzResultTool Filler).
