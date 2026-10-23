@@ -81,6 +81,7 @@ export interface StatusSlots {
 export interface TraceTarget {
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceUrl?: string;
 }
 
 export interface ChatMessagePayload {
@@ -102,6 +103,7 @@ export interface ChatMessagePayload {
   turnCost?: Cost;
   checkKey?: string;
   checks?: CheckRow[];
+  traceUrl?: string;
 }
 
 export interface NotificationPayload {
@@ -158,6 +160,9 @@ export interface DecisionPayload {
   recordedAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceItemIndex?: number;
+  traceItemIndexNoEvents?: number;
+  traceUrl?: string;
 }
 
 export interface ApprovalPayload {
@@ -178,6 +183,7 @@ export interface ApprovalPayload {
   finishedAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceUrl?: string;
 }
 
 export interface TurnStepPayload {
@@ -194,6 +200,7 @@ export interface ReminderPayload {
   late?: boolean;
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceUrl?: string;
 }
 
 export interface PairingPayload {
@@ -262,6 +269,7 @@ export interface CheckPayload {
   finding?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  traceUrl?: string;
 }
 
 export type LiveEventType =

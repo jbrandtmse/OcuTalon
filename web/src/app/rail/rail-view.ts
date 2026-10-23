@@ -10,7 +10,8 @@
  *   in store order; every check in store order; the 20 newest attention decisions, newest first.
  * - Each list section carries its count, its visible heading "Background checks (1)" and its spoken heading "Background checks, 1".
  * - Each row carries its key, its title, an optional detail line and its meta parts; a reminder carries its countdown too, and a
- *   decision its chip, fallback flag and reason lines.
+ *   decision its chip, fallback flag and reason lines. A row whose payload has a traceUrl carries it, for the trace link that ends
+ *   its meta line; a row whose payload has none carries none.
  */
 import type { Outcome } from '../chat/outcome-chip';
 import type { Countdown } from '../chat/page-time';
@@ -101,6 +102,8 @@ export interface RailRow {
   meta: string[];
   countdown?: Countdown;
   decision?: DecisionRowView;
+  /** Where the row's trace link opens, as the payload served it; absent when the payload has none. */
+  traceUrl?: string;
 }
 
 /** One section of the rail. A list section has a count and a spoken heading; Telegram has neither. */
@@ -173,6 +176,14 @@ export function checkTitle(check: CheckPayload): string {
   return check.kind === PRODUCTION_KIND ? fill(RAIL_TEXTS.checkTitle, { name }) : name;
 }
 
+/** The row with the payload's traceUrl, only when the payload has one. */
+function withTrace(row: RailRow, traceUrl: string | undefined): RailRow {
+  if (traceUrl) {
+    row.traceUrl = traceUrl;
+  }
+  return row;
+}
+
 function approvalRow(approval: ApprovalPayload, format: RailFormat): RailRow {
   const meta: string[] = [];
   const raised = format.when(approval.raisedAt ?? '');
@@ -184,7 +195,7 @@ function approvalRow(approval: ApprovalPayload, format: RailFormat): RailRow {
     meta.push(fill(RAIL_TEXTS.expires, { when: expires }));
   }
   const title = approvalTitle(approval);
-  return { key: `approvals:${approval.ref ?? ''}`, kind: 'approval', title, lead: title, meta };
+  return withTrace({ key: `approvals:${approval.ref ?? ''}`, kind: 'approval', title, lead: title, meta }, approval.traceUrl);
 }
 
 function checkRow(check: CheckPayload, format: RailFormat): RailRow {
@@ -205,7 +216,7 @@ function checkRow(check: CheckPayload, format: RailFormat): RailRow {
   if (check.kind === PRODUCTION_KIND) {
     row.detail = RAIL_TEXTS.checkSchedule;
   }
-  return row;
+  return withTrace(row, check.traceUrl);
 }
 
 /** The word of a check's result: Passed, Failed, Not checked for any other result, and none when it has no result. */
@@ -227,7 +238,7 @@ function reminderRow(reminder: ReminderPayload, format: RailFormat): RailRow {
     row.title = fill(RAIL_TEXTS.titleWithCountdown, { text, separator: format.separator, countdown: countdown.text });
     row.meta = [fill(format.due, { time: when })];
   }
-  return row;
+  return withTrace(row, reminder.traceUrl);
 }
 
 function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
@@ -245,20 +256,23 @@ function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
     meta.push(format.cost(decision.costUSD));
   }
   const title = decision.itemSummary ?? '';
-  return {
-    key: `decisions:${decision.ref ?? ''}`,
-    kind: 'decision',
-    title,
-    lead: title,
-    meta,
-    decision: {
-      chip: format.outcome(decision.outcome, fallback),
-      fallback,
-      fallbackLine: (sentence ?? '') !== '',
-      firstReason: format.reasonLines(decision.reasons, sentence, 1)[0] ?? '',
-      reasons: format.reasonLines(decision.reasons, sentence, Number.MAX_SAFE_INTEGER),
+  return withTrace(
+    {
+      key: `decisions:${decision.ref ?? ''}`,
+      kind: 'decision',
+      title,
+      lead: title,
+      meta,
+      decision: {
+        chip: format.outcome(decision.outcome, fallback),
+        fallback,
+        fallbackLine: (sentence ?? '') !== '',
+        firstReason: format.reasonLines(decision.reasons, sentence, 1)[0] ?? '',
+        reasons: format.reasonLines(decision.reasons, sentence, Number.MAX_SAFE_INTEGER),
+      },
     },
-  };
+    decision.traceUrl,
+  );
 }
 
 /** A list section of the rail. */

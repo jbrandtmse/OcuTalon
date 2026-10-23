@@ -84,7 +84,7 @@ ClassMethod Approved(type As %String, ownerRef As %String, payload As %DynamicOb
 			Continue
 		}
 		If '$IsObject(row) Continue
-		Do ..Publish(recipient, "approval", ##class(OcuTalon.Live.Payload.Approval).FromRow(row))
+		Do ..Publish(recipient, "approval", ##class(OcuTalon.Live.Payload.Approval).FromRow(row, recipient))
 	}
 }
 

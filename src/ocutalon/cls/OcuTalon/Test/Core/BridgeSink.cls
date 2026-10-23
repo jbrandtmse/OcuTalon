@@ -3,13 +3,15 @@
 /// session's stream.
 ///   - TestDecisionRecordedPublishesTheDecision: a decide and a turn decision of a session each give one decision event with
 ///     every field of Decision.FromRow;
+///   - TestDecisionOfATurnPublishesTheTurnsTarget (Story 2.13, DW-129): the decision of a chat turn's Item is published with the
+///     turn's header and item indexes, and any other decision with its TraceSessionId and no index;
 ///   - TestEvalAndInstancePublishNothing, TestAnotherSessionsDecisionPublishesNothing: a decision of eval, of instance or of
 ///     another session is published nowhere;
 ///   - TestBadPayloadsPublishNothing: an empty or unknown ref, a payload that is not an object, an approval.* event for a
 ///     ref that is no request, budget.capped and an unknown type publish nothing;
 ///   - TestApprovalEventsPublishTheRequest, TestApprovalOwnersThatPublishNothing: each of the five approval.* types gives one
-///     approval event with Approval.FromRow's fields on the owning session's stream, and a request of eval, of another session
-///     or that does not exist is published nowhere;
+///     approval event with Approval.FromRow's fields on the owning session's stream (the incident's trace target included, for the
+///     recipient it is published to), and a request of eval, of another session or that does not exist is published nowhere;
 ///   - TestInstanceApprovalReachesEveryWatcher, TestFailedWatcherReadIsLoud (DW-68): an instance request reaches each session
 ///     that watches its incident's production and no other, none with onlineDemo on or for an unnoticed incident; a failed
 ///     read of the recipients logs one warning and publishes nothing, and nobody watching logs nothing;
@@ -112,6 +114,41 @@ Method TestDecisionRecordedPublishesTheDecision()
 	Do $$$AssertEquals(events.%Get(1).type_"|"_payload.ref_"|"_payload.kind_"|"_payload.outcome_"|"_payload.model, "decision|"_reply_"|turn|digest|Claude Sonnet 5.5", "for the turn decision too, whatever its kind")
 }
 
+/// decision.recorded for the decision of a chat turn's Item publishes the turn's target (DW-129): the turn's TraceHeaderId and
+/// its two item indexes, in place of the decision's TraceSessionId. A decision of an Item that is no turn, and a turn with no
+/// header, publish the decision's TraceSessionId and no index. The target is the same as the one `/state` serves for the
+/// decision, since both are Decision.FromRow.
+Method TestDecisionOfATurnPublishesTheTurnsTarget()
+{
+	Set session = ..Session("turntarget")
+	Set turnRef = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:00Z")
+	Set headless = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:01Z")
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
+	Set turn.TraceHeaderId = 9001
+	Set turn.TraceItemIndex = 46
+	Set turn.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(turn.%Save(), "the turn has its header and positions")
+	Set ofTurn = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-01-01T10:00:02Z", {"ItemId": (turn.ItemId), "TraceSessionId": 4321})
+	Set ofHeadless = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-01-01T10:00:03Z", {"ItemId": (##class(OcuTalon.Data.Turn).RefIndexOpen(headless).ItemId), "TraceSessionId": 4322})
+	Set ofItem = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", "2030-01-01T10:00:04Z", {"TraceSessionId": 4323})
+	Set ..Refs = ..Refs_","_turnRef_","_headless_","_ofTurn_","_ofHeadless_","_ofItem
+
+	Do $$$AssertStatusOK(..Sink("decision.recorded", session, {"ref": (ofTurn)}), "the turn's decision: OnEvent returns OK")
+	Do $$$AssertStatusOK(..Sink("decision.recorded", session, {"ref": (ofHeadless)}), "a turn with no header: OnEvent returns OK")
+	Do $$$AssertStatusOK(..Sink("decision.recorded", session, {"ref": (ofItem)}), "an Item that is no turn: OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), 3, "each is published once")
+	Set payload = events.%Get(0).payload
+	Do $$$AssertEquals(payload.ref_"|"_payload.traceHeaderId_"|"_payload.traceNamespace_"|"_payload.traceItemIndex_"|"_payload.traceItemIndexNoEvents, ofTurn_"|9001|"_$Namespace_"|46|30", "the turn's decision carries the turn's target and positions, not its TraceSessionId 4321")
+	Set expected = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ofTurn))
+	Do expected.%JSONExportToString(.json)
+	Do $$$AssertEquals(payload.%ToJSON(), json, "and the payload is Decision.FromRow's, member for member")
+	Set payload = events.%Get(1).payload
+	Do $$$AssertEquals(payload.ref_"|"_payload.traceHeaderId_"|"_payload.%IsDefined("traceItemIndex")_payload.%IsDefined("traceItemIndexNoEvents"), ofHeadless_"|4322|00", "a turn with no header: the decision's TraceSessionId and no position")
+	Set payload = events.%Get(2).payload
+	Do $$$AssertEquals(payload.ref_"|"_payload.traceHeaderId_"|"_payload.%IsDefined("traceItemIndex")_payload.%IsDefined("traceItemIndexNoEvents"), ofItem_"|4323|00", "an Item that is no turn: the decision's TraceSessionId and no position")
+}
+
 /// A decision of owner eval or instance is published nowhere, whoever the event names as the owner: no event of any stream
 /// holds its Ref.
 Method TestEvalAndInstancePublishNothing()
@@ -187,9 +224,23 @@ Method TestApprovalEventsPublishTheRequest()
 		Do $$$AssertEquals(+payload.dryRun.affected_"|"_payload.dryRun.itemNoun.one_"|"_payload.dryRun.itemNoun.other, "4|order|orders", "with the dry run's count and noun")
 		Do $$$AssertEquals(payload.raisedAt_"|"_payload.expiresAt, "2030-01-01T10:00:00Z|2030-01-02T09:00:00Z", "when it was raised and when it expires")
 	}
-	Set expected = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request))
+	Set expected = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request), session)
 	Do expected.%JSONExportToString(.json)
 	Do $$$AssertEquals(..Events(session).%Get(0).payload.%ToJSON(), json, "the payload is Approval.FromRow's, member for member")
+	Do $$$AssertEquals(..Events(session).%Get(0).payload.%IsDefined("traceHeaderId"), 0, "a request with no incident carries no trace target")
+
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"TraceHeaderId": 888})
+	Set traced = ##class(OcuTalon.Test.Data.Fixture).Approval(session, incident, "pending", "2030-01-01T10:00:01Z")
+	Set ..Refs = ..Refs_","_incident_","_traced
+	Do $$$AssertStatusOK(..Sink("approval.raised", session, {"ref": (traced)}), "a request of an incident with a trace: OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), count + 1, "it publishes one event")
+	Set payload = events.%Get(count).payload
+	Do $$$AssertEquals(payload.ref_"|"_payload.incidentRef_"|"_payload.traceHeaderId_"|"_payload.traceNamespace, traced_"|"_incident_"|888|"_$Namespace, "which carries the incident's trace target")
+	Set expected = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(traced), session)
+	Do expected.%JSONExportToString(.json)
+	Do $$$AssertEquals(payload.%ToJSON(), json, "and is Approval.FromRow's for the recipient, member for member")
+	Set count = count + 1
 
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request)
 	Set row.State = "approved"
@@ -239,7 +290,7 @@ Method TestInstanceApprovalReachesEveryWatcher()
 	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)
 	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", production)
 	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(c, "ZZNS", "Zz.Sink"_..Number_".Other")
-	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production, {"TraceHeaderId": 777})
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
 	Set unnoticed = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", "", "ZZNS", production)
 	Set unnoticedRequest = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", unnoticed)
@@ -251,6 +302,7 @@ Method TestInstanceApprovalReachesEveryWatcher()
 		Do $$$AssertEquals(events.%Size(), 1, "a watching session gets one event")
 		If events.%Size() = 0 Continue
 		Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.ref_"|"_events.%Get(0).payload.incidentRef, "approval|"_request_"|"_incident, "an approval event for the request and its incident")
+		Do $$$AssertEquals(events.%Get(0).payload.traceHeaderId_"|"_events.%Get(0).payload.traceNamespace, "777|"_$Namespace, "which carries the incident's trace target for that recipient")
 	}
 	Do $$$AssertEquals(..Events(c).%Size(), 0, "a session that watches another production gets none")
 	Do $$$AssertEquals(..Holding(request), 2, "two events hold the request")

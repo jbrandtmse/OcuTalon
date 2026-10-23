@@ -353,7 +353,7 @@ ClassMethod RailBody(sessionRef As %String) As %DynamicObject [ Private ]
 	Set rail = {"approvals": [], "checks": [], "reminders": [], "decisions": []}
 	Set rows = ##class(OcuTalon.Data.Ownership).Approvals(sessionRef, .sc)
 	Do ..Check(sc)
-	For i = 1:1:rows.Count() Do rail.approvals.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Approval).FromRow(rows.GetAt(i))))
+	For i = 1:1:rows.Count() Do rail.approvals.%Push(..PayloadObject(##class(OcuTalon.Live.Payload.Approval).FromRow(rows.GetAt(i), sessionRef)))
 	Set rows = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
 	Do ..Check(sc)
 	For i = 1:1:rows.Count() Do rail.checks.%Push(..PayloadObject(..CheckView(rows.GetAt(i))))

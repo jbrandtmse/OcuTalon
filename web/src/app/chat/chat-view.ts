@@ -111,6 +111,8 @@ export interface TurnView {
   checkKey?: string;
   /** The check results of the reply, one row each. */
   checks?: readonly CheckRow[];
+  /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
+  traceUrl?: string;
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
@@ -316,6 +318,9 @@ export function chatView(
     }
     if (message.checks !== undefined && message.checks.length > 0) {
       view.checks = message.checks;
+    }
+    if (message.traceUrl) {
+      view.traceUrl = message.traceUrl;
     }
     views.push(view);
   }

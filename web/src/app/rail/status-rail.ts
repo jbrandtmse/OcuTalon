@@ -6,6 +6,7 @@ import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines } fr
 import { countdownText, pageWhen } from '../chat/page-time';
 import type { TelegramState } from '../api/api-types';
 import { LiveState } from '../live/live-state';
+import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
 import { type RailFormat, railView, type RailView } from './rail-view';
 import { TelegramCard } from './telegram-card/telegram-card';
@@ -47,7 +48,7 @@ function formatAt(now: number): RailFormat {
  * checks, 1"), its rows and, under an empty list, its empty text; the hints sit under the check and reminder lists. The Telegram
  * section comes first, only when the release includes it, with the Telegram card and no count.
  * - Rows are read-only: an approval row with a 3px attention bar, a check row, a reminder row with a ticking countdown in tabular
- *   figures, and a decision row as a disclosure.
+ *   figures, and a decision row as a disclosure. A row whose payload has a traceUrl ends its meta line with a trace link.
  * - A clock ticks every second while a countdown shows and every 60 seconds otherwise.
  * - When an update removes the row that holds focus, focus moves to that section's heading without scrolling; nothing else here moves
  *   focus. The headings take focus (tabindex -1) but are not in the tab order.
@@ -55,7 +56,7 @@ function formatAt(now: number): RailFormat {
  */
 @Component({
   selector: 'app-status-rail',
-  imports: [DecisionRow, TelegramCard],
+  imports: [DecisionRow, TelegramCard, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (section of view().sections; track section.id) {
@@ -91,13 +92,19 @@ function formatAt(now: number): RailFormat {
                     @if (row.detail) {
                       <span class="detail">{{ row.detail }}</span>
                     }
-                    @if (row.meta.length > 0) {
+                    @if (row.meta.length > 0 || row.traceUrl) {
                       <span class="meta">
                         @for (part of row.meta; track $index) {
                           @if ($index > 0) {
                             <span aria-hidden="true">{{ separator }}</span>
                           }
                           <span>{{ part }}</span>
+                        }
+                        @if (row.traceUrl; as url) {
+                          @if (row.meta.length > 0) {
+                            <span aria-hidden="true">{{ separator }}</span>
+                          }
+                          <app-trace-link [url]="url" />
                         }
                       </span>
                     }

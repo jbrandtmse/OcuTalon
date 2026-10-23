@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input, signal } from '@an
 import { Icon } from '../icon/icon';
 import type { Cost, DecisionPayload } from '../live/payloads';
 import { PAGE_TEXTS, REASON_KEYS } from '../msg/catalog';
+import { TraceLink } from '../shared/trace-link';
 import { DecisionDetails } from './decision-details';
 import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines, sentenceOf } from './decision-view';
 import { FallbackFlag } from './fallback-flag';
@@ -30,7 +31,7 @@ export function fallbackSentence(reason: string | undefined): string | undefined
  * The decision strip (UX-DR61, UX-DR62, UX-DR64, FR-1, FR-2, FR-4) under a reply: why OcuTalon answered as it did, what it cost.
  * - Line 1: the outcome chip (Tell now on a fallback, no chip for an outcome the page does not know), the Fallback flag on a
  *   fallback, then "Confidence 0.92" and the cost, joined by a decorative middle dot. A fallback omits the confidence, and the cost
- *   is the one given (the turn's, for a reply).
+ *   is the one given (the turn's, for a reply). When there is a traceUrl, the trace link comes last, after a middle dot.
  * - Line 2: the reason lines, a fallback's reason as a sentence first and in the warning colour, then the decision's reasons: three
  *   lines on the newest strip, the first line only, on one line with an ellipsis, on the others.
  * - Last, when there is a decision, the Details button named "Decision details": it opens the details inline below, with
@@ -42,7 +43,7 @@ export function fallbackSentence(reason: string | undefined): string | undefined
  */
 @Component({
   selector: 'app-decision-strip',
-  imports: [DecisionDetails, FallbackFlag, Icon, OutcomeChip],
+  imports: [DecisionDetails, FallbackFlag, Icon, OutcomeChip, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -59,13 +60,19 @@ export function fallbackSentence(reason: string | undefined): string | undefined
         @if (fallback()) {
           <app-fallback-flag />
         }
-        @if (meta().length > 0) {
+        @if (meta().length > 0 || traceUrl()) {
           <span class="meta">
             @for (item of meta(); track $index) {
               @if ($index > 0) {
                 <span aria-hidden="true">{{ separator }}</span>
               }
               <span class="item">{{ item }}</span>
+            }
+            @if (traceUrl(); as url) {
+              @if (meta().length > 0) {
+                <span aria-hidden="true">{{ separator }}</span>
+              }
+              <app-trace-link [url]="url" />
             }
           </span>
         }
@@ -189,6 +196,8 @@ export class DecisionStrip {
   readonly newest = input(false);
   /** False leaves the reason lines out, so that line 2 holds the Details button alone (a notice card). */
   readonly reasons = input(true);
+  /** Where the strip's trace link opens (UX-DR139): the turn's for a reply, the decision's for a card. None shows no link. */
+  readonly traceUrl = input<string | undefined>();
 
   protected readonly texts = DECISION_TEXTS;
   protected readonly separator = DECISION_TEXTS.separator;

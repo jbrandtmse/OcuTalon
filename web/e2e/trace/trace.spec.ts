@@ -1,7 +1,8 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
-import { MESSAGES, STATE, post, sessionEvents } from '../support/api';
+import { STATE } from '../support/api';
 import { chk, fixtureUser, irisScript, setTraceSettings, type TraceSettings } from '../support/iris';
+import { TRACE_PAGE, ceil, drawnMessages, expectDrawn, newestTurn, openTrace, postTurn, type Cursor } from '../support/trace';
 import { signInOverHttp } from '../sign-in/helpers';
 
 /**
@@ -25,57 +26,18 @@ test.describe.configure({ mode: 'serial' });
 /** The tag of every row the cases seed. */
 const TAG = 'zz e2e trace';
 
-/** The page of Visual Trace in the trace application of OCUTALON, up to the session parameter. */
-const TRACE_PAGE = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=';
-
 /** The most turns the set-up posts. */
 const MOST_TURNS = 15;
 
 /** The position beyond which the newest turn must sit. */
 const BEYOND = 45;
 
-/** A chat turn as /state and the live stream carry it. */
-interface Turn {
-  ref: string;
-  clientId: string;
-  state: string;
-  traceHeaderId: number;
-  traceNamespace: string;
-  traceItemIndex: number;
-  traceItemIndexNoEvents: number;
-  traceUrl: string;
-}
-
 let api: APIRequestContext;
-let cursor = 0;
+const cursor: Cursor = { seq: 0 };
 /** The trace session of the user's day: the ID of its first Item header. */
 let thread = '';
 /** The Item header of the first turn that the set-up posted. */
 let firstHeader = 0;
-
-const ceil = (index: number, size: number): number => Math.ceil(index / size);
-
-/** The newest turn of the user's chat, from /state. */
-async function newestTurn(): Promise<Turn> {
-  const response = await api.get(STATE);
-  expect(response.status(), await response.text()).toBe(200);
-  const state = (await response.json()) as { chat: Array<{ type: string; payload: Turn }> };
-  const turns = state.chat.filter((item) => item.type === 'chat.message');
-  expect(turns.length, 'the chat holds the turns that the set-up posted').toBeGreaterThan(0);
-  return turns[turns.length - 1].payload;
-}
-
-/** Posts one message and waits for its turn to be done; the done turn. */
-async function postTurn(n: number): Promise<Turn> {
-  const clientId = `zz-thread-${Date.now().toString(36)}-${n}`;
-  const response = await post(api, MESSAGES, { clientId, text: `zz thread turn ${n}`, fromGuide: false });
-  expect(response.status(), await response.text()).toBe(202);
-  const events = await sessionEvents(api, cursor, (seen) => seen.some((event) => event.type === 'chat.message' && event.payload['clientId'] === clientId && event.payload['state'] === 'done'), 30);
-  cursor = Math.max(cursor, ...events.map((event) => event.seq));
-  const done = events.find((event) => event.type === 'chat.message' && event.payload['clientId'] === clientId && event.payload['state'] === 'done');
-  expect(done, `turn ${n} is done`).toBeDefined();
-  return done!.payload as unknown as Turn;
-}
 
 /**
  * Seeds the trace session with log rows around its first headers, as one script: for the first header (h1) and the first headers
@@ -126,61 +88,6 @@ async function unseed(session: string): Promise<void> {
   );
 }
 
-/** Opens a Visual Trace URL as the thread user: the sign-in form of the trace application first, when it is shown. */
-async function openTrace(page: Page, url: string): Promise<void> {
-  const { user, password } = fixtureUser('THREAD');
-  await page.goto(url);
-  const form = page.locator('input[name=IRISUsername]');
-  if ((await form.count()) > 0) {
-    await form.fill(user);
-    await page.locator('input[name=IRISPassword]').fill(password);
-    await page.locator('input[name=IRISPassword]').press('Enter');
-  }
-}
-
-/** What the page's embedded SVG draws: the IDs of its messages in order, the label [n] of each, and the address the page loaded the SVG from. */
-interface Drawn {
-  ids: string[];
-  labels: Record<string, string>;
-  src: string;
-}
-
-/**
- * The messages that the page's embedded SVG draws, once it draws any: the g elements with an all-digit id, read from the SVG
- * document of the embed (or object) that Visual Trace's svgFrame renders, each with the label [n] that the page prints on its row,
- * which is the place of the message in Visual Trace's own list.
- */
-async function drawnMessages(page: Page): Promise<Drawn> {
-  let drawn: Drawn = { ids: [], labels: {}, src: '' };
-  await expect
-    .poll(
-      async () => {
-        drawn = await page.evaluate(() => {
-          const frame = document.querySelector('embed[type="image/svg+xml"], object[type="image/svg+xml"]') as ({ getSVGDocument?: () => Document | null } & Element) | null;
-          const svg = frame?.getSVGDocument?.();
-          const groups = svg ? Array.from(svg.querySelectorAll('g[id]')).filter((g) => /^\d+$/.test(g.id)) : [];
-          const labels: Record<string, string> = {};
-          for (const group of groups) {
-            const label = Array.from(group.querySelectorAll('text.MsgLabel')).map((text) => text.textContent ?? '').find((text) => /^\[\d+\]$/.test(text));
-            if (label) labels[group.id] = label;
-          }
-          return { ids: groups.map((g) => g.id), labels, src: frame?.getAttribute('src') ?? frame?.getAttribute('data') ?? '' };
-        });
-        return drawn.ids.length;
-      },
-      { message: 'the page draws messages', timeout: 30_000, intervals: [500, 1000, 2000] },
-    )
-    .toBeGreaterThan(0);
-  return drawn;
-}
-
-/** The page draws the turn, and prints the place that Core.Trace.Position gave it on the turn's row. */
-function expectDrawn(drawn: Drawn, headerId: number, position: number, label: string): void {
-  const where = `${label} (the SVG came from ${drawn.src}; it draws ${drawn.ids.map((id) => `${id}${drawn.labels[id] ?? ''}`).join(' ')})`;
-  expect(drawn.ids, `${where}: the page draws the turn`).toContain(String(headerId));
-  expect(drawn.labels[String(headerId)], `${where}: and prints its place`).toBe(`[${position}]`);
-}
-
 /** Changes the thread user's Visual Trace settings, runs the body, and puts the settings back. */
 async function withSettings(settings: TraceSettings, body: () => Promise<void>): Promise<void> {
   const { user } = fixtureUser('THREAD');
@@ -198,16 +105,16 @@ test.beforeAll(async ({ playwright }) => {
   const { user, password } = fixtureUser('THREAD');
   await signInOverHttp(api, user, password);
   const state = (await (await api.get(STATE)).json()) as { streams: { session: number } };
-  cursor = state.streams.session;
+  cursor.seq = state.streams.session;
 
-  const first = await postTurn(0);
+  const first = await postTurn(api, cursor, 0);
   firstHeader = first.traceHeaderId;
   const lines = await irisScript(`Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT SessionId FROM Ens.MessageHeader WHERE %ID = ?",${firstHeader})\nDo rs.%Next()\nWrite !,"CHK|thread|",rs.%Get("SessionId")`);
   thread = chk(lines, 'thread') ?? '';
   await seed(thread);
-  let newest = await postTurn(1);
+  let newest = await postTurn(api, cursor, 1);
   for (let n = 2; n < MOST_TURNS && !(newest.traceItemIndex > BEYOND); n += 1) {
-    newest = await postTurn(n);
+    newest = await postTurn(api, cursor, n);
   }
   expect(newest.traceItemIndex, `the newest turn sits beyond item ${BEYOND} after at most ${MOST_TURNS} turns`).toBeGreaterThan(BEYOND);
 });
@@ -219,19 +126,19 @@ test.afterAll(async () => {
 
 /** T1: the link to a late turn of a thread of more than 40 items opens Visual Trace on that turn, events shown. */
 test('T1: the link to a late turn of a thread of more than 40 items opens Visual Trace on that turn', async ({ page }) => {
-  const turn = await newestTurn();
+  const turn = await newestTurn(api);
   expect(turn.traceItemIndex, 'the turn is beyond the 40th item').toBeGreaterThan(40);
   expect(turn.traceNamespace).toBe('OCUTALON');
   expect(turn.traceUrl, 'the link names the turn and the page of its position at 40 items a page').toBe(`${TRACE_PAGE}${turn.traceHeaderId}&PAGE=${ceil(turn.traceItemIndex, 40)}`);
   expect(ceil(turn.traceItemIndex, 40), 'a page after the first').toBeGreaterThanOrEqual(2);
-  await openTrace(page, turn.traceUrl);
+  await openTrace(page, turn.traceUrl, 'THREAD');
   expectDrawn(await drawnMessages(page), turn.traceHeaderId, turn.traceItemIndex, '40 items a page');
 
   for (const size of [turn.traceItemIndex - 1, turn.traceItemIndex]) {
     await withSettings({ itemsPerPage: size }, async () => {
-      const edge = await newestTurn();
+      const edge = await newestTurn(api);
       expect(edge.traceUrl, `${size} items a page: the link follows`).toBe(`${TRACE_PAGE}${edge.traceHeaderId}&PAGE=${ceil(edge.traceItemIndex, size)}`);
-      await openTrace(page, edge.traceUrl);
+      await openTrace(page, edge.traceUrl, 'THREAD');
       expectDrawn(await drawnMessages(page), edge.traceHeaderId, edge.traceItemIndex, `${size} items a page`);
     });
   }
@@ -240,10 +147,10 @@ test('T1: the link to a late turn of a thread of more than 40 items opens Visual
 /** T2: with the viewer's page size 10 the link's PAGE follows and still opens on the turn. */
 test("T2: with the viewer's page size 10 the link's PAGE follows and still opens on the turn", async ({ page }) => {
   await withSettings({ itemsPerPage: 10 }, async () => {
-    const turn = await newestTurn();
+    const turn = await newestTurn(api);
     expect(turn.traceUrl, 'the page follows the viewer\'s page size').toBe(`${TRACE_PAGE}${turn.traceHeaderId}&PAGE=${ceil(turn.traceItemIndex, 10)}`);
     expect(ceil(turn.traceItemIndex, 10), 'a page far beyond the fourth').toBeGreaterThanOrEqual(5);
-    await openTrace(page, turn.traceUrl);
+    await openTrace(page, turn.traceUrl, 'THREAD');
     expectDrawn(await drawnMessages(page), turn.traceHeaderId, turn.traceItemIndex, '10 items a page');
   });
 });
@@ -251,17 +158,17 @@ test("T2: with the viewer's page size 10 the link's PAGE follows and still opens
 /** T3: with Show events off the link counts no event or rule rows and still opens on the turn. */
 test('T3: with Show events off the link counts no event or rule rows and still opens on the turn', async ({ page }) => {
   await withSettings({ showEvents: 0 }, async () => {
-    const turn = await newestTurn();
+    const turn = await newestTurn(api);
     expect(turn.traceItemIndexNoEvents, 'the position without event and rule rows is below the one with them').toBeLessThan(turn.traceItemIndex);
     expect(turn.traceUrl, 'the link counts the position without events').toBe(`${TRACE_PAGE}${turn.traceHeaderId}&PAGE=${ceil(turn.traceItemIndexNoEvents, 40)}`);
-    await openTrace(page, turn.traceUrl);
+    await openTrace(page, turn.traceUrl, 'THREAD');
     expectDrawn(await drawnMessages(page), turn.traceHeaderId, turn.traceItemIndexNoEvents, '40 items a page, events hidden');
 
     for (const size of [turn.traceItemIndexNoEvents - 1, turn.traceItemIndexNoEvents]) {
       await withSettings({ itemsPerPage: size }, async () => {
-        const edge = await newestTurn();
+        const edge = await newestTurn(api);
         expect(edge.traceUrl, `${size} items a page: the link follows`).toBe(`${TRACE_PAGE}${edge.traceHeaderId}&PAGE=${ceil(edge.traceItemIndexNoEvents, size)}`);
-        await openTrace(page, edge.traceUrl);
+        await openTrace(page, edge.traceUrl, 'THREAD');
         expectDrawn(await drawnMessages(page), edge.traceHeaderId, edge.traceItemIndexNoEvents, `${size} items a page, events hidden`);
       });
     }
@@ -270,8 +177,8 @@ test('T3: with Show events off the link counts no event or rule rows and still o
 
 /** T4: a day's turns are one Visual Trace session: the late turn's session, at page 1, draws the first turn's Item header of the day. */
 test("T4: a day's turns are one Visual Trace session", async ({ page }) => {
-  const turn = await newestTurn();
-  await openTrace(page, `${TRACE_PAGE}${turn.traceHeaderId}&PAGE=1`);
+  const turn = await newestTurn(api);
+  await openTrace(page, `${TRACE_PAGE}${turn.traceHeaderId}&PAGE=1`, 'THREAD');
   const drawn = await drawnMessages(page);
   expect(drawn.ids, "page 1 of the late turn's session draws the day's first Item header").toContain(thread);
 });

@@ -56,14 +56,27 @@ Property Model As %String(%JSONFIELDNAME = "model", MAXLEN = 128);
 /// When the row was recorded, UTC to the second.
 Property RecordedAt As %String(%JSONFIELDNAME = "recordedAt", MAXLEN = 20);
 
-/// The decision's TraceSessionId: the session that holds its decision message (AD-26).
+/// Where the decision's trace opens (AD-26): the header of the owner's Turn made from the decision's Item, when the
+/// owner is a session that has such a Turn with a header, so that the link lands on the turn; otherwise the decision's
+/// TraceSessionId, the session that holds its decision message.
 Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
-/// The payload for a decision row, with every row-backed field set: itemSummary is the row's Summary, model the
-/// display name of the row's model id, traceHeaderId the row's TraceSessionId and traceNamespace the current namespace.
+/// The position of the turn's header in the item list that Visual Trace draws for its session, with the event-log rows
+/// shown (AD-26); absent unless the trace opens at the owner's Turn and the Turn has it.
+Property TraceItemIndex As %Integer(%JSONFIELDNAME = "traceItemIndex");
+
+/// The same position with the event-log rows hidden.
+Property TraceItemIndexNoEvents As %Integer(%JSONFIELDNAME = "traceItemIndexNoEvents");
+
+/// The payload for a decision row, with every row-backed field set: itemSummary is the row's Summary and model the
+/// display name of the row's model id. The trace target is the row's TraceSessionId in the current namespace, unless
+/// the row's OwnerRef is a session that has a Turn made from the row's Item (Ownership.TurnOfItem) and that Turn has a
+/// TraceHeaderId: then the target is the Turn's header and its two item indexes, so that the link opens the day's thread
+/// on the turn's page (DW-129). A missing Turn, a Turn without a header, a failed read and an owner that is not a
+/// session keep the TraceSessionId target.
 ClassMethod FromRow(row As OcuTalon.Bridge.Data.Decision) As OcuTalon.Live.Payload.Decision
 {
 	Set payload = ..%New()
@@ -87,6 +100,12 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.Decision) As OcuTalon.Live.Paylo
 	Set payload.RecordedAt = row.RecordedAt
 	Set payload.TraceHeaderId = row.TraceSessionId
 	Set payload.TraceNamespace = $Namespace
+	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(row.ItemId, row.OwnerRef, .sc)
+	If $SYSTEM.Status.IsOK(sc), $IsObject(turn), turn.TraceHeaderId '= "" {
+		Set payload.TraceHeaderId = turn.TraceHeaderId
+		If turn.TraceItemIndex '= "" Set payload.TraceItemIndex = turn.TraceItemIndex
+		If turn.TraceItemIndexNoEvents '= "" Set payload.TraceItemIndexNoEvents = turn.TraceItemIndexNoEvents
+	}
 	Quit payload
 }
 

@@ -239,12 +239,29 @@ describe('the decision strip of a turn', () => {
 
   it('leaves them out when the chat.message has none', () => {
     const [view] = chatView([turn('A')], [], NO_RUNNING, NOW);
-    for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks']) {
+    for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks', 'traceUrl']) {
       assert.equal(view[field], undefined, field);
     }
     const [empty] = chatView([turn('A', { checkKey: '', checks: [] })], [], NO_RUNNING, NOW);
     assert.equal(empty.checkKey, undefined);
     assert.equal(empty.checks, undefined);
+  });
+
+  it('carries the traceUrl of the chat.message as served, which is the turn\'s own and not its decision\'s', () => {
+    const turnUrl = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2';
+    const decisionUrl = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42';
+    const [view] = chatView([turn('A', { traceUrl: turnUrl, decision: decision({ traceUrl: decisionUrl }) })], [], NO_RUNNING, NOW);
+    assert.equal(view.traceUrl, turnUrl);
+    assert.equal(view.decision.traceUrl, decisionUrl);
+  });
+
+  it('has no traceUrl when the chat.message has none or an empty one, nor on the page\'s own messages', () => {
+    const [bare, empty, kept] = chatView([turn('A'), turn('B', { traceUrl: '' }), turn('C', { decision: decision({ traceUrl: '/t?SESSIONID=1' }) })], [local('x', 'sent')], NO_RUNNING, NOW);
+    assert.equal(Object.hasOwn(bare, 'traceUrl'), false);
+    assert.equal(Object.hasOwn(empty, 'traceUrl'), false);
+    assert.equal(Object.hasOwn(kept, 'traceUrl'), false, 'a turn without a target of its own takes none from its decision');
+    const sent = chatView([], [local('x', 'sent')], NO_RUNNING, NOW)[0];
+    assert.equal(Object.hasOwn(sent, 'traceUrl'), false);
   });
 
   it('keeps the turn\'s cost only with a decision', () => {
@@ -299,6 +316,12 @@ describe('the notice cards', () => {
     assert.equal(view(notice('C', {})).dueAt, '', 'a reminder with no due time');
     const bare = view({ type: 'notification', payload: { kind: 'tellnow' } });
     assert.deepEqual([bare.text, bare.whyNow, bare.time, bare.dueAt, bare.strip], ['', '', '', '', false], 'a payload with only its kind');
+  });
+
+  it('hands the decision on as served, with the traceUrl the strip links to', () => {
+    const url = '/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42';
+    assert.equal(view(tellNow('A', { decision: decision({ traceUrl: url }) })).decision.traceUrl, url);
+    assert.equal(view(tellNow('B', { decision: decision() })).decision.traceUrl, undefined);
   });
 
   it('has a strip when a tell now carries a decision or a fallback reason, and none otherwise', () => {

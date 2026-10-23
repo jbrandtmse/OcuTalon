@@ -2,7 +2,8 @@
 title: 'Story 2.13: Open Visual Trace from the page'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '8b94a8ac2cbf9dfce5b49ac24d395dd247756003'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -394,6 +395,39 @@ Story 2.1's popover service has never run in a browser (DW-58).
 
 ## Review Triage Log
 
+### 2026-10-23 - Review pass
+- verdicts: 29 findings - high 0, medium 4, low 24, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind Hunter 1: the header menu records the help as seen on every open, also when it was not shown (before the snapshot has loaded) - `toggleTrace()` called `markSeen()` unconditionally, against Decided 5 ("recorded when the help is shown"). Fixed: it records only when `traceHelpShown()`; V6 asserts that the online demo's menu records nothing (mutation recorded).
+  - `[low]` `[reject]` Blind Hunter 2: a retried turn's reply decision (`RetryItemId`) has no turn match and keeps `TraceSessionId` - real, but no surface renders a nested decision's `traceUrl` (the reply strip uses the turn's, the rail lists `decide` rows), and the fix adds a parameter to `FromRow`.
+  - `[low]` `[reject]` Blind Hunter 3: each `Decision.FromRow` adds a `TurnOfItem` read - one unique-index read per decision on `/state`, no demonstrated harm; the fix (passing the turn in) adds a parameter and public surface.
+  - `[low]` `[reject]` Blind Hunter 4: a failed read in `Decision.FromRow` or `Approval.FromRow` leaves no log line - the spec names "a failed read" among the cases that keep the `TraceSessionId` target, and the refusals for `eval`, `instance` and an empty owner share that status, so a warning would be noise.
+  - `[low]` `[patch]` Blind Hunter 5: the `Ownership` class comment lists `TurnOfItem` among Conversation's queue reads - fixed: it is listed as the read for a decision's trace target.
+  - `[low]` `[reject]` Blind Hunter 6: V2 takes the turn's shown decision as the rail row - on the stack the turn shows none, so the branch never runs; a model that answers shows its `decide` row, which is in the rail; only a fallback `turn` decision would not be, and no scenario of the stack produces one.
+  - `[low]` `[reject]` Blind Hunter 7: `publishCheck`'s `lastRunHeaderId` branch has no caller - the branch mirrors `seedCheck`'s, takes the check's namespace as `TraceNamespace`, and a caller that wants a link passes `OCUTALON`.
+  - `[low]` `[reject]` Blind Hunter 8: `Approval.FromRow`'s default `sessionRef = ""` turns the target off for a caller that omits it - the signature is the spec's, both production callers pass it, and call-site mutations now pin both.
+  - `[low]` `[patch]` Edge Case Hunter 1: same root cause as Blind Hunter 1 (header menu records "seen" when the help is not shown) - fixed with it.
+  - `[low]` `[reject]` Edge Case Hunter 2: a failed `Incident` read in `Approval.FromRow` is silent - same as Blind Hunter 4.
+  - `[low]` `[reject]` Edge Case Hunter 3: the retried turn's decision keeps `TraceSessionId` - same as Blind Hunter 2.
+  - `[low]` `[reject]` Edge Case Hunter 4: a Ctrl, Cmd or Shift click on a link while the help is needed shows the help instead of opening a tab - the spec says "a press opens no tab" while `needed`, the next press opens directly, and the guard adds a branch.
+  - `[false]` `[reject]` Edge Case Hunter 5 (claim): a done turn with a `traceUrl` and neither decision nor fallback has no link - the spec puts a reply's link on its strip ("A reply's strip"), and `strip` is set for every reply with a decision or a fallback.
+  - `[low]` `[reject]` Edge Case Hunter 6 (claim): a turn whose position could not be worked out has a URL with no PAGE, so "Open my conversation" opens page 1 - the page uses the `traceUrl` as served (it never completes one), and Story 2.9 defines the degrade.
+  - `[medium]` `[patch]` Verification Gap 1: no assertion that the link stands alone on a strip with nothing before it (a dangling separator would pass) - fixed: V1 asserts `.line1 .meta > *` has count 1; mutation recorded (V1 red).
+  - `[low]` `[reject]` Verification Gap 2: closing a row link's help popover when its row is destroyed is untested - defensive behaviour that no AC states, and a test needs a row-removal scenario for an orphan-dialog edge.
+  - `[medium]` `[patch]` Verification Gap 3: the menu's "Don't show this again" close wiring is never pressed - fixed: a new V7 case presses it (the dialog closes, focus returns to the button, a new tab of the browser opens the menu with no help); mutation recorded (V7 red).
+  - `[medium]` `[patch]` Verification Gap 4: V3's "no link" assertions never check that their row exists - fixed: each first asserts count 1 for the row.
+  - `[low]` `[patch]` Verification Gap 5: pinning tests of several ACs had a mutation line only on the cheaper test - closed in-pass: call-site mutations for `RailBody` and `BridgeSink.Approved` (the tests that pin them red), and the browser mutations for the menu wiring, the seen flag, the separator and the storage that throws; the other ACs already have a recorded red on a pinning test.
+  - `[medium]` `[patch]` Verification Gap, other 1: V1's "the Details button holds none" asserts on a locator that matches no button on the fallback strip, so it cannot fail - fixed: removed; the `ancestor::button` assertion and the notice-card case (which has a Details button) are the pins.
+  - `[low]` `[reject]` Verification Gap, other 2: the "an empty Item finds nothing" assertion cannot fail on the empty-ItemId guard - the guard's absence is unobservable (no turn has an empty ItemId, the read answers "" with an OK status either way), so it is an equivalent mutation of a specified guard.
+  - `[low]` `[reject]` Verification Gap, other 3: `publishCheck`'s new branch is never executed - same as Blind Hunter 7.
+  - `[low]` `[reject]` Verification Gap, other 4: V2 branches on the state of the user's newest turn - same as Blind Hunter 6.
+  - `[low]` `[patch]` Intent Alignment S1: the menu records "seen" on every open (the intent places it under "While needed") - same root cause as Blind Hunter 1.
+  - `[low]` `[reject]` Intent Alignment S2: the reply-strip case runs on the fallback strip, so "· Trace" after real meta is observed on the notice-card strip only - both are the same `DecisionStrip`, and the notice case pins "Confidence 0.90 · $0.0003 · Trace".
+  - `[low]` `[reject]` Intent Alignment 3: no test asserts the approval event's `traceUrl` - `EventsBody` adds `traceUrl` to every payload through the unchanged `Web.TraceLink.Add` (Story 2.9's tests), and `Test.Core.BridgeSink` pins the target it derives from, per recipient.
+  - `[low]` `[reject]` Intent Alignment 4: DW-129 for a decision nested in a notification is not asserted - a notification's decision is the decision of an Item that is not a turn, so it keeps `TraceSessionId`, which V1's notice case pins.
+  - `[low]` `[reject]` Intent Alignment 5: component behaviour is tested only through the browser specs - the project's convention for components (Stories 2.1 to 2.9); the node tests pin the pure rules.
+  - `[low]` `[reject]` Intent Alignment 6: V3 to V6 stub the trace pages, so those targets are asserted as addresses - the spec asks for real Visual Trace pages in V1, V2 and V8 only (Decided 14).
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -438,6 +472,17 @@ Story 2.1's popover service has never run in a browser (DW-58).
 9. **The fixture user `ZzLinks`** (user and trace roles, throwaways only), as Story 2.9's `ZzThread`, so V1 to V8 own their session.
 10. **No reminder producer.** Story 8.3 stores the waiter's header on the `Reminder` row (`epics.md:2940-2941`) and fills the payload. The row's link then appears with no page change. V3 publishes a reminder event that carries a target.
 11. **The story is not split.** The server part is five small edits. The page part is three new files (`trace-view.ts`, `trace-help.ts`, `trace-link.ts`) plus edits to the strip, the rows and the header.
+
+**Decided in-stage (implement, 2026-10-23)** (small, reversible, within the intent):
+12. **V2 seeds the turn's `decide` row.** A second `decide` row for a turn's Item is refused by the unique `(ItemId, Kind)` key, so V2 uses the turn's own row when the turn shows one and otherwise seeds one with the turn's `ItemId` (the stack's turns answer with the fixed fallback and show none).
+13. **A fallback reply's strip has no confidence or cost, so its link follows the Fallback flag with no middle dot.** V1 pins that (the link is the only item of the strip's meta), and a second V1 case on a notice-card strip pins "Confidence · cost · Trace".
+14. **Only V1, V2 and V8 open real Visual Trace pages.** V3 to V6 give the trace tabs a stand-in page and check which address the link opens, because each tab that signs in to a trace application holds a licence connection of the stack until its session times out (a run with all of them real left V8's page drawing nothing and `trace.spec` T1's set-up without a session; the cause is `(inference)`, not confirmed).
+15. **`links.spec` is not serial**, so one red case does not hide the rest.
+16. **`needsSignInHelp` takes `onlineDemo` as `boolean | undefined`**, and `undefined` (the snapshot has not loaded) means no help.
+17. **The menu's conversation link closes the popover on press.** The disabled conversation link uses the `button-inactive` style.
+18. **`seedIncident` and `IncidentFields` gain `traceHeaderId`** (the spec says `seedIncident` is new; it already existed), and `publishCheck` honours `lastRunHeaderId` the way `seedCheck` does.
+19. **`Test/Msg/Contracts.cls` is edited**, because it holds the `Live.Payload.Decision` property oracle and its key list; it is not on a contended path.
+20. **The menu records the help as seen only when it shows the help** (Decided 5), so opening the menu on the online demo, or before the snapshot has loaded, records nothing.
 
 **Veto-window items for the lead:** none required.
 - No stored data, role, grant or dependency changes.
@@ -530,6 +575,28 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. T
 | AD-13 isolation | `turnOfItem` without `SessionRef = ?` | `TestIsolationEveryRowKind` |
 | Typing | `traceUrl?` emitted on every interface | `payloads.test.mjs` |
 
+**Recorded mutations (Rule 19, implement stage).** Each was applied, the named test was seen red, the file was restored, and `git status --short` and `git diff --stat` were byte-identical to before. The browser ones ran through `live sign-in` on tag `e2s213i` (it cannot be narrowed to one spec, so they ran in batches of tests that the mutations do not share); a slot-B mutation was loaded, tested, restored and loaded again.
+- mutation: `decision-strip.ts` renders no link (its `<app-trace-link>` line removed) → V1 red, both cases (the reply strip has no link, the notice strip has none); V4, V5 and V6 red too, as they press the strip link.
+- mutation: `rail-view.ts` `checkRow` returns its row without `check.traceUrl` → `rail-view.test.mjs` red (3 tests of "trace links"); V3 not run for it.
+- mutation: `ocutalon-reply.ts` passes `turn().decision?.traceUrl` in place of `turn().traceUrl` → V1 red (the stack's turns answer with the fallback and have no decision, so the strip has no link: the count is 0, not a wrong `href`); V4, V5, V6 red, and so are `decision.spec` D1, D5 and D8 (their seeded decisions have a target, which the strip now links to).
+- mutation: `Decision.FromRow` skips `TurnOfItem` (its condition made `If 0`) → `TestDecisionOfATurnOpensAtTheTurn` red (4 assertions: the turn's header, the JSON, the header-only turn, the nested decision); V2 not run for it.
+- mutation: `Approval.FromRow` ignores the incident (its condition made `If 0`) → `TestApprovalOpensAtItsIncident` red (2 assertions); V3 not run for it.
+- mutation: `conversationUrl` takes the first turn (the loop runs from the front) → `trace-view.test.mjs` red (4 tests); V8 not run for it.
+- mutation: `needsSignInHelp` ignores `seen` → `trace-view.test.mjs` red (2 tests); V4 not run for it.
+- mutation: `TraceHelp.dontShowAgain` writes no storage (the signal still turns true) → V5 red alone ("a second page of the same browser has plain links": it is named "Open in Visual Trace (shows sign-in help first)").
+- mutation: `needsSignInHelp` ignores `onlineDemo` → `trace-view.test.mjs` red (3 tests); V6 not run for it.
+- mutation: `Popovers.show` sets `aria-modal="true"` on the pane → V7 red (and V4, which also pins the absence).
+- mutation: `Ownership` statement `turnOfItem` without `SessionRef = ?` (`WHERE ? IS NOT NULL AND ItemId = ?`) → `TestIsolationEveryRowKind` red (B finds A's turn by A's ItemId, and A finds B's).
+- mutation: `payloads.mjs` emits `traceUrl?` on every interface (`!keys.has('traceUrl')`) → `payloads.test.mjs` red (4 tests: the real tree's check, the fixture tree's rule, the maps case, the copy of the real tree).
+
+**Recorded mutations, review pass (Rule 19).** Applied, the named test seen red, restored, and `git status --short` and `git diff --stat` byte-identical to before. The browser ones were batched in one `live sign-in` run on tag `e2s213i` (each is red in a test the others do not touch).
+- mutation: `Web/Api.cls` `RailBody` calls `Approval.FromRow(row)` with no session (the pre-story call) → `Test.Web.Api` `TestStateSections` red (the approval's `traceHeaderId` and `traceUrl`).
+- mutation: `BridgeSink.Approved` calls `Approval.FromRow(row)` with no recipient (the pre-story call) → `Test.Core.BridgeSink` `TestApprovalEventsPublishTheRequest` red (the incident's target and the member-for-member comparison).
+- mutation: `header.ts` drops `(dismissed)="closeTrace()"` from the menu's `app-trace-help` → V7 "Don't show this again in the menu closes it" red (the dialog stays open).
+- mutation: `header.ts` calls `markSeen()` on every open of the menu → V6 red ("opening the menu without the help records nothing": `sessionStorage` holds the flag).
+- mutation: `decision-strip.ts` renders the separator before the link even with nothing before it → V1 (reply) red ("the only one: no separator stands before it").
+- mutation: `trace-help.ts` `readFlag` without its try/catch → V5 (storage that throws) red, and `frame.spec` F4 red.
+
 **Shared surfaces:**
 - The `decision` payload, which gains two keys and a chat turn's target; `payloads.ts`; `Test.Live.Payloads`' oracle; `Test.Web.Api`'s rail and nested-decision assertions; `Test.Core.BridgeSink`.
 - The `approval` payload's target.
@@ -548,7 +615,28 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement and review (2026-10-23).** Baseline `8b94a8ac2cbf9dfce5b49ac24d395dd247756003`. No commit, push or reset by any subagent (HEAD checked after each); throwaway tag `e2s213i` torn down; slot B (`ocutalon-slot-b`, build 154) holds the repo code and no `zz` row.
+
+**Summary.** The page half of Story 2.9. One `app-trace-link` renders every link from the payload's own `traceUrl` (new tab, last on its line, outside every button); `TraceHelp` keeps the sign-in help (seen per tab session, "Don't show this again" per browser, never on the online demo, storage failures tolerated); the header gains the Visual Trace menu with "Open my conversation in Visual Trace" (the newest turn's `traceUrl`). On the server, `Ownership.TurnOfItem` (a checked `Rows` kind, `turnOfItem`) lets `Decision.FromRow` open a chat turn's decision at its turn (DW-129), `Approval.FromRow(row, sessionRef)` carries the incident's target (`RailBody` and `BridgeSink.Approved` pass the session), and `payloads.mjs` types `traceUrl?`. V1 to V8 run against real HTTP, with real Visual Trace pages for V1, V2 and V8. DW-58 (the popover service in a browser) is covered by V4, V5 and V7.
+
+**Files changed.**
+- Server: `Data/Ownership.cls` (`TurnOfItem`, `turnOfItem` kind), `Live/Payload/Decision.cls` (two index properties, the turn's target), `Live/Payload/Approval.cls` (incident target), `Web/Api.cls` (`RailBody` passes the session), `Core/BridgeSink.cls` (`Approved` passes the recipient).
+- Server tests: `Test/Data/Ownership.cls`, `Test/Live/Payloads.cls`, `Test/Web/Api.cls`, `Test/Core/BridgeSink.cls`, `Test/Msg/Contracts.cls` (the Decision property oracle), `Test/Data/Fixture.cls` (`Incident` takes `fields`).
+- Web: `shared/trace-view.ts`, `shared/trace-help.ts`, `shared/trace-link.ts` (new); `chat/chat-view.ts`, `chat/decision-strip.ts`, `chat/notice-card.ts`, `chat/ocutalon-reply.ts`, `rail/rail-view.ts`, `rail/decision-row.ts`, `rail/status-rail.ts`, `header/header.ts`, `live/payloads.ts` (generated), `scripts/payloads.mjs`.
+- Web tests: `scripts/trace-view.test.mjs` (new), `chat-view.test.mjs`, `rail-view.test.mjs`, `payloads.test.mjs`; `e2e/trace/links.spec.ts` (new), `e2e/support/trace.ts` (new, `trace.spec`'s helpers moved), `e2e/support/iris.ts`, `e2e/support/api.ts`, `e2e/trace/trace.spec.ts`, `e2e/frame/frame.spec.ts` (F3, F7); `docker/tests/test-sign-in.sh` (the `ZzLinks` user, V1 to V8 labels).
+
+**Review.** 29 findings from four layers: high 0, medium 4, low 24, false 1. Patched (9 findings in 7 entries): the header menu records "seen" only when it shows the help; the `Ownership` class comment; V1's lone-link assertion; V7's menu "Don't show this again" case; V3's row-exists assertions; V1's vacuous Details-button assertion; and the mutation lines for the two call sites and four browser behaviours. Deferred: none. Rejected with a recorded reason: 20 (see the Review Triage Log), among them the retried turn's nested decision (no surface renders it), the silent failed read (the spec names it), and Ctrl-click while the help is needed.
+
+**Follow-up review recommended: false.** Two medium findings were patched, but every patch is a test strengthening or a one-condition change that has a recorded mutation seen red and then a full green `live sign-in` (163 passed); no unverified risk can be named.
+
+**Verification (final pass, after the last patch).**
+- Slot B: both `iris_doc_load` calls compiled 0 errors before the patches, and `Data/Ownership.cls` (the only server file changed by a patch, a comment) loaded after; `Test.Data.Ownership` 19, `Test.Live.Payloads` 10, `Test.Web.Api` 29, `Test.Core.BridgeSink` 17, `Test.Msg.Contracts` 6, `Test.Web.TraceLink` 5, `Test.Contract.Ac` 6, `Test.Core.ConversationTurns` 43 pass; no `zz` row left.
+- `payloads.mjs --check`, `npm --prefix web test` (336), `npm --prefix web run lint`, `test-web-build.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-storage.sh`, `ci/checks.sh`: exit 0.
+- Throwaway `e2s213i`: `build`; `live sign-in` 163 passed (V1 to V8, T1 to T4, frame F3, F4 and F7, the at-risk specs); `shard lane-b` and `shard lane-b --reverse` 40 classes each, all pass; `live demo-path` floor 3 of 3; teardown clean.
+
+**Residual risks.** (1) Visual Trace tabs that sign in hold a licence connection of the stack until the session times out, so a spec that opens many real pages can starve a later one; V3 to V6 stub their tabs for that reason (Decided 14, cause `(inference)`). (2) The initial web bundle grew from 503.5 kB to 512.5 kB; the 500 kB warning already fired before and the error limit is 1 MB. (3) A retried turn's nested reply decision keeps its `TraceSessionId` target; nothing renders it.
 
 **Plan stage (2026-10-23):** The plan halted after planning, as the dispatch asked. It used the committed `epic-2-context.md` without recompiling it, and took Story 2.9 as the continuity context. It ran no runtime measurement: no Task 0 was needed, and no throwaway was started.

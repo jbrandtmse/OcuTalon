@@ -39,6 +39,7 @@ import { pageTimeBeside } from './page-time';
             [cost]="notice().decision?.costUSD"
             [fallbackReason]="notice().fallbackReason"
             [reasons]="false"
+            [traceUrl]="notice().decision?.traceUrl"
           />
         }
       </div>

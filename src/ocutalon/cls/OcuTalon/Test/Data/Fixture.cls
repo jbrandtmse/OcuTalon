@@ -76,8 +76,8 @@ ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", producti
 }
 
 /// An incident of the owner (a session's Ref, instance or eval) on a production. noticedAt defaults to now; "" is an
-/// incident that has not been noticed yet.
-ClassMethod Incident(ownerRef As %String, noticedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, namespace As %String = "ZZNS", production As %String = "Zz.Production") As %String
+/// incident that has not been noticed yet. fields, an object of property names and values, is set after the defaults.
+ClassMethod Incident(ownerRef As %String, noticedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}, namespace As %String = "ZZNS", production As %String = "Zz.Production", fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.Incident).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -92,6 +92,7 @@ ClassMethod Incident(ownerRef As %String, noticedAt As %String = {##class(OcuTal
 	Set row.FirstAt = "2030-01-01T09:00:00Z"
 	Set row.LastAt = "2030-01-01T09:30:00Z"
 	Set row.Cause = "zz cause"
+	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }
 

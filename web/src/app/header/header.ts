@@ -1,12 +1,27 @@
 import { CdkMenu, CdkMenuItem, CdkMenuItemRadio, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, viewChild, type ElementRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ViewContainerRef,
+  computed,
+  inject,
+  signal,
+  viewChild,
+  type ElementRef,
+  type TemplateRef,
+} from '@angular/core';
 
 import { ABOUT_TITLE_ID, AboutDialog } from '../about/about-dialog';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
+import { Popovers, type PopoverRef } from '../shared/popover';
 import { Tooltip } from '../shared/tooltip';
+import { TraceHelp } from '../shared/trace-help';
+import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
+import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
 
 /** The theme menu's options, in order. */
@@ -18,12 +33,19 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
 
 /**
  * The app header. Left: the mark and the wordmark, both linking to the main page, and the context badge (Online demo,
- * or Demo mode, or none). Right: the theme menu and the account menu, which holds About and Sign out. Sign out goes
- * through the API (SessionGate), which ends the CSP session and the whole sign-in group.
+ * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
+ * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group.
+ *
+ * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
+ * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
+ * Trace", a link to the newest turn's traceUrl that opens a new tab; with no such turn the link is aria-disabled, stays
+ * focusable, has no href and does nothing. While the sign-in help is needed (TraceHelp) the popover is the help: it is
+ * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
+ * was seen. Otherwise it is headed "Visual Trace" and records nothing.
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, Icon, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, Icon, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -37,6 +59,17 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
         }
       </div>
       <div class="side right">
+        <button
+          #traceTrigger
+          type="button"
+          class="button button-ghost header-button"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="traceOpen()"
+          (click)="toggleTrace()"
+        >
+          <span>{{ traceTexts.menu }}</span>
+          <app-icon name="external-link" />
+        </button>
         <button
           type="button"
           class="button button-ghost header-button"
@@ -58,6 +91,28 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
         </button>
       </div>
     </header>
+    <ng-template #tracePanel>
+      <app-trace-help
+        [headingId]="traceHeadingId"
+        [heading]="traceHelpShown() ? traceTexts.signInHeading : traceTexts.menu"
+        [signIn]="traceHelpShown()"
+        (dismissed)="closeTrace()"
+      >
+        @if (conversation(); as url) {
+          <a class="button button-primary" [href]="url" target="_blank" rel="noopener noreferrer" (click)="closeTrace()"
+            >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
+              {{ traceTexts.opensInNewTab }}</span
+            ></a
+          >
+        } @else {
+          <a class="button button-inactive" role="link" tabindex="0" aria-disabled="true" (click)="$event.preventDefault()"
+            >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
+              {{ traceTexts.opensInNewTab }}</span
+            ></a
+          >
+        }
+      </app-trace-help>
+    </ng-template>
     <ng-template #themeMenu>
       <div class="menu" cdkMenu aria-label="Theme">
         @for (option of themeOptions; track option.value) {
@@ -187,6 +242,21 @@ export class Header {
   private readonly dialogs = inject(Dialogs);
   private readonly gate = inject(SessionGate);
   private readonly accountTrigger = viewChild.required<ElementRef<HTMLElement>>('accountTrigger');
+  private readonly traceTrigger = viewChild.required<ElementRef<HTMLElement>>('traceTrigger');
+  private readonly tracePanel = viewChild.required<TemplateRef<unknown>>('tracePanel');
+  private readonly popovers = inject(Popovers);
+  private readonly traceHelp = inject(TraceHelp);
+  private readonly container = inject(ViewContainerRef);
+  private tracePopover: PopoverRef | undefined;
+
+  protected readonly traceTexts = TRACE_TEXTS;
+  protected readonly traceHeadingId = newTraceHeadingId();
+  /** True while the Visual Trace popover is open. */
+  protected readonly traceOpen = signal(false);
+  /** True when the open popover is the sign-in help; fixed when it opens, because opening records that the help was seen. */
+  protected readonly traceHelpShown = signal(false);
+  /** The target of "Open my conversation in Visual Trace": the newest turn's traceUrl, undefined with no such turn. */
+  protected readonly conversation = computed(() => conversationUrl(this.live.store()?.chat));
 
   protected readonly themeOptions = THEME_OPTIONS;
 
@@ -206,6 +276,35 @@ export class Header {
   protected readonly themeName = computed(
     () => `Theme: ${THEME_OPTIONS.find((option) => option.value === this.theme.choice())?.label ?? 'System'}`,
   );
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.tracePopover?.close());
+  }
+
+  /** Opens the Visual Trace popover, or closes it when it is open. */
+  protected toggleTrace(): void {
+    if (this.tracePopover?.isOpen) {
+      this.tracePopover.close();
+      return;
+    }
+    this.traceHelpShown.set(this.traceHelp.needed());
+    const popover = this.popovers.show({
+      trigger: this.traceTrigger().nativeElement,
+      content: this.tracePanel(),
+      viewContainerRef: this.container,
+      labelledBy: this.traceHeadingId,
+    });
+    this.tracePopover = popover;
+    this.traceOpen.set(true);
+    popover.closed.subscribe(() => this.traceOpen.set(false));
+    if (this.traceHelpShown()) {
+      this.traceHelp.markSeen();
+    }
+  }
+
+  protected closeTrace(): void {
+    this.tracePopover?.close();
+  }
 
   protected signOut(): void {
     this.gate.signOut();

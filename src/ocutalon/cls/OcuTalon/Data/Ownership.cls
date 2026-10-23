@@ -3,7 +3,8 @@
 ///   - SessionRef resolves the caller's session from the CSP session, never from the client and never from the user
 ///     name; Attach records the user's durable session in the CSP session.
 ///   - Every read takes the session's Ref and returns only that session's records: its turns (and, for Conversation's
-///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision),
+///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision;
+///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
 ///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
 ///     cards (RecentNotices) and the delivery of an approval message (DeliveryFor).
@@ -165,6 +166,26 @@ ClassMethod TurnByClient(sessionRef As %String, clientId As %String, Output sc A
 	Set rows = ..Rows("turnByClient", sessionRef, .sc, clientId)
 	If rows.Count() = 0 Quit ""
 	Quit rows.GetAt(1)
+}
+
+/// The session's turn that was made from the Item message with this ItemId, or "": a turn of another session, an unknown
+/// ItemId, an empty one, and one that differs only in case all answer like a missing one. The statement narrows the rows by
+/// the collated index; the value is then compared exactly. itemId comes from a decision row the product wrote; it is only
+/// ever a bound value, and sessionRef is that row's owner, never request input. sc is an error status when the read failed.
+ClassMethod TurnOfItem(itemId As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Set sc = $SYSTEM.Status.OK()
+	If itemId = "" Quit ""
+	Set rows = ..Rows("turnOfItem", sessionRef, .sc, itemId)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If row.ItemId = itemId {
+			Set found = row
+			Quit
+		}
+	}
+	Quit found
 }
 
 /// The session's queued and running turns, by CreatedAt and then ID: the order in which Conversation starts them.
@@ -439,6 +460,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "turnByClient" {
 		Set class = "OcuTalon.Data.Turn", binds = "oa"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ClientId = ? ORDER BY ID"
+	}
+	If kind = "turnOfItem" {
+		Set class = "OcuTalon.Data.Turn", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND ItemId = ?"
 	}
 	If kind = "turnQueue" {
 		Set class = "OcuTalon.Data.Turn", binds = "o"

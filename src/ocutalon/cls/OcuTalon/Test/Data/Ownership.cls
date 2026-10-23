@@ -6,7 +6,8 @@
 /// (TestTurnCost, TestRunCost), whose figures are written out. Story 2.7 adds the notice cards and the delivery find (RecentNotices,
 /// DeliveryFor; TestRecentNotices). Every row comes from Test.Data.Fixture, which Clean removes; the users are zzown<n>, with n
 /// from ^OcuTalonTest("Ownership","n") (never reset). onlineDemo is saved and put back. Story 2.8 adds ApprovalIncident
-/// (TestApprovalIncident) and the status of Watchers (TestInstanceScope).
+/// (TestApprovalIncident) and the status of Watchers (TestInstanceScope). Story 2.13 adds the turn of an Item (TestTurnOfItem), which
+/// the isolation and refusal tests cover as the row kind turnOfItem.
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
 
@@ -351,11 +352,11 @@ Method TestIsolationEveryRowKind()
 	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
 	Do ..Seed(a, .ra)
 	Do ..Seed(b, .rb)
-	Do ..ReadAll(a, .seenA, ra("decision"), ra("deliveryapproval"))
-	Do ..ReadAll(b, .seenB, rb("decision"), rb("deliveryapproval"))
-	Do ..ReadAll(b, .crossB, ra("decision"), ra("deliveryapproval"))
-	Do ..ReadAll(a, .crossA, rb("decision"), rb("deliveryapproval"))
-	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("delivery", "notice"))
+	Do ..ReadAll(a, .seenA, ra("decision"), ra("deliveryapproval"), ra("itemid"))
+	Do ..ReadAll(b, .seenB, rb("decision"), rb("deliveryapproval"), rb("itemid"))
+	Do ..ReadAll(b, .crossB, ra("decision"), ra("deliveryapproval"), ra("itemid"))
+	Do ..ReadAll(a, .crossA, rb("decision"), rb("deliveryapproval"), rb("itemid"))
+	Set kinds = $ListBuild($ListBuild("turns", "turns"), $ListBuild("turnqueue", "queued"), $ListBuild("lastreplied", "replied"), $ListBuild("turnbyclient", "queued"), $ListBuild("turnofitem", "turn"), $ListBuild("reminders", "reminder"), $ListBuild("checks", "check"), $ListBuild("decisions", "decision"), $ListBuild("incidents", "incident"), $ListBuild("approvals", "approval"), $ListBuild("pairing", "pairing"), $ListBuild("recentturns", "recentturns"), $ListBuild("recentincidents", "incident"), $ListBuild("decision", "decision"), $ListBuild("turnusage", "decision"), $ListBuild("runusage", "decision"), $ListBuild("rundecisions", "decision"), $ListBuild("recentnotices", "notice"), $ListBuild("delivery", "notice"))
 	Set position = 0
 	While $ListNext(kinds, position, pair) {
 		Set read = $List(pair, 1), kind = $List(pair, 2)
@@ -369,6 +370,8 @@ Method TestIsolationEveryRowKind()
 		Do $$$AssertEquals(crossB(read), "", "B reads nothing of A's decision through "_read)
 		Do $$$AssertEquals(crossA(read), "", "A reads nothing of B's decision through "_read)
 	}
+	Do $$$AssertEquals(crossB("turnofitem"), "", "B finds nothing of A's turn by A's ItemId")
+	Do $$$AssertEquals(crossA("turnofitem"), "", "A finds nothing of B's turn by B's ItemId")
 	Do $$$AssertEquals(crossB("delivery"), "", "B finds nothing of A's delivery by A's approval Ref")
 	Do $$$AssertEquals(crossA("delivery"), "", "A finds nothing of B's delivery by B's approval Ref")
 	Do $$$AssertEquals(seenA("recentnotices")_"|"_seenB("recentnotices"), ra("notice")_"|"_rb("notice"), "each session's notice cards are its own, and only the card kinds")
@@ -402,7 +405,7 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "deliveryByApproval" {
+	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "deliveryByApproval" {
 		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
@@ -623,6 +626,49 @@ Method TestTurnByClient()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnByClient(a, "zzClient"_..Number_"' OR '1'='1"), "", "a clientId is only ever a bound value")
 }
 
+/// TurnOfItem finds the session's turn made from an Item, matching the ItemId exactly (case included), and answers "" for
+/// an empty ItemId, an unknown one, one that differs only in case, and another session's turn; an owner that is no session
+/// (empty, eval, instance) is an error. The turn comes back whole, with the header and the indexes of its trace.
+Method TestTurnOfItem()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"b")
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Turn(a, , "done", "zz mine")
+	Set theirs = ##class(OcuTalon.Test.Data.Fixture).Turn(b, , "done", "zz theirs")
+	Set item = "ZzItem"_..Number_"Mine"
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(mine)
+	Set row.ItemId = item
+	Set row.TraceHeaderId = 9001
+	Set row.TraceItemIndex = 46
+	Set row.TraceItemIndexNoEvents = 30
+	Do row.%Save()
+	Set other = "ZzItem"_..Number_"Theirs"
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(theirs)
+	Set row.ItemId = other
+	Do row.%Save()
+	Set found = ##class(OcuTalon.Data.Ownership).TurnOfItem(item, a, .sc)
+	Do $$$AssertEquals(found.Ref, mine, "A finds its turn by the Item")
+	Do $$$AssertStatusOK(sc, "with an OK status")
+	Do $$$AssertEquals(found.TraceHeaderId_"|"_found.TraceItemIndex_"|"_found.TraceItemIndexNoEvents, "9001|46|30", "and the turn carries its trace target and indexes")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem(other, b).Ref, theirs, "B finds its own turn by its own Item")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem(other, a, .sc), "", "A does not find B's turn")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem(item, b, .sc), "", "B does not find A's turn")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem("ZzItem"_..Number_"Unknown", a, .sc), "", "an unknown Item finds nothing")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem($ZConvert(item, "L"), a, .sc), "", "the Item matches exactly: another case finds nothing")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem($ZConvert(item, "U"), a), "", "nor does the upper case")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem("", a, .sc), "", "an empty Item finds nothing")
+	Do $$$AssertStatusOK(sc, "and that is not an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem(item_"' OR '1'='1", a), "", "an Item is only ever a bound value")
+	For owner = "", "eval", "instance" {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).TurnOfItem(item, owner, .sc), "", "the owner '"_owner_"' finds nothing")
+		Do $$$AssertStatusNotOK(sc, "and says why")
+	}
+}
+
 /// TurnQueue holds the session's queued and running turns, never a done one, by CreatedAt and then ID.
 Method TestTurnQueueOrder()
 {
@@ -718,6 +764,7 @@ ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 {
 	Kill ref
 	Set ref("turn") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:01Z")
+	Set ref("itemid") = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref("turn")).ItemId
 	Set ref("queued") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:02Z", "queued", "zz queued", "zzownshared")
 	Set ref("replied") = ##class(OcuTalon.Test.Data.Fixture).Turn(sessionRef, "2030-01-01T10:00:03Z", "done", "zz replied", "zzownreplied")
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref("replied"))
@@ -740,10 +787,16 @@ ClassMethod Seed(sessionRef As %String, Output ref) [ Private ]
 
 /// Every read of the session: seen(read) = the Refs it returned, comma-separated (a usage row stands for its DecisionRef).
 /// With decisionRef, also the decision find and the usage reads that name it: seen("decision"), seen("turnusage") (both the
-/// turn's decision refs set to it), seen("runusage") and seen("rundecisions") (since a time long ago).
-Method ReadAll(sessionRef As %String, Output seen, decisionRef As %String = "", approvalRef As %String = "") [ Private ]
+/// turn's decision refs set to it), seen("runusage") and seen("rundecisions") (since a time long ago). With itemId, also the turn
+/// of that Item: seen("turnofitem").
+Method ReadAll(sessionRef As %String, Output seen, decisionRef As %String = "", approvalRef As %String = "", itemId As %String = "") [ Private ]
 {
 	Kill seen
+	If itemId '= "" {
+		Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+		Do $$$AssertStatusOK(sc, "TurnOfItem reads")
+		Set seen("turnofitem") = $Select($IsObject(turn): turn.Ref, 1: "")
+	}
 	If decisionRef '= "" {
 		Set found = ##class(OcuTalon.Data.Ownership).Decision(decisionRef, sessionRef, .sc)
 		Do $$$AssertStatusOK(sc, "Decision reads")

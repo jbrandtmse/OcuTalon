@@ -452,6 +452,57 @@ describe('recent decisions', () => {
   });
 });
 
+describe('trace links', () => {
+  const URL = (id) => `/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=${id}`;
+  const rowsOf = (id, rail) => section(viewOf(rail), id).rows;
+
+  it('are carried by an approval, a check, a reminder and a decision row when the payload has a traceUrl, as served', () => {
+    const rail = {
+      approvals: [approval('a1', { traceUrl: URL(777) })],
+      checks: [check('c1', { traceUrl: URL(55) })],
+      reminders: [reminder('r1', { traceUrl: URL(8) })],
+      decisions: [decision('d1', '2026-10-22T14:11:00Z', { traceUrl: `${URL(9001)}&PAGE=2` })],
+    };
+    assert.equal(rowsOf('approvals', rail)[0].traceUrl, URL(777));
+    assert.equal(rowsOf('checks', rail)[0].traceUrl, URL(55));
+    assert.equal(rowsOf('reminders', rail)[0].traceUrl, URL(8));
+    assert.equal(rowsOf('decisions', rail)[0].traceUrl, `${URL(9001)}&PAGE=2`);
+  });
+
+  it('are absent from a row whose payload has none or an empty one: no key at all', () => {
+    const rail = {
+      approvals: [approval('a1'), approval('a2', { traceUrl: '' })],
+      checks: [check('c1'), check('c2', { traceUrl: '' })],
+      reminders: [reminder('r1'), reminder('r2', { traceUrl: '' })],
+      decisions: [decision('d1', '2026-10-22T14:11:00Z'), decision('d2', '2026-10-22T14:12:00Z', { traceUrl: '' })],
+    };
+    for (const id of ['approvals', 'checks', 'reminders', 'decisions']) {
+      for (const row of rowsOf(id, rail)) {
+        assert.equal(Object.hasOwn(row, 'traceUrl'), false, `${row.key} has no traceUrl`);
+      }
+    }
+  });
+
+  it('are carried by a reminder row with no due time, and a check row with no run, as well as by those with a meta line', () => {
+    assert.equal(rowsOf('reminders', { reminders: [reminder('r1', { dueAt: '', traceUrl: URL(8) })] })[0].traceUrl, URL(8));
+    assert.equal(rowsOf('checks', { checks: [check('c1', { lastRunAt: '', result: '', finding: '', traceUrl: URL(55) })] })[0].traceUrl, URL(55));
+  });
+
+  it('leave the meta parts as they were: the link is not one of them', () => {
+    const rail = { checks: [check('c1', { traceUrl: URL(55) })], decisions: [decision('d1', '2026-10-22T14:11:00Z', { traceUrl: URL(42) })] };
+    assert.deepEqual(rowsOf('checks', rail)[0].meta, ['Last run 14:13', '50 new failures']);
+    assert.deepEqual(rowsOf('decisions', rail)[0].meta, ['14:11', 'Confidence 0.90', '$0.0003']);
+  });
+
+  it('follow a later event with the same ref: the row takes the new target, and loses it when the new payload has none', () => {
+    const store = fromSnapshot(snapshot({ checks: [check('c1', { traceUrl: URL(55) })] }));
+    const moved = applyEvents(store, { epoch: 'e1', events: [{ type: 'check', stream: 'session', seq: 6, ts: '', payload: check('c1', { traceUrl: URL(56) }) }] });
+    assert.equal(section(railView(moved.store, format()), 'checks').rows[0].traceUrl, URL(56));
+    const bare = applyEvents(moved.store, { epoch: 'e1', events: [{ type: 'check', stream: 'session', seq: 7, ts: '', payload: check('c1') }] });
+    assert.equal(Object.hasOwn(section(railView(bare.store, format()), 'checks').rows[0], 'traceUrl'), false);
+  });
+});
+
 describe('a value that holds a placeholder', () => {
   it('is shown as typed and filled in once: a reminder text that names {countdown}, a noun that names {n}', () => {
     const view = viewOf({

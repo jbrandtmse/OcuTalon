@@ -403,7 +403,7 @@ Method TestFromRowBuilders()
 	Do $$$AssertEquals(payload.Ref_"|"_payload.Kind_"|"_payload.State_"|"_payload.IncidentRef_"|"_payload.ToolName, "ZzAppRef"_..Number_"|fix|answered|ZzIncRef"_..Number_"|tool.fix", "an approval: ref, kind, state, incidentRef, toolName")
 	Do $$$AssertEquals(payload.RaisedAt_"|"_payload.ExpiresAt_"|"_payload.AnsweredAction_"|"_payload.AnsweredChannel, "2026-10-19T09:10:00Z|2026-10-19T09:20:00Z|approve|phone", "raisedAt, expiresAt, answeredAction, answeredChannel")
 	Do $$$AssertEquals(payload.AnsweredBy_"|"_payload.AnsweredAt_"|"_payload.Result_"|"_payload.FinishedAt, "someone|2026-10-19T09:11:00Z|fixed|2026-10-19T09:12:00Z", "answeredBy, answeredAt, result, finishedAt")
-	Do $$$AssertEquals(payload.Reason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||", "the reason and the trace have no source in the row")
+	Do $$$AssertEquals(payload.Reason_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "||", "the reason has no source in the row, and with no session to read the incident for there is no trace")
 	Do $$$AssertEquals(payload.DryRun.Affected_"|"_payload.DryRun.Resend_"|"_payload.DryRun.LeftOut_"|"_payload.DryRun.Field_"|"_payload.DryRun.Before_"|"_payload.DryRun.After, "4|3|1|OrderDate|16/10/2026|2026-10-16", "the dry run is parsed")
 	Do $$$AssertEquals(payload.DryRun.ItemNoun.One_"|"_payload.DryRun.ItemNoun.Other, "order|orders", "with its item noun")
 	Set request.DryRun = {"affected": 2}.%ToJSON()
@@ -440,6 +440,117 @@ Method TestFromRowBuilders()
 	Do $$$AssertEquals(payload.InputTokens_"|"_payload.OutputTokens_"|"_payload.CacheReadTokens_"|"_payload.CacheWriteTokens, "101|202|303|404", "the four token counts")
 	Do $$$AssertEquals(payload.AgentStepCount_"|"_payload.DurationMs_"|"_payload.CostUSD_"|"_payload.RecordedAt, "5|6000|.012345|2026-10-19T09:30:00Z", "agentStepCount, durationMs, costUSD, recordedAt")
 	Do $$$AssertEquals(payload.Model_"|"_payload.TraceHeaderId_"|"_payload.TraceNamespace, "Claude Sonnet 5.5|77|"_$Namespace, "the model's display name, the trace of the decision's session")
+	Do $$$AssertEquals(payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "|", "and a decision row with no owner has no item index")
+}
+
+/// A decision of a chat turn opens at its turn (DW-129): when the row's OwnerRef is a session that holds a Turn made from the
+/// row's Item (Ownership.TurnOfItem) and that Turn has a TraceHeaderId, the payload's traceHeaderId, traceItemIndex and
+/// traceItemIndexNoEvents are the Turn's, in the running namespace, and so are the nested decisions of the turn's chat message.
+/// Every other case keeps the row's TraceSessionId with no item index: an Item of no turn, a turn with no header, another
+/// session's turn, an owner that is instance or eval, and a read that fails (an owner with no Ref).
+Method TestDecisionOfATurnOpensAtTheTurn()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzpay"_..Number_"turn")
+	Set other = $ClassMethod(fixture, "Session", "zzpay"_..Number_"othr")
+	Set turnRef = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:00Z")
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
+	Set turn.TraceHeaderId = 9001
+	Set turn.TraceItemIndex = 46
+	Set turn.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(turn.%Save(), "the turn has its header and its two indexes")
+	Set bareRef = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set noHeader = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
+	Set partial = ##class(OcuTalon.Data.Turn).RefIndexOpen(bareRef)
+	Set partial.TraceHeaderId = 9002
+	Do $$$AssertStatusOK(partial.%Save(), "another turn has a header and no indexes")
+	Set own = $ClassMethod(fixture, "Decision", mine, "decide", , {"ItemId": (turn.ItemId), "TraceSessionId": 42})
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(own))
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "9001|"_$Namespace_"|46|30", "the decision of a turn takes the turn's header and indexes, not its TraceSessionId 42")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceItemIndex_"|"_exported.traceItemIndexNoEvents, "9001|46|30", "and the JSON carries the three under their own names")
+
+	Set decision = $ClassMethod(fixture, "Decision", mine, "decide", , {"TraceSessionId": 42})
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decision))
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "42|"_$Namespace_"||", "a decision of an Item that is no turn keeps its TraceSessionId and has no index")
+	Do payload.%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("traceItemIndex")_exported.%IsDefined("traceItemIndexNoEvents"), "00", "and the JSON has neither index")
+
+	Set headless = $ClassMethod(fixture, "Decision", mine, "decide", , {"ItemId": (##class(OcuTalon.Data.Turn).RefIndexOpen(noHeader).ItemId), "TraceSessionId": 42})
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(headless))
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "42||", "a turn with no header keeps the decision's TraceSessionId")
+
+	Set half = $ClassMethod(fixture, "Decision", mine, "decide", , {"ItemId": (##class(OcuTalon.Data.Turn).RefIndexOpen(bareRef).ItemId), "TraceSessionId": 42})
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(half))
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "9002||", "a turn with a header and no indexes gives its header and no index")
+
+	Set theirs = $ClassMethod(fixture, "Decision", other, "turn", , {"ItemId": (turn.ItemId), "TraceSessionId": 43})
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(theirs))
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "43||", "a decision of another session never takes this session's turn")
+
+	For owner = "eval", "instance" {
+		Set ref = $ClassMethod(fixture, "Decision", owner, $Select(owner = "eval": "diagnose", 1: "tool"), , {"ItemId": (turn.ItemId), "TraceSessionId": 44})
+		Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref))
+		Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "44||", "an owner of "_owner_" keeps the decision's TraceSessionId")
+		Do $ClassMethod(fixture, "Clean", ref)
+	}
+
+	Set unowned = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set unowned.Ref = "ZzUnowned"_..Number
+	Set unowned.ItemId = turn.ItemId
+	Set unowned.TraceSessionId = 45
+	Set payload = ##class(OcuTalon.Live.Payload.Decision).FromRow(unowned)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceItemIndex_"|"_payload.TraceItemIndexNoEvents, "45||", "a read that fails (a row with no owner) keeps the decision's TraceSessionId")
+
+	Set turn.TriageDecisionRef = own
+	Do $$$AssertStatusOK(turn.%Save(), "the turn shows the decision of its Item")
+	Set message = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
+	Do $$$AssertEquals(message.TraceHeaderId_"|"_message.TraceItemIndex_"|"_message.Decision.TraceHeaderId_"|"_message.Decision.TraceItemIndex_"|"_message.Decision.TraceItemIndexNoEvents, "9001|46|9001|46|30", "the nested decision of the turn's chat message opens where the turn does")
+	Do $ClassMethod(fixture, "Clean", mine_","_other_","_turnRef_","_bareRef_","_noHeader_","_own_","_decision_","_headless_","_half_","_theirs)
+}
+
+/// An approval request carries its incident's trace target (AD-26) when it is built for a session that can see the incident: the
+/// incident's TraceHeaderId, in the running namespace. It has no target for a request with no incident, an incident with no
+/// TraceHeaderId, an incident that is not noticed, another session's incident, and no session to read for.
+Method TestApprovalOpensAtItsIncident()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzpay"_..Number_"appr")
+	Set other = $ClassMethod(fixture, "Session", "zzpay"_..Number_"apro")
+	Set traced = $ClassMethod(fixture, "Incident", mine, , , , {"TraceHeaderId": 777})
+	Set plain = $ClassMethod(fixture, "Incident", mine)
+	Set unnoticed = $ClassMethod(fixture, "Incident", mine, "", , , {"TraceHeaderId": 778})
+	Set theirs = $ClassMethod(fixture, "Incident", other, , , , {"TraceHeaderId": 779})
+	Set refs = mine_","_other_","_traced_","_plain_","_unnoticed_","_theirs
+	Set requestRef = $ClassMethod(fixture, "Approval", mine, traced)
+	Set refs = refs_","_requestRef
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(requestRef)
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request, mine)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "777|"_$Namespace, "a request of a noticed incident with a trace carries the incident's TraceHeaderId")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceNamespace, "777|"_$Namespace, "and the JSON carries both under their own names")
+
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "with no session there is no target")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request, other)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "an incident the session can't see gives no target")
+	Do payload.%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("traceHeaderId")_exported.%IsDefined("traceNamespace"), "00", "and the JSON has neither key")
+	For case = $ListBuild("an incident with no TraceHeaderId", plain), $ListBuild("an incident that is not noticed", unnoticed), $ListBuild("another session's incident", theirs), $ListBuild("an incident that does not exist", "ZzNoIncident"_..Number) {
+		Set caseRef = $ClassMethod(fixture, "Approval", mine, $List(case, 2))
+		Set refs = refs_","_caseRef
+		Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(caseRef), mine)
+		Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", $List(case, 1)_" gives no target")
+	}
+	Set caseRef = $ClassMethod(fixture, "Approval", mine)
+	Set refs = refs_","_caseRef
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(caseRef), mine)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "a request with no incident gives no target")
+	Do $ClassMethod(fixture, "Clean", refs)
 }
 
 /// The notification payload's FromRow copies each field of a card's Delivery row to its own name: ref is the ChannelMessageId, and

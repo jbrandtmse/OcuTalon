@@ -15,6 +15,8 @@
 /// position for the user's page size and choice of events, and a check in a namespace with no trace application carries none; the
 /// chat.message of EventsBody carries it too. The user's own ^EnsPortal.Settings($Username,"VisualTrace") is saved before the
 /// tests (in a process-private global), unset before each test and put back after them.
+/// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
+/// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -184,8 +186,11 @@ Method TestStateSections()
 	Set check1 = $ClassMethod(fixture, "Check", mine, "ZZNS", production)
 	Set check2 = $ClassMethod(fixture, "Check", mine, "ZZNS", "Zz.Api"_..Number_".Second")
 	Set turn1 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set turnRow = ##class(OcuTalon.Data.Turn).RefIndexOpen(turn1)
+	Set turnRow.TraceHeaderId = 9001, turnRow.TraceItemIndex = 46, turnRow.TraceItemIndexNoEvents = 30
+	Do $$$AssertStatusOK(turnRow.%Save(), "the first turn has a trace target at position 46 (30 without events)")
 	Set turn2 = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z", "queued")
-	Set own = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:02Z")
+	Set own = $ClassMethod(fixture, "Incident", mine, "2030-01-01T10:00:02Z", , , {"TraceHeaderId": 777})
 	Set unnoticed = $ClassMethod(fixture, "Incident", mine, "")
 	Set instance = $ClassMethod(fixture, "Incident", "instance", "2030-01-01T10:00:03Z", "ZZNS", production)
 	Set theirTurn = $ClassMethod(fixture, "Turn", theirs)
@@ -199,7 +204,7 @@ Method TestStateSections()
 	Set fired = $ClassMethod(fixture, "Reminder", mine, "2030-01-01T10:00:00Z", "fired")
 	Set expectedDecisions = ""
 	For i = 1:1:22 {
-		Set ref = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:"_$Extract(100 + i, 2, 3)_"Z")
+		Set ref = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:"_$Extract(100 + i, 2, 3)_"Z", $Select(i = 21: {"ItemId": (turnRow.ItemId)}, 1: ""))
 		If i > 2 Set expectedDecisions = ref_$Select(expectedDecisions = "": "", 1: ",")_expectedDecisions
 	}
 	Set turnDecision = $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T11:00:00Z")
@@ -228,6 +233,10 @@ Method TestStateSections()
 	Set request = rail.approvals.%Get(1)
 	Do $$$AssertEquals(request.state_"|"_request.incidentRef_"|"_request.kind, "pending|"_own_"|fix", "an approval's payload is Approval.FromRow")
 	Do $$$AssertEquals(request.dryRun.affected_"|"_request.dryRun.field_"|"_request.dryRun.itemNoun.one_"|"_request.dryRun.itemNoun.other, "4|OrderDate|order|orders", "its dry run is parsed")
+	Do $$$AssertEquals(request.traceHeaderId_"|"_request.traceNamespace, "777|"_$Namespace, "an approval of an incident with a trace carries the incident's TraceHeaderId")
+	Do $$$AssertEquals(request.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=777", "and its trace URL, with no PAGE")
+	Set watched = rail.approvals.%Get(0)
+	Do $$$AssertEquals(watched.%IsDefined("traceHeaderId")_watched.%IsDefined("traceUrl"), "00", "an approval of an incident with no trace carries none")
 	Do $$$AssertEquals(..Refs(rail.checks), check1_","_check2, "checks: all of them, by ID")
 	Set view = rail.checks.%Get(0)
 	Do $$$AssertEquals(view.kind_"|"_view.namespace_"|"_view.production_"|"_view.displayName, "production|ZZNS|"_production_"|Zz display", "a check's payload is CheckView's")
@@ -244,6 +253,12 @@ Method TestStateSections()
 	Do $$$AssertEquals(decision.model_"|"_decision.traceHeaderId_"|"_decision.traceNamespace, "Claude Haiku 5.5|42|"_$Namespace, "a decision's payload is Decision.FromRow")
 	Do $$$AssertTrue(decision.itemSummary [ "zz summary", "its summary is the row's")
 	Do $$$AssertEquals(decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "and it carries its trace URL, with no PAGE")
+	Do $$$AssertEquals(decision.%IsDefined("traceItemIndex")_decision.%IsDefined("traceItemIndexNoEvents"), "00", "a decision of an Item that is no turn has no item index")
+	Set ofTurn = rail.decisions.%Get(1)
+	Do $$$AssertEquals(ofTurn.itemId, turnRow.ItemId, "the decision made from the first turn's Item is the second newest")
+	Do $$$AssertEquals(ofTurn.traceHeaderId_"|"_ofTurn.traceItemIndex_"|"_ofTurn.traceItemIndexNoEvents, "9001|46|30", "a rail decision of a chat turn carries the turn's header and positions, not its TraceSessionId")
+	Do $$$AssertEquals(ofTurn.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL opens the day's thread at page 2, where the turn is")
+	Do $$$AssertEquals(ofTurn.traceUrl, chat.%Get(0).payload.traceUrl, "which is the turn's own trace URL")
 
 	Do $$$AssertEquals(body.telegram.included_"|"_body.telegram.paired_"|"_body.telegram.displayName_"|"_body.telegram.state, "1|1|Zz chat|off", "telegram: included, paired, the chat's name")
 	Set ^OcuTalonTest("TelegramIncluded") = 0
@@ -306,6 +321,9 @@ Method TestStateChatDecision()
 	Do $ClassMethod(fixture, "Usage", triage, theirs, {"InputTokens": 7000, "OutputTokens": 7000, "CostUSD": 0.7})
 	Set replied = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(replied)
+	Set decisionRow = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(triage)
+	Set decisionRow.ItemId = row.ItemId
+	Do $$$AssertStatusOK(decisionRow.%Save(), "the triage decision is the decision of the first turn's Item")
 	Set row.TriageDecisionRef = triage
 	Set row.TurnDecisionRef = reply
 	Set row.CheckKey = "checks.allPassed"
@@ -332,10 +350,12 @@ Method TestStateChatDecision()
 	Do $$$AssertEquals(first.checks.%Get(1).result_"|"_first.checks.%Get(1).entry_"|"_first.checks.%Get(1).finding_"|"_first.checks.%Get(1).checkedAt, "failed|Warehouse queue|zz finding|2030-01-01T10:01:00Z", "each row with its result, entry, finding and time")
 	Do $$$AssertEquals(first.traceItemIndex_"|"_first.traceItemIndexNoEvents, "41|30", "the entry carries both positions of its trace target")
 	Do $$$AssertEquals(first.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=2", "and its trace URL, at the page of position 41 for 40 items a page")
-	Do $$$AssertEquals(first.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "the nested decision has its own trace URL, with no PAGE")
+	Do $$$AssertEquals(first.decision.traceUrl, first.traceUrl, "the nested decision of the turn's Item opens where the turn does")
+	Do $$$AssertEquals(first.decision.traceHeaderId_"|"_first.decision.traceItemIndex_"|"_first.decision.traceItemIndexNoEvents, "9001|41|30", "with the turn's header and positions")
 	Set second = body.chat.%Get(1).payload
 	Do $$$AssertEquals(second.%IsDefined("traceUrl")_"|"_second.%IsDefined("traceItemIndex"), "0|0", "a turn with no trace target has no traceUrl and no position")
 	Do $$$AssertEquals(second.decision.ref_"|"_second.decision.fallbackReason_"|"_+second.turnCost.costUSD, reply_"|timeout|.0008", "a fallback: the reply decision and the same cost")
+	Do $$$AssertEquals(second.decision.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=42", "its decision is of no turn's Item, so it opens its own TraceSessionId, with no PAGE")
 	Do $$$AssertEquals(second.%IsDefined("checkKey")_"|"_second.%IsDefined("checks"), "0|0", "with no check rows")
 	Set third = body.chat.%Get(2).payload
 	Do $$$AssertEquals(third.%IsDefined("decision")_"|"_third.%IsDefined("turnCost"), "0|0", "a turn with no decision has neither decision nor cost")
@@ -343,6 +363,7 @@ Method TestStateChatDecision()
 	Do ##class(EnsPortal.VisualTrace).SetShowEvents(0)
 	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
 	Do $$$AssertEquals(body.chat.%Get(0).payload.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=9001&PAGE=3", "with 10 items a page and events hidden, position 30 is page 3: the viewer's own settings")
+	Do $$$AssertEquals(body.chat.%Get(0).payload.decision.traceUrl, body.chat.%Get(0).payload.traceUrl, "and the nested decision opens on the same page")
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
 }
 

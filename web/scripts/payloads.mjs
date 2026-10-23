@@ -11,6 +11,8 @@
 // Live/Payload/, the parts under Part/ included. Each class is one interface, every field optional, because IRIS
 // omits an empty string and an empty list from the JSON. A payload class is named <Class>Payload and a part by its
 // own name. Also written: LiveEventType, the union of the event types, and LivePayloads, the type to interface map.
+// An interface with both traceHeaderId and traceNamespace also gets `traceUrl?: string;` as its last field: the web
+// layer (Web.TraceLink) adds the URL to such an object when it serves the payload.
 //
 // A property is read as `Property <Name> As [list Of ]<Type>[(<parameters>)] [<keywords>];` on one line, from the
 // first column; a line that starts with `property` in any case or indentation and is not in that form is refused.
@@ -119,6 +121,8 @@ function tsType(property, file, parts, direct) {
 
 function renderInterface(name, cls, parts, direct) {
   const fields = cls.properties.map((property) => `  ${property.key}?: ${tsType(property, cls.file, parts, direct)};`);
+  const keys = new Set(cls.properties.map((property) => property.key));
+  if (keys.has('traceHeaderId') && keys.has('traceNamespace') && !keys.has('traceUrl')) fields.push('  traceUrl?: string;');
   return [`export interface ${name} {`, ...fields, '}'].join('\n');
 }
 

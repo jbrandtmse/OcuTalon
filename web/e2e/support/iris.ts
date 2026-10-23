@@ -11,8 +11,11 @@ function required(name: string): string {
   return value;
 }
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD, kind LIVE, SESSION, SIGNIN, CHAT, PANEL, DECISION, NOTICE, RAIL or THREAD. */
-export function fixtureUser(kind: 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD'): { user: string; password: string } {
+/** The kinds of fixture user of the sign-in unit. */
+export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS';
+
+/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
+export function fixtureUser(kind: FixtureKind): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
@@ -65,12 +68,17 @@ function literal(user: string): string {
   return `"${user}"`;
 }
 
-/** What publishReminder may set on the reminder it publishes; the ref is new unless given. */
+/**
+ * What publishReminder may set on the reminder it publishes; the ref is new unless given. traceHeaderId and traceNamespace are the
+ * reminder's trace target (the waiter's header once Story 8.3 stores it), which only a published payload carries: a reminder row has none.
+ */
 export interface ReminderFields {
   ref?: string;
   text?: string;
   dueAt?: string;
   state?: string;
+  traceHeaderId?: number;
+  traceNamespace?: string;
 }
 
 /**
@@ -87,6 +95,8 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
       `Set p.Text=${quoted(fields.text ?? 'e2e live reminder')}`,
       `Set p.State=${quoted(fields.state ?? 'pending')}`,
       ...(fields.dueAt === undefined ? [] : [`Set p.DueAt=${quoted(fields.dueAt)}`]),
+      ...(fields.traceHeaderId === undefined ? [] : [`Set p.TraceHeaderId=${numeric(fields.traceHeaderId, 'traceHeaderId')}`]),
+      ...(fields.traceNamespace === undefined ? [] : [`Set p.TraceNamespace=${quoted(fields.traceNamespace)}`]),
       'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"reminder",p,.q)',
       'Write !,"CHK|seq|",q',
     ].join('\n'),
@@ -146,6 +156,8 @@ export interface SeedDecision {
   costUSD?: number;
   model?: string;
   traceSessionId?: number;
+  /** The Item the decision was made for: a new Ref unless given. Only seedDecisions reads it; a turn of seedTurns has its own ItemId. */
+  itemId?: string;
   /** When it was recorded (UTC, to the second); the default is now for seedDecision, and the turn's createdAt for a turn of seedTurns. */
   recordedAt?: string;
 }
@@ -407,7 +419,7 @@ export async function seedDecisions(user: string, rows: SeedDecisionRow[]): Prom
       ...decisionRowLines(
         'd',
         row.kind ?? 'decide',
-        ['Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()', 'Set d.OwnerRef=s.Ref'],
+        [row.itemId === undefined ? 'Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()' : `Set d.ItemId=${quoted(row.itemId)}`, 'Set d.OwnerRef=s.Ref'],
         row,
         row.recordedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(row.recordedAt),
       ),
@@ -642,11 +654,20 @@ export interface CheckFields {
   lastRunAt?: string;
   result?: string;
   finding?: string;
+  /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
+  lastRunHeaderId?: number;
 }
 
 /** Writes a background check of the user's own session through Test.Data.Fixture.Check. Returns its Ref; cleanFixtureRows removes it. */
 export async function seedCheck(user: string, fields: CheckFields = {}): Promise<string> {
-  const row = properties({ Kind: fields.kind, DisplayName: fields.displayName, LastRunAt: fields.lastRunAt, Result: fields.result, Finding: fields.finding });
+  const row = properties({
+    Kind: fields.kind,
+    DisplayName: fields.displayName,
+    LastRunAt: fields.lastRunAt,
+    Result: fields.result,
+    Finding: fields.finding,
+    LastRunHeaderId: fields.lastRunHeaderId === undefined ? undefined : numeric(fields.lastRunHeaderId, 'lastRunHeaderId'),
+  });
   const lines = await irisScript(
     [
       `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
@@ -677,6 +698,7 @@ export async function publishCheck(user: string, fields: CheckFields & { ref: st
       ...set('LastRunAt', fields.lastRunAt),
       ...set('Result', fields.result),
       ...set('Finding', fields.finding),
+      ...(fields.lastRunHeaderId === undefined ? [] : [`Set p.TraceHeaderId=${numeric(fields.lastRunHeaderId, 'lastRunHeaderId')}`, `Set p.TraceNamespace=${quoted(fields.namespace ?? 'ZZNS')}`]),
       'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"check",p,.q)',
       'Write !,"CHK|seq|",q',
     ].join('\n'),
@@ -687,7 +709,7 @@ export async function publishCheck(user: string, fields: CheckFields & { ref: st
 }
 
 /** Writes a reminder of the user's own session through Test.Data.Fixture.Reminder (pending, due at dueAt when given). Returns its Ref; cleanFixtureRows removes it. */
-export async function seedReminder(user: string, fields: Omit<ReminderFields, 'ref'> = {}): Promise<string> {
+export async function seedReminder(user: string, fields: Omit<ReminderFields, 'ref' | 'traceHeaderId' | 'traceNamespace'> = {}): Promise<string> {
   const row = properties({ Text: fields.text });
   const lines = await irisScript(
     [
@@ -706,6 +728,8 @@ export interface IncidentFields {
   namespace?: string;
   production?: string;
   noticedAt?: string;
+  /** The incident's trace session, which its approval request's trace link opens (AD-26). */
+  traceHeaderId?: number;
 }
 
 /**
@@ -713,10 +737,11 @@ export interface IncidentFields {
  * Ref; cleanFixtureRows removes it.
  */
 export async function seedIncident(owner: string, fields: IncidentFields = {}): Promise<string> {
+  const row = properties({ TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId') });
   const lines = await irisScript(
     [
       ...(owner === 'instance' ? ['Set o="instance"'] : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
-      `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')})`,
+      `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
       'Write !,"CHK|incident|",r',
     ].join('\n'),
   );

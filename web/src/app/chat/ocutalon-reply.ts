@@ -81,6 +81,7 @@ const FALLBACK_KEY = 'conversation.turnFallback';
             [turnCost]="turn().turnCost"
             [fallbackReason]="turn().fallbackReason"
             [newest]="turn().newest"
+            [traceUrl]="turn().traceUrl"
           />
         }
       </div>

@@ -4,6 +4,7 @@ import { CHAT_TEXTS } from '../chat/chat-view';
 import { FallbackFlag } from '../chat/fallback-flag';
 import { meaningOf, OutcomeChip } from '../chat/outcome-chip';
 import { Icon } from '../icon/icon';
+import { TraceLink } from '../shared/trace-link';
 import type { RailRow } from './rail-view';
 
 /** The last id handed to a row, for the ids of the reasons its button controls and of the meaning that describes it. */
@@ -16,12 +17,13 @@ let lastId = 0;
  *   the button is described by the outcome's meaning from a hidden element, so the chip's pointer tooltip is never its only copy.
  * - Line 2 is the first reason line on one line with an ellipsis, a fallback's sentence first and in the warning colour. Expanded, every
  *   reason line replaces it in place. Esc inside the row collapses it and focus stays where it is.
- * - The meta line holds the time, the confidence (not on a fallback) and the decision's own cost.
+ * - The meta line holds the time, the confidence (not on a fallback) and the decision's own cost, then the trace link beside the
+ *   button (never inside it) when the decision has a traceUrl.
  * Every text is bound by interpolation. The row is not a live region.
  */
 @Component({
   selector: 'app-decision-row',
-  imports: [FallbackFlag, Icon, OutcomeChip],
+  imports: [FallbackFlag, Icon, OutcomeChip, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" (keydown.escape)="collapse()">
@@ -52,13 +54,19 @@ let lastId = 0;
           <p class="reason one-line" [class.fallback]="decision().fallbackLine">{{ decision().firstReason }}</p>
         }
       </div>
-      @if (row().meta.length > 0) {
+      @if (row().meta.length > 0 || row().traceUrl) {
         <div class="meta">
           @for (part of row().meta; track $index) {
             @if ($index > 0) {
               <span aria-hidden="true">{{ separator }}</span>
             }
             <span>{{ part }}</span>
+          }
+          @if (row().traceUrl; as url) {
+            @if (row().meta.length > 0) {
+              <span aria-hidden="true">{{ separator }}</span>
+            }
+            <app-trace-link [url]="url" />
           }
         </div>
       }

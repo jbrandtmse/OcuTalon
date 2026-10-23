@@ -4,7 +4,7 @@ import { envelope } from '../sign-in/helpers';
 
 /**
  * What the API specs share: the three routes a spec polls and posts to, one live event as /events serves it, and the two calls that
- * post a message the way the page does and wait for the session stream. api.spec.ts (Story 2.4) and trace.spec.ts (Story 2.9) use them.
+ * post a message the way the page does and wait for the session stream. api.spec.ts (Story 2.4), trace.spec.ts (Story 2.9) and links.spec.ts (Story 2.13) use them.
  */
 
 export const STATE = '/ocutalon/api/v1/state';
