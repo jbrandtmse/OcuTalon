@@ -15,6 +15,10 @@
 ///     read of the recipients logs one warning and publishes nothing, and nobody watching logs nothing;
 ///   - TestAFailedRecipientReadDoesNotStopTheOthers: a recipient whose read fails logs one warning naming the event, the request and
 ///     the recipient, and the next recipient still gets its event;
+///   - TestOnlineDemoStillPublishesASessionsOwnRequest: with onlineDemo on, a session's own request is published to it, as the
+///     demo's approval step needs, and an instance request still is not;
+///   - TestApprovalNeverWaitsMoreThanASecond: an approval event waits about a second for a busy stream, as every event does; of
+///     two watchers of an instance request, the one whose stream is free still gets its event;
 ///   - TestTurnStepForTheRunningTurn, TestTurnStepWithNoRunningTurn, TestTurnStepOfAnotherItem: turn.step carries the running
 ///     turn's Ref, the decision's Ref and the trimmed label, and only for the running turn of the item the bridge context is for;
 ///   - TestNeverWaitsMoreThanASecond: a stream whose lock another job holds drops the event after about a second;
@@ -310,6 +314,71 @@ Method TestAFailedRecipientReadDoesNotStopTheOthers()
 	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref, request, "for the request")
 }
 
+/// With onlineDemo on, the session's own request is published to the session (the online demo's approval step is its own request),
+/// while an instance request of a watched production is published to nobody.
+Method TestOnlineDemoStillPublishesASessionsOwnRequest()
+{
+	Set session = ..Session("demo")
+	Set production = "Zz.Sink"_..Number_".Demo"
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(session, "ZZNS", production)
+	Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(session)
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
+	Set instance = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
+	Set ..Refs = ..Refs_","_own_","_incident_","_instance
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do $$$AssertStatusOK(..Sink("approval.raised", session, {"ref": (own)}), "the session's own request: OnEvent returns OK")
+	Set events = ..Events(session)
+	Do $$$AssertEquals(events.%Size(), 1, "it is published to the session")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, "approval|"_own_"|pending", "as an approval event for the request")
+	Do $$$AssertStatusOK(..Sink("approval.raised", "instance", {"ref": (instance)}), "an instance request of the watched production: OnEvent returns OK")
+	Do $$$AssertEquals(..Holding(instance), 0, "no event holds it")
+	Do $$$AssertEquals(..Events(session).%Size(), 1, "and the session's stream gained nothing")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// An approval event waits for a busy stream as long as any other event, about a second and not Publish's five (AD-31): a session
+/// whose stream another job holds drops the event with one warning, and the same event publishes once the lock is free. Of two
+/// watchers of an instance request, the one whose stream is free still gets its event while the other drops it.
+Method TestApprovalNeverWaitsMoreThanASecond()
+{
+	Set solo = ..Session("lockedsolo")
+	Set a = ..Session("lockeda")
+	Set b = ..Session("lockedb")
+	Set production = "Zz.Sink"_..Number_".Locked"
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", production)_","_##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", production)
+	Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(solo)
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", production)
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval("instance", incident)
+	Set ..Refs = ..Refs_","_own_","_incident_","_request
+
+	Do ..HoldStream(solo)
+	Set mark = ..LastLog()
+	Set start = $ZHorolog
+	Set sc = ..Sink("approval.raised", solo, {"ref": (own)})
+	Set elapsed = $ZHorolog - start
+	Do $$$AssertStatusOK(sc, "a session's request on a held stream: OnEvent returns OK")
+	Do $$$AssertTrue((elapsed >= 0.9) && (elapsed <= 4), "it waited about a second, not five: "_$FNumber(elapsed, "", 2)_" s")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Publish", ##class(OcuTalon.Core.BridgeSink).#ERRORPUBLISH), 1, "one warning says that the event could not be published: "_text)
+	Do $$$AssertEquals(..Warnings(mark), 1, "and no other warning")
+	Do $$$AssertEquals(..Holding(own), 0, "nothing was published while the stream was held")
+	Do ..ReleaseStream(solo)
+	Do $$$AssertStatusOK(..Sink("approval.raised", solo, {"ref": (own)}), "the same event, once the lock is free: OnEvent returns OK")
+	Do $$$AssertEquals(..Events(solo).%Size(), 1, "publishes")
+
+	Do ..HoldStream(a)
+	Set mark = ..LastLog()
+	Set start = $ZHorolog
+	Set sc = ..Sink("approval.raised", "instance", {"ref": (request)})
+	Set elapsed = $ZHorolog - start
+	Do $$$AssertStatusOK(sc, "an instance request with one watcher's stream held: OnEvent returns OK")
+	Do $$$AssertTrue((elapsed >= 0.9) && (elapsed <= 4), "it waited about a second for that one stream, not five: "_$FNumber(elapsed, "", 2)_" s")
+	Do $$$AssertEquals(..Events(a).%Size(), 0, "the watcher whose stream is held drops the event")
+	Do $$$AssertEquals(..Events(b).%Size(), 1, "the other watcher still gets its event")
+	Do $$$AssertEquals(..Warnings(mark), 1, "and one warning is logged")
+	Do ..ReleaseStream(a)
+}
+
 /// turn.step for a session with a running turn publishes one turn.step event with the running turn's Ref, the decision's Ref
 /// and the trimmed label, and nothing else of the step.
 Method TestTurnStepForTheRunningTurn()
@@ -386,10 +455,7 @@ Method TestNeverWaitsMoreThanASecond()
 	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session)
 	Set turn = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2030-01-01T10:00:01Z", "running")
 	Set ..Refs = ..Refs_","_decision_","_turn
-	Kill ^OcuTalonTest("BridgeSink", "hold", session)
-	Job ##class(OcuTalon.Test.Core.BridgeSink).Hold(session)
-	Do ..WaitFor($Name(^OcuTalonTest("BridgeSink", "hold", session, "ready")), 60)
-	Do $$$AssertEquals($Get(^OcuTalonTest("BridgeSink", "hold", session, "ready")), 1, "another job holds the stream's lock")
+	Do ..HoldStream(session)
 	For case = "decision.recorded", "turn.step" {
 		Set payload = $Select(case = "turn.step": {"decisionRef": "ZzSinkDecision", "label": "Asking the model"}, 1: {"ref": (decision)})
 		Set start = $ZHorolog
@@ -399,9 +465,7 @@ Method TestNeverWaitsMoreThanASecond()
 		Do $$$AssertTrue((elapsed >= 0.9) && (elapsed <= 4), case_": it waited about a second, not five: "_$FNumber(elapsed, "", 2)_" s")
 	}
 	Do $$$AssertEquals(..Warnings(), 2, "one warning is logged for each dropped event")
-	Set ^OcuTalonTest("BridgeSink", "hold", session, "release") = 1
-	Do ..WaitFor($Name(^OcuTalonTest("BridgeSink", "hold", session, "done")), 60)
-	Do $$$AssertEquals($Get(^OcuTalonTest("BridgeSink", "hold", session, "done")), 1, "the job releases the lock")
+	Do ..ReleaseStream(session)
 	Do $$$AssertEquals(..Events(session).%Size(), 0, "nothing was published while it was held")
 	Do $$$AssertStatusOK(..Sink("decision.recorded", session, {"ref": (decision)}), "the same event, once the lock is free: OnEvent returns OK")
 	Do $$$AssertEquals(..Events(session).%Size(), 1, "publishes")
@@ -548,7 +612,24 @@ ClassMethod WaitFor(ref As %String, seconds As %Integer) [ Private ]
 	}
 }
 
-/// The job body of TestNeverWaitsMoreThanASecond: holds the stream's lock until released, then ends.
+/// Another job takes the stream's lock and holds it until ReleaseStream; this returns once the job holds it.
+Method HoldStream(stream As %String) [ Private ]
+{
+	Kill ^OcuTalonTest("BridgeSink", "hold", stream)
+	Job ##class(OcuTalon.Test.Core.BridgeSink).Hold(stream)
+	Do ..WaitFor($Name(^OcuTalonTest("BridgeSink", "hold", stream, "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("BridgeSink", "hold", stream, "ready")), 1, "another job holds the lock of the stream "_stream)
+}
+
+/// Lets the job that HoldStream started release the stream's lock, and returns once it has.
+Method ReleaseStream(stream As %String) [ Private ]
+{
+	Set ^OcuTalonTest("BridgeSink", "hold", stream, "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("BridgeSink", "hold", stream, "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("BridgeSink", "hold", stream, "done")), 1, "the job lets go of the stream "_stream)
+}
+
+/// The job body of HoldStream: holds the stream's lock until released, then ends.
 ClassMethod Hold(stream As %String)
 {
 	Lock +^OcuTalonP.LiveEventC(stream):5

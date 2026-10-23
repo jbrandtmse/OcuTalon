@@ -26,7 +26,7 @@
 #   - Story 2.7's notice cards (web/e2e/chat/notice.spec.ts N1 to N15): the notice user (OCUTALON_NOTICE_USER), whose session the
 #     N specs seed decisions into and send items, item decisions and notifications to; N10 sends an untrusted item through the
 #     real production and times the card.
-#   - Story 2.8's status rail (web/e2e/rail/rail.spec.ts R1 to R13): the rail user (OCUTALON_RAIL_USER), whose session the R specs
+#   - Story 2.8's status rail (web/e2e/rail/rail.spec.ts R1 to R19): the rail user (OCUTALON_RAIL_USER), whose session the R specs
 #     seed approval requests, checks, reminders and decisions into, and whose rows they drive through BridgeSink and the live stream.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
 # 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice and rail users
@@ -208,13 +208,13 @@ if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15 and Story 2.8's R1-R13: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15 and Story 2.8's R1-R19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15 and Story 2.8's R1-R13: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15 and Story 2.8's R1-R19: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

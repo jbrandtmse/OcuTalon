@@ -454,6 +454,47 @@ deferred:
 - **REL-2.** **Given** a fresh install and the README account, **when** the demo path's page step runs, **then** its new `@floor` test checks the rail's sections, counts and empty states (`live demo-path` prints `floor 3 of 3 passed`).
 - **Safety (AD-13).** **Given** markup in a summary or a reminder, **when** it shows in the rail, **then** it is text. Tests: R12, and `page-safety.test.mjs`, which scans `rail/**`.
 
+### Review Findings
+
+Code review of 2026-10-23 (`bmad-code-review`, full mode, four layers; diff `59fed45` to the working tree, bookkeeping excluded). 35 raw findings became 12 entries: high 0, medium 5, low 7. 23 rows were rejected (appendix). Every patch below was applied in this pass (menu option 1).
+
+- [x] [Review][Patch] (medium) The rail's decision row left the outcome's meaning in the chip's pointer tooltip alone. EXPERIENCE:216 says a tooltip never holds the only copy, and the chat strip describes itself with the meaning. Fix: the row's button is now `aria-describedby` a hidden element holding `meaningOf(chip)`, and R8 asserts the description of an `act` row and of a fallback row. [web/src/app/rail/decision-row.ts:33] (fix-risk low; in-story)
+- [x] [Review][Patch] (medium) R6 seeded a real pending Reminder due at 12:01:30 UTC today, which is overdue on the stack's own clock for any run after that time. Once Epic 8's reminder timer merges (FR-34, fired within 10 s), it would fire the row mid-case. Fix: R6 now seeds and fixes the page clock on the day after the run's date. [web/e2e/rail/rail.spec.ts:247] (fix-risk low; in-story)
+- [x] [Review][Patch] (medium, Rule 2) `TestNeverWaitsMoreThanASecond` kept an inline copy of the hold, wait and release code that QA extracted as `HoldStream` and `ReleaseStream`. It now calls the two helpers, and `Hold`'s doc names `HoldStream`. [src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls:458] (fix-risk low; in-story)
+- [x] [Review][Patch] (medium, Rule 2) `main-page.ts`'s `RAIL_SECTIONS` restated the four labels that `RAIL_TEXTS` owns, so a wording change in one would split the loading and failed headings from the loaded ones. It is now built from `RAIL_TEXTS`. [web/src/app/main-page/main-page.ts:10] (fix-risk low; in-story)
+- [x] [Review][Patch] (low) R5, R8 and R10 asserted same-day times with the page on the real clock and each `today()` call reading the date again, so a run crossing 00:00 UTC could read "<weekday> at 12:00". `today()` now uses the run's one date, and those three cases fix the page clock at 12:30 on it. [web/e2e/rail/rail.spec.ts:56] (fix-risk low; in-story)
+- [x] [Review][Patch] (low) R11 set the Telegram seam outside its `try`, so a helper failure after IRIS had set it would leave the seam at 1 for every later spec. The set now runs inside the `try`, and `before` defaults to 0. [web/e2e/rail/rail.spec.ts:462] (fix-risk low; in-story)
+- [x] [Review][Patch] (low) The rail-view test "a reminder with no due time" built a second row with `dueAt` undefined but asserted only the first. It now asserts both rows. [web/scripts/rail-view.test.mjs:337] (fix-risk low; in-story)
+- [x] [Review][Patch] (low, Rule 19) The AC "Until Stories 3.4 and 3.5" had no `mutation:` line. Closed in this pass: the mutation is recorded under `## Verification`. [_bmad-output/implementation-artifacts/spec-2-8-show-the-status-rail.md]
+- [x] [Review][Defer] (medium) DW-113: the failing branches of `Ownership.Watchers` and `Ownership.ApprovalIncident`, and `Session.Recipients` passing Watchers' status on, are run by no test. [src/ocutalon/cls/OcuTalon/Data/Session.cls:93] — deferred: `escalated owner=burndown`, fix-risk high. Every full pin crosses a project boundary:
+  - a product test hook (`test-boundaries.sh`'s test-global rule allows one, `TelegramIncluded`; AD-29, Story 0.4);
+  - a persistent test subclass of `Session` (a stored-schema veto item);
+  - or a privilege-limited login fixture (roles, Rule 21).
+
+  A subclass seam in `Ownership` alone would pin neither the pass-through nor DW-68's regression. Recommended: route it to `6-2-approve-or-reject-a-fix-from-the-web-chat`, whose REST answer path is where these reads really fail and where a real signed-in user can pin them.
+- [x] [Review][Defer] (low) DW-120: `page-time.ts` and `rail-view.ts` each define the same `{name}` filler. [web/src/app/rail/rail-view.ts:129] — deferred: `wontfix-accepted`. The reason is weak: both are Node-run modules that cannot import values. Making the filler shared changes exported signatures and their tests, so the fix is not a two-way door. The ledger entry holds its `reopen_if`.
+- [x] [Review][Defer] (low) DW-121: the initial bundle is 503.22 kB against the 500 kB warning budget. [web/angular.json:51] — deferred: `wontfix-accepted`. No product target sets the budget, the error limit is 1 MB, and the warning is kept as the growth signal. It reopens past 550 kB.
+- [x] [Review][Defer] (low) DW-122: a session that stops watching a production keeps that production's pending instance approval rows in its live rail until a reload. [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:80] — deferred: `wontfix-accepted`, out of footprint. The trigger is Epic 5's stop-watching flow, and the stale row is an extra row that a reload clears, never a missing alert.
+
+**Rejected** (one line each):
+- (Blind Hunter, Edge Case Hunter) Instance approval events fail when they are emitted from a REST request. This is spec-bound (Design Notes 14; the lead's spec-gate ruling): it is DW-68's residual for Story 6.2, which the lead adjudicates. No new entry.
+- (Blind Hunter) The Telegram seam leaves `^OcuTalonTest("TelegramIncluded")` at 0 when it was absent: false. `Included()` is `$Get(...) = 1`, so absent and 0 read the same, and nothing else sets the node.
+- (Blind Hunter) The whole rail is rebuilt every second while any reminder is pending: spec-bound. Boundaries › Times and Decided 11 say the clock ticks every second while a countdown shows.
+- (Blind Hunter) The hold helpers leave `^OcuTalonTest("BridgeSink","hold",...)` behind: false. `OnAfterAllTests` kills the node. The duplication half is the patch above.
+- (Edge Case Hunter, Acceptance Auditor) A failed row fetch in `Watchers` or `ApprovalIncident` reads as "nobody watches": theoretical. A checked SELECT of a small table under the default isolation level takes no locks. It becomes real if a fetch can fail after a good prepare and execute (for example a READ COMMITTED read with lock timeouts). The fix adds an untestable branch, as in the first review.
+- (Edge Case Hunter) `Session.Recipients` ignores the status of `Incident.RefIndexOpen`: theoretical. This is a pre-existing line, the open takes no lock on this class, and the fix adds a branch.
+- (Edge Case Hunter) Several busy watcher streams make the wait about N seconds: spec-bound ("waits at most LOCKWAIT on each stream's lock").
+- (Edge Case Hunter) A check event with `stopped: true` stays listed: false. `Live.Payload.Check.Stopped` means the watched production is stopped, and the row still exists after a reload.
+- (Edge Case Hunter) A production check with an empty `displayName` reads " production": not worth the guard. The producer always sets the name, and the fix adds a fallback.
+- (Edge Case Hunter) `seedDecisions` leaks the saved rows when a later save fails: as in the first review, only after a save failure that ends the run.
+- (Verification Gap) R7's notice card is the one the test sent: spec-bound. R7 is the spec's own case, and the link from a fired reminder to its card is Epic 8's emitter.
+- (Verification Gap) The ACs Approval events, DW-68 and The rail have no `mutation:` line: false. Each of them has recorded mutations, and Rule 19 asks one per AC.
+- (Verification Gap) `page-time.test.mjs` "the same instant reads as pageTime" cannot fail: false. It goes red when `pageWhen` drops the caller's defaults (a hardcoded locale on an en-US runner). A hardcoded zone on a UTC runner is the only blind spot, and the zone rows elsewhere cover it.
+- (Verification Gap) The R cases assert counts on one shared `RAIL` user: spec-bound. The spec names one fixture user, every case cleans in `finally`, and the config runs one worker.
+- (Acceptance Auditor) The decision row's title uses `--decision-row-typography-*`: false. The decision row is its own component, and the spec's Code Map and DESIGN.md name its tokens.
+- (Acceptance Auditor) `TestApprovalIncident` relies on the class-wide `Fixture.Clean()`: no reachable harm. It is the class's existing lifecycle, and one test class runs at a time on a slot (Rule 18).
+- (Acceptance Auditor) `setTelegramIncluded` interpolates a typed `0 | 1`, and the seed helpers report a Ref rather than a status: no harm. The value is a typed literal, and a failed save still shows as a missing CHK line.
+
 ## Spec Change Log
 
 - 2026-10-23, lead (spec gate): veto U-36 ruled (keep the four items); spine Conventions rows "Live events" and "README link" amended; DW-68's residual to be re-owned to Story 6.2 at adjudication.
@@ -719,7 +760,50 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`, w
 - mutation: `main-page` renders the status rail for every state but loading (`live.status() !== 'loading'`) -> L7 ("the rail keeps its four plain headings after a failed load")
 - mutation: the Telegram card is "not set up" for `off` alone (`rejected` dropped) -> R11 ("state rejected: the card says it is not set up")
 
-**Review-pass changes to the pinning tests.** R2 and R6 take the page's clock from noon UTC (`setFixedTime`), so a run in the first or last minute of a UTC day cannot move a time across a date line; R2 now asserts both meta lines exactly. R8's two oldest decisions date from last year. R11 also loads the snapshot with Telegram `rejected` and `on` (route patch of `/state`). L7 asserts the rail's four plain headings and no `app-status-rail`. R13 is new: it pins the clock's two rates. `test-sign-in.sh` labels the rail rows R1-R13.
+**Review-pass changes to the pinning tests.** R2 and R6 take the page's clock from noon UTC (`setFixedTime`), so a run in the first or last minute of a UTC day cannot move a time across a date line; R2 now asserts both meta lines exactly. R8's two oldest decisions date from last year. R11 also loads the snapshot with Telegram `rejected` and `on` (route patch of `/state`). L7 asserts the rail's four plain headings and no `app-status-rail`. R13 is new: it pins the clock's two rates. `test-sign-in.sh` labels the rail rows R1-R19 (R14-R19 are QA's, below).
+
+**QA stage (2026-10-23): tests added (Rule 8, Rule 19).** No new file: every addition joins a file that the default run already discovers (the `lane-b` shard holds `Test.Core.BridgeSink` and `Test.Data.Ownership`; `npm --prefix web test` globs `scripts/*.test.mjs`; the chromium project runs `e2e/rail/rail.spec.ts`).
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls`: `TestApprovalNeverWaitsMoreThanASecond` (an approval event waits about a second on a held stream, drops with one `ERRORPUBLISH` warning and publishes once the lock is free; of two watchers of an instance request the one with the free stream still gets its event) and `TestOnlineDemoStillPublishesASessionsOwnRequest` (with onlineDemo on, a session's own request is published to it, as the demo's approval step needs, and an instance request is not); the private helpers `HoldStream` and `ReleaseStream`.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls`: `TestApprovalIncident` also gives a Ref with a quote and a Ref with LIKE wildcards (a bound value: none found, status OK).
+- (QA) `web/scripts/rail-view.test.mjs`: "a value that holds a placeholder is shown as typed and filled in once" (a reminder text `{countdown}`, a noun `{n}`).
+- (QA) `web/e2e/rail/rail.spec.ts`: R14 (a decision row that stays keeps focus and stays open when an event adds a row above it), R15 (focus in the composer stays there when an approval leaves and when a decision arrives), R16 (each decision button's `aria-controls` names an element of its own row, by an id no other element has), R17 (20 rows at 1280x720: the wheel scrolls the rail, the page has nothing to scroll, the rail keeps 288px and the chat stays in view), R18 (a row of every kind: no live region or announcing attribute, the ticking countdown and the chevron are `aria-hidden`, the spoken words are not), R19 (a summary and a first reason longer than the line are cut to one line with an ellipsis, an open row shows every reason in full).
+- (QA) `docker/tests/test-sign-in.sh`: the labels read R1-R19.
+
+**Mutations observed by QA (Rule 19).** Server mutations ran on slot B, page mutations on a rebuilt bundle in `live sign-in` (tag e2s28q) in four groups of disjoint code (the `$index` and `min-height` mutations; the `keepFocus`, shared-id and `overflow-y` ones; the two ARIA ones; the `nowrap` one alone); every one was restored byte-identical (`shasum` of the file before and after, `git status --short` and `git diff --stat -- web/src` unchanged). `mutations_demonstrated=12`.
+- mutation: `Approved` publishes through `Live.Publish.Publish` with its own five-second wait instead of the sink's `Publish` -> `TestApprovalNeverWaitsMoreThanASecond` ("it waited about a second, not five: 5.00 s", both parts)
+- mutation: `Approved` quits when onlineDemo is on -> `TestOnlineDemoStillPublishesASessionsOwnRequest` (the other 14 BridgeSink tests stay green: the gap was real)
+- mutation: `ApprovalIncident` puts the Ref into its SQL text in place of the bound `?` -> `TestApprovalIncident` ("a Ref with a quote ... is no error": SQLCODE -3, closing quote missing)
+- mutation: `rail-view.ts`'s `fill` replaces the placeholders one after another -> `rail-view.test.mjs` "a value that holds a placeholder" (`in 59 s \u00B7 in 59 s` for `{countdown} \u00B7 in 59 s`)
+- mutation: the rows of a section tracked by `$index` in place of `row.key` -> R14 alone ("the open row is still open"; R5, R9 and R10 stay green, so R14 is the only pin of the keyed rows in the DOM)
+- mutation: `keepFocus` without its two early returns (focus outside a row counts as the decisions heading) -> R15 ("the composer still holds focus"); L4, C1, C2, C6, D9 and N12 went red too
+- mutation: the reasons id of a decision row is the same for every row (`++lastId` dropped) -> R16 ("by three different ids")
+- mutation: `.rail` is `overflow-y: hidden` -> R17 ("the wheel over the rail brings the oldest into view") and R1 (its CSS check)
+- mutation: `:host` of `main-page` loses `min-height: 0` -> R17 ("the rows are taller than the rail": the rail grows to its content) and C6, C9, C10 and N12; R1 stays green
+- mutation: the ticking countdown loses `aria-hidden` -> R18 ("the ticking countdown is hidden from assistive technology")
+- mutation: the decision row's reasons container gets `aria-live="polite"` -> R18 ("the rail has no live region" and "an open row is no live region either"); both ran in one `live sign-in`, the soft assertions reporting each
+- mutation: `white-space: nowrap` is `normal` in the decision row's `.summary` and `.one-line` -> R19 (the summary and the first reason are cut to one line, and the summary stays on one line open)
+
+**Stability of the two pins the implement stage ran once (QA).**
+- R13 (the clock's rates) and R6 (the countdown ticks): the 3 s windows wait for a 1 s interval to fire after `setFixedTime`, and the slow tick is fired by `clock.runFor(60_000)`, whose next fire is at most 60 s of fake time away because the interval was created after the install. So the only wall-clock dependence is one 1 s interval inside a 3 s window. A temporary copy of the spec ran R6 four times, R13 four times and R11 three times in one `live sign-in` (all passed), and each of them passed once in each of the six other runs of the stack (the first, four mutation runs whose mutations leave their code alone, and the final one): ten greens for R6 and R13 and nine for R11, none red. Judged stable on this runner. If a loaded CI runner ever flakes them, widen the 3 s window; do not add retries.
+- R11's `/state` route patch: `route.fetch()` and `fulfill({ response, json })` replace the body and its length together, the later `page.route` supersedes the earlier one, and `afterEach` unroutes; no flake in the nine runs.
+- The temporary loops are not in the committed spec (restored, `shasum` equal to the copy taken before).
+
+**QA commands (all green on the final tree).** Slot B (`ocutalon-slot-b`, build 154): `Test.Core.BridgeSink` 16, `Test.Data.Ownership` 18, no `zz` session, incident, check, event or warning left behind. `npm --prefix web test` 312, `npm --prefix web run lint`, `test-class-rules.sh`, `test-ci-config.sh`. Throwaway e2s28q: `build`; `live sign-in` 148 passed and 1 skipped (N11, by declaration), R1-R19 included; `shard lane-b` and `shard lane-b --reverse`, 37 classes each passed (`Test.Core.BridgeSink` 4.8 s forward and 4.5 s reverse); teardown left nothing. `test-boundaries.sh` fails its `paths` rule on `cycle-log-epic-2.md:227` (a local path in the lead's bookkeeping line, not in this story's files).
+
+**Mutations observed in the code review (2026-10-23, Rule 19).** The server mutation ran on slot B (`ocutalon-slot-b`, build 154) and the page mutation on a rebuilt bundle in `live sign-in` (tag e2s28r). Each was restored byte-identical (`shasum` before and after, `git diff --stat` unchanged).
+- mutation (AC "Until Stories 3.4 and 3.5"): `Approved` reads the request's Ref from the payload member `requestRef` in place of HostSink's `{ref}` (`RefPayload`), the shape Lane A's emitters send -> `Test.Core.BridgeSink` 8 of 16 red: `TestApprovalEventsPublishTheRequest` ("approval.raised publishes one event"), plus `TestApprovalOwnersThatPublishNothing`, `TestInstanceApprovalReachesEveryWatcher`, `TestFailedWatcherReadIsLoud`, `TestAFailedRecipientReadDoesNotStopTheOthers`, `TestOnlineDemoStillPublishesASessionsOwnRequest`, `TestApprovalNeverWaitsMoreThanASecond` and `TestNeverFailsItsCaller`. So the approval tests drive `OnEvent` with exactly the contract's payload.
+- mutation (AC Decision rows, the chip's meaning): the decision row's button loses `aria-describedby` -> R8 alone red ("described by its outcome's meaning": expected "OcuTalon took or requested an action", received ""); 147 passed, 1 failed.
+
+**Code-review changes to the pinning tests.**
+- R5, R8 and R10 now fix the page clock at 12:30 on the run's date, and `today()` reads one date per run. Their assertions are unchanged, and their recorded mutations (the check title, the view's sort, `aria-expanded`) do not depend on the date, so those lines stand.
+- R6 seeds and fixes the clock on the day after the run's date, so its reminder is due in the future of the stack's clock. Its recorded mutation (the clock never ticks) stands.
+- R8 also asserts each row's accessible description (the mutation above).
+- R11 sets the seam inside its `try`.
+
+**Code-review commands (all green on the final tree).**
+- Slot B: `Test.Core.BridgeSink` 16 of 16.
+- Web: `npm --prefix web test` 312, `npm --prefix web run lint`, `test-web-build.sh`, `test-class-rules.sh`, `test-boundaries.sh`.
+- Throwaway e2s28r: `build`, then `live sign-in` 148 passed and 1 skipped (N11, by declaration), R1-R19 included; `teardown` left nothing.
 
 **Shared surfaces:**
 - The page's DOM. The rail now renders:

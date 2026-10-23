@@ -184,7 +184,8 @@ Method TestInstanceScope()
 }
 
 /// ApprovalIncident gives the IncidentRef of an instance request, and "" for a session's request, an eval request, an unknown
-/// Ref, the Ref in another case and an empty Ref, always with an OK status (DW-68).
+/// Ref, the Ref in another case, an empty Ref and a Ref with a quote or LIKE wildcards in it (a bound value, never a syntax error),
+/// always with an OK status (DW-68).
 Method TestApprovalIncident()
 {
 	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzown"_..Number_"a")
@@ -203,6 +204,8 @@ Method TestApprovalIncident()
 	Do ..AssertIncident("zzunknown"_..Number, "", "an unknown Ref gives none")
 	Do ..AssertIncident(other, "", "the Ref in another case gives none")
 	Do ..AssertIncident("", "", "an empty Ref gives none")
+	Do ..AssertIncident("zz'"_..Number, "", "a Ref with a quote is only a value: it finds none and is no error")
+	Do ..AssertIncident("zz"_..Number_"%_", "", "so is one with the wildcards of LIKE")
 }
 
 /// Asserts what ApprovalIncident answers for the Ref, and that its status is OK.

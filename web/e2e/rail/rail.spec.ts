@@ -20,7 +20,7 @@ import {
 import { plain, tokenColor } from '../support/page';
 
 /**
- * Story 2.8, the status rail (R1 to R13), in a real browser against a real stack. Every case signs in as the rail fixture user that
+ * Story 2.8, the status rail (R1 to R19), in a real browser against a real stack. Every case signs in as the rail fixture user that
  * test-sign-in.sh created (OCUTALON_RAIL_USER), whose session holds nothing but what the case seeds: each case seeds run-stamped rows
  * through Test.Data.Fixture, loads the page after its own seeding (or seeds after the load and gives BridgeSink the event, as the
  * bridge would), asserts on its own rows and counts alone, and removes its rows in finally. Approval events come from BridgeSink.OnEvent
@@ -52,8 +52,14 @@ const ONE_UPDATE_MS = 1000;
 /** A text no other case or run made. */
 const unique = (label: string): string => `zz ${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-/** Today's date (UTC) with the time given, as a UTC ISO time. */
-const today = (time: string): string => `${new Date().toISOString().slice(0, 10)}T${time}Z`;
+/** The date (UTC) the run began on: every time a case seeds falls on this one date, even in a run that crosses midnight. */
+const DAY = new Date().toISOString().slice(0, 10);
+
+/** The run's date with the time given, as a UTC ISO time. */
+const today = (time: string): string => `${DAY}T${time}Z`;
+
+/** The page's clock for a case that asserts the times it seeded: half past noon on the run's date. */
+const PAGE_NOON = (): number => Date.parse(today('12:30:00'));
 
 /** The year before this one: its short dates carry the year. */
 const LAST_YEAR = new Date().getUTCFullYear() - 1;
@@ -209,6 +215,7 @@ test('R5: a check shows its name, schedule and last run, and a later check event
     const production = `Zz.Rail.${Date.now().toString(36)}`;
     const ref = await seedCheck(user, { production, displayName: name, lastRunAt: today('12:00:00'), result: 'failed', finding: '50 new failures' });
     refs.push(ref);
+    await page.clock.setFixedTime(PAGE_NOON());
     await open(page);
     const row = rowOf(page, name);
     await expect(row, 'the check shows as one row').toHaveCount(1);
@@ -236,7 +243,8 @@ test('R6: a reminder counts down in tabular figures and a later event updates it
   const refs: string[] = [];
   try {
     const text = unique('R6').replace(/^zz /, 'zz stretch ');
-    const start = Date.parse(today('12:00:00'));
+    // Noon on the day after the run's date: the seeded reminder is due later than the stack's own clock, so no reminder timer fires it during the case.
+    const start = Date.parse(today('12:00:00')) + 86_400_000;
     await page.clock.install({ time: start });
     await page.clock.setFixedTime(start);
     const ref = await seedReminder(user, { text, dueAt: iso(start, 90_000) });
@@ -316,6 +324,7 @@ test('R8: Recent decisions shows the 20 newest attention decisions as disclosure
     }));
     refs.push(...(await seedDecisions(user, rows)));
     refs.push(await seedDecision(user, { outcome: 'act', summary: `${stamp} turn decision`, recordedAt: today('12:30:00') }, 'turn'));
+    await page.clock.setFixedTime(PAGE_NOON());
     await open(page);
     const decisions = rail(page).locator('app-decision-row');
     await expect(headings(page).nth(3), 'twenty rows').toHaveAccessibleName('Recent decisions, 20');
@@ -333,6 +342,9 @@ test('R8: Recent decisions shows the 20 newest attention decisions as disclosure
     await expect(first.locator('app-icon svg path[d="m6 9 6 6 6-6"]'), 'and the chevron down').toHaveCount(1);
     const button = first.getByRole('button');
     await expect(button, 'the row is a disclosure').toHaveAttribute('aria-expanded', 'false');
+    await expect(button, 'described by its outcome\'s meaning, so the chip\'s tooltip is not its only copy').toHaveAccessibleDescription(
+      'OcuTalon took or requested an action',
+    );
     await expect(first.locator('.reason'), 'line 2 is the first reason').toHaveText('zz first reason.');
     await expect(first.locator('.meta'), 'the meta line holds the time, the confidence and the cost').toHaveText(`12:20${DOT}Confidence 0.90${DOT}$0.0003`);
 
@@ -346,6 +358,7 @@ test('R8: Recent decisions shows the 20 newest attention decisions as disclosure
 
     const fallback = decisions.filter({ hasText: summaryOf(stamp, 10) });
     await expect(fallback.locator('app-outcome-chip'), 'a fallback shows Tell now').toHaveText('Tell now');
+    await expect(fallback.getByRole('button'), 'described by what Tell now means').toHaveAccessibleDescription('Needs you now');
     await expect(fallback.locator('app-fallback-flag'), 'with the Fallback flag').toHaveText('Fallback');
     await expect(fallback.locator('.reason'), 'its sentence is the first line').toHaveText('The model declined to answer.');
     await expect(fallback.locator('.meta'), 'and it has no confidence').toHaveText(`12:10${DOT}$0.0003`);
@@ -413,6 +426,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
     const leaving = await seedApproval(user, { kind: 'tool_call', toolName: tools.leaving, dryRun: null });
     refs.push(staying, leaving);
     refs.push(...(await seedDecisions(user, [0, 1, 2].map((n) => ({ outcome: 'act', summary: summaryOf(stamp, n), reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today(`12:0${n}:00`) })))));
+    await page.clock.setFixedTime(PAGE_NOON());
     await open(page);
 
     const added = await seedApproval(user, { kind: 'tool_call', toolName: tools.added, dryRun: null });
@@ -443,8 +457,9 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
 
 /** R11: with Telegram included, the first section is the Telegram card with its README link. */
 test('R11: with Telegram included, the first section is the Telegram card with its README link', async ({ page }) => {
-  const before = await setTelegramIncluded(1);
+  let before: 0 | 1 = 0;
   try {
+    before = await setTelegramIncluded(1);
     await open(page);
     const status = rail(page);
     await expect(headings(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
@@ -521,6 +536,187 @@ test('R13: the clock ticks every minute while no countdown shows, and every seco
     await expect(countdown, 'a reminder that arrives after the load shows its countdown').toHaveText('in 59 s', { timeout: ONE_UPDATE_MS });
     await page.clock.setFixedTime(start + 13 * hour + 2000);
     await expect(countdown, 'and the clock now ticks every second').toHaveText('in 57 s', { timeout: 3000 });
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** The decisions of R14 to R16: three, a minute apart, with two reason lines each. */
+const threeDecisions = (stamp: string) =>
+  [0, 1, 2].map((n) => ({ outcome: 'act', summary: summaryOf(stamp, n), reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today(`12:0${n}:00`) }));
+
+/** R14: a decision row that stays keeps its focus and stays open when an event adds a row above it. */
+test('R14: a decision row that stays keeps focus and stays open when an event adds a row above it', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    const stamp = unique('R14');
+    refs.push(...(await seedDecisions(user, threeDecisions(stamp))));
+    await open(page);
+    const decisions = rail(page).locator('app-decision-row');
+    await expect(decisions.locator('.summary'), 'three rows, the newest first').toHaveText([2, 1, 0].map((n) => summaryOf(stamp, n)));
+    const middle = decisions.filter({ hasText: summaryOf(stamp, 1) });
+    const button = middle.getByRole('button');
+    await button.click();
+    await expect(button, 'the middle row is open').toHaveAttribute('aria-expanded', 'true');
+    await expect(button, 'and holds focus').toBeFocused();
+
+    const added = await seedDecision(user, { outcome: 'act', summary: summaryOf(stamp, 9), reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today('12:09:00') });
+    refs.push(added);
+    await applied(page, await sinkEvent(user, 'decision.recorded', { ref: added }));
+    await expect(decisions.locator('.summary'), 'the new decision is first, above the open row').toHaveText([9, 2, 1, 0].map((n) => summaryOf(stamp, n)), { timeout: ONE_UPDATE_MS });
+    await expect(button, 'the open row is still open').toHaveAttribute('aria-expanded', 'true');
+    await expect(middle.locator('.reason'), 'with every reason line').toHaveText(['zz first reason.', 'zz second reason.']);
+    await expect(decisions.filter({ hasText: summaryOf(stamp, 2) }).getByRole('button'), 'and the row above it is shut').toHaveAttribute('aria-expanded', 'false');
+    await expect(button, 'the row that stayed still holds focus').toBeFocused();
+    expect(await page.evaluate(() => document.activeElement?.id), 'and the heading did not take it').not.toBe('rail-heading-decisions');
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** R15: focus outside the rail stays where it is when a row leaves the rail or an event adds one. */
+test('R15: focus outside the rail stays where it is when a row leaves or an event adds one', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    const tool = `zz_tool_focus_${Date.now().toString(36)}`;
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null });
+    refs.push(request);
+    await open(page);
+    await expect(rowOf(page, tool), 'the request is listed').toHaveCount(1);
+    const composer = page.getByRole('textbox', { name: 'Message OcuTalon' });
+    await composer.focus();
+    await expect(composer, 'the composer holds focus').toBeFocused();
+
+    await setApprovalState(request, 'approved');
+    await applied(page, await sinkEvent(user, 'approval.answered', { ref: request }));
+    await expect(rowOf(page, tool), 'the answered request leaves').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+    await expect(composer, 'the composer still holds focus').toBeFocused();
+
+    const decided = await seedDecision(user, { outcome: 'act', summary: unique('R15 decision'), reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today('12:00:00') });
+    refs.push(decided);
+    await applied(page, await sinkEvent(user, 'decision.recorded', { ref: decided }));
+    await expect(rail(page).locator('app-decision-row'), 'a decision joins the rail').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(composer, 'and the composer still holds focus').toBeFocused();
+    expect(await page.evaluate(() => document.activeElement?.id), 'no heading of the rail took it').not.toMatch(/^rail-heading-/);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** R16: each decision row's button controls the reasons of its own row, by an id that no other element has. */
+test('R16: each decision row\'s button controls the reasons of its own row, by an id of its own', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    const stamp = unique('R16');
+    refs.push(...(await seedDecisions(user, threeDecisions(stamp))));
+    await open(page);
+    const decisions = rail(page).locator('app-decision-row');
+    await expect(decisions).toHaveCount(3);
+    const ids = await decisions.getByRole('button').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-controls') ?? ''));
+    expect(ids.every((id) => id !== ''), 'every button names what it controls').toBe(true);
+    expect(new Set(ids).size, 'by three different ids').toBe(3);
+    for (const [i, id] of ids.entries()) {
+      await expect(page.locator(`[id="${id}"]`), `the id ${id} belongs to one element of the page`).toHaveCount(1);
+      await expect(decisions.nth(i).locator(`[id="${id}"]`), `and that element is in row ${i + 1}`).toHaveCount(1);
+    }
+    await decisions.first().getByRole('button').click();
+    await expect(page.locator(`[id="${ids[0]}"] .reason`), 'the element it controls holds every reason line when it is open').toHaveText(['zz first reason.', 'zz second reason.']);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** R17: with more rows than fit, the rail scrolls on its own, the page does not, and the rail keeps its width. */
+test('R17: with more rows than fit, the rail scrolls on its own and the page does not', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const stamp = unique('R17');
+    refs.push(...(await seedDecisions(user, Array.from({ length: 20 }, (_unused, n) => ({ outcome: 'act', summary: summaryOf(stamp, n), reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today(`12:${String(n).padStart(2, '0')}:00`) })))));
+    await open(page);
+    const panel = page.locator('section.rail');
+    const decisions = rail(page).locator('app-decision-row');
+    await expect(decisions).toHaveCount(20);
+    const sizes = await panel.evaluate((node) => ({ content: node.scrollHeight, view: node.clientHeight }));
+    expect(sizes.content, 'the rows are taller than the rail').toBeGreaterThan(sizes.view);
+    const pageOverflow = (): Promise<number> => page.evaluate(() => (document.scrollingElement?.scrollHeight ?? 0) - window.innerHeight);
+    expect(await pageOverflow(), 'the page itself has nothing to scroll').toBeLessThanOrEqual(0);
+    await expect(decisions.first(), 'the newest row is in view').toBeInViewport();
+    await expect(decisions.last(), 'the oldest is below the fold').not.toBeInViewport();
+
+    await panel.hover();
+    await page.mouse.wheel(0, 4000);
+    await expect(decisions.last(), 'the wheel over the rail brings the oldest into view').toBeInViewport();
+    expect(await panel.evaluate((node) => node.scrollTop), 'the rail scrolled').toBeGreaterThan(0);
+    expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0), 'and the page did not').toBe(0);
+    expect((await panel.boundingBox())!.width, 'the rail kept its width').toBe(288);
+    await expect(page.getByRole('textbox', { name: 'Message OcuTalon' }), 'the chat is where it was').toBeInViewport();
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** R18: with a row of every kind the rail announces nothing, and what only the eye needs is hidden from assistive technology. */
+test('R18: with a row of every kind the rail announces nothing, and the countdown and the chevron are hidden from assistive technology', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    const stamp = unique('R18');
+    const suffix = Date.now().toString(36);
+    const text = `zz quiet ${stamp}`;
+    refs.push(await seedApproval(user, { kind: 'tool_call', toolName: `zz_tool_quiet_${suffix}`, dryRun: null }));
+    refs.push(await seedCheck(user, { production: `Zz.Rail.${suffix}`, displayName: `${stamp} Orders`, lastRunAt: today('12:00:00'), result: 'failed', finding: '50 new failures' }));
+    refs.push(await seedReminder(user, { text, dueAt: iso(Date.now(), 300_000) }));
+    refs.push(...(await seedDecisions(user, [{ outcome: 'act', summary: `${stamp} decision`, reasons: REASONS, confidence: 0.9, costUSD: 0.0003, recordedAt: today('12:00:00') }])));
+    await open(page);
+    const status = rail(page);
+    await expect(status.locator('li.row'), 'a row of each kind').toHaveCount(4);
+    await expect.soft(status.locator(LIVE_REGIONS), 'the rail has no live region').toHaveCount(0);
+    await expect.soft(status.locator('[aria-live], [aria-atomic], [aria-relevant]'), 'and no attribute that announces').toHaveCount(0);
+    const reminder = rowOf(page, text);
+    await expect.soft(reminder.locator('.countdown'), 'the ticking countdown is hidden from assistive technology').toHaveAttribute('aria-hidden', 'true');
+    await expect.soft(reminder.locator('.visually-hidden'), 'beside its words, which are not').not.toHaveAttribute('aria-hidden', /.*/);
+    await expect.soft(status.locator('app-decision-row button > app-icon svg'), 'the chevron is hidden too').toHaveAttribute('aria-hidden', 'true');
+    await status.locator('app-decision-row').getByRole('button').click();
+    await expect.soft(status.locator(LIVE_REGIONS), 'an open row is no live region either').toHaveCount(0);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** R19: a long summary and a long first reason are cut to one line with an ellipsis, and an open row shows every reason in full. */
+test('R19: a long summary and a long first reason are cut to one line, and an open row shows every reason in full', async ({ page }) => {
+  const { user } = fixtureUser('RAIL');
+  const refs: string[] = [];
+  try {
+    const stamp = unique('R19');
+    const words = Array.from({ length: 40 }, (_unused, i) => `word${i}`).join(' ');
+    const summary = `${stamp} ${words}`.slice(0, 80);
+    const first = `${stamp} first ${words}`;
+    refs.push(...(await seedDecisions(user, [{ outcome: 'act', summary, reasons: `${first}\nzz second reason.`, confidence: 0.9, costUSD: 0.0003, recordedAt: today('12:00:00') }])));
+    await open(page);
+    const row = rail(page).locator('app-decision-row');
+    await expect(row).toHaveCount(1);
+    const shape = (selector: string) =>
+      row.locator(selector).first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+        return { clipped: node.scrollWidth > node.clientWidth, lines: Math.round(node.getBoundingClientRect().height / line), ellipsis: style.textOverflow };
+      });
+    expect.soft(await shape('.summary'), 'the summary is cut to one line with an ellipsis').toEqual({ clipped: true, lines: 1, ellipsis: 'ellipsis' });
+    expect.soft(await shape('.reason'), 'so is the first reason').toEqual({ clipped: true, lines: 1, ellipsis: 'ellipsis' });
+    expect(await page.locator('section.rail').evaluate((node) => node.scrollWidth - node.clientWidth), 'and the rail does not scroll sideways').toBeLessThanOrEqual(0);
+
+    await row.getByRole('button').click();
+    await expect(row.locator('.reason'), 'open, every reason shows in full').toHaveText([first, 'zz second reason.']);
+    const expanded = await shape('.reason');
+    expect(expanded.clipped, 'the first reason is no longer cut').toBe(false);
+    expect(expanded.lines, 'it wraps onto several lines').toBeGreaterThan(1);
+    expect(await shape('.summary'), 'the summary stays on one line').toMatchObject({ clipped: true, lines: 1 });
   } finally {
     await cleanFixtureRows(refs);
   }

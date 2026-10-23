@@ -1,9 +1,10 @@
 // Tests the status rail's view (src/app/rail/rail-view.ts): the fixed strings against the UX's wording, the order of the sections with
 // and without Telegram, the counts and the spoken headings, the filters and sorts of each list (the store keeps everything and the
 // view shows what a reload shows), rows that a later event replaces in place or removes, the titles, details and meta lines of every
-// kind of row, the empty texts and hints, and the README link of the Telegram card. The view is given the real page-time,
-// decision-view, chat-view and links modules, each imported as it is, and a stub for the catalog's fallback sentences. Every module
-// is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax and imports only types.
+// kind of row, the empty texts and hints, the README link of the Telegram card, and that a value which names a placeholder is shown as
+// typed. The view is given the real page-time, decision-view, chat-view and links modules, each imported as it is, and a stub for the
+// catalog's fallback sentences. Every module is imported as it is: Node strips its types, which holds only while it keeps to erasable
+// syntax and imports only types.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
@@ -334,10 +335,14 @@ describe('reminders', () => {
   });
 
   it('shows the text alone, with no meta, for a reminder with no due time', () => {
-    const row = section(viewOf({ reminders: [reminder('r1', { dueAt: '' }), reminder('r2', { dueAt: undefined })] }), 'reminders').rows[0];
-    assert.equal(row.title, 'zz r1');
-    assert.equal(row.countdown, undefined);
-    assert.deepEqual(row.meta, []);
+    const rows = section(viewOf({ reminders: [reminder('r1', { dueAt: '' }), reminder('r2', { dueAt: undefined })] }), 'reminders').rows;
+    assert.deepEqual(
+      rows.map((row) => [row.title, row.countdown, row.meta]),
+      [
+        ['zz r1', undefined, []],
+        ['zz r2', undefined, []],
+      ],
+    );
   });
 
   it('shows the text as it is, with markup left as text and the case kept', () => {
@@ -444,6 +449,19 @@ describe('recent decisions', () => {
     assert.equal(row.decision.firstReason, '');
     assert.deepEqual(row.decision.reasons, []);
     assert.equal(row.title, '<i>zz</i> Your message');
+  });
+});
+
+describe('a value that holds a placeholder', () => {
+  it('is shown as typed and filled in once: a reminder text that names {countdown}, a noun that names {n}', () => {
+    const view = viewOf({
+      approvals: [approval('a1', { dryRun: { affected: 3, itemNoun: { one: 'thing', other: '{n}' } } })],
+      reminders: [reminder('r1', { text: '{countdown}' })],
+    });
+    const [row] = section(view, 'reminders').rows;
+    assert.equal(row.lead, '{countdown}');
+    assert.equal(row.title, '{countdown} \u00B7 in 59 s');
+    assert.equal(section(view, 'approvals').rows[0].title, 'Repair and resend 3 {n}');
   });
 });
 

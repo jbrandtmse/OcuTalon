@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 
 import { ChatPanel } from '../chat/chat-panel';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
+import { RAIL_TEXTS } from '../rail/rail-view';
 import { StatusRail } from '../rail/status-rail';
 import { ServerButton } from '../shared/server-button';
 
-/** The labels of the rail's four list sections, in order, for the loading and failed states; the loaded rail has its own (Telegram is unknown until then). */
-const RAIL_SECTIONS = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'] as const;
+/** The labels of the rail's four list sections, in order, for the loading and failed states; the loaded rail adds its counts (Telegram is unknown until then). */
+const RAIL_SECTIONS = [RAIL_TEXTS.approvals, RAIL_TEXTS.checks, RAIL_TEXTS.reminders, RAIL_TEXTS.decisions] as const;
 
 /** The skeleton rows of each rail section while the snapshot loads. */
 const SKELETON_ROWS = [1, 2] as const;

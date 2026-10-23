@@ -2,17 +2,18 @@ import { ChangeDetectionStrategy, Component, computed, input, signal } from '@an
 
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { FallbackFlag } from '../chat/fallback-flag';
-import { OutcomeChip } from '../chat/outcome-chip';
+import { meaningOf, OutcomeChip } from '../chat/outcome-chip';
 import { Icon } from '../icon/icon';
 import type { RailRow } from './rail-view';
 
-/** The last id handed to a row, for the id of the reasons its button controls. */
+/** The last id handed to a row, for the ids of the reasons its button controls and of the meaning that describes it. */
 let lastId = 0;
 
 /**
  * A decision row of the status rail (UX-DR57, UX-DR127, FR-1, FR-4): a disclosure of one attention decision.
  * - Line 1 is the whole-line button, with aria-expanded and aria-controls: the outcome chip (Tell now on a fallback), the Fallback flag
- *   on a fallback, the item's summary on one line with an ellipsis, and the chevron (hidden from assistive technology).
+ *   on a fallback, the item's summary on one line with an ellipsis, and the chevron (hidden from assistive technology). With a chip,
+ *   the button is described by the outcome's meaning from a hidden element, so the chip's pointer tooltip is never its only copy.
  * - Line 2 is the first reason line on one line with an ellipsis, a fallback's sentence first and in the warning colour. Expanded, every
  *   reason line replaces it in place. Esc inside the row collapses it and focus stays where it is.
  * - The meta line holds the time, the confidence (not on a fallback) and the decision's own cost.
@@ -24,7 +25,14 @@ let lastId = 0;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" (keydown.escape)="collapse()">
-      <button type="button" class="line1" [attr.aria-expanded]="open()" [attr.aria-controls]="reasonsId" (click)="open.set(!open())">
+      <button
+        type="button"
+        class="line1"
+        [attr.aria-expanded]="open()"
+        [attr.aria-controls]="reasonsId"
+        [attr.aria-describedby]="decision().chip ? descriptionId : null"
+        (click)="open.set(!open())"
+      >
         @if (decision().chip; as chip) {
           <app-outcome-chip [outcome]="chip" />
         }
@@ -34,6 +42,7 @@ let lastId = 0;
         <span class="summary">{{ row().title }}</span>
         <app-icon [name]="open() ? 'chevron-up' : 'chevron-down'" [size]="14" />
       </button>
+      <span hidden [id]="descriptionId">{{ description() }}</span>
       <div class="reasons" [id]="reasonsId">
         @if (open()) {
           @for (line of decision().reasons; track $index) {
@@ -131,8 +140,15 @@ export class DecisionRow {
 
   protected readonly separator = CHAT_TEXTS.separator;
   protected readonly open = signal(false);
-  protected readonly reasonsId = `rail-reasons-${++lastId}`;
+  private readonly id = ++lastId;
+  protected readonly reasonsId = `rail-reasons-${this.id}`;
+  protected readonly descriptionId = `rail-description-${this.id}`;
   protected readonly decision = computed(() => this.row().decision ?? { chip: undefined, fallback: false, fallbackLine: false, firstReason: '', reasons: [] });
+  /** The outcome's meaning, which describes the button; empty with no chip. */
+  protected readonly description = computed(() => {
+    const chip = this.decision().chip;
+    return chip === undefined ? '' : meaningOf(chip);
+  });
 
   /** Esc inside the row collapses it when it is open; focus stays where it is. */
   protected collapse(): void {
