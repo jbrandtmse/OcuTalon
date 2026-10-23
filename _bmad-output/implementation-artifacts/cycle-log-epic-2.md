@@ -180,3 +180,5 @@
 2026-10-23T03:24:52Z	Epic 2	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
 2026-10-23T03:24:52Z	Epic 2	runtime_lock_policy	lock=runtime stages=none note=owner-approved_2026-10-22(runner_brief);QA_smoke_AD_verifications_take_no_lock;throwaway-iris_taken_by_lib-live.sh
 2026-10-23T03:25:00Z	Story 30.3	ledger_routed_planned	story=30-3-an-approved-tool-call-runs-exactly-once-with-no-model entries=1(DW-99) excess=0 by=load note=Contest_Planner_routing_at_graph_review;other_epic_bullet_written_by_orchestrator_post-merge;filed_before_2.8_plan
+2026-10-23T03:25:54Z	Story 2.6	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=no_AD_commits_a_verification_tool(adr_tooled_acs=none_at_spec_validation) model=claude-opus-5-5
+2026-10-23T03:25:54Z	Story 2.6	stage_spawned	stage=qa spawn_at=2026-10-23T03:25:54Z model=claude-sonnet agent_name=2-6-show-every-decision-with-its-reasons-and-cost-qa-1 cycle_iteration=1
