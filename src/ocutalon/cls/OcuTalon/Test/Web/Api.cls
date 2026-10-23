@@ -3,7 +3,7 @@
 /// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
 /// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
 /// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of
-/// TestStateChatDecision (Story 2.6) and the notice cards of TestStateChatNotices (Story 2.7).
+/// TestStateChatDecision (Story 2.6) and the notice cards of TestStateChatNotices and TestStateChatNoticeCardFields (Story 2.7).
 /// The fixture users are zzapistate<n>, zzapievents<n> and zzapiother<n>, with n from ^OcuTalonTest("WebApi","n") (never reset), and
 /// zzapistateinstance<n> and zzapieventsinstance<n>, whose streams stand in for the instance stream. Their
 /// sessions, events and counters are removed in OnBeforeAllTests and OnAfterAllTests. Nothing is published on the
@@ -1101,6 +1101,42 @@ Method TestStateChatNotices()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
 	Do $$$AssertEquals(body.chat.%Size(), 100, "the chat holds 100 entries of the 120")
 	Do $$$AssertEquals(..Items(body.chat), expected, "the newest 100 across turns, incidents and cards, from the 7th card to the last")
+	Do $ClassMethod(fixture, "Clean", refs)
+}
+
+/// DW-62: after a reload the snapshot draws each card as it was sent. A card of the chat carries what its strip and caption need:
+///   - a tell-now card with a decision of the session's own embeds that decision with its cost, and has no fallback reason;
+///   - a fallback card carries its fallback reason and embeds no decision;
+///   - a reminder card carries its due time and no Why now line;
+///   - a card whose DecisionRef is another session's decision keeps the Ref and embeds nothing.
+Method TestStateChatNoticeCardFields()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapicardfields"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapicardfieldsother"_..Number)
+	Set decision = $ClassMethod(fixture, "Decision", mine, "decide", , {"Outcome": "tellnow", "Reasons": "zz first.", "Confidence": 0.9, "CostUSD": 0.0003})
+	Set foreign = $ClassMethod(fixture, "Decision", theirs, "decide")
+	Set shown = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:01Z", "DecisionRef": (decision), "Text": ("zz shown"_$Char(10)_"Why now: zz first.")})
+	Set fallback = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:02Z", "FallbackReason": "refusal", "Text": ("zz fallback"_$Char(10)_"Why now: the model declined to answer")})
+	Set reminder = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:03Z", "Kind": "reminder", "DueAt": "2030-01-01T09:30:00Z", "Text": "Reminder: stretch."})
+	Set stranger = $ClassMethod(fixture, "Delivery", mine, {"RecordedAt": "2030-01-01T10:00:04Z", "DecisionRef": (foreign), "Text": ("zz stranger"_$Char(10)_"Why now: zz why.")})
+	Set refs = mine_","_theirs_","_decision_","_foreign_","_shown_","_fallback_","_reminder_","_stranger
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "notification:"_shown_",notification:"_fallback_",notification:"_reminder_",notification:"_stranger, "the four cards, in time order")
+	If body.chat.%Size() = 4 {
+		Set card = body.chat.%Get(0).payload
+		Do $$$AssertEquals(card.kind_"|"_card.text_"|"_card.whyNow_"|"_card.decisionRef, "tellnow|zz shown|Why now: zz first.|"_decision, "the tell-now card: its text, its Why now line and its decision's Ref")
+		Do $$$AssertEquals(card.decision.ref_"|"_card.decision.outcome_"|"_card.decision.reasons_"|"_card.decision.costUSD, decision_"|tellnow|zz first.|.0003", "with the decision embedded, and its own cost")
+		Do $$$AssertEquals(card.%IsDefined("fallbackReason"), 0, "and no fallback reason")
+		Set card = body.chat.%Get(1).payload
+		Do $$$AssertEquals(card.fallbackReason_"|"_card.whyNow, "refusal|Why now: the model declined to answer", "the fallback card: its fallback reason and its Why now line")
+		Do $$$AssertEquals(card.%IsDefined("decision"), 0, "and no decision")
+		Set card = body.chat.%Get(2).payload
+		Do $$$AssertEquals(card.kind_"|"_card.text_"|"_card.dueAt_"|"_card.whyNow, "reminder|Reminder: stretch.|2030-01-01T09:30:00Z|", "the reminder card: its due time, its whole text and no Why now line")
+		Set card = body.chat.%Get(3).payload
+		Do $$$AssertEquals(card.decisionRef, foreign, "the card of another session's decision keeps the Ref")
+		Do $$$AssertEquals(card.%IsDefined("decision"), 0, "and embeds nothing of it")
+	}
 	Do $ClassMethod(fixture, "Clean", refs)
 }
 

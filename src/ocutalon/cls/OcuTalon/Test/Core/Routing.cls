@@ -9,7 +9,9 @@
 ///   - TestNoticeTransform: the three cases of the Notification's key and slots, the first reason line, and each error;
 ///   - TestNotifyTargets: each kind of Notification with demo mode on and off, with and without a pairing and with Telegram
 ///     included or not, a reply that came from the web and from Telegram, and a pairing notice with and without a ChatRef;
-///   - TestFunctions: the four functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone.
+///   - TestFunctions: the four functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
+///   - TestRuleTargetsAreProductionItems: the two router items use these rules, and every target and transform that a rule
+///     names exists in the production.
 /// The fixture sessions come from Test.Data.Fixture. The test restores the demo.mode setting (as Test.Demo.Step saves and puts it
 /// back) and the test-only switch ^OcuTalonTest("TelegramIncluded") as it found them. The run's number is n from
 /// ^OcuTalonTest("Routing","n") (never reset).
@@ -91,7 +93,8 @@ Method TestOutcomeRoutes()
 }
 
 /// The transform of the tell-now route. A CatalogKey on the ItemDecision is used with its slots as they are. A fallback uses
-/// notice.tellNowFallback with the summary and the fallback reason (unusable when it is empty or unknown). Otherwise it is
+/// notice.tellNowFallback with the summary and the fallback reason (unusable when it is empty or unknown), and reads no Decision
+/// row, so a fallback whose DecisionRef names no row keeps that DecisionRef. Otherwise it is
 /// notice.tellNow with the summary and the first line of the Reasons of the owner's Decision row. Each Notification is of kind
 /// tellnow, for the owner, with the DecisionRef, and renders to the catalog's text. The row of another owner, an unknown row, no
 /// DecisionRef, an empty first line and an empty summary are errors, with no Notification.
@@ -156,7 +159,9 @@ Method TestNoticeTransform()
 	Set notification = ..Transform(decision, .sc)
 	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(notification.CatalogKey, notification.Slots, "web", .sc), "zz Dana: Invoice"_$Char(10)_"Why now: the model declined to answer", "a fallback renders to the summary and the words of its reason")
 	Set decision.DecisionRef = "ZzNoRowForThis"
+	Set notification = ..Transform(decision, .sc)
 	Do $$$AssertStatusOK(sc, "a fallback needs no Decision row, it has none")
+	If $IsObject(notification) Do $$$AssertEquals(notification.CatalogKey_"|"_notification.DecisionRef_"|"_notification.Slots, "notice.tellNowFallback|ZzNoRowForThis|{""whatHappened"":""zz Dana: Invoice"",""reason"":""refusal""}", "and keeps its DecisionRef, with notice.tellNowFallback and its reason")
 	Set decision.DecisionRef = ""
 	Do ..Transform(decision, .sc)
 	Do $$$AssertStatusOK(sc, "and may have no DecisionRef")
@@ -277,7 +282,84 @@ Method TestFunctions()
 	}
 }
 
+/// The wiring of the two rules to the production (AD-30): the router items OutcomeRouter and Notify use the rule classes under
+/// test, and every target and transform that a rule's send action names exists: each target is an item of OcuTalon.Production and
+/// each transform is a compiled data transform. A target that is not an item would fail the send of a notification that demo mode
+/// or a pairing sends past the web chat. The targets are scanned from the rules' XML; they are written out here, never read from
+/// the rules.
+Method TestRuleTargetsAreProductionItems()
+{
+	Set production = ##class(Ens.Config.Production).%OpenId("OcuTalon.Production")
+	Do $$$AssertTrue($IsObject(production), "the compiled production exists")
+	If '$IsObject(production) Quit
+	For i = 1:1:production.Items.Count() {
+		Set item = production.Items.GetAt(i)
+		Set items(item.Name) = item
+	}
+	For router = "OutcomeRouter", "Notify" {
+		Set rule = $Select(router = "OutcomeRouter": ..#OUTCOMERULE, 1: ..#NOTIFYRULE)
+		Set found = ""
+		If $Data(items(router)) {
+			For j = 1:1:items(router).Settings.Count() {
+				If items(router).Settings.GetAt(j).Name = "BusinessRuleName" Set found = items(router).Settings.GetAt(j).Value
+			}
+		}
+		Do $$$AssertEquals(found, rule, router_" is routed by "_rule)
+	}
+	Set expected("OcuTalon.Core.Rule.Outcome") = "DigestStore,Notify"
+	Set expected("OcuTalon.Core.Rule.Notify") = "SimPhoneOut,TelegramOut,WebChatOut"
+	Set rule = ""
+	For {
+		Set rule = $Order(expected(rule))
+		Quit:rule=""
+		Set data = ##class(%Dictionary.XDataDefinition).%OpenId(rule_"||RuleDefinition")
+		Do $$$AssertTrue($IsObject(data), rule_" holds its rule definition")
+		If '$IsObject(data) Continue
+		Set xml = ""
+		Do data.Data.Rewind()
+		While 'data.Data.AtEnd {
+			Set xml = xml_data.Data.Read(30000)
+		}
+		Kill targets, transforms
+		Do ..Attribute(xml, "target", .targets)
+		Do ..Attribute(xml, "transform", .transforms)
+		Set names = "", name = ""
+		For {
+			Set name = $Order(targets(name))
+			Quit:name=""
+			Set names = names_$Select(names = "": "", 1: ",")_name
+			Do $$$AssertTrue($Data(items(name)), rule_": the target "_name_" is an item of the production")
+		}
+		Do $$$AssertEquals(names, expected(rule), rule_" sends to exactly these items")
+		Set name = ""
+		For {
+			Set name = $Order(transforms(name))
+			Quit:name=""
+			Do $$$AssertTrue($ClassMethod(name, "%Extends", "Ens.DataTransform"), rule_": the transform "_name_" is a data transform")
+		}
+	}
+}
+
 /// --- helpers ---
+/// The values of the attribute in the XML text, comma-separated values split, as the subscripts of values.
+ClassMethod Attribute(xml As %String, attribute As %String, Output values) [ Private ]
+{
+	Kill values
+	Set position = 1
+	For {
+		Set from = $Find(xml, attribute_"=""", position)
+		If from = 0 Quit
+		Set to = $Find(xml, """", from)
+		If to = 0 Quit
+		Set list = $ListFromString($Extract(xml, from, to - 2))
+		Set at = 0
+		While $ListNext(list, at, one) {
+			If one '= "" Set values(one) = ""
+		}
+		Set position = to
+	}
+}
+
 /// A fixture session; its Ref is kept for the clean-up.
 Method Session(name As %String) As %String [ Private ]
 {

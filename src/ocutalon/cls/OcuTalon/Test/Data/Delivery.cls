@@ -6,7 +6,9 @@
 ///   - TestRecordKeepsTheCard: every property of the row, RecordedAt to the second in UTC, and the four leading parameters alone;
 ///   - TestRecordRefuses: an empty owner and a channel that is not one of the eight, with no row;
 ///   - TestFindByApproval: an exact match, the newest of two, another owner, another channel, a case-changed Ref, the owners
-///     instance and eval, and empty values.
+///     instance and eval, and empty values;
+///   - TestFixtureCleanRemovesTheSessionsDeliveryRows: Fixture.Clean deletes every Delivery row of the fixture sessions it deletes,
+///     and no other owner's.
 Class OcuTalon.Test.Data.Delivery Extends %UnitTest.TestCase
 {
 
@@ -52,7 +54,7 @@ Method TestRecordKeepsTheCard()
 	Do $$$AssertEquals(found.Text, "Reminder: stretch."_$Char(10)_"second line", "the whole text")
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertTrue(found.RecordedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RecordedAt is UTC to the second: "_found.RecordedAt)
-	Do $$$AssertTrue((found.RecordedAt '] before) && (after '] found.RecordedAt), "and is the time of the call")
+	Do $$$AssertTrue((before '] found.RecordedAt) && (found.RecordedAt '] after), "and is the time of the call: "_before_" to "_after)
 	Set long = $Translate($Justify("", 5000), " ", "x")
 	Set sc = ##class(OcuTalon.Data.Delivery).Record(session, "web", "ZzLong"_..Number, "", "tellnow", long, , , , .long2)
 	Do $$$AssertStatusOK(sc, "a text of 5000 characters is recorded")
@@ -131,6 +133,28 @@ Method TestFindByApproval()
 		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval(approval, "telegram", $ZConvert(owner, "U")), "", "nor in upper case")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByApproval(approval, "telegram", session), "ZzNew:2", "and the session still finds its newest")
+}
+
+/// Fixture.Clean(refs) deletes the Delivery rows of the fixture sessions it deletes, the rows that a production made (no fixture
+/// recorded them) included, so that no test leaves a card behind; the rows of a session it is not asked to delete, and of the owner
+/// instance, stay.
+Method TestFixtureCleanRemovesTheSessionsDeliveryRows()
+{
+	Set session = ..Session("clean")
+	Set kept = ..Session("cleankept")
+	Set card = ##class(OcuTalon.Test.Data.Fixture).Delivery(session)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "web", "", ""), "a reply row, as the production makes it, is recorded")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "telegram", "ZzMade:1", "ZzMade"_..Number), "so is a Telegram row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(kept, "web", "ZzKept"_..Number, ""), "and a row of the other session")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record("instance", "web", "ZzClean"_..Number, "", , , , , , .stray), "and a row of the owner instance")
+	If $IsObject($Get(stray)) Set ..Strays = ..Strays_","_stray.%Id()
+	Set instance = ..Count("instance")
+	Do $$$AssertEquals(..Count(session), 3, "the session has its three rows")
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(session_","_card)
+	Do $$$AssertEquals(..Count(session), 0, "Clean removes every Delivery row of the session it deletes")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session), "", "with the session")
+	Do $$$AssertEquals(..Count(kept), 1, "and no row of a session it was not asked to delete")
+	Do $$$AssertEquals(..Count("instance"), instance, "nor of the owner instance")
 }
 
 /// --- helpers ---

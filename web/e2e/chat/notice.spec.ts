@@ -6,7 +6,7 @@ import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendN
 import { fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.7, the notice cards (N1 to N12; N11 is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 2.7, the notice cards (N1 to N15; N11 is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER) and sends items, item decisions and notifications to its own session through
  * the real production (SimMailboxIn and NoticesIn hosts, OutcomeRouter, Notify, WebChatOut), so that nothing here publishes on the
  * README session or the instance stream (api.spec pins their counts) or touches another spec's chat. Each case asserts only on the
@@ -117,7 +117,7 @@ test('N2: a code-written notice keeps its own two lines', async ({ page }) => {
   await expect(card.locator('.text'), 'the first line is the key\'s text, with its time').toHaveText(new RegExp(`^The ${production} production stopped at \\d\\d:\\d\\d\\.$`));
   await expect(card.locator('.why'), 'the second line is its own Why now line').toHaveText(`Why now: you asked me to watch the ${production} production.`);
   await expect(card.locator('.notice'), 'a tell-now card').toHaveCSS('border-left-color', await tokenColor(page, '--attention'));
-  expect(plain(await card.locator('.body').innerText()).includes('Why now:'), 'the card says why now once').toBe(true);
+  expect(plain(await card.locator('.body').innerText()).split('Why now:').length - 1, 'the card says why now once').toBe(1);
 });
 
 /** N3: only Tell now and Act notify: an ignore and a digest show nothing, an act shows its card with the chip Act, also after a reload. */
@@ -280,12 +280,15 @@ test('N8: /events serves the notification with the card\'s fields', async ({ pag
   expect([payload.decision?.['ref'], payload.decision?.['outcome'], payload.decision?.['reasons'], payload.decision?.['costUSD']], 'with the decision embedded').toEqual([decisionRef, 'tellnow', 'zz first.\nzz second.', 0.0003]);
 });
 
-/** N9: markup in an arriving item shows as text. */
+/**
+ * N9: markup in an arriving item shows as text. Like N10, the item's text carries the mock's refusal marker, so it becomes a
+ * tell-now fallback card whichever Decide the stack has (the Epic 0 stub, or the mock's from Story 1.3).
+ */
 test('N9: markup in an arriving item shows as text', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
   await open(page);
   const sender = unique('N9');
-  await sendItem(user, { sender, subject: '<i>zz</i>', text: 'zz body' });
+  await sendItem(user, { sender, subject: '<i>zz</i>', text: 'zz body [[mock:refusal]]' });
   const card = cardOf(page, sender);
   await expect(card).toHaveCount(1, { timeout: CARD_MS });
   await expect(card.locator('.text'), 'the subject is shown literally').toHaveText(`${sender}: <i>zz</i>`);
@@ -351,6 +354,123 @@ test('N12: scrolled up, a card that lands shows New messages and the press focus
   await expect.poll(() => fromBottom(list), { message: 'pressing it puts the list at the bottom' }).toBeLessThanOrEqual(24);
   await expect(card.locator('.notice'), 'and focuses the card').toBeFocused();
   await expect(button, 'and the button is gone').toHaveCount(0);
+});
+
+/** The colours that a card paints and those that its tokens give in the colour scheme the page is in now (a probe element reads the tokens). */
+async function paintOf(card: Locator): Promise<{ background: string; bar: string; ink: string; tokenBackground: string; tokenBar: string; tokenInk: string }> {
+  return card.evaluate((el) => {
+    const notice = el.querySelector('.notice') as HTMLElement;
+    const tellNow = notice.classList.contains('tell-now');
+    const probe = document.createElement('div');
+    probe.style.background = 'var(--notice-card-background)';
+    probe.style.borderInlineStart = `var(${tellNow ? '--notice-card-accent-bar-tell-now' : '--notice-card-accent-bar'})`;
+    probe.style.borderInlineStartStyle = 'solid';
+    probe.style.color = `var(${tellNow ? '--attention-ink' : '--info-ink'})`;
+    document.body.append(probe);
+    const token = getComputedStyle(probe);
+    const shown = getComputedStyle(notice);
+    const result = {
+      background: shown.backgroundColor,
+      bar: shown.borderInlineStartColor,
+      ink: getComputedStyle(notice.querySelector('app-icon') as HTMLElement).color,
+      tokenBackground: token.backgroundColor,
+      tokenBar: token.borderInlineStartColor,
+      tokenInk: token.color,
+    };
+    probe.remove();
+    return result;
+  });
+}
+
+/**
+ * N13: both kinds of card take the colour scheme's tokens, in the light scheme and in the dark one (UX-DR69): the card's
+ * background, its accent bar and its icon ink are the scheme's own notice-card, attention and info tokens, and the dark values
+ * differ from the light ones, so a colour written into the card instead of a token fails in one of the two.
+ */
+test('N13: the cards take the tokens of the light and the dark scheme', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await open(page);
+  const summary = unique('N13');
+  await sendItemDecision(user, { outcome: 'tellnow', summary, fallback: true, fallbackReason: 'refusal' });
+  const text = unique('N13').replace(/^zz /, 'stretch ');
+  await sendNotification(user, { kind: 'reminder', catalogKey: 'reminder.due', slots: { text, dueAt: today('12:00:00') } });
+  const tellNow = cardOf(page, summary);
+  const reminder = cardOf(page, text);
+  await expect(tellNow).toHaveCount(1, { timeout: CARD_MS });
+  await expect(reminder).toHaveCount(1, { timeout: CARD_MS });
+
+  const light = { tellNow: await paintOf(tellNow), reminder: await paintOf(reminder) };
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('body'), 'the page is in its dark scheme').toHaveCSS('background-color', 'rgb(17, 25, 43)');
+  const dark = { tellNow: await paintOf(tellNow), reminder: await paintOf(reminder) };
+  for (const [scheme, paints] of [['light', light], ['dark', dark]] as const) {
+    for (const [kind, paint] of [['tell-now', paints.tellNow], ['reminder', paints.reminder]] as const) {
+      expect(paint.background, `${scheme} ${kind} card: the background is the notice-card background`).toBe(paint.tokenBackground);
+      expect(paint.bar, `${scheme} ${kind} card: the accent bar is the kind's bar token`).toBe(paint.tokenBar);
+      expect(paint.ink, `${scheme} ${kind} card: the icon is in the kind's ink`).toBe(paint.tokenInk);
+    }
+  }
+  expect(dark.tellNow.tokenBackground, 'the dark card background is not the light one').not.toBe(light.tellNow.tokenBackground);
+  expect(dark.tellNow.tokenBar, 'the dark attention bar is not the light one').not.toBe(light.tellNow.tokenBar);
+  expect(dark.reminder.tokenBar, 'the dark info bar is not the light one').not.toBe(light.reminder.tokenBar);
+  expect(dark.tellNow.tokenInk, 'the dark attention ink is not the light one').not.toBe(light.tellNow.tokenInk);
+});
+
+/**
+ * N14: a reload draws a card as it was sent (DW-62): a fallback card keeps its Fallback flag and its words, and a reminder card
+ * keeps its due time, so its caption reads the same.
+ */
+test('N14: a reload keeps a fallback card\'s flag and a reminder card\'s due time', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const summary = unique('N14');
+  await sendItemDecision(user, { outcome: 'tellnow', summary, fallback: true, fallbackReason: 'refusal' });
+  const text = unique('N14').replace(/^zz /, 'stretch ');
+  await sendNotification(user, { kind: 'reminder', catalogKey: 'reminder.due', slots: { text, dueAt: today('12:00:00') } });
+  const tellNow = cardOf(page, summary);
+  const reminder = cardOf(page, text);
+  await expect(tellNow).toHaveCount(1, { timeout: CARD_MS });
+  await expect(reminder).toHaveCount(1, { timeout: CARD_MS });
+  const caption = await reminder.locator('.caption').innerText();
+  expect(plain(caption), 'the caption before the reload').toMatch(new RegExp(`^Due 12:00${DOT}arrived \\d{1,2}:\\d\\d$`));
+
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(tellNow, 'the fallback card is still there').toHaveCount(1);
+  await expect(tellNow.locator('.why'), 'with the words of its reason').toHaveText('Why now: the model declined to answer');
+  await expect(tellNow.locator('app-decision-strip app-outcome-chip .chip'), 'the chip Tell now').toHaveText('Tell now');
+  await expect(tellNow.locator('app-decision-strip app-fallback-flag'), 'and the Fallback flag').toHaveCount(1);
+  await expect(tellNow.getByRole('button', { name: 'Decision details' }), 'with no Details').toHaveCount(0);
+  await expect(reminder, 'the reminder card is still there').toHaveCount(1);
+  await expect(reminder.locator('.text')).toHaveText(`Reminder: ${text}.`);
+  await expect(reminder.locator('.caption'), 'with the due time, and the arrival time it had').toHaveText(caption);
+});
+
+/**
+ * N15: hostile text in a card stays text and stays inside it: markup in the summary and in the first reason shows literally, and
+ * a word too long to break (the reason's, which has no length limit; an ItemDecision's summary holds 80 characters) does not widen
+ * the card, the list or the page.
+ */
+test('N15: markup and an unbroken word in a card stay text inside the card', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const stamp = unique('N15');
+  const summary = `${stamp} <b>bold</b> ${'W'.repeat(30)}`;
+  const reason = `zz <u>first</u> ${'R'.repeat(120)}.`;
+  const decisionRef = await seedDecision(user, { outcome: 'tellnow', summary: stamp, reasons: reason, confidence: 0.9, costUSD: 0.0003 });
+  await sendItemDecision(user, { outcome: 'tellnow', summary, decisionRef });
+  const card = cardOf(page, stamp);
+  await expect(card).toHaveCount(1, { timeout: CARD_MS });
+  await expect(card.locator('.text'), 'the summary is shown literally').toHaveText(summary);
+  await expect(card.locator('.why'), 'and so is the first reason').toHaveText(`Why now: ${reason}`);
+  await expect(card.locator('b, u'), 'no element was made of either').toHaveCount(0);
+  const fits = await card.evaluate((el) => {
+    const notice = el.querySelector('.notice') as HTMLElement;
+    const list = el.closest('.list') as HTMLElement;
+    return { notice: notice.scrollWidth <= notice.clientWidth, list: list.scrollWidth <= list.clientWidth, page: document.documentElement.scrollWidth <= document.documentElement.clientWidth };
+  });
+  expect(fits, 'the unbroken words wrap: the card, the list and the page have no sideways scroll').toEqual({ notice: true, list: true, page: true });
 });
 
 notBuilt('a tell-now notification reaches the simulated phone within 5 seconds', '4.5');

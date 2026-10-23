@@ -6,6 +6,8 @@
 ///     row's, with the text split from the Why now line and the decision embedded;
 ///   - TestFallbackCard, TestReminderCard: the fallback reason comes from the slot that the key declares as fallbackReason, and a
 ///     reminder keeps its due time from the slot dueAt;
+///   - TestOnlineDemoTimesNameTheZone: the times in a card's text come from Render, with " ET" on the online demo, and the row keeps
+///     that text;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -43,7 +45,8 @@ Method OnAfterAllTests() As %Status
 }
 
 /// A tell-now Notification (notice.tellNow, the summary and the reason) records one card: channel web, a new Ref as the
-/// ChannelMessageId, the kind, the whole rendered text, the DecisionRef, no due time and no fallback reason. After the save one
+/// ChannelMessageId, the kind, the whole rendered text, the DecisionRef, no fallback reason and no due time, even with a dueAt
+/// slot (the due time is a reminder's). After the save one
 /// notification event goes to the session's stream, with the payload FromRow makes: ref, kind, decisionRef, createdAt, text and
 /// whyNow split at the last line, and the owner's decision embedded. Another session's stream and rows are untouched.
 Method TestTellNowCard()
@@ -52,7 +55,7 @@ Method TestTellNowCard()
 	Set other = ..Session("tellnowother")
 	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", , {"Outcome": "tellnow", "Reasons": ("zz first."_$Char(10)_"zz second."), "Confidence": 0.9, "CostUSD": 0.0003})
 	Set ..Refs = ..Refs_","_decision
-	Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz Dana: Invoice", "reason": "zz first."})
+	Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz Dana: Invoice", "reason": "zz first.", "dueAt": "2030-01-01T12:00:00Z"})
 	Set notification.DecisionRef = decision
 	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the notification is delivered")
 	Do $$$AssertEquals($IsObject($Get(response)), 0, "with no response")
@@ -129,6 +132,32 @@ Method TestReminderCard()
 	Set noDue = ..Notification(session, "reminder", "reminder.due", {"text": "no due slot"})
 	Do $$$AssertStatusOK(..Out().OnNotification(noDue, .response), "a reminder with no dueAt slot is delivered")
 	Do $$$AssertEquals(..Newest(session).DueAt, "", "with no due time")
+}
+
+/// The times inside a card's text are rendered through Msg.Catalog.Render (AD-18, AD-32): on the online demo they read in the
+/// instance's zone with " ET" after them, and on a local install they have no zone name. The row keeps the text as it was shown,
+/// so the zone name stays on a card after the demo switch goes off, and the live event carries the same text. The time is a
+/// fixed date of 2030, so that the date form ("Jan 1, 2030 at 07:00") and not the clock of the day is rendered, and the
+/// hour is matched as two digits whatever the zone of the process.
+Method TestOnlineDemoTimesNameTheZone()
+{
+	Set session = ..Session("online")
+	Set slots = {"text": "stretch", "time": "2030-01-01T12:00:00Z", "dueAt": "2030-01-01T12:00:00Z"}
+	Do $$$AssertStatusOK(..Out().OnNotification(..Notification(session, "reminder", "reminder.late", slots), .response), "a late reminder is delivered on a local install")
+	Set local = ..Newest(session).Text
+	Do $$$AssertTrue(local ? 1"Reminder (late; it was due on Jan "1(1"1",1"2")1", 2030 at "2N1":"2N1"): stretch.", "a local install shows no zone name: "_local)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Set sc = ..Out().OnNotification(..Notification(session, "reminder", "reminder.late", slots), .response)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusOK(sc, "and on the online demo")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue(row.Text ? 1"Reminder (late; it was due on Jan "1(1"1",1"2")1", 2030 at "2N1":"2N1" ET): stretch.", "the online demo's time is followed by ET: "_row.Text)
+	Do $$$AssertEquals($Piece(row.Text, " ET)", 1), $Piece(local, "):", 1), "and is the same time as the local install's, with the zone name added")
+	Do $$$AssertEquals(..Rows(session), 2, "two cards")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 2, "two events")
+	If events.%Size() = 2 Do $$$AssertEquals(events.%Get(1).payload.text, row.Text, "the online demo's event carries the text of its row")
+	Do $$$AssertEquals(..Newest(session).Text, row.Text, "and the card keeps that text after the demo switch is off again")
 }
 
 /// Any other kind records its Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text, no ChannelMessageId

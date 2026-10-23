@@ -198,8 +198,8 @@ Method TestReplyRecordsItsDeliveryOnly()
 		Set row = rows.GetAt(1)
 		Do $$$AssertEquals(row.OwnerRef_"|"_row.Channel_"|"_row.ChannelMessageId_"|"_row.Kind_"|"_row.Text_"|"_row.DecisionRef, session_"|web||||ZzReplyDecision", "the reply's row: the web, its DecisionRef, no message id, kind or text")
 	}
-	Hang ..#QUIET
-	Do $$$AssertEquals(..WaitEvents(session, "notification", 0).%Size(), 0, "no notification event is published")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "WebChatOut", 1, ..#WAIT), "WebChatOut has handled the Outbound")
+	Do $$$AssertEquals(..WaitEvents(session, "notification", 0).%Size(), 0, "and published no notification event")
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "WebChatOut").%Size(), 1, "Notify sends it to WebChatOut")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "TelegramOut").%Size(), 0, "and not to TelegramOut")
