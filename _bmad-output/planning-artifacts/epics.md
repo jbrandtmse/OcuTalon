@@ -3172,7 +3172,7 @@ So that I can try it without help and trust that it claims only what the release
 
 **Given** the release-1 README
 **When** a judge opens it
-**Then** it starts with "Try it in two minutes", which in release 1 leads with the local path (load the image, run the install script, sign in, follow the demo guide), because the online demo link and the note that its sign-in details are on the splash screen are added with the 1.0.0 kit when the demo goes public (FR-58, REL-10)
+**Then** it starts with "Try it in two minutes", which leads with the online demo link (`https://demo.ocutalon.com`) and the note that its sign-in details are on the splash screen, and then gives the local path (load the image, run the install script, sign in, follow the demo guide) (FR-58, REL-10) [AMENDED 2026-10-23, owner decision, relayed by the Contest Planner; the owner: "I plan to release the demo teaser video and demo as soon as it is ready. Then make the repo and do the contest entry when 0.1.0 drops." The online demo goes public before 0.1.0, so release 1's README leads with it. It led with the local path, and the demo link was to come with the 1.0.0 kit.]
 **And** it names the attention decision and its four outcomes, Ignore, Digest, Tell now and Act, and claims only what release 1 ships (FR-58, UX-DR121)
 
 **Given** the install sections
@@ -3188,6 +3188,15 @@ So that I can try it without help and trust that it claims only what the release
 **Given** the admin and developer sections
 **When** they are read
 **Then** they say demo mode is on for the Docker install and how an admin switches it with `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)`, and class names and error codes appear only in these sections (FR-16, FR-58, NFR-24, AD-19)
+
+**Given** the top of the README, right after "Try it in two minutes"
+**When** a judge reads it
+**Then** it has, in this order:
+- a short "What's interesting" section, of about 120 words at most, that says what is technically interesting in what the release ships and why it was built that way;
+- a "Contest task → where to see it" table that maps each part of the contest task (an IRIS Interoperability workflow, an IRIS AI Hub agent and a decision-making task) and each judging criterion (Complexity, Clarity of Instructions, Developer Experience, Applicability and Usability) to the feature that meets it and the place in the online demo or the repository that shows it;
+- and the teaser video's link, which the author gives (until then there is no video line and no placeholder) (FR-58).
+[AMENDED 2026-10-23, owner decision, relayed by the Contest Planner; the owner: "Yes I agree with your recommendations". Added from the experts' advice post of Oct 19, "Highlight your strongest work in the README".]
+**And** every sentence and table row claims only what the release ships and links only to what exists (FR-58)
 
 **Given** the whole README
 **When** CI's public-text check and the author's review run
@@ -6293,7 +6302,7 @@ So that I can try OcuTalon in two minutes from the README.
 
 **Given** the README for 1.0.0
 **When** a judge opens it
-**Then** "Try it in two minutes" is at the top, with the online demo link the author gives and a note that the sign-in details are on the splash screen; it names the read-only Visual Trace account and says that trace links on the demo open it without a second sign-in; it carries the IPM install section, which this story adds from `docs/install-ipm.md`, the file Lane A's Story 15.2 writes; and the rest of FR-58's list covers what 1.0.0 ships and claims nothing it doesn't (FR-57, FR-58, FR-59)
+**Then** "Try it in two minutes" is at the top, with the online demo link the author gives and a note that the sign-in details are on the splash screen; it names the read-only Visual Trace account and says that trace links on the demo open it without a second sign-in; it carries the IPM install section, which this story adds from `docs/install-ipm.md`, the file Lane A's Story 15.2 writes; and the rest of FR-58's list covers what 1.0.0 ships and claims nothing it doesn't (FR-57, FR-58, FR-59) [AMENDED 2026-10-23, owner decision, relayed by the Contest Planner; the owner: "Yes I agree with your recommendations". Story 10.2 now puts the online demo link and the top section (What's interesting, the contest-task table and the video link) into release 1's README. This story keeps them and updates the section and the table for what 1.0.0 adds.]
 **And** the About dialog gains the bridge developer guide and security overview links, and the demo guide's finish state its "Use the same bridge in your own production ↗" link, at the paths Stories 13.3 and 14.2 supply, once both have merged (FR-5, FR-61, UX-DR28, UX-DR47)
 **And** it keeps the BMAD Method and Claude Code credits and the not-affiliated note, is plain English with no class name or error code outside its developer sections, names no private infrastructure detail, and every link in it resolves (FR-58, CON-2, CON-5)
 
