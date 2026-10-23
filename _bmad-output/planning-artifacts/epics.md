@@ -786,7 +786,7 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 ### Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 
 [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: a new epic, first in Lane B's order.] Each push's IRIS work is about 46 runner-minutes in five groups, and the `install` group alone takes about 14 minutes. With both lanes pushing, two runner services queue the jobs for up to 28 minutes, past REL-4's 35-minute budget. This epic shortens the longest job, and skips the IRIS groups a push can't affect. Together with the owner's larger CI host, a typical push gets its verdict in about ten minutes.
-**Lane:** B. **Depends on:** Epic 0.
+**Lane:** B for Stories 32.1 to 32.3; C for Story 32.4 (runner C, in Lane B's files). **Depends on:** Epic 0. [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Send your questions to the planner when you have them. I've been away from the desk and don't want development to slow down.": Story 32.4 added, and Epic 32 re-opened on runner C ahead of Epic 8 while runner C waits for Epic 1.]
 **FRs covered:** none (delivery).
 **Also covers:** REL-4, REL-2; AD-22.
 
@@ -6401,3 +6401,35 @@ So that one slow group doesn't hold up CI's verdict, and a slow runner host show
 **And** a unit still moves whole between groups and is never split.
 **And** if the slowest IRIS job runs over about 10 minutes, its measured times go to the owner as a CI-capacity item, as owner decision 9 does for REL-4's 35 minutes.
 - DW-49: `ci/iris.sh` gives the browser units a fixed web port (52810 + n) only for runners 1 to 9, so on `ocutalon-ci-10` to `-14` two concurrent browser jobs can probe and pick the same free port (ledger; routed by adjudication 2026-10-21)
+
+### Story 32.4: The developer loop reuses one warm throwaway per lane
+
+[AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Send your questions to the planner when you have them. I've been away from the desk and don't want development to slow down."] A new story from a measured need. On Stories 1.7 and 2.7 (2026-10-23), about half of each story's 5.7 hours waited on throwaway IRIS runs on the developer machine: `ci/iris.sh class <Class>` starts a fresh IRIS for every call (66 calls averaging 1.7 minutes, more than half of it the start), `ci/iris.sh live sign-in` ran 22 times at 4.9 minutes each, and the agents made 261 `ci/iris.sh` calls in 10 hours. Built by runner C on slot C while it waits for Epic 1; it changes no product code and no CI path.
+
+As a build runner,
+I want a stage's repeated class and shard runs to reuse one warm throwaway for my lane,
+So that each story stops paying a fresh IRIS start for every test run, while the fresh checks stay exactly as strict.
+
+**Acceptance Criteria:**
+
+**Given** a Task 0 measurement on the developer machine
+**Then** the story records the Docker VM's memory and CPUs, the memory of a slot, of a fresh throwaway and of a warm throwaway after a shard run, and the headroom for three lanes that each hold one warm stack beside the three slots and the other long-running containers, as a Rule 21 measured fact
+
+**Given** the run tag and the lane's lock folder (Rule 21: `OCUTALON_LOCK_DIR` per lane)
+**When** a stage starts a warm stack (`ci/iris.sh warm up`, or a new `ci/warm.sh up`)
+**Then** one throwaway starts for the lane and holds the lane's throwaway lock until `warm down`, and `class <Class>` and `shard <name>` run on it when `OCUTALON_WARM=1` is set, without starting another stack
+
+**Given** a warm stack and a working tree that changed since the stack's last run
+**When** `class` or `shard` runs warm
+**Then** it first loads and compiles every class changed in the tree since the stack's last load, deletes from the stack every class removed or renamed in the tree since then, and prints one line `WARM reloaded <n>, deleted <m>`, so that a removed or renamed class can never pass on stale code; a compile error fails the run as it would on a fresh stack
+
+**Given** the `live` units, destructive tests (Rule 21), the fresh-environment check (Rule 19) and CI
+**Then** none of them uses a warm stack: `live` refuses `OCUTALON_WARM`, CI never sets it, and they start fresh throwaways exactly as before, so hermeticity is still proven on a fresh stack before every commit
+
+**Given** a stage that ends, fails or is killed
+**Then** `warm down` and the cleanup trap remove the warm stack and release the lane's lock, and a warm stack whose owner is gone is removed by `ci/iris.sh teardown` with its tag, like any throwaway
+
+**Given** the new mode
+**Then** Rule 21's recipe gains when the stages use it (appended as a recipe, the run's own write), and the story measures the same classes run warm and fresh in one stage and records both times
+
+- Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
