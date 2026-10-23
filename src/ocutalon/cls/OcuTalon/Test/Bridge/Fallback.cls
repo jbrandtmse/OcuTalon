@@ -4,6 +4,8 @@
 ///   - TestEachFactAlone: each fact gives its own reason, and no facts, and a request or reply that is usable, give "";
 ///   - TestOrder: the earlier rule wins when two facts hold: the prechecks, then the text of a failure, then the finish reason, then an
 ///     empty text, then invalid;
+///   - TestFailureOrder (QA): when the text of a failure holds the words of two rules, the earlier rule wins, for every pair of the five
+///     rules and with the words in either order in the text: daily_cap, then no_key, then timeout, then rate_limited, then unusable;
 ///   - TestMeasuredTexts: the failure texts that AI Hub raised on build 154 and that earlier stories and this one measured: the gateway's
 ///     403, the missing key, the 529, the 400, 401 and 500, a timeout, and the two errors of a loop that does not end;
 ///   - TestEmptyText: an empty text is empty when the provider reported a finish reason and unusable when it reported none, and a
@@ -71,6 +73,40 @@ Method TestOrder()
 	Do ..AssertReason({"finishReason": "refusal", "invalid": true, "text": "A refusal"}, "refusal", "refusal before invalid")
 	Do ..AssertReason({"finishReason": "end_turn", "text": "  ", "invalid": true}, "empty", "an empty text before invalid")
 	Do ..AssertReason({"finishReason": "", "text": "", "invalid": true}, "unusable", "and so is the unusable one")
+}
+
+/// The failure rules are applied in one order, whatever the order of the words in the text: daily_cap, no_key, timeout, rate_limited, unusable
+/// (the agent's iteration errors), and error for a text that none of them finds. A text that holds the words of two rules gives the reason of
+/// the earlier one, for every pair and with the words in either order, so that no rule can move up or down the list unseen.
+Method TestFailureOrder()
+{
+	Set pieces = $ListBuild("daily cost cap reached", "@{env:ANTHROPIC_API_KEY} has no value", "operation timed out", "Rate limit exceeded", "<%AICore>MaxIterationsReached")
+	Set reasons = $ListBuild("daily_cap", "no_key", "timeout", "rate_limited", "unusable")
+	For i = 1:1:$ListLength(pieces) {
+		Do ..AssertReason({"failure": ("ERROR x "_$List(pieces, i)_" y")}, $List(reasons, i), "the words of "_$List(reasons, i)_" alone")
+	}
+	Do ..AssertReason({"failure": "ERROR x words that no rule finds y"}, "error", "words that no rule finds")
+	For i = 1:1:$ListLength(pieces) - 1 {
+		For j = i + 1:1:$ListLength(pieces) {
+			Do ..AssertReason({"failure": ($List(pieces, i)_" | "_$List(pieces, j))}, $List(reasons, i), "the words of "_$List(reasons, i)_" then "_$List(reasons, j)_" give "_$List(reasons, i))
+			Do ..AssertReason({"failure": ($List(pieces, j)_" | "_$List(pieces, i))}, $List(reasons, i), "the words of "_$List(reasons, j)_" then "_$List(reasons, i)_" give "_$List(reasons, i)_" too")
+		}
+	}
+	// all five at once, then each winner taken out in turn: the next rule wins
+	For first = 1:1:$ListLength(pieces) {
+		Set text = "ERROR"
+		For k = $ListLength(pieces):-1:first {
+			Set text = text_" | "_$List(pieces, k)
+		}
+		Do ..AssertReason({"failure": (text)}, $List(reasons, first), "with the words of every rule from "_$List(reasons, first)_" on, "_$List(reasons, first)_" wins")
+	}
+	// and a precheck still wins over every one of them, and the failure over the finish reason and the text
+	For i = 1:1:$ListLength(pieces) {
+		Do ..AssertReason({"noKey": true, "failure": ($List(pieces, i))}, "no_key", "noKey before the words of "_$List(reasons, i))
+		Do ..AssertReason({"capped": true, "failure": ($List(pieces, i))}, "daily_cap", "capped before the words of "_$List(reasons, i))
+		Do ..AssertReason({"overBudget": true, "failure": ($List(pieces, i))}, "budget", "overBudget before the words of "_$List(reasons, i))
+		Do ..AssertReason({"failure": ($List(pieces, i)), "finishReason": "refusal", "text": "", "invalid": true}, $List(reasons, i), "the words of "_$List(reasons, i)_" before the finish reason, an empty text and invalid")
+	}
 }
 
 /// The failure texts that were measured.
@@ -187,7 +223,6 @@ Method TestCatalogMap()
 		Do $$$AssertStatusOK(sc, "the catalog has fallbackReason."_key)
 		Set texts = texts _ $ListBuild($Select($IsObject(entry): entry.text, 1: ""))
 	}
-	Do $$$AssertEquals($ListLength(texts), 11, "the UX has 11 fallback reasons")
 	Set mapping = "no_key=noKey,daily_cap=dailyCap,budget=budget,too_large=tooLarge,timeout=timeout,rate_limited=rateLimited,error=error,refusal=refusal,cut_off=cutOff,empty=empty,invalid=generic,unusable=generic"
 	Set reached = ""
 	Set position = 0
@@ -209,8 +244,6 @@ Method TestCatalogMap()
 		If '$ListFind(distinct, key) Set distinct = distinct _ $ListBuild(key)
 	}
 	Do $$$AssertEquals($ListLength(distinct), 11, "all 11 are reached")
-	Do $$$AssertEquals(..Lookup(mapping, "invalid"), "generic", "invalid gives the generic one")
-	Do $$$AssertEquals(..Lookup(mapping, "unusable"), "generic", "and so does unusable")
 	Set refusal = ##class(OcuTalon.Msg.Catalog).Render("conversation.turnFallback", "{""fallbackReason"":""refusal""}", "web")
 	Set cutoff = ##class(OcuTalon.Msg.Catalog).Render("conversation.turnFallback", "{""fallbackReason"":""cut_off""}", "web")
 	Set generic = ##class(OcuTalon.Msg.Catalog).Render("conversation.turnFallback", "{""fallbackReason"":""unusable""}", "web")

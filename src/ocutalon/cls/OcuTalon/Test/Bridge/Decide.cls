@@ -74,10 +74,15 @@
 ///     a warning; Conclude with the gateway's 403 marks the day too;
 ///   - TestPrecheckLogs: Precheck logs one warning for each fault that Budget.State names, naming it and redacted, and one for a
 ///     DecisionTokenBudget that is not a whole number of 0 or more, which counts as 0;
+///   - TestPrecheckOrder (QA): Precheck with the real facts, in every combination of a missing key (the ProviderConfig of TriageAgent), a day
+///     that is capped (the mark) and an estimate over the budget, gives no_key before daily_cap before budget; and a cap reached by the
+///     gateway's spend, not by the mark, is daily_cap before budget too;
 ///   - TestEstimateTokens: the estimate is the lengths of Input, SeedText and SystemNote at 4 characters a token, and the budget is over
 ///     only above it;
 ///   - TestOnRequestPrecheck: OnRequest records a request that fails a precheck as a fallback and answers it from OnRequest, with the
-///     settings checked first.
+///     settings checked first;
+///   - TestStepsBeforeReplyClass: OnResponse handles the steps of the reply before it reads the runner's ReplyClass, so a reply whose
+///     ReplyClass cannot be read still has its steps handled before the error.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
 /// Every test removes the Usage rows it made.
 Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
@@ -133,10 +138,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", needle)
 	}
 	Set ..LogNeedles = ""
-	Set position = 0
-	While $ListNext(..SavedRows, position, saved) {
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(saved)
-	}
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
 	If ..DayMarked {
 		Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))
@@ -628,6 +630,29 @@ Method TestOnResponseUsesItsSettings()
 	Do $$$AssertStatusNotOK(sc, "the timer's key ends with an error")
 	Set text = $SYSTEM.Status.GetErrorText(sc)
 	Do $$$AssertTrue((text [ "7 seconds") && (text [ "ChatAgent"), "that holds the TimerSeconds of the item and the runner: "_text)
+}
+
+/// OnResponse sends the steps of the runner's reply before it reads the ReplyClass setting of the runner (DW-83), so that a reply whose
+/// ReplyClass cannot be read still shows its steps: here a request whose kind names no runner, so that the read fails, and a reply whose
+/// Steps is not a JSON array, which StepMessages reports in one warning that names the DecisionRef. OnResponse ends with the error that
+/// names the ReplyClass setting, after the warning. No production needs to run.
+Method TestStepsBeforeReplyClass()
+{
+	Set process = ..NewProcess()
+	Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+	Set process.HostSinkClass = "OcuTalon.Bridge.Ext.HostSink"
+	Set request = ..NewRequest("zz")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..LogNeedles = ..LogNeedles _ $ListBuild(sent.DecisionRef)
+	Set reply = ..NewReply("{}")
+	Set reply.Steps = "not a JSON array"
+	Set mark = ..LogMark()
+	Set sc = process.OnResponse(request, .response, sent, reply, "reply")
+	Do $$$AssertStatusNotOK(sc, "a reply whose ReplyClass cannot be read ends with an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "ReplyClass", "that names the ReplyClass setting: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..WarningsOf(mark, sent.DecisionRef), 1, "and its steps were handled first: StepMessages warned once about the Steps of the DecisionRef")
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no row is recorded")
 }
 
 /// OnRequest hands the item's own TimerSeconds and ReplyFilterClass to the settings check: a value outside 1 to 110, and a filter
@@ -1313,6 +1338,50 @@ Method TestPrecheckLogs()
 	}
 }
 
+/// Precheck applies its three facts in AD-8's order, no_key then daily_cap then budget, whichever of them hold. Each fact is made true by
+/// what makes it true in the running system, not handed to Classify: a missing key is a ProviderConfig of TriageAgent with no api_key, a
+/// capped day is the day's mark, and a budget that is over is a token budget of 1 against a request of 5 tokens. Every one of the 8
+/// combinations gives the reason of the first fact that holds, and none gives ""; a cap reached by the gateway's spend alone (no mark) comes
+/// before the budget too. The rows and the mark are put back by OnAfterOneTest.
+Method TestPrecheckOrder()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Set request = ..NewRequest("decide")
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", request), 5, "control: the request is 5 tokens, so a budget of 1 is over and 0 is off")
+	For key = 1, 0 {
+		For capped = 0, 1 {
+			For over = 0, 1 {
+				If key {
+					Do ..PutKey("TriageAgent")
+				} Else {
+					Do ..Put("TriageAgent", "ProviderConfig", "{}")
+				}
+				Do ..Unmark()
+				If capped Set ^OcuTalonBP.UsageCapped(today) = ##class(OcuTalon.Bridge.Time).NowUtc()
+				Set expected = $Select('key: "no_key", capped: "daily_cap", over: "budget", 1: "")
+				Set label = "a request with "_$Select(key: "a key", 1: "no key")_", "_$Select(capped: "the day capped", 1: "the day open")_" and "_$Select(over: "an estimate over the budget", 1: "the budget off")
+				Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", over), expected, label_" gives '"_expected_"'")
+			}
+		}
+	}
+
+	// the cap reached by the gateway's spend, with no mark
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 1)
+	Do ..Put("Decide", "GatewaySpendUSD", 1)
+	Do ..Put("Decide", "GatewaySpendDate", today)
+	Do ..PutKey("TriageAgent")
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "control: the day has no mark")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "daily_cap", "a cap reached by the gateway's spend comes before an estimate over the budget")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 0), "daily_cap", "and is daily_cap alone")
+	Do ..Put("TriageAgent", "ProviderConfig", "{}")
+	Do $$$AssertEquals($ClassMethod(decide, "Precheck", request, "TriageAgent", 1), "no_key", "and a missing key comes before both")
+}
+
 /// The estimate is the lengths of Input, SeedText and SystemNote added together, at 4 characters a token and rounded up; a budget is over
 /// only when the estimate is above it, and 0 is off.
 Method TestEstimateTokens()
@@ -1586,15 +1655,12 @@ Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, 
 }
 
 /// Puts the System Default Settings row of the setting of the item (Test.Agent.RunnerFixture.PutDefault) and remembers the row that was
-/// there, once, for OnAfterOneTest.
+/// there, once, for OnAfterOneTest (RememberDefault).
 Method Put(item As %String, setting As %String, value As %String) [ Private ]
 {
-	Set known = 0
-	Set position = 0
-	While $ListNext(..SavedRows, position, saved) {
-		If ($List(saved, 1) = item) && ($List(saved, 2) = setting) Set known = 1
-	}
-	If 'known Set ..SavedRows = ..SavedRows _ $ListBuild(##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault(item, setting))
+	Set saved = ..SavedRows
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.saved, item, setting)
+	Set ..SavedRows = saved
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault(item, setting, value), "the setting "_setting_" of "_item_" is '"_value_"'")
 }
 

@@ -32,7 +32,7 @@
 ///     that it can read: a DailyCostCapUSD, GatewaySpendUSD or GatewaySpendDate that is not valid gives one line that names the setting; a
 ///     cap above 0 with Usage rows of the day that have no cost gives one line for each model, that names it and is redacted; a cap of 0
 ///     with such a row, and valid settings, give none; the JSON of State is the same with and without the output.
-/// The settings rows are put in place and put back by Test.Agent.RunnerFixture (PutDefault, SnapshotDefault and RestoreDefault).
+/// The settings rows are put in place and put back by Test.Agent.RunnerFixture (PutDefault, RememberDefault and RestoreDefaults).
 /// The run's number is n from ^OcuTalonTest("BridgeBudget","n") (never reset); the child job reports through
 /// ^OcuTalonTest("BridgeBudget",n,...), which OnBeforeAllTests and OnAfterAllTests delete with the reports of earlier runs.
 Class OcuTalon.Test.Bridge.Budget Extends %UnitTest.TestCase
@@ -95,10 +95,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Kill ^OcuTalonBP.UsageCapped(day)
 	}
 	Set ..Days = ""
-	Set position = 0
-	While $ListNext(..Saved, position, saved) {
-		Do ..RestoreSetting(saved)
-	}
+	If ..Saved '= "" Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..Saved), "the rows of the settings are put back")
 	Set ..Saved = ""
 	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
 	Kill ^||ZzProbeSink
@@ -616,15 +613,12 @@ Method SettingId(setting As %String) As %String [ Private ]
 	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", setting)
 }
 
-/// Remembers the row of the setting, once, so that OnAfterOneTest can put it back (RunnerFixture.SnapshotDefault).
+/// Remembers the row of the setting, once, so that OnAfterOneTest can put it back (RunnerFixture.RememberDefault).
 Method Snapshot(setting As %String) [ Private ]
 {
-	Set known = 0
-	Set position = 0
-	While $ListNext(..Saved, position, saved) {
-		If $List(saved, 2) = setting Set known = 1
-	}
-	If 'known Set ..Saved = ..Saved _ $ListBuild(##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault("Decide", setting))
+	Set saved = ..Saved
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.saved, "Decide", setting)
+	Set ..Saved = saved
 }
 
 /// Writes the row of a setting of the Decide item of the active production (RunnerFixture.PutDefault: a value that cannot be saved is
@@ -633,12 +627,6 @@ Method Put(setting As %String, value As %String) [ Private ]
 {
 	Do ..Snapshot(setting)
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault("Decide", setting, value), "the setting "_setting_" is '"_value_"'")
-}
-
-/// Puts the row of a snapshot back: the row is deleted, and written again when it existed.
-Method RestoreSetting(saved As %List) [ Private ]
-{
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(saved), "the row of "_$List(saved, 2)_" is put back")
 }
 
 /// Removes the mark of the day now, and again when the test is over.

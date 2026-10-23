@@ -104,11 +104,26 @@ Property GatewaySpendDate As %String(MAXLEN = 10);
 
 /// The token budget per decision (AD-19, AD-20, FR-40): a request whose estimate (EstimateTokens) is above it takes the fallback route
 /// with the reason budget, and is never sent. 0 means off. A value that is not a whole number of 0 or more counts as 0, and the
-/// precheck logs it.
+/// precheck logs it (AssignOneSetting, OnRequest).
 Property DecisionTokenBudget As %Integer [ InitialExpression = 0 ];
 
 /// The error status that a runner ended its call with, kept by OnError for OnResponse (the key reply). Not stored.
 Property RunnerError As %Status [ InitialExpression = 1, Internal, Transient ];
+
+/// Assigns a setting as Ens.Settings does, except for the four budget settings (AD-20, DW-76). A value of DailyCostCapUSD,
+/// GatewaySpendUSD or GatewaySpendDate that its property's datatype refuses, and a DecisionTokenBudget that is not made of digits only,
+/// is assigned as "", so that the process can still be saved before OnRequest and the setting counts as off. The value as written
+/// is still reported: Budget.State names the faults of the cap and of the gateway's spend, and OnRequest gives Precheck the text of a
+/// DecisionTokenBudget that was not assigned.
+Method AssignOneSetting(pProperty As %String, pValue As %String, pName As %String) As %Status
+{
+	Set sc = ##super(pProperty, pValue, pName)
+	If $$$ISERR(sc) || '$ListFind($ListBuild("DecisionTokenBudget", "DailyCostCapUSD", "GatewaySpendUSD", "GatewaySpendDate"), pProperty) Quit sc
+	If $$$ISERR($ClassMethod($ClassName(), pProperty_"IsValid", $Property($this, pProperty))) || ((pProperty = "DecisionTokenBudget") && (pValue '? 1.N)) {
+		Set $Property($this, pProperty) = ""
+	}
+	Quit sc
+}
 
 /// Admits the request, finds the decision that is recorded for its item, prechecks it, or sends it to the runner of its kind and sets
 /// the timer. The answer for a recorded decide or diagnose request, and the fallback answer of a request that fails a precheck
@@ -133,7 +148,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Set sc = ..CheckSettings(kind, runner, replyClass, ..ReplyFilterClass, ..TimerSeconds)
 	If $$$ISERR(sc) Quit sc
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set reason = ..Precheck(request, runner, ..DecisionTokenBudget)
+	Set tokenBudget = ..DecisionTokenBudget
+	If tokenBudget = "" Set tokenBudget = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("DecisionTokenBudget", "", ..%ConfigName)
+	Set reason = ..Precheck(request, runner, tokenBudget)
 	If reason '= "" {
 		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 	}

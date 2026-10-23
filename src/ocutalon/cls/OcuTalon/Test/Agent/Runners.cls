@@ -7,9 +7,11 @@
 ///   - TestStartsWithNoKey: with no model key in the container, every runner runs; a Request gets an error that names the key
 ///     placeholder, twice, because the agent is built on first use and a failed build is not kept, and so does a ToolInventory
 ///     request; nothing reaches the mock and the item keeps its job. Since Story 1.6 (AD-6, AD-8, AD-19; FR-38) Keys.Status is 0 for each
-///     runner, and a decide and a turn through Decide are fallbacks with the reason no_key that are never sent: the mock's log holds
-///     nothing since the mark, Decide sent only its answer, every item still runs and the event log holds no error or alert row since
-///     the Decide sends;
+///     runner, and a decide and a turn through Decide are fallbacks with the reason no_key that are never sent: Decide sent only its
+///     answer (a runner with no key sends nothing to the mock in any case, so the mock's log is only reported), every item still runs and
+///     the event log holds no error or alert row since the Decide sends. Since the QA stage of Story 1.6 the answer, its XML and the row of each fallback are checked through
+///     RunnerFixture.FallbackProblems (tellnow, Fallback, no_key, nothing else in them), and a control shows that the error-row reader sees
+///     what a request that does reach a runner with no key writes (each runner's Type 2 row), so that "no error row" can fail;
 ///   - TestStartRefused: a runner whose adapter has a refused setting (SystemPrompt), or whose agent class is not on the allow-list,
 ///     does not start, and the event log names the setting or the class; with the row put back it starts again;
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
@@ -22,7 +24,9 @@
 ///     keeps its job;
 ///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size;
 ///   - TestKeysAreRead: RunnerFixture.KeysAre tells the entries of the Provider step from the entries that PointKeys changed, which is
-///     what lets TestStartsWithNoKey start from the entries of the Provider step whatever ran before it;
+///     what lets TestStartsWithNoKey start from the entries of the Provider step whatever ran before it; and (QA, Story 1.6) Keys.Status
+///     of each runner is 0 with the entries at the placeholder of an unset variable and 1 once PointKeys names the variable that is
+///     set, in the same test, so that a Status that always answers one of the two cannot pass;
 ///   - TestSeedsOfTheProduction: the rows that the Production step seeded for OcuTalon.Production itself: the Effort of each runner
 ///     (low, high, none) and one AgentAllowList for every item that holds exactly the three agent classes of the runners.
 /// Every wait is a poll with a generous ceiling (RunnerFixture.WAITSECONDS and this class's WAITSECONDS): it returns as soon as the
@@ -113,6 +117,7 @@ Method TestStartsWithNoKey()
 	Set placeholder = "@{env:"_..#KEYVARIABLE_"}"
 	If '..EnsureKeysAtPlaceholder(placeholder) Quit
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set controlMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {
@@ -133,6 +138,17 @@ Method TestStartsWithNoKey()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "and every item still runs")
+	// control: a request that does reach a runner with no key writes an error row (Type 2) with the runner's name, so ErrorRows below can see one
+	Set failures = ##class(OcuTalon.Test.Agent.RunnerFixture).ErrorRows(controlMark)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set seen = 0
+		Set at = 0
+		While $ListNext(failures, at, row) {
+			If row [ ("2: "_item_": ") Set seen = 1
+		}
+		Do $$$AssertTrue(seen, "control: "_item_" wrote an error row when its request found no key, so the event-log check below can fail")
+	}
 
 	// Decide stops the same configuration before anything is sent: no_key (AC2, AC6)
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -152,7 +168,7 @@ Method TestStartsWithNoKey()
 	Do $$$AssertStatusOK(sc, "a decide through Decide is answered")
 	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, 1: "none"), "OcuTalon.Bridge.Msg.DecisionResponse|tellnow|1|no_key", "with a fallback with the reason no_key")
 	Set row = $ClassMethod(fixture, "DecisionOf", decideRef, "decide")
-	Do $$$AssertTrue($IsObject(row) && (row.Fallback = 1) && (row.FallbackReason = "no_key"), "and a row that says the same")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "no_key"), "", "and every guarantee of a fallback holds in the answer, its XML and the row")
 	Do $$$AssertEquals($ClassMethod(fixture, "Targets", $ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent no runner request and no timer, only its answer")
 	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "What is going on?", .turnRef)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(turnRef)
@@ -160,10 +176,10 @@ Method TestStartsWithNoKey()
 	Do $$$AssertStatusOK(sc, "a turn through Decide is answered")
 	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason_"|"_answer.Text, 1: "none"), "OcuTalon.Bridge.Msg.Reply|tellnow|1|no_key|", "with a no_key fallback Reply that has no text")
 	Set row = $ClassMethod(fixture, "DecisionOf", turnRef, "turn")
-	Do $$$AssertTrue($IsObject(row) && (row.Fallback = 1) && (row.FallbackReason = "no_key"), "and a row that says the same")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "no_key"), "", "and every guarantee of a fallback holds in the answer, its XML and the row")
 	Do $$$AssertEquals($ClassMethod(fixture, "Targets", $ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent only its answer for the turn too")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mockMark, .entries), "the mock's log is read")
-	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock since the mark")
+	Do $$$LogMessage(entries.%Size()_" request(s) reached the mock since the mark; a runner with no key sends nothing in any case, so what shows that Decide did not send is its targets above and the event log below")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "every item still runs")
 	Do $$$AssertEquals($ListToString($ClassMethod(fixture, "ErrorRows", errorMark), "; "), "", "and the event log holds no error or alert row since the mark")
 }
@@ -329,9 +345,20 @@ Method TestKeysAreRead()
 	If '..EnsureKeysAtPlaceholder(placeholder) Quit
 	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", mockKey), "the entries do not hold "_mockKey_" before they are pointed")
 	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", "@{env:ZZ_NO_SUCH_VARIABLE}"), "and do not hold a variable that nothing names")
+	Do $$$AssertEquals($SYSTEM.Util.GetEnviron(..#KEYVARIABLE), "", "control: "_..#KEYVARIABLE_" is not set in this process")
+	Do $$$AssertNotEquals($SYSTEM.Util.GetEnviron($Parameter(fixture, "MOCKKEYVARIABLE")), "", "control: "_$Parameter(fixture, "MOCKKEYVARIABLE")_" is set in this process")
+	Set runners = $ListFromString(..#RUNNERS)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Keys).Status(item), 0, "Keys.Status of "_item_" is 0 while its entry names a variable that is not set")
+	}
 	If '..Point() Quit
 	Do $$$AssertTrue($ClassMethod(fixture, "KeysAre", mockKey), "after PointKeys every entry holds "_mockKey)
 	Do $$$AssertNotTrue($ClassMethod(fixture, "KeysAre", placeholder), "and none holds "_placeholder)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Keys).Status(item), 1, "Keys.Status of "_item_" is exactly 1 once its entry names the variable that is set, and not the value")
+	}
 }
 
 /// The Production step has seeded the rows of OcuTalon.Production itself: the Effort of each runner comes from the EFFORT of its

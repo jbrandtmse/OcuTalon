@@ -232,12 +232,14 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				Set before = ..ReadStats(session)
 				Set response = ""
 				Set thrown = ""
+				Set failureText = ""
 				Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(..BaseChars(request))
 				Set started = $ZHorolog
 				Try {
 					Set response = ..Agent.Chat(session, request.Input, ##class(OcuTalon.Bridge.Adapter.StepRenderer).%New())
 				} Catch chatException {
 					Set thrown = chatException
+					Set failureText = ..FailureText(chatException, request)
 				}
 				Set durationMs = $Number(($ZHorolog - started) * 1000, 0)
 				Set after = ..ReadStats(session)
@@ -250,7 +252,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 				Set context = ##class(OcuTalon.Bridge.Context).Current()
 				Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 				If $IsObject(thrown) {
-					Set reply.FailureText = ..FailureText(thrown, request)
+					Set reply.FailureText = failureText
 				} Else {
 					Set reply.Text = ..ContentText(response.Content)
 					Set reply.FinishReason = $Extract(..FinishReason(response.Extra), 1, 32)
@@ -289,7 +291,8 @@ Method BaseChars(request As OcuTalon.Bridge.Msg.Request) As %Integer [ Private ]
 }
 
 /// The failure text of a Chat that threw: AI Hub's error text (HandleError keeps the <%AICore> code and text), redacted and cut to
-/// Reply.#MAXFAILURE by StepBuffer.Part. One warning names the runner item, the DecisionRef and the text.
+/// Reply.#MAXFAILURE by StepBuffer.Part. One warning names the runner item, the DecisionRef and the text. Call it in the Catch of Chat,
+/// before any other AI Hub call: HandleError reads AI Hub's last error, which the next failing call replaces.
 Method FailureText(thrown As %Exception.AbstractException, request As OcuTalon.Bridge.Msg.Request) As %String [ Private ]
 {
 	Set text = ""

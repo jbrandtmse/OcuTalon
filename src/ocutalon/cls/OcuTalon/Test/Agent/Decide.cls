@@ -53,11 +53,26 @@
 ///   - TestRunnerErrorIsFallback: a runner that ends with an error status (ChatAgent with a model that no ModelFamily row matches) gives
 ///     an error fallback Reply at once, through OnError, with nothing sent to the mock;
 ///   - TestPrechecks: a token budget of 1, and a daily cap reached, are fallbacks (budget, daily_cap) that are never sent, with one
-///     budget.capped event;
+///     budget.capped event, and each row and answer carries the time Decide took (DurationMs);
+///   - TestBadBudgetSettings: budget settings that their datatypes refuse (DecisionTokenBudget, DailyCostCapUSD and GatewaySpendUSD,
+///     Decide started again) count as off: a decide is sent and answered as usual, and Precheck logs one warning for each (AC8);
 ///   - TestDailyCapBothPaths: the gateway's 403 and the precheck both give daily_cap, the day is marked once, and the host sink got one
 ///     budget.capped and three decision.recorded;
 ///   - OnAfterOneTest puts back every System Default Settings row, item setting and model family that a test changed, kills today's
 ///     day mark and ^OcuTalonTest("ProbeSink"), and starts Decide and ChatAgent again where the test changed them.
+/// Added by the QA stage of Story 1.6 (AD-8, AD-20, AD-26, AD-30):
+///   - every live fallback test asserts all the guarantees of a fallback in one call (RunnerFixture.FallbackProblems: the class of the
+///     answer, tellnow, Fallback, the reason, no reasons, confidence or payload, and for a Reply no text, host data, steps, failure text,
+///     finish reason or flag; the XML with all three of Outcome, Fallback and FallbackReason; and the row), where it asserted only some;
+///   - TestPrechecks and TestDailyCapBothPaths read the mock's log for "nothing was sent" only after the runner has handled everything
+///     sent to it (AssertNotSent, RunnerFixture.Drain), because a request that Decide sent by mistake reaches the mock after Decide has
+///     answered; TestPrechecks has a control (the same decide with the budget off reaches the mock once);
+///   - TestPrechecks pins the daily_cap precheck path alone (decision.recorded, then one budget.capped, with the row and the mark in
+///     place), and TestDailyCapBothPaths reads the sink's calls after each path, so that the one budget.capped is not the work of a
+///     single path;
+///   - TestReplyFallbacks reads the AgentStep messages of each marker's call instead of inferring them from the targets;
+///   - TestCostOfFailedTurn compares each AgentStep of the failed turn with the step that the runner buffered (both read), so that a step
+///     that Decide drops or sends twice is seen.
 /// OnAfterOneTest deletes the rows its test made (Decision, Usage and, since the QA stage of Story 1.5, the AgentStep messages, once
 /// AgentSteps has handled them) and the TimerSeconds row, starts Decide again if the test changed
 /// it, and waits until TriageAgent has answered the late request. Every wait is a poll with a generous ceiling.
@@ -128,10 +143,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		}
 		Set ..Swaps = ""
 	}
-	Set position = 0
-	While $ListNext(..SavedRows, position, saved) {
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(saved)
-	}
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
 	If ..FamilySaved '= "" {
 		Set family = ##class(OcuTalon.Bridge.Data.ModelFamily).%New()
@@ -428,6 +440,7 @@ Method TestReplyFallbacks()
 		Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.Reasons_"|"_row.Confidence_"|"_row.Payload, "tellnow|1|"_reason_"|||", label_"the row holds the same, and no reasons, confidence or payload")
 		Do $$$AssertEquals(row.Ref, response.DecisionRef, label_"the row has the DecisionRef of the answer")
 		Do $$$AssertEquals(row.TraceSessionId, session, label_"in the session of the request")
+		Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", response, row, "decide", reason), "", label_"every guarantee of a fallback holds in the answer, its XML and the row")
 
 		Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
 		Set expected = $Select(steps: "AgentSteps,", 1: "")_"ApprovalStartIn,Ens.Alarm,TriageAgent"
@@ -438,6 +451,9 @@ Method TestReplyFallbacks()
 		Do $$$AssertTrue($IsObject(sent), label_"the runner's request is read")
 		If $IsObject(sent) {
 			Do $$$AssertEquals(row.Ref, sent.DecisionRef, label_"the row's Ref is the DecisionRef of the runner's request")
+			Set stored = $ClassMethod(fixture, "StepsOf", sent.DecisionRef)
+			Do $$$AssertEquals(stored.%Size(), steps, label_"AgentSteps holds "_steps_" step(s) of the call, read from the AgentStep messages and not taken from the targets")
+			Do $$$AssertEquals(..CountTo(headers, "AgentSteps"), stored.%Size(), label_"with one header to AgentSteps for each")
 			Set ids = $ClassMethod(fixture, "UsageIds", "DecisionRef", sent.DecisionRef)
 			Do $$$AssertEquals(ids.%Size(), steps, label_"the runner wrote "_steps_" Usage row")
 			If ids.%Size() = 1 {
@@ -615,6 +631,7 @@ Method TestCostOfFailedTurn()
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
 	Do $$$AssertTrue($IsObject(row), "a Decision row is recorded")
 	If $IsObject(row) Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.Reasons_row.Payload, "tellnow|1|unusable|", "that says the same")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "unusable"), "", "every guarantee of a fallback holds in the answer, its XML and the row")
 	Set ids = ##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("ItemId", ref)
 	Do $$$AssertEquals(ids.%Size(), 1, "one Usage row exists for the item: the call that threw is counted")
 	If ids.%Size() '= 1 Quit
@@ -647,6 +664,18 @@ Method TestCostOfFailedTurn()
 	Do $$$AssertEquals(positions, expectedPositions, "from Position 1, in order")
 	Do $$$AssertEquals(..Targets(headers), "AgentSteps,ApprovalStartIn,ChatAgent,Ens.Alarm", "Decide sent them to AgentSteps, and nothing else but the runner request, the timer and its answer")
 	Do $$$AssertEquals(..CountTo(headers, "AgentSteps"), steps.%Size(), "one header to AgentSteps for each step")
+	// what the runner buffered, read from its Reply, against what AgentSteps holds, read from the AgentStep messages
+	Set back = ..HeaderTo($ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
+	Set reply = $Select($IsObject(back): ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(back.bodyId), 1: "")
+	Do $$$AssertTrue($IsObject(reply), "ChatAgent sent Decide a Reply")
+	If $IsObject(reply) {
+		Set buffered = ##class(%Library.DynamicAbstractObject).%FromJSON(reply.Steps)
+		Do $$$AssertEquals(steps.%Size(), buffered.%Size(), "AgentSteps holds exactly the steps that the runner buffered: "_buffered.%Size())
+		Set common = $Select(steps.%Size() < buffered.%Size(): steps.%Size(), 1: buffered.%Size())
+		For i = 0:1:common - 1 {
+			Do $$$AssertEquals(steps.%Get(i).kind_"|"_steps.%Get(i).label, buffered.%Get(i).kind_"|"_buffered.%Get(i).label, "AgentStep "_(i + 1)_" is the runner's step "_(i + 1)_": the same kind and label")
+		}
+	}
 	Do $$$AssertEquals(..CountTo(headers, "ChatAgent"), 1, "and one request to ChatAgent, never a second")
 	If $IsObject(row) Do $$$AssertTrue(row.AgentStepCount '< steps.%Size(), "and the row's step count is at least their number: "_row.AgentStepCount)
 }
@@ -729,6 +758,7 @@ Method TestTurnFallbackIsReplyOnly()
 		Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.Reasons_"|"_row.Confidence_"|"_row.Payload, "tellnow|1|refusal|||", "that says the same and keeps no text")
 		Do $$$AssertEquals(answer.DecisionRef, row.Ref, "with the DecisionRef of the answer")
 	}
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "refusal"), "", "every guarantee of a fallback holds in the answer, its XML (the reason too) and the row")
 	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
 	Do $$$AssertEquals(..Targets(headers), "AgentSteps,ApprovalStartIn,ChatAgent,Ens.Alarm", "Decide sent only to the runner, the timer, AgentSteps and its caller")
 	Do $$$AssertEquals(..CountTo(headers, "ChatAgent"), 1, "with one request to the runner, never a second")
@@ -754,7 +784,7 @@ Method TestRunnerErrorIsFallback()
 	Set sc = ..Run(request, .answer, .session)
 	Set elapsed = $ZHorolog - started
 	Do $$$AssertStatusOK(sc, "Decide answers the turn, though the runner ended with an error status")
-	Do $$$AssertTrue(elapsed < 10, "and does so at once, not after its timer: "_$Number(elapsed, 1)_" s")
+	Do $$$AssertTrue(elapsed < 10, "and does so at once, in under 10 s, not after its timer of 60 s: "_$Number(elapsed, 1)_" s")
 	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Do $$$AssertTrue(0, "the answer is a Reply")
 		Quit
@@ -763,6 +793,7 @@ Method TestRunnerErrorIsFallback()
 	Set row = $ClassMethod(fixture, "DecisionOf", ref, "turn")
 	Do $$$AssertTrue($IsObject(row), "a row is recorded")
 	If $IsObject(row) Do $$$AssertEquals(row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.TraceSessionId, "tellnow|1|error|"_session, "that says the same, in the session of the request")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "error"), "", "every guarantee of a fallback holds in the answer, its XML and the row")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 0, "nothing reached the mock")
 	Set headers = $ClassMethod(fixture, "Headers", session, "Decide")
@@ -773,7 +804,11 @@ Method TestRunnerErrorIsFallback()
 
 /// The prechecks are never sent (AC2). A token budget of 1 (Decide started again, since the setting is read at its start) gives budget for a
 /// decide and a turn; a cap of 1 with a gateway spend of 1 for today gives daily_cap, with one budget.capped event (owner instance, the
-/// day). For each the mock's log holds no request with the ref, and Decide sends nothing but its answer: no runner request and no timer.
+/// day) that comes after decision.recorded, with the row and the mark in place, from this path alone. For each, the answer, its XML and the
+/// row carry every guarantee of a fallback (RunnerFixture.FallbackProblems), Decide sent nothing but its answer (no runner request and no
+/// timer), and no request with the ref reached the mock: that is read after the runner has handled every message sent to it
+/// (RunnerFixture.Drain), so that a request of Decide's could not arrive after the read. A control shows that the same decide goes through
+/// to the mock once the budget is off, so that the budget alone kept the decides above from it.
 Method TestPrechecks()
 {
 	If '..Prepare() Quit
@@ -787,45 +822,95 @@ Method TestPrechecks()
 	Do $$$AssertStatusOK($ClassMethod(fixture, "Restart", ..#PRODUCTION_"||Decide"), "Decide is started again with a token budget of 1")
 	For kind = "decide", "turn" {
 		Set provenance = $Select(kind = "turn": "user", 1: "untrusted")
+		Set runner = $Select(kind = "turn": "ChatAgent", 1: "TriageAgent")
+		Set label = "a "_kind_" over the token budget: "
 		Set request = $ClassMethod(fixture, "NewRequest", kind, provenance, "Triage this item.", .ref)
 		Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 		Set mark = $ClassMethod(mock, "LogMark")
 		Set sc = ..Run(request, .answer, .session)
-		Do $$$AssertStatusOK(sc, "a "_kind_" over the token budget is answered")
-		Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, 1: "none"), $Select(kind = "turn": "OcuTalon.Bridge.Msg.Reply", 1: "OcuTalon.Bridge.Msg.DecisionResponse")_"|tellnow|1|budget", "with a fallback with the reason budget")
+		Do $$$AssertStatusOK(sc, label_"it is answered")
 		Set row = $ClassMethod(fixture, "DecisionOf", ref, kind)
-		Do $$$AssertTrue($IsObject(row) && (row.FallbackReason = "budget"), "and a row with the same reason")
-		Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-		Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 0, "nothing reached the mock")
-		Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "and Decide sent no runner request and no timer, only its answer")
+		Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, kind, "budget"), "", label_"a tellnow fallback with the reason budget, in the answer, its XML and the row")
+		Set took = $Select($IsObject(row) && $IsObject(answer): row.DurationMs_"|"_answer.DurationMs, 1: "|none")
+		Do $$$AssertTrue(($Piece(took, "|") '= "") && ($Piece(took, "|") = $Piece(took, "|", 2)), label_"the row and the answer carry the time Decide took (DurationMs): "_took)
+		Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", label_"Decide sent no runner request and no timer, only its answer")
+		Do ..AssertNotSent(runner, mark, ref, label)
 	}
 	Do ..Put("Decide", "DecisionTokenBudget", 0)
 	Do $$$AssertStatusOK($ClassMethod(fixture, "Restart", ..#PRODUCTION_"||Decide"), "Decide is started again with the budget off")
+
+	// the control: the same decide with the budget off is sent to the mock
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .control)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(control)
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set sc = ..Run(request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "control: the same decide with the budget off is answered")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.Fallback, 1: "none"), 0, "control: with a decision and no fallback")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "control: the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, control).%Size(), 1, "control: its request reached the mock, so only the budget kept the decides above from it")
 
 	// the daily cap
 	Do ..SwapSink()
 	Do ..Put("Decide", "DailyCostCapUSD", 1)
 	Do ..Put("Decide", "GatewaySpendUSD", 1)
 	Do ..Put("Decide", "GatewaySpendDate", today)
+	Set label = "a decide with the day's cap reached: "
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .ref)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 	Set mark = $ClassMethod(mock, "LogMark")
 	Set sc = ..Run(request, .answer, .session)
-	Do $$$AssertStatusOK(sc, "a decide with the day's cap reached is answered")
-	Do $$$AssertEquals($Select($IsObject(answer): answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, 1: "none"), "tellnow|1|daily_cap", "with a daily_cap fallback")
+	Do $$$AssertStatusOK(sc, label_"it is answered")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref, "decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", label_"a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
+	Set took = $Select($IsObject(row) && $IsObject(answer): row.DurationMs_"|"_answer.DurationMs, 1: "|none")
+	Do $$$AssertTrue(($Piece(took, "|") '= "") && ($Piece(took, "|") = $Piece(took, "|", 2)), label_"the row and the answer carry the time Decide took (DurationMs): "_took)
+	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", label_"Decide sent no runner request and no timer, only its answer")
+	Do ..AssertNotSent("TriageAgent", mark, ref, label)
+	Set calls = $ClassMethod(fixture, "SinkCalls")
+	Do $$$AssertEquals(..EventTypes(calls), "decision.recorded,budget.capped", label_"this path alone fired decision.recorded and then one budget.capped")
+	If calls.%Size() = 2 {
+		Do $$$AssertEquals(calls.%Get(0).rowExists, 1, label_"decision.recorded came after the row was saved")
+		Do $$$AssertEquals(calls.%Get(1).ownerRef_"|"_calls.%Get(1).payload_"|"_calls.%Get(1).markExists, "instance|{""day"":"""_today_"""}|1", label_"budget.capped has the owner instance and the day, and came after the mark was set")
+	}
+	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, label_"and the day is marked")
+}
+
+/// Budget settings that their datatypes refuse count as off, and Precheck names each one (AC8; DW-76). The System Default Settings rows of
+/// DecisionTokenBudget (abc), DailyCostCapUSD (abc) and GatewaySpendUSD (x) are written by SQL, as a hand edit or an import could write
+/// them, and Decide is started again, so that each new instance of Decide gets them and must still be saved before OnRequest: a decide is
+/// sent to the mock and answered with a decision, not a fallback, and Precheck logs one warning that names each setting.
+Method TestBadBudgetSettings()
+{
+	If '..Prepare() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Do ..Put("Decide", "DecisionTokenBudget", "abc")
+	Do ..Put("Decide", "DailyCostCapUSD", "abc")
+	Do ..Put("Decide", "GatewaySpendUSD", "x")
+	Set ..DecideChanged = 1
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Restart", ..#PRODUCTION_"||Decide"), "Decide is started again with the three settings")
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set logMark = $ClassMethod(fixture, "EventMark")
+	Set sc = ..Run(request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "a decide is answered though the three settings are not numbers: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Fallback, 1: "none"), "OcuTalon.Bridge.Msg.DecisionResponse|0", "with a decision, not a fallback: the settings count as off")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 0, "nothing reached the mock")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "and Decide sent no runner request and no timer")
-	Set capped = $ClassMethod(fixture, "SinkCalls", "budget.capped")
-	Do $$$AssertEquals(capped.%Size(), 1, "one budget.capped event was fired")
-	If capped.%Size() = 1 Do $$$AssertEquals(capped.%Get(0).ownerRef_"|"_capped.%Get(0).payload, "instance|{""day"":"""_today_"""}", "with the owner instance and the day")
-	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ref).%Size(), 1, "the request was sent to the model")
+	For setting = "DecisionTokenBudget", "DailyCostCapUSD", "GatewaySpendUSD" {
+		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", logMark, "OcuTalon.Bridge.Process.Decide", "Precheck", $ListBuild("The setting "_setting_" of Decide")), 1, "Precheck logged one warning that names "_setting)
+	}
 }
 
 /// Both paths to daily_cap mark the day once (AC3; U-16). With the cap off and the day unmarked, and Decide's host sink swapped to the probe
 /// sink in its shared mode: a decide with [[mock:daily-cap]] (the gateway's HTTP 403) gets daily_cap after one call of the runner and marks the
-/// day; a decide on Triage's default script then gets daily_cap from the precheck and sends nothing; so does a user's turn. The sink got
-/// exactly one budget.capped (owner instance, the day), fired after the first row exists, and three decision.recorded.
+/// day; a decide on Triage's default script then gets daily_cap from the precheck and sends nothing; so does a user's turn. The sink's calls
+/// are read after each step, so that the count is the work of the path that has just run and not of one path alone: after the 403, decision.recorded
+/// and one budget.capped; after the decide and the turn of the precheck, one decision.recorded each and no second budget.capped. The budget.capped
+/// has the owner instance and the day, and came after the first row was saved and the mark was set. Every fallback carries all its guarantees
+/// (RunnerFixture.FallbackProblems), and what the precheck did not send is read from the mock's log after the runner has handled every
+/// message sent to it (RunnerFixture.Drain). The path of the precheck alone fires its own budget.capped: TestPrechecks.
 Method TestDailyCapBothPaths()
 {
 	If '..Prepare() Quit
@@ -835,6 +920,7 @@ Method TestDailyCapBothPaths()
 	Do ..Put("Decide", "DailyCostCapUSD", 0)
 	Do ..SwapSink()
 	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "the day is not marked")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "", "and the sink has had no call")
 
 	// the gateway's 403
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:daily-cap]] Triage this item.", .first)
@@ -842,11 +928,13 @@ Method TestDailyCapBothPaths()
 	Set mark = $ClassMethod(mock, "LogMark")
 	Set sc = ..Run(request, .answer, .session)
 	Do $$$AssertStatusOK(sc, "the decide that the gateway refuses is answered")
-	Do $$$AssertEquals($Select($IsObject(answer): answer.Outcome_"|"_answer.Fallback_"|"_answer.FallbackReason, 1: "none"), "tellnow|1|daily_cap", "with a daily_cap fallback")
+	Set row = $ClassMethod(fixture, "DecisionOf", first, "decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "with a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, first).%Size(), 1, "the runner called the gateway once, and AI Hub did not send the refused request again")
 	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
 	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sent the runner request and the timer, and no step: the call failed at its first request")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped", "the 403's fallback alone fired decision.recorded and then one budget.capped")
 
 	// the precheck, for a decide and for a turn
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .second)
@@ -854,27 +942,24 @@ Method TestDailyCapBothPaths()
 	Set mark = $ClassMethod(mock, "LogMark")
 	Set sc = ..Run(request, .answer, .session)
 	Do $$$AssertStatusOK(sc, "the next decide is answered")
-	Do $$$AssertEquals($Select($IsObject(answer): answer.Fallback_"|"_answer.FallbackReason, 1: "none"), "1|daily_cap", "from the precheck: daily_cap")
-	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, second).%Size(), 0, "nothing reached the mock")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "and Decide sent only its answer")
+	Set row = $ClassMethod(fixture, "DecisionOf", second, "decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "from the precheck: a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
+	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent only its answer")
+	Do ..AssertNotSent("TriageAgent", mark, second, "the decide of the precheck: ")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped,decision.recorded", "the precheck's fallback fired decision.recorded and no second budget.capped")
 	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", "What is going on?", .third)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(third)
 	Set mark = $ClassMethod(mock, "LogMark")
 	Set sc = ..Run(request, .answer, .session)
 	Do $$$AssertStatusOK(sc, "a user's turn is answered")
-	Do $$$AssertEquals($Select($IsObject(answer): answer.%ClassName(1)_"|"_answer.Fallback_"|"_answer.FallbackReason_"|"_answer.Text, 1: "none"), "OcuTalon.Bridge.Msg.Reply|1|daily_cap|", "with a daily_cap fallback Reply")
-	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, third).%Size(), 0, "nothing reached the mock")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "and Decide sent only its answer")
+	Set row = $ClassMethod(fixture, "DecisionOf", third, "turn")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "turn", "daily_cap"), "", "with a daily_cap fallback Reply: tellnow, no text, no host data, in the answer, its XML and the row")
+	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "Decide sent only its answer")
+	Do ..AssertNotSent("ChatAgent", mark, third, "the turn of the precheck: ")
 
 	// the events
 	Set calls = $ClassMethod(fixture, "SinkCalls")
-	Set types = ""
-	For i = 0:1:calls.%Size() - 1 {
-		Set types = types _ $Select(i = 0: "", 1: ",") _ calls.%Get(i).type
-	}
-	Do $$$AssertEquals(types, "decision.recorded,budget.capped,decision.recorded,decision.recorded", "the sink got decision.recorded, budget.capped once, and decision.recorded twice more")
+	Do $$$AssertEquals(..EventTypes(calls), "decision.recorded,budget.capped,decision.recorded,decision.recorded", "the sink got decision.recorded, budget.capped once, and decision.recorded twice more")
 	If calls.%Size() '< 2 {
 		Do $$$AssertEquals(calls.%Get(0).rowExists, 1, "the first decision.recorded came after the row was saved")
 		Do $$$AssertEquals(calls.%Get(1).ownerRef_"|"_calls.%Get(1).payload_"|"_calls.%Get(1).markExists, "instance|{""day"":"""_today_"""}|1", "budget.capped has the owner instance and the day, and came after the mark was set")
@@ -1035,15 +1120,12 @@ ClassMethod ToolResultHolds(logged As %DynamicObject, text As %String) As %Boole
 }
 
 /// Puts the System Default Settings row of the setting of the item (Test.Agent.RunnerFixture.PutDefault) and remembers the row that was
-/// there, once, for OnAfterOneTest.
+/// there, once, for OnAfterOneTest (RememberDefault).
 Method Put(item As %String, setting As %String, value As %String) [ Private ]
 {
-	Set known = 0
-	Set position = 0
-	While $ListNext(..SavedRows, position, saved) {
-		If ($List(saved, 1) = item) && ($List(saved, 2) = setting) Set known = 1
-	}
-	If 'known Set ..SavedRows = ..SavedRows _ $ListBuild(##class(OcuTalon.Test.Agent.RunnerFixture).SnapshotDefault(item, setting))
+	Set saved = ..SavedRows
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.saved, item, setting)
+	Set ..SavedRows = saved
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault(item, setting, value), "the setting "_setting_" of "_item_" is '"_value_"'")
 }
 
@@ -1069,6 +1151,28 @@ Method TakeOutDefaultFamily() [ Private ]
 	Set row = ##class(OcuTalon.Bridge.Data.ModelFamily).%OpenId(result.%GetData(1))
 	Set ..FamilySaved = $ListBuild(row.Family, row.ModelPrefix, row.CapKey, row.EffortKey)
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ModelFamily).%DeleteId(row.%Id()), "the default model family is taken out for the test")
+}
+
+/// Asserts that no request with the ref reached the mock since the mark, read once the runner has handled every message sent to it
+/// (RunnerFixture.Drain). A request that Decide sends when it should not has a header to the runner at once, but it reaches the mock after
+/// the runner has taken it up; a read of the log right after Decide's answer can come before that, and would pass. With the runner drained,
+/// the request has arrived or never will.
+Method AssertNotSent(runner As %String, mark As %Integer, ref As %String, label As %String) [ Private ]
+{
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Drain(runner), label_runner_" answered a request of its own, so it had handled everything sent to it before")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), label_"the mock's log is read")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, ref).%Size(), 0, label_"no request with the reference reached the mock")
+}
+
+/// The types of the calls of the sink (RunnerFixture.SinkCalls), in order, comma-separated.
+ClassMethod EventTypes(calls As %DynamicArray) As %String [ Private ]
+{
+	Set types = ""
+	For i = 0:1:calls.%Size() - 1 {
+		Set types = types _ $Select(i = 0: "", 1: ",") _ calls.%Get(i).type
+	}
+	Quit types
 }
 
 /// The number of headers in the session sent by the item whose response is an error.

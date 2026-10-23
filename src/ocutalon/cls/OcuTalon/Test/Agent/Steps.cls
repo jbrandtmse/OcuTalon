@@ -30,6 +30,8 @@
 ///     Reply, and its steps reach Visual Trace like a completed turn's: eight AgentSteps of the DecisionRef, alternating model and tool, from
 ///     Position 1, the tools with the label Reading the test note and the status ok, each header Completed in the decision's session and
 ///     in the caller's super session, after ChatAgent's reply and before Decide's answer; the row's step count is at least eight;
+///     QA: each AgentStep is compared with the runner's own step of the same place (kind and label), both read, and the wait for the
+///     headers has a ceiling of 120 s;
 ///   - TestCutOffToolCall (Task 0 (e)): a tool call that the provider cut at the output cap (the scenario cut-off-tool) is run by AI Hub, which
 ///     goes on to the later reply: the turn is answered with that reply's text, three steps (model, tool, model), no fallback.
 Class OcuTalon.Test.Agent.Steps Extends %UnitTest.TestCase
@@ -47,8 +49,9 @@ Parameter AGENT = "OcuTalon.Test.Bridge.StepsAgent";
 /// The super session of the turns of the tests, as a channel service would set it (AD-26).
 Parameter SUPER = "zzsuper-e1s5";
 
-/// The ceiling, in seconds, of the wait for the step headers to be Completed.
-Parameter WAITSECONDS = 60;
+/// The ceiling, in seconds, of the wait for the step headers to be Completed. A ceiling, not a delay: the wait polls and returns at once when
+/// they are (QA, Story 1.6: 120, as the other waits of Test.Agent, since CI's runners are about 3 times slower than a developer machine).
+Parameter WAITSECONDS = 120;
 
 /// Why the set-up failed, or "" when the test agent runs behind ChatAgent.
 Property Reason As %String(MAXLEN = 1000);
@@ -395,7 +398,11 @@ Method TestFailedTurnSteps()
 	If $IsObject(reply) {
 		Do $$$AssertTrue(reply.FailureText [ "MaxIterationsReached", "whose FailureText holds the error of the iteration limit: "_$Extract(reply.FailureText, 1, 200))
 		Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason, "|", "and which has no text")
-		Do $$$AssertEquals(##class(%Library.DynamicAbstractObject).%FromJSON(reply.Steps).%Size(), 8, "but the eight steps")
+		Set buffered = ##class(%Library.DynamicAbstractObject).%FromJSON(reply.Steps)
+		Do $$$AssertEquals(buffered.%Size(), 8, "but the eight steps")
+		For i = 0:1:$Select(count < buffered.%Size(): count, 1: buffered.%Size()) - 1 {
+			Do $$$AssertEquals(steps.%Get(i).kind_"|"_steps.%Get(i).label, buffered.%Get(i).kind_"|"_buffered.%Get(i).label, "AgentStep "_(i + 1)_" is the runner's step "_(i + 1)_": the same kind and label, read from both")
+		}
 	}
 
 	// the trace: the same as a completed turn's

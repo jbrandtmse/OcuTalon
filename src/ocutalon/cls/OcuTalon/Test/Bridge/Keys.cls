@@ -14,7 +14,9 @@
 ///     active production is Present of its ProviderConfig, which names a Config Store entry; every result is exactly 0 or 1;
 ///   - TestStatusReadsProviderConfig: with the System Default Settings row ProviderConfig of TriageAgent (the Provider step writes it)
 ///     put to inline configurations, Status follows it, and the row is put back (Test.Agent.RunnerFixture.SnapshotDefault, PutDefault and
-///     RestoreDefault).
+///     RestoreDefault). Since the QA stage of Story 1.6 it also pins that Status of a runner whose key is present returns exactly 1, not
+///     the value it found, and that no row of the event log written since the test began holds the value of PATH, which the placeholder
+///     of the present key names (TestPresent pins the same for Present).
 Class OcuTalon.Test.Bridge.Keys Extends %UnitTest.TestCase
 {
 
@@ -154,12 +156,16 @@ Method TestStatusReadsProviderConfig()
 		Quit
 	}
 	Set ..Saved = $ClassMethod(fixture, "SnapshotDefault", "TriageAgent", "ProviderConfig")
+	Set path = $SYSTEM.Util.GetEnviron("PATH")
+	Do $$$AssertTrue(path '= "", "control: PATH is set in this process ("_$Length(path)_" characters), so the first case is a key that is present")
+	Set mark = $ClassMethod(fixture, "EventMark")
 	Set cases = $ListBuild($ListBuild("{""api_key"":""@{env:PATH}""}", 1), $ListBuild("{""api_key"":""@{env:"_..#UNSET_"}""}", 0), $ListBuild("{}", 0), $ListBuild("@{config:ZzNoSuchEntry}", 0), $ListBuild("{""api_key"":""literal-value""}", 1), $ListBuild("not json", 1))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $List(cases, i)
 		Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "TriageAgent", "ProviderConfig", $List(case, 1)), "the ProviderConfig of TriageAgent is '"_$List(case, 1)_"'")
-		Do $$$AssertEquals($ClassMethod(keys, "Status", "TriageAgent"), $List(case, 2), "Status of TriageAgent is "_$List(case, 2))
+		Do $$$AssertEquals($ClassMethod(keys, "Status", "TriageAgent"), $List(case, 2), "Status of TriageAgent is exactly "_$List(case, 2)_", and not a value that it found")
 	}
+	Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, path), 0, "no row of the event log since the test began holds the value of PATH")
 	Do $$$AssertEquals($ClassMethod(keys, "Status", "ZzNoSuchItem"), 0, "an item that is not in the production has no key, whatever the row says")
 }
 

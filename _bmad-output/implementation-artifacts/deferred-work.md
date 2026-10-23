@@ -334,6 +334,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 1.4 implement residual risks: CostFor returns empty for an unpriced model (never 0, by U-18), and State cannot count such a row; the budget settings are read through the accessor with no fault path; Story 1.6 builds the daily_cap precheck that reads State
 - 2026-10-22T11:02:45Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=harvest note=1.6's daily_cap precheck treats an unknown-cost row and an unreadable budget setting as a configuration fault it logs, and does not let it pass silently; how a set cap behaves then (fail open or closed) is 1.6's plan decision, recorded in its spec
 - 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
+- 2026-10-23T03:24:34Z status=resolved-by:1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=adjudication note=Budget.State(now,.faults)_names_each_fault(unreadable_DailyCostCapUSD/GatewaySpendUSD/GatewaySpendDate,unpriced_Usage_row);Decide.Precheck_logs_each_as_a_warning;cap_fails_open_per_veto_U-26;tests_Test.Bridge.Budget.TestFaults,Test.Agent.Decide.TestPrechecks(03a8bf5+1.6_review)
 
 ### DW-77: AD-20 says the Usage row holds the largest estimated request size; Story 1.4 stores the last request's measured input from Response.Usage (empty when Chat threw), and the spec's call for a lead ruling on its Decision 5 was never recorded
 - source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -356,6 +357,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 1.5 decision 6: Answer's error path carries no Reply, so Reply.Steps cannot travel; Story 1.6 turns every failure into a fallback decision with a reply, where the buffered steps can ride
 - 2026-10-22T13:43:43Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=spec_gate note=1.6's fallback carries the failed call's buffered steps (redacted) to Decide, which sends them to AgentSteps like a completed turn's; FR-3 every model request and tool call recorded
 - 2026-10-22T19:38:04Z occurrence=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=a reply whose ReplyClassOf lookup fails ends Decide in error before EmitSteps, so its steps are not sent either
+- 2026-10-23T03:24:34Z status=resolved-by:1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=adjudication note=Adapter.Agent.Answer_returns_a_failure_Reply_carrying_the_buffered_steps_when_Chat_throws;Decide.EmitSteps_sends_them_to_AgentSteps(before_ReplyClassOf);test_Test.Agent.Steps.TestFailedTurnSteps(03a8bf5+1.6_review)
 
 ### DW-85: Shipped tool classes declare no STEPLABEL, and nothing fails a tool class that has none, so every real tool step reads 'Running a tool' in Visual Trace
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: low | footprint: in-epic

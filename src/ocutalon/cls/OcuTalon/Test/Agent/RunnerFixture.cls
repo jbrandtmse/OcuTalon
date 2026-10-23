@@ -26,10 +26,14 @@
 ///     fake secret shows after a call (the steps, the runner's Reply, the event log and the stores of the key scan), which the redaction
 ///     tests of Test.Agent.Steps and Test.Bridge.Runner share, with TextControlsMissing, the controls of the scenario steps-secrets-text.
 ///   - UseItemSetting and RestoreItemSetting (Story 1.6): the same swap for one setting of any target (Adapter or Host) of an item, such
-///     as Decide's HostSinkClass; SnapshotDefault, PutDefault and RestoreDefault: a System Default Settings row of an item put in place
-///     and put back (moved from Test.Bridge.Budget, which delegates to them); ErrorRows: the event-log rows of Type 2 or 6 after a mark
+///     as Decide's HostSinkClass (both swaps go through ChangeSettings); SnapshotDefault, PutDefault and RestoreDefault: a System Default
+///     Settings row of an item put in place and put back, with RememberDefault and RestoreDefaults for the list of rows a test wrote
+///     (Test.Bridge.Budget, Test.Bridge.Decide and Test.Agent.Decide delegate to them); ErrorRows: the event-log rows of Type 2 or 6 after a mark
 ///     (a start with no key writes none); SinkCalls: the calls that the shared mode of Test.Bridge.ProbeSink recorded in the production's
 ///     own jobs.
+///   - Drain and FallbackProblems (QA, Story 1.6): Drain waits until a runner has handled every message sent to it before the call, so that
+///     a test that asserts that nothing reached the mock reads the log after a request of Decide's could have arrived; FallbackProblems
+///     names whatever is missing from the guarantees of a fallback (the answer, its XML and the Decision row), for every live test of a fallback.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -460,10 +464,17 @@ ClassMethod RestoreAgent(item As %String, saved As %DynamicObject) As %Status
 	Quit ..ChangeAgent(item, saved.agentClassSet, saved.agentClass, saved.allowListSet, saved.allowList)
 }
 
-/// Sets (when has is 1) or removes (when 0) the AgentClass and the AgentAllowList setting of the item in the stored configuration,
-/// saves the production, updates the running one and waits for every item to run. When saved is an object, it first holds what the
-/// item had of the two settings.
+/// Sets (when has is 1) or removes (when 0) the AgentClass and the AgentAllowList setting of the item in the stored configuration
+/// (ChangeSettings). When saved is an object, it first holds what the item had of the two settings.
 ClassMethod ChangeAgent(item As %String, hasClass As %Boolean, agentClass As %String, hasAllow As %Boolean, allowList As %String, saved As %DynamicObject = "") As %Status [ Private ]
+{
+	Quit ..ChangeSettings(item, $ListBuild($ListBuild("Adapter", "AgentClass", hasClass, agentClass, "agentClass"), $ListBuild("Adapter", "AgentAllowList", hasAllow, allowList, "allowList")), saved)
+}
+
+/// Changes settings of the item in the stored configuration, saves the production, updates the running one and waits for every item
+/// to run. changes is a list of $ListBuild(target, name, has, value, key): the setting is set to the value when has is 1 and removed
+/// when it is 0. When saved is an object, it first holds what the item had of each setting, under its key (ReadSetting).
+ClassMethod ChangeSettings(item As %String, changes As %List, saved As %DynamicObject = "") As %Status [ Private ]
 {
 	Set sc = $$$OK
 	Try {
@@ -476,11 +487,15 @@ ClassMethod ChangeAgent(item As %String, hasClass As %Boolean, agentClass As %St
 		If $$$ISOK(sc) && '$IsObject(config) Set sc = $SYSTEM.Status.Error(5001, ..#PRODUCTION_" has no item "_item)
 		If $$$ISOK(sc) {
 			If $IsObject(saved) {
-				Do ..ReadSetting(config, "AgentClass", saved, "agentClass")
-				Do ..ReadSetting(config, "AgentAllowList", saved, "allowList")
+				Set position = 0
+				While $ListNext(changes, position, change) {
+					Do ..ReadSetting(config, $List(change, 2), saved, $List(change, 5), $List(change, 1))
+				}
 			}
-			Do ..PutSetting(config, "AgentClass", hasClass, agentClass)
-			Do ..PutSetting(config, "AgentAllowList", hasAllow, allowList)
+			Set position = 0
+			While $ListNext(changes, position, change) {
+				Do ..PutSetting(config, $List(change, 2), $List(change, 3), $List(change, 4), $List(change, 1))
+			}
 			Set sc = production.%Save()
 		}
 		If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(60)
@@ -539,30 +554,11 @@ ClassMethod RestoreItemSetting(item As %String, saved As %DynamicObject) As %Sta
 	Quit ..ChangeSetting(item, saved.target, saved.name, saved.valueSet, saved.value)
 }
 
-/// Sets (when has is 1) or removes (when 0) one setting of the target on the item in the stored configuration, saves the production,
-/// updates the running one and waits for every item to run. When saved is an object, it first holds what the item had of the setting.
+/// Sets (when has is 1) or removes (when 0) one setting of the target on the item in the stored configuration (ChangeSettings). When
+/// saved is an object, it first holds what the item had of the setting.
 ClassMethod ChangeSetting(item As %String, target As %String, name As %String, has As %Boolean, value As %String, saved As %DynamicObject = "") As %Status [ Private ]
 {
-	Set sc = $$$OK
-	Try {
-		Set production = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
-		If '$IsObject(production) {
-			Set sc = $SYSTEM.Status.Error(5001, "The stored configuration of "_..#PRODUCTION_" cannot be opened")
-		} Else {
-			Set config = production.FindItemByConfigName(item, .sc)
-		}
-		If $$$ISOK(sc) && '$IsObject(config) Set sc = $SYSTEM.Status.Error(5001, ..#PRODUCTION_" has no item "_item)
-		If $$$ISOK(sc) {
-			If $IsObject(saved) Do ..ReadSetting(config, name, saved, "value", target)
-			Do ..PutSetting(config, name, has, value, target)
-			Set sc = production.%Save()
-		}
-		If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(60)
-		If $$$ISOK(sc) && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_item_" was changed: "_##class(OcuTalon.Install.Step.Production).NotRunning())
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	Quit sc
+	Quit ..ChangeSettings(item, $ListBuild($ListBuild(target, name, has, value, "value")), saved)
 }
 
 /// The id of the System Default Settings row of a setting of an item of the active production.
@@ -616,6 +612,31 @@ ClassMethod RestoreDefault(saved As %List) As %Status
 	Quit ##class(OcuTalon.Install.Step.Production).WriteDefault(##class(Ens.Director).GetActiveProductionName(), item, setting, $List(saved, 4), $List(saved, 5))
 }
 
+/// Adds the snapshot of the System Default Settings row of the setting of the item (SnapshotDefault) to saved, a list of snapshots, unless
+/// saved already holds one of the same row, so that RestoreDefaults puts the row back as it was before a test first wrote it.
+ClassMethod RememberDefault(ByRef saved As %List, item As %String, setting As %String)
+{
+	Set saved = $Get(saved)
+	Set known = 0
+	Set position = 0
+	While $ListNext(saved, position, one) {
+		If ($List(one, 1) = item) && ($List(one, 2) = setting) Set known = 1
+	}
+	If 'known Set saved = saved _ $ListBuild(..SnapshotDefault(item, setting))
+}
+
+/// Puts back every row of saved, a list of snapshots (RememberDefault), with RestoreDefault, in order. The status is the first error.
+ClassMethod RestoreDefaults(saved As %List) As %Status
+{
+	Set first = $$$OK
+	Set position = 0
+	While $ListNext(saved, position, one) {
+		Set sc = ..RestoreDefault(one)
+		If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
+	}
+	Quit first
+}
+
 /// The rows of the event log after the mark (EventMark) of Type 2 (error) or 6 (alert), as a list of "<type>: <item>: <text>" (the text
 /// cut to 200 characters), oldest first. A start with no key writes none (FR-38). A statement that fails gives one row that says so,
 /// never an empty list.
@@ -646,6 +667,70 @@ ClassMethod SinkCalls(type As %String = "") As %DynamicArray
 		Do calls.%Push({"type": ($List(call, 1)), "ownerRef": ($List(call, 2)), "payload": ($List(call, 3)), "rowExists": ($List(call, 4)), "markExists": ($List(call, 5))})
 	}
 	Quit calls
+}
+
+/// Waits until the runner item has taken up every message that was sent to it and has answered one of its own (QA, Story 1.6): the queue of
+/// the item is empty (a poll, up to SENDSECONDS, because a request of Decide's that is still in the queue has not been sent to the model yet),
+/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner has a pool of 1, so its one job
+/// handles the messages one after the other: when the answer is back, the job has finished any request that it took before, and that
+/// request has reached the mock (its log) or failed. A test that asserts that nothing reached the mock calls this first; without it the
+/// read of the log can come before a request that Decide sent could have arrived. The status is that of the ToolInventory request: an
+/// error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays full.
+ClassMethod Drain(item As %String) As %Status
+{
+	Set deadline = $ZHorolog + ..#SENDSECONDS
+	While (##class(Ens.Queue).GetCount(item) > 0) && ($ZHorolog < deadline) {
+		Hang 0.2
+	}
+	If ##class(Ens.Queue).GetCount(item) > 0 Quit $SYSTEM.Status.Error(5001, "The queue of "_item_" still held messages "_..#SENDSECONDS_" seconds later")
+	Quit ..Send(item, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .response)
+}
+
+/// What is wrong with the answer of a fallback and the Decision row that records it, as a text of problems joined by "; ", or "" when
+/// nothing is (QA, Story 1.6; AD-8, AD-26, AD-28, AD-30): the guarantees of every fallback in one place, so that no test leaves one out.
+///   - the answer is a DecisionResponse for a decide or diagnose request and a Reply for a turn, with the outcome tellnow, Fallback true and
+///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and no
+///     flag of the runner's set (SessionRotated, ToolsRun, SessionBroken, Busy; Tainted is the runner's own and is not judged here);
+///   - the XML of the answer, which Visual Trace shows, holds all three of <Outcome>tellnow</Outcome>, <Fallback>true</Fallback> and
+///     <FallbackReason>the reason</FallbackReason>;
+///   - the row exists, is of the kind, and holds the outcome tellnow, Fallback 1, the reason, no reasons, confidence or payload, and the
+///     DecisionRef of the answer.
+ClassMethod FallbackProblems(answer As %RegisteredObject, row As %RegisteredObject, kind As %String, reason As %String) As %String
+{
+	Set problems = ""
+	Set class = $Select(kind = "turn": "OcuTalon.Bridge.Msg.Reply", 1: "OcuTalon.Bridge.Msg.DecisionResponse")
+	If '$IsObject(answer) || (answer.%ClassName(1) '= class) {
+		Set problems = problems _ $ListBuild("the answer is not a "_class_": "_$Select($IsObject(answer): answer.%ClassName(1), 1: "none"))
+	} Else {
+		If answer.Outcome '= "tellnow" Set problems = problems _ $ListBuild("the outcome of the answer is '"_answer.Outcome_"', not tellnow")
+		If 'answer.Fallback Set problems = problems _ $ListBuild("Fallback of the answer is not true")
+		If answer.FallbackReason '= reason Set problems = problems _ $ListBuild("the reason of the answer is '"_answer.FallbackReason_"', not "_reason)
+		If (answer.Reasons '= "") || (answer.Confidence '= "") Set problems = problems _ $ListBuild("the answer has reasons or a confidence")
+		If kind = "turn" {
+			If (answer.Text _ answer.HostData _ answer.Steps _ answer.FailureText _ answer.FinishReason) '= "" Set problems = problems _ $ListBuild("the Reply has a text, host data, steps, a failure text or a finish reason")
+			If (answer.SessionRotated _ answer.ToolsRun _ answer.SessionBroken _ answer.Busy) '= "0000" Set problems = problems _ $ListBuild("the Reply has a flag of the runner's set")
+		} Else {
+			If answer.Payload '= "" Set problems = problems _ $ListBuild("the DecisionResponse has a payload")
+		}
+		If $$$ISERR(answer.XMLExportToString(.xml)) {
+			Set problems = problems _ $ListBuild("the answer cannot be exported as XML")
+		} Else {
+			For piece = "<Outcome>tellnow</Outcome>", "<Fallback>true</Fallback>", ("<FallbackReason>"_reason_"</FallbackReason>") {
+				If xml '[ piece Set problems = problems _ $ListBuild("the XML of the answer lacks "_piece)
+			}
+		}
+	}
+	If '$IsObject(row) {
+		Set problems = problems _ $ListBuild("no Decision row is recorded")
+	} Else {
+		If row.Kind '= kind Set problems = problems _ $ListBuild("the row is of kind '"_row.Kind_"'")
+		If row.Outcome '= "tellnow" Set problems = problems _ $ListBuild("the outcome of the row is '"_row.Outcome_"', not tellnow")
+		If row.Fallback '= 1 Set problems = problems _ $ListBuild("Fallback of the row is not 1")
+		If row.FallbackReason '= reason Set problems = problems _ $ListBuild("the reason of the row is '"_row.FallbackReason_"', not "_reason)
+		If (row.Reasons _ row.Confidence _ row.Payload) '= "" Set problems = problems _ $ListBuild("the row keeps reasons, a confidence or a payload")
+		If $IsObject(answer) && (row.Ref '= answer.DecisionRef) Set problems = problems _ $ListBuild("the Ref of the row is not the DecisionRef of the answer")
+	}
+	Quit $ListToString(problems, "; ")
 }
 
 /// The first entry of FindRequests, or "".

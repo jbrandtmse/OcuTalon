@@ -2,7 +2,7 @@
 title: 'Story 1.6: An unusable reply takes the fallback route, and OcuTalon starts with no key'
 type: 'feature'
 created: '2026-10-22'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
 baseline_commit: '1b4e5f4b955dc65266d5ff90b027d946963a2082'
 review_loop_iteration: 0
@@ -417,6 +417,8 @@ deferred:
 
   (`Test.Bridge.Budget.TestFaults`, `Test.Bridge.Decide.TestPrecheckLogs`)
 
+- [ ] [Smoke] Fresh check, rework 1: the forward `lane-a` shard failed `Test.Agent.Steps.TestTwoTools` (every trace assert; the class took 132 s, the 120 s ceiling of `WaitStepsDone`), and the class passed alone and on an unchanged rerun of the shard. `RunnerFixture.Run` takes the session from `SessionSince(mark, "Decide")`, the first header addressed to `Decide` after the mark, and that can be the discarded response of an earlier decision's `Ens.Alarm` timer (a timer that fires after its process completed is delivered to `Decide` and discarded, `irislib/Ens/BusinessProcess.cls:295`) — `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:308` — `Run` must return the session of the header whose body is the request it sent (`RunnerFixture.SessionOf`), never the first header to `Decide` after a mark, and any other helper that finds its own session by a mark gets the same fix. Pin it: a test (or a `mutation:` line) that puts an unrelated header addressed to `Decide` between the mark and the send and shows the old lookup red; `Test.Agent.Steps`, `Test.Agent.Decide` and `Test.Agent.Runners` stay green forward and reversed.
+
 ### Review Findings
 
 Code review, 2026-10-23 (review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor): 35 findings: 16 grouped into 12 entries (high 0, medium 4, low 8), 19 rejected (appendix below). Patched: 9 entries; deferred: 3 (DW-94 routed, DW-95 by-design, DW-96 wontfix-theoretical).
@@ -452,6 +454,7 @@ Code review, 2026-10-23 (review tier full-opus; layers blind-hunter, edge-case-h
 
 ## Spec Change Log
 
+- 2026-10-23, lead (Epic 1 runner), rework iteration 1 (trigger: the fresh check, an intermittent red in the forward `lane-a` shard): one `[Smoke]` item under Tasks & Acceptance; nothing else changes.
 - 2026-10-22, lead (Epic 1 runner), at dev complete: the I/O matrix row "A cut-off tool call" is restated to the behaviour Task 0 (e) measured (veto U-29; the platform report is ledgered as decision-pending for the owner). The intent is unchanged: a reply cut at the output cap is never treated as an answer.
 
 ## Review Triage Log
