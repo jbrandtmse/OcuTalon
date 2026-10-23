@@ -1751,23 +1751,9 @@ So that I can watch the assistant work like any other production.
 **Then** `OcuTalon.Web.TraceLink`, the one builder of trace URLs, adds the URL: OcuTalon's own trace application for the namespace (`/ocutalon/trace/ocutalon/` or `/ocutalon/trace/ocuorders/`), `SESSIONID` set to the target header id, and `PAGE` = ceil(item index ÷ page size), where the item index counts the thread's headers up to the target plus every event-log, rule-log and I/O-log row of the thread logged up to the target's creation, and the page size and "Show events" are the opening viewer's own Visual Trace settings (defaults 40 and on), read through one helper (AD-24, AD-26)
 **And** a test builds a thread of more than 40 items and finds that the link to a late turn opens Visual Trace on that turn (AD-26)
 
-**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
-**When** it renders
-**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
-**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+**[AMENDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): the page half - the trace links on the strip and the rail rows, the Visual Trace menu and the sign-in popover, with DW-58 - moved word for word to Story 2.13, which consumes this story's `traceUrl`.]**
 
-**Given** the app header
-**When** I open the Visual Trace menu, a ghost menu button with `external-link`
-**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
-
-**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
-**When** I press a trace link or open the Visual Trace menu
-**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
-**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
-
-- DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; routed by cr 2026-10-22)
-
-- DW-74: A throwaway check settles whether `Commands.Submit` (Story 2.3) loses the calling job's job-local `SessionId` (`Ens.BusinessService.ProcessInput` kills it on exit): inside an operation job with the id set, `Submit`, then log an event and read its `SessionId`; if it is lost, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's Visual Trace thread (ledger; routed by harvest 2026-10-22)
+- DW-74: A throwaway check settles whether `Commands.Submit` (Story 2.3) loses the calling job's job-local `SessionId` (`Ens.BusinessService.ProcessInput` kills it on exit): inside an operation job with the id set, `Submit`, then log an event and read its `SessionId`; if it is lost, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's Visual Trace thread (ledger; routed by harvest 2026-10-22) [AMENDED 2026-10-23, Story 2.9 spec gate, Epic 2 runner: declined by Story 2.9's plan (the fix belongs in the contended `Core/Commands.cls`) and re-owned to the Epic 2 burn-down; ledger DW-74]
 - DW-112: A `SessionBroken` turn's retry in `Conversation.Rebuild` (Story 2.4) is a new `Decide` call under a new `ItemId` (derived from the turn's), never the turn's own `ItemId`, which AD-20's one decision per item and kind makes `Decide` refuse; the broken attempt keeps its `error` fallback row, the Turn keeps its own `ItemId` and links to the retry's decision, and a test shows a SessionBroken retry reaching `Decide` under a new `ItemId` and getting an answer (ledger; routed by cr 2026-10-23, orchestrator cross-epic ruling)
 
 ### Story 2.10: Show status banners for a missing key or a stalled heartbeat
@@ -1857,6 +1843,33 @@ So that the page works for me as well as for anyone.
 **Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
 
 - DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
+
+
+### Story 2.13: Open Visual Trace from the page
+
+As a judge,
+I want every decision strip and rail row to link to the right place in Visual Trace, and a header menu that opens my conversation,
+So that I can follow the assistant's work from the page in one click.
+
+[ADDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): Story 2.9's page half, word for word; it uses the `traceUrl` that `/state` and `/events` carry from Story 2.9, and it is planned next after Story 2.9.]
+
+**Acceptance Criteria:**
+
+**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
+**When** it renders
+**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
+**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+
+**Given** the app header
+**When** I open the Visual Trace menu, a ghost menu button with `external-link`
+**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
+
+**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
+**When** I press a trace link or open the Visual Trace menu
+**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
+**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+
+- DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; moved from Story 2.9 with its first consumer, the Visual Trace menu; routed by cr 2026-10-22)
 
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
