@@ -325,6 +325,7 @@ deferred: []
 
   Tests: `Test.Web.TraceLink`, `Test.Web.Api`, api.spec.
 - **Opens on the turn (AD-26).** **Given** a thread of more than 40 items, **when** a viewer opens the link to a late turn, **then** Visual Trace renders that turn's message on its page. This holds at page size 40, at page size 10, and with Show events off. Tests: T1-T4.
+- **The counting model proven on the real viewer (owner decision U-41, a condition of AD-26's amendment).** **Given** a throwaway thread of more than 40 items in which the late target turn comes after event-log, rule-log and I/O-log rows (at least one of each before it, including an event or rule row whose host first appears on a later header), **when** the link to that turn is opened through the real Visual Trace page, once with events shown and once with events hidden, **then** the target's row is on the opened page in both cases, asserted against the rendered page (T1 and T3, with the seeding they need). If the viewer and `Trace.Position`'s model disagree, the measured behaviour wins: the implement stage changes `Trace.Position` to match the viewer and records the measured counting rule under `## Design Notes` ("U-41 measured"), so the lead corrects AD-26's bullet to match and adds an inbox veto item for that correction.
 - **DW-112 (AD-20, AD-30).** **Given** a turn whose first turn answer is SessionBroken, **when** `Conversation` retries it, **then**:
   - the retry is a new Decide call, fresh, under `RetryItemId(turn.ItemId)`, and gets the reply;
   - the Turn keeps its `ItemId` and links to the retry's decision;
@@ -335,6 +336,7 @@ deferred: []
 ## Spec Change Log
 
 - 2026-10-23, lead (spec gate): split applied (AC 3-5 and DW-58 to Story 2.13); veto U-40; DW-74 to burndown; the DW-112 Conventions row written; AD-26's wording sent to the orchestrator.
+- 2026-10-23, lead: U-41 answered (a) with a condition; AD-26 amended in the spine (owner marker); the condition added as an acceptance item; the stop released.
 
 ## Review Triage Log
 
@@ -412,7 +414,7 @@ No AC contradicts an AD's Rule. Decided 3 refines AD-26's item-index wording; se
 - **Veto U-40:** the stored-data items (veto item 2) are kept as planned.
 - **DW-74** is re-owned to `burndown` (`by=spec_gate`); **DW-58** to Story 2.13.
 - **DW-112's Conventions row** ("SessionBroken retry") is written in the spine with this spec's `RetryItemId` detail.
-- **AD-26's item-index wording** (veto item 3) is an AD amendment, which in this parallel run is the orchestrator's (U7, U14): AD-26 is cited by Epic 1's in-flight specs. Pending its ruling.
+- **AD-26's item-index wording** went to the owner (stopped as U-41; AD-26 is cited by done specs and Epic 1's in-flight specs) and was decided (a) with one condition by the owner's delegate (U-41 at 2026-10-23T16:45:10Z#115): the bullet is amended in the spine with the owner's marker (no veto item), and the condition is the acceptance item "The counting model proven on the real viewer" under Tasks & Acceptance.
 
 **Spine notes for the lead (Rule 20, light path):**
 - **A Conventions row, as given by the orchestrator, with the fix:** "A `SessionBroken` turn's retry is a new `Decide` call with a new `ItemId`; the broken attempt keeps its `error` fallback row (AD-20, AD-30)." Optional detail: "the retry's `ItemId` is `Conversation.RetryItemId(turn.ItemId)`, the first 22 base64url characters of SHA-256 of the turn's `ItemId` plus `/retry`; the Turn keeps its own `ItemId` and links to the retry's decision."
