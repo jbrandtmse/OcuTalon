@@ -24,10 +24,11 @@ Stories 32.1 to 32.3 are done. They split `install` into two jobs, let each IRIS
 
   A compile error fails the run, as it would on a fresh stack.
 - **Lifecycle.**
-  - There is one warm stack per lane, and it holds the lane's throwaway lock until `warm down`.
+  - There is one warm stack per lane. It holds its own lock, `warm-iris.lock` in the lane's lock folder, until `warm down`; fresh stacks keep `throwaway-iris.lock`, so a lane holds at most one warm and one fresh stack at a time (AC 2 as amended 2026-10-23, Rule 5 tier 1, pre-ruled with the Contest Planner).
   - When a stage ends, fails or is killed, `warm down` and the cleanup trap remove the stack and release the lock.
   - `ci/iris.sh teardown` with the stack's tag removes an orphaned warm stack, like any other throwaway.
-  - The plan must settle how a stage's own fresh runs (`live` units and the fresh check) get the lane's one lock while the warm stack holds it (inference from the lock rule).
+  - So a stage's own fresh runs (`live` units, destructive tests, the fresh check) take `throwaway-iris.lock` as before and never wait on the lane's warm stack.
+  - Memory: Task 0 measures it first. The estimate is about 2.4 GB per stack, three lanes x (warm + fresh) plus about 17 GB of other containers, about 32 of 62.7 GiB (inference until measured).
 - **Measure, don't guess.** Label anything not measured `(inference)`.
   - **Task 0** records, as a Rule 21 measured fact:
     - the Docker VM's memory and CPUs;
