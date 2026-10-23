@@ -152,3 +152,7 @@
 2026-10-23T16:46:53Z	Epic 32	ci_green_verified	runs=39989171491,39989171492 head=223651d
 2026-10-23T16:46:53Z	Epic 32	merge_precheck	feature_moved_after_integrate=0521bd2(bookkeeping_only:cycle-log-parallel.md) trial_merge=clean veto_open=0 stories_done=32.1-32.4 burndown=logged retro=skipped(policy) decision_sheet=DW-111(human->action_items) action=merge_without_a_second_integrate_forward(no_code_to_resolve)
 2026-10-23T16:46:53Z	Epic 32	epic_merge_started	head=223651d feature=feature/OCT_OcuTalon_MVP
+2026-10-23T16:47:25Z	Epic 32	epic_merged_to_feature	repos=. feature_sha=fe9b255 merge_sha=fe9b255 head=223651d submodules= scope=reopen(story_32.4)
+2026-10-23T16:47:25Z	Epic 32	decision_sheet_recorded	decided=1 to_action_items=1(DW-111) to_x0=0 by=unattended
+2026-10-23T16:47:25Z	Epic 32	deps_hash_rerecorded	hash=1ba404b36cd9e359a2ae9689e8e10e3ab0469c565b75bca843c6d3d7005da55d reason=rule5_amendment note=Story_32.4_AC2(warm-iris.lock)_merged
+2026-10-23T16:47:25Z	Epic 32	model_tier_checkpoint_seen	note=runner_logged_it(record_only)

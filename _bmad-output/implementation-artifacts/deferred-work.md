@@ -320,6 +320,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md (plan, For the lead) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 32.4 adds warm-iris.lock in each lane folder (held from ci/warm.sh up to down); _bmad/custom/parallel.yaml runtime_locks names only runtime and throwaway-iris (stale_minutes 20); _bmad/ is owner-only
 - 2026-10-23T13:41:30Z status=decision-pending owner=burndown by=spec_gate note=human=decide whether parallel.yaml gains a warm-iris entry (stale_minutes about a stage, e.g. 240) or the sweep rule names warm-iris.lock; the orchestrator's sweep already confirms the owner is dead before it deletes
+- 2026-10-23T16:47:25Z status=dropped by=merge_gate note=action_item:epic-32-retro-item-2-add-a-warm-iris-entry-to-_bmad-custom-pa(owner;decided_unattended_U9:human-only_entry_to_action_items)
 
 ### DW-123: Two warm calls at once on one warm stack (or a killed call's IRIS session still running in it) race on its stored manifest and its test results; ci/warm.sh takes no run lock
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: med | footprint: in-story
