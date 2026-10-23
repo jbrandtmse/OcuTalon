@@ -57,7 +57,7 @@ development_status:
   1-4-every-turn-and-decision-carries-its-tokens-and-cost: done
   1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual: done
   1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star: done
-  1-7-timeouts-and-rate-limits-end-every-decision-on-time: ready-for-dev
+  1-7-timeouts-and-rate-limits-end-every-decision-on-time: in-progress
   1-8-conversations-survive-restarts: backlog
   1-9-no-model-request-goes-over-100-000-tokens: backlog
   1-10-the-chat-agent-sets-lists-and-cancels-reminders: backlog
