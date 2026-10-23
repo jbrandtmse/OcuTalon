@@ -565,6 +565,7 @@ No acceptance criterion contradicts an AD's Rule. AC6 and AD-20 together have on
 
 **Lead's rulings at the spec gate (2026-10-23, Epic 1 runner, unattended):**
 - **Decision 12:** this story complies with AD-20 as written: the broken attempt is a recorded `error` fallback with `SessionBroken` 1. No AD changes here. Story 2.4 is already done in Epic 2, and its `Conversation.Rebuild` retries with the same `ItemId`, which `Decide` refuses (`ResponseFromRow`): that cross-epic part goes to the orchestrator, with the spine lines.
+- **The orchestrator's ruling (2026-10-23, U14, option a):** AD-20 stays; this story is unchanged; Epic 2 fixes `Conversation.Rebuild` so the retry is a new `Decide` call under a new `ItemId` (its ledger, before it merges), and writes the AD-30 line as its own Conventions row. The taint rule is the spine's Consistency Conventions row "Saved conversations" (no AD text changes). Do not edit `Core/Conversation.cls` (contended).
 - **Veto window, kept as planned:** a tainted turn is never saved (inbox U-37); the late untainted `Chat` of a timed-out turn is saved (U-38).
 - **Decided:** decision 16 stands (the history pin is the mock's request log).
 - **Stories 9.1 to 9.3:** ledgered as DW-110, routed to Story 9.1.

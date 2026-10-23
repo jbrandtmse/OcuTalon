@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: release 1 (0.1.0), the 1.0.0 kit, and build steps 2 to 7'
 status: final
 created: '2026-10-16'
-updated: '2026-10-22'
+updated: '2026-10-23'
 binds: [FR-1..FR-62, NFR-1..NFR-26, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -906,6 +906,7 @@ How OcuTalon uses each AI Hub capability on build 154. **As is** means used unch
 | Text OcuTalon sends | Only `*Out` operations (and the page) render, from the catalog classes `OcuTalon.Msg.Catalog.*`, the operations through the one renderer `OcuTalon.Msg.Catalog.Render(key, slots, channel)`, except `TelegramIn`'s answer to a button press (`answerCallbackQuery`), which the Bot API needs in the same call and `TelegramIn` renders from the catalog (AD-32); Telegram text is plain text |
 | Redaction | One redactor, `OcuTalon.Bridge.Redact`, used by agent steps, audit, logs and error details; structural rules (AD-4, AD-14) come first and the redactor is the backstop |
 | Agent step labels | A tool's readable step label is a class parameter of its tool class: `STEPLABEL<NAME>` (the tool's name in upper case) for one tool of a class that holds several, else `STEPLABEL` for the class, else the bridge's generic `Running a tool`; a label never holds the tool's arguments or model text (AD-9) [ADDED 2026-10-22, Story 1.5 spec gate, unattended ruling] |
+| Saved conversations | The runner saves a user's linked AI session (AD-6) only after a `Chat` that completed and whose context is not tainted (AD-10), late or not; a tainted turn is never saved, so a tool result from an untrusted source never reaches a stored conversation history, and the next turn starts from the last untainted state [ADDED 2026-10-23, Story 1.8 spec gate, unattended ruling (orchestrator, veto U-37)] |
 | Logging and errors | `$$$LOGINFO`/`$$$LOGWARNING`/`$$$LOGERROR` in hosts, `$$$TRACE` for detail, nothing secret; `%Status` throughout, `$$$ThrowOnError` inside methods, plain English only at the channel edge |
 | Settings | Bridge values from host settings and bridge tables; product values through `OcuTalon.Data.Setting.Get`; never read globals directly |
 | Python | `.py` resources under `src/ocutalon/python/`, imported with `%SYS.Python.Import`, never `[Language = python]` methods |
