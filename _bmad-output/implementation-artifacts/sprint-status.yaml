@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-24-2026 06:25
+last_updated: 10-24-2026 06:58
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -62,6 +62,7 @@ development_status:
   1-9-no-model-request-goes-over-100-000-tokens: done
   1-10-the-chat-agent-sets-lists-and-cancels-reminders: done
   1-12-items-saved-for-the-digest-are-kept-for-it: done
+  1-13-epic-1-burn-down: backlog
   epic-1-retrospective: optional
 
   epic-2: backlog

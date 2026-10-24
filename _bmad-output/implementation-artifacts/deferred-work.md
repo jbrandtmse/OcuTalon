@@ -558,6 +558,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: high | fix-risk: med | footprint: in-footprint
 - evidence: src/bridge/cls/OcuTalon/Bridge/Keys.cls Status/Present; Bridge/Budget.cls State; Epic 2's /state computes noModelKey from Keys.Status(agent); Install/Step/Web.cls APPLICATIONROLES; verified by the orchestrator on origin/OCT-epic1 7f1c2bb
 - 2026-10-24T05:11:53Z status=routed owner=burndown by=cr note=cross-epic, found by Epic 2 at 2.10 (Epic 2's DW-148); must close in Epic 1; orchestrator ruling 2026-10-24: chartered first in Epic 1's burn-down story, never overflowed; a refused or failed read never reads as present, a missing key reads missing, unknown never passes as OK; Budget.State works there or degrades without a per-call warning; the key's value never reaches the web request; pinning test: the read in a request context without %Admin_ConfigStore and no key configured reads as missing
+- 2026-10-24T06:59:12Z owner=1-13-epic-1-burn-down by=burndown note=chartered_into_Story_1.13(orchestrator_ruling:first,never_overflowed)
 
 ### DW-150: Digest.Data.Item.Since returns every item of the session since the time, with no cap
 - source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story

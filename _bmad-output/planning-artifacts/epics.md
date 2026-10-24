@@ -1447,6 +1447,23 @@ So that the daily digest can summarise them and nothing saved is lost.
 **When** IRIS restarts
 **Then** they are intact, and the store declares its `Purge(daysToKeep)`, deleting items older than `daysToKeep` (90 by default, the decisions' retention) (NFR-16, NFR-19, AD-27)
 
+### Story 1.13: Epic 1 burn-down
+
+[AMENDED 2026-10-24, chartered by the burn-down gate, Rule 17, on the orchestrator's ruling (U14): DW-149 is a cross-epic defect in Epic 1's delivered code that Epic 2's runner found while planning Story 2.10 (Epic 2's DW-148); it must close in Epic 1, before the merge, and is never overflowed to a later epic.]
+
+As a user,
+I want OcuTalon to tell a missing model key from a key it cannot check,
+So that the page never shows an all-clear while no model key is set.
+
+**Acceptance Criteria:**
+
+**Given** no model key configured for a runner and a process that holds only the API web application's roles (`APPLICATIONROLES` of `Install/Step/Web.cls`, without `%Admin_ConfigStore`), as Epic 2's `/ocutalon/api` `/state` request does
+**When** that process asks whether the key is set (`OcuTalon.Bridge.Keys.Status(agent)`, or the read that replaces it for that caller)
+**Then** the answer reads as missing; a refused or failed read never reads as present, and a state that cannot be known never passes as OK; the key's value never reaches the request; and the pinning test runs the read in that request context (or its exact equivalent) with no key configured and asserts it reads as missing (AD-19, the no-false-all-clear non-negotiable)
+**And** `OcuTalon.Bridge.Budget.State()` either works in that request context or degrades there without a warning per call, and the request writes no audit refusal per call for the key read
+
+- DW-149: In a request without %Admin_ConfigStore (Epic 2's /state), Keys.Status reads a missing model key as present (Status sets present=1 in its Catch; Keys.Present falls back to %ConfigStore.Configuration.Exists when ConfigStore.Details fails), so a keyless start shows no "no model key" banner; Budget.State's Usage SELECT has no SQL grant there and logs a warning per call (ledger; routed by burndown 2026-10-24, orchestrator ruling)
+
 ## Epic 2: Chat with OcuTalon on a live web page
 
 A signed-in user chats with OcuTalon in the browser and sees each reply with its decision, cost details and trace link, plus live lists of recent decisions, background checks, reminders and pending approvals, updated without a reload; a message the user writes is always answered, and the conversation is still there after a restart.
