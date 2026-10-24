@@ -33,6 +33,9 @@
 ///   - TestToolsLeaveRemindersToTheirOwner (Story 1.10; AD-1, AD-33): no class of OcuTalon.Tools names the Reminder class, its table or its globals, the
 ///     schedule package or ReminderOps: a tool changes a reminder only by submitting a command. The scanner is first shown to flag samples that break
 ///     the rule and to pass look-alikes and comment lines;
+///   - TestNoToolReachesAGovernanceCommand (Story 3.3; AD-1, AD-10, NFR-14): every class of OcuTalon.Tools passes ToolCodeClean, which flags answering an
+///     approval request, classifying a tool, changing a setting, adding an MCP server, pairing a chat and a command class outside TOOLVERBS
+///     (TestToolCodeScan holds the samples), and every toolset of Triage, Diagnosis and Chat is a class of OcuTalon.Tools;
 ///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
 ///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool. Since Story 1.10 the
@@ -54,6 +57,16 @@ Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.
 
 /// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
 Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
+
+/// What no tool names (Story 3.3; AD-1, AD-10, NFR-14), as one regular expression, matched in any case on the code lines: answering an approval request (the
+/// Approval API, its table or globals, AnswersIn, EnsLib.Workflow), classifying a tool (the names ToolClassification and
+/// ClassificationClass), changing a setting (SettingsOps, the Setting table, an Ens.Director method that changes a production, and the creation or deletion of
+/// an Ens.Config object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps) and pairing a chat (SessionOps, the Pairing table).
+Parameter GOVERNANCE = "ocutalon[._]bridge[._](data[._])?approval|ocutalonbp\.approval|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|enableconfigitem|abortproduction|cleanproduction|deleteproduction|recoverproduction|setautostart|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing";
+
+/// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
+/// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). Story 19.3's memory verbs join when they exist.
+Parameter TOOLVERBS = "SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -400,6 +413,35 @@ Method TestToolsLeaveRemindersToTheirOwner()
 	Do $$$AssertTrue($ClassMethod(source, "Matches", tools, "msg\.command\.(setreminder|listreminders|cancelreminder)"), "and they name the command classes, which is how they change a reminder")
 }
 
+/// No tool reaches a governance command (Story 3.3; AD-1, AD-10, NFR-14): every class of OcuTalon.Tools passes ToolCodeClean, which flags the
+/// governance references of GOVERNANCE and every command class outside TOOLVERBS, and every toolset of Triage, Diagnosis and Chat is a class of
+/// OcuTalon.Tools. The scan's samples are in TestToolCodeScan.
+Method TestNoToolReachesAGovernanceCommand()
+{
+	Set scanned = 0
+	Set offending = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		Set scanned = scanned + 1
+		If '..ToolCodeClean(class, .problems) Set offending = offending _ " " _ class _ " (" _ problems _ ")"
+	}
+	Do $$$AssertTrue(scanned '< 7, "the sweep read the classes of OcuTalon.Tools: "_scanned)
+	Do $$$AssertEquals(offending, "", "no class of OcuTalon.Tools names a governance reference or a command class outside the tool verbs")
+	Set toolsets = 0
+	For agent = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat" {
+		Set list = $ListFromString($Parameter(agent, "TOOLSETS"))
+		Set position = 0
+		While $ListNext(list, position, entry) {
+			Set toolsets = toolsets + 1
+			Do $$$AssertTrue($Extract(entry, 1, $Length("OcuTalon.Tools.")) = "OcuTalon.Tools.", agent_" has the toolset "_entry_", a class of OcuTalon.Tools")
+			Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(entry), "which is compiled")
+		}
+	}
+	Do $$$AssertTrue(toolsets '< 2, "the agents have toolsets (Diagnosis and Chat): "_toolsets)
+}
+
 /// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
 /// read every other line, one with a trailing comment included. A match is made in any case, and as plain text when asked for, so
 /// that a pattern such as {{ needs no escape.
@@ -462,7 +504,36 @@ Method TestToolCodeScan()
 		tab_"Set st = ""DROP TABLE A.B""",
 		tab_"Set st = ""  truncate table A.B""",
 		tab_"Set rs = ##class(%SQL.Statement).%ExecDirect(, ""Alter Table A.B ADD C INT"")",
-		tab_"Set st = ""CREATE TABLE A.B (X INT)""")
+		tab_"Set st = ""CREATE TABLE A.B (X INT)""",
+		tab_"Do ##class(OcuTalon.Bridge.Approval).Raise(""tool_call"")",
+		tab_"Set rs = ##class(%SQL.Statement).%ExecDirect(, ""SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest"")",
+		tab_"Set open = $Get(^OcuTalonBP.ApprovalD(1))",
+		tab_"Set sc = ##class(OcuTalon.Core.AnswersIn).Answer(ref, ""approve"")",
+		tab_"Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(id)",
+		tab_"Do ##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault(""Decide"", ""ToolClassification"", ""[]"")",
+		tab_"Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(""ClassificationClass"")",
+		tab_"Do ##class(OcuTalon.Core.SettingsOps).Put(""Decide"", ""Model"", ""x"")",
+		tab_"Set row = ##class(OcuTalon.Data.Setting).%New()",
+		tab_"Do ##class(Ens.Director).UpdateProduction()",
+		tab_"Do ##class(Ens.Director).StartProduction(""A.B"")",
+		tab_"Do ##class(Ens.Director).StopProduction()",
+		tab_"Do ##class(Ens.Director).RestartProduction()",
+		tab_"Do ##class(Ens.Director).EnableConfigItem(""Decide"", 0)",
+		tab_"Do ##class(Ens.Director).SetAutoStart(""A.B"", 1)",
+		tab_"Do ##class(Ens.Director).SetItemSettingValue(""Decide"", ""Adapter"", ""x"", ""y"")",
+		tab_"Do ##class(Ens.Director).CleanProduction()",
+		tab_"Set item = ##class(Ens.Config.Item).%New()",
+		tab_"Do ##class(Ens.Config.Item).%DeleteId(id)",
+		tab_"Do ##class(Ens.Config.Production).%Delete(oid)",
+		tab_"Do ##class(Ens.Config.DefaultSettings).%KillExtent()",
+		tab_"Set server = ##class(OcuTalon.Mcp.Server).%New()",
+		tab_"Do ##class(OcuTalon.Core.McpOps).Add(""x"")",
+		tab_"Do ##class(OcuTalon.Core.SessionOps).Pair(code)",
+		tab_"Set row = ##class(OcuTalon.Data.Pairing).%OpenId(1)",
+		tab_"Set command = ##class(OcuTalon.Msg.Command.Pair).%New()",
+		tab_"Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()",
+		tab_"Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()",
+		tab_"Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()")
 	Set position = 0
 	While $ListNext(bad, position, line) {
 		Set clean = ..ToolCodeClean("", .problems, line)
@@ -480,6 +551,21 @@ Method TestToolCodeScan()
 		tab_"Quit text"_lf_"}"
 	Set clean = ..ToolCodeClean("", .problems, good)
 	Do $$$AssertEquals(clean, 1, "the scan passes a sample that keeps the rules, with the verbs in comments, as names and inside a longer string: "_problems)
+	Set governed = "/// Never names OcuTalon.Bridge.Approval or SettingsOps or Ens.Director UpdateProduction."_lf_
+		tab_"// ##class(OcuTalon.Msg.Command.Pair).%New()"_lf_
+		tab_"Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()"_lf_
+		tab_"Set command = ##class(OcuTalon.Msg.Command.ListReminders).%New()"_lf_
+		tab_"Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()"_lf_
+		tab_"Set command = ##class(OcuTalon.Msg.Command.StartWatch).%New()"_lf_
+		tab_"Set command = ##class(OcuTalon.Msg.Command.setreminder).%New()"_lf_
+		tab_"&sql(SELECT Ref INTO :ref FROM OcuTalon_Msg_Command_SetReminder WHERE X = :y)"_lf_
+		tab_"Set value = ##class(Ens.Director).GetItemSettingValue(""Decide"", ""Host"", ""Model"", .value)"_lf_
+		tab_"Set sc = ##class(Ens.Director).CreateBusinessService(""CommandsIn"", .service)"_lf_
+		tab_"Set item = ##class(Ens.Config.Item).%OpenId(id)"_lf_
+		tab_"Set text = ""Say that you approve it, and that the setting is ToolOption or a classification word"""_lf_
+		tab_"Set result = ##class(OcuTalon.Msg.CommandResult).%New()"
+	Set clean = ..ToolCodeClean("", .problems, governed)
+	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string and has the governance names in comments: "_problems)
 	Do $$$AssertEquals(problems, "", "and has nothing to say")
 	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchFixture", .problems)
 	Do $$$AssertEquals(clean, 1, "the Watch fixture is clean: "_problems)
@@ -496,9 +582,11 @@ Method TestToolCodeScan()
 
 /// 1 when the code of the class passes the rules of a tool class (AD-10): no $ZF, no XECUTE or $XECUTE, no $SYSTEM.OBJ (also as
 /// ##class(%SYSTEM.OBJ)), no Python,
-/// and no INSERT, UPDATE, DELETE, DROP, CREATE, ALTER or TRUNCATE inside embedded SQL (&sql) or at the start of a string. problems
+/// and no INSERT, UPDATE, DELETE, DROP, CREATE, ALTER or TRUNCATE inside embedded SQL (&sql) or at the start of a string, no governance reference
+/// (GOVERNANCE) and no command class outside TOOLVERBS (Story 3.3). problems
 /// lists what was found, separated by semicolons; it is empty when the code is clean. A class with no source is not clean. text
-/// replaces the source of the class, for the samples of the tests.
+/// replaces the source of the class, for the samples of the tests. Since Story 3.3 it also flags a governance reference (GOVERNANCE) and a command
+/// class outside TOOLVERBS.
 ClassMethod ToolCodeClean(class As %String, Output problems As %String, text As %String = "") As %Boolean
 {
 	Set problems = ""
@@ -514,10 +602,25 @@ ClassMethod ToolCodeClean(class As %String, Output problems As %String, text As 
 		$ListBuild("\bxecute\b", "XECUTE"),
 		$ListBuild("[$%]system\.obj\b", "$SYSTEM.OBJ"),
 		$ListBuild(..#PYTHON, "Python"),
-		$ListBuild("""\s*("_..#SQLVERBS_")\b", "a string that starts with an SQL statement that changes data"))
+		$ListBuild("""\s*("_..#SQLVERBS_")\b", "a string that starts with an SQL statement that changes data"),
+		$ListBuild(..#GOVERNANCE, "a governance reference (an approval answer, a classification, a setting, an MCP server or a pairing)"))
 	Set position = 0
 	While $ListNext(checks, position, check) {
 		If ##class(OcuTalon.Test.Bridge.Source).Matches(text, $List(check, 1)) Set problems = problems _ $Select(problems = "": "", 1: "; ") _ "uses " _ $List(check, 2)
+	}
+	Set verbs = $ListFromString($ZConvert(..#TOOLVERBS, "L"))
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set start = 1
+		For {
+			Set at = $Locate(line, "(?i)msg[._]command[._]\w+", start, end, found)
+			Quit:'at
+			Set dotted = $Translate(found, "_", ".")
+			Set verb = $Piece(dotted, ".", $Length(dotted, "."))
+			If '$ListFind(verbs, $ZConvert(verb, "L")) Set problems = problems _ $Select(problems = "": "", 1: "; ") _ "names the command class " _ verb _ ", which is not a tool verb"
+			Set start = end
+		}
 	}
 	Set embedded = ..EmbeddedSql(text)
 	For i = 1:1:$Length(embedded, $Char(1)) {

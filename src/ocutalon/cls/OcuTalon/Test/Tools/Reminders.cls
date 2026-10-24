@@ -151,8 +151,9 @@ Method OnAfterAllTests() As %Status
 
 /// The declarations (AC1, AC2). Chat's TOOLSETS names the reminder toolset, whose discovery lists exactly set_reminder, list_reminders and cancel_reminder
 /// (the names of Tools.Names), each once, with ReminderTools as the provider, and ReminderTools offers its three methods and none of Result's. Each tool's
-/// step label is the class parameter STEPLABEL<NAME>, not the generic label. The classification parameters are set and cancel: safe, not read-only, not
-/// trusted output; list: safe, read-only, trusted output. The inputs are text, delaySeconds and localDueAt for set (text required), none for list and
+/// step label is the class parameter STEPLABEL<NAME>, not the generic label. The classification parameters are set and cancel: safe, not read-only,
+/// trusted output (their answers are built by code, so two calls in one response both run and nothing taints the turn: DW-136); list: safe, read-only,
+/// trusted output (DW-139). The inputs are text, delaySeconds and localDueAt for set (text required), none for list and
 /// reminderRef for cancel (required), and none names a session, an owner or an origin. The descriptions tell the model the two due forms and that
 /// cancel takes the ref that list gave, and none starts with an SQL verb. The toolset holds no Requirement element, and each method returns a dynamic object.
 Method TestDeclarations()
@@ -162,9 +163,9 @@ Method TestDeclarations()
 	Do $$$AssertNotTrue(..StartsWithSqlVerb("Sets a reminder, then deletes nothing"), "and one that does not start with one is not")
 	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ..#TOOLSET, "Chat's TOOLSETS is "_..#TOOLSET)
 	Set expected = $ListBuild($Parameter(names, "SETREMINDER"), $Parameter(names, "LISTREMINDERS"), $Parameter(names, "CANCELREMINDER"))
-	Set want("set_reminder") = $ListBuild("safe", 0, 0, "Setting a reminder", "delaySeconds,localDueAt,text", "text")
+	Set want("set_reminder") = $ListBuild("safe", 0, 1, "Setting a reminder", "delaySeconds,localDueAt,text", "text")
 	Set want("list_reminders") = $ListBuild("safe", 1, 1, "Listing your reminders", "", "")
-	Set want("cancel_reminder") = $ListBuild("safe", 0, 0, "Cancelling a reminder", "reminderRef", "reminderRef")
+	Set want("cancel_reminder") = $ListBuild("safe", 0, 1, "Cancelling a reminder", "reminderRef", "reminderRef")
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
 	Do $$$AssertEquals(tools.%Size(), 3, "the toolset offers three tools")
 	Set found = ""

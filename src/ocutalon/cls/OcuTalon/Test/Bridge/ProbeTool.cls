@@ -7,6 +7,12 @@ Class OcuTalon.Test.Bridge.ProbeTool Extends %AI.Tool
 /// The classification of the probe for the gate (AD-10): safe, so that the context tests keep running the tool. It taints the turn by design.
 Parameter CLASSIFICATION = "safe";
 
+/// Read-only and trusted output: its result is the constant {"seen":1}, so it runs in any turn, and the gate leaves the taint to the tool,
+/// which sets it itself, so that its snapshot still shows the taint starting at 0.
+Parameter READONLY = 1;
+
+Parameter TRUSTEDOUTPUT = 1;
+
 /// Records what the context holds: every field of it, as JSON, in HostData. Tainted becomes 1.
 ClassMethod Probe() As %DynamicObject
 {
