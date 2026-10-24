@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -21,14 +21,15 @@ shard_areas() {
 }
 
 # The IRIS groups, in the order of the matrix of .github/workflows/ci.yml.
-IRIS_GROUPS="install production browser shards image"
+IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 group_units() {
   case $1 in
-    install) echo "live:install-start live:install-upgrade" ;;
-    production) echo "live:production live:production-restart live:audit" ;;
+    install-fresh) echo "live:install-start" ;;
+    install-upgrade) echo "live:install-upgrade live:audit" ;;
+    production) echo "live:production live:production-restart" ;;
     browser) echo "live:demo-path live:sign-in live:bundle-folder" ;;
     shards) echo "shard:lane-a shard:lane-b" ;;
     image) echo "live:storage-roundtrip live:build-inputs live:compose-start" ;;
@@ -50,3 +51,45 @@ WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTa
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'
 NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
+
+# The inputs of the IRIS groups (ci/changes.sh --group): a group runs only when a changed path matches its pattern. Every unit builds
+# its stack from the whole product, so IRIS_INPUT holds what every unit builds from or runs: the sources, the image and compose
+# files (.dockerignore and docker/ipm/ among them), the throwaway helpers and compose overrides, the eval folder, the CI recipe,
+# .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
+# group_input_pattern.
+IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+
+# The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
+WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
+
+# The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
+# web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
+# leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip"
+
+# The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
+# the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is
+# not bookkeeping makes ci/changes.sh run every group, so a story that adds a unit, or gives one a new input, declares that input
+# in IRIS_INPUT or in the unit's list, and a story whose unit starts to read one of these paths removes it from here.
+NOT_IRIS_INPUT_PATTERN='^(\.claude/|[^/]+\.md$|LICENSE[^/]*$|NOTICE[^/]*$|docs/|release/|\.github/workflows/lane-a\.yml$|\.env\.example$|docker/tests/record-eval\.sh$|docker/tests/test-[^/]+\.sh$)'
+
+# group_input_pattern <group>: the anchored ERE of the paths whose change makes the group run: IRIS_INPUT, WEB_BUNDLE_INPUT unless
+# every unit of the group is in NO_WEB_BUNDLE_UNITS, and the script of each live unit of group_units. Returns 1 for an unknown group.
+group_input_pattern() {
+  local units u pattern all_without_bundle=1
+  units=$(group_units "$1") || return 1
+  pattern=$IRIS_INPUT
+  for u in $units; do
+    case " $NO_WEB_BUNDLE_UNITS " in
+      *" $u "*) ;;
+      *) all_without_bundle=0 ;;
+    esac
+  done
+  if [ "$all_without_bundle" -eq 0 ]; then pattern="$pattern|$WEB_BUNDLE_INPUT"; fi
+  for u in $units; do
+    case $u in
+      live:*) pattern="$pattern|docker/tests/test-${u#live:}"'\.sh$' ;;
+    esac
+  done
+  printf '^(%s)\n' "$pattern"
+}

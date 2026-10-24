@@ -17,15 +17,31 @@
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
 #   - wiring: ci.yml runs ci/checks.sh, each script of WEB_SCRIPTS (the web build and the mock's tests, the step "Mock tests" among
-#     them), lint and unit tests, ci/iris.sh build and group, each gated by the classifier's web or iris output, reads only step ids
-#     that exist, and sets the run tag, the image and the deadline of the iris job;
+#     them), lint and unit tests, each gated by the classifier's web output; the iris job asks the classifier for its own group
+#     (ci/changes.sh ci.yml --group <its group>), runs ci/iris.sh build and group unless the run output is `false`, and otherwise
+#     runs the step Skipped with the reason; every step reads only step ids that exist, and the iris job sets the run tag, the
+#     image and the deadline;
 #   - units: every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or one group; every Test/<Area>/
 #     folder of either source tree is in exactly one shard; every class with a Method Test... sits directly in an area folder;
 #   - demo-path (Story 0.8): live:demo-path is a unit of exactly one IRIS group and docker/tests/test-demo-path.sh exists, every name
 #     of BROWSER_UNITS (the live units that need Playwright's Chromium) is a live unit of a group, and every docker/tests/test-*.sh
 #     with a code line, not a comment, that runs the Playwright npm script is in BROWSER_UNITS;
-#   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
-#     exit 1; its web port is 52810 plus the runner's number in CI and the first free port elsewhere;
+#   - groups: IRIS_GROUPS is exactly install-fresh, install-upgrade, production, browser, shards and image in this order, each with a
+#     unit, and group_units has no case for the retired group install; install-fresh holds live:install-start, install-upgrade holds
+#     live:install-upgrade, and live:demo-path is the first unit of browser (AD-22);
+#   - inputs (Story 32.2): every unit of NO_WEB_BUNDLE_UNITS is a unit of a group and no live script of it has a code line that names the
+#     web bundle (each of the markers alone is enough); group_input_pattern answers for each group with a pattern that matches
+#     ci/units.sh, the workflow and src/, and for no unknown group; and every file that a live script of the group sources or adds
+#     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern;
+#   - recipe: ci/iris.sh (with no OCUTALON_WARM from the caller: Story 32.4's warm mode has its own pins in test-ci-warm.sh) refuses a bad
+#     run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with exit 1; its web port is 52810 plus the runner's number on runners 0 to 9 and 52819 minus it on runners 10 to 19, a set
+#     OCUTALON_TEST_WEB_PORT wins (whatever the runner, none included), any other runner name (a number of 20 or more, a letter after
+#     the number, none) and no runner leave `auto` (DW-49, Story 32.3), and the ports of runners 1 to 19 are distinct, within
+#     52800-52819 and none in LIVE_FORBIDDEN_PORTS; the real live_web_port (port_in_use stubbed, nothing listens) accepts the fixed
+#     port of each runner 0 to 19, which setup_tag exports to a child process, refuses it as in use when it is held without taking
+#     another, and gives a probing runner 52800, which no runner 1 to 18 owns; `groups` prints the six groups in order, `list` shows the two install groups with their anchors,
+#     the retired group install is refused with exit 2, and each group's CI tag (<run id>-<attempt>-<group>) is a valid run tag under
+#     which `group <name>` knows the group;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
 #     answers), the FAIL line and exit 1 come before any stack starts when every pull fails, and a present image is never pulled;
 #   - mock wrapper (Story 0.11): docker/tests/test-mock.sh runs node --test on every file of ci/mock/test/ and exits with node's
@@ -33,8 +49,11 @@
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
-#     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else (ci/iris.sh
-#     is sourced with a stub for dc, docker and run_classes);
+#     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else, the lane's
+#     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
+#     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
+#     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
+#     run_classes, and a lock folder and a temporary folder of its own);
 #   - yaml: ruby -ryaml parses each file (SKIP, and never a PASS, when Ruby is missing).
 # A failing rule prints file:line and its name, never the text of the file. Prints one PASS or FAIL line per rule; exits 0
 # only when none fails.
@@ -471,9 +490,21 @@ function need_named(job, name, hold, cond,    key, kk, found) {
   }
   if (!found) bad(job ": no step '" name "' runs a line that holds '" hold "' with the condition '" cond "'")
 }
+# need_reason <job> <name> <text in its run line> <if text>: ONE step of that name has exactly that condition, a run line that holds
+# the text and an env that binds REASON to the classifier's reason, so that the three cannot be shared out over two steps of the name.
+function need_reason(job, name, hold, cond,    key, kk, found) {
+  found = 0
+  for (key in snames) {
+    split(key, kk, SUBSEP)
+    if (kk[1] == job && snames[key] == name && ifs[key] == cond && index(runs[key], hold) > 0 \
+      && reasonenv[key] == "REASON: ${{ steps.changes.outputs.reason }}") found = 1
+  }
+  if (!found) bad(job ": no one step '" name "' has the condition '" cond "', a run line that holds '" hold "' and REASON bound to the classifier's reason")
+}
 BEGIN { FS = "\t" }
 { kind = $1; ln = $2; job = $3; st = $4; text = $5 }
 kind == "step:name" { snames[job, st] = unq(text) }
+kind == "step:env" && index(text, "REASON: ") == 1 { reasonenv[job, st] = text }
 kind == "step:run" { runs[job, st] = text }
 kind == "step:if" { ifs[job, st] = text }
 kind == "step:id" { ids[job, text] = 1 }
@@ -484,7 +515,7 @@ kind == "step:run" || kind == "step:runline" || kind == "step:if" || kind == "st
 }
 END {
   web = "steps.changes.outputs.web == 'true'"
-  iris = "steps.changes.outputs.iris == 'true'"
+  iris = "steps.changes.outputs.run != 'false'"
   need("checks", "bash ci/checks.sh", "")
   need("web", "bash ci/changes.sh ci.yml", "")
   nw = split(webscripts, ws, " ")
@@ -494,10 +525,11 @@ END {
   need("web", "npm --prefix web test", web)
   need_skip("web", "steps.changes.outputs.web != 'true'")
   need_named("web", "Mock tests", "bash docker/tests/test-mock.sh", web)
-  need("iris", "bash ci/changes.sh ci.yml", "")
+  need("iris", "bash ci/changes.sh ci.yml --group ${{ matrix.group }}", "")
   need("iris", "bash ci/iris.sh build", iris)
   need("iris", "bash ci/iris.sh group ${{ matrix.group }}", iris)
-  need_skip("iris", "steps.changes.outputs.iris != 'true'")
+  need_named("iris", "Skipped", "skipped: $REASON", "steps.changes.outputs.run == 'false'")
+  need_reason("iris", "Skipped", "skipped: $REASON", "steps.changes.outputs.run == 'false'")
   if (!(("web", "changes") in ids) || !(("iris", "changes") in ids)) bad("the classifier step has no id changes in the web job or the iris job")
   if (env["iris", "OCUTALON_RUN_TAG"] != "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}") bad("iris: OCUTALON_RUN_TAG is not run id, attempt and group")
   if (env["iris", "IRIS_IMAGE"] != "ocutalon-iris-base:2026.3.0AI.154.0") bad("iris: IRIS_IMAGE is not the preloaded base image")
@@ -517,9 +549,15 @@ wiring_bad() { # wiring_bad <name> <awk program>: a copy of ci.yml that the prog
   awk "$2" "$ci_yml" > "$samples/wiring-$1.yml"
 }
 wiring_bad id '/^        id: changes$/ { n++; if (n == 2) { print "        id: chg"; next } } { print }'
-wiring_bad iris-gate '/outputs\.iris ==/ && !done { sub(/outputs\.iris ==/, "outputs.iris !="); done = 1 } { print }'
+wiring_bad iris-gate '/outputs\.run != / && !done { sub(/outputs\.run != /, "outputs.run == "); done = 1 } { print }'
+wiring_bad group-gate '/outputs\.run != / { n++; if (n == 2) sub(/outputs\.run != /, "outputs.run == ") } { print }'
+wiring_bad gate-truthy '/if: steps\.changes\.outputs\.run != / { sub(/ != .false./, "") } { print }'
 wiring_bad web-gate '/outputs\.web ==/ { n++; if (n == 2) sub(/outputs\.web ==/, "outputs.web !=") } { print }'
-wiring_bad skip-step '/outputs\.iris != / { sub(/outputs\.iris !=/, "outputs.iris ==") } { print }'
+wiring_bad skip-step '/outputs\.run == / { sub(/outputs\.run ==/, "outputs.run !=") } { print }'
+wiring_bad skip-reason '/^          REASON: / { n++; if (n == 2) { m = "outputs.reason"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) "outputs.base" substr($0, i + length(m)) } } { print }'
+wiring_bad skip-text '/skipped: \$REASON/ && !done { m = "skipped: "; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)); done = 1 } { print }'
+wiring_bad group-arg '/ci\/changes\.sh ci\.yml --group/ { m = " --group ${{ matrix.group }}"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)) } { print }'
+wiring_bad skip-split '/^          REASON: / { n++; if (n == 2) { m = "outputs.reason"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) "outputs.base" substr($0, i + length(m)) } } { print } END { print "      - name: Skipped"; print "        if: always()"; print "        run: echo skipped"; print "        env:"; print "          REASON: ${{ steps.changes.outputs.reason }}" }'
 wiring_bad tag '/OCUTALON_RUN_TAG:/ { m = "-${{ matrix.group }}"; i = index($0, m); if (i > 0) $0 = substr($0, 1, i - 1) substr($0, i + length(m)) } { print }'
 wiring_bad checks '$0 == "        run: bash ci/checks.sh" { print "        run: echo checks"; next } { print }'
 wiring_bad lint '$0 == "        run: npm --prefix web run lint" { print "        run: echo lint"; next } { print }'
@@ -527,7 +565,7 @@ wiring_bad test '$0 == "        run: npm --prefix web test" { print "        run
 wiring_bad group '$0 == "        run: bash ci/iris.sh group ${{ matrix.group }}" { print "        run: echo group"; next } { print }'
 wiring_bad mock '$0 == "        run: bash docker/tests/test-mock.sh" { print "        run: echo mock"; next } { print }'
 wiring_ok=1
-for n in id iris-gate web-gate skip-step tag checks lint test group mock; do
+for n in id iris-gate group-gate gate-truthy web-gate skip-step skip-reason skip-text skip-split group-arg tag checks lint test group mock; do
   if [ -z "$(wf_wiring "$samples/wiring-$n.yml")" ]; then
     echo "FAIL wiring: the rule does not flag the sample $n"
     wiring_ok=0
@@ -542,7 +580,7 @@ for extra in "$web_scripts zz-web" ""; do
 done
 hits=$(wf_wiring "$ci_yml" | sed "s#^[0-9]*\twiring\t#  $ci_yml: #")
 if [ "$wiring_ok" -eq 1 ] && [ -z "$hits" ]; then
-  echo "PASS wiring: ci.yml runs the checks, each script of WEB_SCRIPTS, the lint and the unit tests, the build and each group, gated by the classifier's web and iris outputs"
+  echo "PASS wiring: ci.yml runs the checks, each script of WEB_SCRIPTS, the lint and the unit tests, gated by the classifier's web output, and the iris job asks the classifier for its group and runs the build and the group unless run is false"
 else
   printf '%s\n' "$hits" | head -n 10
   echo "FAIL wiring: ci.yml does not run what its jobs are for, or a sample is not flagged"
@@ -550,6 +588,14 @@ else
 fi
 
 # --- units ---
+
+# real_hits <rule> <function> <repository directory>: the function's violation lines for that tree, or one line saying that the
+# rule could not read it when the function fails (no ci/units.sh, or a set -u abort while sourcing it), so it never passes.
+real_hits() {
+  local out
+  out=$("$2" "$3") || out="ci/units.sh: the $1 rule could not read the tree ($out)"
+  printf '%s' "$out"
+}
 
 # units_violations <repository directory>: one line per violation of the unit rules in that tree.
 units_violations() {
@@ -646,7 +692,12 @@ if [ -n "$(units_violations "$tmp/u-helper")" ]; then
   echo "FAIL units: the rule flags a helper class with no test method"
   ok=0
 fi
-hits=$(units_violations "$root")
+mkdir -p "$tmp/u-unread/ci" && : > "$tmp/u-unread/ci/units.sh"
+if [ -z "$(real_hits units units_violations "$tmp/u-unread" 2>/dev/null)" ]; then
+  echo "FAIL units: a tree whose ci/units.sh cannot be read passes the rule"
+  ok=0
+fi
+hits=$(real_hits units units_violations "$root")
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
@@ -740,7 +791,7 @@ for pair in "d-two|live:demo-path is in 2 groups, wanted 1" "d-none|live:demo-pa
       ;;
   esac
 done
-hits=$(demo_path_violations "$root")
+hits=$(real_hits demo-path demo_path_violations "$root")
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
@@ -749,6 +800,278 @@ if [ "$ok" -eq 1 ]; then
   echo "PASS demo-path: live:demo-path is a unit of exactly one group, every browser unit is a live unit, and every script that runs Playwright is a browser unit"
 else
   echo "FAIL demo-path: the demo-path unit and the browser units"
+  fails=$((fails + 1))
+fi
+
+# --- groups: the six IRIS groups, the two install anchors and the demo-path first rule ---
+
+# groups_violations <repository directory>: one line per violation of the groups rule in that tree. The names and their order are
+# pinned; where a unit sits in a group other than the two anchors is not, so a rebalance of whole units needs no edit here.
+groups_violations() {
+  (
+    cd "$1" || exit 1
+    . ./ci/units.sh
+    set -- $IRIS_GROUPS
+    if [ "$*" != "install-fresh install-upgrade production browser shards image" ]; then
+      echo "ci/units.sh: IRIS_GROUPS is '$IRIS_GROUPS', wanted install-fresh, install-upgrade, production, browser, shards and image, in this order"
+    fi
+    if group_units install > /dev/null 2>&1; then
+      echo "ci/units.sh: group_units still has a case for the retired group install"
+    fi
+    for g in $(printf '%s\n' $IRIS_GROUPS | LC_ALL=C sort | uniq -d); do
+      echo "ci/units.sh: the group $g is listed twice in IRIS_GROUPS"
+    done
+    for g in $IRIS_GROUPS; do
+      set -- $(group_units "$g" 2>/dev/null)
+      if [ $# -eq 0 ]; then echo "ci/units.sh: the group $g has no unit"; fi
+    done
+    printf '%s\n' $(group_units install-fresh 2>/dev/null) | grep -qx -- live:install-start \
+      || echo "ci/units.sh: install-fresh does not hold live:install-start"
+    printf '%s\n' $(group_units install-upgrade 2>/dev/null) | grep -qx -- live:install-upgrade \
+      || echo "ci/units.sh: install-upgrade does not hold live:install-upgrade"
+    set -- $(group_units browser 2>/dev/null)
+    first=${1-}
+    if [ "$first" != live:demo-path ]; then
+      echo "ci/units.sh: the first unit of browser is '$first', wanted live:demo-path (AD-22)"
+    fi
+  )
+}
+
+mkgroups() { # mkgroups <dir> <IRIS_GROUPS> <install-fresh units> <install-upgrade units> <production units> <browser units> <extra case>: a tree with the good layout; the arguments break it
+  local d=$1
+  mkdir -p "$d/ci"
+  cat > "$d/ci/units.sh" <<EOU
+IRIS_GROUPS="${2:-install-fresh install-upgrade production browser shards image}"
+group_units() {
+  case \$1 in
+    install-fresh) echo "${3-live:install-start}" ;;
+    install-upgrade) echo "${4-live:install-upgrade live:audit}" ;;
+    production) echo "${5-live:production live:production-restart}" ;;
+    browser) echo "${6-live:demo-path live:sign-in}" ;;
+    shards) echo "shard:lane-a shard:lane-b" ;;
+    image) echo "live:storage-roundtrip" ;;
+    ${7-}
+    *) return 1 ;;
+  esac
+}
+EOU
+}
+mkgroups "$tmp/g-good"
+mkgroups "$tmp/g-old" "install production browser shards image"
+mkgroups "$tmp/g-dup" "install-fresh install-upgrade production browser shards image image"
+mkgroups "$tmp/g-order" "install-upgrade install-fresh production browser shards image"
+mkgroups "$tmp/g-stale" "" "live:install-start" "live:install-upgrade live:audit" "live:production live:production-restart" "live:demo-path live:sign-in" 'install) echo "live:install-start live:install-upgrade" ;;'
+mkgroups "$tmp/g-empty" "" "live:install-start" "live:install-upgrade live:audit" ""
+mkgroups "$tmp/g-blank" "" "live:install-start" "live:install-upgrade live:audit" " "
+mkgroups "$tmp/g-spaced" "" "live:install-start" "live:install-upgrade live:audit" "live:production" "  live:demo-path  live:sign-in"
+mkgroups "$tmp/g-moved" "" "live:install-start" "live:install-upgrade" "live:production live:production-restart live:audit" "live:demo-path live:sign-in live:bundle-folder"
+mkgroups "$tmp/g-near" "" "live:install-starter" "live:install-upgrade-old live:audit"
+mkgroups "$tmp/g-no-fresh" "" "live:sign-in"
+mkgroups "$tmp/g-no-upgrade" "" "live:install-start" "live:audit"
+mkgroups "$tmp/g-demo-second" "" "live:install-start" "live:install-upgrade live:audit" "live:production" "live:sign-in live:demo-path"
+
+ok=1
+# g-moved is a rebalance of whole units (live:audit moved to production, a unit added to browser after live:demo-path): the rule does
+# not pin where a unit sits beyond the two anchors and demo-path first, so a rebalance needs no edit here.
+for good in g-good g-moved g-spaced; do
+  if [ -n "$(groups_violations "$tmp/$good")" ]; then
+    echo "FAIL groups: the rule flags the good tree $good ($(groups_violations "$tmp/$good" | head -n 3 | tr '\n' ';'))"
+    ok=0
+  fi
+done
+# Each bad sample must draw its own violation, so that no other violation of the same sample can stand in for it.
+for pair in "g-old|IRIS_GROUPS is 'install production browser shards image', wanted" "g-dup|the group image is listed twice in IRIS_GROUPS" \
+  "g-order|IRIS_GROUPS is 'install-upgrade install-fresh production browser shards image', wanted" \
+  "g-stale|group_units still has a case for the retired group install" \
+  "g-empty|the group production has no unit" "g-blank|the group production has no unit" \
+  "g-no-fresh|install-fresh does not hold live:install-start" \
+  "g-no-upgrade|install-upgrade does not hold live:install-upgrade" \
+  "g-near|install-fresh does not hold live:install-start" "g-near|install-upgrade does not hold live:install-upgrade" \
+  "g-demo-second|the first unit of browser is 'live:sign-in', wanted live:demo-path (AD-22)"; do
+  s=${pair%%|*}
+  want=${pair#*|}
+  got=$(groups_violations "$tmp/$s")
+  case $got in
+    *"$want"*) ;;
+    *)
+      echo "FAIL groups: the sample $s does not draw '$want' (got: $(printf '%s' "$got" | head -n 3 | tr '\n' ';'))"
+      ok=0
+      ;;
+  esac
+done
+hits=$(real_hits groups groups_violations "$root")
+if [ -n "$hits" ]; then
+  printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+  ok=0
+fi
+if [ "$ok" -eq 1 ]; then
+  echo "PASS groups: IRIS_GROUPS is install-fresh, install-upgrade, production, browser, shards and image in this order, group_units has no case for install, every group has a unit, the two install groups hold their anchors, and live:demo-path is the first unit of browser"
+else
+  echo "FAIL groups: the six IRIS groups"
+  fails=$((fails + 1))
+fi
+
+# --- inputs: the input pattern of each IRIS group, and the units that do not check the web bundle (Story 32.2) ---
+
+# The names whose appearance in a code line of a live script shows that it reads, compares or serves the built web bundle, assembled
+# here so that this file never matches its own rule.
+bundle_markers="$tmp/bundle-markers"
+: > "$bundle_markers"
+for part in "cs:p" "ocutalon-:web" "npm --prefix :web" "live_web_:port" "check_:security" "index:.html" "ensure_web_:bundle" "LIVE_REBUILD_:WEB"; do
+  printf '%s%s\n' "${part%%:*}" "${part#*:}" >> "$bundle_markers"
+done
+
+# unit_reads <live script>: the repository files that a code line of the script names through $root or through the script's own
+# folder (the files it sources and the compose files it adds), one per line, as paths from the repository root. Only a name with an
+# extension counts, so that a folder is never taken for a file.
+unit_reads() {
+  grep -v '^[[:space:]]*#' "$1" | grep -oE '[$][{]?root[}]?/[A-Za-z0-9_./-]+|[$][(]dirname "[$]0"[)]/[A-Za-z0-9_][A-Za-z0-9_.-]*' \
+    | sed -e 's#^[$][{]*root[}]*/##' -e 's#^[$](dirname "[$]0")/#docker/tests/#' | grep -E '[.][A-Za-z0-9]+$' | sort -u
+}
+
+# inputs_violations <repository directory>: one line per violation of the inputs rule in that tree.
+inputs_violations() {
+  (
+    cd "$1" || exit 1
+    . ./ci/units.sh
+    all_units=""
+    for g in $IRIS_GROUPS; do all_units="$all_units $(group_units "$g")"; done
+    for u in ${NO_WEB_BUNDLE_UNITS:-}; do
+      printf '%s\n' $all_units | grep -qx -- "$u" || echo "ci/units.sh: NO_WEB_BUNDLE_UNITS names $u, which is a unit of no group"
+      case $u in
+        live:*)
+          f="docker/tests/test-${u#live:}.sh"
+          if [ -f "$f" ] && grep -v '^[[:space:]]*#' "$f" | grep -qF -f "$bundle_markers"; then
+            echo "$f: it names the web bundle, but $u is in NO_WEB_BUNDLE_UNITS"
+          fi
+          ;;
+      esac
+    done
+    for g in $IRIS_GROUPS; do
+      if ! p=$(group_input_pattern "$g" 2>/dev/null); then
+        echo "ci/units.sh: group_input_pattern $g fails"
+      elif [ -z "$p" ]; then
+        echo "ci/units.sh: group_input_pattern $g prints nothing"
+      else
+        for path in ci/units.sh .github/workflows/ci.yml src/x; do
+          printf '%s\n' "$path" | grep -Eq -- "$p" || echo "ci/units.sh: group_input_pattern $g does not match $path"
+        done
+        # A file that a live script of the group sources or adds is an input of the group: its pattern must claim it.
+        for u in $(group_units "$g"); do
+          case $u in
+            live:*)
+              f="docker/tests/test-${u#live:}.sh"
+              [ -f "$f" ] || continue
+              for rel in $(unit_reads "$f"); do
+                printf '%s\n' "$rel" | grep -Eq -- "$p" || echo "$f: it reads $rel, which the input pattern of group $g does not claim"
+              done
+              ;;
+          esac
+        done
+      fi
+    done
+    if p=$(group_input_pattern nosuch-group 2>/dev/null) || [ -n "${p:-}" ]; then
+      echo "ci/units.sh: group_input_pattern answers for the unknown group nosuch-group"
+    fi
+  )
+}
+
+# mkinputs <dir> [<shell text appended to ci/units.sh>]: the real ci/units.sh below <dir>, and a stub script for each live unit whose
+# only mention of the web bundle is in a comment. The appended text redefines what a sample breaks.
+mkinputs() {
+  local d=$1 u
+  mkdir -p "$d/ci" "$d/docker/tests"
+  cp ci/units.sh "$d/ci/units.sh"
+  if [ -n "${2:-}" ]; then printf '\n%s\n' "$2" >> "$d/ci/units.sh"; fi
+  for u in $(. ./ci/units.sh && for g in $IRIS_GROUPS; do group_units "$g"; done); do
+    case $u in
+      live:*) printf '#!/usr/bin/env bash\n# it does not use %s\n:\n' "$(tr '\n' ' ' < "$bundle_markers")" > "$d/docker/tests/test-${u#live:}.sh" ;;
+    esac
+  done
+}
+# script_line <dir> <unit name> <text>: the unit's script gets that line.
+script_line() { printf '%s\n' "$3" >> "$1/docker/tests/test-$2.sh"; }
+# bundle_script <dir> <unit name>: the unit's script gets a code line that names the web bundle.
+bundle_script() { printf '%s\n' "$(sed -n 1p "$bundle_markers")" >> "$1/docker/tests/test-$2.sh"; }
+
+mkinputs "$tmp/i-good"
+mkinputs "$tmp/i-comment-only" 'NO_WEB_BUNDLE_UNITS="$NO_WEB_BUNDLE_UNITS live:install-start live:sign-in"'
+mkinputs "$tmp/i-listed-install-start" 'NO_WEB_BUNDLE_UNITS="$NO_WEB_BUNDLE_UNITS live:install-start"'; bundle_script "$tmp/i-listed-install-start" install-start
+mkinputs "$tmp/i-listed-sign-in" 'NO_WEB_BUNDLE_UNITS="$NO_WEB_BUNDLE_UNITS live:sign-in"'; bundle_script "$tmp/i-listed-sign-in" sign-in
+mkinputs "$tmp/i-unknown-unit" 'NO_WEB_BUNDLE_UNITS="$NO_WEB_BUNDLE_UNITS live:nosuch-unit"'
+mkinputs "$tmp/i-fn-fails" 'group_input_pattern() { return 1; }'
+mkinputs "$tmp/i-fn-empty" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; }'
+mkinputs "$tmp/i-fn-narrow" 'group_input_pattern() { group_units "$1" > /dev/null || return 1; echo "^(ci/|\.github/workflows/ci\.yml\$)"; }'
+mkinputs "$tmp/i-fn-any" 'group_input_pattern() { echo "^(src/|ci/|\.github/workflows/ci\.yml\$)"; }'
+# A live script reads the files its group claims (a comment may name any): clean. A file that its group does not claim is not.
+mkinputs "$tmp/i-reads-claimed"
+script_line "$tmp/i-reads-claimed" install-start 'live_add_file "$root/docker-compose.dev.yml"'
+script_line "$tmp/i-reads-claimed" install-start '. "$(dirname "$0")/lib-scan.sh"'
+script_line "$tmp/i-reads-claimed" compose-start 'live_add_file "${root}/docker/tests/compose.no-after-start.yml"'
+mkinputs "$tmp/i-reads-comment"
+script_line "$tmp/i-reads-comment" production '# live_add_file "$root/docker/tests/extra/compose.x.yml"'
+script_line "$tmp/i-reads-comment" demo-path '  # . "$(dirname "$0")/helper.sh"'
+script_line "$tmp/i-reads-comment" sign-in 'cd "$root/web"'
+mkinputs "$tmp/i-reads-compose"
+script_line "$tmp/i-reads-compose" production 'live_add_file "$root/docker/tests/extra/compose.x.yml"'
+mkinputs "$tmp/i-reads-helper"
+script_line "$tmp/i-reads-helper" demo-path '. "$(dirname "$0")/helper.sh"'
+mkdir -p "$tmp/i-unread/ci" && : > "$tmp/i-unread/ci/units.sh"
+
+ok=1
+# The comment-only tree lists two units whose scripts name the bundle only in a comment: it stays clean.
+for good in i-good i-comment-only i-reads-claimed i-reads-comment; do
+  if [ -n "$(inputs_violations "$tmp/$good")" ]; then
+    echo "FAIL inputs: the rule flags the good tree $good ($(inputs_violations "$tmp/$good" | head -n 3 | tr '\n' ';'))"
+    ok=0
+  fi
+done
+# Each bad sample must draw its own violation, so that no other violation of the same sample can stand in for it.
+for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names the web bundle, but live:install-start is in NO_WEB_BUNDLE_UNITS" \
+  "i-listed-sign-in|docker/tests/test-sign-in.sh: it names the web bundle, but live:sign-in is in NO_WEB_BUNDLE_UNITS" \
+  "i-unknown-unit|NO_WEB_BUNDLE_UNITS names live:nosuch-unit, which is a unit of no group" \
+  "i-fn-fails|group_input_pattern production fails" "i-fn-empty|group_input_pattern production prints nothing" \
+  "i-fn-narrow|group_input_pattern production does not match src/x" "i-fn-any|group_input_pattern answers for the unknown group nosuch-group" \
+  "i-reads-compose|docker/tests/test-production.sh: it reads docker/tests/extra/compose.x.yml, which the input pattern of group production does not claim" \
+  "i-reads-helper|docker/tests/test-demo-path.sh: it reads docker/tests/helper.sh, which the input pattern of group browser does not claim"; do
+  s=${pair%%|*}
+  want=${pair#*|}
+  got=$(inputs_violations "$tmp/$s")
+  case $got in
+    *"$want"*) ;;
+    *)
+      echo "FAIL inputs: the sample $s does not draw '$want' (got: $(printf '%s' "$got" | head -n 3 | tr '\n' ';'))"
+      ok=0
+      ;;
+  esac
+done
+# Every marker must by itself list a unit that is in NO_WEB_BUNDLE_UNITS as a unit that names the web bundle (audit is one).
+nmark=0
+while IFS= read -r marker; do
+  nmark=$((nmark + 1))
+  mkinputs "$tmp/i-marker-$nmark"
+  script_line "$tmp/i-marker-$nmark" audit "echo $marker"
+  case $(inputs_violations "$tmp/i-marker-$nmark") in
+    *"docker/tests/test-audit.sh: it names the web bundle, but live:audit is in NO_WEB_BUNDLE_UNITS"*) ;;
+    *)
+      echo "FAIL inputs: a code line that holds the marker number $nmark of the web bundle is not flagged"
+      ok=0
+      ;;
+  esac
+done < "$bundle_markers"
+if [ -z "$(real_hits inputs inputs_violations "$tmp/i-unread" 2>/dev/null)" ]; then
+  echo "FAIL inputs: a tree whose ci/units.sh cannot be read passes the rule"
+  ok=0
+fi
+hits=$(real_hits inputs inputs_violations "$root")
+if [ -n "$hits" ]; then
+  printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+  ok=0
+fi
+if [ "$ok" -eq 1 ]; then
+  echo "PASS inputs: every unit that is not checked against the web bundle is a unit of a group and names no bundle input in a code line, and each group has an input pattern that claims ci/units.sh, the workflow, src/ and every file that its live scripts source or add"
+else
+  echo "FAIL inputs: the input patterns of the IRIS groups and NO_WEB_BUNDLE_UNITS"
   fails=$((fails + 1))
 fi
 
@@ -813,6 +1136,9 @@ fi
 
 # --- the recipe's refusals and its web port ---
 
+# iris_env <env assignments...> <command...>: the command with no run tag, web port, runner name or warm mode from the caller's environment.
+iris_env() { env -u OCUTALON_RUN_TAG -u OCUTALON_TEST_WEB_PORT -u RUNNER_NAME -u OCUTALON_WARM "$@"; }
+
 # recipe <expected exit> <expected text or -> <env assignments...> -- <ci/iris.sh arguments...>
 recipe_fail=""
 recipe() {
@@ -821,7 +1147,7 @@ recipe() {
   local envs=()
   while [ "$1" != -- ]; do envs+=("$1"); shift; done
   shift
-  out=$(env -u OCUTALON_RUN_TAG -u OCUTALON_TEST_WEB_PORT -u RUNNER_NAME ${envs[@]+"${envs[@]}"} bash ci/iris.sh "$@" 2>&1)
+  out=$(iris_env ${envs[@]+"${envs[@]}"} bash ci/iris.sh "$@" 2>&1)
   rc=$?
   if [ "$rc" -ne "$want" ] || { [ "$text" != - ] && ! printf '%s\n' "$out" | grep -q -- "$text"; }; then
     recipe_fail="$recipe_fail [ci/iris.sh $* -> exit $rc, wanted exit $want with '$text']"
@@ -837,17 +1163,175 @@ recipe 2 "unknown test class" -- class OcuTalon.Test.Install.User.
 recipe 2 "unknown test class" -- class '.*'
 recipe 2 "unknown live unit" -- live nosuch
 recipe 2 "unknown group" -- group nosuch
-recipe 2 - -- nosuchcommand
+recipe 2 "Needs bash 3.2 or later" -- nosuchcommand
 recipe 1 "base image" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- build
-recipe 0 "52811" RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "52812" RUNNER_NAME=ocutalon-ci-2 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "auto" RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "auto" RUNNER_NAME=somerunner OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "auto" OCUTALON_RUN_TAG=abc-1 -- port
-recipe 0 "52805" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
-recipe 1 "PORT the web port of the browser units: 52812" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
-recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
-recipe 1 "PORT the web port of the browser units: auto" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
+recipe 0 "^52811$" RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52812$" RUNNER_NAME=ocutalon-ci-2 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52819$" RUNNER_NAME=ocutalon-ci-9 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52809$" RUNNER_NAME=ocutalon-ci-10 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52807$" RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52805$" RUNNER_NAME=ocutalon-ci-14 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52800$" RUNNER_NAME=ocutalon-ci-19 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52807$" RUNNER_NAME=ocutalon-ci-012 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52818$" RUNNER_NAME=ocutalon-ci-08 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52800$" RUNNER_NAME=ocutalon-ci-019 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52810$" RUNNER_NAME=ocutalon-ci-0 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-20 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-114 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-x OCUTALON_RUN_TAG=abc-1 -- port
+# QA (Story 32.3): a number followed by a letter, a trailing hyphen with no number, and a leading-zero 20 are no runner number (the
+# digits are not cut out of the suffix; 0020 is 20 in base 10, 16 in octal).
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-12b OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-1a OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci- OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=ocutalon-ci-0020 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" RUNNER_NAME=somerunner OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^auto$" OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52805$" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-1 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52805$" OCUTALON_TEST_WEB_PORT=52805 RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
+# QA (Story 32.3): a set OCUTALON_TEST_WEB_PORT wins whatever the runner is: one of each branch (0, 1, 9, 10, 12, 19), a number of 20 or
+# more, a number with a letter after it, a name with no number, an empty RUNNER_NAME and none at all. 52803 is the fixed port of none of
+# them, so a runner that kept its own port would show. A set but empty OCUTALON_TEST_WEB_PORT counts as unset, as it does for live_web_port.
+for override_runner in ocutalon-ci-0 ocutalon-ci-1 ocutalon-ci-9 ocutalon-ci-10 ocutalon-ci-12 ocutalon-ci-19 ocutalon-ci-20 ocutalon-ci-12b somerunner ""; do
+  recipe 0 "^52803$" OCUTALON_TEST_WEB_PORT=52803 RUNNER_NAME="$override_runner" OCUTALON_RUN_TAG=abc-1 -- port
+done
+recipe 0 "^52803$" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 0 "^52807$" OCUTALON_TEST_WEB_PORT= RUNNER_NAME=ocutalon-ci-12 OCUTALON_RUN_TAG=abc-1 -- port
+recipe 1 "PORT the web port of the browser units: 52812$" RUNNER_NAME=ocutalon-ci-2 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: 52807$" RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "^FAIL the base image ocutalon-no-such-image:0 is not on this machine" RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: 52803$" OCUTALON_TEST_WEB_PORT=52803 RUNNER_NAME=ocutalon-ci-12 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" RUNNER_NAME=ocutalon-ci-20 IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live sign-in
+recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
+# The runners of one host share its 127.0.0.1 (DW-49), so the 19 runners 1 to 19 must get 19 distinct ports, each one that live_web_port
+# accepts: within 52800-52819 and not in LIVE_FORBIDDEN_PORTS (read from a sourced ci/iris.sh, which defines functions and runs nothing).
+forbidden_ports=$(unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM; . ci/iris.sh; printf '%s' "$LIVE_FORBIDDEN_PORTS")
+if [ -z "$forbidden_ports" ]; then
+  recipe_fail="$recipe_fail [LIVE_FORBIDDEN_PORTS could not be read from a sourced ci/iris.sh]"
+fi
+seen_ports=" "
+runner_n=1
+while [ "$runner_n" -le 19 ]; do
+  runner_port=$(iris_env RUNNER_NAME="ocutalon-ci-$runner_n" OCUTALON_RUN_TAG=abc-1 bash ci/iris.sh port 2>&1)
+  case $runner_port in
+    5280[0-9] | 5281[0-9]) ;;
+    *) recipe_fail="$recipe_fail [runner $runner_n: port '$runner_port' is not within 52800-52819]" ;;
+  esac
+  case $seen_ports in
+    *" $runner_port "*) recipe_fail="$recipe_fail [runner $runner_n: port '$runner_port' repeats an earlier runner's]" ;;
+  esac
+  case " $forbidden_ports " in
+    *" $runner_port "*) recipe_fail="$recipe_fail [runner $runner_n: port '$runner_port' is in LIVE_FORBIDDEN_PORTS]" ;;
+  esac
+  seen_ports="$seen_ports$runner_port "
+  runner_n=$((runner_n + 1))
+done
+# QA (Story 32.3; DW-49): the same ports through the real live_web_port, which a browser unit calls after setup_tag. A subshell sources
+# ci/iris.sh (it defines functions and runs nothing), replaces port_in_use by a list of held ports (nothing listens and nothing is
+# bound), and for each case runs setup_tag and then live_web_port. The expected fixed port is the spec's mapping, written out here:
+# 52810 + n for n from 0 to 9, 52819 - n for n from 10 to 19.
+#   - the fixed port of every runner 0 to 19 is accepted as it is, so live_web_port's range holds all twenty, and a child process
+#     sees it, because ci/iris.sh live starts the browser unit's script as one; a probing runner's child sees no port;
+#   - a fixed port that something already holds fails "in use" and takes no other port (a runner of the same host, or a probing runner
+#     that got there first, ends its unit and does not move to a free port);
+#   - a probing runner (no RUNNER_NAME, a name with no number or a non-digit suffix, a number of 20 or more) takes 52800, the first
+#     port of the range, as a developer machine does today;
+#   - that first pick, 52800, is the fixed port of runner 19 alone: runners 1 to 18 never meet it. This is the limit of the design (the
+#     header of ci/iris.sh): a probing runner on a host that also ran a runner 19 could meet it, and no such service exists (today's are 3
+#     to 14). The race itself (a probe does not bind the port) cannot be shown without a stack.
+live_port_checks() {
+  (
+    unset OCUTALON_TEST_WEB_PORT
+    . ci/iris.sh
+    OCUTALON_RUN_TAG=abc-1
+    tmp="$tmp/live-port"
+    mkdir -p "$tmp"
+    held=""
+    port_in_use() { [[ " $held " == *" $1 "* ]]; }
+    # try <runner name> <held ports>: setup_tag, then live_web_port. Sets try_rc, try_port (web_port), try_msg (its first line) and
+    # try_child (the port that a child process sees, as the browser unit's own script does). setup_tag leaves a global n behind, so the
+    # loops below count with idx.
+    try() {
+      RUNNER_NAME=$1
+      held=$2
+      unset OCUTALON_TEST_WEB_PORT
+      LIVE_FILES=()
+      web_port=""
+      setup_tag
+      try_child=$(bash -c 'printf %s "${OCUTALON_TEST_WEB_PORT-}"')
+      live_web_port > "$tmp/out" 2>&1
+      try_rc=$?
+      try_port=$web_port
+      try_msg=$(head -n 1 "$tmp/out")
+    }
+    try "" ""
+    prober_first=$try_port
+    if [ "$try_rc" -ne 0 ] || [ "$prober_first" != 52800 ]; then
+      printf ' [no runner: live_web_port gave exit %s and port %s, wanted exit 0 and 52800]' "$try_rc" "${prober_first:-none}"
+    fi
+    if [ -n "$try_child" ]; then
+      printf ' [no runner: a child process sees port %s, wanted none]' "$try_child"
+    fi
+    for prober in somerunner ocutalon-ci-x ocutalon-ci-12b ocutalon-ci- ocutalon-ci-20 ocutalon-ci-114 ocutalon-ci-0020; do
+      try "$prober" ""
+      if [ "$try_rc" -ne 0 ] || [ "$try_port" != 52800 ]; then
+        printf ' [%s: live_web_port gave exit %s and port %s, wanted exit 0 and 52800]' "$prober" "$try_rc" "${try_port:-none}"
+      fi
+      if [ -n "$try_child" ]; then
+        printf ' [%s: a child process sees port %s, wanted none]' "$prober" "$try_child"
+      fi
+    done
+    idx=0
+    while [ "$idx" -le 19 ]; do
+      if [ "$idx" -le 9 ]; then want=$((52810 + idx)); else want=$((52819 - idx)); fi
+      try "ocutalon-ci-$idx" ""
+      if [ "$try_rc" -ne 0 ] || [ "$try_port" != "$want" ]; then
+        printf ' [runner %s: live_web_port gave exit %s and port %s, wanted exit 0 and %s: %s]' "$idx" "$try_rc" "${try_port:-none}" "$want" "$try_msg"
+      fi
+      if [ "$try_child" != "$want" ]; then
+        printf ' [runner %s: a child process sees port %s, wanted %s: setup_tag does not export it]' "$idx" "${try_child:-none}" "$want"
+      fi
+      if [ "$idx" -ge 1 ] && [ "$idx" -le 18 ] && [ "$try_port" = "$prober_first" ]; then
+        printf ' [runner %s: its port %s is the first port that a probing runner takes]' "$idx" "$try_port"
+      fi
+      try "ocutalon-ci-$idx" "$want"
+      if [ "$try_rc" -ne 1 ] || [ -n "$try_port" ] || ! printf '%s\n' "$try_msg" | grep -q 'in use'; then
+        printf ' [runner %s: with port %s held, live_web_port gave exit %s and port %s, wanted exit 1, no port and an in use message: %s]' \
+          "$idx" "$want" "$try_rc" "${try_port:-none}" "$try_msg"
+      fi
+      idx=$((idx + 1))
+    done
+    printf ' [live-port-done]'
+  )
+}
+live_port_out=$(live_port_checks)
+case $live_port_out in
+  *'[live-port-done]') recipe_fail="$recipe_fail${live_port_out%' [live-port-done]'}" ;;
+  *) recipe_fail="$recipe_fail [the checks through live_web_port did not run to their end: $(printf '%s' "$live_port_out" | tr -d '[]' | head -c 300)]" ;;
+esac
+# The six groups through the command line (Story 32.1). `groups` prints the names in order. `list` shows the install groups with their
+# anchor units, and no more than that is pinned (a rebalance of whole units needs no edit). The retired name install is refused with
+# exit 2 and the new list; it runs with a base image that does not exist, so that a stale `install` case of group_units would end at
+# the preflight (exit 1, red) and never start a stack. For every group, the tag of its CI job (<run id>-<attempt>-<group>, as in
+# ci.yml) is a valid run tag, and `group <name>` knows the name: with that tag and the missing base image it ends at the preflight
+# with exit 1, where an unknown group or a refused tag would give exit 2.
+cli_groups=$(bash ci/iris.sh groups 2>&1 | tr '\n' ' ')
+if [ "$cli_groups" != "install-fresh install-upgrade production browser shards image " ]; then
+  recipe_fail="$recipe_fail [ci/iris.sh groups printed '$cli_groups']"
+fi
+cli_list=$(bash ci/iris.sh list 2>&1)
+printf '%s\n' "$cli_list" | grep -Eq -- '^group install-fresh: (.* )?live:install-start( |$)' \
+  || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-fresh line with live:install-start]"
+printf '%s\n' "$cli_list" | grep -Eq -- '^group install-upgrade: (.* )?live:install-upgrade( |$)' \
+  || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-upgrade line with live:install-upgrade]"
+recipe 2 "^unknown group 'install'; groups: install-fresh install-upgrade production browser shards image$" \
+  IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- group install
+for cli_group in $(bash ci/iris.sh groups); do
+  recipe 0 "auto" OCUTALON_RUN_TAG="39594299887-1-$cli_group" -- port
+  recipe 1 "the base image" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG="39594299887-1-$cli_group" -- group "$cli_group"
+done
+
 # A browser unit installs Chromium before its script runs. A stub docker lets the preflight pass (it answers every `image inspect`,
 # the base image's and the mock image's, so nothing is pulled), and a stub npx that records its arguments and fails ends the run
 # before the unit's script starts.
@@ -863,10 +1347,10 @@ for browser_unit in $(. ./ci/units.sh && printf '%s' "$BROWSER_UNITS"); do
   fi
 done
 if [ -z "$recipe_fail" ]; then
-  echo "PASS recipe: bad tags, units and a missing base image are refused, and the web port follows the runner's number"
+  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number (the ports of runners 1 to 19 are distinct and exported, and live_web_port takes each one), and the six groups answer groups, list and group (the retired install is refused) under their CI tags"
 else
   printf '%s\n' "$recipe_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
-  echo "FAIL recipe: ci/iris.sh does not refuse, or does not choose the port, as designed"
+  echo "FAIL recipe: ci/iris.sh does not refuse, does not choose the port, or does not answer for the six groups, as designed"
   fails=$((fails + 1))
 fi
 
@@ -884,7 +1368,7 @@ preflight_run() {
   pf_calls=$tmp/pf-calls
   : > "$pf_calls"
   (
-    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME IRIS_IMAGE
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM IRIS_IMAGE
     . ci/iris.sh
     OCUTALON_PULL_PAUSE=$pause
     docker() {
@@ -1042,7 +1526,7 @@ fi
 # shard_order <arguments of cmd_shard...>: the title and the classes that cmd_shard hands to run_classes, which is a stub.
 shard_order() {
   (
-    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM
     . ci/iris.sh
     run_classes() { shift; printf '%s\n' "TITLE $1"; shift; printf '%s\n' "$@"; }
     cmd_shard "$@"
@@ -1063,53 +1547,94 @@ fi
 
 # --- ci/iris.sh teardown: it removes what carries its tag, and nothing else ---
 
-# The fixtures: two projects of the tag abc-7; and another tag, a tag that extends this one, a slot, a name outside ocutalon- and the
-# preloaded base image, none of which may be touched. `docker` is a stub that answers the listings and records each removal.
+# The fixtures: two projects of the tag abc-7, and the warm stack of that tag (what a killed stage leaves behind); and another tag, a tag
+# that extends this one, the same tag with a w after it (the warm tag of a stage whose fresh tag is abc-7, so that the teardown of the
+# fresh tag never reaches the warm stack), another tag's warm stack, a slot, a name outside ocutalon- and the preloaded base image,
+# none of which may be touched. `docker` is a stub that answers the listings and records each removal. The lane
+# has a lock folder of its own, with a warm-iris.lock that names the project given to teardown_fixture (none when it is empty), and a
+# temporary folder of its own with the warm state folders of the tag, of another tag and of the tag abc-7-1.
 mine1=ocutalon-shard-lane-a-abc-7-1792446641-23730
 mine2=ocutalon-class-abc-7-1792446700-111
+mine3=ocutalon-warm-abc-7-1792446641-23730
 others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792446641-23730 ocutalon-slot-abc-7-1792446641-23730 other-abc-7-1792446641-23730"
-(
-  OCUTALON_RUN_TAG=abc-7
-  . ci/iris.sh
-  calls="$tmp/teardown-calls"
-  : > "$calls"
-  : > "$tmp/teardown-compose-args"
-  docker() {
-    case "$1" in
-      ps)
-        case "$*" in
-          *label=*) printf '%s\n' $mine1 $mine2 $others ;;
-          *) for n in $mine1 $mine2 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
-        esac
-        ;;
-      volume) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_durable\n' "$n"; done; else echo "volume $4" >> "$calls"; fi ;;
-      network) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_default\n' "$n"; done; else echo "network $3" >> "$calls"; fi ;;
-      image)
-        if [ "$2" = ls ]; then
-          for n in $mine1 $others; do printf '%s-iris:latest\n' "$n"; done
-          printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0 node:24.15.0-slim
-        else echo "image $4" >> "$calls"; fi
-        ;;
-      compose) echo "compose $3" >> "$calls"; echo "$*" >> "$tmp/teardown-compose-args" ;;
-      rm) echo "rm $4" >> "$calls" ;;
-    esac
-  }
-  cmd_teardown > /dev/null
-  sort "$calls"
-) > "$tmp/teardown-removed"
+others="$others ocutalon-warm-abc-7w-1792446641-23730 ocutalon-warm-abd-7-1792446641-23730"
+teardown_fixture() { # teardown_fixture <project that the warm lock names>: the sorted calls in $tmp/teardown-removed, the output in $tmp/teardown-out
+  rm -rf "$tmp/teardown-locks" "$tmp/teardown-tmp"
+  mkdir -p "$tmp/teardown-locks" "$tmp/teardown-tmp/ocutalon-warm-abc-7" "$tmp/teardown-tmp/ocutalon-warm-abd-7" "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" \
+    "$tmp/teardown-tmp/ocutalon-warm-abc-7w"
+  if [ -n "$1" ]; then printf 'epic=0 stage=qa project=%s acquired_at=2026-10-23T00:00:00Z\n' "$1" > "$tmp/teardown-locks/warm-iris.lock"; fi
+  (
+    OCUTALON_RUN_TAG=abc-7
+    OCUTALON_LOCK_DIR="$tmp/teardown-locks"
+    TMPDIR="$tmp/teardown-tmp"
+    . ci/iris.sh
+    calls="$tmp/teardown-calls"
+    : > "$calls"
+    : > "$tmp/teardown-compose-args"
+    docker() {
+      case "$1" in
+        ps)
+          case "$*" in
+            *label=*) printf '%s\n' $mine1 $mine2 $mine3 $others ;;
+            *) for n in $mine1 $mine2 $mine3 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
+          esac
+          ;;
+        volume) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_durable\n' "$n"; done; else echo "volume $4" >> "$calls"; fi ;;
+        network) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_default\n' "$n"; done; else echo "network $3" >> "$calls"; fi ;;
+        image)
+          if [ "$2" = ls ]; then
+            for n in $mine1 $others; do printf '%s-iris:latest\n' "$n"; done
+            printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0 node:24.15.0-slim
+          else echo "image $4" >> "$calls"; fi
+          ;;
+        compose) echo "compose $3" >> "$calls"; echo "$*" >> "$tmp/teardown-compose-args" ;;
+        rm) echo "rm $4" >> "$calls" ;;
+      esac
+    }
+    cmd_teardown > "$tmp/teardown-out"
+    sort "$calls"
+  ) > "$tmp/teardown-removed"
+}
+# The warm stack of the tag goes with the rest (an orphan), and its lock is released; the stack and the lock of another tag, of a tag that
+# extends this one (abc-7-1) and of the tag with a w after it (abc-7w) are kept.
+teardown_fixture $mine3
 removed=$(cat "$tmp/teardown-removed")
-want=$(printf '%s\n' "compose $mine1" "compose $mine2" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "volume ${mine1}_durable" | sort)
-if [ "$removed" = "$want" ]; then
-  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image"
+lock_ok=1
+lock_note=""
+if [ -e "$tmp/teardown-locks/warm-iris.lock" ] || ! grep -qx 'LOCK released warm-iris project=ocutalon-warm-abc-7-1792446641-23730' "$tmp/teardown-out" \
+  || [ "$(tail -n 1 "$tmp/teardown-out" | cut -c 1-16)" != "TEARDOWN tag abc" ]; then
+  lock_ok=0
+  lock_note="$lock_note [the warm lock of the tag was not released, or TEARDOWN is not the last line]"
+fi
+if [ -e "$tmp/teardown-tmp/ocutalon-warm-abc-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abd-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" ] \
+  || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7w" ]; then
+  lock_ok=0
+  lock_note="$lock_note [the warm state folder of the tag was kept, or the folder of another tag, of the tag abc-7-1 or of the tag abc-7w was removed]"
+fi
+for other_lock in ocutalon-warm-abd-7-1792446641-23730 ocutalon-warm-abc-7-1-1792446641-23730 ocutalon-warm-abc-7w-1792446641-23730; do
+  teardown_fixture "$other_lock"
+  if [ ! -e "$tmp/teardown-locks/warm-iris.lock" ] || grep -q '^LOCK released' "$tmp/teardown-out"; then
+    lock_ok=0
+    lock_note="$lock_note [the warm lock of $other_lock was released]"
+  fi
+done
+teardown_fixture ""
+if grep -q '^LOCK released' "$tmp/teardown-out"; then
+  lock_ok=0
+  lock_note="$lock_note [a LOCK released line with no warm lock]"
+fi
+want=$(printf '%s\n' "compose $mine1" "compose $mine2" "compose $mine3" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "rm $mine3-iris-1" "volume ${mine1}_durable" | sort)
+if [ "$removed" = "$want" ] && [ "$lock_ok" -eq 1 ]; then
+  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image, and also the warm stack of its tag (an orphan), releases the lane's warm-iris.lock and removes the warm state folder of its tag only (not another tag's, nor the tag abc-7-1's, nor the tag abc-7w's)"
 else
-  echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'"
+  echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'$lock_note"
   fails=$((fails + 1))
 fi
 
 # Each project comes down with the CI override among its files and with `down -v --rmi local --remove-orphans`: the volumes and
 # the images built for the project go, and a pulled public image such as the mock's stays.
 down_ok=1
-[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 2 ] || down_ok=0
+[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 3 ] || down_ok=0
 while IFS= read -r line; do
   case $line in *" -f "*"/ci/compose.ci.yml down -v --rmi local --remove-orphans") ;; *) down_ok=0 ;; esac
 done < "$tmp/teardown-compose-args"
