@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: release 1 (0.1.0), the 1.0.0 kit, and build steps 2 to 7'
 status: final
 created: '2026-10-16'
-updated: '2026-10-23'
+updated: '2026-10-24'
 binds: [FR-1..FR-62, NFR-1..NFR-26, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -909,6 +909,7 @@ How OcuTalon uses each AI Hub capability on build 154. **As is** means used unch
 | Agent step labels | A tool's readable step label is a class parameter of its tool class: `STEPLABEL<NAME>` (the tool's name in upper case) for one tool of a class that holds several, else `STEPLABEL` for the class, else the bridge's generic `Running a tool`; a label never holds the tool's arguments or model text (AD-9) [ADDED 2026-10-22, Story 1.5 spec gate, unattended ruling] |
 | Tool classification | A built-in tool declares its classification as class parameters of its tool class, by the naming rule of the step labels: `CLASSIFICATION<NAME>` (`safe` or `risky`), `READONLY<NAME>` and `TRUSTEDOUTPUT<NAME>` (1 or 0) for one tool of a class that holds several, else the same names without `<NAME>` for the class; the gate (AD-10) reads them, and an undeclared tool is unclassified [ADDED 2026-10-23, Story 1.10 spec gate, unattended ruling] |
 | Saved conversations | The runner saves a user's linked AI session (AD-6) only after a `Chat` that completed and whose context is not tainted (AD-10), late or not; a tainted turn is never saved, so a tool result from an untrusted source never reaches a stored conversation history, and the next turn starts from the last untainted state [ADDED 2026-10-23, Story 1.8 spec gate, unattended ruling (orchestrator, veto U-37)] |
+| Status marks | `OcuTalon.Data.StatusMark` rows (AD-18) are written only through `StatusMark.Record(mark, value)` and read through `Get(mark)`; a single mark has a camelCase name (`heartbeatTick`, `telegramPaused`, `demoKept`), and a family of rows shares a camelCase prefix ending in a dot followed by a UTC time (`heartbeatGap.<start>`, whose value is a JSON object with `start`, `end` and `missed`, the whole clock minutes with no tick). `HeartbeatIn` records one gap row per outage of more than one clock minute, kept like every other mark (no purge), and the step-2 digest reads them through `OcuTalon.Schedule.Heartbeat.Gaps(from, to)`; the heartbeat task sets `RescheduleOnStart` 1, so a start never replays the runs it missed [ADDED 2026-10-24, Story 8.1 spec gate, unattended ruling (veto U-53)] |
 | Logging and errors | `$$$LOGINFO`/`$$$LOGWARNING`/`$$$LOGERROR` in hosts, `$$$TRACE` for detail, nothing secret; `%Status` throughout, `$$$ThrowOnError` inside methods, plain English only at the channel edge |
 | Settings | Bridge values from host settings and bridge tables; product values through `OcuTalon.Data.Setting.Get`; never read globals directly |
 | Python | `.py` resources under `src/ocutalon/python/`, imported with `%SYS.Python.Import`, never `[Language = python]` methods |
