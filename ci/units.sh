@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm bridge-example"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"

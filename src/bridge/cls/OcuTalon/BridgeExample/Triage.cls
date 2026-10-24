@@ -65,7 +65,7 @@ ClassMethod SummaryOf(item As OcuTalon.BridgeExample.Msg.Item) As %String
 			}
 		}
 	}
-	Set text = $Extract(text, 1, 400)
+	Set text = $Extract($ZStrip(text, "<WC"), 1, 400)
 	Set line = ""
 	For i = 1:1:$Length(text) {
 		Set char = $Extract(text, i)

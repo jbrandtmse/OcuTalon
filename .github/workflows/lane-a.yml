@@ -26,11 +26,11 @@ jobs:
   standalone-bridge:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, ocutalon]
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-bridge
-      OCUTALON_LIVE_DEADLINE: "900"
+      OCUTALON_LIVE_DEADLINE: "1200"
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

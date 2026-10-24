@@ -641,3 +641,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-13-1-the-example-production-makes-its-own-decision-through-the-br.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: lint_spine.py on the base tree (fb66ec9) and after Story 13.1 gives the same four findings; Story 13.1's two AD-33 rows add none
 - 2026-10-24T22:03:43Z status=wontfix-accepted owner=13-1-the-example-production-makes-its-own-decision-through-the-br by=harvest note=reopen_if=lint_spine.py reports a placeholder, ad_id or ad_fields finding other than these four tokens, or a gate starts requiring ok:true; fixing them means editing AD text (amendment), out of Epic 13's footprint
+
+### DW-181: The example's inline ProviderConfig carries no Timeouts.Derive http_config, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer
+- source: spec-13-1-the-example-production-makes-its-own-decision-through-the-br.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: AD-8 asks for Derive's request_timeout_secs and full retry block (S18: a missing block caps back-off at 30 s). Check 3 of release/standalone-bridge.sh writes http_config.custom_headers only; Timeouts.Apply refuses inline configs (Test.Bridge.Timeouts:181); a TimerSeconds row reaches timeout_ms live (Adapter.Agent.TimeoutMs) and UpdateProduction restarts Decide only.
+- 2026-10-24T23:08:35Z status=routed owner=13-3-the-bridge-developer-guide-proved-on-a-clean-instance by=cr note=13.3 guide: inline ProviderConfig needs Derive(timer).http_config, or @{config:} with Timeouts.Apply; keep 13.1's timer row

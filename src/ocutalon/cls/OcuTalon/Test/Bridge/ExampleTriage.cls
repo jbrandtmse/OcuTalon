@@ -46,6 +46,7 @@ Method TestSummaryOf()
 	Set body = $Char(13, 10)_"   "_$Char(10)_"  First real line"_$Char(13, 10)_"Second line"
 	Do $$$AssertEquals($ClassMethod(..#TRIAGE, "SummaryOf", ..Item("", body)), "First real line", "with an empty subject the first non-blank line of the body is used")
 	Do $$$AssertEquals($ClassMethod(..#TRIAGE, "SummaryOf", ..Item($Char(9)_" ", body)), "First real line", "and so it is with a subject of white space")
+	Do $$$AssertEquals($ClassMethod(..#TRIAGE, "SummaryOf", ..Item("", $Justify("", 450)_"Late text")), "Late text", "a line whose text follows more than 400 leading spaces still gives its text")
 }
 
 /// The rendered text: "Subject: ", the subject, a blank line and the body; a marker in the body is kept as written.

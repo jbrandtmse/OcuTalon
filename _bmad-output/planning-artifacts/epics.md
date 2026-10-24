@@ -3843,6 +3843,8 @@ So that I can add the bridge to my own production without OcuTalon and without r
 **When** the public-text check and the release checklist run
 **Then** it is in plain English, holds no key, local machine path, instance name or private infrastructure detail, and the release checklist confirms it matches the release (FR-5, NFR-26, CON-5)
 
+- DW-181: The example's inline `ProviderConfig` carries no `Timeouts.Derive` `http_config`, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer; the guide tells a developer to write `Derive(timer).http_config` into an inline config, or to use `@{config:}` with `Timeouts.Apply` (AD-8), and keeps Story 13.1's timer row working (ledger; routed by cr 2026-10-24)
+
 ## Epic 14: A security reviewer can approve OcuTalon
 
 A security reviewer reads one overview, generated in part from the product, listing every built-in tool with its classification, the service user's privileges and the limits of that check, the approval and audit rules, what data leaves the instance, how MCP tools are classified and the online demo's protections; a test fails if the tool list drifts.

@@ -1,6 +1,6 @@
 /// ExampleItemIn, the adapterless business service through which an item enters the bridge example (FR-5). It sends each item
 /// asynchronously to its target, ExampleTriage. A developer sends an item from a terminal with one line:
-///   Do ##class(OcuTalon.BridgeExample.ItemIn).Send("Subject", "Body text", "untrusted", .itemId)
+///   Set sc = ##class(OcuTalon.BridgeExample.ItemIn).Send("Subject", "Body text", "untrusted", .itemId) If $SYSTEM.Status.IsError(sc) Do $SYSTEM.Status.DisplayError(sc)
 Class OcuTalon.BridgeExample.ItemIn Extends Ens.BusinessService
 {
 

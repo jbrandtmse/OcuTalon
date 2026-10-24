@@ -20,23 +20,26 @@
 #      provider setting, and nothing writes the $Production TestingEnabled row: items enter through the example's own service;
 #   4. the example production starts: eight jobs are Alive and ExampleItemIn is enabled; the runner resolves the example agent as its
 #      AgentClass and AgentAllowList and DecisionPayload as its ReplyClass; the three extension settings of Decide give the three base
-#      classes; one Action entry with a run-unique marker is written through OcuTalon.Bridge.Audit;
+#      classes; one Action entry with a run-unique marker, the acting user, the SessionRef and the channel (AD-17) is written through
+#      OcuTalon.Bridge.Audit;
 #   5. each row of the matrix of Story 13.1 sends an item through ExampleItemIn (OcuTalon.BridgeExample.ItemIn Send) and polls, with a
-#      deadline, until the router has routed it:
+#      deadline, until the router has routed it; every decision that reached the model has a CostUSD equal to Price.CostFor and to
+#      its one Usage row, and its Decision row holds the same model and cost:
 #      a. the happy path: the trace of the session in header order (the item, the request, the runner's request and reply, each
 #         AgentStep to AgentSteps in Position order, the DecisionResponse, the Decided message, the send to ExampleNotifyOut), the
-#         request's fields, the decision with its reasons, confidence, four token counts and a CostUSD equal to Price.CostFor and to
-#         its one Usage row, and AgentSteps logged no error;
+#         request's fields, the decision with its reasons, confidence and four token counts, and AgentSteps logged no error;
 #      b. digest (routed to ExampleDigestOut only), ignore (routed nowhere) and act (routed to ExampleNotifyOut only);
-#      c. the model row (TriageAgent Model), the budget row (Decide DecisionTokenBudget), the no-key row (the placeholder of the
-#         ProviderConfig key names a variable that the stack never sets), the refusal and the timeout row (Decide TimerSeconds, with
-#         a reply held past it): each is a System Default Settings row, applied with the one apply helper below and undone; each
-#         fallback is tellnow with Fallback 1 and its reason in the Decision row and the DecisionResponse, routed to
-#         ExampleFallbackOut, with no reasons kept and no tool step;
+#      c. the model row (TriageAgent Model), the budget row (Decide DecisionTokenBudget) and the timeout row (Decide TimerSeconds,
+#         with a reply held past it), each a System Default Settings row applied with the one apply helper below and undone; the
+#         no-key row, where the placeholder of the ProviderConfig key names a variable that the stack never sets (written with SQL
+#         and read live, so no apply follows; see provider_key) and is restored; and the refusal, a marker scenario. Each fallback
+#         is tellnow with Fallback 1 and its reason in the Decision row and the DecisionResponse, routed to ExampleFallbackOut, with
+#         no reasons kept and no tool step, and the budget fallback's line in ExampleFallbackOut's event log names the decision and
+#         its reason;
 #      d. the production keeps running: the eight jobs are Alive and a plain item gets a usable tellnow from the default model;
 #   6. the mock's request log holds no request rejected for sampling or max_tokens, a request of the Sonnet model, and a request that
-#      was not rejected for each marker item; the run's dummy key is found in no AgentStep, DecisionResponse, Decision, Decided,
-#      Request or event-log row of OCUBRIDGE, and in no IRIS audit entry since the run began (a hit fails the check without printing
+#      was not rejected for each marker item; the run's dummy key is found in no AgentStep, Reply, DecisionResponse, Decision,
+#      Decided, Request or event-log row of OCUBRIDGE, and in no IRIS audit entry since the run began (a hit fails the check without printing
 #      the value); and the Action entry of check 4 is read back from the IRIS audit log (it can arrive about a minute late, so the
 #      read-back polls for up to 180 s);
 #   7. no web application of the namespace names an OcuTalon class or /ocutalon;
@@ -199,7 +202,7 @@ CHK|ClassificationClass|OcuTalon.Bridge.Ext.Classification" \
 marker="standalone-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 check_session "an Action entry with the run's marker is written through OcuTalon.Bridge.Audit" $NS \
   "CHK|audit-write|1" \
-  "Set sc=##class(OcuTalon.Bridge.Audit).Write(\"Action\",{\"marker\":\"$marker\"},\"standalone bridge $marker\") Write !,\"CHK|audit-write|\",\$SYSTEM.Status.IsOK(sc)" \
+  "Set sc=##class(OcuTalon.Bridge.Audit).Write(\"Action\",{\"marker\":\"$marker\",\"user\":(\$USERNAME),\"sessionRef\":\"\",\"channel\":\"system\"},\"standalone bridge $marker\") Write !,\"CHK|audit-write|\",\$SYSTEM.Status.IsOK(sc)" \
   'Halt'
 
 # --- 5. the matrix: each item goes through ExampleItemIn and is polled to its routed header ---
@@ -229,7 +232,8 @@ Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridg
 Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? AND TargetConfigName = ?",sid,"Decide","TriageAgent") Do rs.%Next() Write !,"CHK|runner-requests|",rs.%GetData(1)
 Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Bridge_Msg.AgentStep WHERE DecisionRef = ? AND StepKind = ?",ref,"tool") Do rs.%Next() Write !,"CHK|tool-steps|",rs.%GetData(1)
 EOF
-# priced: for a decision that reached the model, its CostUSD is Price.CostFor of its model and tokens and its one Usage row's.
+# priced: for a decision that reached the model, its CostUSD is Price.CostFor of its model and tokens and its one Usage row's, and the
+# Decision row holds the same model and cost and input tokens above 0.
 frag F_PRICED <<'EOF'
 Set exp=##class(OcuTalon.Bridge.Data.Price).CostFor(resp.Model,resp.InputTokens-resp.CacheReadTokens-resp.CacheWriteTokens,resp.CacheReadTokens,resp.CacheWriteTokens,resp.OutputTokens)
 Write !,"CHK|cost|",((exp'="")&&(exp>0)&&($ZABS(resp.CostUSD-exp)<0.000001))
@@ -237,6 +241,7 @@ Write !,"CHK|tokens|",((resp.InputTokens>0)&&(resp.OutputTokens'="")&&(resp.Cach
 Set uid="" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 ID FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ? ORDER BY ID",ref) If rs.%Next() { Set uid=rs.%GetData(1) }
 Set u="" If uid'="" { Set u=##class(OcuTalon.Bridge.Data.Usage).%OpenId(uid) }
 If $IsObject(u) { Write !,"CHK|usage|",u.Agent,":",u.Model,":",($ZABS(u.CostUSD-resp.CostUSD)<0.000001) }
+Write !,"CHK|row-priced|",($IsObject(row)&&(row.Model=resp.Model)&&(row.InputTokens>0)&&($ZABS(row.CostUSD-resp.CostUSD)<0.000001))
 EOF
 
 # item_check <label> <expected CHK lines> <wait seconds> <routed target or ""> <subject> <body> [<script line>...]: sends the item, finds its
@@ -300,6 +305,7 @@ CHK|tool-steps|0
 CHK|cost|1
 CHK|tokens|1
 CHK|usage|TriageAgent:claude-haiku-5-5:1
+CHK|row-priced|1
 CHK|trace|$happy_trace
 CHK|request|decide|instance|system|untrusted|1|$happy_subject|1
 CHK|confidence|.7:1:1
@@ -316,8 +322,13 @@ CHK|routed|ExampleDigestOut
 CHK|responses|1
 CHK|outcome|digest
 CHK|fallback|0
-CHK|row|0::digest:1:1" \
-  60 ExampleDigestOut "Weekly summary" "A weekly summary arrived. [[mock:bridge-example-digest]]"
+CHK|row|0::digest:1:1
+CHK|usage-rows|1
+CHK|cost|1
+CHK|usage|TriageAgent:claude-haiku-5-5:1
+CHK|row-priced|1" \
+  60 ExampleDigestOut "Weekly summary" "A weekly summary arrived. [[mock:bridge-example-digest]]" \
+  "$F_PRICED"
 item_check "an item with the marker bridge-example-ignore is decided ignore, and the router sends it to no operation" \
   "CHK|send|1
 CHK|completed|1
@@ -325,8 +336,13 @@ CHK|routed|none
 CHK|responses|1
 CHK|outcome|ignore
 CHK|fallback|0
-CHK|row|0::ignore:1:1" \
-  60 "" "Newsletter" "A newsletter arrived. [[mock:bridge-example-ignore]]"
+CHK|row|0::ignore:1:1
+CHK|usage-rows|1
+CHK|cost|1
+CHK|usage|TriageAgent:claude-haiku-5-5:1
+CHK|row-priced|1" \
+  60 "" "Newsletter" "A newsletter arrived. [[mock:bridge-example-ignore]]" \
+  "$F_PRICED"
 item_check "an item with the marker bridge-example-act is decided act and routed to ExampleNotifyOut, like tellnow" \
   "CHK|send|1
 CHK|completed|1
@@ -334,8 +350,13 @@ CHK|routed|ExampleNotifyOut
 CHK|responses|1
 CHK|outcome|act
 CHK|fallback|0
-CHK|row|0::act:1:1" \
-  60 ExampleNotifyOut "Action needed" "An item that asks for an action. [[mock:bridge-example-act]]"
+CHK|row|0::act:1:1
+CHK|usage-rows|1
+CHK|cost|1
+CHK|usage|TriageAgent:claude-haiku-5-5:1
+CHK|row-priced|1" \
+  60 ExampleNotifyOut "Action needed" "An item that asks for an action. [[mock:bridge-example-act]]" \
+  "$F_PRICED"
 
 # 5c. the model row
 check_session "the model row: TriageAgent Model is claude-sonnet-5-5 as a System Default Settings row, applied" $NS \
@@ -352,7 +373,8 @@ CHK|fallback|0
 CHK|model|claude-sonnet-5-5
 CHK|usage-rows|1
 CHK|cost|1
-CHK|usage|TriageAgent:claude-sonnet-5-5:1" \
+CHK|usage|TriageAgent:claude-sonnet-5-5:1
+CHK|row-priced|1" \
   60 ExampleNotifyOut "Model row item" "An item that is decided with the changed model." \
   "$F_PRICED"
 check_session "the model row is removed and applied again" $NS \
@@ -380,8 +402,10 @@ CHK|row|1:budget:tellnow:1:1
 CHK|reasons|0:0
 CHK|usage-rows|0
 CHK|runner-requests|0
-CHK|tool-steps|0" \
-  60 ExampleFallbackOut "Budget row item" "An item that is over the token budget of one."
+CHK|tool-steps|0
+CHK|outcome-log|1" \
+  60 ExampleFallbackOut "Budget row item" "An item that is over the token budget of one." \
+  'Set n=0 For k=1:1:20 { Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE ConfigName = ? AND Type = 4 AND Text [ ? AND Text [ ?","ExampleFallbackOut",ref,"fallback budget") Do rs.%Next() Set n=rs.%GetData(1) Quit:n  Hang 0.5 } Write !,"CHK|outcome-log|",n'
 check_session "the budget row is removed and applied again" $NS \
   "CHK|row-del|1
 CHK|apply|1
@@ -460,9 +484,13 @@ CHK|outcome|tellnow
 CHK|fallback|0
 CHK|model|claude-haiku-5-5
 CHK|row|0::tellnow:1:1
+CHK|usage-rows|1
+CHK|cost|1
+CHK|usage|TriageAgent:claude-haiku-5-5:1
+CHK|row-priced|1
 CHK|jobs|8" \
   90 ExampleNotifyOut "Keeps running item" "A plain item after the fallbacks." \
-  "$F_ALIVE"
+  "$F_PRICED" "$F_ALIVE"
 
 if [ "$fails" -ne 0 ]; then diagnose; fi
 
@@ -472,14 +500,14 @@ frag F_MOCKLOG <<'EOF'
 Set f=##class(%Stream.FileCharacter).%New() Set lsc=f.LinkToFile("/opt/ocutalon/mock-log/requests.jsonl") Write !,"CHK|log-open|",$SYSTEM.Status.IsOK(lsc)
 Set total=0,rej=0,sonnet=0 Kill mk While 'f.AtEnd { Set line=f.ReadLine(4000000) Continue:line=""  Set e={}.%FromJSON(line) If (e.method="POST")&&(e.model'="") { Set total=total+1 Set:(e.rejected="sampling")||(e.rejected="max_tokens") rej=rej+1 Set:e.model="claude-sonnet-5-5" sonnet=sonnet+1 If (e.marker'="")&&(e.rejected="") Set mk(e.marker)=$Get(mk(e.marker))+1 } }
 Write !,"CHK|log-requests|",(total>0),!,"CHK|log-rejected|",rej,!,"CHK|log-sonnet|",sonnet
-Write !,"CHK|log-markers|",(+$Get(mk("bridge-example-digest"))>0),(+$Get(mk("bridge-example-ignore"))>0),(+$Get(mk("bridge-example-refusal"))>0),(+$Get(mk("bridge-example-late"))>0)
+Write !,"CHK|log-markers|",(+$Get(mk("bridge-example-digest"))>0),(+$Get(mk("bridge-example-ignore"))>0),(+$Get(mk("bridge-example-act"))>0),(+$Get(mk("bridge-example-refusal"))>0),(+$Get(mk("bridge-example-late"))>0)
 EOF
 check_session "the mock's log holds no request rejected for sampling or max_tokens, one request of the Sonnet model, and a request not rejected for each marker" $NS \
   "CHK|log-open|1
 CHK|log-requests|1
 CHK|log-rejected|0
 CHK|log-sonnet|1
-CHK|log-markers|1111" \
+CHK|log-markers|11111" \
   "$F_MOCKLOG" 'Halt'
 
 keysearch() { # keysearch <table> <column>...: a line that prints the number of rows of the table whose columns hold the dummy key
@@ -489,8 +517,9 @@ keysearch() { # keysearch <table> <column>...: a line that prints the number of 
   printf 'Set rs=##class(%%SQL.Statement).%%ExecDirect(,"SELECT COUNT(*) FROM %s WHERE %s"%s) Do rs.%%Next() Write !,"CHK|key-%s|",rs.%%GetData(1)' \
     "$table" "$cond" "$(for c in "$@"; do printf ',key'; done)" "$name"
 }
-check_session "the run's dummy key is in no AgentStep, DecisionResponse, Decision, Decided or Request row and in no event-log row of $NS" $NS \
+check_session "the run's dummy key is in no AgentStep, Reply, DecisionResponse, Decision, Decided or Request row and in no event-log row of $NS" $NS \
   "CHK|key-AgentStep|0
+CHK|key-Reply|0
 CHK|key-DecisionResponse|0
 CHK|key-Decision|0
 CHK|key-Decided|0
@@ -498,6 +527,7 @@ CHK|key-Request|0
 CHK|key-Log|0" \
   "Set key=\"$dummy\"" \
   "$(keysearch OcuTalon_Bridge_Msg.AgentStep Label Summary)" \
+  "$(keysearch OcuTalon_Bridge_Msg.Reply Text HostData Steps FailureText)" \
   "$(keysearch OcuTalon_Bridge_Msg.DecisionResponse Reasons Payload FallbackReason)" \
   "$(keysearch OcuTalon_Bridge_Data.Decision Reasons Payload Summary)" \
   "$(keysearch OcuTalon_BridgeExample_Msg.Decided Summary FallbackReason ItemId)" \
