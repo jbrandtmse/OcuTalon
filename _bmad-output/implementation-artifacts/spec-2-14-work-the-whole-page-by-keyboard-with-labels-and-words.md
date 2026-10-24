@@ -2,11 +2,11 @@
 title: 'Story 2.14: Work the whole page by keyboard, with labels and words'
 type: 'feature'
 created: '2026-10-24'
-status: 'in-progress'
-baseline_revision: 'b09b1d0e57ee2ccf7e5ec3f078e697c6be112316'
+status: 'done'
+baseline_revision: '38dad9391d019f80eece532ee0a5a4687d47bb72'
 baseline_commit: 'b09b1d0e57ee2ccf7e5ec3f078e697c6be112316'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['multiple-goals', 'oversized']
 deferred:
@@ -512,7 +512,7 @@ Rejected (each with its reason):
 
 ### Rework 1 (smoke)
 
-- [ ] [Smoke] A popover that closes before its next render throws - `web/src/app/shared/popover.ts:115` and `:174` (`focusFirst`, from Story 2.1) - the lead's smoke opened the Visual Trace menu and pressed Esc at once: the popover closed and focus went back to its trigger, as K2 asks, but the deferred `afterNextRender(() => this.focusFirst(overlayRef))` then read `overlayRef.overlayElement`, which is null once the overlay is disposed, and Angular's ErrorHandler logged `ERROR TypeError: Cannot read properties of null (reading 'querySelector') at focusFirst`. The fix must: make `focusFirst` (and any other deferred callback in `popover.ts` or `tooltip.ts` that reads an overlay after a render) do nothing once its popover has closed; and pin it with a real-runtime step in the floor unit (for example in K2 or K3: open the Visual Trace popover and press Esc in the same task, then assert that the popover is gone, focus is on its trigger and the page logged no console error), with its `mutation:` line under `## Verification` (the guard removed -> that step red).
+- [x] [Smoke] A popover that closes before its next render throws - `web/src/app/shared/popover.ts:115` and `:174` (`focusFirst`, from Story 2.1) - the lead's smoke opened the Visual Trace menu and pressed Esc at once: the popover closed and focus went back to its trigger, as K2 asks, but the deferred `afterNextRender(() => this.focusFirst(overlayRef))` then read `overlayRef.overlayElement`, which is null once the overlay is disposed, and Angular's ErrorHandler logged `ERROR TypeError: Cannot read properties of null (reading 'querySelector') at focusFirst`. The fix must: make `focusFirst` (and any other deferred callback in `popover.ts` or `tooltip.ts` that reads an overlay after a render) do nothing once its popover has closed; and pin it with a real-runtime step in the floor unit (for example in K2 or K3: open the Visual Trace popover and press Esc in the same task, then assert that the popover is gone, focus is on its trigger and the page logged no console error), with its `mutation:` line under `## Verification` (the guard removed -> that step red).
 
 ## Spec Change Log
 
@@ -567,6 +567,19 @@ Rejected (each with its reason):
   - `[low]` `[patch]` Intent Alignment C8: the "error answer" path of the load error is not asserted — W3 reaches the failed state by an error answer and now reads Retry's description there; mutation recorded
   - `[false]` `[reject]` Intent Alignment C9: Reconnecting's Close is not in K5 — spec-bound: its name is pinned in banner-view.test.mjs and read in B13
   - `[false]` `[reject]` Intent Alignment D: the spec file is not in the diff — the layer's input excludes the claims on purpose
+
+### 2026-10-24 — Review pass (rework 1, smoke)
+- verdicts: 9 findings — high 0, medium 0, low 5, false 3, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind Hunter: the Verification "unit" line still says 22 floor tests, K2 now has three — the fix is an edit to this spec's own text, which a finding cannot ask for (the count of this pass is on the rework's mutation line).
+  - `[low]` `[reject]` Blind Hunter: the Spec Change Log has no entry for rework 1 and `baseline_commit` differs from `baseline_revision` — spec bookkeeping; the fix edits this build's spec, and the two baselines are the skill's (first pass and this pass).
+  - `[low]` `[reject]` Blind Hunter: the new case reads `shown` synchronously, sends Esc to `document.activeElement` without a focus check, waits a fixed 500 ms, and has no fast-tier test of `Popovers.show` — the case asserts `opened` is 1 and focuses the trigger and asserts it before the task; with the guard removed it was red, so each assumption holds on the runner; there is no Angular component test host in `web/` (Node ratchets and Playwright only), so a fast-tier test is not a direct correction.
+  - `[maybe-false]` `[reject]` Edge Case Hunter: an overlay disposed other than by `ref.close()` leaves `isOpen` true and the callback throws again — no path disposes the overlay but `PopoverRef`'s `onClose` (read in `popover.ts`); if one existed the harm is a logged error in a focus helper (low), so a guard (`hasAttached()`) is not worth its branch.
+  - `[false]` `[reject]` Edge Case Hunter: the new case has no try/finally — it seeds nothing and publishes no condition, so there is nothing to clean up.
+  - `[false]` `[reject]` Edge Case Hunter: Esc goes to `document.activeElement`, assumed to be the trigger — the case asserts `menu` is focused before the task, and a script `click()` does not move focus.
+  - `[low]` `[reject]` Verification Gap: the 500 ms wait is not a signal that the render ran — the guard-removed run was red on this runner, so the render comes well inside it; a wait on the render would add machinery for a runner-speed case nobody met.
+  - `[false]` `[reject]` Verification Gap: the `errors` collector counts any `console.error` or `pageerror`, so an unrelated error could flake it — it is cleared after `openFloor` and can only fail loudly, never hide the regression; no unrelated error was seen in 24 floor runs.
+  - `[low]` `[reject]` Intent Alignment (descriptive): the diff implements reading B (the defect fix keeps every contract-described outcome); its decisive assertion, no console error, and the Visual Trace menu popover are not a matrix row, and the same-task Esc is synthetic — all three are what the lead's `[Smoke]` item asks for; no deviation from the contract.
 
 ## Design Notes
 
@@ -808,6 +821,7 @@ No AC contradicts an AD's Rule.
 - (review) mutation: `composer.ts`'s `grow()` sets a pixel height after its lh one -> `floor-sources.test.mjs` red ("sets a height from a script or a binding only where this list has it, and only in line units"); `user-message.ts` gaining `setStyle(el, 'height', '40px')` turns the same case red.
 - (review) mutation: `app/app.ts` gains a `styles: [...]` array -> `floor-sources.test.mjs` red ("reads the CSS of every component ...").
 - (review) K5's "one row of each rail kind" now counts only its own rows (its stamp, and its approval's row key), and K4's Trace count reads only links; both are preconditions, so the K5 and K4 mutation lines above stand. After the review patches, on the restored tree: `npm --prefix web test` 516 pass; `lint`, `test-boundaries.sh` and `test-ci-config.sh` exit 0; `build` and `live floor` passed 23 (A1-A7, H1, P1-P4, K1-K6, W1-W4; Playwright 1.3 min); teardown of tag e2s214r left nothing. `git status --short` and the hash of `git diff` were equal before and after every mutation.
+- (rework 1, smoke) mutation: `Popovers.show`'s deferred `afterNextRender` calls `focusFirst` without the `ref.isOpen` guard -> the new case "K2: a popover that Esc closes in the task that opened it logs no error" red ("and the page logged no error": `ERROR TypeError: Cannot read properties of null (reading 'querySelector')`), the only red of 24 in `live floor`. The case opens the Visual Trace popover and dispatches Esc in one task, so the render that waits to focus into it comes after the popover has closed; with the guard it is green (24 passed, 1.3 min). `tooltip.ts` has no render-deferred callback (only timers that `hide()` clears). `npm --prefix web test` 516 pass; `lint`, `test-web-build.sh` and `test-boundaries.sh` pass. `git status --short` and the hash of `git diff` were equal before and after the mutation.
 
 **Shared surfaces:**
 - **The first tab stops.** The two skip links now come before `a.home`. F3, F7 and B10 start from `a.home` or from the header and are unaffected; no case presses Tab from the page's start.
@@ -889,3 +903,12 @@ Blocking condition: none
 - Optional, yours to decide: Rule 21's recipe line for `live floor` (and `shards` running `live:floor`), and the Conventions row "Tests" for `web/e2e/floor/`.
 - The balance rule: measure `shards` at this story's first CI run (local: 291 s in all, `live:floor` 141 s; CI estimate 330 to 450 s for the unit).
 
+**Rework 1 (smoke) pass (2026-10-24).** This pass covers only the one `[Smoke]` item.
+
+*Change.* `Popovers.show` in `web/src/app/shared/popover.ts` runs its render-deferred `focusFirst` only while `ref.isOpen`, so a popover that Esc closes before the next render no longer reads a disposed overlay. `tooltip.ts` has no callback that reads an overlay after a render (only timers that `hide()` clears), so it needed no change. The floor unit gains a case: `web/e2e/floor/keyboard.spec.ts` "K2: a popover that Esc closes in the task that opened it logs no error" (the unit is now 24 cases).
+
+*Review.* Four layers reported 9 findings: patches 0, deferred 0, rejected 9, each with its reason in the Review Triage Log (low 5, false 3, maybe-false 1). Follow-up review recommended: false (no patched finding). Patched counts by verdict: none.
+
+*Verification.* `npm --prefix web test` 516 pass; `lint`, `test-web-build.sh` and `test-boundaries.sh` exit 0. Throwaway tag e2s214i: `live floor` 24 passed (1.3 min); `live sign-in` 190 passed and 2 skipped (5.6 min); teardown left nothing. The mutation (the guard removed) turned only the new case red; the tree was byte-identical afterwards.
+
+*Residual risks.* The new case waits a fixed 500 ms for the render that would throw (red on the guard's removal on the local runner).

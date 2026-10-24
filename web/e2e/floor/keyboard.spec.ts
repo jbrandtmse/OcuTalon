@@ -369,6 +369,34 @@ test('K2: Esc closes the Trace help of a reply strip and leaves its details open
   }
 });
 
+/** K2, a popover that closes before the next render: the render that was to focus into it finds nothing to do, and logs no error. */
+test('K2: a popover that Esc closes in the task that opened it logs no error', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(String(error)));
+  await openFloor(page);
+  const menu = page.getByRole('button', { name: 'Visual Trace', exact: true });
+  await menu.focus();
+  await expect(menu).toBeFocused();
+  errors.length = 0;
+
+  // The page opens the popover and presses Esc in one task, so that the render that waits to focus into it comes after it has closed.
+  const opened = await menu.evaluate(async (trigger) => {
+    const button = trigger as HTMLElement;
+    button.click();
+    const shown = document.querySelectorAll('.app-popover').length;
+    (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await new Promise((done) => setTimeout(done, 500));
+    return shown;
+  });
+  expect(opened, 'the click opened the Visual Trace popover').toBe(1);
+  await expect(page.locator('.app-popover'), 'Esc closed it').toHaveCount(0);
+  await expect(menu, 'and focus is on its trigger').toBeFocused();
+  expect(errors, 'and the page logged no error').toEqual([]);
+});
+
 /** K3: no printable key does anything: nothing moves focus, opens, sends or navigates. */
 test('K3: the keys a, s, t, /, ? and 1 change nothing', async ({ page }) => {
   const { user } = fixtureUser(KIND);
