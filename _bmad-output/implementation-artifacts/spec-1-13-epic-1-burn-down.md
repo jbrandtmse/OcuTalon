@@ -2,13 +2,23 @@
 title: 'Story 1.13: Epic 1 burn-down'
 type: 'bugfix'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b499b579dc5b87d2ee1fbbeef0187cecd907fa2d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-3, AD-5, AD-6, AD-8, AD-19, AD-20, AD-22, AD-24, AD-28 and AD-33, and the Logging and errors and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Keys.Status keeps reading a recorded present key for a runner whose job ended without OnTearDown: a refused start (measured), a killed job or a crash.
+    evidence: |-
+      Measured in the review pass (throwaway e1s13a, Test.Agent.Runners.TestStartRefused with the keys pointed): after a SystemPrompt row refused TriageAgent, ^OcuTalonBP.KeyState(TriageAgent) still held present with the refused job's number, RunnerFixture.Jobs was empty and Status read 1. The adapter records before CheckSettings (the intent), and the host's tear-down does not run for a start that OnInit refuses. A killed job or an IRIS crash leaves its record the same way (reasoned, not measured).
+      The record is still true about the key; it misleads only when the key is removed while that runner stays refused or disabled across an IRIS restart.
+      reopen_if: a release lets a runner stay disabled or refused across an IRIS restart, or the owner wants a refused start to read as stopped (Status 0), which changes the intent's "a start that is refused records too".
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:74
+    severity: low
 ---
 
 <intent-contract>
@@ -251,6 +261,42 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 — Review pass
+- verdicts: 31 findings — high 0, medium 6, low 20, false 5, maybe-false 0
+- findings (blind-hunter, edge-case-hunter, verification-gap, intent-alignment, in the order they reported; members of a group share its route):
+  - `[low]` `[patch]` Blind: `Status` reads a present record for a runner that ended without `OnTearDown`, and the record is a snapshot of its start — real and measured for a refused start (record kept, no job, `Status` 1); the intent settles the behaviour ("a start that is refused records too", `Status` reads the node and nothing else), so the code stays; patched the class and adapter docs to say what holds, pinned the refused-start record in `Agent.Runners.TestStartRefused`, and filed the residual in `deferred:` with its `reopen_if` (group A)
+  - `[medium]` `[patch]` Blind: `Test.Agent.Runners.TestKeysAreRead` asserts `Status` 1 right after `PointKeys`, when a job is alive a moment before its `OnInit` has recorded — real (the diff's own `WaitRecord` doc says so); `EnsureKeysAtPlaceholder` and `Point` now wait for `RunnerFixture.WaitRecords` (group B)
+  - `[low]` `[patch]` Blind: the record of a start that `CheckSettings` refuses is untested and nothing shows whether the host's close forgets it — measured: it stays (decision 19); pinned by `TestStartRefused` (group A)
+  - `[low]` `[patch]` Blind: `TestStatusReadsOnlyTheRecord` rejects only `##class(`, `..` and a few dispatches, so a `$SYSTEM.Util.GetEnviron(` in `Status` passes — real; the scan now also rejects `$SYSTEM.`, `$ZF(`, `$ZUTIL(`, indirection, `Xecute`, any other global and routine calls, each with a control (group C)
+  - `[low]` `[reject]` Blind: a runner that cannot judge its key records `unknown` silently and `Status` cannot tell that from no key — specified: `unknown` is never OK and `OnInit`'s status never changes; production jobs hold `%Admin_ConfigStore` (AD-19), and `TestPresentReadsPresent` fails if a runner job lacks it; a log line per unjudged start would also add event-log rows that the no-error rows of `live production` count (group D)
+  - `[medium]` `[patch]` Blind: the `UsageSpent` branches are covered only live and the `unreadable` guard on `UnpricedModels` is not exercised — the guard was real (no test went red without it, with the default cap of 0); `WebStatus.TestMissingReadsMissing` now sets a daily cap of 5 (row put back) and its mutation is red. The other-error warning arm stays untested, as before this story (group E, with the arm in group F)
+  - `[low]` `[patch]` Blind: `WebStatus` cleanup and guards — the one real part, `Test.Bridge.Keys.TestStatus` restarts the runners without saying so in its header, is patched; the rest is rejected: a process that dies mid-run in a throwaway, `Modify`'s status, and the header-only throwaway guard are what `Test.Install.Users` also relies on, and the audit event is on by default so the switch is rarely used (group G)
+  - `[low]` `[patch]` Blind: the fixture user's password came from `$Random` — real in a throwaway for about a minute; now `$SYSTEM.Encryption.GenCryptRand` (group H)
+  - `[low]` `[patch]` Edge: a stale `present` record after a job dies without `OnTearDown` (kill, crash, forced stop) — the spec's known residual, now also in `deferred:`; docs corrected (group A)
+  - `[low]` `[reject]` Edge: with `PoolSize` above 1 the jobs of one item share one record, and the last writer's stop kills it — `wontfix-theoretical`: `Production.cls` fixes the three runners at `PoolSize="1"` and the effect is `Status` 0, the safe direction; real if a release raises a runner's pool size
+  - `[low]` `[reject]` Edge: `Forget` checks the owner and then kills, so a new job's `Record` between the two is lost — a window of microseconds that needs a start before the old job's close ends (the production waits for the old job); the effect is `Status` 0 until the next start, the safe direction
+  - `[low]` `[patch]` Edge: `CheckSettings` refuses a start after `RecordKey` and nothing forgets it — as the first group A row; by design in the intent, now measured, documented and pinned (group A)
+  - `[low]` `[reject]` Edge: a host built outside the item's job with a live name has `%isShadow` 0 — `Ens.Host.%OnNew` sets it from `%DoShadowNew` and the item's registered task class, so only the item's own job is a real host; no product path builds another
+  - `[low]` `[reject]` Edge: a runner job without `%Admin_ConfigStore:USE` records `unknown` silently — as the Blind row (group D)
+  - `[medium]` `[patch]` Edge: `Test.Agent.Runners` line 398 asserts `Status` 1 before the record exists — as the Blind row (group B)
+  - `[low]` `[patch]` Edge: the doc claim that `Status` is 1 "only for a runner that runs" and that a stopped one reads 0 is stronger than the code — class and adapter docs now state the record's real life (group A)
+  - `[medium]` `[patch]` Verification: the `&& 'unreadable` guard of `Budget.State` is not exercised, because no privilege-less caller sets a cap — confirmed by running the mutation; fixed as the Blind row (group E)
+  - `[medium]` `[patch]` Verification: `Test.Agent.Runners` assertions on `Status` run before the record exists, and the 0 assertions pass without a record — `WaitRecords` added at the two helpers, so a record exists when `Status` is read (group B)
+  - `[low]` `[patch]` Verification: a refused start leaves a record and no test reads it — as the first group A row; `TestStartRefused` now reads it after a `PointKeys` (group A)
+  - `[low]` `[patch]` Verification: `Keys.Absent` is never called without the privilege, so the `unknown` of a reference it cannot read is unpinned — `Probe` now reads `Keys.Absent` of TriageAgent in the web-roles job and the test asserts 0; its mutation is red (group I)
+  - `[low]` `[patch]` Verification: the source scan of `Status` has narrow patterns — filed `defer` by the layer, patched because it is a direct correction in the same test (group C)
+  - `[low]` `[reject]` Verification: the non-privilege failure arm of `UsageSpent` has no test — it had none before this story and a second SQL failure cannot be provoked in a process that holds the table without damaging it; `wontfix-accepted`, `reopen_if`: `UsageSpent`'s error handling changes again (group F)
+  - `[false]` `[reject]` Verification: `RecordCount() = count` after `Record("")` cannot fail — it fails whenever `Record` writes a node for an empty item, which is the behaviour the AC pins; the guard and the `Catch` give the same observable result, and no mutation of the guard alone is visible by design
+  - `[low]` `[patch]` Verification (other findings): `Status` does not check that the recorded job is alive — the known residual, handled as the first group A row (group A)
+  - `[false]` `[reject]` Intent: the HTTP route `/state` is not exercised — the intent puts `/state` in Lane B's Epic 2, says it needs no change, and fixes the pinning context as a job logged in as a user with exactly `APPLICATIONROLES` (Design Notes 9)
+  - `[false]` `[reject]` Intent: the Usage fault line has no consumer in this tree — it is returned through `State`'s `faults` output, which Epic 2 and `Decide` read; the intent states the contract and the tests read it
+  - `[low]` `[patch]` Intent: `Status` is a proxy for a running job (no liveness check, a snapshot of the start) — as the first group A row (group A)
+  - `[false]` `[reject]` Intent: `unknown` gives `Status` 0 and `Absent` 0, so the two surfaces disagree for a literal key — specified on purpose (Design Notes 4: the banner shows, `Decide` still tries)
+  - `[false]` `[reject]` Intent: the live missing test does not separate `absent` from `unknown` — both are 0 by the contract; `Keys.TestRecord` pins the two state words in process
+  - `[low]` `[patch]` Intent: `Absent`'s no-privilege branch has no test — as the Verification row (group I)
+  - `[medium]` `[patch]` Intent: unmodified tests read `Status` right after a restart — as the Blind row (group B)
+- routes: patch groups A (docs, refused-start pin, deferred residual), B (record waits), C (scan patterns), E (Budget guard test), G (Keys test header), H (password), I (Absent in the job). Rejected: D, F and the rows above that say so. Nothing is `intent_gap` or `bad_spec`: the one measured fact against the intent's wording (a refused start's record is not removed) is the behaviour the intent specifies, and it is reported in `deferred:`.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -287,6 +333,16 @@ No AC contradicts an AD's Rule, and no NFR is involved.
 10. **The no-key case is the keyless start itself:** the Provider step's entries with `ANTHROPIC_API_KEY` unset. When the variable is set, the test fails with the reason, as `TestStartsWithNoKey` does.
 11. **The audit evidence has a positive control.** One refusal of the job's own proves that the event is on, that the context really lacks the privilege, and that the rows have become readable. So "exactly one row" can fail.
 12. **A new test class.** `Test.Bridge.Keys` stays in process, and `WebStatus` holds the user, the job, the audit and the runner restarts.
+
+13. **The test helpers are `RunnerFixture`'s.** `WaitRecord`, `WaitRecords` (a runner's job is alive a moment before its `OnInit` has recorded, so the live tests wait up to `RECORDSECONDS`, 30 s, for it) and `WaitFor` (a job's report) are added there, and `Test.Bridge.Keys` and `WebStatus` both use them (Rule 2).
+14. **`TestStatus` restores the entries first.** It runs `RestoreKeys` and waits for the records, so that `Status` equals `Present` of the entries by construction and not by the order of the classes; it also asserts that the record names an alive job of the item.
+15. **A pin for the shadow guard.** `Test.Bridge.Runner.TestShadowRecordsNothing` (not in the Tests list) pins that `OnInit` and `OnTearDown` of a shadow host record and forget nothing, because no other test would notice a missing guard.
+16. **`Budget` names its constants.** `NOPRIVILEGECODE` (-99) and `NOPRIVILEGE` (the fault line) are class parameters; `UsageSpent` gets an `Output unreadable` argument, so `State` adds the line first and skips `UnpricedModels` without a second SELECT.
+17. **`Status`, `Record` and `Forget` take no null subscript.** An empty item or agent does nothing (0 for `Status`), because `^OcuTalonBP.KeyState("")` would raise `<SUBSCRIPT>`; a node that is not a list reads 0 through the same `Catch`.
+18. **`WebStatus` waits for the audit row by polling `%SYS.Audit` from `%SYS`** (the table is empty from `OCUTALON`) for up to 120 s, then 3 s more, and counts the user's rows since the `AuditIndex` mark. The assertions run in the test's own namespace, never inside a `%SYS` method.
+
+19. **A refused start leaves its record (measured in the review pass).** The adapter records before `CheckSettings`, as the intent says, and the host's tear-down does not run for a start that `OnInit` refuses, so the record of a refused item stays with a job that is gone and `Status` reads what that start recorded. `Test.Agent.Runners.TestStartRefused` pins it with the keys pointed; the class and adapter docs say it. Whether a refused start should read as stopped is the owner's call (deferred item, `reopen_if` there).
+20. **Tests that read `Status` after a restart wait for the record.** `Test.Agent.Runners` now waits for `RunnerFixture.WaitRecords` in `EnsureKeysAtPlaceholder` and `Point`, because Ens marks a job alive a moment before its `OnInit` has recorded; its assertions on `Status` are otherwise unchanged. `WebStatus` sets a daily cap of 5 for its run (the row put back) so that the unpriced-models scan would run, and reads `Keys.Absent` in the job.
 
 **Known residual (for the lead):** a runner job killed without teardown (an IRIS crash) leaves its record. Until that runner starts again, `Status` reads the old state. This is real only if the key is removed meanwhile and that runner is left stopped while the production is active. `reopen_if`: a release lets a runner stay disabled across an IRIS restart, or AD-5 is read to allow runtime state in IRISTEMP.
 
@@ -393,6 +449,44 @@ No AC contradicts an AD's Rule, and no NFR is involved.
 | AC5 | `UsageSpent` warns on the privilege error again | `WebStatus.TestMissingReadsMissing` (a Budget warning) |
 | AC5 | the fault line is not added | `WebStatus.TestMissingReadsMissing` |
 
+**Measured in implementation (Task 0; throwaway `e1s13a`, build 154, the tree before any edit; no AC contradicted):**
+- **(a) The fixture job.** A user with exactly `APPLICATIONROLES` (`%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE`), created in `%SYS`, and a job started by a test-class method that calls `$SYSTEM.Security.Login(<user>)`:
+  - `Login` returns 1; `$USERNAME` is the fixture user; `$Roles` is exactly the three roles; `$Namespace` is `OCUTALON` (the test process is `irisowner` with `%All`).
+  - `$SYSTEM.Security.Check("%Admin_ConfigStore","USE")` is 0.
+  - The job writes `^OcuTalonTest` and reads `^OcuTalonBP.UsageCapped` (`$Data` 0) and a node `^OcuTalonBP.ZzProbe13` that the parent wrote (the value comes back): the web roles read the private database, so the recorded state is readable and the Task 0 halt condition does not hold.
+  - `Ens.Director.GetActiveProductionName()` is `OcuTalon.Production`.
+- **(b) Today's code in that job (the red of the pinning row).**
+  - `Keys.Status` of `TriageAgent`, `DiagnosisAgent` and `ChatAgent`, with `ANTHROPIC_API_KEY` unset and the entries at the placeholder, is 1, 1 and 1.
+  - `%System/%Security/AccessDenied` is enabled by default. The three `Status` calls and the control `GetDetails` wrote four rows (one per call, `Error accessing Configuration AI.LLM.OcuTalon<Triage|Diagnosis|Chat>`; the control's names `AI.LLM.OcuTalonTriage`), all within 4 ms. The control fails with `ERROR #790: Operation requires %Admin_ConfigStore:USE or %Admin_ConfigStore privilege`.
+  - A row was first readable in `%SYS.Audit` (read from `%SYS`: `OCUTALON` shows none) 66.7 s after the job's calls (the poll was every 3 s); in the final runs the control's row was readable in under 40 s. Four `$SYSTEM.Security.Check` calls (`%Admin_ConfigStore`, `%DB_OCUTALON_CODE`, `%Admin_Secure`) wrote no row, and nor did the refused `Usage` SELECT.
+  - `Budget.State` in the job: the `Usage` SELECT fails with SQLCODE -99 and `%Message` "User <user> is not privileged for the operation"; one `Ens_Util.Log` warning of `OcuTalon.Bridge.Budget` per call ("The Usage rows of the day cannot be summed: ..."); `State` returns `{"spent":0,"cap":0,"capped":false,"resetsAt":...}` and `faults` is `[]`, so the three `Decide` settings are read there (no setting fault).
+- **(c) The runner job** (a temporary probe in `OnInit`/`OnTearDown`, removed): `..ProviderConfig` is the raw text `@{config:OcuTalonTriage}`, `..BusinessHost.%ConfigName` is `TriageAgent`, `%isShadow` is 0, and `OnInit` runs in the item's job. `TempStopConfigItem(<production>||TriageAgent, 1)` runs `OnTearDown` in that same job, after which the item has no alive job; starting it again runs `OnInit` in a new job.
+
+- **(d) A refused start (review pass).** With the keys pointed and a `SystemPrompt` row for `TriageAgent`: before the row, the record is `present` and `Status` is 1; after the refused start (no alive job) the record is still `present` with the refused job's number and `Status` is 1. The record is not removed by the host's close.
+
+**Mutations observed (Rule 19).** Each was applied to the tree, the named class run in a throwaway, red observed, and the file restored (byte-identical to the snapshot taken before the mutation):
+- mutation: AC1, `Keys.Status` put back to a live read of the item's ProviderConfig (the Details-or-Exists path of Story 1.6, with no privilege guard) -> `WebStatus.TestMissingReadsMissing` red (Status 1 for each of the three runners, and the AccessDenied rows not 1); `TestStoppedRunnerReadsMissing` red too
+- mutation: AC1, `State` without the `%Admin_ConfigStore:USE` guard -> `WebStatus.TestMissingReadsMissing` red (one assertion: a second AccessDenied row, from `Present`)
+- mutation: AC1, `Status` also calls `..Absent(agent)` -> `Keys.TestStatusReadsOnlyTheRecord` red ("and no .. call")
+- mutation: AC2, the adapter's `OnInit` records nothing -> `WebStatus.TestPresentReadsPresent` red (every runner has recorded its state); the other two tests of the class go red at the same assertion
+- mutation: AC2, the adapter's `OnTearDown` does not call `Forget` -> `WebStatus.TestStoppedRunnerReadsMissing` red (it alone)
+- mutation: AC2, `Forget` kills the node whatever its job -> `Keys.TestRecord` red (the job's Forget)
+- mutation: AC3, the `api_key` judgement gives `present` for any other value -> `Keys.TestRecord` (the literal), `Keys.TestPresentForms`, `Keys.TestPresent` and `Keys.TestPresentEntry` red
+- mutation: AC3, `State`'s `Catch` gives `present` -> `Keys.TestPresentForms` red (`{` alone)
+- mutation: AC4, `noKey` is `'Keys.Status(runner)` -> `Bridge.Decide.TestPrecheckOrder` red (and many more assertions of the class), `Keys.TestAbsentReadsProviderConfig` red
+- mutation: AC4, `Absent` counts `unknown` as absent -> `Keys.TestAbsentReadsProviderConfig` red (the literal and `not json`, in `Absent` and in `Precheck`)
+- mutation: AC5, `UsageSpent` warns on SQLCODE -99 again -> `WebStatus.TestMissingReadsMissing` red (the Budget warning assertion alone)
+- mutation: AC5, the fault line is not added -> `WebStatus.TestMissingReadsMissing` red (a fault is named, the first line is the Usage line)
+- mutation: the adapter's `IsJob` without the `%isShadow` test -> `Runner.TestShadowRecordsNothing` red (both assertions)
+- mutation: AC2, the adapter's `OnInit` records only after `CheckSettings` passes -> `Agent.Runners.TestStartRefused` red (the refused start's record)
+- mutation: AC5, `State` no longer skips `UnpricedModels` when the Usage rows are unreadable (`&& 'unreadable` removed), with a daily cap set -> `WebStatus.TestMissingReadsMissing` red (a Budget warning in the event log)
+- mutation: AC4, `State` gives `absent` for a reference to an entry in a process without `%Admin_ConfigStore:USE` -> `WebStatus.TestMissingReadsMissing` red (`Keys.Absent` of TriageAgent in the job)
+- mutation: AC1, `Status` also reads the environment (`$SYSTEM.Util.GetEnviron`) -> `Keys.TestStatusReadsOnlyTheRecord` red (the `$SYSTEM.` call)
+
+**Results (implementation, tag `e1s13a`):** `bash ci/checks.sh` all passed; `ci/iris.sh build` exit 0; `ci/iris.sh class` passed for `WebStatus`, `Keys`, `Budget`, `Decide`, `Runner` and `Agent.Runners`; `shard lane-a` passed (41 classes, the only SKIP `TestStepHelpers`); `shard lane-b` passed (24 classes, `Contract.Ac` included); `live production` (row 14 included), `live production-restart` and `live demo-path` (`floor 1 of 1 passed`) passed; `release/standalone-bridge.sh` passed (the example decision is not a fallback); `ci/iris.sh teardown` left nothing of `e1s13a`. The reverse runs are the lead's.
+
+**Results (review pass, tag `e1s13a`, after the last patch):** `bash ci/checks.sh` all passed; `ci/iris.sh build` exit 0; `ci/iris.sh class` passed for `WebStatus`, `Keys`, `Budget`, `Decide`, `Runner` and `Agent.Runners`; `shard lane-a` passed (41 classes, the only SKIP `TestStepHelpers`); `shard lane-b` passed (24 classes, `Contract.Ac` included); `live production` (row 14 included), `live production-restart` and `live demo-path` (`floor 1 of 1 passed`) passed; `release/standalone-bridge.sh` passed; `ci/iris.sh teardown` left nothing of `e1s13a`. The four mutations above were each applied, observed red and reverted (the tree byte-identical to its state before the mutation). The changed classes compile on slot A (`ocutalon-slot-a`, build 154). The reverse-order shard runs are the lead's.
+
 **Lead's rulings at the spec gate (2026-10-24, Epic 1 runner, unattended):**
 - **Veto window, kept as planned:** the recorded key state `^OcuTalonBP.KeyState(item)` (inbox U-48), and Status 0 while a runner is stopped or unreadable, so the no-key banner shows then (unknown is never OK; U-49).
 - **Decided:** `Budget.State` degrades quietly in a request without the grant; `Keys.Present`'s new meaning; no spine edit here (AD-20's wording is left for the orchestrator).
@@ -400,5 +494,29 @@ No AC contradicts an AD's Rule, and no NFR is involved.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** DW-149 is closed. Each runner records, in its own job at start, whether it can tell that its key is set (`present`, `absent`, `unknown`) in `^OcuTalonBP.KeyState(item)`, and forgets it when it stops normally. `Keys.Status(agent)` reads only that record, so a web request with only `APPLICATIONROLES` reads a missing key as 0, writes no `AccessDenied` row and reads no key or setting. `Decide` keeps its live rule through the new `Keys.Absent`. `Budget.State()` in a process without the Usage SQL privilege logs no warning and names the uncounted spend as its first fault line.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Keys.cls`: one private `State` judgement, `Present`, `Absent`, `Record`, `Forget` and a record-only `Status`; the class doc states who records and who reads.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: `OnInit` records before `CheckSettings`, a new `OnTearDown` forgets, both only in a real job.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: the `noKey` fact is `Keys.Absent(runner)`.
+- `src/bridge/cls/OcuTalon/Bridge/Budget.cls`: a Usage read refused with SQLCODE -99 is a quiet fault line, and `UnpricedModels` is skipped.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/WebStatus.cls` (new): the live web-roles job, the three matrix rows, the audit control, and (review pass) the daily cap and `Keys.Absent` in the job.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls`: the `unknown` expectations, `TestRecord`, `TestStatusReadsOnlyTheRecord` (widened in review), `TestAbsentReadsProviderConfig`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls`: `TestShadowRecordsNothing`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: `WaitRecord`, `WaitRecords`, `WaitFor`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls` (review pass): the record waits and the refused-start pin.
+- `_bmad-output/implementation-artifacts/spec-1-13-epic-1-burn-down.md`: Task 0 facts, mutation lines, results, decisions 13 to 20, the triage log and the deferred item.
+
+**Review findings.** 31 findings from four layers: high 0, medium 6, low 20, false 5. Patched (test and doc changes only; no product code changed in the review pass): the record waits in `Test.Agent.Runners`; the refused-start pin and the corrected docs; the Budget guard now tested with a cap set; `Keys.Absent` read in the web-roles job; the wider source scan of `Status`; the `TestStatus` header; a cryptographic fixture password. Deferred: one item (a record kept after a refused start, a killed job or a crash; `reopen_if` in the frontmatter). Rejected with reasons in the triage log: the silent `unknown` of a runner that lacks the privilege (specified; AD-19), `PoolSize` above 1 (`wontfix-theoretical`), the `Forget` race (microsecond window, safe direction), a foreign shadow-less host, the untested other-SQL-error arm (`wontfix-accepted`, `reopen_if`: `UsageSpent`'s error handling changes), the `RecordCount` assertion, and the four intent-alignment descriptions that match the intent.
+
+**Follow-up review recommended: false.** Two medium entries were patched (the record waits, the Budget guard test), both in tests and each proven by a green run on the patched tree; the guard's mutation is red and recorded. The record waits fix a race, which cannot be shown red; that is the only residual of the pass.
+
+**Verification performed.** All commands of `## Verification`, with the four lane-A variables (tag `e1s13a`), after the last patch: `bash ci/checks.sh`, `ci/iris.sh build`, `ci/iris.sh class` for the six classes, `shard lane-a` (41 classes, only SKIP `TestStepHelpers`), `shard lane-b` (24 classes), `live production` (row 14 included), `live production-restart`, `live demo-path` (floor 1 of 1), `release/standalone-bridge.sh`, and `ci/iris.sh teardown` (nothing left). Matrix Test Audit: every row of the matrix is covered by a test that ran and passed (`WebStatus` three tests; `Keys.TestRecord`, `TestStatusReadsOnlyTheRecord`, `TestAbsentReadsProviderConfig`, `TestPresent`, `TestPresentForms`, `TestPresentEntry`). Seventeen mutations were applied and went red, each reverted byte-identically. The reverse-order shard runs are the lead's.
+
+**Residual risks.**
+- A record outlives a job that ends without `OnTearDown`: a refused start (measured), a killed job, a crash. `Status` then reads what the last start recorded until the runner starts again. The record is true about the key, so it misleads only if the key is removed while that runner stays refused or disabled. Deferred with its `reopen_if`; whether a refused start should read as stopped is the owner's call.
+- In a request, `spent` leaves out the Usage rows, so `capped` can trail `StatusMonitor`'s by one decision (Design Notes 8).

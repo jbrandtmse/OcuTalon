@@ -14,6 +14,8 @@
 ///   - GuardReason: "" only when the environment is the CI override's (the mock's base URL and the mock-key switch), so that no
 ///     test can send a request to a real model API;
 ///   - FindRequest, FindRequests, Effort, CacheMark, Has and Messages: read the entries of the mock's log (Test.Contract.Mock.LogSince);
+///   - WaitRecord and WaitRecords (Story 1.13): wait until the runner items have recorded their key state (Keys.Record) in jobs that run,
+///     which a start or a restart of the runners does a moment after the jobs are alive; WaitFor: wait until a job has reported a value;
 ///   - EventMark, EventRows, LogRowsHolding and Warnings: the rows of the event log after a mark, the number of them that hold a value,
 ///     and the warnings that one method logged after it;
 ///   - UsageIds, AddUsage and Totals (Story 1.4): the Usage rows of an item or a decision, a fixture Usage row, and the total fields
@@ -64,6 +66,9 @@ Parameter RUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent";
 /// The longest to wait for every item to run, in seconds. A ceiling, not a delay: the wait polls once a second and returns as soon
 /// as the items run, so a slow machine takes longer and does not fail.
 Parameter WAITSECONDS = 120;
+
+/// The longest to wait for a runner's job to record its key state, in seconds. A ceiling too: the job records it a moment after it is alive.
+Parameter RECORDSECONDS = 30;
 
 /// The longest a sent message waits for its answer, in seconds. A ceiling too: the first request of a runner builds its agent.
 Parameter SENDSECONDS = 240;
@@ -128,6 +133,49 @@ ClassMethod Jobs(item As %String) As %List
 		If (result.Get("ConfigName") = item) && (result.Get("State") = "Alive") Set jobs = jobs _ $ListBuild(result.Get("Job"))
 	}
 	Quit jobs
+}
+
+/// 1 when the key state that the job of the runner item recorded at its start (Keys.Record, ^OcuTalonBP.KeyState) names an alive job of
+/// the item, waiting up to the seconds (RECORDSECONDS when empty) for it: the job is alive a moment before its OnInit has run.
+ClassMethod WaitRecord(item As %String, seconds As %Integer = "") As %Boolean
+{
+	If seconds = "" Set seconds = ..#RECORDSECONDS
+	Set deadline = $ZHorolog + seconds
+	Set found = 0
+	For {
+		Try {
+			Set found = ($ListFind(..Jobs(item), $ListGet($Get(^OcuTalonBP.KeyState(item)), 2)) > 0)
+		} Catch {
+			Set found = 0
+		}
+		If found || ($ZHorolog >= deadline) Quit
+		Hang 0.5
+	}
+	Quit found
+}
+
+/// Waits up to the seconds until the global node holds a value (a job's report). 1 when it does.
+ClassMethod WaitFor(node As %String, seconds As %Integer) As %Boolean
+{
+	Set deadline = $ZHorolog + seconds
+	While ($Get(@node) = "") && ($ZHorolog < deadline) {
+		Hang 0.2
+	}
+	Quit $Get(@node) '= ""
+}
+
+/// 1 when WaitRecord holds for every runner, within RECORDSECONDS in all.
+ClassMethod WaitRecords() As %Boolean
+{
+	Set deadline = $ZHorolog + ..#RECORDSECONDS
+	Set all = 1
+	Set runners = $ListFromString(..#RUNNERS)
+	Set position = 0
+	While $ListNext(runners, position, item) {
+		Set remaining = deadline - $ZHorolog
+		If '..WaitRecord(item, $Select(remaining > 0: remaining, 1: 0)) Set all = 0
+	}
+	Quit all
 }
 
 /// The highest id of the event log: the mark that LogRows reads from.

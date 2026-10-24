@@ -65,6 +65,9 @@
 /// (NewUsageRequest, TestContext, TestFailureKeepsContext), and OnAfterOneTest deletes the sessions saved since the test began and the links
 /// that name them. TestStepsRedacted and TestStepsRedactedText drop the session of their turn before they scan: the saved conversation holds what
 /// the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
+/// Added by Story 1.13 (AD-6; DW-149):
+///   - TestShadowRecordsNothing: the adapter of a shadow host, which is no item in its own job, records no key state in OnInit and forgets
+///     none in OnTearDown, even a record that this job wrote.
 /// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote, and every System
 /// Default Settings row that a test put is put back.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
@@ -165,6 +168,22 @@ Method TestRefusals()
 		}
 		Do $$$AssertTrue('$IsObject(adapter.Agent), "and nothing is built")
 	}
+}
+
+/// The adapter of a shadow host (a host made in memory, no item in its own job) records no key state in OnInit and forgets none in
+/// OnTearDown: a record under its name is left as it is, and both calls are OK.
+Method TestShadowRecordsNothing()
+{
+	Set host = ..NewRunner(..#AGENT)
+	Set name = host.%ConfigName
+	Kill ^OcuTalonBP.KeyState(name)
+	Do $$$AssertTrue(host.%isShadow, "control: the host is a shadow")
+	Do $$$AssertStatusOK(host.Adapter.OnInit(), "OnInit of the adapter of a shadow host starts")
+	Do $$$AssertEquals($Data(^OcuTalonBP.KeyState(name)), 0, "and records no key state under "_name)
+	Set ^OcuTalonBP.KeyState(name) = $ListBuild("present", $Job)
+	Do $$$AssertStatusOK(host.Adapter.OnTearDown(), "OnTearDown of the adapter of a shadow host is OK")
+	Do $$$AssertEquals($Data(^OcuTalonBP.KeyState(name)), 1, "and forgets nothing, not even a record that this job wrote")
+	Kill ^OcuTalonBP.KeyState(name)
 }
 
 /// An unset key variable gives the same error twice and leaves no agent, so each request builds again; when the variable is set,

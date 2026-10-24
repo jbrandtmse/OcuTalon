@@ -3,7 +3,10 @@ Include Ensemble
 /// The adapter of the agent runners (AD-6, AD-7). It extends AI Hub's outbound agent adapter and changes four things.
 ///   - It refuses to start (OnInit) when a setting would put a policy, a tool, a skill, a system prompt or a session
 ///     configuration on the agent, or when its agent class is not on its allow-list. OnInit calls nothing in AI Hub, so a runner
-///     item starts and keeps running with no model key (FR-38).
+///     item starts and keeps running with no model key (FR-38). In the item's own job, before it checks the settings, OnInit
+///     records whether the item can tell that its key is set (Keys.Record), and OnTearDown forgets that record (Keys.Forget), so that
+///     Keys.Status is the state that the last start of the item recorded, until the item stops normally. A shadow host, which runs
+///     no OnInit of its own, records nothing.
 ///   - It builds the agent on the first request that needs it (BuildAgent), by running AI Hub's own OnInit. A build that fails is
 ///     not kept, so the next request builds again. The built agent has no Temperature, so that AI Hub adds no temperature to a
 ///     session.
@@ -64,11 +67,43 @@ Property AgentAllowList As %String(MAXLEN = 2000);
 /// 1 while BuildAgent runs AI Hub's OnInit.
 Property Building As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
 
-/// Checks the settings and calls nothing in AI Hub. While BuildAgent runs it, it is AI Hub's OnInit.
+/// Records the key state of the item (RecordKey), checks the settings and calls nothing in AI Hub. While BuildAgent runs it, it is
+/// AI Hub's OnInit.
 Method OnInit() As %Status [ Internal ]
 {
 	If ..Building Quit ##super()
+	Do ..RecordKey()
 	Quit ..CheckSettings()
+}
+
+/// Forgets the key state that this job recorded for the item (Keys.Forget), then runs the adapter's own tear-down.
+Method OnTearDown() As %Status
+{
+	If ..IsJob() {
+		Try {
+			Do ##class(OcuTalon.Bridge.Keys).Forget(..BusinessHost.%ConfigName)
+		} Catch {
+		}
+	}
+	Quit ##super()
+}
+
+/// Records the key state of the item in its job (Keys.Record, with the raw ProviderConfig setting). The outcome never changes the
+/// status of OnInit.
+Method RecordKey() [ Private ]
+{
+	If ..IsJob() {
+		Try {
+			Do ##class(OcuTalon.Bridge.Keys).Record(..BusinessHost.%ConfigName, ..ProviderConfig)
+		} Catch {
+		}
+	}
+}
+
+/// 1 when the host of this adapter is an item that runs in its own job: an object that is not a shadow host.
+Method IsJob() As %Boolean [ Private ]
+{
+	Quit $IsObject(..BusinessHost) && '..BusinessHost.%isShadow
 }
 
 /// OK, or the error that names the first refused setting, the agent class that is not a compiled %AI.Agent class, or the agent

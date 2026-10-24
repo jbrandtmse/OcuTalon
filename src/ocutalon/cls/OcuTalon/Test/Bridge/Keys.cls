@@ -1,27 +1,48 @@
-/// Tests of the model-key API (Story 1.6; AD-6, AD-19, AD-20, FR-38): Keys.Present and Keys.Status, in process. They need no mock and
-/// send nothing. They read the environment of this process and, for the entries, the Config Store, where the test creates one entry of
-/// its own, AI.LLM.OcuTalonZzKeys<n> (n from ^OcuTalonTest("Keys","n"), never reset), after RebuildRegistry(), and deletes it at the end.
-/// The entry holds placeholders and one literal word, never a key, and no test writes a real key anywhere.
+/// Tests of the model-key API (AD-6, AD-19, AD-20, AD-28; FR-38): Keys.Present, Keys.Absent, Keys.Record, Keys.Forget and Keys.Status,
+/// in process. They need no mock and send nothing. They read the environment of this process and, for the entries, the Config Store,
+/// where the test creates one entry of its own, AI.LLM.OcuTalonZzKeys<n> (n from ^OcuTalonTest("Keys","n"), never reset), after
+/// RebuildRegistry(), and deletes it at the end. The fixture records are ^OcuTalonBP.KeyState(ZzKeysItem...), removed by prefix before
+/// and after the run. The entry holds placeholders and one literal word, never a key, and no test writes a real key anywhere.
+/// A key is present only for exactly one @{env:NAME} placeholder whose variable is set; a form that the bridge cannot judge (unknown) is
+/// not present either, so Present is 0 for it.
 ///   - TestPresent: Present of "", {}, {"api_key":""}, {"api_key":"@{env:PATH}"}, {"api_key":"@{env:ZZOCUTALONNOSUCHVAR}"},
-///     {"api_key":"literal-value"}, @{config:ZzNoSuchEntry} and "not json" is 0, 0, 0, 1, 0, 1, 0 and 1; every result is exactly 0 or 1;
+///     {"api_key":"literal-value"}, @{config:ZzNoSuchEntry} and "not json" is 0, 0, 0, 1, 0, 0, 0 and 0; every result is exactly 0 or 1;
 ///     no row of the event log written since the test began holds the value of PATH; a control shows that PATH is set in this process and
 ///     that the other variable is not;
 ///   - TestPresentForms: further forms that Present has to judge, an api_key that is not one placeholder, a null or non-string api_key,
-///     a JSON array, white space around the text, and a text that starts like JSON and is not;
+///     a JSON array, white space around the text, and a text that starts like JSON and is not: none of the forms that are not judged is
+///     present;
 ///   - TestPresentEntry: @{config:<name>} reads the entry without resolving it: an api_key placeholder whose variable is set is 1,
-///     one whose variable is not set is 0, an entry with no api_key is 0, a literal is 1, and the full name of the entry works too;
+///     one whose variable is not set is 0, an entry with no api_key is 0, a literal is 0, and the full name of the entry works too;
 ///   - TestStatus: Status of an item that is not in the production is 0 (and of an empty name), and the status of each runner item of the
-///     active production is Present of its ProviderConfig, which names a Config Store entry; every result is exactly 0 or 1;
-///   - TestStatusReadsProviderConfig: with the System Default Settings row ProviderConfig of TriageAgent (the Provider step writes it)
-///     put to inline configurations, Status follows it, and the row is put back (Test.Agent.RunnerFixture.SnapshotDefault, PutDefault and
-///     RestoreDefault). Since the QA stage of Story 1.6 it also pins that Status of a runner whose key is present returns exactly 1, not
-///     the value it found, and that no row of the event log written since the test began holds the value of PATH, which the placeholder
-///     of the present key names (TestPresent pins the same for Present).
+///     active production, whose entries are at the placeholder of the Provider step (RestoreKeys restarts the three runners), is the
+///     record that its job wrote at its start and equals Present of its ProviderConfig; every result is exactly 0 or 1;
+///   - TestRecord: Record of the six configurations, and the state each one leaves in the record; Status is 1 only for present; Forget
+///     removes the record of its own job and leaves the record of another job; an item never recorded, an empty item and a node that is
+///     no record are 0; no row of the event log written since the test began holds the value of PATH;
+///   - TestStatusReadsOnlyTheRecord: the code of Status names ^OcuTalonBP.KeyState and has no ##class( and no .. call, no $SYSTEM. call,
+///     no $ZF( or $ZUTIL( call, no indirection and Xecute, and no global but the record, so that it reads no setting, no Config Store and
+///     no environment variable (controls show that each pattern flags code that does);
+///   - TestAbsentReadsProviderConfig: with the System Default Settings row ProviderConfig of TriageAgent (the Provider step writes it)
+///     put to inline configurations, Absent follows it, Decide's precheck is no_key exactly where Absent is 1, Status keeps the value
+///     it had, and the row is put back (Test.Agent.RunnerFixture.SnapshotDefault, PutDefault and RestoreDefault). Absent of an item
+///     that is not in the production and of an empty name is 1.
 Class OcuTalon.Test.Bridge.Keys Extends %UnitTest.TestCase
 {
 
 /// The variable that a CI start leaves unset, and that no process sets.
 Parameter UNSET = "ZZOCUTALONNOSUCHVAR";
+
+/// The prefix of the fixture items of the record.
+Parameter ITEM = "ZzKeysItem";
+
+/// The patterns of the scan of Status (ICU regular expressions, in any case): a $SYSTEM. call, $ZF( or $ZUTIL(; an indirection or an
+/// Xecute; a global but the record, or a routine call.
+Parameter SYSTEMCALL = "\$(SYSTEM\.|ZF\(|ZUTIL\()";
+
+Parameter INDIRECTION = "@|\bXECUTE\b";
+
+Parameter OTHERGLOBAL = "\^(?!OcuTalonBP\.KeyState)";
 
 /// The run's number.
 Property Number As %Integer;
@@ -32,18 +53,22 @@ Property Saved As %List;
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("Keys", "n"))
+	Do ..KillRecords()
 	Quit ##class(%ConfigStore.DescriptorManager).RebuildRegistry()
 }
 
 Method OnAfterAllTests() As %Status
 {
 	Do ..DeleteEntry()
+	Do ..KillRecords()
+	Kill ^OcuTalonTest("Keys", ..Number)
 	Quit $$$OK
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ..DeleteEntry()
+	Do ..KillRecords()
 	If ..Saved '= "" {
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..Saved)
 		Set ..Saved = ""
@@ -61,7 +86,7 @@ Method TestPresent()
 	Do $$$AssertEquals($SYSTEM.Util.GetEnviron(..#UNSET), "", "control: "_..#UNSET_" is not set")
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set cases = $ListBuild("", "{}", "{""api_key"":""""}", "{""api_key"":""@{env:PATH}""}", "{""api_key"":""@{env:"_..#UNSET_"}""}", "{""api_key"":""literal-value""}", "@{config:ZzNoSuchEntry}", "not json")
-	Set expected = $ListBuild(0, 0, 0, 1, 0, 1, 0, 1)
+	Set expected = $ListBuild(0, 0, 0, 1, 0, 0, 0, 0)
 	For i = 1:1:$ListLength(cases) {
 		Set text = $List(cases, i)
 		Set result = $ClassMethod(keys, "Present", text)
@@ -78,27 +103,28 @@ Method TestPresent()
 Method TestPresentForms()
 {
 	Set keys = "OcuTalon.Bridge.Keys"
-	// not one placeholder: judged present, because the bridge cannot tell that the key is missing
+	// not one placeholder: not judged, so not present
 	For key = "@{env:PATH}x", "x@{env:PATH}", "@{env:PATH:-fallback}", "@{env:NO-DASH}", "@{secret:x}", "secret://wallet/key", "@{env:"_..#UNSET_"} @{env:PATH}" {
 		Set text = {"api_key": (key)}.%ToJSON()
-		Do $$$AssertEquals($ClassMethod(keys, "Present", text), 1, "an api_key that is not exactly one placeholder counts as present: "_key)
+		Do $$$AssertEquals($ClassMethod(keys, "Present", text), 0, "an api_key that is not exactly one placeholder is not present: "_key)
 	}
 	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":null}"), 0, "a null api_key is missing")
 	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":"" ""}"), 0, "an api_key of white space is empty")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":5}"), 1, "an api_key that is no string is a form that is not judged")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":{""a"":1}}"), 1, "nor is an object")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", "[]"), 1, "a JSON array is not judged")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", "{"), 1, "text that starts like JSON and is not is not judged")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":5}"), 0, "an api_key that is no string is a form that is not judged")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""api_key"":{""a"":1}}"), 0, "nor is an object")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", "[]"), 0, "a JSON array is not judged")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", "{"), 0, "text that starts like JSON and is not is not judged")
 	Do $$$AssertEquals($ClassMethod(keys, "Present", $Char(10, 9)_"{""api_key"":""@{env:PATH}""}"_$Char(13, 10)), 1, "white space around the text is ignored")
 	Do $$$AssertEquals($ClassMethod(keys, "Present", " "), 0, "a text of white space is empty")
 	Do $$$AssertEquals($ClassMethod(keys, "Present", "{""model_provider"":""anthropic"",""api_key"":""@{env:PATH}"",""base_url"":""http://mock/v1/""}"), 1, "a full inline configuration is read")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", "@{config:}"), 1, "a reference with no name is not judged")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", "@{config:}"), 0, "a reference with no name is not judged")
 }
 
 /// @{config:<name>}: the entry AI.LLM.<name> is read without resolving it.
 Method TestPresentEntry()
 {
 	Set keys = "OcuTalon.Bridge.Keys"
+	Do $$$AssertTrue($SYSTEM.Security.Check("%Admin_ConfigStore", "USE"), "control: this process holds %Admin_ConfigStore:USE, so it reads the entries")
 	Set name = ..EntryName()
 	Set reference = "@{config:"_name_"}"
 	Set sc = ..CreateEntry({"model_provider": "anthropic", "api_key": "@{env:PATH}"})
@@ -111,7 +137,7 @@ Method TestPresentEntry()
 	Do $$$AssertEquals($ClassMethod(keys, "Present", reference), 0, "an api_key placeholder whose variable is not set is missing")
 	Do ..DeleteEntry()
 	Do $$$AssertStatusOK(..CreateEntry({"model_provider": "anthropic", "api_key": "literal-value"}), "an entry with a literal word is created")
-	Do $$$AssertEquals($ClassMethod(keys, "Present", reference), 1, "a literal value is present")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", reference), 0, "a literal value is not judged, so it is not present")
 	Do ..DeleteEntry()
 	Set sc = ..CreateEntry({"model_provider": "anthropic"})
 	If $$$ISOK(sc) {
@@ -123,34 +149,157 @@ Method TestPresentEntry()
 	Do $$$AssertEquals($ClassMethod(keys, "Present", reference), 0, "an entry that does not exist is missing")
 }
 
-/// Status reads the ProviderConfig adapter setting of the runner item in the active production.
+/// Status is the record that the job of each runner item wrote at its start. With the entries at the placeholder of the Provider step and
+/// the runners started again, it equals Present of the item's ProviderConfig.
 Method TestStatus()
 {
 	Set keys = "OcuTalon.Bridge.Keys"
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Do $$$AssertEquals($ClassMethod(keys, "Status", "ZzNoSuchItem"), 0, "an item that is not in the production has no key")
 	Do $$$AssertEquals($ClassMethod(keys, "Status", ""), 0, "and neither has an empty name")
-	Set production = ##class(Ens.Director).GetActiveProductionName()
-	If production = "" {
-		Do $$$AssertTrue(0, "no production is active, so the ProviderConfig of the runners cannot be read")
+	Set reason = $ClassMethod(fixture, "RunningReason")
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
 		Quit
 	}
+	Set production = ##class(Ens.Director).GetActiveProductionName()
+	Set placeholder = ##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER
+	Do $$$AssertStatusOK($ClassMethod(fixture, "RestoreKeys"), "the entries of the runners are put back to the placeholder of the Provider step, and the runners restarted")
+	Do $$$AssertTrue($ClassMethod(fixture, "KeysAre", placeholder), "the entry of each runner holds "_placeholder)
+	Do $$$AssertTrue($ClassMethod(fixture, "WaitAllRun"), "every item runs")
 	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
 		Set config = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item, "ProviderConfig", .sc)
 		Do $$$AssertStatusOK(sc, item_"'s ProviderConfig is read")
 		Do $$$AssertTrue(config [ "@{config:", item_"'s ProviderConfig names a Config Store entry")
+		Do $$$AssertTrue($ClassMethod(fixture, "WaitRecord", item), item_" has recorded its state in a job that runs")
 		Set status = $ClassMethod(keys, "Status", item)
 		Do $$$AssertTrue((status = 0) || (status = 1), item_": exactly 0 or 1: '"_status_"'")
+		Set record = $Get(^OcuTalonBP.KeyState(item))
+		Do $$$AssertEquals($ListLength(record), 2, item_" has a record of a state and a job")
+		Do $$$AssertTrue($ListFind($ClassMethod(fixture, "Jobs", item), $ListGet(record, 2)) > 0, "written by a job of "_item_": "_$ListGet(record, 2))
+		Do $$$AssertEquals(status, $ListGet(record, 1) = "present", item_": Status is the record")
 		Do $$$AssertEquals(status, $ClassMethod(keys, "Present", config), item_": Status is Present of its ProviderConfig")
 	}
 }
 
-/// Status follows the ProviderConfig setting of the item: an inline configuration whose api_key placeholder names a set variable is a
+/// Record keeps the state of a configuration and the job that wrote it, Status reads it, and Forget removes only the record of its own job.
+/// The configurations are those of the matrix; the states are present, absent, absent, absent, unknown and unknown.
+Method TestRecord()
+{
+	Set keys = "OcuTalon.Bridge.Keys"
+	Set path = $SYSTEM.Util.GetEnviron("PATH")
+	Do $$$AssertTrue(path '= "", "control: PATH is set in this process ("_$Length(path)_" characters)")
+	Do $$$AssertEquals($SYSTEM.Util.GetEnviron(..#UNSET), "", "control: "_..#UNSET_" is not set")
+	Do $$$AssertTrue($SYSTEM.Security.Check("%Admin_ConfigStore", "USE"), "control: this process holds %Admin_ConfigStore:USE, so a reference to an entry that does not exist is judged absent")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set cases = $ListBuild("{""api_key"":""@{env:PATH}""}", "{""api_key"":""@{env:"_..#UNSET_"}""}", "{}", "@{config:ZzNoSuchEntry}", "{""api_key"":""literal-value""}", "not json")
+	Set states = $ListBuild("present", "absent", "absent", "absent", "unknown", "unknown")
+	For i = 1:1:$ListLength(cases) {
+		Set item = ..Item(i)
+		Set config = $List(cases, i)
+		Do $ClassMethod(keys, "Record", item, config)
+		Set record = $Get(^OcuTalonBP.KeyState(item))
+		Do $$$AssertEquals($ListGet(record, 1), $List(states, i), "the record of '"_config_"' holds the state "_$List(states, i))
+		Do $$$AssertEquals($ListGet(record, 2), $Job, "and the job that wrote it")
+		Set status = $ClassMethod(keys, "Status", item)
+		Do $$$AssertEquals(status, (i = 1), "Status of '"_config_"' is "_(i = 1))
+		Do $$$AssertTrue((status = 0) || (status = 1), "and exactly 0 or 1: '"_status_"'")
+	}
+	// Forget of the job that wrote the record removes it
+	Set item = ..Item(1)
+	Do $ClassMethod(keys, "Forget", item)
+	Do $$$AssertEquals($Data(^OcuTalonBP.KeyState(item)), 0, "Forget of the record of this job removes the node")
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 0, "and Status is 0")
+	Do $$$AssertEquals($ClassMethod(keys, "Status", ..Item(99)), 0, "an item that was never recorded is 0")
+	Do $$$AssertEquals($ClassMethod(keys, "Status", ""), 0, "and so is an empty name")
+	Set count = ..RecordCount()
+	Do $ClassMethod(keys, "Record", "", cases)
+	Do $ClassMethod(keys, "Forget", "")
+	Do $$$AssertEquals(..RecordCount(), count, "an empty item records and forgets nothing")
+	// a record that this job wrote is not removed by another job
+	Set item = ..Item(1)
+	Do $ClassMethod(keys, "Record", item, $List(cases, 1))
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 1, "a record of a present key reads 1")
+	Set run = $Name(^OcuTalonTest("Keys", ..Number, "forget"))
+	Kill @run
+	Job ##class(OcuTalon.Test.Bridge.Keys).ForgetInJob(..Number, item, $List(cases, 1))
+	Do $$$AssertTrue(##class(OcuTalon.Test.Agent.RunnerFixture).WaitFor($Name(@run@("done")), 60), "the job finished")
+	Do $$$AssertEquals($Get(@run@("error")), "", "and threw nothing")
+	Do $$$AssertTrue($Get(@run@("job")) '= $Job, "control: the job is not this process")
+	Do $$$AssertEquals($Get(@run@("ownBefore")), 1, "control: the job reads a record that it wrote as 1")
+	Do $$$AssertEquals($Get(@run@("ownAfter")), 0, "and Forget of its own record removes it")
+	Do $$$AssertEquals($Get(@run@("otherAfter")), 1, "the job sees the record of this process after its Forget")
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 1, "Forget of the job leaves the record of this process, and Status stays 1")
+	Do $$$AssertEquals($ListGet($Get(^OcuTalonBP.KeyState(item)), 2), $Job, "and the record is still this process's")
+	Do $ClassMethod(keys, "Forget", item)
+	Do $$$AssertEquals($Data(^OcuTalonBP.KeyState(item)), 0, "Forget of this process removes it")
+	// a node that is no record
+	Set ^OcuTalonBP.KeyState(item) = "present"
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 0, "a node that is no list reads 0")
+	Set ^OcuTalonBP.KeyState(item) = $ListBuild("unknown", $Job)
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 0, "an unknown record reads 0")
+	Set ^OcuTalonBP.KeyState(item) = $ListBuild("absent", $Job)
+	Do $$$AssertEquals($ClassMethod(keys, "Status", item), 0, "an absent record reads 0")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, path), 0, "no row of the event log since the test began holds the value of PATH")
+	Kill @run
+}
+
+/// The job body of TestRecord. It reports under ^OcuTalonTest("Keys", number, "forget"): its job number; whether it reads as 1 a record of
+/// a present key that it wrote itself (ownBefore) and as 0 after its Forget (ownAfter); and Status of the record that the parent wrote
+/// (item) after the job's Forget of that item (otherAfter).
+ClassMethod ForgetInJob(number As %Integer, item As %String, config As %String)
+{
+	Set run = $Name(^OcuTalonTest("Keys", number, "forget"))
+	Try {
+		Set @run@("job") = $Job
+		Set own = item_"Own"
+		Do ##class(OcuTalon.Bridge.Keys).Record(own, config)
+		Set @run@("ownBefore") = ##class(OcuTalon.Bridge.Keys).Status(own)
+		Do ##class(OcuTalon.Bridge.Keys).Forget(own)
+		Set @run@("ownAfter") = ##class(OcuTalon.Bridge.Keys).Status(own)
+		Do ##class(OcuTalon.Bridge.Keys).Forget(item)
+		Set @run@("otherAfter") = ##class(OcuTalon.Bridge.Keys).Status(item)
+	} Catch exception {
+		Set @run@("error") = exception.DisplayString()
+	}
+	Set @run@("done") = 1
+}
+
+/// Status reads the record and nothing else: its code names ^OcuTalonBP.KeyState and has no ##class( and no .. call (the code lines of
+/// the compiled method, comment lines dropped), and no dynamic dispatch. The scan flags Absent, which reads the setting, so that it is
+/// not blind.
+Method TestStatusReadsOnlyTheRecord()
+{
+	Set status = ..Code("Status")
+	Do $$$AssertTrue(status '= "", "the code of Status is read")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "^OcuTalonBP.KeyState", 1), "Status names ^OcuTalonBP.KeyState")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "##class(", 1), "and has no ##class(")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "\.\.[#%A-Za-z]"), "and no .. call")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "\$(ClassMethod|Method|ZObjMethod|ZObjClassMethod|Property)\("), "and no dynamic dispatch")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#SYSTEMCALL), "and no $SYSTEM. call, $ZF( or $ZUTIL(")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#INDIRECTION), "and no indirection or Xecute")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#OTHERGLOBAL), "and no global but ^OcuTalonBP.KeyState, and no routine call")
+	Set absent = ..Code("Absent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(absent, "##class(", 1), "control: the scan flags the ##class( of Absent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(absent, "\.\.[#%A-Za-z]"), "and the .. call of Absent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(..Code("State"), ..#SYSTEMCALL), "and the $SYSTEM. call of State")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $ZF(-1, ""env"")", ..#SYSTEMCALL), "and a $ZF( call")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = @name", ..#INDIRECTION), "and an indirection")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Xecute code", ..#INDIRECTION), "and an Xecute")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = ^Other(1)", ..#OTHERGLOBAL), "and a global that is not the record")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $$tag^routine()", ..#OTHERGLOBAL), "and a routine call")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $ListGet($Get(^OcuTalonBP.KeyState(item)))", ..#OTHERGLOBAL), "but not the record")
+}
+
+/// Absent follows the ProviderConfig setting of the item: an inline configuration whose api_key placeholder names a set variable is a
 /// key, one that names an unset variable is none, and so are a configuration without an api_key and a reference to an entry that does
-/// not exist; the row is put back afterwards.
-Method TestStatusReadsProviderConfig()
+/// not exist; a literal and a text that is not JSON are not judged, so they are not absent. Decide's precheck is no_key exactly where
+/// Absent is 1, and Status keeps the value it had, because it reads the record of the running job; the row is put back afterwards.
+Method TestAbsentReadsProviderConfig()
 {
 	Set keys = "OcuTalon.Bridge.Keys"
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set decide = "OcuTalon.Bridge.Process.Decide"
 	If ##class(Ens.Director).GetActiveProductionName() = "" {
 		Do $$$AssertTrue(0, "no production is active, so the ProviderConfig of TriageAgent cannot be read")
 		Quit
@@ -159,14 +308,31 @@ Method TestStatusReadsProviderConfig()
 	Set path = $SYSTEM.Util.GetEnviron("PATH")
 	Do $$$AssertTrue(path '= "", "control: PATH is set in this process ("_$Length(path)_" characters), so the first case is a key that is present")
 	Set mark = $ClassMethod(fixture, "EventMark")
-	Set cases = $ListBuild($ListBuild("{""api_key"":""@{env:PATH}""}", 1), $ListBuild("{""api_key"":""@{env:"_..#UNSET_"}""}", 0), $ListBuild("{}", 0), $ListBuild("@{config:ZzNoSuchEntry}", 0), $ListBuild("{""api_key"":""literal-value""}", 1), $ListBuild("not json", 1))
+	Set before = $ClassMethod(keys, "Status", "TriageAgent")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "decide"
+	Set request.Provenance = "untrusted"
+	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = "instance"
+	Set request.Summary = "Test "_request.ItemId
+	Set request.Input = "Triage this item."
+	Set cases = $ListBuild($ListBuild("{""api_key"":""@{env:PATH}""}", 0), $ListBuild("{""api_key"":""@{env:"_..#UNSET_"}""}", 1), $ListBuild("{}", 1), $ListBuild("@{config:ZzNoSuchEntry}", 1), $ListBuild("{""api_key"":""literal-value""}", 0), $ListBuild("not json", 0))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $List(cases, i)
 		Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "TriageAgent", "ProviderConfig", $List(case, 1)), "the ProviderConfig of TriageAgent is '"_$List(case, 1)_"'")
-		Do $$$AssertEquals($ClassMethod(keys, "Status", "TriageAgent"), $List(case, 2), "Status of TriageAgent is exactly "_$List(case, 2)_", and not a value that it found")
+		Set absent = $ClassMethod(keys, "Absent", "TriageAgent")
+		Do $$$AssertEquals(absent, $List(case, 2), "Absent of TriageAgent is exactly "_$List(case, 2))
+		Set reason = $ClassMethod(decide, "Precheck", request, "TriageAgent", 0)
+		If $List(case, 2) {
+			Do $$$AssertEquals(reason, "no_key", "Precheck gives no_key where the key is absent")
+		} Else {
+			Do $$$AssertNotEquals(reason, "no_key", "Precheck does not give no_key where the key is not absent: '"_reason_"'")
+		}
+		Do $$$AssertEquals($ClassMethod(keys, "Status", "TriageAgent"), before, "Status of TriageAgent keeps the value it had: "_before)
 	}
 	Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", mark, path), 0, "no row of the event log since the test began holds the value of PATH")
-	Do $$$AssertEquals($ClassMethod(keys, "Status", "ZzNoSuchItem"), 0, "an item that is not in the production has no key, whatever the row says")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "ZzNoSuchItem"), 1, "an item that is not in the production has no key, whatever the row says")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", ""), 1, "and neither has an empty name")
 }
 
 /// --- helpers ---
@@ -187,6 +353,49 @@ Method CreateEntry(details As %DynamicObject) As %Status [ Private ]
 Method DeleteEntry() [ Private ]
 {
 	If ##class(%ConfigStore.Configuration).Exists("AI.LLM."_..EntryName()) Do ##class(%ConfigStore.Configuration).Delete("AI.LLM."_..EntryName())
+}
+
+/// The fixture item of this run and the case.
+Method Item(case As %Integer) As %String [ Private ]
+{
+	Quit ..#ITEM_..Number_"_"_case
+}
+
+/// The number of nodes of ^OcuTalonBP.KeyState.
+ClassMethod RecordCount() As %Integer [ Private ]
+{
+	Set count = 0
+	Set item = ""
+	For {
+		Set item = $Order(^OcuTalonBP.KeyState(item))
+		Quit:item=""
+		Set count = count + 1
+	}
+	Quit count
+}
+
+/// Removes the records of the fixture items (those whose name starts with the prefix), and no other.
+ClassMethod KillRecords() [ Private ]
+{
+	Set item = ..#ITEM
+	For {
+		Set item = $Order(^OcuTalonBP.KeyState(item))
+		If $Extract(item, 1, $Length(..#ITEM)) '= ..#ITEM Quit
+		Kill ^OcuTalonBP.KeyState(item)
+	}
+}
+
+/// The code of the compiled method of OcuTalon.Bridge.Keys: its implementation, with the lines separated by a line feed.
+ClassMethod Code(method As %String) As %String [ Private ]
+{
+	Set compiled = ##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Bridge.Keys||"_method)
+	If '$IsObject(compiled) Quit ""
+	Set text = ""
+	Do compiled.Implementation.Rewind()
+	While 'compiled.Implementation.AtEnd {
+		Set text = text _ compiled.Implementation.Read(32000)
+	}
+	Quit $Translate(text, $Char(13), "")
 }
 
 }

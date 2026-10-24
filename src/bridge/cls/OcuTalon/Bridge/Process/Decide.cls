@@ -7,7 +7,7 @@ Include Ensemble
 ///   - One decision per item (AD-6): a decide or diagnose request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
-///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Status), the daily cost cap reached (Budget.State), an
+///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Absent), the daily cost cap reached (Budget.State), an
 ///     estimate over DecisionTokenBudget or an estimate over the request-size limit (RequestTokenLimit). A request that fails a precheck
 ///     is never sent: RecordFallback records it as a fallback decision and the answer is given from OnRequest, with no runner request and
 ///     no timer. Otherwise Decide sends the request that SentRequest builds, a clone that carries the DecisionRef, to the runner of the
@@ -557,10 +557,11 @@ ClassMethod Unfenced(text As %String) As %String
 	Quit $ZStrip(inner, "<>WC")
 }
 
-/// The FallbackReason of a request that must not be sent, or "" (AD-8, AD-20). The facts are the model key (Keys.Status of the runner
-/// item), the daily cost cap (Budget.State: capped), the estimate of the request (EstimateTokens, worked out once and given back in
-/// estimate) against tokenBudget (the DecisionTokenBudget setting as it is) and against requestLimit (the RequestTokenLimit setting as it
-/// is), and Classify picks the reason. Each fault that State names (DW-76) is logged as one warning, and so is a tokenBudget that is not
+/// The FallbackReason of a request that must not be sent, or "" (AD-8, AD-20). The facts are the model key (Keys.Absent of the runner
+/// item: only a key that the bridge can tell is absent, live in this process, blocks a request), the daily cost cap (Budget.State:
+/// capped), the estimate of the request (EstimateTokens, worked out once and given back in estimate) against tokenBudget (the
+/// DecisionTokenBudget setting as it is) and against requestLimit (the RequestTokenLimit setting as it is), and Classify picks the
+/// reason. Each fault that State names (DW-76) is logged as one warning, and so is a tokenBudget that is not
 /// a whole number of 0 or more, which counts as 0 (off; empty is 0 too). A requestLimit that is a whole number from 1 to
 /// MAXREQUESTTOKENS is the limit; an empty one counts as MAXREQUESTTOKENS, and any other one counts as MAXREQUESTTOKENS and is logged as
 /// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS. One more warning names the runner
@@ -569,7 +570,7 @@ ClassMethod Unfenced(text As %String) As %String
 ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
 {
 	Set facts = {}
-	Do facts.%Set("noKey", '##class(OcuTalon.Bridge.Keys).Status(runner), "boolean")
+	Do facts.%Set("noKey", ##class(OcuTalon.Bridge.Keys).Absent(runner), "boolean")
 	Set state = ##class(OcuTalon.Bridge.Budget).State(, .faults)
 	Do facts.%Set("capped", +state.%Get("capped"), "boolean")
 	Set iterator = faults.%GetIterator()

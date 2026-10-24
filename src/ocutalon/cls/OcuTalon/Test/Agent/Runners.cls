@@ -13,7 +13,8 @@
 ///     RunnerFixture.FallbackProblems (tellnow, Fallback, no_key, nothing else in them), and a control shows that the error-row reader sees
 ///     what a request that does reach a runner with no key writes (each runner's Type 2 row), so that "no error row" can fail;
 ///   - TestStartRefused: a runner whose adapter has a refused setting (SystemPrompt), or whose agent class is not on the allow-list,
-///     does not start, and the event log names the setting or the class; with the row put back it starts again;
+///     does not start, and the event log names the setting or the class; with the row put back it starts again. With the keys pointed, the
+///     refused item has recorded its key state before the settings were checked, so Keys.Status reads 1 although it has no job;
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
 ///     8000, the effort of the runner (none for Chat), no sampling parameter and the cache marker where the cached prefix reaches
 ///     min_tokens_for_cache (the last tool of Diagnosis and, since Story 1.10, of Chat; the short prefix of Triage stays unmarked, and Test.Bridge.Runner
@@ -220,6 +221,7 @@ Method TestStartsWithNoKey()
 Method TestStartRefused()
 {
 	If '..Ready() Quit
+	If '..Point() Quit
 	Set item = "TriageAgent"
 	Set name = ..#PRODUCTION_"||"_item
 	Set others = $ListBuild("DiagnosisAgent", "ChatAgent")
@@ -235,6 +237,7 @@ Method TestStartRefused()
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, item, "SystemPrompt", "A prompt that the runner must refuse.", "Written by a test; the test deletes it."), "a SystemPrompt row is written for "_item)
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Restart(name, 0), item_" is stopped and started again")
 		Do ..AssertRefused(item, mark, "the setting SystemPrompt is set")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Keys).Status(item), 1, "the refused start recorded the key state that it would use, so Keys.Status of "_item_" reads 1 with no job")
 		Do ..AssertOthersKeep(others, otherJobs)
 		Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||SystemPrompt"), "the SystemPrompt row is deleted")
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).Restart(name)
@@ -439,24 +442,30 @@ Method Ready() As %Boolean [ Private ]
 
 /// Makes the entries of the runners hold the placeholder and the runners run with no agent built: the entries are put back to the
 /// placeholder of the Provider step and every runner is restarted, whatever a test before this one left, so that no job holds an
-/// agent that was built with another key. 1 when every entry holds the placeholder. Otherwise the test fails with the reason, and
-/// quits.
+/// agent that was built with another key. 1 when every entry holds the placeholder and every runner has recorded its key state.
+/// Otherwise the test fails with the reason, and quits.
 Method EnsureKeysAtPlaceholder(placeholder As %String) As %Boolean [ Private ]
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Do $$$AssertStatusOK($ClassMethod(fixture, "RestoreKeys"), "the entries of the runners are put back to the placeholder of the Provider step, and the runners restarted")
 	Set holds = $ClassMethod(fixture, "KeysAre", placeholder)
 	Do $$$AssertTrue(holds, "the entry of each runner holds the placeholder "_placeholder)
-	Quit holds
+	Set recorded = $ClassMethod(fixture, "WaitRecords")
+	Do $$$AssertTrue(recorded, "and every runner has recorded its key state")
+	Quit holds && recorded
 }
 
-/// Points the keys of the runners at the CI mock key variable, and remembers to put them back. 1 when it worked.
+/// Points the keys of the runners at the CI mock key variable, and remembers to put them back. 1 when it worked and every runner
+/// has recorded its key state.
 Method Point() As %Boolean [ Private ]
 {
 	Set ..Pointed = 1
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
 	Do $$$AssertStatusOK(sc, "the entries of the runners are pointed at the CI mock key variable")
-	Quit $$$ISOK(sc)
+	If $$$ISERR(sc) Quit 0
+	Set recorded = ##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()
+	Do $$$AssertTrue(recorded, "and every runner has recorded its key state")
+	Quit recorded
 }
 
 /// Asserts what the mock logged for the requests of one runner: the model of the runner, a cap of 8000, the effort (none when

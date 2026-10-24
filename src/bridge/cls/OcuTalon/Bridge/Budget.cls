@@ -13,6 +13,12 @@ Include Ensemble
 Class OcuTalon.Bridge.Budget
 {
 
+/// The SQLCODE of a statement that the process is not privileged for.
+Parameter NOPRIVILEGECODE = -99;
+
+/// The fault line of a Usage read that is refused for lack of an SQL privilege.
+Parameter NOPRIVILEGE = "The Usage rows of the day cannot be read in this process, which holds no SQL privilege on them, so their spend is not counted";
+
 /// The state of the daily spending cap: {"spent","cap","capped","resetsAt"}, where spent and cap are JSON numbers in US dollars,
 /// capped is a JSON boolean and resetsAt is the end of the day as a UTC time.
 ///   - now is a UTC time (YYYY-MM-DDThh:mm:ssZ); empty or unreadable means the current time. The day is the instance-zone date of
@@ -24,6 +30,9 @@ Class OcuTalon.Bridge.Budget
 ///   - capped is true when the day is marked (MarkCapped), or when cap is above 0 and spent has reached it.
 ///   - faults (DW-76) is a dynamic array with one plain line, passed through OcuTalon.Bridge.Redact.Text, for each way in which the
 ///     cap counts less than it was set to. The spend that can be read is still counted and compared with the cap. The lines, in this order:
+///       - the Usage rows of the day cannot be read in this process, which holds no SQL privilege on them (the SELECT fails with the
+///         SQLCODE of a missing privilege, -99), so their spend is not counted. That is the process of a web request. It is a fault
+///         line and no warning, and the unpriced models are not listed then;
 ///       - DailyCostCapUSD cannot be read, or is not empty and not a number of 0 or more (it counts as 0, which is off);
 ///       - GatewaySpendUSD cannot be read, or is not empty and not a number of 0 or more (the gateway's spend is not counted);
 ///       - GatewaySpendDate cannot be read, or is not empty and not a date, YYYY-MM-DD (the gateway's spend is not counted);
@@ -36,7 +45,8 @@ ClassMethod State(now As %String = "", Output faults As %DynamicArray) As %Dynam
 	Set day = ##class(OcuTalon.Bridge.Time).LocalDate(now)
 	Set from = ##class(OcuTalon.Bridge.Time).DayStartUtc(day)
 	Set to = ##class(OcuTalon.Bridge.Time).DayEndUtc(day)
-	Set spent = ..UsageSpent(from, to)
+	Set spent = ..UsageSpent(from, to, .unreadable)
+	If unreadable Do ..Fault(faults, ..#NOPRIVILEGE)
 	Set capText = ..Setting("DailyCostCapUSD", .capStatus)
 	Set cap = 0
 	If $$$ISERR(capStatus) {
@@ -65,7 +75,7 @@ ClassMethod State(now As %String = "", Output faults As %DynamicArray) As %Dynam
 		Set gatewayDate = ""
 	}
 	If gatewayDate = day Set spent = spent + ..Amount(gatewaySpend)
-	If cap > 0 {
+	If (cap > 0) && 'unreadable {
 		Set models = ..UnpricedModels(from, to)
 		Set position = 0
 		While $ListNext(models, position, model) {
@@ -122,13 +132,19 @@ ClassMethod MarkCapped(day As %String = "", sinkClass As %String = "") As %Boole
 
 /// The sum of the CostUSD of the Usage rows recorded from the UTC time from (inclusive) to the UTC time to (exclusive), in US
 /// dollars to 6 decimals, without rows of the owner eval and rows with no cost. The table is scanned, because Usage has no index
-/// on RecordedAt. A scan that fails is logged as a warning and counts as 0.
-ClassMethod UsageSpent(from As %String, to As %String) As %Numeric [ Private ]
+/// on RecordedAt. A scan that fails counts as 0. It fails with the SQLCODE of a missing SQL privilege (NOPRIVILEGECODE) in a
+/// process that holds none; that sets unreadable to 1 and logs nothing. Any other failure is logged as a warning.
+ClassMethod UsageSpent(from As %String, to As %String, Output unreadable As %Boolean) As %Numeric [ Private ]
 {
 	Set spent = 0
+	Set unreadable = 0
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT CostUSD FROM OcuTalon_Bridge_Data.Usage WHERE RecordedAt >= ? AND RecordedAt < ? AND CostUSD IS NOT NULL AND (OwnerRef IS NULL OR OwnerRef <> 'eval')", from, to)
 	If result.%SQLCODE < 0 {
-		$$$LOGWARNING("The Usage rows of the day cannot be summed: "_result.%Message)
+		If result.%SQLCODE = ..#NOPRIVILEGECODE {
+			Set unreadable = 1
+		} Else {
+			$$$LOGWARNING("The Usage rows of the day cannot be summed: "_result.%Message)
+		}
 		Quit 0
 	}
 	While result.%Next() {
