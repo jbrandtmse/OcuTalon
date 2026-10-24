@@ -2,9 +2,10 @@
 title: 'Story 8.1: The heartbeat ticks every minute and catches up once after a restart'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1939c9ce8a82c7484d914dec680a245ea498142f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-8-context.md'
 warnings: [oversized]
@@ -102,6 +103,43 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 - Review pass
+- verdicts: 33 findings - high 0, medium 4, low 23, false 6, maybe-false 0
+- findings:
+  - `[low]` `[patch]` BH1: `$$$ConfigClassName` is a bare global read, so `TargetBuilt`'s no-class branch is dead and `Restore` can raise - verified: `Set x = ^Ens.Runtime("ConfigItem","NoSuchItem","ClassName")` raises `<UNDEFINED>` on the warm stack; both reads wrapped in `$Get`.
+  - `[low]` `[patch]` BH2: a failed `OnBeforeAllTests` still runs `OnAfterAllTests`, and `Restore` would start a production the class never stopped - verified in `%UnitTest.Manager` (`exit` block calls `OnAfterAllTests` after a failed `OnBeforeAllTests`); `OnAfterAllTests` now returns at once unless `Saved`.
+  - `[medium]` `[patch]` BH3: failed send, failed gap-mark write, disabled item and quiet codes have no test (same root cause as VG1, VG2, IA2) - added `TestSendFails`, `TestRecordKeepsTickWhenGapFails`, `TestDisabledItem` and `TestQuiet`, each with a mutation line.
+  - `[low]` `[reject]` BH4: send-then-record makes a catch-up at-least-once when `Record` fails - by-design: the order send, gap mark, tick mark is in the intent contract, and a failed `Record` (a store error) costs one more catch-up Tick.
+  - `[low]` `[patch]` BH5: `Gaps` can return a false all-clear - the JSON-array case is real (an array reads as a gap: `a.start` is `a[0]`); guarded with `%IsA("%Library.DynamicObject")` and a `TestGaps` row. The unchecked `SQLCODE` of a SELECT on a table that exists, and unvalidated bounds (the contract says UTC times), are theoretical and left.
+  - `[false]` `[reject]` BH6: `WaitRuns`/`RunErrors` may judge a run that has not finished - `%SYS.Task.History` rows are written when a job completes (class doc), and no heartbeat row on the stack has `LastFinished` 0 (query on the warm stack).
+  - `[false]` `[reject]` BH7: the time-zone tests may pass without a zone taking effect - `$SYSTEM.Process.TimeZone("America/New_York")` makes `ToLocal("2026-11-01T06:30:00Z")` read 01:30 on the warm stack; the `RestoreZone` mapping of an undefined zone concerns a test process only.
+  - `[low]` `[reject]` BH8: gap marks are never aged out - by-design: ruling U-53 keeps one row per outage like every other mark, with no purge.
+  - `[low]` `[patch]` BH9: the lock name is a repeated literal (now `Heartbeat.#LOCK`, used by `HeartbeatIn` and the tests); a lock timeout leaves no trace - left, the spec says the run ends OK and sends nothing, and Story 8.2's stalled warning is the signal (wontfix-accepted, reopen_if a lock timeout is seen on a real install).
+  - `[low]` `[patch]` BH10: inaccurate comments - `TestStoppedThenStarted` no longer claims AC 6, and the Install.Step.Schedule comment no longer claims a measurement over "the afternoon" for the whole-day window.
+  - `[low]` `[patch]` EH1: undefined-node read in `TargetBuilt` - same root cause as BH1.
+  - `[low]` `[reject]` EH2: second catch-up Tick after a failed `Record` - same as BH4 (by-design).
+  - `[low]` `[reject]` EH3: a lock timeout writes no log row - same as BH9 (wontfix-accepted, reopen_if above).
+  - `[low]` `[reject]` EH4: a stuck `Checks` lets Ticks queue up - the send is asynchronous by the intent contract; a bounded queue is Checks' and Story 8.2's concern (wontfix-accepted, reopen_if Epic 5's tests show a queue of Ticks after an outage).
+  - `[low]` `[patch]` EH5: a gap mark holding a JSON array aborts or pollutes `Gaps` - same as BH5 (patched).
+  - `[low]` `[reject]` EH6: a failed gap SELECT returns an empty array - theoretical: the table exists in the same namespace, and a failed SELECT on it is a larger fault than a missing gap.
+  - `[false]` `[reject]` EH7: `AddSeconds` with `1E200` raises - it returns "" on the warm stack, as documented.
+  - `[low]` `[patch]` EH8: `ChecksDouble` counted before it recorded the tick, so a reader could see the count without the tick - the tick is set first, then the count.
+  - `[low]` `[patch]` EH9: `Prepare` killed the double's record before suspending the task - the task is suspended first; `TestStoppedThenStarted` takes its record, header and history marks after the stop.
+  - `[low]` `[patch]` EH10: `TestStoppedThenStarted` maps to AC 5 and AC 6 - the comment is corrected (same as BH10); AC 6 is `TestStubsAnswer`.
+  - `[medium]` `[patch]` VG1: a failed send and a failed gap-mark write are pinned by no test - `TestSendFails` and `TestRecordKeepsTickWhenGapFails` added (mutation lines written).
+  - `[medium]` `[patch]` VG2: the disabled-item branch of `Quiet` is pinned by no test - `TestDisabledItem` (the item disabled and enabled again through `EnableService`) and `TestQuiet` added.
+  - `[low]` `[patch]` VG3: `TimePeriodEvery`, `DailyStartTime` and `DailyEndTime` are compared only with the declaration - the literal assertion now covers all seven fields; the fresh-stack mutation `"DailyStartTime": 43200` is red on it alone.
+  - `[low]` `[patch]` VG-O1: mutation lines are not literally `mutation:` and some clauses have none - lines rewritten as `mutation: ...`; one mutation per AC is the rule, not one per assertion.
+  - `[low]` `[patch]` VG-O2: `ChecksStub` has no executed host until Story 5.6 - `TestStubFixtureSkipped` runs it today.
+  - `[false]` `[reject]` VG-O3: `WaitRuns(0, ...)` accepts any past run - that is its purpose there: a gate that the first run happened before the next-run read, which `SecondsToNextRun` then waits to be in the future.
+  - `[low]` `[patch]` VG-O4: a scheduled run could land between the record kill and the stop in `TestStoppedThenStarted` - the marks are taken after the stop.
+  - `[low]` `[patch]` VG-O5: same as EH9 (patched).
+  - `[false]` `[reject]` VG-O6: `Hang 2` is a fixed delay - an absence assertion needs a bounded wait, and the synchronous header check before it is the strong one.
+  - `[low]` `[reject]` VG-O7: restoring the found tick mark lets the real task record a gap for the minutes the tests held it - an honest record on a throwaway (wontfix-accepted, reopen_if a later story's test asserts `Gaps` over a window that includes this class's run time).
+  - `[false]` `[reject]` IA1: `OnTask` is called in the test process - the ACs say "when `HeartbeatTask.OnTask()` runs"; the Task Manager's own run is exercised by AC 1 and AC 5.
+  - `[medium]` `[patch]` IA2: intent items without a test (failed send, failed gap mark, quiet codes, no event-log row on success) - covered by the tests added for BH3; `TestCatchUp` now asserts no event-log row of HeartbeatIn on success (mutation line written).
+  - `[low]` `[reject]` IA3: smaller divergences (a mark restore restamps `RecordedAt`; `Seconds`/`AddSeconds`/`Gaps`/`RescheduleOnStart` are additions; `Gaps` reads marks with SQL) - all stated in the spec's tasks or Design Notes; `StatusMark` has no list method and is read-only here.
+
 ## Design Notes
 
 **Governing ADs:** AD-1 (the adapterless service through `CreateBusinessService`/`ProcessInput`; the tick is a production message), AD-5 (no schema change; `ChecksDouble` commits its `Storage` block), AD-18 (the heartbeat, `StatusMark`, `Data.Time`), AD-22 (`%UnitTest` under `OcuTalon.Test.Schedule` in shard `lane-b`; throwaways), AD-23 (`Tasks()` declares; the core's step creates the task once), AD-26 (each tick starts its own session, as a business service does by default), AD-29 and AD-33 (lanes: `Checks` and `Test.Agent` are Lane A's; a double stands in for `Checks`).
@@ -128,6 +166,16 @@ deferred: []
 - A disabled `HeartbeatIn` ends quietly, so the stalled warning shows it.
 - `SuspendOnError` and `Expires` keep their defaults, so a failed run is retried on the next minute and a late run never doubles up.
 - The real-schedule wait happens only after the restart in AC 5. AC 3 calls `OnTask` in the test process with the real task suspended.
+- (Implement stage.) `Heartbeat.Gaps` counts a gap that only touches the window (its end equals `fromUtc`, or its start equals `toUtc`) as overlapping, and an empty bound leaves that side open. A false all-clear in the digest is worse than one gap too many.
+- The heartbeat lock is `Lock +^OcuTalonP.HeartbeatLock:5` (a name under the private prefix, no data behind it).
+- The task's quiet rule is: not the running production (checked before any call, because `CreateBusinessService` writes one error row to the event log for every call made while the production is not running, measured), or a failure that is `ErrProductionQuiescent`, `ErrConfigDisabled` or `ErrProductionNotRunning`, or a failure after which the production no longer runs. A stop that lands between the check and the call can still write that one row.
+- `Data.Time.Seconds` reads with `$ZDateTimeH(date time, 3, 1)` with no zone, so the scale is the same in every process zone and across the repeated hour of a daylight-saving change. It gives "" for dates outside 1840-12-31 to 9999-12-31 (`LASTSECOND`).
+- `TestTaskDeclared` asserts AC 1's "next run within 60 s" as a run in the Task Manager's history within `RUNSECONDS` (75 s) after the check, not as a read of the task's `DayNextScheduled`/`TimeNextScheduled` (the spec's `NextScheduledDate`/`NextScheduledTime` do not exist on `%SYS.Task`; see Task 0 (a)). Between runs those columns hold the start of the last run, and they jump ahead at a run (measured, below).
+- `TestLockBusy` (not an acceptance criterion) pins the lock rule of Always: a job runs the task while the test holds the lock. `Test.Schedule.ChecksStub` is a stub used by `TestStubSkipped` only once Lane A's class behind `Checks` no longer carries `STUB` (Story 5.6), so the test keeps pinning ruling U-52 after Epic 5 without a change to this epic's files.
+- Clock-minute races: the tests that set a mark "N minutes back" wait (up to 15 s) for a clock second of 45 or less, and compute the expected `missed` from the minutes of the two times as well as asserting the spec's 6, 2 and 0.
+- Every test class puts the tick mark back to the value it found, and all gap marks back to the set it found, while the real task is held suspended; the real task then records one honest gap for the minutes the tests held it (and, with Lane A's stub behind `Checks`, sends no Tick for it).
+- (Review pass.) `Heartbeat.Gaps` lists the gap marks with a read-only `SELECT` on `OcuTalon_Data.StatusMark`, because `StatusMark` is read-only for this story and has no list method; marks are written and the tick mark is read only through `Record`/`Get`. The lock name is `Heartbeat.#LOCK`. `HeartbeatIn` reads the class behind `Checks` with `$Get`, so an item with no runtime node sends and fails with its reason instead of raising.
+- (Review pass.) `TestTaskDeclared` opens the task object again (after releasing the first) before it compares the schedule after the Tasks step ran again, because `%OpenId` of an object that is still held returns the held instance and the comparison would read the same fields twice. `TestStubFixtureSkipped` runs the `ChecksStub` fixture today, so that `TestStubSkipped` can fall back to it after Story 5.6 with a fixture that has run.
 
 **Rulings (lead spec gate, unattended, policy 47276b4):**
 - Orchestrator ruling on Clarification 1 (U14, decide): option (a). Epic 8 may change HeartbeatIn's row of `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls` (line 33, `"stub": 1` to `"stub": 0`) and nothing else in that file. The file's header says Lane B edits its own rows when it builds one of its items; Epic 2's edits to the file (lines 18-19, 24, 26-28) merge cleanly with it, and a conflict at integrate-forward would be a plain union. Reported under `footprint_extensions:`.
@@ -138,9 +186,15 @@ deferred: []
 
 **Shard time:** the run adds about 1 to 2 minutes to `lane-b` (the 75 s ceiling plus a stop and a start). Record the class timings in Rule 21's section.
 
+**Task 0 results (measured on the warm throwaway `e8s1implw`, IRIS 2026.3.0AI build 154, 2026-10-24, unless marked (inference)):**
+- (a) The task. The Tasks step created it at 13:28:22 (task history "Create OcuTalon heartbeat"). Its first `DayNextScheduled`/`TimeNextScheduled` read day 67867 and 60 (00:01:00 of the start date, already past). The Task Manager's first pass wrote the history note "Task Has Expired for 2026-10-24 00:01 Continuing from 2026-10-24 13:28" and ran the task at 13:29:00, 38 s after the creation. From then on it ran once at every minute boundary (13:29:00 to 13:43:00 and after, one history row each, `Status` 1, `Error` "Success"), and the next run was always the following minute (33 s ahead at 13:32:27). The tick mark followed each run. So `DailyEndTime` 0 does not narrow the schedule over the afternoon measured here (13:29 to 13:43 and later, container clock); that it covers the whole day stays (inference), from InterSystems' own every-minute task `%SYS.Task.DeepSeeUpdate.Schedule`. The next run is within 60 s once the first pass is done. (Measured in the review pass, on the warm stack, with fresh SQL reads of the columns every 2 s: between runs `TimeNextScheduled` is the start of the last run (52705 reads 52680, 52741 reads 52740) and it later reads a run ahead (52801 reads 52860), so it is no reliable "next run" and the test observes the history instead.) The properties are `DayNextScheduled` and `TimeNextScheduled` ($H day and seconds, a "~" list for several times a day); `NextScheduledDate`/`NextScheduledTime` do not exist. `LastSchedule`, `LastStarted` and `LastFinished` are $H strings. History of a failed run: `Status` holds the error status ("0 ..."), `Error` is empty and `ER` is set; a run that returned OK has `Status` 1, `Error` "Success" and an empty `ER`.
+- (b) `CreateBusinessService("HeartbeatIn")`. Running: OK. Production stopped: `<Ens>ErrBusinessDispatchNameNotRegistered` ("Business dispatch name 'HeartbeatIn' is not registered to run"), with `IsProductionRunning` 0. While it stops: `IsProductionRunning` turns 0 at the start of the stop and the status is that same code for the whole stop (polled every 50 ms: one OK, then NotRegistered until stopped); no `ErrProductionQuiescent` was seen. While it starts: the same code until `IsProductionRunning` is 1, and OK from the next poll on. Item disabled (`EnableConfigItem`): `<Ens>ErrConfigDisabled` with `IsProductionRunning` 1, and `HeartbeatTask.OnTask()` returned OK. During an `UpdateProduction` that restarts `Checks`: OK throughout. `ErrProductionQuiescent` is returned by `CreateBusinessService` and by `ProcessInput` when `Ens.Job.ShouldBeQuiescent()` is true (inference, from `Ens.Director` and `Ens.BusinessService` source); it stays in the quiet list. Every call made while the production is not running also wrote one type 2 row to the event log, with an empty `ConfigName` (12 calls, 12 rows); so the task checks `IsProductionRunning` first.
+- (c) `ProcessInput` takes no input object: `ProcessInput("", .out)`, `ProcessInput(, .out)` and `ProcessInput()` each returned OK, and `out` is the Tick. The task passes "".
+- Class timings on the warm stack: `HeartbeatLogic` 0.02 to 0.06 s; `Heartbeat` 105 to 138 s (`TestStoppedThenStarted` 80 to 100 s of it, `TestCatchUp` 5 to 13 s, `TestLockBusy` 5 s, `TestStubSkipped` 3 to 6 s, `TestTaskDeclared` about 2 s). The lane-b shard grows by about 2 minutes.
+
 ## Verification
 
-Variables in every `ci/iris.sh` and `ci/warm.sh` call: `L="OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement'"`, written out in full on each call. Every call runs in the foreground with `timeout: 600000`, one per call.
+Variables in every `ci/iris.sh` and `ci/warm.sh` call: `L="OCUTALON_LOCK_DIR=<the lane-c lock folder named in the dispatch> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=8 stage=implement'"`, written out in full on each call. Every call runs in the foreground with `timeout: 600000`, one per call.
 
 **Commands:**
 - `(once, first)` `$L OCUTALON_RUN_TAG=e8s1implw ci/warm.sh up`. Run it after `Install/Step/Schedule.cls` exists, so the start creates the task. Expected: the warm stack is ready.
@@ -151,6 +205,23 @@ Variables in every `ci/iris.sh` and `ci/warm.sh` call: `L="OCUTALON_LOCK_DIR=/Us
 - `(once)` `$L OCUTALON_RUN_TAG=e8s1impl ci/iris.sh live production`, then `live production-restart`, then `live install-upgrade`, one per call. Expected: all pass, `check_clean_start` included (ruling U-52 keeps the stub `Checks` free of ticks).
 - `(once)` `bash ci/checks.sh`. Expected: every block PASS (storage, test-ci-config).
 - `(once, last, also after a failure)` `$L OCUTALON_RUN_TAG=e8s1implw ci/warm.sh down`, then `$L OCUTALON_RUN_TAG=e8s1impl ci/iris.sh teardown`.
+
+**Mutations (Rule 19).** Each is applied to the file, run on the warm stack `e8s1implw` (the `HeartbeatLogic` class reloads the changed classes, then the one test method runs), reverted to a byte-identical file (`cmp`), and the same method is run green again on the same stack. After the patches of the review pass, `OcuTalon.Test.Schedule.Heartbeat` passed as a whole (139 s warm), and `HeartbeatLogic`, `Test.Install.Production` and `Test.Install.Registry` passed.
+- mutation: AC 1, `TestTaskDeclared`: `Install/Step/Schedule.cls` declares `"DailyIncrement": 2` instead of 1 (warm: the task made from the right declaration differs from it) -> red on "the task carries the declared DailyIncrement". On a fresh stack (`ci/iris.sh class`, tag `e8s1impl`, the task made from the mutated declaration) `"DailyStartTime": 43200` -> red on "it runs every minute, all day" alone, since the task then equals its declaration.
+- mutation: AC 1, the run within a minute, `TestTaskDeclared`: the real task suspended before the test (a saved `Suspended` 1) -> red on "the task is not suspended" and on "the next run comes within a minute: the Task Manager ran the task within 75 s"; resumed, the method is green again.
+- mutation: AC 2, `TestTaskDeclared`: the same file declares `"RescheduleOnStart": 0` -> red on "AC 2: the declaration sets RescheduleOnStart 1" and "the task carries the declared RescheduleOnStart".
+- mutation: AC 3, `TestCatchUp`: `HeartbeatIn` sends with `SendRequestSync` instead of `SendRequestAsync` -> red on "OnTask returns in under 5 s, not after the check" (5.01 s). A second mutation, `Heartbeat.Next` never sets `CatchUp` -> red on "its CatchUp is 1" (and in `HeartbeatLogic`).
+- mutation: AC 4, `TestCatchUp`: `Heartbeat.Record` writes no gap mark (`If 0 {`) -> red on "Gaps over the last 10 minutes reads one gap". A second mutation, `Next` without the `- 1` (a next-minute tick counts one missed minute) -> red on the gap JSON, "adds no gap" and "and no gap mark of its own", and in `HeartbeatLogic`.
+- mutation: AC 5, `TestStoppedThenStarted`: `HeartbeatTask.Stopped()` always returns 0, so the task calls `CreateBusinessService` on a stopped production -> red on "its history has no error" and "and the quiet end wrote no error row to the event log".
+- mutation: AC 6, `Test.Install.Production` `TestStubsAnswer`: `Parameter STUB = 1` put back into `HeartbeatIn` -> red on "HeartbeatIn: OcuTalon.Schedule.HeartbeatIn does not carry STUB", "answers code 5003", "gives no response".
+- mutation: AC 7, `TestStubSkipped` and `TestStubFixtureSkipped`: `HeartbeatIn.TargetBuilt()` always returns 1 -> both red on "no message header goes from HeartbeatIn to Checks" and "and still no message header after a wait" (Lane A's stub answers 5003 and writes the error row).
+- mutation: Always, lock, `TestLockBusy`: `HeartbeatIn` ignores the lock result (`If 0 Quit $$$OK`) -> red on "nothing was sent" and "and no mark changed".
+- mutation: Always, a failed send records nothing, `TestSendFails`: `HeartbeatIn` records the marks whatever the send returned -> red on "and neither the gap mark nor the tick mark is recorded" and "that names the old tick, with CatchUp 1".
+- mutation: Always, a failed gap mark leaves the tick mark, `TestRecordKeepsTickWhenGapFails`: `Heartbeat.Record` ignores the status of the gap mark (`If 0 Quit sc`) -> red on "a gap mark that cannot be written returns its status" and "and the tick mark is left as it was".
+- mutation: Always, a disabled item ends OK, `TestDisabledItem` and `TestQuiet`: `HeartbeatTask.Quiet` without `$$$EnsErrConfigDisabled` in its list -> `TestDisabledItem` red on "OnTask returns OK" and `TestQuiet` red on "code <Ens>ErrConfigDisabled ends a run quietly".
+- mutation: Always, no event-log row on success, `TestCatchUp`: `HeartbeatIn` writes `$$$LOGINFO("tick sent")` after a send -> red on "a run that succeeds writes no event-log row of HeartbeatIn".
+- mutation: `Heartbeat.Gaps` leaves out a gap mark that is not a JSON object, `HeartbeatLogic` `TestGaps`: the `%IsA("%Library.DynamicObject")` guard removed -> red on "the window keeps the gaps that overlap it, oldest first" and "the whole day keeps every readable gap" (a JSON array reads as a gap).
+- Not pinned by a test: the quiescent code of the quiet rule on a real production (it was not reproducible, see Task 0 (b); `TestQuiet` pins the mapping with the code), and `OnAfterAllTests` leaving a production alone when `OnBeforeAllTests` failed (no deterministic way to fail it).
 
 **Shared surfaces:**
 - The Task Manager task list (a new `OcuTalon heartbeat` task at every start).
@@ -173,7 +244,37 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan round 1 halted `blocked` on three intent gaps; all three are ruled (orchestrator: Clarification 1, option (a); lead: U-52 and U-53, veto). The lead applied the rulings and set `ready-for-dev` (re-dispatch protocol: the rest of the plan stands).
+**Summary.** One Task Manager task, `OcuTalon heartbeat` (declared by `Install.Step.Schedule.Tasks()`, every minute, `RescheduleOnStart` 1), runs `HeartbeatTask`, which calls the adapterless `HeartbeatIn` through `CreateBusinessService`/`ProcessInput`. `HeartbeatIn` takes one lock (5 s), builds the Tick with `Heartbeat.Next` (minute-bucket `missed`, one catch-up Tick after downtime), sends it asynchronously (never to a `Checks` class that carries `STUB`, ruling U-52), then records the gap mark `heartbeatGap.<start>` and the tick mark `heartbeatTick` (`Heartbeat.Record`). The task ends OK and records nothing when `OcuTalon.Production` is not running or `HeartbeatIn` is disabled. `Heartbeat.Gaps(from, to)` reads the gaps for Story 17.5. `Data.Time` gained `Seconds` and `AddSeconds`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Time.cls`: `Seconds`, `AddSeconds`, `LASTSECOND` (a zone-independent second scale).
+- `src/ocutalon/cls/OcuTalon/Schedule/Heartbeat.cls` (new): `TICKMARK`, `GAPMARK`, `TARGET`, `LOCK`, `Next`, `Record`, `Gaps`.
+- `src/ocutalon/cls/OcuTalon/Schedule/HeartbeatIn.cls`: the stub replaced (no `STUB`).
+- `src/ocutalon/cls/OcuTalon/Schedule/HeartbeatTask.cls` (new): the task, the production rule and the quiet codes.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls` (new): `Tasks()` declares the heartbeat.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/{ChecksDouble,ChecksStub,HeartbeatInFailing,HeartbeatLogic,Heartbeat}.cls` (new): the double, two fixtures and the two test classes (13 methods; `Heartbeat` runs in throwaways and CI only).
+- `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`: HeartbeatIn's row `"stub": 1` to `"stub": 0` (the orchestrator's one-time footprint extension; nothing else in the file).
+- `ci/units.sh`: `Schedule` joins `lane-b`'s areas.
+- This spec: Design Notes (Task 0 results, decisions), Verification (mutation lines), the Review Triage Log.
+
+**Review findings.** 33 findings from the four layers: high 0, medium 4, low 23, false 6, maybe-false 0 (see the Review Triage Log). Patched (19 findings in 13 entries by root cause): the `$$$ConfigClassName` bare read, `OnAfterAllTests` after a failed `OnBeforeAllTests`, the tests for a failed send / a failed gap-mark write / a disabled item / the quiet codes / no event-log row on success, the JSON-array gap mark in `Gaps`, the lock name as `Heartbeat.#LOCK`, two inaccurate comments, the AC 1 literal fields, the `ChecksStub` fixture that no test ran, and three test races. Deferred: none (`deferred: []`). Rejected with the reason in the log: 14 rows (by-design: send-then-record order, no gap purge; accepted: lock timeout without a log row, Ticks queued behind a stuck `Checks`, the gap the tests cause on a throwaway; theoretical: a failed SELECT on the mark table; false: six, each with its refutation).
+
+**Follow-up review recommended: true.** Two medium entries were patched (missing tests for the Always clauses), and that test code (`TestSendFails`, `TestRecordKeepsTickWhenGapFails`, `TestDisabledItem`, `TestQuiet`, `TestStubFixtureSkipped`, `HeartbeatInFailing`, and the changed `TestTaskDeclared`) was written after the layers had read the diff. The unverified risk is a flaky or vacuous assertion in that code. It ran green in `Heartbeat` on the warm stack and in `shard lane-b` forward and reversed on fresh stacks, and each new pinning test has a demonstrated mutation. Patched counts by verdict: medium 2 entries (4 findings), low 11 entries (15 findings).
+
+**Verification performed.**
+- `(loop)`, warm stack `e8s1implw`, after the last patch: `HeartbeatLogic` passed, `Heartbeat` passed (139 s), `Test.Install.Production` passed, `Test.Install.Registry` passed.
+- `(once)`, fresh stacks `e8s1impl`, after the last patch: `shard lane-a` passed (41 classes, 377 s), `shard lane-b` passed (26 classes, 254 s), `shard lane-a --reverse` passed (362 s), `shard lane-b --reverse` passed (226 s; `Heartbeat` 156 s), `live production` passed (row 14 reports no error or alert in the event log at the start), `live production-restart` passed, `live install-upgrade` passed, `bash ci/checks.sh` passed (every block).
+- Mutations (Rule 19): 17 demonstrated red and green again, byte-identical after each revert (the lines are in `## Verification`).
+- Teardown: `ci/warm.sh down` and `ci/iris.sh teardown`; `docker ps` shows no container of the tags `e8s1impl` and `e8s1implw`.
+
+**Residual risks.**
+- A stop of the production that lands between `HeartbeatTask`'s `IsProductionRunning` check and `CreateBusinessService` still writes one error row (measured: every such call writes one), which could trip a live check that asserts no error rows at that moment.
+- `TimeNextScheduled` is not a reliable next-run time (measured), so AC 1's "next run within 60 s" is asserted as a run in the history within 75 s; `Heartbeat` therefore takes about 140 to 156 s (the `lane-b` shard grows by about 2.5 minutes). Rule 21's class counts (lane-b 24 classes) are stale: lane-b has 26.
+- `Heartbeat.Gaps` lists marks with a read-only SELECT on `OcuTalon_Data.StatusMark`, since the class has no list method.
+- When the tests end, the real task records one gap for the minutes it was held suspended (accepted, on a throwaway).
+- Not pinned by a test: the quiescent code on a real production, and `OnAfterAllTests` leaving the production alone after a failed `OnBeforeAllTests`.
+- Reported footprint extensions: `Test/Core/ProductionItems.cls` (HeartbeatIn's row, ruled). The spec's Verification line 1 no longer holds the local lock path (it failed the `test-boundaries.sh` paths rule); it says `<the lane-c lock folder named in the dispatch>`.
+- Shared-scratchpad incident: a helper named `mutate.py` that another runner's `run-mut.sh` calls was overwritten by this stage's first helper and then re-created with the interface `run-mut.sh` uses (`mutate.py apply <file> <old> <new>`, one exact match); the stage's own helpers moved to `scratchpad/e8s1/`.
