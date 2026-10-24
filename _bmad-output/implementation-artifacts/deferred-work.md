@@ -310,6 +310,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: KeyScan.cls FindRequest and Has repeat Mock.cls Find and Has (about 436-461) line for line; Mock's are Private and Lane B's (Test.Contract), so Lane A cannot call them or edit them (Rule 2)
 - 2026-10-21T18:26:38Z status=escalated owner=burndown by=cr note=decision sheet: Lane B makes Mock.Find and Mock.Has public, then KeyScan calls them and drops its copies
 - 2026-10-21T23:45:21Z occurrence=1-2-agent-runners-send-every-request-under-the-model-rules
+- 2026-10-24T12:14:23Z status=wontfix-accepted by=merge_gate note=decided_unattended(U9):test-only_copy_of_Mock's_Find/Has;reopen_if=Test.Contract.Mock's_Find,Has_or_its_log_format_change(KeyScan's_copy_would_drift)
 
 ### DW-56: Nothing sets Reply.ToolsRun: the runner's Answer fills Text, FinishReason, HostData and Tainted only, so a turn that ran tools reports ToolsRun 0
 - source: _bmad-output/implementation-artifacts/spec-1-2-agent-runners-send-every-request-under-the-model-rules.md | severity: med | fix-risk: low | footprint: in-epic
@@ -383,11 +384,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: Story 1.6 Task 0 (e): cut-off-tool through StepsAgent gives steps model, tool, model and FinishReason end_turn; StepRenderer.OnMessage gets the content only; TestCutOffToolCall pins it
 - 2026-10-22T23:49:35Z status=decision-pending owner=burndown by=harvest note=human=report it to InterSystems (an AI Hub stop reason per response, or no tool run after a max_tokens stop); until then Epic 3's gate governs any risky tool call, and the read-only tools of release 1 are harmless with cut arguments
+- 2026-10-24T12:14:24Z status=dropped by=merge_gate note=action_item:epic-1-retro-item-3-report-to-intersystems-ai-hub-build-154(owner:report_to_InterSystems;outward)
 
 ### DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured)
 - source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
 - 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend
+- 2026-10-24T12:14:24Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=measure_the_precheck_at_~100k_Usage_rows,then_index(Lane_B's_pin)_or_cache_the_day's_spend;veto_U-50
 
 ### DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -450,6 +453,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: high | footprint: in-epic
 - evidence: Production.cls:18 Decide PoolSize 1; Decide.Held waits LOCKSECONDS (2) in OnRequest (AD-6 fixes the 2-s wait); Busy arises only while a late Chat of the same conversation holds the lock
 - 2026-10-23T15:50:33Z status=escalated owner=burndown by=harvest note=a spine call: a larger Decide pool (AD-30 ordering) or a probe of Conversation's own (Lane B); for the decision sheet
+- 2026-10-24T12:14:24Z status=wontfix-accepted by=merge_gate note=release_1:only_while_a_late_Chat_holds_the_lock;reopen_if=a_measured_stall_over_2s_on_the_demo_path_or_under_29.4's_load;veto_U-51
 
 ### DW-115: A saved conversation holds the tool results the model saw, verbatim, in OCUTALON_PRIVATE; the redaction convention covers steps, audit, logs and errors, not the stored history
 - source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: med | footprint: in-story

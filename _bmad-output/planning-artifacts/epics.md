@@ -1936,6 +1936,7 @@ So that neither the model nor arriving content can make a risky call run.
 **Given** every built-in tool classified risky or unclassified, and a developer test tool classified risky in the bridge setting
 **When** the governance tests in `OcuTalon.Test.Bridge` run
 **Then** each such tool has a test showing it doesn't run when a user's turn calls it, and the suite fails if a risky built-in tool has no such test (FR-7, NFR-13)
+- DW-143: The watch fixture's three tools declare no CLASSIFICATION, READONLY or TRUSTEDOUTPUT parameters, so by the Tool classification convention they are unclassified (risky) once Epic 3's gate reads the parameters, and Diagnosis's read-only tools would be held (ledger; routed by cr 2026-10-24)
 
 ### Story 3.3: Content that didn't come from the user can only look, notify and save
 
@@ -1969,6 +1970,8 @@ So that an email or a failed message body can't approve, change or send anything
 **When** Triage decides the item and an untrusted read-only turn runs on it
 **Then** nothing acts: no resend, no setting change and no approval request exists afterwards, and the item's decision is recorded (FR-7, NFR-14, UX-DR86, UX-DR105, UX-DR148)
 **And** Triage's instructions treat item content as data, so the reasons for such an item say that an email can't approve requests or change a production (NFR-14, UX-DR105)
+- DW-136: Set and cancel reminder tools declare TRUSTEDOUTPUT 0 (the AC: only list is trusted output), so once Epic 3's taint rule lands every turn that sets or cancels a reminder is tainted, never saved, and the next turn starts fresh with a recap; their output is built by code from ReminderOps' CommandResult, which fits AD-10's definition of trusted output (ledger; routed by spec_gate 2026-10-23)
+- DW-139: list_reminders declares TRUSTEDOUTPUT 1 (the AC), but each reminder's Text is model-authored (set_reminder's argument), so a later turn that lists it gets stored model text back as trusted output (ledger; routed by harvest 2026-10-24)
 
 ### Story 3.4: Each risky action becomes one approval request held in IRIS Workflow
 
@@ -2973,6 +2976,10 @@ So that reminders work the way I would ask a person.
 **Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command with its `ReminderRef` marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
 **And** a cancel naming another session's reminder, or one already fired or cancelled, is refused with a plain-English reason and changes nothing, and a command repeated with the same `IdempotencyKey` returns the first result without creating a second row or waiter (AD-1, AD-4, AD-8)
 **And** this story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, which cancels reminders through a test double until this story merges (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before this epic] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before Epic 16 starts, so Story 16.4 uses the real path from the start and this story turns on nothing in it.]
+- DW-135: Cross-lane contract for ReminderOps (Story 8.4): ListReminders answers with CommandResult.Data = {"reminders":[{"ref","text","dueAt"}]}, the command's session's pending reminders, earliest due first, dueAt in UTC; Story 1.10's list tool and its CommandsIn test double read and answer exactly this shape (ledger; routed by spec_gate 2026-10-23)
+- DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran (ledger; routed by harvest 2026-10-24)
+- DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls (ledger; routed by harvest 2026-10-24)
+- DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request (ledger; routed by cr 2026-10-24)
 
 ### Story 8.5: Reminders survive restarts and upgrades, and late ones say so
 
@@ -3038,6 +3045,7 @@ So that the scores measure the product and a run can never notify a user or chan
 **Given** `EvalSink`
 **When** it receives an `OcuTalon.Msg.ItemDecision`
 **Then** it stores one result row per case in a Lane A table under `OcuTalon.Eval` (its `DEFAULTGLOBAL` from the short-name registry, its storage block committed, and the spine's ownership tables updated in the same change): the run, the case, the `SourceItemId`, the `DecisionRef`, the outcome (from the message) or, for an incident case, the cause category and element at fault and the proposed fix kind and parameters (read from the `Decision` row), any fallback reason, and the cost and largest request size from the bridge's `Decision` and `Usage` rows (FR-62, NFR-3, NFR-4, AD-3, AD-5, AD-33)
+- DW-110: Evaluation turn cases (EvalIn, Stories 9.1 to 9.3) would share one linked conversation per (OwnerRef eval, ChatAgent) from Story 1.8 on, so one case's history leaks into the next, unless each case is sent with SessionMode fresh (or its own OwnerRef) (ledger; routed by spec_gate 2026-10-23)
 
 ### Story 9.2: Each run scores decisions and causes and records cost and size
 
@@ -4395,6 +4403,7 @@ So that I can use the provider and model I already pay for.
 **Given** the step 2 hands-on pass with real keys (REL-7)
 **When** the demo path is run on each provider
 **Then** a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes; a provider whose run fails stays unsupported and isn't offered (FR-39, REL-7, REL-8)
+- DW-52: Bridge.ConfigStore.Merge validates only api_key's placeholder form and nested @{: any @{env:NAME}, base_url, header or secret:// passes, so a user-facing caller could pair the key placeholder with an arbitrary base_url (ledger; routed by adjudication 2026-10-21)
 
 ### Story 17.4: Apply model, price, budget and zone changes through the bridge
 
@@ -4425,6 +4434,7 @@ So that I control what OcuTalon spends without restarting anything.
 **Given** an admin's time-zone change saved through `SettingsOps`
 **When** the bridge applies it
 **Then** `OcuTalon.Bridge.Time` reads the new zone from the single run-time source within a minute, so the daily cost cap's day ends at midnight in the new zone, and the test comparing `OcuTalon.Bridge.Time` with `OcuTalon.Data.Time` across a daylight-saving change passes with a changed zone (FR-17, AD-18, AD-20)
+- DW-100: The catalog's fallbackReason.timeout says 'the model didn't answer within 60 seconds', which is inexact once the bridge timer can be changed (Timeouts.Apply, Story 1.7; SettingsOps, Story 17.4); fallbackReason.rateLimited ('retries ran out') also shows when a tool ran and Decide, by AD-8, did not re-send (ledger; routed by spec_gate 2026-10-23)
 
 ### Story 17.5: Check the vital signs and every coverage entry
 
@@ -6127,6 +6137,7 @@ So that the online demo is ready by November 1 for its November 2 to 4 launch, w
 **When** it runs
 **Then** the probe from Story 16.6 runs every 15 minutes from the host, its alerts reach the author, and two counted failures in a row trigger an unscheduled reset; nothing else on the host holds an IRIS connection (no MCP server, superserver or SQL client, and no lingering terminal), and the runbook's way in at the cap is to stop the proxy first (FR-59, NFR-23, AD-25)
 **And** the deployment configuration and the runbook stay outside this repository; the author's actions are this story's preconditions: the demo server and its DNS name by October 30, the demo bot (created by the author and used by no other instance) with its token and the real model key in the gateway, and SSH access for the release hook; opening the access gate on the launch date is also the author's (REL-11, CON-5, AD-25)
+- DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback (ledger; routed by cr 2026-10-23)
 
 ### Story 29.4: Sessions stay isolated under load
 
@@ -6187,6 +6198,9 @@ So that long conversations keep working at the cheaper price tier.
 **Then** the summarizer uses the runner's provider with effort `low`, a 20-second request timeout and no retries; Decide adds those 20 seconds to the turn's timer, staying at or under 110 seconds; and a `Usage` row with agent `compaction` and `Estimated` true prices the summarized text at about 4 characters a token at the summarizer model's rate (AD-5, AD-20)
 **And** a live smoke test, kept for release-candidate runs on the real model, makes three turns across jobs, a compaction and a tool change with Claude 5.5's thinking-history rule forced, and every turn passes (AD-20)
 **And** a mock conversation long enough to compact records a largest request under 100,000 tokens (NFR-3)
+- DW-125: Until Story 30.1's compaction, a linked conversation whose stored history alone passes the request-size limit answers too_large on every turn that continues it (about 400,000 characters of history); Epic 2's Conversation starts a fresh session only after Tainted or SessionBroken, so the conversation stays stuck (ledger; routed by spec_gate 2026-10-23)
+- DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted (ledger; routed by harvest 2026-10-23)
+- DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured) (ledger; routed by merge_gate 2026-10-24)
 
 ### Story 30.2: Old messages and records are purged on schedule
 

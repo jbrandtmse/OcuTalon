@@ -179,3 +179,8 @@
 2026-10-24T12:13:26Z	Epic 1	ci_green_verified	runs=40091870437,40091870388 head=0b5f791
 2026-10-24T12:13:26Z	Epic 1	merge_precheck	feature_unmoved_since_integrate(a5b6574) trial_merge=clean veto_open=3 stories_done=1.1-1.10,1.12,1.13 burndown=logged(DW-149_chartered_and_closed) retro=skipped(policy) decision_sheet=4(DW-54_decide,DW-92_action_item,DW-93_veto,DW-114_veto)
 2026-10-24T12:13:26Z	Epic 1	epic_merge_started	head=0b5f791 feature=feature/OCT_OcuTalon_MVP
+2026-10-24T12:14:50Z	Epic 1	epic_merged_to_feature	repos=. feature_sha=2f0d6bc merge_sha=2f0d6bc head=0b5f791 submodules=
+2026-10-24T12:14:50Z	Epic 1	spine_reconciled	ads_merged=0(Conventions_rows_only:Agent_step_labels,Saved_conversations,Tool_classification) lint=baseline(4_low_placeholder_findings_unchanged_from_the_pre-merge_spine;no_ad_id_or_ad_fields_finding;no_duplicate_AD_ids) note=AD-22's_as-built_lane-a_test_area_list(Tools,Digest)_left_for_the_owner(U7c)
+2026-10-24T12:14:50Z	Epic 1	decision_sheet_recorded	decided=4 to_action_items=1(DW-92:epic-1-retro-item-3) to_x0=0 by=unattended DW-54=wontfix-accepted(decide) DW-93=routed_30.1(veto_U-50) DW-114=wontfix-accepted(veto_U-51)
+2026-10-24T12:14:50Z	Epic 1	ledger_routed_planned	stories=17.3(DW-52),29.3(DW-94),17.4(DW-100),9.1(DW-110),30.1(DW-125,DW-130,DW-93),8.4(DW-135,DW-140,DW-141,DW-142),3.3(DW-136,DW-139),3.2(DW-143) entries=14 excess=0 by=merge_gate
+2026-10-24T12:14:50Z	Epic 1	deps_hash_rerecorded	hash=53a4fa9695c179945abe2b042ac9f2d146a433301499a25e19a1f1bafdfe525d reason=burndown_inserted,rule5_amendment,ledger_routed note=Story_1.13_burn-down;Epic_1's_tier-1_amendments;14_DW_bullets
