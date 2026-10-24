@@ -575,3 +575,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Digest/Store.cls Keep; DigestStore pool 1; TestOnce pins the sequential repeat
 - 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=the DigestStore item in OcuTalon.Production has a PoolSize above 1
+
+### DW-154: Keys.Status keeps reading a recorded present key for a runner whose job ended without OnTearDown (a refused start, measured; a killed job or a crash); the record stays true about the key and misleads only if the key is removed while that runner stays refused or disabled across an IRIS restart
+- source: spec-1-13-epic-1-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Adapter/Agent.cls:74 records before CheckSettings; Test.Agent.Runners.TestStartRefused pins it
+- 2026-10-24T09:40:20Z status=wontfix-accepted owner=1-13-epic-1-burn-down by=harvest note=reopen_if=a release lets a runner stay disabled or refused across an IRIS restart, or the owner wants a refused start to read as stopped (Status 0)
