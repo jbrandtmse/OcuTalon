@@ -641,11 +641,11 @@ Method TestTurnOfItem()
 	Set row.TraceHeaderId = 9001
 	Set row.TraceItemIndex = 46
 	Set row.TraceItemIndexNoEvents = 30
-	Do row.%Save()
+	Do $$$AssertStatusOK(row.%Save(), "A's turn takes its Item and its trace target")
 	Set other = "ZzItem"_..Number_"Theirs"
 	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(theirs)
 	Set row.ItemId = other
-	Do row.%Save()
+	Do $$$AssertStatusOK(row.%Save(), "B's turn takes its Item")
 	Set found = ##class(OcuTalon.Data.Ownership).TurnOfItem(item, a, .sc)
 	Do $$$AssertEquals(found.Ref, mine, "A finds its turn by the Item")
 	Do $$$AssertStatusOK(sc, "with an OK status")

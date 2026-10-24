@@ -160,9 +160,10 @@ export class TraceLink {
     inject(DestroyRef).onDestroy(() => this.popover?.close());
   }
 
-  /** While the help is needed, a press shows it in place of opening the tab. */
+  /** While the help is needed, a press shows it in place of opening the tab; afterwards a press opens the tab and closes the help. */
   protected press(event: MouseEvent): void {
     if (!this.help.needed()) {
+      this.popover?.close();
       return;
     }
     event.preventDefault();

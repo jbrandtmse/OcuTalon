@@ -2,8 +2,9 @@
 /// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
-/// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, and which decision a turn
-/// shows (from unsaved rows). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
+/// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
+/// build from fixture sessions, turns, incidents and approval requests. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {

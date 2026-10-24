@@ -330,6 +330,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: No code calls Popovers.show; the spec's Integration ACs place its first browser test in Story 2.9 (the Visual Trace menu)
 - 2026-10-22T02:05:46Z status=routed owner=2-9-open-anything-in-visual-trace by=cr note=The menu is the first consumer: test the dialog role and name, focus on open, Esc, an outside press and focus leaving
 - 2026-10-23T16:42:48Z owner=2-13-open-visual-trace-from-the-page by=spec_gate note=moved with Story 2.9's page half (split, U5 decide): its first consumer, the Visual Trace menu, is Story 2.13's
+- 2026-10-24T03:09:18Z status=resolved-by:2-13-open-visual-trace-from-the-page by=adjudication note=build 91ffd1a plus QA and review: the popover service's first browser tests through the Visual Trace menu and the sign-in help (V4, V7, V12, V13; a dialog named by its heading, no aria-modal, focus to its first control, Esc, outside press and focus leaving close it and return focus) in Chromium; the WebKit and Firefox remainder is DW-145 (Story 2.12)
 
 ### DW-59: No test can tell the snapshot's three models keys apart, because every agent resolves to the same model
 - source: spec-2-1-lay-out-the-main-page-frame.md | severity: low | fix-risk: med | footprint: in-story
@@ -529,3 +530,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Live.Payload.Decision.FromRow sets traceHeaderId = row.TraceSessionId (Decision.cls:88); DecideDouble and Lane A's Decide write the thread there (AD-26: a decision's target is the session holding its message); TraceLink.Url adds PAGE only with an index; Decided 5's details pane on the target held only while each turn was its own session
 - 2026-10-23T20:36:24Z status=routed owner=2-13-open-visual-trace-from-the-page by=cr note=2.13 owns where decision-strip links open; likely needs the decision message's header id and position (AD-26 decision-target wording)
+- 2026-10-24T03:09:18Z status=resolved-by:2-13-open-visual-trace-from-the-page by=adjudication note=Decision.FromRow reads the checked Ownership.TurnOfItem so a chat turn's decision carries its turn's target and index and its link opens the day's thread at the turn; TestDecisionOfATurnOpensAtTheTurn, Test.Web.Api and Test.Core.BridgeSink (seen red) and V2 on the real viewer
+
+### DW-145: The Visual Trace menu's button cannot close its open popover in Safari or macOS Firefox: a press there does not focus the button, so Popovers' focus-leave rule closes the popover on mousedown and the click opens it again
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: popover.ts closeOnFocusLeave closes when focus is outside the trigger and the pane; WebKit and macOS Firefox do not focus a pressed button, so header.ts toggleTrace finds it closed and reopens it (FR-12 lists Safari)
+- 2026-10-24T03:06:53Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=fix in popover.ts (a press on the trigger keeps it inside); verify in 2.12's WebKit and Firefox runs; chromium V7 passes
+
+### DW-146: Specs that open real Visual Trace pages starve later cases of the same live sign-in stack; the cause (each signed-in trace tab holds a licence connection until its session times out) is an inference, and no spec signs its trace tabs out
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Story 2.13 Decided 14: a run with every links.spec tab real left V8 drawing nothing and trace.spec T1 without a session; V3-V6 and V9-V16 stub their trace tabs to stay green
+- 2026-10-24T03:06:56Z status=escalated owner=burndown by=cr note=settle by measuring licence and gateway connections on a throwaway while trace tabs are open; 4.7 and 6.1 add real trace pages
+
+### DW-147: AD-26's decision bullet still says a decision's trace target is the session holding its decision message, while the Live events convention gives a chat turn's decision its turn's header and item index (DW-129)
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-26: 'The decision event's trace target is that session'; the Conventions Live events row (Story 2.13 amendment) and Decision.FromRow use Ownership.TurnOfItem
+- 2026-10-24T03:06:59Z status=wontfix-accepted owner=2-13-open-visual-trace-from-the-page by=cr note=reopen_if=a later spec or review cites AD-26 against Decision.FromRow's turn target (lead ruled: AD-26 extended)

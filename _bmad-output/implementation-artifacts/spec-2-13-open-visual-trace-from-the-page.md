@@ -392,6 +392,34 @@ Story 2.1's popover service has never run in a browser (DW-58).
 
   Tests: V7.
 
+### Review Findings
+
+Code review, 2026-10-24 (`bmad-code-review`, full mode; tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; plus the reviewer's own Rule 2 check). 23 raw findings, 21 entries: high 0, medium 5, low 14, false 2. 0 decision-needed, 11 patch (applied), 3 defer (ledgered), 7 rejected.
+
+- [x] [Review][Patch] (medium; fix-risk low: one element in place of two, same texts and attributes) A first turn that arrives while the menu's disabled conversation link has focus swaps the `@if`/`@else` anchors, so the popover closes and focus moves (UX "Live content never moves keyboard focus", "Focus replacement"). The link is now one element whose `href`, `role`, `tabindex` and `aria-disabled` follow `conversation()`; V7 (no turn) posts a turn while it has focus and asserts the same link takes the address, keeps focus and the popover stays open [web/src/app/header/header.ts:103]
+- [x] [Review][Patch] (medium; fix-risk low: a move with no change of body) Rule 2: `links.spec.ts` copied `frame.spec.ts`'s `changeSnapshot` (frame.spec.ts:19-26) verbatim with no stated reason; the one helper now lives in `support/api.ts` and both specs import it [web/e2e/support/api.ts:24]
+- [x] [Review][Patch] (medium; fix-risk low: test-only) V10's size, weight and line-height assertions could not fail: the strip's `.line1` already gives the link 12px / 400 / 1.4, the same values as the trace-link tokens. V10 now changes the three tokens for the page and asserts that the link follows them while the strip keeps 12px [web/e2e/trace/links.spec.ts:705]
+- [x] [Review][Patch] (low; fix-risk low: one call in an existing branch) A second press on a link while its own sign-in help is still open opened the tab and left the help open; `press` now closes the help when it is no longer needed. New V16 [web/src/app/shared/trace-link.ts:166]
+- [x] [Review][Patch] (low; fix-risk low: test-only) V1's "always underlined" holds through Chromium's own link style; V1 also asserts the link's own 1px thickness and 2px offset [web/e2e/trace/links.spec.ts:188]
+- [x] [Review][Patch] (low; fix-risk low: test-only) Rule 19 hermeticity: V2, V3 and V9 seeded rows before `try`, and V15 recorded its refs only after all three seeds, so a failed seed left rows behind; each ref is now recorded as it is made, inside `try` [web/e2e/trace/links.spec.ts:280]
+- [x] [Review][Patch] (low; fix-risk low: test-only) V3 found its approval row by the fixed title "Repair and resend 3 orders"; it now finds it by its row key, `approvals:<ref>`, and asserts the title on it [web/e2e/trace/links.spec.ts:310]
+- [x] [Review][Patch] (low; fix-risk low: test-only) `someTurn` took the newest turn whatever its state; it now takes the newest done turn that has a `traceUrl`, else posts one [web/e2e/trace/links.spec.ts:104]
+- [x] [Review][Patch] (low; fix-risk low: comments) Two test headers overstated what the links specs do: `test-sign-in.sh` said every case opens the real Visual Trace pages, and `links.spec.ts` gave the licence-connection cause as a fact. Both now say that V1, V2 and V8 open real pages and that the cause is an inference (Decided 14); the labels say V1 to V16 [docker/tests/test-sign-in.sh:36]
+- [x] [Review][Patch] (low; fix-risk low: test-only) `TestTurnOfItem` saved its two turns without checking the status, and two test docs did not say what the tests pin (`Test.Live.Payloads`' class comment, `TestApprovalEventsPublishTheRequest`'s incident case) [src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls:644]
+- [x] [Review][Patch] (low; fix-risk low: tracking) Rule 19: the DW-129 assertions in `Test.Web.Api` and `Test.Core.BridgeSink` had no recorded red; the mutation is now demonstrated on both, under "Recorded mutations, code review" in `## Verification` [src/ocutalon/cls/OcuTalon/Live/Payload/Decision.cls:104]
+- [x] [Review][Defer] (medium; fix-risk med: a cross-browser focus rule that this pipeline's Chromium runs cannot show) In Safari and macOS Firefox a press does not focus the Visual Trace button, so Popovers' focus-leave rule closes the open popover on mousedown and the click opens it again: the button cannot close its menu there (FR-12 lists Safari) [web/src/app/shared/popover.ts:121] — deferred: DW-145, routed owner=2-12-meet-the-accessibility-and-responsive-floor (the root cause is in Story 2.1's popover.ts; 2.12 adds the WebKit and Firefox runs)
+- [x] [Review][Defer] (medium; fix-risk high: the cause is unmeasured, and the obvious remedy, signing a trace tab out, ends the context's whole sign-in group) Specs that open real Visual Trace pages starve later cases of the same `live sign-in` stack, and no spec signs its trace tabs out [web/e2e/support/trace.ts:71] — deferred: DW-146, escalated owner=burndown (for the decision sheet; settle it with a connection measurement on a throwaway)
+- [x] [Review][Defer] (low; fix-risk low, out-of-footprint: the spine is the lead's, Rule 20) AD-26's decision bullet still reads "The `decision` event's trace target is that session", while the Conventions Live events row gives a chat turn's decision its turn's target [ARCHITECTURE-SPINE.md AD-26] — deferred: DW-147, wontfix-accepted (the lead ruled AD-26 extended at the spec gate; reopen_if a later spec or review cites AD-26 against the turn target)
+
+**Rejected**
+- (low) The Auto Run Result counts two patched mediums where the triage log has four, and its "Files changed" still says V1 to V8: fixing it means editing the spec under review. This review re-checked all four patched mediums' code.
+- (low) The cycle log's `mutations_demonstrated=14` against the 15 lines listed, and `sprint-status.yaml`'s `last_updated` placeholder: the cycle log is the lead's file, and this review's sprint-plan run rewrites the date.
+- (low) A middle-click or "open in new tab" while the help is needed opens the trace without the help: the outcome is the portal's own sign-in page, and the guard adds an `auxclick` branch.
+- (low) A rail row removed by a live event while its link's help popover is open leaves focus on the body: this needs the first trace press of a tab session and the row's removal at the same moment, and the fix adds a cross-component focus branch.
+- (low) The rail's "link alone on an empty meta line" branch is never rendered by a test: no producer makes a traced check row with no run or a traced reminder with no due time, and a new browser case is more than a direct correction.
+- (false) "A reply with a `traceUrl` but no strip has no link": the epics AC scopes the link to "the page shows a decision strip", and the spec's Boundaries put a reply's link on its strip.
+- (false) The link's `font-family` uses `--font-ui`, not `--trace-link-typography-font-family`: every component of the page takes its family from `--font-ui` (none reads a `*-typography-font-family` token), and both resolve to Inter, so nothing renders differently.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -597,6 +625,45 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. T
 - mutation: `header.ts` calls `markSeen()` on every open of the menu → V6 red ("opening the menu without the help records nothing": `sessionStorage` holds the flag).
 - mutation: `decision-strip.ts` renders the separator before the link even with nothing before it → V1 (reply) red ("the only one: no separator stands before it").
 - mutation: `trace-help.ts` `readFlag` without its try/catch → V5 (storage that throws) red, and `frame.spec` F4 red.
+
+**QA tests (QA, 2026-10-23).** No new file: `web/e2e/trace/links.spec.ts` (V1 to V8 above) gains seven cases and three assertions, so that the chromium project and `ci/iris.sh live sign-in` pick them up as they do V1 to V8. Every one stubs its Visual Trace tabs (Decided 14), seeds and removes its own rows, and owns the `LINKS` session.
+- V9 (QA): a reply strip, a notice strip and a rail decision whose payload has no `traceUrl` show no link and no dangling separator (the negative half of "a row or strip renders the link only when its payload has a `traceUrl`", which only the view-model tests pinned).
+- V10 (QA): the link's visible text "Trace", its hidden " (opens in a new tab)", the `external-link` icon and the `--trace-link-*` tokens (the colour is also asserted to differ from the plain text colour, so the oracle cannot be vacuous).
+- V11 (QA): "seen" is per tab: a new tab of the same browser shows the help again.
+- V12 (QA): the first press by keyboard (Enter) shows the help with focus on "Open Visual Trace" and opens no tab; Esc and a press outside close it with focus back on the link.
+- V13 (QA): DW-58, a press outside the Visual Trace menu closes it and returns focus to the button (V7 asserted focus for Esc and Shift+Tab only).
+- V14 (QA): the menu opened before the snapshot has loaded is headed "Visual Trace" and records nothing; the first open after the snapshot is the help (the "never before the snapshot has said `onlineDemo` is false" clause).
+- V15 (QA): an approval request that arrives by `approval.raised` event links to its incident's trace, and one with no incident has none (the recipient's `approval` event of the matrix row).
+- V3 (QA assertions): the check, approval and reminder links have the plain name "Trace (opens in a new tab)" and `target="_blank"`.
+- `docker/tests/test-sign-in.sh` (QA): the header and the PASS and FAIL labels say "V1 to V15".
+
+**Recorded mutations, QA pass (Rule 19).** Each was applied, the named test seen red for the reason given, the file restored from a saved copy, and `git status --short` and the hash of `git diff` were identical to before. The browser ones ran through `live sign-in` on tag `e2s213q` (the image is built from the mutated tree, so the server ones show there too), in six runs of mutations whose red tests do not overlap; for those runs `web/playwright.config.ts` was narrowed to `links.spec.ts` and put back byte-identical (the last run, unnarrowed, passed 170 of 170).
+- mutation: `decision-strip.ts` renders the link when the strip has no `traceUrl` (the `@if (traceUrl(); as url)` guard replaced by an empty address) -> V9 red (the notice strip's meta reads "Confidence 0.90 · $0.0003 · Trace (opens in a new tab)").
+- mutation: `trace-link.ts` colours the link `var(--ink)` in place of `var(--trace-link-foreground)` -> V10 red (rgb(16, 42, 69), not rgb(26, 111, 109)).
+- mutation: `trace-help.ts` keeps "seen" in `localStorage`, read and write, in place of `sessionStorage` -> V11 red (a new tab's link is named "Trace (opens in a new tab)", not the sign-in name). This one alone ran with V15's server mutation, which it does not touch; the cases that mark the help seen through `sessionStorage` go red under it too.
+- mutation: `trace-help.ts` `needed` passes `onlineDemo ?? false`, so the help is needed before the snapshot has loaded -> V14 red ("the menu is headed Visual Trace").
+- mutation: `popover.ts` closes on a press outside and when focus leaves without returning focus to the trigger -> V13 red ("with focus back on the menu button": inactive), V12 and V7 (Shift+Tab) red too.
+- mutation: `trace-link.ts` drops the hidden " (opens in a new tab)" of the trace link -> V1 red (name "Trace" in place of "Trace (opens in a new tab)"), V3's QA assertion red (the check row's link), and V4, V5, V6, V10, V11, V12 red.
+- mutation: `trace-link.ts` drops the hidden suffix of the help's "Open Visual Trace" -> V4, V5 and V12 red (no link named "Open Visual Trace (opens in a new tab)").
+- mutation: `header.ts` drops the hidden suffix of the menu's "Open my conversation in Visual Trace" -> V7 and V8 red.
+- mutation: `header.ts` drops `aria-disabled="true"` from the conversation link with no turn -> V7 (no turn) red.
+- mutation: `header.ts` marks the help as seen on every open of the menu -> V14 red ("opening it records nothing": "1") and V6 red.
+- mutation: `trace-view.ts` `needsSignInHelp` ignores `onlineDemo` and `seen` (`onlineDemo !== undefined && !dontShow`) -> V6 red (the online demo's link is named "Open in Visual Trace (shows sign-in help first)", from the `onlineDemo` half) and V4 red ("once seen, every link has its plain name", from the `seen` half); each half alone cannot turn the other test red.
+- mutation: `trace-view.ts` `conversationUrl` takes the first turn -> V8 red (the link is the first turn's, `SESSIONID=3`).
+- mutation: `Live/Payload/Decision.cls` `FromRow` skips `TurnOfItem` -> V2 red (the rail row's link is `…SESSIONID=42`, not the turn's own).
+- mutation: `Core/BridgeSink.cls` `Approved` calls `Approval.FromRow(row)` with no recipient -> V15 red (the row that arrived by event has no link).
+- mutation: `Data/Ownership.cls` `TurnOfItem` takes the first row without comparing the `ItemId` exactly -> `Test.Data.Ownership` `TestTurnOfItem` red (2 assertions: another case finds nothing, nor does the upper case). Slot B: loaded, tested (18 of 19), restored, loaded again, 19 of 19.
+
+**QA run (final).** `live sign-in` on `e2s213q`, unnarrowed: 170 passed (163 and the seven new cases), teardown clean; `npm --prefix web test` 336, `npm --prefix web run lint` and `docker/tests/test-boundaries.sh` exit 0; slot B `Test.Data.Ownership` 19 pass and holds the repo code.
+
+**Recorded mutations, code review (Rule 19, 2026-10-24).** Each was applied, the named test seen red for the reason given, and the file restored from a saved copy; `git status --short`, the hash of `git diff` and `git diff --stat` were identical to before. The browser ones ran together in one unnarrowed `live sign-in` on tag `e2s213r` (their red tests do not overlap: exactly V1, V7 with no turn, V10 and V16 failed, 167 passed), from a bundle built from the mutated tree.
+- mutation: `Live/Payload/Decision.cls` `FromRow` skips `TurnOfItem` (its condition made `If 0, …`) -> `Test.Core.BridgeSink` `TestDecisionOfATurnPublishesTheTurnsTarget` red ("the turn's decision carries the turn's target and positions, not its TraceSessionId 4321"), and `Test.Web.Api` `TestStateSections` (the rail decision of a chat turn: its header, PAGE 2, the turn's own URL) and `TestStateChatDecision` (the nested decision) red. Slot B: loaded, tested, restored, loaded again; then `Test.Core.BridgeSink` 17, `Test.Web.Api` 29, `Test.Live.Payloads` 10 and `Test.Data.Ownership` 19 pass.
+- mutation: `trace-link.ts` `press` without `this.popover?.close()` -> V16 red ("and closes the help": 1, not 0).
+- mutation: `header.ts` back to its `@if`/`@else` pair of conversation links -> V7 (no turn) red (the first turn's arrival closes the popover, so the link never takes the turn's address).
+- mutation: `trace-link.ts` without its three `--trace-link-typography-*` declarations -> V10 red ("the link takes --trace-link-typography-font-size": 12px, not 17px).
+- mutation: `trace-link.ts` without `text-decoration-thickness: 1px` and `text-underline-offset: 2px` -> V1 (reply strip) red ("by the link's own rule: 1px thick": auto).
+
+**Code review run (final).** `live sign-in` on `e2s213r`, unnarrowed, after the last patch: 171 passed, 1 skipped (N11, as before), teardown clean; `npm --prefix web test` 336, `npm --prefix web run lint`, `test-web-build.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `ci/checks.sh` exit 0; slot B holds the repo code and no `zz` turn.
 
 **Shared surfaces:**
 - The `decision` payload, which gains two keys and a chat turn's target; `payloads.ts`; `Test.Live.Payloads`' oracle; `Test.Web.Api`'s rail and nested-decision assertions; `Test.Core.BridgeSink`.

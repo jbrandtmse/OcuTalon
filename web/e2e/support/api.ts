@@ -1,10 +1,11 @@
-import { expect, type APIRequestContext, type APIResponse } from '@playwright/test';
+import { expect, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
 
 import { envelope } from '../sign-in/helpers';
 
 /**
  * What the API specs share: the three routes a spec polls and posts to, one live event as /events serves it, and the two calls that
  * post a message the way the page does and wait for the session stream. api.spec.ts (Story 2.4), trace.spec.ts (Story 2.9) and links.spec.ts (Story 2.13) use them.
+ * frame.spec.ts (Story 2.1) and links.spec.ts also answer the page's /state with a changed copy of the real answer (changeSnapshot).
  */
 
 export const STATE = '/ocutalon/api/v1/state';
@@ -17,6 +18,16 @@ export interface LiveEvent {
   stream: string;
   type: string;
   payload: Record<string, unknown>;
+}
+
+/** Answers the page's /state with the real server's answer, changed by `change`. Call it before signing in. */
+export async function changeSnapshot(page: Page, change: (snapshot: Record<string, unknown>) => void): Promise<void> {
+  await page.route(`**${STATE}`, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    change(body);
+    await route.fulfill({ response, json: body });
+  });
 }
 
 /** Posts a body as the page does: the whole browser envelope and the JSON text of data. */

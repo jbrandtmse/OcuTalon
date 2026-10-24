@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
+import { changeSnapshot } from '../support/api';
 
 /**
  * Story 2.1, the main page frame (F1 to F9), against a real stack signed in as the README account. Where a variant of
@@ -14,16 +15,6 @@ const RAIL_SPOKEN = RAIL_LABELS.map((label) => `${label}, 0`);
 const RAIL_VISIBLE = RAIL_LABELS.map((label) => `${label} (0)`);
 
 type Snapshot = Record<string, unknown>;
-
-/** Answers the page's /state with the real server's answer, changed by `change`. Call it before signing in. */
-async function changeSnapshot(page: Page, change: (snapshot: Snapshot) => void): Promise<void> {
-  await page.route(`**${STATE}`, async (route) => {
-    const response = await route.fetch();
-    const body = (await response.json()) as Snapshot;
-    change(body);
-    await route.fulfill({ response, json: body });
-  });
-}
 
 /** The README account's snapshot, as the server answers it. */
 async function realSnapshot(page: Page): Promise<Snapshot> {

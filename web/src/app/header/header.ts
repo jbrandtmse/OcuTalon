@@ -39,7 +39,8 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
  * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
  * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
  * Trace", a link to the newest turn's traceUrl that opens a new tab; with no such turn the link is aria-disabled, stays
- * focusable, has no href and does nothing. While the sign-in help is needed (TraceHelp) the popover is the help: it is
+ * focusable, has no href and does nothing. It is one element either way, so a turn that arrives while it has focus leaves the
+ * focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
  * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
  * was seen. Otherwise it is headed "Visual Trace" and records nothing.
  */
@@ -98,19 +99,21 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
         [signIn]="traceHelpShown()"
         (dismissed)="closeTrace()"
       >
-        @if (conversation(); as url) {
-          <a class="button button-primary" [href]="url" target="_blank" rel="noopener noreferrer" (click)="closeTrace()"
-            >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
-              {{ traceTexts.opensInNewTab }}</span
-            ></a
-          >
-        } @else {
-          <a class="button button-inactive" role="link" tabindex="0" aria-disabled="true" (click)="$event.preventDefault()"
-            >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
-              {{ traceTexts.opensInNewTab }}</span
-            ></a
-          >
-        }
+        <a
+          class="button"
+          [class.button-primary]="conversation() !== undefined"
+          [class.button-inactive]="conversation() === undefined"
+          [attr.href]="conversation() ?? null"
+          target="_blank"
+          rel="noopener noreferrer"
+          [attr.role]="conversation() === undefined ? 'link' : null"
+          [attr.tabindex]="conversation() === undefined ? 0 : null"
+          [attr.aria-disabled]="conversation() === undefined ? 'true' : null"
+          (click)="pressConversation($event)"
+          >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
+            {{ traceTexts.opensInNewTab }}</span
+          ></a
+        >
       </app-trace-help>
     </ng-template>
     <ng-template #themeMenu>
@@ -304,6 +307,15 @@ export class Header {
 
   protected closeTrace(): void {
     this.tracePopover?.close();
+  }
+
+  /** "Open my conversation in Visual Trace": with a turn the press opens the tab and closes the popover; with none it does nothing. */
+  protected pressConversation(event: MouseEvent): void {
+    if (this.conversation() === undefined) {
+      event.preventDefault();
+      return;
+    }
+    this.closeTrace();
   }
 
   protected signOut(): void {

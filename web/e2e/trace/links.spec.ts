@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
-import { STATE } from '../support/api';
+import { STATE, changeSnapshot } from '../support/api';
 import {
   chk,
   cleanFixtureRows,
@@ -16,14 +16,16 @@ import {
   sendItemDecision,
   sinkEvent,
 } from '../support/iris';
-import { TRACE_PAGE, drawnMessages, expectDrawn, newestTurn, postTurn, signInToTrace, type Cursor, type Turn } from '../support/trace';
+import { TRACE_PAGE, drawnMessages, expectDrawn, postTurn, signInToTrace, type Cursor, type Turn } from '../support/trace';
 import { signIn, signInOverHttp } from '../sign-in/helpers';
 
 /**
- * Story 2.13, the Visual Trace links on the page (V1 to V8), in a real browser against a real stack and the real Visual Trace pages.
+ * Story 2.13, the Visual Trace links on the page (V1 to V8, V9 to V15 added by QA, and V16 added by review), in a real browser against a
+ * real stack.
  * Every case signs in as the links fixture user that test-sign-in.sh created (OCUTALON_LINKS_USER; the user role and the trace role),
  * whose session no other spec reads. The user's chat is never assumed empty: a case that needs a turn posts one through the API and
- * waits for it to be done, or takes the newest turn of /state, and a case that seeds rows removes them in finally. Each case has a
+ * waits for it to be done, or takes the newest done turn of /state that has a trace link, and a case that seeds rows records each one
+ * as it is made and removes them in finally. Each case has a
  * fresh browser context, so the sign-in help is unseen in it unless the case marks it seen with an init script.
  * - V1: a reply's strip links to its turn, and the link opens Visual Trace on it. V2: a rail decision of a chat turn opens on its turn
  *   (DW-129), another decision on its own session. V3: check, reminder and approval rows carry their links, and a row with no target
@@ -32,9 +34,15 @@ import { signIn, signInOverHttp } from '../sign-in/helpers';
  *   that throws still gives working help and links, and the online demo opens the links directly.
  * - V7 and V8: the Visual Trace menu and its popover (DW-58), and "Open my conversation in Visual Trace", which opens the day's thread at
  *   its newest turn and follows a turn that arrives later.
+ * - V9 to V15 (QA): a strip or a rail decision whose payload has no traceUrl shows no link (V9); the link's text, icon, tokens and hidden
+ *   suffix (V10); the help is seen per tab (V11); the first press by keyboard, and Esc and an outside press on the link's help (V12);
+ *   an outside press on the menu returns focus to its button (V13); the menu opened before the snapshot has loaded is the plain menu
+ *   and records nothing (V14); an approval request that arrives by event carries its incident's link (V15); a second press on a link
+ *   while its help is open opens the link and closes the help (V16).
  * V1, V2 and V8 open the real Visual Trace pages and read what they draw. The other cases only check which address a link opens, so
- * their tabs get a stand-in page (stubTraces): a tab that signs in to a trace application holds a licence connection of the stack
- * until its session times out, and the stack's licence allows few of them.
+ * their tabs get a stand-in page (stubTraces), because a run that opened every tab for real starved later cases of the stack; that
+ * each tab signed in to a trace application holds one of the stack's licence connections until its session times out is an
+ * inference, not a measurement.
  * The texts and the storage keys are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 90_000 });
@@ -92,10 +100,11 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
-/** The newest turn of the user's chat, posting one first when the chat holds none. */
+/** The newest done turn of the user's chat that has a trace link, posting one first when the chat holds none. */
 async function someTurn(): Promise<Turn> {
-  const state = (await (await api.get(STATE)).json()) as { chat: Array<{ type: string }> };
-  return state.chat.some((item) => item.type === 'chat.message') ? newestTurn(api) : postTurn(api, cursor, 0, 'links');
+  const state = (await (await api.get(STATE)).json()) as { chat: Array<{ type: string; payload: Partial<Turn> }> };
+  const done = state.chat.filter((item) => item.type === 'chat.message' && item.payload.state === 'done' && item.payload.traceUrl !== undefined);
+  return done.length > 0 ? (done[done.length - 1]!.payload as Turn) : postTurn(api, cursor, 0, 'links');
 }
 
 /** Marks the sign-in help as seen in the page's tab session before any script of the page runs. */
@@ -121,16 +130,6 @@ async function applied(page: Page, seq: number): Promise<void> {
   await expect
     .poll(async () => Number(await mainOf(page).getAttribute('data-session-seq')), { message: `the page applied Seq ${seq}`, timeout: APPLIED_MS })
     .toBeGreaterThanOrEqual(seq);
-}
-
-/** Answers the page's /state with the real server's answer, changed by `change`. Call it before signing in. */
-async function changeSnapshot(page: Page, change: (snapshot: Record<string, unknown>) => void): Promise<void> {
-  await page.route(`**${STATE}`, async (route) => {
-    const response = await route.fetch();
-    const body = (await response.json()) as Record<string, unknown>;
-    change(body);
-    await route.fulfill({ response, json: body });
-  });
 }
 
 /** The page that the action opens in a new tab, signed in to the trace application when it asks. */
@@ -186,6 +185,8 @@ test("V1: a reply's strip links to its turn, and the link opens Visual Trace on 
   await expect(link.locator('svg'), 'the external-link icon, 12px').toHaveAttribute('width', '12');
   await expect(link.locator('xpath=ancestor::button'), 'the link is never inside a button').toHaveCount(0);
   await expect(link, 'always underlined').toHaveCSS('text-decoration-line', 'underline');
+  await expect(link, "by the link's own rule: 1px thick").toHaveCSS('text-decoration-thickness', '1px');
+  await expect(link, 'and 2px under the text').toHaveCSS('text-underline-offset', '2px');
 
   // The stack's model answers with the fixed fallback, whose strip has no confidence and no cost: the link follows the flag.
   await expect(strip.locator('.line1 .meta > :last-child'), 'the link is the last item of line 1').toHaveJSProperty('tagName', 'APP-TRACE-LINK');
@@ -238,10 +239,13 @@ test('V2: a rail decision of a chat turn opens on its turn', async ({ page }) =>
   // An Item has one decision of each kind: a turn that already shows its decide row (a model that answered) is the row of a chat turn,
   // and otherwise one is seeded for the turn's Item, with a TraceSessionId that is not the turn's header. BridgeSink gets its event as
   // the bridge would after its commit.
-  const seeded = turn.decision === undefined ? await seedDecisions(user, [{ itemId, outcome: 'act', summary: unique('v2 turn'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 42 }]) : [];
-  const decisionRef = turn.decision?.ref ?? seeded[0]!;
-  const [other] = await seedDecisions(user, [{ outcome: 'act', summary: unique('v2 other'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }]);
+  const refs: string[] = [];
   try {
+    const seeded = turn.decision === undefined ? await seedDecisions(user, [{ itemId, outcome: 'act', summary: unique('v2 turn'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 42 }]) : [];
+    refs.push(...seeded);
+    const decisionRef = turn.decision?.ref ?? seeded[0]!;
+    const [other] = await seedDecisions(user, [{ outcome: 'act', summary: unique('v2 other'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }]);
+    refs.push(other!);
     await helpSeen(page);
     await open(page);
     await sinkEvent(user, 'decision.recorded', { ref: decisionRef });
@@ -261,7 +265,7 @@ test('V2: a rail decision of a chat turn opens on its turn', async ({ page }) =>
     const row = railOf(page).locator(`li.row[data-row-key="decisions:${other}"]`);
     await expect(row.locator('app-trace-link a'), 'a decision of an Item that is no turn opens its own session, with no PAGE').toHaveAttribute('href', `${TRACE_PAGE}4242`);
   } finally {
-    await cleanFixtureRows([other, ...seeded]);
+    await cleanFixtureRows(refs);
   }
 });
 
@@ -272,13 +276,17 @@ test('V3: check, reminder and approval rows carry their links; a row with no tar
   const header = turn.traceHeaderId;
   const marker = unique('v3');
   const lastRunAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const traced = await seedCheck(user, { namespace: 'OCUTALON', production: `Zz.Links.${marker.slice(-8)}`, displayName: `${marker} traced`, lastRunAt, result: 'passed', finding: 'zz finding', lastRunHeaderId: header });
-  const bare = await seedCheck(user, { namespace: 'OCUTALON', production: `Zz.Links.Bare${marker.slice(-8)}`, displayName: `${marker} bare`, lastRunAt, result: 'passed', finding: 'zz finding' });
-  const incident = await seedIncident(user, { traceHeaderId: header });
-  const request = await seedApproval(user, { incidentRef: incident, dryRun: { affected: 3, itemNoun: { one: 'order', other: 'orders' } } });
-  const untraced = await seedApproval(user, { toolName: `${marker} tool`, kind: 'tool_call', dryRun: null });
-  const refs = [traced, bare, incident, request, untraced];
+  const refs: string[] = [];
+  const made = (ref: string): string => {
+    refs.push(ref);
+    return ref;
+  };
   try {
+    const traced = made(await seedCheck(user, { namespace: 'OCUTALON', production: `Zz.Links.${marker.slice(-8)}`, displayName: `${marker} traced`, lastRunAt, result: 'passed', finding: 'zz finding', lastRunHeaderId: header }));
+    made(await seedCheck(user, { namespace: 'OCUTALON', production: `Zz.Links.Bare${marker.slice(-8)}`, displayName: `${marker} bare`, lastRunAt, result: 'passed', finding: 'zz finding' }));
+    const incident = made(await seedIncident(user, { traceHeaderId: header }));
+    const request = made(await seedApproval(user, { incidentRef: incident, dryRun: { affected: 3, itemNoun: { one: 'order', other: 'orders' } } }));
+    made(await seedApproval(user, { toolName: `${marker} tool`, kind: 'tool_call', dryRun: null }));
     await stubTraces(page.context());
     await helpSeen(page);
     await open(page);
@@ -292,13 +300,18 @@ test('V3: check, reminder and approval rows carry their links; a row with no tar
 
     const checkRow = rowOf(page, `${marker} traced`);
     await expect(checkRow.locator('app-trace-link a')).toHaveAttribute('href', checkUrl!);
+    await expect(checkRow.locator('app-trace-link a'), "(QA) the check's link has its plain name and opens a new tab").toHaveAccessibleName(PLAIN_NAME);
+    await expect(checkRow.locator('app-trace-link a')).toHaveAttribute('target', '_blank');
     await expect(checkRow.locator('.meta > :last-child'), "the check's link is last on its meta line").toHaveJSProperty('tagName', 'APP-TRACE-LINK');
     await expect(checkRow.locator('.meta'), 'after the last run and the finding').toHaveText(new RegExp(`Last run .*${DOT.trim()} zz finding ${DOT.trim()} Trace`));
     await expect(rowOf(page, `${marker} bare`), 'the check with no run is in the rail').toHaveCount(1);
     await expect(rowOf(page, `${marker} bare`).locator('app-trace-link'), 'and has no link').toHaveCount(0);
 
-    const approvalRow = railOf(page).locator(`li.row[data-section="approvals"]`).filter({ hasText: 'Repair and resend 3 orders' });
+    const approvalRow = railOf(page).locator(`li.row[data-row-key="approvals:${request}"]`);
+    await expect(approvalRow, "the incident's request is in the rail").toHaveText(/Repair and resend 3 orders/);
     await expect(approvalRow.locator('app-trace-link a')).toHaveAttribute('href', approvalUrl!);
+    await expect(approvalRow.locator('app-trace-link a'), "(QA) the approval's link has its plain name and opens a new tab").toHaveAccessibleName(PLAIN_NAME);
+    await expect(approvalRow.locator('app-trace-link a')).toHaveAttribute('target', '_blank');
     await expect(approvalRow.locator('.meta > :last-child'), "the approval's link is last on its meta line").toHaveJSProperty('tagName', 'APP-TRACE-LINK');
     await expect(rowOf(page, `${marker} tool`), 'the request with no incident is in the rail').toHaveCount(1);
     await expect(rowOf(page, `${marker} tool`).locator('app-trace-link'), 'and has no link').toHaveCount(0);
@@ -311,6 +324,8 @@ test('V3: check, reminder and approval rows carry their links; a row with no tar
     await applied(page, seq);
     const reminderRow = rowOf(page, withTarget);
     await expect(reminderRow.locator('app-trace-link a'), "a reminder with a target in its payload has a link to it").toHaveAttribute('href', `${TRACE_PAGE}${header}`);
+    await expect(reminderRow.locator('app-trace-link a'), '(QA) the reminder\'s link has its plain name and opens a new tab').toHaveAccessibleName(PLAIN_NAME);
+    await expect(reminderRow.locator('app-trace-link a')).toHaveAttribute('target', '_blank');
     await expect(reminderRow.locator('.meta > :last-child'), 'last on its meta line').toHaveJSProperty('tagName', 'APP-TRACE-LINK');
     await expect(rowOf(page, without), 'the reminder with no target is in the rail').toHaveCount(1);
     await expect(rowOf(page, without).locator('app-trace-link'), 'and has no link').toHaveCount(0);
@@ -558,6 +573,14 @@ test('V7: with no turn the conversation link is disabled and opens nothing', asy
   await conversation.click({ force: true });
   await page.waitForTimeout(SETTLE_MS);
   expect(opened, 'and opens nothing').toHaveLength(0);
+
+  // The first turn arrives by event while the link has focus: the same link takes its address and keeps the focus.
+  await expect(conversation).toBeFocused();
+  const turn = await postTurn(api, cursor, 5, 'links');
+  await expect(conversation, 'a turn that arrives gives the link its address').toHaveAttribute('href', turn.traceUrl, { timeout: APPLIED_MS });
+  await expect(conversation, 'and the link keeps the focus').toBeFocused();
+  await expect(conversation).not.toHaveAttribute('aria-disabled', /.*/);
+  await expect(dialog, 'with the popover still open').toBeVisible();
 });
 
 /** V8: "Open my conversation in Visual Trace" opens the current day's thread at its newest turn, and follows a later turn. */
@@ -582,4 +605,258 @@ test('V8: Open my conversation opens the newest turn, and a turn that arrives mo
   expect(third.traceItemIndex, 'the newest turn has a higher place than the first one posted').toBeGreaterThan(first.traceItemIndex);
   expectDrawn(drawn, third.traceHeaderId, third.traceItemIndex, 'Open my conversation');
   await expect(dialog, 'pressing the link closes the popover').toHaveCount(0);
+});
+
+/** V9 (QA): a strip or a rail decision whose payload has no traceUrl shows no link, and no dangling separator. */
+test('V9 (QA): a reply strip, a notice strip and a rail decision whose payload has no traceUrl show no link', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const turn = await someTurn();
+  const summary = unique('v9 notice');
+  const refs: string[] = [];
+  try {
+    const noticeRef = await seedDecision(user, { outcome: 'tellnow', summary, reasons: 'zz first.\nzz second.', confidence: 0.9, costUSD: 0.0003 });
+    refs.push(noticeRef);
+    const [rowRef] = await seedDecisions(user, [{ outcome: 'act', summary: unique('v9 row'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003 }]);
+    refs.push(rowRef!);
+    await helpSeen(page);
+    // The turn keeps its trace header and namespace, and loses only the address: the page never builds one.
+    await changeSnapshot(page, (snapshot) => {
+      for (const item of snapshot['chat'] as Array<{ type: string; payload: Record<string, unknown> }>) {
+        if (item.type !== 'chat.message') continue;
+        delete item.payload['traceUrl'];
+        const nested = item.payload['decision'] as Record<string, unknown> | undefined;
+        if (nested) delete nested['traceUrl'];
+      }
+    });
+    await open(page);
+
+    const strip = replyOf(page, turn.clientId).locator('app-decision-strip');
+    await expect(strip, "the turn's reply has its strip").toHaveCount(1);
+    await expect(strip.locator('app-trace-link'), 'and no link, as its chat.message has no traceUrl').toHaveCount(0);
+
+    await sendItemDecision(user, { outcome: 'tellnow', summary, decisionRef: noticeRef });
+    const card = page.locator('app-chat-panel app-notice-card').filter({ hasText: summary });
+    await expect(card).toHaveCount(1, { timeout: APPLIED_MS });
+    await expect(card.locator('app-decision-strip'), 'the card has its strip').toHaveCount(1);
+    await expect(card.locator('app-decision-strip .line1 .meta'), 'whose line 1 ends at the cost: no separator is left dangling').toHaveText(new RegExp(`^Confidence 0\\.90${DOT}\\$0\\.0003$`));
+    await expect(card.locator('app-trace-link'), 'and the card has no link, as its decision has no target').toHaveCount(0);
+
+    await applied(page, await sinkEvent(user, 'decision.recorded', { ref: rowRef }));
+    const row = railOf(page).locator(`li.row[data-row-key="decisions:${rowRef}"]`);
+    await expect(row, 'the decision of an Item with no trace session is in the rail').toHaveCount(1);
+    await expect(row.locator('.meta'), 'with its meta line').toHaveText(new RegExp(`Confidence 0\\.90${DOT}\\$0\\.0003$`));
+    await expect(row.locator('app-trace-link'), 'and no link').toHaveCount(0);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** V10 (QA): the link is the "Trace" text, the 12px external-link icon and a visually hidden suffix, in the trace-link tokens. */
+test('V10 (QA): the link is the Trace text, the external-link icon and a hidden suffix, in the trace-link tokens', async ({ page }) => {
+  const turn = await someTurn();
+  await helpSeen(page);
+  await open(page);
+  const link = stripLink(page, turn.clientId);
+  await expect(link).toHaveCount(1);
+  await expect(link.locator('span').first(), 'the visible text is Trace').toHaveText('Trace');
+  const suffix = link.locator('span.visually-hidden');
+  await expect(suffix, 'followed by the hidden suffix').toHaveText('(opens in a new tab)');
+  await expect(suffix, 'which takes one clipped pixel').toHaveCSS('width', '1px');
+  await expect(suffix).toHaveCSS('position', 'absolute');
+  const icon = link.locator('svg');
+  await expect(icon.locator('path[d="M15 3h6v6"]'), "the external-link icon (Lucide's first stroke)").toHaveCount(1);
+  await expect(icon, 'drawn for the eye only').toHaveAttribute('aria-hidden', 'true');
+  expect(await link.evaluate((anchor) => anchor.firstElementChild?.tagName), 'the text comes first, the icon after it').toBe('SPAN');
+
+  // The tokens are read the way the page resolves them, from a probe element set through the style object (the page's CSP refuses a style attribute).
+  const tokens = await page.evaluate(() => {
+    const read = (set: (style: CSSStyleDeclaration) => void): Record<string, string> => {
+      const probe = document.createElement('span');
+      set(probe.style);
+      document.body.append(probe);
+      const computed = getComputedStyle(probe);
+      const out = { color: computed.color, fontSize: computed.fontSize, fontWeight: computed.fontWeight, lineHeight: computed.lineHeight };
+      probe.remove();
+      return out;
+    };
+    return {
+      link: read((style) => {
+        style.color = 'var(--trace-link-foreground)';
+        style.fontSize = 'var(--trace-link-typography-font-size)';
+        style.fontWeight = 'var(--trace-link-typography-font-weight)';
+        style.lineHeight = 'var(--trace-link-typography-line-height)';
+      }),
+      ink: read((style) => {
+        style.color = 'var(--ink)';
+      }),
+    };
+  });
+  expect(tokens.link['color'], 'the oracle: the link colour is not the plain text colour').not.toBe(tokens.ink['color']);
+  expect(tokens.link['fontSize'], 'the oracle resolved the font size token').toBe('12px');
+  await expect(link, 'the link colour is --trace-link-foreground').toHaveCSS('color', tokens.link['color']!);
+  await expect(link, 'its size is --trace-link-typography-font-size').toHaveCSS('font-size', tokens.link['fontSize']!);
+  await expect(link, 'its weight is --trace-link-typography-font-weight').toHaveCSS('font-weight', tokens.link['fontWeight']!);
+  await expect(link, 'its line height is --trace-link-typography-line-height').toHaveCSS('line-height', tokens.link['lineHeight']!);
+
+  // The strip's own text has the same size, weight and line height, so the tokens are changed for this page through the style object:
+  // the link follows them and the strip's text does not, which only the link's own rules can give.
+  await page.evaluate(() => {
+    const root = document.documentElement.style;
+    root.setProperty('--trace-link-typography-font-size', '17px');
+    root.setProperty('--trace-link-typography-font-weight', '700');
+    root.setProperty('--trace-link-typography-line-height', '2');
+  });
+  await expect(link, 'the link takes --trace-link-typography-font-size').toHaveCSS('font-size', '17px');
+  await expect(link, 'and --trace-link-typography-font-weight').toHaveCSS('font-weight', '700');
+  await expect(link, 'and --trace-link-typography-line-height').toHaveCSS('line-height', '34px');
+  await expect(replyOf(page, turn.clientId).locator('app-decision-strip .line1'), 'while the strip keeps its own size').toHaveCSS('font-size', tokens.link['fontSize']!);
+});
+
+/** V11 (QA): "seen" belongs to the tab: a new tab of the same browser shows the help again. */
+test('V11 (QA): the sign-in help is seen per tab, so a new tab of the same browser shows it again', async ({ page }) => {
+  const turn = await someTurn();
+  await stubTraces(page.context());
+  await open(page);
+  const link = stripLink(page, turn.clientId);
+  await link.click();
+  await expect(popoverOf(page, HEADING), 'the first press shows the help').toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(link, 'this tab has seen it').toHaveAccessibleName(PLAIN_NAME);
+
+  const second = await page.context().newPage();
+  await second.goto('/ocutalon/');
+  await expect(mainOf(second)).toHaveAttribute('data-snapshot', 'loaded');
+  const again = stripLink(second, turn.clientId);
+  await expect(again, 'a new tab of the same browser has not').toHaveAccessibleName(SIGN_IN_NAME);
+  await expect(again).toHaveAttribute('aria-haspopup', 'dialog');
+  await expect(link, 'and the first tab still has').toHaveAccessibleName(PLAIN_NAME);
+  await again.click();
+  await expect(popoverOf(second, HEADING), 'its first press shows the help').toBeVisible();
+});
+
+/** V12 (QA): the link's help opens on a keyboard press and closes on Esc and on a press outside, each with focus back on the link. */
+test("V12 (QA): the first press by keyboard shows the help; Esc and an outside press close it with focus on the link", async ({ page }) => {
+  const turn = await someTurn();
+  await stubTraces(page.context());
+  await open(page);
+  const opened = watchTabs(page);
+  const link = stripLink(page, turn.clientId);
+  await link.focus();
+  await page.keyboard.press('Enter');
+  const dialog = popoverOf(page, HEADING);
+  await expect(dialog, 'Enter on the link shows the help').toBeVisible();
+  await expect(dialog.getByRole('link', { name: OPEN_NAME, exact: true }), 'with focus on Open Visual Trace').toBeFocused();
+  await page.waitForTimeout(SETTLE_MS);
+  expect(opened, 'and no tab opened').toHaveLength(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog, 'Esc closes it').toHaveCount(0);
+  await expect(link, 'with focus back on the link').toBeFocused();
+  await expect(link, 'which is now plain').toHaveAccessibleName(PLAIN_NAME);
+
+  // A new tab has not seen the help, so a press shows it there again.
+  const second = await page.context().newPage();
+  await second.goto('/ocutalon/');
+  await expect(mainOf(second)).toHaveAttribute('data-snapshot', 'loaded');
+  const again = stripLink(second, turn.clientId);
+  await again.click();
+  const help = popoverOf(second, HEADING);
+  await expect(help).toBeVisible();
+  await second.locator('app-chat-panel').click({ position: { x: 4, y: 4 } });
+  await expect(help, 'a press outside closes it').toHaveCount(0);
+  await expect(again, 'with focus back on the link').toBeFocused();
+});
+
+/** V13 (QA): DW-58, a press outside the menu closes it and returns focus to the button, as Esc and Shift+Tab do. */
+test('V13 (QA): a press outside the Visual Trace menu closes it and returns focus to the button', async ({ page }) => {
+  await someTurn();
+  await helpSeen(page);
+  await open(page);
+  const button = traceMenu(page);
+  await button.click();
+  const dialog = popoverOf(page, 'Visual Trace');
+  await expect(dialog).toBeVisible();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await page.locator('app-chat-panel').click({ position: { x: 4, y: 4 } });
+  await expect(dialog, 'a press on the chat panel closes it').toHaveCount(0);
+  await expect(button, 'with focus back on the menu button').toBeFocused();
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+});
+
+/** V14 (QA): before the snapshot has said which install this is, the menu is the plain menu and records nothing. */
+test('V14 (QA): the menu opened before the snapshot has loaded is headed Visual Trace and records nothing; the first open after it is the help', async ({ page }) => {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await page.route(`**${STATE}`, async (route) => {
+      await held;
+      await route.continue();
+    });
+    const { user, password } = fixtureUser(KIND);
+    await signIn(page, user, password);
+    const button = traceMenu(page);
+    await expect(button).toBeVisible();
+    await expect(page.locator('main.main[data-snapshot="loaded"]'), 'the snapshot is still on its way').toHaveCount(0);
+    await button.click();
+    const early = popoverOf(page, 'Visual Trace');
+    await expect(early, 'the menu is headed Visual Trace').toBeVisible();
+    await expect(page.getByText(HEADING), 'and the sign-in help is not shown').toHaveCount(0);
+    await expect(early.getByRole('button', { name: DONT_SHOW, exact: true })).toHaveCount(0);
+    expect(await page.evaluate((key) => window.sessionStorage.getItem(key), SEEN_KEY), 'opening it records nothing').toBeNull();
+    await page.keyboard.press('Escape');
+    await expect(early).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await traceMenu(page).click();
+  await expect(popoverOf(page, HEADING), 'once the snapshot says this is a local install, the first open is the help').toBeVisible();
+});
+
+/** V15 (QA): an approval request that arrives by event carries its incident's link, and one with no incident has none. */
+test("V15 (QA): an approval request that arrives by event links to its incident's trace; one with no incident has no link", async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const turn = await someTurn();
+  const header = turn.traceHeaderId;
+  const tool = `zz_tool_v15_${Date.now().toString(36)}`;
+  const bareTool = `zz_tool_v15bare_${Date.now().toString(36)}`;
+  const refs: string[] = [];
+  try {
+    await stubTraces(page.context());
+    await helpSeen(page);
+    await open(page);
+    const incident = await seedIncident(user, { traceHeaderId: header });
+    refs.push(incident);
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, incidentRef: incident });
+    refs.push(request);
+    const bare = await seedApproval(user, { kind: 'tool_call', toolName: bareTool, dryRun: null });
+    refs.push(bare);
+    await expect(rowOf(page, tool), 'the request is not on the page until its event arrives').toHaveCount(0);
+    await sinkEvent(user, 'approval.raised', { ref: bare });
+    await applied(page, await sinkEvent(user, 'approval.raised', { ref: request }));
+
+    const row = rowOf(page, tool);
+    await expect(row, 'the raised request appears').toHaveCount(1, { timeout: APPLIED_MS });
+    await expect(row.locator('app-trace-link a'), "its link is its incident's trace, from the recipient's approval event").toHaveAttribute('href', `${TRACE_PAGE}${header}`);
+    await expect(row.locator('.meta > :last-child'), 'last on its meta line').toHaveJSProperty('tagName', 'APP-TRACE-LINK');
+    await expect(rowOf(page, bareTool), 'the request with no incident appears').toHaveCount(1, { timeout: APPLIED_MS });
+    await expect(rowOf(page, bareTool).locator('app-trace-link'), 'and has no link').toHaveCount(0);
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
+/** V16 (review): a second press on a link while its help is still open opens the link and closes the help. */
+test('V16 (review): a second press on a link while its help is open opens the link and closes the help', async ({ page }) => {
+  const turn = await someTurn();
+  await stubTraces(page.context());
+  await open(page);
+  const link = stripLink(page, turn.clientId);
+  await link.click();
+  const dialog = popoverOf(page, HEADING);
+  await expect(dialog, 'the first press shows the help').toBeVisible();
+  const popup = await opensTab(page, () => link.click());
+  await expectAddress(popup, `SESSIONID=${turn.traceHeaderId}`, 'the second press opens the link');
+  await expect(dialog, 'and closes the help').toHaveCount(0);
 });

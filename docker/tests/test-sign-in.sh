@@ -31,9 +31,10 @@
 #   - Story 2.9's Visual Trace links (web/e2e/trace/trace.spec.ts T1 to T4): the thread user (OCUTALON_THREAD_USER, with the user role
 #     and the trace role), whose session posts messages through the real production until its trace session holds more than 45
 #     items, and whose Visual Trace settings the specs change and put back; the specs open the links in the real Visual Trace pages.
-#   - Story 2.13's links on the page (web/e2e/trace/links.spec.ts V1 to V8): the links user (OCUTALON_LINKS_USER, with the user role and
+#   - Story 2.13's links on the page (web/e2e/trace/links.spec.ts V1 to V16): the links user (OCUTALON_LINKS_USER, with the user role and
 #     the trace role), whose session posts its own turns and receives seeded decisions, checks, reminders and approval requests, so that
-#     the specs open the page's trace links, the sign-in help and the Visual Trace menu in the real Visual Trace pages.
+#     the specs press the page's trace links, the sign-in help and the Visual Trace menu; V1, V2 and V8 open the real Visual Trace pages,
+#     and the other cases give their trace tabs a stand-in page.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
 # 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread and links users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
@@ -224,13 +225,13 @@ if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V8: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V16: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V8: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V16: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

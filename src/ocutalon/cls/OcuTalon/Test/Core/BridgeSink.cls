@@ -203,7 +203,9 @@ Method TestBadPayloadsPublishNothing()
 }
 
 /// Each of the five approval.* types, for a pending fix request of the session, publishes one approval event on its stream
-/// with the fields of Approval.FromRow; once the row's state changes, the next event carries the new state.
+/// with the fields of Approval.FromRow; once the row's state changes, the next event carries the new state. A request with no
+/// incident carries no trace target, and a request of an incident with a TraceHeaderId carries the incident's target, as
+/// Approval.FromRow builds it for the recipient.
 Method TestApprovalEventsPublishTheRequest()
 {
 	Set session = ..Session("approval")
