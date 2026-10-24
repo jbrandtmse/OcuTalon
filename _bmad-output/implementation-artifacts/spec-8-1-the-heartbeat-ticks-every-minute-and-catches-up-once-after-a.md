@@ -2,7 +2,7 @@
 title: 'Story 8.1: The heartbeat ticks every minute and catches up once after a restart'
 type: 'feature'
 created: '2026-10-24'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -30,7 +30,7 @@ deferred: []
 - Tests run in throwaways or CI (Rule 21). Each test puts back what it changed, even after a failure: the `Checks` item's class, the task's `Suspended` value, the production running with every item, its fixture marks and `^OcuTalonTest("ChecksDouble")`.
 
 **Never:**
-- No edit to Lane A's files (`OcuTalon.Checks.*`, `OcuTalon.Test.Agent.*`), to contended paths, to `Install/Registry.cls` or `Install/Step/Tasks.cls` (AD-33).
+- No edit to Lane A's files (`OcuTalon.Checks.*`, `OcuTalon.Test.Agent.*`), to contended paths, to `Install/Registry.cls` or `Install/Step/Tasks.cls` (AD-33). The one exception is HeartbeatIn's row of `Test/Core/ProductionItems.cls` (orchestrator ruling); no other row or line of that file changes.
 - No change to `ReminderOps` or `ReminderTimer`; they belong to Stories 8.3 to 8.5.
 - No sleeping until the minute boundary. Waits poll up to a stated ceiling.
 - No literal non-ASCII characters in code (Rule 14).
@@ -83,7 +83,7 @@ deferred: []
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/HeartbeatLogic.cls` (new; needs no production): every matrix row through `Next`, the two `Data.Time` helpers, and `Gaps` over fixture gap marks dated 2001 (deleted afterwards), inside, outside and across the window.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` (new; throwaways and CI only): `OnBeforeAllTests` puts `ChecksDouble` behind `Checks` (`UseItemClass`), and `OnAfterAllTests` restores everything listed under Always. The methods are `TestTaskDeclared` (AC 1, 2), `TestCatchUp` (AC 3, 4; the real task suspended) and `TestStoppedThenStarted` (AC 5, 6).
 - [ ] `ci/units.sh`: add `Schedule` to `lane-b`'s `shard_areas` (`Contract Core Data Demo Live Msg Schedule Web`).
-- [ ] BLOCKED, needs a ruling (Clarification Needed 1): in `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls:33`, change HeartbeatIn's row from `"stub": 1` to `"stub": 0`.
+- [ ] Orchestrator ruling (Clarification 1, option (a), a one-time footprint extension): in `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls:33`, change HeartbeatIn's row from `"stub": 1` to `"stub": 0`. Touch no other row or line of the file (it is Epic 2's contended `Test/Core/**`).
 - [ ] Ruling U-52 (veto): in `HeartbeatIn.OnProcessInput`, send only when the class behind `TARGET` (`$$$ConfigClassName(TARGET)`) carries no `STUB` (`+$Parameter(class,"STUB")` = 0); otherwise skip the send and record the marks exactly as after a send. `TestStubSkipped` in `Test/Schedule/Heartbeat.cls` pins it (AC 7).
 
 **Acceptance Criteria:**
@@ -92,12 +92,13 @@ deferred: []
 3. Given the production running, the double behind `Checks`, the real task suspended, the `heartbeatTick` mark set 7 minutes back and the double set to hang 5 s, when `HeartbeatTask.OnTask()` runs, then it returns OK in under 5 s. The double records exactly one tick: `CatchUp` 1, `PreviousTickAt` the old time, `TickAt` the new mark. Exactly one `Ens.MessageHeader` goes from HeartbeatIn to Checks since the mark, with body `OcuTalon.Msg.Tick` (Visual Trace). No tick is sent for any missed minute. (FR-32, NFR-20, AD-1, AD-18)
 4. Given the same run, when `Heartbeat.Gaps` is read over the last 10 minutes, then it returns one gap, `{start: the old time, end: TickAt, missed: 6}` (missed is computed from the minutes of the two times). A tick one minute after the previous one adds no gap. (FR-32)
 5. Given `OcuTalon.Production` stopped (with the scheduler settled first, DW-28) and the tick mark set 3 minutes back, when the Task Manager runs the task (`RunNow`), then its history has no error, no HeartbeatIn header is written and both marks are unchanged. When the Production step starts the production again, the next scheduled run (ceiling 75 s) is the single catch-up tick: `PreviousTickAt` is the mark from before the stop, the double records it once, its header exists, and its history has no error. (FR-32, AD-23)
-6. Given the built item, when `OcuTalon.Test.Install.Production.TestStubsAnswer` runs, then `HeartbeatIn` carries no `STUB` and the oracle agrees. This needs ruling 1. (AD-29, Story 11.5)
+6. Given the built item, when `OcuTalon.Test.Install.Production.TestStubsAnswer` runs, then `HeartbeatIn` carries no `STUB` and the oracle agrees: its row in `Test/Core/ProductionItems.cls` reads `"stub": 0` (orchestrator ruling, Clarification 1). (AD-29, Story 11.5)
 7. Given the production running with Lane A's stub `OcuTalon.Checks.Process` behind `Checks` (its own class, the double removed), the real task suspended and the tick mark set 3 minutes back, when `HeartbeatTask.OnTask()` runs, then it returns OK, no `Ens.MessageHeader` goes from `HeartbeatIn` to `Checks` since the mark, the tick mark is the new tick time, one gap mark (missed 2) is recorded, and no new `Ens_Util.Log` row of type error or alert is written since the mark (ruling U-52; AD-29). (FR-32)
 
 ## Spec Change Log
 
 - 2026-10-24, lead spec gate (runner C, unattended): Clarification 2 ruled U-52 (veto: option (b), HeartbeatIn sends no Tick while the class behind `Checks` carries `STUB`; marks still recorded; matrix row, task and AC 7 added). Clarification 3 ruled U-53 (veto: gap marks as planned; spine Consistency Conventions row "Status marks" added, Rule 20). Clarification 1 (contended `Test/Core/ProductionItems.cls`) sent to the orchestrator.
+- 2026-10-24, orchestrator ruling on Clarification 1 (U14, category decide, policy 47276b4): option (a). A one-time footprint extension for `Test/Core/ProductionItems.cls`, HeartbeatIn's row only (line 33, `"stub": 1` to `"stub": 0`); no other row or line. The task is unblocked and AC 6 restated; status set to `ready-for-dev` by the lead.
 
 ## Review Triage Log
 
@@ -129,6 +130,7 @@ deferred: []
 - The real-schedule wait happens only after the restart in AC 5. AC 3 calls `OnTask` in the test process with the real task suspended.
 
 **Rulings (lead spec gate, unattended, policy 47276b4):**
+- Orchestrator ruling on Clarification 1 (U14, decide): option (a). Epic 8 may change HeartbeatIn's row of `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls` (line 33, `"stub": 1` to `"stub": 0`) and nothing else in that file. The file's header says Lane B edits its own rows when it builds one of its items; Epic 2's edits to the file (lines 18-19, 24, 26-28) merge cleanly with it, and a conflict at integrate-forward would be a plain union. Reported under `footprint_extensions:`.
 - U-52 (veto, Clarification 2): option (b). While the class behind `Checks` carries `STUB`, `HeartbeatIn` sends no Tick and records the marks. Rejected (a), Lane A's stub answering a Tick with OK: another lane's file (AD-29, AD-33), and AD-29's Rule that every unbuilt item answers "not implemented". Rejected (c): contended `docker/tests`, and it would hide real error rows. No release runs the skip (Story 11.5 refuses an enabled stub), and Epic 5's built `Checks` receives every tick with no change here.
 - U-53 (veto, Clarification 3): the gap marks as planned. Recorded in the spine as the Consistency Conventions row "Status marks" (Rule 20), not as an AD-18 amendment: AD-18 is cited by other open epics' specs, so the runner leaves its Rule text alone (doctrine U7, U14).
 
@@ -162,7 +164,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Clarification Needed
 
-1. **OPEN — sent to the orchestrator (cross-epic, contended path). Contended path.** Building `HeartbeatIn` deletes its `STUB`, so `OcuTalon.Test.Install.Production.TestStubsAnswer` needs HeartbeatIn's oracle row changed. The row is line 33 of `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls` (`"stub": 1` → `"stub": 0`), and that file is in Epic 2's `Test/Core/**`. The file says lane B edits its own rows when it builds an item, and the edit is one line. Recommended: authorize Epic 8 to make this one-line edit.
+1. **RULED by the orchestrator (option (a), one-time extension, HeartbeatIn's row only) — kept for the record. Contended path.** Building `HeartbeatIn` deletes its `STUB`, so `OcuTalon.Test.Install.Production.TestStubsAnswer` needs HeartbeatIn's oracle row changed. The row is line 33 of `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls` (`"stub": 1` → `"stub": 0`), and that file is in Epic 2's `Test/Core/**`. The file says lane B edits its own rows when it builds an item, and the edit is one line. Recommended: authorize Epic 8 to make this one-line edit.
 2. **RULED U-52 (veto, option (b)) — kept for the record. Cross-lane: the stub `Checks` logs an error.** Once the task exists, the first tick after every production start reaches Lane A's stub `OcuTalon.Checks.Process`. The stub answers `<Ens>ErrBPTerminated` and writes an error row: Story 0.6 measured this stub behaviour (`test-production.sh` row 16), and `lib-live.sh` `check_clean_start` warns that such calls write error rows. Ens.Actor logs a repeated text only once per job (inference, from its source). So the tick fails `check_clean_start` in `docker/tests/test-production.sh` (row 14) and `test-production-restart.sh` (first start) whenever it lands before that check, and it can fail Lane A's `OcuTalon.Test.Agent.Runners`, which asserts that no Type 2 or 6 row appears after its mark. Epic 8 owns none of these files (AD-33; `docker/tests` is contended by Epics 2 and 10). Options:
    - (a) Lane A's `Checks` stub answers an `OcuTalon.Msg.Tick` with OK and no response, and keeps 5003 for every other request. `TestStubsAnswer` sends `Ens.StringRequest`, so it stays green. Recommended.
    - (b) `HeartbeatIn` skips the send while the class behind `Checks` carries `STUB`. This narrows the epic's second criterion (a Tick reaches `Checks`) on a real install until Epic 5, so it is ask-first.
@@ -171,5 +173,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: (1) contended path src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls (Epic 2's Test/Core/**) must change HeartbeatIn's oracle row (line 33) from "stub": 1 to "stub": 0, because building HeartbeatIn deletes its STUB and OcuTalon.Test.Install.Production.TestStubsAnswer compares the two; recommended: authorize this one-line edit of lane B's own row. (2) cross-lane: the heartbeat task's first tick after each production start reaches Lane A's stub OcuTalon.Checks.Process, which answers <Ens>ErrBPTerminated and writes an error row (stub behaviour measured by Story 0.6). That fails check_clean_start in docker/tests/test-production.sh (row 14) and test-production-restart.sh (first start) whenever the tick lands first, and risks OcuTalon.Test.Agent.Runners' no-error-row assertion; Epic 8 owns none of these files (AD-33; docker/tests contended by Epics 2 and 10). Options: (a, recommended) Lane A's Checks stub answers an OcuTalon.Msg.Tick with OK and no response and keeps 5003 otherwise; (b) HeartbeatIn skips the send while Checks carries STUB (narrows the epic's second criterion, a Tick reaching Checks, until Epic 5; ask-first); (c) the live checks ignore Checks' not-implemented rows (contended). (3) veto window, recommended as planned: heartbeat gaps are StatusMark rows heartbeatGap.<start UTC> = {start,end,missed}, read through OcuTalon.Schedule.Heartbeat.Gaps(from,to), with no schema change and no purge (one row per outage).
+Status: ready-for-dev
+Blocking condition: none
+
+Plan round 1 halted `blocked` on three intent gaps; all three are ruled (orchestrator: Clarification 1, option (a); lead: U-52 and U-53, veto). The lead applied the rulings and set `ready-for-dev` (re-dispatch protocol: the rest of the plan stands).
