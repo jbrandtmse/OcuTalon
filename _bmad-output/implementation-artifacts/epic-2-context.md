@@ -4,74 +4,79 @@
 
 ## Goal
 
-Epic 2 makes the signed-in page release 1's main page. The user chats with OcuTalon, sees each reply with its decision, cost and trace link beside a live status rail, and never needs a reload; the conversation survives a restart. Stories 2.1 to 2.9 built the frame, snapshot and polling, commands, the turn pipeline, the chat, decisions, outcome routing, the rail, and Visual Trace's server half (daily thread, item positions, `traceUrl`). What remains: trace links and the Visual Trace menu on the page, the status and lost-contact banners, and the accessibility and responsive floor.
+Epic 2 makes the signed-in page release 1's main page: the user chats with OcuTalon, with each reply's decision, cost and trace link beside a live status rail, and never needs a reload. The remaining stories tell the user plainly why decisions use fixed rules, why checks are late or why the page has lost contact. They also prove that the whole built page meets the accessibility and responsive floor.
 
 ## Stories
 
-- Story 2.1 to 2.8: frame, session and snapshot, commands, turn pipeline, chat, decisions, outcome routing, status rail (done)
-- Story 2.9: Open anything in Visual Trace, the server half (done)
+- Stories 2.1 to 2.9 and 2.13: frame, session and snapshot, commands, turn pipeline, chat, decisions, outcome routing, status rail, Visual Trace (done)
 - Story 2.10: Show status banners for a missing key or a stalled heartbeat
 - Story 2.11: Say plainly when the page loses contact
 - Story 2.12: Meet the accessibility and responsive floor
-- Story 2.13: Open Visual Trace from the page (next)
 
 ## Requirements & Constraints
 
-- **Trace targets.** A turn opens at its user message, decision, agent steps and reply. A decision opens at its decision message's session, a check at its latest run, a reminder at its waiting process, and an approval row at its incident's trace. "Open my conversation" opens the current day's thread.
-- **Sign-in help (local and IPM installs).** Until the popover has been seen in this browser session, trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows "Sign in to Visual Trace". Its "Don't show this again" is remembered per browser, with storage failures tolerated. With the online-demo flag set, links open directly and the popover never shows.
 - **Banners.**
-  - Server conditions (closed set): `allowance`, `dailyCap`, `noModelKey`, `heartbeatStalled`, `telegramPaused`, `resetSoon`.
-  - Page-side: Reconnecting (info) after 10 s with no poll answer, replaced at 30 s by Unreachable (danger).
-  - A banner appears and clears within one live update (2 s), is announced, and stacks in the UX order. Only "Reset soon" and "Reconnecting" can be closed, and a closed banner returns if its condition worsens.
-  - The page renders every condition even before its producer exists.
-  - `{time}` is a page time in the browser's zone, never the catalog renderer's instance time. Story 2.10 decides how (DW-29).
-- **States.**
-  - With no key, OcuTalon starts, every decision falls back with "no model key is set", and nothing in the production fails.
-  - With the heartbeat stalled for more than 3 minutes, check rows read "Last run {time} (late)".
-  - The daily cap is danger with "Install it yourself" on the online demo. Locally it is a warning naming `{cap}`, with no "Budgets" action yet and no chat message. The composer stays usable either way.
-  - On recovery, missed content loads in place.
-- **Text.** Fixed strings match the UX exactly, including the single "…" character, and are checked by a string test. Text is plain English with no class names or codes.
-- **Floor.** The page works by keyboard alone and every control is labelled. It meets WCAG 2.1 AA in both themes (4.5:1 for text, 3:1 for boundaries) and handles text at 200%. Playwright runs in Chromium, Firefox and WebKit at 1280×720 and 1280×600, with an accessibility scan in both themes.
+  - The server conditions are a closed set: `allowance`, `dailyCap`, `noModelKey`, `heartbeatStalled`, `telegramPaused`, `resetSoon`. Reconnecting and Unreachable are the page's own.
+  - Fixed stack order: allowance used up (session), daily cap (online demo), unreachable, no model key, daily cost cap (local), heartbeat stalled, bot in use, reset soon, reconnecting.
+  - Only "Reset soon" and "Reconnecting" can be closed. A closed banner returns if its condition gets worse.
+  - A banner appears and clears within one live update (2 s) and is announced. The page renders every condition, even one with no producer yet.
+  - Text is verbatim from the UX. `{time}` is a page time (the browser's zone and hour format, unsuffixed), never the renderer's instance time. Story 2.10 picks how: the server passes a web-formatted time, or the browser formats the UTC slot (DW-29).
+- **No model key.** OcuTalon starts, nothing in the production fails, and decisions fall back with "no model key is set". The no-key CI test stays `notBuilt` until Story 1.6.
+- **Cost cap.** On the online demo it is a danger banner with "Install it yourself". Locally it is a warning naming `{cap}`, with no "Budgets" action yet and no chat message. The composer stays usable either way.
+- **Heartbeat stalled** (no tick for more than 3 minutes). While it holds, check rows read "Last run {time} (late)".
+- **Lost contact.**
+  - With no poll answer for 10 s, the closable info "Reconnecting…" banner shows. At 30 s, the unclosable danger banner "Can't reach OcuTalon. Retrying every 10 seconds." replaces it.
+  - On recovery, missed content loads in place (the snapshot reloads if a `seq` skipped) and the banners clear.
+  - Polling is release 1's only live path. A 401 is Story 2.2's sign-out path, not lost contact.
+- **Floor.**
+  - Keyboard alone, every control labelled, WCAG 2.1 AA in both themes (4.5:1 for text, 3:1 for interactive boundaries).
+  - Text resizes to 200%, colour is never the only signal, nothing animates under `prefers-reduced-motion`, and none of the UX's banned patterns appears.
+  - Current desktop Chrome, Edge, Firefox and Safari at 1280×720 and up. A string test checks fixed strings, including the single "…" character.
 
 ## Technical Decisions
 
-- **Lane B** owns `Web`, `Core` (including `StatusMonitor`, still an Epic 0 stub), `Live`, `Data.StatusMark` and `web/`.
-  - Read Lane A only through `Bridge.Keys.Status(agent)` (three agents) and `Bridge.Budget.State()` (spent, cap, capped, resets-at; UTC).
-  - Edit only Lane B's region of the production XData, and keep the `Test.Contract.Ac` signature oracle green.
-- **Status.** `StatusMonitor` (every 15 s) alone publishes `status`, on the instance stream when a condition changes. `/state` computes the same conditions on read. The last tick and the Telegram pause come from `StatusMark`.
-- **Events.** Events are written only through `Live.Publish`, after commit, and each payload is the entity's full view keyed by `Ref`. The page applies them idempotently, reloads the snapshot when `seq` skips, and never moves focus because of an event. Tests publish fixture payloads, and connection tests control the page's clock.
-- **Trace URLs.**
-  - `Web.TraceLink` is the only builder; the page never assembles a URL. `/state` and `/events` add `traceUrl` to every payload object with `traceHeaderId` and `traceNamespace`, and leave it out when no trace application serves the namespace. Show a link only where a `traceUrl` exists.
-  - `PAGE` divides an index, computed by `Core.Trace.Position` in the production job, by the viewer's own page size. REST code may add no unchecked `Ens` reads.
-  - `traceUrl` is added at serve time, so the generated `payloads.ts` lacks it and the client must type it.
-- **Trace applications.** `/ocutalon/trace/ocutalon/` and `/ocutalon/trace/ocuorders/` (demo mode only) share the page's sign-in group.
-- **Web app.**
-  - README links use `README_URL` (`web/src/app/links.ts`) plus the section anchor.
-  - The initial bundle is about 503 kB. Split it once it passes 550 kB.
+- **Lane B** owns `Web`, `Core` (`StatusMonitor` is still an Epic 0 stub), `Live`, `Data.StatusMark` and `web/`.
+  - Read Lane A only through `Bridge.Keys.Status(agent)` (three agents) and `Bridge.Budget.State()` (spent, cap, capped, resets at; UTC).
+  - Edit only Lane B's region of the production XData, and keep the `Test.Contract.Ac` oracle green.
+- **One status computation.** `OcuTalon.Live.Payload.Status.Active(sessionRef)` sits outside Core, because Web may not call Core. `/state` calls it on read, and `StatusMonitor` calls it every 15 s.
+  - `StatusMonitor` alone publishes `status`, on the instance stream, when a condition changes.
+  - The last tick and the Telegram pause come from `StatusMark.Get`.
+  - Story 2.2's tests pin `status: []`, and Story 2.10 rewrites them.
+- **Events.**
+  - Events are written only through `Live.Publish`, after commit, as full views. The page applies them idempotently, polling `/events` every 1 to 2 s, and reloads the snapshot on a `seq` skip.
+  - Story 2.11 hooks into Story 2.2's poll-failure path (on a 5xx or network error, the next poll waits the same delay).
+  - Tests publish fixture `status` payloads through `Live.Publish`. Connection tests control the page's clock.
+- **Text.** Producers never render. The page renders from the generated `catalog.ts` and payload types, which the build checks. README actions use `README_URL` with the section's anchor in place of `#readme`.
+- **Tests.**
+  - An unbuilt part is a `notBuilt(title, 'N.M')` call. A test that is turned on and must never skip again carries `@floor`.
+  - Story 2.12 adds Firefox and WebKit to Playwright 1.64.x.
+  - A new library, such as an accessibility scanner, is pinned in `web/` and recorded as a Stack row.
+  - IRIS jobs target about 10 minutes each (Epic 32), so watch the `browser` group's time.
 
 ## UX & Interaction Patterns
 
-- **Trace link:** an `external-link` icon plus an underlined "Trace" in `action-ink` caption text. It sits beside the row's button, never inside it, and opens a new tab, with "(opens in a new tab)" in its name.
-- **Visual Trace menu:** a ghost header menu button with `external-link`. Its popover holds "Open my conversation in Visual Trace".
-  - Popovers are non-modal: `role="dialog"`, named by their heading, with no `aria-modal`. Focus goes to the first control. Esc, an outside press or focus leaving closes the popover and returns focus to the trigger (DW-58).
-- **Banners:** full width under the header, at least 44px tall, with a 4px accent, a variant icon, at most one underlined action and an optional close.
-- **Announcing and focus:** one polite announcer, and the chat, rail and timers are not live regions. Focus moves only when the focused element goes, to its replacement or to the section heading.
-- **Layout:** from 1024 to 1279px the rail is a "Status" drawer. Below that, or at 200% zoom, the page is one column.
+- **Banner:** full width under the header, at least 44px tall. It has a 4px accent and a variant icon (`triangle-alert`, `circle-alert` or `info`), at most one underlined action and an optional close.
+- **One polite announcer:** Story 2.1's wrapper over the CDK `LiveAnnouncer`. Story 2.12 adds de-duplication and batching.
+  - Each event is announced once, wherever it shows: "OcuTalon replied:" or "Tell now:" plus the first sentence, a reminder's text, a banner's text, or "Message not sent".
+  - The user's own messages and timers are silent. More than three announcements in 2 s become "{n} new updates".
+  - The chat, rail, turn indicator and timers are not live regions, and none uses `role="log"`.
+- **Focus:** only when an update removes the focused element. It moves to the element's replacement, to the section heading when a row leaves its list, or else to the nearest container.
+- **Keyboard:**
+  - The first tab stops are "Skip to chat" and "Skip to status". Story 4.5 later inserts "Skip to simulated devices" between them.
+  - Enter sends and Shift+Enter adds a line. Esc closes the topmost popover or dialog. There are no single-character shortcuts.
+  - The focus ring (2px `focus` at a 2px offset, `surface` halo) is never clipped, because every scroller keeps `scroll-gutter`.
+  - A control that can't act stays focusable with `aria-disabled`, and its visible reason is linked by `aria-describedby`.
+- **Layout:**
+  - From 1440px wide, the rail is `rail-width-wide`. From 1280 to 1439px it is `rail-width`, and UJ-1 needs no page scroll.
+  - From 1024 to 1279px, the rail becomes a drawer opened from a "Status" header button that shows the approval count.
+  - Below 1024px or at 200% zoom, the page is one column: header, banners, chat at `min(70vh, content)`, then status. Only a compact header is sticky.
+  - The narrow-window notice shows once per session, and its close is remembered per browser.
 
 ## Cross-Story Dependencies
 
-- **Story 2.13** consumes Story 2.9's `traceUrl`, and must:
-  - fill the approval and reminder payloads' targets (the incident's trace and the waiter) where the row has one;
-  - add today's thread to `/state` for "Open my conversation";
-  - settle DW-129: a decision's link opens page 1 of the day's thread, because its `TraceSessionId` is the thread and has no index. A turn's `chat.message` URL is already exact.
-- **Stories 2.10 and 2.11.** Story 2.10's banner stack hosts Story 2.11's banners and the "(late)" marks on Story 2.8's rows.
-- **Story 2.12** runs last and tests the built page, including Story 2.13's links. It also owns DW-89: tab stops for the chat and rail scrollers in WebKit.
-- **Lane A.**
-  - `Budget.State` arrives in Story 1.4 and `Keys.Status` in Story 1.6; use stub fixtures until then. The no-key CI test turns on with Story 1.6.
-  - Story 8.2 makes the stall real.
-  - Until Stories 1.3 and 1.5 merge, tests use `DecideDouble`.
-- **Later.**
-  - Story 16.1 adds the menu's credential rows, and Story 16.5 the busy check before a trace window.
-  - Epic 16 adds the allowance, online cap and reset-soon producers, and Epic 12 the bot-in-use producer.
-  - Story 4.7 adds the guide's trace step, step 2 adds "Budgets", and Story 31.1 the WebSocket.
-- **The Epic 2 burn-down** owns DW-74, DW-81, DW-126 and DW-128.
+- **Stories 2.10 and 2.11.** Story 2.10's banner stack, in Story 2.1's `.banner-slot`, hosts Story 2.11's banners. Story 2.10 also adds the "(late)" marks to Story 2.8's check rows.
+- **Story 2.12** runs last and tests the whole page, including the banners and Story 2.13's trace links, menu and popover. It also owns two ledger items:
+  - DW-89: the chat and rail scrollers get a tab stop and a name, checked in WebKit.
+  - DW-145: the Visual Trace button closes its own popover in Safari and macOS Firefox. Story 2.1's popover service counts the trigger's press as inside.
+- **Lane A.** `Budget.State` arrives in Story 1.4 and `Keys.Status` in Story 1.6; use stub fixtures until then. Story 8.2 computes `heartbeatStalled` from `StatusMark`'s last tick.
+- **Later.** Epic 16 produces the allowance, online-cap and reset-soon conditions, and Epic 12 bot-in-use. Step 2 adds "Budgets" and its no-key text, and Story 31.1 the WebSocket. The guide, devices and Telegram card join the stacked layout with their own epics.
