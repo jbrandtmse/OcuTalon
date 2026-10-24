@@ -380,3 +380,5 @@
 2026-10-24T19:55:09Z	Epic 2	runtime_lock_policy	lock=runtime stages=none note=runner_brief;throwaway-iris_per_lane(lane-b,port_52802)_taken_by_lib-live.sh;locks_folder_lane-b_empty_at_resume
 2026-10-24T19:55:09Z	Epic 2	slot_reload	slot=ocutalon-slot-b ns=OCUTALON build=154U loaded=221(src/ocutalon/cls)+33(src/bridge/cls) compiled=CompilePackage(OcuTalon,ck-d) errors=0 reason=brief_slot-reload_rule(re-dispatch)
 2026-10-24T19:55:09Z	Story 2.14	hold_restored	story=2-14-work-the-whole-page-by-keyboard-with-labels-and-words note=hold_saved_patch=none_tree=clean;nothing_to_apply;next=adr_verifications_then_qa ledger=total=104,open=1,routed=26,escalated=3,decision_pending=2,terminal=72
+2026-10-24T19:55:30Z	Story 2.14	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=adr_tooled_acs=none_at_spec_validation model=claude-opus-5-5
+2026-10-24T19:55:30Z	Story 2.14	stage_spawned	stage=qa spawn_at=2026-10-24T19:55:30Z model=claude-sonnet agent_name=2-14-work-the-whole-page-by-keyboard-with-labels-and-words-qa-1 cycle_iteration=1
