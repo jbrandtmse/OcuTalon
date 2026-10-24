@@ -83,7 +83,7 @@ development_status:
   epic-3: in-progress
   3-1-roles-and-the-service-user-grant-only-what-the-architecture: done
   3-2-one-gate-decides-every-tool-call: done
-  3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: ready-for-dev
+  3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: in-progress
   3-4-each-risky-action-becomes-one-approval-request-held-in-iris: backlog
   3-5-the-first-answer-wins-and-unanswered-requests-expire: backlog
   3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing: backlog
