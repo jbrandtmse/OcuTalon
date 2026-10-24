@@ -5,6 +5,13 @@
 Class OcuTalon.Tools.WatchFixture Extends OcuTalon.Tools.Result
 {
 
+/// The step labels of the three tools (AD-9), by the naming rule: STEPLABEL and the tool's name in upper case with _ and - removed.
+Parameter STEPLABELREADFAILEDMESSAGES = "Reading the failed messages";
+
+Parameter STEPLABELREADEVENTLOG = "Reading the event log";
+
+Parameter STEPLABELREADITEMSETTINGS = "Reading the item settings";
+
 /// The failed messages of a production: none in the fixture.
 ClassMethod ReadFailedMessages(production As %String = "") As %DynamicObject
 {

@@ -24,9 +24,18 @@
 ///     extends %AI.Tool, is not a toolset and is not Result) extends OcuTalon.Tools.Result, and none of its code lines quits or returns a value other than
 ///     the call ..Return(, or passes that call, on the same line, a JSON text built beforehand (%ToJSON, a conversion to JSON, a JSON literal), so no tool returns a literal or
 ///     a pre-encoded JSON string. The scanner is first shown to flag samples that break the rule and to pass plain text;
+///   - TestToolsHaveStepLabels (Story 1.10, DW-85; AD-9, Consistency Conventions: Agent step labels): every tool that a class of OcuTalon.Tools offers,
+///     a toolset's or a provider's (Result left out), has a step label of its own: StepBuffer.LabelFor of its provider and name, which reads the class
+///     parameter STEPLABEL<NAME> or STEPLABEL, is not the generic label. The scanner is first shown to flag the probe tool, which declares none, and to
+///     pass the labelled sample of the step tests;
+///   - TestToolsLeaveRemindersToTheirOwner (Story 1.10; AD-1, AD-33): no class of OcuTalon.Tools names the Reminder class, its table or its globals, the
+///     schedule package or ReminderOps: a tool changes a reminder only by submitting a command. The scanner is first shown to flag samples that break
+///     the rule and to pass look-alikes and comment lines;
 ///   - TestSourceHelper: the helper that the scans share (Test.Bridge.Source) drops comment lines in each of their forms, keeps a
 ///     line with a trailing comment, and matches in any case, also as plain text.
-/// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool.
+/// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool. Since Story 1.10 the
+/// classes that the reminder tools call inside AI Hub's callback (CommandCall, the redactor, Commands, CommandsIn and Data.Time) are scanned by the callback rule
+/// too (CALLBACKHELPERS).
 Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 {
 
@@ -34,8 +43,13 @@ Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Policy.Audit,%AI.Policy.Discovery,%AI.Shell.StreamRenderer";
 
 /// The classes that extend none of those bases but whose methods the callbacks call: the step buffer, which the step renderer and the
-/// step audit policy append to (AD-9), and the context, which the gate, the step renderer and the tools read and put (AD-6, AD-10).
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context";
+/// step audit policy append to (AD-9), the context, which the gate, the step renderer and the tools read and put (AD-6, AD-10), and, since the reminder
+/// tools (Story 1.10), the helper that submits their commands, the redactor that cleans its warnings, the one way to submit a command, the service that
+/// receives it and the converter of times.
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time";
+
+/// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
+Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -285,11 +299,9 @@ Method TestToolsReturnThroughResult()
 	Set providers = 0
 	Set offending = ""
 	Set found = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.'")
-	While result.%Next() {
-		Set class = result.%GetData(1)
-		If (class = "OcuTalon.Tools.Result") || '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
-		If '..ClassExtends(class, "%AI.Tool") || ..ClassExtends(class, "%AI.ToolSet") Continue
+	Set classes = ..ToolClasses(0)
+	Set position = 0
+	While $ListNext(classes, position, class) {
 		Set providers = providers + 1
 		Set found = found _ $ListBuild(class)
 		If $$$ISERR(##class(OcuTalon.Test.Bridge.Source).Text(class, .text)) {
@@ -301,7 +313,73 @@ Method TestToolsReturnThroughResult()
 	}
 	Do $$$AssertTrue(providers '< 1, "the scan found the tool providers of OcuTalon.Tools: "_$ListToString(found, ","))
 	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchFixture"), "the Watch fixture is one of them")
+	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.ReminderTools"), "and so is the class of the reminder tools")
 	Do $$$AssertEquals(offending, "", "every one extends OcuTalon.Tools.Result and returns only through ..Return(")
+}
+
+/// Every tool that a class of OcuTalon.Tools offers has a step label of its own (Story 1.10, DW-85; AD-9). For each class of the package that extends
+/// %AI.Tool, Result left out, toolsets and providers alike, the tools that its discovery lists (each with its provider and its name) get a label from
+/// StepBuffer.LabelFor that is not the generic one. The scanner is first shown to flag the probe tool, whose tool declares no label, and to pass the labelled
+/// sample of the step tests, whose class declares STEPLABEL; the watch fixture's three tools are scanned like the others.
+Method TestToolsHaveStepLabels()
+{
+	Set probe = ..UnlabelledTools("OcuTalon.Test.Bridge.ProbeTool")
+	Do $$$AssertEquals($ListToString(probe), "Probe", "the scanner flags the probe tool, which declares no step label")
+	Do $$$AssertEquals($ListLength(..UnlabelledTools("OcuTalon.Test.Bridge.StepsNote")), 0, "and passes the sample whose class declares STEPLABEL")
+	Do $$$AssertEquals($ListLength(..UnlabelledTools("OcuTalon.Test.Bridge.StepsTools")), 0, "also through a toolset")
+
+	Set classes = ..ToolClasses(1)
+	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchFixture") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
+	Set tools = 0
+	Set offending = ""
+	Set position = 0
+	While $ListNext(classes, position, class) {
+		Set iterator = $ClassMethod(class, "%New").%Discover().tools.%GetIterator()
+		While iterator.%GetNext() {
+			Set tools = tools + 1
+		}
+		Set bad = ..UnlabelledTools(class)
+		If $ListLength(bad) Set offending = offending _ " " _ class _ " (" _ $ListToString(bad, ",") _ ")"
+	}
+	Do $$$AssertTrue(tools '< 12, "the scan found the tools of OcuTalon.Tools: "_tools)
+	Do $$$AssertEquals(offending, "", "every one has a step label of its own")
+}
+
+/// No tool touches a reminder itself (Story 1.10; AD-1, AD-33): no class of the package OcuTalon.Tools names the Reminder class, its table, its globals, the
+/// schedule package or ReminderOps (the owner's), so a tool changes a reminder only by submitting a command. The scanner is first shown to flag a class
+/// reference, the table in a statement, the global, the schedule package and ReminderOps, and to pass look-alikes, the command classes and comment lines.
+Method TestToolsLeaveRemindersToTheirOwner()
+{
+	Set pattern = ..#REMINDERREFERENCE
+	Set tab = $Char(9), lf = $Char(10)
+	Set source = "OcuTalon.Test.Bridge.Source"
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"Set row = ##class(OcuTalon.Data.Reminder).%New()", pattern), "the scanner flags the Reminder class")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"Set rs = ##class(%SQL.Statement).%ExecDirect(, ""SELECT Ref FROM OcuTalon_Data.Reminder WHERE State = 'pending'"")", pattern), "and its table in a statement")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"Set due = $Get(^OcuTalonP.ReminderD(1))", pattern), "and its global")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"Do ##class(OcuTalon.Schedule.ReminderOps).Cancel(ref)", pattern), "and the schedule package")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"Set sc = $ClassMethod(""OcuTalon.Schedule.Checks"", ""Run"")", pattern), "also in a string")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tab_"SET R = ##CLASS(OCUTALON.DATA.REMINDER).%OPENID(1)", pattern), "in any case")
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// Never reads OcuTalon.Data.Reminder or OcuTalon_Data.Reminder"_lf_tab_"// ##class(OcuTalon.Schedule.ReminderOps).Cancel(ref)"_lf_tab_"; ^OcuTalonP.ReminderD"_lf_tab_"Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()"_lf_tab_"Set text = ""A reminder is set by the owner""", pattern), "and passes the command classes, a text about reminders and comment lines")
+
+	Set scanned = 0
+	Set offending = ""
+	Set unreadable = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		If $$$ISERR($ClassMethod(source, "Text", class, .text)) {
+			Set unreadable = unreadable _ " " _ class
+			Continue
+		}
+		Set scanned = scanned + 1
+		If $ClassMethod(source, "Matches", text, pattern) Set offending = offending _ " " _ class
+	}
+	Do $$$AssertTrue(scanned '< 7, "the scan read the classes of OcuTalon.Tools: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every one has source")
+	Do $$$AssertEquals(offending, "", "no class of OcuTalon.Tools names the Reminder class, its table or globals, the schedule package or ReminderOps")
+	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Tools.ReminderTools", .tools), "the reminder tools have source")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", tools, "msg\.command\.(setreminder|listreminders|cancelreminder)"), "and they name the command classes, which is how they change a reminder")
 }
 
 /// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
@@ -389,6 +467,10 @@ Method TestToolCodeScan()
 	Do $$$AssertEquals(clean, 1, "the Watch fixture is clean: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Test.Bridge.ProbeTool", .problems)
 	Do $$$AssertEquals(clean, 1, "and so is the probe tool: "_problems)
+	Set clean = ..ToolCodeClean("OcuTalon.Tools.ReminderTools", .problems)
+	Do $$$AssertEquals(clean, 1, "and the class of the reminder tools, descriptions included: "_problems)
+	Set clean = ..ToolCodeClean("OcuTalon.Tools.CommandCall", .problems)
+	Do $$$AssertEquals(clean, 1, "and the helper that submits their commands: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Zz.NoSuchClass", .problems)
 	Do $$$AssertEquals(clean, 0, "a class with no source is not clean")
 	Do $$$AssertTrue(problems [ "OcuTalon.Zz.NoSuchClass", "and the problem names it: "_problems)
@@ -555,6 +637,34 @@ ClassMethod WithoutStrings(line As %String) As %String [ Private ]
 		}
 	}
 	Quit out
+}
+
+/// The compiled classes of the package OcuTalon.Tools that extend %AI.Tool, OcuTalon.Tools.Result left out, in the order of their names, as a list: the tool
+/// providers and the toolsets (toolsets 1), or the providers only (toolsets 0). A toolset is a class that extends %AI.ToolSet.
+ClassMethod ToolClasses(toolsets As %Boolean = 1) As %List [ Private ]
+{
+	Set classes = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
+	While result.%Next() {
+		Set class = result.%GetData(1)
+		If (class = "OcuTalon.Tools.Result") || '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		If '..ClassExtends(class, "%AI.Tool") Continue
+		If 'toolsets && ..ClassExtends(class, "%AI.ToolSet") Continue
+		Set classes = classes _ $ListBuild(class)
+	}
+	Quit classes
+}
+
+/// The names of the tools of the class that have the generic step label, as a list: its discovery gives each tool with its provider and its name, and
+/// StepBuffer.LabelFor reads the label of that pair.
+ClassMethod UnlabelledTools(class As %String) As %List [ Private ]
+{
+	Set bad = ""
+	Set iterator = $ClassMethod(class, "%New").%Discover().tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		If ##class(OcuTalon.Bridge.Adapter.StepBuffer).LabelFor(tool.provider, tool.name) = ##class(OcuTalon.Bridge.Adapter.StepBuffer).#GENERICLABEL Set bad = bad _ $ListBuild(tool.name)
+	}
+	Quit bad
 }
 
 /// 1 when the compiled class extends the base. A class with no superclass has no %Extends method and extends none.

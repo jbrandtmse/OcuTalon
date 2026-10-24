@@ -139,8 +139,9 @@
 ///   - TestRequestLimitThroughOnRequest: the limit that OnRequest and the key resend apply is the one the setting row gives (an empty row, 5000 and the
 ///     invalid 0, -1, abc, 1.5 and 100001 as 100000 with one warning that names RequestTokenLimit), so a decide one token above it sends nothing.
 /// The System Default Settings rows that the tests put in place are put back by OnAfterOneTest, and so is today's day mark.
-/// Every test removes the Usage rows it made, and the AI sessions it saved with the links that name them.
-Class OcuTalon.Test.Bridge.Decide Extends %UnitTest.TestCase
+/// Every test removes the Usage rows it made, and the AI sessions it saved with the links that name them. The base class, OcuTalon.Test.Bridge.ZoneCase,
+/// puts the process zone back after every test.
+Class OcuTalon.Test.Bridge.Decide Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
 /// A usable reply of Triage's default script.
@@ -186,12 +187,14 @@ Property SessionMark As %Integer;
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
+	Set sc = ##super(testname)
 	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
-	Quit $$$OK
+	Quit sc
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set sc = ##super(testname)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
@@ -215,7 +218,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Set ..DayMarked = 0
 	}
 	Kill ^||ZzProbeFilter, ^||ZzProbeSink
-	Quit $$$OK
+	Quit sc
 }
 
 /// Admit: a message of another class and a request of kind tool give 5003; a kind, provenance, ItemId, OwnerRef or Input that is
@@ -1123,7 +1126,6 @@ Method TestOnRequestAnswersRecorded()
 /// between two readings that were taken in the process's own zone.
 Method TestRecordedAtIsUtc()
 {
-	Set saved = $SYSTEM.Process.TimeZone()
 	Set request = ..NewRequest("decide")
 	Try {
 		Do $SYSTEM.Process.TimeZone("")
@@ -1135,7 +1137,6 @@ Method TestRecordedAtIsUtc()
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	Do $SYSTEM.Process.TimeZone($Select(saved = -1: "", 1: saved))
 	Do $$$AssertStatusOK(sc, "a decision is recorded in America/New_York")
 	Set recorded = ..RowOf(request.ItemId, "decide").RecordedAt
 	Do $$$AssertTrue(recorded ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RecordedAt is a UTC time: "_recorded)
@@ -1507,9 +1508,9 @@ Method TestPrecheckOrder()
 /// The estimate counts what the first model request of the runner carries (Story 1.9; AD-6, AD-20), at 4 characters a token and rounded up: the system
 /// prompt and the tool schemas of the runner's agent (RequestSize.AgentChars), the stored history of a linked turn that continues
 /// (RequestSize.HistoryChars) and the input that Chat gets (Adapter.Agent ChatInput).
-///   - The agent part: AgentChars of Triage and Chat is the length of the system prompt of the live agent, of Diagnosis that and the JSON of the Watch
-///     toolset's tools (a little less than the live tool catalog, which adds a status to each tool), and of a class that does not exist it is 0 with
-///     an error status;
+///   - The agent part: AgentChars of Triage is the length of the system prompt of the live agent, of Chat that and the JSON of the Reminders toolset's
+///     tools, of Diagnosis that and the JSON of the Watch toolset's tools (a little less than the live tool catalog, which adds a status to each tool),
+///     and of a class that does not exist it is 0 with an error status;
 ///   - the estimate of a decide, a diagnose, an untrusted turn, a user turn with no link and a user fresh turn with a seed and a note is the agent
 ///     part plus the length of ChatInput, the seed counting on the user fresh turn only, also when the AgentClass setting of the runner gives the class;
 ///   - the history: a user turn that continues the conversation of a link counts the stored size of the session that the link names, and an untrusted
@@ -1532,7 +1533,10 @@ Method TestEstimateTokens()
 	Set chat = $ClassMethod(size, "AgentChars", chatClass, .sc)
 	Do $$$AssertStatusOK(sc, "AgentChars of Chat is worked out")
 	Do ..LiveSizes(chatClass, .prompt, .catalog)
-	Do $$$AssertEquals(chat, prompt, "Chat: the length of the system prompt of the live agent, "_prompt_", and no tool")
+	Set reminders = $Length(##class(OcuTalon.Tools.Reminders).%New().%Discover().%Get("tools").%ToJSON())
+	Do $$$AssertTrue(reminders > 500, "the JSON of the three Reminders tools is measured: "_reminders)
+	Do $$$AssertEquals(chat, prompt + reminders, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders toolset's tools, "_reminders)
+	Do $$$AssertTrue((catalog '< reminders) && ((catalog - reminders) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)
 	Set diagnosis = $ClassMethod(size, "AgentChars", diagnosisClass, .sc)
 	Do $$$AssertStatusOK(sc, "AgentChars of Diagnosis is worked out")
 	Do ..LiveSizes(diagnosisClass, .prompt, .catalog)

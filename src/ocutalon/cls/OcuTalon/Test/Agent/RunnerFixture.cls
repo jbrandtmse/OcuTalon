@@ -48,6 +48,9 @@
 ///     that no two tests share a conversation, unless the test names one.
 ///   - ToolNames and ToolResults (Story 1.9): the names of the tools that a logged request offers, sorted, and the contents of its tool_result blocks in order,
 ///     as the model got them (AI Hub encodes a string result as a JSON string, and a dynamic object stays an object).
+///   - UseItemClass and RestoreItemClass (Story 1.10): put a test class behind an item (the double of CommandsIn, Test.Tools.CommandsDouble) by changing the
+///     item's ClassName in the stored configuration of the production, updating the running production and waiting until every item runs, and put the
+///     item's class back; both go through ChangeSettings, which takes an optional class name.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -496,8 +499,9 @@ ClassMethod ChangeAgent(item As %String, hasClass As %Boolean, agentClass As %St
 
 /// Changes settings of the item in the stored configuration, saves the production, updates the running one and waits for every item
 /// to run. changes is a list of $ListBuild(target, name, has, value, key): the setting is set to the value when has is 1 and removed
-/// when it is 0. When saved is an object, it first holds what the item had of each setting, under its key (ReadSetting).
-ClassMethod ChangeSettings(item As %String, changes As %List, saved As %DynamicObject = "") As %Status [ Private ]
+/// when it is 0. When saved is an object, it first holds what the item had of each setting, under its key (ReadSetting). With a class name,
+/// the item's ClassName is set to it, and saved first holds the class the item had, under "className".
+ClassMethod ChangeSettings(item As %String, changes As %List, saved As %DynamicObject = "", className As %String = "") As %Status [ Private ]
 {
 	Set sc = $$$OK
 	Try {
@@ -510,11 +514,13 @@ ClassMethod ChangeSettings(item As %String, changes As %List, saved As %DynamicO
 		If $$$ISOK(sc) && '$IsObject(config) Set sc = $SYSTEM.Status.Error(5001, ..#PRODUCTION_" has no item "_item)
 		If $$$ISOK(sc) {
 			If $IsObject(saved) {
+				If className '= "" Do saved.%Set("className", config.ClassName)
 				Set position = 0
 				While $ListNext(changes, position, change) {
 					Do ..ReadSetting(config, $List(change, 2), saved, $List(change, 5), $List(change, 1))
 				}
 			}
+			If className '= "" Set config.ClassName = className
 			Set position = 0
 			While $ListNext(changes, position, change) {
 				Do ..PutSetting(config, $List(change, 2), $List(change, 3), $List(change, 4), $List(change, 1))
@@ -582,6 +588,27 @@ ClassMethod RestoreItemSetting(item As %String, saved As %DynamicObject) As %Sta
 ClassMethod ChangeSetting(item As %String, target As %String, name As %String, has As %Boolean, value As %String, saved As %DynamicObject = "") As %Status [ Private ]
 {
 	Quit ..ChangeSettings(item, $ListBuild($ListBuild(target, name, has, value, "value")), saved)
+}
+
+/// Puts the class behind the item for a test: sets the ClassName of the item in the stored configuration of the production (as UseAgent does for
+/// its settings), updates the running production and waits until every item runs. saved holds the class the item had ({"className"}), for
+/// RestoreItemClass; it is "" when the item was not read, so that there is nothing to restore. THIS CHANGES THE RUNNING PRODUCTION: throwaways and
+/// CI only (Rule 21).
+ClassMethod UseItemClass(item As %String, className As %String, Output saved As %DynamicObject) As %Status
+{
+	Set saved = ""
+	Set record = {}
+	Set sc = ..ChangeSettings(item, "", record, className)
+	If record.%IsDefined("className") Set saved = record
+	Quit sc
+}
+
+/// Puts the item's class back as saved says (UseItemClass) and updates the running production. A saved value that UseItemClass did not give is an
+/// error and changes nothing.
+ClassMethod RestoreItemClass(item As %String, saved As %DynamicObject) As %Status
+{
+	If '$IsObject(saved) || 'saved.%IsDefined("className") || (saved.className = "") Quit $SYSTEM.Status.Error(5001, "There is nothing to restore: UseItemClass saved no class of "_item)
+	Quit ..ChangeSettings(item, "", "", saved.className)
 }
 
 /// The id of the System Default Settings row of a setting of an item of the active production.

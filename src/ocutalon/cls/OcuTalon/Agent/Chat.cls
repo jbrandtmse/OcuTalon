@@ -1,4 +1,6 @@
-/// The Chat agent (AD-6, AD-7): answers the user's messages in a conversation. Its instructions fix the voice of every reply.
+/// The Chat agent (AD-6, AD-7): answers the user's messages in a conversation. Its instructions fix the voice of every reply. Its tools are the
+/// reminder tools of OcuTalon.Tools.Reminders: set_reminder, list_reminders and cancel_reminder (AD-18). The tools' descriptions tell the model
+/// the two ways to give a due time, so the instructions say nothing of them.
 Class OcuTalon.Agent.Chat Extends %AI.Agent
 {
 
@@ -7,6 +9,9 @@ Parameter MODEL = "claude-haiku-5-5";
 
 /// The key the CI mock reads to pick this agent's scenario (AD-22).
 Parameter MOCKKEY = "chat";
+
+/// The conversation toolset (AD-7): the reminder tools.
+Parameter TOOLSETS = "OcuTalon.Tools.Reminders";
 
 /// The ceiling on the iterations of one turn (AD-7): AI Hub's own property. The runner puts it in the session config, and a
 /// turn that reaches it is unusable (AD-8). Chat has no EFFORT: it asks the model for its default effort.

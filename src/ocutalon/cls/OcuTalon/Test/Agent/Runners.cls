@@ -19,10 +19,12 @@
 ///     min_tokens_for_cache (Diagnosis's last tool; the short prefixes of Triage and Chat stay unmarked, and Test.Bridge.Runner
 ///     shows the block reaching the provider for a long prompt), and the mock accepts every one; since Story 1.9 (AD-7, AD-10) each request
 ///     offers exactly the tools of its agent, and no other (the names of the toolsets named by the agent's TOOLSETS, which are also pinned as
-///     literals: none for Triage and Chat, read_event_log, read_failed_messages and read_item_settings for Diagnosis), and Diagnosis's second
+///     literals: none for Triage, cancel_reminder, list_reminders and set_reminder for Chat since Story 1.10, read_event_log, read_failed_messages and
+///     read_item_settings for Diagnosis), and Diagnosis's second
 ///     request carries the result of its tool as the JSON object {"items":[]}, not as a JSON string;
-///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent and no AI Hub shell, filesystem, SQL or
-///     web-search tool, and every tool is an OcuTalon tool of source iris whose code is clean (Test.Bridge.CodeRules.ToolCodeClean);
+///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent (none for Triage, the three reminder tools for Chat and the three
+///     read-only watch tools for Diagnosis) and no AI Hub shell, filesystem, SQL or web-search tool, and every tool is an OcuTalon tool of source iris whose
+///     code is clean (Test.Bridge.CodeRules.ToolCodeClean) and whose provider is the class that implements it;
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
 ///     keeps its job;
 ///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size;
@@ -37,6 +39,11 @@
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
 /// Added by Story 1.8 (AD-6): the turn that TestRequestsUnderTheModelRules sends to ChatAgent is linked to a conversation, so it saves an AI session
 /// and a link, which OnAfterOneTest deletes (RunnerFixture.DropSince).
+/// Added by Story 1.10 (AD-7, AD-10, AD-18): Chat has the toolset OcuTalon.Tools.Reminders, so its requests offer exactly cancel_reminder, list_reminders and
+/// set_reminder (the literal of TestRequestsUnderTheModelRules), and TestToolInventory expects those three for ChatAgent, each a method of
+/// OcuTalon.Tools.ReminderTools, beside the three watch tools of Diagnosis, each a method of OcuTalon.Tools.WatchFixture. AssertRequests takes the cache
+/// marker that each agent's request carries on its last tool: Diagnosis's and, since the three reminder tools bring the prefix of system prompt and tools
+/// past min_tokens_for_cache, Chat's (measured in Story 1.10); Triage has no tool, so no block of it is marked.
 Class OcuTalon.Test.Agent.Runners Extends %UnitTest.TestCase
 {
 
@@ -54,6 +61,9 @@ Parameter MODEL = "claude-haiku-5-5";
 
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
+
+/// The tools of the Chat agent, sorted: the three reminder tools (AD-7, AD-18).
+Parameter REMINDERTOOLS = "cancel_reminder,list_reminders,set_reminder";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -263,14 +273,14 @@ Method TestRequestsUnderTheModelRules()
 		Do $$$AssertEquals(reply.HostData, "", "and holds no host data")
 	}
 	Do $$$AssertEquals(requests.%Size(), 1, "Triage makes one request")
-	Do ..AssertRequests(requests, "low", "OcuTalon.Agent.Triage", "", "Triage")
+	Do ..AssertRequests(requests, "low", "OcuTalon.Agent.Triage", "", "Triage", 0)
 
 	Set sc = $ClassMethod(fixture, "Ask", "DiagnosisAgent", "diagnose", "user", "Why did the messages of the Orders production fail?", .reply, .requests)
 	Do $$$AssertStatusOK(sc, "the diagnose Request to DiagnosisAgent is answered")
 	Do $$$AssertTrue($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"), "with a Reply")
 	If $IsObject(reply) Do $$$AssertEquals(reply.Text, $Parameter(fixture, "DIAGNOSISTEXT"), "whose text is the final text of diagnosis.json")
 	Do $$$AssertEquals(requests.%Size(), 2, "Diagnosis makes two requests, one more for the result of its tool")
-	Do ..AssertRequests(requests, "high", "OcuTalon.Agent.Diagnosis", ..#WATCHTOOLS, "Diagnosis")
+	Do ..AssertRequests(requests, "high", "OcuTalon.Agent.Diagnosis", ..#WATCHTOOLS, "Diagnosis", 1)
 	If requests.%Size() = 2 {
 		Set results = $ClassMethod(fixture, "ToolResults", requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "Diagnosis's second request carries the result of its one tool call")
@@ -279,7 +289,7 @@ Method TestRequestsUnderTheModelRules()
 
 	Set sc = $ClassMethod(fixture, "Ask", "ChatAgent", "turn", "user", "What is going on in my productions?", .reply, .requests)
 	Do $$$AssertTrue(requests.%Size() > 0, "the mock's log holds the requests of the turn to ChatAgent: "_requests.%Size())
-	Do ..AssertRequests(requests, "", "OcuTalon.Agent.Chat", "", "Chat")
+	Do ..AssertRequests(requests, "", "OcuTalon.Agent.Chat", ..#REMINDERTOOLS, "Chat", 1)
 }
 
 /// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and the three runners hold exactly
@@ -290,9 +300,13 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point() Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
-	Set expected("ChatAgent") = ""
+	Set expected("ChatAgent") = reminders
+	Set provider("TriageAgent") = ""
+	Set provider("DiagnosisAgent") = "OcuTalon.Tools.WatchFixture"
+	Set provider("ChatAgent") = "OcuTalon.Tools.ReminderTools"
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {
@@ -320,7 +334,7 @@ Method TestToolInventory()
 		Do $$$AssertEquals($ListToString(..Sorted(names)), $ListToString(expected(item)), item_" holds exactly the tools of its agent: "_$ListToString(names))
 		Set iterator = inventory.tools.%GetIterator()
 		While iterator.%GetNext(, .tool) {
-			Do $$$AssertEquals(tool.provider, "OcuTalon.Tools.WatchFixture", item_"'s tool "_tool.name_" is a method of the Watch fixture")
+			Do $$$AssertEquals(tool.provider, provider(item), item_"'s tool "_tool.name_" is a method of "_provider(item))
 		}
 	}
 }
@@ -450,8 +464,10 @@ Method Point() As %Boolean [ Private ]
 /// toolsets of its TOOLSETS discover), which must also be the literal list given (names, comma-separated, sorted; "" for none), and no other. AI Hub marks
 /// a block for the cache only when the prefix up to it reaches min_tokens_for_cache (512): the system prompts of the three agents are about 190 to 310
 /// tokens, so no system block is marked, and a runner with tools has the marker on its last tool, where the prefix of system and tools reaches the
-/// threshold, while a runner without tools has none at all (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected.
-Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String) [ Private ]
+/// threshold, while a runner without tools has none at all (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected. marked is 1
+/// when the last tool of the agent's requests carries the marker, as the measured prefix of system prompt and tools reaches the threshold (Diagnosis's three
+/// watch tools, and, measured in Story 1.10, Chat's three reminder tools), and 0 when no block is marked (an agent without tools).
+Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String, marked As %Boolean) [ Private ]
 {
 	Set expected = ..OfferedTools(agentClass)
 	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" give today's list of tools: '"_literal_"'")
@@ -469,7 +485,7 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass A
 			Set count = logged.request.tools.%Size()
 			Do $$$AssertTrue(count > 0, here_" offers tools: "_count)
 			For i = 0:1:count - 1 {
-				Set expectedMark = $Select(i = (count - 1): "{""type"":""ephemeral""}", 1: "")
+				Set expectedMark = $Select(marked && (i = (count - 1)): "{""type"":""ephemeral""}", 1: "")
 				Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).CacheMark(logged.request.tools.%Get(i)), expectedMark, here_" tool "_(i + 1)_" of "_count_" is marked only if it is the last")
 			}
 		} Else {

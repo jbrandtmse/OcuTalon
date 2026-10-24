@@ -19,7 +19,7 @@
 ///   - TestLargest: Usage.Largest is the larger of the last request's measured input and the estimates of the other requests (the last
 ///     estimate belongs to the measured request and is dropped), all the estimates when nothing was measured, and empty when there is neither;
 ///   - TestFromStats also pins the row: the estimates reach LargestRequestTokens, and the larger value prices the long tier.
-Class OcuTalon.Test.Bridge.Usage Extends %UnitTest.TestCase
+Class OcuTalon.Test.Bridge.Usage Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
 Parameter HAIKU = "claude-haiku-5-5";
@@ -36,18 +36,9 @@ Property Refs As %List;
 /// CacheWritePerMTok, LongThresholdTokens, LongInputPerMTok, LongOutputPerMTok).
 Property Saved As %List;
 
-/// The zone of the process before the test: -1 for none.
-Property SavedZone As %String;
-
-Method OnBeforeOneTest(testname As %String) As %Status
-{
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
-	Quit $$$OK
-}
-
 Method OnAfterOneTest(testname As %String) As %Status
 {
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
+	Set sc = ##super(testname)
 	Set position = 0
 	While $ListNext(..Refs, position, ref) {
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
@@ -58,7 +49,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ..Restore(saved)
 	}
 	Set ..Saved = ""
-	Quit $$$OK
+	Quit sc
 }
 
 /// The cost of one turn: hand-computed at every tier of Claude Haiku 5.5 (input 0.10, output 0.50, cache read 0.01, cache write 0.125,

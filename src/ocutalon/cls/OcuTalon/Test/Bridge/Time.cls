@@ -9,24 +9,15 @@
 ///   - TestUnreadable: every method gives "" for an input it cannot read;
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
 ///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
-///     (at least 600 ms less, whatever pause there is between the two reads).
-Class OcuTalon.Test.Bridge.Time Extends %UnitTest.TestCase
+///     (at least 600 ms less, whatever pause there is between the two reads);
+///   - TestZoneCase (Story 1.10, DW-32): the zone base of the test classes that change the process zone (Test.Bridge.ZoneCase) puts back what it
+///     read, a named zone and "no zone" (-1, which it takes as an empty zone) alike, also through its hooks (OnBeforeOneTest saves the zone and
+///     OnAfterOneTest puts it back); the six classes that extend it (this one, Test.Agent.Render, Test.Bridge.Usage, Test.Bridge.Budget,
+///     Test.Bridge.Decide and Test.Tools.Reminders) keep no zone copy of their own, and no other test class of Lane A's packages (Agent, Bridge, Tools,
+///     Install, Digest) calls the process time zone without extending the base: the scanner is first shown to flag a sample. The base saves and restores
+///     the zone around every test of this class too.
+Class OcuTalon.Test.Bridge.Time Extends OcuTalon.Test.Bridge.ZoneCase
 {
-
-/// The zone of the process before the test: -1 for none.
-Property SavedZone As %String;
-
-Method OnBeforeOneTest(testname As %String) As %Status
-{
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
-	Quit $$$OK
-}
-
-Method OnAfterOneTest(testname As %String) As %Status
-{
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
-	Quit $$$OK
-}
 
 /// ToLocal and LocalDate of the bridge are those of Data.Time at every half hour of the two weekends, in three zones.
 Method TestAgreesWithDataTime()
@@ -137,6 +128,75 @@ Method TestMsSinceFraction()
 	Set zero = $ClassMethod(time, "MsSince", second_".000")
 	Set late = $ClassMethod(time, "MsSince", second_".900")
 	Do $$$AssertTrue((zero - late > 600) && (zero - late '> 900), "the stamp .900 of the second "_second_" reads "_(zero - late)_" ms less than its .000")
+}
+
+/// The zone base (DW-32). A process that has had no zone reads -1 (CurrentZone), and PutZone(-1) puts back no zone: it takes -1 as an empty zone, whose local
+/// time is UTC. With a named zone, PutZone puts that zone back after the process has been given another (the local time shows which one is set). The classes
+/// that fold their zone save and restore into the base declare no SavedZone of their own and extend it, and no other test class of Lane A's packages calls the
+/// process time zone: a copy would be a class that does and does not extend the base.
+Method TestZoneCase()
+{
+	Set base = "OcuTalon.Test.Bridge.ZoneCase"
+	Do $SYSTEM.Process.TimeZone(-1)
+	Set none = $ClassMethod(base, "CurrentZone")
+	Do $$$AssertEquals(none, -1, "a process that has had no zone reads -1")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T12:00:00", "and its local time is UTC")
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Do $$$AssertNotEquals($ClassMethod(base, "CurrentZone"), -1, "a process with a zone does not")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T08:00:00", "control: its local time is New York's in summer")
+	Do $ClassMethod(base, "PutZone", none)
+	Do $$$AssertEquals($ClassMethod(base, "CurrentZone"), "", "PutZone(-1) puts back no zone: -1 is taken as an empty zone, not as a zone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T12:00:00", "whose local time is UTC again")
+
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Set named = $ClassMethod(base, "CurrentZone")
+	Do $SYSTEM.Process.TimeZone("Asia/Kolkata")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T17:30:00", "control: Kolkata is five and a half hours ahead of UTC")
+	Do $ClassMethod(base, "PutZone", named)
+	Do $$$AssertEquals($ClassMethod(base, "CurrentZone"), named, "PutZone puts back the named zone that CurrentZone gave")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T08:00:00", "whose local time is New York's in summer")
+
+	Set own = ..SavedZone
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Do ..OnBeforeOneTest("TestZoneCase")
+	Do $SYSTEM.Process.TimeZone("Asia/Kolkata")
+	Do ..OnAfterOneTest("TestZoneCase")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T08:00:00", "the hooks save the zone before a test and put it back after: a named zone")
+	Do $SYSTEM.Process.TimeZone(-1)
+	Do ..OnBeforeOneTest("TestZoneCase")
+	Do $SYSTEM.Process.TimeZone("Asia/Kolkata")
+	Do ..OnAfterOneTest("TestZoneCase")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T12:00:00", "and no zone")
+	Set ..SavedZone = own
+
+	Set classes = $ListBuild("OcuTalon.Test.Bridge.Time", "OcuTalon.Test.Agent.Render", "OcuTalon.Test.Bridge.Usage", "OcuTalon.Test.Bridge.Budget", "OcuTalon.Test.Bridge.Decide", "OcuTalon.Test.Tools.Reminders")
+	Set position = 0
+	While $ListNext(classes, position, class) {
+		Do $$$AssertTrue($ClassMethod(class, "%Extends", base), class_" extends the zone base")
+		Do $$$AssertNotTrue(##class(%Dictionary.PropertyDefinition).%ExistsId(class_"||SavedZone"), class_" declares no SavedZone of its own")
+	}
+	Do $$$AssertTrue(##class(%Dictionary.ClassDefinition).%OpenId(base).Abstract, "the base is abstract")
+	Set tests = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %Dictionary.MethodDefinition WHERE parent = ? AND Name %STARTSWITH 'Test'", base)
+	Do tests.%Next()
+	Do $$$AssertEquals(tests.%GetData(1), 0, "and holds no method whose name starts with Test, so ci/iris.sh runs no class of it")
+
+	Set pattern = "process\.timezone\("
+	Set source = "OcuTalon.Test.Bridge.Source"
+	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Do $SYSTEM.Process.TimeZone(saved)", pattern), "control: the scanner flags a call of the process time zone")
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// puts the zone back through Process.TimeZone(saved)"_$Char(10)_$Char(9)_"Quit 1", pattern), "and passes a comment line")
+	Set scanned = 0
+	Set copies = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Test.' ORDER BY Name")
+	While result.%Next() {
+		Set name = result.%GetData(1)
+		Set area = $Piece(name, ".", 3)
+		If '$ListFind($ListBuild("Agent", "Bridge", "Tools", "Install", "Digest"), area) || (name = base) || '##class(%Dictionary.CompiledClass).%ExistsId(name) Continue
+		Set scanned = scanned + 1
+		If $ClassMethod(name, "%Extends", base) Continue
+		If $$$ISOK($ClassMethod(source, "Text", name, .text)) && $ClassMethod(source, "Matches", text, pattern) Set copies = copies _ " " _ name
+	}
+	Do $$$AssertTrue(scanned '< 20, "the scan read the test classes of Lane A's packages: "_scanned)
+	Do $$$AssertEquals(copies, "", "and none that calls the process time zone is outside the base")
 }
 
 /// --- helpers ---

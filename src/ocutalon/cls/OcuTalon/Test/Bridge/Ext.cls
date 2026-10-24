@@ -9,7 +9,8 @@
 ///     text through and Classification classifies nothing;
 ///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
 ///     description, changes the row when it exists, and ValueFor reads the value;
-///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current; the
+///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current and starts the taint, the host data, the
+///     characters of the tool results and (Story 1.10) the count of the commands that the tools submit at their start; the
 ///     process-private context is invisible to another job; Put changes it; End removes it.
 /// The run's number is n from ^OcuTalonTest("BridgeExt","n") (never reset); the child jobs report through
 /// ^OcuTalonTest("BridgeExt",n,...), which OnBeforeAllTests and OnAfterAllTests delete with the reports of earlier runs.
@@ -238,6 +239,12 @@ Method TestContext()
 		Do $$$AssertEquals(current.Tainted, 0, "the taint starts at 0")
 		Do $$$AssertEquals(current.HostData, "", "and the host data is empty")
 		Do $$$AssertEquals(current.ToolResultChars, 0, "and the characters of the tool results start at 0")
+		Do $$$AssertEquals(current.CommandCount, 0, "and so does the count of the commands that the tools submit (Story 1.10)")
+		Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Bridge.Context).#FIELDS), "CommandCount"), "CommandCount is a field of the context")
+		Do ##class(OcuTalon.Bridge.Context).Put("CommandCount", 3)
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().CommandCount, 3, "Put sets it")
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, super), "Begin again")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().CommandCount, 0, "a context that begins again starts the count at 0 again")
 
 		Set run = $Name(^OcuTalonTest("BridgeExt", ..Number))
 		Kill @run

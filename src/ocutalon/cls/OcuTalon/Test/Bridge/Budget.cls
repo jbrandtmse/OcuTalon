@@ -35,7 +35,7 @@
 /// The settings rows are put in place and put back by Test.Agent.RunnerFixture (PutDefault, RememberDefault and RestoreDefaults).
 /// The run's number is n from ^OcuTalonTest("BridgeBudget","n") (never reset); the child job reports through
 /// ^OcuTalonTest("BridgeBudget",n,...), which OnBeforeAllTests and OnAfterAllTests delete with the reports of earlier runs.
-Class OcuTalon.Test.Bridge.Budget Extends %UnitTest.TestCase
+Class OcuTalon.Test.Bridge.Budget Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
 /// The host sink of the tests.
@@ -59,9 +59,6 @@ Property Days As %List;
 /// The settings rows before the test touched them, each RunnerFixture.SnapshotDefault's $ListBuild(item, setting, existed, value, description).
 Property Saved As %List;
 
-/// The zone of the process before the test: -1 for none.
-Property SavedZone As %String;
-
 Method OnBeforeAllTests() As %Status
 {
 	Do ..CleanRuns()
@@ -77,14 +74,15 @@ Method OnAfterAllTests() As %Status
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Set sc = ##super(testname)
 	Set ..Production = ##class(Ens.Director).GetActiveProductionName()
 	Kill ^||ZzProbeSink
-	Quit $$$OK
+	Quit sc
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set sc = ##super(testname)
 	Set position = 0
 	While $ListNext(..Refs, position, ref) {
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
@@ -97,9 +95,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Days = ""
 	If ..Saved '= "" Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..Saved), "the rows of the settings are put back")
 	Set ..Saved = ""
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
 	Kill ^||ZzProbeSink
-	Quit $$$OK
+	Quit sc
 }
 
 /// With no setting row and no mark, on a day with no row: nothing spent, no cap, not capped, and the end of the day, in UTC.

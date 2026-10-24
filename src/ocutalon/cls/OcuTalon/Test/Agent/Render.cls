@@ -10,30 +10,9 @@
 ///   - TestPreambleZone (QA): the preamble is checked against literal lines, not against the expectation that the other tests build
 ///     from OcuTalon.Data.Time, so that it must state the local time and the zone of the process: with TZ unset, in
 ///     America/New_York (the weekday and the date follow the local date, not the UTC date; daylight time after the spring jump)
-///     and in Asia/Kolkata. The process zone is put back after every test.
-Class OcuTalon.Test.Agent.Render Extends %UnitTest.TestCase
+///     and in Asia/Kolkata. The process zone is saved and put back around every test by the base class, OcuTalon.Test.Bridge.ZoneCase (DW-32).
+Class OcuTalon.Test.Agent.Render Extends OcuTalon.Test.Bridge.ZoneCase
 {
-
-/// The TZ of the process before the tests: -1 when it was undefined.
-Property SavedZone As %String;
-
-Method OnBeforeAllTests() As %Status
-{
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
-	Quit $$$OK
-}
-
-Method OnAfterOneTest(testname As %String) As %Status
-{
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
-	Quit $$$OK
-}
-
-Method OnAfterAllTests() As %Status
-{
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
-	Quit $$$OK
-}
 
 /// The fixed time of the tests: a Tuesday afternoon in UTC.
 Parameter NOW = "2025-03-04T15:06:07Z";
