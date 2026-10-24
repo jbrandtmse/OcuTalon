@@ -186,3 +186,7 @@
 2026-10-24T12:14:50Z	Epic 1	deps_hash_rerecorded	hash=53a4fa9695c179945abe2b042ac9f2d146a433301499a25e19a1f1bafdfe525d reason=burndown_inserted,rule5_amendment,ledger_routed note=Story_1.13_burn-down;Epic_1's_tier-1_amendments;14_DW_bullets
 2026-10-24T12:15:03Z	Epic 1	worktree_removed	worktree=.worktrees/epic-1
 2026-10-24T12:15:03Z	Epic 1	epic_branches_deleted	branch=OCT-epic1 local=deleted remote=deleted
+2026-10-24T12:25:17Z	Epic 1-16,29-32	owner_decision	ids=U-47,U-48,U-49(at=2026-10-24T08:08:17Z#145-#147),U-50,U-51(at=2026-10-24T12:15:39Z#150,#151) via=inbox by=Contest_Planner(owner_delegate) answer=keep note=no_pipeline_work;resolved
+2026-10-24T12:25:17Z	Epic 1-16,29-32	owner_decision	id=AD-22_as-built_shard_list via=contest_planner by=Contest_Planner(owner_delegate) answer=approved(factual_correction:lane-a=Agent,Bridge,Install,Tools,Digest;no_rule_change)
+2026-10-24T12:25:17Z	Epic 1-16,29-32	spine_updated	ad=AD-22 reason=owner_decision(factual_as-built_correction) by=orchestrator story=none lint=baseline(4_low_placeholder)
+2026-10-24T12:25:17Z	Epic 1-16,29-32	owner_decision	id=DW-92_hold via=contest_planner note=the_Planner_holds_the_InterSystems_report_with_other_AI_Hub_findings_for_the_find-a-bug_bonus_list_after_Oct_26;the_run_takes_no_outward_step
