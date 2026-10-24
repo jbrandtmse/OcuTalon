@@ -5,6 +5,7 @@ import { Observable, timeout, type Subscription } from 'rxjs';
 import { ApiClient } from '../api/api-client';
 import type { EventsResponse, StateSnapshot } from '../api/api-types';
 import { Announcer } from '../shared/announcer';
+import { BUSY_STATUS, ContactWatch, pollDelay, type ContactState } from './contact-watch';
 import { applyEvents, fromSnapshot, type LiveStore } from './live-store';
 
 /** How the snapshot's load went. */
@@ -18,7 +19,8 @@ export const POLL_DELAY_MS = 1000;
 
 /**
  * How long a poll, or the reload of the snapshot after a skip, may stay unanswered before it counts as failed: it is dropped
- * and the next poll follows after POLL_DELAY_MS, so a request that never answers cannot stop the live updates.
+ * and the next poll follows (after POLL_DELAY_MS, or at once while the page is unreachable), so a request that never answers
+ * cannot stop the live updates.
  */
 export const POLL_TIMEOUT_MS = 10_000;
 
@@ -33,7 +35,15 @@ export const LOAD_FAILED = "Couldn't load your session.";
  *
  * With no answer by LOAD_TIMEOUT_MS, or with an error answer, the status is failed and the polite announcer says so once;
  * a late answer still loads. retry() asks again, and says so again when that fails. A 401 is the session gate's: this
- * service neither fails nor announces for it. stop() ends the polling and drops what is in flight.
+ * service neither fails nor announces for it. stop() ends the polling, drops what is in flight and ends the contact watch.
+ *
+ * `contact` is the page's contact with OcuTalon (Story 2.11), counted by a ContactWatch from the last answer of the live
+ * path, which in release 1 is the polling: `ok`, then `reconnecting` after 10 s with no answer and `unreachable` after 30 s.
+ * An answer is a poll whose events were applied, a snapshot that was taken in, or a 503 of either request (the busy state,
+ * which is the server answering). A refused connection, a timeout, a 401 and every other status are no answer. The watch is
+ * armed by the first snapshot: until then `contact` stays `ok` and the load states are the page's. While `unreachable`, each poll
+ * starts 10 seconds after the previous one started; otherwise the next poll follows an answer, or a poll given up, after
+ * POLL_DELAY_MS.
  */
 @Injectable({ providedIn: 'root' })
 export class LiveState {
@@ -48,7 +58,14 @@ export class LiveState {
   private applied = 0;
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private pollTimer: ReturnType<typeof setTimeout> | undefined;
+  /** When the latest poll started, in milliseconds on the page's monotonic clock. */
+  private pollStart = 0;
   private readonly inFlight = new Set<Subscription>();
+  private readonly watch = new ContactWatch({
+    setTimeout: (handler, ms) => globalThis.setTimeout(handler, ms),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+    onChange: (state) => this.contact.set(state),
+  });
 
   /**
    * The snapshot as /state last answered, once it has loaded. Its chat, rail, telegram and status are not kept up to date by
@@ -61,6 +78,9 @@ export class LiveState {
 
   /** The live store: the snapshot's state with the events applied. */
   readonly store = signal<LiveStore | undefined>(undefined);
+
+  /** The page's contact with OcuTalon: `ok` until the live path has gone 10 s with no answer, then `reconnecting`, then `unreachable` at 30 s. */
+  readonly contact = signal<ContactState>('ok');
 
   /** The last Seq applied on the session's stream, once loaded. */
   readonly sessionSeq = computed(() => this.store()?.cursors.session);
@@ -103,9 +123,10 @@ export class LiveState {
     });
   }
 
-  /** Ends the polling and drops every request in flight. Nothing is loaded or polled after it. */
+  /** Ends the polling and the contact watch, and drops every request in flight. Nothing is loaded or polled after it. */
   stop(): void {
     this.stopped = true;
+    this.watch.stop();
     this.clearTimers();
     for (const subscription of this.inFlight) {
       subscription.unsubscribe();
@@ -138,13 +159,16 @@ export class LiveState {
         if (this.stopped || (error instanceof HttpErrorResponse && error.status === 401)) {
           return;
         }
+        if (this.status() === 'loaded' && isBusy(error)) {
+          this.watch.answered();
+        }
         onError();
       },
     });
     this.track(subscription);
   }
 
-  /** Takes a snapshot in: the page is loaded, and the poll runs. */
+  /** Takes a snapshot in: the page is loaded, the contact watch counts from it, and the poll runs. */
   private accept(snapshot: StateSnapshot): void {
     if (this.loadTimer !== undefined) {
       globalThis.clearTimeout(this.loadTimer);
@@ -153,6 +177,7 @@ export class LiveState {
     this.snapshot.set(snapshot);
     this.store.set(fromSnapshot(snapshot));
     this.status.set('loaded');
+    this.watch.answered();
     if (!this.polling) {
       this.polling = true;
       this.schedulePoll();
@@ -176,29 +201,39 @@ export class LiveState {
     if (this.stopped) {
       return;
     }
+    const delay = pollDelay(this.contact(), performance.now() - this.pollStart, POLL_DELAY_MS);
     this.pollTimer = globalThis.setTimeout(() => {
       this.pollTimer = undefined;
       this.poll();
-    }, POLL_DELAY_MS);
+    }, delay);
   }
 
   /**
    * One poll with the current cursors; the next one is scheduled when this one has answered, good or not, or has had no answer
-   * by POLL_TIMEOUT_MS.
+   * by POLL_TIMEOUT_MS. A 503 is an answer of the live path.
    */
   private poll(): void {
     const store = this.store();
     if (this.stopped || !store) {
       return;
     }
+    this.pollStart = performance.now();
     const subscription = this.api.events(store.cursors.session, store.cursors.instance).pipe(timeout(POLL_TIMEOUT_MS)).subscribe({
       next: (response) => this.applyPoll(response),
-      error: () => this.schedulePoll(),
+      error: (error: unknown) => {
+        if (!this.stopped && isBusy(error)) {
+          this.watch.answered();
+        }
+        this.schedulePoll();
+      },
     });
     this.track(subscription);
   }
 
-  /** Applies a poll's events; a reload result loads the snapshot again, with the status kept at loaded. */
+  /**
+   * Applies a poll's events, and the poll has answered; a reload result loads the snapshot again, with the status kept at loaded,
+   * and that snapshot is the answer.
+   */
   private applyPoll(response: EventsResponse): void {
     const current = this.store();
     if (this.stopped || !current) {
@@ -216,6 +251,7 @@ export class LiveState {
     if (result.store !== current) {
       this.store.set(result.store);
     }
+    this.watch.answered();
     this.schedulePoll();
   }
 
@@ -238,4 +274,9 @@ export class LiveState {
       this.pollTimer = undefined;
     }
   }
+}
+
+/** True for the server's busy answer (AD-25). */
+function isBusy(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && error.status === BUSY_STATUS;
 }

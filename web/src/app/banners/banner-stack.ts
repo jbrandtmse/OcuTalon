@@ -9,7 +9,7 @@ import { README_URL } from '../links';
 import { renderPageText } from '../msg/catalog';
 import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
-import { activeBanners, BANNER_TEXTS, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, retainClosed } from './banner-view';
+import { activeBanners, BANNER_TEXTS, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, REPLACED_BY, retainClosed } from './banner-view';
 
 /** The values banner-view.ts reuses, from the real modules. */
 const FORMAT: BannerFormat = {
@@ -40,8 +40,10 @@ const ANNOUNCE_GAP_MS = 150;
  * - A closed banner stays away while its condition holds with the slots it had; it returns, announced, when the condition
  *   clears and starts again or its slots change. The records live for the page's life.
  * - A banner takes focus (tabindex -1) but is not in the tab order. When a banner that holds focus, or holds the focus in its
- *   link or Close button, leaves, focus moves without scrolling to the next banner, else the previous one, else the main
- *   region. Nothing else here moves focus.
+ *   link or Close button, leaves, focus moves without scrolling to the banner that replaces it (REPLACED_BY) when that one is
+ *   shown, else to the next banner, else the previous one, else the main region. Nothing else here moves focus.
+ * - Reconnecting and Unreachable are the page's own conditions (Story 2.11): the stack shows the one that LiveState.contact
+ *   names, if any. Unreachable replaces Reconnecting, and the clear of either is not announced.
  */
 @Component({
   selector: 'app-banner-stack',
@@ -149,7 +151,8 @@ export class BannerStack {
     if (store === undefined) {
       return undefined;
     }
-    return { status: store.status, own: [], onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
+    const contact = this.live.contact();
+    return { status: store.status, own: contact === 'ok' ? [] : [contact], onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
   });
 
   /** Every banner whose condition holds, closed or not. */
@@ -231,8 +234,9 @@ export class BannerStack {
 
   /**
    * Before the stack renders again: if a banner holds focus, or its link or Close button does, remembers the banners' order, and
-   * after the render moves focus, when that banner is gone, to the next banner that is left, else the nearest one before it,
-   * else the main region (UX-DR131). A banner that is still there keeps focus as it is.
+   * after the render moves focus, when that banner is gone, to the banner that replaces it if that one is shown, else to the next
+   * banner that is left, else the nearest one before it, else the main region (UX-DR131). A banner that is still there keeps
+   * focus as it is.
    */
   private keepFocus(): void {
     const host = this.host.nativeElement;
@@ -250,9 +254,10 @@ export class BannerStack {
           return;
         }
         const at = order.indexOf(id);
+        const replacement = REPLACED_BY[id as BannerId];
         const next = order.slice(at + 1).find((one) => left.has(one));
         const previous = order.slice(0, at).reverse().find((one) => left.has(one));
-        const target = next ?? previous;
+        const target = replacement !== undefined && left.has(replacement) ? replacement : (next ?? previous);
         const element = target === undefined ? document.querySelector<HTMLElement>('main.main') : host.querySelector<HTMLElement>(`[${BANNER_ID}="${target}"]`);
         element?.focus({ preventScroll: true });
       },

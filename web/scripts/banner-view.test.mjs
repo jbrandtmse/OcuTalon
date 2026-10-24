@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BANNERS, BANNER_TEXTS, activeBanners, bannersView, closeBanner, retainClosed } = await import(app('banners', 'banner-view.ts'));
+const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannersView, closeBanner, retainClosed } = await import(app('banners', 'banner-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { pageTime } = await import(app('chat', 'page-time.ts'));
 const { formatCost } = await import(app('chat', 'decision-view.ts'));
@@ -236,6 +236,24 @@ describe('the stack', () => {
         ['resetSoon', 'warning', 'triangle-alert', true],
       ],
     );
+  });
+});
+
+describe('the replacements', () => {
+  it('are exactly Unreachable replacing Reconnecting, and each one names banners of the table', () => {
+    assert.deepEqual(REPLACED_BY, { reconnecting: 'unreachable' });
+    const known = BANNERS.map((banner) => banner.id);
+    for (const [leaving, replacement] of Object.entries(REPLACED_BY)) {
+      assert.ok(known.includes(leaving), `${leaving} is a banner id`);
+      assert.ok(known.includes(replacement), `${replacement} is a banner id`);
+    }
+  });
+
+  it('are both of the page\'s own banners, and the replacement stacks before the one it replaces', () => {
+    const order = BANNERS.map((banner) => banner.id);
+    assert.ok(order.indexOf('unreachable') < order.indexOf('reconnecting'));
+    assert.deepEqual(ids(view([], { own: ['unreachable'] })), ['unreachable'], 'Unreachable alone, once it replaces Reconnecting');
+    assert.deepEqual(ids(view([], { own: ['reconnecting'] })), ['reconnecting']);
   });
 });
 

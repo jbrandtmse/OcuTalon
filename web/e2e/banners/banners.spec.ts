@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
-import { changeSnapshot, STATE } from '../support/api';
+import { changeSnapshot, EVENTS, STATE } from '../support/api';
 import {
   cleanFixtureRows,
   decideIsStub,
@@ -30,6 +30,9 @@ import { announcementCount, announcements, plain, recordAnnouncements, tokenColo
  * moves, and the Tab order (B10), a banner that a reloaded snapshot brings (B11), and the stack's size at the reference viewport and
  * below 1024px (B12). B7, B8, B11 and B12 take the conditions they start with from a changed /state or a changed poll; B8, B11 and B12
  * publish nothing, and B7 publishes only one check update and the clear.
+ *
+ * B13 to B16 are Story 2.11's connection tests: the page's own two banners, Reconnecting and Unreachable, for a page that loses contact.
+ * They are described where they stand, after B12.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
@@ -683,4 +686,337 @@ test('B12: six banners at 1280x720 leave the page unscrolled and the composer in
   await page.setViewportSize({ width: 800, height: 900 });
   await expect.poll(async () => (await measure(page)).width, { message: 'the stacked layout is laid out' }).toBe(800);
   expectSpan(await measure(page), '800px');
+});
+
+/**
+ * Story 2.11, the connection tests (B13 to B16). "The server is unreachable" is every request of the page to the API refused in the
+ * browser (page.route); the case lifts that for the recovery. IRIS and its web server are never stopped. The page's clock is Playwright's
+ * (page.clock): install() runs before sign-in, so time flows on its own, as it does for L6, and runFor() steps it. Time keeps flowing
+ * between two steps, so a check leaves at least 1.5 s either side of a threshold: the page counts its 10 s and its 30 s from its last
+ * answer, which came one poll delay (1 s) or a little more before the first request that was refused. A check that a banner has come
+ * waits ONE_UPDATE_MS, not the default, because the page's clock would run on while it waited. contact-watch.test.mjs pins the exact
+ * thresholds.
+ */
+
+/** The texts of the two banners that the page raises for itself. */
+const RECONNECTING = 'Reconnecting\u2026 New messages may be delayed.';
+const UNREACHABLE = "Can't reach OcuTalon. Retrying every 10 seconds.";
+
+/** The Lucide path that only the info icon has. */
+const INFO = 'svg path[d="M12 16v-4"]';
+
+/** The title of the sign-in page. */
+const SIGN_IN_TITLE = 'Sign in \u00b7 OcuTalon';
+
+/** Every request of the page to the API, the page's /events polls, and the call that ends the session. */
+const API_REQUESTS = /\/ocutalon\/api\/v1\//;
+const EVENT_REQUESTS = /\/ocutalon\/api\/v1\/events\?/;
+const STATE_REQUESTS = /\/ocutalon\/api\/v1\/state(?:\?|$)/;
+const END = '/ocutalon/api/v1/session/end';
+
+/** The page's own banners that hold now. */
+const ownBanners = (page: Page): Locator => slot(page).locator('[data-banner="reconnecting"], [data-banner="unreachable"]');
+
+/** The server is unreachable: every request of the page to the API is refused. attempts() counts the /events requests; lift() ends it. */
+async function refuseApi(page: Page): Promise<{ attempts: () => number; lift: () => Promise<void> }> {
+  let attempts = 0;
+  const refuse = async (route: Route): Promise<void> => {
+    if (new URL(route.request().url()).pathname === EVENTS) attempts += 1;
+    await route.abort('connectionrefused').catch(() => undefined);
+  };
+  await page.route(API_REQUESTS, refuse);
+  return { attempts: () => attempts, lift: () => page.unroute(API_REQUESTS, refuse) };
+}
+
+/** Waits until the page has asked once and been refused, so that its last answer is behind it. */
+async function refused(outage: { attempts: () => number }): Promise<void> {
+  await expect.poll(() => outage.attempts(), { message: 'the page asks again and is refused', intervals: [50] }).toBeGreaterThanOrEqual(1);
+}
+
+/** Moves the page's clock on by this many seconds, a second at a time, so that the page handles each answer or refusal between two steps. */
+async function runSteps(page: Page, seconds: number): Promise<void> {
+  for (let second = 0; second < seconds; second += 1) await page.clock.runFor(1000);
+}
+
+/**
+ * Before the page's scripts run: records the ids of the banners that the slot holds, in order, after each change of the page that changes
+ * them, as window.stacks, so a test can tell that two banners left and came in the same update.
+ */
+async function recordStacks(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const stacks: string[][] = [];
+    (window as unknown as { stacks: string[][] }).stacks = stacks;
+    new MutationObserver(() => {
+      const now = Array.from(document.querySelectorAll('.banner-slot [data-banner]')).map((node) => node.getAttribute('data-banner') ?? '');
+      if (JSON.stringify(now) !== JSON.stringify(stacks[stacks.length - 1] ?? [])) stacks.push(now);
+    }).observe(document, { subtree: true, childList: true });
+  });
+}
+
+/** The stacks that recordStacks has seen, in order. */
+const stacksSeen = (page: Page): Promise<string[][]> => page.evaluate(() => (window as unknown as { stacks: string[][] }).stacks);
+
+/**
+ * B13: with the server unreachable, Reconnecting shows after 10 s with no answer (closable, info, last) and is announced once; at 30 s
+ * Unreachable replaces it (danger, before the warnings, no Close), is announced once and takes the focus that Reconnecting held; from then
+ * on the page asks every 10 s.
+ */
+test('B13: with the server unreachable the page shows Reconnecting at 10 s and Unreachable at 30 s, and then asks every 10 s', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  try {
+    await recordAnnouncements(page);
+    await page.clock.install();
+    await open(page);
+    // noModelKey comes from this case, so the order below holds whatever the stack's key state is.
+    await turn(page, user, 'noModelKey', true);
+    await expect(ownBanners(page), 'a page that is being answered has no banner of its own').toHaveCount(0);
+
+    const outage = await refuseApi(page);
+    await refused(outage);
+    await runSteps(page, 4);
+    await expect(ownBanners(page), 'before 10 s with no answer there is no banner of its own').toHaveCount(0);
+
+    await runSteps(page, 7);
+    const reconnecting = banner(page, 'reconnecting');
+    await expect(reconnecting, 'after 10 s Reconnecting shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(reconnecting.locator('.text'), 'with the catalog\'s words').toHaveText(RECONNECTING);
+    await expectLook(page, reconnecting, 'info', 'the Reconnecting banner');
+    await expect(reconnecting.locator(INFO), 'with the info icon').toHaveCount(1);
+    await expect(reconnecting.getByRole('link'), 'it has no action').toHaveCount(0);
+    const close = reconnecting.getByRole('button', { name: 'Close', exact: true });
+    await expect(close, 'and can be closed').toHaveCount(1);
+    expect(await stack(page), 'it is last in the stack').toEqual(['noModelKey', 'reconnecting']);
+    await expect.poll(() => announcements(page, RECONNECTING), { message: 'it is announced', timeout: 5000 }).toBe(1);
+    await close.focus();
+    await expect(close, 'focus is on its Close').toBeFocused();
+
+    await runSteps(page, 10);
+    await expect(reconnecting, 'before 30 s Reconnecting is still there').toHaveCount(1);
+    await expect(banner(page, 'unreachable'), 'and Unreachable is not').toHaveCount(0);
+
+    await runSteps(page, 11);
+    const unreachable = banner(page, 'unreachable');
+    await expect(unreachable, 'after 30 s Unreachable shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(reconnecting, 'in the place of Reconnecting').toHaveCount(0);
+    await expect(unreachable.locator('.text'), 'with the catalog\'s words').toHaveText(UNREACHABLE);
+    await expectLook(page, unreachable, 'danger', 'the Unreachable banner');
+    await expect(unreachable.locator(CIRCLE_ALERT), 'with the circle-alert icon').toHaveCount(1);
+    await expect(unreachable.getByRole('button'), 'it cannot be closed').toHaveCount(0);
+    await expect(unreachable.getByRole('link'), 'and has no action').toHaveCount(0);
+    expect(await stack(page), 'it sits before the warnings').toEqual(['unreachable', 'noModelKey']);
+    await expect(unreachable, 'focus moved to the banner that replaced the one that held it').toBeFocused();
+    await expect.poll(() => announcements(page, UNREACHABLE), { message: 'it is announced', timeout: 5000 }).toBe(1);
+    expect(await announcements(page, RECONNECTING), 'Reconnecting was announced once and is not announced again').toBe(1);
+
+    const before = outage.attempts();
+    await runSteps(page, 20);
+    const made = outage.attempts() - before;
+    expect(made, 'from then on the page asks every 10 s, twice or three times in 20 s (a second apart it would be about 20)').toBeGreaterThanOrEqual(2);
+    expect(made, 'twice or three times in 20 s').toBeLessThanOrEqual(3);
+    await expect(unreachable, 'and the banner stays').toHaveCount(1);
+    expect(await announcements(page, UNREACHABLE), 'announced once').toBe(1);
+  } finally {
+    await clear(user, ['noModelKey']);
+  }
+});
+
+/**
+ * B14: the first answer after an outage brings the events missed and both banners leave in that same update without a word; a Reconnecting
+ * that was closed stays away for the rest of its outage and shows, announced, in the next one.
+ */
+test('B14: after the outage the first answer brings the missed event and clears the banners silently, and a closed Reconnecting returns at the next outage', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  try {
+    await recordAnnouncements(page);
+    await recordStacks(page);
+    await page.clock.install();
+    await open(page);
+    await turn(page, user, 'noModelKey', true);
+
+    const outage = await refuseApi(page);
+    await refused(outage);
+    await runSteps(page, 13);
+    const reconnecting = banner(page, 'reconnecting');
+    await expect(reconnecting, 'at about 15 s Reconnecting shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect.poll(() => announcements(page, RECONNECTING), { message: 'it is announced', timeout: 5000 }).toBe(1);
+    await reconnecting.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(reconnecting, 'Close removes it').toHaveCount(0);
+    await expect(banner(page, 'noModelKey'), 'focus goes to the banner before it, as no banner replaces Reconnecting yet').toBeFocused();
+
+    await runSteps(page, 10);
+    await expect(ownBanners(page), 'at about 25 s it is still away, and Unreachable is not there yet').toHaveCount(0);
+    await runSteps(page, 8);
+    await expect(banner(page, 'unreachable'), 'at 30 s Unreachable shows, though Reconnecting was closed').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    expect(await stack(page)).toEqual(['unreachable', 'noModelKey']);
+
+    // The server publishes while the page cannot hear it.
+    await publishStatus(user, { condition: 'heartbeatStalled', active: true, slots: { time: today('11:00:00') } });
+    await expect(banner(page, 'heartbeatStalled'), 'the page has not heard of it').toHaveCount(0);
+
+    const heard = await announcementCount(page);
+    await outage.lift();
+    await page.clock.runFor(10_000);
+    await expect(banner(page, 'heartbeatStalled'), 'the first answer brings the event').toHaveCount(1, { timeout: APPLIED_MS });
+    await expect(ownBanners(page), 'and Unreachable has left').toHaveCount(0);
+    const seen = await stacksSeen(page);
+    const arrived = seen.findIndex((one) => one.includes('heartbeatStalled'));
+    expect(seen[arrived - 1], 'the stack before that update has Unreachable').toEqual(['unreachable', 'noModelKey']);
+    expect(seen[arrived], 'the heartbeat banner came and Unreachable left in the same update').toEqual(['noModelKey', 'heartbeatStalled']);
+    await expect.poll(() => announcements(page, STALLED), { message: 'the new banner is announced', timeout: 5000 }).toBe(1);
+    await page.waitForTimeout(1500);
+    expect(await announcementCount(page), 'and nothing else is: the clear of Unreachable is silent').toBe(heard + 1);
+
+    const second = await refuseApi(page);
+    await refused(second);
+    await runSteps(page, 13);
+    await expect(banner(page, 'reconnecting'), 'in the next outage Reconnecting shows again').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect.poll(() => announcements(page, RECONNECTING), { message: 'and is announced again', timeout: 5000 }).toBe(2);
+    expect(await stack(page), 'last, after the heartbeat banner').toEqual(['noModelKey', 'heartbeatStalled', 'reconnecting']);
+  } finally {
+    await clear(user, ['heartbeatStalled', 'noModelKey']);
+  }
+});
+
+/**
+ * B15: the first answer after an outage skips a Seq, so the page loads the snapshot again, once; the row made during the outage shows,
+ * and both banners are gone with it, not at the next poll (which would be up to 10 s on).
+ */
+test('B15: a skipped Seq after the outage loads the snapshot again, once, and the banners clear with it', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  const refs: string[] = [];
+  try {
+    const stamp = unique('B15');
+    let states = 0;
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === STATE) states += 1;
+    });
+    await page.clock.install();
+    await open(page);
+    // A poll has been answered before the outage begins, so the page has more than its snapshot to count from.
+    await turn(page, user, 'noModelKey', true);
+    expect(states, 'the page loaded its snapshot once').toBe(1);
+
+    const outage = await refuseApi(page);
+    await refused(outage);
+    await runSteps(page, 33);
+    await expect(banner(page, 'unreachable'), 'after 30 s Unreachable shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    refs.push(await seedCheck(user, { displayName: stamp, lastRunAt: today('10:00:00'), result: 'passed', finding: '' }));
+    const row = rail(page).locator('li.row').filter({ hasText: stamp });
+    await expect(row, 'the page has not heard of the check').toHaveCount(0);
+
+    // The first poll that is answered carries a Seq two past the cursor, as L3's does.
+    let skipped = false;
+    await page.route(EVENT_REQUESTS, async (route) => {
+      const response = await route.fetch();
+      if (skipped) {
+        await route.fulfill({ response });
+        return;
+      }
+      skipped = true;
+      const body = (await response.json()) as { events: Array<Record<string, unknown>> };
+      const after = Number(new URL(route.request().url()).searchParams.get('after'));
+      body.events.push({ seq: after + 2, stream: 'session', ts: '2030-01-01T00:00:00Z', type: 'reminder', payload: { ref: 'ZzE2EBannerSkip', state: 'pending' } });
+      await route.fulfill({ response, json: body });
+    });
+    await outage.lift();
+    await page.clock.runFor(10_000);
+
+    await expect.poll(() => states, { message: 'the skipped Seq loads the snapshot again', timeout: APPLIED_MS }).toBe(2);
+    await expect(row, 'the check made during the outage shows').toHaveCount(1, { timeout: APPLIED_MS });
+    await expect(ownBanners(page), 'and both banners are gone within one live update of that').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+    await expect(mainOf(page), 'the page stayed loaded').toHaveAttribute('data-snapshot', 'loaded');
+    await page.waitForTimeout(2500);
+    expect(states, 'and the snapshot was loaded once more, not again').toBe(2);
+  } finally {
+    await clear(user, ['noModelKey']);
+    await cleanFixtureRows(refs);
+  }
+});
+
+/**
+ * B16: what is not lost contact. A 503 is an answer (the busy state is the server speaking): 40 s of 503s show no banner and the page keeps
+ * asking every second or two. A 500 is not (the contrast): Reconnecting shows after 10 s. A poll that finds a skipped Seq is not an answer
+ * until the snapshot it reloads has been taken in: while that reload is out Reconnecting stays, and a 503 of the reload is the answer that
+ * clears it. A page that stopped on purpose claims no lost contact: Sign out takes the banner away at once, and 35 s on, nothing is asked
+ * and nothing shows.
+ */
+test('B16: a 503 is not lost contact, a 500 is, and a page that signed out claims none', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  await page.clock.install();
+  await open(page);
+
+  let attempts = 0;
+  let answer: 'busy' | 'error' | 'skip' = 'busy';
+  await page.route(EVENT_REQUESTS, async (route) => {
+    attempts += 1;
+    if (answer === 'skip') {
+      answer = 'error';
+      const response = await route.fetch();
+      const body = (await response.json()) as { events: Array<Record<string, unknown>> };
+      const after = Number(new URL(route.request().url()).searchParams.get('after'));
+      body.events.push({ seq: after + 2, stream: 'session', ts: '2030-01-01T00:00:00Z', type: 'reminder', payload: { ref: 'ZzE2EBannerSkip', state: 'pending' } });
+      await route.fulfill({ response, json: body });
+      return;
+    }
+    await route.fulfill({
+      status: answer === 'busy' ? 503 : 500,
+      json: { error: { code: answer === 'busy' ? 'busy' : 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } },
+    });
+  });
+  await runSteps(page, 40);
+  expect(attempts, 'for 40 s of 503s the page keeps asking every second or two (the unreachable page would ask about 4 times)').toBeGreaterThanOrEqual(15);
+  await expect(ownBanners(page), 'a 503 is an answer: no banner of its own').toHaveCount(0);
+
+  answer = 'error';
+  await runSteps(page, 12);
+  await expect(banner(page, 'reconnecting'), 'the same route answering 500: after 10 s Reconnecting shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+
+  let reloads = 0;
+  let answerReload: () => void = () => undefined;
+  const reloadHeld = new Promise<void>((resolve) => {
+    answerReload = resolve;
+  });
+  await page.route(STATE_REQUESTS, async (route) => {
+    reloads += 1;
+    await reloadHeld;
+    await route.fulfill({ status: 503, json: { error: { code: 'busy', message: 'Something went wrong inside OcuTalon. Try again.' } } }).catch(() => undefined);
+  });
+  try {
+    answer = 'skip';
+    await expect.poll(() => reloads, { message: 'the poll with the skipped Seq makes the page load the snapshot again', timeout: APPLIED_MS }).toBe(1);
+    await runSteps(page, 3);
+    expect(await banner(page, 'reconnecting').count(), 'while the reload is out nothing has answered: Reconnecting stays').toBe(1);
+    answerReload();
+    await expect(ownBanners(page), 'a 503 of the reload is an answer: Reconnecting leaves').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+  } finally {
+    answerReload();
+  }
+  await page.unroute(STATE_REQUESTS);
+  await runSteps(page, 12);
+  await expect(banner(page, 'reconnecting'), 'with the 500s going on, it comes back after 10 s').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+
+  let ending = 0;
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**${END}`, async (route) => {
+    ending += 1;
+    await held;
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    await page.getByRole('button', { name: user, exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
+    await expect.poll(() => ending, { message: 'Sign out asked the server to end the session, which is held' }).toBe(1);
+    await expect(ownBanners(page), 'a stopped page claims no lost contact: Reconnecting leaves at once').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+
+    const asked = attempts;
+    await runSteps(page, 35);
+    expect(attempts, 'a stopped page asks nothing').toBe(asked);
+    await expect(ownBanners(page), 'and shows no banner however long nothing answers').toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(page, 'when the server answers, the sign-in page shows').toHaveTitle(SIGN_IN_TITLE);
 });

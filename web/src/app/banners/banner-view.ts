@@ -16,6 +16,8 @@
  * - Closing (only Reset soon and Reconnecting can be closed): closeBanner remembers the banner's signature, its id and slots;
  *   the banner stays away while its condition holds with that signature. retainClosed drops the records of a condition that
  *   has cleared or whose slots changed, so it shows again when the condition starts again or gets worse.
+ * - REPLACED_BY names the banner that takes over another's place when it leaves (Story 2.11; UX-DR131): Unreachable replaces
+ *   Reconnecting, and the stack moves focus there when the replaced banner held it.
  */
 import type { StatusPayload, StatusSlots } from '../live/payloads';
 
@@ -69,6 +71,9 @@ export const BANNERS: readonly BannerSpec[] = [
   { id: 'resetSoon', condition: 'resetSoon', key: 'banner.resetSoon', variant: 'warning', icon: 'triangle-alert', closable: true },
   { id: 'reconnecting', condition: 'reconnecting', key: 'banner.reconnecting', variant: 'info', icon: 'info', closable: true },
 ];
+
+/** The banners that another banner replaces when its condition worsens: the key is the one that leaves, the value the one that takes over. */
+export const REPLACED_BY: Readonly<Partial<Record<BannerId, BannerId>>> = { reconnecting: 'unreachable' };
 
 /** The conditions that only the page knows. */
 const OWN_CONDITIONS: readonly string[] = ['unreachable', 'reconnecting'];

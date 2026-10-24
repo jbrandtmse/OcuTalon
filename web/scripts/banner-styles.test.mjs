@@ -2,7 +2,8 @@
 // the tokens of its own variant (background, foreground, accent and minimum height), that the generated tokens give every variant
 // the 44px minimum height and a colour for the light theme and both dark selectors, that a banner is full width with a 4px left
 // accent in the variant's accent colour and the variant's minimum height, and that no banner is a live region. The info variant
-// (Reconnecting, Story 2.11) is not rendered by any browser spec yet, so these scans are the only check of its look until then.
+// (Reconnecting, Story 2.11) is rendered by the browser case B13 in e2e/banners/banners.spec.ts, which checks its look; these scans
+// check the styles the stack declares for it.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

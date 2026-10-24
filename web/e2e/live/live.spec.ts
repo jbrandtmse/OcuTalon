@@ -539,7 +539,8 @@ test('L12: a poll whose answer is slow is the only one in flight, and the next w
 
 /**
  * L13: a poll that never answers is given up after POLL_TIMEOUT_MS (10 s), and the next poll follows after the usual delay,
- * so the live updates go on; nothing else on the page changes.
+ * so the live updates go on. The page counts its 10 s of silence from its last answer, so Reconnecting shows while the poll is
+ * still out, and the next answer clears it (Story 2.11); nothing else on the page changes.
  */
 test('L13: a poll that never answers is given up after 10 seconds, and the polling goes on', async ({ page }) => {
   const states = countRequests(page, STATE);
@@ -556,11 +557,18 @@ test('L13: a poll that never answers is given up after 10 seconds, and the polli
   try {
     await open(page);
     await expect.poll(() => starts.length, { timeout: 10_000, message: 'the second poll starts and gets no answer' }).toBe(2);
+    const reconnecting = page.locator('.banner-slot [data-banner="reconnecting"]');
+    await expect(reconnecting, 'no banner while the poll has been out for a short time').toHaveCount(0);
+    await expect
+      .poll(() => reconnecting.count(), { timeout: 12_000, intervals: [100], message: '10 s after the last answer Reconnecting shows' })
+      .toBe(1);
+    expect(starts.length, 'while the second poll has still had no answer').toBe(2);
     await expect.poll(() => starts.length, { timeout: 15_000, message: 'a poll follows the one that never answered' }).toBe(3);
     const gap = starts[2]! - starts[1]!;
     expect(gap, 'it is given up after 10 s, then the delay').toBeGreaterThanOrEqual(10_900);
     expect(gap, 'it is given up after 10 s, then the delay').toBeLessThanOrEqual(13_000);
     await expect.poll(() => starts.length, { timeout: 5000, message: 'and the polling goes on' }).toBeGreaterThanOrEqual(4);
+    await expect(reconnecting, 'the next answer clears Reconnecting').toHaveCount(0);
     expect(states(), '/state was requested once').toBe(1);
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(page.locator('.load-error'), 'no load error').toHaveCount(0);

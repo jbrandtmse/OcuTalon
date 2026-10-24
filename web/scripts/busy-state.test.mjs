@@ -8,40 +8,11 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { fakeClock } from './fake-clock.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'shared', 'busy-state.ts');
 const { BusyState, BUSY_TIMEOUT_MS } = await import(pathToFileURL(source).href);
-
-/** A clock that runs a timer only when the test advances it. */
-function fakeClock() {
-  let now = 0;
-  let next = 1;
-  const timers = new Map();
-  return {
-    setTimeout(handler, ms) {
-      const id = next++;
-      timers.set(id, { at: now + ms, handler });
-      return id;
-    },
-    clearTimeout(id) {
-      timers.delete(id);
-    },
-    advance(ms) {
-      const target = now + ms;
-      for (;;) {
-        const due = [...timers.entries()].filter(([, timer]) => timer.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
-        if (!due) break;
-        timers.delete(due[0]);
-        now = due[1].at;
-        due[1].handler();
-      }
-      now = target;
-    },
-    get pending() {
-      return timers.size;
-    },
-  };
-}
 
 /** A state machine on a fake clock, with what it reported. */
 function setup() {

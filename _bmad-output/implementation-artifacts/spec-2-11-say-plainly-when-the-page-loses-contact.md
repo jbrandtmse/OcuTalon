@@ -2,7 +2,8 @@
 title: 'Story 2.11: Say plainly when the page loses contact'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ef499d489c5c8e343489fbdcecc859abafaa9fa2'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -265,6 +266,33 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 — Review pass
+- verdicts: 23 findings — high 0, medium 3, low 16, false 4, maybe-false 0
+- findings (layers in order: blind-hunter 1-7, edge-case-hunter 8-13, verification-gap 14-20, intent-alignment 21-23):
+  - `[low]` `reject` 1. A 503 counts as busy on its status alone, so a 503 that is not IRIS's would reset the watch — the spec makes an API 503 the busy state and the page reads only the status (Boundaries "What counts as an answer", AD-25, B16); the fix edits the intent. A dead upstream behind Caddy answers 502 or 504, not 503. reopen_if=Story 16.5 tells busy from other 503s by the `X-OcuTalon-Busy` marker.
+  - `[low]` `reject` 2. Late or batched timers (a hidden tab, a sleep) fire both thresholds before the in-flight answer lands — Decided 3 counts from the last answer, so a page that heard nothing for 30 s or more shows the banners and the next answer clears them; the fix (visibility handling) adds branches and changes the specified count. reopen_if=a user reports the banner on waking.
+  - `[medium]` `patch` 3. The `/state` 503 branch and its loaded guard have no test — shares root cause with 14 and 16: the reload leg of the answer rule is unpinned. Patched: B16's fourth phase (a 503 of the held reload clears Reconnecting); mutation recorded.
+  - `[low]` `patch` 4. banner-view.test.mjs's replacement cases do not test the replacement, and the fallback focus branch is untested — the table is pinned by the `deepEqual`; the fallback shares root cause with 15. Patched: B14 asserts where focus lands; mutation recorded.
+  - `[low]` `patch` 5. live-state.ts comments say polls come 1 to 2 s apart "at every other time" and that the next poll follows after POLL_DELAY_MS — a poll given up takes 11 s, or no wait while unreachable. Patched: both comments reworded.
+  - `[low]` `reject` 6. L13's new assertion has about 2 s of slack (the third poll starts 1 s after the second is given up at +11 s, the banner shows at +10 s) — Task 8 asks for Reconnecting during the hung poll, and the 10 s threshold against the 10 s poll limit is the spec's own timing. reopen_if=L13 fails on a loaded runner at the `starts.length` check.
+  - `[low]` `reject` 7. B15's route order lets a poll in the few milliseconds between the skip route and `lift()` skip the abort — wontfix-theoretical: the unreachable cadence is 10 s, so the window is milliseconds. reopen_if=B15 fails with `states` other than 2.
+  - `[low]` `reject` 8. Same claim as 1 (a 503 that is not IRIS's) — rejected for the reason in 1.
+  - `[low]` `reject` 9. Same claim as 2 (timers late after a sleep or in a hidden tab) — rejected for the reason in 2.
+  - `[low]` `reject` 10. A poll with a skipped `seq` whose reload fails or hangs leaves Reconnecting and Unreachable showing while polls answer — spec-bound: the matrix row "Recovery with a skip" says a reload that fails is still no answer, and counting it would claim contact while the snapshot is stale (a false all-clear). Its pinning is 16.
+  - `[low]` `reject` 11. A 200 poll answer without an `events` array throws in `applyEvents` and ends the loop — a path that exists in Story 2.2's code and that the server's contract rules out. reopen_if=a server answer with no `events` is seen.
+  - `[low]` `reject` 12. R13's `runFor(60_000)` crosses both thresholds with no real time for polls to answer — Decided 16: R13 asserts the rail's text only and passed in both full runs. reopen_if=R13 or L6 asserts a banner count or the slot's height.
+  - `[low]` `patch` 13. Same claim as 5 (the live-state.ts comment) — patched with 5.
+  - `[medium]` `patch` 14. The `/state` 503 clause of "what counts as an answer" is pinned by no test (deleting the branch kept B13 to B16 green) — patched with 3.
+  - `[low]` `patch` 15. Closing Reconnecting moves focus through the new `REPLACED_BY` code, and no test asserts where focus lands — patched with 4: a B14 assertion; the mutation `replacement ?? next ?? previous` is red.
+  - `[medium]` `patch` 16. The banners clearing only when the reloaded snapshot applies is not pinned: moving `answered()` above the reload branch keeps B15 green — patched in B16's fourth phase with an instant check that Reconnecting stays while the reload is held; the mutation is red.
+  - `[false]` `reject` 17. Sub-claims of the ACs ("announced once", "before the warnings") have no mutation line of their own — Rule 19 asks one demonstrated mutation per AC, and each AC has at least one: Lost contact 5, Recovery 2, Not lost contact 4; the 401 clause rests on S3, unchanged.
+  - `[low]` `reject` 18. banner-view.test.mjs:255-256 repeats the own-condition cases and never reads `REPLACED_BY` — harmless duplicates beside the order assertion, which can fail; no caller diverges.
+  - `[false]` `reject` 19. contact-watch.test.mjs's source-text check "adds little" — it can fail (three patterns) and pins the spec's "imports nothing, erasable syntax"; the finding names no harm.
+  - `[low]` `reject` 20. B14's fixed 1.5 s wait and B15's route-order window — a negative wait for "nothing else announced", acceptable; the layer found no leftover state or order dependence.
+  - `[low]` `reject` 21. Matrix rows with no case of their own (Not loaded, 401 and idle stop, 404 and 403, a failing reload, Retry, a `/state` 503) — the plan settled Not loaded (Task 8), the 401 (S3, unchanged) and the status family (the 500 stands for it); the two real gaps are 14 and 16, patched.
+  - `[false]` `reject` 22. L13 is edited though the intent says "unchanged" — the intent keeps L13's cadence constants and assertions, and Task 8 names this edit.
+  - `[false]` `reject` 23. fake-clock.mjs, the test-sign-in.sh labels and the banner-styles header go beyond the intent's text — Tasks 4, 9 and 6 name them.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -311,6 +339,16 @@ No AC contradicts an AD's Rule.
      - Story 2.12 uses the same phrase for browser runs that can't be step specs.
 8. **"The server unreachable" is the page's API requests refused in the browser** (`page.route` with `connectionrefused`). The hang variant is L13's held poll. Stopping IRIS or its web server is destructive and slow, and it would end the other specs' sessions.
 9. **The watch is a module inside `LiveState`, not a service.** Conventions "Angular" allows one live-event service, and the epic says to add no second poller.
+10. **The poll's start is read from `performance.now()`,** the page's monotonic clock, not from `Date.now()`. A step of the system clock then cannot make the elapsed time negative, and Playwright's clock fakes both alike.
+11. **A 503 of a `/state` request counts as an answer only once the page has loaded** (`status() === 'loaded'`, which covers the reload after a skip). A 503 on the first load or on a Retry is Story 2.2's load failure and arms nothing.
+12. **`ContactWatch` has a read-only `state` getter and a `ContactOptions` type,** as `BusyState` has `view` and `BusyOptions`. `LiveState` reads the `contact` signal, not the getter.
+13. **The browser checks that a banner has come wait `ONE_UPDATE_MS`, and the clock moves in 1 s steps (`runSteps`).** The page's clock keeps flowing while an expectation waits, so the default 10 s wait would let a late banner pass. The negative checks (no banner yet) pass at once and keep at least 1.5 s of margin. The first refusal comes one poll delay (1 s) after the last answer, so a run of N steps puts the page N + 1 s or a little more from its last answer.
+14. **B14 and B15 turn `noModelKey` on first and clear it in `finally`.** B14 needs the exact stack. B15 needs a poll answered before the outage, so the watch is armed by a poll as well as by the snapshot, and the "accept() does not call answered()" mutation fails on the reload and not on an unarmed watch.
+15. **B14 pins "in the same applied update" with `recordStacks`,** a `MutationObserver` that records the slot's banner ids after each change (`window.stacks`). The heartbeat banner's first stack has no Unreachable, and the stack before it has.
+16. **The sweep (Task 10).** Only L13 refuses or holds `/events` for 10 s or more after the load, and it now asserts Reconnecting and its clear. Every other route answers within seconds, so none shows an own banner: L8 (two 500s in a row, 1 s apart), L12 (one poll held about 4 s), L3, L9, L10 (skips and reloads), C8 and the chat helpers (answers with some events cut, never refused), L6 and L7 and the other `/state` routes (before the first snapshot, which arms nothing). `rail.spec.ts` R13 moves the page's clock 60 s with `runFor` over real polls, so its watch may show a banner during the jump. It asserts the rail's text only, and it passes. No spec counted `[data-banner]`, the slot's height or announcements in such a case.
+17. **`fake-clock.mjs` has no `.test` suffix,** so `node --test scripts/*.test.mjs` does not run it as a suite, and `npm run lint` still checks its syntax.
+18. **B16 has a fourth phase for the reload after a skip (review pass).** With Reconnecting showing, one `/events` answer carries a skipped `seq` (L3's injection) and the `/state` reload is held. Reconnecting stays while the reload is out, because a poll that finds a skip is no answer until the snapshot is taken in. A 503 of the reload then clears it, because a 503 is an answer. The 500s go on, and Reconnecting returns after 10 s, so the Sign out phase still starts from a shown banner.
+19. **"Stays" checks are instant counts (review pass).** `toHaveCount(1)` waits for the banner to appear, and the page's clock keeps flowing while it waits, so a banner that left and came back after 10 s would pass it. B16's check that Reconnecting stays reads `count()` once.
 
 **For the lead (Rule 20, your call).** Decided 4 constrains Story 31.1's fallback and Stories 16.4 and 16.5. A Consistency Conventions sentence, for example appended to "Live events", would keep them from drifting: "While no live path has answered for 30 s, the page retries every 10 s; a 503 is an answer (the busy state), a 401 ends polling". No AD amendment is needed.
 
@@ -381,6 +419,22 @@ No AC contradicts an AD's Rule.
 | Not lost contact | `ContactWatch.stop()` leaves its timers armed | `contact-watch.test.mjs` |
 | Not lost contact | `LiveState.stop()` does not call the watch's `stop()` | B16 (Reconnecting stays after Sign out) |
 
+**Mutations observed (Rule 19).** Each one was applied alone, run, and restored from a copy. After every restore `git status --short`, `git diff --stat` and a hash of the whole diff and of the new files matched the state before it. The browser runs used the throwaway stack `e2s211i` with the `chromium` project narrowed to the case named; the Node runs used `node --test web/scripts/contact-watch.test.mjs web/scripts/banner-view.test.mjs`.
+- mutation: `RECONNECTING_AFTER_MS` 20 000 -> `contact-watch.test.mjs` (thresholds, 9 999 and 10 000, answer and recount, onChange, stop); B13 ("after 10 s Reconnecting shows", 0 banners); L13 ("10 s after the last answer Reconnecting shows")
+- mutation: the 30 s timer's `this.change('unreachable')` removed -> `contact-watch.test.mjs` (the 29 999 and 30 000 case, the recount case); B13 ("after 30 s Unreachable shows", 0 banners)
+- mutation: `pollDelay` returns `normalMs` for every state -> `contact-watch.test.mjs` ("is 10 000 minus the elapsed time for unreachable"); B13 ("twice or three times in 20 s", 17 attempts)
+- mutation: `REPLACED_BY` = `{}` -> `banner-view.test.mjs` ("are exactly Unreachable replacing Reconnecting"); B13 ("focus moved to the banner that replaced the one that held it", focus not on Unreachable)
+- mutation: `banner-stack.ts` `own: []` -> B13 ("after 10 s Reconnecting shows")
+- mutation: `applyPoll` without its `this.watch.answered()` -> B14 ("and Unreachable has left", 1 banner)
+- mutation: `accept()` without its `this.watch.answered()` -> B15 ("and both banners are gone within one live update of that", 1 banner)
+- mutation: a 503 not counted (`isBusy` compares `BUSY_STATUS + 1`) -> B16 ("a 503 is an answer: no banner of its own", 1 banner)
+- mutation: any HTTP error counted as an answer (`isBusy` true for a status of 100 or more) -> B16 ("the same route answering 500: after 10 s Reconnecting shows", 0 banners)
+- mutation: `ContactWatch.stop()` without `cancelTimers()` -> `contact-watch.test.mjs` ("gives ok at stop(), leaves no timer pending, and ignores an answer after it")
+- mutation: `LiveState.stop()` without `this.watch.stop()` -> B16 ("a stopped page claims no lost contact: Reconnecting leaves at once", 1 banner)
+- mutation: `fetchSnapshot` without its `/state` 503 branch (`onError()` alone) -> B16 ("a 503 of the reload is an answer: Reconnecting leaves", 1 banner)
+- mutation: `applyPoll` calls `this.watch.answered()` before its reload branch -> B16 ("while the reload is out nothing has answered: Reconnecting stays", 0 banners)
+- mutation: `keepFocus` picks `replacement ?? next ?? previous` -> B14 ("focus goes to the banner before it, as no banner replaces Reconnecting yet", focus inactive)
+
 **Shared surfaces:**
 - `.banner-slot`'s content: an own banner now shows in any spec whose live requests get no good answer for 10 s after the load. Today that is only L13, which Task 8 updates. Any count of `[data-banner]`, the slot's height, or announcements in such a spec changes (Task 10).
 - `LiveState`:
@@ -402,8 +456,38 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implemented change.** The page now says plainly when it loses contact.
+- `ContactWatch` (new, framework-free) counts 10 s and 30 s from the last answer of the live path. `LiveState` owns it, exposes `contact`, and counts an applied poll, an accepted snapshot and a 503 as answers. While unreachable, polls start 10 s apart. `stop()` ends the watch.
+- `BannerStack` shows Reconnecting and Unreachable from `contact` through Story 2.10's catalog, closing rule and announcements. `REPLACED_BY` makes focus move from Reconnecting to Unreachable.
+- Browser cases B13 to B16 and L13's additions run in a real stack with `page.route` and `page.clock`. `contact-watch.test.mjs` pins the exact thresholds.
+
+**Files changed.**
+- `web/src/app/live/contact-watch.ts` (new): the watch, its constants and `pollDelay`.
+- `web/src/app/live/live-state.ts`: the watch, `contact`, the answer rule, the 10 s retry, `stop()`, the class doc.
+- `web/src/app/banners/banner-view.ts`: `REPLACED_BY`.
+- `web/src/app/banners/banner-stack.ts`: `own` from `contact`, the replacement step in `keepFocus`.
+- `web/scripts/contact-watch.test.mjs` (new), `web/scripts/fake-clock.mjs` (new, moved from `busy-state.test.mjs`), `web/scripts/busy-state.test.mjs`, `web/scripts/banner-view.test.mjs`, `web/scripts/banner-styles.test.mjs`: Node tests and the shared fake clock.
+- `web/e2e/banners/banners.spec.ts`: B13 to B16. `web/e2e/live/live.spec.ts`: L13 asserts Reconnecting during the hung poll and its clear.
+- `docker/tests/test-sign-in.sh`: header and PASS and FAIL labels name B13 to B16.
+
+**Review.** Four layers reported 23 findings: high 0, medium 3, low 16, false 4.
+- Patched (3 entries): the reload leg of the answer rule was unpinned (a 503 of `/state`, and the banners clearing only when the reloaded snapshot applies), so B16 gained a fourth phase; focus after closing Reconnecting was unasserted, so B14 asserts it; two live-state.ts comments overclaimed the cadence and were reworded. Three mutations were added and observed red.
+- Deferred: none.
+- Rejected with reasons (rows 1, 2, 6 to 12, 17 to 23 of the triage log): a 503 counted by status alone is the spec's and AD-25's rule; late timers after a sleep follow Decided 3; the reload that fails is the matrix's own "still no answer"; the rest are theoretical, pre-existing, duplicate or already settled by a task.
+- Follow-up review recommended: false. The patches are test-only apart from two comments, and each is demonstrated by a mutation (patched entries: medium 1, low 2).
+
+**Verification performed.**
+- `npm --prefix web test` 388 pass; `npm --prefix web run lint`, `node web/scripts/catalog.mjs --check`, `bash docker/tests/test-web-build.sh` and `bash docker/tests/test-boundaries.sh` exit 0.
+- Throwaway `live sign-in` (tag e2s211i): 186 passed and 2 skipped, B13 to B16 and L13 among the passes, 403 s of the local 540 s deadline (398 s on the first run; about 384 s before this story). `live demo-path` passed (floor 3 of 3), `live bundle-folder` passed, `bash ci/checks.sh` exit 0, teardown left nothing.
+- Fourteen mutations recorded under `## Verification`, each applied alone, seen red and restored byte-identical.
+
+**Residual risks.**
+- A 503 counts as an answer by status alone (the spec and AD-25). A 503 from anything other than IRIS in front of a dead IRIS would hide the banners; Story 16.5 can narrow it with the `X-OcuTalon-Busy` marker.
+- After a sleep or in a long-hidden tab the thresholds can fire before the first answer lands, so a banner may flash and clear.
+- B13's "before 30 s" checks have about 5 s of margin on this host, and L13's new check about 2 s.
 
 **Plan stage (2026-10-24).** The plan halted after planning, as the dispatch asked.
 - It reused the committed `epic-2-context.md` (aa2910e) without recompiling it.
