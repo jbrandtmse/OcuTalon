@@ -1907,6 +1907,7 @@ So that the page works for me whichever browser I use.
 
 - DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
 - DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
+- DW-178: The skip links (Story 2.14) pass this story's accessibility scan in every browser: no link points at nothing (for example an in-page target in place of `href="#/"`) (ledger; routed by harvest 2026-10-24)
 
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
