@@ -1,7 +1,8 @@
 /// Composes every OcuTalon role from the Grants() of all the areas (AD-23, AD-24): per role, the union of
 /// the declared permissions on each resource. The role is created, or modified to hold exactly that set and no
 /// granted roles, so a start rewrites the roles and no area overwrites another's grants. Roles are structural
-/// (AD-19). A declaration of a forbidden resource (FORBIDDEN) fails the step before any role is touched.
+/// (AD-19). A declaration of a forbidden resource (FORBIDDEN), or of a resource that the instance does not have, fails the step before any
+/// role is touched.
 Class OcuTalon.Install.Step.Roles Extends OcuTalon.Install.Step
 {
 
@@ -55,9 +56,20 @@ ClassMethod Add(ByRef roles, grant As %DynamicObject, area As %String) As %Statu
 	If (permission = "") || ($Translate(permission, "RWU") '= "") {
 		Quit $SYSTEM.Status.Error(5001, area_" Grants(): permission '"_grant.permission_"' on '"_resource_"' for role '"_role_"' is not made of R, W and U")
 	}
+	If '..ResourceExists(resource) {
+		Quit $SYSTEM.Status.Error(5001, area_" Grants(): resource '"_resource_"' of role '"_role_"' does not exist on this instance")
+	}
 	Set held = $Get(roles(role, resource))_permission
 	Set roles(role, resource) = $Select(held [ "R": "R", 1: "")_$Select(held [ "W": "W", 1: "")_$Select(held [ "U": "U", 1: "")
 	Quit $SYSTEM.Status.OK()
+}
+
+/// 1 when the instance has the resource. Runs in %SYS.
+ClassMethod ResourceExists(resource As %String) As %Boolean [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ''##class(Security.Resources).Exists(resource)
 }
 
 /// Creates each role, or modifies it to hold exactly the resources composed for it and no granted roles.

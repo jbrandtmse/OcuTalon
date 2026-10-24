@@ -148,9 +148,43 @@ deferred: []
 - Given the flag and the accounts set through `Settings.Set` on the test stack, when `Users.Accounts` runs, then matrix rows 8 to 10 hold, and the Users step's source holds no `GetEnviron` (AC 4, AD-19, AD-24).
 - Given lane-b's `Test.Web.Install` and Lane B's live scripts, when the fresh `shard lane-b`, `live install-start` and `live sign-in` runs pass with no edit to those files, then the shared Grants and security surfaces are intact.
 
+### Review Findings
+
+Code review of 2026-10-24 (bmad-code-review; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all on the session's model; plus the lead's L1 to L3 and the reviewer's own Rule 2 check). 32 rows, grouped into 16 entries: high 0, medium 3, low 13. 11 patched, 5 closed in the ledger, 10 rows rejected.
+
+- [x] [Review][Patch] (medium, lead ruling L1, security posture) With the flag turned from 1 to 0 on a kept volume, the two public accounts stayed enabled with their published passwords -- the flag-off path of `Accounts` now runs `DisablePublic`: every account whose `FullName` is `MARKER` and that is enabled gets `Enabled` 0, nothing else changed, never deleted, and `Warn` names it; `DisableReadme` and `DisablePublic` share one `Disable` [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:79]; `TestFlagOffDisablesThePublicAccounts`; mutation recorded. fix-risk low: one query and a loop over the marked accounts.
+- [x] [Review][Patch] (medium, L2 + edge-case-hunter + verification-gap + acceptance-auditor) A resource the instance lacks failed the Roles step with IRIS's own `#892`, naming neither the area nor the role, and only after the roles that sort before it had been rewritten -- `Roles.Add` checks that the resource exists, so the refusal names the area, role and resource before any role is touched [src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls:59]; `TestUnknownResourceFailsTheStep` now asserts the three names and that a role sorting first keeps a grant added by hand; mutation recorded. fix-risk low: every resource that a `Grants()` declares exists before Roles runs (the CPF merge and IRIS's own).
+- [x] [Review][Patch] (medium, blind-hunter + verification-gap, Rule 19) Row 1's "random password" assertion compared hash and salt of two users, which differ for any password (the salt is random per `Create`), so `EnsureService` with a constant password stayed green -- the assertion is replaced by a known-`NewPassword` fixture step (`ZzUsersPins.NewPassword`) and `PasswordOk`, and `TestNewPassword` keeps pinning the generator [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:216]; mutation recorded. fix-risk low.
+- [x] [Review][Patch] (low, blind-hunter + edge-case-hunter + acceptance-auditor) An escalation role added by hand to a public account or the service user survived every start (measured: a `Modify` of `Roles` alone keeps `EscalationRoles`, and `%Service_EscalateLogin` is public Use) -- both `Modify` branches clear `EscalationRoles` [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:117]; drift cases in `TestPublicAccountsWithFlagOn` and `TestServiceUserDriftIsRepaired`; mutations recorded.
+- [x] [Review][Patch] (low, blind-hunter + verification-gap) `TestDeclarations` did not pin the persisted `MARKER` literal or `TRACENAMESPACES`, so a reworded marker (which turns a kept volume's public accounts into foreign ones) stayed green [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:181]; mutation recorded.
+- [x] [Review][Patch] (low, blind-hunter + edge-case-hunter) A published password that the instance refuses was reported under the name key only (`demoUser`) -- the error names both keys of the account [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:91]; `TestApplyFailuresNameTheUserAndTheKey` asserts `demoPassword`; mutation recorded.
+- [x] [Review][Patch] (low, blind-hunter + verification-gap, hermeticity) Four Users tests change the real `OcuTalonService` by hand and put it right only with their own last call -- `OnAfterOneTest` runs `EnsureService` when the user exists [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:91].
+- [x] [Review][Patch] (low, verification-gap) `AssertPublic` read a just-created account without the class's own wait for the hash before `CheckPassword` -- it waits (`Account(name, 1)`) [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:626]. (DW-9's flake was the `|` split, so the delay itself is unmeasured.)
+- [x] [Review][Patch] (low, verification-gap) The OCUORDERS half of AC 3's Workflow check had no control -- `TestWorkflowCheckCountsAWorkflowUser` saves and counts a Workflow user in OCUTALON and in OCUORDERS [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls:654]; mutation recorded.
+- [x] [Review][Patch] (low, acceptance-auditor) `TestEveryRole` checked the accounts' resources for `%Ens_WorkflowConfig` only, while AC 3 names all seven -- it checks the seven [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls:582].
+- [x] [Review][Patch] (low, edge-case-hunter) `ToolParameter`'s comment wrote the per-tool name as `base_<NAME>`, which reads as an underscore -- it says "base followed by NAME, with no separator" with an example [src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls:163].
+- [x] [Review][Defer] (low, reviewer's Rule 2 check) DW-8's `reopen_if` is met: `Test.Install.Registry.Clean` now deletes `ZzRegistry` users by prefix, a fourth copy of the %SYS fixture helper [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls:767] -- deferred: occurrence on DW-8, re-closed wontfix-accepted (the one fixture class spans Lane B's `Test/Web`), reopen_if a fifth test class repeats it. The Design Notes line "DW-8's reopen_if stays unmet" is superseded by that trailer.
+- [x] [Review][Defer] (low, L3) `Security.Users.Create` and `Modify` accept a role that does not exist (measured), and `EnsureService`'s "the role must exist" is not checked [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:109] -- deferred: DW-165, wontfix-theoretical (Roles runs before Users and makes the role; a missing role grants nothing).
+- [x] [Review][Defer] (low, acceptance-auditor) AD-24's "no services" is not enforced against a later `%Service_` declaration -- deferred: DW-166, wontfix-theoretical (login disabled closes every service; no tool declares `RESOURCES` yet).
+- [x] [Review][Defer] (low, acceptance-auditor) A Workflow user or membership added by hand for a public account is never taken away by a start -- deferred: DW-167, wontfix-theoretical (fresh online-demo volume; Story 3.4 owns `OcuTalonApprovals`' exact membership).
+- [x] [Review][Defer] (low, edge-case-hunter) An `OcuTalon*` role that no area declares is left as it is [src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls:76] -- deferred: DW-168, wontfix-theoretical (no release has shipped, so no volume holds a dropped role).
+
+Rejected:
+- `false` (verification-gap, acceptance-auditor) `ZzUsersPins.cls` is untracked -- QA's and the review's files are uncommitted by protocol; the lead's commit carries them (it is listed under Files Modified).
+- `false` (acceptance-auditor) the `TestEveryRole` mutation's reason ("`Install/Step/Web.cls` is a contended path") is inaccurate -- the epic's footprint gives `Install/Step/Web.cls` to Lane B (AD-23), so it is contended for this story.
+- `by-design` (acceptance-auditor) a password that the instance's policy refuses fails after the service user is applied, against "each check runs before anything is applied" -- recorded under Decided in-stage at implement (the step does not call `ValidatePassword` ahead); the fix would edit the spec.
+- `low` (verification-gap) `TestTraceRoleGrants`' private-database assertion cannot fail unless the exact-six equality does -- redundant, not vacuous: the equality is row 7's pin, with its mutation.
+- `low` (verification-gap) `$ListLength(roles) >= 4` in `TestEveryRole` is a weak control -- the recorded mutation (a forbidden grant for the service role) shows the scan reaches the service role.
+- `low` (edge-case-hunter) two tools that spell one resource in different case give two entries -- IRIS folds the case of resource names (measured), declarations are committed code, and the worst case is a lost permission, which the gate denies.
+- `low` (edge-case-hunter) the page size is pinned under the setting's spelling of the name -- the step makes the account from the same setting, and the online demo is a fresh volume.
+- `low` (edge-case-hunter) `CheckPrivilege` answering an error status would make `TestTraceRoleSql` grant and revoke the real grant -- no such answer was shown; the fix adds a guard.
+- `low` (blind-hunter) SQL privileges granted by hand straight to a public account are not cleared -- nothing grants SQL to a user, and the fix is a revoke pass with branches.
+- `low` (edge-case-hunter) an `ExpirationDate` set by hand on a public account is not cleared -- it only stops that account's sign-in (fails closed) and grants nothing.
+
 ## Spec Change Log
 
 - 2026-10-24, lead spec gate (unattended ruling, veto window: security posture): with the flag on, an existing README account is disabled (roles and password unchanged) and the step warns, instead of being left as it is (matrix row 9, Boundaries, Users task, Users test row 9, mutation table). The first-start OCUORDERS page-size pin is routed to Story 3.8's `Public` step (DW-160, routed by spec_gate). The `RESOURCES` grammar and the service role's name are recorded as the spine's Consistency Conventions row "Tool resources" (Rule 20).
+- 2026-10-24, lead ruling at review (unattended, veto window: security posture; product default 3, keep the safe behaviour): the implement stage's wontfix-accepted "the public accounts are not retired when the flag goes back to 0" is replaced. With the flag off, the Users step disables (`Enabled` 0, nothing else changed) every account that carries the step's online-demo marker `FullName`, and warns naming it; no account is ever deleted (matrix row 8's flag-off path; `Users.DisablePublic`, `TestFlagOffDisablesThePublicAccounts`).
 
 ## Review Triage Log
 
@@ -360,6 +394,41 @@ mutation: `Users.EnsureService` returns the status of `Create` without the user 
 mutation: `Users.EnsurePublic` leaves the password out of its `Modify` branch -> Users `TestPublicAccountsWithFlagOn` (row 9, a changed password is restored)
 mutation: `Users.DisableReadme` does not warn -> Users `TestPublicAccountsWithFlagOn` (row 9, the warning)
 mutation: `Users.PublicAccounts` drops the check of a name that is a role, of the service user, of the README account or of a foreign account (each alone) -> Users `TestPublicAccountsRefused` (row 10)
+
+**Mutations recorded at QA** (Rule 19; found by mutating the product code against the shipped tests. Two survivors were observed before any new test existed: the order swap in `Users.Accounts` and the flag read as `flag '= 0`; the other new tests pin behaviour that no shipped assertion read. Each mutation below was applied on the warm stack `e3s1qw`, observed red, reverted from a byte copy so that `git status --short` and the hash of `git diff` on `src/ocutalon/cls/OcuTalon/Install` were as before, and the class run green again on the same stack):
+
+mutation: `Users.Accounts` applies the service user before it validates the public settings -> Users `TestRefusalLeavesADriftedServiceUserAlone` (row 10, a refusal changes nothing; the only test that went red)
+mutation: `Users.Accounts` reads any flag but 0 as on (`flag '= 0`) -> Users `TestOnlyOneTurnsTheFlagOn` (rows 8 and 9: an unset flag, 0, "yes", "true" and 2 are off)
+mutation: `Users.Disable` (which `DisableReadme` calls since the review) drops its exit for an account that is already disabled -> Users `TestADisabledReadmeAccountIsNotWarnedAboutAgain` (row 9, one warning per disabling; demonstrated again at code review, `TestFlagOffDisablesThePublicAccounts` also)
+mutation: `Users.EnsurePublic` drops the marker check -> Users `TestEnsurePublicRefusesAForeignAccount` (row 10, at the write)
+mutation: `Users.PinTrace` drops the namespace-exists check -> Users `TestPinSkipsANamespaceThatDoesNotExist` (row 9, "where it exists")
+mutation: `Users.PublicAccounts` compares the README name with its case -> Users `TestPublicAccountsRefused` (the upper-case README case, row 10)
+mutation: `Users.Accounts` drops the status of the README account's `Ensure` -> Users `TestFailureOfEnsureIsReturned` (row 8, the error column)
+mutation: `Roles.Add` widens the forbidden match to the first 15 characters of a resource -> Registry `TestNearMissesAreNotForbidden` (row 5, the exact seven; every other test stayed green)
+mutation: `Roles.Apply` ignores a refusal by the instance -> Registry `TestUnknownResourceFailsTheStep` (Task 0: an unknown resource fails the step). Superseded at code review: `Roles.Add` now refuses an unknown resource before `Apply` runs, so this test's pin is the code-review line "`Roles.Add` drops the check that the resource exists".
+mutation: `Tools.Toolsets` drops the abstract filter -> Registry `TestToolsetsSkipAnAbstractToolset` (Task: "non-abstract")
+mutation: `Registry.WorkflowRows` (the test's own query) reads the wrong column -> Registry `TestWorkflowCheckCountsAWorkflowUser` (AC 3, the Workflow clause; `TestEveryRole` stayed green, which is why the control exists)
+mutation: `Users.EnsurePublic` also makes the account a Workflow user -> Registry `TestEveryRole` (AC 3, the Workflow clause)
+mutation: `Users.Grants()` gives `OcuTalonUser` a resource -> `OcuTalon.Test.Web.Install` `TestGrants`, "OcuTalonUser holds no resource" (AC 5, lane-b's shared surface; the class was run warm and not edited)
+mutation: `Tools.GrantsOf` removes duplicates by resource alone -> Tools `TestGrantsOf` and Registry `TestToolResourcesReachTheServiceUser` (row 3, the pairs; no line existed for it)
+
+**Mutations recorded at code review** (Rule 19; each applied on the review's warm stack `e3s1rw`, observed red, reverted from a byte copy so that `git status --short`, the hash of `git diff` and the untracked fixture's hash were as before, and the class run green again on the same stack):
+
+mutation: `Users.Accounts` skips `DisablePublic` on the flag-off path -> Users `TestFlagOffDisablesThePublicAccounts` (lead ruling at review: the public accounts disabled with the flag off)
+mutation: `Users.EnsureService` creates the service user with a constant password instead of `NewPassword()` -> Users `TestServiceUserIsCreated` (row 1, the password is the one `NewPassword` makes; the hash-and-salt comparison it replaces stayed green under this mutation)
+mutation: `Users.MARKER` reworded -> Users `TestDeclarations` (row 10, the persisted marker)
+mutation: `Users.EnsurePublic` drops the `EscalationRoles` reset -> Users `TestPublicAccountsWithFlagOn` (row 9, exact roles)
+mutation: `Users.EnsureService` drops the `EscalationRoles` reset -> Users `TestServiceUserDriftIsRepaired` (row 2, exactly the role)
+mutation: `Users.Accounts` names only the name key of a refused account -> Users `TestApplyFailuresNameTheUserAndTheKey` (row 9, the password key named)
+mutation: `Roles.Add` drops the check that the resource exists -> Registry `TestUnknownResourceFailsTheStep` (the area and the role named, and a role sorting first left as it was)
+mutation: `Registry.WorkflowRows` (the test's own query) skips OCUORDERS -> Registry `TestWorkflowCheckCountsAWorkflowUser` (AC 3, the OCUORDERS half of the Workflow clause)
+
+**Files added or changed at QA (QA):**
+- `src/ocutalon/cls/OcuTalon/Test/Install/ZzUsersPins.cls` (QA, new): the Users step with a pin list that names a missing namespace; a fixture, not a test case.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` (QA): `TestRefusalLeavesADriftedServiceUserAlone`, `TestOnlyOneTurnsTheFlagOn`, `TestADisabledReadmeAccountIsNotWarnedAboutAgain`, `TestEnsurePublicRefusesAForeignAccount`, `TestPinSkipsANamespaceThatDoesNotExist`, `TestFailureOfEnsureIsReturned`, an upper-case README case in `TestPublicAccountsRefused`, and `Parameter PINS`.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls` (QA): `TestNearMissesAreNotForbidden`, `TestUnknownResourceFailsTheStep`, `TestToolsetsSkipAnAbstractToolset`, `TestWorkflowCheckCountsAWorkflowUser`, the XData `FixtureAbstractToolset`, the helpers `ResourceExists` and `ClearWorkflow` (called by `Clean`).
+
+**QA runs** (tags `e3s1q` fresh, `e3s1qw` warm): the warm stack's after-start log held `STEP Roles OK`, `STEP Users OK` and `RESULT OK`; the Install classes Users, Tools and Registry passed in both orders; `Test.Bridge.CodeRules`, `Test.Bridge.Steps` and `Test.Web.Install` passed; `bash ci/checks.sh` passed; `OCUTALON_RUN_TAG=e3s1q bash ci/iris.sh shard lane-a` passed (42 classes) from a fresh start; `ci/warm.sh down` and `ci/iris.sh teardown` left nothing tagged `e3s1q`.
 
 **Shared surfaces:**
 - **The OcuTalon roles:**

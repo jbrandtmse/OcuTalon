@@ -2,7 +2,8 @@
 /// seed password; on the online demo the two published accounts are structural and the README account is disabled. The fixture's user and
 /// roles are created in OnBeforeAllTests and removed in OnAfterAllTests; the real README account is never touched, and the real service user
 /// and its role are removed again when the tests made them. The fixture's number comes from ^OcuTalonTest("Users","n"), which is never reset,
-/// so no two runs share a fixture name. The five public keys are saved before each test and restored after it.
+/// so no two runs share a fixture name. The five public keys are saved before each test and restored after it, and the real service user,
+/// which some tests change by hand, is put right again after each test.
 Class OcuTalon.Test.Install.Users Extends %UnitTest.TestCase
 {
 
@@ -11,6 +12,9 @@ Parameter STEP = "OcuTalon.Install.Step.Users";
 
 /// The public keys that a test sets, in the order of Saved.
 Parameter KEYS = "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword";
+
+/// The step with a list of namespaces for the page size pin that names one that does not exist, and a known NewPassword.
+Parameter PINS = "OcuTalon.Test.Install.ZzUsersPins";
 
 /// The fixture's number, from a counter that Clean leaves alone: the user is ZzUsers<n> and the roles are ZzUsers<n>RoleA and
 /// ZzUsers<n>RoleB.
@@ -73,7 +77,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Puts the public keys back, a key that was not set removed, and removes the fixture accounts.
+/// Puts the public keys back, a key that was not set removed, puts the real service user right when it exists (a test that changed it by
+/// hand and stopped early leaves it so), and removes the fixture accounts.
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set keys = $ListFromString(..#KEYS)
@@ -83,6 +88,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Set index = index + 1
 		Do ##class(OcuTalon.Data.Public.Settings).Set(key, $ListGet(..Saved, index))
 	}
+	If ..UserExists($Parameter(..#STEP, "SERVICEUSER")) Do $ClassMethod(..#STEP, "EnsureService")
 	Do ..ClearAccounts()
 	Quit $SYSTEM.Status.OK()
 }
@@ -172,6 +178,8 @@ Method TestDeclarations()
 	Do $$$AssertEquals($Parameter(users, "DEMOROLES"), "OcuTalonUser,OcuTalonTraceViewer", "the demo account's roles")
 	Do $$$AssertEquals($Parameter(users, "READONLYROLES"), "OcuTalonTraceViewer", "the read-only account's role")
 	Do $$$AssertEquals($Parameter(users, "TRACEPAGESIZE"), 100, "the pinned page size")
+	Do $$$AssertEquals($Parameter(users, "MARKER"), "OcuTalon online-demo account", "the marker of the accounts the step made, which a kept volume holds")
+	Do $$$AssertEquals($Parameter(users, "TRACENAMESPACES"), "OCUTALON,OCUORDERS", "the namespaces of the page size pin")
 }
 
 /// The account line keeps the hash apart from its length: the hash and the salt are binary, so either may hold "|" and the hash
@@ -186,8 +194,8 @@ Method TestAccountLineKeepsAPipeHash()
 }
 
 /// Matrix row 1: the service user is made with login disabled, no forced change, a password and an account that never expire, exactly
-/// the role, and a random password: two users made one after the other have different hashes and salts. The user and the role are fixtures
-/// (EnsureService takes both), so the real service user is not touched.
+/// the role, and the password that NewPassword makes (TestNewPassword pins that it is random): the step with a known NewPassword gives the
+/// user that password. The user and the role are fixtures (EnsureService takes both), so the real service user is not touched.
 Method TestServiceUserIsCreated()
 {
 	Set service = "ZzUsers"_..Number_"Svc"
@@ -203,9 +211,9 @@ Method TestServiceUserIsCreated()
 	Do $$$AssertTrue($Piece(first, "|", 6) > 0, "the account has a password hash: its length is "_$Piece(first, "|", 6))
 	Do $$$AssertTrue('..PasswordOk(service, $Parameter(..#STEP, "PASSWORD")), "the README's published password is not the service user's")
 	Do ..Remove(service)
-	Do $$$AssertStatusOK($ClassMethod(..#STEP, "EnsureService", service, role), "and again after the user was deleted")
-	Set second = ..Account(service, 1)
-	Do $$$AssertNotEquals($Piece(second, "|", 6, $Length(second, "|")), $Piece(first, "|", 6, $Length(first, "|")), "the password is random: the second user's hash and salt differ from the first's")
+	Do $$$AssertStatusOK($ClassMethod(..#PINS, "EnsureService", service, role), "the step with a known NewPassword makes the user again")
+	Do ..Account(service, 1)
+	Do $$$AssertTrue(..PasswordOk(service, $ClassMethod(..#PINS, "NewPassword")), "the user's password is the one that NewPassword makes")
 }
 
 /// The generator of the service user's password: 44 characters, and every call another one.
@@ -218,8 +226,8 @@ Method TestNewPassword()
 	Do $$$AssertNotEquals(first, second, "and the next is another one")
 }
 
-/// Matrix row 2: a service user that was enabled by hand and given another role is disabled again and holds exactly the role, and its password
-/// hash is the one it had (seed).
+/// Matrix row 2: a service user that was enabled by hand and given another role and an escalation role is disabled again, holds exactly the
+/// role and no escalation role, and its password hash is the one it had (seed).
 Method TestServiceUserDriftIsRepaired()
 {
 	Set service = "ZzUsers"_..Number_"Svc"
@@ -228,13 +236,16 @@ Method TestServiceUserDriftIsRepaired()
 	Set before = ..Account(service, 1)
 	Do ..SetProperty(service, "Enabled", 1)
 	Do ..SetProperty(service, "Roles", ..Roles)
+	Do ..SetProperty(service, "EscalationRoles", $Piece(..Roles, ",", 2))
 	Set drifted = ..Account(service)
 	Do $$$AssertEquals($Piece(drifted, "|", 1), 1, "the user was enabled by hand")
 	Do $$$AssertEquals(..SortedRoles(drifted), ..Roles, "and given the other role")
+	Do $$$AssertEquals(..EscalationRoles(service), $Piece(..Roles, ",", 2), "and an escalation role")
 	Do $$$AssertStatusOK($ClassMethod(..#STEP, "EnsureService", service, role), "EnsureService runs again")
 	Set after = ..Account(service)
 	Do $$$AssertEquals($Piece(after, "|", 1), 0, "Enabled is 0 again")
 	Do $$$AssertEquals($Piece(after, "|", 5), role, "and the roles are exactly the role")
+	Do $$$AssertEquals(..EscalationRoles(service), "", "and it has no escalation role")
 	Do $$$AssertEquals($Piece(after, "|", 6, $Length(after, "|")), $Piece(before, "|", 6, $Length(before, "|")), "the password hash and salt are unchanged")
 }
 
@@ -268,8 +279,8 @@ Method TestReadmeAccountWithFlagOff()
 
 /// Matrix row 9: with the flag on, Accounts makes the two published accounts with exactly their roles and flags and their published
 /// passwords, pins their Visual Trace page size to 100 in OCUTALON and OCUORDERS, leaves them no write access to the database of the page
-/// settings, makes no README account, and disables one that exists (roles and password unchanged) with a warning that names it. A role added
-/// by hand, a changed password, changed flags and a changed page size are put back at the next run.
+/// settings, makes no README account, and disables one that exists (roles and password unchanged) with a warning that names it. A role and an
+/// escalation role added by hand, a changed password, changed flags and a changed page size are put back at the next run.
 Method TestPublicAccountsWithFlagOn()
 {
 	Set step = ..#STEP
@@ -301,6 +312,7 @@ Method TestPublicAccountsWithFlagOn()
 
 	#; Drift: a role added by hand, a changed password, changed flags, a changed page size, and the README account enabled again.
 	Do ..SetProperty(..Demo, "Roles", $Parameter(step, "DEMOROLES")_",OcuTalonAdmin")
+	Do ..SetProperty(..Demo, "EscalationRoles", "OcuTalonAdmin")
 	Do ..SetProperty(..Demo, "Password", "Zz-other-pw-9")
 	Do ..SetProperty(..Demo, "Enabled", 0)
 	Do ..SetProperty(..Demo, "ChangePassword", 1)
@@ -313,6 +325,7 @@ Method TestPublicAccountsWithFlagOn()
 	Do ..SetProperty($Parameter(step, "SERVICEUSER"), "Enabled", 1)
 	Do ..SetProperty($Parameter(step, "SERVICEUSER"), "Roles", ..Roles)
 	Do $$$AssertEquals(..SortedRoles(..Account(..Demo)), ..Sorted($Parameter(step, "DEMOROLES")_",OcuTalonAdmin"), "the demo account was given OcuTalonAdmin by hand")
+	Do $$$AssertEquals(..EscalationRoles(..Demo), "OcuTalonAdmin", "and as an escalation role")
 	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "Accounts runs again")
 	Do ..AssertPublic(accounts, "after the second run")
 	Do $$$AssertEquals($Piece(..Account(..Readme), "|", 1), 0, "the README account is disabled again")
@@ -351,6 +364,7 @@ Method TestPublicAccountsRefused()
 	Set cases = cases _ $ListBuild($ListBuild(service, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1", "service user"))
 	Set cases = cases _ $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", $ZConvert(service, "L"), "Zz-ro-pw-1", "service user"))
 	Set cases = cases _ $ListBuild($ListBuild(..Readme, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1", "README account"))
+	Set cases = cases _ $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", $ZConvert(..Readme, "U"), "Zz-ro-pw-1", "README account"))
 	Set cases = cases _ $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", $Piece($Parameter(step, "DEMOROLES"), ",", 1), "Zz-ro-pw-1", "names the role"))
 	Set cases = cases _ $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", "_SYSTEM", "Zz-ro-pw-1", "did not make"))
 	Set position = 0
@@ -390,8 +404,20 @@ Method TestApplyFailuresNameTheUserAndTheKey()
 	Set sc = $ClassMethod(step, "Accounts", ..Readme)
 	Set text = $SYSTEM.Status.GetErrorText(sc)
 	Do $$$AssertStatusNotOK(sc, "Accounts fails for a password of two characters")
-	Do $$$AssertTrue((text [ "demoUser") && (text [ ..Demo), "and the error names the key and the account")
+	Do $$$AssertTrue((text [ "demoUser") && (text [ "demoPassword") && (text [ ..Demo), "and the error names the two keys and the account: "_text)
 	Do $$$AssertEquals(..Account(..Demo), "<none>", "and the account is not made")
+}
+
+/// The error column of row 8: the status of Ensure is returned by Accounts, not swallowed. The README account is named like a role, which the
+/// instance refuses (a role and a user cannot share a name).
+Method TestFailureOfEnsureIsReturned()
+{
+	Set step = ..#STEP
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Set readmeUser = $Piece(..Roles, ",", 2)
+	Set sc = $ClassMethod(step, "Accounts", readmeUser)
+	Do $$$AssertStatusNotOK(sc, "Accounts returns the failure of Ensure for the README name "_readmeUser)
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "control: Accounts runs for a README name that is not a role")
 }
 
 /// Run is the step of a start: with the flag off it puts the service user right, as Accounts does, and leaves the README account. A README
@@ -419,6 +445,142 @@ Method TestNoEnvironment()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#STEP, .text), "the step has source")
 	Do $$$AssertTrue(text [ "ClassMethod Accounts", "control: the text is the step's source")
 	Do $$$AssertNotTrue($ZConvert(text, "L") [ "getenviron", "the Users step holds no GetEnviron")
+}
+
+/// Matrix row 10 ("no account is created or changed"): the service user is included. The real service user is enabled by hand and given other
+/// roles, and a refused run leaves it so, because the checks run before the service user is applied; a run that is not refused puts it right.
+Method TestRefusalLeavesADriftedServiceUserAlone()
+{
+	Set step = ..#STEP
+	Set service = $Parameter(step, "SERVICEUSER")
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "Accounts makes the service user right")
+	Set right = ..Account(service, 1)
+	Do ..SetProperty(service, "Enabled", 1)
+	Do ..SetProperty(service, "Roles", ..Roles)
+	Set drifted = ..Account(service)
+	Do $$$AssertNotEquals(drifted, right, "the service user was changed by hand")
+
+	Do ..SetPublic(1, ..Demo, "", ..Ro, "Zz-ro-pw-1")
+	Set sc = $ClassMethod(step, "Accounts", ..Readme)
+	Do $$$AssertStatusNotOK(sc, "Accounts refuses an empty demo password")
+	Do $$$AssertEquals(..Account(service), drifted, "and the service user is as the hand left it: enabled, with the other roles")
+	Do $$$AssertEquals(..Account(..Demo), "<none>", "and no public account is made")
+
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "a run that is not refused follows")
+	Do $$$AssertEquals(..Account(service), right, "and puts the service user right again")
+}
+
+/// Rows 8 and 9: only the flag 1 is on. A flag that was never set, 0, and any other value read as off: Accounts makes the README account and
+/// the service user, and makes no public account and pins no page size, although the public accounts' keys are set.
+Method TestOnlyOneTurnsTheFlagOn()
+{
+	Set step = ..#STEP
+	Set values = $ListBuild("", 0, "yes", "true", 2)
+	Set position = 0
+	While $ListNext(values, position, value) {
+		Do ..ClearAccounts()
+		Do ..SetPublic(value, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+		Set label = "the flag '"_value_"'"
+		Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), label_": Accounts runs")
+		Do $$$AssertEquals($Piece(..Account(..Readme), "|", 1), 1, label_" is off: the README account is made, enabled")
+		Do $$$AssertEquals(..Account(..Demo), "<none>", label_": no demo account is made")
+		Do $$$AssertEquals(..Account(..Ro), "<none>", label_": and no read-only account")
+		Do $$$AssertEquals($Data(^|"OCUTALON"|EnsPortal.Settings(..Demo)), 0, label_": and no page size is pinned")
+	}
+	Do ..ClearAccounts()
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "control: the flag 1 runs")
+	Do $$$AssertEquals($Piece(..Account(..Demo), "|", 1), 1, "and makes the demo account")
+	Do $$$AssertEquals(..Account(..Readme), "<none>", "and no README account")
+}
+
+/// Row 9: the step warns when it disables the README account, and not again on a later start where the account is already disabled.
+Method TestADisabledReadmeAccountIsNotWarnedAboutAgain()
+{
+	Set step = ..#STEP
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "Accounts makes the README account with the flag off")
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "the first run with the flag on")
+	Set warnings = $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Do $$$AssertTrue($ListValid(warnings) && ($ListToString(warnings) [ ..Readme), "disables the README account and warns, naming it")
+	Do $$$AssertEquals($Piece(..Account(..Readme), "|", 1), 0, "the README account is disabled")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "the next run with the flag on")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Install.Step", "TakeWarnings"), "", "gives no warning: the account is already disabled")
+	Do $$$AssertEquals($Piece(..Account(..Readme), "|", 1), 0, "and it stays disabled")
+}
+
+/// The flag turned off again on a kept volume: every account that the step made for the online demo is disabled, with a warning that names
+/// it, and keeps its roles, flags, password and marker; no account is deleted, and the README account that the run makes is enabled. A later
+/// run with the flag off warns no more, and the flag on again puts the published accounts back.
+Method TestFlagOffDisablesThePublicAccounts()
+{
+	Set step = ..#STEP
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "Accounts makes the published accounts with the flag on")
+	Set accounts = $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", ..Account(..Demo, 1)), $ListBuild(..Ro, "Zz-ro-pw-1", ..Account(..Ro, 1)))
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "Accounts runs with the flag off")
+	Set warnings = $ListToString($ClassMethod("OcuTalon.Install.Step", "TakeWarnings"))
+	Set position = 0
+	While $ListNext(accounts, position, account) {
+		Set name = $List(account, 1)
+		Set before = $List(account, 3)
+		Set after = ..Account(name)
+		Do $$$AssertEquals($Piece(before, "|", 1), 1, name_" was enabled with the flag on")
+		Do $$$AssertEquals($Piece(after, "|", 1), 0, name_" is disabled with the flag off, and not deleted")
+		Do $$$AssertEquals($Piece(after, "|", 2, $Length(after, "|")), $Piece(before, "|", 2, $Length(before, "|")), name_" keeps its flags, roles and password")
+		Do $$$AssertTrue(..PasswordOk(name, $List(account, 2)), name_" keeps its published password, so it is the disabled flag that stops the sign-in")
+		Do $$$AssertEquals(..FullName(name), $Parameter(step, "MARKER"), name_" keeps its marker")
+		Do $$$AssertTrue(warnings [ name, "the step warns, naming "_name_": "_warnings)
+	}
+	Do $$$AssertEquals($Piece(..Account(..Readme), "|", 1), 1, "the README account that the run makes is enabled")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "the next run with the flag off")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Install.Step", "TakeWarnings"), "", "gives no warning: the accounts are already disabled")
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(step, "Accounts", ..Readme), "the flag on again")
+	Do ..AssertPublic($ListBuild($ListBuild(..Demo, "Zz-demo-pw-1", "OcuTalonTraceViewer,OcuTalonUser"), $ListBuild(..Ro, "Zz-ro-pw-1", "OcuTalonTraceViewer")), "with the flag on again")
+}
+
+/// Row 10, where the account is written: EnsurePublic rewrites only an account that the step made (its FullName is the marker). An account
+/// that the step did not make keeps its password, roles, flags and name. The control makes the account the step's own and rewrites it.
+Method TestEnsurePublicRefusesAForeignAccount()
+{
+	Set step = ..#STEP
+	Set name = ..Demo
+	Do $$$AssertStatusOK($ClassMethod(step, "Ensure", name, "Zz-foreign-pw-1", ..Roles), "an account the step did not make exists under the public name")
+	Set before = ..Account(name, 1)
+	Set foreignName = ..FullName(name)
+	Set sc = $ClassMethod(step, "EnsurePublic", name, "Zz-demo-pw-1", $Parameter(step, "DEMOROLES"))
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertStatusNotOK(sc, "EnsurePublic refuses it")
+	Do $$$AssertTrue((text [ name) && (text [ "OcuTalon.Install.Step.Users"), "and the error names the account and the step: "_text)
+	Do $$$AssertEquals(..Account(name), before, "its roles, flags, password hash and salt are as they were")
+	Do $$$AssertTrue(..PasswordOk(name, "Zz-foreign-pw-1"), "and it keeps its password")
+	Do $$$AssertEquals(..FullName(name), foreignName, "and its name")
+
+	Do ..Remove(name)
+	Do $$$AssertStatusOK($ClassMethod(step, "EnsurePublic", name, "Zz-demo-pw-1", $Parameter(step, "DEMOROLES")), "control: it makes the account when there is none")
+	Do $$$AssertStatusOK($ClassMethod(step, "EnsurePublic", name, "Zz-demo-pw-2", $Parameter(step, "DEMOROLES")), "and rewrites an account that it made")
+	Do $$$AssertTrue(..PasswordOk(name, "Zz-demo-pw-2"), "with the new password")
+	Do $$$AssertEquals(..FullName(name), $Parameter(step, "MARKER"), "and its marker")
+}
+
+/// Task step 5: the page size is pinned in each namespace of TRACENAMESPACES that exists, and a name in the list that is no namespace is
+/// skipped without an error (an install that has no OCUORDERS). The fixture step lists a missing namespace first and then OCUTALON, and
+/// leaves OCUORDERS out, so the pin of a namespace that is not in the list would show too.
+Method TestPinSkipsANamespaceThatDoesNotExist()
+{
+	Set pins = ..#PINS
+	Do $$$AssertEquals($Parameter(pins, "TRACENAMESPACES"), "ZZNOSUCHNAMESPACE,OCUTALON", "the fixture step names a missing namespace, then OCUTALON")
+	Do $$$AssertNotTrue(##class(%SYS.Namespace).Exists("ZZNOSUCHNAMESPACE"), "that namespace does not exist")
+	Do $$$AssertStatusOK($ClassMethod(pins, "PinTrace", ..Demo), "PinTrace skips it without an error")
+	Do $$$AssertEquals($Get(^|"OCUTALON"|EnsPortal.Settings(..Demo, "VisualTrace", "ItemsPerPage")), $Parameter(..#STEP, "TRACEPAGESIZE"), "and pins the namespace that exists")
+	Do $$$AssertEquals($Data(^|"OCUORDERS"|EnsPortal.Settings(..Demo)), 0, "and pins no namespace that is not in the list")
 }
 
 /// --- fixtures ---
@@ -451,7 +613,8 @@ ClassMethod Line(enabled, changePassword, neverExpires, accountNeverExpires, rol
 	Quit enabled_"|"_changePassword_"|"_neverExpires_"|"_accountNeverExpires_"|"_roles_"|"_$Length(hash)_"|"_hash_salt
 }
 
-/// Asserts, for each of the published accounts $ListBuild(name, password, sorted roles), that it holds exactly its roles, is enabled, has
+/// Asserts, for each of the published accounts $ListBuild(name, password, sorted roles), that it holds exactly its roles and no escalation
+/// role, is enabled, has
 /// neither a forced change nor an expiry, carries the installer's marker, has its published password (and not another), has its page size
 /// pinned to 100 in OCUTALON and in OCUORDERS, and that it cannot write the database that holds the page settings in either namespace.
 Method AssertPublic(accounts As %List, when As %String) [ Private ]
@@ -460,8 +623,9 @@ Method AssertPublic(accounts As %List, when As %String) [ Private ]
 	Set position = 0
 	While $ListNext(accounts, position, account) {
 		Set name = $List(account, 1)
-		Set line = ..Account(name)
+		Set line = ..Account(name, 1)
 		Do $$$AssertEquals(..SortedRoles(line), $List(account, 3), name_" holds exactly its roles "_when)
+		Do $$$AssertEquals(..EscalationRoles(name), "", name_" holds no escalation role "_when)
 		Do $$$AssertEquals($Piece(line, "|", 1, 4), "1|0|1|1", name_" is enabled, with no forced change and no expiry "_when)
 		Do $$$AssertEquals(..FullName(name), $Parameter(..#STEP, "MARKER"), name_" carries the installer's marker "_when)
 		Do $$$AssertTrue(..PasswordOk(name, $List(account, 2)), name_" has its published password "_when)
@@ -503,6 +667,15 @@ ClassMethod PasswordOk(user As %String, password As %String) As %Boolean [ Priva
 	Set $Namespace = "%SYS"
 	If '##class(Security.Users).Exists(user, .object) Quit 0
 	Quit ''##class(Security.Users).CheckPassword(.object, password)
+}
+
+/// The escalation roles of a user as a comma list. Runs in %SYS.
+ClassMethod EscalationRoles(user As %String) As %String [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Do ##class(Security.Users).Get(user, .properties)
+	Quit $Get(properties("EscalationRoles"))
 }
 
 ClassMethod FullName(user As %String) As %String [ Private ]

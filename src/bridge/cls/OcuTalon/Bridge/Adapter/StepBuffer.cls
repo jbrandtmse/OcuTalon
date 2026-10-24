@@ -160,8 +160,9 @@ ClassMethod LabelFor(toolClass As %String, name As %String) As %String
 }
 
 /// The value of a tool's class parameter by the one naming rule of the tool parameters (Consistency Conventions: Agent step labels, Tool
-/// classification, Tool resources): the parameter base_<NAME> of the class, where NAME is the tool's name in upper case with _ and - removed,
-/// when the compiled class defines it, even when its value is empty; else the parameter base when the class defines it; else "". A class that
+/// classification, Tool resources): the parameter named base followed by NAME, with no separator (for base RESOURCES and the tool
+/// set_reminder, RESOURCESSETREMINDER), where NAME is the tool's name in upper case with _ and - removed, when the compiled class defines
+/// it, even when its value is empty; else the parameter base when the class defines it; else "". A class that
 /// does not exist or cannot be read gives "". It reads the class dictionary only, so the bridge, the installer and the gate share one reader.
 ClassMethod ToolParameter(toolClass As %String, name As %String, base As %String) As %String
 {

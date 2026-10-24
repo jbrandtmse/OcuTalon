@@ -8,7 +8,8 @@
 ///   - On the online demo (the flag is on) the two published accounts of the public settings (AD-24): the demo account and the read-only
 ///     account, with their published password, exact roles and flags, and their Visual Trace page size pinned. They are structural, rewritten
 ///     at every start, and the step manages only an account that it made (its FullName is MARKER). The README account is never made there,
-///     and one that exists is disabled, because the README publishes its password.
+///     and one that exists is disabled, because the README publishes its password. With the flag off again, every account that the step
+///     made for the online demo is disabled, never deleted, because its password is published.
 /// The flag and the accounts are read only through OcuTalon.Data.Public.Settings (AD-19). The published settings are all checked before
 /// anything is applied (PublicAccounts), so a refusal of them changes nothing. A refusal by the instance itself, such as a password that
 /// its policy rejects, is the status of that call with the key named, and leaves what was applied before it. The step also declares the two
@@ -61,7 +62,7 @@ ClassMethod Grants() As %DynamicArray
 ///   1. the online-demo flag, read through Settings.Get (an error status fails the step);
 ///   2. flag on: the four account keys, all validated (PublicAccounts);
 ///   3. the service user (EnsureService);
-///   4. flag off: the README account, readmeUser, as Ensure makes it;
+///   4. flag off: every account made for the online demo disabled (DisablePublic), then the README account, readmeUser, as Ensure makes it;
 ///   5. flag on: the two public accounts (EnsurePublic), their page size pins (PinTrace), and the README account disabled when it exists.
 ClassMethod Accounts(readmeUser As %String) As %Status
 {
@@ -74,16 +75,20 @@ ClassMethod Accounts(readmeUser As %String) As %Status
 	}
 	Set sc = ..EnsureService()
 	If $$$ISERR(sc) Quit sc
-	If 'online Quit ..Ensure(readmeUser, ..#PASSWORD, ..#ROLES)
+	If 'online {
+		Set sc = ..DisablePublic()
+		If $$$ISERR(sc) Quit sc
+		Quit ..Ensure(readmeUser, ..#PASSWORD, ..#ROLES)
+	}
 	For i = 1:1:accounts {
 		Set name = $List(accounts(i), 1)
-		Set key = $List(accounts(i), 4)
+		Set key = $List(accounts(i), 4)_"' and '"_$List(accounts(i), 5)
 		Set sc = ..EnsurePublic(name, $List(accounts(i), 2), $List(accounts(i), 3))
 		If $$$ISERR(sc) Quit
 		Set sc = ..PinTrace(name)
 		If $$$ISERR(sc) Quit
 	}
-	If $$$ISERR(sc) Quit ..Fail("public setting '"_key_"' (account '"_name_"')", sc)
+	If $$$ISERR(sc) Quit ..Fail("public settings '"_key_"' (account '"_name_"')", sc)
 	Quit ..DisableReadme(readmeUser)
 }
 
@@ -99,7 +104,8 @@ ClassMethod Ensure(user As %String, password As %String, roles As %String) As %S
 }
 
 /// The service user: created once with login disabled, holding exactly the role, and a random password of 44 characters that nothing
-/// reads (seed). A user that exists gets Enabled 0 and exactly the role, and keeps its password. Runs in %SYS. The role must exist.
+/// reads (seed). A user that exists gets Enabled 0, exactly the role and no escalation role, and keeps its password. Runs in %SYS. The
+/// role must exist.
 ClassMethod EnsureService(user As %String = {..#SERVICEUSER}, role As %String = {..#SERVICEROLE}) As %Status
 {
 	New $Namespace
@@ -108,6 +114,7 @@ ClassMethod EnsureService(user As %String = {..#SERVICEUSER}, role As %String = 
 		Kill properties
 		Set properties("Enabled") = 0
 		Set properties("Roles") = role
+		Set properties("EscalationRoles") = ""
 		Set sc = ##class(Security.Users).Modify(user, .properties)
 	} Else {
 		Set sc = ##class(Security.Users).Create(user, role, ..NewPassword(), "OcuTalon service user", "OCUTALON", "", "", 0, 0, "Created by the OcuTalon installer; login is disabled.", 1, "", "", , 1, 1)
@@ -122,8 +129,8 @@ ClassMethod NewPassword() As %String
 	Quit $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.GenCryptRand(32), 1)
 }
 
-/// A published account: created, or modified, to hold the password, exactly the roles, FullName MARKER, Enabled 1, ChangePassword 0,
-/// PasswordNeverExpires 1 and AccountNeverExpires 1. An existing account that this step did not make (another FullName) is refused and
+/// A published account: created, or modified, to hold the password, exactly the roles and no escalation role, FullName MARKER, Enabled 1,
+/// ChangePassword 0, PasswordNeverExpires 1 and AccountNeverExpires 1. An existing account that this step did not make (another FullName) is refused and
 /// left as it is. Runs in %SYS.
 ClassMethod EnsurePublic(name As %String, password As %String, roles As %String) As %Status
 {
@@ -134,6 +141,7 @@ ClassMethod EnsurePublic(name As %String, password As %String, roles As %String)
 		Kill properties
 		Set properties("Password") = password
 		Set properties("Roles") = roles
+		Set properties("EscalationRoles") = ""
 		Set properties("FullName") = ..#MARKER
 		Set properties("Enabled") = 1
 		Set properties("ChangePassword") = 0
@@ -163,7 +171,8 @@ ClassMethod PinTrace(name As %String) As %Status
 	Quit sc
 }
 
-/// The published accounts as accounts = their count and accounts(n) = $ListBuild(name, password, roles, key of the name), validated before
+/// The published accounts as accounts = their count and accounts(n) = $ListBuild(name, password, roles, key of the name, key of the
+/// password), validated before
 /// anything is applied: every name and password is set, the two names differ without regard to case, no name is the service user, the
 /// README account or a role, and no name is an existing account that this step did not make. A refusal names the key or the clash. The values
 /// come only through Settings.Get.
@@ -180,7 +189,7 @@ ClassMethod PublicAccounts(readmeUser As %String, Output accounts) As %Status [ 
 		If name = "" Set sc = ..Refuse("public setting '"_nameKey_"' is empty, and the online demo needs it") Quit
 		If password = "" Set sc = ..Refuse("public setting '"_passwordKey_"' is empty, and the online demo needs it") Quit
 		Set accounts = accounts + 1
-		Set accounts(accounts) = $ListBuild(name, password, $Select(kind = "demo": ..#DEMOROLES, 1: ..#READONLYROLES), nameKey)
+		Set accounts(accounts) = $ListBuild(name, password, $Select(kind = "demo": ..#DEMOROLES, 1: ..#READONLYROLES), nameKey, passwordKey)
 	}
 	If $$$ISERR(sc) Quit sc
 	If $ZConvert($List(accounts(1), 1), "L") = $ZConvert($List(accounts(2), 1), "L") {
@@ -220,19 +229,47 @@ ClassMethod Foreign(name As %String) As %Boolean [ Private ]
 	Quit (user.FullName '= ..#MARKER)
 }
 
-/// Disables the README account when it exists and is enabled, leaving its roles and password as they are, and warns. The online demo
-/// publishes its accounts on the splash screen, so the README's published password must not sign in there. Runs in %SYS.
+/// Disables the README account when it exists and is enabled (Disable). The online demo publishes its accounts on the splash screen, so
+/// the README's published password must not sign in there.
 ClassMethod DisableReadme(readmeUser As %String) As %Status [ Private ]
+{
+	Quit ..Disable(readmeUser, "The README account '"_readmeUser_"' exists on an online-demo instance and was disabled, because the README publishes its password")
+}
+
+/// Disables every account that this step made for the online demo (its FullName is MARKER) and that is enabled (Disable), because with
+/// the flag off its published password must not sign in. No account is deleted. Runs in %SYS.
+ClassMethod DisablePublic() As %Status [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
-	If '##class(Security.Users).Exists(readmeUser, .user) Quit $SYSTEM.Status.OK()
-	If 'user.Enabled Quit $SYSTEM.Status.OK()
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Security.Users WHERE FullName = ?", ..#MARKER)
+	If result.%SQLCODE < 0 Quit ..Refuse("the online-demo accounts could not be listed: "_result.%Message)
+	Set names = ""
+	While result.%Next() {
+		Set names = names _ $ListBuild(result.%GetData(1))
+	}
+	Set sc = $SYSTEM.Status.OK()
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Set sc = ..Disable(name, "The online-demo account '"_name_"' was disabled, because the online-demo flag is off and its password is published")
+		If $$$ISERR(sc) Quit
+	}
+	Quit sc
+}
+
+/// Disables the account when it exists and is enabled, leaving its roles, password and name as they are, and warns with the text; an account
+/// that is already disabled gives no warning. Runs in %SYS.
+ClassMethod Disable(user As %String, warning As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If '##class(Security.Users).Exists(user, .object) Quit $SYSTEM.Status.OK()
+	If 'object.Enabled Quit $SYSTEM.Status.OK()
 	Kill properties
 	Set properties("Enabled") = 0
-	Set sc = ##class(Security.Users).Modify(readmeUser, .properties)
-	If $$$ISERR(sc) Quit ..Fail("the README account '"_readmeUser_"'", sc)
-	Do ..Warn("The README account '"_readmeUser_"' exists on an online-demo instance and was disabled, because the README publishes its password")
+	Set sc = ##class(Security.Users).Modify(user, .properties)
+	If $$$ISERR(sc) Quit ..Fail("the account '"_user_"'", sc)
+	Do ..Warn(warning)
 	Quit sc
 }
 

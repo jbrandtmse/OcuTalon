@@ -544,7 +544,7 @@ Method TestTraceRoleSql()
 
 /// Matrix rows 3 to 7 together (AC 3): after the Roles step, no OcuTalon role holds a forbidden resource or a granted role, and the trace role
 /// holds no private or public database. The README account, the service user and the two public accounts (made here under fixture names) are
-/// no Workflow user and no Workflow role member, in OCUTALON and in OCUORDERS, and no resource of their roles is the Workflow configuration.
+/// no Workflow user and no Workflow role member, in OCUTALON and in OCUORDERS, and no resource that they hold is forbidden.
 Method TestEveryRole()
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs")
@@ -574,14 +574,127 @@ Method TestEveryRole()
 	Set position = 0
 	While $ListNext(accounts, position, account) {
 		Do $$$AssertEquals(..WorkflowRows(account), 0, account_" is no Workflow user and no member of a Workflow role, in either namespace")
-		Do $$$AssertTrue(..UserResources(account) '[ "%Ens_WorkflowConfig", account_"'s roles do not hold the Workflow configuration")
+		Set held = ..UserResources(account)
+		Set found = ""
+		For i = 1:1:$Length(held, ",") {
+			If $ListFind(forbidden, $ZConvert($Piece($Piece(held, ",", i), ":", 1), "U")) Set found = found _ " " _ $Piece(held, ",", i)
+		}
+		Do $$$AssertEquals(found, "", account_" holds no forbidden resource, the Workflow configuration included")
 	}
 	Do $$$AssertTrue(..UserResources(demoUser) [ "%Ens_Portal", "control: the resources of an account are read, so an empty answer is not a failed read")
 	Do ..RemoveUser(demoUser)
 	Do ..RemoveUser(readonlyUser)
 }
 
+/// Row 5, the other side: only AD-24's seven names are refused. Resources whose names begin like a forbidden one, and the ones that later tools
+/// declare (%Ens_MessageResend, %Ens_ConfigItemRun), are composed into a role.
+Method TestNearMissesAreNotForbidden()
+{
+	Set bad = "OcuTalon.Install.Step.ZzzNear"_..Number
+	Set nearRole = "OcuTalonZzFixture"_..Number_"Near"
+	Set sc = ..Create("FixtureForbidden", bad, ..Number, nearRole)
+	Do $$$AssertStatusOK(sc, "the fixture area compiles")
+	If $$$ISERR(sc) Quit
+	Set resources = $ListBuild("%Ens_MessageResend", "%Ens_ConfigItemRun", "%Ens_ProductionDocumentation")
+	Set position = 0
+	While $ListNext(resources, position, resource) {
+		Set ^OcuTalonTest("Registry", ..Number, "forbidden") = resource
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step accepts "_resource)
+		Do $$$AssertEquals(..Permissions(nearRole, resource), "U", "and the role holds Use on "_resource)
+	}
+	Do ..Delete(bad)
+	Do $ClassMethod(..Area, "Role", "delete", nearRole)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs without the area")
+}
+
+/// A declaration of a resource that the instance does not have fails the Roles step before any role is touched, with a status that names
+/// the area, the role and the resource: the role that would hold it is not made, and a role that sorts before it keeps a grant added by hand.
+Method TestUnknownResourceFailsTheStep()
+{
+	Set resource = "ZzOcuTalonNoSuchResource"
+	Set bad = "OcuTalon.Install.Step.ZzzUnknown"_..Number
+	Set unknownRole = "OcuTalonZzFixture"_..Number_"Unknown"
+	Do $$$AssertNotTrue(..ResourceExists(resource), "the resource does not exist")
+	Do ..RemoveRoles()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs and makes the fixture role")
+	Set byHand = "%DB_USER:RW,%Ens_Portal:U,%Service_Terminal:U"
+	Do ..SetRoleResources(..Role, byHand)
+	Set sc = ..Create("FixtureForbidden", bad, ..Number, unknownRole)
+	Do $$$AssertStatusOK(sc, "the fixture area compiles")
+	If $$$ISERR(sc) Quit
+	Set ^OcuTalonTest("Registry", ..Number, "forbidden") = resource
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Run()
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do ..Delete(bad)
+	Do $$$AssertStatusNotOK(sc, "the Roles step fails")
+	Do $$$AssertTrue((text [ bad) && (text [ unknownRole) && (text [ resource), "and the error names the area, the role and the resource: "_text)
+	Do $$$AssertEquals(..ReadRole(unknownRole), "<none>", "and the role is not made")
+	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), byHand, "and no role was changed: the fixture role, which sorts first, keeps its extra grant")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs without the area")
+	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), "%DB_USER:RW,%Ens_Portal:U", "and rebuilds the fixture role")
+}
+
+/// The Tools area lists the compiled, non-abstract toolsets only: an abstract toolset of the package OcuTalon.Tools is not one, and a built-in
+/// toolset still is.
+Method TestToolsetsSkipAnAbstractToolset()
+{
+	Set toolset = "OcuTalon.Tools.ZzProbe"_..Number_"Abstract"
+	Set sc = ..Create("FixtureAbstractToolset", toolset, ..Number)
+	Do $$$AssertStatusOK(sc, "the abstract toolset compiles")
+	If $$$ISERR(sc) Quit
+	Set toolsets = $ClassMethod("OcuTalon.Install.Step.Tools", "Toolsets")
+	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%OpenId(toolset).Abstract, "control: the toolset is compiled and abstract")
+	Do $$$AssertEquals($ListFind(toolsets, toolset), 0, "Toolsets does not list it")
+	Do $$$AssertTrue($ListFind(toolsets, "OcuTalon.Tools.Reminders") > 0, "and still lists a built-in toolset")
+	Do ..Delete(toolset)
+}
+
+/// The Workflow check of TestEveryRole can fail: a Workflow user is counted, in OCUTALON and in OCUORDERS, so a count of 0 for an account is
+/// a finding about the account and not a blind spot of the query. The fixture Workflow user is removed again (and by Clean).
+Method TestWorkflowCheckCountsAWorkflowUser()
+{
+	Set name = "ZzRegistry"_..Number_"Wf"
+	Do $$$AssertTrue(##class(%SYS.Namespace).Exists("OCUORDERS"), "OCUORDERS exists on the stack")
+	Do $$$AssertEquals(..WorkflowRows(name), 0, "no row for a name that is no Workflow user")
+	New $Namespace
+	Set home = $Namespace
+	For namespace = home, "OCUORDERS" {
+		Set $Namespace = namespace
+		Set user = ##class(EnsLib.Workflow.UserDefinition).%New()
+		Set user.Name = name
+		Set sc = user.%Save()
+		Set $Namespace = home
+		Do $$$AssertStatusOK(sc, "the fixture Workflow user is saved in "_namespace)
+		Do $$$AssertEquals(..WorkflowRows(name), 1, "a Workflow user in "_namespace_" is counted")
+		Set $Namespace = namespace
+		Do ##class(EnsLib.Workflow.UserDefinition).%DeleteId(name)
+		Set $Namespace = home
+		Do $$$AssertEquals(..WorkflowRows(name), 0, "and is not counted once it is deleted from "_namespace)
+	}
+}
+
 /// --- fixtures ---
+/// 1 when the resource exists. Runs in %SYS.
+ClassMethod ResourceExists(resource As %String) As %Boolean [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ''##class(Security.Resources).Exists(resource)
+}
+
+/// Deletes the fixture Workflow users, in OCUTALON and in OCUORDERS where it exists.
+ClassMethod ClearWorkflow() [ Private ]
+{
+	New $Namespace
+	Set namespaces = $ListBuild("OCUTALON", "OCUORDERS")
+	Set position = 0
+	While $ListNext(namespaces, position, namespace) {
+		If '##class(%SYS.Namespace).Exists(namespace) Continue
+		Set $Namespace = namespace
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM EnsLib_Workflow.UserDefinition WHERE Name %STARTSWITH 'ZzRegistry'")
+	}
+}
+
 /// Runs Run() of the probe, whose order is the list, with its output in a temporary file. Returns the output
 /// (line ends as $Char(10)) and leaves the status of the run in sc.
 Method RunProbe(order As %List, Output sc As %Status) As %String [ Private ]
@@ -647,6 +760,7 @@ ClassMethod Clean() [ Private ]
 		Do $SYSTEM.OBJ.Delete(result.%GetData(1), "-d")
 	}
 	Kill ^OcuTalonTest("Registry")
+	Do ..ClearWorkflow()
 	New $Namespace
 	Set $Namespace = "%SYS"
 	Set statement = ##class(%SQL.Statement).%New()
@@ -1093,7 +1207,15 @@ XData Definition [ MimeType = application/xml ]
 }
 }
 
-/// An area that declares a forbidden resource for @ROLE@: the resource is read from the test's global.
+/// An abstract toolset: never a built-in one.
+XData FixtureAbstractToolset [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends %AI.ToolSet [ Abstract ]
+{
+}
+}
+
+/// An area that declares a resource for @ROLE@ that the test chooses: the resource is read from the test's global.
 XData FixtureForbidden [ MimeType = text/plain ]
 {
 Class @CLASS@ Extends OcuTalon.Install.Step

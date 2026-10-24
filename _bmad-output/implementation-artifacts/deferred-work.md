@@ -50,6 +50,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Clean() in Test.Web.Install, Test.Web.Shell and Test.Install.Users, and CreateRoles in Test.Web.Install and Test.Install.Users, repeat one pattern with their own prefixes, 6 to 12 lines each
 - 2026-10-19T06:11:53Z status=wontfix-accepted owner=0-3-sign-in-to-an-empty-ocutalon-page by=cr note=reopen_if=a fourth test class repeats the delete-by-prefix or CreateRoles helper (then extract one OcuTalon.Test fixture class)
+- 2026-10-24T15:47:10Z occurrence=3-1-roles-and-the-service-user-grant-only-what-the-architecture
+- 2026-10-24T15:47:10Z status=wontfix-accepted owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=4th copy: Test.Install.Registry Clean deletes ZzRegistry users by prefix; extraction spans Lane B Test.Web. reopen_if=a 5th test class repeats it
 
 ### DW-9: flake: OcuTalon.Test.Install.Users:TestEnsureCreates read an empty password hash once (1 of 7 runs on slot A), then passed on 3 unchanged reruns
 - source: fresh_check 0.3 | severity: med | fix-risk: low | footprint: in-epic
@@ -646,3 +648,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
 - 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
+
+### DW-165: Security.Users Create and Modify accept a role that does not exist, so EnsureService's 'the role must exist' is a precondition that nothing checks
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Measured at review on the warm throwaway e3s1rw: Modify(user, Roles=ZzCrNoSuchRole) returned 1. AD-23's order runs Roles (which creates OcuTalonServiceRole from the Tools area's role-alone entry) before Users, and a missing role grants nothing.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if the Users step runs without the Roles step before it (a reordered registry, or a Roles failure that does not stop the start)
+
+### DW-166: AD-24's 'no services' for the service user is not enforced against a later RESOURCES declaration of a %Service_ resource
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The service user's login is disabled (Enabled 0, matrix rows 1 and 2), which closes every service; no tool declares RESOURCES yet, so OcuTalonServiceRole holds nothing; its resource set shows only the instance's public permissions.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a tool or fix kind declares a %Service_ resource for OcuTalonServiceRole (Story 3.2's gate, Stories 7.x)
+
+### DW-167: The Users step never removes a Workflow user or Workflow role membership that is added by hand for a public account
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: AD-24 says public accounts are never Workflow users; the step never makes one and TestEveryRole checks it on test stacks, but a start does not take one away; the online demo is a fresh volume (AD-25).
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if an operator makes a public account a Workflow user on a kept flag-on volume; Story 3.4 owns OcuTalonApprovals' exact membership
+
+### DW-168: The Roles step leaves an OcuTalon-prefixed role that no area declares as it is, so FORBIDDEN and the GrantedRoles reset never reach it
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Roles.Compose and Apply touch only declared roles; no OcuTalon release has shipped, so no installed volume holds a role that a later version stopped declaring.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a release drops a role from every Grants() while kept volumes still hold it
