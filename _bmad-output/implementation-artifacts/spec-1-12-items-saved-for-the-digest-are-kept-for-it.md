@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-23'
 status: 'done'
 baseline_revision: '22e77d9b13f8da6e618d71d31cfeefebd1a00db8'
+baseline_commit: '22e77d9b13f8da6e618d71d31cfeefebd1a00db8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -108,7 +109,7 @@ deferred:
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Kept (live) | A fixture `ItemDecision`: new `ItemId`, `OwnerRef` A (a new Ref), `Channel` `mailbox`, `Summary` "Test <ItemId>", a new `DecisionRef`, `Outcome` `digest`. Sent to `DigestStore` with `RunnerFixture.Send`. | 1. **The answer:** OK, with no response object.<br>2. **The row:** exactly one `Item` row for the `ItemId`, with `SessionRef` A and the message's `DecisionRef`, `Channel` and `Summary`. Its `RecordedAt` matches `YYYY-MM-DDThh:mm:ssZ` and lies between `NowUtc()` read just before and just after the send.<br>3. **Nobody notified:** `RunnerFixture.Headers(<the send's session>, "DigestStore")` is empty.<br>4. **No live event:** no `OcuTalon_Live.Event` row has `Stream` A, and none since the test began holds the `ItemId` or the `DecisionRef` in its `Payload`. | OK |
+| Kept (live) | A fixture `ItemDecision`: new `ItemId`, `OwnerRef` A (a new Ref), `Channel` `mailbox`, `Summary` "Test <ItemId>", a new `DecisionRef`, `Outcome` `digest`. Sent to `DigestStore` with `RunnerFixture.Send`. | 1. **The answer:** OK, with no response object.<br>2. **The row:** exactly one `Item` row for the `ItemId`, with `SessionRef` A and the message's `DecisionRef`, `Channel` and `Summary`. Its `RecordedAt` matches `YYYY-MM-DDThh:mm:ssZ` and lies between `NowUtc()` read just before and just after the send.<br>3. **Nobody notified:** `RunnerFixture.Headers(<the send's session>, "DigestStore")` holds no header but DigestStore's own synchronous reply to `ApprovalStartIn` (no body). [AMENDED 2026-10-24, lead, unattended ruling: the row said the list is empty; Task 0 (d) measured the reply header in every send, so "sends no message" is read as no header other than that reply]<br>4. **No live event:** no `OcuTalon_Live.Event` row has `Stream` A, and none since the test began holds the `ItemId` or the `DecisionRef` in its `Payload`. | OK |
 | Kept, instance (live) | The same with `OwnerRef` `instance` | One row with `SessionRef` `instance`. | OK |
 | Refused (live) | `Outcome` `tellnow`, `act` or `ignore`; `OwnerRef` `eval` or empty; `ItemId` empty | Each gets an error status whose text names the reason and the `ItemId` when there is one, and no row (by `ItemId`, and by `SessionRef` for the empty `ItemId`). No header from `DigestStore`. | error status |
 | Another class (live) | An `Ens.StringRequest` sent to `DigestStore` | Error code 5003, no response, no row. | error status |
@@ -254,6 +255,8 @@ deferred:
   (`Test.Digest.Store.TestPurgeByTheTask`, `TestPurgeDays`, `TestPurgeRefuses`)
 
 ## Spec Change Log
+
+- 2026-10-24, lead (Epic 1 runner), at dev complete: matrix row "Kept (live)" 3 restated to the measured observable (Task 0 (d), decision 14); the intent, nobody notified, is unchanged.
 
 ## Review Triage Log
 

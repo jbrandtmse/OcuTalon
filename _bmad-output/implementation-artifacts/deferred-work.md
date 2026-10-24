@@ -553,3 +553,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Rule 2 check at review: the spec names RequestSize as the pattern it follows (a weak reason); each copy keeps per-class flags and asserts
 - 2026-10-24T02:57:20Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=cr note=reopen_if=two copies of Prepare diverge (one gains a readiness step another lacks) or a sixth live test class copies it
+
+### DW-149: In a request without %Admin_ConfigStore (Epic 2's /ocutalon/api /state, APPLICATIONROLES only), Keys.Status reads a MISSING model key as present: Status sets present=1 in its Catch, and Keys.Present falls back to %ConfigStore.Configuration.Exists when ConfigStore.Details fails; so a keyless start shows no 'no model key' banner (a false all-clear) and each /state audits three refusals; Budget.State's Usage SELECT has no SQL grant there either and logs a warning per call
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: high | fix-risk: med | footprint: in-footprint
+- evidence: src/bridge/cls/OcuTalon/Bridge/Keys.cls Status/Present; Bridge/Budget.cls State; Epic 2's /state computes noModelKey from Keys.Status(agent); Install/Step/Web.cls APPLICATIONROLES; verified by the orchestrator on origin/OCT-epic1 7f1c2bb
+- 2026-10-24T05:11:53Z status=routed owner=burndown by=cr note=cross-epic, found by Epic 2 at 2.10 (Epic 2's DW-148); must close in Epic 1; orchestrator ruling 2026-10-24: chartered first in Epic 1's burn-down story, never overflowed; a refused or failed read never reads as present, a missing key reads missing, unknown never passes as OK; Budget.State works there or degrades without a per-call warning; the key's value never reaches the web request; pinning test: the read in a request context without %Admin_ConfigStore and no key configured reads as missing
+
+### DW-150: Digest.Data.Item.Since returns every item of the session since the time, with no cap
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest/Data/Item.cls Since; the first consumer is Story 17.6
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=Story 17.6's digest wants only a count and the newest N summaries, and a session's saved items between two digests can reach thousands
+
+### DW-151: TestKeepsInstance's no-live-event check counts only instance-stream events whose payload holds the ItemId or DecisionRef, so a store publishing an event without either Ref would pass it
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Digest/Store.cls TestKeepsInstance; TestKeeps counts the owner's whole stream
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=any file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live.Publish
+
+### DW-152: DigestStore.Keep's concurrent-repeat path (the save fails on the unique index after the pre-check found no row) has no test
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest/Store.cls Keep; DigestStore pool 1; TestOnce pins the sequential repeat
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=the DigestStore item in OcuTalon.Production has a PoolSize above 1
