@@ -509,3 +509,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.10 Tools/ReminderTools TRUSTEDOUTPUT<NAME>; AD-10 3a quarantine; spine row Saved conversations
 - 2026-10-23T23:00:53Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=spec_gate note=3.3 decides whether set_reminder and cancel_reminder declare TRUSTEDOUTPUT 1 (a class parameter each)
+
+### DW-137: A JSON true given as set_reminder's delaySeconds reaches SetReminder as 1 (AI Hub decodes arguments before the method runs), so it sets a reminder one second ahead instead of being refused
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Task 0 (c): true becomes 1; the schema says integer
+- 2026-10-24T01:30:42Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=reopen_if=a live run shows a model sending a boolean or a non-integer delaySeconds
+
+### DW-138: The reminder tools pass the model's strings on without a bound, so a value longer than the command's field (LocalDueAt MAXLEN 19, Text 1000, ReminderRef 22; delaySeconds unbounded) may fail when the real CommandsIn saves the message, and the model is told the service did not answer
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Tools/CommandCall; the double never saves the message
+- 2026-10-24T01:30:42Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=reopen_if=with Story 2.3's real CommandsIn, a 20-character localDueAt or a 20-digit delaySeconds gives NOTSENT instead of the owner's plain-English refusal
+
+### DW-139: list_reminders declares TRUSTEDOUTPUT 1 (the AC), but each reminder's Text is model-authored (set_reminder's argument), so a later turn that lists it gets stored model text back as trusted output
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/ReminderTools TRUSTEDOUTPUTLISTREMINDERS; AD-10's trusted output is 'built by code from OcuTalon's own records'
+- 2026-10-24T01:30:42Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=harvest note=unverified; 3.1/3.3 decide whether a result carrying stored model-authored text is exempt from taint (with DW-136)
+
+### DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: AD-20 max_iterations arithmetic; one cancel_reminder call per Ref
+- 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's live check of a 'cancel all my reminders' turn with three or more pending reminders settles it; raising the ceiling amends AD-20 (owner's veto window)
+
+### DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/CommandCall key; Context.CommandCount
+- 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's ReminderOps compares the verb and fields on a reused key, or refuses the reuse
