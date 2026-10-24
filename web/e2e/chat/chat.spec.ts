@@ -498,11 +498,20 @@ test.describe('C4: a failed send', () => {
     await expect.poll(() => posts().length).toBe(1);
     const clientId = posts()[0]!.clientId;
     await expect(replyOf(page, clientId), "the server's turn arrives by poll before the post is answered").toHaveCount(1, { timeout: 15_000 });
+    const failed = page.waitForResponse((response) => isPath(response.url(), MESSAGES) && response.status() === 503, { timeout: 15_000 });
     answer();
-    await page.waitForTimeout(1500);
+    await failed;
+    // The page handles the failure a task or two after the network has the answer, and would announce it in the next 100 ms. The look
+    // is placed by the page's own progress, not by a wall-clock margin: two polls answered after the failure are two page turns of at
+    // least a second each, so a failure that was going to be announced has been, on a slow host as on a quick one.
+    for (let i = 0; i < 2; i += 1) {
+      await page.waitForResponse((response) => EVENTS.test(response.url()), { timeout: 15_000 });
+    }
     expect(await announcements(page, 'Message not sent'), 'a failure of a message that the page shows as sent is not announced').toBe(0);
     await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
     await expect(userOf(page, clientId), 'and the page shows the message once').toHaveCount(1);
+    // The post reached the server, so its turn runs on: its reply is waited for here, so that it never lands inside a later case.
+    await expect(replyOf(page, clientId).locator('.text'), "the server's turn ends in its fallback reply").toHaveText(FALLBACK, { timeout: 20_000 });
   });
 });
 

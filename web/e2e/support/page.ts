@@ -70,9 +70,12 @@ export async function recordAnnouncements(page: Page): Promise<void> {
   });
 }
 
-/** How many times the recorded announcements hold exactly this text. */
+/**
+ * How many of the recorded announcements hold this text, alone or joined with others (the announcer speaks the messages of one update
+ * as one text). A burst spoken as "{n} new updates" holds none of its texts: a case that says nothing is announced reads announcedTexts.
+ */
 export const announcements = (page: Page, text: string): Promise<number> =>
-  page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry === wanted).length, text);
+  page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry.includes(wanted)).length, text);
 
 /** How many announcements were recorded, whatever their text. */
 export const announcementCount = (page: Page): Promise<number> => page.evaluate(() => (window as unknown as { announced: string[] }).announced.length);

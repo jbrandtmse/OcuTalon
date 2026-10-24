@@ -120,6 +120,11 @@ describe('a card', () => {
     assert.deepEqual(texts, ['Tell now: zz Orders are failing.']);
   });
 
+  it('is announced with its first sentence even when its text starts with a line break', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), tellNow('N1', { text: '\nzz Orders are failing. More.' })]]);
+    assert.deepEqual(texts, ['Tell now: zz Orders are failing.']);
+  });
+
   it('is announced for a new reminder: its text', () => {
     const { texts } = next([[turn('A')]], [[turn('A'), notice('N1', { text: 'Reminder: zz A3 stretch.' })]]);
     assert.deepEqual(texts, ['Reminder: zz A3 stretch.']);
@@ -215,6 +220,12 @@ describe('the first sentence', () => {
 
   it('ends after "e.g." as the rule says', () => {
     assert.equal(firstSentence('Use e.g. this one. Then more.'), 'Use e.g.');
+  });
+
+  it('skips leading white space and blank lines first, so a text that starts with a line break still has a sentence', () => {
+    assert.equal(firstSentence('\nFirst. Second.'), 'First.');
+    assert.equal(firstSentence('  \r\n \n  Only line'), 'Only line');
+    assert.equal(firstSentence('\n\nFirst line\nSecond. Third.'), 'First line');
   });
 
   it('returns text with no mark whole, trimmed', () => {

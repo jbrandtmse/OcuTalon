@@ -18,7 +18,7 @@ import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
-import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard } from './chat-announcements';
+import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS, chatView, isFreshChat, type ChatEntryView } from './chat-view';
 import { Composer } from './composer';
@@ -36,9 +36,6 @@ interface Target {
   key: string;
   part: 'user' | 'reply' | 'notice';
 }
-
-/** True once a turn's reply is the model's text or a fallback: the reply has landed. A notice card has landed when it is there. */
-const landed = (entry: ChatEntryView): boolean => entry.entry === 'notice' || entry.reply.kind === 'text' || entry.reply.kind === 'fallback';
 
 /** The attributes that mark an item of the list (a user message, a reply or a notice card) with its part and its key. */
 const PART = 'data-part';

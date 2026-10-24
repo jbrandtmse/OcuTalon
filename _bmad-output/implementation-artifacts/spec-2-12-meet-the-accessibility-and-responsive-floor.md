@@ -399,6 +399,35 @@ deferred:
 
   Tests: A1, A4, A5, P1 to P3, B13 and R9.
 
+### Review Findings
+
+Code review (follow-up), 2026-10-24: four layers on the full tier (blind hunter, edge case hunter, verification gap, acceptance auditor) plus the reviewer's own Rule 2, 3, 6 and 19 checks. 27 rows became 11 entries (0 high, 3 medium, 8 low) and 9 rejected rows. Every entry is dispositioned, and nothing high or medium is left open. Each entry gives severity, fix-risk, footprint and spec status.
+
+- [x] [Review][Patch] The exact-text "not announced" checks could not see a message that the queue joined or counted. With this story's queue, B8's six snapshot banners would arrive as "6 new updates" and B7's two as one joined text, so every exact count read 0. This is the spec's "announcer's output" shared surface (Rule 19). The fix: `announcements()` now counts texts that hold the message, alone or joined, and B7 and B8 assert that `announcedTexts` is empty. [web/e2e/support/page.ts:77, web/e2e/banners/banners.spec.ts:459, :514] (med; fix-risk low: test-only, and the full unit passed 201 of 201; in-story; clear)
+- [x] [Review][Patch] The new C4 late-failure case let its post reach the server and ended while the server's turn was still running. The turn's fallback reply could then land inside a later PANEL case, for example C6's exact `data-session-seq`, which is Rule 19 hermeticity. The case now waits for that reply, as its sibling cases do; locally it ran in 3.3 s. [web/e2e/chat/chat.spec.ts:514] (med; fix-risk low: one wait in the existing pattern; in-story; clear)
+- [x] [Review][Patch] Rule 2: `chat-announcements.ts` re-implemented the chat panel's `landed` predicate inline, with no stated reason, so the New messages button and the announcements would drift when a reply kind is added. The predicate is now `landed` in `chat-announcements.ts`, which the panel imports, and its own copy is gone. [web/src/app/chat/chat-announcements.ts:21, web/src/app/chat/chat-panel.ts:21] (med; fix-risk low: no change in behaviour, 475 Node tests and the build pass; in-story; clear)
+- [x] [Review][Patch] `ChatOutbox` decided "unsent" from its entry list, which a root effect prunes a render after the store changes. A failure handled between the poll that brings the turn and that render was therefore announced for a message the page shows as sent (Decided 18). It now reads the store, as `chatView` does, through a `held()` helper that the pruning effect shares. [web/src/app/chat/chat-outbox.ts:79] (low; fix-risk low: a narrower guard; in-story; clear)
+- [x] [Review][Patch] DW-162: `keepFocus` focused a target that cannot take focus, such as a rail `li.row`, and left focus on the body. A target that does not take focus now passes it on to `main.main`. `focus-rule.test.mjs` pins this with an item that has no tabindex, which also makes P4's second half able to fail for the rail. [web/src/app/shared/focus-rule.ts:81, web/scripts/focus-rule.test.mjs:303] (low; fix-risk low: it acts only after focus is already lost; in-story; clear)
+- [x] [Review][Patch] The live-region ratchet missed forms that this codebase already uses or is likely to: `setAttribute('role', ...)`, `role:` in host metadata, `[role]=`, `ariaLive` and `<output>`. The regex now covers them and checks itself against each form. [web/scripts/announce-focus-sources.test.mjs:57] (low; fix-risk low: test; in-story; clear)
+- [x] [Review][Patch] Ratchet soundness: the `.focus(` allowlist checked files, not calls, so a stray focus call added to an allowed file (`chat-panel.ts`, `popover.ts`) passed. It now pins the count in each file, so Stories 2.14 and 2.15 add a count and a reason for each call they add. [web/scripts/announce-focus-sources.test.mjs:121] (low; fix-risk low: test; in-story; clear)
+- [x] [Review][Patch] The A1 doc and the file header claimed that the browser shows Deciding is silent, but no floor case shows Deciding. Both comments now say so and point to `chat-announcements.test.mjs` (Rule 14). [web/e2e/floor/announcements.spec.ts:23] (low; fix-risk low: comments; in-story; clear)
+- [x] [Review][Patch] Two `assert.ok(pane)` lines could never fail, because `withHelp()` always builds the pane. They are deleted; each case keeps its real assertion. [web/scripts/focus-rule.test.mjs:403] (low; fix-risk low: deletion; in-story; clear)
+- [x] [Review][Patch] DW-161 is settled by QA's `holdPoll`, which stops the page clock during a hold, so Reconnecting cannot show. QA's 12 s hold mutation demonstrates it. Ledger: `resolved-by` this story. [web/e2e/support/api.ts:99] (low; fix-risk low: ledger only; in-story; clear)
+- [x] [Review][Defer] DW-163: no browser case runs the chat's reload row. [web/src/app/chat/chat-panel.ts:278] — deferred: `wontfix-accepted`. A case would need a skipped seq, a turn that lands across it, and new browser time inside the unit's 540 s local deadline (460 s now), more than a two-way door. The Node diff pins the record. `reopen_if=` a reply that lands across a skipped seq is not announced, or a reload announces the chat again. (low; fix-risk med: browser time and a new case; in-story; clear)
+
+Ledger, owned entries: DW-153 `resolved-by` this story (A4 and `announce-queue.test.mjs` pin the joined text; the screen-reader check stays DW-159); DW-161 `resolved-by`; DW-162 `resolved-by`; DW-163 `wontfix-accepted`. No new entry was filed. The ratchet `announce-focus-sources.test.mjs` is judged sound once patched: every list names its files with a reason, and the live forms, the CDK speaker, the hosts' rules and the focus calls per file are all pinned.
+
+Rejected (9 rows):
+- `low` Spec bookkeeping ("Rejected, 18 rows" against the log's 16; 456 s against 465 s): the fix edits the spec under review.
+- `low` A whitespace-only reply or an empty tell-now summary gives "OcuTalon replied:" alone: the server rejects an empty summary, a blank model reply is theoretical, and the fix adds a branch.
+- `low` The C4 late case needs the stored turn within the page's 10 s: it arrives in under 2 s locally (a 5 times margin), and no test-side change removes the page's own timeout.
+- `low` A6's 800 ms allowance cannot catch `ANNOUNCE_MIN_GAP_MS = 0` on a slow host: the case is stable, and `announce-queue.test.mjs` pins the exact 1000 ms with a recorded mutation.
+- `false` Pinning tests without a mutation line (A3, L6, B1, C1, N1, D1, R18, B5, B10, B14, B18, R9, R14, R15): Rule 19 asks one per criterion, and every criterion has one recorded.
+- `false` P4's second half cannot fail for the rail: the first half and `focus-rule.test.mjs` catch the mutation, and after the DW-162 patch the second half can fail too.
+- `low` Decided 15, 16 and 18 are not in the Spec Change Log: the fix edits the spec under review; each is recorded under Decided in-stage.
+- `false` Task 11 says every case calls `cleanFixtureRows`: A1, A4, A5 and A6 register no fixture rows, and the header says that seeded turns and cards stay.
+- `low` A notice kind other than tell-now would be announced by its full text: `NoticeKind` is `'tellnow' | 'reminder'` and `noticeOf` drops every other kind, so no such card reaches the diff today. It becomes real only if a later story widens `NoticeKind`, and it would then edit this branch.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -663,6 +692,51 @@ No AC contradicts an AD's Rule.
 - mutation (review patches): `ChatOutbox` announces a failure also when the live store already holds the message (the `unsent` guard dropped) -> C4 "a post that fails after its turn arrived by poll shows no Not sent and announces nothing" (one announcement)
 - mutation (review patches): the chat's `fallbackText` read returns an empty sentence -> A1's fallback step (the announcement is "OcuTalon replied:" alone)
 - mutation (review patches): P4's first `countFocusins` call removed -> P4 ("the page is not counting focusins": `focusinCount` fails instead of reading 0)
+
+**QA stage (2026-10-24).** Each mutation ran on its own file or pair of files; the tree (`git status --short` and `git diff`) was compared before and after and was byte-identical each time. `mutations_demonstrated=40`.
+- **Test files created (QA):**
+  - `web/scripts/focus-rule.test.mjs` (QA): 20 cases that run the real `focus-rule.ts` on a small fake DOM (a resolve hook swaps Angular's `afterNextRender` for a queue, and the test plays the render). Every branch of the helper: nothing happens off-host, outside `within` or while focus is not lost; the item that is still there, the replacement in place, `whenGone`, the main region; a popover's focus is its trigger's; every move has `preventScroll`.
+  - `web/scripts/announce-focus-sources.test.mjs` (QA): 14 cases that read every source: one live region and no live role anywhere; the CDK `LiveAnnouncer` only in `Announcer`, never assertive; the chat's format built from the real modules; the banner stack with no timer of its own; the rail, header and reply, card and message components never announce; `.focus(`, `afterNextRender` and other focus APIs only in the files that are the user's own move or the rule; the four hosts call the shared `keepFocus` with their own rules.
+- **Test files changed (QA):** `web/scripts/chat-announcements.test.mjs` (2 cases: a text that starts with a line break), `web/scripts/fake-clock.mjs` (`advance()` throws after 100000 timers in one call instead of hanging on a timer that re-arms itself at the same instant), `web/e2e/support/api.ts` (`holdPoll` stops the page's clock once the poll is held and resumes it at the release, and throws when the page has no Playwright clock), `web/e2e/floor/announcements.spec.ts` (`open` installs the page clock; A1's reply holds a link and A1 checks the region is polite; A2, A3 and A7 use markers of their own), `web/e2e/chat/chat.spec.ts` (C4's late-failure case looks after two polls have answered past the failure, not after 1.5 s).
+- mutation: `keepFocus` focuses without `{ preventScroll: true }` -> `focus-rule.test.mjs` (the item, the replacement, the main region and `within` cases)
+- mutation: `keepFocus` drops the host check (`host.contains(focused)`) -> `focus-rule.test.mjs` (focus on the body, or outside the host, waits for a render)
+- mutation: `keepFocus` drops the `within` check -> `focus-rule.test.mjs` ("limits itself to `within`")
+- mutation: `keepFocus` acts whenever it ran, not only when focus was lost -> `focus-rule.test.mjs` ("never moves focus that is still on an element")
+- mutation: `keepFocus` takes an ancestor of the host for the held item -> `focus-rule.test.mjs` ("does not take an ancestor of the host")
+- mutation: `keepFocus` ignores `Popovers.triggerOf` -> `focus-rule.test.mjs` ("counts as focus on its trigger")
+- mutation: `keepFocus` never asks `rule.whenGone` -> `focus-rule.test.mjs` ("gives it to what the rule names", and the popover case)
+- mutation: `keepFocus` never finds the item's key again -> `focus-rule.test.mjs` (Retry sending, the replacement, a null focus)
+- mutation: `keepFocus` has no main-region fallback -> `focus-rule.test.mjs` (the null rule, the rule with no item, `within`)
+- mutation: `keepFocus` records no keys before the update -> `focus-rule.test.mjs` ("the keys before and after in DOM order")
+- mutation: `keepFocus` does not count a null `document.activeElement` as lost -> `focus-rule.test.mjs` ("treats a lost focus of null like the body")
+- mutation: `aria-live="polite"` on the chat list -> `announce-focus-sources.test.mjs` ("has no element marked aria-live")
+- mutation: `role="status"` on the rail rows -> `announce-focus-sources.test.mjs` (the same case)
+- mutation: `Announcer` speaks `'assertive'` -> `announce-focus-sources.test.mjs` ("never speaks assertively") and A1 (the region reads `assertive`)
+- mutation: `StatusRail` injects `Announcer` -> `announce-focus-sources.test.mjs` ("announces from one place per event")
+- mutation: a `.focus()` call in `StatusRail` -> `announce-focus-sources.test.mjs` ("has a .focus( call only in the files")
+- mutation: `BannerStack` announces through a `setTimeout` of its own -> `announce-focus-sources.test.mjs` ("keeps the timing of announcements in the queue")
+- mutation: `MainPage` does not call `keepFocus` -> `announce-focus-sources.test.mjs` ("gives the banner stack, the rail, the chat panel and the main page the shared rule")
+- mutation: a `whenGone` in the chat panel's rule -> `announce-focus-sources.test.mjs` ("gives the chat's rule no whenGone")
+- mutation: the chat panel reads a reply raw instead of `plainText(parseReply(...))` -> `announce-focus-sources.test.mjs` ("reads a reply for the chat from the real modules") and A1 (the announcement holds the markdown link)
+- mutation: `ChatOutbox` announces another text than `CHAT_TEXTS.messageNotSent` -> `announce-focus-sources.test.mjs` (the same case)
+- mutation: `ChatOutbox` drops the `unsent` guard -> C4's late-failure case, with its poll-based wait (one announcement where 0 are expected)
+- mutation: `StatusRail`'s `whenGone` returns null -> P2 (focus on `main` where the Reminders heading is expected)
+- mutation: `holdPoll` does not stop the page's clock, the hold lengthened by 12 s as on a slow host -> A2, A3, A4 and A5 (the Reconnecting text is announced); with the clock stopped the same four pass
+- mutation: the sentence end without the ellipsis; a full stop on a lone message; the 2 s window inclusive; a joined text counted as 1; the wait from now instead of from the newest text; a push after `dispose()`; the gap 1 ms longer; the merge strict (`<`); "1 new updates"; the first spoken text as the last; the flush timer not cleared -> `announce-queue.test.mjs` (11 mutations, one or more cases each; the inclusive window used to hang the run in `fake-clock.mjs`, and now fails)
+- mutation: a reminder announced as a tell now; a known turn that has not landed skipped; Working counted as landed; `trimStart()` dropped from `firstSentence` -> `chat-announcements.test.mjs` (4 mutations; the last one survived every test until QA's two cases)
+- mutation: `plainText` takes a list's second item -> `chat-announcements.test.mjs` ("the real reads of a reply")
+- **Stability measured (QA).**
+  - **Repeat.** The eleven floor cases and C4's late-failure case ran three times each in one stack: 36 of 36 pass. Before the markers were unique, A3 and A7 failed on their second and third pass and A2 on its third (a card of the first pass stays on the floor user's session), so a re-run on the same stack was red.
+  - **Slow host.** The mutation line about `holdPoll` above: a 12 s hold passes with the page's clock stopped and fails without.
+  - **The unit.** `live sign-in`: 201 passed, 2 skipped (B6 and the demo-path "not built" case), 456 s end to end (465 s before QA), under the 540 s local deadline. `live demo-path`: floor 3 of 3 passed. Node: 475 tests pass on Node 26.8.1 and on Node 24.22.0.
+- **Shared surfaces (QA).** `holdPoll` needs `page.clock.install()` before the page loads (its four callers, A2 to A5, get it from `open`). `fake-clock.mjs` is used by `busy-state.test.mjs`, `contact-watch.test.mjs` and `announce-queue.test.mjs`; its new limit only changes a run that would never end.
+
+**Code review stage (2026-10-24, tag `e2s212r`).** Each mutation was applied on its own. The digest of `git status --short`, `git diff` and the untracked files was the same before and after each one, and the web bundle was rebuilt from the restored tree. The browser mutation ran through a temporary `grep` in `playwright.config.ts` (read from `OCUTALON_E2E_GREP`), which was then removed.
+- mutation: `keepFocus` stops after the first focus call whether it landed or not (the `document.activeElement === element` check made `true`) -> `focus-rule.test.mjs` ("gives it to the main region when the rule names nothing (null), or names nothing that can take it": focus stays on the body)
+- mutation: a live role as an object literal (`{ role: 'status' }`) in `status-rail.ts` -> `announce-focus-sources.test.mjs` ("has no element marked aria-live ..."), which the regex before review let through
+- mutation: a second `.focus(` call in `chat-panel.ts` -> `announce-focus-sources.test.mjs` ("has a .focus( call only in the files ... and no more of them"), which the per-file check before review let through
+- mutation: `BannerStack` announces the banners of the first snapshot (`this.shown ?? new Set()`) -> B7 (one joined text of the no-key and stalled banners) and B8 ("6 new updates"). The exact-text checks before review passed both.
+- Verification after the last patch: `npm --prefix web test` (475 pass), `npm --prefix web run lint`, `node web/scripts/catalog.mjs --check`, `bash docker/tests/test-web-build.sh`, `bash docker/tests/test-boundaries.sh` and `bash ci/checks.sh` pass. `live sign-in`: 201 passed, 2 skipped (B6 and the demo-path "not built" case), 460 s end to end (QA 456 s). `live demo-path` (floor 3 of 3) and `live bundle-folder` pass. The teardown of `e2s212r` left nothing.
 
 **Shared surfaces:**
 - **The announcer's output.** One update's messages are now one text, texts land at least 1 s apart, and bursts are "{n} new updates". Every spec that counts announcements (`banners.spec.ts`, and L6, L7 and L11 of `live.spec.ts`) is swept by Task 14.

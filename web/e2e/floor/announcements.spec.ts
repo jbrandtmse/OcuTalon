@@ -20,14 +20,17 @@ import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/
 /**
  * Story 2.12, what the page announces (A1 to A7), in a real browser against a real stack. It pins that the page speaks through one
  * polite live region and says each event once: a reply, a tell-now card, a reminder card, a banner and a failed send, never the first
- * snapshot, the user's own messages, Deciding, Working or a timer; that the messages of one update are one text and a burst of four is
+ * snapshot, the user's own messages, Working or a timer (no case here shows Deciding: chat-announcements.test.mjs pins that it is
+ * silent); that the messages of one update are one text and a burst of four is
  * "4 new updates"; and that the chat, the rail, the turn indicator and the timers are no live region. It needs the stack that
  * docker/tests/test-sign-in.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP, whose
  * session only the floor specs use, and records what the live region received before it signs in (recordAnnouncements).
  *
  * "One update" is a held poll (holdPoll): the case holds the page's next /events request, seeds and publishes while it is held, and
  * then lets it continue, so that everything arrives in one answer. A production send such as a tell-now card is waited for in the
- * server's own stream (sessionEvents) before the release; a hold stays under HOLD_LIMIT_MS because Reconnecting shows at 10 s.
+ * server's own stream (sessionEvents) before the release. Every case runs on Playwright's clock in the page (open installs it), and
+ * holdPoll stops that clock while the poll is held: however long a slow host takes to seed, the page counts no silence, so
+ * Reconnecting (10 s after the page's last answer) cannot show and change what a case counts.
  * The chat posts of A6 are answered in the browser and never reach the server, so no turn of these cases replies, up to 20 s later,
  * inside another case's window, in either order. A case that turns conditions on turns them off in finally (A4 and A5 also start with
  * them off), a case that registers fixture rows removes them with cleanFixtureRows in finally, and a running turn is finished in
@@ -62,14 +65,21 @@ const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-pan
 const cardOf = (page: Page, marker: string): Locator => page.locator('app-chat-panel app-notice-card').filter({ hasText: marker });
 const banner = (page: Page, id: string): Locator => page.locator(`app-banner-stack [data-banner="${id}"]`);
 
+/** A text no other case or run made: a card or a row of an earlier run stays on the floor user's session, so a count of a marker needs one of its own. */
+const unique = (label: string): string => `zz ${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 /** An ISO time to the second, the given number of milliseconds from now. */
 const inMs = (ms: number): string => new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /** Today's date (UTC) with the time given, as a UTC ISO time. */
 const today = (time: string): string => `${new Date().toISOString().slice(0, 10)}T${time}Z`;
 
-/** Signs the floor user in, having recorded what the live region receives, and waits for the loaded page with its composer. */
+/**
+ * Signs the floor user in, having put Playwright's clock in the page (it runs on with the host's clock until holdPoll stops it) and recorded
+ * what the live region receives, and waits for the loaded page with its composer.
+ */
 async function open(page: Page): Promise<void> {
+  await page.clock.install();
   await recordAnnouncements(page);
   const { user, password } = fixtureUser(KIND);
   await signIn(page, user, password);
@@ -121,7 +131,7 @@ async function stalledAndReset(page: Page): Promise<string[]> {
 
 /**
  * A1: a reply is announced once, as "OcuTalon replied:" and its first sentence, whether it is the model's text or a fallback's
- * catalog sentence; the turn's own text, Deciding and Working are not.
+ * catalog sentence; the turn's own text and Working are not.
  */
 test('A1: a reply is announced once, as OcuTalon replied and its first sentence', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -137,10 +147,12 @@ test('A1: a reply is announced once, as OcuTalon replied and its first sentence'
     await page.waitForTimeout(SETTLE_MS);
     expect(await announcedTexts(page), 'neither the message nor Working is announced').toEqual([]);
 
-    await finishTurn(user, ref, 'zz A1 First sentence here. Second sentence.');
+    await finishTurn(user, ref, 'zz A1 See [the guide](https://example.com/guide) here. Second sentence.');
     running = undefined;
-    await expect(replyOf(page, ref).locator('.text'), 'the reply shows').toHaveText('zz A1 First sentence here. Second sentence.', { timeout: CARD_MS });
-    await expect.poll(() => announcedTexts(page), { message: 'the reply is announced', timeout: CARD_MS }).toEqual(['OcuTalon replied: zz A1 First sentence here.']);
+    await expect(replyOf(page, ref).locator('.text'), 'the reply shows').toContainText('Second sentence.', { timeout: CARD_MS });
+    await expect(replyOf(page, ref).getByRole('link', { name: /the guide/ }), 'with its link').toHaveCount(1);
+    await expect.poll(() => announcedTexts(page), { message: 'the reply is announced as the page shows it: the link as its label', timeout: CARD_MS }).toEqual(['OcuTalon replied: zz A1 See the guide here.']);
+    await expect(page.locator('[aria-live]'), 'in the polite region').toHaveAttribute('aria-live', 'polite');
 
     const fallback = await seedTurns(
       user,
@@ -148,7 +160,7 @@ test('A1: a reply is announced once, as OcuTalon replied and its first sentence'
       true,
     );
     await expect(replyOf(page, fallback.refs[0]!).locator('.text'), 'a fallback reply shows the catalog sentence').toHaveText("I couldn't answer that: no model key is set. Nothing was changed.", { timeout: CARD_MS });
-    await heard(page, ['OcuTalon replied: zz A1 First sentence here.', "OcuTalon replied: I couldn't answer that: no model key is set."]);
+    await heard(page, ['OcuTalon replied: zz A1 See the guide here.', "OcuTalon replied: I couldn't answer that: no model key is set."]);
   } finally {
     if (running !== undefined) await finishTurn(user, running, 'zz A1 finished');
   }
@@ -160,7 +172,8 @@ test('A2: a tell-now card is announced once as Tell now and its first sentence, 
   const refs: string[] = [];
   try {
     await open(page);
-    const summary = 'zz A2 Orders are failing. More.';
+    const marker = unique('A2');
+    const summary = `${marker} Orders are failing. More.`;
     const decisionRef = await seedDecision(user, { outcome: 'tellnow', summary, reasons: 'zz first.\nzz second.', confidence: 0.9, costUSD: 0.0003 });
     refs.push(decisionRef);
     const after = await appliedSeq(page);
@@ -170,9 +183,9 @@ test('A2: a tell-now card is announced once as Tell now and its first sentence, 
     await cardEvent(page, after, 'tellnow');
     await release();
 
-    await expect(cardOf(page, 'zz A2 Orders are failing.'), 'the card shows').toHaveCount(1, { timeout: CARD_MS });
-    await expect(railOf(page).locator('app-decision-row').filter({ hasText: 'zz A2 Orders are failing.' }), 'and so does the decision row').toHaveCount(1);
-    await heard(page, ['Tell now: zz A2 Orders are failing.']);
+    await expect(cardOf(page, marker), 'the card shows').toHaveCount(1, { timeout: CARD_MS });
+    await expect(railOf(page).locator('app-decision-row').filter({ hasText: marker }), 'and so does the decision row').toHaveCount(1);
+    await heard(page, [`Tell now: ${marker} Orders are failing.`]);
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -183,7 +196,7 @@ test('A3: a reminder card is announced once as its text, though its row leaves t
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
-    const text = 'zz A3 stretch';
+    const text = unique('A3 stretch');
     const dueAt = inMs(300_000);
     const ref = await seedReminder(user, { text, dueAt });
     refs.push(ref);
@@ -199,7 +212,7 @@ test('A3: a reminder card is announced once as its text, though its row leaves t
 
     await expect(row, 'the fired reminder leaves the rail').toHaveCount(0, { timeout: CARD_MS });
     await expect(cardOf(page, text), 'and its card is in the chat').toHaveCount(1);
-    await heard(page, ['Reminder: zz A3 stretch.']);
+    await heard(page, [`Reminder: ${text}.`]);
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -310,8 +323,10 @@ test('A7: the page has one live region, and announces nothing from the first sna
     ]);
     running = seeded.refs[0];
     const dueAt = inMs(58_000);
-    refs.push(await seedReminder(user, { text: 'zz A7 countdown', dueAt }));
-    await sendNotification(user, { kind: 'reminder', catalogKey: 'reminder.due', slots: { text: 'zz A7 card', dueAt: today('12:00:00') } });
+    const countdownText = unique('A7 countdown');
+    const cardText = unique('A7 card');
+    refs.push(await seedReminder(user, { text: countdownText, dueAt }));
+    await sendNotification(user, { kind: 'reminder', catalogKey: 'reminder.due', slots: { text: cardText, dueAt: today('12:00:00') } });
     const events = await sessionEvents(request, after, (seen) => seen.some((event) => event.type === 'notification'), 20);
     expect(events.some((event) => event.type === 'notification'), "the card is on the session's stream, so the first snapshot holds it").toBe(true);
 
@@ -319,8 +334,8 @@ test('A7: the page has one live region, and announces nothing from the first sna
     const indicator = replyOf(page, running!).locator('.indicator');
     await expect(indicator, 'the first snapshot shows a running turn').toHaveText('Working\u2026');
     await expect(replyOf(page, seeded.refs[1]!).locator('.text'), 'a done turn with its reply').toHaveText('zz A7 reply. More.');
-    await expect(cardOf(page, 'zz A7 card'), 'a notice card').toHaveCount(1);
-    const countdown = railOf(page).locator('li.row').filter({ hasText: 'zz A7 countdown' }).locator('.countdown');
+    await expect(cardOf(page, cardText), 'a notice card').toHaveCount(1);
+    const countdown = railOf(page).locator('li.row').filter({ hasText: countdownText }).locator('.countdown');
     await expect(countdown, 'and a reminder whose countdown ticks').toHaveCount(1);
     await expect(banner(page, 'noModelKey'), 'and the no-key banner').toHaveCount(1);
 

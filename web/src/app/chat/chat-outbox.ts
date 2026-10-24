@@ -15,7 +15,8 @@ import { CHAT_TEXTS, newClientId, type OutboxEntry, type OutboxStatus } from './
  * clientId and text, which the server dedups, so a send that did reach it is not queued twice. An entry leaves as soon as the
  * live store holds a chat.message with its clientId, whatever its status. The outbox lives in the page: a reload drops it.
  * Each post that fails is announced once, "Message not sent" (UX-DR132), while the page still shows the message as unsent: a
- * failure that comes after the live store holds the message says nothing, because the page shows it as sent. A retry that fails
+ * failure that comes after the live store holds the message says nothing, because the page shows it as sent (the store is read at
+ * the failure itself, not the entry list, which follows the store a render later). A retry that fails
  * is a new failure, and a 401 is the session gate's and says nothing here.
  */
 @Injectable({ providedIn: 'root' })
@@ -35,13 +36,7 @@ export class ChatOutbox {
 
   constructor() {
     effect(() => {
-      const chat = this.live.store()?.chat ?? [];
-      const held = new Set<string>();
-      for (const item of chat) {
-        if (item.type === 'chat.message' && item.payload.clientId) {
-          held.add(item.payload.clientId);
-        }
-      }
+      const held = this.held();
       untracked(() => {
         if (this.list().some((entry) => held.has(entry.clientId))) {
           this.list.update((entries) => entries.filter((entry) => !held.has(entry.clientId)));
@@ -81,7 +76,7 @@ export class ChatOutbox {
         next: () => this.mark(entry.clientId, 'sent'),
         error: (error: unknown) => {
           if (!(error instanceof HttpErrorResponse && error.status === 401)) {
-            const unsent = this.list().some((candidate) => candidate.clientId === entry.clientId);
+            const unsent = !this.held().has(entry.clientId) && this.list().some((candidate) => candidate.clientId === entry.clientId);
             this.mark(entry.clientId, 'failed');
             if (unsent) {
               this.announcer.announce(CHAT_TEXTS.messageNotSent);
@@ -89,6 +84,17 @@ export class ChatOutbox {
           }
         },
       });
+  }
+
+  /** The clientIds of the chat.message entries that the live store holds: the messages the page shows as sent (chatView). */
+  private held(): Set<string> {
+    const held = new Set<string>();
+    for (const item of this.live.store()?.chat ?? []) {
+      if (item.type === 'chat.message' && item.payload.clientId) {
+        held.add(item.payload.clientId);
+      }
+    }
+    return held;
   }
 
   private mark(clientId: string, status: OutboxStatus): void {

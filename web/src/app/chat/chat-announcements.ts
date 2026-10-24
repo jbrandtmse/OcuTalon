@@ -12,7 +12,13 @@
  *   already (updated in place) and a reply that had already landed.
  * - The texts come in the chat's order.
  */
-import type { ChatEntryView } from './chat-view';
+import type { ChatEntryView, ReplyView } from './chat-view';
+
+/** True once a turn's reply has landed: the model's text or a fallback. */
+const replyLanded = (reply: ReplyView): reply is Extract<ReplyView, { kind: 'text' | 'fallback' }> => reply.kind === 'text' || reply.kind === 'fallback';
+
+/** True once an entry has landed: a turn whose reply has, or a notice card, which has landed when it is there. The chat panel's New messages button reads it too. */
+export const landed = (entry: ChatEntryView): boolean => entry.entry === 'notice' || replyLanded(entry.reply);
 
 /** The entries of the last look, by view key, each with whether it had landed. */
 export type ChatHeard = ReadonlyMap<string, boolean>;
@@ -63,9 +69,8 @@ export function chatAnnouncements(
       continue;
     }
     const reply = entry.reply;
-    const landed = reply.kind === 'text' || reply.kind === 'fallback';
-    now.set(entry.key, landed);
-    if (heard !== undefined && landed && heard.get(entry.key) !== true) {
+    now.set(entry.key, landed(entry));
+    if (heard !== undefined && replyLanded(reply) && heard.get(entry.key) !== true) {
       const shown = reply.kind === 'text' ? format.replyText(reply.replyText) : format.fallbackText(reply.catalogKey, reply.fallbackReason);
       texts.push(said(format.announceReplied, firstSentence(shown)));
     }

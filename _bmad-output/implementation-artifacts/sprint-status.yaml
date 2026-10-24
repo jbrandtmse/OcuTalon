@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-24-2026 14:00
+last_updated: 10-24-2026 14:46
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -76,7 +76,7 @@ development_status:
   2-9-open-anything-in-visual-trace: done
   2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: done
   2-11-say-plainly-when-the-page-loses-contact: done
-  2-12-meet-the-accessibility-and-responsive-floor: review
+  2-12-meet-the-accessibility-and-responsive-floor: done
   2-13-open-visual-trace-from-the-page: done
   2-14-work-the-whole-page-by-keyboard-with-labels-and-words: backlog
   2-15-lay-the-page-out-at-every-supported-width: backlog

@@ -13,7 +13,7 @@ import {
   seedDecision,
   type StatusSlots,
 } from '../support/iris';
-import { announcementCount, announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
+import { announcedTexts, announcementCount, announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
  * Story 2.10, the status banners (B1 to B12), in a real browser against a real stack. Every case signs in as the banners fixture user
@@ -456,7 +456,7 @@ test('B7: a heartbeat stalled in the snapshot shows its banner and the late mark
     await expect(row(never), 'and has no last run to mark').not.toContainText('Last run');
     await expect(row(never)).not.toContainText('(late)');
     await page.waitForTimeout(2000);
-    expect(await announcements(page, STALLED), 'the banner of the first snapshot is not announced').toBe(0);
+    expect(await announcedTexts(page), 'the banners of the first snapshot are not announced, alone, joined or counted').toEqual([]);
 
     await applied(page, await publishCheck(user, { ref: refs[0]!, production: `${production}.A`, displayName: ran, lastRunAt: today('10:30:00'), result: 'passed', finding: '' }));
     await expect(row(ran).locator('.meta'), 'a check event while the heartbeat is stalled keeps the mark').toHaveText(`Last run 16:00 (late)${DOT}Passed`, { timeout: ONE_UPDATE_MS });
@@ -511,7 +511,7 @@ test.describe('B8: a 12-hour browser in New York', () => {
     await expect(banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true })).toHaveCount(1);
 
     await page.waitForTimeout(2500);
-    for (const id of ONLINE_ORDER) expect(await announcements(page, texts[id as keyof typeof texts]), `${id} came with the first snapshot, so it is not announced`).toBe(0);
+    expect(await announcedTexts(page), 'the six banners came with the first snapshot, so none is announced, alone, joined or counted').toEqual([]);
   });
 });
 

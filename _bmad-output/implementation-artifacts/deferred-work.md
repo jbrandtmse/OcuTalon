@@ -561,6 +561,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: banner-stack.ts ANNOUNCE_GAP_MS 150; CDK LiveAnnouncer.announce clears at once and sets the text 100 ms later; the B specs count DOM insertions, not speech; no screen reader runs here
 - 2026-10-24T06:49:46Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=maybe-false; settle with VoiceOver+NVDA on two banners in one update, or announce one update's new banners as one message
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=one update's banners are one text, pinned by A4 and announce-queue.test.mjs; the screen-reader check stays DW-159
 
 ### DW-155: After a sleep, or in a tab hidden long enough for Chrome's intensive timer throttling, the page's poll and its 10 s and 30 s thresholds fire in one batch, so Unreachable renders and is announced and then clears when that poll answers
 - source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: med | footprint: in-story
@@ -586,13 +587,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: holdPoll (web/e2e/support/api.ts) reports a hold of 8 s or more only as a test annotation
 - 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=QA's holdPoll stops the page clock during a hold, and a 12 s hold passes, so Reconnecting cannot show
 
 ### DW-162: A rail row is not focusable, so focus-rule.ts cannot return focus to a row that stays when an update removes only the control inside it that held focus
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: status-rail.ts renders li.row with no tabindex; HTMLElement.focus() on a non-focusable li does nothing
 - 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=keepFocus passes a focus its target cannot take to main.main; focus-rule.test.mjs pins it (cr patch)
 
 ### DW-163: No browser case runs the chat reload row (a skipped seq reloads the snapshot and only entries new since the last view are announced)
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chat-announcements.test.mjs pins the diff on hand-built entries; no A or P case causes a skipped seq
 - 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=wontfix-accepted by=cr note=reopen_if=a reply that lands across a skipped seq is not announced, or a reload announces the chat again

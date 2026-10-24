@@ -46,7 +46,8 @@ function itemsOf(host: HTMLElement, rule: FocusRule): { items: Element[]; keys: 
  *   key and the keys of all the items.
  * - After the render, only if focus was lost (document.activeElement is null or the body): when the item's key is still there,
  *   focus goes to that item, the replacement in place or the nearest container; when the key is gone, to `rule.whenGone`'s
- *   element; when that is null, or there was no item, to the main region. Every move is without scrolling.
+ *   element; when that is null, or there was no item, to the main region. An element that cannot take focus (an item with no
+ *   tabindex) passes it on to the main region too, so a lost focus never stays on the body. Every move is without scrolling.
  * - Focus that is still on an element in the page is never moved.
  */
 export function keepFocus(host: HTMLElement, injector: Injector, popovers: Popovers, rule: FocusRule): void {
@@ -77,9 +78,13 @@ export function keepFocus(host: HTMLElement, injector: Injector, popovers: Popov
         const at = keys.indexOf(key);
         target = at >= 0 ? (items[at] ?? null) : (rule.whenGone?.({ host, item, key, before, after: keys }) ?? null);
       }
-      const element = target ?? document.querySelector(MAIN_REGION);
-      if (element instanceof HTMLElement) {
-        element.focus({ preventScroll: true });
+      for (const element of [target, document.querySelector(MAIN_REGION)]) {
+        if (element instanceof HTMLElement) {
+          element.focus({ preventScroll: true });
+          if (document.activeElement === element) {
+            return;
+          }
+        }
       }
     },
     { injector },
