@@ -668,3 +668,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Roles.Compose and Apply touch only declared roles; no OcuTalon release has shipped, so no installed volume holds a role that a later version stopped declaring.
 - 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a release drops a role from every Grants() while kept volumes still hold it
+
+### DW-173: A zero from CheckUserPermission for the ServiceUser reads as a missing privilege with no log, so a runner job without %Admin_Secure:USE would deny every tool that declares RESOURCES; the production runner job's user was not measured
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: CheckUserPermission returns 0 on error and needs %Admin_Secure:USE for another user (irislib/%SYSTEM/Security.cls); tests ran as irisowner
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead: settle in 3.2's QA or smoke with one gate call from a production runner job on a throwaway
+
+### DW-174: Whether AI Hub gives an MCP tool a toolref that starts mcp: is unmeasured; another form (the JSON configuration form of %AI.Tool.Resolver) would take metadata.origin_class as the source, so a shadowing MCP tool could take a built-in's classification
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
+- 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
+
+### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: send_mail and sendmail in one class read the same CLASSIFICATIONSENDMAIL
+- 2026-10-24T18:06:19Z status=wontfix-accepted owner=3-2-one-gate-decides-every-tool-call by=harvest note=reopen_if=a tool class declares two tools whose names differ only in _, - or case
+
+### DW-176: A tool that AI Hub's metadata marks as requiring authorization but whose class declares safe is not held, because the gate never reads metadata's requirements; a governance-test check that no built-in tool is both safe and REQUIRESAUTH is the smallest guard
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Boundaries: the gate never reads metadata's requirements; implement deferred it for the lead (security posture)
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead ruling: add the governance-test check in 3.2's code review (tightens only)
+
+### DW-177: The classes that OcuTalon.Core.BridgeSink calls once it publishes (Lane B) are not in CodeRules.CALLBACKHELPERS, so the callback rule does not scan them, although the gate fires turn.step to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job (AD-6)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
+- 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch

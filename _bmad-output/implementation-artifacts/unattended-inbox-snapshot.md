@@ -2,6 +2,8 @@
 
 Answer an item with `bash _bmad/scripts/unattended-inbox.sh <this directory> answer U-<n> "<answer>" --by owner`, or run `/epic-cycle --review`. This file is generated: a hand edit is saved aside and never applied.
 
+**Hold requested 2026-10-24T17:36:46Z: owner: quota at 97%; pause to switch accounts (relayed by the Contest Planner; the owner: "Quota is 97% order hold.")**
+
 ## Stopped
 
 ### U-41 | stopped | Story 2.9 | 2026-10-23T16:44:28Z
@@ -13,39 +15,46 @@ answer: a, with one condition: the counting model is read from the IRIS source, 
 
 ## Veto window
 
-### U-47 | veto | Story 1.10 | 2026-10-23T23:00:53Z
-question: Six new public-facing step labels, which the UX does not specify (Visual Trace shows them, and the page's turn indicator will from Epic 3): 'Setting a reminder', 'Listing your reminders', 'Cancelling a reminder' for the new reminder tools, and 'Reading the failed messages', 'Reading the event log', 'Reading the item settings' for the three watch tools (DW-85). They follow the UX's one example, 'Checking the Orders production...'.
-options: keep | reverse: reword any label (a class parameter each)
+### U-52 | veto | Story 8.1 | 2026-10-24T13:09:25Z
+question: Ruled (veto): while the class behind HeartbeatIn's target Checks still carries STUB (Lane A's stub OcuTalon.Checks.Process, until Story 5.6 builds it), HeartbeatIn records the tick and gap marks but sends no Tick, so the stub writes no error row at every production start: the clean-start checks of docker/tests and Lane A's no-error-row assertions stay green, and no Lane A file or contended path is edited (AD-29). Once Epic 5 removes the stub's STUB, every tick is sent with no change here, and no release runs the skip, because Story 11.5's release check refuses an enabled stub item. Tests prove the send with a ChecksDouble behind Checks and the skip with the stub. Rejected: (a) Lane A's Checks stub answering a Tick with OK (another lane's file, and AD-29's 'every unbuilt item answers not implemented'); (c) the live checks ignoring Checks' rows (contended docker/tests, and it would hide real errors).
+options: keep | reverse: drop the STUB check in HeartbeatIn (one condition) and have Lane A's Checks stub answer a Tick with OK
 recommendation: keep
-blocks: nothing (ruled; work continues)
-answer: keep (by Contest Planner, 2026-10-24T08:08:17Z#145; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
+blocks: nothing (Story 8.1 continues)
+answer: keep (the skip keys off the stub's STUB parameter, so Ticks start by themselves once Checks is built, and Story 11.5 refuses an enabled stub in a release) (by Contest Planner, 2026-10-24T13:11:54Z#159; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
-### U-48 | veto | Story 1.13 | 2026-10-24T07:31:47Z
-question: DW-149's fix stores each runner's key state: the runner's adapter writes present, absent or unknown to a new global ^OcuTalonBP.KeyState(item) in its own job at start and removes it at teardown, and Keys.Status(agent) reads only that record in every process, so a web request (Epic 2's /state) never touches the Config Store, a setting or an environment variable. The record never holds the key or any part of it. No new privilege or grant.
-options: keep | reverse: a privileged read Lane A owns (a method that returns only present or absent) instead of a recorded state
+### U-53 | veto | Story 8.1 | 2026-10-24T13:09:25Z
+question: Ruled (veto), stored data: each heartbeat gap of more than one clock minute is its own OcuTalon.Data.StatusMark row, heartbeatGap.<start UTC>, holding a JSON object with start, end and missed (whole clock minutes with no tick), read through OcuTalon.Schedule.Heartbeat.Gaps(from,to) for the step-2 digest. No schema change (Tick and StatusMark gain no property); gap rows are kept like every other mark, with no purge (one row per outage). Recorded in the spine as a Consistency Conventions row (Status marks). Rejected: keeping only the latest gap, which could hide an earlier gap in the digest's window (a false all-clear).
+options: keep | reverse: a purge of old gap rows, or a table of their own (a later story)
 recommendation: keep
-blocks: nothing (ruled; work continues)
-answer: keep (by Contest Planner, 2026-10-24T08:08:17Z#146; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
+blocks: nothing (Story 8.1 continues)
+answer: keep (by Contest Planner, 2026-10-24T13:11:54Z#160; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
-### U-49 | veto | Story 1.13 | 2026-10-24T07:31:47Z
-question: Unknown is never OK: Keys.Status reads 1 only when the runner recorded present, so while a runner is stopped, or its state cannot be read, Status is 0 and Epic 2's page shows the 'no model key' banner even if a key is set. The orchestrator's ruling requires that a state that cannot be known never passes as OK; the banner's wording is Lane B's (Story 2.10).
-options: keep | reverse: a third state (unknown) that /state shows with its own wording (needs Lane B's banner text and a contract change)
-recommendation: keep
-blocks: nothing (ruled; work continues)
-answer: keep (by Contest Planner, 2026-10-24T08:08:17Z#147; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
-
-### U-50 | veto | DW-93 | 2026-10-24T12:14:23Z
-question: Epic 1's decision sheet: DW-93 (Decide.Precheck calls Budget.State on every decision; State scans Usage by RecordedAt with no index; unmeasured) is routed to Story 30.1, which measures the precheck at about 100,000 Usage rows and then adds the index (with Lane B's pin) or caches the day's spend; a DW-93 bullet goes under 30.1's criteria.
-options: keep | reverse: route it to Story 17.4 instead (outside this run's range), or close it wontfix-accepted with reopen_if=a measured precheck over 50 ms
-recommendation: keep
-blocks: nothing (ruled; work continues)
+### U-54 | veto | Story 3.1 | 2026-10-24T13:18:11Z
+question: Ruled (veto), roles and grants: (1) the service user's role is OcuTalonServiceRole (IRIS refuses a role and a user with one name), composed by a new Install.Step.Tools area from each built-in tool's RESOURCES parameter (resource:permission form; spine Conventions row 'Tool resources'); (2) the Roles step refuses AD-24's forbidden list at install, with %Ens_WorkflowConfig added as the reading of 'the Workflow inbox', and clears every OcuTalon role's granted roles; (3) with the online-demo flag on, a public account name that matches an existing account the step did not create (for example _SYSTEM) is refused, and an existing README account is disabled (roles and password unchanged) instead of being left enabled, because the README publishes its password.
+options: keep | reverse any part (edit Roles.FORBIDDEN, Users.Accounts or the Tools area and their tests)
+recommendation: keep: each part only narrows privileges or fails closed
+blocks: nothing (Story 3.1 proceeds as ruled)
 answer: (none yet -- answer with the script or --review)
 
-### U-51 | veto | DW-114 | 2026-10-24T12:14:23Z
-question: Epic 1's decision sheet: DW-114 (Decide probes the conversation lock inside its single job, PoolSize 1, so a user turn that finds its conversation held stalls other Decide requests for the probe's 2 seconds) is accepted for release 1: it happens only while a late Chat holds the lock. reopen_if=a measured stall of another decision over 2 s on the demo path or under the online demo's 6-visitor load (Story 29.4). A larger Decide pool would be a spine call.
-options: keep | reverse: route it to a story that moves the probe out of Decide's job (a spine decision on Decide's pool size)
-recommendation: keep
-blocks: nothing (ruled; work continues)
+### U-55 | veto | Story 3.1 | 2026-10-24T15:59:19Z
+question: Ruled (veto), security posture: with the online-demo flag off, the Users step now disables (Enabled 0, nothing else changed, never deleted) every account that carries the step's online-demo marker FullName and warns naming it, so the two public accounts with their published passwords cannot sign in after a kept volume turns the flag from 1 to 0. The implement stage had closed this as wontfix-accepted (the online demo never flips the flag, AD-25); the lead ruled the safe behaviour and the review patched it (Users.DisablePublic, TestFlagOffDisablesThePublicAccounts).
+options: keep | reverse (drop DisablePublic and its test)
+recommendation: keep: it only disables accounts this step created
+blocks: nothing (Story 3.1 proceeds as ruled)
+answer: (none yet -- answer with the script or --review)
+
+### U-56 | veto | Story 2.14 | 2026-10-24T16:21:23Z
+question: Ruled (veto): new public text not written out in the UX, each naming its object as UX-DR130 asks: 'Close reset notice' and 'Close reconnecting notice' (the two closable banners' Close buttons), 'Close About OcuTalon' (About's Close), and 'Available after your first message.' (the visible reason linked by aria-describedby to the inactive 'Open my conversation in Visual Trace' link); and the brand's look: the header wordmark (the home link) is underlined, as every link must be (UX-DR134). Busy buttons keep the UX's spinner-and-aria-busy form with no reason text (read as outside 'a control that can't act'). The floor's browser cases run in a new unit live:floor (Story 2.12's A1-A7 and P1-P4 move there from live:sign-in).
+options: keep (a): as ruled | reverse (b): name which; reword a label or reason, drop the wordmark underline (a link that is not underlined), or give busy buttons a reason text
+recommendation: keep (a)
+blocks: nothing (Story 2.14 proceeds; a reversal is a small fix story)
+answer: (none yet -- answer with the script or --review)
+
+### U-57 | veto | Story 3.2 | 2026-10-24T16:46:14Z
+question: Ruled (veto), model-facing text the model may relay: the gate's three denial sentences, read after AI Hub's 'Tool access denied: ' prefix, are NEEDSAPPROVAL 'this tool is risky or not classified, so it needs an approval, and nothing was run.' (until Story 3.6 replaces it with the specified 'held for your approval; nothing was run'), NOPRIVILEGE 'the service user lacks the privilege {privilege} that this tool needs, so nothing was run.' and FAILED 'the check of this tool call failed, so nothing was run.' Also decided: a developer's ToolClassification setting never changes a classification that a tool's code declares, and an mcp: call is classified only by ClassificationClass.
+options: keep | reword (edit the Gate class parameters; Task 0 may still adjust them to the measured prefix)
+recommendation: keep: each sentence claims only that nothing ran
+blocks: nothing (Story 3.2 proceeds as ruled)
 answer: (none yet -- answer with the script or --review)
 
 ## Run reports
@@ -102,5 +111,10 @@ answer: (none yet -- answer with the script or --review)
 - U-44 | veto | Story 2.9: Ruled (veto), under U-41's condition (the measured behaviour wins): AD-26's item-index bullet is corrected to what the real Visual Trace page draws for the trace role. Measured on a throwaway (build 154): the trace role's page draws no I/O-log rows, because the role holds SELECT on Ens.MessageHeader alone and cannot read Ens_Util.IOLog (with that grant, the I/O rows appear). So the item index counts headers and event and rule rows only, not I/O rows. Trace.Position implements the measured rule, verified on all 35 headers of a real thread, with events shown and hidden, at several page sizes (T1-T4). The production writes no I/O rows today. If the trace role is ever granted SELECT on the I/O log, they count again. -> keep (a): as measured; the trace role keeps no SELECT on the I/O log (least privilege) (by Contest Planner, 2026-10-23T22:17:18Z#136; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-23T22:33:59Z -- kept by the Contest Planner (owner delegate); no pipeline work
 - U-45 | veto | Story 10.1: Ruled (veto): a rerun of install.sh on an OcuTalon that is already running and healthy now prints the address and sign-in details at once and runs no docker compose up and no build. The plan had the script always run docker compose up -d, so that a rerun after an update would rebuild in place. On the IRIS runner (x64, Docker Engine) that second up -d rebuilt the image and recreated the healthy container (CI run 40021886810, measured), so the rerun waited again and a running OcuTalon was restarted, against the criterion 'prints the address and sign-in details at once when OcuTalon is already healthy' and 'never removes a container'. Any other state (stopped, failed part-way, starting, no container) still runs docker compose up -d and waits. Updating an existing install goes through the README (Story 10.2: docker compose up -d --build), not a rerun of install.sh. -> keep (by Contest Planner, 2026-10-23T22:17:18Z#134; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-23T22:33:59Z -- kept by the Contest Planner (owner delegate); no pipeline work
 - U-46 | veto | Story 10.1: Ruled (veto), a consequence of U-45: because a rerun of install.sh now leaves a healthy OcuTalon alone, the first-run line that tells a judge how to add the model key changes from 'add it to .env and run ./install.sh again' to 'add it to .env and run: docker compose up -d --force-recreate', which restarts the container with the new .env. The old line would no longer apply the key. Install-script wording only; Story 10.2's README says how to set the key. -> keep (by Contest Planner, 2026-10-23T22:17:18Z#135; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-23T22:33:59Z -- kept by the Contest Planner (owner delegate); no pipeline work
+- U-47 | veto | Story 1.10: Six new public-facing step labels, which the UX does not specify (Visual Trace shows them, and the page's turn indicator will from Epic 3): 'Setting a reminder', 'Listing your reminders', 'Cancelling a reminder' for the new reminder tools, and 'Reading the failed messages', 'Reading the event log', 'Reading the item settings' for the three watch tools (DW-85). They follow the UX's one example, 'Checking the Orders production...'. -> keep (by Contest Planner, 2026-10-24T08:08:17Z#145; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-24T12:25:17Z -- kept by the Contest Planner (owner delegate); no pipeline work
+- U-48 | veto | Story 1.13: DW-149's fix stores each runner's key state: the runner's adapter writes present, absent or unknown to a new global ^OcuTalonBP.KeyState(item) in its own job at start and removes it at teardown, and Keys.Status(agent) reads only that record in every process, so a web request (Epic 2's /state) never touches the Config Store, a setting or an environment variable. The record never holds the key or any part of it. No new privilege or grant. -> keep (by Contest Planner, 2026-10-24T08:08:17Z#146; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-24T12:25:17Z -- kept by the Contest Planner (owner delegate); no pipeline work
+- U-49 | veto | Story 1.13: Unknown is never OK: Keys.Status reads 1 only when the runner recorded present, so while a runner is stopped, or its state cannot be read, Status is 0 and Epic 2's page shows the 'no model key' banner even if a key is set. The orchestrator's ruling requires that a state that cannot be known never passes as OK; the banner's wording is Lane B's (Story 2.10). -> keep (by Contest Planner, 2026-10-24T08:08:17Z#147; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-24T12:25:17Z -- kept by the Contest Planner (owner delegate); no pipeline work
+- U-50 | veto | DW-93: Epic 1's decision sheet: DW-93 (Decide.Precheck calls Budget.State on every decision; State scans Usage by RecordedAt with no index; unmeasured) is routed to Story 30.1, which measures the precheck at about 100,000 Usage rows and then adds the index (with Lane B's pin) or caches the day's spend; a DW-93 bullet goes under 30.1's criteria. -> keep (by Contest Planner, 2026-10-24T12:15:39Z#150; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-24T12:25:17Z -- kept by the Contest Planner (owner delegate); no pipeline work
+- U-51 | veto | DW-114: Epic 1's decision sheet: DW-114 (Decide probes the conversation lock inside its single job, PoolSize 1, so a user turn that finds its conversation held stalls other Decide requests for the probe's 2 seconds) is accepted for release 1: it happens only while a late Chat holds the lock. reopen_if=a measured stall of another decision over 2 s on the demo path or under the online demo's 6-visitor load (Story 29.4). A larger Decide pool would be a spine call. -> keep (by Contest Planner, 2026-10-24T12:15:39Z#151; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-10-24T12:25:17Z -- kept by the Contest Planner (owner delegate); no pipeline work
 
-<!-- journal: 149 lines -->
+<!-- journal: 165 lines -->
