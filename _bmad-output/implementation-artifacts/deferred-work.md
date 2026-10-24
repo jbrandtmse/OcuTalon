@@ -546,3 +546,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-26: 'The decision event's trace target is that session'; the Conventions Live events row (Story 2.13 amendment) and Decision.FromRow use Ownership.TurnOfItem
 - 2026-10-24T03:06:59Z status=wontfix-accepted owner=2-13-open-visual-trace-from-the-page by=cr note=reopen_if=a later spec or review cites AD-26 against Decision.FromRow's turn target (lead ruled: AD-26 extended)
+
+### DW-148: After Epic 1 merges, /state may compute noModelKey as off on a start with no key: Lane A's Keys.Status cannot read the Config Store entry in an /ocutalon/api request and then counts the key as present (a false all-clear); Budget.State's Usage SELECT also lacks its SQL grant there
+- source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: high | fix-risk: med | footprint: out-of-footprint
+- evidence: OCT-epic1 Bridge/Keys.cls: when ConfigStore.Details fails, present = Configuration.Exists(fqn), which answers 1; Configuration.Get needs %Admin_ConfigStore:USE, which the API application lacks (Install/Step/Web.cls :35), and audits each refusal; Budget.cls :129 Usage SELECT has no SQL grant in the request (inference from source; stubs here)
+- 2026-10-24T03:56:49Z status=escalated owner=burndown by=harvest note=found by Story 2.10's plan; cross-epic (Lane A's Keys.Status and Budget.State, Stories 1.6 and 1.4, done on OCT-epic1); raised to the orchestrator for routing to Epic 1 before its merge; Story 2.10's B6, B1 and api.spec row 13 turn red at the merge if it is not fixed
