@@ -359,3 +359,5 @@
 2026-10-24T11:40:34Z	Epic 1	epic_status_done	stories=12(1.1-1.10,1.12,1.13)
 2026-10-24T11:40:34Z	Epic 1	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=3.50 unresolved_high_med_avg=0.58 metric=unresolved rework_stories=1(1.6:test-helper_session_race,not_language_semantics) review_loop_thrash=0 rework_lang_defects=0 review_high=2 review_med=40 result=hold applied=false policy=gates.model_tier:record_only
 2026-10-24T11:40:34Z	Epic 1	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-24T11:56:03Z	Epic 1	integrated_forward	feature=a5b6574 head=1980c88 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(last_updated;regenerated+validated),ARCHITECTURE-SPINE.md(updated:date;lint_no_new_finding) suite=lane-a_41,lane-b_24,live_production_30,standalone-bridge,checks.sh_pass smoke=smoke-1-13+smoke-1-8_pass_on_the_merged_tree teardown=clean
+2026-10-24T11:56:03Z	Epic 1	epic_runner_complete	stories_completed=12(1.1-1.10,1.12,1.13;this_session:1.6-1.10,1.12,1.13)
