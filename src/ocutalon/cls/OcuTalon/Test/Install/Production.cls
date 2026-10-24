@@ -1,5 +1,5 @@
 /// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2;
-/// Story 1.3; Story 1.5). Nothing
+/// Story 1.3; Story 1.5; Story 1.12). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
 /// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
@@ -10,7 +10,7 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
-///     agent runners and AgentSteps (built in Story 1.5) carry no STUB, so the oracle marks them "stub": 0;
+///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -625,7 +625,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "EvalSink", "class": "OcuTalon.Eval.Sink", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "Checks", "class": "OcuTalon.Checks.Process", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 1, "settings": []}
+ {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
 ]
 }
 

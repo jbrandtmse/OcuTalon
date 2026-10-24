@@ -30,7 +30,12 @@
 #     recovers or starts nothing; with OcuTalon.Production Suspended it starts it. The Troubled and Suspended states are
 #     made by setting the director's state globals in the throwaway, and each is removed afterwards. Each stop in the block
 #     first waits, up to 10 s, until Ens.ScheduleHandler has finished the start's request (DW-28), and a failed stop
-#     prints its error.
+#     prints its error;
+#   - the digest restart, last (Story 1.12, NFR-16): two items of one fixture session are kept through the running DigestStore
+#     and read with Item.Since, and a marker is put in IRISTEMP; the iris container is stopped, which must end IRIS cleanly (exit
+#     code 0), and started again; the start ends ready, the container's start time has changed and the IRISTEMP marker is gone;
+#     the same session read again gives the same two entries, field for field; then the fixture rows are deleted. It runs last,
+#     so that no earlier row sees a restarted stack.
 # The project is unique, publishes no host port and receives no keys: the start is the no-key start of AD-23. An EXIT trap
 # removes the project with its volume and images. Every wait ends by an overall deadline, so even a failing run ends within
 # about 9 minutes.
@@ -344,6 +349,67 @@ CHK|suspended-this|3|1||1" \
   'Set ^Ens.Runtime("Name")="ZzOther.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(15) Set t=$SYSTEM.Status.GetErrorText(st) Write !,"CHK|troubled-other|",s,"|",n,"|",$SYSTEM.Status.IsError(st),"|",((t["ZzOther.Production")&&(t["stops no other production")),"|",$Data(^Ens.Suspended),"|",$Get(^Ens.Runtime("Name")) Kill ^Ens.Runtime,^Ens.Suspended' \
   'Set ^Ens.Suspended="ZzOther.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(15) Set t=$SYSTEM.Status.GetErrorText(st) Write !,"CHK|suspended-other|",s,"|",n,"|",$SYSTEM.Status.IsError(st),"|",((t["ZzOther.Production")&&(t["stops no other production")),"|",##class(Ens.Director).IsProductionRunning(),"|",$Get(^Ens.Suspended) Kill ^Ens.Suspended' \
   'Set ^Ens.Suspended="OcuTalon.Production" Set sc=##class(Ens.Director).GetProductionStatus(.n,.s) Set st=##class(OcuTalon.Install.Step.Production).Start(30) Write !,"CHK|suspended-this|",s,"|",$SYSTEM.Status.IsOK(st),"|",##class(OcuTalon.Install.Step.Production).NotRunning(),"|",##class(Ens.Director).IsProductionRunning()' \
+  'Halt'
+
+# --- the digest restart: items kept by DigestStore are read back unchanged after IRIS restarts (Story 1.12, NFR-16) ---
+
+check_session "digest restart: two items of one session are kept through the running DigestStore, and a marker is put in IRISTEMP" OCUTALON \
+  "CHK|kept|1
+CHK|mark|1" \
+  'Write !,"CHK|kept|",##class(OcuTalon.Test.Digest.Store).RestartKeep()' \
+  'Set ^IRIS.TempOcuTalonDigestMark=1 Write !,"CHK|mark|",$Data(^IRIS.TempOcuTalonDigestMark)' \
+  'Halt'
+digest_read='Write !,"CHK|read|",##class(OcuTalon.Test.Digest.Store).RestartRead()'
+digest_before=$(printf '%s\n' "$digest_read" 'Halt' | session_value OCUTALON read)
+digest_entries=$(printf '%s' "$digest_before" | grep -o '"itemId"' | wc -l | tr -d ' ')
+if [ "$digest_entries" = 2 ]; then
+  pass "digest restart: Since gives the two items before the restart"
+else
+  fail "digest restart: Since gave $digest_entries items before the restart, wanted 2: $(printf '%s' "$digest_before" | cut -c1-300)"
+fi
+
+digest_started=$(started_at)
+digest_begun=$SECONDS
+if ! dc stop iris > "$tmp/digest-stop.log" 2>&1; then
+  tail -n 10 "$tmp/digest-stop.log"
+  die "digest restart: stopping the iris container failed"
+fi
+digest_stopped=$SECONDS
+digest_exit=$(docker inspect --format '{{.State.ExitCode}}' "$cid" 2>/dev/null)
+if [ "$digest_exit" = 0 ]; then
+  pass "digest restart: the iris container stopped cleanly (exit code 0)"
+else
+  fail "digest restart: the iris container stopped with exit code '$digest_exit', wanted 0"
+fi
+if ! dc start iris > "$tmp/digest-start.log" 2>&1; then
+  tail -n 10 "$tmp/digest-start.log"
+  die "digest restart: starting the iris container failed"
+fi
+if ! wait_started_ready 300; then
+  start_log | tail -n 30 | cut -c1-200
+  die "digest restart: the start after the restart did not end ready (waited 300 s at most, and not beyond the run's deadline)"
+fi
+if [ "$(started_at)" != "$digest_started" ]; then
+  pass "digest restart: the container started again and the start ended ready (stop $((digest_stopped - digest_begun)) s, start to ready $((SECONDS - digest_stopped)) s)"
+else
+  fail "digest restart: the container's start time did not change"
+fi
+check_session "digest restart: IRIS itself restarted, so the IRISTEMP marker is gone" OCUTALON \
+  "CHK|mark|0" \
+  'Write !,"CHK|mark|",$Data(^IRIS.TempOcuTalonDigestMark)' \
+  'Halt'
+
+digest_after=$(printf '%s\n' "$digest_read" 'Halt' | session_value OCUTALON read)
+if [ -n "$digest_before" ] && [ "$digest_after" = "$digest_before" ]; then
+  pass "digest restart: the two items are read back equal, field for field, to the reading before the restart"
+else
+  echo "  before: $(printf '%s' "$digest_before" | cut -c1-400)"
+  echo "  after:  $(printf '%s' "$digest_after" | cut -c1-400)"
+  fail "digest restart: the items read after the restart differ from the reading before it"
+fi
+check_session "digest restart: the fixture rows are deleted" OCUTALON \
+  "CHK|left|0" \
+  'Write !,"CHK|left|",##class(OcuTalon.Test.Digest.Store).RestartClean()' \
   'Halt'
 
 if [ "$fails" -ne 0 ]; then

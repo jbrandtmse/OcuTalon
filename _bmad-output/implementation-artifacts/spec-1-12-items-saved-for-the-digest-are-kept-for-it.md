@@ -2,13 +2,38 @@
 title: 'Story 1.12: Items saved for the digest are kept for it'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '22e77d9b13f8da6e618d71d31cfeefebd1a00db8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-1, AD-2, AD-3, AD-4, AD-5, AD-6, AD-22, AD-23, AD-27, AD-29, AD-30 and AD-33, the Identifiers, Times, SQL reserved words, Logging and errors and Tests rows of Consistency Conventions, and the Production and Tables rows of the Ownership tables)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Item.Since returns every item of the session since the time, with no cap, so a digest period that gathers very many items returns them all in one array.
+    evidence: |-
+      Each entry is small (an 80-character summary and four Refs and a time), and nothing in this story reads the array: the first consumer is Story 17.6.
+      Closed as accepted, not scheduled. reopen_if: Story 17.6's digest wants only a count and the newest N summaries, and a session's saved items between two digests can reach thousands.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls (Since)
+    severity: low
+  - summary: >-
+      The no-live-event check of TestKeepsInstance counts only events on the shared instance stream whose payload holds the ItemId or the DecisionRef, so a store that published an event with neither Ref in its payload would pass it.
+    evidence: |-
+      LiveEvents cannot count every event on the shared instance stream, since other publishers may use it. The session-owner case (TestKeeps) counts the owner's whole stream and goes red under the publish mutation, and Keep has no branch on the owner.
+      Closed as accepted. reopen_if: any file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live.Publish (a search of that folder finds a hit).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls (LiveEvents)
+    severity: low
+  - summary: >-
+      Keep's concurrent-repeat path (the pre-check finds no row, the save then fails on the unique index, and the second look finds the row) has no test, because a single send cannot make a row appear between the two steps.
+    evidence: |-
+      The production runs DigestStore with pool 1, so two messages never run at once. The sequential repeat (the pre-check finds the row) is pinned by TestOnce, and the unique index is pinned by the same test through the mutation that removes both.
+      Closed as accepted. reopen_if: the DigestStore item in OcuTalon.Production has a PoolSize above 1.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Digest/Store.cls (Keep)
+    severity: low
 ---
 
 <intent-contract>
@@ -232,6 +257,37 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-23 - Review pass
+- verdicts: 27 findings - high 0, medium 1, low 19, false 7, maybe-false 0
+- findings (blind hunter 1-5, edge case hunter 6-11, verification gap 12-14, intent alignment 15-27):
+  - `[low]` `[patch]` 1. Instance-owner live-event check counts only payload matches (`LiveEvents`) - real and known (decision 18); the cheap part is patched (the query answers -1 on an SQL error, mutation recorded); the rest is in `deferred:` with its `reopen_if`.
+  - `[low]` `[patch]` 2. "A row at the cutoff stays" is untested, and `<=` would pass - `TestPurgeDays` now retries until a purge falls in the second of the row's time, then asserts the row stays; mutation `<=` -> red.
+  - `[low]` `[patch]` 3. `Keep`'s save-failure and race path is untested and not in the class doc - class doc patched; the untested concurrent path is in `deferred:` (pool is 1).
+  - `[low]` `[reject]` 4. Purge tests delete non-fixture rows - true, but spec-bound (the matrix names `Registry.Purge(30)` and the purge task) and the existing `Test.Install.Registry` purge tests already do the same on a throwaway; no slot runs these classes (Verification Targets), so a user does not meet it.
+  - `[low]` `[patch]` 5. `Store` doc says "session's Ref or instance" but only empty and `eval` are refused - doc reworded; the missing format check is decision 3 (by design).
+  - `[low]` `[patch]` 6. Run deadline already spent when the restart block starts - the only reachable harm is a misleading `die` text, which now says the wait is also bounded by the run's deadline.
+  - `[low]` `[reject]` 7. `Since` returns an unbounded array - already in `deferred:` (item 1), a duplicate.
+  - `[low]` `[reject]` 8. Free-text `OwnerRef` is stored under a SessionRef no session owns - decision 3 (no format check; the row is read by nobody and purged), and the spec's refusal list excludes it.
+  - `[low]` `[patch]` 9. `items.%Get(0).recordedAt` on an empty array aborts `TestSince` with an invalid OREF - guarded by `If items.%Size() = 1`.
+  - `[low]` `[reject]` 10. `Registry.Purge(30)` runs every area's purge on the test database - same as 4.
+  - `[low]` `[reject]` 11. "Ends within about 9 minutes" can overrun by the stop's grace (60 s) - the header says "about", the row runs about 15 s, and a guard would add a branch to a shared script.
+  - `[medium]` `[patch]` 12. Another class's "nothing is sent on" is not asserted (AC2) - `TestRefuses` now reads the headers of the `Ens.StringRequest` send; mutation (the branch forwards the request) -> red.
+  - `[low]` `[patch]` 13. A day count beyond the calendar's first date (the `If day >= 0` guard) is unpinned - control `Purge(100000)` added to `TestPurgeRefuses`; mutation (guard removed) -> red.
+  - `[low]` `[patch]` 14. The live-event check cannot see an `instance` event and cannot fail on a broken query - the second half is patched with 1; the first is in `deferred:`.
+  - `[false]` `[reject]` 15. The literal matrix text "Headers(session, "DigestStore") is empty" cannot hold - not a defect of the code: Task 0 (d) measured one reply header with no body in every send, so the tests exclude exactly that header (decision 14); a fix would edit the spec, and the mutation that sends on goes red. Reported as a residual risk.
+  - `[low]` `[reject]` 16. The `instance` live-event check is payload-only - same as 1 and 14.
+  - `[low]` `[patch]` 17. The refusal code 5001 is not asserted - `TestRefuses` asserts it for each refused decision.
+  - `[false]` `[reject]` 18. `OutcomeRouter` to `DigestStore` is not exercised - the intent excludes it (Story 2.7), and `ApprovalStartIn` stands in as the AC says.
+  - `[low]` `[reject]` 19. The race-repeat path is untested - same as 3.
+  - `[false]` `[reject]` 20. Keep, refuse and repeat run only in the live production - the spec asks for live tests for them (matrix rows 1 to 5), and `Keep` is private by decision 16.
+  - `[false]` `[reject]` 21. The restart row does not show the volume itself - AC5's durability is `TestPrivate` plus `PrivateData.Run()` (the private database is on the durable volume); the row shows the rows survive an IRIS stop and start.
+  - `[false]` `[reject]` 22. The registry tests now also run the Digest purge - decision 20; the area finds no row there and the class passed.
+  - `[false]` `[reject]` 23. Cleanup by prefix instead of by tracked Refs - the same outcome, and it also cleans after a failure.
+  - `[false]` `[reject]` 24. `RunnerFixture.ReadyReason` also checks the CI guard - the spec names `RunningReason()` and `WaitAllRun()` and the tests need no mock.
+  - `[low]` `[reject]` 25. The restart uses stop and start with extra checks - inside "restarts the iris container cleanly" (decision 19); the checks only add evidence.
+  - `[low]` `[reject]` 26. The restart row compares JSON text - the five keys have a fixed order, so text equality is field-for-field equality.
+  - `[low]` `[reject]` 27. `short-names.tsv` and the `lane-a` entry carry no dedicated assertion - `storage` and `ci-config` of `bash ci/checks.sh` check both, and passed.
+
 ## Design Notes
 
 **The architecture decisions that govern this story (Rule 6):**
@@ -280,6 +336,29 @@ No acceptance criterion contradicts an AD's Rule. No NFR is unmeasurable: NFR-16
 11. **No log line for a repeat or a refusal.** Ens logs the refusal's error, and a repeat is the normal at-least-once case.
 12. **No change to `Production.cls`.** The item already exists with the right class, pool and enablement. Only the oracle's stub flag changes.
 13. **The shard.** `Digest` joins `lane-a` through Lane A's entry of `ci/units.sh`, as `Tools` did in Story 1.9, with no spine change. AD-22's as-built sentence ("`lane-a`: Agent, Bridge and Install") is behind since Story 1.9 (see the lead's items).
+
+14. **The reply header is not a message sent on (Task 0 (d)).**
+    - **Measured:** `RunnerFixture.Headers(<the send's session>, "DigestStore")` holds one header for every send, kept or refused: DigestStore's synchronous reply to the service ApprovalStartIn (`target` `ApprovalStartIn`, no body class, no body id). The matrix row "Kept (live)" 3 says the list is empty.
+    - **Decided:** the tests read "empty" as no header from DigestStore other than that reply (`Test.Digest.Store.SentOn`). AC1 holds as written ("sends no message"): a request sent to another item is a header with a target and a body class, and the mutation of the table below goes red on it.
+15. **The refusal texts.** Error code 5001, and the first failing check names the reason, in the order outcome, ItemId, owner: `DigestStore refuses the item <ItemId>: its outcome is '<outcome>', not digest`; `...: it has no ItemId`; `...: its owner is eval, not a session or instance` or `...: its owner is empty, ...`. The ItemId is left out of the text when the message has none.
+    - **A save that fails** (a Summary over 80 characters, an ItemId over 22) is `DigestStore could not keep the item <ItemId>: <the save's text>`, unless a row for the ItemId exists by then, which is a repeat (decision 4).
+16. **`Keep` is a private method of the store.** The store is the table's only writer (decision 9), so the write is not a method that another class can call.
+17. **A day count is the digits of a whole number, at least 1.** The test is the pattern `1.N` and then `+daysToKeep >= 1`, so `""`, `0`, `00`, `-1`, `1.5` and `abc` are refused (the spec's list, and `00`), and so are `1e2`, `7.0` and `" 5"`, as text. A count so large that the cutoff is before the first date the calendar holds (1840-12-31) deletes nothing and is OK. A refused count never reaches the date arithmetic.
+18. **The shape of `Test.Digest.Store`.**
+    - **The Refs:** fixture Refs begin with `zzDigest` (22 characters, from a counter in `^OcuTalonTest("Digest","n")`); session B is A with the case of its letters swapped, so it begins `ZZdIGEST`, and the clean-up deletes by both prefixes.
+    - **The rows:** read by SQL (`RowOf`), not through the unique index's generated methods, so no test depends on the index being unique.
+    - **The live-event check:** counts events since the test began whose payload holds the ItemId or the DecisionRef, and, for a session, events on its own stream. On the shared `instance` stream only the payload counts, since another publisher may use that stream.
+    - **The refusals:** each case has an owner of its own, and each asserts that the table's row count did not change (an empty `SessionRef` cannot be counted by a SQL comparison, since an empty string is NULL there).
+19. **The restart row stops and starts the container (`dc stop iris`, then `dc start iris`), not `dc restart`.**
+    - **Why:** so that the exit code of the stop is read between the two. 0 is a clean shutdown of IRIS; the iris service's `stop_grace_period` is 60 s (only the mock's is 2 s in the CI override), so a stop that needs time is not killed.
+    - **A marker in IRISTEMP** (`^IRIS.TempOcuTalonDigestMark`), put before the stop and gone after the start, shows that IRIS itself restarted and not only the container.
+    - **The deadline:** the row does not extend the run's deadline; the whole script takes about 95 s here (Task 0 (c)), and the row waits at most 300 s for the start.
+20. **No change to `Test.Install.Registry`.** Its purge tests call `Registry.Purge` and assert on their fixture areas; the Digest area now runs in them with 33, 21, 8 and 90 days and finds no row. A search of the test trees for `DigestStore`, `Digest.Store`, `STUB`, `Registry).Purge`, `short-names` and `Areas()` found only the oracle row and header of `Test.Install.Production`, the zone scan of `Test.Bridge.Time` (which reads `Test.Digest`; the new class makes no zone call) and the registry tests above.
+21. **Three assertions were added to the pinning tests after review.**
+    - **The boundary row:** `Purge` reads the clock itself, so `TestPurgeDays` adds a row at `AgoUtc(30 days)` and purges, retrying up to 20 times until `NowUtc()` read before the add and after the purge is the same second. Then the cutoff is the row's time exactly, and the row must stay. A purge that straddles a second boundary is retried, so the test cannot fail by timing.
+    - **A day count beyond the calendar:** `TestPurgeRefuses` holds a control that `Purge(100000)` is OK and deletes nothing (decision 17).
+    - **Another class sends nothing on:** the `Ens.StringRequest` block of `TestRefuses` reads the headers of its session (`SentOn`) like the `ItemDecision` rows.
+    - **Also:** `TestRefuses` asserts code 5001 for each refused decision, `LiveEvents` answers -1 when its query fails (so a changed `OcuTalon_Live.Event` cannot read as "no event"), and the class doc of `Store` says that only an empty or `eval` owner is refused.
 
 **Integration ACs (Rule 1):**
 - **AC1:** the running production (its `ApprovalStartIn` service, a stand-in for `OutcomeRouter` until Story 2.7 merges) delivers the `ItemDecision` to the `DigestStore` item. The observable effect is the row, with nothing sent on.
@@ -385,13 +464,70 @@ No acceptance criterion contradicts an AD's Rule. No NFR is unmeasurable: NFR-16
 | AC6 | the cutoff is `daysToKeep - 2` days back | `Digest.Store.TestPurgeByTheTask` (the 89-day row gone) |
 | AC6 | the day-count check is removed | `Digest.Store.TestPurgeRefuses` |
 
+### Measured in implementation (Task 0; slot A for (a) and (b), throwaway tag `e1s12a` for (c) and (d), build 154)
+
+- **(a) Reserved words.** On slot A, `$SYSTEM.SQL.IsReservedWord` is 0 for `Item`, `SessionRef`, `ItemId`, `DecisionRef`, `Channel`, `Summary` and `RecordedAt` (and for `Since` and `Purge`). No property needs an `SqlFieldName`.
+- **(b) The storage block.** `OcuTalon.Digest.Data.Item` compiled on slot A with `ck` and no warning. The compiler's `Storage Default` block is the committed one: the data `ItemDefaultData` with `%%CLASSNAME` and the six properties in the order of the class (values 2 to 7), and `^OcuTalonP.DigestItemD` (data and id), `^OcuTalonP.DigestItemI` (index) and `^OcuTalonP.DigestItemS` (stream). The document exported from slot A after loading the committed file ends with the same block.
+- **(c) The restart** (`live production`, Apple-silicon Docker, warm image).
+  - **The form:** `dc stop iris`, then `dc start iris`. The stop took 2 s and left the container's exit code at 0, a clean shutdown (the service's `stop_grace_period` is 60 s). The start ended `ready` (this start's after-start log, begun after the container's new start time, and Docker `healthy`) 7 to 12 s after the start command (12 s, 12 s and 7 s in three runs; the first run, before the row printed the two times, printed 8 s from the stop to ready).
+  - **IRIS restarted:** the container's `StartedAt` changed, and a marker global in IRISTEMP, put before the stop, was gone after the start.
+  - **The cost of the row:** about 10 to 15 s. The whole `live production` took 94 to 96 s. The spec's estimate for the x64 runner (2 to 3 minutes) is not measured here.
+  - **Row 16's sweep:** 16 enabled stubs with a pool (one fewer than before), every one PASS.
+- **(d) The refusal through the production.** `RunnerFixture.Send` to `DigestStore` gives the store's own error status for a refused `ItemDecision` (code 5001), whose text holds `DigestStore`, the reason and the `ItemId` (asserted by `TestRefuses` for each case), and for an `Ens.StringRequest` code 5003 with no response. A kept decision and a refused one each leave exactly one header with DigestStore as its source: its reply to ApprovalStartIn, with no body class and no body id (decision 14). A request to another item would be a second header.
+- **Time in the class:** `Test.Digest.Store` runs in 0.3 to 1.8 s inside the class, 52 to 58 s with the stack.
+
+### Mutations demonstrated (Rule 19; throwaway tag `e1s12a`)
+
+Each mutation was applied to the working tree, the test run, and the tree put back; `git status --short` and `git diff --stat` were unchanged, and a hash of the status, the tracked diff and the untracked files' contents was the same before and after (`547a44d821628fd2` on the final tree).
+
+- mutation: the store saves `DecisionRef` empty -> `Digest.Store.TestKeeps`, `TestKeepsInstance` and `TestOnce` went red
+- mutation: the store also sends the `ItemDecision` on (`SendRequestAsync("EvalSink", decision)`) -> `Digest.Store.TestKeeps` and `TestKeepsInstance` went red (a header from DigestStore other than its reply)
+- mutation: the store publishes a `notification` live event on the owner's stream (`Live.Publish.Publish`) -> `Digest.Store.TestKeeps` went red (the live-event check); `TestKeepsInstance` stays green, since an empty payload on the shared `instance` stream is not counted (decision 18)
+- mutation: `Parameter STUB = 1` is put back -> `Install.Production.TestStubsAnswer` went red (DigestStore does not carry STUB, and the count of stubs)
+- mutation: the outcome check is removed -> `Digest.Store.TestRefuses` went red (the `tellnow`, `act` and `ignore` rows)
+- mutation: `Since` leaves out the `SessionRef` condition (`WHERE (SessionRef = ? OR 1 = 1)`) -> `Digest.Store.TestSince` went red (the four rows of A, B's row, the unused Ref)
+- mutation: `Since` compares with `>` instead of `>=` -> `Digest.Store.TestSince` went red (the boundary rows), and no other assertion
+- mutation: `SessionRef` without `COLLATION = "EXACT"` -> `Digest.Store.TestSince` went red (B's row read for A, and A's for B)
+- mutation: the repeat check (both calls of `ItemIdIndexExists`) and `[ Unique ]` are removed -> `Digest.Store.TestOnce` went red (two rows for the ItemId)
+- mutation: `DEFAULTGLOBAL` and the four storage locations are `^IRIS.TempOcuTalonDigestItem...` -> `Digest.Store.TestPrivate` went red (six assertions), and the restart row of `live production` went red (`FAIL digest restart: the items read after the restart differ from the reading before it`, every other row PASS)
+- mutation: `Install.Step.Digest` declares no `Purge` (the method is renamed) -> `Digest.Store.TestPurgeByTheTask` (the 91-day item is not gone), `TestPurgeDays` and `TestPurgeRefuses` went red
+- mutation: the cutoff is `daysToKeep - 2` days back -> `Digest.Store.TestPurgeByTheTask` (the 89-day item is gone) and `TestPurgeDays` went red
+- mutation: the day-count checks are removed (`1.N` and the minimum of 1) -> `Digest.Store.TestPurgeRefuses` went red (all six bad counts, `""`, `0`, `-1`, `1.5`, `abc` and `00`, deleted the 91-day item, and five of them were accepted; `1.5` failed in the date arithmetic)
+
+After review, four mutations at once, each in code that only one test reads (tree restored, `git status --short`, `git diff --stat` and the SHA-1 of the five changed files identical before and after):
+
+- mutation: the other-class branch of `OnMessage` also sends the request on (`SendRequestAsync("EvalSink", pRequest)` before the 5003) -> `Digest.Store.TestRefuses` went red on "and DigestStore sent no message but its reply" only (the six `ItemDecision` rows stayed green)
+- mutation: `Purge` deletes with `RecordedAt <= ?` instead of `< ?` -> `Digest.Store.TestPurgeDays` went red on "the item recorded exactly at the cutoff is kept"; no other test went red on it
+- mutation: the `If day >= 0` guard of `Purge` is `If 1` -> `Digest.Store.TestPurgeRefuses` went red on the `Purge(100000)` control (`<VALUE OUT OF RANGE>`)
+- mutation: `LiveEvents` reads a column that does not exist (`Payloadx`) -> `Digest.Store.TestKeeps` and `TestKeepsInstance` went red on the live-event check (the query answers -1)
+
 **Lead's rulings at the spec gate (2026-10-24, Epic 1 runner, unattended):**
 - **Decided:** the table as planned (the AC names its fields and retention; AD-33 lists it), the real IRIS restart row in `test-production.sh`, and the planner's 13 in-stage choices.
 - **No spine edit here:** AD-22's as-built `lane-a` area list is left for the orchestrator's merge reconciliation.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-23).** The spec was planned on the epic-story path from the committed `epic-1-context.md`, with Story 1.10's spec as continuity, and checked against the READY FOR DEVELOPMENT standard. The run halted after planning, as the dispatch asked. Nothing was implemented, measured on a runtime or committed.
+
+**Implement stage (2026-10-23).**
+- **Summary of the change.** `DigestStore` is a real business operation with no `STUB`. It keeps each digest `ItemDecision` as one row of the new `OcuTalon.Digest.Data.Item` (once per `ItemId`, EXACT collation on the three Refs, private global `^OcuTalonP.DigestItem`), answers OK with no response, sends nothing and publishes nothing, and refuses any other outcome, an empty `ItemId` and an `eval` or empty owner with an error status (5001) that names the reason and the `ItemId`. `Item.Since` reads one session's items since a time, newest first. `Item.Purge` deletes the older ones, and the area class `OcuTalon.Install.Step.Digest` declares it to the purge task. `Digest` joins the `lane-a` shard, and `live production` has a last row that restarts the iris container and reads the items back.
+- **Files changed.**
+  - `src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls` (new): the table, `Since`, `Purge`, the committed storage block.
+  - `src/ocutalon/cls/OcuTalon/Digest/Store.cls`: the real operation.
+  - `src/ocutalon/cls/OcuTalon/Install/Step/Digest.cls` (new): the `Purge(daysToKeep)` declaration.
+  - `src/short-names.tsv`: the `DigestItem` row.
+  - `ci/units.sh`: `Digest` in `lane-a`.
+  - `src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls` (new): the matrix tests and the restart row's helpers.
+  - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: DigestStore's oracle row says `"stub": 0`, and the header names it.
+  - `docker/tests/test-production.sh`: the restart row, last, and its header bullet.
+- **Review.** Four layers reported 27 findings: 1 medium, 19 low, 7 false. Patches applied: 8 entries (1 medium, 7 low), listed in the triage log. Items deferred: 3 (the unbounded `Since`, the payload-only live-event check for `instance`, the untested concurrent-repeat path), each with its `reopen_if` where it is a closed LOW. Rejected: 14 findings, each with its reason in the triage log.
+- **Follow-up review recommendation: false.** One medium entry was patched (fewer than two) and no high.
+- **Verification performed.** `bash ci/checks.sh` passed (every script). `ci/iris.sh build` exited 0. `ci/iris.sh class` passed for `Test.Digest.Store`, `Test.Install.Production` and `Test.Install.Registry` after the review patches. `ci/iris.sh shard lane-a` passed (39 classes, the only SKIP is the existing `TestStepHelpers`) and `shard lane-b` passed (24 classes, `Data.Tables` and `Contract.Ac` among them). `live production` passed (30 PASS, the digest restart rows and row 16's sweep of 16 stubs among them), `live production-restart` passed, `live storage-roundtrip` passed and `live demo-path` passed with `@floor` (1 of 1). `ci/iris.sh teardown` for `e1s12a` left nothing. The matrix test audit found every row covered by a test that ran and passed. Mutations: 13 before review and 4 after, each red in the test named under `## Verification`, each reverted byte-identical.
+- **Residual risks.**
+  - **Matrix row 3 of "Kept (live)" is read, not literal.** `Headers(session, "DigestStore")` holds one reply header to `ApprovalStartIn` with no body in every send (Task 0 (d), decision 14). The tests count only headers other than that reply; AC1's "sends no message" holds and the sending mutations go red. The lead may want to amend the matrix text.
+  - **AD-22's as-built `lane-a` area list is behind** (it now holds `Tools` and `Digest`); left to the orchestrator as the lead ruled.
+  - **The restart row's runner time is not measured.** The stop took 2 s and the start 6 to 12 s on the Apple-silicon machine; the x64 figure is an inference.
+  - **The reverse-order runs (`--reverse`) of Rule 19 are the lead's.** They were not run here.
