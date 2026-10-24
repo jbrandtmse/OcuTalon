@@ -334,3 +334,4 @@
 2026-10-24T06:59:12Z	Epic 1	ledger_burndown_chartered	story=1-13-epic-1-burn-down entries=DW-149 set_aside_for_decision_sheet=DW-54,DW-92,DW-93,DW-114 epic_story_slices=empty remainder=1(below_cap_8;chartered_by_orchestrator_ruling) story_max=12 ledger_routed_planned=1-13(DW-149_bullet_in_epics.md)
 2026-10-24T06:59:12Z	Story 1.13	ledger_routed_planned	story=1-13-epic-1-burn-down entries=1(DW-149) excess=0 by=burndown
 2026-10-24T07:02:24Z	Epic 1	epic_context_compiled	sha=pending_in_next_commit reason=burndown_inserted(Story_1.13) model=claude-opus-5-5 bytes=9009 spawn_agent=ae2a151a2e5600f0b
+2026-10-24T07:02:25Z	Story 1.13	stage_spawned	stage=plan spawn_at=2026-10-24T07:02:25Z model=claude-opus-5-5 agent_name=1-13-plan-1 cycle_iteration=1
