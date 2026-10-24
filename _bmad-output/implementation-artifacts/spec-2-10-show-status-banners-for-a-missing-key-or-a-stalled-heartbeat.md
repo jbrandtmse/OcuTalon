@@ -2,9 +2,10 @@
 title: 'Story 2.10: Show status banners for a missing key or a stalled heartbeat'
 type: 'feature'
 created: '2026-10-23'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'eb1412c51bdcef0441b4244ff227d33e9a89089e'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred:
@@ -377,6 +378,41 @@ Banner times would also render as instance message times (DW-29).
 
 ## Review Triage Log
 
+### 2026-10-23 — Review pass
+- verdicts: 31 findings — high 0, medium 5, low 20, false 4, maybe-false 2
+- findings:
+  - `[medium]` `[patch]` Blind Hunter: `catalog.mjs` reason entries pass the widened `SLOT_TYPES`, nothing fills a time, count or cost slot in a reason text, and the 'reason-slot' test was edited from `count` to `noun` — a guard weakened; fixed: `generate` refuses any `fallbackReason.*` slot that is not `fallbackReason` (`REASON_SLOT_TYPE`), the `count` case is restored and `time` and `noun` cases added; mutation recorded
+  - `[false]` `[reject]` Blind Hunter: `Active` is not guarded, so a throwing `Keys.Status` or `Budget.State` fails `/state` — `Test.Web.Api` `TestStateFailsLoudly` pins that a failed read is an error and never an empty section, and `[]` would be a false all-clear
+  - `[low]` `[reject]` Blind Hunter: `TestStateBody` compares `status` with a second call of `Active`, so it cannot see `StateBody` dropping `status` when no condition is active — the CI start has no key (`check_no_key`), so the expected array is not empty there, `api.spec` row 13 pins `[noModelKey]`, and the fix needs a readings argument on `Active` (public surface); reopen_if a gate runs `Test.Web.Api` on a stack with a key set and no cap
+  - `[low]` `[reject]` Blind Hunter: `banner-stack.ts` builds the view list twice (`active`, `banners`) and `rail-view.ts` repeats banner-view's `holds` test — at most nine banners per store change, and the rail's one-line check reads the store's own shape; sharing it adds a rail to banner import for nothing observable
+  - `[low]` `[patch]` Blind Hunter: the `banner-view.test.mjs` title "fewer digits below" contradicts its `$0.500` assertion — retitled "three below a dollar"
+  - `[low]` `[reject]` Blind Hunter: a failed JSON export in `StatusMonitor` is logged as "could not publish" — the export of a payload the run just built does not fail (`wontfix-theoretical`; real only if a `Status` property gains a constraint a condition can break)
+  - `[low]` `[reject]` Blind Hunter: a persistent failure logs the same warning every 15 s — the spec fixes "a publish that fails is logged and published at the next run" (`by-design`)
+  - `[low]` `[patch]` Blind Hunter: `DailyCap` treats a number as a cap and a string as none, undocumented and untested — the doc now says so and `TestComputedDailyCap` pins 1, 0 and "true"; mutation recorded
+  - `[false]` `[reject]` Edge Case Hunter: `Active` unguarded (same claim as the Blind Hunter's) — refuted by `TestStateFailsLoudly`, which pins that a failed read is an error
+  - `[low]` `[reject]` Edge Case Hunter: a first run that skips a condition whose JSON export fails makes the next run publish it — export of a fresh payload does not fail (`wontfix-theoretical`), and a per-condition baseline would swallow the retry of a failed publish, so the run-wide first flag is right
+  - `[low]` `[reject]` Edge Case Hunter: after a job restart with a page open, a changed state is not published and the page keeps a stale banner — the spec's Decided 4 names this residual (`by-design`)
+  - `[maybe-false]` `[defer]` Edge Case Hunter: the silent first run in the job process may disagree with `/state` computed in the web process — the same root cause as the frontmatter `deferred` item (Lane A's `Keys.Status` in a request, DW-148); would settle it: a runtime measurement after Epic 1 merges (B1, B6, `api.spec` row 13); no new item
+  - `[false]` `[reject]` Edge Case Hunter: an impossible `resetsAt` such as `2026-13-45T99:99:99Z` becomes a slot — `pageTime` answers "" for an unreadable time and the banner still shows (Decided 15, matrix "An unreadable time"), covered by `banner-view.test.mjs`
+  - `[low]` `[reject]` Edge Case Hunter: a banner queued for announcement that clears before its turn is still announced — the queue gap is 150 ms per waiting banner, so the stale announcement is at most a fraction of a second old (`wontfix-theoretical`)
+  - `[medium]` `[patch]` Edge Case Hunter: the generator accepts a time, count or cost slot in a `fallbackReason.*` text (same claim as the first Blind Hunter row) — fixed with it
+  - `[low]` `[reject]` Edge Case Hunter: R11 no longer asserts an empty `.banner-slot` — Task 15 names the new assertion (no `[data-banner="telegramPaused"]`) because the no-key banner is always present (`by-design`)
+  - `[low]` `[reject]` Edge Case Hunter: nothing computes `heartbeatStalled` — the intent excludes it: "heartbeatStalled from StatusMark (8.2)" is out of scope here
+  - `[medium]` `[patch]` Verification Gap: `StatusMonitor`'s own `Readings` and `Stream` bodies run in no test, so a wrong stream or an empty reading leaves every test green — fixed: `Test.Core.StatusMonitorSeamProbe` and `TestProductSeams` (the instance stream; keys and budget equal `Status.Readings`); two mutations recorded
+  - `[low]` `[patch]` Verification Gap: `TestActive` has two assertions that cannot fail (`ActiveOf` against itself, and `[` in an array's JSON) — the first removed, the second replaced by a class check of the answer
+  - `[low]` `[reject]` Verification Gap: `TestStateBody` and `TestActive` depend on the Keys stub for a non-empty expectation (same root cause as the second Blind Hunter row) — see that row
+  - `[low]` `[patch]` Verification Gap: `DailyCap`'s number and string arms have no test (same claim as the Blind Hunter's) — fixed with it
+  - `[medium]` `[patch]` Verification Gap: the 'reason-slot' catalog test was edited so that the generator's refusal is no longer pinned (same claim as the first row) — fixed with it
+  - `[low]` `[reject]` Verification Gap: B6, the only real no-key reply check, is skipped while `Decide` has `STUB` — the matrix row names the skip, and B6 turns itself on when Epic 1 merges (`by-design`)
+  - `[low]` `[patch]` Verification Gap, Rule 19: B1, the look and action clause and the 'within one live update' wording had no demonstrated mutation at their browser tier — closed in this pass by one `live sign-in` run with three mutations, six cases red, lines written; the planned reds at the tiers above the cheapest one are not required (one demonstrated mutation per AC)
+  - `[low]` `[reject]` Verification Gap: the second warning count in `TestRefusedPublishIsPublishedAtTheNextRun` stays at 1 only because `TROLLBACK` removes the first — a failure of that would be a false red, not a false green, and the class passes (`wontfix-theoretical`)
+  - `[low]` `[reject]` Verification Gap: a failed JSON export is logged under the "could not publish" text and leaves a first-run condition unremembered (same claims as the Blind Hunter's and Edge Case Hunter's) — see those rows
+  - `[false]` `[reject]` Intent Alignment: the diff implements the seam reading of the intent, and the live reading only on a stack of stubs — the intent's own tests clause prescribes probes, private streams and session-stream fixtures (Decided 5, 13), so the split is the specified one; no defect claimed
+  - `[medium]` `[patch]` Intent Alignment: the real seam bodies run in no test and the path meets only at a fixture (same claim as the Verification Gap's seams row) — fixed with it
+  - `[maybe-false]` `[defer]` Intent Alignment: `/state` runs under the web roles and the job under its own, and Epic 1's `Keys.Status` may count a key as present in a request — the frontmatter `deferred` item (DW-148) already records this; would settle it: a measurement after Epic 1 merges; no new item
+  - `[low]` `[reject]` Intent Alignment: `ActiveOf` is a public method the contract does not list — it is the seam that lets the tests give `Active`'s filter fixture conditions; recorded as Decided 16
+  - `[low]` `[reject]` Intent Alignment: a first run that throws leaves nothing remembered, so the next good run is silent — Decided 4 says the first run that reads only remembers (`by-design`)
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -424,6 +460,10 @@ No AC contradicts an AD's Rule.
 13. **The no-key banner shows on every stack of this branch**, because the Keys stub answers 0. After Story 1.6 it still shows on every CI stack, because CI starts with no key (`compose.throwaway.yml` resets `env_file`, and `check_no_key` holds). The specs are written to hold either way.
 14. **`banner-view.ts` keeps the catalog as a table in code**, not in the generated module. Variants, icons, actions and closability are page presentation (DESIGN, EXPERIENCE). Only texts come from the catalog.
 15. **A banner whose slot is missing or unreadable still shows**, with that slot empty. A warning is never dropped.
+16. **Decided in implement:** `Status.ActiveOf(conditions)` is a public helper that `Active` calls. It is the seam that lets `Test.Live.Status` give `Active`'s filter fixture conditions on a slot whose bridge readings are stubs.
+17. **Decided in implement:** `dailyCap` holds when `capped` is the JSON boolean true or a number other than 0. Lane A's `Budget.State` answers a JSON boolean; the number arm only tolerates an ObjectScript 1. Any other value is not a cap, and `Test.Live.Status` pins all three.
+18. **Decided in review:** `Test.Core.StatusMonitorSeamProbe` is a subclass of `StatusMonitor` that keeps both private seams as the product has them and makes them callable, so `TestProductSeams` checks that the job publishes on the instance stream and reads `Status.Readings`. Nothing is published.
+19. **Decided in review:** a `fallbackReason.*` text may declare only `fallbackReason` slots, as before this story. The page renders a reason text as it is, so a time, count or cost slot in one would show its placeholder.
 
 **Cross-lane risk for the lead (route it, decide or escalate; not this story's to fix).** This is the frontmatter `deferred` item.
 - **The risk:** after Epic 1 merges, Lane A's `Keys.Status` cannot read the Config Store entry in an `/ocutalon/api` request, and counts the key as present. So `/state` would compute `noModelKey` as off on a start with no key. Every page load would also audit three refusals, and `Budget.State` would log a warning per call, because the request has no SQL grant for `Usage`.
@@ -522,6 +562,28 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. T
 | DW-29 | `{time}` uses `pageTimeBeside` or adds " ET" on the online demo | `banner-view.test.mjs`; B4 |
 | Typing | `catalog.mjs` lists no banner keys | `catalog.test.mjs` |
 
+**Demonstrated mutations (Rule 19).** Each was applied, seen red at the cheapest tier that goes red, and restored; `git status --short`, `git diff --stat` and the checksum of every changed file were identical before and after.
+- mutation: `Status.NoModelKey` reads `TriageAgent,DiagnosisAgent` only (`Computed` ignores `ChatAgent`) -> `Test.Live.Status` `TestComputedNoModelKey` red (slot B).
+- mutation: `Status.DailyCap` quits before it sets the slots -> `Test.Live.Status` `TestComputedDailyCap` and `TestActive` red (slot B). B3 publishes its own payload, so it does not pin the computation; the unit class does.
+- mutation: `StateBody` sets `status` to `[]` -> `Test.Web.Api` `TestStateBody` red (slot B). B1 and `api.spec` row 13 were not run for it.
+- mutation: `StatusMonitor.OnProcessInput` publishes on its first run (`first` fixed to 0) -> `Test.Core.StatusMonitor`, all six tests red (slot B).
+- mutation: `StatusMonitor.OnProcessInput` quits before the run -> `Test.Core.StatusMonitor`, five of six tests red (slot B).
+- mutation: the `noModelKey` and `costCap` rows swapped in `BANNERS` -> `banner-view.test.mjs`, five tests red. B5 was not run for it.
+- mutation: Reset soon `closable: false`, and separately `noModelKey` `closable: true` -> `banner-view.test.mjs`, six and four tests red.
+- mutation: `retainClosed` never drops a record -> `banner-view.test.mjs`, four tests red.
+- mutation: `textSlots` appends " ET" to `{time}` -> `banner-view.test.mjs`, three tests red.
+- mutation: `checkRow` ignores `heartbeatStalled` -> `rail-view.test.mjs`, two tests red.
+- mutation: `catalog.mjs` `LISTED_KEYS` without the banner and action keys -> `catalog.test.mjs`, five tests red.
+- mutation: `banner-stack.ts` announces no new banner, with the next two, in one `live sign-in` run -> B2 and B5 red (at the announcement).
+- mutation: `banner-stack.ts` appends " ET" to `{time}` when `onlineDemo` is true (same run) -> B4 red.
+- mutation: `composer.ts` Send gets `aria-disabled="true"` while `dailyCap` is active (same run) -> B3 red.
+- mutation: `banner-stack.ts` `keepFocus` returns at once, in a second `live sign-in` run (B5's announcement line would hide it in the first) -> B5 red at the focus line.
+- mutation: `StatusMonitor.Stream` answers `""` -> `Test.Core.StatusMonitor` `TestProductSeams` red ("the job publishes on the instance stream"; slot B).
+- mutation: `StatusMonitor.Readings` body emptied -> `TestProductSeams` red, four assertions (slot B).
+- mutation: `Status.DailyCap` loses its `"number"` arm -> `Test.Live.Status` `TestComputedDailyCap` red ("capped as the number 1: active"; slot B).
+- mutation: `catalog.mjs` reason-slot guard made unreachable (`if (false)` for `type !== REASON_SLOT_TYPE`) -> `catalog.test.mjs` "fails on a reason text with a slot ..." red.
+- mutation: three together in one `live sign-in` run, `StateBody` sets `status` to `[]`, `banner-stack.ts` drops `rel="noopener noreferrer"` from the action link, and its CSS drops the 4px accent (`border-left: 0px`) -> six cases red: `api.spec` row 13 (status), B1 (no banner), B2, B3, B4 (log: "has a 4px left accent", received "0px") and B5 (log: `expectAction`'s `rel`, expected "noopener noreferrer"). This closes the no-key AC's B1 and the look and action clause of `expectLook` and `expectAction`; the run does not say which of the three each of B1 to B3 failed on.
+
 **Shared surfaces:**
 - `/state`'s `status`, now computed: `[noModelKey]` on every stack with the Keys stub, and on a CI start with no key after Story 1.6. It is asserted in `Test.Web.Api` `TestStateBody` and in `api.spec` row 13.
 - `.banner-slot`'s content. The no-key banner shows on every page of every stack, which affects rail.spec R11, any count of links, focusable controls or tab stops after the header, and the main page's height at 1280×720 (`frame.spec`, `chat.spec`, `links.spec`).
@@ -541,7 +603,7 @@ Every test added or changed passes on a fresh environment, in either order:
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-23).** The plan halted after planning, as the dispatch asked.
@@ -549,3 +611,62 @@ Blocking condition: none
 - It ran no runtime measurement and started no throwaway.
 - **One cross-lane risk is flagged for the lead:** the frontmatter `deferred` item and the Design Notes' cross-lane risk. Lane A's `Keys.Status` in an `/ocutalon/api` request after Epic 1 merges is an inference from the source.
 - DW-29 is addressed.
+
+**Implement and review (2026-10-23, baseline `eb1412c`).**
+
+*Implemented.*
+- The server computes the banner conditions once, in `Live.Payload.Status` (`Readings`, `Computed`, `Active`), and `/state` and `StatusMonitor` both use it.
+- `StatusMonitor` is a 15-second `Ens.InboundAdapter` service. Its first run publishes nothing, a change publishes full views on the instance stream in the catalog's order, and a refused publish is logged and tried again at the next run.
+- The page shows the nine banners in the catalog's order in `.banner-slot`, with page times, announcements, the focus rule and Close on Reset soon and Reconnecting only. The rail's check rows read "(late)" while `heartbeatStalled` holds.
+
+*Files changed.*
+- Server:
+  - `src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls`: the computation (`AGENTS`, `Readings`, `Computed`, `Active`, `ActiveOf`).
+  - `src/ocutalon/cls/OcuTalon/Core/StatusMonitor.cls`: the polling publisher, without `STUB`.
+  - `src/ocutalon/cls/OcuTalon/Production.cls` and `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls`: pool 1, `CallInterval` 15.
+- Server tests:
+  - `Test/Live/Status.cls`, `Test/Core/StatusMonitor.cls`, `Test/Core/StatusMonitorProbe.cls` and `Test/Core/StatusMonitorSeamProbe.cls` (new);
+  - `Test/Web/Api.cls`: `TestStateBody` compares `status` with `Status.Active`.
+- Page:
+  - `web/scripts/catalog.mjs` and `web/src/app/msg/catalog.ts`: the banner and action keys, the slot types and `PAGE_SLOTS`;
+  - `web/src/app/banners/banner-view.ts` and `banner-stack.ts` (new), with `web/src/app/app.ts`;
+  - `web/src/app/main-page/main-page.ts`: `tabindex="-1"` on `main.main`;
+  - `web/src/app/rail/rail-view.ts`: `lastRunLate`.
+- Page tests:
+  - `web/scripts/banner-view.test.mjs` (new);
+  - `web/scripts/catalog.test.mjs` and `web/scripts/rail-view.test.mjs`;
+  - `web/e2e/banners/banners.spec.ts` (new: B1 to B6);
+  - `web/e2e/support/iris.ts` and `web/e2e/support/page.ts`: `publishStatus`, `decideIsStub`, the announcement recorder;
+  - `web/e2e/live/live.spec.ts`, `web/e2e/api/api.spec.ts` (row 13) and `web/e2e/rail/rail.spec.ts` (R11): the sweep;
+  - `docker/tests/test-sign-in.sh`: `ZzBanners`, `check_no_key` and the labels.
+
+*Review.* Four layers reported 31 findings: high 0, medium 5, low 20, false 4, maybe-false 2 (the Review Triage Log has one row each).
+- **Patches applied (3 medium entries, 5 low):**
+  - the generator again refuses a non-`fallbackReason` slot in a `fallbackReason.*` text, with the test restored (Decided 19);
+  - `StatusMonitor`'s own seams are tested through `StatusMonitorSeamProbe` (`TestProductSeams`; Decided 18);
+  - `dailyCap` is documented and tested for a number and a string `capped` (Decided 17);
+  - two assertions that could not fail were removed from `Test.Live.Status`;
+  - a test title was corrected;
+  - the missing mutation lines were closed.
+- **Deferred:** nothing new. The two findings that restate the frontmatter item (Lane A's `Keys.Status` in an `/ocutalon/api` request) are recorded as `maybe-false` duplicates of it.
+- **Rejected, with reasons in the log:**
+  - `Active` is not guarded, because `/state` fails loudly by design (`TestStateFailsLoudly`);
+  - `TestStateBody` depends on the stub, but the CI start has no key, `api.spec` row 13 pins it, and the fix needs a new argument (reopen_if a gate runs `Test.Web.Api` on a stack with a key set and no cap);
+  - double computation and a repeated one-line test (negligible);
+  - logging texts and repeat rates on failures that do not occur or that the spec fixes;
+  - the job-restart residual (Decided 4), R11's new assertion (Task 15), B6's skip (the matrix), `heartbeatStalled` from `StatusMark` (Story 8.2), an impossible `resetsAt` (the page shows an empty time), a stale announcement (at most 150 ms per waiting banner), and the intent-alignment notes (descriptive).
+
+*Follow-up review recommendation: true.* Two medium entries were patched (the generator's slot guard and the `StatusMonitor` seams test). Both were verified by mutation and the loop and once checks passed after them, but they did not get a second review pass.
+
+*Verification performed.*
+- Slot B (`ocutalon-slot-b`, `OCUTALON`, build 154): both `iris_doc_load` calls compile with 0 errors; `Test.Live.Status` 5/5, `Test.Core.StatusMonitor` 7/7, `Test.Web.Api` 29/29, `Test.Install.Production` 4/4, `Test.Live.Payloads` 10/10, `Test.Contract.Ac` 6/6, `Test.Msg.Contracts` 6/6; no `zz` row or stream is left.
+- Static and Node: `catalog.mjs --check`, `payloads.mjs --check`, `npm --prefix web test` (370 pass), lint, `test-web-build.sh`, `test-class-rules.sh`, `test-boundaries.sh` and `test-storage.sh` exit 0.
+- Throwaway `e2s210i`: `live sign-in` ran twice after the last patch (the final run 176 passed, 2 skipped: B6, "Story 1.6 turns this on", and a demo-path "not built" case); `check_no_key` prints PASS. The `(once)` lines: `ci/checks.sh` exits 0; `shard lane-b` and `shard lane-b --reverse` pass 42 classes each; `live production` passes (every enabled item runs, the start writes no error row); `live demo-path` passes with the floor 3 of 3; `teardown` leaves nothing.
+- Matrix Test Audit: every row has a covering test that ran and passed, B6 excepted. Its row is the matrix's own skip while `Decide` carries `STUB`.
+- Mutations (Rule 19): see the lines under `## Verification`. Every one was applied, seen red and restored with `git diff` byte-identical.
+
+*Residual risks.*
+- **The cross-lane risk (DW-148, the frontmatter item):** after Epic 1 merges, `Keys.Status` may count a key as present in a request. B1, B6 and `api.spec` row 13 turn red at that merge if it is real. B6 is skipped until then.
+- `TestRefusedPublishIsPublishedAtTheNextRun` takes 25 to 40 seconds (any `TSTART` and `TROLLBACK` on this slot does).
+- The production bundle is 522 kB against a 500 kB budget, a warning; the baseline was 512 kB.
+- Banners that appear together are announced 150 ms apart, because the CDK live announcer drops a message that is still waiting.

@@ -471,7 +471,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     await expect(link, 'to the README\'s Telegram section').toHaveAttribute('href', 'https://github.com/jbrandtmse/OcuTalon#telegram');
     await expect(link, 'in a new tab').toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-    await expect(page.locator('.banner-slot'), 'no banner appears').toBeEmpty();
+    await expect(page.locator('[data-banner="telegramPaused"]'), 'no Telegram banner').toHaveCount(0);
 
     for (const [state, setUp] of [['rejected', false], ['on', true]] as const) {
       await page.route(`**${STATE}`, async (route) => {

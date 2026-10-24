@@ -2,7 +2,8 @@ import type { Locator, Page } from '@playwright/test';
 
 /**
  * Readings that the browser specs of the chat share: a time as the page shows it, a text with its whitespace collapsed, the
- * colour of a token as the page paints it, and the scroll position of the chat list. None of them needs a stack.
+ * colour of a token as the page paints it, the scroll position of the chat list, and the texts that the polite announcer read.
+ * None of them needs a stack.
  */
 
 /** A time as the page shows it for the Asia/Kolkata zone and the en-US locale, with the narrow no-break space read as a space. */
@@ -43,3 +44,26 @@ export async function scrollListTo(list: Locator, where: 'top' | 'bottom'): Prom
     where,
   );
 }
+
+/**
+ * Before the page's scripts run: records every text that the polite announcer's live region receives (each node added to
+ * it), as window.announced, so a test can count how often a message was announced.
+ */
+export async function recordAnnouncements(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const announced: string[] = [];
+    (window as unknown as { announced: string[] }).announced = announced;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (!(record.target instanceof HTMLElement) || !record.target.classList.contains('cdk-live-announcer-element')) continue;
+        for (const node of Array.from(record.addedNodes)) {
+          if (node.textContent) announced.push(node.textContent);
+        }
+      }
+    }).observe(document, { subtree: true, childList: true });
+  });
+}
+
+/** How many times the recorded announcements hold exactly this text. */
+export const announcements = (page: Page, text: string): Promise<number> =>
+  page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry === wanted).length, text);

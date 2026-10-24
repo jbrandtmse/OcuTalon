@@ -112,6 +112,7 @@ describe('the fixed strings', () => {
         checkTitle: '{name} production',
         checkSchedule: 'Live, plus a check every minute',
         lastRun: 'Last run {when}',
+        lastRunLate: 'Last run {when} (late)',
         titleWithCountdown: '{text}{separator}{countdown}',
         telegramNotSetUp: 'Telegram not set up',
         telegramHowTo: 'How to set it up',
@@ -277,6 +278,24 @@ describe('background checks', () => {
     assert.deepEqual(meta({ finding: '', result: 'not-checked' }), ['Last run 14:13', 'Not checked']);
     assert.deepEqual(meta({ finding: '', result: '' }), ['Last run 14:13']);
     assert.deepEqual(meta({ finding: undefined, result: undefined }), ['Last run 14:13']);
+  });
+
+  it('reads "Last run 14:13 (late)" for every check while the heartbeat is stalled, and only then', () => {
+    const rows = (status) => section(railView(fromSnapshot({ ...snapshot({ checks: [check('c1'), check('c2', { displayName: 'Billing', finding: '', result: 'passed' })] }), status }), format()), 'checks').rows;
+    const stalled = { condition: 'heartbeatStalled', active: true, slots: { time: '2026-10-22T14:00:00Z' } };
+    assert.deepEqual(rows([stalled]).map((row) => row.meta), [['Last run 14:13 (late)', '50 new failures'], ['Last run 14:13 (late)', 'Passed']], 'late while stalled');
+    assert.deepEqual(rows([]).map((row) => row.meta), [['Last run 14:13', '50 new failures'], ['Last run 14:13', 'Passed']], 'not late with no condition');
+    assert.deepEqual(rows([{ ...stalled, active: false, slots: undefined }]).map((row) => row.meta[0]), ['Last run 14:13', 'Last run 14:13'], 'not late once it is inactive');
+    assert.deepEqual(rows([{ condition: 'noModelKey', active: true }, { condition: 'dailyCap', active: true, slots: { cap: 20 } }]).map((row) => row.meta[0]), ['Last run 14:13', 'Last run 14:13'], 'and not late for any other condition');
+  });
+
+  it('turns "(late)" on and off as a status event arrives, and never on a check that has not run', () => {
+    const store = fromSnapshot(snapshot({ checks: [check('c1'), check('c2', { lastRunAt: '', result: '', finding: '' })] }));
+    const meta = (one) => section(railView(one, format()), 'checks').rows.map((row) => row.meta);
+    const on = applyEvents(store, { epoch: 'e1', events: [{ type: 'status', stream: 'instance', seq: 1, ts: '', payload: { condition: 'heartbeatStalled', active: true, slots: { time: '2026-10-22T14:00:00Z' } } }] }).store;
+    assert.deepEqual(meta(on), [['Last run 14:13 (late)', '50 new failures'], []], 'the late mark, and no meta line for a check that has not run');
+    const off = applyEvents(on, { epoch: 'e1', events: [{ type: 'status', stream: 'instance', seq: 2, ts: '', payload: { condition: 'heartbeatStalled', active: false } }] }).store;
+    assert.deepEqual(meta(off), [['Last run 14:13', '50 new failures'], []], 'cleared again');
   });
 
   it('has no meta line before the first run', () => {

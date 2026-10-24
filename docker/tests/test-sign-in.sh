@@ -35,8 +35,11 @@
 #     the trace role), whose session posts its own turns and receives seeded decisions, checks, reminders and approval requests, so that
 #     the specs press the page's trace links, the sign-in help and the Visual Trace menu; V1, V2 and V8 open the real Visual Trace pages,
 #     and the other cases give their trace tabs a stand-in page.
+#   - Story 2.10's status banners (web/e2e/banners/banners.spec.ts B1 to B6): the banners user (OCUTALON_BANNERS_USER), whose session the
+#     specs publish status events on, seed checks and decisions into and send a message from; the stack starts with no model key
+#     (check_no_key), so every page of it shows the no-key banner, and B6 turns itself on when the bridge's Decide is built.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread and links users
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread, links and banners users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -75,6 +78,8 @@ threaduser=ZzThread
 threadpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 linksuser=ZzLinks
 linkspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+bannersuser=ZzBanners
+bannerspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -92,6 +97,7 @@ if ! wait_started_ready 400; then
   die "the first start did not end ready within 400 s"
 fi
 pass "the first start ended ready"
+check_no_key "sign-in"
 
 # --- rows 1 and 2 ---
 
@@ -137,8 +143,9 @@ fi
 # Story 2.7, which seed decisions and send items, item decisions and notifications to its session, and the rail user holds it for the
 # specs of Story 2.8, which seed approval requests, checks, reminders and decisions into its session, and the thread user holds the
 # user role and the trace role for the specs of Story 2.9, which post messages for its session and open the links in Visual Trace, and
-# the links user holds the same two roles for the specs of Story 2.13, which do the same through the links on the page.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture"; do
+# the links user holds the same two roles for the specs of Story 2.13, which do the same through the links on the page, and the
+# banners user holds the user role for the specs of Story 2.10, which publish status events on its session and read the banners.
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -185,7 +192,7 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -213,6 +220,8 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_THREAD_PASSWORD="$threadpassword" \
   OCUTALON_LINKS_USER="$linksuser" \
   OCUTALON_LINKS_PASSWORD="$linkspassword" \
+  OCUTALON_BANNERS_USER="$bannersuser" \
+  OCUTALON_BANNERS_PASSWORD="$bannerspassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \
@@ -225,13 +234,13 @@ if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V16: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16 and Story 2.10's B1-B6: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4 and Story 2.13's V1-V16: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16 and Story 2.10's B1-B6: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

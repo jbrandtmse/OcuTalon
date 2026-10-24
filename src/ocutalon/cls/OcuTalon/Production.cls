@@ -50,7 +50,9 @@ XData ProductionDefinition
   <Item Name="AnswersIn" ClassName="OcuTalon.Core.AnswersIn" PoolSize="0" Enabled="true"/>
   <Item Name="CommandsIn" ClassName="OcuTalon.Core.CommandsIn" PoolSize="0" Enabled="true"/>
   <Item Name="NoticesIn" ClassName="OcuTalon.Core.NoticesIn" PoolSize="0" Enabled="true"/>
-  <Item Name="StatusMonitor" ClassName="OcuTalon.Core.StatusMonitor" PoolSize="0" Enabled="true"/>
+  <Item Name="StatusMonitor" ClassName="OcuTalon.Core.StatusMonitor" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="CallInterval">15</Setting>
+  </Item>
   <Item Name="Conversation" ClassName="OcuTalon.Core.Conversation" PoolSize="1" Enabled="true"/>
   <Item Name="Intake" ClassName="OcuTalon.Core.Intake" PoolSize="1" Enabled="true"/>
   <Item Name="OutcomeRouter" ClassName="EnsLib.MsgRouter.RoutingEngine" PoolSize="1" Enabled="true">

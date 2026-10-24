@@ -17,6 +17,7 @@
 /// tests (in a process-private global), unset before each test and put back after them.
 /// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
 /// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
+/// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -87,8 +88,8 @@ Method OnAfterAllTests() As %Status
 }
 
 /// The snapshot has the version, the zone, the session's epoch, each stream's last Seq, empty chat and rail for a session
-/// with no rows, the session row's user, the models' display names, the Telegram block and the status conditions. A
-/// fixture session's stream stands in for the instance stream.
+/// with no rows, the session row's user, the models' display names, the Telegram block and the status conditions, which
+/// are the active ones that Status.Active computes (Story 2.10). A fixture session's stream stands in for the instance stream.
 Method TestStateBody()
 {
 	Set session = ##class(OcuTalon.Data.Session).ForUser("zzapistate"_..Number, .sc)
@@ -135,7 +136,12 @@ Method TestStateBody()
 	}
 	Do $$$AssertEquals(keys, "approvals,checks,reminders,decisions", "the rail's keys")
 	Do $$$AssertEquals(body.%GetTypeOf("status"), "array", "status is an array")
-	Do $$$AssertEquals(body.status.%Size(), 0, "with no active condition")
+	Set expected = ##class(OcuTalon.Live.Payload.Status).Active(session.Ref)
+	Do $$$AssertEquals(body.status.%Size(), expected.%Size(), "status holds as many conditions as Status.Active computes")
+	For i = 0:1:expected.%Size() - 1 {
+		Do $$$AssertEquals(body.status.%Get(i).%ToJSON(), expected.%Get(i).%ToJSON(), "status member "_i_" is the computed condition")
+		Do $$$AssertEquals(body.status.%Get(i).active, 1, "and it is active")
+	}
 	Set keys = ""
 	Set iterator = body.telegram.%GetIterator()
 	While iterator.%GetNext(.key) {

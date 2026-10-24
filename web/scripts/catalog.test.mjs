@@ -1,6 +1,7 @@
 // Tests of the page's catalog generator (catalog.mjs) and of the module it writes (src/app/msg/catalog.ts): the real tree's
 // check, the fallback sentence for each of the 12 reasons and for one that is none, the three check sentences from the Watch
-// catalog, and fixtures for the output's shape, the web text over the text, the merge of the Core and Watch catalogs, and each
+// catalog, the 12 banner and action keys with their slot types (Story 2.10), and fixtures for the output's shape, the web text
+// over the text, the merge of the Core and Watch catalogs, the time, cost and count slots that take the caller's string, and each
 // way the generator refuses (a missing listed key, a key in both catalogs, a slot type the page does not render, a broken XData
 // block, a reason with no text) and a stale file.
 // Run with: node --test web/scripts/
@@ -24,6 +25,22 @@ after(() => rmSync(work, { recursive: true, force: true }));
 
 const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 
+/** The nine banner texts and the three action texts that the page renders (Story 2.10), in the generator's order. */
+const BANNER_KEYS = [
+  'banner.allowance',
+  'banner.dailyCap',
+  'banner.unreachable',
+  'banner.noModelKey',
+  'banner.costCap',
+  'banner.heartbeatStalled',
+  'banner.telegramPaused',
+  'banner.resetSoon',
+  'banner.reconnecting',
+  'bannerAction.installYourself',
+  'bannerAction.howToSetKey',
+  'bannerAction.setUpBot',
+];
+
 describe('the real tree', () => {
   it('has a current catalog.ts', () => {
     const r = run('--check');
@@ -37,14 +54,50 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence and the three check sentences', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the three check sentences and the 12 banner and action keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     const checks = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched'];
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 15);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...checks, ...BANNER_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 27);
+  });
+
+  it('holds the 12 banner and action keys with the slot types of the catalog, and no key that waits for another story', () => {
+    assert.equal(BANNER_KEYS.length, 12);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS]);
+    const slots = {
+      'banner.allowance': { limit: 'count', time: 'time' },
+      'banner.dailyCap': { time: 'time' },
+      'banner.costCap': { cap: 'cost', time: 'time' },
+      'banner.heartbeatStalled': { time: 'time' },
+      'banner.telegramPaused': { time: 'time' },
+      'conversation.turnFallback': { fallbackReason: 'fallbackReason' },
+    };
+    for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
+    assert.ok(!Object.hasOwn(real.PAGE_TEXTS, 'bannerAction.budgets'), 'Budgets waits for the settings page');
+    for (const key of BANNER_KEYS) assert.equal(typeof real.PAGE_TEXTS[key], 'string', key);
+  });
+
+  it('renders the banner texts of the catalog, with the slots as the caller formatted them', () => {
+    assert.equal(real.renderPageText('banner.noModelKey'), 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.');
+    assert.equal(
+      real.renderPageText('banner.costCap', { cap: '$20.00', time: '17:30' }),
+      "OcuTalon has reached today's cost limit of $20.00. Decisions use fixed rules until 17:30.",
+    );
+    assert.equal(
+      real.renderPageText('banner.allowance', { limit: '20', time: '5:30 PM' }),
+      "You've used this session's 20 messages for the hour (messages you send in the chat or Telegram). You can send more at 5:30 PM.",
+    );
+    assert.equal(real.renderPageText('banner.reconnecting'), 'Reconnecting\u2026 New messages may be delayed.');
+    assert.equal(real.renderPageText('banner.dailyCap', { time: '$&' }), "The online demo has used today's model allowance. Decisions use fixed rules until $&.", 'a value is never read as a replacement pattern');
+    assert.equal(real.renderPageText('banner.dailyCap'), "The online demo has used today's model allowance. Decisions use fixed rules until .", 'a missing slot renders empty');
+    assert.equal(real.renderPageText('banner.dailyCap', { time: 5 }), "The online demo has used today's model allowance. Decisions use fixed rules until .", 'a value that is no string renders empty');
+    assert.equal(real.renderPageText('banner.dailyCap', { time: ' 17:30\n' }), "The online demo has used today's model allowance. Decisions use fixed rules until 17:30.", 'and a string is cleaned like any string slot');
+    assert.equal(real.renderPageText('bannerAction.installYourself'), 'Install it yourself');
+    assert.equal(real.renderPageText('bannerAction.howToSetKey'), 'How to set a key');
+    assert.equal(real.renderPageText('bannerAction.setUpBot'), 'Set up a bot');
   });
 });
 
@@ -116,8 +169,25 @@ const coreClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Core\
 const watchClass = (entries) => `/// A fixture.\nClass OcuTalon.Msg.Catalog.Watch\n{\n\nXData Entries [ MimeType = application/json ]\n{\n${entries}\n}\n\n}\n`;
 const catalogClass = (reasons) => `/// A fixture.\nClass OcuTalon.Msg.Catalog\n{\n\nParameter REASONKEYS = "${reasons}";\n\n}\n`;
 
+/** The banner and action entries of the fixtures: the slot types of the real ones, with texts of their own. */
+const BANNERS = {
+  'banner.allowance': { text: 'Used {limit} until {time}.', slots: { limit: 'count', time: 'time' }, source: 'fixture' },
+  'banner.dailyCap': { text: 'Capped until {time}.', slots: { time: 'time' }, source: 'fixture' },
+  'banner.unreachable': { text: 'Unreachable.', slots: {}, source: 'fixture' },
+  'banner.noModelKey': { text: 'No key.', slots: {}, source: 'fixture' },
+  'banner.costCap': { text: 'Limit {cap} until {time}.', slots: { cap: 'cost', time: 'time' }, source: 'fixture' },
+  'banner.heartbeatStalled': { text: 'Stalled at {time}.', slots: { time: 'time' }, source: 'fixture' },
+  'banner.telegramPaused': { text: 'Paused until {time}.', slots: { time: 'time' }, source: 'fixture' },
+  'banner.resetSoon': { text: 'Resets soon.', slots: {}, source: 'fixture' },
+  'banner.reconnecting': { text: 'Reconnecting.', slots: {}, source: 'fixture' },
+  'bannerAction.installYourself': { text: 'Install.', slots: {}, source: 'fixture' },
+  'bannerAction.howToSetKey': { text: 'Set a key.', slots: {}, source: 'fixture' },
+  'bannerAction.setUpBot': { text: 'Set up.', slots: {}, source: 'fixture' },
+};
+
 const GOOD = {
   'conversation.turnFallback': { text: "I couldn't answer that: {fallbackReason}. Nothing was changed.", slots: { fallbackReason: 'fallbackReason' }, source: 'fixture' },
+  ...BANNERS,
   'fallbackReason.timeout': { text: 'it timed out', slots: {}, source: 'fixture' },
   'fallbackReason.generic': { text: 'it failed', slots: {}, source: 'fixture' },
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
@@ -149,7 +219,12 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', 'checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', ...BANNER_KEYS]);
+    assert.deepEqual({ ...module.PAGE_SLOTS['banner.costCap'] }, { cap: 'cost', time: 'time' });
+    assert.deepEqual({ ...module.PAGE_SLOTS['banner.allowance'] }, { limit: 'count', time: 'time' });
+    assert.deepEqual({ ...module.PAGE_SLOTS['conversation.turnFallback'] }, { fallbackReason: 'fallbackReason' });
+    assert.deepEqual({ ...module.PAGE_SLOTS['banner.resetSoon'] }, {});
     assert.equal(module.renderPageText('checks.allPassed'), 'All fine.');
     assert.equal(module.renderPageText('checks.nothingWatched'), "Nothing's watched.");
     assert.deepEqual({ ...module.REASON_KEYS }, { timeout: 'timeout', invalid: 'generic' });
@@ -164,6 +239,20 @@ describe('the generator on a fixture', () => {
     const module = await import(pathToFileURL(args[5]).href);
     assert.equal(module.PAGE_TEXTS['fallbackReason.timeout'], 'it timed out on the page');
     assert.equal(module.PAGE_TEXTS['fallbackReason.generic'], 'it failed');
+  });
+
+  it('renders a time, cost or count slot as the string it is given, and a fallbackReason slot as its reason text', async () => {
+    const args = fixture('slots');
+    assert.equal(run(...args).status, 0);
+    const module = await import(pathToFileURL(args[5]).href);
+    assert.equal(module.renderPageText('banner.costCap', { cap: '$20.00', time: '17:30' }), 'Limit $20.00 until 17:30.');
+    assert.equal(module.renderPageText('banner.allowance', { limit: '20', time: '5:30 PM' }), 'Used 20 until 5:30 PM.');
+    assert.equal(module.renderPageText('banner.costCap', { cap: ' $20.00\n', time: 'a\u200Bb' }), 'Limit $20.00 until ab.', 'cleaned like any string slot');
+    assert.equal(module.renderPageText('banner.costCap', { cap: 20, time: null }), 'Limit  until .', 'a value that is no string, or absent, gives an empty string');
+    assert.equal(module.renderPageText('banner.costCap', { cap: '{time}', time: '17:30' }), 'Limit {time} until 17:30.', 'one pass: a value is not read as a placeholder');
+    assert.equal(module.renderPageText('banner.costCap', { cap: '$&', time: "$'" }), "Limit $& until $'.", 'and not as a replacement pattern');
+    assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: 'timeout' }), "I couldn't answer that: it timed out. Nothing was changed.");
+    assert.equal(module.renderPageText('conversation.turnFallback', { fallbackReason: '17:30' }), "I couldn't answer that: it failed. Nothing was changed.");
   });
 
   it('writes a non-ASCII character of a text as an escape sequence', async () => {
@@ -235,18 +324,44 @@ describe('the generator on a fixture', () => {
     assert.match(r.stderr, /boom/);
   });
 
-  it('fails on a listed key with a slot of a type other than fallbackReason', () => {
-    const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {time}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', time: 'time' } } };
-    const r = run(...fixture('time-slot', { entries }));
+  it('fails on a listed key with a slot of a type that the page does not render, and accepts time, count and cost', () => {
+    for (const type of ['noun', 'text', 'sentence']) {
+      const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
+      const r = run(...fixture(`slot-${type}`, { entries }));
+      assert.equal(r.status, 1, type);
+      assert.match(r.stderr, /Core\.cls/, type);
+      assert.match(r.stderr, /conversation\.turnFallback/, type);
+      assert.ok(r.stderr.includes(`slot 'what' of type '${type}'`), `${type}: ${r.stderr}`);
+    }
+    for (const type of ['time', 'count', 'cost']) {
+      const entries = { ...GOOD, 'conversation.turnFallback': { text: 'At {what}: {fallbackReason}', slots: { fallbackReason: 'fallbackReason', what: type } } };
+      const r = run(...fixture(`slot-ok-${type}`, { entries }));
+      assert.equal(r.status, 0, `${type}: ${r.stderr}`);
+    }
+  });
+
+  it('fails on a banner key whose slot is a noun, which the page cannot fill from a string', () => {
+    const entries = { ...GOOD, 'banner.costCap': { text: 'Limit {cap} until {time}.', slots: { cap: 'noun', time: 'time' } } };
+    const r = run(...fixture('banner-noun', { entries }));
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /Core\.cls/);
-    assert.match(r.stderr, /conversation\.turnFallback/);
-    assert.match(r.stderr, /slot 'time' of type 'time'/);
+    assert.match(r.stderr, /banner\.costCap/);
+    assert.ok(r.stderr.includes("slot 'cap' of type 'noun'"), r.stderr);
+  });
+
+  it('fails on a missing banner or action key, naming it', () => {
+    for (const key of BANNER_KEYS) {
+      const r = run(...fixture(`no-${key}`, { entries: Object.fromEntries(Object.entries(GOOD).filter(([name]) => name !== key)) }));
+      assert.equal(r.status, 1, key);
+      assert.ok(r.stderr.includes(`'${key}'`), `${key}: ${r.stderr}`);
+      assert.match(r.stderr, /missing/, key);
+    }
   });
 
   it('fails on a reason text with a slot, a one form, an undeclared placeholder and a stray brace', () => {
     const cases = {
       'reason-slot': { text: 'it {n}', slots: { n: 'count' } },
+      'reason-time-slot': { text: 'it {n}', slots: { n: 'time' } },
+      'reason-noun-slot': { text: 'it {n}', slots: { n: 'noun' } },
       'one-form': { text: 'it timed out', slots: {}, one: { slot: 'n', text: 'x' } },
       undeclared: { text: 'it {what}', slots: {} },
       'stray-brace': { text: 'it } failed', slots: {} },

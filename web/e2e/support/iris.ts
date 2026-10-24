@@ -12,7 +12,7 @@ function required(name: string): string {
 }
 
 /** The kinds of fixture user of the sign-in unit. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS';
+export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS';
 
 /** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {
@@ -706,6 +706,54 @@ export async function publishCheck(user: string, fields: CheckFields & { ref: st
   const seq = Number(chk(lines, 'seq'));
   if (!Number.isInteger(seq) || seq < 1) throw new Error(`the check could not be published (${lines.join(' ')})`);
   return seq;
+}
+
+/** The slots of a status condition that publishStatus sets: the limit, the cap in dollars and the UTC time. */
+export interface StatusSlots {
+  limit?: number;
+  cap?: number;
+  time?: string;
+}
+
+/**
+ * Publishes a status event on the user's own session stream, as StatusMonitor does for the instance, and returns its Seq. The
+ * payload is a Live.Payload.Status with the condition, its active flag and, when given, its slots. The page applies a status event
+ * of either stream alike, and a spec never publishes on the instance stream, so this is how a spec turns a condition on and off.
+ */
+export async function publishStatus(user: string, fields: { condition: string; active: boolean; slots?: StatusSlots }): Promise<number> {
+  const slots = fields.slots;
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      'Set p=##class(OcuTalon.Live.Payload.Status).%New()',
+      `Set p.Condition=${quoted(fields.condition)}`,
+      `Set p.Active=${fields.active ? 1 : 0}`,
+      ...(slots === undefined
+        ? []
+        : [
+            'Set p.Slots=##class(OcuTalon.Live.Payload.Part.StatusSlots).%New()',
+            ...(slots.limit === undefined ? [] : [`Set p.Slots.Limit=${numeric(slots.limit, 'limit')}`]),
+            ...(slots.cap === undefined ? [] : [`Set p.Slots.Cap=${numeric(slots.cap, 'cap')}`]),
+            ...(slots.time === undefined ? [] : [`Set p.Slots.Time=${quoted(slots.time)}`]),
+          ]),
+      'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"status",p,.q)',
+      'Write !,"CHK|seq|",q',
+    ].join('\n'),
+  );
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the status event could not be published (${lines.join(' ')})`);
+  return seq;
+}
+
+/**
+ * True while the bridge's Decide item still carries its STUB parameter, the project's built-or-not marker (Story 11.5's check):
+ * the stack has no model call that can say there is no key. It is read from the class, so the answer follows the build.
+ */
+export async function decideIsStub(): Promise<boolean> {
+  const lines = await irisScript(['Write !,"CHK|stub|",+$Parameter("OcuTalon.Bridge.Process.Decide","STUB")'].join('\n'));
+  const stub = chk(lines, 'stub');
+  if (stub !== '0' && stub !== '1') throw new Error(`Decide's STUB could not be read (${lines.join(' ')})`);
+  return stub === '1';
 }
 
 /** Writes a reminder of the user's own session through Test.Data.Fixture.Reminder (pending, due at dueAt when given). Returns its Ref; cleanFixtureRows removes it. */

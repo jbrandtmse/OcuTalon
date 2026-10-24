@@ -53,6 +53,7 @@ const SKELETON_ROWS = [1, 2] as const;
     </section>
     <main
       class="main"
+      tabindex="-1"
       [attr.data-snapshot]="live.status()"
       [attr.data-session-seq]="live.sessionSeq() ?? null"
       [attr.data-instance-seq]="live.instanceSeq() ?? null"

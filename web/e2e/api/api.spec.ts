@@ -133,7 +133,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     displayName: '',
     pausedUntil: '',
   });
-  expect(body['status'], 'no status condition is computed yet').toEqual([]);
+  expect(body['status'], 'the computed no-key condition of this stack: the model key is not set (Story 2.10)').toEqual([{ condition: 'noModelKey', active: true }]);
 });
 
 /**

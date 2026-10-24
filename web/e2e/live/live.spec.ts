@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
 import { fixtureUser, publishReminder } from '../support/iris';
+import { announcements, recordAnnouncements } from '../support/page';
 
 /**
  * Story 2.2, the live path (L1 to L13), in a real browser against a real stack, signed in as the live fixture user that
@@ -64,28 +65,6 @@ async function holdState(page: Page): Promise<{ release: () => void; held: () =>
     held: () => waiting.length,
   };
 }
-
-/**
- * Before the page's scripts run: records every text that the polite announcer's live region receives (each node added to
- * it), as window.announced, so a test can count how often a message was announced.
- */
-async function recordAnnouncements(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const announced: string[] = [];
-    (window as unknown as { announced: string[] }).announced = announced;
-    new MutationObserver((records) => {
-      for (const record of records) {
-        if (!(record.target instanceof HTMLElement) || !record.target.classList.contains('cdk-live-announcer-element')) continue;
-        for (const node of Array.from(record.addedNodes)) {
-          if (node.textContent) announced.push(node.textContent);
-        }
-      }
-    }).observe(document, { subtree: true, childList: true });
-  });
-}
-
-const announcements = (page: Page, text: string): Promise<number> =>
-  page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry === wanted).length, text);
 
 /**
  * Before the page's scripts run: records every value that the main region's data-snapshot takes, in order, as window.snapshots,

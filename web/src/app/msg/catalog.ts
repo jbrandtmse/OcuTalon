@@ -6,6 +6,18 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'checks.allPassed': 'Everything I checked passed.',
   'checks.everythingElsePassed': 'Everything else I checked passed.',
   'checks.nothingWatched': "I'm not watching any productions yet, so I can't say. Ask me to watch one.",
+  'banner.allowance': "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.",
+  'banner.dailyCap': "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
+  'banner.unreachable': "Can't reach OcuTalon. Retrying every 10 seconds.",
+  'banner.noModelKey': 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.',
+  'banner.costCap': "OcuTalon has reached today's cost limit of {cap}. Decisions use fixed rules until {time}.",
+  'banner.heartbeatStalled': 'Background checks have paused: the heartbeat last ran at {time}. Watches and reminders may be late until it recovers.',
+  'banner.telegramPaused': 'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot.',
+  'banner.resetSoon': 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.',
+  'banner.reconnecting': 'Reconnecting\u2026 New messages may be delayed.',
+  'bannerAction.installYourself': 'Install it yourself',
+  'bannerAction.howToSetKey': 'How to set a key',
+  'bannerAction.setUpBot': 'Set up a bot',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -17,6 +29,26 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'fallbackReason.dailyCap': "today's cost limit has been reached",
   'fallbackReason.noKey': 'no model key is set',
   'fallbackReason.generic': "the model's reply couldn't be used",
+};
+
+/** The slot types of each listed key, by slot name: fallbackReason gives its reason text, the others take the formatted string the caller passes. */
+export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'conversation.turnFallback': { 'fallbackReason': 'fallbackReason' },
+  'checks.allPassed': {},
+  'checks.everythingElsePassed': {},
+  'checks.nothingWatched': {},
+  'banner.allowance': { 'limit': 'count', 'time': 'time' },
+  'banner.dailyCap': { 'time': 'time' },
+  'banner.unreachable': {},
+  'banner.noModelKey': {},
+  'banner.costCap': { 'cap': 'cost', 'time': 'time' },
+  'banner.heartbeatStalled': { 'time': 'time' },
+  'banner.telegramPaused': { 'time': 'time' },
+  'banner.resetSoon': {},
+  'banner.reconnecting': {},
+  'bannerAction.installYourself': {},
+  'bannerAction.howToSetKey': {},
+  'bannerAction.setUpBot': {},
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */
@@ -59,10 +91,15 @@ function reasonText(value: unknown): string {
 /**
  * The text of a catalog key that the page renders, with its slots filled in one pass: a value is never read as a
  * placeholder. A fallbackReason slot takes a fallback reason value and gives its text; a value that is none of REASON_KEYS
- * gives the generic reason's. A key that is not in PAGE_TEXTS throws.
+ * gives the generic reason's. Every other slot takes the string the caller formatted (a time, a cost or a count), cleaned like
+ * any string slot, and an absent or non-string value gives an empty string. A key that is not in PAGE_TEXTS throws.
  */
 export function renderPageText(key: string, slots: PageSlots = {}): string {
   const template = Object.hasOwn(PAGE_TEXTS, key) ? PAGE_TEXTS[key] : undefined;
   if (template === undefined) throw new Error("The page has no catalog text for '" + key + "'");
-  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => reasonText(Object.hasOwn(slots, name) ? slots[name] : undefined));
+  const types = Object.hasOwn(PAGE_SLOTS, key) ? PAGE_SLOTS[key] : {};
+  return template.replace(/\{([^{}]*)\}/g, (_placeholder: string, name: string) => {
+    const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
+    return Object.hasOwn(types, name) && types[name] === 'fallbackReason' ? reasonText(value) : cleanSlot(value);
+  });
 }
