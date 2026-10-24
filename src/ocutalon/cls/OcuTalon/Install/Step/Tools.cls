@@ -66,23 +66,11 @@ ClassMethod GrantsOf(toolsets As %List) As %DynamicArray
 /// The pairs of a RESOURCES value as a dynamic array of {"resource","permission"}: resource:permission[,resource:permission...], where the
 /// permission is one or more of R, W and U. An empty value gives []. A pair without a colon, with an empty or spaced resource, or with a
 /// permission that is empty or holds another character throws a status that names where (the class and the tool, or the caller's own words).
+/// The parser is the gate's (OcuTalon.Bridge.Policy.Gate.Resources), so the role that the installer composes and the check that the gate makes
+/// read a value the same way.
 ClassMethod Parse(value As %String, where As %String) As %DynamicArray
 {
-	Set pairs = []
-	If value = "" Quit pairs
-	For i = 1:1:$Length(value, ",") {
-		Set pair = $Piece(value, ",", i)
-		Set resource = $Piece(pair, ":", 1)
-		Set permission = $Piece(pair, ":", 2)
-		If ($Length(pair, ":") '= 2) || (resource = "") || ($ZStrip(resource, "*W") '= resource) {
-			$$$ThrowStatus($SYSTEM.Status.Error(5001, where_" RESOURCES: '"_pair_"' in '"_value_"' is not resource:permission with a resource name"))
-		}
-		If (permission = "") || ($Translate(permission, "RWU") '= "") {
-			$$$ThrowStatus($SYSTEM.Status.Error(5001, where_" RESOURCES: the permission of '"_pair_"' in '"_value_"' is not made of R, W and U"))
-		}
-		Do pairs.%Push({"resource": (resource), "permission": (permission)})
-	}
-	Quit pairs
+	Quit ##class(OcuTalon.Bridge.Policy.Gate).Resources(value, where)
 }
 
 }

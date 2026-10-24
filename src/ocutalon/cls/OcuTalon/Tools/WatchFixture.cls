@@ -12,6 +12,27 @@ Parameter STEPLABELREADEVENTLOG = "Reading the event log";
 
 Parameter STEPLABELREADITEMSETTINGS = "Reading the item settings";
 
+/// The classification of the three tools for the gate (AD-10; Consistency Conventions: Tool classification), by the same naming rule. All three
+/// are safe and read-only. None is trusted output: failed messages and the event log hold text from arriving messages, and item settings
+/// are not OcuTalon's own records, so a result taints the turn.
+Parameter CLASSIFICATIONREADFAILEDMESSAGES = "safe";
+
+Parameter READONLYREADFAILEDMESSAGES = 1;
+
+Parameter TRUSTEDOUTPUTREADFAILEDMESSAGES = 0;
+
+Parameter CLASSIFICATIONREADEVENTLOG = "safe";
+
+Parameter READONLYREADEVENTLOG = 1;
+
+Parameter TRUSTEDOUTPUTREADEVENTLOG = 0;
+
+Parameter CLASSIFICATIONREADITEMSETTINGS = "safe";
+
+Parameter READONLYREADITEMSETTINGS = 1;
+
+Parameter TRUSTEDOUTPUTREADITEMSETTINGS = 0;
+
 /// The failed messages of a production: none in the fixture.
 ClassMethod ReadFailedMessages(production As %String = "") As %DynamicObject
 {

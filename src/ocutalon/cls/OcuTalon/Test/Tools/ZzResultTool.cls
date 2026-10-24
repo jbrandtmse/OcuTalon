@@ -9,6 +9,9 @@ Class OcuTalon.Test.Tools.ZzResultTool Extends OcuTalon.Tools.Result
 /// The readable label of the step of every tool of this class (Consistency Conventions: Agent step labels).
 Parameter STEPLABEL = "Reading the test results";
 
+/// The classification of the tools for the gate (AD-10): safe, so that the tool result tests keep running them.
+Parameter CLASSIFICATION = "safe";
+
 /// A text of chars characters.
 ClassMethod Text(chars As %Integer = 0) As %String
 {
