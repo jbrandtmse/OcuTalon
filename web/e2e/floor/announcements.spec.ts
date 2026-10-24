@@ -15,6 +15,7 @@ import {
   sendNotification,
   sinkEvent,
 } from '../support/iris';
+import { CARD_MS, banner, composerOf, inMs, mainOf, railOf, replyOf, unique } from '../support/floor';
 import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/page';
 
 /**
@@ -51,25 +52,11 @@ const KIND = 'FLOOR';
 /** How long a case looks on after the announcements it expects: longer than the 1 s between two texts, so a second one would show. */
 const SETTLE_MS = 3000;
 
-/** How long a card may take to reach the page after the send returns: the route, the live poll (1 to 2 s) and the render. */
-const CARD_MS = 15_000;
-
 /** The fixed words of the announcements, written out here as the independent oracle of the page's own. */
 const NOT_SENT = 'Message not sent';
 const FOUR = '4 new updates';
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
-const railOf = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
-const composerOf = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
-const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="reply"][data-key="${key}"]`);
 const cardOf = (page: Page, marker: string): Locator => page.locator('app-chat-panel app-notice-card').filter({ hasText: marker });
-const banner = (page: Page, id: string): Locator => page.locator(`app-banner-stack [data-banner="${id}"]`);
-
-/** A text no other case or run made: a card or a row of an earlier run stays on the floor user's session, so a count of a marker needs one of its own. */
-const unique = (label: string): string => `zz ${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-
-/** An ISO time to the second, the given number of milliseconds from now. */
-const inMs = (ms: number): string => new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /** Today's date (UTC) with the time given, as a UTC ISO time. */
 const today = (time: string): string => `${new Date().toISOString().slice(0, 10)}T${time}Z`;

@@ -264,6 +264,7 @@ function decisionLines(variable: string, kind: 'decide' | 'turn', decision: Seed
   return [
     ...decisionRowLines(variable, kind, [`Set ${variable}.ItemId=t.ItemId`, `Set ${variable}.OwnerRef=s.Ref`], decision, quoted(decision.recordedAt ?? createdAt)),
     'If $System.Status.IsError(sc) Set bad=1',
+    `If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(${variable})`,
   ];
 }
 
@@ -300,8 +301,10 @@ function usageLines(variable: string, kind: 'decide' | 'turn', usage: SeedUsage,
  * Writes turns into the user's own session (Session.ForUser), each with a new Ref and ItemId, done unless the seed says running.
  * A turn's decisions, usage rows and check rows are written with it (the Decision rows first, then the turn that names them).
  * With publish, each row's chat.message event (ChatMessage.FromRow) is then published on the session stream, after its save, the
- * way the production's one publisher would (AD-33); without it the turns appear on the next /state. Every value of a turn goes
- * through quoted() or numeric(), and the user name through literal().
+ * way the production's one publisher would (AD-33); without it the turns appear on the next /state. Every turn and every Decision row
+ * it writes is recorded for Test.Data.Fixture.Clean (Adopt), so that cleanFixtureRows removes them by their Refs (`refs` and
+ * `decisions` of the result; `turnRows` lists both); its Usage rows have no Ref of their own and are not recorded. Every value of a
+ * turn goes through quoted() or numeric(), and the user name through literal().
  */
 export async function seedTurns(user: string, turns: SeedTurn[], publish = false): Promise<Seeded> {
   const lines = [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`];
@@ -332,7 +335,7 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
     }
     if (turn.checkKey) lines.push(`Set t.CheckKey=${quoted(turn.checkKey)}`);
     if (turn.checks) lines.push(`Set t.CheckRows=${quoted(JSON.stringify(turn.checks))}`);
-    lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
+    lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', 'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(t)', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
     if (publish) {
       lines.push(
         'Set p=##class(OcuTalon.Live.Payload.ChatMessage).FromRow(t)',
@@ -359,6 +362,9 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
   });
   return { refs, seqs, decisions };
 }
+
+/** The Refs of the rows that seedTurns recorded (the turns and their Decision rows), for cleanFixtureRows. */
+export const turnRows = (seeded: Seeded): string[] => [...seeded.refs, ...seeded.decisions.flatMap((one) => [one.triage, one.turn])].filter((ref) => ref !== '');
 
 /**
  * Gives BridgeSink an event of the bridge, as the bridge's Decide would after its commit (HostSink.OnEvent in the IRIS job that runs

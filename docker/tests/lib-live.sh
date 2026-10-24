@@ -21,7 +21,7 @@
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
-# live_fixture_user <name> <password> <roles> <comment>   (Story 2.14; test-sign-in.sh and test-floor.sh)
+# live_fixture_user <name> <password> <roles> <full name>   (Story 2.14; test-sign-in.sh and test-floor.sh)
 #                creates a user of OCUTALON whose password reaches IRIS by environment variable, so that it is never printed, and
 #                prints the line CHK|fixture-user|1 when it was created (CHK|fixture-user|0 or nothing when it was not).
 #
@@ -316,7 +316,7 @@ iris_script() { # iris_script <namespace> < script
   if [ -n "$out" ]; then printf '%s\n' "$out"; fi
 }
 
-# live_fixture_user <name> <password> <roles> <comment>: see the header. The user is created in %SYS, for the namespace OCUTALON.
+# live_fixture_user <name> <password> <roles> <full name>: see the header. The user is created in %SYS, for the namespace OCUTALON.
 live_fixture_user() {
   printf '%s\n' \
     'Set pw=$SYSTEM.Util.GetEnviron("OCUTALON_T03_PW")' \

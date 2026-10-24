@@ -20,7 +20,7 @@ import {
   settled,
   unique,
 } from '../support/floor';
-import { cleanFixtureRows, fixtureUser, publishStatus, seedDecision, seedDecisions, seedTurns } from '../support/iris';
+import { cleanFixtureRows, fixtureUser, publishStatus, seedDecision, seedDecisions, seedTurns, turnRows } from '../support/iris';
 import { tokenColor } from '../support/page';
 
 /**
@@ -326,41 +326,47 @@ test('K2: Esc hides the tooltip first, closes the popover next, and collapses th
 /** K2, the reply strip: the Esc that closes the Trace help opened from a strip leaves the strip's details open. */
 test('K2: Esc closes the Trace help of a reply strip and leaves its details open', async ({ page }) => {
   const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
   const traceUrl = `https://example.invalid/zz-floor-k2-${Date.now().toString(36)}`;
-  const seeded = await seedTurns(user, [
-    {
-      createdAt: '2019-04-02T10:00:00Z',
-      text: unique('K2 strip question'),
-      replyText: 'zz K2 strip reply.',
-      turn: { outcome: 'act', reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003 },
-    },
-  ]);
-  const ref = seeded.refs[0]!;
-  await changeSnapshot(page, (snapshot) => {
-    for (const item of (snapshot['chat'] ?? []) as Array<{ type: string; payload: Record<string, unknown> }>) {
-      if (item.type === 'chat.message' && item.payload['ref'] === ref) item.payload['traceUrl'] = traceUrl;
-    }
-  });
-  await openFloor(page);
-  const strip = replyOf(page, ref).locator('app-decision-strip');
-  const details = strip.getByRole('button', { name: 'Decision details' });
-  const link = strip.locator('app-trace-link a');
-  await expect(link, 'the strip carries a Trace link').toHaveCount(1);
+  try {
+    const seeded = await seedTurns(user, [
+      {
+        createdAt: '2019-04-02T10:00:00Z',
+        text: unique('K2 strip question'),
+        replyText: 'zz K2 strip reply.',
+        turn: { outcome: 'act', reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003 },
+      },
+    ]);
+    refs.push(...turnRows(seeded));
+    const ref = seeded.refs[0]!;
+    await changeSnapshot(page, (snapshot) => {
+      for (const item of (snapshot['chat'] ?? []) as Array<{ type: string; payload: Record<string, unknown> }>) {
+        if (item.type === 'chat.message' && item.payload['ref'] === ref) item.payload['traceUrl'] = traceUrl;
+      }
+    });
+    await openFloor(page);
+    const strip = replyOf(page, ref).locator('app-decision-strip');
+    const details = strip.getByRole('button', { name: 'Decision details' });
+    const link = strip.locator('app-trace-link a');
+    await expect(link, 'the strip carries a Trace link').toHaveCount(1);
 
-  await details.click();
-  await expect(details, 'the details are open').toHaveAttribute('aria-expanded', 'true');
-  await link.click();
-  const help = page.getByRole('dialog', { name: 'Sign in to Visual Trace', exact: true });
-  await expect(help, 'pressing the Trace link opens the help').toBeVisible();
-  await link.focus();
-  await expect(link, 'focus is back on the link').toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(help, 'Esc closes the help').toHaveCount(0);
-  await settled(page);
-  await expect(details, 'and only the help: the details stay open').toHaveAttribute('aria-expanded', 'true');
-  await expect(link, 'with focus on the link').toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(details, 'the next Esc collapses the details').toHaveAttribute('aria-expanded', 'false');
+    await details.click();
+    await expect(details, 'the details are open').toHaveAttribute('aria-expanded', 'true');
+    await link.click();
+    const help = page.getByRole('dialog', { name: 'Sign in to Visual Trace', exact: true });
+    await expect(help, 'pressing the Trace link opens the help').toBeVisible();
+    await link.focus();
+    await expect(link, 'focus is back on the link').toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(help, 'Esc closes the help').toHaveCount(0);
+    await settled(page);
+    await expect(details, 'and only the help: the details stay open').toHaveAttribute('aria-expanded', 'true');
+    await expect(link, 'with focus on the link').toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(details, 'the next Esc collapses the details').toHaveAttribute('aria-expanded', 'false');
+  } finally {
+    await cleanFixtureRows(refs);
+  }
 });
 
 /** K3: no printable key does anything: nothing moves focus, opens, sends or navigates. */
@@ -427,7 +433,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
       recordedAt: inMs(-(n + 1) * 60_000),
     }));
     refs.push(...(await seedDecisions(user, rows)));
-    await seedTurns(
+    const turns = await seedTurns(
       user,
       Array.from({ length: 8 }, (_unused, n) => ({
         createdAt: `2019-03-0${n + 1}T10:00:00Z`,
@@ -436,6 +442,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
         turn: { outcome: 'act', reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003 },
       })),
     );
+    refs.push(...turnRows(turns));
     await openFloor(page);
     await addResetSoon(page, user);
     await expect(railOf(page).locator('app-decision-row').filter({ hasText: stamp }), 'twelve decision rows').toHaveCount(12);
@@ -459,7 +466,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     }
     expect(stops[0], 'the walk starts at the first skip link').toContain(SKIP_CHAT);
     expect(stops[stops.length - 1], 'and ends at Send').toContain('Send');
-    expect(stops.filter((one) => one.includes('Trace')).length, 'it passed every Trace link of the rail and the chat').toBeGreaterThanOrEqual(12);
+    expect(stops.filter((one) => /^a[ #]/.test(one) && one.includes('Trace')).length, 'it passed the Trace link of every rail row').toBeGreaterThanOrEqual(12);
     expect(stops.length, 'at every stop of the page').toBeGreaterThan(30);
 
     // New messages is no stop of the walk: it shows only when a turn lands while the list is scrolled up.
@@ -467,6 +474,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
       el.scrollTop = 0;
     });
     const landed = await seedTurns(user, [{ createdAt: '2019-03-09T10:00:00Z', text: `${stamp} landed`, replyText: `${stamp} reply landed.` }], true);
+    refs.push(...turnRows(landed));
     await applied(page, landed.seqs[0]!);
     const newMessages = page.getByRole('button', { name: 'New messages' });
     await expect(newMessages, 'a turn that lands while the list is scrolled up shows New messages').toBeVisible();
@@ -541,8 +549,9 @@ test('K5: every control has a name, and the banner and About Close buttons name 
     await addReminder(page, user, full.stamp);
     await addResetSoon(page, user);
     await expect(banner(page, 'noModelKey'), 'the no-key banner shows').toHaveCount(1, { timeout: CARD_MS });
-    await expect(railOf(page).locator('li.row'), 'one row of each rail kind').toHaveCount(4);
-    await expect(railOf(page).locator('app-trace-link a'), 'each with a trace link').toHaveCount(4);
+    const own = railOf(page).locator('li.row').filter({ hasText: full.stamp }).or(railOf(page).locator(`li.row[data-row-key="approvals:${full.approval}"]`));
+    await expect(own, 'one row of each rail kind').toHaveCount(4);
+    await expect(own.locator('app-trace-link a'), 'each with a trace link').toHaveCount(4);
     await expect(page.locator('app-decision-strip'), 'a done turn has its strip').not.toHaveCount(0);
 
     await expectNamed(page, 'the page');
@@ -571,6 +580,7 @@ test('K5: every control has a name, and the banner and About Close buttons name 
 /** K6: with no turn the conversation link stays a focusable link, aria-disabled, and says why; with a turn it is a plain link. */
 test('K6: the inactive conversation link is described by its visible reason, and a turn takes both away', async ({ page }) => {
   const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
   const posts: string[] = [];
   let phase: 'empty' | 'traced' = 'empty';
   const traceUrl = `https://example.invalid/zz-floor-k6-${Date.now().toString(36)}`;
@@ -578,7 +588,7 @@ test('K6: the inactive conversation link is described by its visible reason, and
     page.on('request', (request) => {
       if (request.method() === 'POST' && new URL(request.url()).pathname === MESSAGES) posts.push(request.url());
     });
-    await seedTurns(user, [{ createdAt: '2019-04-01T10:00:00Z', text: unique('K6 question'), replyText: 'zz K6 reply.' }]);
+    refs.push(...turnRows(await seedTurns(user, [{ createdAt: '2019-04-01T10:00:00Z', text: unique('K6 question'), replyText: 'zz K6 reply.' }])));
     await changeSnapshot(page, (snapshot) => {
       const chat = (snapshot['chat'] ?? []) as Array<{ type: string; payload: Record<string, unknown> }>;
       if (phase === 'empty') {
@@ -620,5 +630,6 @@ test('K6: the inactive conversation link is described by its visible reason, and
     expect(posts, 'no post reached the server').toEqual([]);
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await cleanFixtureRows(refs);
   }
 });

@@ -2,7 +2,7 @@
 title: 'Story 2.14: Work the whole page by keyboard, with labels and words'
 type: 'feature'
 created: '2026-10-24'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'b09b1d0e57ee2ccf7e5ec3f078e697c6be112316'
 baseline_commit: 'b09b1d0e57ee2ccf7e5ec3f078e697c6be112316'
 review_loop_iteration: 0
@@ -475,9 +475,49 @@ deferred:
     - `MainPage` and `UserMessage` describe their buttons through `ServerButton.describedBy` and their own ids (W4);
     - `test-sign-in.sh` and `test-floor.sh` both create their users through `live_fixture_user` (both units pass).
 
+### Review Findings
+
+Code review, 2026-10-24 (full mode; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; 38 rows, 10 root causes kept, 0 decision-needed, 0 deferred, every patch applied). No AC violation, no AD mismatch (AD-12, AD-13, AD-22, AD-29, AD-33), no breach of the Never list; QA's DW-179 fix is complete for this story's own cases (K2 strip, K4, K5, K6, W1-W3, H1). Each line: severity, fix-risk, footprint, spec-status, disposition.
+
+- [x] [Review][Patch] The keys ratchet missed Angular's global key bindings (`(window:keydown.k)`, a `host:` `'(document:keydown)'`), `fromEvent(..., 'keydown')`, a reversed or lower-cased key comparison and `event.key.length`, so a single-key shortcut written that way passed it [web/scripts/floor-sources.test.mjs:90] — medium, fix-risk low (patterns and samples only), in-story, clear; fixed, mutations recorded.
+- [x] [Review][Patch] Rule 2: `support/floor.ts` copied twelve helpers of `floor/focus.spec.ts` and eight of `floor/announcements.spec.ts` verbatim (the same floor page, the same unit) with no stated reason; both siblings now import them from it [web/e2e/floor/focus.spec.ts:17] — medium, fix-risk low (identical pure helpers; tsc and `live floor` green), in-story, clear; fixed. The same one-line locators recur in specs of other folders (`trace/`, `rail/`, `banners/`, `chat/`), which this story did not add.
+- [x] [Review][Patch] Rule 19 hermeticity: K5 counted every rail row and every rail trace link (`li.row` = 4), so it depended on every other case's clean-up; it now counts its own rows (its stamp, and its approval's `data-row-key`) [web/e2e/floor/keyboard.spec.ts:552] — medium, fix-risk low, in-story, clear; fixed (`FullPage.approval` added).
+- [x] [Review][Patch] K4's Trace count also took the header's Visual Trace button, so a missing rail link still passed, and its message (and W1's) named chat and strip links the seeded page does not render [web/e2e/floor/keyboard.spec.ts:469] — low, fix-risk low, in-story, clear; fixed.
+- [x] [Review][Patch] The scroller ratchet missed `overflow-x`, a two-value `overflow` and `overflow-block`/`-inline`, and `cssOf` reads neither a `styles: [...]` array nor a template's `<style>` block (which also blinds the `:hover` check); a guard now requires one `styles` literal per component [web/scripts/floor-sources.test.mjs:264] — low, fix-risk low, in-story, clear; fixed, mutations recorded.
+- [x] [Review][Patch] The script-height ratchet missed Renderer2's `setStyle(el, 'height')`, `style['height']`, a `HostBinding('style.height')` and an ngStyle key, and "only in line units" held for one assignment only [web/scripts/floor-sources.test.mjs:224] — low, fix-risk low, in-story, clear; fixed, mutations recorded.
+- [x] [Review][Patch] The Esc check read only a single-quoted `'keydown'` listener with a named handler, so a double-quoted or inline-handler document listener was invisible to it [web/scripts/floor-sources.test.mjs:188] — low, fix-risk low, in-story, clear; fixed, mutation recorded.
+- [x] [Review][Patch] H1 recorded the first seed's rows only after the second seed, so a failure of the second left them on the session [web/e2e/floor/fixtures.spec.ts:33] — low, fix-risk low, in-story, clear; fixed.
+- [x] [Review][Patch] H1's header said the cases that follow find the session as on a fresh stack, while Story 2.12's A and P cases still leave their turns [web/e2e/floor/fixtures.spec.ts:8] — low, fix-risk low, in-story, clear; fixed (comment states the contract).
+- [x] [Review][Patch] `live_fixture_user`'s docs named its 4th argument `<comment>`; it is `Security.Users.Create`'s FullName [docker/tests/lib-live.sh:24] — low, fix-risk low, in-story, clear; fixed.
+
+Rejected (each with its reason):
+- `false` Edge Case Hunter: W3 hangs if the page asks for /state twice after the 500 — the page asks for /state only at load and on Retry (W4 shows the count move from 1 to 2 only on Retry), so one route is held at a time.
+- `false` Verification Gap: no mutation line for `trace-view.test.mjs`, K6's reason text, K3 under Banned, the fourth Integration bullet, or "live:sign-in no longer creates that user" — Rule 19 asks one mutation per AC, and the Labels, Words, Banned, Integration and floor-unit ACs each have recorded ones; both units die without `CHK|fixture-user|1`.
+- `false` Verification Gap: K6's `expect(posts).toEqual([])` cannot fail — it is the Boundaries' no-post guard, not a pin.
+- `false` Blind Hunter: the published events of K4 and W3 stay on the stream — a later page reads from its own snapshot's cursor, and A7 reads only events after its own `after`.
+- `low` Blind Hunter (with Edge Case Hunter, Acceptance Auditor): Story 2.12's A1, A5, A7 and P4 still leave turns in the floor unit, and `floor-fixtures.test.mjs` reads only this story's files — DW-179's residual, outside QA's stated scope; the lead adjudicates DW-179 (no new entry, no trailer written).
+- `low` Acceptance Auditor, Verification Gap: `floor-fixtures.test.mjs` compares call counts, not that each `turnRows` reaches `cleanFixtureRows` — a data-flow check is more than a direct correction, and each case's refs were read in this review.
+- `low` Acceptance Auditor: the scroller ratchet checks `scroll-padding` but not the inline padding — padding comes from shorthands and other rules; K4 pins the three scrollers the Boundaries name.
+- `low` Blind Hunter, Acceptance Auditor: on a banner's 4px accent border the inset halo sits inside the accent, so the left edge reads ring, accent, halo — the ring stays 2px solid and outermost, and a fix needs a design choice. Reopen if Story 2.16's scan or a contrast check flags the banner's focus.
+- `low` Verification Gap: About's `scroll-padding` has only a source pin — its mutation is recorded, and K4 shows Chromium honouring `scroll-padding` on the chat list (Decided 21); a runtime step goes beyond K4's plan.
+- `low` Verification Gap: `cleanFixtureRows` ignores its `CHK|clean|1` — a shared helper that predates the story; an assertion would throw from every `finally` of the sign-in unit, and K5 no longer depends on others' clean-up.
+- `low` Edge Case Hunter: a `:hover` rule could reveal a control with `clip-path` or `transform` — the Boundaries name `display`, `visibility` and `opacity`.
+- `low` Edge Case Hunter: `seedTurns` throwing after a partial save leaves recorded rows — as Edge Case 4 of the implement review: the case fails loudly on a throwaway stack.
+- `low` Edge Case Hunter: About's Close scrolls with the text; K5's roles leave out `menuitemradio` — the same root causes as the implement review's Blind Hunter 1 and 5, with no new evidence.
+- `low` Verification Gap: W3's `scroll-behavior` read cannot fail from a component — the same as the implement review's Verification Gap 6.
+- `low` Blind Hunter: the heights ratchet skips `signin/` — spec-bound (Boundaries: `web/src/app/**` and `web/src/styles/**`).
+- `low` Blind Hunter: W2 measures only vertical overflow — spec-bound (W2's measure; the layout at every width is Story 2.15's).
+- `low` Blind Hunter: `live_fixture_user` keeps Story 0.3's "t03 fixture" comment and `OCUTALON_T03_PW` name — internal names with no behaviour.
+- `low` Acceptance Auditor: the spec's frontmatter `deferred`, Review Triage Log and Residual risks still say every floor case leaves its turns — the fix edits the spec's intent sections; it bears on the lead's DW-179 adjudication.
+
+### Rework 1 (smoke)
+
+- [ ] [Smoke] A popover that closes before its next render throws - `web/src/app/shared/popover.ts:115` and `:174` (`focusFirst`, from Story 2.1) - the lead's smoke opened the Visual Trace menu and pressed Esc at once: the popover closed and focus went back to its trigger, as K2 asks, but the deferred `afterNextRender(() => this.focusFirst(overlayRef))` then read `overlayRef.overlayElement`, which is null once the overlay is disposed, and Angular's ErrorHandler logged `ERROR TypeError: Cannot read properties of null (reading 'querySelector') at focusFirst`. The fix must: make `focusFirst` (and any other deferred callback in `popover.ts` or `tooltip.ts` that reads an overlay after a render) do nothing once its popover has closed; and pin it with a real-runtime step in the floor unit (for example in K2 or K3: open the Visual Trace popover and press Esc in the same task, then assert that the popover is gone, focus is on its trigger and the page logged no console error), with its `mutation:` line under `## Verification` (the guard removed -> that step red).
+
 ## Spec Change Log
 
 - 2026-10-24, lead (spec gate): veto U-56 ruled (the new Close names, the inactive link's reason, the wordmark underline; busy buttons keep the UX's spinner form); the Conventions Tests row now names `live:floor`; `web/src/app/about/about-dialog.ts` is a reported footprint extension.
+- 2026-10-24, lead (smoke): rework 1 opened with one `[Smoke]` item.
 
 ## Review Triage Log
 
@@ -755,7 +795,19 @@ No AC contradicts an AD's Rule.
 - mutation (review patch): `MainPage` without `[describedBy]` on Retry -> W3 red at the new line ("on an error answer, Retry is described by the load error") and W4 red ("after 10 s Retry is described by the load error").
 - mutation (review patch): the `scroll-padding` line removed from `about-dialog.ts` -> `floor-sources.test.mjs` red ("scrollers keep the gutter").
 - mutation (review patch): the composer's `style.height` back to a pixel value -> `floor-sources.test.mjs` red ("sets a height from a script or a binding only where this list has it, and only in line units"), as well as W2.
+- (QA) mutation: the theme button's `[attr.aria-label]` removed from `header.ts` (an icon-only button with no name) -> K5 red ("the page: every button, link, textbox and menuitem has a name"); the recorded Close and `svg` mutations pinned the other two branches of `expectNamed`, this one pins the unnamed-control branch.
+- (QA) mutation: `seedTurns` without the `Adopt(t)` of its turn -> H1 red ("the clean-up removed the turn and both decisions": the turn row was still there, `1|0|0`); `floor-sources` is not involved. The same change makes `floor-fixtures.test.mjs` ("adopts each turn and each Decision row it saves") red, observed alone.
+- (QA) DW-179 fixed in test support: `seedTurns` adopts each turn and each Decision row it saves, `turnRows(seeded)` lists their Refs, and the K2 strip, K4 (both seeds), K6, W3 and `seedFullPage` (K5, W1, W2) put them in the `refs` that `cleanFixtureRows` removes in `finally`. Usage rows have no Ref and stay unrecorded (no floor case writes one). Story 2.12's A and P cases are unchanged and still leave their turns.
+- (QA) After the QA changes, on the restored tree: `live floor` 23 passed in about 140 s (A1-A7, H1, P1-P4, K1-K6, W1-W4), `npm --prefix web test` 515 pass, `lint`, `test-boundaries.sh` and `test-ci-config.sh` exit 0; tag e2s214q torn down. Both QA mutations ran in one stack (one build, one `live floor`); `git status --short` and the hash of `git diff` equalled their values before.
+- (QA) Files created: `web/e2e/floor/fixtures.spec.ts` (H1), `web/scripts/floor-fixtures.test.mjs`. Files changed: `web/e2e/support/iris.ts`, `web/e2e/support/floor.ts`, `web/e2e/floor/keyboard.spec.ts`, `web/e2e/floor/words.spec.ts`, `docker/tests/test-floor.sh` (header and the two result lines name H1).
 - A case that expects a key to change nothing looks only after the page has drawn (`settled` in `web/e2e/support/floor.ts`: two animation frames and a task). K2 passed against the first mutation of the popover step because the popover is removed at once and the row's `aria-expanded` is drawn later; with the wait it is red.
+- (review) mutation: `app/app.ts` gains the template binding `(window:keydown.k)`, and separately a `host: { '(document:keydown)': ... }` binding -> `floor-sources.test.mjs` red ("binds a template key event only to Enter or Escape ..." and "registers a keyboard handler only in the files that are listed ...") for each.
+- (review) mutation: `composer.ts` gains `'/' === event.key` -> `floor-sources.test.mjs` red ("compares a key only with Enter and Escape ...").
+- (review) mutation: `tooltip.ts` gains `doc.addEventListener("keydown", (event) => ...)` (double quotes, an inline handler) -> `floor-sources.test.mjs` red ("has no other listener for a document keydown ...").
+- (review) mutation: `decision-row.ts`'s first `overflow: hidden` becomes `overflow-x: auto` -> `floor-sources.test.mjs` red ("declares a scroll-padding of the gutter in every rule that scrolls ...").
+- (review) mutation: `composer.ts`'s `grow()` sets a pixel height after its lh one -> `floor-sources.test.mjs` red ("sets a height from a script or a binding only where this list has it, and only in line units"); `user-message.ts` gaining `setStyle(el, 'height', '40px')` turns the same case red.
+- (review) mutation: `app/app.ts` gains a `styles: [...]` array -> `floor-sources.test.mjs` red ("reads the CSS of every component ...").
+- (review) K5's "one row of each rail kind" now counts only its own rows (its stamp, and its approval's row key), and K4's Trace count reads only links; both are preconditions, so the K5 and K4 mutation lines above stand. After the review patches, on the restored tree: `npm --prefix web test` 516 pass; `lint`, `test-boundaries.sh` and `test-ci-config.sh` exit 0; `build` and `live floor` passed 23 (A1-A7, H1, P1-P4, K1-K6, W1-W4; Playwright 1.3 min); teardown of tag e2s214r left nothing. `git status --short` and the hash of `git diff` were equal before and after every mutation.
 
 **Shared surfaces:**
 - **The first tab stops.** The two skip links now come before `a.home`. F3, F7 and B10 start from `a.home` or from the header and are unaffected; no case presses Tab from the page's start.

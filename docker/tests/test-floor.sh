@@ -8,7 +8,8 @@
 #   - Story 2.14's keyboard (keyboard.spec.ts K1 to K6): the skip links, Esc on the topmost layer, no single-key shortcut, a focus ring
 #     that no scroller or edge clips, every control named, and the inactive conversation link that explains itself;
 #   - Story 2.14's words (words.spec.ts W1 to W4): every link underlined, text at 200% without loss, reduced motion, and the errors
-#     linked to their buttons.
+#     linked to their buttons;
+#   - the QA case of Story 2.14 (fixtures.spec.ts H1): the turns and decisions that seedTurns writes are removed by cleanFixtureRows.
 # The stack holds what the first start creates and one fixture user, the floor user ZzFloor (OCUTALON_FLOOR_USER, with the user role),
 # whose session the specs seed turns, reminders, decisions and conditions into and publish on, and whose /events poll they hold for one
 # update; the stack starts with no model key (check_no_key), so its page shows the no-key banner. The chat posts of A6, P1 and W4 are
@@ -77,13 +78,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6 and W1-W4: the specs of the floor project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6, W1-W4 and H1: the specs of the floor project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6 and W1-W4: the specs of the floor project failed (exit $e2e_status)"
+  fail "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6, W1-W4 and H1: the specs of the floor project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

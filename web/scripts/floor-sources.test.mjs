@@ -76,6 +76,10 @@ describe('the scan', () => {
     }
   });
 
+  it('reads the CSS of every component: each has one styles literal or a style sheet, and no template holds a <style> block', () => {
+    assert.deepEqual(filesWith(/\bstyles\s*:\s*\[|<style\b/), [], 'a styles array or a <style> block would be CSS that cssOf does not read');
+  });
+
   it('reads the code without its comments', () => {
     assert.doesNotMatch(file('app/chat/chat-panel.ts').code, /no smooth scroll/);
     assert.match(file('app/chat/chat-panel.ts').text, /no smooth scroll/);
@@ -83,11 +87,12 @@ describe('the scan', () => {
 });
 
 describe('keys: only Enter and Escape', () => {
-  const KEY_LITERAL = /\.key\s*[!=]==?\s*(['"`])([^'"`]*)\1/g;
+  const KEY_LITERAL = /\.key(?:\.\w+\(\))?\s*[!=]==?\s*(['"`])([^'"`]*)\1/g;
+  const KEY_LITERAL_FIRST = /(['"`])([^'"`]*)\1\s*[!=]==?\s*[\w$.]*\.key\b/g;
   const KEY_CODE = /\b(?:keyCode|charCode|which)\s*[!=]==?\s*(\d+)/g;
-  const KEY_LOOKUP = /\.includes\(\s*(?:event|evt|ev|e)\.(?:key|code)\s*\)|\[\s*(?:event|evt|ev|e)\.(?:key|code)\s*\]|\b(?:event|evt|ev|e)\.code\b|switch\s*\(\s*(?:event|evt|ev|e)\.(?:key|code|keyCode|which)\s*\)/;
-  const KEY_BINDING = /\(key(down|up|press)(?:\.([\w.]+))?\)/g;
-  const KEY_LISTENER = /addEventListener\(\s*['"]key\w+['"]|keydownEvents\(|keyboardEvents\(|HostListener\(\s*['"][\w.:]*key|\(key(?:down|up|press)[.)]/;
+  const KEY_LOOKUP = /\.includes\(\s*(?:event|evt|ev|e)\.(?:key|code)\s*\)|\[\s*(?:event|evt|ev|e)\.(?:key|code)\s*\]|\b(?:event|evt|ev|e)\.code\b|switch\s*\(\s*(?:event|evt|ev|e)\.(?:key|code|keyCode|which)\s*\)|\.key\.length\b/;
+  const KEY_BINDING = /\((?:\w+:)?key(down|up|press)(?:\.([\w.]+))?\)/g;
+  const KEY_LISTENER = /addEventListener\(\s*['"`]key\w+['"`]|fromEvent(?:<[^>]*>)?\([^)]*['"`]key\w+['"`]|keydownEvents\(|keyboardEvents\(|HostListener\(\s*['"][\w.:]*key|\((?:\w+:)?key(?:down|up|press)[.)]/;
 
   /** Every keyboard handler of the page, by file, and why it may exist. */
   const KEY_HANDLERS = {
@@ -101,6 +106,9 @@ describe('keys: only Enter and Escape', () => {
   it('catches the forms of a shortcut that it looks for', () => {
     assert.match("if (event.key === 'a') {", new RegExp(KEY_LITERAL.source));
     assert.match('if (e.key !== "/") return;', new RegExp(KEY_LITERAL.source));
+    assert.match("if (event.key.toLowerCase() === 's') {", new RegExp(KEY_LITERAL.source));
+    assert.match("if ('/' === event.key) {", new RegExp(KEY_LITERAL_FIRST.source));
+    assert.match('if (event.key.length === 1) {', KEY_LOOKUP);
     assert.match('if (event.keyCode === 191) {', new RegExp(KEY_CODE.source));
     assert.match('if (event.which == 83) {', new RegExp(KEY_CODE.source));
     assert.match("['a', 's'].includes(event.key)", KEY_LOOKUP);
@@ -108,8 +116,11 @@ describe('keys: only Enter and Escape', () => {
     assert.match('if (event.code === "Slash") {', KEY_LOOKUP);
     assert.match('<div (keydown.control.k)="open()">', new RegExp(KEY_BINDING.source));
     assert.match('<button (keyup.enter)="go()">', new RegExp(KEY_BINDING.source));
+    assert.match('<div (window:keydown.slash)="focus()">', new RegExp(KEY_BINDING.source));
     assert.match("document.addEventListener('keypress', onPress)", KEY_LISTENER);
     assert.match("host: { '(keydown.a)': 'go()' }", KEY_LISTENER);
+    assert.match("host: { '(document:keydown)': 'onKey($event)' }", KEY_LISTENER);
+    assert.match("fromEvent<KeyboardEvent>(document, 'keydown')", KEY_LISTENER);
     assert.match("@HostListener('document:keydown', ['$event'])", KEY_LISTENER);
   });
 
@@ -118,6 +129,7 @@ describe('keys: only Enter and Escape', () => {
     const codes = new Set();
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_LITERAL)) literals.add(match[2]);
+      for (const match of one.code.matchAll(KEY_LITERAL_FIRST)) literals.add(match[2]);
       for (const match of one.code.matchAll(KEY_CODE)) codes.add(match[1]);
     }
     assert.deepEqual([...literals].sort(), ['Enter', 'Escape']);
@@ -170,8 +182,10 @@ describe('Esc acts on one layer, the topmost', () => {
   });
 
   it('has no other listener for a document keydown that runs after an element\'s own handler', () => {
-    const listeners = files.flatMap((one) => [...one.code.matchAll(/addEventListener\(\s*'keydown'\s*,\s*[\w.]+\s*(?:,\s*([^)]*))?\)/g)].map((match) => [one.name, match[1]]));
+    const listeners = files.flatMap((one) => [...one.code.matchAll(/addEventListener\(\s*['"`]keydown['"`]\s*,\s*[\w.]+\s*(?:,\s*([^)]*))?\)/g)].map((match) => [one.name, match[1]]));
     assert.deepEqual(listeners, [['app/shared/tooltip.ts', 'true']]);
+    const every = files.flatMap((one) => [...one.code.matchAll(/addEventListener\(\s*['"`]keydown['"`]/g)].map(() => one.name));
+    assert.deepEqual(every, listeners.map(([name]) => name), 'every keydown listener is one this reads, an inline handler included');
   });
 });
 
@@ -205,19 +219,27 @@ describe('heights are minimums', () => {
   });
 
   it('sets a height from a script or a binding only where this list has it, and only in line units', () => {
-    // style.height = ..., [style.height...] and setProperty('height'/'block-size', ...): a height that no CSS declaration shows.
-    const SCRIPT_HEIGHT = /\.style\.(?:height|blockSize)\s*=|\[style\.(?:height|block-size)\b|\bsetProperty\(\s*['"`](?:height|block-size)['"`]/;
+    // style.height = ..., style['height'], [style.height...], setProperty('height'/'block-size', ...), Renderer2's setStyle(el, 'height'),
+    // a HostBinding of style.height and an ngStyle key: a height that no CSS declaration shows.
+    const SCRIPT_HEIGHT =
+      /\.style\.(?:height|blockSize)\s*=|\.style\[\s*['"`](?:height|blockSize|block-size)['"`]\s*\]|\[style\.(?:height|block-size)\b|\bsetProperty\(\s*['"`](?:height|block-size)['"`]|\bsetStyle\([^,]+,\s*['"`](?:height|block-size)['"`]|HostBinding\(\s*['"`]style\.(?:height|block-size)|['"`](?:height|block-size)(?:\.\w+)?['"`]\s*:/;
     const SCRIPT_HEIGHTS = {
       'app/chat/composer.ts': { value: /\.style\.height = `calc\(\$\{[^}]+\} \* 1lh \+ \$\{padding\}px\)`;/, why: 'the composer sets its height as a count of lines in lh units plus its padding, so that it follows the text size' },
     };
     assert.ok(SCRIPT_HEIGHT.test('field.style.height = `${n}px`;'), 'a script-set height is caught');
     assert.ok(SCRIPT_HEIGHT.test('<div [style.height.px]="n">'), 'a bound height is caught');
     assert.ok(SCRIPT_HEIGHT.test("el.style.setProperty('height', value)"), 'a property set is caught');
+    assert.ok(SCRIPT_HEIGHT.test("this.renderer.setStyle(el, 'height', '40px')"), "Renderer2's setStyle is caught");
+    assert.ok(SCRIPT_HEIGHT.test("el.style['height'] = value;"), 'an indexed style is caught');
+    assert.ok(SCRIPT_HEIGHT.test("@HostBinding('style.height.px') size = 40;"), 'a host binding is caught');
+    assert.ok(SCRIPT_HEIGHT.test(`<div [ngStyle]="{ 'height.px': n }">`), 'an ngStyle key is caught');
     assert.equal(SCRIPT_HEIGHT.test('el.style.minHeight = value;'), false, 'a minimum is not');
     const found = files.filter((one) => /^(app|styles)\//.test(one.name) && SCRIPT_HEIGHT.test(one.code)).map((one) => one.name);
     assert.deepEqual(found.sort(), Object.keys(SCRIPT_HEIGHTS));
     for (const [name, { value, why }] of Object.entries(SCRIPT_HEIGHTS)) {
       assert.match(file(name).code, value, `${name} sets its height in lh units`);
+      const assigned = [...file(name).code.matchAll(/\.style\.height\s*=\s*([^;]+);/g)].map((match) => match[1].trim());
+      assert.deepEqual(assigned.filter((one) => one !== "'auto'" && !/ \* 1lh \+ /.test(one)), [], `${name} sets no other height than auto and lh units`);
       assert.ok(why.length > 20, `${name} says why`);
     }
   });
@@ -239,11 +261,11 @@ describe('scrollers keep the gutter', () => {
   const NO_GUTTER = {
     'app/chat/composer.ts': 'a text area that scrolls its own text beyond five lines: it has no focusable content to scroll into view',
   };
-  const SCROLLER = /(?:^|[;\s])overflow(?:-y)?\s*:\s*(?:auto|scroll)\b/;
+  const SCROLLER = /(?:^|[;\s])overflow(?:-[xy]|-block|-inline)?\s*:[^;]*\b(?:auto|scroll)\b/;
 
   it('declares a scroll-padding of the gutter in every rule that scrolls, so that a control scrolled into view keeps its whole ring', () => {
-    assert.ok(SCROLLER.test('  overflow-y: auto;'));
-    assert.equal(SCROLLER.test('  overflow: hidden;'), false);
+    for (const scrolls of ['  overflow-y: auto;', 'overflow-x: auto;', 'overflow: hidden auto;', 'overflow-inline: scroll;']) assert.ok(SCROLLER.test(scrolls), scrolls);
+    for (const still of ['  overflow: hidden;', 'overflow-wrap: anywhere;', 'text-overflow: ellipsis;']) assert.equal(SCROLLER.test(still), false, still);
     const scrollers = [];
     const unpadded = [];
     for (const one of files) {

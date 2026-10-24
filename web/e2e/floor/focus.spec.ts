@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { MESSAGES, STATE } from '../support/api';
 import { signIn } from '../sign-in/helpers';
@@ -14,6 +14,7 @@ import {
   seedTurns,
   sendItemDecision,
 } from '../support/iris';
+import { CARD_MS, HEADER, applied, banner, composerOf, inMs, mainOf, openFloor, railOf, replyOf, rowOf, unique } from '../support/floor';
 import { countFocusins, focusinCount } from '../support/page';
 
 /**
@@ -37,27 +38,8 @@ test.afterEach(async ({ page }) => {
 
 const KIND = 'FLOOR';
 
-/** How long a card may take to reach the page after the send returns: the route, the live poll (1 to 2 s) and the render. */
-const CARD_MS = 15_000;
-
 /** The answer of a server that failed. */
 const SERVER_ERROR = '{"error":{"code":"server_error","message":"Something went wrong inside OcuTalon. Try again."}}';
-
-/** The header of a trace that no run made: the link only needs an address to open. */
-const HEADER = 4242;
-
-const mainOf = (page: Page): Locator => page.locator('main.main');
-const railOf = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
-const composerOf = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
-const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="reply"][data-key="${key}"]`);
-const rowOf = (page: Page, marker: string): Locator => railOf(page).locator('li.row').filter({ hasText: marker });
-const banner = (page: Page, id: string): Locator => page.locator(`app-banner-stack [data-banner="${id}"]`);
-
-/** A text no other case or run made. */
-const unique = (label: string): string => `zz ${label} ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-
-/** An ISO time to the second, the given number of milliseconds from now. */
-const inMs = (ms: number): string => new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /** What the page's document.activeElement is, in words a failure message can show. */
 const activeOf = (page: Page): Promise<string> =>
@@ -66,24 +48,9 @@ const activeOf = (page: Page): Promise<string> =>
     return active === null ? 'null' : `${active.tagName.toLowerCase()}${active.id ? `#${active.id}` : ''}${active.getAttribute('data-part') ? `[data-part=${active.getAttribute('data-part')}]` : ''}`;
   });
 
-/** Signs the floor user in and waits for the loaded page with its composer. */
-async function open(page: Page): Promise<void> {
-  const { user, password } = fixtureUser(KIND);
-  await signIn(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-  await expect(composerOf(page)).toBeVisible();
-}
-
-/** Waits until the page has applied the event of this Seq on the session's stream. */
-async function applied(page: Page, seq: number): Promise<void> {
-  await expect
-    .poll(async () => Number(await mainOf(page).getAttribute('data-session-seq')), { message: `the page applied Seq ${seq}`, timeout: CARD_MS })
-    .toBeGreaterThanOrEqual(seq);
-}
-
 /** P1: Retry sending leaves focus on its message while the post is out, and nothing moves it when the post fails again. */
 test('P1: Retry sending leaves focus on its message, and it stays there when the post fails again', async ({ page }) => {
-  await open(page);
+  await openFloor(page);
   let mode: 'fail' | 'hold' = 'fail';
   let held: Route | undefined;
   let posts = 0;
@@ -123,7 +90,7 @@ test('P1: Retry sending leaves focus on its message, and it stays there when the
 /** P2: a row leaves while its Trace help holds focus: focus goes to the heading of the section the row left. */
 test('P2: a row that leaves with its Trace help open gives focus to its section heading', async ({ page }) => {
   const { user } = fixtureUser(KIND);
-  await open(page);
+  await openFloor(page);
   const text = unique('P2 reminder');
   const ref = `ZzFloorP2${Date.now().toString(36)}`;
   const dueAt = inMs(3_600_000);
@@ -191,7 +158,7 @@ test('P4: nothing else moves focus: the composer and a focused row keep it while
     const lastRunAt = inMs(-60_000);
     const check = await seedCheck(user, { namespace: 'OCUTALON', production, displayName: name, lastRunAt, result: 'passed', finding: '', lastRunHeaderId: HEADER });
     refs.push(check);
-    await open(page);
+    await openFloor(page);
     const checkRow = rowOf(page, name);
     await expect(checkRow, 'the check shows in the rail').toHaveCount(1);
 

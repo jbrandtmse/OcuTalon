@@ -15,7 +15,7 @@ import {
   seedFullPage,
   unique,
 } from '../support/floor';
-import { finishTurn, fixtureUser, seedTurns } from '../support/iris';
+import { cleanFixtureRows, finishTurn, fixtureUser, seedTurns, turnRows } from '../support/iris';
 
 /**
  * Story 2.14, the words (W1 to W4), in a real browser against a real stack. It pins that nothing relies on colour or motion alone and
@@ -81,7 +81,7 @@ test('W1: every link is underlined at rest', async ({ page }) => {
 
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Skip to chat', exact: true }), 'the skip link has focus').toBeFocused();
-    expect(await notUnderlined(page), 'on the page: the skip links, the wordmark, the banners, the rows, the strip and the reply').toEqual([]);
+    expect(await notUnderlined(page), 'on the page: the skip links, the wordmark, the banners, the rows and the reply').toEqual([]);
     expect(await page.locator('app-header a.home .wordmark').evaluate((el) => getComputedStyle(el).textDecorationLine), "the home link's wordmark").toContain('underline');
 
     await railOf(page).locator('app-trace-link a').first().click();
@@ -193,6 +193,7 @@ test('W3: under prefers-reduced-motion nothing animates or scrolls smoothly', as
   const { user, password } = fixtureUser(KIND);
   let held: Route | undefined;
   let running: string | undefined;
+  const refs: string[] = [];
   try {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     let answers = 0;
@@ -224,6 +225,7 @@ test('W3: under prefers-reduced-motion nothing animates or scrolls smoothly', as
 
     const seeded = await seedTurns(user, [{ createdAt: '2019-05-01T10:00:00Z', text: unique('W3 question'), replyText: '', state: 'running' }], true);
     running = seeded.refs[0]!;
+    refs.push(...turnRows(seeded));
     const dots = replyOf(page, running).locator('.indicator .dots');
     await expect(dots, 'a running turn shows its dots').toHaveCount(1, { timeout: CARD_MS });
     await expect(dots, 'which have no animation').toHaveCSS('animation-name', 'none');
@@ -245,6 +247,7 @@ test('W3: under prefers-reduced-motion nothing animates or scrolls smoothly', as
   } finally {
     if (held !== undefined) await held.continue().catch(() => undefined);
     if (running !== undefined) await finishTurn(user, running, 'zz W3 finished');
+    await cleanFixtureRows(refs);
   }
 });
 

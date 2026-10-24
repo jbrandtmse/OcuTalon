@@ -11,11 +11,12 @@ import {
   seedDecision,
   seedIncident,
   seedTurns,
+  turnRows,
 } from './iris';
 
 /**
- * What the floor specs of Story 2.14 (keyboard.spec.ts, words.spec.ts) share: the floor user's page and its regions, and the one page
- * that K5 and W1 read, with a row of every rail kind (each with a trace link), a done turn whose reply holds a link and whose strip
+ * What the floor specs (web/e2e/floor/) share: the floor user's page and its regions, and the one page that K5, W1 and W2 read,
+ * with a row of every rail kind (each with a trace link), a done turn whose reply holds a link and whose strip
  * shows a chip and the Fallback flag, and the no-key and Reset soon banners (the stack has no model key, so the no-key banner is
  * there; Reset soon is published once the page has loaded, because a session's status events reach the page only live). Every row it
  * makes is recorded in the caller's `refs`, for cleanFixtureRows, and the condition it publishes is turned off by `clearFullPage`.
@@ -71,13 +72,15 @@ export interface FullPage {
   turn: string;
   /** The summary of the rail's decision row. */
   summary: string;
+  /** The Ref of the approval request, whose rail row carries no text of the case: its row is `li.row[data-row-key="approvals:<ref>"]`. */
+  approval: string;
 }
 
 /**
  * Seeds the rows of the full page into the user's own session, before the page loads: a check with its latest run's trace, an approval
  * request of an incident with a trace, a decision with a trace session, a done turn whose reply holds a markdown link and whose strip
  * shows Tell now and the Fallback flag. The turn has a reply decision only: a turn's attention decision would stay in the rail's
- * Recent decisions, where a seeded turn is not removed. The reminder, which only an event can give a trace target, and Reset soon come with
+ * Recent decisions. The turn and its decision are recorded in `refs` too. The reminder, which only an event can give a trace target, and Reset soon come with
  * `addReminder` and `addResetSoon` once the page has loaded.
  */
 export async function seedFullPage(user: string, refs: string[]): Promise<FullPage> {
@@ -85,7 +88,8 @@ export async function seedFullPage(user: string, refs: string[]): Promise<FullPa
   refs.push(await seedCheck(user, { namespace: 'OCUTALON', production: `Zz.Floor.${stamp.slice(-8)}`, displayName: `zz check ${stamp}`, lastRunAt: inMs(-60_000), result: 'passed', finding: 'zz finding', lastRunHeaderId: HEADER }));
   const incident = await seedIncident(user, { traceHeaderId: HEADER });
   refs.push(incident);
-  refs.push(await seedApproval(user, { incidentRef: incident, dryRun: { affected: 3, itemNoun: { one: 'order', other: 'orders' } } }));
+  const approval = await seedApproval(user, { incidentRef: incident, dryRun: { affected: 3, itemNoun: { one: 'order', other: 'orders' } } });
+  refs.push(approval);
   const summary = `zz decision ${stamp}`;
   refs.push(await seedDecision(user, { outcome: 'act', summary, reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }));
   const seeded = await seedTurns(user, [
@@ -96,7 +100,8 @@ export async function seedFullPage(user: string, refs: string[]): Promise<FullPa
       turn: { outcome: 'tellnow', fallback: true, fallbackReason: 'empty', reasons: 'Fixed rules chose this.', confidence: 0.5, costUSD: 0.0003 },
     },
   ]);
-  return { stamp, turn: seeded.refs[0]!, summary };
+  refs.push(...turnRows(seeded));
+  return { stamp, turn: seeded.refs[0]!, summary, approval };
 }
 
 /** Publishes a pending reminder with a trace target, once the page has loaded, and waits until the page shows its row. Returns its text. */
