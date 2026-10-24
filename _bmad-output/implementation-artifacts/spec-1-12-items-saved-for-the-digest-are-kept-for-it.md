@@ -111,7 +111,7 @@ deferred:
 |----------|--------------|---------------------------|----------------|
 | Kept (live) | A fixture `ItemDecision`: new `ItemId`, `OwnerRef` A (a new Ref), `Channel` `mailbox`, `Summary` "Test <ItemId>", a new `DecisionRef`, `Outcome` `digest`. Sent to `DigestStore` with `RunnerFixture.Send`. | 1. **The answer:** OK, with no response object.<br>2. **The row:** exactly one `Item` row for the `ItemId`, with `SessionRef` A and the message's `DecisionRef`, `Channel` and `Summary`. Its `RecordedAt` matches `YYYY-MM-DDThh:mm:ssZ` and lies between `NowUtc()` read just before and just after the send.<br>3. **Nobody notified:** `RunnerFixture.Headers(<the send's session>, "DigestStore")` holds no header but DigestStore's own synchronous reply to `ApprovalStartIn` (no body). [AMENDED 2026-10-24, lead, unattended ruling: the row said the list is empty; Task 0 (d) measured the reply header in every send, so "sends no message" is read as no header other than that reply]<br>4. **No live event:** no `OcuTalon_Live.Event` row has `Stream` A, and none since the test began holds the `ItemId` or the `DecisionRef` in its `Payload`. | OK |
 | Kept, instance (live) | The same with `OwnerRef` `instance` | One row with `SessionRef` `instance`. | OK |
-| Refused (live) | `Outcome` `tellnow`, `act` or `ignore`; `OwnerRef` `eval` or empty; `ItemId` empty | Each gets an error status whose text names the reason and the `ItemId` when there is one, and no row (by `ItemId`, and by `SessionRef` for the empty `ItemId`). No header from `DigestStore`. | error status |
+| Refused (live) | `Outcome` `tellnow`, `act` or `ignore`; `OwnerRef` `eval` or empty; `ItemId` empty | Each gets an error status whose text names the reason and the `ItemId` when there is one, and no row (by `ItemId`, and by `SessionRef` for the empty `ItemId`). No header from `DigestStore` but its own synchronous reply to `ApprovalStartIn` (no body) [AMENDED 2026-10-24, lead, unattended ruling, as for "Kept (live)" 3]. | error status |
 | Another class (live) | An `Ens.StringRequest` sent to `DigestStore` | Error code 5003, no response, no row. | error status |
 | Once (live) | The same `ItemId` sent twice, the second with another `Summary` and `DecisionRef` | 1. **The answers:** both OK.<br>2. **The row:** one row, with the first message's `Summary` and `DecisionRef`.<br>3. **Case counts:** an `ItemId` that differs from it only in the case of its letters is kept as a second item. | OK |
 | Since (in process) | Fixture rows of session A at `t1` < `t2` (two rows, saved in that order) < `t3`. One row of session B (A's Ref with the case of its letters swapped) at `t2`. | 1. **From a time:** `Since(A, t2)` gives A's `t3` row, then the second and the first `t2` rows. The boundary is included, and `t1` is not.<br>2. **From the start:** `Since(A, "")` gives A's four rows, newest first.<br>3. **Other sessions:** `Since(B, "")` gives B's row only, and `Since(<an unused Ref>, "")` gives `[]`.<br>4. **The entries:** each has exactly the five keys, with the row's values. | OK |
@@ -254,8 +254,36 @@ deferred:
 
   (`Test.Digest.Store.TestPurgeByTheTask`, `TestPurgeDays`, `TestPurgeRefuses`)
 
+### Review Findings
+
+Code review, 2026-10-24 (first review; four layers, full tier; throwaway tag `e1s12r`). 19 raw findings, plus 1 from the reviewer, grouped into 10 entries (1 medium, 9 low) and 10 rejected. Every patch was applied in the review pass. Nothing was deferred, and no HIGH or MED finding is left open.
+
+- [x] [Review][Patch] `Test.Digest.Zone.Add` copied `Test.Digest.Store.Add` (Rule 2, medium; fix-risk low: test helpers only, in-story). Both classes now build the fixture row with one class method, `Test.Digest.Store.NewRow(sessionRef, itemId, recordedAt, .sc)`, and each `Add` only asserts the save. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `Add`, `NewRow`; src/ocutalon/cls/OcuTalon/Test/Digest/Zone.cls `Add`]
+- [x] [Review][Patch] The restart row printed a PASS for "read back equal" even when both readings were empty or the same error (low; fix-risk low, one condition). The PASS now also needs the first reading to have held the two entries. [docker/tests/test-production.sh, the digest restart row]
+- [x] [Review][Patch] "Sends nothing and publishes nothing" was checked only on the first keep (low; fix-risk low, in-story test). `TestRefuses` now also checks for live events on each refused decision, and `TestOnce` checks the repeat's headers and live events. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `TestRefuses`, `TestOnce`]
+- [x] [Review][Patch] The live tests could not see a `RecordedAt` stamped from the local clock, so the UTC stamp had no real-runtime pin (low; fix-risk low; found by the reviewer, answering QA's open question). `RestartKeep` now checks that each kept item is stamped between the UTC clock before and after the sends. It runs in `live production`, whose item jobs run in America/New_York. See Verification, Code review. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `RestartKeep`; the header bullet of docker/tests/test-production.sh]
+- [x] [Review][Patch] `Zone.TestSinceIsUtc` had no control that the zone took effect (low; fix-risk low). It now has the same control as `TestKeptTimeIsUtc`. [src/ocutalon/cls/OcuTalon/Test/Digest/Zone.cls `TestSinceIsUtc`]
+- [x] [Review][Patch] `TestSince` compared the values of only one `Since` entry (matrix row "Since" 4; low; fix-risk low). It now compares all four entries of session A with their rows. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `TestSince`]
+- [x] [Review][Patch] Test class docs narrated history ("added in QA"; Rule 14; low; fix-risk low). Removed. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls header; src/ocutalon/cls/OcuTalon/Test/Digest/Zone.cls header]
+- [x] [Review][Patch] DW-151's `reopen_if` named only `OcuTalon.Live.Publish`, so a direct write to the live table would not reopen it (low; fix-risk low). The probe is widened to `OcuTalon.Live` or `OcuTalon_Live` (ledger trailer, `by=cr`). [_bmad-output/implementation-artifacts/deferred-work.md DW-151]
+- [x] [Review][Patch] `TestSinceRefuses`, the pin of AC3's refusal bullet, had no recorded mutation (Rule 19; low). The mutation is demonstrated and recorded under Verification, Code review. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `TestSinceRefuses`]
+- [x] [Review][Patch] The payload half of `LiveEvents`, the only live-event check for an `instance` owner, had never gone red (Rule 19; low). A publish whose payload holds the ItemId turned `TestKeepsInstance` red, so `Payload [ ?` matches a mixed-case Ref. Recorded under Verification, Code review. [src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls `LiveEvents`]
+
+**Rejected:**
+- `low`: the matrix row "Refused (live)" still says "No header from DigestStore", which cannot hold literally (blind hunter and acceptance auditor). The tests apply the lead's reading of "Kept (live)" 3, so the fix is a spec edit. The lead may extend that amendment to this row.
+- `low`: the residual risks in the Auto Run Result are out of date. Spec text.
+- `low`: the bookkeeping counts in the triage log, decision 21 and the cycle log disagree. Spec and cycle-log text.
+- `low`: DW-149's body breaks the grammar (`footprint: in-footprint`, `by=cr` on an orchestrator filing). It was filed by the orchestrator, not from this story, and the body is written once.
+- `low`: DW-150's `reopen_if` is a design condition. Story 17.6's plan can check it.
+- `false`: Zone's `$ClassMethod(..#STORE, ...)` calls lose a compile-time check. This is the house form (74 uses in the test trees).
+- `low`: `RestartKeep`'s waits (WaitAllRun, then a 240 s send) are not bounded by the script's deadline. This happens only in a run that already fails, with no false PASS, and the fix needs a new fixture parameter.
+- `false`: `Purge()` called with no argument throws. No caller omits it, and a loud failure is correct.
+- `false`: the `, %ID DESC` tie-break is unobserved. Removing it turned `TestSince` and `TestSinceOrder` red.
+- `low`: the whole-table `CountAll` deltas depend on no other writer. Today only the tests write the table or send to DigestStore. This becomes real when a lane-a test drives `Intake` with a triage answer of digest while `Test.Digest` runs.
+
 ## Spec Change Log
 
+- 2026-10-24, lead (Epic 1 runner), after code review: matrix row "Refused (live)" restated the same way.
 - 2026-10-24, lead (Epic 1 runner), at dev complete: matrix row "Kept (live)" 3 restated to the measured observable (Task 0 (d), decision 14); the intent, nobody notified, is unchanged.
 
 ## Review Triage Log
@@ -507,6 +535,54 @@ After review, four mutations at once, each in code that only one test reads (tre
 **Lead's rulings at the spec gate (2026-10-24, Epic 1 runner, unattended):**
 - **Decided:** the table as planned (the AC names its fields and retention; AD-33 lists it), the real IRIS restart row in `test-production.sh`, and the planner's 13 in-stage choices.
 - **No spine edit here:** AD-22's as-built `lane-a` area list is left for the orchestrator's merge reconciliation.
+
+### QA stage (2026-10-24; throwaway tag `e1s12q`, slot A for compiles only)
+
+**Test files (QA).**
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Zone.cls` (QA, new): `TestKeptTimeIsUtc`, `TestSinceIsUtc` and `TestPurgeCutoffIsUtc`. It extends the zone base `OcuTalon.Test.Bridge.ZoneCase` (which puts the process zone back), gives the process a zone and calls the code in process (`DigestStore` through the handler of a shadow instance). Shard `lane-a` already holds `Digest`, and `Test.Bridge.Time`'s zone scan passes it.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls` (QA, extended): new `TestKeepsFields`, `TestKeepFailureIsAnError`, `TestOnceUnchanged`, `TestUniqueItemId`, `TestSinceOrder` and `TestPurgeOneDay`; `TestPurgeByTheTask` gained the rows at 90 days an hour either side; new helpers `LongSummary`, `Snapshot`, `Stored`, `WaitPast`, and `Decision` takes a channel.
+
+**Gaps found, and what pins them now.**
+- **Every stored field against its message (AC1).** The live tests used channel `mailbox` only and a Summary derived from the ItemId, so a store that wrote `mailbox` as the Channel passed. `TestKeepsFields` sends one decision per channel of `Msg.Enum` CHANNEL, with a Summary of 80 characters (quotes, a backslash, a character beyond ASCII), distractor values in `SourceItemId`, `CatalogKey`, `Slots`, `Fallback` and `FallbackReason`, and checks the six fields, one new row per send, and the entry of `Since`.
+- **A failed save (AC1, decision 15).** No test reached the "could not keep" branch. `TestKeepFailureIsAnError` hands the handler a decision with a Summary of 81 characters, in process (the production cannot deliver one, the message class holds 80).
+- **RecordedAt is UTC (AC1, AC3, AC6).** A throwaway's IRIS reads the same on the local and the UTC clock, so a local-time stamp passed every live test. `Test.Digest.Zone` gives the process four zones (among them Pacific/Kiritimati, UTC+14, and Pacific/Pago_Pago, UTC-11: at any time of day the local date of at least one of the two is not the UTC date) and pins the stamp, the `since` comparison and the purge cutoff to UTC.
+- **Order by time (AC3).** The fixtures were saved in time order, so ordering by row id alone passed. `TestSinceOrder` saves rows out of time order, and checks that a time after every row gives `[]` and OK.
+- **The unique index (AC4).** It was pinned only together with the pre-check. `TestUniqueItemId` saves a second row of the same ItemId (another session) and expects the table to refuse it, and ItemIds that differ in case to be two.
+- **A repeat changes nothing (AC4).** `TestOnce` read the Summary and the DecisionRef only. `TestOnceUnchanged` repeats from another owner, on another channel, with another summary and a later second, and compares the whole row (time and row id too) read by SQL before and after.
+- **The purge boundary (AC6).** The task test had rows a day either side of 90 days, so an off-by-one day passed unless the second ticked. It has rows an hour either side now, and `TestPurgeOneDay` pins the least accepted count, 1.
+- **The restart row (AC5)** is unchanged: it fails when the first reading holds fewer or more than two entries, so it cannot pass on two empty readings; it passed in `live production` (stop 2 s, start to ready 7 s).
+
+**Mutations demonstrated (QA; each applied to the working tree, the class run, the tree put back; `git status --short`, `git diff --stat` and a hash of the status, the tracked diff and the untracked files' contents were the same before and after each one).**
+- mutation: the store writes the Channel `mailbox` instead of the message's (`Set item.Channel = "mailbox"`) -> `Digest.Store.TestKeepsFields` went red (seven channels, the Channel and the entry of `Since`); `TestKeeps` and `TestKeepsInstance` stayed green
+- mutation: a failed save is answered OK (`Quit $SYSTEM.Status.OK()` in place of the "could not keep" error) -> `Digest.Store.TestKeepFailureIsAnError` went red (not an error, code, ItemId in the text)
+- mutation: the store stamps `RecordedAt` from the local clock (`$ZDateTime($Horolog, 3)`) -> `Digest.Zone.TestKeptTimeIsUtc` went red in all four zones; every test of `Digest.Store` stayed green
+- mutation: `Since` orders by `%ID DESC` only -> `Digest.Store.TestSinceOrder` went red (both orders); `TestSince` stayed green
+- mutation: `Since` converts the time it is given to the local time before it compares -> `Digest.Zone.TestSinceIsUtc` went red in all four zones
+- mutation: `[ Unique ]` is removed from `ItemIdIndex` and the pre-check of `Keep` reads by SQL -> `Digest.Store.TestUniqueItemId` went red (four assertions); `TestOnce` stayed green
+- mutation: a repeat opens the first row and sets its `RecordedAt` to now -> `Digest.Store.TestOnceUnchanged` went red ("as it was, field for field"); `TestOnce` stayed green. The first version of that test compared an object that the test still held open, which `%OpenId` returns as it was read, and this mutation survived it; the comparison now reads the row by SQL.
+- mutation: the purge cutoff is a day late (`- daysToKeep + 1`) -> `Digest.Store.TestPurgeByTheTask` went red on "90 days less an hour ago is kept" (with `TestPurgeDays` and `TestPurgeOneDay`); the 89 and 91 days rows alone did not catch it
+- mutation: the least day count is 2 (`If +daysToKeep < 2`) -> `Digest.Store.TestPurgeOneDay` went red (a count of 1 refused), and no other test
+- mutation: the purge cutoff takes its date from the local clock (`$Piece($Horolog, ",", 1)`) -> `Digest.Zone.TestPurgeCutoffIsUtc` went red (in the zone whose local date was not the UTC date at that time)
+
+**Runs (QA).** `bash ci/checks.sh`: all scripts passed. `ci/iris.sh class` for `Test.Digest.Store` and `Test.Digest.Zone`: passed. `ci/iris.sh shard lane-a` forward and `--reverse`: passed, 40 classes each (the only SKIP is the existing `TestStepHelpers`). `ci/iris.sh live production`: passed, the restart rows included. `shard lane-b` was not run: QA changed no Lane B test.
+
+### Code review (2026-10-24; throwaway tag `e1s12r`, slot A for compiles only)
+
+**Why the live tests did not see a local-clock stamp (QA's open question).**
+- Only `live production` (`test-production.sh`) runs its stack with the compose-level `TZ: America/New_York` (DW-12). It is the only file under `ci/` and `docker/` that sets `TZ`.
+- The live tests of `Test.Digest.Store` run in the stacks of `ci/iris.sh class` and `shard`, which set no `TZ`. There the local clock reads UTC, so a local stamp equals a UTC one.
+- In `live production` the item jobs do follow the zone. Under the local-clock mutation below, DigestStore's job stamped `02:21:38Z` against a UTC clock of `06:21:38Z` (EDT).
+- `RestartKeep` now checks the stamp there, so the restart row is the real-runtime pin of the UTC stamp, beside the in-process pin of `Test.Digest.Zone`.
+
+**Mutations demonstrated.** Each was applied to the working tree, the run made, and the tree put back. A hash of `git status --short`, the tracked diff and the untracked files' contents was the same before and after (`198bde6f`). The first five were applied together, each in code that a different test reads.
+- mutation: `Since` drops the empty-`sessionRef` check and the `ToLocal` check of `since` -> `Digest.Store.TestSinceRefuses` went red (all five bad times and both empty-session calls)
+- mutation: `Since` orders by `RecordedAt DESC` only (no `, %ID DESC`) -> `Digest.Store.TestSince` and `TestSinceOrder` went red (the two rows of one second)
+- mutation: after a keep, the store publishes a `notification` event whose payload holds the ItemId on the owner's stream -> `Digest.Store.TestKeepsInstance` went red (the payload match on the shared `instance` stream; the mixed-case Ref matched), and so did `TestKeeps`
+- mutation: the store publishes that event for a repeat -> `Digest.Store.TestOnce` went red ("and published no live event")
+- mutation: the store publishes that event when it refuses an outcome -> `Digest.Store.TestRefuses` went red (the `tellnow`, `act` and `ignore` rows, "and published no live event")
+- mutation: the store stamps `RecordedAt` from the local clock (`$Translate($ZDateTime($Horolog, 3), " ", "T")_"Z"`) -> the restart row of `live production` went red on its first check (`CHK|kept|the item zzDigestRestartItem002 is stamped 2026-10-24T02:21:38Z, not between the UTC clock before ... and after ...`); every other row passed
+
+**Runs (review, after the patches).** `ci/iris.sh shard lane-a`: passed, 40 classes (the only SKIP is the existing `TestStepHelpers`). `ci/iris.sh live production`: all checks passed (the restart row's stop took 1 s, and start to ready 13 s). `bash ci/checks.sh`: all scripts passed. `ci/iris.sh teardown` for `e1s12r` left nothing. Not run: the `--reverse` shards and `shard lane-b`, since the review changed no Lane B test.
 
 ## Auto Run Result
 

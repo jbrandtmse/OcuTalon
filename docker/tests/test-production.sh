@@ -31,9 +31,11 @@
 #     made by setting the director's state globals in the throwaway, and each is removed afterwards. Each stop in the block
 #     first waits, up to 10 s, until Ens.ScheduleHandler has finished the start's request (DW-28), and a failed stop
 #     prints its error;
-#   - the digest restart, last (Story 1.12, NFR-16): two items of one fixture session are kept through the running DigestStore
-#     and read with Item.Since, and a marker is put in IRISTEMP; the iris container is stopped, which must end IRIS cleanly (exit
-#     code 0), and started again; the start ends ready, the container's start time has changed and the IRISTEMP marker is gone;
+#   - the digest restart, last (Story 1.12, NFR-16): two items of one fixture session are kept through the running DigestStore,
+#     each stamped with a UTC time between the UTC clock before and after the sends (the stack's TZ is America/New_York, so a
+#     stamp from the item job's local clock shows), and read with Item.Since, and a marker is put in IRISTEMP; the iris
+#     container is stopped, which must end IRIS cleanly (exit code 0), and started again; the start ends ready, the
+#     container's start time has changed and the IRISTEMP marker is gone;
 #     the same session read again gives the same two entries, field for field; then the fixture rows are deleted. It runs last,
 #     so that no earlier row sees a restarted stack.
 # The project is unique, publishes no host port and receives no keys: the start is the no-key start of AD-23. An EXIT trap
@@ -353,7 +355,7 @@ CHK|suspended-this|3|1||1" \
 
 # --- the digest restart: items kept by DigestStore are read back unchanged after IRIS restarts (Story 1.12, NFR-16) ---
 
-check_session "digest restart: two items of one session are kept through the running DigestStore, and a marker is put in IRISTEMP" OCUTALON \
+check_session "digest restart: two items of one session are kept through the running DigestStore, stamped in UTC, and a marker is put in IRISTEMP" OCUTALON \
   "CHK|kept|1
 CHK|mark|1" \
   'Write !,"CHK|kept|",##class(OcuTalon.Test.Digest.Store).RestartKeep()' \
@@ -400,12 +402,12 @@ check_session "digest restart: IRIS itself restarted, so the IRISTEMP marker is 
   'Halt'
 
 digest_after=$(printf '%s\n' "$digest_read" 'Halt' | session_value OCUTALON read)
-if [ -n "$digest_before" ] && [ "$digest_after" = "$digest_before" ]; then
+if [ "$digest_entries" = 2 ] && [ "$digest_after" = "$digest_before" ]; then
   pass "digest restart: the two items are read back equal, field for field, to the reading before the restart"
 else
   echo "  before: $(printf '%s' "$digest_before" | cut -c1-400)"
   echo "  after:  $(printf '%s' "$digest_after" | cut -c1-400)"
-  fail "digest restart: the items read after the restart differ from the reading before it"
+  fail "digest restart: the items read after the restart are not the two items read before it"
 fi
 check_session "digest restart: the fixture rows are deleted" OCUTALON \
   "CHK|left|0" \

@@ -568,6 +568,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Test/Digest/Store.cls TestKeepsInstance; TestKeeps counts the owner's whole stream
 - 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=any file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live.Publish
+- 2026-10-24T06:25:15Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=cr note=reopen_if=a file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live or OcuTalon_Live (cr widened the probe)
 
 ### DW-152: DigestStore.Keep's concurrent-repeat path (the save fails on the unique index after the pre-check found no row) has no test
 - source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
