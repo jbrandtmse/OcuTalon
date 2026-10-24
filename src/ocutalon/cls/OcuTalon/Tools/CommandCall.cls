@@ -27,7 +27,8 @@ Parameter NOTREAD = "The reminder list could not be read, so it is not known whi
 /// Submits the command for the session of the call. Returns "" once the owner has answered (the CommandResult is in result), and otherwise
 /// the object for the model, {"ok": false, "message": ...}: NOSESSION when the call is not a session's turn (nothing is submitted), and
 /// NOTSENT when Submit gives an error or an answer that is not a CommandResult (one Type 3 warning names the command's class and holds the
-/// status text, redacted).
+/// status text, redacted). It leaves the event-log session of the calling job as it was: CommandsIn is a business service, which clears the
+/// job's session when its ProcessInput ends, so the warnings that the job logs after a tool call stay in the session of its decision.
 ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	Set result = ""
@@ -39,11 +40,13 @@ ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.C
 	Set command.SessionRef = context.OwnerRef
 	Set command.IdempotencyKey = context.ItemId_":"_position
 	Set answered = ""
+	Set jobSession = $Get($$$JobSessionId)
 	Try {
 		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "tool", .answered)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
+	If jobSession '= "" Set $$$JobSessionId = jobSession
 	If $$$ISOK(sc) && ('$IsObject(answered) || '$ClassMethod($ClassName(answered), "%Extends", "OcuTalon.Msg.CommandResult")) {
 		Set sc = $SYSTEM.Status.Error(5001, "The answer is not an OcuTalon.Msg.CommandResult")
 	}

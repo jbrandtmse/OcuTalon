@@ -1,5 +1,5 @@
 /// Tests of the Chat agent's reminder tools (Story 1.10; AD-1, AD-4, AD-7, AD-9, AD-10, AD-18, FR-34): set_reminder, list_reminders and
-/// cancel_reminder, the toolset OcuTalon.Tools.Reminders and the helper OcuTalon.Tools.CommandCall. THE TESTS BUT TestDeclarations RUN IN THROWAWAY
+/// cancel_reminder, the toolset OcuTalon.Tools.Reminders and the helper OcuTalon.Tools.CommandCall. THE TESTS BUT TestDeclarations AND TestAnswerShapes RUN IN THROWAWAY
 /// STACKS AND IN CI ONLY (Rule 21): they need OcuTalon.Production running after the Production step, the CI override's environment (the mock's base URL
 /// and OCUTALON_MOCK_KEY_HEADER=1) and the mock's request log, and fail with the reason where they do not have them. CommandsIn is a stub until Lane B's
 /// Story 2.3, and ReminderOps until Epic 8, so the first test points the Config Store entry of each runner at the non-secret CI variable
@@ -23,18 +23,34 @@
 ///     the reply is a normal one and the tool step is ok;
 ///   - TestList and TestListInZone (AC6): only the session's pending reminders, the sooner first, with ref, text, due and dueLocal and the zone; in
 ///     America/New_York either side of the end of daylight-saving time the local times are 10:30; with a Data that no row holds, the tool returns that Data;
-///   - TestListUnreadable (AC6): a Data that is not JSON, or has no reminders array, or has a reminder with no ref or no text, or holds an entry that is no object,
-///     or holds a good reminder before a bad one, is a failure with one warning, never an empty list or a half list, while {"reminders": []} is an empty list;
+///   - TestListUnreadable (AC6): a Data that is not JSON, or has no reminders array, or has a reminder with no ref, an empty ref, no text, a text that is no string or a
+///     due time that is not UTC to the second, or holds an entry that is no object, or holds a good reminder before a bad one, is a failure with one warning, never an
+///     empty list or a half list, while {"reminders": []} is an empty list;
 ///   - TestListRefused (AC5, AC7): the owner's refusal of ListReminders reaches the model as {"ok": false, "message": the owner's}, with no warning;
 ///   - TestAnswerShapes (AC3): Answer leaves out the ref and the due times that the owner did not give or that Data.Time cannot read, and keeps ok and message;
-///   - TestKeys (AC7): the same turn sent to ChatAgent twice submits the keys <ItemId>:1 and <ItemId>:2 in each round;
+///   - TestKeys (AC7): the same turn sent to ChatAgent twice submits the keys <ItemId>:1 and <ItemId>:2 in each round; the two calls of one response are two tool
+///     steps in the runner's Reply (the steps that Decide sends to Visual Trace), each with its label (QA);
 ///   - TestNoSession, TestSubmitFails, TestSubmitEmpty, TestSubmitRedacted and TestBadDelay (AC8): no context, an owner that is not a session's Ref or an empty
 ///     ItemId submits nothing and answers NOSESSION; a failed submit, and a submit that is answered with no CommandResult, answer NOTSENT with one warning that
-///     names the verb's class, whose status text has passed through the redactor; a delaySeconds that is not a whole number answers BADDELAY.
+///     names the verb's class, whose status text has passed through the redactor; a delaySeconds that is not a whole number answers BADDELAY;
+///   - TestSubmitKeepsTheJobSession (AC8; AD-1, AD-9): a tool's submit leaves the event-log session of the job as it was, answered or failed, so the warnings that
+///     ChatAgent's job logs after a tool call stay in the decision's session (CommandsIn is a business service, and a business service clears the job's session).
+/// Added by QA (Story 1.10), each pinning a row of the matrix that the tests above leave to a mutation that stays green:
+///   - TestSetAnswerInZone (AC3): the due time that a set answers is in the instance zone (New York, and Auckland where the date changes too), not only a UTC time
+///     with its Z cut off, which TestSetRelative cannot tell apart in the UTC of a throwaway;
+///   - TestRefusalsAreUnchanged (AC3, AC5): a refusal of the owner reaches the model character for character when it holds quotes, a backslash, a tab, a line break,
+///     white space at both ends, a non-ASCII character or 700 characters, for each of the three tools;
+///   - TestToolsPassOnWhatTheModelGave (AC3, AC4): the tools are thin (decision 5): both due forms, none, an empty text, a day and time that cannot be read and a
+///     ref that no reminder has all reach the owner as given, each field only when the model gave it;
+///   - TestListKeepsTheOwnersOrder (AC6): the list is in the order of the owner's Data, which is neither the order of the due times nor of the refs nor of the texts;
+///   - TestBadDelayThroughTheToolManager (AC8): a delaySeconds of 1.5, -5 or abc, given as AI Hub's tool manager decodes it, answers BADDELAY and submits nothing,
+///     while 60 and an omitted one reach the owner, so a coercion by AI Hub would show.
+/// The tests of the cancel and the list also compare the whole Reminder table before and after the turn (a tool that updates a row is caught, not only one that adds).
 /// OnAfterOneTest and OnAfterAllTests put back what a test made, also when it failed: the fixture Reminder rows (by Ref), ^OcuTalonTest("CommandsDouble"), the
 /// Decision, Usage and AgentStep rows of the turns (by ItemId), the AI sessions the turns saved with their links, the context, the process zone (the base class
 /// ZoneCase), the CommandsIn item (RestoreItemClass) and the keys of the runners (RestoreKeys). OnAfterAllTests returns the status of those two restores, and an
-/// error when a new service of the CommandsIn item is not of the class that the item had, so a restore that did not happen fails the class.
+/// error when a new service of the CommandsIn item is not of the class that the item had or when an entry of a runner does not hold the placeholder of the
+/// Provider step (RunnerFixture.KeysAre), so a restore that did not happen fails the class.
 Class OcuTalon.Test.Tools.Reminders Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -127,6 +143,8 @@ Method OnAfterAllTests() As %Status
 	If ..Pointed && ##class(OcuTalon.Test.Agent.RunnerFixture).Running() {
 		Set ..Pointed = 0
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys())
+		Set placeholder = ##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER
+		If '##class(OcuTalon.Test.Agent.RunnerFixture).KeysAre(placeholder) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The entries of the runners do not hold the placeholder of the Provider step after the restore"))
 	}
 	Quit sc
 }
@@ -169,6 +187,7 @@ Method TestDeclarations()
 		Set inputs = ..SortedKeys(tool.parameters.properties)
 		Do $$$AssertEquals(inputs, $List(want(name), 5), name_" takes the inputs '"_$List(want(name), 5)_"'")
 		Do $$$AssertEquals($ListToString(..Items(tool.parameters.required)), $List(want(name), 6), name_" requires '"_$List(want(name), 6)_"'")
+		If name = "set_reminder" Do $$$AssertEquals(tool.parameters.properties.delaySeconds.type, "integer", "set_reminder's delaySeconds is an integer in the schema, so the model is asked for a whole number")
 		For input = 1:1:$Length(inputs, ",") {
 			Set one = $Piece(inputs, ",", input)
 			If one = "" Continue
@@ -198,7 +217,7 @@ Method TestDeclarations()
 	While iterator.%GetNext(, .tool) {
 		Set ownNames = ownNames _ $ListBuild(tool.name)
 	}
-	Do $$$AssertEquals($ListToString(..Sorted(ownNames)), "CancelReminder,ListReminders,SetReminder", ..#TOOLS_" offers its three methods and none of Result's")
+	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.Runners).Sorted(ownNames)), "CancelReminder,ListReminders,SetReminder", ..#TOOLS_" offers its three methods and none of Result's")
 	For method = "SetReminder", "ListReminders", "CancelReminder" {
 		Set return = ##class(%Dictionary.CompiledMethod).%OpenId(..#TOOLS_"||"_method).ReturnType
 		Do $$$AssertTrue(return [ "DynamicObject", method_" returns a dynamic object: "_return)
@@ -257,12 +276,17 @@ Method TestSetLocal()
 {
 	If '..Prepare() Quit
 	Set now = "2026-10-26T14:00:00Z"
+	Do $SYSTEM.Process.TimeZone("")
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.Provenance = "user"
 	Set item.Text = "Remind me Thursday at 10 to load the new certificate. [[mock:reminder-set-local]]"
 	Set input = ##class(OcuTalon.Agent.Input).Render(item, now)
 	Set preamble = ##class(OcuTalon.Agent.Input).Preamble(now)
 	Do $$$AssertTrue($Extract(preamble, 1, 12) = "Local time: ", "control: the preamble states the local time: "_preamble)
+	Do $$$AssertEquals($Piece(preamble, " (time zone ", 1), "Local time: Monday 2026-10-26 14:00", "control: it names the weekday, the local date and the time that Thursday at 10 is worked out from")
+	Do $$$AssertTrue(preamble [ " (time zone ", "and the zone: "_preamble)
+	Set monday = $ZDateH($Piece(preamble, " ", 4), 3)
+	Set thursday = $ZDate(monday + ((4 - $ZDate(monday, 10)) # 7), 3)
 	Do $$$AssertTrue($Extract(input, 1, $Length(preamble)) = preamble, "control: the rendered input starts with it")
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set sc = ..Turn(input, owner, .request, .answer, .session, .requests)
@@ -278,6 +302,7 @@ Method TestSetLocal()
 		Do ..AssertCall(calls.%Get(0), "OcuTalon.Msg.Command.SetReminder", owner, request.ItemId_":1", "IdempotencyKey,LocalDueAt,Origin,SessionRef,Text", "SetReminder")
 		Set fields = calls.%Get(0).fields
 		Do $$$AssertEquals(fields.LocalDueAt_"|"_fields.Text, "2026-10-29T10:00:00|load the new certificate", "with the local date and time and the text that the model gave")
+		Do $$$AssertEquals(fields.LocalDueAt, thursday_"T10:00:00", "which is the Thursday after the Monday of the preamble, at 10, in the form YYYY-MM-DDThh:mm:ss with no zone")
 	}
 }
 
@@ -305,8 +330,10 @@ Method TestCancel()
 	If '..Prepare() Quit
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..AddReminder(owner, ..#CANCELREF, "stretch", "2027-03-04T15:00:00Z", "pending")
+	Set rows = ..RowsText()
 	Set sc = ..Turn("Cancel my reminder to stretch. [[mock:reminder-cancel]]", owner, .request, .answer, .session, .requests)
 	If '..AssertTurn(sc, answer, request, "The CI mock cancelled the reminder.") Quit
+	Do $$$AssertTrue(..RowsText() = rows, "the tools wrote and changed no Reminder row: the pending reminder is still pending, for the owner to cancel")
 	Set calls = ..Calls()
 	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded two commands")
 	If calls.%Size() = 2 {
@@ -338,8 +365,10 @@ Method TestCancelRefused()
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..AddReminder(owner, ..#CANCELREF, "stretch", "2027-03-04T15:00:00Z", "pending")
 	Set ^OcuTalonTest("CommandsDouble", "refuse", "CancelReminder") = "That reminder has already fired."
+	Set rows = ..RowsText()
 	Set sc = ..Turn("Cancel my reminder to stretch. [[mock:reminder-cancel]]", owner, .request, .answer, .session, .requests)
 	If '..AssertTurn(sc, answer, request, "The CI mock cancelled the reminder.") Quit
+	Do $$$AssertTrue(..RowsText() = rows, "the tools wrote and changed no Reminder row")
 	Do $$$AssertEquals(requests.%Size(), 3, "the mock logged three requests")
 	If requests.%Size() = 3 {
 		Set third = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(2))
@@ -366,8 +395,10 @@ Method TestList()
 	Do ..AddReminder(owner, ..RefOf("ListFired"), "an old one", "2027-03-01T09:00:00Z", "fired")
 	Do ..AddReminder(owner, ..RefOf("ListCancelled"), "a dropped one", "2027-03-03T09:00:00Z", "cancelled")
 	Do ..AddReminder(other, ..RefOf("ListOther"), "someone else's", "2027-03-02T08:00:00Z", "pending")
+	Set rows = ..RowsText()
 	Set sc = ..Turn("Which reminders do I have? [[mock:reminder-list]]", owner, .request, .answer, .session, .requests)
 	If '..AssertTurn(sc, answer, request, "The CI mock listed the reminders.") Quit
+	Do $$$AssertTrue(..RowsText() = rows, "the list tool wrote and changed no Reminder row")
 	Set calls = ..Calls()
 	Do $$$AssertEquals(calls.%Size(), 1, "the double recorded one command")
 	If calls.%Size() = 1 Do ..AssertCall(calls.%Get(0), "OcuTalon.Msg.Command.ListReminders", owner, request.ItemId_":1", "IdempotencyKey,Origin,SessionRef", "ListReminders")
@@ -407,19 +438,23 @@ Method TestListInZone()
 	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded both lists")
 }
 
-/// A list that cannot be read (AC6), in process. A Data that is not JSON, one without a reminders array, one with a reminder that has no ref and one with a due
-/// time that is not UTC to the second each answer {"ok": false, "message": NOTREAD} and log one warning of Listed: never an empty list. A Data of an empty
-/// reminders array is an empty list, which says that none is pending.
+/// A list that cannot be read (AC6), in process. A Data that is not JSON, one without a reminders array, one with a reminder that has no ref, an empty ref, no text
+/// or a text that is no string, one with a due time that is not a time or that is not UTC to the second (no Z), one with an entry that is no object and one with a
+/// good reminder before a bad one each answer {"ok": false, "message": NOTREAD} and log one warning of Listed: never an empty list. A Data of an empty reminders
+/// array is an empty list, which says that none is pending.
 Method TestListUnreadable()
 {
 	If '..Prepare() Quit
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
-	Set good = "{""ref"":""zzReminderGoodOne0001"",""text"":""ok"",""dueAt"":""2027-03-04T15:00:00Z""}"
-	Set bad = $ListBuild("not json", "{""items"":[]}", "", "{""reminders"":[{""text"":""no ref"",""dueAt"":""2027-03-04T15:00:00Z""}]}", "{""reminders"":[{""ref"":""zzReminderBadDue00001"",""text"":""x"",""dueAt"":""soon""}]}", "{""reminders"":""none""}",
-		"{""reminders"":[{""ref"":""zzReminderNoText0001"",""dueAt"":""2027-03-04T15:00:00Z""}]}",
+	Set good = "{""ref"":""zzReminderGoodOne00001"",""text"":""ok"",""dueAt"":""2027-03-04T15:00:00Z""}"
+	Set bad = $ListBuild("not json", "{""items"":[]}", "", "{""reminders"":[{""text"":""no ref"",""dueAt"":""2027-03-04T15:00:00Z""}]}", "{""reminders"":[{""ref"":""zzReminderBadDue000001"",""text"":""x"",""dueAt"":""soon""}]}", "{""reminders"":""none""}",
+		"{""reminders"":[{""ref"":""zzReminderNoText000001"",""dueAt"":""2027-03-04T15:00:00Z""}]}",
 		"{""reminders"":[""not an object""]}",
-		"{""reminders"":["_good_",{""ref"":""zzReminderNoText0001"",""dueAt"":""2027-03-04T15:00:00Z""}]}")
+		"{""reminders"":["_good_",{""ref"":""zzReminderNoText000001"",""dueAt"":""2027-03-04T15:00:00Z""}]}",
+		"{""reminders"":[{""ref"":"""",""text"":""x"",""dueAt"":""2027-03-04T15:00:00Z""}]}",
+		"{""reminders"":[{""ref"":""zzReminderNumText00001"",""text"":5,""dueAt"":""2027-03-04T15:00:00Z""}]}",
+		"{""reminders"":[{""ref"":""zzReminderNoZone000001"",""text"":""x"",""dueAt"":""2027-03-04T15:00:00""}]}")
 	Set position = 0
 	While $ListNext(bad, position, data) {
 		Set ^OcuTalonTest("CommandsDouble", "data") = data
@@ -457,9 +492,9 @@ Method TestAnswerShapes()
 	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
 	Set result.Ok = 1
 	Set result.Message = "Done."
-	Set result.Ref = "zzReminderShape00001"
+	Set result.Ref = "zzReminderShape0000001"
 	Set result.DueAt = "soon"
-	Do ..AssertObject(##class(OcuTalon.Tools.CommandCall).Answer(result), {"ok": true, "message": "Done.", "ref": "zzReminderShape00001"}, "a due time that cannot be read leaves out due and dueLocal")
+	Do ..AssertObject(##class(OcuTalon.Tools.CommandCall).Answer(result), {"ok": true, "message": "Done.", "ref": "zzReminderShape0000001"}, "a due time that cannot be read leaves out due and dueLocal")
 	Set result.Ref = ""
 	Set result.DueAt = ""
 	Do ..AssertObject(##class(OcuTalon.Tools.CommandCall).Answer(result), {"ok": true, "message": "Done."}, "no ref and no due time leave out all three")
@@ -488,6 +523,18 @@ Method TestKeys()
 	Set sc = $ClassMethod(fixture, "Send", ..#RUNNER, one, .first)
 	Do $$$AssertStatusOK(sc, "round 1 is answered")
 	Do $$$AssertEquals($Select($IsObject(first): first.Text, 1: "none"), "The CI mock set the reminders.", "with the text of the scenario")
+	Set steps = [].%FromJSON($Select($IsObject(first) && (first.Steps '= ""): first.Steps, 1: "[]"))
+	Set kinds = ""
+	Set labels = ""
+	Set iterator = steps.%GetIterator()
+	While iterator.%GetNext(, .step) {
+		Set kinds = kinds _ $Select(kinds = "": "", 1: ",") _ step.kind
+		If step.kind = "tool" {
+			Set labels = labels _ $ListBuild(step.label_"|"_step.status_"|"_(step.summary [ "set_reminder"))
+		}
+	}
+	Do $$$AssertEquals(kinds, "model,tool,tool,model", "round 1 shows two tool steps, one for each call of the response: "_kinds)
+	Do $$$AssertEquals($ListToString(labels, ";"), "Setting a reminder|ok|1;Setting a reminder|ok|1", "each with its label and its status, and its summary names set_reminder: "_$ListToString(labels, ";"))
 	Set sc = $ClassMethod(fixture, "Send", ..#RUNNER, two, .again)
 	Do $$$AssertStatusOK(sc, "round 2 is answered")
 	Do $$$AssertEquals($Select($IsObject(again): again.Text, 1: "none"), "The CI mock set the reminders.", "with the same text")
@@ -582,7 +629,8 @@ Method TestSubmitEmpty()
 }
 
 /// The status text of a failed submit is redacted (AC8), in process. A status text that holds a key-shaped value (made up here at run time, never written
-/// as a literal) reaches the warning of Run as [redacted], and the warning holds no part of the key.
+/// as a literal) reaches the warning of Run as [redacted], and the warning holds no part of the key. The double, a business service with no adapter, also
+/// logs the status as it is (Ens.BusinessService), so the test deletes the event-log rows that hold the value at its end.
 Method TestSubmitRedacted()
 {
 	If '..Prepare() Quit
@@ -595,6 +643,46 @@ Method TestSubmitRedacted()
 	Do ..AssertObject(answer, {"ok": false, "message": ($Parameter(..#CALL, "NOTSENT"))}, "cancel_reminder answers NOTSENT")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#CALL, "Run", $ListBuild("OcuTalon.Msg.Command.CancelReminder", "refused [redacted]")), 1, "the warning holds the status text with the key redacted")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, ..#CALL, "Run", $ListBuild("sk-ant")), 0, "and no part of the key")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Text [ ?", mark, secret)
+}
+
+/// The event-log session of the calling job survives a submit (AC8; AD-1, AD-9), in process. A tool runs in ChatAgent's job, whose event-log rows carry the
+/// session of the decision, and CommandsIn is a business service, which clears the job's session when its ProcessInput ends. With a session set for this job,
+/// each tool, answered by the double, leaves it as it was, and so does a failed submit, whose warning of Run is logged in that session. The job's session is put
+/// back as it was at the end, also after an error.
+Method TestSubmitKeepsTheJobSession()
+{
+	If '..Prepare() Quit
+	Set had = $Data(%Ensemble("SessionId"), was)
+	Set session = 900000000 + $Random(99999999)
+	Try {
+		Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
+		Set %Ensemble("SessionId") = session
+		For tool = "set_reminder", "list_reminders", "cancel_reminder" {
+			Set answer = ..CallTool(tool)
+			Do $$$AssertEquals(answer.ok, 1, tool_" is answered by the double")
+			Do $$$AssertEquals($Get(%Ensemble("SessionId")), session, tool_" leaves the job's session as it was")
+		}
+		Set ^OcuTalonTest("CommandsDouble", "fail") = 1
+		Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Set answer = ..CallTool("set_reminder")
+		Do $$$AssertEquals(answer.ok, 0, "control: the failed submit answers ok false")
+		Do $$$AssertEquals($Get(%Ensemble("SessionId")), session, "a failed submit leaves the job's session as it was too")
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = 'Run'", mark, ..#CALL)
+		Set sessions = ""
+		While rows.%Next() {
+			Set sessions = sessions _ $ListBuild(rows.%GetData(1))
+		}
+		Do $$$AssertEquals($ListToString(sessions), session, "and its warning of Run is logged in the job's session")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test ran to its end")
+	}
+	If had # 2 {
+		Set %Ensemble("SessionId") = was
+	} Else {
+		Kill %Ensemble("SessionId")
+	}
 }
 
 /// A delaySeconds that is not a whole number (AC8), in process. abc, 1.5 and -5 each answer {"ok": false, "message": BADDELAY} and the double records nothing. A
@@ -618,6 +706,138 @@ Method TestBadDelay()
 	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded those two")
 	If calls.%Size() = 2 {
 		Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "numbered from 1: a refused call takes no position")
+	}
+}
+
+/// The due time of the answer to a set is in the instance zone (AC3), in process (QA). The double's due time is 2027-03-04T15:00:00Z. In America/New_York (standard
+/// time on that day) it is 10:00 local, and in Pacific/Auckland (daylight time) it is 04:00 on the next day, so dueLocal changes the date as well as the hour. due is
+/// the text of Data.Time.ForMessage in that zone, which ends with the local clock time, and no UTC time is shown. TestSetRelative runs in the zone of the instance,
+/// UTC in a throwaway, where a time that only has its Z cut off would look right.
+Method TestSetAnswerInZone()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set due = $Parameter(..#DOUBLE, "SETDUEAT")
+	Set cases = $ListBuild($ListBuild("America/New_York", "2027-03-04T10:00:00", "10:00"), $ListBuild("Pacific/Auckland", "2027-03-05T04:00:00", "04:00"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set zone = $List(case, 1)
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set answer = ##class(OcuTalon.Tools.ReminderTools).SetReminder("stretch", 60)
+		Do ..AssertObject(answer, {"ok": true, "message": "The CI double set the reminder.", "ref": ($Parameter(..#DOUBLE, "SETREF")), "due": (##class(OcuTalon.Data.Time).ForMessage(due)), "dueLocal": ($List(case, 2))}, zone_": the answer to a set")
+		Set text = answer.due
+		Do $$$AssertEquals($Extract(text, $Length(text) - 4, $Length(text)), $List(case, 3), zone_": due ends with the local clock time: "_text)
+		Do $$$AssertTrue(answer.%ToJSON() '[ "15:00", zone_": and the UTC clock time is not shown")
+	}
+	Do $$$AssertEquals(..Calls().%Size(), 2, "the double recorded both sets")
+}
+
+/// A refusal of the owner reaches the model unchanged, whatever it holds (AC3, AC5), in process (QA). For each of the three tools, the double refuses with a text that
+/// holds quotes, a backslash, a slash, a tab, a line break, white space at both ends and a non-ASCII character (made up here with $Char), and then with a text of
+/// 700 characters. The answer is {"ok": false, "message": the text}, character for character: not trimmed, not cut and not escaped.
+Method TestRefusalsAreUnchanged()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set odd = "  She said ""no"" \ and / "_$Char(9)_"with a tab"_$Char(10)_"and a second line "_$Char(8217)_" end  "
+	Set long = $Translate($Justify("", 700), " ", "x")_" end"
+	Set verbs("set_reminder") = "SetReminder"
+	Set verbs("list_reminders") = "ListReminders"
+	Set verbs("cancel_reminder") = "CancelReminder"
+	For tool = "set_reminder", "list_reminders", "cancel_reminder" {
+		For kind = 1, 2 {
+			Set message = $Select(kind = 1: odd, 1: long)
+			Set what = tool_" with "_$Select(kind = 1: "an odd text", 1: "a text of "_$Length(message)_" characters")
+			Set ^OcuTalonTest("CommandsDouble", "refuse", verbs(tool)) = message
+			Set answer = ..CallTool(tool)
+			Do $$$AssertEquals(answer.%GetTypeOf("ok")_"|"_answer.ok_"|"_..SortedKeys(answer), "boolean|0|message,ok", what_": the answer is ok false with a message and nothing else")
+			Do $$$AssertEquals(answer.message, message, what_": the message is the owner's, character for character")
+		}
+	}
+}
+
+/// The tools are thin (AC3, AC4; decision 5), in process (QA). Whatever the model gave reaches the owner as given, each field only when the model gave it, and the
+/// owner decides: both due forms, no due form, an empty text, a day and time that cannot be read, and a ref that no reminder has. The double accepts all of them
+/// (it checks nothing), so the commands that it recorded show what the tools passed on. The keys are numbered from 1 in the order of the calls.
+Method TestToolsPassOnWhatTheModelGave()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, itemId)
+	Set set = "OcuTalon.Msg.Command.SetReminder"
+	Do $$$AssertEquals(##class(OcuTalon.Tools.ReminderTools).SetReminder("stretch", 60, "2026-10-29T10:00:00").ok, 1, "both due forms are answered by the owner (here, the double)")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.ReminderTools).SetReminder("stretch").ok, 1, "so is no due form")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.ReminderTools).SetReminder("", 60).ok, 1, "and an empty text")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.ReminderTools).SetReminder("stretch", "", "next Thursday").ok, 1, "and a day and time that cannot be read")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.ReminderTools).CancelReminder("no such reminder").ok, 1, "and a ref that no reminder has")
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 5, "the double recorded five commands")
+	If calls.%Size() = 5 {
+		Do ..AssertCall(calls.%Get(0), set, owner, itemId_":1", "DelaySeconds,IdempotencyKey,LocalDueAt,Origin,SessionRef,Text", "both due forms")
+		Do ..AssertCall(calls.%Get(1), set, owner, itemId_":2", "IdempotencyKey,Origin,SessionRef,Text", "no due form")
+		Do ..AssertCall(calls.%Get(2), set, owner, itemId_":3", "DelaySeconds,IdempotencyKey,Origin,SessionRef", "an empty text")
+		Do ..AssertCall(calls.%Get(3), set, owner, itemId_":4", "IdempotencyKey,LocalDueAt,Origin,SessionRef,Text", "a day and time that cannot be read")
+		Do ..AssertCall(calls.%Get(4), "OcuTalon.Msg.Command.CancelReminder", owner, itemId_":5", "IdempotencyKey,Origin,ReminderRef,SessionRef", "a ref that no reminder has")
+		Do $$$AssertEquals(calls.%Get(0).fields.DelaySeconds_"|"_calls.%Get(0).fields.LocalDueAt_"|"_calls.%Get(0).fields.Text, "60|2026-10-29T10:00:00|stretch", "both due forms and the text as the model gave them")
+		Do $$$AssertEquals(calls.%Get(3).fields.LocalDueAt, "next Thursday", "the day and time that cannot be read, as given")
+		Do $$$AssertEquals(calls.%Get(4).fields.ReminderRef, "no such reminder", "the ref, as given")
+	}
+}
+
+/// The list is in the order of the owner's Data (AC6), in process (QA). The double's data mode gives three reminders in an order that is neither the order of their
+/// due times nor of their refs nor of their texts, and the answer holds them in that order: the tool does not sort what the owner has ordered.
+Method TestListKeepsTheOwnersOrder()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set one = $ListBuild(..RefOf("OrderB"), "mid", "2027-03-05T09:00:00Z")
+	Set two = $ListBuild(..RefOf("OrderC"), "zulu", "2027-03-02T09:00:00Z")
+	Set three = $ListBuild(..RefOf("OrderA"), "alpha", "2027-03-09T09:00:00Z")
+	Set data = {"reminders": []}
+	Set position = 0
+	Set all = $ListBuild(one, two, three)
+	While $ListNext(all, position, reminder) {
+		Do data.reminders.%Push({"ref": ($List(reminder, 1)), "text": ($List(reminder, 2)), "dueAt": ($List(reminder, 3))})
+	}
+	Set ^OcuTalonTest("CommandsDouble", "data") = data.%ToJSON()
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).ListReminders()
+	Do ..AssertListed(answer, all, "the reminders in the order of the owner's Data")
+}
+
+/// A delaySeconds that is not a whole number, given as AI Hub's tool manager decodes it (AC8), in process (QA). TestBadDelay calls the method with strings, so it cannot
+/// see AI Hub turn an argument into another value on its way to the method. Here a fresh tool manager runs set_reminder with a JSON 1.5, -5 and "abc": each answers
+/// {"ok": false, "message": BADDELAY} and the double records nothing. A JSON 60, and no delaySeconds with a localDueAt, reach the double with the field that was
+/// given and no other, with the keys :1 and :2.
+Method TestBadDelayThroughTheToolManager()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(owner, itemId)
+	Set manager = ##class(%AI.ToolMgr).%New()
+	Do $$$AssertStatusOK(manager.RegisterToolSet(..#TOOLSET), "a fresh tool manager registers the reminder toolset")
+	Set tools = manager.%Discover()
+	Do $$$AssertEquals(tools.%Size(), 3, "and discovers its three tools")
+	For delay = "1.5", "-5", """abc""" {
+		Set arguments = {}.%FromJSON("{""text"":""stretch"",""delaySeconds"":"_delay_"}")
+		Set result = manager.ExecuteTool("set_reminder", arguments)
+		Do ..AssertObject(result.value, {"ok": false, "message": ($Parameter("OcuTalon.Tools.ReminderTools", "BADDELAY"))}, "a delaySeconds of "_delay_" is refused")
+	}
+	Do $$$AssertEquals(..Calls().%Size(), 0, "and nothing is submitted")
+	Set result = manager.ExecuteTool("set_reminder", {"text": "stretch", "delaySeconds": 60})
+	Do $$$AssertEquals($Select($IsObject(result.value): result.value.ok, 1: "none"), 1, "control: a delaySeconds of 60 is answered by the owner")
+	Set result = manager.ExecuteTool("set_reminder", {"text": "stretch", "localDueAt": "2026-10-29T10:00:00"})
+	Do $$$AssertEquals($Select($IsObject(result.value): result.value.ok, 1: "none"), 1, "and so is a day and time with no delaySeconds")
+	Do manager.Cleanup()
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 2, "the double recorded those two")
+	If calls.%Size() = 2 {
+		Do ..AssertCall(calls.%Get(0), "OcuTalon.Msg.Command.SetReminder", owner, itemId_":1", "DelaySeconds,IdempotencyKey,Origin,SessionRef,Text", "the delay")
+		Do ..AssertCall(calls.%Get(1), "OcuTalon.Msg.Command.SetReminder", owner, itemId_":2", "IdempotencyKey,LocalDueAt,Origin,SessionRef,Text", "the day and time, with no delay")
 	}
 }
 
@@ -872,23 +1092,6 @@ ClassMethod Items(array As %DynamicArray) As %List [ Private ]
 	Quit list
 }
 
-/// The names of a list, in order of the name.
-ClassMethod Sorted(names As %List) As %List [ Private ]
-{
-	Set position = 0
-	While $ListNext(names, position, name) {
-		Set sorted(name) = ""
-	}
-	Set result = ""
-	Set name = ""
-	For {
-		Set name = $Order(sorted(name))
-		Quit:name=""
-		Set result = result _ $ListBuild(name)
-	}
-	Quit result
-}
-
 /// 1 when the text starts, after white space, with an SQL verb that changes data (Test.Bridge.CodeRules SQLVERBS).
 ClassMethod StartsWithSqlVerb(text As %String) As %Boolean [ Private ]
 {
@@ -914,6 +1117,17 @@ Method AddReminder(owner As %String, ref As %String, text As %String, dueAt As %
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set ..Rows = ..Rows _ $ListBuild(ref)
 	Do $$$AssertStatusOK(row.%Save(), "the "_state_" reminder "_ref_" is saved")
+}
+
+/// Every row of the Reminder table as one text, by Ref: two readings are equal when no row was added, removed or changed between them.
+ClassMethod RowsText() As %String [ Private ]
+{
+	Set text = ""
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef, Text, DueAt, State, Late FROM OcuTalon_Data.Reminder ORDER BY Ref")
+	While rows.%Next() {
+		Set text = text _ rows.%GetData(1) _ "|" _ rows.%GetData(2) _ "|" _ rows.%GetData(3) _ "|" _ rows.%GetData(4) _ "|" _ rows.%GetData(5) _ "|" _ rows.%GetData(6) _ $Char(10)
+	}
+	Quit text
 }
 
 /// The number of rows of the Reminder table.

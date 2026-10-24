@@ -13,9 +13,12 @@
 ///   - TestZoneCase (Story 1.10, DW-32): the zone base of the test classes that change the process zone (Test.Bridge.ZoneCase) puts back what it
 ///     read, a named zone and "no zone" (-1, which it takes as an empty zone) alike, also through its hooks (OnBeforeOneTest saves the zone and
 ///     OnAfterOneTest puts it back); the six classes that extend it (this one, Test.Agent.Render, Test.Bridge.Usage, Test.Bridge.Budget,
-///     Test.Bridge.Decide and Test.Tools.Reminders) keep no zone copy of their own, and no other test class of Lane A's packages (Agent, Bridge, Tools,
-///     Install, Digest) calls the process time zone without extending the base: the scanner is first shown to flag a sample. The base saves and restores
-///     the zone around every test of this class too.
+///     Test.Bridge.Decide and Test.Tools.Reminders) keep no zone copy of their own (no SavedZone, and no read of the process zone), and no other test class
+///     of Lane A's packages (Agent, Bridge, Tools, Install, Digest) calls the process time zone without extending the base: each scanner is first shown to
+///     flag a sample. The base saves and restores
+///     the zone around every test of this class too;
+///   - TestZoneHooksCallSuper (QA): every OnBeforeOneTest and OnAfterOneTest that a test class of Lane A's packages declares itself and extends the base with
+///     calls ##super(testname), so that the zone is saved and put back (a hook that leaves the call out would leak the zone to the next test, unseen).
 Class OcuTalon.Test.Bridge.Time Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -180,26 +183,79 @@ Method TestZoneCase()
 	Do tests.%Next()
 	Do $$$AssertEquals(tests.%GetData(1), 0, "and holds no method whose name starts with Test, so ci/iris.sh runs no class of it")
 
-	Set pattern = "process\.timezone\("
+	Set pattern = "process\)?\.\s*timezone\(|set\s+\$ztimezone"
 	Set source = "OcuTalon.Test.Bridge.Source"
 	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Do $SYSTEM.Process.TimeZone(saved)", pattern), "control: the scanner flags a call of the process time zone")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Do ##class(%SYSTEM.Process).TimeZone(saved)", pattern), "also through the class name (QA)")
+	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set $ZTIMEZONE = 0", pattern), "and a write to the special variable of the zone (QA)")
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", $Char(9)_"Set offset = $ZTIMEZONE", pattern), "but not a read of it (QA)")
 	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// puts the zone back through Process.TimeZone(saved)"_$Char(10)_$Char(9)_"Quit 1", pattern), "and passes a comment line")
-	Set scanned = 0
+	Set read = "process\)?\.\s*timezone\(\s*\)"
+	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set saved = $SYSTEM.Process.TimeZone("_")", read), "control: the scanner of a class of the base flags a read of the process time zone, the save of a copy")
+	Do $$$AssertTrue('$ClassMethod(source, "Matches", $Char(9)_"Do $SYSTEM.Process.TimeZone(""America/New_York"")", read), "but not a test that sets a zone")
+	Set lane = ..LaneAClasses()
+	Set scanned = $ListLength(lane)
 	Set copies = ""
+	Set position = 0
+	While $ListNext(lane, position, name) {
+		Set check = $Select($ClassMethod(name, "%Extends", base): read, 1: pattern)
+		If $$$ISOK($ClassMethod(source, "Text", name, .text)) && $ClassMethod(source, "Matches", text, check) Set copies = copies _ " " _ name
+	}
+	Do $$$AssertTrue(scanned '< 20, "the scan read the test classes of Lane A's packages: "_scanned)
+	Do $$$AssertEquals(copies, "", "and none outside the base calls the process time zone, and none that extends it reads the zone to keep a copy: "_copies)
+}
+
+/// A class that overrides a hook of the zone base calls ##super(testname) in it (DW-32, AC10; QA). The base saves the zone in OnBeforeOneTest and puts it back in
+/// OnAfterOneTest, so a class whose own hook leaves the call out saves nothing or puts nothing back, and no other test would show it: the next test would just
+/// start in the zone that this one left. The check reads the body of each OnBeforeOneTest and OnAfterOneTest that a test class of Lane A's packages declares
+/// itself and extends the base with, and finds a code line with the call in it. It is first shown to flag a body without the call, and one that has it in a
+/// comment line only.
+Method TestZoneHooksCallSuper()
+{
+	Set base = "OcuTalon.Test.Bridge.ZoneCase"
+	Set tab = $Char(9), lf = $Char(10)
+	Do $$$AssertTrue(..CallsSuper(tab_"Set sc = ##super(testname)"_lf_tab_"Quit sc"), "control: a body that calls ##super(testname) is passed")
+	Do $$$AssertTrue('..CallsSuper(tab_"Do ##class(OcuTalon.Test.Bridge.ZoneCase).PutZone(-1)"_lf_tab_"Quit $$$OK"), "a body that does not call it is flagged")
+	Do $$$AssertTrue('..CallsSuper(tab_"// Set sc = ##super(testname)"_lf_tab_"Quit $$$OK"), "and so is one that has the call in a comment line only")
+	Set lane = ..LaneAClasses()
+	Set overrides = 0
+	Set missing = ""
+	Set position = 0
+	While $ListNext(lane, position, name) {
+		If '$ClassMethod(name, "%Extends", base) Continue
+		For hook = "OnBeforeOneTest", "OnAfterOneTest" {
+			Set method = ##class(%Dictionary.MethodDefinition).%OpenId(name_"||"_hook)
+			If '$IsObject(method) Continue
+			Set overrides = overrides + 1
+			Set body = method.Implementation.Read(32000)
+			If '..CallsSuper(body) Set missing = missing _ " " _ name _ "." _ hook
+		}
+	}
+	Do $$$AssertTrue(overrides '< 6, "the scan read the hooks that the classes of the base override: "_overrides)
+	Do $$$AssertEquals(missing, "", "and every one calls ##super(testname): "_missing)
+}
+
+/// --- helpers ---
+/// The compiled test classes of Lane A's packages (Agent, Bridge, Tools, Install and Digest), the zone base left out, as a list in the order of their names.
+ClassMethod LaneAClasses() As %List [ Private ]
+{
+	Set classes = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Test.' ORDER BY Name")
 	While result.%Next() {
 		Set name = result.%GetData(1)
 		Set area = $Piece(name, ".", 3)
-		If '$ListFind($ListBuild("Agent", "Bridge", "Tools", "Install", "Digest"), area) || (name = base) || '##class(%Dictionary.CompiledClass).%ExistsId(name) Continue
-		Set scanned = scanned + 1
-		If $ClassMethod(name, "%Extends", base) Continue
-		If $$$ISOK($ClassMethod(source, "Text", name, .text)) && $ClassMethod(source, "Matches", text, pattern) Set copies = copies _ " " _ name
+		If '$ListFind($ListBuild("Agent", "Bridge", "Tools", "Install", "Digest"), area) || (name = "OcuTalon.Test.Bridge.ZoneCase") || '##class(%Dictionary.CompiledClass).%ExistsId(name) Continue
+		Set classes = classes _ $ListBuild(name)
 	}
-	Do $$$AssertTrue(scanned '< 20, "the scan read the test classes of Lane A's packages: "_scanned)
-	Do $$$AssertEquals(copies, "", "and none that calls the process time zone is outside the base")
+	Quit classes
 }
 
-/// --- helpers ---
+/// 1 when a code line of the method body calls the hook of the base class: ##super(testname). A comment line does not count.
+ClassMethod CallsSuper(body As %String) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Bridge.Source).Matches(body, "##super\(testname\)")
+}
+
 /// The hours from the start of the local date to its end.
 ClassMethod Hours(day As %String) As %Integer [ Private ]
 {

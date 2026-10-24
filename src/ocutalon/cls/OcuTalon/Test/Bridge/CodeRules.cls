@@ -2,7 +2,8 @@
 /// tests read the source of the compiled OcuTalon classes, drop their comment lines (Test.Bridge.Source), and call nothing in AI Hub.
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
-///     %AI.Shell.StreamRenderer), and a class whose methods they call (CALLBACKHELPERS: the step buffer and the context), names %AI on no code
+///     %AI.Shell.StreamRenderer), and a class whose methods they call (CALLBACKHELPERS: the step buffer, the context and the classes that the reminder tools
+///     call), names %AI on no code
 ///     line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
@@ -27,7 +28,8 @@
 ///   - TestToolsHaveStepLabels (Story 1.10, DW-85; AD-9, Consistency Conventions: Agent step labels): every tool that a class of OcuTalon.Tools offers,
 ///     a toolset's or a provider's (Result left out), has a step label of its own: StepBuffer.LabelFor of its provider and name, which reads the class
 ///     parameter STEPLABEL<NAME> or STEPLABEL, is not the generic label. The scanner is first shown to flag the probe tool, which declares none, and to
-///     pass the labelled sample of the step tests;
+///     pass the labelled sample of the step tests; no two tools of the package share one label, and the watch fixture's three labels are the ones that the
+///     veto window kept (QA);
 ///   - TestToolsLeaveRemindersToTheirOwner (Story 1.10; AD-1, AD-33): no class of OcuTalon.Tools names the Reminder class, its table or its globals, the
 ///     schedule package or ReminderOps: a tool changes a reminder only by submitting a command. The scanner is first shown to flag samples that break
 ///     the rule and to pass look-alikes and comment lines;
@@ -332,17 +334,30 @@ Method TestToolsHaveStepLabels()
 	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchFixture") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
 	Set tools = 0
 	Set offending = ""
+	Set shared = ""
 	Set position = 0
 	While $ListNext(classes, position, class) {
 		Set iterator = $ClassMethod(class, "%New").%Discover().tools.%GetIterator()
-		While iterator.%GetNext() {
+		While iterator.%GetNext(, .tool) {
 			Set tools = tools + 1
+			Set label = ##class(OcuTalon.Bridge.Adapter.StepBuffer).LabelFor(tool.provider, tool.name)
+			// A toolset names a tool set_reminder and its provider's own discovery names it SetReminder: the same tool, by the rule of the label.
+			Set key = tool.provider _ "|" _ $ZConvert($Translate(tool.name, "_-"), "U")
+			If $Data(labelOf(label)) && (labelOf(label) '= key) Set shared = shared _ " '" _ label _ "' (" _ labelOf(label) _ " and " _ key _ ")"
+			Set labelOf(label) = key
 		}
 		Set bad = ..UnlabelledTools(class)
 		If $ListLength(bad) Set offending = offending _ " " _ class _ " (" _ $ListToString(bad, ",") _ ")"
 	}
 	Do $$$AssertTrue(tools '< 12, "the scan found the tools of OcuTalon.Tools: "_tools)
 	Do $$$AssertEquals(offending, "", "every one has a step label of its own")
+	Do $$$AssertEquals(shared, "", "and no two tools share a label, so that each label is its tool's own: "_shared)
+	Set names = "OcuTalon.Tools.Names"
+	Set watch = "OcuTalon.Tools.WatchFixture"
+	Set step = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READFAILEDMESSAGES")), "Reading the failed messages", "the watch fixture's labels are the ones that the veto window kept: read_failed_messages")
+	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READEVENTLOG")), "Reading the event log", "read_event_log")
+	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READITEMSETTINGS")), "Reading the item settings", "and read_item_settings")
 }
 
 /// No tool touches a reminder itself (Story 1.10; AD-1, AD-33): no class of the package OcuTalon.Tools names the Reminder class, its table, its globals, the

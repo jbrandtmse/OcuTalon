@@ -429,6 +429,53 @@ deferred:
 
   (`Test.Bridge.Time.TestZoneCase`; the four folded classes and `Test.Tools.Reminders` pass)
 
+### Review Findings
+
+Code review of 2026-10-24 (`bmad-code-review`, full mode, four layers on the full tier; diff `1e05e82` to the working tree, with QA's uncommitted tests). Raw rows: 43 from the layers, plus 2 from the reviewer's own Rule 2 check. After triage: 20 entries (0 high, 4 medium, 16 low), of which 15 were patched and 5 deferred, and 17 rejected. Each entry gives severity, fix-risk, footprint and spec-status (Rule 15).
+
+**Patch (all applied):**
+- [x] [Review][Patch] A tool's submit cleared the event-log session of ChatAgent's job, so `Run`'s warnings and every later warning of the turn's job fell out of the decision's trace (`Ens.BusinessService.ProcessInput` kills `$$$JobSessionId`). `Run` now saves the job's session before `Submit` and puts it back; new `TestSubmitKeepsTheJobSession`, red before the fix [src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:43] — medium; fix-risk low (two lines, a job-local value only); in-story; spec-clear. Source: blind-hunter+edge-case-hunter.
+- [x] [Review][Patch] `TestSubmitRedacted` left the double's raw status, a key-shaped made-up value, in the event log (a business service with no adapter logs the status as it is). It now deletes the rows that hold the value [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:634] — low; fix-risk low; in-story; spec-clear. Source: blind-hunter.
+- [x] [Review][Patch] The integer type of `delaySeconds` in the schema was not pinned. `TestDeclarations` asserts it [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:190] — low; fix-risk low; in-story; spec-clear. Source: blind-hunter.
+- [x] [Review][Patch] Doc claims in `Test.Tools.Reminders`: the header said every test but `TestDeclarations` needs a stack (`TestAnswerShapes` needs none), and `TestListUnreadable` claimed a not-UTC due time it did not test. Both docs are corrected, and the no-Z case is added [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:2] — low; fix-risk low; in-story; spec-clear. Source: blind-hunter.
+- [x] [Review][Patch] The `Context` class doc claimed the position of a command "is the same on every run of the call", which holds only for the same calls (DW-141). It now says that a re-run numbers from 1 again [src/bridge/cls/OcuTalon/Bridge/Context.cls:5] — low; fix-risk low (comment); in-story; spec-clear. Source: edge-case-hunter (claim).
+- [x] [Review][Patch] AC7's "a re-sent turn submits the same keys" had no demonstrated mutation (the planned one stayed green). It is now demonstrated, and the `mutation:` line and the table row are written (Verification) [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:513] — low (Rule 19); fix-risk low; in-story. Source: verification-gap.
+- [x] [Review][Patch] `Listed`'s empty-ref guard and its string check of `text` had no failing case. `TestListUnreadable` now covers an empty ref and a numeric text [src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:94] — low; fix-risk low; in-story; spec-clear. Source: verification-gap.
+- [x] [Review][Patch] `TestToolsReturnThroughResult` (AC1, "through Tools.Result") had no demonstrated mutation. It is now demonstrated (Verification) [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls] — low (Rule 19); fix-risk low; in-story. Source: verification-gap.
+- [x] [Review][Patch] AC1's "none takes a session argument" had no demonstrated mutation. It is now demonstrated (Verification) [src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls:70] — low (Rule 19); fix-risk low; in-story. Source: verification-gap.
+- [x] [Review][Patch] AC8's "one warning that names the verb" had no demonstrated mutation. It is now demonstrated (Verification) [src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:54] — low (Rule 19); fix-risk low; in-story. Source: verification-gap.
+- [x] [Review][Patch] AC10's scan skipped every class of the zone base, so a local copy of the save inside one passed. `TestZoneCase` now flags a read of the process zone in a class of the base too (a mutation in `Test.Bridge.Decide` went red) [src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls:193] — low; fix-risk low (test only); in-story; spec-clear. Source: verification-gap.
+- [x] [Review][Patch] The `Test.Agent.Runners` header still said that Chat's prefix stays unmarked. Corrected [src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:19] — low; fix-risk low (comment); in-story. Source: acceptance-auditor.
+- [x] [Review][Patch] The `Test.Bridge.CodeRules` header listed only two callback helpers. Corrected [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:5] — low; fix-risk low (comment); in-story. Source: acceptance-auditor.
+- [x] [Review][Patch] Four fixture refs of `TestListUnreadable` and `TestAnswerShapes` had 20 or 21 characters, against the Identifiers convention's 22. Padded [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:495] — low; fix-risk low; in-story. Source: acceptance-auditor.
+- [x] [Review][Patch] Rule 2: `Test.Tools.Reminders.Sorted` was an identical copy of `Test.Agent.Runners.Sorted`. Reminders now calls that one, which is no longer private [src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:589] — low (no reason stated); fix-risk low; in-story. Source: the reviewer's Rule 2 check.
+
+**Defer (ledgered through `ledger.sh`, `by=cr`):**
+- [x] [Review][Defer] Chat's `INSTRUCTIONS` still tell the model to answer "I can't run commands" and to call no tool when asked to run a command, and they name no reminder ability [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:22] — deferred: maybe-false; if true, medium (unverified). The CI mock scripts the tool call, and decision 16 kept the instructions. A live run of the reminder phrasings on Haiku 5.5 settles it. DW-142, routed to 8-4 (on the precedent of DW-140); fix-risk med. Source: blind-hunter.
+- [x] [Review][Defer] The watch fixture's three tools declare no `CLASSIFICATION`, `READONLY` or `TRUSTEDOUTPUT` parameters, so under the "Tool classification" convention they are unclassified (risky) once the gate reads the parameters [src/ocutalon/cls/OcuTalon/Tools/WatchFixture.cls] — deferred: medium, spec-bound here ("nothing else in it changes"). The values are a governance call for the gate (AD-10: event-log and message text are never trusted output). DW-143, routed to 3-2; fix-risk low. Source: blind-hunter+acceptance-auditor.
+- [x] [Review][Defer] `Listed`'s `zone` comes from `Data.Time.Zone()`, which says UTC when TZ is unset, while `ToLocal` converts in the OS zone on a non-UTC host [src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:114] — deferred: pre-existing in Lane B's `Data.Time` (DW-34, routed to 15-2). An occurrence was appended. Source: blind-hunter+edge-case-hunter.
+- [x] [Review][Defer] The key `<ItemId>:<position>` is not tied to the verb, so a re-run with other calls reuses `:1` for another command [src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:41] — deferred: maybe-false; if true, medium (unverified). Settled by how Story 8.4's owner treats a reused key. DW-141, which already holds it; an occurrence was appended. Source: edge-case-hunter.
+- [x] [Review][Defer] Rule 2: `Test.Tools.Reminders.Prepare` is the fifth copy of the live-test readiness helper (`Agent.RequestSize`, `Agent.Decide`, `Agent.Conversation`, `Bridge.Budget`), with the swap added [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:848] — closed `wontfix-accepted` as DW-144. Low; fix-risk med (five classes, per-class flags and assertions); in-epic. reopen_if: two copies diverge, or a sixth class copies it. Source: the reviewer's Rule 2 check.
+
+**Rejected:**
+- low (spec-bound): `ZoneCase.PutZone(-1)` gives TZ "" rather than an unset TZ, which leaks on a non-UTC OS zone. This is decision 23, the four folded copies did the same, and every throwaway image is UTC. By the `%SYSTEM.Process` doc, `TimeZone(-1)` assigns -1 to TZ, so the API cannot unset TZ either way (inference from the doc and Task 0). Sources: blind-hunter, edge-case-hunter (2), verification-gap.
+- low (spec-bound): `CommandCall`'s texts name reminders. The spec fixes the three texts word for word, and the next command tool's story extends them (Rule 2). Sources: blind-hunter, acceptance-auditor.
+- false: "the list can reach the model cut". `Result` marks a cut result with `CUTNOTE` (AD-10), so the model is told that the list is partial; it is never a silent half list. Source: blind-hunter.
+- low: strings over the command's MAXLEN. Already DW-138 (wontfix-accepted, with reopen_if on Story 2.3's real `CommandsIn`). Source: edge-case-hunter.
+- low (spec-bound): an untrusted or tainted turn can set or cancel a reminder. AC2 and the Never list ("Epic 3's work") say so; one gate decides (Stories 3.2 and 3.3). Source: edge-case-hunter.
+- low: `Answer` logs no warning for an owner `DueAt` it cannot read. Decision 19 covers it, `TestAnswerShapes` pins it, and the owner's `DueAt` is UTC by contract. Source: edge-case-hunter.
+- low (wontfix-theoretical): `IsSessionRef`'s `1A` matches non-ASCII letters on a Unicode build. Every OwnerRef is code-made (`Ids.NewRef`, `instance`, `eval`), and the house idiom (`Live.Publish`) is the same. It becomes real if an OwnerRef could come from input. Source: edge-case-hunter.
+- low: the zone scan misses `S $ZTZ=` and comma lists. House style writes `Set` and `$ZTIMEZONE` in full, and the fix adds alternatives. Source: edge-case-hunter.
+- false: `%Extends` on classes with no superclass. Every class inherits `%Extends` (`%Library.SystemBase`), and the `Test.Bridge.Time` runs of QA and of this review passed over them. Source: edge-case-hunter.
+- low: a hook that calls `##super` only on one path passes the scan. This is unlikely, and the fix needs control-flow parsing. Source: edge-case-hunter.
+- low: `Prepare` sets its flags before the calls succeed. This affects the failure path only, and the first failure names the cause. Source: edge-case-hunter.
+- low (wontfix-theoretical): `UseItemClass` after a killed run saves the double as the class to put back. A throwaway lasts one call. Source: edge-case-hunter.
+- low: `OnAfterAllTests` skips `RestoreKeys` while the production is down. A stopped production fails every later test through `ReadyReason`, and the throwaway lasts one call. Sources: edge-case-hunter, verification-gap.
+- false (theoretical): an abstract tool class makes the scan's `%New` fail. None exists besides `Result`, which the scan leaves out. It becomes real if one is added to `OcuTalon.Tools`. Source: edge-case-hunter.
+- low (spec-bound): AC6's filtering is the double's, and the list contract is checked only against it. This is the intent's approach 3; DW-135 hands the contract to Story 8.4, and `AssertCall` pins the product's side (the `SessionRef`). Source: verification-gap (2).
+- low: `Run`'s `Catch` is never reached. A business service turns a thrown error into a status, which `TestSubmitFails` covers. Source: verification-gap.
+- low: the reminder-table scan catches full names only. House style writes full class names, and the live tests' `RowsText` and `TestListInZone` pin the behaviour. Source: acceptance-auditor.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -650,7 +697,7 @@ No acceptance criterion contradicts an AD's Rule. The interval "until Epic 3's g
 | AC6 | `Listed` passes the UTC `dueAt` as `dueLocal` | `TestListInZone` |
 | AC6 | `ListReminders` reads the rows of the table instead of `Data` | `TestListInZone` (the double's own reminder), `Bridge.CodeRules.TestToolsLeaveRemindersToTheirOwner` |
 | AC6 | an unreadable `Data` gives an empty list | `TestListUnreadable` |
-| AC7 | `Begin` does not set `CommandCount` to 0 | `TestKeys` (round 2's keys) |
+| AC7 | the count is kept outside the context (per `ItemId`), so `Begin` does not restart it (corrected in code review: a missing 0 at `Begin` changes no key) | `TestKeys` (round 2's keys) |
 | AC7 | the key leaves out the position | `TestKeys` |
 | AC8 | `Run` submits with `OwnerRef` `instance` | `TestNoSession` |
 | AC9 | `WatchFixture` loses `STEPLABELREADEVENTLOG` | `Bridge.CodeRules.TestToolsHaveStepLabels` |
@@ -722,6 +769,61 @@ Applied to the file named, run in a throwaway, seen red and reverted; each file 
 - (loop) `bash ci/checks.sh`: all scripts passed. `bash ci/iris.sh build`: exit 0. `bash ci/iris.sh class` passed for `Test.Tools.Reminders`, `Test.Bridge.CodeRules`, `.Time`, `.Usage`, `.Budget`, `.Ext`, `Test.Agent.Render`, `.Runners` and `.Instructions`, and, after the fold, for `Test.Bridge.Decide`. `bash ci/iris.sh teardown`: nothing left.
 - (once) `bash docker/tests/test-mock.sh`: 94 tests, 94 passed. `bash ci/iris.sh shard lane-a`: 38 classes passed, and the only SKIP is the existing `TestStepHelpers`. `bash ci/iris.sh shard lane-b`: 24 classes passed, `Test.Core.Commands`, `Test.Core.CommandsContext` and `Test.Contract.Ac` included (`Test.Core.ProductionItems` is not a class that `ci/iris.sh` runs, so it is not in the shard). `bash release/standalone-bridge.sh`: 12 checks `PASS`. `bash ci/iris.sh live demo-path`: PASS, `@floor` 1 of 1 passed. `bash ci/iris.sh teardown`: nothing of `e1s10a` left.
 - Beside the list: `bash ci/iris.sh shard lane-a --reverse`: 38 classes passed.
+
+### QA (stage qa; throwaway tag `e1s10q`, build 154, the CI mock)
+
+**Test files changed (QA).** No new test file: every new test is a method of a class that is already in `shard lane-a` (Rule 8). Five new tests in `Test/Tools/Reminders.cls`, one in `Test/Bridge/Time.cls`, and strengthened assertions in three classes.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls` (QA):
+  - **New:** `TestSetAnswerInZone`, `TestRefusalsAreUnchanged`, `TestToolsPassOnWhatTheModelGave`, `TestListKeepsTheOwnersOrder` and `TestBadDelayThroughTheToolManager`.
+  - **Strengthened:** `TestSetLocal` (the preamble's weekday, date and time, and the Thursday worked out from them), `TestCancel`, `TestCancelRefused` and `TestList` (the whole Reminder table is equal before and after the turn), `TestKeys` (the two calls of one response are two tool steps in the runner's Reply, each labelled) and `OnAfterAllTests` (the entries of the runners are checked against the Provider step's placeholder after `RestoreKeys`).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls` (QA): new `TestZoneHooksCallSuper`; `TestZoneCase`'s scan also flags the zone call through the class name (`##class(%SYSTEM.Process).TimeZone(`) and a write to `$ZTIMEZONE`, and shares one lister of Lane A's test classes (`LaneAClasses`) with the new test.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` (QA): `TestToolsHaveStepLabels` also asserts that no two tools share a label (a tool's name is read by the label rule, so `set_reminder` of a toolset and `SetReminder` of its provider are one tool) and pins the watch fixture's three labels.
+
+**What the new assertions pin (each was green before, under a mutation that stayed green).**
+- `TestSetAnswerInZone` (AC3): a set's `dueLocal` and `due` in New York and in Auckland. `TestSetRelative` runs in the UTC of a throwaway, where a UTC time with its Z cut off looks right.
+- `TestRefusalsAreUnchanged` (AC3, AC5): a refusal with quotes, a backslash, a tab, a line break, white space at both ends, a non-ASCII character, or 700 characters, for each tool. The short refusals of the earlier tests would not show a trim or a cut.
+- `TestToolsPassOnWhatTheModelGave` (AC3, AC4; decision 5): both due forms, none, an empty text, an unreadable day and time and an unknown ref reach the owner as given, each field only when the model gave it.
+- `TestListKeepsTheOwnersOrder` (AC6): the list is in the order of `Data`. The double's order is also the order of the due times, so `TestList` and `TestListInZone` cannot see a tool that sorts.
+- `TestBadDelayThroughTheToolManager` (AC8): a JSON 1.5, -5 and "abc" through AI Hub's tool manager answer `BADDELAY`; `TestBadDelay` calls the method with strings, so it cannot see AI Hub changing an argument on the way (Task 0 (c) measured it once).
+- `TestSetLocal` (AC3): `LocalDueAt` is the Thursday after the Monday that the preamble states, so the scenario's date and the fixed Monday cannot drift apart.
+- Rows of the Reminder table (AC3, AC6): a tool that updates or deletes a row is caught, not only one that adds a row.
+- Steps (AC7): `reminder-set-two` gives the steps model, tool, tool, model, both tools labelled "Setting a reminder", status ok, summaries naming `set_reminder` (observed).
+- `TestZoneHooksCallSuper` (AC10): a hook that leaves out `##super(testname)` leaks the zone to the next test, which nothing showed; the scan is shown first to flag a body without the call and one with it in a comment only.
+
+**Mutations demonstrated (Rule 19), `mutations_demonstrated=15`.** Each was applied to the file named, run in a throwaway with `ci/iris.sh class`, seen red and reverted; `git status --short` and `git diff --stat` were equal before and after, and each reverted file was compared byte for byte with its copy. Mutations 1 to 8 were applied together in one run of `Test.Tools.Reminders` (each in its own method of the product code; the red tests below are the ones that each caused, and no test outside this list went red but `TestAnswerShapes`, which the first mutation also reddens).
+- mutation: `CommandCall.Answer` gives `dueLocal` as the UTC time with its Z cut off (`$Extract(DueAt, 1, 19)`) -> `Tools.Reminders.TestSetAnswerInZone` went red (also `TestAnswerShapes`); `TestSetRelative` stayed green.
+- mutation: `CommandCall.Answer` trims and cuts the owner's message to 200 characters -> `Tools.Reminders.TestRefusalsAreUnchanged` went red; `TestSetRefused`, `TestListRefused` and the message assertions of `TestCancelRefused` stayed green.
+- mutation: `SetReminder` clears `localDueAt` when `delaySeconds` is given -> `Tools.Reminders.TestToolsPassOnWhatTheModelGave` went red.
+- mutation: `CommandCall.Listed` sorts the reminders by `dueAt` -> `Tools.Reminders.TestListKeepsTheOwnersOrder` went red; `TestList` and `TestListInZone` stayed green.
+- mutation: `CancelReminder` also updates the row to `cancelled` by SQL -> `Tools.Reminders.TestCancel` and `TestCancelRefused` went red (the table text).
+- mutation: the `1.N` check of `SetReminder` removed -> `Tools.Reminders.TestBadDelay` and `TestBadDelayThroughTheToolManager` went red.
+- mutation: `STEPLABELSETREMINDER` removed -> `Tools.Reminders.TestKeys` went red on its label assertion (also `TestDeclarations`, `TestSetRelative`); its kinds assertion stayed green.
+- mutation: `Agent.Input.Preamble` names the weekday two days on instead of one (Tuesday for the Monday) -> `Tools.Reminders.TestSetLocal` went red on the preamble control only; the assertions that compare the input with the preamble's own output stayed green.
+- mutation: `Test.Bridge.Usage.OnAfterOneTest` without `##super(testname)` (applied with the next one, in one run of `Test.Bridge.Time`) -> `Bridge.Time.TestZoneHooksCallSuper` went red.
+- mutation: `Test.Bridge.Decide.OnBeforeOneTest` without `##super(testname)` -> `Bridge.Time.TestZoneHooksCallSuper` went red (the only red test of the class).
+- mutation: `WatchFixture.STEPLABELREADEVENTLOG` is the label of `read_failed_messages` -> `Bridge.CodeRules.TestToolsHaveStepLabels` went red (the shared label, and the literal of `read_event_log`).
+- mutation: `OnAfterAllTests` of `Test.Tools.Reminders` skips `RestoreItemClass` -> the class failed (`CLASS ... failed`, exit 1) with `ERROR #5001: The CommandsIn item runs OcuTalon.Test.Tools.CommandsDouble after the restore, not OcuTalon.Core.CommandsIn`. This is the failing status that the review recommended a second reading of: a status returned by `OnAfterAllTests` fails the class in `ci/iris.sh class`.
+- mutation: `OnAfterAllTests` skips `RestoreKeys` -> the class failed with `ERROR #5001: The entries of the runners do not hold the placeholder of the Provider step after the restore`.
+- mutation: `Test.Bridge.Ext` gains a method that calls `##class(%SYSTEM.Process).TimeZone(` -> `Bridge.Time.TestZoneCase` went red, naming `OcuTalon.Test.Bridge.Ext` (the scan of the first stage matched `Process.TimeZone(` only).
+- mutation: `CommandCall` names `##class(%AI.ToolMgr)` -> `Bridge.CodeRules.TestCallbackRule` went red (the row "The scans, 4": the callback rule reaches `CommandCall`).
+
+**Run in this stage (tag `e1s10q`, one throwaway at a time).** `bash ci/checks.sh`: all scripts passed (before and after the last edit). `bash ci/iris.sh class` passed for `Test.Tools.Reminders`, `Test.Bridge.Time` and `Test.Bridge.CodeRules` with the QA tests. `bash ci/iris.sh shard lane-a`: 38 classes passed, forward and `--reverse`, and the only SKIP is the existing `TestStepHelpers`. `bash ci/iris.sh teardown`: nothing of `e1s10q` left.
+
+**Read and found sound, with no change.** The fold of `Test.Bridge.Decide` (its only zone use, `TestRecordedAtIsUtc`, now relies on the base, and the new hook scan pins the `##super` calls); the scan in `TestZoneCase` (widened, above); the failing status of `OnAfterAllTests` (shown by the two mutations above, and `%UnitTest.Manager` logs a status returned from `OnAfterAllTests` as an error of the class).
+
+### Code review (stage code-review; throwaway tag `e1s10r`, build 154, the CI mock)
+
+**Mutations demonstrated (Rule 19).** Each was applied to the file named and run in a throwaway with `ci/iris.sh class`; it went red as stated, and was reverted. Each reverted file matched its SHA-256 from before, and `git status --short` and `git diff --stat` were equal before and after. The five `Test.Tools.Reminders` mutations after the first were applied together in one run, each in its own spot, and no other test went red.
+- mutation: `CommandCall.Run` without putting back the job's session (the code before this review) -> `Tools.Reminders.TestSubmitKeepsTheJobSession` went red (the three tools, the failed submit, and the warning's session).
+- mutation: `CommandCall.Run` counts with a process-private global per `ItemId` instead of the context's `CommandCount` -> `Tools.Reminders.TestKeys` went red on round 2's keys only (round 1 stayed `:1` and `:2`). This is AC7's "a re-sent turn submits the same keys".
+- mutation: `CancelReminder` gains an argument `sessionRef` -> `Tools.Reminders.TestDeclarations` went red (the inputs, and "does not name a session"). This is AC1's "none takes a session argument".
+- mutation: `SetReminder`'s `delaySeconds` is `%String` -> `Tools.Reminders.TestDeclarations` went red (the schema type).
+- mutation: `Run`'s warning without `$ClassName(command)` -> `Tools.Reminders.TestSubmitFails`, `TestSubmitEmpty` and `TestSubmitRedacted` went red. This is AC8's "one warning that names the verb".
+- mutation: `Listed` without `&& (item.ref '= "")` -> `Tools.Reminders.TestListUnreadable` went red (the empty ref).
+- mutation: `ListReminders` quits its refusal without `..Return(` -> `Bridge.CodeRules.TestToolsReturnThroughResult` went red, the only red test of the class. This is AC1's "returns through `OcuTalon.Tools.Result`".
+- mutation: `Test.Bridge.Decide.TestRecordedAtIsUtc` reads the process zone into a local (`Set saved = $SYSTEM.Process.TimeZone()`) -> `Bridge.Time.TestZoneCase` went red, naming `OcuTalon.Test.Bridge.Decide` (the only red assertion). This is AC10's "none keeps a copy of its own".
+
+**Run on the reviewed tree (tag `e1s10r`, one throwaway at a time).** `bash ci/checks.sh`: all scripts passed. `bash ci/iris.sh shard lane-a`: 38 classes passed, forward and `--reverse`; the only SKIP is the existing `TestStepHelpers`. `bash ci/iris.sh teardown`: nothing of `e1s10r` left.
 
 ## Clarification Record
 

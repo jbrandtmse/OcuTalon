@@ -16,7 +16,7 @@
 ///     does not start, and the event log names the setting or the class; with the row put back it starts again;
 ///   - TestRequestsUnderTheModelRules: the Triage, Diagnosis and Chat requests reach the mock with the model of the runner, a cap of
 ///     8000, the effort of the runner (none for Chat), no sampling parameter and the cache marker where the cached prefix reaches
-///     min_tokens_for_cache (Diagnosis's last tool; the short prefixes of Triage and Chat stay unmarked, and Test.Bridge.Runner
+///     min_tokens_for_cache (the last tool of Diagnosis and, since Story 1.10, of Chat; the short prefix of Triage stays unmarked, and Test.Bridge.Runner
 ///     shows the block reaching the provider for a long prompt), and the mock accepts every one; since Story 1.9 (AD-7, AD-10) each request
 ///     offers exactly the tools of its agent, and no other (the names of the toolsets named by the agent's TOOLSETS, which are also pinned as
 ///     literals: none for Triage, cancel_reminder, list_reminders and set_reminder for Chat since Story 1.10, read_event_log, read_failed_messages and
@@ -585,8 +585,8 @@ Method RestoreAllow() [ Private ]
 	}
 }
 
-/// The names of a list, in order of the name.
-ClassMethod Sorted(names As %List) As %List [ Private ]
+/// The names of a list, in order of the name. Test.Tools.Reminders calls it too.
+ClassMethod Sorted(names As %List) As %List
 {
 	Set position = 0
 	While $ListNext(names, position, name) {

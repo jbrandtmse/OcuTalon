@@ -2,7 +2,7 @@
 /// the request's fields, including the caller's thread session id and the SuperSession, the taint of the turn and the
 /// host data that a tool fills, the characters that the tool results of the current model step have used (ToolResultChars, AD-10) and the
 /// number of commands that the tools of the call have submitted (CommandCount, AD-1): a host's tools number the commands that they submit in
-/// one call with it, so that the position of a command in the call is the same on every run of the call.
+/// one call with it, and Begin starts it at 0, so a call that runs again numbers its commands from 1 again.
 /// It lives in the process-private global ^||OcuTalonBP.Context, not in a local variable,
 /// because a callback of AI Hub may New local variables; it ends with the process, and a job that did not call Begin
 /// sees no context.

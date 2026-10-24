@@ -199,6 +199,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-20T06:52:09Z status=wontfix-accepted owner=0-9-the-message-catalog-and-its-one-renderer by=cr note=reopen_if=a third test class copies SavedZone/RestoreZone: extract one zone fixture base that ci/units.sh does not run
 - 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
 - 2026-10-22T12:46:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=reopen_if fired at Story 1.4: Lane A now holds four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Test.Bridge.Usage, Test.Bridge.Budget); Story 1.10 (reminders, zone-heavy tests) folds Lane A's copies into one Lane A test helper before adding its own; Lane B's two (Test.Data.Time, Test.Msg.Catalog) stay Lane B's
+- 2026-10-24T03:01:40Z status=resolved-by:1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=Lane_A's_four_copies(Test.Agent.Render,Test.Bridge.Time,Usage,Budget)+Test.Bridge.Decide_now_extend_the_abstract_Test.Bridge.ZoneCase;Test.Bridge.Time.TestZoneCase_scans_for_any_other_zone_save/restore_and_TestZoneHooksCallSuper_pins_the_hooks;Lane_B's_two_copies(Test.Msg.Catalog,Test.Data.Time)_stay_the_original_low_wontfix-accepted_scope(Lane_B's_files)
 
 ### DW-33: Msg.Catalog.ReadEntries repeats Test.Contract.Read's three-line JSON XData read, a copy the spec states (product code may not depend on OcuTalon.Test)
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: in-story
@@ -209,6 +210,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: 0.9 Task 0: the image has TZ unset and /etc/localtime at UTC, so Docker installs agree; DW-12's declined residual
 - 2026-10-20T06:55:28Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=adjudication note=an IPM install derives the instance zone from the OS, or the install sets it, and a test checks Zone() against ToLocal
+- 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -364,6 +366,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: AD-9 and the spine's Agent step labels convention: each tool declares its readable step label; Tools.WatchFixture carries none (Story 5.4 replaces it); Test.Bridge.CodeRules.TestCallbackRule is where a scan belongs once the first real tool class exists
 - 2026-10-22T17:04:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=1.10's reminder tools declare their STEPLABEL<NAME> labels, and 1.10 adds the CodeRules scan that fails a shipped OcuTalon tool class with no label (fixtures and Tools.WatchFixture exempted until Story 5.4)
+- 2026-10-24T03:01:40Z status=resolved-by:1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=ReminderTools_declare_STEPLABEL<NAME>_for_set/list/cancel,WatchFixture_for_its_three_tools;Test.Bridge.CodeRules.TestToolsHaveStepLabels_fails_a_shipped_tool_class_with_no_label_(no_exemptions)_and_no_two_tools_share_a_label
 
 ### DW-86: A model's call of a tool the agent does not have reaches neither %LogExecution nor %LogDenial, so it has no step and its model step says 0 tool calls while AgentStepCount counts it
 - source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: med | footprint: in-story
@@ -534,3 +537,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/CommandCall key; Context.CommandCount
 - 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's ReminderOps compares the verb and fields on a reused key, or refuses the reuse
+- 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
+
+### DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls INSTRUCTIONS, unchanged by decision 16; the CI mock scripts the tool call, so no test sees a live model's choice
+- 2026-10-24T02:57:20Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=unverified; 8.4's live check of the reminder phrasings on Haiku 5.5 settles it; the fix is Lane A's Chat INSTRUCTIONS
+
+### DW-143: The watch fixture's three tools declare no CLASSIFICATION, READONLY or TRUSTEDOUTPUT parameters, so by the Tool classification convention they are unclassified (risky) once Epic 3's gate reads the parameters, and Diagnosis's read-only tools would be held
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/WatchFixture.cls gained only STEPLABEL<NAME> in Story 1.10; spine convention 'Tool classification': an undeclared tool is unclassified
+- 2026-10-24T02:57:20Z status=routed owner=3-2-one-gate-decides-every-tool-call by=cr note=3.2 declares the watch tools' classification (event-log and message text never trusted output, AD-10) or scans for it
+
+### DW-144: Test.Tools.Reminders.Prepare is the fifth copy of the live-test readiness helper (Test.Agent.RequestSize, Agent.Decide, Agent.Conversation, Bridge.Budget), with the CommandsIn swap added, instead of one shared helper in RunnerFixture
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Rule 2 check at review: the spec names RequestSize as the pattern it follows (a weak reason); each copy keeps per-class flags and asserts
+- 2026-10-24T02:57:20Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=cr note=reopen_if=two copies of Prepare diverge (one gains a readiness step another lacks) or a sixth live test class copies it
