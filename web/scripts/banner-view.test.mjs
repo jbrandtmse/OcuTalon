@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannersView, closeBanner, retainClosed } = await import(app('banners', 'banner-view.ts'));
+const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannersView, closeBanner, closeName, retainClosed } = await import(app('banners', 'banner-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { pageTime } = await import(app('chat', 'page-time.ts'));
 const { formatCost } = await import(app('chat', 'decision-view.ts'));
@@ -87,14 +87,25 @@ describe('the table of banners', () => {
     assert.deepEqual(BANNERS.filter((banner) => banner.closable).map((banner) => banner.id), ['resetSoon', 'reconnecting']);
   });
 
-  it('has only the Close word of its own, and every string in ASCII', () => {
-    assert.deepEqual({ ...BANNER_TEXTS }, { close: 'Close' });
+  it('names the Close button of each closable banner for its action and its banner, and nothing else is a Close', () => {
+    assert.deepEqual({ ...BANNER_TEXTS.close }, { resetSoon: 'Close reset notice', reconnecting: 'Close reconnecting notice' });
+    for (const banner of BANNERS.filter((one) => one.closable)) {
+      assert.match(closeName(banner.id), /^Close \w[\w ]+$/, `${banner.id} has a Close name of its own`);
+      assert.notEqual(closeName(banner.id), 'Close', `${banner.id}'s Close is not named Close alone`);
+    }
+    assert.equal(closeName('reconnecting'), 'Close reconnecting notice');
+    assert.equal(new Set(Object.values(BANNER_TEXTS.close)).size, 2, 'the two names differ');
+    for (const banner of BANNERS.filter((one) => !one.closable)) assert.equal(closeName(banner.id), '', `${banner.id} has no Close`);
+  });
+
+  it('has only the Close names of its own, and every string in ASCII', () => {
+    assert.deepEqual(Object.keys(BANNER_TEXTS), ['close']);
     for (const banner of BANNERS) {
       for (const text of [banner.id, banner.condition, banner.key, banner.variant, banner.icon, banner.action?.key ?? '', banner.action?.target ?? '']) {
         assert.match(text, /^[\x20-\x7e]*$/, `${banner.id}: ${text}`);
       }
     }
-    for (const text of Object.values(BANNER_TEXTS)) assert.match(text, /^[\x20-\x7e]+$/, text);
+    for (const text of Object.values(BANNER_TEXTS.close)) assert.match(text, /^[\x20-\x7e]+$/, text);
   });
 });
 

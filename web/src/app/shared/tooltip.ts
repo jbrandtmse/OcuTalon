@@ -36,7 +36,9 @@ export class TooltipBubble {
 /**
  * A tooltip for a control, for the pointer only: it reacts to a mouse or a pen resting on the host, never to focus.
  * It shows after 300 ms, stays while the host or the tooltip is hovered, and hides when the pointer leaves, when
- * the host is pressed, or on Escape, which does not move focus. A pointer that leaves within the 300 ms shows nothing,
+ * the host is pressed, or on Escape, which does not move focus. Escape is the tooltip's alone while it shows: it listens on the document
+ * in the capture phase and stops the event, so the control, the popover or the disclosure beneath it does not also act on it (Story 2.14).
+ * While the tooltip only waits out its 300 ms, Escape cancels it and goes on. A pointer that leaves within the 300 ms shows nothing,
  * and none shows while the host's popup is open. The host carries the same text as its name, or the text also reaches assistive
  * technology another way (the strip's description).
  */
@@ -74,7 +76,7 @@ export class Tooltip {
     if (this.overlayRef || this.showTimer !== undefined) {
       return;
     }
-    this.document.addEventListener('keydown', this.onKeydown);
+    this.document.addEventListener('keydown', this.onKeydown, true);
     this.showTimer = window.setTimeout(() => {
       this.showTimer = undefined;
       this.show();
@@ -97,14 +99,20 @@ export class Tooltip {
       window.clearTimeout(this.showTimer);
       this.showTimer = undefined;
     }
-    this.document.removeEventListener('keydown', this.onKeydown);
+    this.document.removeEventListener('keydown', this.onKeydown, true);
     this.overlayRef?.dispose();
     this.overlayRef = undefined;
   }
 
+  /** Escape hides a shown tooltip and ends the event there; one that only waits is cancelled and the event goes on. */
   private readonly onKeydown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape') {
-      this.hide();
+    if (event.key !== 'Escape') {
+      return;
+    }
+    const shown = this.overlayRef !== undefined;
+    this.hide();
+    if (shown) {
+      event.stopPropagation();
     }
   };
 

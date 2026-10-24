@@ -23,7 +23,7 @@ import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/
  * snapshot, the user's own messages, Working or a timer (no case here shows Deciding: chat-announcements.test.mjs pins that it is
  * silent); that the messages of one update are one text and a burst of four is
  * "4 new updates"; and that the chat, the rail, the turn indicator and the timers are no live region. It needs the stack that
- * docker/tests/test-sign-in.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP, whose
+ * docker/tests/test-floor.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP, whose
  * session only the floor specs use, and records what the live region received before it signs in (recordAnnouncements).
  *
  * "One update" is a held poll (holdPoll): the case holds the page's next /events request, seeds and publishes while it is held, and

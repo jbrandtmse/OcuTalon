@@ -2,12 +2,34 @@
 title: 'Story 2.14: Work the whole page by keyboard, with labels and words'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b09b1d0e57ee2ccf7e5ec3f078e697c6be112316'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The skip links' href="#/" points at no element on the page, so a rule-based accessibility scan (for example axe's
+      skip-link and region rules) may not treat them as skip links and may report the two hidden links as content outside the landmarks.
+    evidence: |-
+      Unverified (inference by the Blind Hunter; no scan was run). The href is the spec's own choice (Decided 2): an in-page #id would
+      navigate the hash router. What would settle it: run the scan of Story 2.16 on the loaded page with the skip links present and
+      read its skip-link and region results; if it reports them, give the links a target the scan accepts (for example a real id on each
+      region) while keeping the prevented default.
+    location: >-
+      web/src/app/header/skip-links.ts:34
+    severity: medium (unverified)
+  - summary: >-
+      The turns that seedTurns writes are never removed: it does not adopt them, so cleanFixtureRows cannot delete them, and every
+      floor case that seeds a turn leaves a done turn (and its decisions) in the floor user's session.
+    evidence: |-
+      web/e2e/support/iris.ts seedTurns (lines 306-361) has no Fixture.Adopt call, while seedDecisions (line 426) has one. This predates the
+      story (Story 2.12's A and P cases and the sign-in unit's specs do the same). K4's tab walk is bounded at 150 stops and holds with the
+      turns of a forward or reverse run of the unit, which is a throwaway stack; a stack reused across many runs would grow the walk.
+    location: >-
+      web/e2e/support/iris.ts:306
+    severity: low
 ---
 
 <intent-contract>
@@ -458,6 +480,53 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 — Review pass
+- verdicts: 43 findings — high 0, medium 7, low 25, false 10, maybe-false 1 (a row that names another row's root cause shares its verdict and route; the 43 rows hold 33 distinct root causes, 3 of them medium)
+- findings:
+  - `[low]` `[reject]` Blind Hunter 1: About's Close scrolls away with the text — F6 pins the Close at the top right at rest, which holds; Esc, the backdrop and Tab reach it at any scroll position; it scrolls only at a large text size or a short window; the fix moves the scroll to an inner wrapper and gives it its own gutter, with two tests changed. Residual risk for the lead (reopen if a user reports it, or Story 2.15's 200% case shows it)
+  - `[low]` `[reject]` Blind Hunter 2: the composer's height is stale for soft-wrapped text after a text-size change — the criterion and W2 are the typed lines (hard breaks), which `lh` keeps fitted; a wrapped draft cut after a text-size change is rare, the field scrolls its text, and the fix is a new ResizeObserver with its test. Reopen if Story 2.15's 200% zoom case shows a cut draft
+  - `[medium]` `[patch]` Blind Hunter 3 (with Verification Gap 3, Intent Alignment C1): the New messages halo is untested — K4 now scrolls the list up, publishes a turn, reaches the button with Shift+Tab and runs the ring check on it; mutation recorded
+  - `[low]` `[patch]` Blind Hunter 4 (with Edge Case 5, Intent Alignment B4): the heights ratchet does not see script-set heights — it now catches `style.height =`, `[style.height...]` and `setProperty('height')`, lists the composer with its reason and requires lh units; mutation recorded
+  - `[low]` `[reject]` Blind Hunter 5: K5's roles are narrower than its title — the spec names exactly button, link, textbox and menuitem, and the theme menu's items are named by the theme button's own case; no unnamed menuitemradio exists
+  - `[low]` `[reject]` Blind Hunter 6: live_fixture_user has no hermetic test — it needs Docker; both live units check its CHK line and die when it is not `CHK|fixture-user|1`, so a break fails `live:sign-in` and `live:floor` at their first user
+  - `[low]` `[reject]` Blind Hunter 7: Rule 21's recipe text is not updated — the spec assigns it to the lead ("For the lead"), and `_bmad/` is not a build-auto file
+  - `[maybe-false]` `[defer]` Blind Hunter 8: the skip links' href="#/" points at no element, so a scan may not accept them — unverified; would be medium; deferred to Story 2.16's scan (see the frontmatter)
+  - `[low]` `[patch]` Blind Hunter 9: the banned-pattern test titles read "has no a toast" — titles now read "finds no occurrence of a toast or a snackbar in web/src/"
+  - `[false]` `[reject]` Blind Hunter 10: 4242 is a magic number reused for two ids — the header id and the trace session id are two placeholders that need no value in common; no caller reads one as the other
+  - `[low]` `[reject]` Edge Case 1: the composer height after a re-wrap with no input — same root cause as Blind Hunter 2
+  - `[false]` `[reject]` Edge Case 2: `1lh` unsupported or `line-height: normal` — `lh` is supported by Chromium, Firefox and WebKit (the engines of Story 2.16's subset), and the composer's line height is a token, never `normal`
+  - `[low]` `[patch]` Edge Case 3: `refs.push(incident, await seedApproval(...))` loses the incident when seedApproval rejects — split into two pushes
+  - `[low]` `[reject]` Edge Case 4: seedDecisions throws after saving some rows — the helper's own failure on a throwaway stack; the rows are not reachable by the case
+  - `[low]` `[patch]` Edge Case 5: the heights ratchet and script-set heights — same root cause as Blind Hunter 4
+  - `[false]` `[reject]` Edge Case 6: test-floor.sh does not set LIVE_REBUILD_WEB=1 — the spec says "no web rebuild" and the script header says that `ci/iris.sh build` makes the bundle, as for the demo-path unit
+  - `[false]` `[reject]` Edge Case 7: a busy ServerButton has no reason for its first 10 s — spec-bound: E:379 gives busy buttons the label, the spinner, aria-busy and aria-disabled and no reason text (Decided 5)
+  - `[low]` `[reject]` Edge Case 8: W2 holds the chip and the flag to their line, not to scrollHeight <= 1 — Decided 15 explains why the literal measure cannot hold; the `height: 22px` mutation still turns W2 red
+  - `[false]` `[reject]` Edge Case 9: K4's ring box grows by a small negative offset — the outline's outer edge lies offset + width beyond the border box, so the case's `max(0, offset + width)` is the exact geometry; the spec's "when the offset is positive" is its simplification
+  - `[medium]` `[patch]` Verification Gap 1 (with Intent Alignment B2): DecisionStrip's Esc guard has no running test — a new K2 case opens a reply strip's Trace help from its details and presses Esc; mutation recorded
+  - `[medium]` `[patch]` Verification Gap 2 (with Intent Alignment B1): the tooltip's "only waiting" Esc branch has no running test — K2 drives the pointer's enter and the Esc in one task; mutation recorded
+  - `[medium]` `[patch]` Verification Gap 3: duplicate of Blind Hunter 3
+  - `[low]` `[patch]` Verification Gap 4: About's scroll-padding is pinned by nothing — a ratchet now requires the gutter's scroll-padding in every scrolling rule (the composer's text area is listed with its reason); K4 shows that the mechanism works; mutation recorded
+  - `[low]` `[patch]` Verification Gap 5: the per-instance ids are unpinned — W4 sends a second failing message and expects a distinct id; mutation recorded. The busy notice's id is not pinned: no two buttons show a notice together on the page today (reopen when one does)
+  - `[low]` `[reject]` Verification Gap 6: W3's getAnimations and scroll-behavior assertions cannot fail from a component — the pins are `animation-name: none` (spinner mutation recorded) and the ratchet's smooth-scroll and global-rule cases; the two runtime reads are the control that the probe sees a running animation
+  - `[low]` `[defer]` Verification Gap other 1: rows are not removed (seedTurns does not adopt them) — pre-existing helper behaviour, deferred (see the frontmatter); the K cases bound their own assumptions (their rows are counted by their own stamp)
+  - `[low]` `[reject]` Verification Gap other 2: source-text pins are not behaviour pins — by design (the spec's ratchets scan sources); K2 and the new strip case are the behaviour pins
+  - `[low]` `[patch]` Verification Gap other 3 (with Intent Alignment C3): the inset halo of main, the rail and a banner is not asserted — K4 now reads style, width, colour, offset and the halo of each; mutation recorded
+  - `[false]` `[reject]` Intent Alignment A: no run evidence for `live:floor` — the evidence is the verification section of this spec (21 cases at the first pass, 22 after the patches)
+  - `[medium]` `[patch]` Intent Alignment B1: duplicate of Verification Gap 2
+  - `[medium]` `[patch]` Intent Alignment B2: duplicate of Verification Gap 1
+  - `[low]` `[reject]` Intent Alignment B3: reduced motion is a per-file ratchet and W3 reads the spinner and the dots — the ratchet asserts that the files that animate are exactly those two
+  - `[low]` `[patch]` Intent Alignment B4: duplicate of Blind Hunter 4
+  - `[medium]` `[patch]` Intent Alignment C1: duplicate of Blind Hunter 3
+  - `[false]` `[reject]` Intent Alignment C2: the scroll mechanism is not recorded — Decided 21 and the K4 mutation line record that scroll-padding was used
+  - `[low]` `[patch]` Intent Alignment C3: duplicate of Verification Gap other 3
+  - `[low]` `[reject]` Intent Alignment C4: About's Close while scrolled — same root cause as Blind Hunter 1
+  - `[low]` `[reject]` Intent Alignment C5: the composer's soft-wrapped text — same root cause as Blind Hunter 2
+  - `[low]` `[reject]` Intent Alignment C6: "a target that is not in the page does nothing" is unexercised — the regions always render with the page, and the code is a single optional call; a test would need a page without a region
+  - `[false]` `[reject]` Intent Alignment C7: the inactive link's change is reached by a reload — the spec leaves the in-place change on a live turn to V7 (Story 2.13), which stands
+  - `[low]` `[patch]` Intent Alignment C8: the "error answer" path of the load error is not asserted — W3 reaches the failed state by an error answer and now reads Retry's description there; mutation recorded
+  - `[false]` `[reject]` Intent Alignment C9: Reconnecting's Close is not in K5 — spec-bound: its name is pinned in banner-view.test.mjs and read in B13
+  - `[false]` `[reject]` Intent Alignment D: the spec file is not in the diff — the layer's input excludes the claims on purpose
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -521,6 +590,16 @@ No AC contradicts an AD's Rule.
     - **`live_fixture_user`** is the sign-in script's helper, moved into `lib-live.sh` (Rule 2).
     - **What stays in `live:sign-in`.** Its specs still read the renamed Close buttons and the moved `holdState`. These are edits to assertions only, with no new wait, so they add no browser time.
 14. **The ids.** The keyboard and label cases are K1 to K6, and the words, resizing, errors and motion cases are W1 to W4. A6, P1 and P3 keep theirs.
+
+**Decided in-stage (implement).**
+15. **W2's measure for the chip and the flag.** `.chip` and `.flag` set their text at `line-height: 1`, so at 200% the font's content area is about 2px taller than the line box, and `scrollHeight - clientHeight <= 1` fails though no glyph is cut. W2 holds those two to their line (`clientHeight` at least the computed line height) and keeps the literal `<= 1` measure for `.button`, the banners and `.header`. The product is unchanged.
+16. **The floor cases' shared page helper** is `web/e2e/support/floor.ts`, not "in the spec file": K5 and W1 (two spec files) read the same page, and a second copy would be a copy for no reason (Rule 2).
+17. **The hidden skip link** uses `overflow: hidden` and `clip-path: inset(50%)` until it has focus, not `.visually-hidden`, so `base.css`'s fixed `height: 1px` stays the only entry of the heights list.
+18. **Reset soon and the first snapshot.** A session's status events reach the page only live, never in the first snapshot, so K4, K5, W1 and W2 publish Reset soon after the page has loaded (`addResetSoon`). The no-key banner comes from the instance.
+19. **Seeded turns carry a reply decision only.** A seeded turn's attention decision stays in the rail's Recent decisions with no cleanup path, so the floor cases seed turns without one.
+20. **About's Close** is absolutely positioned inside the dialog host, which is now the scroller (Task 4's reading), so it scrolls with the text. It is at the top right at scroll 0 (F6), and Tab or Esc reaches it or closes the dialog at any scroll position.
+21. **Focus scrolling and `scroll-padding`.** K4 measured that Chromium's focus scrolling honours the scroller's `scroll-padding` (with the chat list's `scroll-padding` removed, the ring of "Decision details" falls outside `div.list`), so the rail, the chat list and About use `scroll-padding: var(--space-scroll-gutter)`, and no control got a `scroll-margin`.
+22. **Esc on a waiting tooltip** is tested by driving the pointer's enter and the Esc in one task from the page (K2), so that no 300 ms timer can run between them on a slow runner.
 
 **Veto-window items** (new public text, or the brand's look, that the UX leaves open):
 - **"Close reset notice" and "Close reconnecting notice":** the two banner Close names, verb plus object, as in the UX's "Unpair Telegram". Alternatives: "Close the reset warning" and "Close the reconnecting message".
@@ -601,11 +680,17 @@ No AC contradicts an AD's Rule.
   - A1 to A7, P1 to P4, K1 to K6 and W1 to W4 pass;
   - teardown leaves nothing.
   - **Time:** about 160 to 220 s locally (inference): a 55 to 60 s start, about 3 s for the fixture user, A and P about 53 s (measured in Story 2.12), and K and W about 50 to 90 s. Record the measured figure here.
+  - **Measured at implement (local, 22 cases after the review patches; 21 before):** `ci/iris.sh live floor` took 135 s at the first pass and 138 to 141 s after the patches (the first start about 65 s; Playwright 1.3 min, K1 to K6 and W1 to W4 about 20 s of it). In `group shards` the unit took 141 s.
 - **(once)** `bash docker/tests/test-ci-config.sh` and `bash ci/checks.sh`. Expected: exit 0. This covers the units, demo-path and inputs rules, with `live:floor` registered.
 - **(once)** Throwaway, one piece per call: `build`; `live sign-in`; `live demo-path`; `live bundle-folder`; `group shards`; `teardown`. Expected:
   - every case passes, with the same two skips in `live sign-in` (B6 and the demo-path "not built" case) and no floor case;
   - `live sign-in` takes about 400 s (460 s before; record it);
   - `group shards` runs `shard:lane-a`, `shard:lane-b` and `live:floor`, installs Chromium before `live:floor`, and passes, in about 330 s locally.
+  - **Measured at implement (local, on the patched tree):**
+    - `live sign-in`: 409 s (405 s at the first pass), with 190 passed and 2 skipped (Playwright's `chromium` project lists 192 cases and no file of `e2e/floor/`); the run before this story took about 460 s.
+    - `live demo-path`: 63 s, with 3 passed and 11 skipped, and `live bundle-folder`: 78 s. Both pass.
+    - `group shards`: 291 s, with `shard:lane-a` 57 s, `shard:lane-b` 94 s and `live:floor` 141 s. `cmd_group` runs each unit through `ci/iris.sh live`, and `cmd_live` installs Chromium for a `BROWSER_UNITS` name, which now holds `floor`.
+    - `bash docker/tests/test-ci-config.sh` (8 s) and `bash ci/checks.sh` (48 s) exit 0.
 - **CI estimate (inference).** Run 40088998253 measured `live:demo-path` at 197 s (a 180 s start) and `live:sign-in` at 613 s (Playwright 6.9 min for 189 cases). From those:
   - `live:floor` takes about 330 to 450 s in CI;
   - `live:sign-in` takes about 70 to 90 s less than with the floor specs;
@@ -638,6 +723,39 @@ No AC contradicts an AD's Rule.
 | Floor unit | `chromium` still running `e2e/floor/` | `playwright-projects.test.mjs` |
 | Floor unit | `floor` missing from `BROWSER_UNITS` | `test-ci-config.sh` (demo-path rule) |
 
+**Mutations recorded at implement (Rule 19).** Each was applied, the unit rebuilt (`ci/iris.sh build`) and run, and the tree restored; after each batch `git status --short` and the hash of `git diff` equalled their values before, and the untracked source files were byte-identical. Mutations that hit different cases ran together in one stack (three stacks, the cases `K1` to `K6` and `W1` to `W4` only); the Node and shell ones ran alone.
+- mutation: `app.ts` renders `<app-skip-links />` after `<app-header />` -> K1 red ("the first tab stop is Skip to chat"); K4 and W1 also red, because both start with a Tab from the page's start.
+- mutation: the skip link's press does not call `event.preventDefault()` -> K1 red ("and leaves the address as it was"). The case marks the address with `#/k1` first: from `#/`, the link's own address, a followed link changes nothing.
+- mutation: `DecisionRow.collapse()` ignores `Popovers.hasOpen()` -> K2 red ("and only the help: the row stays open"); `floor-sources.test.mjs` (Esc guard) red.
+- mutation: the tooltip's Esc listener in the bubble phase (`addEventListener` and `removeEventListener` without `true`) with no `stopPropagation()` -> K2 red ("the row stays open", at the tooltip step); `floor-sources.test.mjs` (Esc guard, two cases) red.
+- mutation: a `document` keydown handler in `App` that focuses the composer on "/" -> K3 red ("on the body: "/" moves no focus"); `floor-sources.test.mjs` (keys, two cases) and `announce-focus-sources.test.mjs` (the `.focus(` count) red.
+- mutation: the chat list's `scroll-padding` removed -> K4 red (the ring of "Decision details" lies outside `div.list`, which is how K4 shows that Chromium's focus scrolling honours `scroll-padding`: the `scroll-margin` fallback was not needed).
+- mutation: `main.main` drawing its ring outside (`.main:focus-visible { outline-offset: 2px }`) -> K4 red ("main: the ring ... lies inside the viewport"); K1 also red, which checks the same ring.
+- mutation: the banner Close names both "Close" -> K5 red ("the page: no control is named Close alone"); `banner-view.test.mjs` red.
+- mutation: About's Close named "Close" -> K5 red ("with About open: no control is named Close alone").
+- mutation: the conversation link's `aria-describedby` dropped -> K6 red ("it is described by an element").
+- mutation: the `svg` of `app-icon` without `aria-hidden` -> K5 red ("the page: no image is read").
+- mutation: `a.button` with `text-decoration-line: none` -> W1 red (the first link it finds, the Trace help's "Open Visual Trace", "with the Trace help open").
+- mutation: the wordmark without its underline -> W1 red ("on the page: the skip links, the wordmark, ...").
+- mutation: the outcome chip back to `height: 22px` -> W2 red ("no .chip is shorter than its text"); `floor-sources.test.mjs` (heights, two cases) red.
+- mutation: the composer's `grow()` back to a pixel height -> W2 red ("the composer shows both lines, with no keystroke").
+- mutation: About without `overflow-y: auto` -> W2 red ("so it scrolls").
+- mutation: the spinner's reduced-motion rule removed from `controls.css` -> W3 red ("which has no animation"); `floor-sources.test.mjs` (motion) red.
+- mutation: `ServerButton` without the notice's id in `aria-describedby` -> W4 red ("after 10 s more it is described by the load error and the busy notice").
+- mutation: Retry sending without its `aria-describedby` -> W4 red ("Retry sending is described by its own Not sent").
+- mutation: `private readonly ping = new Audio('ping.mp3')` in `App` -> `floor-sources.test.mjs` (banned: a sound) red.
+- mutation: `chromium` without `'**/e2e/floor/**'` in its `testIgnore` -> `playwright-projects.test.mjs` ("chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/") red.
+- mutation: `floor` missing from `BROWSER_UNITS` -> `test-ci-config.sh` red ("FAIL demo-path: the demo-path unit and the browser units").
+- mutation (review patch): the `.new-messages:focus-visible` rule removed from `chat-panel.ts` -> K4 red ("New messages: with the surface halo"), at the step that scrolls the list up, publishes a turn and reaches the button with Shift+Tab from the composer.
+- mutation (review patch): `DecisionStrip.collapse()` ignores `Popovers.hasOpen()` -> the new K2 case on a reply strip red ("and only the help: the details stay open").
+- mutation (review patch): the tooltip's Esc handler stops the event whether or not the tooltip showed -> K2 red at the new step ("and that Esc reached the row, which collapsed"); the pending tooltip's Esc is driven by the page in one task, with `pointerenter` and the Esc dispatched together.
+- mutation (review patch): `.rail:focus-visible, .main:focus-visible` without the inset `box-shadow` -> K4 red ("main: with the surface halo inside the ring"), from the new `expectInsideRing` that reads main, the rail and a banner.
+- mutation (review patch): `UserMessage.notSentId` a constant -> W4 red ("which has an id of its own"), at the second failed message.
+- mutation (review patch): `MainPage` without `[describedBy]` on Retry -> W3 red at the new line ("on an error answer, Retry is described by the load error") and W4 red ("after 10 s Retry is described by the load error").
+- mutation (review patch): the `scroll-padding` line removed from `about-dialog.ts` -> `floor-sources.test.mjs` red ("scrollers keep the gutter").
+- mutation (review patch): the composer's `style.height` back to a pixel value -> `floor-sources.test.mjs` red ("sets a height from a script or a binding only where this list has it, and only in line units"), as well as W2.
+- A case that expects a key to change nothing looks only after the page has drawn (`settled` in `web/e2e/support/floor.ts`: two animation frames and a task). K2 passed against the first mutation of the popover step because the popover is removed at once and the row's `aria-expanded` is drawn later; with the wait it is red.
+
 **Shared surfaces:**
 - **The first tab stops.** The two skip links now come before `a.home`. F3, F7 and B10 start from `a.home` or from the header and are unaffected; no case presses Tab from the page's start.
 - **Every "Close" name.** The banners' Close (B5, B8, B9, B10, B13, B14; `BANNER_TEXTS` in `banner-view.test.mjs`) and About's Close (F6, F7) are renamed (Task 11).
@@ -665,7 +783,7 @@ No AC contradicts an AD's Rule.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-24).** The plan halted after planning, as the dispatch asked.
@@ -678,3 +796,43 @@ Blocking condition: none
   - the footprint extension (`about/about-dialog.ts`) and the shared web infrastructure (`playwright.config.ts`, `package.json`);
   - the balance-rule figures;
   - optionally, Rule 21's recipe line and a Conventions row.
+
+**Implement and review stage (2026-10-24).**
+
+*Change.* Each gap of the Problem has its small change, and the accessibility floor has its own browser unit.
+- Skip links: "Skip to chat" and "Skip to status", the first tab stops, move focus to `main.main` and `section.rail` (`tabindex="-1"`) without changing the address.
+- One Esc, one layer: the tooltip listens in the capture phase and stops the event only when it showed; `Popovers.hasOpen()` makes `DecisionRow` and `DecisionStrip` leave an open popover to the Esc.
+- Focus rings: `main.main`, `section.rail` and each banner draw the ring and its halo inside their own edge; the rail, the chat list and About keep the gutter and a `scroll-padding`; New messages keeps the halo.
+- Labels: "Close reset notice", "Close reconnecting notice", "Close About OcuTalon"; the inactive conversation link says "Available after your first message." and is described by it.
+- Errors and words: `ServerButton.describedBy` and the notice's id, the load error's and "Not sent"'s ids; `a.button` and the wordmark underlined; `min-height` for the chip and the flag; the composer in `lh` units; About scrolls; the spinner stops under reduced motion.
+- The unit: `live:floor` (`docker/tests/test-floor.sh`) in the `shards` group runs Story 2.12's A1-A7 and P1-P4 and this story's K1-K6 and W1-W4 (22 Playwright tests; K2 has a second test for the reply strip); `live_fixture_user` moved into `lib-live.sh`.
+- Node ratchets: `web/scripts/floor-sources.test.mjs` (keys, Esc, heights, scrollers' gutter, motion, banned patterns) over `web/scripts/source-files.mjs`, which `announce-focus-sources.test.mjs` shares.
+
+*Files.*
+- Page, new: `web/src/app/header/skip-links.ts`.
+- Page, changed: `app/app.ts`, `app/about/about-dialog.ts`, `app/banners/banner-stack.ts` and `banner-view.ts`, `app/chat/{chat-panel,composer,decision-strip,fallback-flag,outcome-chip,user-message}.ts`, `app/header/header.ts`, `app/main-page/main-page.ts`, `app/rail/decision-row.ts`, `app/shared/{popover,server-button,tooltip,trace-view}.ts`, `styles/controls.css`.
+- Unit, new: `docker/tests/test-floor.sh`. Changed: `docker/tests/lib-live.sh`, `docker/tests/test-sign-in.sh`, `ci/units.sh` (`shards`, `BROWSER_UNITS`), `web/playwright.config.ts`, `web/package.json`.
+- Specs, new: `web/e2e/floor/keyboard.spec.ts`, `web/e2e/floor/words.spec.ts`, `web/e2e/support/floor.ts`. Changed: `web/e2e/floor/{announcements,focus}.spec.ts` (headers), `web/e2e/support/{api,iris}.ts`, and the readers of renamed controls `web/e2e/banners/banners.spec.ts`, `web/e2e/frame/frame.spec.ts`, `web/e2e/live/live.spec.ts`.
+- Node tests, new: `web/scripts/floor-sources.test.mjs`, `web/scripts/source-files.mjs`. Changed: `announce-focus-sources.test.mjs`, `banner-view.test.mjs`, `trace-view.test.mjs`, `playwright-projects.test.mjs`.
+
+*Review.* Four layers reported 43 findings (33 root causes). Patches: 10 root causes, of which 3 medium (the New messages halo, the strip's Esc guard and the waiting tooltip's Esc had no running test) and 7 low (script-set heights in the ratchet, a scroller-gutter ratchet, test titles, a fixture push, the unique "Not sent" id, the non-tab-stop ring, the load error's error-answer path). Deferred: 2 (the skip links' href under a scan, unverified; seedTurns rows never removed, pre-existing). Rejected: 21, each with its reason in the Review Triage Log; the ones a person may want to reopen are About's Close scrolling with the text and the composer's height for wrapped text after a text-size change (both low, at a large text size only).
+- Patched counts by verdict: medium 3, low 7.
+- Follow-up review recommended: true. The three medium patches added test steps and one ratchet after the layers had read the diff (K2's reply-strip test and its waiting-tooltip step, K4's New messages and inset-ring steps, W3 and W4 additions, the "scrollers keep the gutter" and script-height ratchets); each has a mutation that turned it red, but no layer has read them.
+
+*Verification.* All on the patched tree, forward only.
+- `npm --prefix web test` 510 pass; `lint`, `catalog.mjs --check`, `test-web-build.sh`, `test-boundaries.sh`, `test-ci-config.sh` and `ci/checks.sh` exit 0.
+- `live floor`: 22 passed in 141 s (21 at the first pass in 135 s). `live sign-in`: 190 passed and 2 skipped in 409 s (about 460 s before), and no floor case. `live demo-path` 63 s, `live bundle-folder` 78 s, `group shards` 291 s (`shard:lane-a` 57 s, `shard:lane-b` 94 s, `live:floor` 141 s). Teardown of tag e2s214i left nothing.
+- 30 mutations (22 at the first pass, 8 for the review patches) turned the named test red; the tree was byte-identical after each batch (`git status --short` and the hash of `git diff` equal).
+
+*Residual risks.*
+- About's Close is inside the scrolling host, so it scrolls with the text when About is taller than the window (a large text size). Esc, the backdrop and Tab still close About.
+- A composer draft of wrapped text keeps its old line count after a text-size change until the next input.
+- The fresh-environment check in reverse order has not run: K4's walk is bounded at 150 stops and the floor cases leave their seeded turns (deferred).
+- The skip links' `href="#/"` under Story 2.16's scan is unverified (deferred).
+
+*For the lead.*
+- The four veto-window texts are in as the spec lists them.
+- Footprint extensions to report (Rule 11): `web/src/app/about/about-dialog.ts`, `web/playwright.config.ts`, `web/package.json`, `web/e2e/support/{api,iris,floor}.ts`, and the assertions of `web/e2e/banners/banners.spec.ts`, `frame/frame.spec.ts` and `live/live.spec.ts` that read a renamed Close or the moved `holdState`. No contended path was touched.
+- Optional, yours to decide: Rule 21's recipe line for `live floor` (and `shards` running `live:floor`), and the Conventions row "Tests" for `web/e2e/floor/`.
+- The balance rule: measure `shards` at this story's first CI run (local: 291 s in all, `live:floor` 141 s; CI estimate 330 to 450 s for the unit).
+

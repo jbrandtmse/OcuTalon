@@ -1,20 +1,20 @@
 import { spawn } from 'node:child_process';
 
 /**
- * What the specs of Story 2.2 need from the throwaway stack that docker/tests/test-sign-in.sh starts: the fixture users it
- * created, and a way to run a line of ObjectScript in the OCUTALON namespace of its IRIS container (the stack publishes no
- * management port). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
+ * What the specs of Story 2.2 need from the throwaway stack that docker/tests/test-sign-in.sh starts (or, for the floor specs of
+ * e2e/floor/, docker/tests/test-floor.sh): the fixture users it created, and a way to run a line of ObjectScript in the OCUTALON
+ * namespace of its IRIS container (the stack publishes no management port). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
  */
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh`);
+  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user)`);
   return value;
 }
 
-/** The kinds of fixture user of the sign-in unit. */
+/** The kinds of fixture user of the sign-in unit, and FLOOR, the floor unit's. */
 export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR';
 
-/** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
+/** A fixture user of the sign-in or the floor unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }

@@ -21,6 +21,7 @@ export const TRACE_TEXTS = {
   dontShow: "Don't show this again",
   menu: 'Visual Trace',
   openConversation: 'Open my conversation in Visual Trace',
+  conversationNotYet: 'Available after your first message.',
 } as const;
 
 /** The sessionStorage key that says the help was shown in this tab's session. */

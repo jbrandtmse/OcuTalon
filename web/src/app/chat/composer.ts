@@ -10,7 +10,8 @@ const MAX_LINES = 5;
  * The composer (UX-DR68, UX-DR125): a text area labelled "Message OcuTalon" by a visually hidden label, so the name holds while
  * text is typed, and a Send button. Enter sends, except while an IME composition is open; Shift+Enter adds a line. The text is
  * trimmed at both ends and its inner line breaks are kept; empty text sends nothing. The field grows with its content, by script,
- * up to five lines, then scrolls. It is never disabled: each message becomes its own turn, also while another turn runs. After a
+ * up to five lines, then scrolls. Its height is a count of lines in line-height units (lh) plus its padding, so a change of the text
+ * size keeps the lines it holds in view with no keystroke; the lines are counted again at the next input. It is never disabled: each message becomes its own turn, also while another turn runs. After a
  * send the field is empty, shrunk and focused. It takes no focus on its own.
  */
 @Component({
@@ -92,13 +93,13 @@ export class Composer {
     field.focus();
   }
 
-  /** Sizes the field to its content, up to MAX_LINES lines. */
+  /** Sizes the field to its content: the lines it holds, from one to MAX_LINES, as lh units plus its padding. */
   protected grow(): void {
     const field = this.field().nativeElement;
     const style = getComputedStyle(field);
     const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-    const max = parseFloat(style.lineHeight) * MAX_LINES + padding;
     field.style.height = 'auto';
-    field.style.height = `${Math.min(field.scrollHeight, max)}px`;
+    const lines = Math.round((field.scrollHeight - padding) / parseFloat(style.lineHeight));
+    field.style.height = `calc(${Math.min(Math.max(lines, 1), MAX_LINES)} * 1lh + ${padding}px)`;
   }
 }

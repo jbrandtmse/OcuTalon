@@ -31,6 +31,7 @@ describe('the fixed strings', () => {
         dontShow: "Don't show this again",
         menu: 'Visual Trace',
         openConversation: 'Open my conversation in Visual Trace',
+        conversationNotYet: 'Available after your first message.',
       },
     );
     for (const value of Object.values(TRACE_TEXTS)) {

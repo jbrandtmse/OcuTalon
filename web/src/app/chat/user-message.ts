@@ -4,11 +4,15 @@ import { Icon } from '../icon/icon';
 import { CHAT_TEXTS, type TurnView } from './chat-view';
 import { pageTime } from './page-time';
 
+/** The count of the messages that have been made, which gives each one's "Not sent" an id of its own. */
+let lastNotSent = 0;
+
 /**
  * The user's message (UX-DR59, UX-DR123): a right-aligned bubble on the sunken surface, at most 80% of the list's width and
  * with its text lines capped at chat-text-max (UX-DR58), with the text's line breaks kept. The line under it holds the caption ("via Telegram" or "From the demo guide") and the time,
  * in the browser's zone and hour format. A message whose post failed also says "Not sent" and offers Retry sending, which
- * posts the same message again. The element takes focus only when the New messages button sends it there.
+ * posts the same message again; Retry sending is described by that "Not sent" (aria-describedby). The element
+ * takes focus only when the New messages button sends it there.
  */
 @Component({
   selector: 'app-user-message',
@@ -20,11 +24,11 @@ import { pageTime } from './page-time';
       <div class="line">
         <span class="when">{{ when() }}</span>
         @if (turn().send === 'failed') {
-          <span class="failed">
+          <span class="failed" [id]="notSentId">
             <app-icon name="circle-alert" />
             {{ texts.notSent }}
           </span>
-          <button type="button" class="button button-secondary retry" (click)="retry.emit()">{{ texts.retrySending }}</button>
+          <button type="button" class="button button-secondary retry" [attr.aria-describedby]="notSentId" (click)="retry.emit()">{{ texts.retrySending }}</button>
         }
       </div>
     </div>
@@ -77,6 +81,9 @@ export class UserMessage {
   readonly turn = input.required<TurnView>();
   readonly retry = output<void>();
   protected readonly texts = CHAT_TEXTS;
+
+  /** The id of "Not sent", which is unique on the page: one per message. */
+  protected readonly notSentId = `not-sent-${(lastNotSent += 1)}`;
 
   /** The caption, then the time, joined by the separator: the line under the bubble. */
   protected readonly when = computed(() => {

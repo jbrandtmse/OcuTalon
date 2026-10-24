@@ -11,7 +11,7 @@ import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
-import { activeBanners, BANNER_TEXTS, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, REPLACED_BY, retainClosed } from './banner-view';
+import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, closeName, REPLACED_BY, retainClosed } from './banner-view';
 
 /** The values banner-view.ts reuses, from the real modules. */
 const FORMAT: BannerFormat = {
@@ -48,13 +48,15 @@ const FOCUS_RULE: FocusRule = {
  * the banners of banner-view.ts for the live store, in the catalog's order. A banner is full width, at least 44px tall, with the
  * background and text colour of its variant, a 4px accent on its left edge and its icon in the accent colour. It has at most one
  * action, an underlined link that opens a new tab and says so for assistive technology, and only Reset soon and Reconnecting have
- * a Close button, an icon-only ghost button. The texts are the catalog's and are bound by interpolation.
+ * a Close button, an icon-only ghost button named for its action and its banner ("Close reset notice", "Close reconnecting notice"; Story 2.14).
+ *   The texts are the catalog's and are bound by interpolation.
  * - No banner is a live region. Once the first snapshot has loaded, each banner that appears is announced once through the
  *   polite announcer, whether an event or a reloaded snapshot brought it; the banners of the first snapshot are not announced.
  *   The banners that appear in one update are handed to the announcer at once, in stack order, and it speaks them as one text.
  * - A closed banner stays away while its condition holds with the slots it had; it returns, announced, when the condition
  *   clears and starts again or its slots change. The records live for the page's life.
- * - A banner takes focus (tabindex -1) but is not in the tab order. When an update removes the banner that holds focus, or the link
+ * - A banner takes focus (tabindex -1) but is not in the tab order; its focus ring is drawn inside its own edge, because the banner fills the
+ *   page's width. When an update removes the banner that holds focus, or the link
  *   or Close button in it, focus moves without scrolling as FOCUS_RULE says, through the page's focus rule (shared/focus-rule.ts):
  *   to the banner that replaces it (REPLACED_BY) when that one is shown, else to the next banner, else the previous one, else the
  *   main region. Nothing else here moves focus.
@@ -76,7 +78,7 @@ const FOCUS_RULE: FocusRule = {
           >
         }
         @if (banner.closable) {
-          <button type="button" class="button button-ghost close" [attr.aria-label]="texts.close" (click)="close(banner)">
+          <button type="button" class="button button-ghost close" [attr.aria-label]="closeName(banner.id)" (click)="close(banner)">
             <app-icon name="x" [size]="16" />
           </button>
         }
@@ -128,6 +130,10 @@ const FOCUS_RULE: FocusRule = {
       flex: 1;
       min-width: 0;
     }
+    .banner:focus-visible {
+      outline-offset: -2px;
+      box-shadow: inset 0 0 0 4px var(--surface);
+    }
     .action {
       display: inline-flex;
       flex: none;
@@ -156,7 +162,7 @@ export class BannerStack {
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
 
-  protected readonly texts = BANNER_TEXTS;
+  protected readonly closeName = closeName;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
 
   /** The banners the user closed, by id, with the signature each had. */

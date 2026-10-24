@@ -1,5 +1,5 @@
 # Helpers shared by the live tests (test-compose-start.sh, test-install-start.sh, test-install-upgrade.sh,
-# test-sign-in.sh) and by the static tests that need the build context or the web bundle.
+# test-sign-in.sh, test-floor.sh) and by the static tests that need the build context or the web bundle.
 # Sourced, not run: it defines functions and nothing else. A live test calls live_start first.
 #
 # live_start <label> sets, for the caller:
@@ -20,6 +20,10 @@
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819.
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
+#
+# live_fixture_user <name> <password> <roles> <comment>   (Story 2.14; test-sign-in.sh and test-floor.sh)
+#                creates a user of OCUTALON whose password reaches IRIS by environment variable, so that it is never printed, and
+#                prints the line CHK|fixture-user|1 when it was created (CHK|fixture-user|0 or nothing when it was not).
 #
 # The first start, timed (Story 0.8; AD-23). Only the demo-path unit uses these; the other live scripts keep their inline starts.
 #   first_start_report <build s> <ready s> <engine>   prints "FIRST-START engine=<engine> build=<b>s ready=<r>s", and when
@@ -310,6 +314,16 @@ iris_script() { # iris_script <namespace> < script
     sleep 5
   done
   if [ -n "$out" ]; then printf '%s\n' "$out"; fi
+}
+
+# live_fixture_user <name> <password> <roles> <comment>: see the header. The user is created in %SYS, for the namespace OCUTALON.
+live_fixture_user() {
+  printf '%s\n' \
+    'Set pw=$SYSTEM.Util.GetEnviron("OCUTALON_T03_PW")' \
+    "Set sc=##class(Security.Users).Create(\"$1\",\"$3\",pw,\"$4\",\"OCUTALON\",\"\",\"\",0,1,\"t03 fixture\",1,\"\",\"\",,1,1)" \
+    'Write !,"CHK|fixture-user|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' \
+    | OCUTALON_T03_PW="$2" dc exec -T -e OCUTALON_T03_PW iris iris session IRIS -U %SYS 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|fixture-user|.*\)$/\1/p' | tail -n 1
 }
 
 # --- Docker's health monitor ---

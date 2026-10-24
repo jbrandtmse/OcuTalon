@@ -14,6 +14,9 @@ const RAIL_SECTIONS = [RAIL_TEXTS.approvals, RAIL_TEXTS.checks, RAIL_TEXTS.remin
 /** The skeleton rows of each rail section while the snapshot loads. */
 const SKELETON_ROWS = [1, 2] as const;
 
+/** The id of the load error's text, which Retry is described by. */
+const LOAD_ERROR_TEXT_ID = 'load-error-text';
+
 /** Where focus goes when the load error that holds it gives way to the loaded page (UX-DR131): the main region. */
 const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
 
@@ -27,7 +30,9 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
  * answer) the rail keeps its four headings alone, and the skeletons give way to the load error at the top of main, with Retry.
  * Once it has loaded, the rail holds the status rail and main holds the chat panel after its hidden heading. When the load error
  * holds focus (its Retry button) as the page loads, focus moves to main without scrolling, through the page's focus rule
- * (shared/focus-rule.ts); a Retry that fails leaves focus where it is. The page's
+ * (shared/focus-rule.ts); a Retry that fails leaves focus where it is. Retry is described by the load error's text
+ * (aria-describedby), and by its busy notice as well while that shows. The rail and main take focus (tabindex -1) but are not tab stops: the skip links
+ * of the header move focus to them (Story 2.14), and each draws its focus ring inside its own edge, so that no part of it falls outside the viewport. The page's
  * data-snapshot says how the load went, and data-session-seq and data-instance-seq the last event of each stream that the page has
  * applied.
  */
@@ -37,7 +42,7 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="visually-hidden">OcuTalon</h1>
-    <section class="rail" aria-labelledby="rail-title" [attr.aria-busy]="loading() ? 'true' : null">
+    <section class="rail" tabindex="-1" aria-labelledby="rail-title" [attr.aria-busy]="loading() ? 'true' : null">
       <h2 id="rail-title" class="visually-hidden">Status</h2>
       @if (live.status() === 'loaded') {
         <app-status-rail />
@@ -76,8 +81,8 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
       }
       @if (failed()) {
         <div class="load-error">
-          <p class="load-error-text">{{ loadFailed }}</p>
-          <app-server-button variant="secondary" [action]="retry">Retry</app-server-button>
+          <p class="load-error-text" [id]="loadErrorTextId">{{ loadFailed }}</p>
+          <app-server-button variant="secondary" [action]="retry" [describedBy]="[loadErrorTextId]">Retry</app-server-button>
         </div>
       }
       @if (live.status() === 'loaded') {
@@ -97,10 +102,23 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
       flex-direction: column;
       gap: 14px;
       overflow-y: auto;
+      scroll-padding: var(--space-scroll-gutter);
       width: var(--status-rail-width);
-      padding: var(--space-3) var(--space-3) var(--space-4);
+      padding: var(--space-3) var(--status-rail-padding-inline) var(--space-4);
       background: var(--status-rail-background);
       border-right: var(--status-rail-border-right);
+    }
+    /* The gutter is the rail's own padding; the content keeps its 12px inset with 8px of its own inside it. */
+    .rail > app-status-rail,
+    .rail > .rail-heading,
+    .rail > .skeleton-rows {
+      margin-inline: var(--space-2);
+    }
+    /* A focus target that is not a tab stop draws the ring and its halo inside its own edge, which is the viewport's edge. */
+    .rail:focus-visible,
+    .main:focus-visible {
+      outline-offset: -2px;
+      box-shadow: inset 0 0 0 4px var(--surface);
     }
     @media (min-width: 1440px) {
       .rail {
@@ -189,6 +207,7 @@ export class MainPage {
   protected readonly sections = RAIL_SECTIONS;
   protected readonly skeletonRows = SKELETON_ROWS;
   protected readonly loadFailed = LOAD_FAILED;
+  protected readonly loadErrorTextId = LOAD_ERROR_TEXT_ID;
   protected readonly loading = computed(() => this.live.status() === 'loading');
   protected readonly failed = computed(() => this.live.status() === 'failed');
 

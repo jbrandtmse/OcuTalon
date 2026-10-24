@@ -32,15 +32,16 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
 ];
 
 /**
- * The app header. Left: the mark and the wordmark, both linking to the main page, and the context badge (Online demo,
+ * The app header. Left: the mark and the wordmark (underlined, as every link is), both linking to the main page, and the context badge (Online demo,
  * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
  * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group.
  *
  * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
  * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
  * Trace", a link to the newest turn's traceUrl that opens a new tab; with no such turn the link is aria-disabled, stays
- * focusable, has no href and does nothing. It is one element either way, so a turn that arrives while it has focus leaves the
- * focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
+ * focusable, has no href and does nothing, and says why under it: "Available after your first message.", which the link is
+ * described by (aria-describedby) and which goes with the description when a turn gives the link its address. It is one element
+ * either way, so a turn that arrives while it has focus leaves the focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
  * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
  * was seen. Otherwise it is headed "Visual Trace" and records nothing.
  */
@@ -109,11 +110,15 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
           [attr.role]="conversation() === undefined ? 'link' : null"
           [attr.tabindex]="conversation() === undefined ? 0 : null"
           [attr.aria-disabled]="conversation() === undefined ? 'true' : null"
+          [attr.aria-describedby]="conversation() === undefined ? conversationReasonId : null"
           (click)="pressConversation($event)"
           >{{ traceTexts.openConversation }}<app-icon name="external-link" [size]="14" /><span class="visually-hidden">
             {{ traceTexts.opensInNewTab }}</span
           ></a
         >
+        @if (conversation() === undefined) {
+          <p class="reason" [id]="conversationReasonId">{{ traceTexts.conversationNotYet }}</p>
+        }
       </app-trace-help>
     </ng-template>
     <ng-template #themeMenu>
@@ -174,11 +179,18 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
     }
     .wordmark {
       margin-left: -2px;
+      text-decoration-line: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
       font-family: var(--font-display);
       font-size: var(--wordmark-typography-font-size);
       font-weight: var(--wordmark-typography-font-weight);
       line-height: var(--wordmark-typography-line-height);
       letter-spacing: var(--wordmark-typography-letter-spacing);
+    }
+    .home:hover .wordmark,
+    .home:focus-visible .wordmark {
+      text-decoration-thickness: 2px;
     }
     .ocu {
       color: var(--wordmark-ocu);
@@ -202,6 +214,13 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
       padding: 0 var(--space-2);
       color: var(--ink);
       font-weight: var(--type-body-strong-font-weight);
+    }
+    .reason {
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: var(--type-body-sm-font-size);
+      font-weight: var(--type-body-sm-font-weight);
+      line-height: var(--type-body-sm-line-height);
     }
     .menu {
       display: flex;
@@ -254,6 +273,8 @@ export class Header {
 
   protected readonly traceTexts = TRACE_TEXTS;
   protected readonly traceHeadingId = newTraceHeadingId();
+  /** The id of the reason that the inactive conversation link is described by. */
+  protected readonly conversationReasonId = 'trace-conversation-reason';
   /** True while the Visual Trace popover is open. */
   protected readonly traceOpen = signal(false);
   /** True when the open popover is the sign-in help; fixed when it opens, because opening records that the help was seen. */

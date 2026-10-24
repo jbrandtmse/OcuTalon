@@ -20,7 +20,7 @@ import { countFocusins, focusinCount } from '../support/page';
  * Story 2.12, where focus goes (P1 to P4), in a real browser against a real stack. It pins the page's one focus rule
  * (shared/focus-rule.ts): when an update removes the element that holds focus, focus goes to its replacement, or to the heading of
  * the section a row left, or to the main region, and in no other case does live content move it. It needs the stack that
- * docker/tests/test-sign-in.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP.
+ * docker/tests/test-floor.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP.
  * The chat posts of P1 are answered or held in the browser and never reach the server, so no turn of these cases replies, up to 20 s
  * later, inside another case's window, in either order. P4, the one case that turns a condition on, starts with it off and turns it off
  * in finally, finishes its running turn and removes its fixture rows with cleanFixtureRows in finally; the other cases leave nothing

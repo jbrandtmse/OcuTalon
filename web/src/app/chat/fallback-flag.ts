@@ -21,7 +21,7 @@ import { DECISION_TEXTS } from './decision-view';
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
-      height: 22px;
+      min-height: 22px;
       padding: 0 var(--space-2) 0 6px;
       background: var(--fallback-flag-background);
       color: var(--fallback-flag-foreground);

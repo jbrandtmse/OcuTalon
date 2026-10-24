@@ -7,29 +7,16 @@
 // it here, with its reason.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { code, sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sources = join(here, '..', 'src');
 
-function listFiles(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return listFiles(path);
-    return /\.(ts|js|html)$/.test(entry.name) ? [path] : [];
-  });
-}
-
-/** A source without its comments: block comments, HTML comments and line comments (a `//` after white space, so an address stays). */
-const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-
-const files = listFiles(sources).map((path) => {
-  const text = readFileSync(path, 'utf8');
-  return { name: relative(sources, path).split('\\').join('/'), text, code: code(text) };
-});
+const files = sourceFiles(sources, ['.ts', '.js', '.html']);
 const file = (name) => {
   const found = files.find((one) => one.name === name);
   assert.ok(found, `${name} is scanned`);
@@ -123,6 +110,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
     'app/shared/popover.ts': [2, 'a popover returns focus to its trigger when the user closes it, and takes it into its panel when the user opens it'],
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
+    'app/header/skip-links.ts': [1, 'a skip link moves focus to its region when the user presses it (Story 2.14)'],
   };
 
   it('has a .focus( call only in the files that the user\'s own action or the focus rule moves focus from, and no more of them', () => {

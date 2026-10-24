@@ -4,9 +4,10 @@ import { defineConfig, devices } from '@playwright/test';
  * Browser specs against a running stack. OCUTALON_URL is its origin, for example http://127.0.0.1:52800; the specs
  * open paths below it, such as /ocutalon/. One worker: the specs share one IRIS instance and its licence.
  *
- * Two projects, both Desktop Chrome:
- *   chromium   every spec under e2e/ except e2e/demo-path/ (the sign-in and API units);
- *   demo-path  the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh).
+ * Three projects, all Desktop Chrome:
+ *   chromium   every spec under e2e/ except e2e/demo-path/ and e2e/floor/ (the sign-in and API units);
+ *   demo-path  the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh);
+ *   floor      the accessibility floor's specs of e2e/floor/ (the floor unit, docker/tests/test-floor.sh).
  * When OCUTALON_E2E_JSON names a file, a JSON report is written there beside the list reporter.
  */
 const jsonReport = process.env['OCUTALON_E2E_JSON'];
@@ -28,7 +29,13 @@ export default defineConfig({
     screenshot: 'off',
   },
   projects: [
-    { name: 'chromium', testDir: './e2e', testIgnore: '**/e2e/demo-path/**', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      testDir: './e2e',
+      testIgnore: ['**/e2e/demo-path/**', '**/e2e/floor/**'],
+      use: { ...devices['Desktop Chrome'] },
+    },
     { name: 'demo-path', testDir: './e2e/demo-path', use: { ...devices['Desktop Chrome'] } },
+    { name: 'floor', testDir: './e2e/floor', use: { ...devices['Desktop Chrome'] } },
   ],
 });

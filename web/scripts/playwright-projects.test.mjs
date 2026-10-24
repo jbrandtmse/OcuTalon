@@ -1,5 +1,5 @@
-// Tests of the two Playwright projects of web/playwright.config.ts (Story 0.8), listed through the npm scripts that the unit
-// scripts call: which spec files each project runs, that every demo-path spec maps to a step of demo-path-summary.mjs, and the
+// Tests of the three Playwright projects of web/playwright.config.ts (Stories 0.8 and 2.14), listed through the npm scripts that
+// the unit scripts call: which spec files each project runs, that every demo-path spec maps to a step of demo-path-summary.mjs, and the
 // form in which the report gives the floor test's tag. Then one run of an API spec with none of the sign-in unit's variables.
 // No browser starts and no stack is needed, none of the sign-in unit's OCUTALON_ variables is set, and the run writes its
 // results to a scratch folder of its own, never to web/test-results.
@@ -60,16 +60,24 @@ const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).s
 describe('the projects, listed with no OCUTALON_ variable set', () => {
   const onDisk = specFilesOnDisk();
 
-  it('finds the sign-in, API and demo-path specs on disk', () => {
+  it('finds the sign-in, API, demo-path and floor specs on disk', () => {
     assert.ok(onDisk.some((name) => name.startsWith('sign-in/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('api/')), onDisk.join(' '));
     assert.ok(onDisk.some((name) => name.startsWith('demo-path/')), onDisk.join(' '));
+    assert.ok(onDisk.some((name) => name.startsWith('floor/')), onDisk.join(' '));
   });
 
-  it('chromium (the e2e script) lists exactly the spec files outside demo-path/', () => {
+  it('chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/', () => {
     assert.deepEqual(
       filesOf('e2e'),
-      onDisk.filter((name) => !name.startsWith('demo-path/')),
+      onDisk.filter((name) => !name.startsWith('demo-path/') && !name.startsWith('floor/')),
+    );
+  });
+
+  it('floor (the e2e:floor script) lists exactly the spec files inside floor/', () => {
+    assert.deepEqual(
+      filesOf('e2e:floor'),
+      onDisk.filter((name) => name.startsWith('floor/')),
     );
   });
 

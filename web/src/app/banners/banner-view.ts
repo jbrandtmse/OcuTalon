@@ -78,10 +78,18 @@ export const REPLACED_BY: Readonly<Partial<Record<BannerId, BannerId>>> = { reco
 /** The conditions that only the page knows. */
 const OWN_CONDITIONS: readonly string[] = ['unreachable', 'reconnecting'];
 
-/** Every fixed string of the banners that the catalog does not hold. The words that say a link opens a new tab are CHAT_TEXTS.opensInNewTab. */
+/**
+ * Every fixed string of the banners that the catalog does not hold. The words that say a link opens a new tab are CHAT_TEXTS.opensInNewTab.
+ * `close` is the name of each closable banner's icon-only Close button, by banner id: its action and its object (Story 2.14).
+ */
 export const BANNER_TEXTS = {
-  close: 'Close',
+  close: { resetSoon: 'Close reset notice', reconnecting: 'Close reconnecting notice' },
 } as const;
+
+/** The name of a closable banner's Close button; "" for a banner that cannot be closed, which has none. */
+export function closeName(id: BannerId): string {
+  return (BANNER_TEXTS.close as Readonly<Partial<Record<BannerId, string>>>)[id] ?? '';
+}
 
 /** The values the view reuses from the page's other modules. */
 export interface BannerFormat {

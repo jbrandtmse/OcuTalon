@@ -129,6 +129,15 @@ export class Popovers {
     return undefined;
   }
 
+  /**
+   * True while any popover is open. Esc closes the topmost layer only (Story 2.14): a disclosure whose Esc handler runs first on
+   * the way up asks this before it collapses, so the Esc that closes a popover (the CDK's body-level handler, which runs after the
+   * element's own) leaves the disclosure that holds the popover's trigger as it is.
+   */
+  hasOpen(): boolean {
+    return this.open.size > 0;
+  }
+
   /** Closes every open popover. */
   closeAll(): void {
     for (const ref of [...this.open]) {

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { holdState } from '../support/api';
 import { signIn } from '../sign-in/helpers';
 import { freeze, lastAnswerAt, pollStarts, recordTraffic, runUntil } from '../support/clock';
 import { fixtureUser, publishReminder } from '../support/iris';
@@ -46,25 +47,6 @@ async function polls(page: Page): Promise<Array<{ start: number; params: URLSear
       .map((entry) => ({ start: entry.startTime, url: entry.name })),
   );
   return entries.map((entry) => ({ start: entry.start, params: new URL(entry.url).searchParams }));
-}
-
-/** Holds every /state request of the page until release() is called, then lets the held ones through to the server. */
-async function holdState(page: Page): Promise<{ release: () => void; held: () => number }> {
-  const waiting: Array<() => void> = [];
-  let released = false;
-  await page.route(`**${STATE}`, async (route: Route) => {
-    if (!released) {
-      await new Promise<void>((resolve) => waiting.push(resolve));
-    }
-    await route.continue().catch(() => undefined);
-  });
-  return {
-    release: () => {
-      released = true;
-      for (const resolve of waiting.splice(0)) resolve();
-    },
-    held: () => waiting.length,
-  };
 }
 
 /**

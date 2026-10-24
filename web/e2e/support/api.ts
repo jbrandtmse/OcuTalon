@@ -8,6 +8,7 @@ import { freeze } from './clock';
  * post a message the way the page does and wait for the session stream. api.spec.ts (Story 2.4), trace.spec.ts (Story 2.9) and links.spec.ts (Story 2.13) use them.
  * frame.spec.ts (Story 2.1) and links.spec.ts also answer the page's /state with a changed copy of the real answer (changeSnapshot).
  * The floor specs (Story 2.12) hold one poll, with the page's clock stopped, so that what a case seeds reaches the page in a single update (holdPoll).
+ * live.spec.ts and the floor specs of Story 2.14 hold the page's /state requests until a release (holdState).
  */
 
 export const STATE = '/ocutalon/api/v1/state';
@@ -106,5 +107,24 @@ export async function holdPoll(page: Page): Promise<() => Promise<number>> {
       test.info().annotations.push({ type: 'slow hold', description: `a poll was held for ${ms} ms of the host's clock; the page's clock stood still` });
     }
     return ms;
+  };
+}
+
+/** Holds every /state request of the page until release() is called, then lets the held ones through to the server. */
+export async function holdState(page: Page): Promise<{ release: () => void; held: () => number }> {
+  const waiting: Array<() => void> = [];
+  let released = false;
+  await page.route(`**${STATE}`, async (route: Route) => {
+    if (!released) {
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
+    await route.continue().catch(() => undefined);
+  });
+  return {
+    release: () => {
+      released = true;
+      for (const resolve of waiting.splice(0)) resolve();
+    },
+    held: () => waiting.length,
   };
 }

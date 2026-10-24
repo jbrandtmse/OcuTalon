@@ -8,7 +8,14 @@ import { README_URL } from '../links';
 /** The id of the dialog's heading, which names the dialog. */
 export const ABOUT_TITLE_ID = 'about-title';
 
-/** The About dialog: what OcuTalon is, its version and its default model. It is opened through Dialogs. */
+/** The name of the dialog's icon-only Close button: its action and its object (Story 2.14). */
+export const ABOUT_CLOSE_NAME = 'Close About OcuTalon';
+
+/**
+ * The About dialog: what OcuTalon is, its version and its default model. It is opened through Dialogs. It is at most as tall as the
+ * viewport less 16px above and below, and it scrolls, keeping the scroll gutter, when its text is taller (a large text size, a short
+ * window). Its Close button is at the dialog's top right.
+ */
 @Component({
   selector: 'app-about-dialog',
   imports: [Icon],
@@ -34,7 +41,7 @@ export const ABOUT_TITLE_ID = 'about-title';
       <p>Built with the BMAD Method and Claude Code.</p>
       <p>OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.</p>
     </div>
-    <button type="button" class="button button-ghost close" aria-label="Close" (click)="close()">
+    <button type="button" class="button button-ghost close" [attr.aria-label]="closeName" (click)="close()">
       <app-icon name="x" [size]="16" />
     </button>
   `,
@@ -43,7 +50,11 @@ export const ABOUT_TITLE_ID = 'about-title';
       position: relative;
       display: block;
       width: min(480px, calc(100vw - 32px));
+      max-height: calc(100vh - 2 * var(--space-4));
+      max-height: calc(100dvh - 2 * var(--space-4));
       padding: var(--space-6);
+      overflow-y: auto;
+      scroll-padding: var(--space-scroll-gutter);
       background: var(--dialog-background);
       border-radius: var(--dialog-radius);
       box-shadow: var(--dialog-shadow);
@@ -79,6 +90,7 @@ export class AboutDialog {
   private readonly live = inject(LiveState);
 
   protected readonly titleId = ABOUT_TITLE_ID;
+  protected readonly closeName = ABOUT_CLOSE_NAME;
   protected readonly readme = README_URL;
   protected readonly title = computed(() => {
     const version = this.live.snapshot()?.version ?? '';

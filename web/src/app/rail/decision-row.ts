@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { FallbackFlag } from '../chat/fallback-flag';
 import { meaningOf, OutcomeChip } from '../chat/outcome-chip';
 import { Icon } from '../icon/icon';
+import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import type { RailRow } from './rail-view';
 
@@ -16,7 +17,8 @@ let lastId = 0;
  *   on a fallback, the item's summary on one line with an ellipsis, and the chevron (hidden from assistive technology). With a chip,
  *   the button is described by the outcome's meaning from a hidden element, so the chip's pointer tooltip is never its only copy.
  * - Line 2 is the first reason line on one line with an ellipsis, a fallback's sentence first and in the warning colour. Expanded, every
- *   reason line replaces it in place. Esc inside the row collapses it and focus stays where it is.
+ *   reason line replaces it in place. Esc inside the row collapses it and focus stays where it is, unless a popover is open: Esc then closes
+ *   the popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either.
  * - The meta line holds the time, the confidence (not on a fallback) and the decision's own cost, then the trace link beside the
  *   button (never inside it) when the decision has a traceUrl.
  * Every text is bound by interpolation. The row is not a live region.
@@ -146,6 +148,7 @@ export class DecisionRow {
   /** The decision row: its title is the item's summary. */
   readonly row = input.required<RailRow>();
 
+  private readonly popovers = inject(Popovers);
   protected readonly separator = CHAT_TEXTS.separator;
   protected readonly open = signal(false);
   private readonly id = ++lastId;
@@ -158,8 +161,11 @@ export class DecisionRow {
     return chip === undefined ? '' : meaningOf(chip);
   });
 
-  /** Esc inside the row collapses it when it is open; focus stays where it is. */
+  /** Esc inside the row collapses it when it is open and no popover is; focus stays where it is. */
   protected collapse(): void {
+    if (this.popovers.hasOpen()) {
+      return;
+    }
     if (this.open()) {
       this.open.set(false);
     }

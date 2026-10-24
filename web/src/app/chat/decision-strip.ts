@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 
 import { Icon } from '../icon/icon';
 import type { Cost, DecisionPayload } from '../live/payloads';
 import { PAGE_TEXTS, REASON_KEYS } from '../msg/catalog';
+import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionDetails } from './decision-details';
 import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines, sentenceOf } from './decision-view';
@@ -35,7 +36,8 @@ export function fallbackSentence(reason: string | undefined): string | undefined
  * - Line 2: the reason lines, a fallback's reason as a sentence first and in the warning colour, then the decision's reasons: three
  *   lines on the newest strip, the first line only, on one line with an ellipsis, on the others.
  * - Last, when there is a decision, the Details button named "Decision details": it opens the details inline below, with
- *   aria-expanded; Esc collapses them and focus stays on the button.
+ *   aria-expanded; Esc collapses them and focus stays on the button, unless a popover is open: Esc then closes the
+ *   popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either.
  * - With reasons off (a notice card's strip, whose text already says why now) line 2 holds the Details button alone.
  * The strip is a group named by its chip's label and described by the outcome's meaning, from a hidden element. A fallback with no
  * decision has the chip, the flag and the reason alone. It is not a live region, and nothing here moves focus. Every text is bound by
@@ -199,6 +201,7 @@ export class DecisionStrip {
   /** Where the strip's trace link opens (UX-DR139): the turn's for a reply, the decision's for a card. None shows no link. */
   readonly traceUrl = input<string | undefined>();
 
+  private readonly popovers = inject(Popovers);
   protected readonly texts = DECISION_TEXTS;
   protected readonly separator = DECISION_TEXTS.separator;
   protected readonly open = signal(false);
@@ -236,8 +239,11 @@ export class DecisionStrip {
     return items;
   });
 
-  /** Esc on the strip collapses the details when they are open; focus stays where it is. */
+  /** Esc on the strip collapses the details when they are open and no popover is; focus stays where it is. */
   protected collapse(): void {
+    if (this.popovers.hasOpen()) {
+      return;
+    }
     if (this.open()) {
       this.open.set(false);
     }

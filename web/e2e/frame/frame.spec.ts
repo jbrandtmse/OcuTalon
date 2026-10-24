@@ -336,7 +336,7 @@ test('F6: the Close button closes the About dialog and focus returns to the acco
   await signInReadme(page);
   const snapshot = await realSnapshot(page);
   const dialog = await openAbout(page, aboutTitle(snapshot['version']));
-  const close = dialog.getByRole('button', { name: 'Close', exact: true });
+  const close = dialog.getByRole('button', { name: 'Close About OcuTalon', exact: true });
   await expect(close).toBeVisible();
 
   const panel = (await page.locator('app-about-dialog').boundingBox())!;
@@ -399,7 +399,7 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
 
   await page.keyboard.press('Enter');
   await page.getByRole('menuitem', { name: 'About OcuTalon' }).click();
-  const close = page.getByRole('button', { name: 'Close', exact: true });
+  const close = page.getByRole('button', { name: 'Close About OcuTalon', exact: true });
   await expect(close).toBeVisible();
   // The dialog moves focus to its heading after it renders; Tab only counts from there.
   await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toBeFocused();

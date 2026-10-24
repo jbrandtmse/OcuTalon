@@ -132,6 +132,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
       min-height: 0;
       padding-inline: var(--chat-panel-padding-inline);
       overflow-y: auto;
+      scroll-padding: var(--space-scroll-gutter);
     }
     .content {
       flex: 1 0 auto;
@@ -174,6 +175,12 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
       font-weight: var(--button-primary-typography-font-weight);
       line-height: var(--button-primary-typography-line-height);
       cursor: pointer;
+    }
+    /* The button's own shadow adds to the focus halo of base.css; it does not replace it. */
+    .new-messages:focus-visible {
+      box-shadow:
+        0 0 0 2px var(--surface),
+        var(--popover-shadow);
     }
   `,
 })

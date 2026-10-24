@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
 import { firstValueFrom, isObservable, type Observable } from 'rxjs';
 
 import { Icon } from '../icon/icon';
@@ -9,6 +9,9 @@ import { InlineNotice } from './inline-notice';
 /** The notice under a server button whose call has had no answer for 10 seconds. */
 export const BUSY_NOTICE = "Couldn't reach OcuTalon. Try again. Nothing was changed.";
 
+/** The count of the buttons that have been made, which gives each one's notice an id of its own. */
+let lastNotice = 0;
+
 /** A button variant of controls.css. */
 export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'inactive';
 
@@ -17,6 +20,9 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
  * (never disabled, so it keeps its place in the tab order and its focus), and a press is ignored. The call's
  * answer, early or late, ends the busy state and clears the notice. With no answer in 10 seconds the button is
  * restored and a warning notice under it says so, and the polite announcer reads the notice once.
+ *
+ * The button is described (aria-describedby) by the text that explains it: the ids in `describedBy`, and the notice's id while the
+ * notice shows. The notice's id is the button's own, so two buttons never share one. With neither, the button has no description.
  */
 @Component({
   selector: 'app-server-button',
@@ -28,6 +34,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
       [class]="'button button-' + variant()"
       [attr.aria-busy]="busy() ? 'true' : null"
       [attr.aria-disabled]="busy() ? 'true' : null"
+      [attr.aria-describedby]="described()"
       (click)="press()"
     >
       @if (busy()) {
@@ -36,7 +43,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
       <ng-content />
     </button>
     @if (notice()) {
-      <app-inline-notice class="under" variant="warning">{{ text }}</app-inline-notice>
+      <app-inline-notice class="under" variant="warning" [id]="noticeId">{{ text }}</app-inline-notice>
     }
   `,
   styles: `
@@ -54,9 +61,19 @@ export class ServerButton {
   /** The call that a press makes: its answer, an Observable (its first value) or a Promise, ends the busy state. */
   readonly action = input.required<() => Observable<unknown> | Promise<unknown>>();
 
+  /** The ids of the text that explains the button, such as the error beside it. */
+  readonly describedBy = input<readonly string[]>([]);
+
   protected readonly text = BUSY_NOTICE;
+  protected readonly noticeId = `server-button-notice-${(lastNotice += 1)}`;
   protected readonly busy = signal(false);
   protected readonly notice = signal(false);
+
+  /** The button's aria-describedby: the given ids, then the notice's while it shows; null with neither. */
+  protected readonly described = computed(() => {
+    const ids = this.notice() ? [...this.describedBy(), this.noticeId] : this.describedBy();
+    return ids.length === 0 ? null : ids.join(' ');
+  });
 
   private readonly announcer = inject(Announcer);
   private readonly state = new BusyState({

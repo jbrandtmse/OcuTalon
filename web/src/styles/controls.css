@@ -2,7 +2,7 @@
   The shared controls' global rules: the button variants, the text link, and the panes of the overlays that the CDK
   renders outside the app (a popover's pane, a dialog's scrim). Colours, sizes, radii and type come from the DESIGN.md
   tokens of tokens.css (the font through base.css's --font-ui stack); the borders, the underline and the spinner's turn
-  are plain values. The focus ring comes from base.css and nothing here overrides it.
+  are plain values. Every link is underlined at rest: .link, a.button and the links of the components. The focus ring comes from base.css and nothing here overrides it.
 */
 
 /* A button: primary, secondary, attention, ghost or inactive. The height is the control height; ghost is the target minimum. */
@@ -71,6 +71,18 @@
   background: var(--button-ghost-background-hover);
 }
 
+/* A link styled as a button keeps the text link's underline: 1px with a 2px offset, 2px on hover and keyboard focus. */
+a.button {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a.button:hover,
+a.button:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
 /* A button that cannot act now: dashed, with no hover. It stays focusable and says why elsewhere. */
 .button-inactive {
   min-height: var(--space-control-height);
@@ -81,9 +93,15 @@
   cursor: default;
 }
 
-/* The spinner of a busy button turns in the button's own colour; reduced motion stops it (base.css). */
+/* The spinner of a busy button turns in the button's own colour; with reduced motion it stands still (and base.css stops every animation). */
 .button .spinner {
   animation: button-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button .spinner {
+    animation: none;
+  }
 }
 
 @keyframes button-spin {

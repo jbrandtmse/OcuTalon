@@ -38,7 +38,7 @@ export function meaningOf(outcome: Outcome): string {
       display: inline-flex;
       align-items: center;
       gap: var(--space-1);
-      height: 22px;
+      min-height: 22px;
       padding: 0 var(--space-2) 0 6px;
       font-size: var(--type-label-font-size);
       font-weight: var(--type-label-font-weight);

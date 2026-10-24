@@ -356,9 +356,9 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
     );
     await expect(banner(page, 'resetSoon').locator('.text')).toHaveText(RESET);
 
-    const closes = slot(page).getByRole('button', { name: 'Close', exact: true });
-    await expect(closes, 'only Reset soon has a Close').toHaveCount(1);
-    await expect(banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true })).toHaveCount(1);
+    const closes = banner(page, 'resetSoon').getByRole('button', { name: 'Close reset notice', exact: true });
+    await expect(slot(page).locator('button.close'), 'only Reset soon has a Close').toHaveCount(1);
+    await expect(closes).toHaveCount(1);
     await expect.poll(() => announcements(page, RESET), { message: 'Reset soon was announced when it appeared', timeout: 5000 }).toBe(1);
 
     await closes.click();
@@ -507,8 +507,8 @@ test.describe('B8: a 12-hour browser in New York', () => {
     await expect(banner(page, 'dailyCap')).toHaveAttribute('data-variant', 'danger');
     for (const id of ['noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon']) await expect(banner(page, id)).toHaveAttribute('data-variant', 'warning');
     await expect(banner(page, 'costCap'), 'and the local cost limit is not there').toHaveCount(0);
-    await expect(slot(page).getByRole('button', { name: 'Close', exact: true }), 'only Reset soon has a Close').toHaveCount(1);
-    await expect(banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true })).toHaveCount(1);
+    await expect(slot(page).locator('button.close'), 'only Reset soon has a Close').toHaveCount(1);
+    await expect(banner(page, 'resetSoon').getByRole('button', { name: 'Close reset notice', exact: true })).toHaveCount(1);
 
     await page.waitForTimeout(2500);
     expect(await announcedTexts(page), 'the six banners came with the first snapshot, so none is announced, alone, joined or counted').toEqual([]);
@@ -522,7 +522,7 @@ test('B9: a closed Reset soon stays away on the same slots and comes back, annou
     await recordAnnouncements(page);
     await open(page);
     const one = banner(page, 'resetSoon');
-    const close = one.getByRole('button', { name: 'Close', exact: true });
+    const close = one.getByRole('button', { name: 'Close reset notice', exact: true });
 
     await turn(page, user, 'resetSoon', true);
     await expect(one, 'Reset soon appears').toHaveCount(1, { timeout: ONE_UPDATE_MS });
@@ -584,7 +584,7 @@ test('B10: banners that appear or leave do not move focus, the keyboard reaches 
     await page.keyboard.press('Tab');
     await expect(banner(page, 'telegramPaused').getByRole('link'), 'then the next banner\'s action').toBeFocused();
     await page.keyboard.press('Tab');
-    const close = banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true });
+    const close = banner(page, 'resetSoon').getByRole('button', { name: 'Close reset notice', exact: true });
     await expect(close, 'then Reset soon\'s Close').toBeFocused();
     await page.keyboard.press('Enter');
     await expect(banner(page, 'resetSoon'), 'Enter on Close closes the banner').toHaveCount(0);
@@ -805,7 +805,7 @@ test('B13: with the server unreachable the page shows Reconnecting at 10 s and U
     await expectLook(page, reconnecting, 'info', 'the Reconnecting banner');
     await expect(reconnecting.locator(INFO), 'with the info icon').toHaveCount(1);
     await expect(reconnecting.getByRole('link'), 'it has no action').toHaveCount(0);
-    const close = reconnecting.getByRole('button', { name: 'Close', exact: true });
+    const close = reconnecting.getByRole('button', { name: 'Close reconnecting notice', exact: true });
     await expect(close, 'and can be closed').toHaveCount(1);
     expect(await stack(page), 'it is last in the stack').toEqual(['noModelKey', 'reconnecting']);
     await expect.poll(() => announcements(page, RECONNECTING), { message: 'it is announced', timeout: 5000 }).toBe(1);
@@ -866,7 +866,7 @@ test('B14: after the outage the first answer brings the missed event and clears 
     const reconnecting = banner(page, 'reconnecting');
     await expect(reconnecting, 'at 13.5 s Reconnecting shows').toHaveCount(1, { timeout: ONE_UPDATE_MS });
     await expect.poll(() => announcements(page, RECONNECTING), { message: 'it is announced', timeout: 5000 }).toBe(1);
-    await reconnecting.getByRole('button', { name: 'Close', exact: true }).click();
+    await reconnecting.getByRole('button', { name: 'Close reconnecting notice', exact: true }).click();
     await expect(reconnecting, 'Close removes it').toHaveCount(0);
     await expect(banner(page, 'noModelKey'), 'focus goes to the banner before it, as no banner replaces Reconnecting yet').toBeFocused();
 
