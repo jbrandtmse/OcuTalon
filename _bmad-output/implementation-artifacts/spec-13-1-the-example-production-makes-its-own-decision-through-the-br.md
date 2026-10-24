@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-24'
 status: 'done'
 baseline_revision: 'fb66ec90ca1a8e54b71b6276b0bad345bc869e17'
+baseline_commit: 'fb66ec90ca1a8e54b71b6276b0bad345bc869e17'
 review_loop_iteration: 0
 followup_review_recommended: true
 context: []
@@ -195,11 +196,12 @@ deferred:
 6. Given the runner's `Model`, `Decide`'s `DecisionTokenBudget` or `Decide`'s `TimerSeconds` changed as a System Default Settings row and applied, when the next item is sent, then its decision shows the new value (matrix rows Model, Budget and Timeout), with no code change.
 7. Given each fallback row of the matrix, when its item is sent, then the decision is `tellnow` with `Fallback` 1 and its reason in the row and in the trace's `DecisionResponse`, routed to `ExampleFallbackOut`, with no tool step. The production keeps running, and the dummy key appears in no step, decision message, event-log row or audit entry.
 8. Given a push, when lane-a's standalone-bridge job runs `release/standalone-bridge.sh` on the IRIS runner, then the job fails unless every check above passes, and it builds its image on the runner with no cache, push or artifact.
-9. Given the spine, when the change lands, then the Production items table holds the two Lane A rows, and the spine lint reports `"ok": true`.
+9. Given the spine, when the change lands, then the Production items table holds the two Lane A rows, and the spine lint reports no new finding: no `ad_id`, `ad_fields` or `placeholder` finding comes from the new rows (the four LOW placeholder findings of the base tree are template text in the spine's examples, DW-180).
 
 ## Spec Change Log
 
 - 2026-10-24, lead (Epic 13 runner), after the plan's blocked round 1: both escalated questions ruled (Design Notes, Clarification Needed items 1 and 2: the orchestrator's option (a) for Task 9's lines; the runner's decide on the audit clause). The spec already assumed both answers, so nothing else changed; status set to ready-for-dev without a re-plan.
+- 2026-10-24, lead (Epic 13 runner), at dev_complete: AC 9 restated from `"ok": true` to "no new finding" (the base tree already lints `ok: false` from four pre-existing template placeholders; the deferred item is DW-180, wontfix-accepted with a probe). The intent, two Lane A rows with no new lint finding, is unchanged.
 
 ## Review Triage Log
 

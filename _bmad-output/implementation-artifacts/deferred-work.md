@@ -636,3 +636,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
+
+### DW-180: Spine lint reports ok:false from four pre-existing LOW placeholder findings that are template text in the spine's examples ({time} :393, {day} :831, {what happened}/{reason} :844)
+- source: spec-13-1-the-example-production-makes-its-own-decision-through-the-br.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: lint_spine.py on the base tree (fb66ec9) and after Story 13.1 gives the same four findings; Story 13.1's two AD-33 rows add none
+- 2026-10-24T22:03:43Z status=wontfix-accepted owner=13-1-the-example-production-makes-its-own-decision-through-the-br by=harvest note=reopen_if=lint_spine.py reports a placeholder, ad_id or ad_fields finding other than these four tokens, or a gate starts requiring ok:true; fixing them means editing AD text (amendment), out of Epic 13's footprint
