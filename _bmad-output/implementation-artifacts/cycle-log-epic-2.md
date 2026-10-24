@@ -369,3 +369,14 @@
 2026-10-24T18:25:17Z	Story 2.16	ledger_routed_planned	story=2-16-prove-the-floor-in-chromium-firefox-and-webkit entries=1(DW-178) excess=0 by=harvest
 2026-10-24T18:25:17Z	Story 2.14	hold_saved	story=2-14-work-the-whole-page-by-keyboard-with-labels-and-words stage=implement patch=none tree=clean note=implement_finalize_commit_7f1aaff_holds_all_code;nothing_uncommitted_by_design(QA_and_review_not_yet_run);not_pushed(unsmoked_code_never_goes_to_origin) next=adr_verifications(none_required)_then_qa
 2026-10-24T18:25:17Z	Epic 2	hold_complete	shas=pushed_head_b09b1d0(bookkeeping_only,on_top_of_2.12_f0c2880_CI_green);local_only=7f1aaff(Story_2.14_build,unreviewed,unsmoked),+this_bookkeeping_commit runtimes=none_up(every_e2s214i_tag_torn_down) locks=none_held
+2026-10-24T19:55:09Z	Epic 2	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=9e90866967ca1df8611dd39038aa64433017fe58 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 hold_at=none resume=after_owner_hold_3(quota,account_switch) note=policy_hash_changed_by_Contest_Planner_owner-delegate_commit_62f33d2(lane-order_item_only)_during_the_hold;orchestrator_logged_unattended_resumed_with_it_at_2026-10-24T19:46Z;hashes_verified_on_main_checkout
+2026-10-24T19:55:09Z	Epic 2	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-10-24T19:55:09Z	Epic 2	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-10-24T19:55:09Z	Epic 2	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-10-24T19:55:09Z	Epic 2	telemetry_gate	pending=0 action=none
+2026-10-24T19:55:09Z	Epic 2	bootstrap_check	result=ok
+2026-10-24T19:55:09Z	Epic 2	ci_resolved	story=none sha=b09b1d0 runs=40120575365,40120575336 result=success failed=none via=none resolved_at=resume note=pushed_head(bookkeeping_only);local_only=7f1aaff(2.14_build),43dda52(bookkeeping)
+2026-10-24T19:55:09Z	Epic 2	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-10-24T19:55:09Z	Epic 2	runtime_lock_policy	lock=runtime stages=none note=runner_brief;throwaway-iris_per_lane(lane-b,port_52802)_taken_by_lib-live.sh;locks_folder_lane-b_empty_at_resume
+2026-10-24T19:55:09Z	Epic 2	slot_reload	slot=ocutalon-slot-b ns=OCUTALON build=154U loaded=221(src/ocutalon/cls)+33(src/bridge/cls) compiled=CompilePackage(OcuTalon,ck-d) errors=0 reason=brief_slot-reload_rule(re-dispatch)
+2026-10-24T19:55:09Z	Story 2.14	hold_restored	story=2-14-work-the-whole-page-by-keyboard-with-labels-and-words note=hold_saved_patch=none_tree=clean;nothing_to_apply;next=adr_verifications_then_qa ledger=total=104,open=1,routed=26,escalated=3,decision_pending=2,terminal=72
