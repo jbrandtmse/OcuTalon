@@ -657,3 +657,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: _bmad/custom/skill-rules.md Rule 21 still says 9 in lane-a, 24 in lane-b; spec Design Notes: Record the class timings in Rule 21's section
 - 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a stage sizes a lane-b batch from Rule 21's count and overruns its cap; lead may append timings (decide)
+- 2026-10-24T17:21:52Z status=resolved-by:8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=adjudication note=Rule 21 gained the measured bullet for Story 8.1's CI run 40114473053 (lane-a 41 classes 537 s, lane-b 26 classes 360 s, Heartbeat 154 s); decide tier, appended measured facts

@@ -31,3 +31,9 @@
 2026-10-24T17:04:32Z	Story 8.1	fresh_check	env=recipe(ci/iris.sh_fresh_throwaways_e8s1fc) tests=lane-b:26_classes,lane-a:41_classes result=pass order=forward,reverse note=Test.Schedule.Heartbeat_143.7s;ci/checks.sh_pass model=claude-opus-5-5
 2026-10-24T17:05:07Z	Story 8.1	committed	sha=93858ff submodules= ci=pending runs=40114473053,40114473115 amendments=none spine=conv(Status_marks) footprint_extensions=Test/Core/ProductionItems.cls(HeartbeatIn_row_only;orchestrator_ruling) build_sha=3c9923b
 2026-10-24T17:05:07Z	Story 8.1	story_cycle	plan_to_commit_min=257 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-10-24T17:23:26Z	Story 8.1	ci_resolved	story=8.1 sha=93858ff runs=40114473053,40114473115 failed=none via=none result=success resolved_at=story_boundary wall_clock=15m34s longest_job=iris(shards)_15m31s
+2026-10-24T17:23:26Z	Story 8.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=post-commit_closures:DW-172_resolved-by_8-1(Rule_21_measured_bullet;footprint_extension__bmad/custom/skill-rules.md);DW-169_resolved-by_8-1(spine_row) model=claude-opus-5-5
+2026-10-24T17:23:26Z	Story 8.2	story_waiting	story=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat on=2 reason=Epic_2_heartbeat-stalled_banner_and_background_check_rows(epics.md_8.2) code=none
+2026-10-24T17:23:26Z	Story 8.3	story_waiting	story=8-3-a-reminder-fires-on-time-on-every-channel on=2,4 reason=Epic_2_Reminders_rows_and_Notify;Epic_4_simulated_phone(Story_4.5) code=none
+2026-10-24T17:23:26Z	Story 8.4	story_waiting	story=8-4-set-list-and-cancel-reminders-in-plain-words on=4 reason=guide_step_2_and_shared_B_scenario_Remind_me_in_1_minute(Story_4.4) code=none owned_ledger=DW-135,DW-140,DW-141,DW-142
+2026-10-24T17:23:26Z	Story 8.5	story_waiting	story=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so on=2,4 reason=follows_8.3_and_8.4_inside_the_epic code=none
