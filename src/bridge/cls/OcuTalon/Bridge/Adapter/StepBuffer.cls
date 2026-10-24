@@ -149,20 +149,36 @@ ClassMethod Tokens(chars As %Integer) As %Integer
 }
 
 /// The readable label of a tool (AD-9; Consistency Conventions: Agent step labels): the class parameter STEPLABEL<NAME> of its class,
-/// where NAME is the tool's name in upper case with _ and - removed; else the parameter STEPLABEL; else GENERICLABEL. A class that
-/// cannot be read gives GENERICLABEL. It never holds an argument or model text, because it comes from a class parameter only.
+/// where NAME is the tool's name in upper case with _ and - removed, when it is not empty; else the parameter STEPLABEL; else
+/// GENERICLABEL. A class that cannot be read gives GENERICLABEL. It never holds an argument or model text, because it comes from a class
+/// parameter only.
 ClassMethod LabelFor(toolClass As %String, name As %String) As %String
 {
-	Set label = ""
+	Set label = ..ToolParameter(toolClass, name, "STEPLABEL")
+	If label = "" Set label = ..ToolParameter(toolClass, "", "STEPLABEL")
+	Quit $Select(label '= "": label, 1: ..#GENERICLABEL)
+}
+
+/// The value of a tool's class parameter by the one naming rule of the tool parameters (Consistency Conventions: Agent step labels, Tool
+/// classification, Tool resources): the parameter base_<NAME> of the class, where NAME is the tool's name in upper case with _ and - removed,
+/// when the compiled class defines it, even when its value is empty; else the parameter base when the class defines it; else "". A class that
+/// does not exist or cannot be read gives "". It reads the class dictionary only, so the bridge, the installer and the gate share one reader.
+ClassMethod ToolParameter(toolClass As %String, name As %String, base As %String) As %String
+{
+	Set value = ""
 	Try {
-		If toolClass '= "" {
-			Set label = $Parameter(toolClass, "STEPLABEL" _ $ZConvert($Translate(name, "_-"), "U"))
-			If label = "" Set label = $Parameter(toolClass, "STEPLABEL")
+		If (toolClass '= "") && (base '= "") {
+			Set own = base _ $ZConvert($Translate(name, "_-"), "U")
+			If ##class(%Dictionary.CompiledParameter).%ExistsId(toolClass _ "||" _ own) {
+				Set value = $Parameter(toolClass, own)
+			} ElseIf ##class(%Dictionary.CompiledParameter).%ExistsId(toolClass _ "||" _ base) {
+				Set value = $Parameter(toolClass, base)
+			}
 		}
 	} Catch {
-		Set label = ""
+		Set value = ""
 	}
-	Quit $Select(label '= "": label, 1: ..#GENERICLABEL)
+	Quit value
 }
 
 /// The text with its line breaks and other control characters (the C0 and DEL controls, NEL, and the line and paragraph separators) as

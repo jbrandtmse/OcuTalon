@@ -2,9 +2,10 @@
 title: 'Story 3.1: Roles and the service user grant only what the architecture lists'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f14712cab091e4f6409d1087e89ec2fd75916017'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-2, AD-10, AD-11, AD-19, AD-23, AD-24, AD-26 and AD-29, and the Agent step labels, Tool classification and Tests rows of Consistency Conventions)'
 warnings: ['oversized']
@@ -88,7 +89,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 -- on the stage's own warm throwaway (an `iris session` in its container, with a fixture user created and deleted there; never on the slot), measure two things and record each result under Design Notes:
+- [x] Task 0 -- on the stage's own warm throwaway (an `iris session` in its container, with a fixture user created and deleted there; never on the slot), measure two things and record each result under Design Notes:
   - whether `##class(Security.Users).CheckPassword(.userObject, password)` returns 1 for the current password and 0 for a wrong one, without changing the user's `InvalidLogins` count;
   - whether `Security.Roles.Create` and `Modify` refuse a resource that does not exist.
 
@@ -96,21 +97,21 @@ deferred: []
   - (a) `CheckPassword`;
   - (b) `$SYSTEM.Security.ChangePassword(user, published, published, .sc)` returning 1;
   - (c) `PasswordChangedDateTime` advancing (labelled weaker).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls`:
   - Add `ClassMethod ToolParameter(toolClass, name, base) As %String`. It returns the tool's own parameter `base_<NAME>` when the compiled class defines it, even if the value is empty; else `base` when defined; else "". "Defined" is tested with `%Dictionary.CompiledParameter`.
   - `LabelFor` calls it. Its result is unchanged for every class today. It references only `%Dictionary`.
   - Why: one suffix-rule reader that the installer and Story 3.2's gate share (Rule 2).
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls`:
   - Add `Parameter FORBIDDEN = "%All,%Development,%Ens_MessageEditResend,%Ens_MessageDiscard,%Ens_ProductionRun,%Ens_ProductionConfig,%Ens_WorkflowConfig"`. In `Add`, refuse a listed resource, matched case-insensitively, with an error naming the area, role and resource.
   - In `Apply`, every role is created or modified with `GrantedRoles` "".
   - Why: AD-24's list becomes a fail-closed refusal at install, not only a test.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Tools.cls` (new; it declares and does not run):
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Tools.cls` (new; it declares and does not run):
   - `Toolsets()`: the compiled, non-abstract `OcuTalon.Tools.*` classes that extend `%AI.ToolSet`, sorted.
   - `Parse(value, where) As %DynamicArray`: `resource:permission[,resource:permission...]`, where the permission is one or more of R, W and U. An empty value gives `[]`. A malformed pair throws a status naming `where`.
   - `GrantsOf(toolsets As %List) As %DynamicArray`: for each toolset, `%New().%Discover().tools`. For each `{provider, name}`, `Parse(StepBuffer.ToolParameter(provider, name, "RESOURCES"), provider_" "_name)`, giving one `{"role", "resource", "permission"}` per pair, with duplicates removed, plus the entry that declares the role alone. The role is `##class(OcuTalon.Install.Step.Users).#SERVICEROLE`.
   - `Grants()` is `GrantsOf(..Toolsets())`.
   - Why: AC 1. The service user's grants come from each tool's `RESOURCES`.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Users.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Users.cls`:
   - Add the parameters `SERVICEUSER="OcuTalonService"`, `SERVICEROLE="OcuTalonServiceRole"`, `DEMOROLES="OcuTalonUser,OcuTalonTraceViewer"`, `READONLYROLES="OcuTalonTraceViewer"` and `TRACEPAGESIZE=100`.
   - `Run()` becomes `Quit ..Accounts(..#USER)`.
   - `Accounts(readmeUser)`, in this order, so that a refusal changes nothing:
@@ -120,18 +121,18 @@ deferred: []
     4. Flag off: `Ensure(readmeUser, PASSWORD, ROLES)`.
     5. Flag on: `EnsurePublic(name, password, roles)` creates or modifies each account with the password, exact roles, `FullName` set to the marker `OcuTalon online-demo account`, `Enabled` 1, `ChangePassword` 0, `PasswordNeverExpires` 1 and `AccountNeverExpires` 1. `PinTrace(name)` sets `^|ns|EnsPortal.Settings(name,"VisualTrace","ItemsPerPage")=..#TRACEPAGESIZE` for `OCUTALON`, and for `OCUORDERS` when `%SYS.Namespace.Exists` is true. If the README account exists, set its `Enabled` to 0 (roles and password unchanged) and `Warn` names it.
   - Why: AC 1 and AC 4.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/ZzGrantTools.cls` (extends `OcuTalon.Tools.Result`; methods `Alpha`, `Beta` and `Gamma` return `..Return({})`; parameters as in matrix row 3, with `STEPLABEL` set) and `src/ocutalon/cls/OcuTalon/Test/Install/ZzGrantToolset.cls` (an `%AI.ToolSet` whose XData names `alpha`, `beta` and `gamma`) -- new committed fixtures. They refer to `%AI` only on the Class line (CodeRules).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Tools.cls` (new) -- tests:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/ZzGrantTools.cls` (extends `OcuTalon.Tools.Result`; methods `Alpha`, `Beta` and `Gamma` return `..Return({})`; parameters as in matrix row 3, with `STEPLABEL` set) and `src/ocutalon/cls/OcuTalon/Test/Install/ZzGrantToolset.cls` (an `%AI.ToolSet` whose XData names `alpha`, `beta` and `gamma`) -- new committed fixtures. They refer to `%AI` only on the Class line (CodeRules).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Tools.cls` (new) -- tests:
   - `Parse`: valid input, several pairs, empty, and each malformed form;
   - `GrantsOf` of the fixture toolset: the per-tool value wins, the class value is the fallback, and a defined empty value gives nothing;
   - `ToolParameter`, and `LabelFor` unchanged for `ReminderTools`;
   - the real `Grants()`: no throw; every entry names `OcuTalonServiceRole`; the role-alone entry is there; `Toolsets()` holds `OcuTalon.Tools.Reminders` and `.Watch` and no `OcuTalon.Test.*` class.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`:
   - Fixture changes: switch both fixtures to `%Ens_Portal:U`. `OnBeforeAllTests` saves the trace role's resources and creates the resource `ZzOcuTalonGrantProbe` (public permission 0); `OnAfterAllTests` re-runs `Roles.Run()`, restores the saved trace-role resources and deletes the probe resource. `TestRolesStep` expects `%DB_USER:RW,%Ens_Portal:U`.
   - New tests for matrix rows 3, 5, 6 and 7.
   - `TestTraceRoleSql`: the trace role's rows in `Security.SQLPrivileges` are exactly SELECT (`s`) on `1,Ens.MessageHeader` in OCUTALON (after `Web.GrantTraceSql()`), and in OCUORDERS once a missing one is fixture-granted there. The test removes only what it added.
   - `TestEveryRole`: every `OcuTalon*` role holds no `FORBIDDEN` resource and no granted roles, and the trace role holds no `%DB_OCUTALON_PRIVATE` or `%DB_OCUTALON_PUBLIC`. The README account, the service user and the fixture public accounts appear in neither `EnsLib_Workflow.UserDefinition` nor `EnsLib_Workflow.RoleMembership`, in OCUTALON or OCUORDERS. No account's roles hold `%Ens_WorkflowConfig`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` -- extend it with tests for matrix rows 1, 2 and 8 to 10:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` -- extend it with tests for matrix rows 1, 2 and 8 to 10:
   - The fixture README name is `ZzUsers<n>Readme`, the public names are `ZzUsers<n>Demo` and `ZzUsers<n>Ro`, and the passwords are like `Zz-demo-pw-1`.
   - The five public keys are saved before each test and restored after it.
   - `Clean` also kills the `^EnsPortal.Settings("ZzUsers*")` nodes in OCUTALON and OCUORDERS.
@@ -151,6 +152,41 @@ deferred: []
 - 2026-10-24, lead spec gate (unattended ruling, veto window: security posture): with the flag on, an existing README account is disabled (roles and password unchanged) and the step warns, instead of being left as it is (matrix row 9, Boundaries, Users task, Users test row 9, mutation table). The first-start OCUORDERS page-size pin is routed to Story 3.8's `Public` step (DW-160, routed by spec_gate). The `RESOURCES` grammar and the service role's name are recorded as the spine's Consistency Conventions row "Tool resources" (Rule 20).
 
 ## Review Triage Log
+
+### 2026-10-24 -- Review pass
+- verdicts: 31 findings -- high 0, medium 4, low 19, false 7, maybe-false 1 (a finding that two or more layers reported is one row; layers: B = blind-hunter, E = edge-case-hunter, V = verification-gap, I = intent-alignment)
+- findings:
+  - `[low]` `[patch]` (B, E, V, I) `LabelFor` sent a defined-but-empty `STEPLABEL<NAME>` to the generic label, where it used to fall back to the class's `STEPLABEL`, and no test pinned either -- `LabelFor` keeps the class fallback (`ToolParameter` keeps "defined wins" for the other bases); `ZzGrantTools` gains an empty `STEPLABELGAMMA`; `TestLabelForIsUnchanged` pins it; mutation recorded.
+  - `[low]` `[reject]` (B, V) `ToolParameter` answers "" for any read failure, so an unreadable class "declares nothing" -- the class comes from the toolset's own discovery, so it has compiled; the spine row says an undeclared parameter declares nothing; wontfix-theoretical, and Story 3.2 owns the gate's handling of an unreadable class.
+  - `[low]` `[reject]` (B) the README account is disabled last, so a failure earlier in `Accounts` leaves it enabled -- a failed step fails the start (the instance is not ready), the online demo's fresh volume holds no README account (AD-25), and the order is the spec's step 5 (by-design).
+  - `[low]` `[reject]` (B, E, I) the public accounts are not retired when the flag goes back to 0 or a name changes -- outside the matrix and the Boundaries; the online demo is a fresh flag-on volume that is never flipped (AD-25). wontfix-accepted, reopen_if: a deployment turns `onlineDemo` from 1 to 0 on a kept volume. Named under residual risks for the lead (security posture).
+  - `[low]` `[patch]` (B, E, V, I) "every check runs before anything is applied" was overstated: a public name equal to a role (measured error #942) and a policy-rejected password fail at the call, after the service user is applied -- `PublicAccounts` now refuses a name that is a role (`TestPublicAccountsRefused`, case "names the role"), the class comment states the limit, and `TestApplyFailuresNameTheUserAndTheKey` pins that a refusal by the instance names the user or the key; the password-policy case stays at the call (S17's routine would apply to a pre-check as well).
+  - `[medium]` `[patch]` (B, V, I) the "password is random" assertion compared hash and salt of two users, which differ for the same password, and nothing checked the 44 characters -- `Users.NewPassword()` is the generator; `TestNewPassword` pins 44 characters and a different value per call; `TestServiceUserIsCreated` asserts the README's published password is not the service user's; mutations recorded.
+  - `[low]` `[reject]` (B) the Tools area can grant any resource outside AD-24's seven -- AD-24's Rule is the deny-list and tool declarations are committed code (Story 3.2's gate checks them); by-design.
+  - `[false]` `[reject]` (B, E, V) the tests fail where OCUORDERS does not exist -- the spec requires asserting it, every stack since Story 0.10 creates it (the lane-a and lane-b shards and the live scripts passed), and a missing one fails the precondition assertion first.
+  - `[low]` `[patch]` (B) the `PinTrace` comment promised a caller in Story 4.1 -- reworded to say the method is idempotent and can be called again.
+  - `[low]` `[patch]` (B) the `SERVICEUSER` comment said "no services", which the code neither sets nor checks -- the comment now says what the step makes structural.
+  - `[low]` `[reject]` (E) a toolset whose `%New` gives no object throws `<INVALID OREF>` naming only the Tools area -- a guard for a state not shown; the failure is loud and fails the start closed.
+  - `[low]` `[reject]` (E, V) `Toolsets()` answers "" when `GetAllDerivedClasses` fails -- `%AI.ToolSet` exists on every supported image, and the result would remove grants, not add them.
+  - `[maybe-false]` `[reject]` (E) a resource with leading or trailing white space passes the `FORBIDDEN` compare -- it would need IRIS to trim a name it refuses as nonexistent (Task 0, error #892) and a committed `Grants()` to carry it (`Parse` refuses white space); at worst low, so rejected.
+  - `[false]` `[reject]` (E) the hash is read without the wait after a `Modify` -- `Modify` leaves the hash in place; the wait serves the first read after a `Create`, as in the existing tests; the class ran green in every pass.
+  - `[low]` `[reject]` (E) the README warning fires only on the start that disables the account -- later starts have nothing to warn about; the spec says the step warns.
+  - `[medium]` `[patch]` (V, I) nothing tested the real `Users.Run()` or the `Accounts` to `EnsureService` wiring, and "the service user is made" could not tell creation from pre-existence -- the flag-off and flag-on tests now enable the real service user by hand with other roles before the second run and expect it put right; `TestRunIsTheStep` runs `Run()`; mutations recorded.
+  - `[medium]` `[patch]` (V, I) the path `Tools.Grants()` to `Toolsets()` never met a tool that declares `RESOURCES` (a mutation to `GrantsOf("")` stayed green) -- `Registry.TestToolsAreaFindsABuiltInToolset` compiles a tool and a toolset under `OcuTalon.Tools.ZzProbe<n>`, checks `Toolsets`, `Grants` and the Roles step, and deletes them; mutation recorded.
+  - `[low]` `[patch]` (V) the `OcuTalon.Tools.Result` assertion in `TestRealDeclarations` cannot fail -- removed.
+  - `[low]` `[reject]` (V) the abstract and uncompiled filters of `Toolsets()` are unpinned -- no abstract toolset exists and the failure would be loud at install; wontfix-accepted, reopen_if: a toolset under `OcuTalon.Tools` is abstract.
+  - `[medium]` `[patch]` (V) the apply-phase failures of `Accounts` (`EnsureService`, a public account's `Create` or `Modify`) had no test -- `TestApplyFailuresNameTheUserAndTheKey` (a user named like a role; a two-character password); mutations recorded. The `PinTrace` catch needs a database that rejects writes and stays untested (wontfix-theoretical).
+  - `[low]` `[patch]` (V) the control of `TestNoEnvironment` exercised another predicate than the assertion -- replaced by a control that the source was read; mutation re-demonstrated.
+  - `[low]` `[patch]` (V) `UserResources` in `TestEveryRole` had no non-empty control -- a control on the demo account's resources added.
+  - `[low]` `[reject]` (V) the `""` granted-roles argument of `Create` in `Roles.Apply` has no observable effect (a new role has none) -- the `Modify` path is pinned by row 6.
+  - `[low]` `[patch]` (V) pinning tests without a `mutation:` line (row 4, the SQL half of AC 2, row 5's case folding, row 2's unchanged password, row 9's drift and warning, row 10's branches, `ToolParameter`) -- Rule 19 closes it in the pass: each mutation applied, red, reverted, green again; lines written under Verification.
+  - `[low]` `[reject]` (V) AC 3's granted-role and Workflow clauses have no mutation of their own -- one demonstrated mutation per AC is the bar and `TestEveryRole` has its line.
+  - `[low]` `[reject]` (V) the Users tests need the product start's roles, `TestTraceRoleGrants` reads the trace role before the Roles step, `_SYSTEM` stands for the foreign account, and an exception (not an assertion failure) between create and delete leaves a throwing area for the later tests -- the start's roles are the suite's standing precondition, `_SYSTEM` is the spec's example, and `OnAfterAllTests` cleans by class prefix.
+  - `[false]` `[reject]` (I) no production writer exists for the four account keys, and no shipped tool declares `RESOURCES` -- Story 3.8 writes the keys and Stories 7.x declare tools; a flag-on start fails closed at the empty key (row 10) until then.
+  - `[false]` `[reject]` (I) `tool.provider` and `tool.name` of an XML toolset and `CheckUserPermission` for a disabled user could not be read from the exports -- settled at runtime: `TestGrantsOf` and row 3 pass on the build 154 stack.
+  - `[false]` `[reject]` (I) the refusal of the README account's name as a public name goes beyond row 10 -- recorded under Decided in-stage; it keeps a flag-on start from making an account and disabling it.
+  - `[false]` `[reject]` (I) on a first flag-on start the OCUORDERS pin cannot be written by the Users step (Demo runs after Users) -- spec-bound (DW-160, Story 3.8).
+  - `[false]` `[reject]` (I) `Registry.OnAfterAllTests` leaves the real roles at their declared composition, not at their earlier state -- the Boundaries list the trace role's resources, the keys and the fixtures; the Roles step rebuilds the rest.
 
 ## Design Notes
 
@@ -195,6 +231,32 @@ No AC contradicts an AD's Rule.
 - **The README account stays seed and only for a local install.** On a flag-on instance it is never created, and an existing one is disabled and the step warns (lead ruling at the spec gate, veto window: security posture; the planner's "left as it is" was replaced, because the README publishes its password). The online demo is a fresh flag-on volume (AD-25), so none exists there.
 - **The OCUORDERS pin.** It is written where OCUORDERS exists. AD-23 runs Demo after Users, so on a fresh volume's first start the Users step cannot pin OCUORDERS yet; the lead routed the first-start pin to Story 3.8's `Public` step, whose last phase runs after `Production` and `Reconcile` and before `SetReady` (DW-160, routed by spec_gate), so both namespaces are pinned before the instance reports ready. On the online demo every visitor-facing start comes from a golden copy that already holds OCUORDERS, and `TraceLink` reads the stored value (default 40), so no link points at the wrong page (AD-26's Prevents holds). Story 4.1 may call `Users.PinTrace(name)` after it creates OCUORDERS.
 - **Copy, by design.** `Tools.Toolsets()` does not reuse `CodeRules.ToolClasses`, because a rule test must scan independently of the product code it checks. The tests extend the existing `Test.Install.Users` and `Registry` classes, and `Test.Install.Tools` repeats no role helper, so DW-8's `reopen_if` stays unmet.
+
+**Task 0, measured at implement** (warm throwaway `e3s1iw`, build 154, in an `iris session` in its container, with a fixture user and role created and deleted there; nothing on the slot):
+- **`CheckPassword`.** `Security.Users.CheckPassword(.object, password)`, with the handle from `Exists`, returned 1 for the current password and 0 for a wrong one (twice), and `InvalidLoginAttempts` stayed 0. So check (a) is the restored-password check. The Users test uses it on the public accounts.
+- **`ChangePassword`.** `$SYSTEM.Security.ChangePassword(user, published, published, .sc)` returned 1 for the right password and 0 (error #952) for a wrong one. It would also have served as check (b), and (c) is not needed: `Security.Users.Get` returned no `PasswordChangedDateTime` property to compare.
+- **Missing resource.** `Security.Roles.Create` and `Modify` both refuse a resource that does not exist, with error #892 "Resource ... does not exist", and a refused `Modify` leaves the role's resources as they were. A tool that declares an unknown resource therefore fails the Roles step with IRIS's own message, and the step needs no existence check of its own.
+
+**Decided in-stage at implement** (small, reversible, inside AD-24's Rule):
+- **`EnsureService(user, role)`** takes its two names as optional arguments that default to `SERVICEUSER` and `SERVICEROLE`, and `Accounts` calls it with the defaults. The tests for rows 1 and 2 pass fixture names, so no test deletes or recreates the real service user, whose seed password could not be restored.
+- **The README account's name is refused as a public name** (row 10's family). Otherwise a flag-on start with `demoUser=ocutalon` would make the account and then disable it as the README account.
+- **Name comparisons are case-insensitive** for the two public names, the service user and the README account, as IRIS user names are.
+- **A password the instance refuses** fails at `Create` or `Modify` with a status that names the public key, and not in the validation phase: the step does not call `ValidatePassword` ahead (S17's password-validation routine would apply there too). The service user has been applied by then and no public account has.
+- **`Parse` is strict:** upper-case R, W and U only, no white space in a resource name, and an empty pair (`a:R,`) is malformed.
+- **The README warning** is written when the step disables the account, and not again on a later start where it is already disabled.
+- **`GrantsOf`** lists the role-alone entry first, then each tool's pairs in discovery order, each (resource, permission) pair once.
+- **The forbidden check** sits after the role-name check and the comma-and-colon check, before the permission check.
+- **Tests read AD-24's list as a literal,** not from `Roles.FORBIDDEN` or `Users.DEMOROLES`, so that emptying or changing the parameter turns them red.
+- **Two tests beyond the spec's list:** `Registry.TestMalformedResourcesFailTheStep` (row 4's step failure, with a tool, toolset and area compiled at test time and deleted again) and `Users.TestNoReadmeAccountWithFlagOn` (the pin for row 8's "never created with the flag on").
+
+**Decided in-stage at review** (patches; the reasons are in the Review Triage Log):
+- **Compile order.** `Test.Install.Registry` reads three parameters from `Install.Step.Users` and `Install.Step.Web` when it compiles. The first fresh start compiled it before them (`<CLASS DOES NOT EXIST>`, `STEP package FAILED`), which no warm stack shows, because the steps are already compiled there. The class now declares `DependsOn = (OcuTalon.Install.Step.Users, OcuTalon.Install.Step.Web)`.
+- **`LabelFor`** keeps its class fallback for an empty per-tool label, so its results are unchanged for every class, an empty one included. `ToolParameter` keeps "a defined parameter wins even when empty" for every other base (`RESOURCES`).
+- **`Users.NewPassword()`** is public: the generator of the service user's password, so a test can pin its length and its variation.
+- **A public name that is a role** is refused in `PublicAccounts` (a role and a user cannot share a name, measured error #942), before anything is applied.
+- **The Registry test's `GrantSelect`** makes the SELECT in OCUORDERS with the system call that `Web.GrantTraceSql` makes, because the Web step's class is not mapped there; OCUTALON keeps the Web step's own call.
+- **Tests added at review:** `Users.TestNewPassword`, `TestApplyFailuresNameTheUserAndTheKey` and `TestRunIsTheStep`; `Registry.TestToolsAreaFindsABuiltInToolset` (a fixture tool and toolset under `OcuTalon.Tools.ZzProbe<n>`, removed again and by `Clean`); extra cases in `TestLabelForIsUnchanged`, `TestPublicAccountsRefused`, `TestReadmeAccountWithFlagOff`, `TestPublicAccountsWithFlagOn` and `TestEveryRole`.
+- **`TestEveryRole`'s mutation** is applied to `Tools.Grants()`, not `Web.Grants()`, because `Install/Step/Web.cls` is a contended path that this story does not edit; the shape is the same (a declared forbidden grant with `FORBIDDEN` emptied).
 
 **For the lead (Rule 20; the plan does not write the spine):**
 - Consider a Consistency Conventions row for the `RESOURCES` grammar (Stories 3.2, 7.1 and 14.1 rely on it).
@@ -262,6 +324,42 @@ No AC contradicts an AD's Rule.
 | `TestEveryRole` | `Web.Grants()` temporarily gains `%Ens_MessageDiscard:U` with `FORBIDDEN` emptied |
 | `TestNoEnvironment` | a `GetEnviron` call added |
 
+**Mutations recorded at implement** (Rule 19; each applied on the warm stack `e3s1iw`, observed red, reverted so that `git status --short`, the `git diff` hash and the new files' hashes were unchanged, and the class run green again on the same stack):
+
+mutation: `Tools.GrantsOf` returns only the role-alone entry -> Registry `TestToolResourcesReachTheServiceUser` (row 3; `TestMalformedResourcesFailTheStep` also)
+mutation: `Roles.FORBIDDEN` emptied -> Registry `TestForbiddenGrantRefused` (row 5)
+mutation: the `GrantedRoles` reset removed from `Roles.Apply` -> Registry `TestHandAddedPrivilegeIsRemoved` (row 6)
+mutation: `Roles.Apply` merges the role's existing resources into the composed set -> Registry `TestTraceRoleGrants` (row 7; `TestRolesStep`, `TestHandAddedPrivilegeIsRemoved`, `TestForbiddenGrantRefused` and `TestToolResourcesReachTheServiceUser` also)
+mutation: `Users.EnsureService` creates and modifies the service user with `Enabled` 1 -> Users `TestServiceUserIsCreated` and `TestServiceUserDriftIsRepaired` (rows 1 and 2; `TestReadmeAccountWithFlagOff` also)
+mutation: `Users.DEMOROLES` gains `OcuTalonAdmin` -> Users `TestPublicAccountsWithFlagOn` (row 9; `TestDeclarations` also)
+mutation: `Users.TRACENAMESPACES` reduced to OCUTALON, so the pin is skipped for OCUORDERS -> Users `TestPublicAccountsWithFlagOn` (row 9)
+mutation: `Users.DisableReadme` leaves an enabled README account enabled -> Users `TestPublicAccountsWithFlagOn` (row 9)
+mutation: `Users.Accounts` makes the README account on the flag-on path too -> Users `TestNoReadmeAccountWithFlagOn` (row 8)
+mutation: the duplicate-name check removed from `Users.PublicAccounts` -> Users `TestPublicAccountsRefused` (row 10)
+mutation: `Roles.FORBIDDEN` emptied and `Tools.Grants()` gains `%Ens_MessageDiscard:U` for the service role (`Web.Grants()` is a contended path, so it is not the one mutated) -> Registry `TestEveryRole` (`TestForbiddenGrantRefused` also)
+mutation: a `GetEnviron` call added to `Users.Accounts` -> Users `TestNoEnvironment`
+
+**Mutations recorded at review** (Rule 19; each applied on the warm stack `e3s1iw`, observed red, reverted so that the file's hash was unchanged, and the class run green again on the same stack; the two lines of `TestNoEnvironment` and `TestEveryRole` above were demonstrated again after their tests changed):
+
+mutation: `StepBuffer.LabelFor` drops the class fallback for an empty per-tool label -> Tools `TestLabelForIsUnchanged` (the empty `STEPLABELGAMMA` case)
+mutation: `StepBuffer.ToolParameter` lets a non-empty value win instead of a defined one -> Tools `TestToolParameter` (gamma's empty value)
+mutation: `Tools.Parse` drops the check of the number of colons in a pair -> Tools `TestParseMalformed` (`ZzRes:R:W`; row 4)
+mutation: `Tools.GrantsOf` swallows a malformed value -> Registry `TestMalformedResourcesFailTheStep` (row 4)
+mutation: `Tools.Grants()` ignores the toolsets -> Registry `TestToolsAreaFindsABuiltInToolset` (row 3, as the installer finds the area)
+mutation: `Roles.Apply` deletes and creates an existing role again before it modifies it -> Registry `TestTraceRoleSql` (AC 2, the SQL half)
+mutation: `Roles.Add` compares the resource without folding its case -> Registry `TestForbiddenGrantRefused` (row 5)
+mutation: `Users.EnsureService` sets a new password in its `Modify` branch -> Users `TestServiceUserDriftIsRepaired`, `TestReadmeAccountWithFlagOff`, `TestPublicAccountsWithFlagOn` and `TestRunIsTheStep` (row 2, the password stays)
+mutation: `Users.EnsureService` creates the service user with `Enabled` 1 -> Users `TestServiceUserIsCreated` (row 1)
+mutation: `Users.NewPassword` returns a constant -> Users `TestNewPassword` (row 1, random password)
+mutation: `Users.EnsureService` creates the service user with the README's published password -> Users `TestServiceUserIsCreated` (row 1, random password)
+mutation: `Users.Run` is the README account's `Ensure` again -> Users `TestRunIsTheStep` (AC 1)
+mutation: `Users.Accounts` skips `EnsureService` -> Users `TestReadmeAccountWithFlagOff` and `TestPublicAccountsWithFlagOn` (AC 1)
+mutation: `Users.Accounts` returns a public account's status without the key and account -> Users `TestApplyFailuresNameTheUserAndTheKey` (row 9)
+mutation: `Users.EnsureService` returns the status of `Create` without the user and role -> Users `TestApplyFailuresNameTheUserAndTheKey` (row 1)
+mutation: `Users.EnsurePublic` leaves the password out of its `Modify` branch -> Users `TestPublicAccountsWithFlagOn` (row 9, a changed password is restored)
+mutation: `Users.DisableReadme` does not warn -> Users `TestPublicAccountsWithFlagOn` (row 9, the warning)
+mutation: `Users.PublicAccounts` drops the check of a name that is a role, of the service user, of the README account or of a foreign account (each alone) -> Users `TestPublicAccountsRefused` (row 10)
+
 **Shared surfaces:**
 - **The OcuTalon roles:**
   - the trace role's resources, which every test that runs `Roles.Run()` saves and restores;
@@ -278,5 +376,38 @@ No AC contradicts an AD's Rule.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The installer now makes the service user `OcuTalonService` (login disabled, exactly `OcuTalonServiceRole`, a random 44-character seed password) on every start. A new declaring area, `OcuTalon.Install.Step.Tools`, turns each built-in toolset's `RESOURCES` parameters into grants of that role, read through the shared `StepBuffer.ToolParameter`. The Roles step refuses AD-24's seven forbidden resources and clears granted roles. The Users step reads the flag and the four account keys through `Settings.Get`: with the flag off it makes the README account as before, and with it on the two public accounts (exact roles and flags, published password, marker `FullName`, page size pinned to 100 in OCUTALON and in OCUORDERS where it exists), no README account, and an existing one disabled with a warning. No tool declares `RESOURCES` yet, so on a real start the service role is created empty.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls`: `ToolParameter` (the one suffix-rule reader); `LabelFor` calls it and keeps its fallbacks.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls`: `FORBIDDEN` refusal; `GrantedRoles` cleared on create and modify.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Tools.cls` (new): `Toolsets`, `Parse`, `GrantsOf`, `Grants`.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Users.cls`: `Accounts`, `EnsureService`, `NewPassword`, `EnsurePublic`, `PinTrace`, `PublicAccounts`, `DisableReadme`; `Run` calls `Accounts`.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Tools.cls`, `ZzGrantTools.cls`, `ZzGrantToolset.cls` (new): grammar, grants of a toolset, `ToolParameter`, the real declarations.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls`: rows 3 to 7, `TestTraceRoleSql`, `TestEveryRole`, `TestToolsAreaFindsABuiltInToolset`, role save and restore, `DependsOn`.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls`: rows 1, 2 and 8 to 10, apply failures, `Run`, `NewPassword`, `TestNoEnvironment`.
+- `_bmad-output/implementation-artifacts/spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md`: Task 0 results, Design Notes, 30 `mutation:` lines, the triage log.
+
+**Review findings.** 31 findings (high 0, medium 4, low 19, false 7, maybe-false 1). Patched 12 (4 medium, 8 low); deferred 0; rejected 19, each with its reason in the Review Triage Log.
+- Patched, medium: the "random password" assertion could not fail (now `NewPassword`, `TestNewPassword` and a README-password check); the real `Users.Run()` and `Accounts` to `EnsureService` wiring was untested (`TestRunIsTheStep` and a hand-damaged service user in the flag tests); `Tools.Grants()` to `Toolsets()` never met a declaring tool (`TestToolsAreaFindsABuiltInToolset`); apply-phase failures were untested (`TestApplyFailuresNameTheUserAndTheKey`).
+- Patched, low: `LabelFor`'s class fallback for an empty per-tool label; a public name that is a role is refused; two comments; the `Result` assertion that could not fail; the `TestNoEnvironment` control; a non-empty control in `TestEveryRole`; the missing `mutation:` lines (Rule 19).
+- Rejected: `ToolParameter` and `Toolsets()` swallowing read failures (theoretical); README disabled last (spec order, a failed step fails the start); the public accounts not retired when the flag goes off (wontfix-accepted, below); a deny-list only (AD-24's Rule); OCUORDERS assumed by the tests (the spec requires the assertion); the abstract-toolset filter unpinned (reopen_if: an abstract toolset under `OcuTalon.Tools`); the intent auditor's descriptive items (Story 3.8 writes the keys, DW-160 owns the first-start pin).
+
+**Follow-up review recommended: true.** First pass, four medium entries patched. The unverified risk: the patches added code after the review layers read it (`NewPassword`, the role-name refusal, three Users tests, one Registry test and its fixture XData), and no independent layer has read it or run it in reverse order (Rule 19's fresh-environment check is the lead's). Patched entries by verdict: medium 4, low 8.
+
+**Verification performed.**
+- `bash ci/checks.sh`: all scripts passed (after the last edit). `ci/iris.sh build`: exit 0.
+- Warm `class` runs after the last code change: Install.Tools, Install.Users, Install.Registry, Bridge.Steps, Bridge.CodeRules and Tools.Reminders all passed.
+- Once, after the last patch: `shard lane-a` (42 classes) and `shard lane-b` (24 classes) passed; `live install-start` (94 PASS), `live install-upgrade` (34 PASS) and `live sign-in` passed; `ci/iris.sh teardown` left nothing tagged `e3s1`. `ci/warm.sh down` ran after each warm stack.
+- 30 mutations applied, each red, reverted byte-identically and green again on the same stack. Slot A took compile-only loads of the changed product classes; no test or security change ran there.
+- Matrix Test Audit: rows 1 to 10 each have a covering test that ran and passed (row 4: `TestParseMalformed` and `TestMalformedResourcesFailTheStep`).
+
+**Residual risks and observations.**
+- The online-demo flag turned from 1 to 0 on a kept volume leaves the two public accounts enabled with their published passwords, and a README account disabled by the flag-on path stays disabled (seed). The online demo never flips the flag (AD-25). wontfix-accepted, reopen_if: a deployment turns `onlineDemo` from 1 to 0 on a kept volume. This is a security-posture item for the lead's veto window.
+- A refusal by the instance itself (a policy-rejected password) fails at the call, after the service user and possibly the first public account are applied; the status names the key and the account, and the next start rewrites both.
+- The first-start OCUORDERS page-size pin is Story 3.8's (DW-160). Until Story 3.8 writes the four account keys, a flag-on start fails closed at the empty key (row 10).
+- Tooling observation (outside this story's footprint, `ci/`): while `Test.Install.Registry` failed to compile on the first start, `ci/warm.sh up` still printed `READY warm 543s`, although the stack's after-start log said `RESULT FAILED` and `not ready`; only the first `class` run showed the failure. A fresh `shard` or the live scripts would have shown it too.
+- Compile order found at review: see Decided in-stage at review (`DependsOn` on `Test.Install.Registry`).
