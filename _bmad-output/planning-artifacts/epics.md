@@ -1823,27 +1823,8 @@ So that the page works for me as well as for anyone.
 **When** the page applies it, whether it came from me or from another channel
 **Then** focus moves to its replacement, to the section heading when a row leaves its list, or otherwise to the nearest container; live content never moves focus in any other case (NFR-25, UX-DR126, UX-DR131)
 
-**Given** I use only the keyboard
-**When** I work through the page
-**Then** every function works: the first tab stops are "Skip to chat" and "Skip to status"; Enter sends and Shift+Enter adds a line; Esc closes the topmost popover or dialog and collapses a disclosure only when focus is inside it; there are no single-character shortcuts; and the focus ring is always visible and never clipped, because every scrolling region keeps `scroll-gutter` (NFR-25, UX-DR11, UX-DR33, UX-DR125)
-**And** every control has a visible or programmatic label, icon buttons name their action and object, state is text with icons hidden from assistive technology, and a control that can't act stays focusable with `aria-disabled`, its visible reason linked by `aria-describedby` (NFR-25, UX-DR130, UX-DR133)
+**[AMENDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): the keyboard-and-labels and colour-zoom-motion criteria moved word for word to Story 2.14, the layout criterion to Story 2.15, and the cross-browser, scan and string-test criterion with DW-89 and DW-145 to Story 2.16; this story keeps the announcement and focus criteria and DW-153.]**
 
-**Given** any state on the page
-**When** it is shown
-**Then** it never relies on colour alone (every state has a word and every link is underlined), text resizes to 200% without loss because heights are minimums, errors are text beside their cause linked to their field, and under `prefers-reduced-motion` nothing rotates, pulses, shimmers or scrolls smoothly (NFR-25, UX-DR14, UX-DR134, UX-DR135)
-**And** none of the banned patterns appears: modal notification interruptions, toasts as the only copy, sounds, tabs that switch by themselves, hover-only controls, drag-and-drop as the only way, model-progress bars, celebration effects, or infinite scroll in counted lists (UX-DR129)
-
-**Given** the browser window's size
-**When** the page lays out
-**Then** from 1440px wide the rail is `rail-width-wide`; from 1280 to 1439px it is `rail-width` and every UJ-1 control is reachable without scrolling the page, because each region scrolls on its own; from 1024 to 1279px the rail becomes a drawer opened from a "Status" header button that shows the approval request count; below 1024px or at 200% zoom the page becomes one scrolling column (header, banners, the chat scrolling on its own at `min(70vh, content)`, then the status sections) with only a compact header sticky (FR-12, UX-DR20, UX-DR137)
-**And** in the stacked layout, the info inline notice "This page is designed for a wider window. Everything still works." shows once per session, and its close is remembered per browser (UX-DR35, UX-DR128, UX-DR138)
-
-**Given** the CI demo-path environment
-**When** the page tests run
-**Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
-
-- DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
-- DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
 - DW-153: Banners that appear in one update are announced so that a screen reader keeps each text (one message per update, or each held long enough), checked with VoiceOver and NVDA (ledger; routed by cr 2026-10-24)
 
 ### Story 2.13: Open Visual Trace from the page
@@ -1873,6 +1854,59 @@ So that I can follow the assistant's work from the page in one click.
 - DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; moved from Story 2.9 with its first consumer, the Visual Trace menu; routed by cr 2026-10-22)
 
 - DW-129: A decision's trace link opens on the decision itself, not on page 1 of the day's thread with its first Item selected: with Story 2.9's day thread a decision's `traceHeaderId` is the thread and no index is known, so the link needs the decision message's place (or its own header) (ledger; routed by cr 2026-10-23)
+
+
+### Story 2.14: Work the whole page by keyboard, with labels and words
+
+As a user who works by keyboard or with a screen reader,
+I want every function reachable by keyboard, every control labelled and every state in words,
+So that the page works for me as well as for anyone.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned next after Story 2.12.]
+
+**Acceptance Criteria:**
+
+**Given** I use only the keyboard
+**When** I work through the page
+**Then** every function works: the first tab stops are "Skip to chat" and "Skip to status"; Enter sends and Shift+Enter adds a line; Esc closes the topmost popover or dialog and collapses a disclosure only when focus is inside it; there are no single-character shortcuts; and the focus ring is always visible and never clipped, because every scrolling region keeps `scroll-gutter` (NFR-25, UX-DR11, UX-DR33, UX-DR125)
+**And** every control has a visible or programmatic label, icon buttons name their action and object, state is text with icons hidden from assistive technology, and a control that can't act stays focusable with `aria-disabled`, its visible reason linked by `aria-describedby` (NFR-25, UX-DR130, UX-DR133)
+
+**Given** any state on the page
+**When** it is shown
+**Then** it never relies on colour alone (every state has a word and every link is underlined), text resizes to 200% without loss because heights are minimums, errors are text beside their cause linked to their field, and under `prefers-reduced-motion` nothing rotates, pulses, shimmers or scrolls smoothly (NFR-25, UX-DR14, UX-DR134, UX-DR135)
+**And** none of the banned patterns appears: modal notification interruptions, toasts as the only copy, sounds, tabs that switch by themselves, hover-only controls, drag-and-drop as the only way, model-progress bars, celebration effects, or infinite scroll in counted lists (UX-DR129)
+
+### Story 2.15: Lay the page out at every supported width
+
+As a user in a smaller window or at 200% zoom,
+I want the page laid out for my window,
+So that everything stays readable and reachable.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Story 2.14.]
+
+**Acceptance Criteria:**
+
+**Given** the browser window's size
+**When** the page lays out
+**Then** from 1440px wide the rail is `rail-width-wide`; from 1280 to 1439px it is `rail-width` and every UJ-1 control is reachable without scrolling the page, because each region scrolls on its own; from 1024 to 1279px the rail becomes a drawer opened from a "Status" header button that shows the approval request count; below 1024px or at 200% zoom the page becomes one scrolling column (header, banners, the chat scrolling on its own at `min(70vh, content)`, then the status sections) with only a compact header sticky (FR-12, UX-DR20, UX-DR137)
+**And** in the stacked layout, the info inline notice "This page is designed for a wider window. Everything still works." shows once per session, and its close is remembered per browser (UX-DR35, UX-DR128, UX-DR138)
+
+### Story 2.16: Prove the floor in Chromium, Firefox and WebKit
+
+As a user of any supported browser,
+I want the accessibility floor checked in Chromium, Firefox and WebKit,
+So that the page works for me whichever browser I use.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Stories 2.14 and 2.15, whose surfaces its scan and string test cover.]
+
+**Acceptance Criteria:**
+
+**Given** the CI demo-path environment
+**When** the page tests run
+**Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
+
+- DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
+- DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
 
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 

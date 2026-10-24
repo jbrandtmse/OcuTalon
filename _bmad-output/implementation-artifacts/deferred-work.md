@@ -446,6 +446,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-5-chat-with-ocutalon-in-the-page.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: chat-panel.ts .list and main-page.ts section.rail: overflow-y auto, no tabindex or name; entries are tabindex=-1; Chromium and Firefox focus a scroller, WebKit does not
 - 2026-10-22T22:18:28Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=2.12 owns WebKit runs and the a11y scan: e.g. tabindex=0 plus aria-labelledby the Chat heading; the rail too
+- 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit run that checks it is Story 2.16's
 
 ### DW-90: checks.notEverything and notEverythingRestPassed take a whatFailed slot that the pinned Checks.Render(results, *rows) has no way to return, so the page (Story 2.6) shows no sentence for those keys
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -537,6 +538,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: popover.ts closeOnFocusLeave closes when focus is outside the trigger and the pane; WebKit and macOS Firefox do not focus a pressed button, so header.ts toggleTrace finds it closed and reopens it (FR-12 lists Safari)
 - 2026-10-24T03:06:53Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=fix in popover.ts (a press on the trigger keeps it inside); verify in 2.12's WebKit and Firefox runs; chromium V7 passes
+- 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit and Firefox runs that check it are Story 2.16's
 
 ### DW-146: Specs that open real Visual Trace pages starve later cases of the same live sign-in stack; the cause (each signed-in trace tab holds a licence connection until its session times out) is an inference, and no spec signs its trace tabs out
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: high | footprint: in-story
@@ -574,3 +576,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: banners.spec.ts B15 and B16 skip branches repeat live.spec.ts L3 lines 157-166; the spec's reason is 'B15's skip reuses L3's injection pattern' (Rule 2: a weak reason)
 - 2026-10-24T11:03:10Z status=wontfix-accepted owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=reopen_if=a fourth spec injects a skipped Seq, or an event envelope change is applied to one of the three copies only
+
+### DW-159: Screen-reader check of the announcer (DW-153): VoiceOver and NVDA on two banners in one update, a reply and a burst of four announcements
+- source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: an agent cannot run a screen reader; Story 2.12 builds the joined announcement and its automated test (A4)
+- 2026-10-24T11:52:16Z status=decision-pending owner=burndown by=spec_gate note=human=screen-reader check of the announcer (VoiceOver on macOS, NVDA on Windows)
