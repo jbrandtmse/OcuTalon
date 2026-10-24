@@ -2,7 +2,7 @@
 title: 'Story 13.1: The example production makes its own decision through the bridge'
 type: 'feature'
 created: '2026-10-24'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -191,6 +191,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-10-24, lead (Epic 13 runner), after the plan's blocked round 1: both escalated questions ruled (Design Notes, Clarification Needed items 1 and 2: the orchestrator's option (a) for Task 9's lines; the runner's decide on the audit clause). The spec already assumed both answers, so nothing else changed; status set to ready-for-dev without a re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -249,6 +251,7 @@ No AC contradicts an AD's Rule.
      - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` `TestExampleInstalledNotStarted` asserts three items.
    - Recommended ruling: Epic 13 changes only the pinning lines that Task 9 lists.
    - The alternative: Epic 3, their current editor, makes the same edits.
+   - **Ruled 2026-10-24 by the orchestrator (category decide, policy 9e90866): option (a), a one-time footprint extension for these lines only.** In `Test/Bridge/Example.cls` `TestProduction`: the header bullet, the method comment, the item count, the per-item pool check (the service has pool 0), the name list and the settings total become the nine items and their settings; the existing `Decide` and `TriageAgent` assertions stay. In `Test/Install/Production.cls` `TestExampleInstalledNotStarted`: the count 3 to 9 and its words. No other line in either file changes. Both files are reported under the runner's `footprint_extensions:`.
 2. The audit clause of the third epic AC, "the bridge ... writes its audit entries for the example", has no entry to observe in 13.1.
    - AD-17 audits actions, approval answers, pairing, settings, MCP and tool classification, never a decision, and this example has no tool and raises no approval.
    - Recommended reading, as planned in AC 5 and AC 7: the bridge's audit path works in the example's namespace with no extension class named, and the dummy key is in no audit entry.
@@ -284,5 +287,5 @@ No AC contradicts an AD's Rule.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: (1) growing OcuTalon.BridgeExample.Production, which the ACs require, turns two EXISTING Epic 3-contended test files red, and they need existing lines changed, not an appended block: src/ocutalon/cls/OcuTalon/Test/Bridge/Example.cls (TestProduction asserts exactly the three items Decide, TriageAgent and AgentSteps, pool 1 for every item and three settings) and src/ocutalon/cls/OcuTalon/Test/Install/Production.cls (TestExampleInstalledNotStarted asserts that the example has three items). Recommended ruling: allow Epic 13 to change only those pinning lines and their comment words to the grown production's nine items, as Task 9 lists. (2) The epic AC clause "the bridge still costs every decision and writes its audit entries for the example" has no audit entry to observe in 13.1: AD-17 audits actions, approval answers, pairing, settings, MCP and tool classification, never a decision, and the 13.1 example has no tool and raises no approval. Recommended reading (planned as AC 5 and AC 7): Installer.CheckAudit() is OK in the example's namespace, an Action entry written there through OcuTalon.Bridge.Audit with no extension class named is read back from the IRIS audit log, and the dummy key is in no audit entry; the entries for the example's own tool runs and approval answers stay with Story 13.2's existing ACs, and no AC moves.
+Status: ready-for-dev
+Blocking condition: none (round 1's two intent gaps were ruled; see Spec Change Log)
