@@ -217,7 +217,8 @@ Method TestStartsWithNoKey()
 /// A SystemPrompt row for TriageAgent, and then an allow-list that leaves out Triage, each stop the item at its start: it has no
 /// job, and the event log of the item names the setting or the class. The other runners keep their jobs for the SystemPrompt row,
 /// which is the item's own; the allow-list row is for every item, so they restart and run again. With the rows put back and a
-/// restart, the item runs again.
+/// restart, the item runs again. The keys are pointed, so the start that the SystemPrompt row refuses records a present key in a job
+/// that is not the one before the restart, and Keys.Status reads 1 although the item has no job.
 Method TestStartRefused()
 {
 	If '..Ready() Quit
@@ -235,8 +236,11 @@ Method TestStartRefused()
 	Try {
 		Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, item, "SystemPrompt", "A prompt that the runner must refuse.", "Written by a test; the test deletes it."), "a SystemPrompt row is written for "_item)
+		Set before = $ListGet($Get(^OcuTalonBP.KeyState(item)), 2)
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Restart(name, 0), item_" is stopped and started again")
 		Do ..AssertRefused(item, mark, "the setting SystemPrompt is set")
+		Set refused = $ListGet($Get(^OcuTalonBP.KeyState(item)), 2)
+		Do $$$AssertTrue((refused '= "") && (refused '= before), "the record is the refused start's, not that of the job before the restart ("_before_"): "_refused)
 		Do $$$AssertEquals(##class(OcuTalon.Bridge.Keys).Status(item), 1, "the refused start recorded the key state that it would use, so Keys.Status of "_item_" reads 1 with no job")
 		Do ..AssertOthersKeep(others, otherJobs)
 		Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||SystemPrompt"), "the SystemPrompt row is deleted")

@@ -1,5 +1,7 @@
 /// Tests of the model-key API (AD-6, AD-19, AD-20, AD-28; FR-38): Keys.Present, Keys.Absent, Keys.Record, Keys.Forget and Keys.Status,
-/// in process. They need no mock and send nothing. They read the environment of this process and, for the entries, the Config Store,
+/// in process, with one job of their own (TestRecord). They need no mock and send nothing. THROWAWAY STACKS AND CI ONLY (Rule 21):
+/// TestStatus puts the entries of the runners back to the placeholder of the Provider step and restarts the three runners of the running
+/// OcuTalon.Production (RunnerFixture.RestoreKeys). They read the environment of this process and, for the entries, the Config Store,
 /// where the test creates one entry of its own, AI.LLM.OcuTalonZzKeys<n> (n from ^OcuTalonTest("Keys","n"), never reset), after
 /// RebuildRegistry(), and deletes it at the end. The fixture records are ^OcuTalonBP.KeyState(ZzKeysItem...), removed by prefix before
 /// and after the run. The entry holds placeholders and one literal word, never a key, and no test writes a real key anywhere.
@@ -17,16 +19,21 @@
 ///   - TestStatus: Status of an item that is not in the production is 0 (and of an empty name), and the status of each runner item of the
 ///     active production, whose entries are at the placeholder of the Provider step (RestoreKeys restarts the three runners), is the
 ///     record that its job wrote at its start and equals Present of its ProviderConfig; every result is exactly 0 or 1;
-///   - TestRecord: Record of the six configurations, and the state each one leaves in the record; Status is 1 only for present; Forget
+///   - TestRecord: Record of the six configurations, and the state each one leaves in the record, which is the state word and the job
+///     number and nothing else (no part of the value of PATH, no descendant node); Status is 1 only for present; Forget
 ///     removes the record of its own job and leaves the record of another job; an item never recorded, an empty item and a node that is
 ///     no record are 0; no row of the event log written since the test began holds the value of PATH;
 ///   - TestStatusReadsOnlyTheRecord: the code of Status names ^OcuTalonBP.KeyState and has no ##class( and no .. call, no $SYSTEM. call,
-///     no $ZF( or $ZUTIL( call, no indirection and Xecute, and no global but the record, so that it reads no setting, no Config Store and
-///     no environment variable (controls show that each pattern flags code that does);
+///     no $ZF(, $ZU( or $ZUTIL( call, no indirection, Xecute or X command, no embedded SQL or macro, and no global but the record, so that
+///     it reads no setting, no Config Store and no environment variable (controls show that each pattern flags code that does);
 ///   - TestAbsentReadsProviderConfig: with the System Default Settings row ProviderConfig of TriageAgent (the Provider step writes it)
 ///     put to inline configurations, Absent follows it, Decide's precheck is no_key exactly where Absent is 1, Status keeps the value
 ///     it had, and the row is put back (Test.Agent.RunnerFixture.SnapshotDefault, PutDefault and RestoreDefault). Absent of an item
-///     that is not in the production and of an empty name is 1.
+///     that is not in the production and of an empty name is 1;
+///   - TestNeverThrows: Record, Forget, Status and Present throw nothing for an item name that is no valid subscript or a value that is no
+///     text, and Status of such an item is 0; a value that is no text is recorded as unknown;
+///   - TestAbsentOtherReadErrorIsNotAbsent: Absent of an item whose ProviderConfig read fails for another reason than a missing item (an
+///     error status, and an exception) is exactly 0, so that a read that cannot be made never blocks a request.
 Class OcuTalon.Test.Bridge.Keys Extends %UnitTest.TestCase
 {
 
@@ -36,11 +43,13 @@ Parameter UNSET = "ZZOCUTALONNOSUCHVAR";
 /// The prefix of the fixture items of the record.
 Parameter ITEM = "ZzKeysItem";
 
-/// The patterns of the scan of Status (ICU regular expressions, in any case): a $SYSTEM. call, $ZF( or $ZUTIL(; an indirection or an
-/// Xecute; a global but the record, or a routine call.
-Parameter SYSTEMCALL = "\$(SYSTEM\.|ZF\(|ZUTIL\()";
+/// The patterns of the scan of Status (ICU regular expressions, in any case): a $SYSTEM. call, $ZF(, $ZU( or $ZUTIL(; an indirection,
+/// an Xecute or an X command; embedded SQL or a macro, whose expansion the scan does not see; a global but the record, or a routine call.
+Parameter SYSTEMCALL = "\$(SYSTEM\.|ZF\(|ZU(TIL)?\()";
 
-Parameter INDIRECTION = "@|\bXECUTE\b";
+Parameter INDIRECTION = "@|\bXECUTE\b|(^|\{)\s*X(:\S+)?\s";
+
+Parameter HIDDEN = "&SQL\(|\$\$\$";
 
 Parameter OTHERGLOBAL = "\^(?!OcuTalonBP\.KeyState)";
 
@@ -201,6 +210,9 @@ Method TestRecord()
 		Set record = $Get(^OcuTalonBP.KeyState(item))
 		Do $$$AssertEquals($ListGet(record, 1), $List(states, i), "the record of '"_config_"' holds the state "_$List(states, i))
 		Do $$$AssertEquals($ListGet(record, 2), $Job, "and the job that wrote it")
+		Do $$$AssertEquals(record, $ListBuild($List(states, i), $Job), "and the record is that state word and that job number and nothing else, so no part of a key")
+		Do $$$AssertEquals($Data(^OcuTalonBP.KeyState(item)), 1, "and the node has no descendant")
+		Do $$$AssertEquals($Find(record, path), 0, "and no part of the value of PATH is in it")
 		Set status = $ClassMethod(keys, "Status", item)
 		Do $$$AssertEquals(status, (i = 1), "Status of '"_config_"' is "_(i = 1))
 		Do $$$AssertTrue((status = 0) || (status = 1), "and exactly 0 or 1: '"_status_"'")
@@ -265,9 +277,10 @@ ClassMethod ForgetInJob(number As %Integer, item As %String, config As %String)
 	Set @run@("done") = 1
 }
 
-/// Status reads the record and nothing else: its code names ^OcuTalonBP.KeyState and has no ##class( and no .. call (the code lines of
-/// the compiled method, comment lines dropped), and no dynamic dispatch. The scan flags Absent, which reads the setting, so that it is
-/// not blind.
+/// Status reads the record and nothing else: its code (the code lines of the compiled method, comment lines dropped) names
+/// ^OcuTalonBP.KeyState and has no ##class( and no .. call, no dynamic dispatch, no system call (SYSTEMCALL), no indirection, Xecute or
+/// X command (INDIRECTION), no embedded SQL or macro (HIDDEN) and no other global or routine call (OTHERGLOBAL). Controls show that each
+/// pattern flags code that does, Absent and State among it, so that the scan is not blind.
 Method TestStatusReadsOnlyTheRecord()
 {
 	Set status = ..Code("Status")
@@ -276,8 +289,9 @@ Method TestStatusReadsOnlyTheRecord()
 	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "##class(", 1), "and has no ##class(")
 	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "\.\.[#%A-Za-z]"), "and no .. call")
 	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, "\$(ClassMethod|Method|ZObjMethod|ZObjClassMethod|Property)\("), "and no dynamic dispatch")
-	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#SYSTEMCALL), "and no $SYSTEM. call, $ZF( or $ZUTIL(")
-	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#INDIRECTION), "and no indirection or Xecute")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#SYSTEMCALL), "and no $SYSTEM. call, $ZF(, $ZU( or $ZUTIL(")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#INDIRECTION), "and no indirection, Xecute or X command")
+	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#HIDDEN), "and no embedded SQL or macro")
 	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches(status, ..#OTHERGLOBAL), "and no global but ^OcuTalonBP.KeyState, and no routine call")
 	Set absent = ..Code("Absent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(absent, "##class(", 1), "control: the scan flags the ##class( of Absent")
@@ -286,9 +300,64 @@ Method TestStatusReadsOnlyTheRecord()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $ZF(-1, ""env"")", ..#SYSTEMCALL), "and a $ZF( call")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = @name", ..#INDIRECTION), "and an indirection")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Xecute code", ..#INDIRECTION), "and an Xecute")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $ZU(5)", ..#SYSTEMCALL), "and a $ZU( call")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"X code", ..#INDIRECTION), "and an X command")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"&sql(SELECT 1 INTO :x)", ..#HIDDEN), "and embedded SQL")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches($Char(9)_"Set x = "_$Char(36, 36, 36)_"OK", ..#HIDDEN), "and a macro")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = ^Other(1)", ..#OTHERGLOBAL), "and a global that is not the record")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $$tag^routine()", ..#OTHERGLOBAL), "and a routine call")
 	Do $$$AssertNotTrue(##class(OcuTalon.Test.Bridge.Source).Matches("Set x = $ListGet($Get(^OcuTalonBP.KeyState(item)))", ..#OTHERGLOBAL), "but not the record")
+}
+
+/// Record, Forget, Status and Present throw nothing, whatever they are given: an item name that is no valid subscript (6000 characters)
+/// and a provider configuration that is no text (an object reference). Status of such an item is exactly 0: nothing can be recorded
+/// under the long name, and the value that is no text is recorded as unknown.
+Method TestNeverThrows()
+{
+	Set keys = "OcuTalon.Bridge.Keys"
+	Set long = $Translate($Justify("", 6000), " ", "x")
+	Set object = ##class(%DynamicObject).%New()
+	Set thrown = ""
+	Try {
+		Do $ClassMethod(keys, "Record", long, "{""api_key"":""@{env:PATH}""}")
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "Record of an item that is no valid subscript throws nothing")
+	Set thrown = ""
+	Try {
+		Do $ClassMethod(keys, "Forget", long)
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "nor does Forget")
+	Set thrown = ""
+	Set status = ""
+	Try {
+		Set status = $ClassMethod(keys, "Status", long)
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "nor does Status")
+	Do $$$AssertEquals(status, 0, "and Status of it is exactly 0")
+	Set thrown = ""
+	Set present = ""
+	Try {
+		Set present = $ClassMethod(keys, "Present", object)
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "Present of a value that is no text throws nothing")
+	Do $$$AssertEquals(present, 0, "and is exactly 0")
+	Set thrown = ""
+	Try {
+		Do $ClassMethod(keys, "Record", ..Item(1), object)
+	} Catch exception {
+		Set thrown = exception.DisplayString()
+	}
+	Do $$$AssertEquals(thrown, "", "Record of a value that is no text throws nothing")
+	Do $$$AssertEquals($ListGet($Get(^OcuTalonBP.KeyState(..Item(1)))), "unknown", "and records it as unknown, a form that is not judged")
+	Do $$$AssertEquals($ClassMethod(keys, "Status", ..Item(1)), 0, "and its Status is exactly 0")
 }
 
 /// Absent follows the ProviderConfig setting of the item: an inline configuration whose api_key placeholder names a set variable is a
@@ -308,6 +377,7 @@ Method TestAbsentReadsProviderConfig()
 	Set path = $SYSTEM.Util.GetEnviron("PATH")
 	Do $$$AssertTrue(path '= "", "control: PATH is set in this process ("_$Length(path)_" characters), so the first case is a key that is present")
 	Set mark = $ClassMethod(fixture, "EventMark")
+	Do $$$AssertTrue($ClassMethod(fixture, "WaitRecord", "TriageAgent"), "control: TriageAgent has recorded its state in a job that runs, so the value of Status is settled")
 	Set before = $ClassMethod(keys, "Status", "TriageAgent")
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = "decide"
@@ -335,7 +405,37 @@ Method TestAbsentReadsProviderConfig()
 	Do $$$AssertEquals($ClassMethod(keys, "Absent", ""), 1, "and neither has an empty name")
 }
 
+/// A read of the ProviderConfig setting that fails for another reason than a missing item is not an absent key: Decide's precheck blocks a
+/// request only for a key that the bridge can tell is absent. TelegramIn has an adapter that holds no such setting (the read returns an
+/// error status) and Decide has no adapter (the read throws); controls show how each read ends, so that each arm of Absent is reached.
+Method TestAbsentOtherReadErrorIsNotAbsent()
+{
+	Set keys = "OcuTalon.Bridge.Keys"
+	If ##class(Ens.Director).GetActiveProductionName() = "" {
+		Do $$$AssertTrue(0, "no production is active, so the ProviderConfig of an item cannot be read")
+		Quit
+	}
+	Do $$$AssertEquals(..ReadOutcome("TelegramIn"), "status", "control: the read of the ProviderConfig of TelegramIn returns an error status that is not a missing item")
+	Do $$$AssertEquals(..ReadOutcome("Decide"), "exception", "control: the read of the ProviderConfig of Decide, which has no adapter, throws")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "TelegramIn"), 0, "Absent of an item whose read returns another error is exactly 0")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "Decide"), 0, "and so is Absent of an item whose read fails")
+}
+
 /// --- helpers ---
+/// How the read of the ProviderConfig setting of the item ends in the active production: "ok", "missing" (the item is not found), "status" (another
+/// error status) or "exception".
+ClassMethod ReadOutcome(item As %String) As %String [ Private ]
+{
+	Set outcome = "ok"
+	Try {
+		Set value = ##class(Ens.Director).GetAdapterSettingValue(##class(Ens.Director).GetActiveProductionName()_"||"_item, "ProviderConfig", .sc)
+		If $$$ISERR(sc) Set outcome = $Select($SYSTEM.Status.Equals(sc, "<Ens>ErrConfigItemNotFound"): "missing", 1: "status")
+	} Catch {
+		Set outcome = "exception"
+	}
+	Quit outcome
+}
+
 /// The name of this run's entry, without the area and type.
 Method EntryName() As %String [ Private ]
 {

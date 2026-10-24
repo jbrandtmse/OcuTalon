@@ -258,6 +258,33 @@ deferred:
   (`Test.Bridge.WebStatus.TestMissingReadsMissing`)
 - DW-149: In a request without %Admin_ConfigStore (Epic 2's /state), Keys.Status reads a missing model key as present (Status sets present=1 in its Catch; Keys.Present falls back to %ConfigStore.Configuration.Exists when ConfigStore.Details fails), so a keyless start shows no "no model key" banner; Budget.State's Usage SELECT has no SQL grant there and logs a warning per call (ledger; routed by burndown 2026-10-24, orchestrator ruling). **Addressed by AC1 to AC5.**
 
+### Review Findings
+
+Code review 2026-10-24 (layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, full-opus tier). 26 rows: after grouping 0 high, 1 medium and 8 low entries (one low from the reviewer's own Rule 2 check), 13 rows rejected. The gate (DW-149) holds: in a process with only APPLICATIONROLES, `Keys.Status` reads only `^OcuTalonBP.KeyState` and only a `present` record reads 1; a refused, failed or unjudged read is `unknown`, which reads 0; in a privileged process `Keys.Absent` gives today's `'Status` for every form. No AD mismatch (AD-2, 3, 5, 6, 8, 13, 19, 20, 22, 24, 28, 33). For Rule 3, `Test.Bridge.WebStatus` is the real-runtime evidence.
+- [x] [Review][Patch] (med; fix-risk low: one wait, through the helper that TestStatus uses) TestAbsentReadsProviderConfig read Status before TriageAgent's record was settled (Rule 19 hermeticity) [src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls:380]
+- [x] [Review][Patch] (low; fix-risk low) The scan of Status missed `$ZU(`, the X command, embedded SQL and macros; patterns and controls added, and the method doc corrected [src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls:46]
+- [x] [Review][Patch] (low; fix-risk low) TestNeverThrows said "nothing is recorded"; the doc is corrected and the `unknown` record of a value that is no text is pinned [src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls:359]
+- [x] [Review][Patch] (low; fix-risk low) TestStartRefused's `Status` 1 could pass on the record of the job before the restart; it now asserts that the record is the refused start's, and its method doc says so [src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:242]
+- [x] [Review][Patch] (low; fix-risk low) The header of Test.Bridge.Keys said "in process" and had no throwaway banner, although TestStatus rewrites the entries and restarts the runners [src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls:1]
+- [x] [Review][Patch] (low; fix-risk low, doc only) The doc of IsJob said that a host that is not a shadow is the item's own job; Ens.Host makes one for any %New of a live item, and the doc now says so. The behaviour is `wontfix-theoretical`: real only if a product path makes a runner host under a live item's name outside its job [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:103]
+- [x] [Review][Defer] (low; fix-risk med: spec-bound, "a start that is refused records too" and Status reads only the record) A record outlives a job that ends without OnTearDown: a refused start reads 1 with no job (against the wording of AC2, U-49 and the Lane B note's "a running runner"), and after an unclean stop Status reads the last record while no production runs [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:75] — deferred: occurrence on DW-154 (`wontfix-accepted`); the record is true about the key, so there is no false all-clear
+- [x] [Review][Defer] (low; fix-risk med: no cheap way to make the Usage SELECT fail with another SQLCODE in a privileged process) The warning arm of UsageSpent for an SQL failure other than -99 has no test [src/bridge/cls/OcuTalon/Bridge/Budget.cls:143] — deferred: DW-157 (`wontfix-accepted`, `reopen_if` in the ledger)
+- [x] [Review][Defer] (low; fix-risk med: about 40 lines over three files, one of them Lane B's) Rule 2: RunnerFixture.WaitFor is a fourth wait-for-a-node helper, beside the private copies in Test.Bridge.Ext and Test.Bridge.Budget [src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:158] — deferred: occurrence on DW-79 (`wontfix-accepted`); the shared helper sits where DW-79's remedy names, and no third class copies one
+
+Rejected:
+- false: WebStatus.TestPresentReadsPresent's refusal control is vacuous when the entry is empty. SetupKeys requires KeysAre, which needs every runner's ProviderConfig to name an entry.
+- false: Record's "never half written" fails when Set and Kill both fail over an old record. A name too long to store has no old record, and the runner job holds %All.
+- false: TestRecord's RecordCount after `Record("")` cannot fail. A change that writes any node for an empty item turns it red.
+- low: the Usage fault line is added with the cap off. Spec-bound (Boundaries and AC5 add it whenever the rows cannot be read), and no web caller reads faults (Epic 2's /state calls `State()` without them).
+- low: nothing checks who calls Keys.Record and Forget. Theoretical hardening: no class but the adapter calls them.
+- low: WebStatus's WarningRows counts the Budget warnings of other jobs. Only an SQL failure in another job inside the window would show.
+- low: WebStatus.OnAfterAllTests skips RestoreKeys when the production does not run. Agent.Runners.OnAfterOneTest does the same; real only if the production stops mid-class.
+- low: TestStatus compares two zeros in CI. The 1 direction is pinned by TestRecord and WebStatus.TestPresentReadsPresent, with mutations.
+- low: TestRecord's RecordCount also counts the runners' records. The two counts are adjacent statements.
+- low: the commit message says a runner forgets its record when it stops. That is history; the class and adapter docs state the record's real life.
+- low: DW-154's `reopen_if` leaves out the spec's IRISTEMP clause, and the spec states the residual twice. Both are write-once texts here, and the clause names a design option, not a probe.
+- low (two rows): DW-154 and the deferred item cite Agent.cls:74 for the record, which is :75. Cosmetic, in write-once texts.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -487,6 +514,29 @@ No AC contradicts an AD's Rule, and no NFR is involved.
 **Results (implementation, tag `e1s13a`):** `bash ci/checks.sh` all passed; `ci/iris.sh build` exit 0; `ci/iris.sh class` passed for `WebStatus`, `Keys`, `Budget`, `Decide`, `Runner` and `Agent.Runners`; `shard lane-a` passed (41 classes, the only SKIP `TestStepHelpers`); `shard lane-b` passed (24 classes, `Contract.Ac` included); `live production` (row 14 included), `live production-restart` and `live demo-path` (`floor 1 of 1 passed`) passed; `release/standalone-bridge.sh` passed (the example decision is not a fallback); `ci/iris.sh teardown` left nothing of `e1s13a`. The reverse runs are the lead's.
 
 **Results (review pass, tag `e1s13a`, after the last patch):** `bash ci/checks.sh` all passed; `ci/iris.sh build` exit 0; `ci/iris.sh class` passed for `WebStatus`, `Keys`, `Budget`, `Decide`, `Runner` and `Agent.Runners`; `shard lane-a` passed (41 classes, the only SKIP `TestStepHelpers`); `shard lane-b` passed (24 classes, `Contract.Ac` included); `live production` (row 14 included), `live production-restart` and `live demo-path` (`floor 1 of 1 passed`) passed; `release/standalone-bridge.sh` passed; `ci/iris.sh teardown` left nothing of `e1s13a`. The four mutations above were each applied, observed red and reverted (the tree byte-identical to its state before the mutation). The changed classes compile on slot A (`ocutalon-slot-a`, build 154). The reverse-order shard runs are the lead's.
+
+**QA pass (tag `e1s13q`; no test class created, two strengthened):**
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls` (QA):
+  - `TestRecord` also asserts that each record is exactly `$ListBuild(<state word>, $Job)`, with no descendant node and none of PATH's value (AC1, AC3: the record holds no part of a key);
+  - `TestNeverThrows` (new): `Record`, `Forget`, `Status` and `Present` throw nothing for an item that is no valid subscript or a value that is no text, and `Status` is exactly 0 (AC3);
+  - `TestAbsentOtherReadErrorIsNotAbsent` (new): `Absent` is 0 for an item whose `ProviderConfig` read returns another error status (`TelegramIn`) and for one whose read throws (`Decide`), with controls on how each read ends (AC4).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/WebStatus.cls` (QA):
+  - `TestMissingReadsMissing` also asserts, per runner, that its job recorded `absent` (the integration half of AC1: the production writes the record that the job reads);
+  - `TestPresentReadsPresent` also asserts that each runner's record is two elements, the state `present` and a job number (AC2);
+  - `TestBudgetReadsWhatItCan` (new, AC5) with the job `BudgetProbe`: in the web-roles job a marked day is capped with no spend, the gateway's spend of the day is counted and caps the day at the cap, a day with neither is not capped, the Usage line is whole and the only fault, and with a junk `GatewaySpendDate` it is the first of two faults; no Budget warning. It uses fixture days of 2031 (marks removed by `Clean`) and puts the three `Decide` rows back.
+- Not added, by decision: an `AccessDenied` audit count on the present-key path (the missing-key test already counts the rows, and a live-read `Status` fails there; the source scan covers the rest), and a test of `Absent` with no active production (the throwaway always runs one).
+
+**QA mutations observed (Rule 19).** Each was applied to the tree, the named class run in a throwaway, red observed, the file restored from a copy and found byte-identical (`git diff --stat -- src/bridge` empty):
+- mutation: AC1/AC3, `Keys.Record` writes a third element (the first 4 characters of PATH) after the job number -> `Keys.TestRecord` red (the record is that state word and that job number and nothing else, 6 cases), `Keys.TestStatus` red; `WebStatus.TestPresentReadsPresent` red (the record of each runner holds a state and a job number and nothing else)
+- mutation: AC4, `Keys.Absent` counts a read that fails as absent (the `$$$ISERR` arm and the `Catch` both give 1) -> `Keys.TestAbsentOtherReadErrorIsNotAbsent` red (both assertions); the `Catch` arm alone -> the Decide assertion alone red
+- mutation: AC3, `Keys.Record` rethrows instead of swallowing the failure -> `Keys.TestNeverThrows` red (Record of an item that is no valid subscript)
+- mutation: AC5, `Budget.State` ignores the day's mark when the Usage rows are unreadable -> `WebStatus.TestBudgetReadsWhatItCan` red (the marked day is capped in the job)
+- mutation: AC5, the Usage line is added after the cap and gateway faults -> `WebStatus.TestBudgetReadsWhatItCan` red (the Usage line is the first)
+- mutation: AC1, `Keys.ApiKeyState` records `unknown` where the variable is empty -> `WebStatus.TestMissingReadsMissing` red (the control that each runner's job recorded `absent`, 3 runners)
+
+**QA results (tag `e1s13q`, on the final tree):** `bash ci/checks.sh` all passed; `ci/iris.sh class` passed for `Test.Bridge.Keys` and `Test.Bridge.WebStatus`; `shard lane-a` forward passed (41 classes, the only SKIP `TestStepHelpers`) and `shard lane-a --reverse` passed (41 classes, the same SKIP; `WebStatus` ran before `Keys`); `ci/iris.sh teardown` left nothing of `e1s13q`. `shard lane-b` was not run (QA changed no Lane B test; the lead runs it, forward and reverse). The changed classes compile on slot A (`ocutalon-slot-a`, build 154).
+
+**Code review results (tag `e1s13r`, after the review's patches):** `bash ci/checks.sh` all passed; `ci/iris.sh build` exit 0; `ci/iris.sh class` passed for `Test.Bridge.Keys` and `Test.Agent.Runners`; `shard lane-a` forward passed (41 classes, the only SKIP `TestStepHelpers`); `ci/iris.sh teardown` left nothing of `e1s13r`. The recorded `mutation:` lines still hold for the patched tests, and every AC has one.
 
 **Lead's rulings at the spec gate (2026-10-24, Epic 1 runner, unattended):**
 - **Veto window, kept as planned:** the recorded key state `^OcuTalonBP.KeyState(item)` (inbox U-48), and Status 0 while a runner is stopped or unreadable, so the no-key banner shows then (unknown is never OK; U-49).

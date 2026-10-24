@@ -100,7 +100,8 @@ Method RecordKey() [ Private ]
 	}
 }
 
-/// 1 when the host of this adapter is an item that runs in its own job: an object that is not a shadow host.
+/// 1 when the host of this adapter is an object that is not a shadow host. Ens.Host makes such a host for any %New of an item of the
+/// running production that is not made as a shadow (%DoShadowNew), in whatever process; OcuTalon makes one only in the item's own job.
 Method IsJob() As %Boolean [ Private ]
 {
 	Quit $IsObject(..BusinessHost) && '..BusinessHost.%isShadow

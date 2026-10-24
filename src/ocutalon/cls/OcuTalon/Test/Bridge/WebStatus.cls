@@ -13,9 +13,13 @@
 ///     Budget.State returns spent, cap, capped and resetsAt, names the Usage line and no other in faults, and logs no warning, while
 ///     the test process, which holds the SQL privilege, gets no Usage line;
 ///   - TestPresentReadsPresent: with the entries pointed at OCUTALON_MOCK_KEY_HEADER (RunnerFixture.PointKeys, which restarts the runners)
-///     Keys.Status of each runner is exactly 1 in the job;
+///     Keys.Status of each runner is exactly 1 in the job, and each runner's record is the state present and a job number and nothing else;
 ///   - TestStoppedRunnerReadsMissing: with the entries pointed, a runner that is stopped (Ens.Director.TempStopConfigItem) reads 0 while
-///     the other two read 1, and it reads 1 again after it is started.
+///     the other two read 1, and it reads 1 again after it is started;
+///   - TestBudgetReadsWhatItCan: in the job, with a daily cap and a gateway spend set (the rows are put back), Budget.State reads the day's
+///     mark (capped, with no spend), the gateway's spend of the day (spent, and capped when it reaches the cap) and the cap, and a day with
+///     none of them is not capped; its first fault is the Usage line, whole, before the fault of another setting; it logs no warning. The days
+///     are fixture days of 2031 (their marks are removed).
 /// Each test starts from the state it needs (the entries and the restarts), creates its own fixture user, and removes it. OnAfterAllTests
 /// puts the entries back to the placeholder of the Provider step (RestoreKeys) and fails when they are not there.
 Class OcuTalon.Test.Bridge.WebStatus Extends %UnitTest.TestCase
@@ -38,6 +42,15 @@ Parameter AUDITSECONDS = 120;
 
 /// The daily cost cap that TestMissingReadsMissing sets, in US dollars: above 0, so that State would list the unpriced models.
 Parameter CAP = 5;
+
+/// The gateway's spend that TestBudgetReadsWhatItCan sets, in US dollars: above CAP.
+Parameter GATEWAYSPEND = 7;
+
+/// The fixture days of TestBudgetReadsWhatItCan start with this text: their marks are removed before and after the run.
+Parameter DAYPREFIX = "2031-03-0";
+
+/// The fault line of a Usage read that is refused for lack of an SQL privilege.
+Parameter USAGELINE = "The Usage rows of the day cannot be read in this process, which holds no SQL privilege on them, so their spend is not counted";
 
 /// The run's number.
 Property Number As %Integer;
@@ -124,6 +137,7 @@ Method TestMissingReadsMissing()
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Do $$$AssertEquals($Get(@run@("status", item)), 0, "Keys.Status of "_item_" is exactly 0 in the job")
+		Do $$$AssertEquals($ListGet($Get(^OcuTalonBP.KeyState(item)), 1), "absent", "control: the job of "_item_" recorded that its key is absent, which is what the read gives")
 	}
 	Do $$$AssertEquals($Get(@run@("present")), 0, "Keys.Present of the ProviderConfig of TriageAgent is exactly 0 in the job")
 	Do $$$AssertEquals($Get(@run@("absent")), 0, "Keys.Absent of TriageAgent is exactly 0 in the job: a reference that it cannot read is not judged absent")
@@ -166,6 +180,9 @@ Method TestPresentReadsPresent()
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Do $$$AssertEquals($Get(@run@("status", item)), 1, "Keys.Status of "_item_" is exactly 1 in the job")
+		Set record = $Get(^OcuTalonBP.KeyState(item))
+		Do $$$AssertEquals($ListLength(record), 2, "the record of "_item_" holds a state and a job number and nothing else")
+		Do $$$AssertEquals($ListGet(record, 1), "present", "and the state is present")
 	}
 }
 
@@ -195,6 +212,70 @@ Method TestStoppedRunnerReadsMissing()
 	Do $$$AssertEquals($ClassMethod(keys, "Status", "TriageAgent"), 1, "Keys.Status of TriageAgent is exactly 1 again")
 }
 
+/// In the job, Budget.State counts what it can read: the day's mark, the gateway's spend of the day and the cap. A day marked as capped is
+/// capped with no spend; a day with the gateway's spend at the cap is capped without a mark; a day with neither is not. The Usage line is the
+/// first fault, whole, before the fault of another setting, and nothing is logged as a warning.
+Method TestBudgetReadsWhatItCan()
+{
+	If '..Ready() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set time = "OcuTalon.Bridge.Time"
+	Set nowMarked = "2031-03-05T12:00:00Z", nowSpent = "2031-03-06T12:00:00Z", nowQuiet = "2031-03-07T12:00:00Z"
+	Set dayMarked = $ClassMethod(time, "LocalDate", nowMarked)
+	Set daySpent = $ClassMethod(time, "LocalDate", nowSpent)
+	Set dayQuiet = $ClassMethod(time, "LocalDate", nowQuiet)
+	Set saved = ""
+	For setting = "DailyCostCapUSD", "GatewaySpendUSD", "GatewaySpendDate" {
+		Do $ClassMethod(fixture, "RememberDefault", .saved, "Decide", setting)
+	}
+	Set ..Saved = saved
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "DailyCostCapUSD", ..#CAP), "a daily cost cap of "_..#CAP_" is set")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "GatewaySpendUSD", ..#GATEWAYSPEND), "a gateway spend of "_..#GATEWAYSPEND_" is set")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "GatewaySpendDate", daySpent), "for "_daySpent)
+	Set ^OcuTalonBP.UsageCapped(dayMarked) = nowMarked
+	Set user = ..NewUser("b")
+	If user = "" Quit
+	Set logMark = $ClassMethod(fixture, "EventMark")
+	Set run = ..RunBudgetProbe("budget", user, nowMarked_","_nowSpent_","_nowQuiet)
+	If run = "" Quit
+	Do ..AssertContext(run, user, 0)
+	Do $$$AssertEquals($Get(@run@("day", 1)), dayMarked, "control: the job and this process agree on the first day")
+	Do $$$AssertEquals($Get(@run@("day", 2)), daySpent, "and on the second")
+	Do $$$AssertEquals($Get(@run@("day", 3)), dayQuiet, "and on the third")
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(daySpent)), 0, "control: the day of the gateway's spend is not marked")
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(dayQuiet)), 0, "nor is the third day")
+
+	// the marked day
+	Set budget = {}.%FromJSON($Get(@run@("budget", 1)))
+	Do $$$AssertEquals(+budget.%Get("capped"), 1, "the day that is marked is capped in the job, whatever it spent")
+	Do $$$AssertEquals(+budget.%Get("spent"), 0, "with no spend counted")
+	Do $$$AssertEquals(+budget.%Get("cap"), ..#CAP, "and the cap that was set")
+	// the day of the gateway's spend
+	Set budget = {}.%FromJSON($Get(@run@("budget", 2)))
+	Do $$$AssertEquals(+budget.%Get("spent"), ..#GATEWAYSPEND, "the gateway's spend of the day is counted in the job")
+	Do $$$AssertEquals(+budget.%Get("capped"), 1, "so the day is capped where that spend reaches the cap, with no mark")
+	// a day with neither
+	Set budget = {}.%FromJSON($Get(@run@("budget", 3)))
+	Do $$$AssertEquals(+budget.%Get("spent"), 0, "a day with no mark and no gateway spend counts no spend")
+	Do $$$AssertEquals(+budget.%Get("capped"), 0, "and is not capped")
+	Do $$$AssertEquals(+budget.%Get("cap"), ..#CAP, "with the cap that was set")
+	For i = 1:1:3 {
+		Set faults = {}.%FromJSON($Get(@run@("faults", i)))
+		Do $$$AssertEquals(faults.%Size(), 1, "day "_i_": one fault")
+		Do $$$AssertEquals(faults.%Get(0), ..#USAGELINE, "day "_i_": the Usage line, whole")
+	}
+	Do $$$AssertEquals($ClassMethod(fixture, "WarningRows", logMark, "", "OcuTalon.Bridge.Budget"), 0, "and no warning of Budget is in the event log since the mark")
+
+	// the order of the faults
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "GatewaySpendDate", "not a date"), "the gateway's spend date is set to text that is no date")
+	Set run = ..RunBudgetProbe("order", user, nowQuiet)
+	If run = "" Quit
+	Set faults = {}.%FromJSON($Get(@run@("faults", 1)))
+	Do $$$AssertEquals(faults.%Size(), 2, "the job names two faults")
+	Do $$$AssertEquals(faults.%Get(0), ..#USAGELINE, "the Usage line is the first")
+	Do $$$AssertTrue(faults.%Get(1) [ "GatewaySpendDate", "and the fault of the setting follows: "_faults.%Get(1))
+}
+
 /// The job: logs in as the user, then reads what a web request reads, and reports it under ^OcuTalonTest("WebStatus", number): login (the
 /// result of Login), user, roles, canReadEntries (Check of %Admin_ConfigStore:USE), status(<runner>), present (Keys.Present of
 /// configText), absent (Keys.Absent of TriageAgent), budget and faults (Budget.State as JSON), job (its number), and controlRefused (1 when GetDetails of the entry is
@@ -220,6 +301,31 @@ ClassMethod Probe(number As %String, user As %String, entry As %String, configTe
 		Set @run@("faults") = faults.%ToJSON()
 		Set sc = ##class(%ConfigStore.Configuration).GetDetails(##class(OcuTalon.Bridge.ConfigStore).FullName(entry), .details, 0, 0)
 		Set @run@("controlRefused") = $$$ISERR(sc)
+	} Catch exception {
+		Set @run@("error") = exception.DisplayString()
+	}
+	Set @run@("done") = 1
+}
+
+/// The job of TestBudgetReadsWhatItCan: logs in as the user, then calls Budget.State for each UTC time of nows, a comma list, and reports
+/// under ^OcuTalonTest("WebStatus", number): login, user, roles and canReadEntries as Probe does, and for each index i the local date of
+/// the time (day), Budget.State as JSON (budget) and its faults as JSON (faults), then done; or error when it throws, then done.
+ClassMethod BudgetProbe(number As %String, user As %String, nows As %String)
+{
+	Set run = $Name(^OcuTalonTest("WebStatus", number))
+	Try {
+		Set @run@("job") = $Job
+		Set @run@("login") = $SYSTEM.Security.Login(user)
+		Set @run@("user") = $Username
+		Set @run@("roles") = $Roles
+		Set @run@("canReadEntries") = $SYSTEM.Security.Check("%Admin_ConfigStore", "USE")
+		For i = 1:1:$Length(nows, ",") {
+			Set now = $Piece(nows, ",", i)
+			Set @run@("day", i) = ##class(OcuTalon.Bridge.Time).LocalDate(now)
+			Set state = ##class(OcuTalon.Bridge.Budget).State(now, .faults)
+			Set @run@("budget", i) = state.%ToJSON()
+			Set @run@("faults", i) = faults.%ToJSON()
+		}
 	} Catch exception {
 		Set @run@("error") = exception.DisplayString()
 	}
@@ -285,6 +391,22 @@ Method RunProbe(label As %String, user As %String, entry As %String, config As %
 	Set run = $Name(^OcuTalonTest("WebStatus", number))
 	Kill @run
 	Job ##class(OcuTalon.Test.Bridge.WebStatus).Probe(number, user, entry, config)
+	Quit ..Report(run)
+}
+
+/// Starts BudgetProbe for the user and waits for its report, as RunProbe does.
+Method RunBudgetProbe(label As %String, user As %String, nows As %String) As %String [ Private ]
+{
+	Set number = ..Number_label
+	Set run = $Name(^OcuTalonTest("WebStatus", number))
+	Kill @run
+	Job ##class(OcuTalon.Test.Bridge.WebStatus).BudgetProbe(number, user, nows)
+	Quit ..Report(run)
+}
+
+/// Waits for the report of the job at the node. Returns the node, or "" (with a failure) when the job does not finish in JOBSECONDS or throws.
+Method Report(run As %String) As %String [ Private ]
+{
 	Set finished = ##class(OcuTalon.Test.Agent.RunnerFixture).WaitFor($Name(@run@("done")), ..#JOBSECONDS)
 	Do $$$AssertTrue(finished, "the job reports within "_..#JOBSECONDS_" seconds")
 	Do $$$AssertEquals($Get(@run@("error")), "", "and threw nothing")
@@ -293,8 +415,8 @@ Method RunProbe(label As %String, user As %String, entry As %String, config As %
 }
 
 /// The controls of the job's context: it logged in, as the user, with exactly the application roles and no %Admin_ConfigStore, and a
-/// read of an entry is refused there.
-Method AssertContext(run As %String, user As %String) [ Private ]
+/// read of an entry is refused there (refusal 1; the budget job reads no entry, so it is left out for it).
+Method AssertContext(run As %String, user As %String, refusal As %Boolean = 1) [ Private ]
 {
 	Do $$$AssertEquals($Get(@run@("login")), 1, "control: the job logs in as the fixture user")
 	Do $$$AssertEquals($Get(@run@("user")), user, "control: and runs as it")
@@ -308,7 +430,7 @@ Method AssertContext(run As %String, user As %String) [ Private ]
 	}
 	Do $$$AssertTrue(same, "control: its roles are exactly the application roles ("_..Roles()_"): "_$Get(@run@("roles")))
 	Do $$$AssertEquals($Get(@run@("canReadEntries")), 0, "control: it does not hold %Admin_ConfigStore:USE")
-	Do $$$AssertEquals($Get(@run@("controlRefused")), 1, "control: a read of an entry is refused there")
+	If refusal Do $$$AssertEquals($Get(@run@("controlRefused")), 1, "control: a read of an entry is refused there")
 }
 
 /// The roles of Install.Step.Web.APPLICATIONROLES (a MatchRoles form, ":role:role:role") as a comma list.
@@ -354,7 +476,7 @@ ClassMethod CreateUser(user As %String, roles As %String) As %Status [ Private ]
 	Quit ##class(Security.Users).Create(user, roles, password, "OcuTalon test fixture", , , , 0, 1)
 }
 
-/// Deletes the fixture users of every run and the reports of every run but the counter.
+/// Deletes the fixture users of every run, the reports of every run but the counter and the marks of the fixture days.
 ClassMethod Clean() [ Private ]
 {
 	Set node = ""
@@ -362,6 +484,13 @@ ClassMethod Clean() [ Private ]
 		Set node = $Order(^OcuTalonTest("WebStatus", node))
 		Quit:node=""
 		If node '= "n" Kill ^OcuTalonTest("WebStatus", node)
+	}
+	Set prefix = ..#DAYPREFIX
+	Set day = prefix
+	For {
+		Set day = $Order(^OcuTalonBP.UsageCapped(day))
+		If $Extract(day, 1, $Length(prefix)) '= prefix Quit
+		Kill ^OcuTalonBP.UsageCapped(day)
 	}
 	New $Namespace
 	Set $Namespace = "%SYS"

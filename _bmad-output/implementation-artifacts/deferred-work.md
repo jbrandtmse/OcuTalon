@@ -354,6 +354,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Test/Bridge/Budget.cls CleanRuns and WaitFor vs Test/Bridge/Ext.cls:230-247, same bodies with their own ^OcuTalonTest area; unifying them is about 40 lines over three files
 - 2026-10-22T12:43:46Z status=wontfix-accepted owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=reopen_if=a third Lane A test class copies WaitFor or CleanRuns: move both into Test.Agent.RunnerFixture beside EventMark
+- 2026-10-24T10:59:25Z occurrence=1-13-epic-1-burn-down
 
 ### DW-83: A Chat that throws returns only an error status, so the steps its runner buffered (the model requests and tool calls before the failure) never reach Visual Trace
 - source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: low | footprint: in-epic
@@ -559,6 +560,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/bridge/cls/OcuTalon/Bridge/Keys.cls Status/Present; Bridge/Budget.cls State; Epic 2's /state computes noModelKey from Keys.Status(agent); Install/Step/Web.cls APPLICATIONROLES; verified by the orchestrator on origin/OCT-epic1 7f1c2bb
 - 2026-10-24T05:11:53Z status=routed owner=burndown by=cr note=cross-epic, found by Epic 2 at 2.10 (Epic 2's DW-148); must close in Epic 1; orchestrator ruling 2026-10-24: chartered first in Epic 1's burn-down story, never overflowed; a refused or failed read never reads as present, a missing key reads missing, unknown never passes as OK; Budget.State works there or degrades without a per-call warning; the key's value never reaches the web request; pinning test: the read in a request context without %Admin_ConfigStore and no key configured reads as missing
 - 2026-10-24T06:59:12Z owner=1-13-epic-1-burn-down by=burndown note=chartered_into_Story_1.13(orchestrator_ruling:first,never_overflowed)
+- 2026-10-24T11:01:45Z status=resolved-by:1-13-epic-1-burn-down by=adjudication note=Keys.Status_reads_only_the_runner's_recorded_state(^OcuTalonBP.KeyState,present_alone_reads_1);Keys.Present/Absent_answer_unknown_without_%Admin_ConfigStore:USE(no_Config_Store_call,no_AccessDenied_row);Decide's_precheck_on_Keys.Absent(live_rule_unchanged);Budget.State_degrades_quietly(one_fault_line,no_warning);pinned_by_Test.Bridge.WebStatus(a_job_logged_in_as_a_fixture_user_with_exactly_APPLICATIONROLES:no_key->0_for_every_runner,key->1,stopped->0,no_AccessDenied_from_the_read,Budget_no_warning)+Test.Bridge.Keys(7740a9c+review)
 
 ### DW-150: Digest.Data.Item.Since returns every item of the session since the time, with no cap
 - source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
@@ -580,3 +582,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-13-epic-1-burn-down.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Adapter/Agent.cls:74 records before CheckSettings; Test.Agent.Runners.TestStartRefused pins it
 - 2026-10-24T09:40:20Z status=wontfix-accepted owner=1-13-epic-1-burn-down by=harvest note=reopen_if=a release lets a runner stay disabled or refused across an IRIS restart, or the owner wants a refused start to read as stopped (Status 0)
+- 2026-10-24T10:59:25Z occurrence=1-13-epic-1-burn-down
+
+### DW-157: Budget.UsageSpent's warning arm for an SQL failure other than a missing privilege (SQLCODE -99) has no test, so a change that silenced every failure of the Usage SELECT would stay green
+- source: spec-1-13-epic-1-burn-down.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: UsageSpent splits -99 (quiet, unreadable) from other failures (warning); Test.Bridge.Budget.TestFaults holds the privilege and WebStatus gets only -99; no test reads 'cannot be summed'
+- 2026-10-24T10:59:31Z status=wontfix-accepted owner=1-13-epic-1-burn-down by=cr note=reopen_if=UsageSpent's error handling changes again, or a test can make the Usage SELECT fail with an SQLCODE but -99
