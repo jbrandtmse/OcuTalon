@@ -641,3 +641,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec 3.1 Design Notes, Decided in-stage: The OCUORDERS pin
 - 2026-10-24T13:17:50Z status=routed owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=spec_gate note=routed at Story 3.1's spec gate; 3.8 owns the Public step's last phase
+
+### DW-164: ci/warm.sh up printed READY warm 543s while the warm stack's after-start log said RESULT FAILED and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
+- 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
