@@ -19,8 +19,8 @@
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
 // other than fallbackReason, time, count or cost or with a placeholder that is not a declared slot, a fallbackReason.* text
-// with a slot of a type other than fallbackReason, a listed key with a one form, a reason value whose fallbackReason.* key is missing, a key that both catalogs define, and an XData block or a
-// REASONKEYS parameter it cannot read.
+// with a slot of a type other than fallbackReason, a listed key with a one form, a reason value whose fallbackReason.* key is
+// missing, a key that both catalogs define, and an XData block or a REASONKEYS parameter it cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';

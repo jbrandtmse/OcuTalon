@@ -375,6 +375,36 @@ Banner times would also render as instance message times (DW-29).
 
   Tests: B4, `banner-view.test.mjs`.
 
+### Review Findings
+
+Code review, 2026-10-24: four layers (Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor) on `git diff eb1412c` plus QA's working tree; 27 raw findings (26 from the layers and the lead's CI-budget finding), 23 entries after grouping: 9 kept (7 patch, 2 defer) and 14 rejected.
+
+- [x] [Review][Patch] B2 and B7 check "clearing announces nothing" before the announcer can write (CDK sets the text 100 ms after the call) and count only the cleared banner's own text, so an announcement on a clear could never turn them red [web/e2e/banners/banners.spec.ts:232]
+- [x] [Review][Patch] B11's "the banner both snapshots hold is not announced" rests on the real `/state` computing `noModelKey`, state the case did not create; on a stack with a key the assertion could only see 0 [web/e2e/banners/banners.spec.ts:619]
+- [x] [Review][Patch] B3 asserts the no-key banner and the `['noModelKey', 'costCap']` order from the stack's own snapshot, unlike B5 and B10, which publish `noModelKey` themselves [web/e2e/banners/banners.spec.ts:259]
+- [x] [Review][Patch] A capped day whose cap is off (Lane A's `Budget.State`: `capped` stays true on a marked day, and `cap` 0 means off or unreadable) would read "today's cost limit of <$0.0001", because `formatCost(0)` is `costTiny`; `cap` 0 is no cap to name, so the slot stays empty (Decided 15) [src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls:86]
+- [x] [Review][Patch] B7's message "a check that has not run has a last run to be late for" says the opposite of what the line checks [web/e2e/banners/banners.spec.ts:446]
+- [x] [Review][Patch] `catalog.mjs`'s header has one line of 192 characters, not rewrapped with the block [web/scripts/catalog.mjs:22]
+- [x] [Review][Patch] `test-sign-in.sh` says a failing run ends "within about 9 minutes", which holds only for the local default deadline (540 s); the CI job sets 1200 s [docker/tests/test-sign-in.sh:44]
+- [x] [Review][Defer] After Epic 1 merges, every `/state` reads `Ens_Config.Item` in the web request: Lane A's `Keys.Status` calls `Ens.Director.GetAdapterSettingValue` and `Budget.State` reads its settings through `Accessor.ValueFor` → `GetItemSettingValue`, whose embedded SQL selects from `Ens_Config.Item` (irislib `Ens/Director.cls:1761`), against this spec's Never "an `Ens` table read in a request" [src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls:32] — deferred: out-of-footprint (OCT-epic1 `Bridge/Keys.cls:26`, `Bridge/Ext/Accessor.cls` `ValueFor`); the same root cause as DW-148 (Lane A's status reads in an `/ocutalon/api` request), so an occurrence is appended there for Epic 1's fix, and remedy (b) of the cross-lane risk clears it too
+- [x] [Review][Defer] Banners that appear in one update are announced 150 ms apart, and each later `announce()` clears the earlier text about 50 ms after it landed, which a screen reader may drop (maybe-false; medium if true) [web/src/app/banners/banner-stack.ts:30] — deferred: no screen reader runs in this pipeline; settle it with a VoiceOver and NVDA check of two banners that appear in one update, or remove the doubt by announcing one update's new banners as one message; routed to Story 2.12, whose AC announces "a banner as its text" once (DW-153)
+
+Rejected:
+- `false` (the lead's CI-budget finding, Blind Hunter, Edge Case Hunter, Verification Gap): `live:sign-in` cannot hit a 540 s deadline in CI. The `iris` job sets `OCUTALON_LIVE_DEADLINE: "1200"` (`ci.yml:100`, pinned by `test-ci-config.sh:533`), and run 40057858874's browser log prints it before each unit; that unit (541 s, start 217 s, Playwright 171 passed in 5.2 min) had about 960 s of Playwright budget. The 540 s default binds local throwaway runs only, where the review's run used 384 s of it (Playwright 327 s of 463 s); raising it locally would let a failing run outlast the 10-minute foreground call. Projected CI unit with B1 to B12: about 590 s of 1200 s (inference: 541 s plus the local 32 s the cases add, times 1.5).
+- `false` (Acceptance Auditor): AD-18's `heartbeatStalled` from `StatusMark` is unmet here. The spec scopes it to Story 8.2, and 8.2's AC carries it (`epics.md`, Story 8.2: "`StatusMonitor` publishes a `status` event on the instance stream whenever the condition changes").
+- `false` (Acceptance Auditor): QA's work is uncommitted. The lead commits it after the smoke gate; not a defect of the change.
+- `low` (Blind Hunter): the Auto Run Result's patch counts disagree with the triage log. The fix edits the spec under review.
+- `low` (Blind Hunter): nothing ties `AGENTS` to the production's runner items. AD-7 fixes three agents; real only if an amendment adds a runner item.
+- `low` (Edge Case Hunter): `pageTime` parses a non-UTC `time` leniently. The one producer, `Status.DailyCap`, sets `Time` only for a UTC time to the second; the fix adds a guard to a shared helper.
+- `low` (Edge Case Hunter): the generator accepts a `fallbackReason` slot in a `fallbackReason.*` text. That is the behaviour before this story, and all 11 reason entries declare `"slots": {}`.
+- `low` (Edge Case Hunter): tests compare two reads of `Budget.State()`. They differ only if a Usage row lands between the reads or the run crosses instance-zone midnight.
+- `low` (Edge Case Hunter): listed non-banner keys now accept `time`, `count` and `cost` slots. The spec lists those slot types for the generator (Boundaries, "The page's texts").
+- `low` (Edge Case Hunter): the commit says the page shows nine banners, but two cannot render until 2.11. The table holds nine, and the page's own conditions are "none until Story 2.11" by the spec.
+- `low` (Verification Gap): the info variant's look is checked only by `banner-styles.test.mjs`. Nothing can render Reconnecting until Story 2.11, whose browser cases will render it.
+- `low` (Acceptance Auditor): a closed banner stays hidden when its condition clears and starts again within one applied store update. Unreachable in this build (Reset soon is 16.x, Reconnecting 2.11's), and the fix needs transition tracking.
+- `low` (Verification Gap, other findings): `TestActive` and `TestStateBody` hold only while some condition is active. The implement review already rejected this with a `reopen_if`; not re-filed.
+- `low` (Acceptance Auditor): the `Cap` slot is set only for a JSON number. Lane A writes a number (`%Set("cap", cap, "number")`); documented and pinned by `TestComputedDailyCap`.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -584,6 +614,41 @@ Every IRIS MCP call names `server: ocutalon-slot-b` and `namespace: OCUTALON`. T
 - mutation: `Status.DailyCap` loses its `"number"` arm -> `Test.Live.Status` `TestComputedDailyCap` red ("capped as the number 1: active"; slot B).
 - mutation: `catalog.mjs` reason-slot guard made unreachable (`if (false)` for `type !== REASON_SLOT_TYPE`) -> `catalog.test.mjs` "fails on a reason text with a slot ..." red.
 - mutation: three together in one `live sign-in` run, `StateBody` sets `status` to `[]`, `banner-stack.ts` drops `rel="noopener noreferrer"` from the action link, and its CSS drops the 4px accent (`border-left: 0px`) -> six cases red: `api.spec` row 13 (status), B1 (no banner), B2, B3, B4 (log: "has a 4px left accent", received "0px") and B5 (log: `expectAction`'s `rel`, expected "noopener noreferrer"). This closes the no-key AC's B1 and the look and action clause of `expectLook` and `expectAction`; the run does not say which of the three each of B1 to B3 failed on.
+
+**QA stage (2026-10-24): tests added, `(QA)`.** They cover what had no pinning test, or only a node-tier one: the browser tier of the stack's order, of the closing rule's "gets worse" arm, of the 44px minimum, of the "(late)" marks and of DW-29.
+- (QA) `web/scripts/banner-styles.test.mjs` (new, node): each variant reads its own banner tokens, the three `min-height` tokens are at least 44px, the stack is full width with a 4px accent, and no banner is a live region. The info variant is not rendered by any browser spec until Story 2.11, so this is its only look check.
+- (QA) `web/e2e/banners/banners.spec.ts` (extended, real HTTP):
+  - **B4** also takes text in the composer on the online demo's cap, with Send not `aria-disabled`.
+  - **B7:** a stalled heartbeat held by the snapshot shows on load with "(late)", unannounced; a check that never ran has no mark; a check event keeps the mark; a clear removes both within one live update.
+  - **B8** (12-hour browser, America/New_York, online demo): all six conditions from the snapshot in the catalog's online order with the daily cap second, "8:00 AM" times with no zone name, no announcement.
+  - **B9:** a closed Reset soon stays away on the same slots and returns, announced, on changed slots.
+  - **B10:** a banner that appears or leaves without focus never moves focus; Tab from the header reaches the banners' actions and Close, never a banner; Enter on Close moves focus to the banner before it.
+  - **B11:** a banner that a reloaded snapshot brings is announced once, and the one both snapshots hold is not.
+  - **B12:** six banners at 1280x720 leave the page unscrolled, the routed page under the banners and the composer in view; banners keep full width, 44px and no overflow below 1024px.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/StatusMonitor.cls` (extended): `TestFirstRunThatReadsIsTheSilentOne`, the silent run is the first run that reads.
+- (QA) `docker/tests/test-sign-in.sh`: the header and the PASS and FAIL labels read "B1-B12".
+- Throwaway `e2s210q`: `live sign-in` on the final tree passes 182 and skips 2 (B6 and a demo-path "not built" case); the new browser cases take 27 s of the run. Slot B: `Test.Core.StatusMonitor` 8 of 8. `npm --prefix web test` 375 of 375; lint, `catalog.mjs --check`, `payloads.mjs --check`, `test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh` and `test-ci-config.sh` exit 0.
+
+**Demonstrated mutations, QA stage (Rule 19).** Each was applied, seen red and restored; `git status --short`, `git diff --stat` and the checksum of every product file were identical before and after.
+- mutation: `noModelKey` and `costCap` rows swapped in `BANNERS` -> B3 ("in the catalog order"), B5 ("the local order of the catalog") and B12 red at the browser tier (the node tier was already red).
+- mutation: `dailyCap` and `noModelKey` rows swapped in `BANNERS` -> B8 red ("the online demo's order of the catalog"). B4 has one banner and cannot see the order.
+- mutation: `signatureOf` returns the id only, so a closed banner ignores its slots -> B9 red ("the same condition with a slot it did not have is worse").
+- mutation: `banner-stack.ts` treats each new snapshot as the first, so a reloaded snapshot announces nothing -> B11 red ("it is announced").
+- mutation: `keepFocus` moves focus although no banner holds it -> B10 red ("and takes no focus"); nine older focus cases (C2, C6, D9, N1, N12, L4, R9, R14, R15) went red too.
+- mutation: `rail-view.ts` `late` ignores the active flag, so a cleared heartbeat keeps "(late)" -> B2 and B7 red ("and the late mark", within one live update).
+- mutation: `FORMAT.time` forces `pageTime(iso, 'en-GB')`, the 24-hour format, whatever the browser uses -> B8 red ("reads as the catalog words it, with the browser's 12-hour time").
+- mutation: the composer's Send gets `aria-disabled` while `onlineDemo` and `dailyCap` hold -> B4 red ("and Send is not disabled").
+- mutation: `.banner { min-height: 0 }` -> B1, B2, B3 and B4 red (37px, "is at least 44px tall"). Before this the 44px minimum had no demonstrated mutation.
+- mutation: `.banner-slot` positioned absolutely over the routed page -> B12 red ("the main region starts under the banners", 56 against 288). The three assertions before it (page not scrolled, composer in view, nothing over Send) stayed green.
+- mutation: the info variant's `min-height` token set to 40px in `tokens.css` -> `banner-styles.test.mjs` "give every variant a minimum height of at least 44px" red.
+- mutation: the info variant reads the warning variant's `min-height` token in `banner-stack.ts` -> `banner-styles.test.mjs` "reads, for each variant, the tokens of that variant and no other" red.
+- mutation: `StatusMonitor.OnProcessInput` marks the job started before it reads (a first run that throws counts as the first) -> `Test.Core.StatusMonitor` `TestFirstRunThatReadsIsTheSilentOne` red, alone (slot B).
+
+**Code review stage (2026-10-24): patched tests, `(review)`.** B2 and B7 count every announcement across a clear, after a 1.5 s wait (`announcementCount`, `support/page.ts`); B11 routes `noModelKey` into both snapshots and asserts its banner; B3 publishes `noModelKey` itself and clears it; `TestComputedDailyCap` pins a capped day with `cap` 0 (no `Cap` slot). Slot B: `Test.Live.Status` 5 of 5, `Test.Core.StatusMonitor` 8 of 8. `npm --prefix web test` 375 of 375; lint, `catalog.mjs --check`, `test-boundaries.sh`, `test-class-rules.sh` and `ci/checks.sh` exit 0. Throwaway `e2s210r`: `live sign-in` on the final tree passes 182 and skips 2 (B6 and a demo-path "not built" case), 384 s from the lock (start 56 s, Playwright 327 s of a 463 s global timeout); teardown leaves nothing.
+
+**Demonstrated mutations, code review stage (Rule 19).** Each was applied, seen red and restored; `git status --short`, `git diff --stat` and the checksum of every mutated file were identical before and after.
+- mutation: `Status.DailyCap` sets `Cap` for any number, 0 included -> `Test.Live.Status` `TestComputedDailyCap` red ("with no cap slot, since 0 is no cap to name, and the time"; slot B).
+- mutation: three together in one `live sign-in` run, six cases red, each at its own line: `banner-stack.ts` announces the first banner left whenever one leaves -> B2 ("clearing announces nothing, about any banner", 1 then 2) and B7 ("a clear announces nothing, about any banner", 0 then 1); a reloaded snapshot resets what was shown, so it announces every banner again -> B11 ("the no-key banner was in both snapshots, so it is never announced", 0 then 1); the `noModelKey` and `costCap` rows swapped in `BANNERS` -> B3 ("in the catalog order", with its own `noModelKey`), B5 and B12 (the local order).
 
 **Shared surfaces:**
 - `/state`'s `status`, now computed: `[noModelKey]` on every stack with the Keys stub, and on a CI start with no key after Story 1.6. It is asserted in `Test.Web.Api` `TestStateBody` and in `api.spec` row 13.

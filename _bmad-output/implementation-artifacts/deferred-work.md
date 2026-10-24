@@ -183,6 +183,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 Rule 22 ruling: Render renders times only through Data.Time.ForMessage; EXPERIENCE banner table; Story 2.10 renders the banners
 - 2026-10-20T05:25:07Z status=routed owner=2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=harvest note=2.10 decides: pass a web-formatted time, or render the banner's time in the browser
 - 2026-10-20T06:51:54Z occurrence=0-9-the-message-catalog-and-its-one-renderer by=cr note=also the web cards' answered statuses (Formats: page time beside message text, 20:15 CEST): 6.3/6.4 follow 2.10
+- 2026-10-24T07:07:21Z status=resolved-by:2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=adjudication note=build ae0d062: the page formats each banner's UTC time slot as a page time in the browser's zone with no instance-zone suffix; banner-view.test.mjs, B4 (Asia/Kolkata) and B8 (New York, 12-hour)
 
 ### DW-30: Nothing limits a rendered text's length, while Telegram caps a message at 4,096 characters, so a long model-written slot could make sendMessage fail
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: out-of-epic
@@ -552,3 +553,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OCT-epic1 Bridge/Keys.cls: when ConfigStore.Details fails, present = Configuration.Exists(fqn), which answers 1; Configuration.Get needs %Admin_ConfigStore:USE, which the API application lacks (Install/Step/Web.cls :35), and audits each refusal; Budget.cls :129 Usage SELECT has no SQL grant in the request (inference from source; stubs here)
 - 2026-10-24T03:56:49Z status=escalated owner=burndown by=harvest note=found by Story 2.10's plan; cross-epic (Lane A's Keys.Status and Budget.State, Stories 1.6 and 1.4, done on OCT-epic1); raised to the orchestrator for routing to Epic 1 before its merge; Story 2.10's B6, B1 and api.spec row 13 turn red at the merge if it is not fixed
 - 2026-10-24T03:59:27Z status=routed owner=1-12-items-saved-for-the-digest-are-kept-for-it by=adjudication note=cross-epic:fixed_in_Epic_1's_burn-down_story_before_its_merge(orchestrator_ruling);canonical_entry_in_Epic_1's_ledger
+- 2026-10-24T06:49:46Z occurrence=2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=cr note=also Ens_Config.Item embedded-SQL reads per /state (Keys.Status, Budget settings: Ens.Director.GetItemSettingValue)
+
+### DW-153: Banners that appear in one update are announced 150 ms apart, and each later announce() clears the earlier text about 50 ms after it landed, which a screen reader may drop (unverified)
+- source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: banner-stack.ts ANNOUNCE_GAP_MS 150; CDK LiveAnnouncer.announce clears at once and sets the text 100 ms later; the B specs count DOM insertions, not speech; no screen reader runs here
+- 2026-10-24T06:49:46Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=maybe-false; settle with VoiceOver+NVDA on two banners in one update, or announce one update's new banners as one message

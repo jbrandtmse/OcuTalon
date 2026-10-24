@@ -82,6 +82,9 @@ Method TestComputedDailyCap()
 	Set condition = ..Find(##class(OcuTalon.Live.Payload.Status).Computed(keys, {"capped": true, "resetsAt": "2026-10-24T04:00:00Z"}), "dailyCap")
 	Do $$$AssertEquals(condition.Active, 1, "a cap that is missing: still active")
 	Do $$$AssertEquals(condition.Slots.Cap_"|"_condition.Slots.Time, "|2026-10-24T04:00:00Z", "with no cap slot and the time")
+	Set condition = ..Find(##class(OcuTalon.Live.Payload.Status).Computed(keys, {"spent": 5, "cap": 0, "capped": true, "resetsAt": "2026-10-24T04:00:00Z"}), "dailyCap")
+	Do $$$AssertEquals(condition.Active, 1, "a day marked capped while the cap is off (0): still active")
+	Do $$$AssertEquals(condition.Slots.Cap_"|"_condition.Slots.Time, "|2026-10-24T04:00:00Z", "with no cap slot, since 0 is no cap to name, and the time")
 }
 
 /// The conditions come in CONDITIONS order, each there whether it holds or not.

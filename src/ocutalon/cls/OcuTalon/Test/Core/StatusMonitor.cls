@@ -10,6 +10,8 @@ Include Ensemble
 ///   - TestRefusedPublishIsPublishedAtTheNextRun: a publish that is refused (inside an open transaction, or to a stream that is
 ///     no stream) leaves the run returning OK with a warning, and the change is published at the next run;
 ///   - TestFailingReadingReturnsOK: a reading that throws gives OK with a warning and publishes nothing;
+///   - TestFirstRunThatReadsIsTheSilentOne (QA): the silent run is the first one that reads, so a first run whose reading throws
+///     leaves nothing remembered and the next run that reads only remembers, with the conditions that hold, before a change publishes;
 ///   - TestEventsBodyServesWhatItPublishes (an Integration AC): Web.Api.EventsBody, with the private stream as the instance
 ///     stream, serves what the monitor published, as the page polls it;
 ///   - TestProductSeams: the monitor's own seams, as the production job runs them, publish on the instance stream and read the
@@ -197,6 +199,27 @@ Method TestFailingReadingReturnsOK()
 	Set probe.KeysReading = ..Keys(0)
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do $$$AssertEquals(..Events().%Size(), 1, "the next good run publishes the change")
+}
+
+/// The silent run is the first one that reads: a first run whose reading throws remembers nothing, so the next run that reads
+/// only remembers (the conditions that hold publish nothing), and a change after that publishes.
+Method TestFirstRunThatReadsIsTheSilentOne()
+{
+	Set probe = ..Probe()
+	Set probe.KeysReading = ..Keys(0)
+	Set probe.BudgetReading = ..Budget(1, 20, "2026-10-24T04:00:00Z")
+	Set probe.ThrowReading = 1
+	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "a first run whose reading throws returns OK")
+	Do $$$AssertEquals(..Events().%Size(), 0, "and publishes nothing")
+	Set probe.ThrowReading = 0
+	Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
+	Do $$$AssertEquals(..Events().%Size(), 0, "it is the first run that reads, so it only remembers, though two conditions hold")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(..Stream), 0, "and the stream's counter did not move")
+	Set probe.KeysReading = ..Keys(1)
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set events = ..Events()
+	Do $$$AssertEquals(events.%Size(), 1, "a change after it publishes: one event")
+	Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), "{""condition"":""noModelKey"",""active"":false}", "noModelKey, cleared, with no slots")
 }
 
 /// Web.Api.EventsBody serves what the monitor published, with the private stream as the instance stream, as the page polls it.

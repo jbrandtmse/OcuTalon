@@ -67,3 +67,6 @@ export async function recordAnnouncements(page: Page): Promise<void> {
 /** How many times the recorded announcements hold exactly this text. */
 export const announcements = (page: Page, text: string): Promise<number> =>
   page.evaluate((wanted) => (window as unknown as { announced: string[] }).announced.filter((entry) => entry === wanted).length, text);
+
+/** How many announcements were recorded, whatever their text. */
+export const announcementCount = (page: Page): Promise<number> => page.evaluate(() => (window as unknown as { announced: string[] }).announced.length);

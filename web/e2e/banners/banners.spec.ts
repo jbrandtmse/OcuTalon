@@ -1,20 +1,21 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
-import { changeSnapshot } from '../support/api';
+import { changeSnapshot, STATE } from '../support/api';
 import {
   cleanFixtureRows,
   decideIsStub,
   fixtureUser,
+  publishCheck,
   publishStatus,
   seedCheck,
   seedDecision,
   type StatusSlots,
 } from '../support/iris';
-import { announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
+import { announcementCount, announcements, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 2.10, the status banners (B1 to B6), in a real browser against a real stack. Every case signs in as the banners fixture user
+ * Story 2.10, the status banners (B1 to B12), in a real browser against a real stack. Every case signs in as the banners fixture user
  * that test-sign-in.sh created (OCUTALON_BANNERS_USER), whose session holds nothing but what the case seeds. A case turns a condition on
  * and off by publishing a status event on that user's own session stream through Live.Publish, which the page applies exactly as it
  * applies StatusMonitor's events on the instance stream (no spec publishes on the instance stream, whose counts api.spec pins), and
@@ -23,6 +24,12 @@ import { announcements, plain, recordAnnouncements, tokenColor } from '../suppor
  * stack of this build shows the no-key banner from its snapshot (the model key is not set in CI, and the Keys stub answers 0), so a
  * case never assumes an empty banner slot beyond that one banner. The browser runs in Asia/Kolkata with the en-GB locale, so a page
  * time (instance zone UTC) reads differently from the instance's: 12:00 UTC is 17:30.
+ *
+ * B7 to B12 are the QA cases of the story: the heartbeat that the snapshot holds (B7), a 12-hour browser on the online demo with all six
+ * conditions from the snapshot (B8), a closed banner that returns when its slots change (B9), focus that only a leaving, focused banner
+ * moves, and the Tab order (B10), a banner that a reloaded snapshot brings (B11), and the stack's size at the reference viewport and
+ * below 1024px (B12). B7, B8, B11 and B12 take the conditions they start with from a changed /state or a changed poll; B8, B11 and B12
+ * publish nothing, and B7 publishes only one check update and the clear.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
@@ -96,6 +103,9 @@ async function clear(user: string, conditions: string[]): Promise<void> {
 
 /** The text of the no-key banner. */
 const NO_KEY = 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.';
+
+/** The text of the Reset soon banner. */
+const RESET = 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.';
 
 /** The text of the banner for the heartbeat that last ran at 16:30 in the page's zone. */
 const STALLED = 'Background checks have paused: the heartbeat last ran at 16:30. Watches and reminders may be late until it recovers.';
@@ -216,10 +226,12 @@ test('B2: a stalled heartbeat shows its banner and the late marks, announced onc
     await page.waitForTimeout(2500);
     expect(await announcements(page, STALLED), 'and announced once').toBe(1);
 
+    const heard = await announcementCount(page);
     await turn(page, user, 'heartbeatStalled', false);
     await expect(banner(page, 'heartbeatStalled'), 'clearing it removes the banner within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
     await expect(row.locator('.meta'), 'and the late mark').toHaveText(`Last run 15:30${DOT}Passed`, { timeout: ONE_UPDATE_MS });
-    expect(await announcements(page, STALLED), 'clearing announces nothing').toBe(1);
+    await page.waitForTimeout(1500);
+    expect(await announcementCount(page), 'clearing announces nothing, about any banner').toBe(heard);
   } finally {
     await clear(user, ['heartbeatStalled']);
     await cleanFixtureRows(refs);
@@ -234,6 +246,8 @@ test('B3: the local cost limit shows the warning with the cap and no action, and
     const stamp = unique('B3');
     refs.push(await seedDecision(user, fallbackDecision(stamp, 'daily_cap')));
     await open(page);
+    // noModelKey comes from this case, so the order below holds whatever the stack's key state is.
+    await turn(page, user, 'noModelKey', true);
     await turn(page, user, 'dailyCap', true, { cap: 20, time: T });
 
     const one = banner(page, 'costCap');
@@ -264,7 +278,7 @@ test('B3: the local cost limit shows the warning with the cap and no action, and
     await turn(page, user, 'dailyCap', false);
     await expect(banner(page, 'costCap'), 'lifting the cap removes the banner').toHaveCount(0, { timeout: ONE_UPDATE_MS });
   } finally {
-    await clear(user, ['dailyCap']);
+    await clear(user, ['dailyCap', 'noModelKey']);
     await cleanFixtureRows(refs);
   }
 });
@@ -288,13 +302,20 @@ test('B4: the online demo cap shows the danger banner with a page time and Insta
   await expectAction(one, 'Install it yourself', README, 'the online demo banner');
   await expect(one.getByRole('button'), 'it cannot be closed').toHaveCount(0);
   expect(await stack(page), 'it is the only banner').toEqual(['dailyCap']);
+
+  const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  await field.fill('zz text for the composer');
+  await expect(field, 'on the online demo the composer takes text too').toHaveValue('zz text for the composer');
+  await expect(send, 'and Send is not disabled').not.toHaveAttribute('aria-disabled', 'true');
+  await expect(send).toBeEnabled();
+  await field.fill('');
 });
 
 /** B5: the stack in the catalog's order, with its variants and actions; only Reset soon closes; focus moves when a focused banner leaves. */
 test('B5: the stack orders its banners, only Reset soon closes, and focus follows a banner that leaves', async ({ page }) => {
   const { user } = fixtureUser('BANNERS');
   const ALL = ['allowance', 'dailyCap', 'noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon'];
-  const RESET = 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.';
   try {
     await recordAnnouncements(page);
     await open(page);
@@ -384,4 +405,282 @@ test('B6: the no-key start shows the banner from the real snapshot and replies t
   const reply = page.locator(`app-chat-panel [data-part="reply"][data-key="${clientId}"]`);
   await expect(reply.locator('.text'), 'the reply says that no model key is set').toHaveText("I couldn't answer that: no model key is set. Nothing was changed.", { timeout: 30_000 });
   await expect(reply.locator('app-fallback-flag'), 'with the fallback flag').toHaveText('Fallback');
+});
+
+/** The last time the heartbeat ran in the QA cases: 11:00 UTC, which a browser in Asia/Kolkata reads as 16:30 and one in New York as 7:00 AM. */
+const HEARTBEAT = '2026-10-23T11:00:00Z';
+
+/** The stack of a local install with all six conditions on, and the online demo's, where the daily cap takes the cost limit's place. */
+const LOCAL_ORDER = ['allowance', 'noModelKey', 'costCap', 'heartbeatStalled', 'telegramPaused', 'resetSoon'];
+const ONLINE_ORDER = ['allowance', 'dailyCap', 'noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon'];
+
+/** The six conditions as a snapshot can hold them, in an order other than the catalog's. */
+const sixConditions = (): Array<Record<string, unknown>> => [
+  { condition: 'resetSoon', active: true },
+  { condition: 'telegramPaused', active: true, slots: { time: T } },
+  { condition: 'heartbeatStalled', active: true, slots: { time: HEARTBEAT } },
+  { condition: 'noModelKey', active: true },
+  { condition: 'dailyCap', active: true, slots: { cap: 20, time: T } },
+  { condition: 'allowance', active: true, slots: { limit: 20, time: T } },
+];
+
+/** B7 (QA): a stalled heartbeat that the snapshot holds shows its banner and the late marks on load, silently; a clear takes both away. */
+test('B7: a heartbeat stalled in the snapshot shows its banner and the late marks on load without an announcement, and a clear removes both', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  const refs: string[] = [];
+  try {
+    const ran = unique('B7 ran');
+    const never = unique('B7 never');
+    const production = `Zz.Banners.${Date.now().toString(36)}`;
+    refs.push(await seedCheck(user, { production: `${production}.A`, displayName: ran, lastRunAt: today('10:00:00'), result: 'passed', finding: '' }));
+    refs.push(await seedCheck(user, { production: `${production}.B`, displayName: never }));
+    await page.clock.setFixedTime(PAGE_NOON());
+    await changeSnapshot(page, (snapshot) => {
+      snapshot['status'] = [...(snapshot['status'] as unknown[]), { condition: 'heartbeatStalled', active: true, slots: { time: today('11:00:00') } }];
+    });
+    await recordAnnouncements(page);
+    await open(page);
+
+    const row = (name: string): Locator => rail(page).locator('li.row').filter({ hasText: name });
+    const one = banner(page, 'heartbeatStalled');
+    await expect(one, 'the snapshot\'s banner is there on load').toHaveCount(1);
+    await expect(one.locator('.text'), 'with the page time of the last tick').toHaveText(STALLED);
+    await expect(one.getByRole('link'), 'and no action').toHaveCount(0);
+    await expect(row(ran).locator('.meta'), 'the check that has run reads (late) on load').toHaveText(`Last run 15:30 (late)${DOT}Passed`);
+    await expect(row(never), 'a check that has not run is listed').toHaveCount(1);
+    await expect(row(never), 'and has no last run to mark').not.toContainText('Last run');
+    await expect(row(never)).not.toContainText('(late)');
+    await page.waitForTimeout(2000);
+    expect(await announcements(page, STALLED), 'the banner of the first snapshot is not announced').toBe(0);
+
+    await applied(page, await publishCheck(user, { ref: refs[0]!, production: `${production}.A`, displayName: ran, lastRunAt: today('10:30:00'), result: 'passed', finding: '' }));
+    await expect(row(ran).locator('.meta'), 'a check event while the heartbeat is stalled keeps the mark').toHaveText(`Last run 16:00 (late)${DOT}Passed`, { timeout: ONE_UPDATE_MS });
+
+    const heard = await announcementCount(page);
+    await turn(page, user, 'heartbeatStalled', false);
+    await expect(banner(page, 'heartbeatStalled'), 'a clear removes the snapshot\'s banner within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+    await expect(row(ran).locator('.meta'), 'and the late mark').toHaveText(`Last run 16:00${DOT}Passed`, { timeout: ONE_UPDATE_MS });
+    await page.waitForTimeout(1500);
+    expect(await announcementCount(page), 'a clear announces nothing, about any banner').toBe(heard);
+  } finally {
+    await clear(user, ['heartbeatStalled']);
+    await cleanFixtureRows(refs);
+  }
+});
+
+/**
+ * B8 (QA): the online demo in a 12-hour browser outside the instance's zone (DW-29): all six conditions come from the snapshot, in an
+ * order other than the catalog's; the stack has the daily cap second, the times are the browser's with AM or PM and no zone name,
+ * and nothing is announced.
+ */
+test.describe('B8: a 12-hour browser in New York', () => {
+  test.use({ timezoneId: 'America/New_York', locale: 'en-US' });
+
+  test('B8: the online demo\'s stack from the snapshot has the daily cap second, the browser\'s own times and no announcement', async ({ page }) => {
+    await recordAnnouncements(page);
+    await changeSnapshot(page, (snapshot) => {
+      snapshot['onlineDemo'] = true;
+      snapshot['status'] = sixConditions();
+    });
+    await open(page);
+    await expect.poll(() => stack(page), { message: 'the online demo\'s order of the catalog', timeout: ONE_UPDATE_MS }).toEqual(ONLINE_ORDER);
+
+    const textOf = async (id: string): Promise<string> => plain(await banner(page, id).locator('.text').textContent());
+    const texts = {
+      allowance: "You've used this session's 20 messages for the hour (messages you send in the chat or Telegram). You can send more at 8:00 AM.",
+      dailyCap: "The online demo has used today's model allowance. Decisions use fixed rules until 8:00 AM.",
+      noModelKey: NO_KEY,
+      heartbeatStalled: 'Background checks have paused: the heartbeat last ran at 7:00 AM. Watches and reminders may be late until it recovers.',
+      telegramPaused: 'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 8:00 AM. Each OcuTalon needs its own bot.',
+      resetSoon: RESET,
+    };
+    for (const id of ONLINE_ORDER) {
+      expect(await textOf(id), `${id} reads as the catalog words it, with the browser's 12-hour time`).toBe(texts[id as keyof typeof texts]);
+      expect(await textOf(id), `${id} names no zone`).not.toMatch(/\b(ET|EDT|EST|UTC|GMT)\b|New York|America/);
+    }
+    await expect(banner(page, 'allowance')).toHaveAttribute('data-variant', 'danger');
+    await expect(banner(page, 'dailyCap')).toHaveAttribute('data-variant', 'danger');
+    for (const id of ['noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon']) await expect(banner(page, id)).toHaveAttribute('data-variant', 'warning');
+    await expect(banner(page, 'costCap'), 'and the local cost limit is not there').toHaveCount(0);
+    await expect(slot(page).getByRole('button', { name: 'Close', exact: true }), 'only Reset soon has a Close').toHaveCount(1);
+    await expect(banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true })).toHaveCount(1);
+
+    await page.waitForTimeout(2500);
+    for (const id of ONLINE_ORDER) expect(await announcements(page, texts[id as keyof typeof texts]), `${id} came with the first snapshot, so it is not announced`).toBe(0);
+  });
+});
+
+/** B9 (QA): a closed banner stays away while its condition holds with the same slots and returns, announced, when the slots change (it got worse). */
+test('B9: a closed Reset soon stays away on the same slots and comes back, announced, when its slots change', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  try {
+    await recordAnnouncements(page);
+    await open(page);
+    const one = banner(page, 'resetSoon');
+    const close = one.getByRole('button', { name: 'Close', exact: true });
+
+    await turn(page, user, 'resetSoon', true);
+    await expect(one, 'Reset soon appears').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect.poll(() => announcements(page, RESET), { message: 'and is announced', timeout: 5000 }).toBe(1);
+    await close.click();
+    await expect(one, 'Close removes it').toHaveCount(0);
+
+    await turn(page, user, 'resetSoon', true, { time: T });
+    await expect(one, 'the same condition with a slot it did not have is worse, so it comes back within one live update').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect.poll(() => announcements(page, RESET), { message: 'announced again', timeout: 5000 }).toBe(2);
+
+    await close.click();
+    await expect(one, 'closed again').toHaveCount(0);
+    await turn(page, user, 'resetSoon', true, { time: T });
+    await page.waitForTimeout(ONE_UPDATE_MS);
+    await expect(one, 'the same slots again: it stays closed').toHaveCount(0);
+    expect(await announcements(page, RESET), 'and nothing is announced').toBe(2);
+
+    await turn(page, user, 'resetSoon', true, { time: '2026-10-23T12:05:00Z' });
+    await expect(one, 'other slots: it comes back').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect.poll(() => announcements(page, RESET), { message: 'announced a third time', timeout: 5000 }).toBe(3);
+    await expect(close, 'with its Close').toHaveCount(1);
+  } finally {
+    await clear(user, ['resetSoon']);
+  }
+});
+
+/**
+ * B10 (QA): a banner that appears, or leaves without holding focus, never moves focus; the keyboard reaches a banner's action and Close
+ * (the banners themselves are not Tab stops), Close works with Enter, and the focus then goes to the banner before it.
+ */
+test('B10: banners that appear or leave do not move focus, the keyboard reaches their action and Close, and Enter closes', async ({ page }) => {
+  const { user } = fixtureUser('BANNERS');
+  const ON = ['noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon'];
+  try {
+    await open(page);
+    await turn(page, user, 'noModelKey', true);
+    const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
+    await field.focus();
+    await expect(field).toBeFocused();
+
+    await turn(page, user, 'heartbeatStalled', true, { time: HEARTBEAT });
+    await expect(banner(page, 'heartbeatStalled'), 'a banner appears').toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(field, 'and takes no focus').toBeFocused();
+    await turn(page, user, 'telegramPaused', true, { time: T });
+    await expect(banner(page, 'telegramPaused')).toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(field).toBeFocused();
+    await turn(page, user, 'heartbeatStalled', false);
+    await expect(banner(page, 'heartbeatStalled'), 'a banner that does not hold focus leaves').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+    await expect(field, 'and focus stays where it was').toBeFocused();
+
+    await turn(page, user, 'resetSoon', true);
+    await expect(banner(page, 'resetSoon')).toHaveCount(1, { timeout: ONE_UPDATE_MS });
+    await expect(field).toBeFocused();
+
+    await page.locator('app-header button.header-button').last().focus();
+    await page.keyboard.press('Tab');
+    await expect(banner(page, 'noModelKey').getByRole('link'), 'Tab from the header reaches the first banner\'s action, not the banner').toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(banner(page, 'telegramPaused').getByRole('link'), 'then the next banner\'s action').toBeFocused();
+    await page.keyboard.press('Tab');
+    const close = banner(page, 'resetSoon').getByRole('button', { name: 'Close', exact: true });
+    await expect(close, 'then Reset soon\'s Close').toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(banner(page, 'resetSoon'), 'Enter on Close closes the banner').toHaveCount(0);
+    await expect(banner(page, 'telegramPaused'), 'and focus goes to the banner before it').toBeFocused();
+  } finally {
+    await clear(user, ON);
+  }
+});
+
+/** B11 (QA): a banner that a reloaded snapshot brings (the poll names another epoch) is announced once; the banner it already showed is not announced. */
+test('B11: a banner that a reloaded snapshot brings is announced once, and the one it already showed is not', async ({ page }) => {
+  let loads = 0;
+  await page.route(`**${STATE}`, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    loads += 1;
+    // Both snapshots hold noModelKey, whatever the stack's key state is; only the second adds the heartbeat.
+    const status = (body['status'] as Array<{ condition?: unknown }>).filter((entry) => entry.condition !== 'noModelKey');
+    body['status'] = [
+      ...status,
+      { condition: 'noModelKey', active: true },
+      ...(loads > 1 ? [{ condition: 'heartbeatStalled', active: true, slots: { time: today('11:00:00') } }] : []),
+    ];
+    await route.fulfill({ response, json: body });
+  });
+  let changed = false;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    const response = await route.fetch();
+    if (changed) {
+      await route.fulfill({ response });
+      return;
+    }
+    changed = true;
+    const body = (await response.json()) as Record<string, unknown>;
+    body['epoch'] = 'ZzE2EBannerEpoch';
+    await route.fulfill({ response, json: body });
+  });
+  await recordAnnouncements(page);
+  await open(page);
+  await expect(banner(page, 'noModelKey'), 'the first snapshot shows the no-key banner').toHaveCount(1);
+  await expect(banner(page, 'heartbeatStalled'), 'the first snapshot has no heartbeat banner').toHaveCount(0);
+
+  await expect(banner(page, 'heartbeatStalled'), 'the reloaded snapshot brings it').toHaveCount(1, { timeout: 15_000 });
+  expect(loads, 'after the snapshot was loaded again, once').toBe(2);
+  await expect.poll(() => announcements(page, STALLED), { message: 'it is announced', timeout: 5000 }).toBe(1);
+  await page.waitForTimeout(2500);
+  expect(await announcements(page, STALLED), 'once').toBe(1);
+  await expect(banner(page, 'noModelKey'), 'the no-key banner is still shown').toHaveCount(1);
+  expect(await announcements(page, NO_KEY), 'the no-key banner was in both snapshots, so it is never announced').toBe(0);
+});
+
+/** The size of the page and of each banner, as the page lays them out now. */
+const measure = (page: Page): Promise<{ width: number; scrolls: number; banners: Array<{ id: string | null; height: number; left: number; width: number; sideways: number }> }> =>
+  page.evaluate(() => {
+    const root = document.documentElement;
+    return {
+      width: root.clientWidth,
+      scrolls: root.scrollHeight - root.clientHeight,
+      banners: Array.from(document.querySelectorAll('.banner-slot [data-banner]')).map((node) => {
+        const box = node.getBoundingClientRect();
+        return { id: node.getAttribute('data-banner'), height: box.height, left: box.left, width: box.width, sideways: node.scrollWidth - node.clientWidth };
+      }),
+    };
+  });
+
+/** B12 (QA): the full stack at the reference viewport leaves the page unscrolled and the composer in view; below 1024px every banner still spans the page and keeps 44px. */
+test('B12: six banners at 1280x720 leave the page unscrolled and the composer in view, and every banner keeps its width and height below 1024px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['status'] = sixConditions();
+  });
+  await open(page);
+  await expect.poll(() => stack(page), { message: 'the local order of the catalog', timeout: ONE_UPDATE_MS }).toEqual(LOCAL_ORDER);
+
+  const expectSpan = (size: Awaited<ReturnType<typeof measure>>, what: string): void => {
+    for (const one of size.banners) {
+      expect(one.height, `${what}: ${one.id} is at least 44px tall`).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(one.width - size.width), `${what}: ${one.id} spans the page`).toBeLessThanOrEqual(1);
+      expect(one.left, `${what}: ${one.id} starts at the left edge`).toBeLessThanOrEqual(1);
+      expect(one.sideways, `${what}: ${one.id}'s text wraps and does not overflow`).toBeLessThanOrEqual(0);
+    }
+  };
+  const wide = await measure(page);
+  expect(wide.width).toBe(1280);
+  expect(wide.scrolls, 'six banners do not make the page scroll at 1280x720: the routed page shrinks').toBeLessThanOrEqual(1);
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  await expect(send, 'and the composer is still in view').toBeInViewport();
+  expect(await send.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return top !== null && node.contains(top);
+  }), 'with no banner over it').toBe(true);
+  const slotBottom = await slot(page).evaluate((node) => node.getBoundingClientRect().bottom);
+  const main = (await mainOf(page).boundingBox())!;
+  const railBox = (await page.locator('section.rail').boundingBox())!;
+  expect(main.y, 'the main region starts under the banners: they shrink the routed page and do not cover it').toBeGreaterThanOrEqual(slotBottom - 1);
+  expect(railBox.y, 'and so does the Status region').toBeGreaterThanOrEqual(slotBottom - 1);
+  expect(main.y + main.height, 'the main region ends inside the viewport').toBeLessThanOrEqual(721);
+  expectSpan(wide, '1280x720');
+
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect.poll(async () => (await measure(page)).width, { message: 'the stacked layout is laid out' }).toBe(800);
+  expectSpan(await measure(page), '800px');
 });

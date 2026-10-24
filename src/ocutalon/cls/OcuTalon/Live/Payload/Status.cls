@@ -40,8 +40,8 @@ ClassMethod Readings(Output keys As %DynamicObject, Output budget As %DynamicObj
 ///   - noModelKey holds when any of AGENTS reads 0 in keys; an agent that keys doesn't name counts as 0, so that a reading
 ///     that is missing never hides a missing key. It has no slots;
 ///   - dailyCap holds when budget.capped is true: the JSON boolean true, or a number other than 0; any other value, or a
-///     reading with no capped member, is not a cap. Its slots are Cap, budget.cap when it is a number, and Time, budget.resetsAt
-///     when it is a UTC time to the second.
+///     reading with no capped member, is not a cap. Its slots are Cap, budget.cap when it is a number above 0 (0 is a cap that is
+///     off, so a day marked capped while the cap is off names no cap), and Time, budget.resetsAt when it is a UTC time to the second.
 ClassMethod Computed(keys As %DynamicObject, budget As %DynamicObject) As %Library.ListOfObjects
 {
 	Set conditions = ##class(%Library.ListOfObjects).%New()
@@ -83,7 +83,7 @@ ClassMethod DailyCap(budget As %DynamicObject) As OcuTalon.Live.Payload.Status [
 	Set condition.Active = $Case(type, "boolean": budget.%Get("capped"), "number": budget.%Get("capped") '= 0, : 0)
 	If 'condition.Active Quit condition
 	Set condition.Slots = ##class(OcuTalon.Live.Payload.Part.StatusSlots).%New()
-	If budget.%GetTypeOf("cap") = "number" Set condition.Slots.Cap = budget.%Get("cap")
+	If (budget.%GetTypeOf("cap") = "number") && (budget.%Get("cap") > 0) Set condition.Slots.Cap = budget.%Get("cap")
 	Set resetsAt = $Select(budget.%GetTypeOf("resetsAt") = "string": budget.%Get("resetsAt"), 1: "")
 	If resetsAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Set condition.Slots.Time = resetsAt
 	Quit condition

@@ -1844,6 +1844,7 @@ So that the page works for me as well as for anyone.
 
 - DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
 - DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
+- DW-153: Banners that appear in one update are announced so that a screen reader keeps each text (one message per update, or each held long enough), checked with VoiceOver and NVDA (ledger; routed by cr 2026-10-24)
 
 ### Story 2.13: Open Visual Trace from the page
 
