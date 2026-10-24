@@ -113,7 +113,7 @@ export class Popovers {
     cleanups.push(this.closeOnFocusLeave(trigger, pane, ref));
 
     // The render this waits for may come after the popover has closed (Esc in the task that opened it): a closed popover's overlay is
-    // disposed, so it has no panel to focus into, and focus is already back on the trigger.
+    // disposed, so it has no panel to focus into, and close() has already returned focus to the trigger if the trigger is in the page.
     afterNextRender(
       () => {
         if (ref.isOpen) {

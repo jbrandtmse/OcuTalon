@@ -383,17 +383,17 @@ test('K2: a popover that Esc closes in the task that opened it logs no error', a
   errors.length = 0;
 
   // The page opens the popover and presses Esc in one task, so that the render that waits to focus into it comes after it has closed.
-  const opened = await menu.evaluate(async (trigger) => {
+  const opened = await menu.evaluate((trigger) => {
     const button = trigger as HTMLElement;
     button.click();
     const shown = document.querySelectorAll('.app-popover').length;
     (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    await new Promise((done) => setTimeout(done, 500));
     return shown;
   });
+  await settled(page);
   expect(opened, 'the click opened the Visual Trace popover').toBe(1);
   await expect(page.locator('.app-popover'), 'Esc closed it').toHaveCount(0);
-  await expect(menu, 'and focus is on its trigger').toBeFocused();
+  await expect(menu, 'and focus stays on its trigger').toBeFocused();
   expect(errors, 'and the page logged no error').toEqual([]);
 });
 
