@@ -333,3 +333,4 @@
 2026-10-24T06:48:44Z	Story 1.12	story_cycle	plan_to_commit_min=204 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 clarifications=0(gate_rulings:decide_4)
 2026-10-24T06:59:12Z	Epic 1	ledger_burndown_chartered	story=1-13-epic-1-burn-down entries=DW-149 set_aside_for_decision_sheet=DW-54,DW-92,DW-93,DW-114 epic_story_slices=empty remainder=1(below_cap_8;chartered_by_orchestrator_ruling) story_max=12 ledger_routed_planned=1-13(DW-149_bullet_in_epics.md)
 2026-10-24T06:59:12Z	Story 1.13	ledger_routed_planned	story=1-13-epic-1-burn-down entries=1(DW-149) excess=0 by=burndown
+2026-10-24T07:02:24Z	Epic 1	epic_context_compiled	sha=pending_in_next_commit reason=burndown_inserted(Story_1.13) model=claude-opus-5-5 bytes=9009 spawn_agent=ae2a151a2e5600f0b
