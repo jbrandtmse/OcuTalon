@@ -1,0 +1,12 @@
+{
+  "name": "bridge-example-ignore",
+  "match": {
+    "marker": "bridge-example-ignore"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock ignores the example's item.\"],\"confidence\":0.9}"
+    }
+  ]
+}

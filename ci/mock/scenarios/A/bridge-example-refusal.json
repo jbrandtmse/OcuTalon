@@ -1,0 +1,13 @@
+{
+  "name": "bridge-example-refusal",
+  "match": {
+    "marker": "bridge-example-refusal"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "refusal",
+      "text": "The CI mock refuses the example's item."
+    }
+  ]
+}

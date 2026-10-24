@@ -1,0 +1,12 @@
+{
+  "name": "bridge-example-act",
+  "match": {
+    "marker": "bridge-example-act"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock asks the example to act on its item.\"],\"confidence\":0.8}"
+    }
+  ]
+}

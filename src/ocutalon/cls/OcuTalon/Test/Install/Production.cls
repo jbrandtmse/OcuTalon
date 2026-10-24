@@ -440,7 +440,7 @@ Method TestStepHelpers()
 }
 
 /// The package installs the bridge example (AD-2) and starts nothing of it: OcuTalon.BridgeExample.Production and its agent are
-/// compiled, the production is registered with its three items and TestingEnabled off, and it is neither the running production
+/// compiled, the production is registered with its nine items and TestingEnabled off, and it is neither the running production
 /// nor the autostart production.
 Method TestExampleInstalledNotStarted()
 {
@@ -450,7 +450,7 @@ Method TestExampleInstalledNotStarted()
 	Set definition = ##class(Ens.Config.Production).%OpenId(example)
 	Do $$$AssertTrue($IsObject(definition), "the example production is registered")
 	If $IsObject(definition) {
-		Do $$$AssertEquals(definition.Items.Count(), 3, "with its three items")
+		Do $$$AssertEquals(definition.Items.Count(), 9, "with its nine items")
 		Do $$$AssertEquals(+definition.TestingEnabled, 0, "and TestingEnabled off")
 	}
 	Do ##class(Ens.Director).IsProductionRunning(.running)

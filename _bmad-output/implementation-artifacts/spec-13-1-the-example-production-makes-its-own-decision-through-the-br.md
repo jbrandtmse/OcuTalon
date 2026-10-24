@@ -2,12 +2,20 @@
 title: 'Story 13.1: The example production makes its own decision through the bridge'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fb66ec90ca1a8e54b71b6276b0bad345bc869e17'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The spine lint reports ok:false on the base tree: four low placeholder findings that are template text of the spine's own examples, so the wording "ok: true" of AC 9 cannot hold.
+    evidence: |-
+      Linting the spine at the baseline commit gives the same four findings ('{time}' line 393, '{day}' line 831, '{what happened}' and '{reason}' line 844). The two new Lane A rows add none (same four before and after); no ad_id, ad_fields or placeholder finding comes from them.
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:393
+    severity: low
 ---
 
 <intent-contract>
@@ -195,6 +203,42 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 -- Review pass
+- verdicts: 31 findings -- high 0, medium 5, low 21, false 4, maybe-false 1
+- findings:
+  - `[low]` `[reject]` TestProduction pins counts only, not each item's class or settings (blind) -- the standalone script pins them (AC 2's recorded mutation went red there); Task 9 bounds the lines that may change in that file.
+  - `[low]` `[reject]` no unit tests for Rule, Outcome, Msg.Decided or ItemIn.OnProcessInput (blind) -- the script drives all of them against a real production; the one untested rule clause (act) is patched below.
+  - `[low]` `[reject]` Check and Send do not validate Provenance (blind) -- the item class's VALUELIST refuses it at save with an error status and nothing is sent; no caller of this example passes anything else.
+  - `[low]` `[reject]` Send returns an ItemId when ProcessInput fails (blind) -- the status is the signal and every caller checks it; the Ref points to no message, which the status already says.
+  - `[low]` `[reject]` item_check builds its send line without escaping quotes (blind) -- every string it is given is a fixed literal of this script; a developer-facing helper does not exist.
+  - `[maybe-false]` `[reject]` iris_script retry could send a second item (blind) -- it needs a session that prints no CHK line; each check then reads the session of its own new ItemId; would be low if true.
+  - `[low]` `[reject]` timeout upper bound 17999 is tight (blind) -- the bound is the matrix row's own wording (by-design); the run passed in each of five runs.
+  - `[low]` `[reject]` audit scan uses the host clock and covers enabled events only (blind) -- the key is random per run and exists only after the stack starts, minutes after the window opens; see the patched audit order for the late-entry part.
+  - `[low]` `[reject]` key scan omits Usage, Item and message-header tables (blind) -- the scanned set is the matrix row's own list (AgentStep, DecisionResponse, Decision, Decided, event log); spec-bound.
+  - `[false]` `[reject]` runtime near the job limit (blind) -- the measured run is 2 min 40 s to about 6 min on a loaded machine against timeout-minutes 20, and every wait has its own deadline.
+  - `[low]` `[reject]` spine does not list the new messages or scenarios (blind) -- AD-33's table lists production items only, and the spec says rows only.
+  - `[false]` `[reject]` blank summary when the first 400 characters of a subject are blank (edge) -- Subject has a limit of 200 characters, and a blank subject takes the body path.
+  - `[low]` `[reject]` Body over the string limit makes Check throw (edge) -- needs about 3.6 million characters in one item; theoretical.
+  - `[false]` `[reject]` F_AWAIT can read routing before the Decided header completes (edge) -- the target poll runs only after the Decided header is Completed (`If done,target'=""`).
+  - `[medium]` `[patch]` the audit key search runs once, before the audit read-back (edge) -- moved after the read-back in release/standalone-bridge.sh.
+  - `[low]` `[reject]` host-clock `since` against the container's audit timestamps (edge) -- as for the blind finding above.
+  - `[low]` `[reject]` a partial last line of the mock log makes %FromJSON throw (edge) -- the mock writes whole lines and the read happens after the matrix; theoretical.
+  - `[low]` `[reject]` the marker row could be counted twice (edge) -- the marker is run-unique and written once.
+  - `[low]` `[reject]` in-session waits are not checked against the script's deadline (edge) -- each wait has its own deadline, and the job's timeout-minutes bounds the worst case.
+  - `[low]` `[patch]` diagnose could print the dummy key if it leaked into the event log (edge) -- its output passes through `sed` that replaces the dummy with a label.
+  - `[low]` `[patch]` the old check that the first step is of kind model was dropped (edge) -- F_HAPPY's step check now also requires StepKind model at Position 1.
+  - `[low]` `[patch]` the lane-a.yml header said "every record and audit entry" (edge) -- reworded to the records the script searches.
+  - `[medium]` `[patch]` the audit-key claim is unpolled (edge) -- same root cause and fix as the audit-order row above.
+  - `[medium]` `[patch]` act routing has no test and no scenario (verification-gap) -- scenario bridge-example-act.json, one item_check row, and a mutation line.
+  - `[medium]` `[patch]` the blank-item assertion on Send passes without Check, because no production runs (verification-gap) -- TestCheck now asserts that Send's error text names Subject and Body; mutation recorded.
+  - `[low]` `[patch]` the dummy-key search has no recorded mutation (verification-gap) -- mutation: a leak into the event log by Outcome; red recorded.
+  - `[medium]` `[patch]` the audit key search runs before late rows are awaited (verification-gap) -- the same entry as the audit-order row.
+  - `[low]` `[patch]` AC 8 has no mutation line (verification-gap) -- the script's exit 1 on a failed check is recorded under the act and key mutations; AC 9 stays a review check; AC 4's log sub-claims and AC 6's Model and Budget rows sit under their ACs' one recorded mutation each.
+  - `[low]` `[reject]` log-sonnet is compared to exactly 1 (verification-gap) -- one item sends one Sonnet request; the check passed in five runs.
+  - `[false]` `[reject]` TestProduction names no BusinessRuleName value (verification-gap) -- the script's routing checks cover the value (the Rule mutations went red).
+  - `[low]` `[reject]` Alive is the only readiness signal before a send (verification-gap) -- each item_check polls up to 60 s, which absorbs the runner's start.
+- intent-alignment (descriptive, no findings counted): it reads the diff as the running-production surface, with the class surface as support; the divergences it names (the unpolled audit search, the SQL-written no-key row, class-level coverage of the blank item) repeat rows above or Design Notes 8.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -242,6 +286,15 @@ No AC contradicts an AD's Rule.
 5. Example items enter through `ItemIn.Send` (adapterless, pool 0, the product's convention). Items are prefixed `Example` so that the ownership table never pairs them with OcuTalon's own `Notify` or `DigestStore`.
 6. The timeout row holds the reply 25 s under a 12 s timer and asserts `DurationMs` of 12000 to 17999. With the default 60 s timer the same item would be answered usably at 25 s, so the row proves that the new value is used.
 
+7. The `apply` helper, measured in a throwaway of build 154 (a Model row on `TriageAgent`; a `TimerSeconds` row on `Decide`):
+   - A System Default Settings row saved, then `Ens.Director.UpdateProduction()`, restarts the item whose effective setting changed, and only that item: `TriageAgent`'s job number changed after a `Model` row was saved and again after it was deleted, and `Decide`'s changed the same way for `TimerSeconds`. The decision after each change named the new model, and the one after the delete the default again.
+   - So the script's `apply` is `UpdateProduction(30)` followed by a wait (up to 90 s) until the eight job items are Alive. `TempStopConfigItem` is not needed. It is recorded in the script's header.
+8. The no-key row is written with `UPDATE %NOCHECK` on the existing `ProviderConfig` row: `Ens.Config.DefaultSettings` validates `ProviderConfig` by expanding its `@{env:}` placeholders on `%Save`, which refuses a variable that is not set ("has no value and no :-fallback was given"). `Keys.Absent` reads the setting live, so no apply follows (and an apply would restart the runner on a placeholder it cannot expand). The restore uses the same path.
+9. `ItemIn.Send` reads the `ItemId` back from the item object that `ProcessInput` filled in, so it needs no output parameter from the service. The script's `diagnose` function prints the event log's error rows and the start check stops the script when the eight jobs are not Alive (a run with a runner that refuses to start would otherwise poll every row for 60 s).
+10. A fresh run takes about 2 min 40 s on ARM (below the 4.5 min line), so `OCUTALON_LIVE_DEADLINE` (900) and `timeout-minutes` (20) of lane-a stay as they are; only the header comment of `lane-a.yml` changed. The audit entry was readable at once in the throwaway (0 s), and the read-back still polls up to 180 s.
+11. The Provider-key row that check 3 writes keeps `x-ocutalon-mockkey` in `custom_headers` after the script checked `OCUTALON_MOCK_KEY_HEADER=1`; the dummy `ANTHROPIC_API_KEY` is set through `$tmp/key.yml` and `live_add_file`, and the script prints only 1 or 0 for it.
+12. The review added the scenario `bridge-example-act.json` and one item row for outcome `act` (the rule's second clause had no coverage), moved the audit key search after the audit read-back, and made the first-step check require kind model.
+
 **Ledger inbox:** none (no `DW-n` owned by this story).
 
 **Clarification Needed (escalated with this plan; the spec above assumes the recommended answers):**
@@ -285,7 +338,47 @@ No AC contradicts an AD's Rule.
 
 **Shared surfaces:** the example production's item list and settings, which `OcuTalon.Test.Bridge.Example:TestProduction` and `OcuTalon.Test.Install.Production:TestExampleInstalledNotStarted` assert (Task 9); the spine's Production items table (no test parses it); and the mock's scenario set (no test counts it, and each `MOCKKEY` keeps its one `mockkey` scenario). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Mutations observed (Rule 19, implement stage, tree restored byte-identical after each; checked with `shasum` against a backup and `git status`):**
+- mutation: add a call to `OcuTalon.Core.BridgeSink` in `Triage.cls` -> `test-class-rules.sh` `FAIL bridge-refs`; restored, all rules PASS.
+- mutation: remove the `AgentAllowList` setting from `TriageAgent` in `Production.cls` -> the script's start check (`CHK|jobs` 7 of 8; the event log says the AgentClass is not on the AgentAllowList) and the script aborts.
+- mutation: `RequestFor` sets `OwnerRef` "x" -> `OcuTalon.Test.Bridge.ExampleTriage:TestRequestFor` ("its OwnerRef is instance", run on slot C) and the script's happy-path `CHK|request|...` line.
+- mutation: swap the digest and tellnow targets in `Rule.cls` -> the script's routing checks for the happy path, the digest item, the model row and the keeps-running item (4 checks red).
+- mutation: write the audit entry with type "Zz" -> the script's `audit-write` check and the audit read-back (`not in the IRIS audit log within 180 s`).
+- mutation: skip the `apply` call after the `TimerSeconds` row -> the timeout row's apply check and the timeout item (routed to ExampleNotifyOut, `Fallback` 0: usable at 25 s).
+- mutation: remove the fallback rule from `Rule.cls` -> the fallback routing checks of budget, no key, refusal and timeout (each routed to ExampleNotifyOut).
+- AC 9 (the two spine rows): no command sees them; the lead checks it by review (the spine lint reports the same four pre-existing placeholder findings before and after).
+- mutation (review): drop the `act` clause from the TellNow rule in `Rule.cls` -> the script's act row (`CHK|routed` and `CHK|outcome` differ; 2 of 7 values) and exit 1.
+- mutation (review): `Outcome` appends the container's `ANTHROPIC_API_KEY` to its event-log line -> the script's dummy-key check on the event log (`CHK|key-Log` 1; 1 of 6 values) and exit 1; the key was not printed.
+- mutation (review): delete the `Check` call in `ItemIn.Send` -> `OcuTalon.Test.Bridge.ExampleTriage:TestCheck` ("and the error is Check's, which names Subject and Body"); restored, the class passes.
+- AC 8: the two script mutations above end with `exit=1` and a `FAIL` line, and the unmutated script ends with exit 0 and `standalone-bridge: all checks passed`; the image build line of lane-a has no cache, push or artifact step (`test-ci-config.sh` passes).
+
+**Run results of the implement stage:** `test-class-rules.sh`, `test-storage.sh`, `test-mock.sh` (94 tests), `test-ci-config.sh` and `ci/checks.sh` pass; the standalone script ends `standalone-bridge: all checks passed` (about 2 min 40 s); warm `ExampleTriage`, `Example` and `Install.Production` pass; `ci/iris.sh shard lane-a` and `--reverse` pass (42 classes each, `STACK ...: project`, no `WARM` line); the footprint `git diff --stat` over the closed paths is empty, and the two Task 9 files show only their listed lines.
+
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (round 1's two intent gaps were ruled; see Spec Change Log)
+Status: done
+Blocking condition: none
+
+**Summary.** `OcuTalon.BridgeExample.Production` is now a nine-item production of its own: `ExampleItemIn` (adapterless, `ItemIn.Send`), `ExampleTriage` (renders the item, calls `Decide` with one `Request`), `Decide`, `TriageAgent`, `AgentSteps`, `ExampleRouter` (rule `OcuTalon.BridgeExample.Rule` on `Fallback` and `Outcome`) and three `Outcome` operations. `release/standalone-bridge.sh` sends items through it in the throwaway `OCUBRIDGE` and checks the decision, trace, routing, the model, budget, no-key, refusal and timeout rows, the keeps-running item, the mock log, the dummy key and the audit read-back (34 PASS lines, about 2 min 40 s on ARM when the machine is quiet).
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/BridgeExample/Production.cls` -- nine items, four settings.
+- `src/bridge/cls/OcuTalon/BridgeExample/{ItemIn,Triage,Rule,Outcome}.cls` and `Msg/{Item,Decided}.cls` (new) -- the service, process, rule, operation and messages.
+- `ci/mock/scenarios/A/bridge-example-{digest,ignore,refusal,late,act}.json` (new) -- marker scenarios.
+- `release/standalone-bridge.sh` -- the extended standalone checks, with the one `apply` helper.
+- `.github/workflows/lane-a.yml` -- header comment only.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ExampleTriage.cls` (new) -- unit tests of `RequestFor`, `SummaryOf`, `Render`, `Check`, `DecidedFor`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Example.cls` and `Test/Install/Production.cls` -- Task 9's lines only (footprint extension, orchestrator ruling).
+- `ARCHITECTURE-SPINE.md` -- the two Lane A rows of the Production items table.
+
+**Review.** 31 findings from the layers (high 0, medium 5, low 21, false 4, maybe-false 1). Patches applied: 3 medium entries (the audit key search moved after the read-back; the `act` route covered by a scenario and a row; the blank-item `Send` assertion made falsifiable) and 4 low (diagnose filters the dummy key, the first-step kind check restored, the lane-a header claim reworded, mutation lines for the key search and AC 8). Deferred: 1 (the spine lint's pre-existing placeholder findings). Rejected with reasons: see the triage log (low theoretical or spec-bound, and the false claims).
+
+**Follow-up review recommended: true.** Two or more medium entries were patched. The unverified risk: the audit key search now runs after the read-back, but no test plants a late audit entry holding the key, so that the order change is shown by a green run, not by a red one.
+
+**Verification performed.** `test-class-rules.sh`, `test-storage.sh`, `test-mock.sh` (94 tests), `test-ci-config.sh`, `ci/checks.sh`: pass. Warm `ExampleTriage`, `Example` and `Install.Production`: pass. `release/standalone-bridge.sh` on lane C: all checks passed after the review patches (34 PASS, dummy key printed 0 times). Fresh `shard lane-a` forward (twice) and `--reverse`: 42 classes passed each, `STACK ...: project`, no `WARM` line. Footprint `git diff --stat` over the closed paths: empty. Spine lint: `ok: false` with the same four pre-existing low placeholder findings as at the baseline. The seven pinning mutations of the implement stage and three of the review pass were observed red and reverted (tree byte-identical by `shasum`). Nothing of this run is left running (`docker ps --filter name=e13s1i` is empty).
+
+**Residual risks.**
+- AC 9's wording "the spine lint reports `ok: true`" cannot hold on the base tree: the lint's placeholder heuristic flags template text in the spine's own examples (deferred above). The two rows are in and add no finding. The lead may restate the AC as "no new finding" (Rule 5, apply and report).
+- `Ens.Config.DefaultSettings` refuses to save the unset `@{env:}` placeholder, so the no-key row is written by SQL (Design Notes 8).
+- Footprint extensions to report: `src/ocutalon/cls/OcuTalon/Test/Bridge/Example.cls` and `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` (Task 9 lines only, ruled).

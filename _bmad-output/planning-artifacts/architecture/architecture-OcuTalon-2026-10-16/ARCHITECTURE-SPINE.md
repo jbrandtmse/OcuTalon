@@ -1055,6 +1055,8 @@ flowchart LR
 | `TriageAgent`, `DiagnosisAgent`, `ChatAgent` | `OcuTalon.Bridge.Operation.AgentRunner` | A |
 | `AgentSteps` | `OcuTalon.Bridge.Operation.Steps` | A |
 | `OcuTalonApprovals` | `EnsLib.Workflow.Operation` | A |
+| `ExampleItemIn`, `ExampleTriage`, `ExampleNotifyOut`, `ExampleDigestOut`, `ExampleFallbackOut` (only in `OcuTalon.BridgeExample.Production`, beside its `Decide`, `TriageAgent` and `AgentSteps`; never started in OCUTALON) | `OcuTalon.BridgeExample.ItemIn` (adapterless), `.Triage`, `.Outcome` | A |
+| `ExampleRouter` (only in `OcuTalon.BridgeExample.Production`) | `EnsLib.MsgRouter.RoutingEngine`, rule `OcuTalon.BridgeExample.Rule` | A |
 | `FailurePoller`, `IncidentManager`, `WatchOps` | `OcuTalon.Watch.FailurePoller`, `.IncidentManager`, `.Ops` | A |
 | `EvalIn` (disabled unless `OCUTALON_EVAL=1`, which Lane A's evaluation job sets), `EvalSink` | `OcuTalon.Eval.In`, `.Sink` | A |
 | `FixExecutor` | `OcuTalon.Fix.Executor` | A |

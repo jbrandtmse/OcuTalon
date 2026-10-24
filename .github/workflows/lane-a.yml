@@ -1,7 +1,10 @@
-# CI of Lane A (AD-29; Story 0.7, Story 1.3): the standalone-bridge job runs on the self-hosted IRIS runner, behind the fork guard.
-# It loads src/bridge/ alone into a clean Interoperability namespace of a throwaway stack and runs OcuTalon.BridgeExample.Production
-# there (release/standalone-bridge.sh, AD-2). The evaluation job of Epic 9 joins this file. The rules of
-# docker/tests/test-ci-config.sh apply.
+# CI of Lane A (AD-29; Story 0.7, Story 1.3, Story 13.1): the standalone-bridge job runs on the self-hosted IRIS runner, behind the
+# fork guard. It loads src/bridge/ alone into a clean Interoperability namespace of a throwaway stack and runs the whole example
+# there (release/standalone-bridge.sh, AD-2): OcuTalon.BridgeExample.Production takes items through its own service, makes each
+# decision through the bridge against the model mock, routes on it, takes the four fallbacks, applies a model, a budget and a timer
+# change as settings rows, and checks that the run's dummy key is in no decision record, event-log row or audit entry. The job fails unless every check
+# passes, and it builds its image on the runner with no cache, push or artifact. The evaluation job of Epic 9 joins this file. The
+# rules of docker/tests/test-ci-config.sh apply.
 name: lane-a
 
 on:

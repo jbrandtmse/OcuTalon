@@ -5,8 +5,9 @@
 ///   - TestAgent: the example agent extends %AI.Agent with the model claude-haiku-5-5 (the product default, AD-7), the mock key
 ///     bridge-example, no toolset and instructions that name every field of the DecisionPayload and every outcome, ask for one
 ///     JSON object and hold no template token;
-///   - TestProduction: the example production holds exactly Decide with no setting, TriageAgent with the example agent as its
-///     AgentClass and on its AgentAllowList and DecisionPayload as its ReplyClass, and AgentSteps; no item names a provider
+///   - TestProduction: the example production holds exactly the nine items ExampleItemIn, ExampleTriage, Decide with no setting,
+///     TriageAgent with the example agent as its AgentClass and on its AgentAllowList and DecisionPayload as its ReplyClass,
+///     AgentSteps, ExampleRouter with its rule, and the three outcome operations; no item names a provider
 ///     setting and the testing service is off (AD-19: a developer sets those in System Default Settings of their own namespace);
 ///   - TestDecideDefaults: Decide's three extension settings and its timer default to the do-nothing bases and 60 seconds, which
 ///     is what the example runs with; its budget settings default to no cap (DailyCostCapUSD 0) and no gateway spend (Story 1.4), and its
@@ -58,20 +59,20 @@ Method TestAgent()
 	}
 }
 
-/// The example production is structure only: three items, three settings (all on the agent runner), and no provider setting.
+/// The example production is structure and wiring only: nine items, four settings (three on the agent runner, one on the router), and no provider setting.
 Method TestProduction()
 {
 	Set definition = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
 	Do $$$AssertTrue($IsObject(definition), "the example production is registered")
 	If '$IsObject(definition) Quit
 	Do $$$AssertEquals(+definition.TestingEnabled, 0, "the testing service is off in its definition")
-	Do $$$AssertEquals(definition.Items.Count(), 3, "it has three items")
+	Do $$$AssertEquals(definition.Items.Count(), 9, "it has nine items")
 	Set seen = ""
 	Set settings = 0
 	For i = 1:1:definition.Items.Count() {
 		Set item = definition.Items.GetAt(i)
 		Set seen = seen _ $Select(seen = "": "", 1: ",") _ item.Name
-		Do $$$AssertEquals(item.PoolSize_"|"_item.Enabled, "1|1", item.Name_" has a pool of 1 and is enabled")
+		Do $$$AssertEquals(item.PoolSize_"|"_item.Enabled, $Select(item.Name = "ExampleItemIn": "0|1", 1: "1|1"), item.Name_" is enabled and has a pool of "_$Select(item.Name = "ExampleItemIn": "0 (a service)", 1: "1"))
 		Set settings = settings + item.Settings.Count()
 		Set found = ""
 		For j = 1:1:item.Settings.Count() {
@@ -89,8 +90,8 @@ Method TestProduction()
 			Do $$$AssertEquals(found, "", "and has no setting")
 		}
 	}
-	Do $$$AssertEquals(seen, "Decide,TriageAgent,AgentSteps", "the items are Decide, TriageAgent and AgentSteps, in that order")
-	Do $$$AssertEquals(settings, 3, "the definition holds three settings in all: no provider setting, key or model among them")
+	Do $$$AssertEquals(seen, "ExampleItemIn,ExampleTriage,Decide,TriageAgent,AgentSteps,ExampleRouter,ExampleNotifyOut,ExampleDigestOut,ExampleFallbackOut", "the items are the nine of the example, in that order")
+	Do $$$AssertEquals(settings, 4, "the definition holds four settings in all: no provider setting, key or model among them")
 }
 
 /// A Decide of the example has the do-nothing extension classes and the default timer. The defaults are read from the compiled
