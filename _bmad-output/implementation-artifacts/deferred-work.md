@@ -636,3 +636,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
+
+### DW-169: Heartbeat.Gaps lists the heartbeatGap. family with a read-only SELECT on OcuTalon_Data.StatusMark, while the spine's Status marks row says marks are read through Get(mark)
+- source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Schedule/Heartbeat.cls Gaps runs SELECT Value FROM OcuTalon_Data.StatusMark WHERE Mark %STARTSWITH ?; Get cannot enumerate a family, and the same row names Gaps as the family's reader
+- 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a reader of OcuTalon_Data.StatusMark appears outside Data.StatusMark and Schedule.Heartbeat, or its columns change
+- 2026-10-24T16:31:00Z status=resolved-by:8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=adjudication note=spine Status marks row reworded: a single mark is read through Get; the heartbeatGap. family is listed only by Heartbeat.Gaps, a read-only query
+
+### DW-170: Test fixtures HeartbeatTaskElsewhere and HeartbeatTaskMissingItem extend %SYS.Task.Definition and ship in OcuTalon.PKG, so a judges' Task Manager New Task wizard can list them as task types (inference)
+- source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: module.xml ships OcuTalon.PKG with every OcuTalon.Test class; the two QA fixtures subclass HeartbeatTask to override PRODUCTION and ITEM
+- 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a release install's New Task wizard lists a task type whose class is under OcuTalon.Test
+
+### DW-171: Test.Schedule.Heartbeat Settle/SettleScheduler repeats lib-live.sh's settle_scheduler ObjectScript line (DW-28) with a weak stated reason (another language)
+- source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/lib-live.sh:662 settle_scheduler and Test/Schedule/Heartbeat.cls Settle hold the same idle test; lib-live.sh is contended (Epics 2, 10)
+- 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=the DW-28 settle condition changes in one of the two copies and not the other
+
+### DW-172: Rule 21's lane-b class count (24) and per-class timings were not updated for Test.Schedule (lane-b now 26 classes; Heartbeat about 145 to 178 s), as the spec's Shard time note asks
+- source: spec-8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: _bmad/custom/skill-rules.md Rule 21 still says 9 in lane-a, 24 in lane-b; spec Design Notes: Record the class timings in Rule 21's section
+- 2026-10-24T16:27:52Z status=wontfix-accepted owner=8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a by=cr note=reopen_if=a stage sizes a lane-b batch from Rule 21's count and overruns its cap; lead may append timings (decide)

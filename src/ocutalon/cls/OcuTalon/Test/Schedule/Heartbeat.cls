@@ -4,8 +4,8 @@ Include Ensemble
 /// (Rule 21): they act on the running OcuTalon.Production, the Task Manager and the status marks, so they need the production started by the
 /// Production step, and they fail with the reason where it does not run. Checks is Lane A's, so OnBeforeAllTests puts the double
 /// Test.Schedule.ChecksDouble behind the Checks item (Test.Agent.RunnerFixture UseItemClass), and the double records each Tick in
-/// ^OcuTalonTest("ChecksDouble","ticks"). The tests that call HeartbeatTask.OnTask in the test process suspend the real task first, so that no
-/// scheduled run adds a tick.
+/// ^OcuTalonTest("ChecksDouble","ticks"). The tests that call HeartbeatTask.OnTask in the test process suspend the real task and hold its lock
+/// first (HoldTask), so that no scheduled run adds a tick or changes a mark.
 ///   - TestTaskDeclared (AC 1, 2): exactly one task of class HeartbeatTask in this namespace, named OcuTalon heartbeat, with the schedule that
 ///     Install.Step.Schedule.Tasks() declares, RescheduleOnStart 1 and a run within a minute; the Tasks step run again leaves the same task;
 ///   - TestCatchUp (AC 3, 4): with the tick mark 7 minutes back and the double set to hang 5 s, OnTask returns OK at once and sends one Tick,
@@ -20,11 +20,19 @@ Include Ensemble
 ///   - TestLockBusy (Always): a run that cannot take the lock for 5 s ends OK, sends nothing and changes no mark;
 ///   - TestSendFails (Always): a send that fails records neither mark and gives no Tick, and the next run catches up;
 ///   - TestRecordKeepsTickWhenGapFails (Always): a gap mark that cannot be written leaves the tick mark as it was;
-///   - TestDisabledItem and TestQuiet (Always): with HeartbeatIn disabled the task ends OK and sends nothing; the codes that end a run quietly.
+///   - TestDisabledItem and TestQuiet (Always): with HeartbeatIn disabled the task ends OK and sends nothing; the codes that end a run quietly;
+///   - (QA) TestFirstTick, TestUnreadableMark and TestMarkInTheFuture (matrix rows "First tick", "Unreadable previous", "Previous in the future"):
+///     the same rows as HeartbeatLogic TestNext, but through the task on the running production, with the double behind Checks: one Tick that
+///     the double records, with the PreviousTickAt and CatchUp of the row, no gap mark, and a tick mark that is now the new tick time;
+///   - (QA) TestQuiescent (Always): with this process quiescent (the job-request node of its own job, which no other job reads), CreateBusinessService
+///     gives the platform's own ErrProductionQuiescent, and the task ends OK, sends nothing and leaves the marks;
+///   - (QA) TestFailureReturned (Always): a failure that is not a quiet one (a service that is not in the running production) is returned by OnTask;
+///   - (QA) TestOtherProduction (Always): with another production named as the task's own, OnTask ends OK, sends nothing and leaves the marks;
+///   - (QA) TestAfterAllTestsNothingSaved: OnAfterAllTests of a class that saved nothing (the state after a failed OnBeforeAllTests) leaves everything alone.
 /// OnAfterOneTest and OnAfterAllTests put back what a test changed, also after a failure: the task's Suspended value, HeartbeatIn enabled, the
 /// production running with every item, the Checks item's class, the tick mark, the gap marks (all of them are saved before the tests and put back after them, because the
 /// tests write gaps of their own) and ^OcuTalonTest("ChecksDouble"). OnAfterAllTests returns an error when the class behind Checks, the task or
-/// the production is not as it was found.
+/// the production is not as it was found, or a mark cannot be put back.
 Class OcuTalon.Test.Schedule.Heartbeat Extends %UnitTest.TestCase
 {
 
@@ -65,11 +73,20 @@ Property SuspendedWas As %String;
 /// The Suspended value of the task when the tests began.
 Property SuspendedFound As %String;
 
+/// 1 while this process holds the heartbeat's lock for a test (HoldTask), until ResumeTask releases it.
+Property Holding As %Boolean [ InitialExpression = 0 ];
+
 /// 1 once the marks have been saved (OnBeforeAllTests), so that they are put back.
 Property Saved As %Boolean [ InitialExpression = 0 ];
 
 /// 1 while a test has HeartbeatIn disabled.
 Property Disabled As %Boolean [ InitialExpression = 0 ];
+
+/// 1 while this process has the job-request node of its own job set to quiescent (TestQuiescent).
+Property Quiescent As %Boolean [ InitialExpression = 0 ];
+
+/// What that node held before TestQuiescent set it, as a $ListBuild of the value, or "" when there was no node.
+Property QuiescentSaved As %String;
 
 /// The tick mark as found, "" when there was none.
 Property TickWas As %String;
@@ -102,6 +119,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ..EndQuiescence()
 	Do ..ResumeTask()
 	Kill ^OcuTalonTest("ChecksDouble")
 	Kill ^OcuTalonTest("Heartbeat")
@@ -128,6 +146,7 @@ Method EnableService() As %Status
 /// Puts back everything the tests changed and reports what is not as it was found.
 Method Restore() As %Status
 {
+	Do ..EndQuiescence()
 	Set sc = $SYSTEM.Status.AppendStatus(..HoldTask(), ..EnableService())
 	If '$ClassMethod(..#FIXTURE, "Running") Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Install.Step.Production).Start())
 	If ..Swap '= "" {
@@ -139,12 +158,12 @@ Method Restore() As %Status
 	}
 	If ..Saved {
 		Set ..Saved = 0
-		Do ##class(OcuTalon.Data.StatusMark).Record(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK, ..TickWas)
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Data.StatusMark).Record(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK, ..TickWas))
 		Do ..ClearGaps()
 		Set was = {}.%FromJSON(..GapsWas)
 		Set iterator = was.%GetIterator()
 		While iterator.%GetNext(.mark, .value) {
-			Do ##class(OcuTalon.Data.StatusMark).Record(mark, value)
+			Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Data.StatusMark).Record(mark, value))
 		}
 	}
 	Kill ^OcuTalonTest("ChecksDouble")
@@ -234,7 +253,7 @@ Method TestCatchUp()
 	Do $$$AssertTrue($IsObject(header), "its message header exists")
 	If $IsObject(header) {
 		Do $$$AssertEquals(header.SourceConfigName_">"_header.TargetConfigName_" "_header.MessageBodyClassName, "HeartbeatIn>Checks OcuTalon.Msg.Tick", "from HeartbeatIn to Checks, with a Tick as its body")
-		Do $$$AssertTrue(header.SessionId > 0, "in a session of its own, which Visual Trace shows: "_header.SessionId)
+		Do $$$AssertEquals(header.SessionId, header.%Id(), "in a session of its own, which Visual Trace shows: the Tick opens it")
 	}
 	Set gaps = ##class(OcuTalon.Schedule.Heartbeat).Gaps(##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -600), ##class(OcuTalon.Data.Time).NowUtc())
 	Do $$$AssertEquals(gaps.%Size(), 1, "Gaps over the last 10 minutes reads one gap")
@@ -258,7 +277,8 @@ Method TestCatchUp()
 }
 
 /// AC 5. The production is stopped (after the scheduler settled, DW-28) and the tick mark is 3 minutes back. The Task Manager runs the task
-/// (RunNow): its history shows no error, no HeartbeatIn message header is written, and the tick mark and the gap marks are unchanged. When the
+/// (RunNow): its history shows no error, no HeartbeatIn message header is written, and the tick mark and the gap marks are unchanged; a run that
+/// the stop overtakes after the task's own check (CreateBusinessService then says not registered) ends quietly too. When the
 /// Production step starts the production again, the next scheduled run (within RUNSECONDS) is the single catch-up tick: PreviousTickAt is the mark
 /// from before the stop, CatchUp is 1, the double records it once, its message header exists, and the history of the runs since the stop shows
 /// no error. The real task is not suspended, since the schedule is what is tested.
@@ -284,6 +304,7 @@ Method TestStoppedThenStarted()
 	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no HeartbeatIn header was written")
 	Do $$$AssertEquals(..Marks(), marks, "the tick mark and the gap marks are unchanged")
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Test.Agent.RunnerFixture).ErrorRows(eventMark), "; "), "", "and the quiet end wrote no error row to the event log")
+	Do $$$AssertEquals(##class(OcuTalon.Schedule.HeartbeatTask).Quiet($SYSTEM.Status.Error($$$EnsErrBusinessDispatchNameNotRegistered, "x")), 1, "a run that a stop overtakes ends quietly: CreateBusinessService gives not registered while the production is stopped")
 
 	Set historyMark = ..HistoryMark()
 	Set sc = ##class(OcuTalon.Install.Step.Production).Start()
@@ -334,7 +355,7 @@ Method AssertStubSkipped(stub As %String) [ Private ]
 	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Set eventMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask(), "OnTask returns OK")
-	Do $$$AssertEquals(..Headers(headerMark), 0, "no message header goes from HeartbeatIn to Checks")
+	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no message header goes from HeartbeatIn to Checks")
 	Set tickAt = ##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK)
 	Do $$$AssertTrue((tickAt '= old) && (##class(OcuTalon.Data.Time).Seconds(tickAt) > ##class(OcuTalon.Data.Time).Seconds(old)), "the tick mark is the new tick time: "_tickAt)
 	Set gaps = ##class(OcuTalon.Schedule.Heartbeat).Gaps(##class(OcuTalon.Data.Time).AddSeconds(old, -1), tickAt)
@@ -344,7 +365,7 @@ Method AssertStubSkipped(stub As %String) [ Private ]
 	If gaps.%Size() = 1 Do $$$AssertEquals(gaps.%Get(0).%ToJSON(), {"start": (old), "end": (tickAt), "missed": (missed)}.%ToJSON(), "{start: the old tick, end: TickAt, missed: 2}")
 	Hang 2
 	Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).ErrorRows(eventMark)), 0, "no error or alert row was written: "_$ListToString(##class(OcuTalon.Test.Agent.RunnerFixture).ErrorRows(eventMark), "; "))
-	Do $$$AssertEquals(..Headers(headerMark), 0, "and still no message header after a wait")
+	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "and still no message header after a wait")
 }
 
 /// A send that fails records nothing. A HeartbeatIn whose send is refused (Test.Schedule.HeartbeatInFailing) returns the status and no Tick, and
@@ -369,9 +390,11 @@ Method TestSendFails()
 }
 
 /// Heartbeat.Record writes the gap mark first and returns its status when it fails, so that the tick mark is left as it was and the next run finds
-/// the same gap. The gap mark cannot be written when its name is longer than a mark's name can be.
+/// the same gap. The gap mark cannot be written when its name is longer than a mark's name can be. The real task is held, so that no scheduled run
+/// changes the marks between the two reads.
 Method TestRecordKeepsTickWhenGapFails()
 {
+	Do ..SuspendTask()
 	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -180)
 	Do ..SetTick(old)
 	Set marks = ..Marks()
@@ -415,6 +438,166 @@ Method TestQuiet()
 	Do $$$AssertEquals($ClassMethod(task, "Quiet", $SYSTEM.Status.Error(5001, "x")), 0, "so is any other failure")
 }
 
+/// (QA) Matrix row "First tick": no tick mark. The task, on the running production, sends one Tick with PreviousTickAt "" and CatchUp 0, records no
+/// gap mark, and records the tick mark, so that the next run has a previous tick.
+Method TestFirstTick()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK, ""), "the tick mark is deleted")
+	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK), "", "control: there is no tick mark")
+	Do ..AssertPlainTick("")
+}
+
+/// (QA) Matrix row "Unreadable previous": a tick mark that is not a time (garbage) is treated as a first tick: PreviousTickAt "", CatchUp 0, no gap mark,
+/// and the new tick time replaces the garbage, so that the next run has a previous tick again.
+Method TestUnreadableMark()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Do ..SetTick("garbage")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).Seconds("garbage"), "", "control: the mark is not a time")
+	Do ..AssertPlainTick("")
+}
+
+/// (QA) Matrix row "Previous in the future": a tick mark later than now (the clock moved back) is kept as PreviousTickAt, with CatchUp 0 and no gap mark, and
+/// the tick mark is the new tick time, so that the stalled warning does not wait for the clock to reach the old mark.
+Method TestMarkInTheFuture()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Set future = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+	Do ..SetTick(future)
+	Do ..AssertPlainTick(future)
+}
+
+/// Runs the task once on the running production, with the tick mark as the test left it, and shows the Tick of a run with no gap: one message header from
+/// HeartbeatIn to Checks, one Tick recorded by the double with PreviousTickAt previous and CatchUp 0, no gap mark, and a tick mark that is the Tick's
+/// TickAt: a time up to now that is not previous.
+Method AssertPlainTick(previous As %String) [ Private ]
+{
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask(), "OnTask returns OK")
+	Do $$$AssertEquals(..Headers(headerMark), 1, "and sends one Tick")
+	Do $$$AssertEquals(..WaitTicks(1), 1, "which the double records")
+	Set tick = $Get(^OcuTalonTest("ChecksDouble", "ticks", 1))
+	Set tickAt = ##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Schedule.Heartbeat).#TICKMARK)
+	Do $$$AssertEquals($List(tick, 2), previous, "its PreviousTickAt is '"_previous_"'")
+	Do $$$AssertEquals($List(tick, 3), 0, "its CatchUp is 0")
+	Do $$$AssertEquals($List(tick, 1), tickAt, "its TickAt is the new tick mark")
+	Do $$$AssertTrue((##class(OcuTalon.Data.Time).Seconds(tickAt) '= "") && (tickAt '= previous), "the tick mark is a time that is not '"_previous_"': "_tickAt)
+	Do $$$AssertTrue(##class(OcuTalon.Data.Time).Seconds(tickAt) '> ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()), "and it is up to now")
+	Do $$$AssertEquals(..Marks(), "tick="_tickAt, "and no gap mark is recorded")
+}
+
+/// (QA) The quiet rule on a real production, for the quiescent code. This process is made quiescent through the job-request node of its own job (the node
+/// that Ens.Job ShouldBeQuiescent reads first; no other job reads it, so the production goes on). CreateBusinessService then gives the platform's own
+/// ErrProductionQuiescent while the production runs; the task ends OK, sends nothing and leaves the marks. Once the node is gone the next run sends.
+Method TestQuiescent()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -180)
+	Do ..SetTick(old)
+	Set marks = ..Marks()
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do ..SetQuiescent()
+	Do $$$AssertEquals(##class(Ens.Job).ShouldBeQuiescent(), 1, "control: this process is quiescent")
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#SERVICE, .service)
+	Do $$$AssertTrue($SYSTEM.Status.Equals(sc, $$$EnsErrProductionQuiescent), "control: CreateBusinessService says so: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(Ens.Director).IsProductionRunning(), 1, "while the production runs")
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask(), "OnTask returns OK")
+	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no HeartbeatIn header is written")
+	Do $$$AssertEquals(..Marks(), marks, "and neither mark changed")
+	Do ..EndQuiescence()
+	Do $$$AssertEquals(##class(Ens.Job).ShouldBeQuiescent(), 0, "the node is gone, and the process is not quiescent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask(), "the next run returns OK")
+	Do $$$AssertEquals(..Headers(headerMark), 1, "and sends the Tick")
+}
+
+/// Makes this process quiescent: sets the job-request node of its own job (what Ens.Job ShouldBeQuiescent reads first) to quiescent, after saving what
+/// the node held. EndQuiescence puts it back; OnAfterOneTest and Restore call that also after a failure.
+Method SetQuiescent()
+{
+	Set ..QuiescentSaved = $Select(($Data($$$EnsJobRequest($$$SystemName, $Job)) # 2) = 1: $ListBuild($Get($$$EnsJobRequest($$$SystemName, $Job))), 1: "")
+	Set ..Quiescent = 1
+	Set $$$EnsJobRequest($$$SystemName, $Job) = $$$eJobRequestQuiescent
+}
+
+/// Puts the job-request node of this job back as SetQuiescent found it (killed when there was none).
+Method EndQuiescence()
+{
+	If '..Quiescent Quit
+	Set ..Quiescent = 0
+	If ..QuiescentSaved = "" {
+		Kill $$$EnsJobRequest($$$SystemName, $Job)
+	} Else {
+		Set $$$EnsJobRequest($$$SystemName, $Job) = $List(..QuiescentSaved, 1)
+	}
+	Set ..QuiescentSaved = ""
+}
+
+/// (QA) Any other failure is returned (Always). A HeartbeatTask whose service is not in the production (Test.Schedule.HeartbeatTaskMissingItem) runs against
+/// the running production: CreateBusinessService fails with a code that is not a quiet one, and OnTask returns it, so that the task history shows it.
+/// Nothing is sent and no mark changes.
+Method TestFailureReturned()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -180)
+	Do ..SetTick(old)
+	Set marks = ..Marks()
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Set class = "OcuTalon.Test.Schedule.HeartbeatTaskMissingItem"
+	Do $$$AssertEquals(##class(Ens.Director).IsProductionRunning(), 1, "control: the production runs")
+	Do $$$AssertEquals($Parameter(class, "ITEM"), "HeartbeatInMissing", "control: the task names a service that the production does not have")
+	Set task = $ClassMethod(class, "%New")
+	Set sc = task.OnTask()
+	Do $$$AssertStatusNotOK(sc, "OnTask returns the failure")
+	Do $$$AssertTrue($SYSTEM.Status.Equals(sc, $$$EnsErrBusinessDispatchNameNotRegistered), "it is the code of a service that is not registered: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no HeartbeatIn header is written")
+	Do $$$AssertEquals(..Marks(), marks, "and neither mark changed")
+}
+
+/// (QA) The production rule (Always): "OcuTalon.Production is not the running production". A HeartbeatTask that names another production
+/// (Test.Schedule.HeartbeatTaskElsewhere) runs while OcuTalon.Production is the running one: OnTask ends OK, sends nothing and leaves the marks; the
+/// real task, in the same state, sends.
+Method TestOtherProduction()
+{
+	If '..Prepare(..#DOUBLE) Quit
+	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -180)
+	Do ..SetTick(old)
+	Set marks = ..Marks()
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Set class = "OcuTalon.Test.Schedule.HeartbeatTaskElsewhere"
+	Do $$$AssertEquals(##class(Ens.Director).IsProductionRunning(.running), 1, "control: a production runs")
+	Do $$$AssertEquals(running, ..#PRODUCTION, "control: it is "_..#PRODUCTION)
+	Do $$$AssertTrue($Parameter(class, "PRODUCTION") '= running, "control: the task belongs to another production: "_$Parameter(class, "PRODUCTION"))
+	Set task = $ClassMethod(class, "%New")
+	Do $$$AssertStatusOK(task.OnTask(), "OnTask returns OK")
+	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no HeartbeatIn header is written")
+	Do $$$AssertEquals(..Marks(), marks, "and neither mark changed")
+	Do $$$AssertStatusOK(##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask(), "the task of the running production returns OK")
+	Do $$$AssertEquals(..Headers(headerMark), 1, "and sends the Tick")
+}
+
+/// (QA) OnAfterAllTests of a class that saved nothing leaves everything alone. A failed OnBeforeAllTests leaves the instance as a new one (it quits before it
+/// assigns anything, and before Saved is set), and the manager still calls OnAfterAllTests. A new instance runs it here, with the production running:
+/// it returns OK, kills no record of the double, leaves the task's Suspended value and the production as they are. Without the guard, Restore would put
+/// back what was never saved (and start a production that the class never stopped).
+Method TestAfterAllTestsNothingSaved()
+{
+	Set other = ##class(OcuTalon.Test.Schedule.Heartbeat).%New("")
+	Do $$$AssertTrue($IsObject(other) && (other.Saved = 0) && (other.Swap = ""), "control: a new instance has saved nothing")
+	If '$IsObject(other) Quit
+	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
+	Set suspended = $Select($IsObject(task): task.Suspended, 1: "")
+	Set ^OcuTalonTest("ChecksDouble", "sentinel") = 1
+	Set ^OcuTalonTest("Heartbeat", "sentinel") = 1
+	Set sc = other.OnAfterAllTests()
+	Do $$$AssertStatusOK(sc, "OnAfterAllTests returns OK")
+	Do $$$AssertEquals($Get(^OcuTalonTest("ChecksDouble", "sentinel")), 1, "it did not kill the record of the double")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Heartbeat", "sentinel")), 1, "or the record of the tests")
+	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
+	Do $$$AssertEquals($Select($IsObject(task): task.Suspended, 1: ""), suspended, "the task has the Suspended value that it had")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "and the production runs every item")
+}
+
 /// The lock. This test holds the lock of the heartbeat while a job runs the task: the run waits for the lock, ends OK after about 5 s, sends
 /// nothing and leaves the marks as they were.
 Method TestLockBusy()
@@ -434,7 +617,7 @@ Method TestLockBusy()
 	If 'held Quit
 	Try {
 		Job ##class(OcuTalon.Test.Schedule.Heartbeat).RunInJob(run)
-		Do ..WaitFor($Name(@run@("done")), 1, 60)
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).WaitFor($Name(@run@("done")), 60)
 		Do $$$AssertEquals($Get(@run@("done")), 1, "the run returns although the lock is held")
 		Do $$$AssertEquals($Get(@run@("ok")), 1, "with OK")
 		Do $$$AssertTrue(($Get(@run@("seconds"), 0) '< 4) && ($Get(@run@("seconds"), 0) < 15), "after it waited its 5 seconds for the lock: "_$Get(@run@("seconds"))_" seconds")
@@ -458,20 +641,25 @@ ClassMethod RunInJob(run As %String)
 }
 
 /// 1 when the production runs and the class behind Checks is className, putting it there when it is not (the status of the swap is asserted),
-/// with the double's record empty. With suspend 1 the real task is suspended too, which the tests that run the task in this process need, so that
-/// no scheduled run adds a tick.
+/// with the double's record empty. With suspend 1, which the tests that run the task in this process need, the real task is suspended and held
+/// first (HoldTask), then Checks has handled every message it had (Settle) and the gap marks are cleared, so that no scheduled run adds a tick or
+/// a mark.
 Method Prepare(className As %String, suspend As %Boolean = 1) As %Boolean [ Private ]
 {
 	Set reason = $ClassMethod(..#FIXTURE, "RunningReason")
 	Do $$$AssertEquals(reason, "", "the production runs")
 	If reason '= "" Quit 0
+	If suspend Do ..SuspendTask()
 	If $$$ConfigClassName(..#ITEM) '= className {
 		Set sc = $ClassMethod(..#FIXTURE, "UseItemClass", ..#ITEM, className, .saved)
 		If (..Swap = "") && $IsObject(saved) Set ..Swap = saved.%ToJSON()
 		Do $$$AssertStatusOK(sc, className_" is put behind "_..#ITEM)
 		If $$$ISERR(sc) Quit 0
 	}
-	If suspend Do ..SuspendTask()
+	If suspend {
+		Do $$$AssertTrue(..Settle(..#ITEM), ..#ITEM_" has no message in hand or in its queue")
+		Do ..ClearGaps()
+	}
 	Kill ^OcuTalonTest("ChecksDouble")
 	Quit 1
 }
@@ -482,7 +670,9 @@ Method SuspendTask()
 	Do $$$AssertStatusOK(..HoldTask(), "the real task is suspended")
 }
 
-/// Suspends the real task, remembering its Suspended value the first time, and waits for a run that is in the heartbeat service to finish.
+/// Suspends the real task, remembering its Suspended value the first time, and holds the heartbeat's lock until ResumeTask: it waits up to 10 s for
+/// a run that is in the heartbeat service, and a run that began before the suspension then waits its 5 s for the lock and ends without sending or
+/// recording. HeartbeatIn in this process takes the lock again (an incremental lock), so the tests' own runs go on.
 Method HoldTask() As %Status
 {
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
@@ -490,15 +680,22 @@ Method HoldTask() As %Status
 	If ..SuspendedWas = "" Set ..SuspendedWas = task.Suspended
 	Set task.Suspended = 1
 	Set sc = task.%Save()
+	If ..Holding Quit sc
 	Set lock = ##class(OcuTalon.Schedule.Heartbeat).#LOCK
 	Lock +@lock:10
-	Lock -@lock
+	If '$Test Quit $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "A run of the heartbeat still holds its lock 10 s after the task was suspended"))
+	Set ..Holding = 1
 	Quit sc
 }
 
-/// Puts the Suspended value of the real task back as it was found, when a test changed it.
+/// Releases the heartbeat's lock when HoldTask holds it, and puts the Suspended value of the real task back as it was found, when a test changed it.
 Method ResumeTask()
 {
+	If ..Holding {
+		Set lock = ##class(OcuTalon.Schedule.Heartbeat).#LOCK
+		Lock -@lock
+		Set ..Holding = 0
+	}
 	If ..SuspendedWas = "" Quit
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
 	If $IsObject(task) {
@@ -508,11 +705,12 @@ Method ResumeTask()
 	Set ..SuspendedWas = ""
 }
 
-/// Waits, when the clock is in the last seconds of a clock minute, for the next minute to start (up to 15 s), so that a run a few seconds later is
-/// still in the same clock minute as the time the test builds its tick marks from.
+/// Waits, when the clock is in the last seconds of a clock minute, for the next minute to start (polling, with a ceiling of 16 s), so that a run a
+/// few seconds later is still in the same clock minute as the time the test builds its tick marks from.
 Method WaitForSafeMinute()
 {
-	While +$Extract(##class(OcuTalon.Data.Time).NowUtc(), 18, 19) > 45 {
+	Set deadline = $ZHorolog + 16
+	While (+$Extract(##class(OcuTalon.Data.Time).NowUtc(), 18, 19) > 45) && ($ZHorolog < deadline) {
 		Hang 0.5
 	}
 }
@@ -595,15 +793,6 @@ ClassMethod WaitTicks(count As %Integer, seconds As %Integer = {..#RECORDSECONDS
 	Quit +$Get(^OcuTalonTest("ChecksDouble", "ticks"))
 }
 
-/// Waits, up to seconds, until the global node holds the value.
-ClassMethod WaitFor(node As %String, value As %String, seconds As %Integer)
-{
-	Set deadline = $ZHorolog + seconds
-	While ($Get(@node) '= value) && ($ZHorolog < deadline) {
-		Hang 0.2
-	}
-}
-
 /// The highest id of the Task Manager's history: the mark that WaitRuns and RunErrors read from.
 ClassMethod HistoryMark() As %Integer
 {
@@ -667,20 +856,26 @@ ClassMethod ScheduleOf(task As %SYS.Task) As %String
 	Quit text
 }
 
-/// Waits until Ens.ScheduleHandler is idle (DW-28): a stop right after a production update fails unless it is. This is the line settle_scheduler of
-/// docker/tests/lib-live.sh, as ObjectScript: it ends once the handler's queue is empty and its job is Alive, dequeuing and has no active message,
-/// or after 10 s. 1 when it settled.
+/// Waits until Ens.ScheduleHandler is idle (DW-28): a stop right after a production update fails unless it is. 1 when it settled.
 ClassMethod SettleScheduler() As %Boolean
+{
+	Quit ..Settle("Ens.ScheduleHandler")
+}
+
+/// Waits until the item is idle, for an item with a job of its own. This is the line settle_scheduler of docker/tests/lib-live.sh, as ObjectScript,
+/// for any such item: it ends once the item's queue is empty and its job is Alive, dequeuing and has no active message, or after 10 s. 1 when it
+/// settled.
+ClassMethod Settle(item As %String) As %Boolean
 {
 	Set busy = 1
 	Set seen = 0
 	For k = 1:1:100 {
-		Set busy = (##class(Ens.Queue).GetCount("Ens.ScheduleHandler") > 0)
+		Set busy = (##class(Ens.Queue).GetCount(item) > 0)
 		Set seen = 0
 		Set rs = ##class(%ResultSet).%New("Ens.Job:Enumerate")
 		Set sc = rs.Execute()
 		While rs.Next() {
-			If rs.Get("ConfigName") = "Ens.ScheduleHandler" {
+			If rs.Get("ConfigName") = item {
 				Set seen = 1
 				If '((rs.Get("State") = "Alive") && (rs.Get("Status") = "dequeuing") && (rs.Get("ActiveMessage") = "")) Set busy = 1
 			}
