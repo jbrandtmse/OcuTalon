@@ -190,3 +190,10 @@
 2026-10-24T12:25:17Z	Epic 1-16,29-32	owner_decision	id=AD-22_as-built_shard_list via=contest_planner by=Contest_Planner(owner_delegate) answer=approved(factual_correction:lane-a=Agent,Bridge,Install,Tools,Digest;no_rule_change)
 2026-10-24T12:25:17Z	Epic 1-16,29-32	spine_updated	ad=AD-22 reason=owner_decision(factual_as-built_correction) by=orchestrator story=none lint=baseline(4_low_placeholder)
 2026-10-24T12:25:17Z	Epic 1-16,29-32	owner_decision	id=DW-92_hold via=contest_planner note=the_Planner_holds_the_InterSystems_report_with_other_AI_Hub_findings_for_the_find-a-bug_bonus_list_after_Oct_26;the_run_takes_no_outward_step
+2026-10-24T12:39:51Z	Epic 3	ci_green_verified	runs=40093863095,40093863252 head=f05fe48 branch=feature/OCT_OcuTalon_MVP note=dispatch_precondition
+2026-10-24T12:39:51Z	Epic 3	worktree_provisioned	worktree=.worktrees/epic-3 branch=OCT-epic3 from=f05fe48 submodules=none
+2026-10-24T12:39:51Z	Epic 3	worktree_bootstrapped	epic=3 result=ok
+2026-10-24T12:39:51Z	Epic 8	worktree_provisioned	worktree=.worktrees/epic-8 branch=OCT-epic8 from=f05fe48 submodules=none
+2026-10-24T12:39:51Z	Epic 8	worktree_bootstrapped	epic=8 result=ok
+2026-10-24T12:39:51Z	Epic 3	runner_dispatched	model=opus lane=A slot=ocutalon-slot-a retro_review=skip(handled_by_epic_1,done) lock=lane-a(52801) warm=available run_in_background=true
+2026-10-24T12:39:51Z	Epic 8	runner_dispatched	model=opus lane=C slot=ocutalon-slot-c story_waits=8.2->2,8.3->2+4,8.4->4 retro_review=skip(handled_by_epic_1,done) lock=lane-c(52803) slot_load=required(empty_OCUTALON_on_slot_C) warm=available run_in_background=true
