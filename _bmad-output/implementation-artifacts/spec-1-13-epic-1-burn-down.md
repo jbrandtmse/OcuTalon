@@ -394,7 +394,7 @@ No AC contradicts an AD's Rule, and no NFR is involved.
 | AC5 | the fault line is not added | `WebStatus.TestMissingReadsMissing` |
 
 **Lead's rulings at the spec gate (2026-10-24, Epic 1 runner, unattended):**
-- **Veto window, kept as planned:** the recorded key state `^OcuTalonBP.KeyState(item)` (inbox U-48 or the next id the inbox gave; see the cycle log), and Status 0 while a runner is stopped or unreadable, so the no-key banner shows then (unknown is never OK).
+- **Veto window, kept as planned:** the recorded key state `^OcuTalonBP.KeyState(item)` (inbox U-48), and Status 0 while a runner is stopped or unreadable, so the no-key banner shows then (unknown is never OK; U-49).
 - **Decided:** `Budget.State` degrades quietly in a request without the grant; `Keys.Present`'s new meaning; no spine edit here (AD-20's wording is left for the orchestrator).
 - **Task 0's stop conditions stand:** in particular, if the web roles cannot read the recorded state, HALT (a key that is set must read as present to the web request).
 
