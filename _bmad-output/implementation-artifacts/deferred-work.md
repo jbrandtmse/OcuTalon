@@ -555,6 +555,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/WatchFixture.cls gained only STEPLABEL<NAME> in Story 1.10; spine convention 'Tool classification': an undeclared tool is unclassified
 - 2026-10-24T02:57:20Z status=routed owner=3-2-one-gate-decides-every-tool-call by=cr note=3.2 declares the watch tools' classification (event-log and message text never trusted output, AD-10) or scans for it
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=WatchFixture_declares_CLASSIFICATION/READONLY/TRUSTEDOUTPUT_per_tool(safe,1,0);pinned_by_Test.Bridge.Gate:TestWatchToolsAreClassified+TestEveryBuiltInToolIsClassified+Test.Agent.Runners(mutation_recorded);commit_c88bd3b
 
 ### DW-144: Test.Tools.Reminders.Prepare is the fifth copy of the live-test readiness helper (Test.Agent.RequestSize, Agent.Decide, Agent.Conversation, Bridge.Budget), with the CommandsIn swap added, instead of one shared helper in RunnerFixture
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
@@ -673,11 +674,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: CheckUserPermission returns 0 on error and needs %Admin_Secure:USE for another user (irislib/%SYSTEM/Security.cls); tests ran as irisowner
 - 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead: settle in 3.2's QA or smoke with one gate call from a production runner job on a throwaway
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=measured_at_QA_on_a_fresh_throwaway:production_AgentRunner_job_runs_as__Ensemble;zz_gate_public(%DB_IRISLIB:R)_allowed_and_ran,zz_gate_admin(%Admin_Secure:U)_denied_NOPRIVILEGE;pinned_by_Test.Bridge.Gate:TestPrivilegeInProductionRunnerJob(2_mutations);residual:a_production_with_another_acting_user_unmeasured
 
 ### DW-174: Whether AI Hub gives an MCP tool a toolref that starts mcp: is unmeasured; another form (the JSON configuration form of %AI.Tool.Resolver) would take metadata.origin_class as the source, so a shadowing MCP tool could take a built-in's classification
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
+- 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -688,6 +691,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: spec Boundaries: the gate never reads metadata's requirements; implement deferred it for the lead (security posture)
 - 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead ruling: add the governance-test check in 3.2's code review (tightens only)
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=governance_test_fails_if_any_built-in_tool_is_REQUIRESAUTH_and_safe_or_argument-classified(Gate.AuthMarks,TestEveryRiskyBuiltInIsDenied);mutation_REQUIRESAUTH=1_on_ReminderTools->red
 
 ### DW-177: The classes that OcuTalon.Core.BridgeSink calls once it publishes (Lane B) are not in CodeRules.CALLBACKHELPERS, so the callback rule does not scan them, although the gate fires turn.step to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job (AD-6)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint

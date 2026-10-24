@@ -290,11 +290,12 @@ ClassMethod ArgumentsOf(call As %DynamicObject) As %RegisteredObject [ Private ]
 	Quit arguments
 }
 
-/// The arguments as an object for a code Classify method: an object as it is, a JSON string parsed, and an empty object for none (""). It
+/// The arguments as an object for a code Classify method: a copy of an object (AI Hub runs the call with whatever its arguments object holds
+/// after %CanExecute, so a method that changes its input never changes the call), a JSON string parsed, and an empty object for none (""). It
 /// throws for text that is not a JSON object.
 ClassMethod ArgumentsObject(arguments As %RegisteredObject) As %DynamicObject [ Private ]
 {
-	If $IsObject(arguments) Quit arguments
+	If $IsObject(arguments) Quit {}.%FromJSON(arguments.%ToJSON())
 	If $ZStrip(arguments, "*WC") = "" Quit {}
 	Try {
 		Set object = {}.%FromJSON(arguments)

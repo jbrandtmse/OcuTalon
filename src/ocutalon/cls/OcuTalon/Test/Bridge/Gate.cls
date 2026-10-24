@@ -18,10 +18,12 @@
 ///   - TestPrivilegeHeld, TestOneLetterPerCall, TestPrivilegeMissing (11 to 13): the service user's privileges, one letter per call;
 ///   - TestNoContext, TestMalformedCall (14): no context, and a call that is no object or has no name, are denied with FAILED;
 ///   - TestExceptionEndToEnd, TestDeveloperRiskyEndToEnd, TestAllowedEndToEnd (15 to 17): through a shadow runner and the CI mock;
-///   - TestEveryRiskyBuiltInIsDenied, TestGovernanceSample (18): the governance test, through a real %AI.ToolMgr with the gate and the step audit policy.
+///   - TestEveryRiskyBuiltInIsDenied, TestGovernanceSample (18): the governance test, through a real %AI.ToolMgr with the gate and the step audit policy;
+///     no built-in tool that AI Hub marks REQUIRESAUTH is safe or classifies by its arguments (DW-176), because the gate never reads requires_auth.
 /// Also: TestSeveralPairsAndPrivilegeBeforeApproval (every pair of RESOURCES is checked, and the privilege comes before any approval),
 /// TestStepLabelIsRedactedAndCut (the label of turn.step), TestClassWideHook (a class-wide Classify outranks the parameters), TestAnyRequestKindAndProvenance
-/// (the gate decides every request kind alike), TestOddValues (only the exact values classify, and what code declares is final), TestSettings (the two settings of Decide), TestOneParser
+/// (the gate decides every request kind alike), TestPrivilegeInProductionRunnerJob (DW-173: the service user's privilege is checked from the
+/// production's own runner job), TestDenialText (what StepAudit.DenialText records for a denial), TestOddValues (only the exact values classify, and what code declares is final), TestSettings (the two settings of Decide), TestOneParser
 /// (the installer parses RESOURCES with the gate's parser), TestSentences, TestCanExecute (the callback never raises) and TestGateHasNoProperties.
 Class OcuTalon.Test.Bridge.Gate Extends %UnitTest.TestCase
 {
@@ -40,6 +42,9 @@ Parameter WATCH = "OcuTalon.Tools.WatchFixture";
 Parameter SAMPLE = "OcuTalon.Test.Bridge.ZzGateTools";
 
 Parameter AGENT = "OcuTalon.Test.Bridge.ZzGateAgent";
+
+/// The production runner whose agent the production-job test swaps for the gate's agent.
+Parameter RUNNER = "ChatAgent";
 
 /// The host sink of the tests.
 Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
@@ -61,6 +66,16 @@ Property SavedSink As %DynamicObject;
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
 
+/// What ChatAgent had of the AgentClass and AgentAllowList settings before the production-job test swapped in the gate's agent
+/// (RunnerFixture.UseAgent), "" while it is not swapped.
+Property SavedAgent As %DynamicObject;
+
+/// 1 while the entries of the production's runners are pointed at the CI mock key variable (RunnerFixture.PointKeys).
+Property Pointed As %Boolean [ InitialExpression = 0 ];
+
+/// The ItemIds of the requests that the production-job test sent to the production's runner, whose Usage rows OnAfterOneTest deletes.
+Property ItemIds As %List;
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Do ..Clean()
@@ -77,6 +92,14 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ..Clean()
+	If $IsObject(..SavedAgent) && ..SavedAgent.%IsDefined("allowListSet") {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreAgent(..#RUNNER, ..SavedAgent), "ChatAgent's agent class and allow-list are put back")
+		Set ..SavedAgent = ""
+	}
+	If ..Pointed {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(), "the entries of the runners are put back to the placeholder of the Provider step")
+		Set ..Pointed = 0
+	}
 	If $IsObject(..SavedSink) && ..SavedSink.%IsDefined("valueSet") {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", ..SavedSink), "Decide's HostSinkClass is put back")
 		Set ..SavedSink = ""
@@ -85,6 +108,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..SavedRows = ""
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
+	Set position = 0
+	While $ListNext(..ItemIds, position, itemId) {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+	}
+	Set ..ItemIds = ""
 	Quit $$$OK
 }
 
@@ -329,8 +357,10 @@ Method TestMcpShadow()
 }
 
 /// Row 9: a ClassificationClass row that names ZzGateClassification, which gives safe for (mcp:zzserver, zz_mcp_safe): that MCP tool is safe by
-/// extension and allowed; another MCP tool is denied. The extension also classifies a class source that code and the setting leave unclassified. A
-/// ClassificationClass that is not compiled, or does not extend the base, is an error (FAILED), with one warning.
+/// extension and allowed; another MCP tool is denied. The extension also classifies a class source that code and the setting leave unclassified
+/// (zz_gate_risky), after the ToolClassification setting, and never changes what code declares (zz_gate_held stays risky, odd_param unclassified).
+/// It never gets the call's arguments: zz_mcp_args, which it calls safe only when it is given arguments, is denied. A ClassificationClass that is
+/// not compiled, or does not extend the base, is an error (FAILED), with one warning.
 Method TestExtension()
 {
 	Set request = ..Begin()
@@ -345,6 +375,16 @@ Method TestExtension()
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_other", {}), {}, ..#SINK)), $Parameter(gate, "NEEDSAPPROVAL"), "another tool of the server is denied")
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:otherserver", ..Call("zz_mcp_safe", {}), {}, ..#SINK)), $Parameter(gate, "NEEDSAPPROVAL"), "and so is the same name on another server")
 	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", ..#TOOLS, "zz_gate_safe").by, "", "a class source that code and the setting leave unclassified is asked of the extension, which has none")
+	Set result = $ClassMethod(gate, "ClassificationOf", ..#TOOLS, "zz_gate_risky")
+	Do $$$AssertEquals(result.classification_"|"_result.by, "safe|extension", "the extension classifies a class source that code and the setting leave unclassified")
+	Do $$$AssertEquals(..Sentence(..Verdict("zz_gate_risky", ..#TOOLS, {}, ..#SINK)), "<OK>", "and that call is allowed")
+	Set result = $ClassMethod(gate, "ClassificationOf", ..#TOOLS, "zz_gate_held")
+	Do $$$AssertEquals(result.classification_"|"_result.by, "risky|code", "it never changes what code declares: zz_gate_held stays risky")
+	Do $$$AssertEquals($ClassMethod(gate, "ClassificationOf", ..#ODD, "odd_param", {}).%ToJSON(), {"classification": "", "readOnly": 0, "trustedOutput": 0, "by": ""}.%ToJSON(), "nor a value that code declares badly: odd_param stays unclassified")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("zz_mcp_args", {"classification": "safe"}), {}, ..#SINK)), $Parameter(gate, "NEEDSAPPROVAL"), "it never gets the call's arguments: zz_mcp_args is denied")
+	Do ..PutSetting("ToolClassification", "["_..Entry(..#TOOLS, "zz_gate_risky", "risky").%ToJSON()_"]")
+	Set result = $ClassMethod(gate, "ClassificationOf", ..#TOOLS, "zz_gate_risky")
+	Do $$$AssertEquals(result.classification_"|"_result.by, "risky|setting", "and a ToolClassification entry comes before it")
 	Set failed = $Parameter(gate, "FAILED")
 	For class = "OcuTalon.Test.Bridge.ZzGateNoSuchClass", "OcuTalon.Test.Bridge.ProbeNotASink" {
 		Do ..PutSetting("ClassificationClass", class)
@@ -353,12 +393,12 @@ Method TestExtension()
 		Do $$$AssertEquals(..Sentence(sc), failed, class_" as the ClassificationClass: FAILED")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_mcp_safe", "mcp:zzserver", class)), 1, "with one warning that names the tool, its source and the class")
 	}
-	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "the sink got no more calls")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 2, "the sink got a call for each of the two allowed calls, and no more")
 }
 
 /// Row 10: nothing in the call or the context classifies it. zz_gate_held, with metadata {"CLASSIFICATION":"safe","ReadOnly":"1"}, the arguments
 /// {"classification":"safe"} and a context whose HostData says {"classification":"safe"}, is denied with NEEDSAPPROVAL, and so is an unclassified
-/// tool with the same content. The call object's JSON is unchanged.
+/// tool with the same content. The call object's JSON is unchanged, also when the tool's Classify method changes the arguments it is given (odd_mutate).
 Method TestCallContentCannotClassify()
 {
 	Do ..Begin()
@@ -372,6 +412,10 @@ Method TestCallContentCannotClassify()
 		Do $$$AssertEquals(..Sentence(sc), needs, name_": denied, whatever the call, its metadata and the context say")
 		Do $$$AssertEquals(call.%ToJSON(), before, "and the call is unchanged")
 	}
+	Set call = {"id": "call_id", "name": "odd_mutate", "arguments": {"to": "user"}}
+	Set before = call.%ToJSON()
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("odd_mutate", call, ..Meta(..#ODD), ..#SINK)), needs, "odd_mutate, whose Classify method changes its input, is denied")
+	Do $$$AssertEquals(call.%ToJSON(), before, "and the call keeps its own arguments")
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "the sink got no call")
 }
 
@@ -547,13 +591,15 @@ Method TestAllowedEndToEnd()
 /// Row 18, the built-in tools: every tool of every toolset of OcuTalon.Tools whose classification with {} (or with its case, CASES) is not safe, or
 /// throws, goes through a fresh %AI.ToolMgr with the gate and the step audit policy in a user's turn, and is denied, its method does not run and its
 /// only step is denied. A built-in tool that classifies by its arguments has an entry in CASES, or this test fails. There is no risky built-in tool
-/// today, so the test shows that the scan finds the tools and fails nothing.
+/// today, so the test shows that the scan finds the tools and fails nothing. DW-176: no built-in tool that AI Hub marks REQUIRESAUTH (AuthMarks) is
+/// safe or classifies by its arguments, because the gate never reads metadata's requires_auth: such a tool declares itself risky.
 Method TestEveryRiskyBuiltInIsDenied()
 {
-	Do ..Governance(..BuiltInToolsets(), ..#CASES, .ran, .noCase, .problems, .seen)
+	Do ..Governance(..BuiltInToolsets(), ..#CASES, .ran, .noCase, .problems, .seen, .authSafe)
 	Do $$$AssertTrue(seen '< 6, "the test saw the tools of the reminders and the watch: "_seen)
 	Do $$$AssertEquals($ListToString(problems, "; "), "", "every risky or unclassified built-in tool is denied and does not run (denied here: "_$ListLength(ran)_")")
 	Do $$$AssertEquals($ListToString(noCase, ","), "", "every built-in tool with a Classify method has a case in CASES")
+	Do $$$AssertTrue(authSafe = "", "no built-in tool that AI Hub marks REQUIRESAUTH is safe or classifies by its arguments: "_$ListToString(authSafe, "; "))
 }
 
 /// Row 18, the sample: the toolset ZzGateTools through the same helper. zz_gate_held and zz_gate_risky are run and denied, and so are the other tools
@@ -708,6 +754,93 @@ Method TestAnyRequestKindAndProvenance()
 		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, "and not reported")
 		Do ##class(OcuTalon.Bridge.Context).End()
 	}
+}
+
+/// DW-173, the production's own runner job: the gate's check of the service user's privileges (CheckUserPermission for a user other than the
+/// job's own needs %Admin_Secure:USE) is run from the AgentRunner job of the production, not from the test process. ChatAgent's item gets the gate's
+/// agent (RunnerFixture.UseAgent), and a user's turn goes to it through ApprovalStartIn.
+///   - the scenario gate-public calls zz_gate_public, which is safe and declares %DB_IRISLIB:R (public): the tool ran in that job (its result
+///     {"ran":"zz_gate_public"} is in the model's next request) and its step is ok, so the job can read the service user's privilege;
+///   - the scenario gate-admin calls zz_gate_admin, which declares %Admin_Secure:U, which the service user lacks: the step is denied with
+///     NOPRIVILEGE naming that pair, and the tool did not run, so the allowed call above is no accident of a check that always answers 1;
+///   - the job runs as a user other than the service user, so the check is of another user's privilege, as DW-173 asks.
+Method TestPrivilegeInProductionRunnerJob()
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set reason = $ClassMethod(fixture, "ReadyReason")
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set ..Pointed = 1
+	Set sc = $ClassMethod(fixture, "PointKeys")
+	Do $$$AssertStatusOK(sc, "the entries of the runners are pointed at the CI mock key variable")
+	If $$$ISERR(sc) Quit
+	Set sc = $ClassMethod(fixture, "UseAgent", ..#RUNNER, ..#AGENT, .saved)
+	Set ..SavedAgent = saved
+	Do $$$AssertStatusOK(sc, "the gate's agent runs behind "_..#RUNNER)
+	If $$$ISERR(sc) Quit
+	Set user = ..JobUser(..#RUNNER)
+	Do $$$AssertTrue(user '= "", "the job of "_..#RUNNER_" runs as the user "_user)
+	Do $$$AssertTrue(user '= ##class(OcuTalon.Install.Step.Users).#SERVICEUSER, "which is not the service user, so the check is of another user's privilege")
+
+	Set sc = $ClassMethod(fixture, "Ask", ..#RUNNER, "turn", "user", "Try the public tool. [[mock:gate-public]]", .reply, .requests, .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Do $$$AssertStatusOK(sc, "the turn of gate-public is answered by the production's job")
+	If '$IsObject(reply) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Do $$$AssertEquals(reply.Text, "The CI mock ran the public gate test tool.", "the turn is answered with the second reply of the scenario")
+	Set step = ..ToolStep(reply)
+	Do $$$AssertEquals(step.status, "ok", "the step of zz_gate_public is ok: the job can check the service user's %DB_IRISLIB:R")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock got the request and the one that follows the tool call")
+	If requests.%Size() = 2 {
+		Set results = $ClassMethod(fixture, "ToolResults", requests.%Get(1))
+		Do $$$AssertEquals($ListToString(results, "|"), "{""ran"":""zz_gate_public""}", "and the tool ran in that job: its result is in the next request")
+	}
+
+	Set sc = $ClassMethod(fixture, "Ask", ..#RUNNER, "turn", "user", "Try the admin tool. [[mock:gate-admin]]", .reply, .requests, .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Do $$$AssertStatusOK(sc, "the turn of gate-admin is answered by the production's job")
+	If '$IsObject(reply) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Set step = ..ToolStep(reply)
+	Do $$$AssertEquals(step.status, "denied", "the step of zz_gate_admin is denied")
+	Set missing = $Replace($Parameter(..#GATE, "NOPRIVILEGE"), "{privilege}", "%Admin_Secure:U")
+	Do $$$AssertTrue(step.summary [ (". Denied: Tool access denied: "_$Extract(missing, 1, *-1)_". About "), "with NOPRIVILEGE, naming %Admin_Secure:U: "_step.summary)
+	If requests.%Size() = 2 {
+		Set results = $ClassMethod(fixture, "ToolResults", requests.%Get(1))
+		Do $$$AssertTrue($ListToString(results, "|") [ missing, "and the model's next request carries the sentence: "_$ListToString(results, "|"))
+		Do $$$AssertTrue($ListToString(results, "|") '[ "{""ran""", "and the tool did not run")
+	} Else {
+		Do $$$AssertEquals(requests.%Size(), 2, "the mock got two requests")
+	}
+}
+
+/// What StepAudit.DenialText gives for a denial, through %LogDenial: the step's detail, which is the text between "Denied: " and ". About ". A denial
+/// by the gate, as AI Hub wraps it (its own "Tool access denied: " and the full text of the gate's status, which repeats the code), reads
+/// "Tool access denied: <sentence>" once, without the sentence's closing period; a status text without AI Hub's wrapper, with or without a closing
+/// period, is only cleared of its period; an empty text and an OK status give an empty detail, and an unreadable status still records its step and raises nothing.
+/// AI Hub wraps the gate's status in its own ToolAccessDenied status, whose message is "Tool access denied: " and the gate's full status text.
+Method TestDenialText()
+{
+	Set gate = ..#GATE
+	Set sentence = "this tool is risky, so nothing was run."
+	Set inner = $ClassMethod(gate, "Denial", sentence)
+	Set wrapped = $SYSTEM.Status.Error(..#DENIED, $SYSTEM.Status.GetErrorText(inner))
+	Do ..AssertDetail(wrapped, "Tool access denied: this tool is risky, so nothing was run", "a denial by the gate as AI Hub wraps it: the prefix and the code once, no closing period")
+	Do ..AssertDetail(inner, "Tool access denied: this tool is risky, so nothing was run", "the gate's own status, not wrapped: the same text without its closing period")
+	Do ..AssertDetail($SYSTEM.Status.Error(5001, "Policy said no."), "Policy said no", "a status text without the prefix keeps its text and loses its closing period")
+	Do ..AssertDetail($SYSTEM.Status.Error(5001, "Policy said no"), "Policy said no", "a text that already ends without a period is kept as it is")
+	Do ..AssertDetail($SYSTEM.Status.Error(5001, "Tool access denied: not the gate's code."), "Tool access denied: not the gate's code", "AI Hub's prefix alone, without the repeated code, is not taken off")
+	Do ..AssertDetail($SYSTEM.Status.Error(5001, "Policy said no. Ask again later."), "Policy said no. Ask again later", "only the closing period goes, not the ones inside the text")
+	Do ..AssertDetail($SYSTEM.Status.Error(5001, ""), "", "an empty text gives an empty detail")
+	Set detail = ..DeniedDetail("")
+	Do $$$AssertTrue($Extract(detail) '= "<", "an unreadable status still records a denied step and raises nothing (got '"_detail_"')")
+	Do ..AssertDetail($$$OK, "", "and so does an OK status")
 }
 
 /// --- helpers ---
@@ -865,12 +998,14 @@ ClassMethod BuiltInToolsets() As %List [ Private ]
 
 /// The governance run (row 18) over the tools of the toolsets. cases holds the risky arguments of tools that classify by their arguments
 /// (provider:name=<JSON>, separated by a line feed). For each tool: seen counts it; noCase lists (by name) the tools with a Classify method and no
-/// case; a tool whose classification with its arguments ({} without a case) is safe is skipped, but a case that is safe is a problem; any other,
+/// case; authSafe lists (by name, with where) the tools that AI Hub marks REQUIRESAUTH (AuthMarks) and that are safe with their arguments or have a
+/// Classify method; a tool whose classification with its arguments ({} without a case) is safe is skipped, but a case that is safe is a problem; any other,
 /// and any that throws, runs through a fresh %AI.ToolMgr with the gate and the step audit policy, in a user's turn (RunDenied), and is listed in ran
 /// when it was denied properly and in problems (with the reason) when not.
-Method Governance(toolsets As %List, cases As %String, Output ran As %List, Output noCase As %List, Output problems As %List, Output seen As %Integer) [ Private ]
+Method Governance(toolsets As %List, cases As %String, Output ran As %List, Output noCase As %List, Output problems As %List, Output seen As %Integer, Output authSafe As %List) [ Private ]
 {
 	Set ran = ""
+	Set authSafe = ""
 	Set noCase = ""
 	Set problems = ""
 	Set seen = 0
@@ -885,7 +1020,8 @@ Method Governance(toolsets As %List, cases As %String, Output ran As %List, Outp
 			Set seen = seen + 1
 			Set key = tool.provider_":"_tool.name
 			Set hasCase = $Data(byTool(key)) > 0
-			If (##class(OcuTalon.Bridge.Policy.Gate).HookFor(tool.provider, tool.name) '= "") && 'hasCase Set noCase = noCase _ $ListBuild(tool.name)
+			Set hook = ##class(OcuTalon.Bridge.Policy.Gate).HookFor(tool.provider, tool.name)
+			If (hook '= "") && 'hasCase Set noCase = noCase _ $ListBuild(tool.name)
 			Set arguments = $Select(hasCase: {}.%FromJSON(byTool(key)), 1: {})
 			Set safe = 0
 			Try {
@@ -893,6 +1029,8 @@ Method Governance(toolsets As %List, cases As %String, Output ran As %List, Outp
 			} Catch {
 				Set safe = 0
 			}
+			Set marks = ..AuthMarks(toolset, tool)
+			If (marks '= "") && (safe || (hook '= "")) Set authSafe = authSafe _ $ListBuild(tool.name_" (REQUIRESAUTH in "_marks_")")
 			If safe {
 				If hasCase Set problems = problems _ $ListBuild(tool.name_": its case is not risky")
 				Continue
@@ -905,6 +1043,17 @@ Method Governance(toolsets As %List, cases As %String, Output ran As %List, Outp
 			}
 		}
 	}
+}
+
+/// Where AI Hub marks the tool of the toolset as requiring an authorization (metadata.requires_auth): the requires_auth of its discovered spec, or the
+/// REQUIRESAUTH parameter of its class or of its toolset, joined by a comma; "" when nowhere.
+ClassMethod AuthMarks(toolset As %String, tool As %DynamicObject) As %String [ Private ]
+{
+	Set marks = ""
+	If tool.%Get("requires_auth") = 1 Set marks = marks _ $ListBuild("its spec")
+	If $Parameter(tool.provider, "REQUIRESAUTH") = 1 Set marks = marks _ $ListBuild(tool.provider)
+	If $Parameter(toolset, "REQUIRESAUTH") = 1 Set marks = marks _ $ListBuild(toolset)
+	Quit $ListToString(marks, ", ")
 }
 
 /// Runs the tool of the toolset through a fresh %AI.ToolMgr whose authorization policy is the gate and whose audit policy is the step audit policy,
@@ -951,6 +1100,50 @@ Method RunDenied(toolset As %String, name As %String, arguments As %DynamicObjec
 	}
 	Do ..Clean()
 	Quit problem
+}
+
+/// Asserts that the detail of the denial of the status (DeniedDetail) is the expected text, and says what it was when it is not.
+Method AssertDetail(status As %Status, expected As %String, description As %String) [ Private ]
+{
+	Set detail = ..DeniedDetail(status)
+	Do $$$AssertTrue(detail = expected, description_" (got '"_detail_"')")
+}
+
+/// The detail that %LogDenial of the step audit policy records for the status: the text between "Denied: " and ". About " in the summary of the
+/// one tool step it puts in a fresh step buffer. The buffer is over afterwards.
+ClassMethod DeniedDetail(status As %Status) As %String [ Private ]
+{
+	Do ..Clean()
+	Set detail = "<no step>"
+	Try {
+		Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(0)
+		Set audit = ##class(OcuTalon.Bridge.Policy.StepAudit).%New()
+		Set sc = audit.%LogDenial(..Call("zz_gate_held", {}), ..Meta(..#TOOLS), status)
+		Set records = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records()
+		If $$$ISOK(sc) && (records.%Size() = 1) && (records.%Get(0).status = "denied") {
+			Set detail = $Piece($Piece(records.%Get(0).summary, ". Denied: ", 2, *), ". About ", 1)
+		}
+	} Catch exception {
+		Set detail = "<raised "_exception.DisplayString()_">"
+	}
+	Do ..Clean()
+	Quit detail
+}
+
+/// The user that the job of the production item runs as, or "" when it has no alive job or the process cannot be read.
+ClassMethod JobUser(item As %String) As %String [ Private ]
+{
+	Set user = ""
+	Try {
+		Set jobs = ##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)
+		If $ListLength(jobs) '= 0 {
+			Set process = ##class(%SYS.ProcessQuery).%OpenId($List(jobs, 1))
+			If $IsObject(process) Set user = process.UserName
+		}
+	} Catch {
+		Set user = ""
+	}
+	Quit user
 }
 
 }

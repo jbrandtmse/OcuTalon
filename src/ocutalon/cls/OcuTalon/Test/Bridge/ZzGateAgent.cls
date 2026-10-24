@@ -1,6 +1,7 @@
 /// The agent of the gate tests (Story 3.2; AD-6, AD-10): a test fixture, never part of a production. It has the toolset of the gate tests, so
-/// that a request with the marker gate-risky, gate-safe or gate-throw makes the CI mock call zz_gate_risky, zz_gate_safe or zz_gate_throw.
-/// Test.Bridge.Gate builds it in a shadow runner.
+/// that a request with the marker gate-risky, gate-safe, gate-throw, gate-public or gate-admin makes the CI mock call zz_gate_risky, zz_gate_safe,
+/// zz_gate_throw, zz_gate_public or zz_gate_admin. Test.Bridge.Gate builds it in a shadow runner, and (TestPrivilegeInProductionRunnerJob) puts it behind
+/// the production's ChatAgent item.
 Class OcuTalon.Test.Bridge.ZzGateAgent Extends %AI.Agent
 {
 

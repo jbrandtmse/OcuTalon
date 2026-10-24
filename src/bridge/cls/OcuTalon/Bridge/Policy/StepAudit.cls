@@ -12,8 +12,8 @@ Class OcuTalon.Bridge.Policy.StepAudit Extends %AI.Policy.Audit
 {
 
 /// What AI Hub puts before the text of a denial by the gate once StatusText has taken the leading "ERROR <code>: " off it: its own "Tool access
-/// denied: " and the full text of the gate's status, which repeats the code of the denial.
-Parameter WRAPPEDDENIAL = "Tool access denied: ERROR <%AICore>ToolAccessDenied: ";
+/// denied: " and the full text of the gate's status, which starts with "ERROR ", the gate's code (Gate.#DENIEDCODE) and ": ".
+Parameter WRAPPEDDENIAL = "Tool access denied: ERROR ";
 
 Method %LogExecution(call As %DynamicObject, metadata As %DynamicObject, result As %DynamicObject, duration As %Integer, status As %Status) As %Status
 {
@@ -39,13 +39,14 @@ Method %LogDenial(call As %DynamicObject, metadata As %DynamicObject, status As 
 	Quit $$$OK
 }
 
-/// The text of a denial for the step: StatusText, and for a denial by the gate (a status of the code ToolAccessDenied, which AI Hub wraps
-/// in its own "Tool access denied: " and the full text of the gate's status) only "Tool access denied: <the gate's sentence>", without the
-/// repeated code and without the sentence's closing period, which the step's own text supplies.
+/// The text of a denial for the step: StatusText without the wrapper that AI Hub puts around a denial by the gate (WRAPPEDDENIAL and the
+/// gate's code), so that such a denial reads "Tool access denied: <the gate's sentence>" once, and without the periods that end any text,
+/// which the step's own text supplies.
 ClassMethod DenialText(status As %Status) As %String [ Private ]
 {
 	Set text = ..StatusText(status)
-	If $Extract(text, 1, $Length(..#WRAPPEDDENIAL)) = ..#WRAPPEDDENIAL Set text = $Extract(text, $Length(..#WRAPPEDDENIAL) + 1, *)
+	Set wrapper = ..#WRAPPEDDENIAL _ ##class(OcuTalon.Bridge.Policy.Gate).#DENIEDCODE _ ": "
+	If $Extract(text, 1, $Length(wrapper)) = wrapper Set text = $Extract(text, $Length(wrapper) + 1, *)
 	Quit $ZStrip(text, ">", ".")
 }
 

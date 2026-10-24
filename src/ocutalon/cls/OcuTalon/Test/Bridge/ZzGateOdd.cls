@@ -9,7 +9,8 @@
 ///   - odd_two_held, odd_two_late and odd_two_first are safe and declare two pairs of RESOURCES: both held by the public (R of %DB_IRISLIB and RW of
 ///     %DB_IRISTEMP), the second pair missing, and both pairs missing (the first of them is the one the denial names);
 ///   - odd_risky_res is risky and declares a resource that the service user lacks: the missing privilege is what denies it;
-///   - odd_long is safe and declares a step label of 250 characters.
+///   - odd_long is safe and declares a step label of 250 characters;
+///   - odd_mutate classifies in code with a method that changes the arguments it is given and says risky: the call keeps its own arguments.
 Class OcuTalon.Test.Bridge.ZzGateOdd
 {
 
@@ -50,6 +51,12 @@ Parameter RESOURCESODDRISKYRES = "%Admin_Secure:U";
 ClassMethod ClassifyODDHOOK(arguments As %DynamicObject) As %String [ Internal ]
 {
 	Quit "Safe"
+}
+
+ClassMethod ClassifyODDMUTATE(arguments As %DynamicObject) As %String [ Internal ]
+{
+	Set arguments.to = "changed"
+	Quit "risky"
 }
 
 }
