@@ -61,7 +61,7 @@ development_status:
   1-8-conversations-survive-restarts: done
   1-9-no-model-request-goes-over-100-000-tokens: done
   1-10-the-chat-agent-sets-lists-and-cancels-reminders: done
-  1-12-items-saved-for-the-digest-are-kept-for-it: ready-for-dev
+  1-12-items-saved-for-the-digest-are-kept-for-it: in-progress
   epic-1-retrospective: optional
 
   epic-2: backlog
