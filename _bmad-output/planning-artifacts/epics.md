@@ -2102,6 +2102,7 @@ So that the online-demo epics (Lane A's Epic 29 and Lane B's Epic 16 [AMENDED 20
 **Given** a test stack with the online-demo start values
 **When** the three are exercised
 **Then** the public keys read back through `OcuTalon.Data.Public.Settings`, a password change for either public account is refused while the installer's write succeeds, and a decision at the cap falls back with `daily_cap` without a request being sent (FR-40, FR-59)
+- DW-160: On a fresh flag-on volume's first start the Users step cannot pin the public accounts' Visual Trace page size in OCUORDERS (the Demo step creates OCUORDERS after Users), so the Public step's last phase (after Production and Reconcile, before SetReady) calls Users.PinTrace for both public accounts (ledger; routed by spec_gate 2026-10-24)
 
 ## Epic 4: The demo page: guide, simulated phone and mailbox, and Break the feed
 
