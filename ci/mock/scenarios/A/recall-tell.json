@@ -1,0 +1,12 @@
+{
+  "name": "recall-tell",
+  "match": {
+    "marker": "recall-tell"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Noted."
+    }
+  ]
+}

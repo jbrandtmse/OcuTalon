@@ -1,19 +1,39 @@
 /// The agent runner (AD-6): one business operation per agent, TriageAgent, DiagnosisAgent and ChatAgent, all of this
-/// class. Each names its agent class in the AgentClass setting of its adapter. A stub until Story 1.2: it answers "not
-/// implemented", and its adapter starts with no model key.
+/// class. Each names its agent class in the AgentClass setting of its adapter, and its pool size is its concurrency cap: the
+/// runners are the only code that calls Chat. A Request gets a Reply (the adapter's Answer): the reply of the call, or, when Chat
+/// threw, a failure Reply that holds the redacted failure text and the steps of the call, so that Decide classifies the failure and
+/// still sends the steps (DW-83). An error before Chat keeps its error status. A turn of a conversation that another turn still holds
+/// (the conversation lock, Data.ConversationLink) is answered, after the lock's 2 seconds, with a Reply whose Busy is 1 and nothing
+/// else set, and a status OK: Decide relays it as its own Busy answer (AD-6). A ToolInventory request gets
+/// an Ens.StringResponse that holds the JSON of the live ToolManager's tools. Any other message class gets "not implemented"
+/// and no response. Its ReplyClass setting names the %JSON.Adaptor class that Decide checks the runner's reply against
+/// (AD-7); the runner itself never reads it.
 Class OcuTalon.Bridge.Operation.AgentRunner Extends Ens.BusinessOperation
 {
 
 Parameter ADAPTER = "OcuTalon.Bridge.Adapter.Agent";
 
-/// Marks an item that is not built yet. The owner deletes this parameter and the stub handler when it builds the item;
-/// Story 11.5's release check refuses an enabled item whose class still has it.
-Parameter STUB = 1;
+Parameter SETTINGS = "ReplyClass:Basic";
 
 Property Adapter As OcuTalon.Bridge.Adapter.Agent;
 
+/// The compiled %JSON.Adaptor class that Decide checks this runner's reply against, for a decide or diagnose request
+/// (OcuTalon.Bridge.Msg.DecisionPayload for Triage). Empty for a runner whose reply is text.
+Property ReplyClass As %String(MAXLEN = 128);
+
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {
+	Set pResponse = ""
+	If $IsObject(pRequest) && pRequest.%IsA("OcuTalon.Bridge.Msg.Request") {
+		Set sc = ..Adapter.Answer(pRequest, ..%SuperSession, .reply)
+		If $$$ISOK(sc) Set pResponse = reply
+		Quit sc
+	}
+	If $IsObject(pRequest) && pRequest.%IsA("OcuTalon.Bridge.Msg.ToolInventory") {
+		Set sc = ..Adapter.Inventory(.inventory)
+		If $$$ISOK(sc) Set pResponse = ##class(Ens.StringResponse).%New(inventory.%ToJSON())
+		Quit sc
+	}
 	Quit $$$ERROR($$$NotImplemented)
 }
 

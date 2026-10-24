@@ -1,0 +1,13 @@
+{
+  "name": "decide-late",
+  "match": {
+    "marker": "decide-late"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 18000,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers late.\"],\"confidence\":0.5}"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-/// Tests of the bridge's message contracts and shared helpers (Story 0.4): every OcuTalon.Bridge.Msg class has
+/// Tests of the bridge's message contracts and shared helpers (Story 0.4; Story 1.2 adds Reply.FinishReason and the ToolInventory
+/// request; Story 1.5 adds Reply.Steps, and Story 1.6 Reply.FailureText, which a busy reply leaves empty; Story 1.9 adds Request.Compact): every OcuTalon.Bridge.Msg class has
 /// exactly its contract, a busy reply is only busy, NewRef gives 22-character base64url references, and the audit
 /// writer's API names the six events and refuses any other type. Nothing is written to the audit log.
 Class OcuTalon.Test.Bridge.Contracts Extends OcuTalon.Test.Contract
@@ -24,7 +25,7 @@ Method TestNewBusy()
 	For name = "Tainted", "SessionRotated", "ToolsRun", "SessionBroken" {
 		Do $$$AssertEquals($Property(reply, name), 0, name_" is 0")
 	}
-	For name = "HostData", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
+	For name = "HostData", "Steps", "FailureText", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
 		Do $$$AssertEquals($Property(reply, name), "", name_" is empty")
 	}
 	Set sc = reply.%Save()
@@ -108,7 +109,8 @@ XData Contracts [ MimeType = application/json ]
    "ThreadSessionId": "%Integer",
    "SessionMode": "%String(MAXLEN=32)",
    "SeedText": "%String(MAXLEN=)",
-   "SystemNote": "%String(MAXLEN=)"
+   "SystemNote": "%String(MAXLEN=)",
+   "Compact": "%Boolean"
   },
   "sql": {
    "Input": "InputText"
@@ -177,8 +179,15 @@ XData Contracts [ MimeType = application/json ]
    "ToolsRun": "%Boolean",
    "SessionBroken": "%Boolean",
    "Busy": "%Boolean",
-   "HostData": "%String(MAXLEN=)"
+   "HostData": "%String(MAXLEN=)",
+   "FinishReason": "%String(MAXLEN=32)",
+   "Steps": "%String(MAXLEN=)",
+   "FailureText": "%String(MAXLEN=2000)"
   }
+ },
+ "OcuTalon.Bridge.Msg.ToolInventory": {
+  "super": "Ens.Request",
+  "props": {}
  },
  "OcuTalon.Bridge.Msg.DecisionPayload": {
   "super": "%RegisteredObject,%JSON.Adaptor",

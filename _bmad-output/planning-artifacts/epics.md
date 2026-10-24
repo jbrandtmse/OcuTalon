@@ -1166,7 +1166,7 @@ So that every model request follows the same cap, caching and no-sampling rules 
 
 **Given** the CI mock, which rejects sampling parameters and output caps under 4,000 tokens
 **When** each runner sends a request for its default scenario under `ci/mock/scenarios/A/`
-**Then** the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings (FR-38, NFR-1, NFR-2, REL-4)
+**Then** the mock accepts every request, and its log shows the model `claude-haiku-5-5`, the 8,000-token cap, the effort and the cache settings, which mark every block whose cached prefix reaches `min_tokens_for_cache` (a shorter prefix is never marked), while every runner's session carries the cache block (FR-38, NFR-1, NFR-2, REL-4) [AMENDED 2026-10-21 — see the story change log]
 **And** after `DiagnosisAgent`'s `Model` is changed to `claude-sonnet-5-5` and the item restarted, its next request names that model (FR-5, AD-7)
 
 **Given** a request reaches a runner
@@ -1234,7 +1234,7 @@ So that I can see in Visual Trace what every decision cost without another tool.
 **Given** usage reported by the provider
 **When** its cost is computed
 **Then** input tokens are `prompt_tokens + cache_read_tokens + cache_creation_tokens`, each tier is priced at its own rate from `OcuTalon.Bridge.Data.Price`, and a unit test matches hand-computed costs at every tier (FR-2, AD-20)
-**And** `OcuTalon.Bridge.Installer` seeds Claude Haiku 5.5 at $0.10 per million input and $0.50 per million output tokens, cache reads at 0.1 times and cache writes at 1.25 times (5-minute) or 2 times (1-hour) the input price, five times both prices for a request above 100,000 input tokens, and Claude Sonnet 5.5 at $2 and $10 per million (FR-2, AD-19)
+**And** `OcuTalon.Bridge.Installer` seeds Claude Haiku 5.5 at $0.10 per million input and $0.50 per million output tokens, cache reads at 0.1 times and cache writes at 1.25 times the input price (the 5-minute tier, the only one AI Hub writes), five times both prices for a request above 100,000 input tokens, and Claude Sonnet 5.5 at $2 and $10 per million (FR-2, AD-19) [AMENDED 2026-10-22, unattended ruling U-17 — see the story change log]
 
 **Given** a decision or a turn
 **When** Decide records it
@@ -1246,9 +1246,9 @@ So that I can see in Visual Trace what every decision cost without another tool.
 **Then** it returns spent, cap, capped and resets-at in UTC, where the day ends at midnight in the instance zone through `OcuTalon.Bridge.Time`, and usage with owner `eval` is never counted (AD-2, AD-20)
 **And** a test compares `OcuTalon.Bridge.Time` with `OcuTalon.Data.Time` across a daylight-saving change (AD-18)
 
-**Given** the first decision of the day that falls back with `daily_cap`, from the precheck or from the gateway's HTTP 403 "daily cost cap reached"
-**When** the bridge records it
-**Then** it marks the day as capped once, under a lock, so `Budget.State()` reports the cap reached from then on even when the gateway refused first, and fires the HostSink event `budget.capped` once that day, with `ownerRef` `instance` and payload `{day}` (the instance-zone date); a test forces both paths through the mock and finds one event (FR-40, AD-20, AD-31)
+**Given** the first `daily_cap` of the day, which Story 1.6's precheck and its classification of the gateway's HTTP 403 "daily cost cap reached" report through `OcuTalon.Bridge.Budget.MarkCapped`
+**When** `MarkCapped` is called for that day, by one caller or by several at once
+**Then** it marks the day as capped once, under a lock, so `Budget.State()` reports the cap reached from then on even when the gateway refused first, and fires the HostSink event `budget.capped` once that day, with `ownerRef` `instance` and payload `{day}` (the instance-zone date); a test calls it repeatedly and concurrently and finds one mark and one event (FR-40, AD-20, AD-31) [AMENDED 2026-10-22, unattended ruling U-16: the two triggers and the both-paths mock test moved to Story 1.6 — see the story change log]
 
 ### Story 1.5: Every model request and tool call is an agent step in Visual Trace
 
@@ -1278,6 +1278,8 @@ So that I can follow what the assistant did step by step, like any other feed.
 **When** they read it
 **Then** the bridge's message classes, production items and step summaries have readable names, and the steps sit in the turn's thread beside its decision and reply (NFR-20, AD-26, UX-DR139, UX-DR151)
 
+- DW-77: AD-20 names the Usage row's largest estimated request size; Story 1.4 stores the last request's measured input. With the step estimates this story builds, comply (the largest of measured and estimated) or bring AD-20's wording to the orchestrator (ledger; routed by cr 2026-10-22)
+
 ### Story 1.6: An unusable reply takes the fallback route, and OcuTalon starts with no key
 
 As a user,
@@ -1295,6 +1297,7 @@ So that a refusal, an error or a missing key never leads to an action or a broke
 **When** Decide prechecks it
 **Then** the result is `budget`, `daily_cap` or `no_key`, and the mock's log shows the request was never sent (FR-4, AD-8, AD-20)
 **And** the online demo gateway's fixed refusal (HTTP 403, "daily cost cap reached") is classified `daily_cap` and never re-sent (AD-8)
+**And** both `daily_cap` paths, the precheck and the gateway's 403, call `OcuTalon.Bridge.Budget.MarkCapped` (Story 1.4) once the fallback decision is recorded, so the day is marked capped once and `budget.capped` fires once that day; a test forces both paths through the mock and finds one event (FR-40, AD-20, AD-31) [MOVED 2026-10-22 from Story 1.4, unattended ruling U-16]
 
 **Given** any fallback
 **When** Decide records it
@@ -1308,6 +1311,9 @@ So that a refusal, an error or a missing key never leads to an action or a broke
 **Given** no model key in the environment
 **When** a CI test starts OcuTalon
 **Then** every production item runs and nothing in the production fails, every decision takes the fallback route with `no_key`, and `OcuTalon.Bridge.Keys.Status(agent)` reports each agent's key as absent without revealing any value (FR-38, AD-6, AD-20, AD-22, UX-DR98)
+
+- DW-76: The daily cost cap fails open and silently for an unpriced model's usage or an unreadable budget setting; the precheck logs it as a configuration fault (ledger; routed by harvest 2026-10-22)
+- DW-83: A failed Chat's buffered agent steps never reach Visual Trace (no reply carries them); the fallback carries them to AgentSteps (ledger; routed by spec_gate 2026-10-22)
 
 ### Story 1.7: Timeouts and rate limits end every decision on time
 
@@ -1330,6 +1336,8 @@ So that a slow or busy model never leaves me waiting.
 **When** no tool ran in the failed attempt (`ToolsRun` false)
 **Then** Decide re-sends with back-off until its timer fires, returning the reply when an attempt succeeds and `rate_limited` otherwise; when a tool ran, it falls back at once, and an `error` always falls back at once (FR-4, NFR-23, AD-8)
 **And** a scenario that sends a long `Retry-After` shows the wait capped at the retry block's back-off (AD-8, AD-22)
+
+- DW-56: Nothing sets `Reply.ToolsRun`: the runner's `Answer` fills `Text`, `FinishReason`, `HostData` and `Tainted` only, so a turn that ran tools reports `ToolsRun` 0; this story's re-send rule reads it (ledger; routed by harvest 2026-10-21)
 
 ### Story 1.8: Conversations survive restarts
 
@@ -1419,6 +1427,9 @@ So that reminders work the way I would ask a person, from any channel I chat on.
 
 **Story 1.11 moved to Story 30.2**, whole and verbatim, in Lane A's post-demo hardening epic (Epic 30) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner].
 
+- DW-32: Fold Lane A's four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Usage, Budget) into one Lane A test helper before adding more zone tests (ledger; routed by adjudication 2026-10-22)
+- DW-85: Declare STEPLABEL<NAME> for the reminder tools, and add the CodeRules scan that fails a shipped tool class with no step label (ledger; routed by harvest 2026-10-22)
+
 ### Story 1.12: Items saved for the digest are kept for it
 
 As a user,
@@ -1442,6 +1453,23 @@ So that the daily digest can summarise them and nothing saved is lost.
 **Given** stored items
 **When** IRIS restarts
 **Then** they are intact, and the store declares its `Purge(daysToKeep)`, deleting items older than `daysToKeep` (90 by default, the decisions' retention) (NFR-16, NFR-19, AD-27)
+
+### Story 1.13: Epic 1 burn-down
+
+[AMENDED 2026-10-24, chartered by the burn-down gate, Rule 17, on the orchestrator's ruling (U14): DW-149 is a cross-epic defect in Epic 1's delivered code that Epic 2's runner found while planning Story 2.10 (Epic 2's DW-148); it must close in Epic 1, before the merge, and is never overflowed to a later epic.]
+
+As a user,
+I want OcuTalon to tell a missing model key from a key it cannot check,
+So that the page never shows an all-clear while no model key is set.
+
+**Acceptance Criteria:**
+
+**Given** no model key configured for a runner and a process that holds only the API web application's roles (`APPLICATIONROLES` of `Install/Step/Web.cls`, without `%Admin_ConfigStore`), as Epic 2's `/ocutalon/api` `/state` request does
+**When** that process asks whether the key is set (`OcuTalon.Bridge.Keys.Status(agent)`, or the read that replaces it for that caller)
+**Then** the answer reads as missing; a refused or failed read never reads as present, and a state that cannot be known never passes as OK; the key's value never reaches the request; and the pinning test runs the read in that request context (or its exact equivalent) with no key configured and asserts it reads as missing (AD-19, the no-false-all-clear non-negotiable)
+**And** `OcuTalon.Bridge.Budget.State()` either works in that request context or degrades there without a warning per call, and the request writes no audit refusal per call for the key read
+
+- DW-149: In a request without %Admin_ConfigStore (Epic 2's /state), Keys.Status reads a missing model key as present (Status sets present=1 in its Catch; Keys.Present falls back to %ConfigStore.Configuration.Exists when ConfigStore.Details fails), so a keyless start shows no "no model key" banner; Budget.State's Usage SELECT has no SQL grant there and logs a warning per call (ledger; routed by burndown 2026-10-24, orchestrator ruling)
 
 ## Epic 2: Chat with OcuTalon on a live web page
 

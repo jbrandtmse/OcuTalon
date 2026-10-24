@@ -1,0 +1,18 @@
+{
+  "name": "daily-cap",
+  "match": {
+    "marker": "daily-cap"
+  },
+  "replies": [
+    {
+      "status": 403,
+      "body": {
+        "type": "error",
+        "error": {
+          "type": "permission_error",
+          "message": "daily cost cap reached"
+        }
+      }
+    }
+  ]
+}

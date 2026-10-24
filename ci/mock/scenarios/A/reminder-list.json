@@ -1,0 +1,19 @@
+{
+  "name": "reminder-list",
+  "match": {
+    "marker": "reminder-list"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_reminders",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock listed the reminders."
+    }
+  ]
+}

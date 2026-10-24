@@ -1,0 +1,12 @@
+{
+  "name": "decide-ignore",
+  "match": {
+    "marker": "decide-ignore"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock ignores this item.\"],\"confidence\":0.9}"
+    }
+  ]
+}

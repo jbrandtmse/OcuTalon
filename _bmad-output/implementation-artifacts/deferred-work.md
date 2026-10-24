@@ -197,6 +197,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Msg/Catalog.cls SavedZone, OnBeforeAllTests, OnAfterOneTest, RestoreZone vs Test/Data/Time.cls L6-25 and RestoreZone; the spec names Test.Data.Time as the pattern
 - 2026-10-20T06:52:09Z status=wontfix-accepted owner=0-9-the-message-catalog-and-its-one-renderer by=cr note=reopen_if=a third test class copies SavedZone/RestoreZone: extract one zone fixture base that ci/units.sh does not run
+- 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
+- 2026-10-22T12:46:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=reopen_if fired at Story 1.4: Lane A now holds four copies of the process-zone save and restore (Test.Agent.Render, Test.Bridge.Time, Test.Bridge.Usage, Test.Bridge.Budget); Story 1.10 (reminders, zone-heavy tests) folds Lane A's copies into one Lane A test helper before adding its own; Lane B's two (Test.Data.Time, Test.Msg.Catalog) stay Lane B's
+- 2026-10-24T03:01:40Z status=resolved-by:1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=Lane_A's_four_copies(Test.Agent.Render,Test.Bridge.Time,Usage,Budget)+Test.Bridge.Decide_now_extend_the_abstract_Test.Bridge.ZoneCase;Test.Bridge.Time.TestZoneCase_scans_for_any_other_zone_save/restore_and_TestZoneHooksCallSuper_pins_the_hooks;Lane_B's_two_copies(Test.Msg.Catalog,Test.Data.Time)_stay_the_original_low_wontfix-accepted_scope(Lane_B's_files)
 
 ### DW-33: Msg.Catalog.ReadEntries repeats Test.Contract.Read's three-line JSON XData read, a copy the spec states (product code may not depend on OcuTalon.Test)
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: in-story
@@ -207,6 +210,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: 0.9 Task 0: the image has TZ unset and /etc/localtime at UTC, so Docker installs agree; DW-12's declined residual
 - 2026-10-20T06:55:28Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=adjudication note=an IPM install derives the instance zone from the OS, or the install sets it, and a test checks Zone() against ToLocal
+- 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -236,6 +240,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.11 Rule 22 ruling; Install.Step.Provider is Lane A's only provider writer (AD-19) and is built in 1.1
 - 2026-10-20T14:30:01Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=planning note=1.1's Provider step writes http_config.custom_headers x-ocutalon-mockkey=<the agent class's MOCKKEY> only with OCUTALON_MODEL_BASE_URL set
 - 2026-10-20T18:15:26Z status=routed owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=owner note=owner decision 5: header only when OCUTALON_MOCK_KEY_HEADER=1 (CI-only), never from OCUTALON_MODEL_BASE_URL alone; online demo never carries it
+- 2026-10-21T18:39:25Z status=resolved-by:1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=adjudication note=Provider.Details adds x-ocutalon-mockkey only for OCUTALON_MOCK_KEY_HEADER=1; pinned by TestDetails, ProviderEnv TestBaseUrlAlone/TestFlagAlone/TestCiEnvironment
 
 ### DW-40: Test.Contract.Mock's guard failure path (OCUTALON_MODEL_BASE_URL not the mock's) has no automated run: CI always runs under the mock's value
 - source: _bmad-output/implementation-artifacts/spec-0-11-the-ci-model-mock-answers-every-scenario-the-stories-need.md | severity: low | fix-risk: low | footprint: in-story
@@ -287,6 +292,302 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-21T04:11:07Z status=open owner=0-12-epic-0-burn-down by=lead note=second red on fae0f9e (run 39540054243): a test race, not a flake; reopened 0.12 with a [CI] task (the first red commit is 811102f)
 - 2026-10-21T04:37:20Z status=resolved-by:0-12-epic-0-burn-down owner=0-12-epic-0-burn-down by=adjudication note=row 13 now checks the 303 location, the 200 shell document and the title, not the post-boot URL (fe20df6); 3 local runs green; the x64 run confirms, else reopen
 
+### DW-52: Bridge.ConfigStore.Merge validates only api_key's placeholder form and nested @{: any @{env:NAME}, base_url, header or secret:// passes, so a user-facing caller could pair the key placeholder with an arbitrary base_url
+- source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Merge refuses only a non-placeholder api_key and any other @{ (AD-19, decision 10, U-2); {"api_key":"@{env:X}","base_url":"http://other.invalid/v1/"} passes and @{config:} resolves both; Story 17.3 is the first caller taking user input
+- 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=deferred by 1.1 implement; adjudicate at 1.1's gate (likely route to 17-3 with the residual)
+- 2026-10-21T18:26:41Z occurrence=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor
+- 2026-10-21T18:39:25Z status=routed owner=17-3-run-each-agent-on-a-supported-provider by=adjudication note=residual: 17.3's model-change API must validate env var name, base_url, headers, model, secret:// before Merge (1.1 checks api_key, @{ only)
+
+### DW-53: cycle-log-epic-1.md line 1 held a local absolute path (state=), which test-boundaries.sh flags in every tracked file, so the hosted checks job would go red on the next push
+- source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: runner bookkeeping commit 9808cd9 (line from 13:54Z); found by 1.1 implement's ci/checks.sh run
+- 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=lead bookkeeping defect, fixed by the lead before any push
+- 2026-10-21T18:39:25Z status=resolved-by:1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=adjudication note=lead corrected cycle-log line 1 to a relative state= path in cb4a11c; test-boundaries.sh PASS paths (QA and CR runs)
+
+### DW-54: Test.Agent.KeyScan's FindRequest and Has copy Test.Contract.Mock's private Find and Has, though Story 1.1's spec says to call Mock and not copy it
+- source: spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: KeyScan.cls FindRequest and Has repeat Mock.cls Find and Has (about 436-461) line for line; Mock's are Private and Lane B's (Test.Contract), so Lane A cannot call them or edit them (Rule 2)
+- 2026-10-21T18:26:38Z status=escalated owner=burndown by=cr note=decision sheet: Lane B makes Mock.Find and Mock.Has public, then KeyScan calls them and drops its copies
+- 2026-10-21T23:45:21Z occurrence=1-2-agent-runners-send-every-request-under-the-model-rules
+
+### DW-56: Nothing sets Reply.ToolsRun: the runner's Answer fills Text, FinishReason, HostData and Tainted only, so a turn that ran tools reports ToolsRun 0
+- source: _bmad-output/implementation-artifacts/spec-1-2-agent-runners-send-every-request-under-the-model-rules.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: AD-6 gives Reply ToolsRun; Story 1.7 re-sends after a rate limit only when no tool ran (ToolsRun false); Adapter/Agent.cls Answer builds the Reply; %AI.LLM.Response carries the tool-call count
+- 2026-10-21T22:30:46Z status=routed owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=1.7 sets ToolsRun in Adapter.Agent Answer (or where the step audit sees a tool run) and pins it; its rate-limit AC depends on it
+- 2026-10-23T11:56:20Z status=resolved-by:1-7-timeouts-and-rate-limits-end-every-decision-on-time by=adjudication note=Adapter.Agent.Answer_sets_Reply.ToolsRun_from_AI_Hub's_tool-call_counter_or_the_step_records(unreadable=1);Decide_re-sends_only_with_ToolsRun_0;tests_Test.Bridge.Runner.TestToolsRun,Test.Agent.Steps.TestToolRanNoResend,TestTwoTools(766bf3b)
+
+### DW-63: No hermetic check pins the content of lane-a.yml's standalone-bridge job: its step that runs release/standalone-bridge.sh could be removed or turned back into an echo with every check green
+- source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-ci-config.sh asserts only that lane-a.yml has a job named standalone-bridge and the workflow-wide rules, which the old echo job also met; the job is the script's only automatic host (no ci/units.sh list runs it); the check is Lane B's file
+- 2026-10-22T05:37:11Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=harvest note=reopen_if=grep -q 'bash release/standalone-bridge.sh' .github/workflows/lane-a.yml fails, or a standalone-bridge job log on a Lane A push lacks the script's PASS lines; a Lane B story that edits test-ci-config.sh may add the pin
+
+### DW-64: docker/tests/test-boundaries.sh does not list release/ among its ASCII-scanned roots, so a non-ASCII byte in a release/ script would pass the boundaries check
+- source: _bmad-output/implementation-artifacts/spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: found by the Story 1.3 implement stage when it added release/standalone-bridge.sh (the folder's first file); the script was checked ASCII by hand; test-boundaries.sh is Lane B's file
+- 2026-10-22T05:37:12Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=harvest note=reopen_if=LC_ALL=C grep -rnP '[^\x00-\x7F]' release/ finds a byte, or a Lane B story edits test-boundaries.sh's scanned roots (it may add release/ then)
+
+### DW-67: release/standalone-bridge.sh repeats row 5's namespace-create and LoadDir recipe from Lane B's test-install-start.sh
+- source: spec-1-3-decide-records-exactly-one-attention-decision-per-item.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: About 10 lines (the CPF heredoc, the docker exec copy and iris merge, LoadDir, Installer.Run and the other-classes query) appear in both scripts; the spec forces the copy (Rule 2), since test-install-start.sh runs as a whole and lib-live.sh has no helper for it.
+- 2026-10-22T07:03:27Z status=wontfix-accepted owner=1-3-decide-records-exactly-one-attention-decision-per-item by=cr note=reopen_if=a third script copies the namespace-create and LoadDir recipe, or lib-live.sh gains a helper for it
+
+### DW-76: The daily cost cap fails open and silently: a Usage row whose cost is unknown (a model with no Price row) counts nothing toward Budget.State's spend, and an unreadable DailyCostCapUSD, GatewaySpendUSD or GatewaySpendDate leaves the cap off with no log line
+- source: _bmad-output/implementation-artifacts/spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Story 1.4 implement residual risks: CostFor returns empty for an unpriced model (never 0, by U-18), and State cannot count such a row; the budget settings are read through the accessor with no fault path; Story 1.6 builds the daily_cap precheck that reads State
+- 2026-10-22T11:02:45Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=harvest note=1.6's daily_cap precheck treats an unknown-cost row and an unreadable budget setting as a configuration fault it logs, and does not let it pass silently; how a set cap behaves then (fail open or closed) is 1.6's plan decision, recorded in its spec
+- 2026-10-22T12:43:51Z occurrence=1-4-every-turn-and-decision-carries-its-tokens-and-cost
+- 2026-10-23T03:24:34Z status=resolved-by:1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=adjudication note=Budget.State(now,.faults)_names_each_fault(unreadable_DailyCostCapUSD/GatewaySpendUSD/GatewaySpendDate,unpriced_Usage_row);Decide.Precheck_logs_each_as_a_warning;cap_fails_open_per_veto_U-26;tests_Test.Bridge.Budget.TestFaults,Test.Agent.Decide.TestPrechecks(03a8bf5+1.6_review)
+
+### DW-77: AD-20 says the Usage row holds the largest estimated request size; Story 1.4 stores the last request's measured input from Response.Usage (empty when Chat threw), and the spec's call for a lead ruling on its Decision 5 was never recorded
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Usage.FromStats sets LargestRequestTokens from last.prompt_tokens+cache_read_tokens+cache_creation_tokens; spec line 410 says Decisions 2 and 5 depart from AD wording for the lead to rule; U-16..U-18 rule only 1, 2, 3 and stored data
+- 2026-10-22T12:43:46Z status=routed owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=1.5's plan rules Decision 5: comply (max of step estimates) or amend AD-20's wording by Rule 20's light path
+- 2026-10-22T19:41:40Z status=resolved-by:1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=adjudication note=Usage.Largest(last, estimates) puts the larger of the measured last request and the step estimates on LargestRequestTokens, also after a throw; AD-20 complied with as written; pinned by Test.Bridge.Usage.TestLargest and TestFromStats (mutation lines in spec-1-5 Verification)
+
+### DW-78: A capped-day mark is never cleared: after an owner raises or turns off DailyCostCapUSD on a marked day, Budget.State still reports capped (cap 0, capped true) until local midnight
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Budget.State: capped = $Data(^OcuTalonBP.UsageCapped(day)) || (cap>0 && spent>=cap); no code clears the node; Boundaries and AD-20 define capped as marked-or-reached
+- 2026-10-22T12:43:46Z status=by-design owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=spec-bound (Boundaries State.capped, AD-20); purge is Story 30.2's; reopens via the step-2 settings-page story if a raised cap must clear the mark
+
+### DW-79: Test.Bridge.Budget copies Test.Bridge.Ext's private WaitFor and CleanRuns (the spec's only reason: its child job follows Ext's), so the two child-job helpers now live in two Lane A test classes
+- source: spec-1-4-every-turn-and-decision-carries-its-tokens-and-cost.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Bridge/Budget.cls CleanRuns and WaitFor vs Test/Bridge/Ext.cls:230-247, same bodies with their own ^OcuTalonTest area; unifying them is about 40 lines over three files
+- 2026-10-22T12:43:46Z status=wontfix-accepted owner=1-4-every-turn-and-decision-carries-its-tokens-and-cost by=cr note=reopen_if=a third Lane A test class copies WaitFor or CleanRuns: move both into Test.Agent.RunnerFixture beside EventMark
+- 2026-10-24T10:59:25Z occurrence=1-13-epic-1-burn-down
+
+### DW-83: A Chat that throws returns only an error status, so the steps its runner buffered (the model requests and tool calls before the failure) never reach Visual Trace
+- source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Story 1.5 decision 6: Answer's error path carries no Reply, so Reply.Steps cannot travel; Story 1.6 turns every failure into a fallback decision with a reply, where the buffered steps can ride
+- 2026-10-22T13:43:43Z status=routed owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=spec_gate note=1.6's fallback carries the failed call's buffered steps (redacted) to Decide, which sends them to AgentSteps like a completed turn's; FR-3 every model request and tool call recorded
+- 2026-10-22T19:38:04Z occurrence=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=a reply whose ReplyClassOf lookup fails ends Decide in error before EmitSteps, so its steps are not sent either
+- 2026-10-23T03:24:34Z status=resolved-by:1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=adjudication note=Adapter.Agent.Answer_returns_a_failure_Reply_carrying_the_buffered_steps_when_Chat_throws;Decide.EmitSteps_sends_them_to_AgentSteps(before_ReplyClassOf);test_Test.Agent.Steps.TestFailedTurnSteps(03a8bf5+1.6_review)
+
+### DW-85: Shipped tool classes declare no STEPLABEL, and nothing fails a tool class that has none, so every real tool step reads 'Running a tool' in Visual Trace
+- source: _bmad-output/implementation-artifacts/spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: AD-9 and the spine's Agent step labels convention: each tool declares its readable step label; Tools.WatchFixture carries none (Story 5.4 replaces it); Test.Bridge.CodeRules.TestCallbackRule is where a scan belongs once the first real tool class exists
+- 2026-10-22T17:04:48Z status=routed owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=1.10's reminder tools declare their STEPLABEL<NAME> labels, and 1.10 adds the CodeRules scan that fails a shipped OcuTalon tool class with no label (fixtures and Tools.WatchFixture exempted until Story 5.4)
+- 2026-10-24T03:01:40Z status=resolved-by:1-10-the-chat-agent-sets-lists-and-cancels-reminders by=adjudication note=ReminderTools_declare_STEPLABEL<NAME>_for_set/list/cancel,WatchFixture_for_its_three_tools;Test.Bridge.CodeRules.TestToolsHaveStepLabels_fails_a_shipped_tool_class_with_no_label_(no_exemptions)_and_no_two_tools_share_a_label
+
+### DW-86: A model's call of a tool the agent does not have reaches neither %LogExecution nor %LogDenial, so it has no step and its model step says 0 tool calls while AgentStepCount counts it
+- source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Task 0 (c) measured it: usage-turn on ChatAgent calls list_productions, which Chat lacks; only OnBegin and two OnMessage fire, total_tool_calls counts the call (blind-hunter, edge-case-hunter).
+- 2026-10-22T19:37:59Z status=by-design owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=spec decision 5 keeps the stats delta and lists the gap as a residual risk; reopen only by a spec amendment
+
+### DW-87: The redactor's unquoted value takes a closing brace or bracket after it, so a JSON fragment in a text loses it (chatId:777001} becomes chatId:[redacted])
+- source: spec-1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: QA probe on the slot and the acceptance-auditor: the unquoted branch admits } and ]; nothing leaks, and a bracket-aware rule breaks idempotence ([redacted] ends in ]) or leaks a value that holds }.
+- 2026-10-22T19:38:02Z status=wontfix-accepted owner=1-5-every-model-request-and-tool-call-is-an-agent-step-in-visual by=cr note=reopen_if=a step summary's broken JSON fragment hides non-secret text that a reviewer needed
+
+### DW-92: AI Hub (build 154) runs a tool call that the provider cut at max_tokens and goes on, and reports only the last response's stop reason, so the bridge cannot see an intermediate cut-off; whether such a call's arguments can be truncated on the real Anthropic API is unmeasured
+- source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: Story 1.6 Task 0 (e): cut-off-tool through StepsAgent gives steps model, tool, model and FinishReason end_turn; StepRenderer.OnMessage gets the content only; TestCutOffToolCall pins it
+- 2026-10-22T23:49:35Z status=decision-pending owner=burndown by=harvest note=human=report it to InterSystems (an AI Hub stop reason per response, or no tool run after a max_tokens stop); until then Epic 3's gate governs any risky tool call, and the read-only tools of release 1 are harmless with cut arguments
+
+### DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured)
+- source: _bmad-output/implementation-artifacts/spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
+- 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend
+
+### DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Task 0 (b) measured ci/mock/scenarios/A/daily-cap.json (permission_error JSON) only and did not try a plain-text body; Story 29.3's AC names HTTP 403 and the fixed text only; Classify finds daily_cap by the text
+- 2026-10-23T02:11:46Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=unverified; settled by the gateway sending the measured JSON body, or a plain-text 403 measured to give daily_cap
+
+### DW-95: RecordFallback marks the day of the call (MarkCapped with no day), so a cap reached within one call's latency before local midnight marks the next day as capped
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.RecordFallback calls Budget.MarkCapped("", sinkClass), which takes the day when the mark is written, after the precheck or the gateway's 403 has seen the cap
+- 2026-10-23T02:11:52Z status=by-design owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=cr note=spec-bound: the Boundaries prescribe MarkCapped("", sinkClass); the window is one call's latency, once a day
+
+### DW-96: Classify knows only Anthropic's refusal and max_tokens stop reasons, so another provider's cut-off (length) or Anthropic's model_context_window_exceeded with text reads as usable
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.Classify rule 3 matches refusal and max_tokens only; AD-8 maps those two and treats other providers as reporting none until checked; release 1 runs Anthropic only
+- 2026-10-23T02:11:52Z status=wontfix-theoretical owner=1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star by=cr note=real once a provider other than Anthropic runs (Story 17.3) or a request can come near the model's context window
+
+### DW-100: The catalog's fallbackReason.timeout says 'the model didn't answer within 60 seconds', which is inexact once the bridge timer can be changed (Timeouts.Apply, Story 1.7; SettingsOps, Story 17.4); fallbackReason.rateLimited ('retries ran out') also shows when a tool ran and Decide, by AD-8, did not re-send
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
+- 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
+
+### DW-101: Timeouts.Apply is not atomic: a failed entry merge after Decide's TimerSeconds row is written leaves the timer changed for some runners, and two concurrent Apply calls are not serialized (no lock)
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 1.7 implement review rows BH4, EC6 (rejected low): Apply writes the row, then merges each entry, then restarts; no lock
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=Story 17.4's SettingsOps gives Apply concurrent callers, or a failed merge is seen in the field
+- 2026-10-23T11:54:57Z occurrence=1-7-timeouts-and-rate-limits-end-every-decision-on-time
+
+### DW-102: Agent step Positions skip a number after a non-object record in Reply.Steps (EmitSteps skips the record but StepsSent counts it)
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review rows BH8, EC7 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=a non-object record is seen in a Reply.Steps
+- 2026-10-23T11:54:57Z status=resolved-by:1-7-timeouts-and-rate-limits-end-every-decision-on-time owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=StepsSent is now the last Position built (the defect was a repeat, not a skip); TestStepPositionsAcrossResends pins it
+
+### DW-103: Timeouts.Apply refuses a production whose disabled runner has no @{config:} entry, so such a production cannot change its timer through Apply
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review row BH6 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=such a production needs Apply
+
+### DW-104: Decide writes no event-log line when its timer fires; the timeout is visible only in the Decision row and the trace
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 implement review row EC16 (rejected low)
+- 2026-10-23T10:08:08Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=harvest note=reopen_if=operators ask for a log line when the timer fires
+
+### DW-108: Timeouts.Restart's clean-up (TempStopConfigItem(item, 0) after a stop or start that failed once the stop flag was set) has no test that fails without it
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 1.7 code review VG2: TestRestartError's Ens.Alarm fails in findItemByName before any stop flag (Ens/Director.cls:2492-2499), so removing Timeouts.cls:167 stays green; a red needs UpdateProduction to fail after the flag (a lock held over 60 s)
+- 2026-10-23T11:54:57Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=reopen_if=Restart runs under SettingsOps (Story 17.4) and a runner item is seen left temporarily stopped
+
+### DW-109: Timeouts.Apply puts its TimerSeconds row back with Ens.Config.DefaultSettings.%DeleteId, outside Ext.Accessor.WriteDefault, the one writer of System Default Settings rows
+- source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 1.7 code review AA2: Timeouts.cls:100 deletes the row it wrote when the definition or a more specific row shadows it; the fix is a new public bridge method (a delete through the accessor), not a two-way door
+- 2026-10-23T11:54:58Z status=wontfix-accepted owner=1-7-timeouts-and-rate-limits-end-every-decision-on-time by=cr note=reopen_if=Ext.Accessor.WriteDefault gains auditing or a hook (SettingsOps, Story 17.4) that a %DeleteId bypasses
+
+### DW-110: Evaluation turn cases (EvalIn, Stories 9.1 to 9.3) would share one linked conversation per (OwnerRef eval, ChatAgent) from Story 1.8 on, so one case's history leaks into the next, unless each case is sent with SessionMode fresh (or its own OwnerRef)
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 1.8 links every user turn by (OwnerRef, agent) (AD-6); an eval turn case is a user turn with owner eval (AD-30)
+- 2026-10-23T12:47:58Z status=routed owner=9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo by=spec_gate note=each eval turn case starts fresh (SessionMode fresh with no SeedText) or gets an OwnerRef of its own
+
+### DW-114: Decide probes the conversation lock inside its one job (PoolSize 1), so each user turn that finds its conversation held stalls every other Decide request for the probe's 2 seconds
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: high | footprint: in-epic
+- evidence: Production.cls:18 Decide PoolSize 1; Decide.Held waits LOCKSECONDS (2) in OnRequest (AD-6 fixes the 2-s wait); Busy arises only while a late Chat of the same conversation holds the lock
+- 2026-10-23T15:50:33Z status=escalated owner=burndown by=harvest note=a spine call: a larger Decide pool (AD-30 ordering) or a probe of Conversation's own (Lane B); for the decision sheet
+
+### DW-115: A saved conversation holds the tool results the model saw, verbatim, in OCUTALON_PRIVATE; the redaction convention covers steps, audit, logs and errors, not the stored history
+- source: spec-1-8-conversations-survive-restarts.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Adapter/Agent.cls SaveLinked; the four redaction tests drop their turn's session before the key scan (measured: without the drop the scan names the saved session)
+- 2026-10-23T15:50:33Z status=by-design owner=1-8-conversations-survive-restarts by=harvest note=spine-bound: AD-3 puts AI sessions in the private database; AD-20's compaction keeps every tool result verbatim in facts_learned; AD-4/AD-14 keep keys out of tool results structurally; veto item U-39 for the owner
+
+### DW-116: A ConversationLink Point failure after a successful session %Save leaves the saved session unlinked; the only reachable cause is an OwnerRef over the link column's 22 characters
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Adapter/Agent.cls SaveLinked; Test.Bridge.Conversation.TestSaveProblem pins the warning and SessionRotated 0
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=a caller sends an OwnerRef over 22 characters (then Admit should refuse it)
+
+### DW-117: A fresh turn that outlives Decide's timer is answered with a timeout fallback whose SessionRotated is 0, yet its late untainted Chat still moves the link to the new seeded session
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.RecordFallback sets no runner flag for a timer fallback; AnswerLinked saves the late Chat and Points the link
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=Epic 2's Conversation retries or continues after a timed-out fresh turn and expects the old session
+
+### DW-118: A continue turn whose link names an AI session that no longer exists fails with an error status on every turn, with no signal to send fresh
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec decision 14: unreachable today (retention purges only unlinked sessions, AD-20); Test.Bridge.Conversation.TestLockReleased pins the error and the lock release
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=Story 30.2's purge or a restore of the private database leaves a link whose session is gone
+
+### DW-119: Test.Agent.Conversation asserts elapsed-time windows (Busy 2-5 s, the timed-out turn 11-17 s, turn 2 within 6 s) that a loaded CI runner could miss
+- source: spec-1-8-conversations-survive-restarts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the windows are the spec's matrix numbers (timer 12 s, late reply 18 s)
+- 2026-10-23T15:50:33Z status=wontfix-accepted owner=1-8-conversations-survive-restarts by=harvest note=reopen_if=a CI run goes red on an elapsed-window assertion of TestBusyWhileHeld, TestBusyAfterTimedOutTurn or TestRunnerBusy
+
+### DW-125: Until Story 30.1's compaction, a linked conversation whose stored history alone passes the request-size limit answers too_large on every turn that continues it (about 400,000 characters of history); Epic 2's Conversation starts a fresh session only after Tainted or SessionBroken, so the conversation stays stuck
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 1.9 Decide.Precheck too_large on the estimate (history + prompt + schemas + input); Story 1.8 resumes the linked history
+- 2026-10-23T18:29:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=spec_gate note=30.1 compacts (or rotates to a fresh seeded session) a flagged turn whose history alone passes the limit, and adds its summarizer time only to flagged turns it can compact
+
+### DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 1.9 checks the first request only; the AC's amendment sends a flagged turn as it is until 30.1 merges; AD-20 bounds the loop by compaction at 40,000
+- 2026-10-23T21:02:46Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=harvest note=30.1's compaction of every flagged turn closes it; its tests should show a four-iteration turn staying under 100,000
+- 2026-10-23T22:00:43Z occurrence=1-9-no-model-request-goes-over-100-000-tokens by=cr note=cr: Chat has no tools until 1.10, so the loop opens there (and with 22.x MCP), not before; 30.1 still closes it
+
+### DW-131: The tool-result cap counts a result's characters before AI Hub encodes a string result again as a JSON string, so a cut result reaches the model slightly larger than the room (10,006 tokens against 10,000 measured)
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Tools/Result.cls Return
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=the mock logs a tool_result of one step whose encoded content is more than 10 percent over the 40,000-character room (e.g. Story 5.4's real readers)
+- 2026-10-23T22:00:43Z occurrence=1-9-no-model-request-goes-over-100-000-tokens by=cr note=cr: 10,006 is characters, not tokens; a cut object grows about a fifth when encoded, so reopen_if may fire with 5.4
+
+### DW-132: The request-size estimate of a continuing turn counts the system prompt twice: the stored history (ContextData) holds it and a version envelope, and the agent part counts it too (about 24% high on a short history)
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge/RequestSize.cls HistoryChars; Test.Bridge.Conversation BANDPERCENT 29
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=Story 30.1 reads the stored history and can subtract the stored prompt, or BANDPERCENT has to grow above 29
+
+### DW-133: RequestSize.HistoryChars returns 0 with no status or log line when the SQL read of the stored history or the stream open fails, so the estimate fails open silently
+- source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Bridge/RequestSize.cls HistoryChars; Test.Agent.RequestSize.TestTooLarge checks the history adds more than 1,500 tokens
+- 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=the base image changes the %AI_Agent.Session table or the ContextData stream class
+- 2026-10-23T22:00:43Z occurrence=1-9-no-model-request-goes-over-100-000-tokens by=cr note=cr: an SQL error leaves %SQLCODE<0 and throws nothing, so the Catch never runs; same silent 0
+
+### DW-135: Cross-lane contract for ReminderOps (Story 8.4): ListReminders answers with CommandResult.Data = {"reminders":[{"ref","text","dueAt"}]}, the command's session's pending reminders, earliest due first, dueAt in UTC; Story 1.10's list tool and its CommandsIn test double read and answer exactly this shape
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 1.10 Tools/CommandCall + Test.Tools.CommandsDouble; Story 0.4 fixes the command fields, not the result's Data
+- 2026-10-23T23:00:53Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=add as an AC bullet to Story 8.4 (veto category 8, a parallel run's orchestrator routes it); 8.4's ReminderOps must answer this shape or the list tool reports a failure
+
+### DW-136: Set and cancel reminder tools declare TRUSTEDOUTPUT 0 (the AC: only list is trusted output), so once Epic 3's taint rule lands every turn that sets or cancels a reminder is tainted, never saved, and the next turn starts fresh with a recap; their output is built by code from ReminderOps' CommandResult, which fits AD-10's definition of trusted output
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 1.10 Tools/ReminderTools TRUSTEDOUTPUT<NAME>; AD-10 3a quarantine; spine row Saved conversations
+- 2026-10-23T23:00:53Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=spec_gate note=3.3 decides whether set_reminder and cancel_reminder declare TRUSTEDOUTPUT 1 (a class parameter each)
+
+### DW-137: A JSON true given as set_reminder's delaySeconds reaches SetReminder as 1 (AI Hub decodes arguments before the method runs), so it sets a reminder one second ahead instead of being refused
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Task 0 (c): true becomes 1; the schema says integer
+- 2026-10-24T01:30:42Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=reopen_if=a live run shows a model sending a boolean or a non-integer delaySeconds
+
+### DW-138: The reminder tools pass the model's strings on without a bound, so a value longer than the command's field (LocalDueAt MAXLEN 19, Text 1000, ReminderRef 22; delaySeconds unbounded) may fail when the real CommandsIn saves the message, and the model is told the service did not answer
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Tools/CommandCall; the double never saves the message
+- 2026-10-24T01:30:42Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=harvest note=reopen_if=with Story 2.3's real CommandsIn, a 20-character localDueAt or a 20-digit delaySeconds gives NOTSENT instead of the owner's plain-English refusal
+
+### DW-139: list_reminders declares TRUSTEDOUTPUT 1 (the AC), but each reminder's Text is model-authored (set_reminder's argument), so a later turn that lists it gets stored model text back as trusted output
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/ReminderTools TRUSTEDOUTPUTLISTREMINDERS; AD-10's trusted output is 'built by code from OcuTalon's own records'
+- 2026-10-24T01:30:42Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=harvest note=unverified; 3.1/3.3 decide whether a result carrying stored model-authored text is exempt from taint (with DW-136)
+
+### DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: AD-20 max_iterations arithmetic; one cancel_reminder call per Ref
+- 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's live check of a 'cancel all my reminders' turn with three or more pending reminders settles it; raising the ceiling amends AD-20 (owner's veto window)
+
+### DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/CommandCall key; Context.CommandCount
+- 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's ReminderOps compares the verb and fields on a reused key, or refuses the reuse
+- 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
+
+### DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls INSTRUCTIONS, unchanged by decision 16; the CI mock scripts the tool call, so no test sees a live model's choice
+- 2026-10-24T02:57:20Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=unverified; 8.4's live check of the reminder phrasings on Haiku 5.5 settles it; the fix is Lane A's Chat INSTRUCTIONS
+
+### DW-143: The watch fixture's three tools declare no CLASSIFICATION, READONLY or TRUSTEDOUTPUT parameters, so by the Tool classification convention they are unclassified (risky) once Epic 3's gate reads the parameters, and Diagnosis's read-only tools would be held
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Tools/WatchFixture.cls gained only STEPLABEL<NAME> in Story 1.10; spine convention 'Tool classification': an undeclared tool is unclassified
+- 2026-10-24T02:57:20Z status=routed owner=3-2-one-gate-decides-every-tool-call by=cr note=3.2 declares the watch tools' classification (event-log and message text never trusted output, AD-10) or scans for it
+
+### DW-144: Test.Tools.Reminders.Prepare is the fifth copy of the live-test readiness helper (Test.Agent.RequestSize, Agent.Decide, Agent.Conversation, Bridge.Budget), with the CommandsIn swap added, instead of one shared helper in RunnerFixture
+- source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Rule 2 check at review: the spec names RequestSize as the pattern it follows (a weak reason); each copy keeps per-class flags and asserts
+- 2026-10-24T02:57:20Z status=wontfix-accepted owner=1-10-the-chat-agent-sets-lists-and-cancels-reminders by=cr note=reopen_if=two copies of Prepare diverge (one gains a readiness step another lacks) or a sixth live test class copies it
+
+### DW-149: In a request without %Admin_ConfigStore (Epic 2's /ocutalon/api /state, APPLICATIONROLES only), Keys.Status reads a MISSING model key as present: Status sets present=1 in its Catch, and Keys.Present falls back to %ConfigStore.Configuration.Exists when ConfigStore.Details fails; so a keyless start shows no 'no model key' banner (a false all-clear) and each /state audits three refusals; Budget.State's Usage SELECT has no SQL grant there either and logs a warning per call
+- source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: high | fix-risk: med | footprint: in-footprint
+- evidence: src/bridge/cls/OcuTalon/Bridge/Keys.cls Status/Present; Bridge/Budget.cls State; Epic 2's /state computes noModelKey from Keys.Status(agent); Install/Step/Web.cls APPLICATIONROLES; verified by the orchestrator on origin/OCT-epic1 7f1c2bb
+- 2026-10-24T05:11:53Z status=routed owner=burndown by=cr note=cross-epic, found by Epic 2 at 2.10 (Epic 2's DW-148); must close in Epic 1; orchestrator ruling 2026-10-24: chartered first in Epic 1's burn-down story, never overflowed; a refused or failed read never reads as present, a missing key reads missing, unknown never passes as OK; Budget.State works there or degrades without a per-call warning; the key's value never reaches the web request; pinning test: the read in a request context without %Admin_ConfigStore and no key configured reads as missing
+- 2026-10-24T06:59:12Z owner=1-13-epic-1-burn-down by=burndown note=chartered_into_Story_1.13(orchestrator_ruling:first,never_overflowed)
+- 2026-10-24T11:01:45Z status=resolved-by:1-13-epic-1-burn-down by=adjudication note=Keys.Status_reads_only_the_runner's_recorded_state(^OcuTalonBP.KeyState,present_alone_reads_1);Keys.Present/Absent_answer_unknown_without_%Admin_ConfigStore:USE(no_Config_Store_call,no_AccessDenied_row);Decide's_precheck_on_Keys.Absent(live_rule_unchanged);Budget.State_degrades_quietly(one_fault_line,no_warning);pinned_by_Test.Bridge.WebStatus(a_job_logged_in_as_a_fixture_user_with_exactly_APPLICATIONROLES:no_key->0_for_every_runner,key->1,stopped->0,no_AccessDenied_from_the_read,Budget_no_warning)+Test.Bridge.Keys(7740a9c+review)
+
+### DW-150: Digest.Data.Item.Since returns every item of the session since the time, with no cap
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest/Data/Item.cls Since; the first consumer is Story 17.6
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=Story 17.6's digest wants only a count and the newest N summaries, and a session's saved items between two digests can reach thousands
+
+### DW-151: TestKeepsInstance's no-live-event check counts only instance-stream events whose payload holds the ItemId or DecisionRef, so a store publishing an event without either Ref would pass it
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Digest/Store.cls TestKeepsInstance; TestKeeps counts the owner's whole stream
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=any file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live.Publish
+- 2026-10-24T06:25:15Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=cr note=reopen_if=a file under src/ocutalon/cls/OcuTalon/Digest/ names OcuTalon.Live or OcuTalon_Live (cr widened the probe)
+
+### DW-152: DigestStore.Keep's concurrent-repeat path (the save fails on the unique index after the pre-check found no row) has no test
+- source: spec-1-12-items-saved-for-the-digest-are-kept-for-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest/Store.cls Keep; DigestStore pool 1; TestOnce pins the sequential repeat
+- 2026-10-24T05:11:53Z status=wontfix-accepted owner=1-12-items-saved-for-the-digest-are-kept-for-it by=harvest note=reopen_if=the DigestStore item in OcuTalon.Production has a PoolSize above 1
+
+### DW-154: Keys.Status keeps reading a recorded present key for a runner whose job ended without OnTearDown (a refused start, measured; a killed job or a crash); the record stays true about the key and misleads only if the key is removed while that runner stays refused or disabled across an IRIS restart
+- source: spec-1-13-epic-1-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Adapter/Agent.cls:74 records before CheckSettings; Test.Agent.Runners.TestStartRefused pins it
+- 2026-10-24T09:40:20Z status=wontfix-accepted owner=1-13-epic-1-burn-down by=harvest note=reopen_if=a release lets a runner stay disabled or refused across an IRIS restart, or the owner wants a refused start to read as stopped (Status 0)
+- 2026-10-24T10:59:25Z occurrence=1-13-epic-1-burn-down
+
+### DW-157: Budget.UsageSpent's warning arm for an SQL failure other than a missing privilege (SQLCODE -99) has no test, so a change that silenced every failure of the Usage SELECT would stay green
+- source: spec-1-13-epic-1-burn-down.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: UsageSpent splits -99 (quiet, unreadable) from other failures (warning); Test.Bridge.Budget.TestFaults holds the privilege and WebStatus gets only -99; no test reads 'cannot be summed'
+- 2026-10-24T10:59:31Z status=wontfix-accepted owner=1-13-epic-1-burn-down by=cr note=reopen_if=UsageSpent's error handling changes again, or a test can make the Usage SELECT fail with an SQLCODE but -99
 ### DW-48: test-ci-config.sh's units and demo-path rules read only their violation functions' stdout, so a tree that cannot be read can print PASS (the new groups rule carries the guard)
 - source: spec-32-1-the-install-group-runs-as-two-jobs.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: hits=$(units_violations ...) and hits=$(demo_path_violations ...) ignore the exit status; a set -u abort in the sourced ci/units.sh leaves stdout empty; other rules keep the suite red in realistic cases
