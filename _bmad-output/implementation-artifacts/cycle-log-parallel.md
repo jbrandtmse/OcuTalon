@@ -173,3 +173,9 @@
 2026-10-24T03:58:32Z	Epic 1	cross_epic_routed	item=Keys.Status/Budget.State_in_an_API_request(found_by_Epic_2_at_2.10;Epic_2's_DW-148) to=epic-1(live_runner) ask=ledger_HIGH_routed_to_1.12_with_a_DW_bullet,closed_before_its_integrate-forward;pinning_test_in_a_request_context_without_%Admin_ConfigStore check=at_Epic_1's_contract
 2026-10-24T03:58:32Z	Epic 2	runner_resumed	message=ruling_a;2.10_implement_now;DW-148_trailer_routed_to_1-12(fixed_in_Epic_1)
 2026-10-24T03:58:59Z	Epic 1	ruling_amended	route=Epic_1's_burn-down_story(chartered_regardless_of_ledger_cap:a_cross-epic_HIGH_that_turns_the_feature_red_when_Epics_1_and_2_meet;the_cap_is_a_minimum_for_chartering,not_a_bar) was=1.12(already_in_progress) closed_before=integrate-forward never=overflow_to_a_later_epic
+2026-10-24T12:12:56Z	Epic 1	runner_complete	stories_completed=12 head=0b5f791 ci=success(40091870437,40091870388) ledger=open_before=5,resolved=1,chartered=1(DW-149),overflow=0,to_decision_sheet=4(DW-54,DW-92,DW-93,DW-114),open_after=4,drain_ratio=0.71 retro=skipped(policy) applied=none model=opus
+2026-10-24T12:12:56Z	Epic 1	merge_enqueued	policy=when_green
+2026-10-24T12:13:26Z	Epic 1	amendments_verified	amendments=7(epics.md:1162,1230,1244,1291,Story_1.13_charter;spine_Conventions_rows:Agent_step_labels,Saved_conversations,Tool_classification;spec-1-12_matrix_rows) extensions=2(docker/tests/test-production.sh_rows,test-pinned-sources.sh;earlier_orchestrator_rulings;Epic_2_rows_are_a_plain_union) ok=true
+2026-10-24T12:13:26Z	Epic 1	ci_green_verified	runs=40091870437,40091870388 head=0b5f791
+2026-10-24T12:13:26Z	Epic 1	merge_precheck	feature_unmoved_since_integrate(a5b6574) trial_merge=clean veto_open=3 stories_done=1.1-1.10,1.12,1.13 burndown=logged(DW-149_chartered_and_closed) retro=skipped(policy) decision_sheet=4(DW-54_decide,DW-92_action_item,DW-93_veto,DW-114_veto)
+2026-10-24T12:13:26Z	Epic 1	epic_merge_started	head=0b5f791 feature=feature/OCT_OcuTalon_MVP
