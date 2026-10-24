@@ -4,8 +4,9 @@ import { timeout } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import { LiveState } from '../live/live-state';
+import { Announcer } from '../shared/announcer';
 import { BUSY_TIMEOUT_MS } from '../shared/busy-state';
-import { newClientId, type OutboxEntry, type OutboxStatus } from './chat-view';
+import { CHAT_TEXTS, newClientId, type OutboxEntry, type OutboxStatus } from './chat-view';
 
 /**
  * The messages this page sent (AD-30, AD-4). send() makes a local entry with a new clientId and posts it at once; the body
@@ -13,11 +14,15 @@ import { newClientId, type OutboxEntry, type OutboxStatus } from './chat-view';
  * status, or no answer within BUSY_TIMEOUT_MS. A 401 is SessionGate's. retry() posts a failed entry again with the same
  * clientId and text, which the server dedups, so a send that did reach it is not queued twice. An entry leaves as soon as the
  * live store holds a chat.message with its clientId, whatever its status. The outbox lives in the page: a reload drops it.
+ * Each post that fails is announced once, "Message not sent" (UX-DR132), while the page still shows the message as unsent: a
+ * failure that comes after the live store holds the message says nothing, because the page shows it as sent. A retry that fails
+ * is a new failure, and a 401 is the session gate's and says nothing here.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatOutbox {
   private readonly api = inject(ApiClient);
   private readonly live = inject(LiveState);
+  private readonly announcer = inject(Announcer);
   private readonly list = signal<readonly OutboxEntry[]>([]);
 
   private readonly sends = signal(0);
@@ -76,7 +81,11 @@ export class ChatOutbox {
         next: () => this.mark(entry.clientId, 'sent'),
         error: (error: unknown) => {
           if (!(error instanceof HttpErrorResponse && error.status === 401)) {
+            const unsent = this.list().some((candidate) => candidate.clientId === entry.clientId);
             this.mark(entry.clientId, 'failed');
+            if (unsent) {
+              this.announcer.announce(CHAT_TEXTS.messageNotSent);
+            }
           }
         },
       });

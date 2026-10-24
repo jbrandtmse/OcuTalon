@@ -12,7 +12,7 @@ function required(name: string): string {
 }
 
 /** The kinds of fixture user of the sign-in unit. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS';
+export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR';
 
 /** A fixture user of the sign-in unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {

@@ -434,6 +434,9 @@ describe('the fixed strings', () => {
         meaningDigest: 'Saved for later; nobody notified now',
         meaningTellNow: 'Needs you now',
         meaningAct: 'OcuTalon took or requested an action',
+        announceReplied: 'OcuTalon replied:',
+        announceTellNow: 'Tell now:',
+        messageNotSent: 'Message not sent',
       },
     );
   });

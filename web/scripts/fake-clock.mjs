@@ -1,5 +1,6 @@
-// A clock for the Node tests of the framework-free modules (src/app/shared/busy-state.ts, src/app/live/contact-watch.ts): a
-// timer runs only when the test advances the clock, and `pending` counts the timers still armed.
+// A clock for the Node tests of the framework-free modules (src/app/shared/busy-state.ts, src/app/live/contact-watch.ts,
+// src/app/shared/announce-queue.ts): a timer runs only when the test advances the clock, `now` reads the clock in ms, and `pending`
+// counts the timers still armed.
 
 /** A clock that runs a timer only when the test advances it. */
 export function fakeClock() {
@@ -25,6 +26,9 @@ export function fakeClock() {
         due[1].handler();
       }
       now = target;
+    },
+    get now() {
+      return now;
     },
     get pending() {
       return timers.size;

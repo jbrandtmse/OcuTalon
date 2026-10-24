@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, untracked } from '@angular/core';
 
 import { ChatPanel } from '../chat/chat-panel';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { RAIL_TEXTS } from '../rail/rail-view';
 import { StatusRail } from '../rail/status-rail';
+import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { Popovers } from '../shared/popover';
 import { ServerButton } from '../shared/server-button';
 
 /** The labels of the rail's four list sections, in order, for the loading and failed states; the loaded rail adds its counts (Telegram is unknown until then). */
@@ -11,6 +13,9 @@ const RAIL_SECTIONS = [RAIL_TEXTS.approvals, RAIL_TEXTS.checks, RAIL_TEXTS.remin
 
 /** The skeleton rows of each rail section while the snapshot loads. */
 const SKELETON_ROWS = [1, 2] as const;
+
+/** Where focus goes when the load error that holds it gives way to the loaded page (UX-DR131): the main region. */
+const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
 
 /**
  * The main page: the status rail and the chat region, under the page's one visually hidden h1. The h1 is the routed
@@ -20,7 +25,9 @@ const SKELETON_ROWS = [1, 2] as const;
  * While the snapshot loads, both regions are aria-busy and show static skeletons, hidden from assistive technology:
  * two rows in each of the rail's four sections and three entries in main. When the load fails (no data by 10 seconds, or an error
  * answer) the rail keeps its four headings alone, and the skeletons give way to the load error at the top of main, with Retry.
- * Once it has loaded, the rail holds the status rail and main holds the chat panel after its hidden heading. The page's
+ * Once it has loaded, the rail holds the status rail and main holds the chat panel after its hidden heading. When the load error
+ * holds focus (its Retry button) as the page loads, focus moves to main without scrolling, through the page's focus rule
+ * (shared/focus-rule.ts); a Retry that fails leaves focus where it is. The page's
  * data-snapshot says how the load went, and data-session-seq and data-instance-seq the last event of each stream that the page has
  * applied.
  */
@@ -176,6 +183,9 @@ const SKELETON_ROWS = [1, 2] as const;
 })
 export class MainPage {
   protected readonly live = inject(LiveState);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly popovers = inject(Popovers);
   protected readonly sections = RAIL_SECTIONS;
   protected readonly skeletonRows = SKELETON_ROWS;
   protected readonly loadFailed = LOAD_FAILED;
@@ -184,4 +194,11 @@ export class MainPage {
 
   /** The Retry button's call: asks for the snapshot again and settles when it answers. */
   protected readonly retry = () => this.live.retry();
+
+  constructor() {
+    effect(() => {
+      this.live.status();
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, LOAD_ERROR_RULE));
+    });
+  }
 }

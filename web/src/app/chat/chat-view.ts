@@ -21,7 +21,11 @@
 import type { LiveItem } from '../api/api-types';
 import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, NotificationPayload, TurnStepPayload } from '../live/payloads';
 
-/** Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. */
+/**
+ * Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. announceReplied and announceTellNow are said
+ * before the first sentence of a reply and of a tell-now card, and messageNotSent after a post fails (the polite announcer
+ * speaks them; UX-DR132). They are announced from chat-announcements.ts and chat-outbox.ts, never shown.
+ */
 export const CHAT_TEXTS = {
   composerLabel: 'Message OcuTalon',
   composerPlaceholder: 'Message OcuTalon',
@@ -54,6 +58,9 @@ export const CHAT_TEXTS = {
   meaningDigest: 'Saved for later; nobody notified now',
   meaningTellNow: 'Needs you now',
   meaningAct: 'OcuTalon took or requested an action',
+  announceReplied: 'OcuTalon replied:',
+  announceTellNow: 'Tell now:',
+  messageNotSent: 'Message not sent',
 } as const;
 
 /** The fixed strings of a notice card's caption, joined by CHAT_TEXTS.separator: "Due 12:00 \u00B7 arrived 12:01". */

@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
 
 import { CHAT_TEXTS, NOTICE_TEXTS } from '../chat/chat-view';
 import { fallbackSentence } from '../chat/decision-strip';
@@ -6,6 +6,8 @@ import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines } fr
 import { countdownText, pageWhen } from '../chat/page-time';
 import type { TelegramState } from '../api/api-types';
 import { LiveState } from '../live/live-state';
+import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
 import { type RailFormat, railView, type RailView } from './rail-view';
@@ -25,6 +27,16 @@ const ROW_SECTION = 'data-section';
 
 /** The id of a section's heading. */
 const headingId = (section: string): string => `rail-heading-${section}`;
+
+/**
+ * Where focus goes when the row that holds it, or a control in it (a trace link, the help it opened), leaves (UX-DR131): the
+ * heading of the row's section. A row that is still there keeps it.
+ */
+const FOCUS_RULE: FocusRule = {
+  item: `[${ROW_KEY}]`,
+  keyOf: (row) => row.getAttribute(ROW_KEY) ?? '',
+  whenGone: ({ host, item }) => host.querySelector<HTMLElement>(`#${headingId(item.getAttribute(ROW_SECTION) ?? '')}`),
+};
 
 /** The values railView reuses, from the real modules, with the times counted from now. */
 function formatAt(now: number): RailFormat {
@@ -50,8 +62,9 @@ function formatAt(now: number): RailFormat {
  * - Rows are read-only: an approval row with a 3px attention bar, a check row, a reminder row with a ticking countdown in tabular
  *   figures, and a decision row as a disclosure. A row whose payload has a traceUrl ends its meta line with a trace link.
  * - A clock ticks every second while a countdown shows and every 60 seconds otherwise.
- * - When an update removes the row that holds focus, focus moves to that section's heading without scrolling; nothing else here moves
- *   focus. The headings take focus (tabindex -1) but are not in the tab order.
+ * - When an update removes the row that holds focus (or the trace help that a row's link opened), focus moves to that section's
+ *   heading without scrolling, through the page's focus rule (shared/focus-rule.ts); nothing else here moves focus. The headings
+ *   take focus (tabindex -1) but are not in the tab order.
  * - The rail has no live region and announces nothing. Every text is bound by interpolation.
  */
 @Component({
@@ -199,6 +212,7 @@ export class StatusRail {
   private readonly live = inject(LiveState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly popovers = inject(Popovers);
 
   protected readonly separator = CHAT_TEXTS.separator;
   protected readonly headingId = headingId;
@@ -229,34 +243,7 @@ export class StatusRail {
     });
     effect(() => {
       this.view();
-      untracked(() => this.keepFocus());
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
-  }
-
-  /**
-   * Before the view renders again: if a row holds focus, remembers its key and its section, and after the render moves focus to the
-   * section's heading when the row is gone (UX-DR131). A row that is still there keeps focus as it is.
-   */
-  private keepFocus(): void {
-    const active = document.activeElement;
-    const host = this.host.nativeElement;
-    const row = active instanceof Element && host.contains(active) ? active.closest(`[${ROW_KEY}]`) : null;
-    if (row === null) {
-      return;
-    }
-    const key = row.getAttribute(ROW_KEY);
-    const section = row.getAttribute(ROW_SECTION);
-    if (key === null || section === null) {
-      return;
-    }
-    afterNextRender(
-      () => {
-        const gone = !Array.from(host.querySelectorAll(`[${ROW_KEY}]`)).some((one) => one.getAttribute(ROW_KEY) === key);
-        if (gone) {
-          host.querySelector<HTMLElement>(`#${headingId(section)}`)?.focus({ preventScroll: true });
-        }
-      },
-      { injector: this.injector },
-    );
   }
 }

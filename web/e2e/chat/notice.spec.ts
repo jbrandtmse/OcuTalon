@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { notBuilt } from '../demo-path/not-built';
 import { signIn } from '../sign-in/helpers';
 import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendNotification } from '../support/iris';
-import { fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
+import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
  * Story 2.7, the notice cards (N1 to N15; N11 is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
@@ -51,17 +51,6 @@ async function open(page: Page): Promise<void> {
   await signIn(page, user, password);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page.getByRole('textbox', { name: 'Message OcuTalon' })).toBeVisible();
-}
-
-/** Counts every focusin of the page from now on, in window.focusins. */
-async function countFocusins(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const target = window as unknown as { focusins?: number };
-    target.focusins = 0;
-    document.addEventListener('focusin', () => {
-      target.focusins = (target.focusins ?? 0) + 1;
-    });
-  });
 }
 
 /** Today's date with the time given, as a UTC ISO time. */

@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { parseReply } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'reply-text.ts')).href);
+const { parseReply, plainText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'reply-text.ts')).href);
 
 const text = (value) => ({ kind: 'text', text: value });
 const link = (href, label = href, host = '') => ({ kind: 'link', href, label, host });
@@ -120,5 +120,26 @@ describe('everything else is text', () => {
 
   it('shows an address in angle brackets with the brackets as text', () => {
     assert.deepEqual(parseReply('<https://example.com>'), [para(text('<'), link('https://example.com'), text('>'))]);
+  });
+});
+
+describe('the plain text of the first block', () => {
+  it('is a paragraph\'s runs with each link as its label, and keeps the line breaks', () => {
+    assert.equal(plainText(parseReply('See [the guide](https://example.com/g) first. Then https://example.com/x\nnext line\n\nsecond paragraph')), 'See the guide first. Then https://example.com/x\nnext line');
+  });
+
+  it('is the first item of a list, bulleted or numbered, with its links as labels', () => {
+    assert.equal(plainText(parseReply('- first [item](https://example.com)\n- second')), 'first item');
+    assert.equal(plainText(parseReply('3. numbered one\n4. two')), 'numbered one');
+  });
+
+  it('is the first block only, whatever follows', () => {
+    assert.equal(plainText(parseReply('- a\n\nafter')), 'a');
+    assert.equal(plainText(parseReply('before\n\n- a')), 'before');
+  });
+
+  it('is empty for no block', () => {
+    assert.equal(plainText(parseReply('')), '');
+    assert.equal(plainText([]), '');
   });
 });

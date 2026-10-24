@@ -19,14 +19,23 @@ export class PopoverRef {
   private readonly done = new Subject<void>();
   private opened = true;
   private readonly onClose: () => void;
-  private readonly trigger: HTMLElement;
+  private readonly pane: HTMLElement;
+
+  /** The control that opened the popover. */
+  readonly trigger: HTMLElement;
 
   /** Emits once, when the popover has closed. */
   readonly closed: Observable<void> = this.done.asObservable();
 
-  constructor(trigger: HTMLElement, onClose: () => void) {
+  constructor(trigger: HTMLElement, pane: HTMLElement, onClose: () => void) {
     this.trigger = trigger;
+    this.pane = pane;
     this.onClose = onClose;
+  }
+
+  /** Whether the element is inside the popover's panel. */
+  holds(element: Element): boolean {
+    return this.pane.contains(element);
   }
 
   /** Whether the popover is still open. */
@@ -81,7 +90,7 @@ export class Popovers {
     pane.setAttribute('aria-labelledby', options.labelledBy);
 
     const cleanups: Array<() => void> = [];
-    const ref = new PopoverRef(trigger, () => {
+    const ref = new PopoverRef(trigger, pane, () => {
       this.open.delete(ref);
       cleanups.forEach((cleanup) => cleanup());
       overlayRef.dispose();
@@ -105,6 +114,19 @@ export class Popovers {
 
     afterNextRender(() => this.focusFirst(overlayRef), { injector: this.injector });
     return ref;
+  }
+
+  /**
+   * The trigger of the open popover whose panel contains the element, else undefined. Focus inside a popover counts as focus on its
+   * trigger (the focus rule of shared/focus-rule.ts), so a trigger that leaves the page with its popover open is a lost focus.
+   */
+  triggerOf(element: Element): HTMLElement | undefined {
+    for (const ref of this.open) {
+      if (ref.holds(element)) {
+        return ref.trigger;
+      }
+    }
+    return undefined;
   }
 
   /** Closes every open popover. */

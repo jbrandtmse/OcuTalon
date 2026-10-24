@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
 
 import { CHAT_TEXTS } from '../chat/chat-view';
 import { formatCost } from '../chat/decision-view';
@@ -9,6 +9,8 @@ import { README_URL } from '../links';
 import { renderPageText } from '../msg/catalog';
 import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
+import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { Popovers } from '../shared/popover';
 import { activeBanners, BANNER_TEXTS, type BannerFormat, type BannerId, type BannerInput, bannersView, type BannerView, closeBanner, REPLACED_BY, retainClosed } from './banner-view';
 
 /** The values banner-view.ts reuses, from the real modules. */
@@ -24,10 +26,22 @@ const FORMAT: BannerFormat = {
 const BANNER_ID = 'data-banner';
 
 /**
- * The announcer replaces a message that is still waiting, so banners that appear together are announced this far apart
- * (milliseconds), longer than the announcer's own delay before it reads one.
+ * Where focus goes when the banner that holds it, or its link or Close button, leaves (UX-DR131): the banner that replaces it
+ * (REPLACED_BY) when that one is shown, else the next banner that is left, else the nearest one before it, else the main region.
  */
-const ANNOUNCE_GAP_MS = 150;
+const FOCUS_RULE: FocusRule = {
+  item: `[${BANNER_ID}]`,
+  keyOf: (one) => one.getAttribute(BANNER_ID) ?? '',
+  whenGone: ({ host, key, before, after }) => {
+    const left = new Set(after);
+    const at = before.indexOf(key);
+    const replacement = REPLACED_BY[key as BannerId];
+    const next = before.slice(at + 1).find((one) => left.has(one));
+    const previous = before.slice(0, at).reverse().find((one) => left.has(one));
+    const target = replacement !== undefined && left.has(replacement) ? replacement : (next ?? previous);
+    return target === undefined ? null : host.querySelector<HTMLElement>(`[${BANNER_ID}="${target}"]`);
+  },
+};
 
 /**
  * The stack of status banners that sits under the header, in `.banner-slot` (Story 2.10; UX-DR34, UX-DR97 to UX-DR100, UX-DR116):
@@ -37,11 +51,13 @@ const ANNOUNCE_GAP_MS = 150;
  * a Close button, an icon-only ghost button. The texts are the catalog's and are bound by interpolation.
  * - No banner is a live region. Once the first snapshot has loaded, each banner that appears is announced once through the
  *   polite announcer, whether an event or a reloaded snapshot brought it; the banners of the first snapshot are not announced.
+ *   The banners that appear in one update are handed to the announcer at once, in stack order, and it speaks them as one text.
  * - A closed banner stays away while its condition holds with the slots it had; it returns, announced, when the condition
  *   clears and starts again or its slots change. The records live for the page's life.
- * - A banner takes focus (tabindex -1) but is not in the tab order. When a banner that holds focus, or holds the focus in its
- *   link or Close button, leaves, focus moves without scrolling to the banner that replaces it (REPLACED_BY) when that one is
- *   shown, else to the next banner, else the previous one, else the main region. Nothing else here moves focus.
+ * - A banner takes focus (tabindex -1) but is not in the tab order. When an update removes the banner that holds focus, or the link
+ *   or Close button in it, focus moves without scrolling as FOCUS_RULE says, through the page's focus rule (shared/focus-rule.ts):
+ *   to the banner that replaces it (REPLACED_BY) when that one is shown, else to the next banner, else the previous one, else the
+ *   main region. Nothing else here moves focus.
  * - Reconnecting and Unreachable are the page's own conditions (Story 2.11): the stack shows the one that LiveState.contact
  *   names, if any. Unreachable replaces Reconnecting, and the clear of either is not announced.
  */
@@ -138,6 +154,7 @@ export class BannerStack {
   private readonly announcer = inject(Announcer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly popovers = inject(Popovers);
 
   protected readonly texts = BANNER_TEXTS;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
@@ -168,11 +185,8 @@ export class BannerStack {
 
   /** The ids of the banners that were shown at the last run of the announcing effect; undefined until the first snapshot has loaded. */
   private shown: ReadonlySet<BannerId> | undefined;
-  private readonly waiting: string[] = [];
-  private gap: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => globalThis.clearTimeout(this.gap));
     effect(() => {
       const active = this.active();
       untracked(() => {
@@ -190,7 +204,7 @@ export class BannerStack {
     });
     effect(() => {
       this.banners();
-      untracked(() => this.keepFocus());
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
   }
 
@@ -198,7 +212,7 @@ export class BannerStack {
     this.closed.update((closed) => closeBanner(closed, banner));
   }
 
-  /** Announces each banner that was not shown at the last run, once the first snapshot has loaded. */
+  /** Announces each banner that was not shown at the last run, once the first snapshot has loaded; the announcer joins the ones of one update. */
   private announce(banners: readonly BannerView[], loaded: boolean): void {
     if (!loaded) {
       return;
@@ -210,58 +224,8 @@ export class BannerStack {
     }
     for (const banner of banners) {
       if (!before.has(banner.id)) {
-        this.waiting.push(banner.text);
+        this.announcer.announce(banner.text);
       }
     }
-    this.drain();
-  }
-
-  /** Announces the waiting texts one at a time, ANNOUNCE_GAP_MS apart. */
-  private drain(): void {
-    if (this.gap !== undefined) {
-      return;
-    }
-    const next = this.waiting.shift();
-    if (next === undefined) {
-      return;
-    }
-    this.announcer.announce(next);
-    this.gap = globalThis.setTimeout(() => {
-      this.gap = undefined;
-      this.drain();
-    }, ANNOUNCE_GAP_MS);
-  }
-
-  /**
-   * Before the stack renders again: if a banner holds focus, or its link or Close button does, remembers the banners' order, and
-   * after the render moves focus, when that banner is gone, to the banner that replaces it if that one is shown, else to the next
-   * banner that is left, else the nearest one before it, else the main region (UX-DR131). A banner that is still there keeps
-   * focus as it is.
-   */
-  private keepFocus(): void {
-    const host = this.host.nativeElement;
-    const active = document.activeElement;
-    const focused = active instanceof Element && host.contains(active) ? active.closest(`[${BANNER_ID}]`) : null;
-    if (focused === null) {
-      return;
-    }
-    const order = Array.from(host.querySelectorAll(`[${BANNER_ID}]`)).map((one) => one.getAttribute(BANNER_ID) ?? '');
-    const id = focused.getAttribute(BANNER_ID) ?? '';
-    afterNextRender(
-      () => {
-        const left = new Set(Array.from(host.querySelectorAll(`[${BANNER_ID}]`)).map((one) => one.getAttribute(BANNER_ID) ?? ''));
-        if (left.has(id)) {
-          return;
-        }
-        const at = order.indexOf(id);
-        const replacement = REPLACED_BY[id as BannerId];
-        const next = order.slice(at + 1).find((one) => left.has(one));
-        const previous = order.slice(0, at).reverse().find((one) => left.has(one));
-        const target = replacement !== undefined && left.has(replacement) ? replacement : (next ?? previous);
-        const element = target === undefined ? document.querySelector<HTMLElement>('main.main') : host.querySelector<HTMLElement>(`[${BANNER_ID}="${target}"]`);
-        element?.focus({ preventScroll: true });
-      },
-      { injector: this.injector },
-    );
   }
 }

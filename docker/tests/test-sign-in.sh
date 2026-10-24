@@ -41,8 +41,12 @@
 #   - Story 2.11's connection tests (web/e2e/banners/banners.spec.ts B13 to B19): the banners user again, with the page's clock
 #     controlled by the test (page.clock) and, in all but B17, the page's API requests refused, failed, answered 503 or held in the
 #     browser (page.route); L13 (web/e2e/live/live.spec.ts) holds one poll of the live user the same way. The server is never stopped.
+#   - Story 2.12's announcements and focus (web/e2e/floor/announcements.spec.ts A1 to A7 and web/e2e/floor/focus.spec.ts P1 to P4): the
+#     floor user (OCUTALON_FLOOR_USER, with the user role), whose session the specs seed turns, reminders, decisions and conditions into
+#     and publish on, and whose /events poll they hold for one update; the chat posts of A6 and P1 are answered in the browser and never
+#     reach the server, so no turn of these specs replies inside another case's window.
 # The project is unique and receives no keys. It publishes its web port only on 127.0.0.1, on the first free port of
-# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread, links and banners users
+# 52800-52819 (or OCUTALON_TEST_WEB_PORT), for the browser. The no-role, trace-only, first-call, live, session, sign-in, chat, panel, decision, notice, rail, thread, links, banners and floor users
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
 # throwaway lock is held), so even a failing run ends within it; the browser run's global timeout is what is left of it minus 20 s.
@@ -84,6 +88,8 @@ linksuser=ZzLinks
 linkspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 bannersuser=ZzBanners
 bannerspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+flooruser=ZzFloor
+floorpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -148,8 +154,9 @@ fi
 # specs of Story 2.8, which seed approval requests, checks, reminders and decisions into its session, and the thread user holds the
 # user role and the trace role for the specs of Story 2.9, which post messages for its session and open the links in Visual Trace, and
 # the links user holds the same two roles for the specs of Story 2.13, which do the same through the links on the page, and the
-# banners user holds the user role for the specs of Story 2.10, which publish status events on its session and read the banners.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture"; do
+# banners user holds the user role for the specs of Story 2.10, which publish status events on its session and read the banners, and
+# the floor user holds it for the specs of Story 2.12, which seed into and publish on its session and read what the page announces.
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture" "$flooruser|$floorpassword|OcuTalonUser|floor fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -196,7 +203,7 @@ fi
 e2e_log="$tmp/e2e.log"
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/$floorpassword/<redacted>/g; s/^/  /"; }
 OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_NOROLE_USER="$noroleuser" \
   OCUTALON_NOROLE_PASSWORD="$noropassword" \
@@ -226,6 +233,8 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_LINKS_PASSWORD="$linkspassword" \
   OCUTALON_BANNERS_USER="$bannersuser" \
   OCUTALON_BANNERS_PASSWORD="$bannerspassword" \
+  OCUTALON_FLOOR_USER="$flooruser" \
+  OCUTALON_FLOOR_PASSWORD="$floorpassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \
@@ -238,13 +247,13 @@ if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12, Story 2.11's B13-B19 and Story 2.12's A1-A7 and P1-P4: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12, Story 2.11's B13-B19 and Story 2.12's A1-A7 and P1-P4: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

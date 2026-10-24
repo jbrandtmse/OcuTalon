@@ -15,12 +15,17 @@ import {
 
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
+import { Announcer } from '../shared/announcer';
+import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { Popovers } from '../shared/popover';
+import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard } from './chat-announcements';
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS, chatView, isFreshChat, type ChatEntryView } from './chat-view';
 import { Composer } from './composer';
 import { EmptyChat } from './empty-chat';
 import { NoticeCard } from './notice-card';
-import { OcutalonReply } from './ocutalon-reply';
+import { OcutalonReply, replyFallbackText } from './ocutalon-reply';
+import { parseReply, plainText } from './reply-text';
 import { UserMessage } from './user-message';
 
 /** How far from the bottom (px) the list still counts as at the bottom. */
@@ -35,11 +40,39 @@ interface Target {
 /** True once a turn's reply is the model's text or a fallback: the reply has landed. A notice card has landed when it is there. */
 const landed = (entry: ChatEntryView): boolean => entry.entry === 'notice' || entry.reply.kind === 'text' || entry.reply.kind === 'fallback';
 
+/** The attributes that mark an item of the list (a user message, a reply or a notice card) with its part and its key. */
+const PART = 'data-part';
+const KEY = 'data-key';
+
+/**
+ * Where focus goes when an update removes the element that holds it inside the list (UX-DR131): an item that is still there takes
+ * it (Retry sending leaves focus on its message), and one that is gone leaves it to the main region.
+ */
+const FOCUS_RULE: FocusRule = {
+  item: `[${PART}][${KEY}]`,
+  keyOf: (item) => `${item.getAttribute(PART) ?? ''}:${item.getAttribute(KEY) ?? ''}`,
+};
+
+/** The texts of the chat's announcements and the reads of a reply, from the real modules. */
+const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
+  announceReplied: CHAT_TEXTS.announceReplied,
+  announceTellNow: CHAT_TEXTS.announceTellNow,
+  replyText: (replyText) => plainText(parseReply(replyText)),
+  fallbackText: replyFallbackText,
+};
+
 /**
  * The chat panel (UX-DR58, UX-DR67, UX-DR126), inside the page's main landmark once the snapshot has loaded. The list shows the
  * live store's chat.message entries and its tell-now and reminder notice cards in store order and then this page's own messages
- * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region and nothing moves
- * focus except the New messages button.
+ * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region.
+ *
+ * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
+ * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
+ * "Tell now:" and its first sentence, and a new reminder card is its text. The user's messages, Deciding and Working, the
+ * seconds and a card updated in place are silent.
+ *
+ * Focus: only the user's New messages button moves it, and the page's focus rule (shared/focus-rule.ts) when an update removes the
+ * element that holds it inside the list: an item that is still there takes it (the message of Retry sending), else the main region.
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
  * the bottom, new content keeps it there (a ResizeObserver on the list and its content). It leaves the bottom only when it is
@@ -152,6 +185,9 @@ export class ChatPanel {
   protected readonly outbox = inject(ChatOutbox);
   protected readonly texts = CHAT_TEXTS;
   private readonly injector = inject(Injector);
+  private readonly announcer = inject(Announcer);
+  private readonly popovers = inject(Popovers);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly list = viewChild.required<ElementRef<HTMLElement>>('list');
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
 
@@ -165,6 +201,8 @@ export class ChatPanel {
   private lastTop = 0;
   /** Whether each turn's reply has landed, as of the last look. */
   private readonly landedBefore = new Map<string, boolean>();
+  /** The entries as of the last look of the announcing effect; undefined until its first run. */
+  private heard: ChatHeard | undefined;
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
 
@@ -200,6 +238,14 @@ export class ChatPanel {
 
   constructor() {
     effect(() => this.noteArrivals(this.entries()));
+    effect(() => {
+      const entries = this.entries();
+      untracked(() => this.announce(entries));
+    });
+    effect(() => {
+      this.entries();
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
+    });
     let sends = this.outbox.sendCount();
     effect(() => {
       const count = this.outbox.sendCount();
@@ -227,6 +273,15 @@ export class ChatPanel {
       observer.observe(this.content().nativeElement);
       destroyRef.onDestroy(() => observer.disconnect());
     });
+  }
+
+  /** Announces what the entries show that the last look did not (chat-announcements.ts); the first look only records them. */
+  private announce(entries: readonly ChatEntryView[]): void {
+    const { texts, heard } = chatAnnouncements(this.heard, entries, ANNOUNCE_FORMAT);
+    this.heard = heard;
+    for (const text of texts) {
+      this.announcer.announce(text);
+    }
   }
 
   /** At the bottom (within 24 px) the list is at the bottom; away from it, it has left the bottom only if it was scrolled up. */

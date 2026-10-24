@@ -95,6 +95,21 @@ export function parseRuns(text: string): Run[] {
   return runs;
 }
 
+/** The text of runs as the page shows it: each link as its label. */
+const runsText = (runs: readonly Run[]): string => runs.map((run) => (run.kind === 'link' ? run.label : run.text)).join('');
+
+/**
+ * The plain text of the reply's first block as the page shows it: a paragraph's runs, or a list's first item, with each link as
+ * its label; "" for no block. A paragraph keeps its line breaks.
+ */
+export function plainText(blocks: readonly ReplyBlock[]): string {
+  const block = blocks[0];
+  if (block === undefined) {
+    return '';
+  }
+  return runsText(block.kind === 'paragraph' ? block.runs : (block.items[0] ?? []));
+}
+
 /** The reply text as blocks; text that is empty or only blank lines gives none. */
 export function parseReply(text: string): ReplyBlock[] {
   const blocks: ReplyBlock[] = [];

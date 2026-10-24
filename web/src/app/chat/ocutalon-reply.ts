@@ -12,6 +12,15 @@ import { parseReply, type ReplyBlock } from './reply-text';
 const FALLBACK_KEY = 'conversation.turnFallback';
 
 /**
+ * A fallback reply's sentence from the catalog; a key that the page does not render gives the turn fallback's sentence with the turn's
+ * own reason. The page shows it, and the chat announces its first sentence.
+ */
+export function replyFallbackText(catalogKey: string, fallbackReason: string): string {
+  const key = Object.hasOwn(PAGE_TEXTS, catalogKey) ? catalogKey : FALLBACK_KEY;
+  return renderPageText(key, { fallbackReason });
+}
+
+/**
  * OcuTalon's side of a turn, in the reply's place (UX-DR60, UX-DR66, UX-DR42, AD-13). While the turn is in progress it is the
  * turn indicator, a row with the 24px mark and "Deciding", "Working" or the label of the step the bridge reported, followed by the
  * one-character ellipsis U+2026 (after 10 s the whole seconds instead): the ellipsis is revealed in three steps unless the user
@@ -189,14 +198,10 @@ export class OcutalonReply {
   /** The indicator while the turn is in progress, with its spoken form and, once past 10 s, the whole seconds. */
   protected readonly indicator = computed(() => indicatorOf(this.turn().reply));
 
-  /** A fallback's sentence from the catalog; a key that the page does not render gives the turn fallback's sentence with the turn's own reason. */
+  /** A fallback's sentence from the catalog (replyFallbackText). */
   protected readonly fallback = computed(() => {
     const reply = this.turn().reply;
-    if (reply.kind !== 'fallback') {
-      return undefined;
-    }
-    const key = Object.hasOwn(PAGE_TEXTS, reply.catalogKey) ? reply.catalogKey : FALLBACK_KEY;
-    return renderPageText(key, { fallbackReason: reply.fallbackReason });
+    return reply.kind === 'fallback' ? replyFallbackText(reply.catalogKey, reply.fallbackReason) : undefined;
   });
 
   protected readonly blocks = computed<ReplyBlock[]>(() => {

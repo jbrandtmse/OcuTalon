@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page, type Request, type Route } from 
 
 import { signIn, signInReadme, watchViolations } from '../sign-in/helpers';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
-import { clock, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
+import { announcements, clock, fromBottom, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
  * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the fallback strip of a reply through the stub Decide; the rest of
@@ -422,6 +422,7 @@ test.describe('C4: a failed send', () => {
 
   test('a post that is never answered gives Not sent after 10 seconds', async ({ page }) => {
     test.slow(); // the page's own 10 s, then the retry's turn: the 45 s of a quick host is too little for a slow one
+    await recordAnnouncements(page);
     const field = await open(page);
     const posts = watchPosts(page);
     const stuck: Route[] = [];
@@ -446,11 +447,13 @@ test.describe('C4: a failed send', () => {
     await expect(userOf(page, clientId).locator('.failed'), 'Not sent after the 10 s limit').toHaveText('Not sent', { timeout: 15_000 });
     expect(Date.now() - sentAt, 'and not before it').toBeGreaterThanOrEqual(9_500);
     await expect(userOf(page, clientId).locator('.bubble')).toHaveText(text);
+    await expect.poll(() => announcements(page, 'Message not sent'), { message: 'the failure is announced once' }).toBe(1);
 
     await retryOf(page, clientId).click();
     await expect(replyOf(page, clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
     expect(posts().map((posted) => posted.clientId), 'the retry posts the same clientId').toEqual([clientId, clientId]);
     expect(await turnsWith(page, clientId), 'the server holds one turn').toHaveLength(1);
+    expect(await announcements(page, 'Message not sent'), 'and the retry that worked adds none').toBe(1);
     for (const route of stuck) await route.abort().catch(() => undefined);
   });
 
@@ -474,6 +477,32 @@ test.describe('C4: a failed send', () => {
     await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
     await expect(retryOf(page, clientId)).toHaveCount(0);
     await expect(page.locator('app-chat-panel .bubble').filter({ hasText: text })).toHaveCount(1);
+  });
+
+  test('a post that fails after its turn arrived by poll shows no Not sent and announces nothing', async ({ page }) => {
+    await recordAnnouncements(page);
+    const field = await open(page);
+    const posts = watchPosts(page);
+    let answer = (): void => undefined;
+    const late = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    await page.route(`**${MESSAGES}`, async (route) => {
+      await route.fetch();
+      await late;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"code":"server_error","message":"Something went wrong inside OcuTalon. Try again."}}' });
+    });
+    const text = unique('C4 late');
+    await field.fill(text);
+    await field.press('Enter');
+    await expect.poll(() => posts().length).toBe(1);
+    const clientId = posts()[0]!.clientId;
+    await expect(replyOf(page, clientId), "the server's turn arrives by poll before the post is answered").toHaveCount(1, { timeout: 15_000 });
+    answer();
+    await page.waitForTimeout(1500);
+    expect(await announcements(page, 'Message not sent'), 'a failure of a message that the page shows as sent is not announced').toBe(0);
+    await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
+    await expect(userOf(page, clientId), 'and the page shows the message once').toHaveCount(1);
   });
 });
 
