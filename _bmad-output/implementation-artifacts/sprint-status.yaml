@@ -126,9 +126,8 @@ development_status:
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: backlog
   epic-7-retrospective: optional
 
-  epic-8: backlog
-  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: 
-    ready-for-dev
+  epic-8: in-progress
+  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: in-progress
   8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: backlog
   8-3-a-reminder-fires-on-time-on-every-channel: backlog
   8-4-set-list-and-cancel-reminders-in-plain-words: backlog
