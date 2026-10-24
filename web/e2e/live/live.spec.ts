@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
+import { freeze, lastAnswerAt, pollStarts, recordTraffic, runUntil } from '../support/clock';
 import { fixtureUser, publishReminder } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
 
@@ -540,15 +541,19 @@ test('L12: a poll whose answer is slow is the only one in flight, and the next w
 /**
  * L13: a poll that never answers is given up after POLL_TIMEOUT_MS (10 s), and the next poll follows after the usual delay,
  * so the live updates go on. The page counts its 10 s of silence from its last answer, so Reconnecting shows while the poll is
- * still out, and the next answer clears it (Story 2.11); nothing else on the page changes.
+ * still out, and the next answer clears it (Story 2.11); nothing else on the page changes. The page's clock is Playwright's, stopped
+ * for the two checks on either side of the 10 s of silence (at 9 s, and at 10.5 s, before the poll is given up at 11 s), so that a slow
+ * host cannot move the page past the poll's end; the times of the polls are read from that clock.
  */
 test('L13: a poll that never answers is given up after 10 seconds, and the polling goes on', async ({ page }) => {
   const states = countRequests(page, STATE);
-  const starts: number[] = [];
+  let started = 0;
   const held: Route[] = [];
+  await recordTraffic(page);
+  await page.clock.install();
   await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
-    starts.push(Date.now());
-    if (starts.length === 2) {
+    started += 1;
+    if (started === 2) {
       held.push(route);
       return;
     }
@@ -556,18 +561,22 @@ test('L13: a poll that never answers is given up after 10 seconds, and the polli
   });
   try {
     await open(page);
-    await expect.poll(() => starts.length, { timeout: 10_000, message: 'the second poll starts and gets no answer' }).toBe(2);
+    await expect.poll(() => started, { timeout: 10_000, message: 'the second poll starts and gets no answer' }).toBe(2);
     const reconnecting = page.locator('.banner-slot [data-banner="reconnecting"]');
-    await expect(reconnecting, 'no banner while the poll has been out for a short time').toHaveCount(0);
-    await expect
-      .poll(() => reconnecting.count(), { timeout: 12_000, intervals: [100], message: '10 s after the last answer Reconnecting shows' })
-      .toBe(1);
-    expect(starts.length, 'while the second poll has still had no answer').toBe(2);
-    await expect.poll(() => starts.length, { timeout: 15_000, message: 'a poll follows the one that never answered' }).toBe(3);
-    const gap = starts[2]! - starts[1]!;
+    await freeze(page);
+    const heard = await lastAnswerAt(page);
+    await runUntil(page, heard, 9_000);
+    await expect(reconnecting, 'no banner 9 s after the last answer, while the poll is out').toHaveCount(0);
+    await runUntil(page, heard, 10_500);
+    await expect(reconnecting, '10 s after the last answer Reconnecting shows').toHaveCount(1);
+    expect(started, 'while the second poll has still had no answer').toBe(2);
+    await page.clock.resume();
+    await expect.poll(() => started, { timeout: 15_000, message: 'a poll follows the one that never answered' }).toBe(3);
+    const at = await pollStarts(page);
+    const gap = at[2]! - at[1]!;
     expect(gap, 'it is given up after 10 s, then the delay').toBeGreaterThanOrEqual(10_900);
     expect(gap, 'it is given up after 10 s, then the delay').toBeLessThanOrEqual(13_000);
-    await expect.poll(() => starts.length, { timeout: 5000, message: 'and the polling goes on' }).toBeGreaterThanOrEqual(4);
+    await expect.poll(() => started, { timeout: 5000, message: 'and the polling goes on' }).toBeGreaterThanOrEqual(4);
     await expect(reconnecting, 'the next answer clears Reconnecting').toHaveCount(0);
     expect(states(), '/state was requested once').toBe(1);
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');

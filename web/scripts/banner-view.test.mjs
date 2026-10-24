@@ -251,9 +251,11 @@ describe('the replacements', () => {
 
   it('are both of the page\'s own banners, and the replacement stacks before the one it replaces', () => {
     const order = BANNERS.map((banner) => banner.id);
-    assert.ok(order.indexOf('unreachable') < order.indexOf('reconnecting'));
-    assert.deepEqual(ids(view([], { own: ['unreachable'] })), ['unreachable'], 'Unreachable alone, once it replaces Reconnecting');
-    assert.deepEqual(ids(view([], { own: ['reconnecting'] })), ['reconnecting']);
+    for (const [leaving, replacement] of Object.entries(REPLACED_BY)) {
+      assert.ok(order.indexOf(replacement) < order.indexOf(leaving), `${replacement} stacks before ${leaving}`);
+      assert.deepEqual(ids(view([], { own: [leaving] })), [leaving], `${leaving} is one of the page's own banners`);
+      assert.deepEqual(ids(view([], { own: [replacement] })), [replacement], `${replacement} is one of the page's own banners, and shows alone`);
+    }
   });
 });
 

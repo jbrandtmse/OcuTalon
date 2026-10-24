@@ -559,3 +559,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: banner-stack.ts ANNOUNCE_GAP_MS 150; CDK LiveAnnouncer.announce clears at once and sets the text 100 ms later; the B specs count DOM insertions, not speech; no screen reader runs here
 - 2026-10-24T06:49:46Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=maybe-false; settle with VoiceOver+NVDA on two banners in one update, or announce one update's new banners as one message
+
+### DW-155: After a sleep, or in a tab hidden long enough for Chrome's intensive timer throttling, the page's poll and its 10 s and 30 s thresholds fire in one batch, so Unreachable renders and is announced and then clears when that poll answers
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Chrome aligns a hidden tab's chained timers to one minute after 5 min hidden; the poll timer, then both ContactWatch timers fire in that batch before the poll answers (live-state.ts schedulePoll, contact-watch.ts answered)
+- 2026-10-24T10:31:40Z status=wontfix-accepted owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=reopen_if=a page hidden over 5 min or woken from sleep renders Unreachable while its in-flight /events answers 200 in 1 s
+
+### DW-156: A 503 of /events, or of a loaded page's /state, counts as a live-path answer on its status alone, so a run of 503s (one not from IRIS's busy path, or a busy reload after a skipped Seq) shows no lost-contact banner
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: live-state.ts isBusy reads only HttpErrorResponse.status === 503 (poll error handler and fetchSnapshot); IRIS's own licence-cap 503 carries no OcuTalon envelope (S13), so a body check would miss the real busy state
+- 2026-10-24T10:31:46Z status=by-design owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=spec Decided 2 and 11, AD-13, AD-25; Story 16.5 shows the busy text for any API 503, so the page is not silent then
+
+### DW-158: B15 and B16 copy L3's five-line skipped-Seq injection (fetch, parse, push an event two past the cursor, fulfill) inline instead of sharing one helper in web/e2e/support/api.ts
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: banners.spec.ts B15 and B16 skip branches repeat live.spec.ts L3 lines 157-166; the spec's reason is 'B15's skip reuses L3's injection pattern' (Rule 2: a weak reason)
+- 2026-10-24T11:03:10Z status=wontfix-accepted owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=reopen_if=a fourth spec injects a skipped Seq, or an event envelope change is applied to one of the three copies only

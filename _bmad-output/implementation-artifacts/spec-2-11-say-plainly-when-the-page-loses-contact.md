@@ -263,6 +263,45 @@ deferred: []
 
   Tests: B13 to B16.
 
+### Review Findings
+
+Code review of 2026-10-24 (`bmad-code-review`, review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all completed). 31 raw findings (the 30 of the layers and the implement stage's residual risks, and the reviewer's own Rule 2 check) were grouped into 16 entries (high 0, medium 3, low 13): 14 patch, 2 defer and 0 decision-needed, plus 12 rejected rows. Each entry gives its severity, fix-risk, footprint and spec-status (Rule 15).
+
+- [x] [Review][Patch] The unreachable retry cadence against a hanging server is pinned by no test. Passing 0 for the elapsed time in `schedulePoll` keeps every test green, and nothing ties `POLL_TIMEOUT_MS` to `UNREACHABLE_RETRY_MS`, so polls that hang after 30 s could start every 20 s while the banner says every 10 (verification-gap + blind-hunter; medium; fix-risk low: a new case and a doc line; in-story; spec-clear) [web/src/app/live/live-state.ts:204]
+- [x] [Review][Patch] B15's check that the banners clear with the reloaded snapshot passes under its own mutant (`accept()` without `answered()`) in about one run in eight, whenever the poll after the lift starts within about a second of it (verification-gap; medium; fix-risk low: test-only; in-story; spec-clear) [web/e2e/banners/banners.spec.ts:308]
+- [x] [Review][Patch] `freeze` gives `pauseAt` 250 ms of lead. `pauseAt` throws "Cannot fast-forward to the past" when the page's running clock passes that time first, which a slow host can cause (L13) (edge-case-hunter; Rule 19 host speed; medium; fix-risk low: one constant; in-story; spec-clear) [web/e2e/support/clock.ts:127]
+- [x] [Review][Patch] The order "answered, then schedulePoll" in `applyPoll` is unpinned for a 200 answer. Swapped, the first poll after recovering from Unreachable waits 10 s, and every test stays green (verification-gap; low; fix-risk low; in-story) [web/src/app/live/live-state.ts:254]
+- [x] [Review][Patch] B16's "at least 15 attempts in 40 s of 503s" cannot fail for the case its message names: a page that ignored the 503s would still make about 30 attempts (blind-hunter; low; fix-risk low; in-story) [web/e2e/banners/banners.spec.ts:350]
+- [x] [Review][Patch] `runUntil`'s doc and the B13-B16 header say a check stands at its distance "however long the earlier assertions took", but `runUntil` returns at once when the clock has already passed its target (blind-hunter + edge-case-hunter; low; fix-risk low; in-story) [web/e2e/support/clock.ts:100]
+- [x] [Review][Patch] `lastAnswerAt` says the page counts its thresholds from the time it returns, but it takes any 200 or 503, including a poll that found a skipped Seq and a 503 before the load (all four layers; low; fix-risk low; in-story) [web/e2e/support/clock.ts:75]
+- [x] [Review][Patch] `LiveState.contact` is a public writable signal beside the watch's own state, so an outside `contact.set` would put the two out of step (blind-hunter; low; fix-risk low; in-story) [web/src/app/live/live-state.ts:83]
+- [x] [Review][Patch] The second "replacements" case hard-codes the two ids instead of reading `REPLACED_BY` (blind-hunter; low; fix-risk low; in-story) [web/scripts/banner-view.test.mjs:252]
+- [x] [Review][Patch] Some test messages and docs give a different time or position from the code: B14 says "at about 15 s" after stepping to 13.5 s; L13's doc places both checks between 10 s and 11 s and its message says "a short time"; B17's doc says "three times"; the header says "after B12" (blind-hunter + acceptance-auditor; low; fix-risk low; in-story) [web/e2e/banners/banners.spec.ts:221]
+- [x] [Review][Patch] `test-sign-in.sh`'s Story 2.11 header line says L13 uses the banners user (it uses the live user) and that the cases route requests (B17 routes none), and it runs past the wrap width; the labels read "... and B1-B12 and ..." (blind-hunter + edge-case-hunter; low; fix-risk low; in-story) [docker/tests/test-sign-in.sh:41]
+- [x] [Review][Patch] The LiveState and ContactWatch docs miss or misstate parts of the contract (acceptance-auditor + edge-case-hunter; low; fix-risk low; in-story) [web/src/app/live/live-state.ts:42]:
+  - an answer is "a poll whose events were applied", though an idle poll counts too;
+  - it does not say that `stop()` covers the 401, Sign out and the idle stop;
+  - it says every poll "while unreachable" starts 10 s after the previous one, which the poll already scheduled when the state turns does not;
+  - `ContactWatch` and `ContactOptions` have no doc of their own.
+- [x] [Review][Patch] B15's skip route overrides the refusal from the moment it is registered, so a poll in the moments before the lift would spend the skip on a refused reload (edge-case-hunter; low; fix-risk low; in-story) [web/e2e/banners/banners.spec.ts:291]
+- [x] [Review][Patch] Part of the Focus row, Reconnecting itself (not its Close) holding focus when Unreachable replaces it, is asserted by no case (acceptance-auditor; low; fix-risk low; in-story) [web/e2e/banners/banners.spec.ts:432]
+- [x] [Review][Defer] A banner may flash after a sleep or in a long-hidden tab: the poll and both thresholds fire in one batch, so Unreachable renders, is announced and clears when that poll answers (implement residual risk; low; fix-risk med: visibility or late-timer handling changes Decided 3's count and needs a throttled-tab test; in-story) [web/src/app/live/contact-watch.ts:54] — deferred: `wontfix-accepted`, DW-155, reopen_if a page hidden over 5 min or woken from sleep renders Unreachable while its in-flight `/events` answers 200 within 1 s
+- [x] [Review][Defer] B15 and B16 copy L3's five-line injection of a skipped Seq inline, where one helper in `web/e2e/support/api.ts` could serve all three. The spec's reason, "B15's skip reuses L3's injection pattern", is a weak one under Rule 2 (reviewer's Rule 2 check; low; fix-risk low; in-epic, since L3 is Story 2.2's). [web/e2e/banners/banners.spec.ts:962] — deferred: `wontfix-accepted`, DW-158. A helper used by all three sites changes about 26 lines across two spec files, past the roughly 15-line two-way door. reopen_if a fourth spec injects a skipped Seq, or an event envelope change reaches only one of the copies
+
+**Rejected:**
+- `low`, spec-bound (blind-hunter + edge-case-hunter, the implement stage's residual risk). A 503 counts as an answer on its status alone, so a non-IRIS 503 hides the banners, and a busy reload after a skip clears them while the content is stale. Decided 2 and 11, AD-13, AD-25 and Story 16.5's AC ("any API call answers HTTP 503", the busy text) make a 503 the busy state. IRIS's own licence-cap 503 carries no OcuTalon envelope (S13), so the proposed `code === 'busy'` guard would break the real busy state. Ledgered `by-design` as DW-156.
+- `low`, spec-bound (edge-case-hunter). Polls that each answer after 9 to 10 s make Reconnecting flash before every answer. Decided 3 counts from the last answer, and the window is 9 to 10 s, since a poll is given up at 10 s.
+- `low` (edge-case-hunter). A throw in B15's or B16's skip branch would give an unclear message. That needs the real server to fail, and the case fails either way; the fix adds a try/catch.
+- `low` (blind-hunter). `traffic()` fails with a TypeError when a spec forgot `recordTraffic`. Every caller records it, and a guard adds a branch.
+- `low` (acceptance-auditor). Nothing asserts "no scroll" when focus moves. The cases' pages do not scroll, so the check could not fail. The page-wide focus rule is Story 2.12's (Consumed-by).
+- `false` (acceptance-auditor). "No full `live sign-in` after QA": the lead's dispatch records 397 s for QA's full run, and this review ran the full unit again (Verification).
+- `false` (acceptance-auditor). "L13 changed beyond Task 8": Task 8 names the Reconnecting assertion and its clear, and the gap's bounds (10.9 to 13 s) are kept. The gap is now read on the page's clock, which is the clock the page's timers run on and is stopped during the checks. The review pass's row 22 settled "L13 is edited".
+- `false`, the fix edits the spec (acceptance-auditor). Task 9 and the Auto Run Result say B13-B16 and omit `clock.ts`, but the QA block of `## Verification` records B17, B18 and `clock.ts`. The header text "after B12" is patched above.
+- `low`, spec text (acceptance-auditor). B14's "still away" check stands at 22 s where Task 7 says about 25 s. The 22 s keeps the header's 5 s margin before 30 s, and QA's `UNREACHABLE_AFTER_MS` 20 000 mutation is red there.
+- `low` (edge-case-hunter). The first poll after Unreachable shows can start about 1 s after the previous one, because it was scheduled under Reconnecting. An earlier retry harms no one; the doc's overclaim is patched with the LiveState docs.
+- `low`, duplicates. The runUntil and lastAnswerAt claims of the edge-case-hunter, verification-gap and acceptance-auditor layers are folded into the two entries above.
+- `low`, Task 7's count (blind-hunter). Task 7's "the unreachable cadence would make about 4" misstates what a page that ignored 503s would do. The patched assertion reads the cadence after 30 s instead.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -435,6 +474,50 @@ No AC contradicts an AD's Rule.
 - mutation: `fetchSnapshot` without its `/state` 503 branch (`onError()` alone) -> B16 ("a 503 of the reload is an answer: Reconnecting leaves", 1 banner)
 - mutation: `applyPoll` calls `this.watch.answered()` before its reload branch -> B16 ("while the reload is out nothing has answered: Reconnecting stays", 0 banners)
 - mutation: `keepFocus` picks `replacement ?? next ?? previous` -> B14 ("focus goes to the banner before it, as no banner replaces Reconnecting yet", focus inactive)
+
+**QA stage (Rule 19, Rule 8).** Test files created or changed by QA, all in the default `chromium` project and the default `npm --prefix web test` / `lint` runs:
+- `web/e2e/support/clock.ts` (QA, new, a helper and not a spec): `recordTraffic` (logs each API request with the page's clock at its start and end), `lastAnswerAt`, `pollStarts`, `gaps`, `runUntil` (steps the page's clock to a set distance from a reading, waiting after each step for the requests it made), `freeze`.
+- `web/e2e/banners/banners.spec.ts` (QA): B13, B14 and B15 stand at set distances from the page's last answer on the page's clock; `runSteps` now waits for the requests of each step; B13 also pins the 1 to 2 s retry between 10 s and 30 s; B16 records traffic; B17 and B18 are new (below).
+- `web/e2e/live/live.spec.ts` (QA): L13 runs under `page.clock` and freezes it for the two checks inside the 10 s to 11 s window.
+- `docker/tests/test-sign-in.sh` (QA): the header and the PASS and FAIL labels read B13-B18.
+- B17 (QA): a page that is answered for 35 s of its clock never holds a banner of its own (the slot's recorded stacks) and polls every 1 to 2 s. Pins the matrix row "Answered", which no case covered over time.
+- B18 (QA): after Unreachable a 503 is the first answer; Unreachable leaves and the polls are back to every 1 to 2 s. Pins "Recovery" for the busy answer and the order of the answer and the next poll's delay.
+
+**Mutations observed (QA, Rule 19).** Each applied alone to `web/src`, run with the `chromium` project narrowed to B13-B18 and L13 on the throwaway stack `e2s211q`, restored from a copy; after every restore `git status --short`, `git diff --stat` and hashes of the whole diff and of the untracked files matched the state before it.
+- mutation: `applyPoll` counts an answer only when the poll brought events (`answered()` moved inside `if (result.store !== current)`) -> B17 ("in all that time the slot never held a banner of its own"); L13 ("no banner while the poll has been out for a short time")
+- mutation: `schedulePoll` passes `unreachable` to `pollDelay` whenever the contact is not `ok` (the 10 s retry starts at Reconnecting) -> B13 ("between 10 s and 30 s the page still asks every second or two", 2 polls); L13 ("it is given up after 10 s, then the delay")
+- mutation: the error handler of `poll` calls `schedulePoll()` before it counts a 503 as an answer -> B18 ("after the answer the page asks every second or two, not every 10 s", 2 polls)
+- mutation: `RECONNECTING_AFTER_MS` 11 500 -> L13 ("10 s after the last answer Reconnecting shows", 0 banners at 10.5 s with the clock frozen); B13 stays green by design: its positive check waits one update after 11.5 s, and `contact-watch.test.mjs` pins the exact threshold
+- mutation: `UNREACHABLE_AFTER_MS` 20 000 (Unreachable too early) -> B13 ("before 30 s Reconnecting is still there", 0 banners at 22 s); B14 ("at 22 s it is still away, and Unreachable is not there yet", 1 banner). The earlier "never fires" mutation could not fail these negative checks.
+- mutation: `applyPoll` without its `this.watch.answered()` (B14 re-observed on its new clock steps) -> B14 ("and Unreachable has left"); B17; L13
+- mutation: `accept()` without its `this.watch.answered()` (B15 re-observed on its new steps) -> B15 ("and both banners are gone within one live update of that"); B18 ("after 30 s Unreachable shows": no poll was answered before the outage, so the snapshot is what arms the watch)
+- mutation: a 503 not counted (`isBusy` compares `BUSY_STATUS + 1`; B16 re-observed with settled steps) -> B16 ("a 503 is an answer: no banner of its own"); B18 ("a 503 is an answer: Unreachable leaves")
+
+**Code review stage (Rule 19).** Test changes from the review's patches (see `### Review Findings`):
+- B19 (new): a server that hangs. Every `/events` request is held, the clock is frozen, and the page is stepped 1 s at a time. Unreachable shows, and from 30 s on the polls start 10 s apart.
+- B15 records the slot's stacks with their times on the page's clock, and the skip route falls back to the refusal until the lift.
+- B14 checks the cadence after the recovering answer.
+- B16 checks the cadence past 30 s of 503s.
+- B18 has the Reconnecting banner itself hold the focus.
+- B14's and B18's gap checks include the gap from the answering poll to the next one.
+- `freeze` stops the clock 1 s ahead.
+
+How each mutation was run:
+- Each was applied alone to `web/src` and run on the throwaway stack `e2s211r` with the `chromium` project narrowed to B13-B19 and L13. The narrowing was a temporary `--grep` in `web/package.json`'s `e2e` script.
+- Each was restored from a copy and checked with `cmp`.
+- Afterwards, `git status --short`, `git diff --stat`, a hash of the whole diff and a hash of `web/e2e/support/clock.ts` matched the snapshot taken before the first run.
+
+Results:
+- Full `live sign-in` on the final tree: 189 passed and 2 skipped (B6 and the demo-path "not built" case), in 398 s of the local 540 s deadline. `npm --prefix web test` passed 388; lint, `catalog.mjs --check`, `test-web-build.sh` and `test-boundaries.sh` exit 0.
+- mutation: `schedulePoll` passes 0 for the elapsed time (`pollDelay(this.contact(), 0, POLL_DELAY_MS)`) -> B19 ("from 30 s on a poll starts every 10 s", 1 poll, not 3). Every other case stayed green.
+- mutation: `applyPoll` calls `schedulePoll()` before `this.watch.answered()` -> B14 ("after the answer the page asks every second or two", 0 polls). Every other case stayed green.
+- mutation: `accept()` without its `this.watch.answered()` (re-observed on the new B15):
+  - B15 failed at "and both banners are gone within one live update of that";
+  - B18 failed at "after 10 s Reconnecting shows";
+  - B19 failed at "after 30 s with no answer Unreachable shows".
+  
+  Run again with that first B15 check given 15 s, which is the timing in which the first check would pass, B15 failed at "they left with the reloaded snapshot, before the page asked again" (51 667 ms against 51 655).
+- mutation: a 503 not counted (`isBusy` compares `BUSY_STATUS + 1`; B16 re-observed) -> B16 ("past 30 s of 503s it still asks every second or two", 1 poll, not 4) and B18 ("a 503 is an answer: Unreachable leaves").
 
 **Shared surfaces:**
 - `.banner-slot`'s content: an own banner now shows in any spec whose live requests get no good answer for 10 s after the load. Today that is only L13, which Task 8 updates. Any count of `[data-banner]`, the slot's height, or announcements in such a spec changes (Task 10).

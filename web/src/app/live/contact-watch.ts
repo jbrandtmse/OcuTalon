@@ -27,13 +27,17 @@ export const UNREACHABLE_RETRY_MS = 10_000;
 /** The status of an API answer that is the busy state (AD-25), which is an answer of the live path and not a lost contact. */
 export const BUSY_STATUS = 503;
 
+/** What a ContactWatch needs: the timer functions it arms its two thresholds with, injected so a test can run them on a fake clock. */
 export interface ContactOptions {
+  /** Arms a timer and returns its handle (the page passes globalThis.setTimeout). */
   setTimeout: (handler: () => void, ms: number) => unknown;
+  /** Clears a timer that setTimeout armed, by its handle. */
   clearTimeout: (handle: unknown) => void;
   /** Called once for each change of the state, with the new state. */
   onChange?: (state: ContactState) => void;
 }
 
+/** Counts the page's contact from the last answer of its live path, as the module doc says; LiveState owns one. */
 export class ContactWatch {
   private readonly options: ContactOptions;
   private current: ContactState = 'ok';
