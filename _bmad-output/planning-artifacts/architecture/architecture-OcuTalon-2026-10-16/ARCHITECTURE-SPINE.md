@@ -199,7 +199,7 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
     - passes the step renderer to `Chat`, keeps `Response.Extra`, and reads `GetStats()` before and after `Chat` for the turn's usage (AD-20);
     - `%Save`s an AI session only after a completed `Chat`;
     - never lets a callback (renderer, policy or tool) call into AI Hub's native library: no `%AI` agent, session, tool-manager, provider, setting-store or RAG method. On build 154 a session call from inside `OnMessage` deadlocked the job permanently (S4), and the other calls take the same native path. A CI check flags `%AI` references in tool, policy and renderer classes beyond their base classes. `call_mcp_tool` never uses the tool manager; it uses its own HTTP client (S9).
-    - runs no embedded Python inside a callback. A callback that needs Python (memory embedding, and from step 6 file extraction) hands the work to a `%SYSTEM.WorkMgr` worker and waits, because on build 154 a process that runs Python both inside and outside a callback crashes (S11). The same CI check flags Python methods and `%SYS.Python` in callback classes.
+    - runs no embedded Python inside a callback. A callback that needs Python (memory embedding, and from step 3 file extraction [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "from step 6 file extraction"]) hands the work to a `%SYSTEM.WorkMgr` worker and waits, because on build 154 a process that runs Python both inside and outside a callback crashes (S11). The same CI check flags Python methods and `%SYS.Python` in callback classes.
   - **Conversation link.** `OcuTalon.Bridge.Data.ConversationLink` maps (`OwnerRef`, agent) to an AI session.
     - Only the runner writes it, and only for `turn` requests with provenance `user`. `decide`, `diagnose`, `tool` and untrusted turns always use a throwaway AI session that is never linked.
     - The runner holds `LOCK ^OcuTalonBP.Conv(<link>)` from `OpenSession` to `%Save`, so a turn waits while an earlier one, even one `Decide` gave up on, is still running.
@@ -949,8 +949,8 @@ How OcuTalon uses each AI Hub capability on build 154. **As is** means used unch
 | Component library (Story 0.3; confirmed by Story 2.1) | the Angular CDK plus custom components, styled from the `DESIGN.md` tokens; no component kit [AMENDED 2026-10-21, Story 2.1: "styled from the `DESIGN.md` tokens" added, as its criterion words it] |
 | Icons (UX-DR10) | Lucide paths, vendored into `web/` (ISC, with Feather's MIT notice) |
 | Fonts (UX-DR15) | Inter v4.1, Montserrat v7.222 and JetBrains Mono v2.304 woff2 files, vendored into `web/` (OFL-1.1, licence texts kept) |
-| pdfplumber (step 6, through Embedded Python) | 0.11.10 |
-| python-docx (step 6, through Embedded Python) | 1.1.2 |
+| pdfplumber (step 3, through Embedded Python) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "step 6"] | 0.11.10 |
+| python-docx (step 3, through Embedded Python) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "step 6"] | 1.1.2 |
 | fastembed (Python package, memory vectors from step 3; S11) | 0.9.0 |
 
 ## Structural Seed
@@ -1281,7 +1281,7 @@ Build 154 behaviour that the design relies on and nobody had tested. The author 
 | Paging channels and escalation timers (FR-28, Open Question 5) | Step 5; escalation reuses `ReminderTimer` itself, so AD-5's list doesn't grow |
 | Setting-change history (FR-27) | Step 5. S15 fixed the mechanism (AD-15): snapshots triggered by the production-change counter; the time is known, the author of a change is not |
 | SQL query watch running as a read-only SQL user (FR-33, Could) | Step 5; candidate: a SQL-only user and a separate connection |
-| Files and photos extraction (FR-54) | Step 6, or step 3 if the bonus list adds Embedded Python; a files operation using pdfplumber and python-docx |
+| Files and photos extraction (FR-54) | Step 3 for reading PDF and Word files, step 6 for files and photos sent from the chat or Telegram; a files operation using pdfplumber and python-docx [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "Step 6, or step 3 if the bonus list adds Embedded Python"] |
 | Slack (FR-46) | Step 7; one more channel pair under AD-14 (no socket mode: the platform's WebSocket client fails) |
 | Running tool code under the service user's own identity | After the contest; AD-24 states the current limits |
 | The webhook's per-source payload mapping | Step 4; every payload becomes an untrusted Item first |
