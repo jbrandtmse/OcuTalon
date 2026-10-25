@@ -2,9 +2,10 @@
 title: 'Story 4.1: Switch demo mode from the terminal'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -101,27 +102,27 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SetDemoMode.cls` -- add `Property ActingUser As %String(MAXLEN = 160)` ("the IRIS user who asked; set by the submitting code from its authenticated context"), with its storage value -- so that the audit entry names the person (AD-17; V3).
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- add `ClassMethod Set(key, value) As %Status`:
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Command/SetDemoMode.cls` -- add `Property ActingUser As %String(MAXLEN = 160)` ("the IRIS user who asked; set by the submitting code from its authenticated context"), with its storage value -- so that the audit entry names the person (AD-17; V3).
+- [x] `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- add `ClassMethod Set(key, value) As %Status`:
   - it upserts the row with `UpdatedAt` from `Data.Time.NowUtc()` and kills this process's cache entry;
   - it refuses an empty key or a public key exactly as `Seed` does, sharing one private check.
   - Its doc comment says that `SettingsOps` is its only caller -- the run-time writer API (AD-19).
-- [ ] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- remove `STUB` and implement `OnMessage` as the Boundaries describe:
+- [x] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- remove `STUB` and implement `OnMessage` as the Boundaries describe:
   - `Parameter ALLOWLIST = "demo.mode"`;
   - a private guarded write `Apply(key, value)`, which refuses keys off the list;
   - a private `WriteAudit(data)` seam (`Bridge.Audit.Write("Settings", <redacted data>, "Demo mode set to on|off")`);
   - a private `RunStep(Output kept, Output warnings)` seam (`Install.Step.Demo.Run()`, `TakeWarnings()`, and `StatusMark.Get("demoKept")`'s `how` when the mark is set);
   - the texts T1 to T5, and the outcomes `on`, `off`, `off_kept`, `step_failed`, `not_audited`, `unknown_command` and `failed`;
   - an error thrown inside is logged once (`$$$LOGERROR`) and answers `failed` with `MESSAGEFAILED`.
-- [ ] `src/ocutalon/cls/OcuTalon/Core/Admin.cls` (new) -- the admin terminal entry point:
+- [x] `src/ocutalon/cls/OcuTalon/Core/Admin.cls` (new) -- the admin terminal entry point:
   - `ClassMethod SetDemoMode(mode As %String = "") As OcuTalon.Msg.CommandResult` validates `mode`, checks `..Allowed($ROLES)`, builds the command with `ActingUser = $USERNAME` and calls `Commands.Submit(cmd, "system", .result)`;
   - it writes the result's `Message` on a line of its own and returns the result;
   - its local answers (`invalid`, `not_allowed`, `not_running`, `failed`) are unsaved `CommandResult`s;
   - `ClassMethod Allowed(roles As %String) As %Boolean` is pure: 1 when the comma list holds `OcuTalonAdmin`, by whole name (`%All` alone gives 0: V1 ruling).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOpsProbe.cls` (new) -- a subclass of `SettingsOps` that overrides `WriteAudit` and `RunStep`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOpsProbe.cls` (new) -- a subclass of `SettingsOps` that overrides `WriteAudit` and `RunStep`:
   - it records each call in `^OcuTalonTest("SettingsOpsProbe", ...)` (the data object as JSON, and the value `Setting.Get(MODEKEY)` reads inside `RunStep`);
   - it answers from that global (OK, an error, or a `demoKept` note it records through `StatusMark.Record`, saved and restored by the test).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (new, lane-b shard) -- drives a shadow instance of the probe. It saves and restores the `demo.mode` row with `Test.Demo.Step`, the probe global and the `demoKept` mark. Tests:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (new, lane-b shard) -- drives a shadow instance of the probe. It saves and restores the `demo.mode` row with `Test.Demo.Step`, the probe global and the `demoKept` mark. Tests:
   - TestSwitch: with `DemoMode` 0 and 1, `Ok 1`, `off` or `on`, T2 or T1. The row value and `UpdatedAt` are written. The audit call came first and the step ran after the write (the probe saw the new value). The event data has `user`, `sessionRef`, `channel` `system`, `origin` `system`, `setting` `demo.mode` and `value`.
   - TestKept: `off_kept`, with T3 built from the note's `how`.
   - TestStepFails: `step_failed`, T4 carries the error sentence, and the row keeps the new value.
@@ -131,20 +132,20 @@ deferred: []
   - TestOnlyRunTimeWriter: a scan with `Test.Bridge.Source` over every compiled `OcuTalon.*` class outside `OcuTalon.Test`, and outside `OcuTalon.Data.Setting` itself.
     - Writers of `OcuTalon.Data.Setting` (`Set(`, `%New(`, `%OpenId(`, `%Open(`, `KeyIndexOpen(`, `%DeleteId(`, `%Delete(`, or `^OcuTalonP.Setting`) appear only in `OcuTalon.Core.SettingsOps`, and `Seed(` only under `OcuTalon.Install`.
     - The scanner is first shown to flag synthetic violators and to pass a comment-only mention.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls` (new, lane-b shard):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls` (new, lane-b shard):
   - TestAllowed: `OcuTalonAdmin`, `%All,OcuTalonAdmin` and `%Developer,OcuTalonAdmin` give 1; `%All`, `OcuTalonUser,OcuTalonTraceViewer`, `""` and `OcuTalonAdmins` give 0.
   - TestInvalidArgument: `2`, `"on"`, `""` and `"01"` give `invalid` with T6, no header to `SettingsOps` (count before and after) and an unchanged row.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls` -- add TestSet:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls` -- add TestSet:
   - it writes an absent key and overwrites a present one, with `UpdatedAt`;
   - `Get` in this process sees the new value at once over a fresh cache entry;
   - it refuses an empty key and a public key, and writes nothing then.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Msg/Contracts.cls` -- add `"ActingUser": "%String(MAXLEN=160)"` to the `SetDemoMode` oracle.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls:32` -- set `SettingsOps` to `"stub": 0`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` -- take `SettingsOps` out of the stub table and give it its own assertion:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Msg/Contracts.cls` -- add `"ActingUser": "%String(MAXLEN=160)"` to the `SetDemoMode` oracle.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/ProductionItems.cls:32` -- set `SettingsOps` to `"stub": 0`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` -- take `SettingsOps` out of the stub table and give it its own assertion:
   - `SetDemoMode` from `system`, with the mode the stack already has, answers status OK with `Ok 1`, outcome `on` or `off` and T1 or T2;
   - it reaches `SettingsOps` once, and the answer is one response header that is not an error;
   - update the class header.
-- [ ] `docker/tests/test-demo-switch.sh` (new; unit `live:demo-switch`) -- one fresh Docker throwaway, using only lib-live's helpers plus a local curl sign-in. A copy of test-bundle-folder's two lines, because `lib-live.sh` is contended (Rule 2 reason). In order:
+- [x] `docker/tests/test-demo-switch.sh` (new; unit `live:demo-switch`) -- one fresh Docker throwaway, using only lib-live's helpers plus a local curl sign-in. A copy of test-bundle-folder's two lines, because `lib-live.sh` is contended (Rule 2 reason). In order:
   1. First start (demo on). Sign in as the README account. Post one chat message and wait for its reply. Record `/state`'s `chat` and `rail` (S0) and `demoMode` true. Record `demo_surfaces` (F0) and the audit mark.
   2. Control: a tell-now Notification sent into `Notify` from a host made with `CreateBusinessService` (as `Test.Core.RoutingProduction` does) leaves a header to `SimPhoneOut`.
   3. Create two fixtures with `live_fixture_user` (the Refused and On rows of the matrix; passwords through the environment). The non-admin logs in with `$SYSTEM.Security.Login` and runs the command, and so does `irisowner` (the session's OS login, `%All` without `OcuTalonAdmin`; V1 ruling): the exact refusal line is printed; the row, the `SettingsOps` header count and the surfaces are unchanged.
@@ -157,16 +158,16 @@ deferred: []
      - none naming the non-admin or `irisowner`.
   8. From 61 s after step 6, `/state` reports `demoMode` true and `chat` and `rail` equal S0. The e2e script with `OCUTALON_E2E_DEMO_MODE=1` passes.
   - It prints PASS or FAIL lines and keeps a local deadline, like the other live units.
-- [ ] `web/e2e/demo-switch/badge.spec.ts` (new) -- signs in as the README account and loads `/ocutalon/`:
+- [x] `web/e2e/demo-switch/badge.spec.ts` (new) -- signs in as the README account and loads `/ocutalon/`:
   - with `OCUTALON_E2E_DEMO_MODE=1`, `.context-badge` reads "Demo mode";
   - with `0`, there is no `.context-badge` and the chat region is shown;
   - without the variable it fails at once, naming the variable.
-- [ ] `web/playwright.config.ts` and `web/package.json` -- add a project `demo-switch` (`testDir: './e2e/demo-switch'`, Desktop Chrome), add `**/e2e/demo-switch/**` to the `chromium` project's `testIgnore`, update the header comment, and add the script `"e2e:demo-switch": "playwright test --project=demo-switch"`.
-- [ ] `ci/units.sh` -- add `live:demo-switch` to one group, and `demo-switch` to `BROWSER_UNITS`.
+- [x] `web/playwright.config.ts` and `web/package.json` -- add a project `demo-switch` (`testDir: './e2e/demo-switch'`, Desktop Chrome), add `**/e2e/demo-switch/**` to the `chromium` project's `testIgnore`, update the header comment, and add the script `"e2e:demo-switch": "playwright test --project=demo-switch"`.
+- [x] `ci/units.sh` -- add `live:demo-switch` to one group, and `demo-switch` to `BROWSER_UNITS`.
   - The group is the one whose job was shortest in the latest green `ci` run of `feature/OCT_OcuTalon_MVP` (read with `gh run view`, read-only).
   - Record the job times and the unit's local duration under `## Verification`.
   - `live:demo-switch` checks the web bundle, so it stays out of `NO_WEB_BUNDLE_UNITS`.
-- [ ] Task 0 (measure, on the first fresh `live:demo-switch` run, once `SettingsOps` and the unit exist) -- confirm that `Install.Step.Demo.Run()` succeeds inside the real `SettingsOps` job, both off and on. The plan measured it only from a process registered as the CommandsIn host (Design Notes, M5).
+- [x] Task 0 (measure, on the first fresh `live:demo-switch` run, once `SettingsOps` and the unit exist) -- confirm that `Install.Step.Demo.Run()` succeeds inside the real `SettingsOps` job, both off and on. The plan measured it only from a process registered as the CommandsIn host (Design Notes, M5).
   - If it fails only inside the job, wrap the call in `New %Ensemble`.
   - If that also fails, run the step in a JOBbed process that returns its status and warnings, and wait for it inside `CommandsIn`'s 120 s timeout.
   - Record which form held, with the off and on durations, under `## Verification`.
@@ -189,6 +190,28 @@ deferred: []
 - 2026-10-25, spec gate (runner): V1 ruled strict (`OcuTalonAdmin` only; `%All` alone refused) per AD-19 as written (U7 step 1); V2 and V3 kept as veto items; rows, tasks and criteria updated to match.
 
 ## Review Triage Log
+
+### 2026-10-25 — Review pass
+- verdicts: 19 rows for the 26 findings of the blind, edge-case and verification-gap layers (findings with one root cause share a row; the intent-alignment audit was descriptive and filed none) — high 0, medium 3, low 16, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: CI placement contradicts its figures (image 476 s plus the unit vs shards 786 s) — the task says the group with the shortest job; the resulting `image` job (about 16 to 18 minutes, inference) is still the lowest maximum of the six placements and far under REL-4's 35 minutes.
+  - `[low]` `[patch]` Blind and VG: the writer scanner misses SQL and `$ClassMethod` writes — patterns and synthetic violators added, mutation line recorded.
+  - `[medium]` `[patch]` Blind, Edge and VG: `TestSubmits`' origin assertion read a constant the probe wrote — `Send` now takes the origin as an argument and the probe records it; mutation line recorded.
+  - `[low]` `[reject]` Blind: every submit error prints the not-running text — the matrix row "No production" fixes it ("Submit returns an error status", T7), and an error status means the command never reached CommandsIn (Code Map).
+  - `[low]` `[reject]` Blind and Edge: empty `ActingUser` audited as is — `Admin` is the only submitter now and sets it from `$USERNAME` (TestSubmits, live step 7); Story 18.1 sets it from the session; a guard would add an outcome the spec does not define.
+  - `[low]` `[reject]` Blind and Edge: malformed `demoKept` note makes `Kept` throw — only `Install.Step.Demo` writes the mark, as JSON with `how`; no reachable path (wontfix-theoretical; a hand-edited mark would make it real).
+  - `[low]` `[reject]` Blind and Edge: audit first leaves an entry when the write fails and no entry for `step_failed` — Decided in-stage 1 (audit before write, so no change is unaudited); the answer text says "may not have finished".
+  - `[low]` `[reject]` Blind: `ErrorText` handles one error line — the texts it shapes come from one `Status.Error` or the step's single status; no multi-error status is produced on this path.
+  - `[low]` `[reject]` Blind: Design Notes out of order — a finding whose fix edits the spec; the stage reordered its own notes 16 and 17 anyway.
+  - `[low]` `[reject]` Edge: `Redact.Text` fail-closed result is not JSON — the six short fields cannot pass the redactor's limit (`ActingUser` is MAXLEN 160); answered `failed` if it ever did, with nothing changed.
+  - `[low]` `[patch]` Edge: a step failure is not in the Event Log — `step_failed` now logs `$$$LOGERROR`.
+  - `[low]` `[reject]` Edge: unknown origin gives an empty channel — `CommandsIn` routes `SetDemoMode` to `SettingsOps` for `web_admin,system` only, both mapped.
+  - `[medium]` `[patch]` Edge and VG: the probe replaced the whole `RunStep`, so its Try/Catch and kept path had no test — a finer seam `RunDemo`; TestStepThrows and TestKept now run the real `RunStep`; mutation lines recorded. TestThrown throws from the audit write.
+  - `[medium]` `[patch]` VG: Notify resuming after the switch on was not checked — step 8 repeats the Notify control; mutation (`DemoOn` always 0) red at steps 2 and 8.
+  - `[low]` `[patch]` VG other: audit-before-write, `ActingUser = $USERNAME` and the SQL pattern had no mutation line — TestSwitch reads the old value in the audit call; the mutations are recorded.
+  - `[low]` `[reject]` VG: no mutation line for the 501 route, the badge appearing, `Admin.ErrorText` or `Setting.Set`'s public key — one mutation per AC is the bar; those are existing consumers (AC 4 has three) and `Setting.Set`'s refusal has TestSet's "without its key check" line.
+  - `[low]` `[reject]` VG: `notify_probe`'s fixed `Hang 3` could flake step 2 red — it can only turn a green red, never the reverse, and ran green in four fresh runs; a 3 s margin on a router that answers in under a second.
+  - `[low]` `[reject]` Intent: no documentation change, and `Admin.ErrorText` is a Core to Core dependency — documenting is Story 10.2's (README is contended); the shared helper is Decided in-stage 10 (Rule 2).
 
 ## Design Notes
 
@@ -250,6 +273,16 @@ deferred: []
 6. `Admin.Allowed` reads `$ROLES` (M4). The DB permissions of IRIS stay the boundary: the role check is the admin gate and the audit's subject, not a sandbox.
 7. One new live unit, rather than a block appended to an existing script: the switch is destructive and needs its own stack. Estimated (inference): about 4 to 5 minutes on ARM, two fixed 61 s waits included, and about 8 to 10 minutes on the runner.
 8. Arguments: only `0` and `1`, as a number or a string.
+9. `Admin.SetDemoMode` validates the argument before it checks the role, so a bad argument prints T6 whoever types it.
+10. `Admin.ErrorText(sc)` (public) is the one place that strips `ERROR #n:` and the closing full stop from a status text. `SettingsOps` calls it for T4, so the two classes share it (Rule 2).
+11. `SettingsOps.RunStep` turns an error thrown by the step into the step's error status, so `step_failed` (T4) answers it. Only an error thrown elsewhere in `OnMessage` answers `failed`. The step's warnings are logged with `$$$LOGWARNING`.
+12. The audit data goes through `Bridge.Redact.Text` in `SettingsOps.AuditData`, and the `WriteAudit` seam receives the redacted `%DynamicObject`. The seam's second argument is the description.
+13. `Setting.Seed` and `Setting.Set` share a private `Refusal(key, verb)` and a private `Upsert(key, value)` (Rule 2); `Seed`'s refusal text is unchanged.
+14. `live:demo-switch` creates its two fixture users in step 1, before F0, so that F0 holds their roles and the later surface comparisons are exact. Step 3's refusals run against the same F0.
+15. `SettingsOpsProbe.Guarded` is a public wrapper of the private `Apply` for TestAllowList; the probe, not the test, is the subclass that can call it.
+16. Warm-stack caveat for mutations: a recompiled class is not picked up by a running production job. A mutation that must reach the `SettingsOps` job toggles the item (`Ens.Director.EnableConfigItem` 0 then 1) after the reload, or runs on a fresh stack.
+17. Stage-agent addition after the handoff (Matrix Test Audit: rows "No production" T7 and "Submit throws" T8 had no covering test): `Admin` gets two private seams, `Roles()` (`$ROLES`) and `Send(command, origin, Output result)` (`Commands.Submit(command, origin, .result)`), overridden by `Test.Core.AdminProbe`, which records the origin it is given. `Test.Core.Admin` gains TestSubmits, TestRefused, TestNotRunning and TestSubmitThrows. `SetDemoMode` reads `$Get(result)`, so a submit that answers OK with no CommandResult is `failed`.
+18. Review patches: `SettingsOps.RunStep` calls a new private seam `RunDemo()` (the one `Install.Step.Demo.Run()` call) and the probe overrides that, not `RunStep`, so the real Try/Catch, warnings loop and kept sentence run in the unit tests (TestStepThrows, TestKept). A thrown step error is `step_failed`; TestThrown now throws from the audit write. `step_failed` is also logged with `$$$LOGERROR`. TestSwitch pins audit-before-write by the probe's audit call reading the old value. `TestOnlyRunTimeWriter` also flags the SQL table `OcuTalon_Data.Setting` and `$ClassMethod("OcuTalon.Data.Setting"`. `live:demo-switch` step 8 repeats the Notify control (a header to `SimPhoneOut` again).
 
 **Rule 2 (extend, don't copy):**
 - `Setting.Set` extends `Seed`'s key checks.
@@ -311,6 +344,39 @@ The integration checks run against a real throwaway, not a mock.
 - AC 4: `SettingsOps` writes nothing → step 5's `/state`; `DemoOn` returns 1 → step 5's `Notify` check.
 - AC 5: a `Setting.Set` call added to `Web.Api` → TestOnlyRunTimeWriter; `ALLOWLIST` gains `digest.time` → TestAllowList.
 
+**Measured and recorded (implement stage, 2026-10-25):**
+- Task 0: `Install.Step.Demo.Run()` succeeds inside the real `SettingsOps` job with no wrapper: the plain call held (no `New %Ensemble`, no JOB). `SetDemoMode(0)` took 3 s and `SetDemoMode(1)` 1 s end to end (whole seconds, session start included), both outcome `off` and `on`, Ok 1, with the Orders production Running and both jobs alive after the on switch (`check_demo_on`, `check_orders_jobs`).
+- `live:demo-switch`, ARM, lane B, fresh: 244 s and 35 PASS lines (also 244 s on the first run); the mutated runs took 235 to 243 s, and 374 s where the audit entries never appeared (the 180 s poll). The runner estimate of Design Notes 7 (8 to 10 minutes) stays an inference.
+- CI placement: the latest green `ci` run of `feature/OCT_OcuTalon_MVP` with every iris job executed (run 40093157003; the newer runs ran only a few seconds, because changes.sh skipped their jobs) had these job times: image 476 s, production 560 s, install-fresh 605 s, install-upgrade 696 s, browser 755 s, shards 786 s. `live:demo-switch` is in the `image` group (shortest job, most headroom; ahead of `shard:lane-b`, which stays last), and `demo-switch` is in `BROWSER_UNITS`. Not in `NO_WEB_BUNDLE_UNITS`.
+- Verification runs (all green): the six `(loop)` class runs on the warm stack (`OcuTalon.Test.Core.ProductionItems` is an oracle, not a test class: it is run through `OcuTalon.Test.Install.Production`, which reads it, and that passes); `live demo-switch`; `npm --prefix web run lint`; `test-ci-config.sh`; `shard lane-b` (44 classes, 102 s); `shard lane-a` (41 classes, 379 s); `live sign-in` (192 passed, chromium project); `ci/checks.sh`.
+
+- After the stage agent's Admin seams (Decided in-stage 17) and the review patches (18), the `(loop)` classes (warm) and `live demo-switch` (all PASS, the last one 4 minutes), lint, `test-ci-config.sh`, `shard lane-b` (44 classes, 103 s), `shard lane-a` (41 classes, 388 s) and `ci/checks.sh` ran on the final tree, all green. `live sign-in` ran green (192 passed) after the Admin seams and was not run again after the review patches, which touch no web file.
+
+**Mutations** (each applied, observed red, reverted; `git status --short` and the file's md5 unchanged after each):
+- mutation: AC 1, `Install.Step.Demo.DefaultMode()` returns 1 unconditionally -> `Test.Demo.Step` TestDefaultMode red ("a version file that is absent gives 0").
+- mutation: AC 2, `SettingsOps` skips `RunStep` -> TestSwitch red (two seams, the step second, the step seeing the new value); `live:demo-switch` step 4 red (278 surface lines still name OCUORDERS, 15 of 15 off values differ).
+- mutation: AC 2, the step runs before the write -> TestSwitch red ("the step saw the new value").
+- mutation: AC 2 (audit), the `WriteAudit` call dropped -> TestSwitch and TestAuditFails red; `live:demo-switch` step 7 red (no Settings entry for the admin within 180 s).
+- mutation: AC 2, `Apply` writes nothing -> TestSwitch, TestKept and TestOnlyRunTimeWriter red; `live:demo-switch` step 4 (row stays 1), step 5 (`/state` still true, the Notification still reaches SimPhoneOut, and the page spec for mode 0) red.
+- mutation: AC 3, `Admin.SetDemoMode` submits with the origin `web_admin` -> `Test.Core.Admin` TestSubmits red ("from the origin system").
+- mutation: `Admin.SetDemoMode` sets `ActingUser` to "" -> `Test.Core.Admin` TestSubmits red ("ActingUser from $USERNAME").
+- mutation: Matrix row "Step fails", `RunStep`'s Catch rethrows -> `Test.Core.SettingsOps` TestStepThrows red.
+- mutation: Matrix row "Off, foreign OCUORDERS", `RunStep` never reads the kept sentence -> TestKept red.
+- mutation: AC 2, `Apply` runs before `WriteAudit` -> TestSwitch ("the audit saw the old value") and TestAuditFails red.
+- mutation: AC 5, the SQL-table alternative removed from the scanner's pattern -> TestOnlyRunTimeWriter red ("the scanner flags an SQL write").
+- mutation: AC 4, `Functions.DemoOn()` always 0 -> `live:demo-switch` step 2's control red and step 8's Notify check red (a header to `SimPhoneOut` never comes back).
+- mutation: Matrix row "No production", `Admin` answers the outcome `failed` for an error status from the submit -> `Test.Core.Admin` TestNotRunning red.
+- mutation: AC 3, the role check in `Admin.SetDemoMode` removed (`ElseIf 0`) -> `Test.Core.Admin` TestRefused red (the submit goes out for `%All` and for a user without OcuTalonAdmin).
+- mutation: AC 3, `Admin.Allowed` returns 1 -> TestAllowed red; `live:demo-switch` step 3 red (both users switch demo off; the row, the headers and the audit change).
+- mutation: AC 4, `Functions.DemoOn()` returns 1 -> `live:demo-switch` step 5's Notify check red (a header still goes to SimPhoneOut with demo mode off).
+- mutation: AC 5, a `Setting.Set` call added to `Web.Api` -> TestOnlyRunTimeWriter red ("OcuTalon.Web.Api does not write the Setting rows").
+- mutation: AC 5, `ALLOWLIST` gains `digest.time` -> TestAllowList red.
+- mutation: AC 5, `SettingsOps` accepts any command class -> TestOtherCommand red.
+- mutation: `Admin.SetDemoMode` accepts 2 -> TestInvalidArgument red.
+- mutation: `Setting.Set` does not drop the cache entry -> TestSet red ("Get in this process sees the new value at once"); `Setting.Set` without its key check -> TestSet red (a subscript error on the empty key).
+- mutation: `SetDemoMode.ActingUser` MAXLEN 160 -> 100 -> `Test.Msg.Contracts` TestContracts red.
+- mutation: `SettingsOps` answers `Ok 0 not_built` after a switch -> `Test.Core.CommandsInProduction` TestSettingsOpsSwitches red (run after the `SettingsOps` item was toggled, Decided in-stage 16).
+
 **Shared surfaces:**
 - the `SettingsOps` rows of `Test.Core.ProductionItems` and `Test.Core.CommandsInProduction`;
 - the `SetDemoMode` contract in `Test.Msg.Contracts`;
@@ -324,5 +390,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `OcuTalon.Core.Admin.SetDemoMode(0|1)` checks that the caller's roles hold `OcuTalonAdmin` (strict: `%All` alone is refused), submits `SetDemoMode` through `Commands.Submit` with origin `system` and `ActingUser` from `$USERNAME`, and prints the plain-English answer. `SettingsOps` is the real business operation: allow-list `demo.mode`, audit entry first (`Bridge.Audit`, redacted), then `Setting.Set`, then `Install.Step.Demo.Run()` (Task 0: it succeeds inside the real job with no wrapper, off 3 s, on 1 s), with T1 to T5 and the outcomes `on`, `off`, `off_kept`, `step_failed`, `not_audited`, `unknown_command` and `failed`.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/Admin.cls` (new): the terminal entry point, `Allowed`, `ErrorText`, and the `Roles`/`Send` test seams.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: the real operation (`Carry`, `AuditData`, `WriteAudit`, `Apply`, `RunStep`, `RunDemo`, `Kept`).
+- `src/ocutalon/cls/OcuTalon/Data/Setting.cls`: `Set`, with `Seed` sharing `Refusal` and `Upsert`.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SetDemoMode.cls`: `ActingUser`.
+- Tests: `Test/Core/{SettingsOps,SettingsOpsProbe,Admin,AdminProbe}.cls` (new), `Test/Data/Setting.cls` (TestSet), `Test/Msg/Contracts.cls`, `Test/Core/ProductionItems.cls`, `Test/Core/CommandsInProduction.cls`.
+- `docker/tests/test-demo-switch.sh` (new live unit), `web/e2e/demo-switch/badge.spec.ts` (new), `web/playwright.config.ts` and `web/package.json` (the `demo-switch` project and script), `ci/units.sh` (`live:demo-switch` in `image`, `demo-switch` in `BROWSER_UNITS`).
+- No path outside Epic 4's footprint was left edited (mutation runs touched `Install/Step/Demo.cls`, `Core/Rule/Functions.cls` and `Web/Api.cls` temporarily and restored them).
+
+**Review.** 4 layers, 26 findings reported in 19 triage rows. Patched: 3 medium (origin assertion read a constant; real `RunStep` untested; Notify resume unchecked) and 3 low (SQL and `$ClassMethod` scanner patterns; step failure logged; missing mutation lines). Deferred: none. Rejected (12 rows, each with its reason in the Review Triage Log): CI placement, every submit error as not-running, empty `ActingUser`, malformed `demoKept` note, audit-first leaving an entry, `ErrorText` single line, Design Notes order, `Redact` fail-closed, unknown origin, extra mutation lines, `Hang 3` flake, documentation and the `Admin.ErrorText` dependency.
+
+**Follow-up review recommended: true.** Three medium findings were patched on this first pass. The named risk: the `Admin.Send`/`Roles` and `SettingsOps.RunDemo` seams were reshaped after the first full verification pass; the full loop and once set ran green again on the final tree, but `live sign-in` was not rerun after the review patches (they touch no web file).
+
+**Verification.** Warm class runs of `Test.Core.SettingsOps`, `Core.Admin`, `Data.Setting`, `Msg.Contracts`, `Install.Production` (reads ProductionItems) and `Core.CommandsInProduction` passed; `live demo-switch` passed (35 PASS plus step 8's Notify check, the mutated run red at steps 2 and 8); `npm --prefix web run lint`, `test-ci-config.sh`, `shard lane-b` (44 classes), `shard lane-a` (41 classes) and `ci/checks.sh` passed. The mutations listed under `## Verification` were each applied, seen red and reverted. No stack with the `e4s1` tags is left.
+
+**Residual risks.** The runner duration of `live:demo-switch` is an inference (8 to 10 minutes; 244 s on ARM). A switch reaches an open page only at its next snapshot load (T1 and T2 say to reload). Cross-epic notes for the lead: the dependency edge `Core -> Install.Step.Demo.Run()` (AD-23) goes into the spine under Rule 20, and the V1 reversal is the owner's (`Admin.Allowed`, TestAllowed, `live:demo-switch` steps 3, 4 and 7).

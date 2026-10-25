@@ -108,10 +108,39 @@ Method TestPublicKey()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "no row was written for the public key")
 }
 
+/// Set writes an absent key and overwrites a present one, each time with the time of the write; Get in the same process sees the
+/// new value at once, over a fresh cache entry. An empty key and a public key are refused, naming the key, and write nothing.
+Method TestSet()
+{
+	Set key = ..Key_".set"
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, "first"), "an absent key is written")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Do $$$AssertEquals(row.Value, "first", "the row holds the value")
+	Do $$$AssertTrue($Match(row.UpdatedAt, "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"), "UpdatedAt is a UTC time in the stored form")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "Get reads it")
+	Set row.UpdatedAt = "2000-01-01T00:00:00Z"
+	Do $$$AssertStatusOK(row.%Save(), "the row is dated back")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, "second"), "a present key is overwritten")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "second", "Get in this process sees the new value at once, over a fresh cache entry")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Do $$$AssertEquals(row.Value, "second", "the row holds the new value")
+	Do $$$AssertTrue(row.UpdatedAt '= "2000-01-01T00:00:00Z", "UpdatedAt is the time of the second write")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).%ExistsId(row.%Id()), 1, "and it is the same row")
+
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Data.Setting).Set("", "x"), "an empty key is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(""), 0, "no row was written for the empty key")
+	Set public = ..#PUBLICKEY
+	Set sc = ##class(OcuTalon.Data.Setting).Set(public, "x")
+	Do $$$AssertStatusNotOK(sc, "a public key is refused")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ public, "the error names the key")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Data.Setting).Set("ready", "x"), "the readiness key is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(public), 0, "no row was written for the public key")
+}
+
 /// Removes the fixture's rows and cache entries.
 Method Clean() [ Private ]
 {
-	For suffix = ".cache", ".seed", ".empty", ".missing" {
+	For suffix = ".cache", ".seed", ".empty", ".missing", ".set" {
 		Do ..RemoveRow(..Key_suffix)
 	}
 }

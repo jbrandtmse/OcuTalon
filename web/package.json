@@ -13,6 +13,7 @@
     "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/catalog.mjs --check && node scripts/brand.mjs && ng build",
     "e2e": "playwright test --project=chromium",
     "e2e:demo-path": "playwright test --project=demo-path",
+    "e2e:demo-switch": "playwright test --project=demo-switch",
     "e2e:floor": "playwright test --project=floor --project=floor-firefox --project=floor-webkit",
     "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
     "test": "node --test scripts/*.test.mjs"
