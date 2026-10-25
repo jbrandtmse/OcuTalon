@@ -37,3 +37,8 @@
 2026-10-24T17:23:26Z	Story 8.3	story_waiting	story=8-3-a-reminder-fires-on-time-on-every-channel on=2,4 reason=Epic_2_Reminders_rows_and_Notify;Epic_4_simulated_phone(Story_4.5) code=none
 2026-10-24T17:23:26Z	Story 8.4	story_waiting	story=8-4-set-list-and-cancel-reminders-in-plain-words on=4 reason=guide_step_2_and_shared_B_scenario_Remind_me_in_1_minute(Story_4.4) code=none owned_ledger=DW-135,DW-140,DW-141,DW-142
 2026-10-24T17:23:26Z	Story 8.5	story_waiting	story=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so on=2,4 reason=follows_8.3_and_8.4_inside_the_epic code=none
+2026-10-25T12:07:15Z	Epic 8	lead_model_gate	model=claude-opus-5-5 action=proceed note=re-dispatch_runner_C
+2026-10-25T12:07:15Z	Epic 8	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=pass
+2026-10-25T12:07:15Z	Epic 8	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-10-25T12:07:15Z	Epic 8	runner_unattended_start	run=20261021T1347Z-1-16,29-32 policy=9e90866967ca1df8611dd39038aa64433017fe58 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 note=re-dispatch_after_Epic_2_merged(61b51b5);integrate_forward_then_8.2
+2026-10-25T12:07:15Z	Epic 8	ci_resolved	story=8.1 sha=0ab27a2 runs=40115900331,40115900336 failed=none via=none result=success resolved_at=resume note=bookkeeping_head_green_resolved_2026-10-24T17:27Z_unlogged
