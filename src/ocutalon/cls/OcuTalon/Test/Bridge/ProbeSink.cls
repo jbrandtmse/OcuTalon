@@ -4,8 +4,9 @@
 ///   - throw: OnEvent throws.
 /// Every call is kept in ^||ZzProbeSink(<call>) as a $ListBuild of the type, the owner, the payload as JSON, $TLevel, 1 when the
 /// Decision row or ApprovalRequest row that the payload's ref names exists at that moment (empty when the payload has no ref), and 1 when the day mark
-/// ^OcuTalonBP.UsageCapped(<the payload's day>) exists at that moment, else 0 (empty when the payload has no day), and 1 when any
-/// process holds the lock of that day's mark at that moment (LockHeld), else 0 (empty when the payload has no day).
+/// ^OcuTalonBP.UsageCapped(<the payload's day>) exists at that moment, else 0 (empty when the payload has no day), 1 when any
+/// process holds the lock of that day's mark at that moment (LockHeld), else 0 (empty when the payload has no day), and the State of the
+/// ApprovalRequest row that the payload's ref names at that moment (empty when there is none).
 /// ^||ZzProbeSink holds the number of calls. The test that sets the global kills it.
 /// The shared mode (Story 1.6): the process-private global cannot be read from another job, and a sink that Decide calls runs in the
 /// production's Decide job. While ^OcuTalonTest("ProbeSink","shared") is 1, each call also appends $ListBuild(type, ownerRef, payload
@@ -22,7 +23,8 @@ ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObj
 	Set day = payload.%Get("day")
 	Set rowExists = $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref) || ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexExists(ref), 1: "")
 	Set markExists = $Select(day '= "": $Data(^OcuTalonBP.UsageCapped(day)) > 0, 1: "")
-	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, rowExists, markExists, $Select(day '= "": ..LockHeld(day), 1: ""))
+	Set approval = $Select(ref '= "": ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref), 1: "")
+	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, rowExists, markExists, $Select(day '= "": ..LockHeld(day), 1: ""), $Select($IsObject(approval): approval.State, 1: ""))
 	If $Get(^OcuTalonTest("ProbeSink", "shared")) = 1 {
 		Set shared = $Increment(^OcuTalonTest("ProbeSink", "calls"))
 		Set ^OcuTalonTest("ProbeSink", "calls", shared) = $ListBuild(type, ownerRef, payload.%ToJSON(), rowExists, markExists)

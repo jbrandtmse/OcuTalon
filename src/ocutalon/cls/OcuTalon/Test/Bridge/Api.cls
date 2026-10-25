@@ -1,8 +1,6 @@
-/// Tests of the cross-lane API stubs of Lane A (Story 0.6, matrix row 9): each stub answers what the architecture says a
-/// caller sees until its owner builds it. A status method returns an error that says it is not implemented yet and names
-/// the method; the others return their neutral value. Nothing is written anywhere.
-///   - TestApprovalStubs: Expire, Cancel, StartExecution and FinishExecution (Raise is built since Story 3.4; Test.Bridge.Approval pins
-///     it); Answer answers not_found with an empty winner;
+/// Tests of the cross-lane API stubs of Lane A that are left (Story 0.6, matrix row 9): each stub answers what the architecture says a
+/// caller sees until its owner builds it. No Approval stub is left (Story 3.5 built the last of them; Test.Bridge.Approval pins the
+/// API). Nothing is written anywhere.
 ///   - TestNeutralValues: Keys.Status of an item that is not in the production (Keys.Status is no stub since Story 1.6; Test.Bridge.Keys
 ///     pins it), Timeouts.Derive of a timer that is refused (Derive is no stub since Story 1.7; Test.Bridge.Timeouts pins it), Agent.Input.Render of an empty Item (which renders "" since Story 1.3) and
 ///     Checks.Render.Render (Budget.State is no stub since Story 1.4; Test.Bridge.Budget pins it);
@@ -11,20 +9,6 @@
 ///     and the runner class carries no STUB.
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
 {
-
-/// Expire, Cancel, StartExecution and FinishExecution each return an error status whose text says that the method
-/// is not implemented yet and names it. Answer returns not_found and an empty winner. Raise is no stub (Story 3.4).
-Method TestApprovalStubs()
-{
-	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).Expire("zz"), "OcuTalon.Bridge.Approval.Expire")
-	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).Cancel("zz"), "OcuTalon.Bridge.Approval.Cancel")
-	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).StartExecution("zz"), "OcuTalon.Bridge.Approval.StartExecution")
-	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).FinishExecution("zz", "done"), "OcuTalon.Bridge.Approval.FinishExecution")
-	Set result = ##class(OcuTalon.Bridge.Approval).Answer("zz", "approve", "web", "zzuser", "zzsession", .winner)
-	Do $$$AssertEquals(result, "not_found", "Answer returns not_found")
-	Do $$$AssertTrue($IsObject(winner), "and a winner object")
-	Do $$$AssertEquals(winner.%ToJSON(), "{}", "which is empty")
-}
 
 /// Keys.Status of an item that is not in the production is 0 (Test.Bridge.Keys pins the rest); Timeouts.Derive(111) is {} (the rest of Derive is no stub:
 /// Test.Bridge.Timeouts); Agent.Input.Render of an empty Item gives "" (the rule of its renderer: an Item
@@ -52,16 +36,6 @@ Method TestStubAdapter()
 	If $IsObject(method) Do $$$AssertEquals(method.Origin, adapter, "OnInit is the adapter's own, not AI Hub's")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Operation.AgentRunner", "ADAPTER"), adapter, "the runner item names the adapter")
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Operation.AgentRunner", "STUB"), "", "and the runner class carries no STUB")
-}
-
-/// --- helpers ---
-/// Asserts that sc is an error that names the method and says it is not implemented yet.
-Method AssertNotImplemented(sc As %Status, method As %String) [ Private ]
-{
-	Do $$$AssertStatusNotOK(sc, method_" returns an error status")
-	Set text = $SYSTEM.Status.GetErrorText(sc)
-	Do $$$AssertTrue(text [ "is not implemented yet", method_" says it is not implemented yet: "_text)
-	Do $$$AssertTrue(text [ method, method_" names itself: "_text)
 }
 
 }

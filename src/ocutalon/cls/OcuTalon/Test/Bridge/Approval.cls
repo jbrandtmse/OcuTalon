@@ -1,12 +1,39 @@
-/// Tests of Approval.Raise, the hold and its Reconcile (Story 3.4; AD-5, AD-11, AD-23, AD-26, AD-31). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI
-/// ONLY (Rule 21): it raises requests through the running production, completes Workflow tasks as OcuTalonWorkflow, disables ApprovalStartIn or
-/// ApprovalHold for a moment, restarts the production once, and writes a System Default Settings row of Decide's ApprovalRole. Each live test is
-/// guarded by RunnerFixture.ReadyReason. The tests make no IRIS user or role. Every Ref a test raised is tracked under ^OcuTalonTest("Approval","refs"):
-/// before and after each test, and so after a failed run too, each tracked request is ended (its open tasks are completed with Approve, as Story 3.5's
-/// Answer will do, and the test waits for its hold to end, so that no late response reaches a removed hold) and its row is deleted; the same cleanup
-/// enables the two items again, releases the lock job of TestLockHeld and deletes the fixture Workflow role of TestReconcileCancelsOnlyOrphans and its
-/// task. Rows 12 and 13 move a fixture row's RaisedAt and ExpiresAt directly, and the Reconcile tests settle a fixture row (State approved), as
-/// Story 3.5 will; no other test changes a row. The settings row, the item state and the Workflow objects that a test changed are put back.
+/// Tests of Approval: Raise, the hold and its Reconcile (Story 3.4), and the five state methods, the hold's delivery and Msg.ApprovalOutcome
+/// (Story 3.5; AD-5, AD-11, AD-15, AD-23, AD-26, AD-31). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): it raises requests
+/// through the running production, answers them as the README account, completes Workflow tasks as OcuTalonWorkflow, disables ApprovalStartIn,
+/// ApprovalHold or OcuTalonApprovals for a moment, swaps Decide's HostSinkClass for ProbeSink's shared mode, restarts the production once, and writes
+/// a System Default Settings row of Decide's ApprovalRole. Each live test is guarded by RunnerFixture.ReadyReason. The tests make no IRIS user or
+/// role. Every Ref a test raised or saved is tracked under ^OcuTalonTest("Approval","refs"), every lock the test process holds under
+/// ^OcuTalonTest("Approval","held") and every job under ^OcuTalonTest("Approval","job"): before and after each test, and so after a failed run
+/// too, the locks are released, each job is waited for, each tracked request is ended (its open tasks are completed with Approve and the test waits
+/// for its hold to end, so that no late response reaches a removed hold) and its row is deleted; the same cleanup enables the three items again and
+/// deletes the fixture Workflow role of TestReconcileCancelsOnlyOrphans and its task. The settings row, Decide's HostSinkClass, the item state and
+/// the Workflow objects that a test changed are put back. Reconcile's tests move a fixture row's RaisedAt and ExpiresAt directly and settle one.
+/// Story 3.5's tests, with the rows of its matrix:
+///   - TestAnswerApprovesAFix (row 1): the answer is recorded with the given action, channel and user, the task is completed with Approve by
+///     OcuTalonWorkflow, the sink hears one approval.answered with the row already approved, and the hold sends one approved outcome;
+///   - TestAnswerRejects (row 2): a rejected fix sends one rejected outcome, a rejected tool_call with no ResultTarget sends none;
+///   - TestApprovedToolCallRunsNothing (row 3): an approved tool_call sends no outcome and no request but the task and the timer; a rejected one
+///     sends its outcome;
+///   - TestTwoAnswersAtOnce (row 4): through the lock gate exactly one answer is done, the other is already_answered with the winner, and the task,
+///     the one approval.answered and the one outcome are the winner's;
+///   - TestAnswerRefusals (row 5): an unknown Ref is not_found; a user without the row's role, an empty or unknown user, a malformed action or
+///     channel and a row raised for another role are not_allowed, and nothing changes;
+///   - TestTimerExpires (row 6): the timer of a re-armed past request expires the row, sends one expired outcome from the new hold's session and
+///     fires one approval.expired from the hold's job;
+///   - TestAnswerPastExpiry (row 7): an answer past the expiry expires the row, leaves the task and sends no outcome, and the row can no longer be
+///     started or cancelled;
+///   - TestExpireDoesNotWaitForTheClock (row 8, DW-186): Expire expires a row whose expiry is still ahead;
+///   - TestCancel (row 9): Cancel completes the task with status Cancelled, the hold ends with no outcome, and approval.cancelled fires once;
+///   - TestEveryOtherTransitionIsRefused (row 10): every state and call pair is refused, with every column unchanged and no event, unless AD-11's
+///     path allows it;
+///   - TestStartExecutionAtOnce (row 11): of two StartExecution calls through the gate exactly one succeeds;
+///   - TestAnswerReArmed (row 12): an answer completes the new task of a re-armed request, and the outcome comes from the new hold's session;
+///   - TestAnswerBeforeTheTaskExists (row 13): an answer waits for the task, completes it once it appears, and the outcome is sent;
+///   - TestHoldActsOnlyOnTheRowsAnswer (row 14): a task completed directly while the row is pending ends the hold and sends nothing;
+///   - TestTimerDeliversAnUndeliveredAnswer (row 15): the timer delivers an answer whose task was never completed, and the late approval is not
+///     started;
+/// Story 3.4's tests, with the rows of its matrix:
 ///   - TestRaiseToolCall (rows 3 and 5): a tool_call request gives one pending row with the given fields, RequiredRole OcuTalonUser, RaisedAt now
 ///     and ExpiresAt exactly 24 hours later, a 22-character base64url Ref, and no other field; the three messages of the hold share one new
 ///     session whose SuperSession is the TraceRef; the sink got one approval.raised, with the OwnerRef and {"ref"}, at transaction level 0 and
@@ -27,7 +54,7 @@
 ///     and completing the task ends that hold;
 ///   - TestReconcileReArms (row 12): a hold that is gone gets a new one in a new session tagged with the TraceRef, timed from the row's ExpiresAt,
 ///     its orphaned task is discarded, the new task reaches the new hold, and a second Reconcile changes nothing;
-///   - TestReconcilePastExpiry (row 13): a row past its expiry gets a hold whose timer asks 1 second, which ends the hold and its task;
+///   - TestReconcilePastExpiry (row 13): a row past its expiry gets a hold whose timer asks 1 second, which expires the row and ends the hold and its task;
 ///   - TestReconcileLeavesSettledRows: a request whose row is no longer pending gets no hold, its orphaned task is still discarded, and a start
 ///     of it is refused by the hold;
 ///   - TestReconcileCancelsOnlyOrphans: Reconcile leaves an answered task and an open task of another Workflow role alone, and discards the task
@@ -44,8 +71,20 @@ Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
 /// The fields that a request is given and that Raise must keep, in the order of Snapshot (the OwnerRef is the second, the TraceRef the third).
 Parameter GIVENFIELDS = "Kind,OwnerRef,TraceRef,IncidentRef,ToolName,ToolArguments,ResultTarget,DryRun";
 
+/// The README account that answers (Install.Step.Users USER), the local install's real approver.
+Parameter ANSWERER = "ocutalon";
+
 /// The run's number.
 Property Number As %Integer;
+
+/// The highest message header id when the run began: the outcomes of this run are the ones after it.
+Property Mark As %Integer;
+
+/// The setting of Decide's HostSinkClass before a test put ProbeSink's shared mode (RunnerFixture.UseItemSetting), "" when none was put.
+Property SavedSink As %DynamicObject;
+
+/// 1 while the test has OcuTalonApprovals disabled.
+Property ApprovalsDisabled As %Boolean [ InitialExpression = 0 ];
 
 /// The ApprovalRole row of Decide before the test touched it (RunnerFixture.RememberDefault).
 Property Saved As %List;
@@ -60,6 +99,7 @@ Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
 	Set ..Number = $Increment(^OcuTalonTest("Approval", "n"))
+	Set ..Mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Quit $$$OK
 }
 
@@ -90,6 +130,14 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalHold", 1), "ApprovalHold is enabled again")
 		Set ..HoldDisabled = 0
 	}
+	If ..ApprovalsDisabled {
+		Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "OcuTalonApprovals is enabled again")
+		Set ..ApprovalsDisabled = 0
+	}
+	If $IsObject(..SavedSink) && ..SavedSink.%IsDefined("valueSet") {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", ..SavedSink), "Decide's HostSinkClass is put back")
+	}
+	Set ..SavedSink = ""
 	Do ..Clean()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..Saved), "the ApprovalRole row is put back")
 	Kill ^||ZzProbeSink
@@ -509,6 +557,7 @@ Method TestReconcilePastExpiry()
 	If '..Ready() Quit
 	Set row = ..NewRow("tool_call")
 	Do $$$AssertStatusOK(..Raise(row, .ref), "Raise is OK")
+	Kill row
 	Set oldTask = ..WaitTask(ref, 10)
 	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
 	Do $$$AssertTrue((oldTask '= "") && (oldHold '= ""), "the first hold and its task exist")
@@ -522,6 +571,7 @@ Method TestReconcilePastExpiry()
 	Do $$$AssertTrue($IsObject(alarm), "the new hold's AlarmRequest is stored")
 	If $IsObject(alarm) Do $$$AssertEquals($Select(alarm.Timeout '= "": +alarm.Timeout, 1: +alarm.DurationInSeconds), 1, "the timer asks 1 second")
 	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "once it fires the hold has ended")
+	Do $$$AssertEquals(..WaitState(ref, "expired", 15), "expired", "the row has expired")
 	Do $$$AssertEquals(..OpenTasks(ref), "", "and its task is no longer open")
 	Set taskId = ..TaskIds(ref)
 	Do $$$AssertEquals($ListLength(taskId), 2, "the request has the discarded task and the cancelled one")
@@ -544,7 +594,7 @@ Method TestReconcileLeavesSettledRows()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
 	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	Set saved.State = "approved"
-	Do $$$AssertStatusOK(saved.%Save(), "the row is settled (approved), as Story 3.5's Answer will leave it")
+	Do $$$AssertStatusOK(saved.%Save(), "the row is settled (approved)")
 
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step runs")
@@ -653,6 +703,451 @@ Method TestHoldIsFrozen()
 		}
 		Do $$$AssertEquals(lines_"|"_calls, "1|1", name_" is one line that calls OcuTalon.Bridge.Approval")
 	}
+}
+
+/// Row 1: Answer approves a fix: the answer is recorded with the given channel and user, the task is completed as OcuTalonWorkflow with Approve, the
+/// sink hears approval.answered once with the row already approved, and the hold sends one approved outcome.
+Method TestAnswerApprovesAFix()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set sessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, sessionRef, .winner, ..#SINK)
+	Do $$$AssertEquals(result, "done", "Answer returns done")
+	Do $$$AssertEquals(winner.%ToJSON(), "{}", "with no winner")
+	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "AnsweredAction")_"|"_..Prop(ref, "AnsweredChannel")_"|"_..Prop(ref, "AnsweredBy"), "approved|approve|web|"_user, "the row is approved with the action, channel and user")
+	Do $$$AssertTrue(..JustNow(..Prop(ref, "AnsweredAt")), "AnsweredAt is a time within 5 seconds of now: "_..Prop(ref, "AnsweredAt"))
+	Do $$$AssertEquals(..TaskFacts(info.task), "Approve|OcuTalonWorkflow|1|", "the task is complete with Approve by OcuTalonWorkflow and has no worklist item")
+	Do $$$AssertEquals(..TaskCount(ref), 1, "and it is the request's only task")
+	Do ..AssertEvents("approval.answered", "the sink")
+	Do ..AssertEvent(1, "approval.answered", info.owner, ref, "approved", "the sink")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do ..AssertOneOutcome(ref, "approved", info, info.session, "the outcome")
+}
+
+/// Row 2: a rejected fix sends one rejected outcome; a rejected tool_call with no ResultTarget ends its hold and sends none.
+Method TestAnswerRejects()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set fix = ..RaiseHeld("fix")
+	If '$IsObject(fix) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(fix.ref, "reject", "web", user, "zzsession", .winner, ..#SINK), "done", "(a) Answer rejects the fix: done")
+	Do $$$AssertEquals(..Prop(fix.ref, "State"), "rejected", "(a) the row is rejected")
+	Do $$$AssertEquals(..WaitHoldGone(fix.ref, 15), 1, "(a) the hold ends")
+	Do ..AssertOneOutcome(fix.ref, "rejected", fix, fix.session, "(a) the outcome")
+
+	Set tool = ..RaiseHeld("tool_call")
+	If '$IsObject(tool) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(tool.ref, "reject", "web", user, "zzsession", .winner, ..#SINK), "done", "(b) Answer rejects the tool call: done")
+	Do $$$AssertEquals(..Prop(tool.ref, "State"), "rejected", "(b) the row is rejected")
+	Do $$$AssertEquals(..WaitHoldGone(tool.ref, 15), 1, "(b) the hold ends")
+	Do $$$AssertTrue(..WaitHoldSettled(tool.ref, tool.session, 15), "(b) and its OnResponse has returned")
+	Do $$$AssertEquals(..Outcomes(tool.ref).%Size(), 0, "(b) no outcome is sent: the row has no ResultTarget")
+}
+
+/// Row 3: an approved tool_call runs nothing and sends nothing (the replay is Story 30.3's), also with a ResultTarget; a rejected one sends its outcome.
+Method TestApprovedToolCallRunsNothing()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set first = ..RaiseHeld("tool_call", "IncidentManager")
+	If '$IsObject(first) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(first.ref, "approve", "web", user, "zzsession", .winner, ..#SINK), "done", "Answer approves the targeted tool call: done")
+	Do $$$AssertEquals(..Prop(first.ref, "State"), "approved", "the row is approved")
+	Do $$$AssertEquals(..WaitHoldGone(first.ref, 15), 1, "the hold ends")
+	Do $$$AssertTrue(..WaitHoldSettled(first.ref, first.session, 15), "and its OnResponse has returned")
+	Do $$$AssertEquals(..HoldRequests(first.session), "Ens.AlarmRequest,EnsLib.Workflow.TaskRequest", "besides its TaskRequest and AlarmRequest the hold sent no request")
+	Do $$$AssertEquals(..Outcomes(first.ref).%Size(), 0, "so no outcome, and nothing to Decide")
+
+	Set second = ..RaiseHeld("tool_call", "IncidentManager")
+	If '$IsObject(second) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(second.ref, "reject", "web", user, "zzsession", .winner, ..#SINK), "done", "Answer rejects the second targeted tool call: done")
+	Do $$$AssertEquals(..WaitHoldGone(second.ref, 15), 1, "its hold ends")
+	Do ..AssertOneOutcome(second.ref, "rejected", second, second.session, "the rejected one sends its outcome")
+}
+
+/// Row 4: two answers at once through the lock gate: exactly one gets done and the other already_answered with the winner's action, channel and
+/// time; the row, the task, the one approval.answered and the one outcome are the winner's.
+Method TestTwoAnswersAtOnce()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseSharedSink() Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set jobs = ..GateJobs(ref, $ListBuild($ListBuild("answer", "approve", "web"), $ListBuild("answer", "reject", "telegram")), user)
+	Do $$$AssertEquals($ListLength(jobs), 2, "both jobs ran")
+	If $ListLength(jobs) '= 2 Quit
+	Set resultA = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "result"))
+	Set resultB = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "result"))
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "error"))_$Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "error")), "", "neither job failed")
+	Do $$$AssertTrue(((resultA = "done") && (resultB = "already_answered")) || ((resultA = "already_answered") && (resultB = "done")), "exactly one is done and the other already_answered: "_resultA_"|"_resultB)
+	Set winnerJob = $Select(resultA = "done": $List(jobs, 1), 1: $List(jobs, 2))
+	Set loserJob = $Select(resultA = "done": $List(jobs, 2), 1: $List(jobs, 1))
+	Set action = ..Prop(ref, "AnsweredAction")
+	Set channel = ..Prop(ref, "AnsweredChannel")
+	Do $$$AssertEquals(action_"|"_channel, $Select(resultA = "done": "approve|web", 1: "reject|telegram"), "the row holds the winner's action and channel")
+	Do $$$AssertEquals(..Prop(ref, "State"), $Select(action = "approve": "approved", 1: "rejected"), "and its state matches")
+	Do $$$AssertTrue(..JustNow(..Prop(ref, "AnsweredAt")), "the winner's AnsweredAt is a time within 5 seconds of now: "_..Prop(ref, "AnsweredAt"))
+	Set shown = {"action": (action), "channel": (channel), "at": (..Prop(ref, "AnsweredAt"))}
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", loserJob, "winner")), shown.%ToJSON(), "the loser's winner is the row's action, channel and AnsweredAt")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", winnerJob, "winner")), "{}", "the winner's winner is empty")
+	Do $$$AssertEquals(..TaskCount(ref)_"|"_..TaskFacts(info.task), "1|"_$Select(action = "approve": "Approve", 1: "Reject")_"|OcuTalonWorkflow|1|", "the task was completed once, with the winner's action")
+	Set calls = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.answered")
+	Do $$$AssertEquals(calls.%Size(), 1, "exactly one approval.answered is recorded")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do ..AssertOneOutcome(ref, $Select(action = "approve": "approved", 1: "rejected"), info, info.session, "the one outcome, the winner's")
+}
+
+/// Row 5: refused answers change nothing: an unknown Ref is not_found; a user without the role, an empty or an unknown user, a malformed
+/// action or channel, and a row raised for another role are not_allowed.
+Method TestAnswerRefusals()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set before = ..RowText(ref)
+	Set api = "OcuTalon.Bridge.Approval"
+	Set result = $ClassMethod(api, "Answer", "ZzNoSuchRef"_..Number, "approve", "web", user, "zzsession", .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "not_found|{}", "(a) an unknown Ref is not_found with no winner")
+	Set cases = $ListBuild($ListBuild("OcuTalonWorkflow", "approve", "web"), $ListBuild("", "approve", "web"), $ListBuild("ZzNoSuchUser"_..Number, "approve", "web"), $ListBuild(user, "maybe", "web"), $ListBuild(user, "approve", "fax"), $ListBuild(user, "", "web"), $ListBuild(user, "approve", ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = "'"_$List(case, 1)_"' "_$List(case, 2)_" "_$List(case, 3)
+		Set result = $ClassMethod(api, "Answer", ref, $List(case, 2), $List(case, 3), $List(case, 1), "zzsession", .winner, ..#SINK)
+		Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "not_allowed|{}", "(b, c) "_label_" is not_allowed with no winner")
+	}
+	Do $$$AssertEquals(..RowText(ref), before, "the row is unchanged")
+	Do $$$AssertEquals(..Prop(ref, "State"), "pending", "and pending")
+	Do $$$AssertEquals(..OpenTasks(ref), info.task, "the task is still open")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and the sink got no call")
+
+	Set role = "ZzApprover"_..Number
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).PutDefault("Decide", "ApprovalRole", role), "(d) the ApprovalRole setting is "_role)
+	Set other = ..RaiseHeld("fix")
+	If '$IsObject(other) Quit
+	Set beforeOther = ..RowText(other.ref)
+	Set result = $ClassMethod(api, "Answer", other.ref, "approve", "web", user, "zzsession", .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "not_allowed|{}", "(d) the answerer does not hold the row's role "_role_": not_allowed")
+	Do $$$AssertEquals(..RowText(other.ref), beforeOther, "(d) the row is unchanged")
+	Do $$$AssertEquals(..OpenTasks(other.ref), other.task, "(d) its task is still open")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "(d) and the sink got no call")
+}
+
+/// Row 6: the timer of a re-armed hold expires a past request: the row is expired with no answer fields, one expired outcome goes out from the
+/// new hold's session, the shared sink hears one approval.expired, and no task is open.
+Method TestTimerExpires()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseSharedSink() Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do ..Age(ref, 86460, -60)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step runs")
+	Set newSession = ..HoldMessages(mark, ref).session
+	Do $$$AssertTrue((newSession > mark) && (newSession '= info.session), "the new hold has a session of its own: "_newSession)
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "within 15 seconds the hold has ended")
+	Do ..AssertOneOutcome(ref, "expired", info, newSession, "the outcome")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "the row is expired")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction")_..Prop(ref, "AnsweredChannel")_..Prop(ref, "AnsweredBy")_..Prop(ref, "AnsweredAt")_..Prop(ref, "Result")_..Prop(ref, "FinishedAt"), "", "with no answer fields")
+	Set calls = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.expired")
+	Do $$$AssertEquals(calls.%Size(), 1, "the shared sink has exactly one approval.expired")
+	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).ownerRef_"|"_calls.%Get(0).payload, info.owner_"|{""ref"":"""_ref_"""}", "with the OwnerRef and {""ref""}")
+	Do $$$AssertEquals(..OpenTasks(ref), "", "no task is open")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, "zzsession", .winner, ..#SINK), "expired", "a later Answer returns expired")
+}
+
+/// Row 7: an answer past the expiry, before the timer has fired, expires the row: expired with no answer fields, one approval.expired seen as
+/// expired, the task still open and no outcome yet; a second answer is expired again with no new call, and StartExecution and Cancel are refused.
+Method TestAnswerPastExpiry()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Do ..Age(ref, 86460, -60)
+	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, "zzsession", .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "expired|{}", "Answer returns expired with no winner")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "the row is expired")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction")_..Prop(ref, "AnsweredChannel")_..Prop(ref, "AnsweredBy")_..Prop(ref, "AnsweredAt"), "", "with no answer fields")
+	Do ..AssertEvents("approval.expired", "the sink")
+	Do ..AssertEvent(1, "approval.expired", info.owner, ref, "expired", "the sink")
+	Do $$$AssertEquals(..OpenTasks(ref), info.task, "the task is still open")
+	Do $$$AssertEquals(..Outcomes(ref).%Size(), 0, "no outcome has been sent yet")
+	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, "zzsession", .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "expired|{}", "a second Answer gives expired again")
+	Do ..AssertEvents("approval.expired", "the sink, still")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Approval).StartExecution(ref), "StartExecution is refused")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.Approval).Cancel(ref, ..#SINK), "Cancel is refused")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "the row stays expired")
+}
+
+/// Row 8 (DW-186): Expire needs no clock: a row whose ExpiresAt is still 30 seconds ahead expires, with one approval.expired; a second Expire is
+/// an error that names expired.
+Method TestExpireDoesNotWaitForTheClock()
+{
+	If '..Ready() Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Do ..Age(ref, 60, 30)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Expire(ref, ..#SINK), "Expire is OK with ExpiresAt 30 seconds ahead")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "the row is expired")
+	Do ..AssertEvents("approval.expired", "the sink")
+	Do ..AssertEvent(1, "approval.expired", info.owner, ref, "expired", "the sink")
+	Set sc = ##class(OcuTalon.Bridge.Approval).Expire(ref, ..#SINK)
+	Do $$$AssertStatusNotOK(sc, "a second Expire fails")
+	Do $$$AssertTrue(($SYSTEM.Status.GetErrorText(sc) [ "expired") && ($SYSTEM.Status.GetErrorText(sc) [ ref), "and names the Ref and expired: "_$SYSTEM.Status.GetErrorText(sc))
+	Do ..AssertEvents("approval.expired", "the sink, still")
+}
+
+/// Row 9: Cancel moves a pending request to cancelled and completes its task with no action: the hold ends and sends no outcome, the sink hears one
+/// approval.cancelled, a later Answer is not_found and a second Cancel is an error that names cancelled.
+Method TestCancel()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(ref, ..#SINK), "Cancel is OK")
+	Do $$$AssertEquals(..Prop(ref, "State"), "cancelled", "the row is cancelled")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction")_..Prop(ref, "AnsweredChannel")_..Prop(ref, "AnsweredBy")_..Prop(ref, "AnsweredAt"), "", "with no answer fields")
+	Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(info.task)
+	Do $$$AssertEquals(task.%Status_"|"_task.%TaskStatus.IsComplete_"|"_..WorklistUsers(info.task), "Cancelled|1|", "the task is complete with status Cancelled and has no worklist item")
+	Kill task
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do $$$AssertTrue(..WaitHoldSettled(ref, info.session, 15), "and its OnResponse has returned")
+	Do $$$AssertEquals(..Outcomes(ref).%Size(), 0, "and no outcome is sent")
+	Do ..AssertEvents("approval.cancelled", "the sink")
+	Do ..AssertEvent(1, "approval.cancelled", info.owner, ref, "cancelled", "the sink")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, "zzsession", .winner, ..#SINK), "not_found", "a later Answer is not_found")
+	Set sc = ##class(OcuTalon.Bridge.Approval).Cancel(ref, ..#SINK)
+	Do $$$AssertStatusNotOK(sc, "a second Cancel fails")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "cancelled", "and names cancelled: "_$SYSTEM.Status.GetErrorText(sc))
+	Do ..AssertEvents("approval.cancelled", "the sink, still")
+}
+
+/// Row 10: every pair of a state and a call is refused unless AD-11's path allows it. Fixture rows in the 8 states and an approved row past its
+/// expiry meet Answer approve and reject, Expire, Cancel, StartExecution and FinishExecution (done, failed, interrupted and x), each call on its
+/// own row. A refusal names the Ref and the state, and changes no column and fires no event; an allowed change sets only its fields and fires its
+/// event (none for StartExecution, which takes no sink: Decide's HostSinkClass is ProbeSink here so that an event of it would show). Answer on a pending row and Cancel on a pending row are rows 1 and 9: a fixture has no task.
+Method TestEveryOtherTransitionIsRefused()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseSharedSink() Quit
+	Set keys = $ListBuild("pending", "approved", "approvedPast", "rejected", "expired", "cancelled", "executing", "done", "failed")
+	Set ops = $ListBuild("answer approve", "answer reject", "expire", "cancel", "start", "finish done", "finish failed", "finish interrupted", "finish x")
+	Set keyPosition = 0
+	While $ListNext(keys, keyPosition, key) {
+		Set state = $Select(key = "approvedPast": "approved", 1: key)
+		Set opPosition = 0
+		While $ListNext(ops, opPosition, op) {
+			Set expected = ..Expected(key, op)
+			Set kind = $List(expected, 1)
+			If kind = "skip" Continue
+			Set label = key_" + "_op
+			Set ref = ..FixtureRow(state, $Select(key = "approvedPast": -60, 1: 3600))
+			Set before = ..RowText(ref)
+			Set owner = ..Prop(ref, "OwnerRef")
+			Kill ^||ZzProbeSink
+			Set done = ..Run(op, ref, user, .winner)
+			If kind = "refused" {
+				Do $$$AssertEquals($List(done, 1), "ERR", label_" is refused")
+				Set text = $List(done, 2)
+				If op = "finish x" {
+					Do $$$AssertTrue(text [ "'x'", label_": the error names the result x: "_text)
+				} Else {
+					Do $$$AssertTrue((text [ ref) && (text [ ("it is "_state)), label_": the error names the Ref and the state: "_text)
+				}
+				If (key = "approvedPast") && (op = "start") Do $$$AssertTrue(text [ "past its expiry", label_": the error says the row is past its expiry: "_text)
+				Do $$$AssertEquals(..RowText(ref), before, label_": no column changed")
+				Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, label_": the sink got no call")
+			} ElseIf kind = "changed" {
+				Set finish = ($Piece(op, " ", 1) = "finish")
+				Set skip = $Select(finish: "State,Result,FinishedAt", 1: "State")
+				Do $$$AssertEquals($List(done, 1), "OK", label_" is allowed")
+				Do $$$AssertEquals(..Prop(ref, "State"), $List(expected, 2), label_": the row becomes "_$List(expected, 2))
+				Do $$$AssertEquals(..RowText(ref, skip), ..SkipText(before, skip), label_": no other column changed")
+				If finish {
+					Do $$$AssertEquals(..Prop(ref, "Result"), $Piece(op, " ", 2), label_": Result is the given result")
+					Do $$$AssertTrue(..JustNow(..Prop(ref, "FinishedAt")), label_": FinishedAt is a time within 5 seconds of now: "_..Prop(ref, "FinishedAt"))
+				}
+				If $List(expected, 3) = "" {
+					Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, label_": no event fires")
+				} Else {
+					Do ..AssertEvents($List(expected, 3), label)
+					Do ..AssertEvent(1, $List(expected, 3), owner, ref, $List(expected, 2), label)
+				}
+			} Else {
+				Do $$$AssertEquals($List(done, 1), kind, label_" gives "_kind)
+				Set shown = "{}"
+				If kind = "already_answered" Set shown = {"action": (..Prop(ref, "AnsweredAction")), "channel": (..Prop(ref, "AnsweredChannel")), "at": (..Prop(ref, "AnsweredAt"))}.%ToJSON()
+				Do $$$AssertEquals($List(done, 2), shown, label_": the winner is "_shown)
+				Do $$$AssertEquals(..RowText(ref), before, label_": no column changed")
+				Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, label_": the sink got no call")
+			}
+		}
+	}
+}
+
+/// Row 11: two StartExecution calls at once through the lock gate: exactly one returns OK, the other an error that names executing.
+Method TestStartExecutionAtOnce()
+{
+	If '..Ready() Quit
+	Set ref = ..FixtureRow("approved")
+	Set jobs = ..GateJobs(ref, $ListBuild($ListBuild("start"), $ListBuild("start")), "")
+	Do $$$AssertEquals($ListLength(jobs), 2, "both jobs ran")
+	If $ListLength(jobs) '= 2 Quit
+	Set resultA = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "result"))
+	Set resultB = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "result"))
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "error"))_$Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "error")), "", "neither job failed")
+	Do $$$AssertTrue(((resultA = "OK") && (resultB [ "executing")) || ((resultB = "OK") && (resultA [ "executing")), "exactly one returns OK and the other an error that names executing: "_resultA_" | "_resultB)
+	Do $$$AssertEquals(..Prop(ref, "State"), "executing", "the row is executing")
+}
+
+/// Row 12: a request that Reconcile re-armed is answered through its new task: the new task is completed, the discarded one is untouched, and the
+/// outcome comes from the new hold's session.
+Method TestAnswerReArmed()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set oldTask = info.task
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do ..Age(ref, 82800, 3600)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step runs")
+	Set newSession = ..HoldMessages(mark, ref).session
+	Set newTask = ..WaitTask(ref, 10)
+	Do $$$AssertTrue((newTask '= "") && (newTask '= oldTask), "the request has a new open task: "_newTask)
+	Do $$$AssertTrue((newSession > mark) && (newSession '= info.session), "and a new hold in a session of its own: "_newSession)
+	Set oldBefore = ..TaskState(oldTask)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, "zzsession", .winner, ..#SINK), "done", "Answer approves it: done")
+	Do $$$AssertEquals(..TaskFacts(newTask), "Approve|OcuTalonWorkflow|1|", "the new task is completed with Approve")
+	Do $$$AssertEquals(..TaskState(oldTask), oldBefore, "the discarded task is untouched")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the new hold ends")
+	Do ..AssertOneOutcome(ref, "approved", info, newSession, "the outcome comes from the new hold's session")
+}
+
+/// Row 13: an answer that arrives before the task exists is recorded, waits for the task, and completes it once it appears: the hold ends and
+/// sends one approved outcome.
+Method TestAnswerBeforeTheTaskExists()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set ..ApprovalsDisabled = 1
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 0), "OcuTalonApprovals is disabled")
+	Set row = ..NewRow("fix")
+	Set trace = row.TraceRef
+	Set incident = row.IncidentRef
+	Set sc = ..Raise(row, .ref)
+	Kill row
+	Do $$$AssertStatusOK(sc, "the fix request is raised")
+	If $$$ISERR(sc) Quit
+	Do $$$AssertEquals(..TaskCount(ref), 0, "no task exists")
+	Set number = ..StartJob("answer", ref, "approve", "web", user)
+	Set deadline = $ZHorolog + 10
+	While (..Prop(ref, "State") '= "approved") && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row shows the answer while the job waits for the task")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "done")), "", "and the job has not returned yet")
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "OcuTalonApprovals is enabled again")
+	Set ..ApprovalsDisabled = 0
+	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), 20)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "the job gets done")
+	Set ids = ..TaskIds(ref)
+	Do $$$AssertEquals($ListLength(ids), 1, "the task appeared")
+	If $ListLength(ids) = 1 Do $$$AssertEquals(..TaskFacts($List(ids, 1)), "Approve|OcuTalonWorkflow|1|", "and was completed with Approve by OcuTalonWorkflow")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do ..AssertOneOutcome(ref, "approved", {"incident": (incident), "trace": (trace)}, "", "the outcome")
+}
+
+/// Row 14: the hold acts only on the row: a task completed directly with Approve while the row is pending ends the hold, sends no outcome and
+/// leaves the row pending with no answer fields.
+Method TestHoldActsOnlyOnTheRowsAnswer()
+{
+	If '..Ready() Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Do $$$AssertStatusOK(..Complete(info.task), "the task is completed directly with Approve")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do $$$AssertTrue(..WaitHoldSettled(ref, info.session, 15), "and its OnResponse has returned")
+	Do $$$AssertEquals(..Outcomes(ref).%Size(), 0, "no outcome is sent")
+	Do $$$AssertEquals(..Prop(ref, "State"), "pending", "the row is still pending")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction")_..Prop(ref, "AnsweredChannel")_..Prop(ref, "AnsweredBy")_..Prop(ref, "AnsweredAt"), "", "with no answer fields")
+}
+
+/// Row 15: an answer that the row shows but whose task was never completed is delivered when the timer fires: the test holds the row's lock while
+/// Reconcile re-arms a past request, writes the answer as Answer would without completing the task, and releases the lock. The hold ends with one
+/// approved outcome, the row stays approved, and StartExecution is refused for being past its expiry.
+Method TestTimerDeliversAnUndeliveredAnswer()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("fix")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do ..Age(ref, 86460, -60)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
+	Lock +^OcuTalon.Bridge.Approval(ref):5
+	If '$Test {
+		Do $$$AssertTrue(0, "the test takes the row's lock")
+		Quit
+	}
+	Set ^OcuTalonTest("Approval", "held", ref) = ""
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step re-arms the request (a 1 second timer)")
+	Set newSession = ..HoldMessages(mark, ref).session
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row.AnsweredAction = "approve"
+	Set row.AnsweredChannel = "web"
+	Set row.AnsweredBy = user
+	Set row.AnsweredAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row.State = "approved"
+	Do $$$AssertStatusOK(row.%Save(), "the answer is written on the row without completing the task")
+	Kill row
+	Lock -^OcuTalon.Bridge.Approval(ref)
+	Kill ^OcuTalonTest("Approval", "held", ref)
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "within 15 seconds the hold has ended")
+	Do ..AssertOneOutcome(ref, "approved", info, newSession, "the approved outcome")
+	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row is still approved")
+	Set sc = ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
+	Do $$$AssertStatusNotOK(sc, "StartExecution is refused")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "past its expiry", "for being past its expiry: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row stays approved")
 }
 
 /// The job body of TestLockHeld: takes LOCK ^OcuTalon.Bridge.Approval, reports it, and keeps it until the test sets release or the seconds
@@ -872,6 +1367,36 @@ Method WaitTask(ref As %String, seconds As %Integer) As %String [ Private ]
 	Quit id
 }
 
+/// 1 when the UTC time YYYY-MM-DDThh:mm:ssZ is a readable time within the last 5 seconds (an empty or unreadable time is 0).
+ClassMethod JustNow(stamp As %String) As %Boolean [ Private ]
+{
+	If stamp '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit 0
+	Set age = ##class(OcuTalon.Bridge.Time).SecondsUntil(stamp)
+	Quit (age '< -5) && (age '> 0)
+}
+
+/// 1 once the hold of the Ref has gone and every message to it in its session is past created, queued and delivered, which is when its
+/// OnResponse has returned (polled up to the seconds), otherwise 0. A test that expects the hold to have sent nothing reads after it.
+ClassMethod WaitHoldSettled(ref As %String, session As %String, seconds As %Integer) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	Set settled = 0
+	For {
+		If ##class(OcuTalon.Bridge.Approval).LiveHold(ref) = "" {
+			Set open = 1
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND TargetConfigName = 'ApprovalHold' AND Status IN (1, 2, 3)", session)
+			If result.%Next() Set open = result.%GetData(1)
+			If open = 0 {
+				Set settled = 1
+				Quit
+			}
+		}
+		If $ZHorolog >= deadline Quit
+		Hang 0.1
+	}
+	Quit settled
+}
+
 /// 1 once no hold of the Ref is live (polled up to the seconds), otherwise 0.
 ClassMethod WaitHoldGone(ref As %String, seconds As %Integer) As %Boolean [ Private ]
 {
@@ -902,7 +1427,7 @@ ClassMethod WorklistUsers(taskId As %String) As %String [ Private ]
 	Quit users
 }
 
-/// Completes the task as Story 3.5's Answer will: assigned to OcuTalonWorkflow, then completed with Approve.
+/// Completes the task as Answer does: assigned to OcuTalonWorkflow, then completed with Approve.
 ClassMethod Complete(taskId As %String) As %Status [ Private ]
 {
 	Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(taskId)
@@ -1026,7 +1551,7 @@ ClassMethod WaitStartDone(mark As %Integer, seconds As %Integer) As %Boolean [ P
 	Quit done
 }
 
-/// Settles the fixture row of the Ref (State approved), as Story 3.5's Answer will leave it.
+/// Settles the fixture row of the Ref (State approved), with no answer fields.
 ClassMethod Settle(ref As %String) As %Status [ Private ]
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
@@ -1081,25 +1606,34 @@ ClassMethod RemoveOther() [ Private ]
 	Kill ^OcuTalonTest("Approval", "other")
 }
 
-/// Ends every request that a test tracked, also those a failed earlier run left: it enables ApprovalStartIn and ApprovalHold again if a
-/// killed run left one disabled, releases a lock job that still holds the lock, ends each request and deletes its row, and deletes the
-/// fixture Workflow roles.
+/// Ends every request that a test tracked, also those a failed earlier run left: it enables ApprovalStartIn, ApprovalHold and
+/// OcuTalonApprovals again if a killed run left one disabled, releases the row locks that the test process holds (tracked under
+/// ^OcuTalonTest("Approval","held")), waits for every job to be done (a job that is still waiting for a lock is released first), ends each
+/// request and deletes its row, deletes the fixture Workflow roles, and kills the shared sink's calls.
 ClassMethod Clean() [ Private ]
 {
-	For item = "ApprovalStartIn", "ApprovalHold" {
+	For item = "ApprovalStartIn", "ApprovalHold", "OcuTalonApprovals" {
 		Set status = $$$OK
 		If '##class(Ens.Director).IsItemEnabled(item, .status) && $$$ISOK(status) Do ##class(Ens.Director).EnableConfigItem(item, 1)
 	}
+	Set held = ""
+	For {
+		Set held = $Order(^OcuTalonTest("Approval", "held", held))
+		Quit:held=""
+		Lock -^OcuTalon.Bridge.Approval(held)
+	}
+	Kill ^OcuTalonTest("Approval", "held")
 	Set number = ""
 	For {
 		Set number = $Order(^OcuTalonTest("Approval", "job", number))
 		Quit:number=""
-		If $Get(^OcuTalonTest("Approval", "job", number, "locked")) && '$Get(^OcuTalonTest("Approval", "job", number, "done")) {
+		If ($Get(^OcuTalonTest("Approval", "job", number, "locked")) || $Get(^OcuTalonTest("Approval", "job", number, "spawned"))) && '$Get(^OcuTalonTest("Approval", "job", number, "done")) {
 			Set ^OcuTalonTest("Approval", "job", number, "release") = 1
 			Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), 20)
 		}
 	}
 	Kill ^OcuTalonTest("Approval", "job")
+	Kill ^OcuTalonTest("ProbeSink")
 	Set ref = ""
 	For {
 		Set ref = $Order(^OcuTalonTest("Approval", "refs", ref))
@@ -1124,6 +1658,341 @@ ClassMethod Remove(ref As %String) [ Private ]
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
 	Kill ^OcuTalonTest("Approval", "refs", ref)
+}
+
+/// --- the helpers of Story 3.5's tests ---
+/// The README account, the local install's real approver (Install.Step.Users); asserted to hold OcuTalonUser, else "".
+Method Answerer() As %String [ Private ]
+{
+	Set user = ..#ANSWERER
+	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(user, .roles)
+	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
+	Do $$$AssertTrue(holds, "the answerer "_user_" holds OcuTalonUser")
+	Quit $Select(holds: user, 1: "")
+}
+
+/// Raises a held request of the kind, tracks it, waits for its task and returns {"ref","owner","trace","incident","session","task"} (session is the
+/// hold's, task the open task's id); the sink's calls are cleared. A tool_call has no ResultTarget unless one is given. "" when Raise fails.
+Method RaiseHeld(kind As %String, resultTarget As %String = "<none>") As %DynamicObject [ Private ]
+{
+	Set row = ..NewRow(kind)
+	If resultTarget '= "<none>" Set row.ResultTarget = resultTarget
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Set sc = ..Raise(row, .ref)
+	Do $$$AssertStatusOK(sc, "the "_kind_" request is raised")
+	If $$$ISERR(sc) Quit ""
+	Set info = {"ref": (ref), "owner": (row.OwnerRef), "trace": (row.TraceRef), "incident": (row.IncidentRef), "session": "", "task": ""}
+	Kill row
+	Set info.task = ..WaitTask(ref, 10)
+	Do $$$AssertTrue(info.task '= "", "its task exists")
+	Set info.session = ..HoldMessages(mark, ref).session
+	Kill ^||ZzProbeSink
+	Quit info
+}
+
+/// Saves a fixture row directly in the state, with no hold and no task (RequiredRole OcuTalonUser, ExpiresAt expiresIn seconds from now), tracks it
+/// and returns its Ref. An answered state has its Answered fields, a finished one its Result and FinishedAt.
+Method FixtureRow(state As %String, expiresIn As %Integer = 3600, kind As %String = "fix") As %String [ Private ]
+{
+	Set row = ..NewRow(kind)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("Approval", "refs", ref) = ""
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row.Ref = ref
+	Set row.State = state
+	Set row.RequiredRole = "OcuTalonUser"
+	Set row.RaisedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -60)
+	Set row.ExpiresAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, expiresIn)
+	If $ListFind($ListBuild("approved", "rejected", "executing", "done", "failed"), state) {
+		Set row.AnsweredAction = $Select(state = "rejected": "reject", 1: "approve")
+		Set row.AnsweredChannel = "web"
+		Set row.AnsweredBy = ..#ANSWERER
+		Set row.AnsweredAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(now, -30)
+	}
+	If (state = "done") || (state = "failed") {
+		Set row.Result = state
+		Set row.FinishedAt = now
+	}
+	Do $$$AssertStatusOK(row.%Save(), "the fixture row "_state_" is saved")
+	Quit ref
+}
+
+/// The column of the row, read again from the database (the instance is not kept).
+ClassMethod Prop(ref As %String, name As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit "<no row>"
+	Quit $Property(row, name)
+}
+
+/// All the columns of the row but those in skip (a comma list), as "name=value|" text.
+ClassMethod RowText(ref As %String, skip As %String = "") As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit "<no row>"
+	Set text = ""
+	Set names = "Ref,Kind,IncidentRef,OwnerRef,State,DryRun,ToolName,ToolArguments,RequiredRole,ResultTarget,TraceRef,RaisedAt,ExpiresAt,AnsweredAction,AnsweredChannel,AnsweredBy,AnsweredAt,Result,FinishedAt"
+	For index = 1:1:$Length(names, ",") {
+		Set name = $Piece(names, ",", index)
+		If $ListFind($ListFromString(skip), name) Continue
+		Set text = text _ name _ "=" _ $Property(row, name) _ "|"
+	}
+	Quit text
+}
+
+/// The text of RowText that was taken without skip, with the skipped columns taken out.
+ClassMethod SkipText(text As %String, skip As %String) As %String [ Private ]
+{
+	Set result = ""
+	For index = 1:1:$Length(text, "|") - 1 {
+		Set part = $Piece(text, "|", index)
+		If $ListFind($ListFromString(skip), $Piece(part, "=", 1)) Continue
+		Set result = result _ part _ "|"
+	}
+	Quit result
+}
+
+/// "<%Action>|<%UserName>|<IsComplete>|<worklist users>" of the task.
+ClassMethod TaskFacts(taskId As %String) As %String [ Private ]
+{
+	Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(taskId)
+	If '$IsObject(task) Quit "<none>"
+	Quit task.%Action_"|"_task.%UserName_"|"_task.%TaskStatus.IsComplete_"|"_..WorklistUsers(taskId)
+}
+
+/// The row's State once it is the given one (polled up to the seconds), else the State at the deadline. The hold counts as ended while its
+/// OnResponse still runs, so a test that needs the timer's change waits for it.
+Method WaitState(ref As %String, state As %String, seconds As %Integer) As %String [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	While (..Prop(ref, "State") '= state) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Quit ..Prop(ref, "State")
+}
+
+/// The ApprovalOutcome messages that ApprovalHold sent for the Ref after this run began, oldest first, as a dynamic array of {"session","super",
+/// "target","status","outcome","approvalRef","incidentRef"}.
+Method Outcomes(ref As %String) As %DynamicArray [ Private ]
+{
+	Set list = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId, SuperSession, TargetConfigName, Status, MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalOutcome' AND SourceConfigName = 'ApprovalHold' ORDER BY ID", ..Mark)
+	While result.%Next() {
+		Set body = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%OpenId(result.%Get("MessageBodyId"))
+		If '$IsObject(body) || (body.ApprovalRef '= ref) Continue
+		Do list.%Push({"session": (result.%Get("SessionId")), "super": (result.%Get("SuperSession")), "target": (result.%Get("TargetConfigName")), "status": (result.%Get("Status")), "outcome": (body.Outcome), "approvalRef": (body.ApprovalRef), "incidentRef": (body.IncidentRef)})
+	}
+	Quit list
+}
+
+/// The outcomes of the Ref once at least count exist and the target has handled each (its header is past created, queued and delivered), polled up
+/// to the seconds; whatever exists at the deadline otherwise.
+Method WaitOutcomes(ref As %String, count As %Integer, seconds As %Integer) As %DynamicArray [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Set list = ..Outcomes(ref)
+		Set handled = (list.%Size() '< count)
+		For index = 0:1:list.%Size() - 1 {
+			If $ListFind($ListBuild(1, 2, 3), list.%Get(index).status) Set handled = 0
+		}
+		If handled || ($ZHorolog >= deadline) Quit
+		Hang 0.1
+	}
+	Quit list
+}
+
+/// Exactly one outcome of the Ref, handled by its target IncidentManager, with the outcome, the Ref, the incident and the hold's SuperSession
+/// (the TraceRef); session is the hold's session ("" skips that check). Then the Ref still has exactly one outcome.
+Method AssertOneOutcome(ref As %String, outcome As %String, info As %DynamicObject, session As %String, label As %String) [ Private ]
+{
+	Set list = ..WaitOutcomes(ref, 1, 15)
+	Do $$$AssertEquals(list.%Size(), 1, label_": exactly one outcome is sent")
+	If list.%Size() '= 1 Quit
+	Set one = list.%Get(0)
+	Do $$$AssertEquals(one.outcome_"|"_one.approvalRef_"|"_one.incidentRef_"|"_one.target, outcome_"|"_ref_"|"_info.incident_"|IncidentManager", label_": it is "_outcome_" for the Ref and the incident, to IncidentManager")
+	Do $$$AssertEquals(one.super, info.trace, label_": it carries the TraceRef as SuperSession")
+	If session '= "" Do $$$AssertEquals(one.session, session, label_": it is in the hold's session")
+	Do $$$AssertNotTrue($ListFind($ListBuild(1, 2, 3), one.status), label_": the target has handled it")
+}
+
+/// The classes of the requests that the hold of the session sent, sorted, as a comma list.
+Method HoldRequests(session As %String) As %String [ Private ]
+{
+	Set classes = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyClassName FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = 'ApprovalHold' AND Type = 1 ORDER BY MessageBodyClassName", session)
+	While result.%Next() {
+		Set classes = classes _ $Select(classes = "": "", 1: ",") _ result.%GetData(1)
+	}
+	Quit classes
+}
+
+/// The sink's private calls are exactly the event types, as a comma list.
+Method AssertEvents(types As %String, label As %String) [ Private ]
+{
+	Set actual = ""
+	For n = 1:1:+$Get(^||ZzProbeSink) {
+		Set actual = actual _ $Select(actual = "": "", 1: ",") _ $List($Get(^||ZzProbeSink(n)), 1)
+	}
+	Do $$$AssertEquals(actual, types, label_" got the events "_types)
+}
+
+/// The sink's private call n: the type, the owner, {"ref"}, and the State of the row at that moment (ProbeSink's eighth element).
+Method AssertEvent(n As %Integer, type As %String, owner As %String, ref As %String, state As %String, label As %String) [ Private ]
+{
+	Set call = $Get(^||ZzProbeSink(n))
+	Do $$$AssertEquals($ListGet(call, 1)_"|"_$ListGet(call, 2)_"|"_$ListGet(call, 3), type_"|"_owner_"|{""ref"":"""_ref_"""}", label_": call "_n_" is "_type_" with the OwnerRef and the Ref")
+	Do $$$AssertEquals($ListGet(call, 4)_"|"_$ListGet(call, 5)_"|"_$ListGet(call, 8), "0|1|"_state, label_": call "_n_" came at transaction level 0, after the change: the row was "_state)
+}
+
+/// What Expected says for a fixture of the key and the call of TestEveryOtherTransitionIsRefused, as $ListBuild(kind, new state or the state, event):
+/// kind is skip (another test pins it), refused, changed, or the result of Answer.
+ClassMethod Expected(key As %String, op As %String) As %List [ Private ]
+{
+	Set state = $Select(key = "approvedPast": "approved", 1: key)
+	Set verb = $Piece(op, " ", 1)
+	Set arg = $Piece(op, " ", 2)
+	If verb = "answer" {
+		If state = "pending" Quit $ListBuild("skip")
+		Quit $ListBuild($Select(state = "expired": "expired", state = "cancelled": "not_found", 1: "already_answered"), state, "")
+	}
+	If verb = "expire" Quit $Select(state = "pending": $ListBuild("changed", "expired", "approval.expired"), 1: $ListBuild("refused", state, ""))
+	If verb = "cancel" Quit $Select(state = "pending": $ListBuild("skip"), 1: $ListBuild("refused", state, ""))
+	If verb = "start" Quit $Select(key = "approved": $ListBuild("changed", "executing", ""), 1: $ListBuild("refused", state, ""))
+	If (arg = "done") && (state = "executing") Quit $ListBuild("changed", "done", "approval.result")
+	If (arg = "failed") && ((state = "executing") || (state = "approved")) Quit $ListBuild("changed", "failed", "approval.result")
+	If (arg = "interrupted") && (state = "executing") Quit $ListBuild("changed", "failed", "approval.result")
+	Quit $ListBuild("refused", state, "")
+}
+
+/// Makes the call alone, with ProbeSink as the sink: $ListBuild(code, text). For Answer the code is its result and the text the winner as JSON;
+/// for the status methods the code is OK or ERR and the text the error.
+Method Run(op As %String, ref As %String, user As %String, Output winner As %DynamicObject) As %List [ Private ]
+{
+	Set winner = {}
+	Set api = "OcuTalon.Bridge.Approval"
+	Set verb = $Piece(op, " ", 1)
+	Set arg = $Piece(op, " ", 2)
+	If verb = "answer" {
+		Set code = $ClassMethod(api, "Answer", ref, arg, "web", user, "zzsession", .winner, ..#SINK)
+		Quit $ListBuild(code, winner.%ToJSON())
+	}
+	If verb = "expire" {
+		Set sc = $ClassMethod(api, "Expire", ref, ..#SINK)
+	} ElseIf verb = "cancel" {
+		Set sc = $ClassMethod(api, "Cancel", ref, ..#SINK)
+	} ElseIf verb = "start" {
+		Set sc = $ClassMethod(api, "StartExecution", ref)
+	} Else {
+		Set sc = $ClassMethod(api, "FinishExecution", ref, arg, ..#SINK)
+	}
+	Quit $ListBuild($Select($$$ISOK(sc): "OK", 1: "ERR"), $SYSTEM.Status.GetErrorText(sc))
+}
+
+/// Sets Decide's HostSinkClass to ProbeSink in its shared mode, for the events that fire in the production's jobs, and saves what the item had
+/// for OnAfterOneTest. 1 when it is set.
+Method UseSharedSink() As %Boolean [ Private ]
+{
+	Kill ^OcuTalonTest("ProbeSink")
+	Set ^OcuTalonTest("ProbeSink", "shared") = 1
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", "HostSinkClass", ..#SINK, .saved)
+	Set ..SavedSink = saved
+	Do $$$AssertStatusOK(sc, "Decide's HostSinkClass is ProbeSink in its shared mode")
+	Quit $$$ISOK(sc)
+}
+
+/// Starts a job that calls Answer (kind answer) or StartExecution (kind start) and returns its number; ^OcuTalonTest("Approval","job",<n>) gets
+/// its pid, result, winner and done.
+ClassMethod StartJob(kind As %String, ref As %String, action As %String = "", channel As %String = "", user As %String = "") As %String [ Private ]
+{
+	Set number = "j"_$Increment(^OcuTalonTest("Approval", "jobs"))
+	Kill ^OcuTalonTest("Approval", "job", number)
+	Set ^OcuTalonTest("Approval", "job", number, "spawned") = 1
+	Job ##class(OcuTalon.Test.Bridge.Approval).CallInJob(number, kind, ref, action, channel, user)
+	Quit number
+}
+
+/// The job body: calls Answer or StartExecution with no sink argument, so that the event goes to Decide's HostSinkClass, and records its
+/// pid, result, winner and done.
+ClassMethod CallInJob(number As %String, kind As %String, ref As %String, action As %String, channel As %String, user As %String)
+{
+	Set run = $Name(^OcuTalonTest("Approval", "job", number))
+	Try {
+		Set @run@("pid") = $Job
+		If kind = "answer" {
+			Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, action, channel, user, "zzsession", .winner)
+			Set @run@("result") = result
+			Set @run@("winner") = winner.%ToJSON()
+		} Else {
+			Set sc = ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
+			Set @run@("result") = $Select($$$ISOK(sc): "OK", 1: $SYSTEM.Status.GetErrorText(sc))
+		}
+	} Catch exception {
+		Set @run@("error") = exception.DisplayString()
+	}
+	Set @run@("done") = 1
+}
+
+/// The lock gate: the test takes LOCK ^OcuTalon.Bridge.Approval(ref), starts one job for each entry of jobs ($ListBuild(kind, action, channel)),
+/// releases the lock once %SYS.LockQuery:Detail lists every job as a waiter, and waits for each job to be done. Returns the job numbers, or ""
+/// when the gate failed.
+Method GateJobs(ref As %String, jobs As %List, user As %String) As %List [ Private ]
+{
+	Lock +^OcuTalon.Bridge.Approval(ref):5
+	If '$Test {
+		Do $$$AssertTrue(0, "the test takes the row's lock")
+		Quit ""
+	}
+	Set ^OcuTalonTest("Approval", "held", ref) = ""
+	Set numbers = ""
+	Set position = 0
+	While $ListNext(jobs, position, job) {
+		Set numbers = numbers _ $ListBuild(..StartJob($List(job, 1), ref, $ListGet(job, 2), $ListGet(job, 3), user))
+	}
+	Set pids = ""
+	Set position = 0
+	While $ListNext(numbers, position, number) {
+		Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "pid")), 20)
+		Set pids = pids _ $ListBuild($Get(^OcuTalonTest("Approval", "job", number, "pid")))
+	}
+	Set seen = ""
+	Do $$$AssertTrue(..WaitWaiters(ref, pids, 20, .seen), "every job waits for the row's lock: pids "_$ListToString(pids)_", waiters "_seen)
+	Lock -^OcuTalon.Bridge.Approval(ref)
+	Kill ^OcuTalonTest("Approval", "held", ref)
+	Set position = 0
+	While $ListNext(numbers, position, number) {
+		Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), 30)
+	}
+	Quit numbers
+}
+
+/// 1 once every pid of the list is waiting for the lock of the Ref (polled up to the seconds), otherwise 0. A pid waits when
+/// %SYS.LockQuery:Detail lists it as a waiter of the Ref's lock, or, as the fallback, when %SYS.ProcessQuery gives its State as LOCKW: the jobs
+/// of the gate take no other lock. seen is the last listing, as [pid/State] entries.
+ClassMethod WaitWaiters(ref As %String, pids As %List, seconds As %Integer, Output seen As %String) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Kill found
+		Set rs = ##class(%ResultSet).%New("%SYS.LockQuery:Detail")
+		If $$$ISOK(rs.Execute()) {
+			While rs.Next() {
+				If (rs.Get("WaiterPID") '= "") && ((rs.Get("LockString") [ ref) || (rs.Get("FullReference") [ ref)) Set found(+rs.Get("WaiterPID")) = ""
+			}
+		}
+		Set seen = ""
+		Set all = 1
+		Set position = 0
+		While $ListNext(pids, position, pid) {
+			Set process = $Select(pid = "": "", 1: ##class(%SYS.ProcessQuery).%OpenId(pid))
+			Set state = $Select($IsObject(process): process.State, 1: "gone")
+			Set seen = seen _ "[" _ pid _ "/" _ state _ "]"
+			If (pid = "") || ('$Data(found(+pid)) && (state '= "LOCKW")) Set all = 0
+		}
+		If all || ($ZHorolog >= deadline) Quit
+		Hang 0.1
+	}
+	Quit all
 }
 
 }

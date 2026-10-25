@@ -1,6 +1,7 @@
-/// ApprovalHold, the business process that holds one approval request until it is answered or expires (AD-11). It stores only the
-/// request's Ref (AD-5): its two methods each call OcuTalon.Bridge.Approval, where the logic lives. Story 3.4 sends the Workflow task and sets
-/// the expiry timer; answering and expiring the request are Story 3.5's.
+/// ApprovalHold, the business process that holds one approval request until it is answered, expires or is cancelled (AD-11). It stores only
+/// the request's Ref (AD-5): its two methods each call OcuTalon.Bridge.Approval, where the logic lives. The start sends the Workflow task and
+/// sets the expiry timer; a response, the task's or the timer's, makes the hold act only on what the row shows: the timer expires the row, and
+/// an approval (a fix only), a rejection or an expiry is delivered to the row's ResultTarget as an ApprovalOutcome.
 Class OcuTalon.Bridge.Process.ApprovalHold Extends Ens.BusinessProcess
 {
 

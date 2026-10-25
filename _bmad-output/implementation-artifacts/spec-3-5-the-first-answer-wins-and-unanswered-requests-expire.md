@@ -2,13 +2,21 @@
 title: 'Story 3.5: The first answer wins, and unanswered requests expire'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd94f26dcba3d540458c94a17e1d5b6a0b339c8ca'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-11, the HostSink contract of AD-31, the waiter bullet of AD-5, the FixExecutor bullets of AD-16, the "cancelled request sends no ApprovalOutcome" sentence of AD-15, the "Ending an online-demo session" bullet of AD-4, AD-26, and the Consistency Conventions row "Approval requests")'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone), and then no timer fires and no ApprovalOutcome is sent until the next Reconcile.
+    evidence: |-
+      Approval.HoldResponse sends nothing for a task whose action does not match the row (matrix row 14 pins it), and the framework clears the leftover timer after a TaskResponse. Story 3.4's hold ended on a direct completion the same way. A late Answer still expires the row (step 4), so the request cannot be approved late; only the expired outcome to ResultTarget is missing. Reachable by a worklist user completing the task directly, or by a lock timeout on the timer's Expire.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Approval.cls (HoldResponse)
+    severity: medium
 ---
 
 <intent-contract>
@@ -203,6 +211,40 @@ Terms used in the table:
 
 ## Review Triage Log
 
+### 2026-10-24 — Review pass
+- verdicts: 30 findings — high 0, medium 7, low 19, false 4, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind Hunter: an exception in `CompleteHoldTask` after the save makes `Answer` return `not_found` with no event — the SQL and the poll loop sat outside the Try; fixed: the whole body is inside Try/Catch and logs a warning, so the saved answer stands.
+  - `[low]` `[reject]` Blind Hunter: `Answer` and `Cancel` hold the row lock while polling for the task — the spec's design (`LOCKSECONDS + TASKSECONDS` in Boundaries); the wait is long only when the task is absent.
+  - `[medium]` `[defer]` Blind Hunter: a task completed outside `Answer` leaves a pending row with no hold, no timer and no outcome until the next Reconcile — real, but Story 3.4's hold ended the same way and matrix row 14 pins that no outcome follows; in the spec's `deferred:` list.
+  - `[false]` `[reject]` Blind Hunter: the timer fallback misses a row that has left `approved` — checked: only `FixExecutor` (Stories 7.3 to 7.5) moves an approved row on, it starts from the outcome this handling sends, and `StartExecution` refuses a row past its expiry, which is when the fallback fires.
+  - `[low]` `[reject]` Blind Hunter: `HoldsRole` returns 0 without a log when the privilege is missing — the spec says an error holds nobody and records the privilege in its Cross-epic note; a warning would log for every unknown user, and the fix adds a branch.
+  - `[low]` `[reject]` Blind Hunter: `WaitOutcomes` counts an Error header as handled — the stub `IncidentManager` answers `NotImplemented` (spec), so Error is the expected status until Story 5.5.
+  - `[low]` `[reject]` Blind Hunter: no tests for the lock not taken, a failing save, an absent task, an inherited role or an empty `ResultTarget` on a fix — logged defensive branches; each wait test adds 5 to 7 s to a 500 s shard line, and a role set that includes an inherited role is the call the implementation makes; the fix is more than a direct correction.
+  - `[low]` `[reject]` Blind Hunter: `TestAnswerBeforeTheTaskExists` depends on the task appearing within 5 s — measured at planning: 0.03 s after the item is enabled.
+  - `[low]` `[reject]` Blind Hunter: `HoldTask` filters on `%Subject` with no index — the query repeats only while the task is absent, the table holds approval tasks, and `Reconcile` (Story 3.4) runs the same SQL.
+  - `[low]` `[reject]` Blind Hunter: `ApprovalOutcome.Outcome` has no `VALUELIST` — the spec fixes `%String(MAXLEN = 32)` and the oracle pins that type; `HoldResponse` is the only writer.
+  - `[low]` `[reject]` Blind Hunter: `Move` has nine positional arguments — developer-only; each of its five calls is pinned by a test that goes red on a wrong slot (the recorded mutations); a refactor is more than a direct correction.
+  - `[low]` `[patch]` Edge Case Hunter: same cause as the first Blind finding (`AnswerLocked` after `CompleteHoldTask` throws): fixed with it.
+  - `[low]` `[patch]` Edge Case Hunter: same cause (`Move` for `Cancel` returns an error after the row became `cancelled`, with no event): fixed with it.
+  - `[false]` `[reject]` Edge Case Hunter: a row that moves past `approved` before the hold handles the task response — same refutation as the fourth Blind finding.
+  - `[medium]` `[defer]` Edge Case Hunter: the timer's `Expire` can fail on the lock timeout or a save while the row is pending, then the hold ends with no timer — grouped with the third Blind finding; in the `deferred:` list.
+  - `[medium]` `[defer]` Edge Case Hunter: a task completed outside `Answer` while the row is pending clears the timer (row 14 asserts this) — same entry as the third Blind finding.
+  - `[medium]` `[defer]` Edge Case Hunter: a past-expiry `Answer` on a row whose hold is already gone sends no `expired` outcome — same entry; a hold is gone while its row is pending only in the cases above.
+  - `[low]` `[reject]` Edge Case Hunter: `HoldsRole` hides a privilege failure — same as the fifth Blind finding.
+  - `[low]` `[reject]` Edge Case Hunter: `HoldTask` ignores a failing SQL status — an SQL error on a system table is not reachable; the outcome would be the same warning after the poll; the fix adds a branch.
+  - `[medium]` `[patch]` Verification Gap: the time assertions pass on an empty `AnsweredAt` or `FinishedAt` — fixed: `JustNow` checks the format first, and `TestTwoAnswersAtOnce` checks the winner's time; the mutations 'no `AnsweredAt`' and 'no `FinishedAt`' are red.
+  - `[medium]` `[patch]` Verification Gap: 'StartExecution fires no event' could not fail, because the test used the real sink — fixed: `TestEveryOtherTransitionIsRefused` sets Decide's `HostSinkClass` to ProbeSink; the mutation 'StartExecution passes an event' is red.
+  - `[low]` `[reject]` Verification Gap: nothing pins that the event fires after the unlock — AD-31 requires it after the change, which `AssertEvent` pins (state and transaction level); a lock probe needs a ProbeSink element beyond the spec, and no consumer calls back into the approval locks.
+  - `[medium]` `[patch]` Verification Gap: the negative 'no outcome is sent' checks read after `WaitHoldGone`, while the hold's `OnResponse` can still run — fixed: `WaitHoldSettled` waits until every message to the hold in its session is past delivered, and the four tests call it first.
+  - `[low]` `[reject]` Verification Gap: failure paths of `Answer`, `HoldResponse` and `CompleteHoldTask` have no test — same entry as the seventh Blind finding.
+  - `[low]` `[patch]` Verification Gap: AC 6's storage clause and AC 7 have no `mutation:` line — closed in-pass: a property added to `Msg.ApprovalOutcome` without its Storage block turns `live storage-roundtrip` red (line written); AC 7 is an aggregate of shard runs, not a test.
+  - `[low]` `[reject]` Verification Gap: `TestAnswerBeforeTheTaskExists` can fail on a loaded runner — same entry as the eighth Blind finding.
+  - `[low]` `[reject]` Verification Gap: that test fires an event at the real sink and asserts nothing about it — the test pins the task, the hold and the outcome; rows 1 and 4 pin the event.
+  - `[low]` `[reject]` Verification Gap: the shared-sink counts could take calls from other jobs — `Clean` leaves no pending rows and `Reconcile` runs only where a test calls it; the class passed on a warm and a fresh stack.
+  - `[false]` `[reject]` Verification Gap: `TestTimerExpires` checks the event count and not the job — only the hold calls `Expire` on the timer, so one event with the row's state is the hold's; no other path can produce it in that test.
+  - `[false]` `[reject]` Intent Alignment Auditor: a descriptive report with no defect; its divergences are the spec's own seams (`sinkClass`, the lock gate, a fixture row for row 15) and choices (`approval.result` from `FinishExecution`, `interrupted`), all in the spec's Boundaries and Design Notes.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -251,6 +293,14 @@ Terms used in the table:
   - The tests answer as the README account, which is the local install's real approver, rather than creating a user.
   - Concurrency goes through a lock the test holds, released once `%SYS.LockQuery` shows both jobs waiting. The outcome assertions hold in any order, and the gate proves both answers were in flight at once.
   - `TestTimerDeliversAnUndeliveredAnswer` holds the row's lock, so the re-armed hold's `Expire` cannot run before the test has written the answer.
+
+**Decided in-stage (implement):**
+- No test keeps an `ApprovalRequest` object across a hold's change: a held object shows a stale `State` when the hold's job changes the row. `TestReconcilePastExpiry` drops its object and polls the state (`WaitState`).
+- A hold counts as gone while its `OnResponse` still runs, so a test that needs the timer's change polls the row state; the outcome tests wait on the outcome itself.
+- The gate (`WaitWaiters`) accepts a job as waiting when `%SYS.LockQuery:Detail` lists it or `%SYS.ProcessQuery` gives its `State` as `LOCKW`. In build 154 `Detail` listed no waiter row for an exact-node wait, so the `LOCKW` check carries it.
+- `TestEveryOtherTransitionIsRefused` skips `Answer` and `Cancel` on a pending fixture row (it has no task, so each would wait the full `TASKSECONDS`); rows 1 and 9 pin those two.
+- `FinishExecution(ref, "failed")` on an approved row ignores the clock: an approved row past its expiry still becomes `failed`.
+- The state methods' error texts are the implementation's wording ("it is <state> and only <from> can become <to>", "past its expiry"); the tests match those phrases.
 
 **For the lead (veto window; Rule 20, the plan does not write the spine):**
 - **Stored data:** the new message class `OcuTalon.Bridge.Msg.ApprovalOutcome` (`ApprovalRef`, `IncidentRef`, `Outcome`). No `ApprovalRequest` column changes, and `ApprovalHold` is unchanged.
@@ -360,7 +410,62 @@ Terms used in the table:
 | AC 5 | `TestTimerDeliversAnUndeliveredAnswer` | on the timer, the hold sends only an `expired` outcome |
 | AC 6 | `TestHoldIsFrozen` (Story 3.4) | a second stored property on `ApprovalHold`, or logic in `OnResponse` |
 
+**Mutations observed red** (implement stage, warm `e3s5iw`; each applied alone to the tree, `Test.Bridge.Approval` run, then reverted byte-identical):
+- mutation: `AnsweredBy` set to `$USERNAME` instead of `irisUser` -> red: `TestAnswerApprovesAFix` (the row holds the action, channel and user).
+- mutation: `task.AssignTask(..#WORKFLOWUSER)` replaced by `$$$OK` (task completed without an assign) -> red: `TestAnswerApprovesAFix`, `TestAnswerBeforeTheTaskExists`, `TestAnswerReArmed`, `TestTwoAnswersAtOnce`.
+- mutation: `approval.answered` fired before the row is saved (a `Fire` call ahead of `AnswerLocked`) -> red: `TestAnswerApprovesAFix` ("call 1 came after the change: the row was approved"; the sink sees `pending`), and the event-count asserts of five more tests.
+- mutation: `CompleteHoldTask` looks for the task once, `While 0` instead of the poll loop -> red: `TestAnswerBeforeTheTaskExists`.
+- mutation: `HoldTask` takes the oldest task of the Ref, open or not (`ORDER BY ID ASC`, no `TaskStatus_IsComplete` filter) -> red: `TestAnswerReArmed`.
+- mutation: `Answer` opens the row before it takes the lock and `AnswerLocked` uses that stale object -> red: `TestTwoAnswersAtOnce` (both jobs `done`).
+- mutation: the role check uses the constant `OcuTalonUser` instead of the row's `RequiredRole` -> red: `TestAnswerRefusals` (case d); and with the role check dropped -> red: `TestAnswerRefusals` (cases b to d).
+- mutation: `HoldResponse` ignores the key `expiry` (`If 0` for the Expire block) -> red: `TestTimerExpires`, `TestReconcilePastExpiry`.
+- mutation: `Answer` does not compare `ExpiresAt` (`If 0` for the past-expiry step) -> red: `TestAnswerPastExpiry`.
+- mutation: `Expire` refuses while `SecondsUntil(ExpiresAt)` is above 0 -> red: `TestExpireDoesNotWaitForTheClock`, `TestEveryOtherTransitionIsRefused`.
+- mutation: `Cancel` accepts an approved row (`pending,approved`) -> red: `TestEveryOtherTransitionIsRefused`.
+- mutation: `FinishExecution` accepts `done` on an approved row -> red: `TestEveryOtherTransitionIsRefused`.
+- mutation: `StartExecution` ignores `ExpiresAt` (`ahead` 0) -> red: `TestEveryOtherTransitionIsRefused`, `TestTimerDeliversAnUndeliveredAnswer`.
+- mutation: the state is read before the lock is taken (stale row object in `Move`) -> red: `TestStartExecutionAtOnce` (both jobs OK).
+- mutation: `Cancel` completes no task (`cancelTask` 0) -> red: `TestCancel` (the task stays open, the hold does not end).
+- mutation: `HoldResponse` sends the TaskResponse's action without reading the row (`If action = "Approve"`) -> red: `TestHoldActsOnlyOnTheRowsAnswer`.
+- mutation: `HoldResponse` drops the `tool_call` check -> red: `TestApprovedToolCallRunsNothing`.
+- mutation: on the timer the hold sends only an `expired` outcome (`If row.State = "expired"`) -> red: `TestTimerDeliversAnUndeliveredAnswer`.
+- mutation: logic added to `ApprovalHold.OnResponse` (an extra line before the call) -> red: `TestHoldIsFrozen`.
+- mutation: `StartExecution` passes an event (`approval.answered`) to `Move` -> red: `TestEveryOtherTransitionIsRefused` ("approved + start: no event fires"; Decide's `HostSinkClass` is ProbeSink in that test).
+- mutation: `AnswerLocked` does not set `AnsweredAt` -> red: `TestAnswerApprovesAFix`, `TestTwoAnswersAtOnce` (the time is empty).
+- mutation: `MoveLocked` does not set `FinishedAt` -> red: `TestEveryOtherTransitionIsRefused` (every finish case).
+- mutation: a property is added to `Msg.ApprovalOutcome` without its Storage block -> red: `live storage-roundtrip` ("the exported Storage block differs from the committed one"); `bash ci/checks.sh` storage does not compile, so it stays green (AC 6's storage clause is pinned by the live script only).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The five state methods of `OcuTalon.Bridge.Approval` (`Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`) are built on one lock-then-event path, with `TASKSECONDS = 5`, the hold's task completion and the `sinkClass` trailing argument. `HoldResponse` acts only on what the row shows, delivers `ApprovalOutcome` to the row's `ResultTarget`, and falls back to the timer for an answer whose task could not be completed. `Msg.ApprovalOutcome` is new, with its committed storage block. `ApprovalHold` changed only in its class comment.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls`: the state methods, helpers, `HoldResponse`, class comment.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/ApprovalOutcome.cls` (new): the outcome message.
+- `src/bridge/cls/OcuTalon/Bridge/Process/ApprovalHold.cls`: class comment only.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls`: the fifteen matrix tests, helpers (`JustNow`, `WaitHoldSettled`, the gate, the job body), `Clean` and `OnAfterOneTest`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ProbeSink.cls`: the eighth call element (the row's State).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Api.cls`: `TestApprovalStubs` removed.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Contracts.cls`: the oracle gains `ApprovalOutcome`.
+- This spec: mutation lines, Decided in-stage, triage log, deferred list.
+
+**Review.** 30 findings (medium 7, low 19, false 4). Patches applied: `CompleteHoldTask` catches its own exceptions (three findings, one cause); time assertions now check the stamp's format (`JustNow`); the transition matrix runs under the shared sink so "StartExecution fires no event" can fail; negative outcome checks wait for the hold's `OnResponse` to return (`WaitHoldSettled`); two `mutation:` lines for the storage clause. Deferred: one entry, a pending row that loses its hold (medium). Rejected findings and their reasons are in the Review Triage Log.
+
+**Follow-up review recommended: true.** Three medium entries were patched, all in test code. The unverified risk is `WaitHoldSettled`: it relies on the message headers to the hold leaving statuses 1 to 3 once `OnResponse` returns, which passed on the warm and the fresh stack but was not shown to remove the race under load.
+
+**Verification.**
+- `bash ci/checks.sh`: all scripts passed.
+- Warm `e3s5iw`, one class per call: `Test.Bridge.Approval` (24 s, run after the last patch), `Api`, `Contracts`, `Decide`, `Budget` and `Gate` passed.
+- Fresh `e3s5i`: `shard lane-a` passed (44 classes, 447 s), `shard lane-b` passed (24 classes, 76 s, `Test.Contract.Ac` included), `live production-restart`, `live storage-roundtrip` and `live demo-path` passed (the demo path ran 1 of 6 steps, the rest skipped as before: 12 skipped, 0 failed).
+- 23 mutations applied and observed red, each reverted byte-identical (the `mutation:` lines under `## Verification`).
+- Teardown of `e3s5i` and `e3s5iw`: nothing tagged is left.
+
+**Residual risks.**
+- `WaitHoldSettled` (above).
+- `TestAnswerBeforeTheTaskExists` assumes the task appears within `TASKSECONDS` (measured 0.03 s); a very slow runner could flake.
+- The deferred pending-row-without-hold case.
+- `Answer` reads the answerer's role set, which a CSP job can do only for its own user (Cross-epic note for Lane B's `AnswersIn`).
+- The fresh `lane-a` shard took 447 s, against the 500 s line.
