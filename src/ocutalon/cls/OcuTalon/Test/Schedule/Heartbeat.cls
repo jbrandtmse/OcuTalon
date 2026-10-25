@@ -30,7 +30,8 @@ Include Ensemble
 ///   - (QA) TestOtherProduction (Always): with another production named as the task's own, OnTask ends OK, sends nothing and leaves the marks;
 ///   - (QA) TestAfterAllTestsNothingSaved: OnAfterAllTests of a class that saved nothing (the state after a failed OnBeforeAllTests) leaves everything alone.
 /// OnAfterOneTest and OnAfterAllTests put back what a test changed, also after a failure: the task's Suspended value, HeartbeatIn enabled, the
-/// production running with every item, the Checks item's class, the tick mark, the gap marks (all of them are saved before the tests and put back after them, because the
+/// production running with every item, the Checks item's class, the tick mark (and then, with the production running, one real tick, so that
+/// the class ends with a fresh mark for the classes that read the real heartbeat through Status.Computed; that tick may record a gap mark of its own), the gap marks (all of them are saved before the tests and put back after them, because the
 /// tests write gaps of their own) and ^OcuTalonTest("ChecksDouble"). OnAfterAllTests returns an error when the class behind Checks, the task or
 /// the production is not as it was found, or a mark cannot be put back.
 Class OcuTalon.Test.Schedule.Heartbeat Extends %UnitTest.TestCase
@@ -169,6 +170,7 @@ Method Restore() As %Status
 	Kill ^OcuTalonTest("ChecksDouble")
 	Kill ^OcuTalonTest("Heartbeat")
 	Do ..ResumeTask()
+	If $ClassMethod(..#FIXTURE, "Running") Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask())
 	Set missing = ##class(OcuTalon.Install.Step.Production).NotRunning()
 	If missing '= "" Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The production does not run every item after the tests: "_missing))
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))

@@ -8,6 +8,11 @@
 ///     result that leaves the years the scale covers, and a fraction of a second;
 ///   - TestGaps: Gaps keeps the gaps that overlap the window (inside, across either end, around it, touching an end), leaves out
 ///     those before and after it and a gap mark that is not a JSON object, gives them oldest first, and treats an empty bound as open.
+/// The stalled rule (Story 8.2; FR-32), with no production:
+///   - TestStalled: every row of the matrix of that spec through Heartbeat.Stalled: never ticked, fresh, the 180 s boundary (off), 181 s (on),
+///     240 s, an unreadable tick or now, a tick later than now, and a missing argument;
+///   - TestStalledCondition: Status.Computed with an injected heartbeat reading: the order dailyCap, noModelKey, heartbeatStalled, the exact
+///     exported JSON on and off, a reading of "" or one that is not an object is off, and ActiveOf holds the condition only when on.
 Class OcuTalon.Test.Schedule.HeartbeatLogic Extends %UnitTest.TestCase
 {
 
@@ -75,6 +80,76 @@ Method TestNext()
 	Do $$$AssertEquals(tick.PreviousTickAt, previous, "seven minutes down: one Tick that names the old tick")
 	Do $$$AssertEquals(tick.CatchUp, 1, "seven minutes down: it is a catch-up")
 	Do $$$AssertEquals(missed, 6, "seven minutes down: six minutes were missed")
+}
+
+/// Stalled for every row of the matrix. Each case is $ListBuild(label, lastTick, now, stalled).
+Method TestStalled()
+{
+	Set now = "2001-01-01T12:00:00Z"
+	Set cases = ""
+	Set cases = cases _ $ListBuild($ListBuild("never ticked", "", now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("fresh", ##class(OcuTalon.Data.Time).AddSeconds(now, -60), now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("same second", now, now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("boundary: 180 s is not more than 3 minutes", ##class(OcuTalon.Data.Time).AddSeconds(now, -180), now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("just stalled: 181 s", ##class(OcuTalon.Data.Time).AddSeconds(now, -181), now, 1))
+	Set cases = cases _ $ListBuild($ListBuild("the tests' stall: 240 s", ##class(OcuTalon.Data.Time).AddSeconds(now, -240), now, 1))
+	Set cases = cases _ $ListBuild($ListBuild("a day old", ##class(OcuTalon.Data.Time).AddSeconds(now, -86400), now, 1))
+	Set cases = cases _ $ListBuild($ListBuild("across the day boundary", "2000-12-31T23:58:00Z", "2001-01-01T00:01:01Z", 1))
+	Set cases = cases _ $ListBuild($ListBuild("across the day boundary, 180 s", "2000-12-31T23:58:00Z", "2001-01-01T00:01:00Z", 0))
+	Set cases = cases _ $ListBuild($ListBuild("unreadable mark: garbage", "garbage", now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("unreadable mark: not a date", "2001-02-30T12:00:00Z", now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("unreadable mark: no Z", "2001-01-01T11:00:00", now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("clock moved back: the tick is later than now", "2001-01-01T12:10:00Z", now, 0))
+	Set cases = cases _ $ListBuild($ListBuild("unreadable now", "2001-01-01T11:00:00Z", "garbage", 0))
+	Set cases = cases _ $ListBuild($ListBuild("empty now", "2001-01-01T11:00:00Z", "", 0))
+	For i = 1:1:$ListLength(cases) {
+		Set case = $List(cases, i)
+		Do $$$AssertEquals(##class(OcuTalon.Schedule.Heartbeat).Stalled($List(case, 2), $List(case, 3)), $List(case, 4), $List(case, 1))
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Schedule.Heartbeat).Stalled(), 0, "no arguments: off")
+	Do $$$AssertEquals(##class(OcuTalon.Schedule.Heartbeat).#STALLSECONDS, 180, "the stall is more than 180 s")
+}
+
+/// Status.Computed with an injected heartbeat reading.
+Method TestStalledCondition()
+{
+	Set keys = {"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}
+	Set budget = {"capped": false}
+	Set now = "2001-01-01T12:00:00Z"
+	Set mark = ##class(OcuTalon.Data.Time).AddSeconds(now, -240)
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark), "now": (now)})
+	Set names = ""
+	For i = 1:1:conditions.Count() {
+		Set names = names _ $Select(names = "": "", 1: ",") _ conditions.GetAt(i).Condition
+	}
+	Do $$$AssertEquals(names, "dailyCap,noModelKey,heartbeatStalled", "the order: dailyCap, noModelKey, heartbeatStalled")
+	Set condition = conditions.GetAt(3)
+	Do $$$AssertEquals(condition.Active, 1, "240 s back: on")
+	Do $$$AssertStatusOK(condition.%JSONExportToString(.json), "it exports")
+	Do $$$AssertEquals(json, "{""condition"":""heartbeatStalled"",""active"":true,""slots"":{""time"":""2001-01-01T11:56:00Z""}}", "with the mark as its time slot")
+	Set active = ##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions)
+	Do $$$AssertEquals(active.%Size(), 1, "ActiveOf holds it when on")
+	Do $$$AssertEquals(active.%Get(0).condition, "heartbeatStalled", "and only it")
+
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -180)), "now": (now)})
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "180 s back: off")
+	Do $$$AssertStatusOK(conditions.GetAt(3).%JSONExportToString(.json), "it exports")
+	Do $$$AssertEquals(json, "{""condition"":""heartbeatStalled"",""active"":false}", "off, with no slots")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions).%Size(), 0, "ActiveOf leaves it out when off")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (##class(OcuTalon.Data.Time).AddSeconds(now, -181)), "now": (now)})
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 1, "181 s back: on")
+
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": "", "now": (now)})
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "an empty lastTick: off")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": (mark)})
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "a reading with no now: off")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, "")
+	Do $$$AssertEquals(conditions.Count(), 3, "a reading of the empty string: still the three conditions")
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "and the empty string is no tick: off")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, [1, 2])
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "an array is not a reading: off")
+	Set conditions = ##class(OcuTalon.Live.Payload.Status).Computed(keys, budget, {"lastTick": 5, "now": (now)})
+	Do $$$AssertEquals(conditions.GetAt(3).Active, 0, "a lastTick that is not a string: off")
 }
 
 /// A repeated hour of a daylight-saving change: 05:59Z and 06:01Z on 2026-11-01 both show 01:xx in America/New_York, and 05:30Z and

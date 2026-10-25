@@ -2,7 +2,8 @@
 title: 'Story 8.2: The heartbeat-stalled warning comes from the real heartbeat'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b4a087af362d2c926d75d18448a939b13e237602'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -78,27 +79,27 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (implement stage, warm throwaway; record the results under Design Notes, labelled measured or (inference)): (a) confirm that `StatusMonitor`'s job runs `OnProcessInput` at its start and then every `CallInterval` (15 s), and choose the signal that `StallFixture.Hold` waits for before it moves the mark, so that the job's silent first run never swallows the change (candidate: the item's job registration time `$$$EnsJobStatus($$$SystemName, job, $$$eJobRegTime)` at least `CallInterval` + 2 s in the past); (b) record the time from `Hold(240)` to `StatusMonitor`'s publish and from `Tick()` to the clear.
-- [ ] `src/ocutalon/cls/OcuTalon/Schedule/Heartbeat.cls` -- add `Parameter STALLSECONDS = 180`, `ClassMethod Reading() As %DynamicObject` (`{"lastTick": StatusMark.Get(TICKMARK), "now": Data.Time.NowUtc()}`) and `ClassMethod Stalled(lastTick As %String, now As %String) As %Boolean` (pure; the matrix); the class doc states the stalled rule -- the heartbeat's own rules stay in its class.
-- [ ] `src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls` -- `Computed(keys, budget, heartbeat)`: after `NoModelKey`, insert `..HeartbeatStalled(<heartbeat when given, else Heartbeat.Reading()>)` (the argument's `$Data` decides); add the private `HeartbeatStalled(heartbeat)` beside `DailyCap`; update the class, `Computed` and `Active` doc comments (contract only) -- one computation for `/state` and `StatusMonitor`, with no edit to either shared file.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/StallFixture.cls` (new; no Test methods; the product never refers to it) -- class methods that work across processes (the browser spec calls each one in its own `iris session`), with their state under `^OcuTalonTest("StallFixture")`:
+- [x] Task 0 (implement stage, warm throwaway; record the results under Design Notes, labelled measured or (inference)): (a) confirm that `StatusMonitor`'s job runs `OnProcessInput` at its start and then every `CallInterval` (15 s), and choose the signal that `StallFixture.Hold` waits for before it moves the mark, so that the job's silent first run never swallows the change (candidate: the item's job registration time `$$$EnsJobStatus($$$SystemName, job, $$$eJobRegTime)` at least `CallInterval` + 2 s in the past); (b) record the time from `Hold(240)` to `StatusMonitor`'s publish and from `Tick()` to the clear.
+- [x] `src/ocutalon/cls/OcuTalon/Schedule/Heartbeat.cls` -- add `Parameter STALLSECONDS = 180`, `ClassMethod Reading() As %DynamicObject` (`{"lastTick": StatusMark.Get(TICKMARK), "now": Data.Time.NowUtc()}`) and `ClassMethod Stalled(lastTick As %String, now As %String) As %Boolean` (pure; the matrix); the class doc states the stalled rule -- the heartbeat's own rules stay in its class.
+- [x] `src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls` -- `Computed(keys, budget, heartbeat)`: after `NoModelKey`, insert `..HeartbeatStalled(<heartbeat when given, else Heartbeat.Reading()>)` (the argument's `$Data` decides); add the private `HeartbeatStalled(heartbeat)` beside `DailyCap`; update the class, `Computed` and `Active` doc comments (contract only) -- one computation for `/state` and `StatusMonitor`, with no edit to either shared file.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Schedule/StallFixture.cls` (new; no Test methods; the product never refers to it) -- class methods that work across processes (the browser spec calls each one in its own `iris session`), with their state under `^OcuTalonTest("StallFixture")`:
   - `Hold(secondsBack)` suspends the real task (remembering its `Suspended` value the first time), waits (up to 16 s) until the clock second is between 5 and 45, takes and releases `Heartbeat.#LOCK` (10 s) to wait out a run in flight, waits for Task 0 (a)'s signal, then sets the tick mark to now - `secondsBack` (or removes it when `secondsBack` is "") and returns the mark;
   - `InstanceSeq()` is `Live.Publish.LastSeq` of the instance stream;
   - `WaitEvent(after, active, seconds = 30)` returns the Seq of the first `status` event on the instance stream after `after` whose payload is `heartbeatStalled` with that `active`, or 0 (polling every 0.5 s);
   - `Tick()` runs `HeartbeatTask.OnTask()`;
   - `Release()` resumes the task with the remembered value, kills its node and runs `Tick()`.
   One fixture serves the unit test and the browser spec.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/Stalled.cls` (new; needs the running production; throwaways and CI only, like 8.1's `Heartbeat`) -- `OnBeforeAllTests` requires `RunnerFixture.RunningReason()` = ""; `OnAfterOneTest` and `OnAfterAllTests` call `StallFixture.Release()` and delete the `zzstall*` fixture sessions with their events and counters. Methods: `TestStateAndMonitor` (AC 1, the onset and the clear; the only method that stalls, and it waits for its own clear), `TestNoTickIsOff` (AC 1), `TestReading` (after `Hold(100)`, `Reading()` holds the mark and a time within 2 s of now), `TestReleaseLeavesFresh` (after `Hold(100)` and `Release()`, the mark is at most 5 s old, the task's `Suspended` is the value found and the fixture's node is gone).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/HeartbeatLogic.cls` -- add `TestStalled` (every matrix row through `Heartbeat.Stalled`) and `TestStalledCondition` (`Status.Computed` with an injected reading: the order `dailyCap,noModelKey,heartbeatStalled`; the exact exported JSON on and off; a reading of "" or a non-object is off; `ActiveOf` holds it only when on) -- pure, no production.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` -- `Restore()`: after `ResumeTask()`, when `OcuTalon.Production` runs, run one real tick (`HeartbeatTask.OnTask()`) and append its status, so the class ends with a fresh mark; the gap that tick records is the honest one that 8.1 accepted (VG-O7) -- the fresh-mark rule for the classes that read the real heartbeat after it.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Live/Status.cls` -- `TestComputedOrder` passes "" as the heartbeat reading and expects `dailyCap,noModelKey,heartbeatStalled` with actives `110` and `000`; the two fixed-reading `Computed` calls of `TestActive` pass "" (still 2 active and 0 active); its comparison of `Active` with `ActiveOf(Computed(keys, budget))` stays two-argument (both read the real heartbeat) -- shared surface (Rule 19).
-- [ ] `web/e2e/heartbeat/heartbeat.spec.ts` (new; project `chromium`, run by `live:sign-in` after `api/`) -- one test, with `test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' })` and a 90 s timeout, as the banners fixture user:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Schedule/Stalled.cls` (new; needs the running production; throwaways and CI only, like 8.1's `Heartbeat`) -- `OnBeforeAllTests` requires `RunnerFixture.RunningReason()` = ""; `OnAfterOneTest` and `OnAfterAllTests` call `StallFixture.Release()` and delete the `zzstall*` fixture sessions with their events and counters. Methods: `TestStateAndMonitor` (AC 1, the onset and the clear; the only method that stalls, and it waits for its own clear), `TestNoTickIsOff` (AC 1), `TestReading` (after `Hold(100)`, `Reading()` holds the mark and a time within 2 s of now), `TestReleaseLeavesFresh` (after `Hold(100)` and `Release()`, the mark is at most 5 s old, the task's `Suspended` is the value found and the fixture's node is gone).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Schedule/HeartbeatLogic.cls` -- add `TestStalled` (every matrix row through `Heartbeat.Stalled`) and `TestStalledCondition` (`Status.Computed` with an injected reading: the order `dailyCap,noModelKey,heartbeatStalled`; the exact exported JSON on and off; a reading of "" or a non-object is off; `ActiveOf` holds it only when on) -- pure, no production.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` -- `Restore()`: after `ResumeTask()`, when `OcuTalon.Production` runs, run one real tick (`HeartbeatTask.OnTask()`) and append its status, so the class ends with a fresh mark; the gap that tick records is the honest one that 8.1 accepted (VG-O7) -- the fresh-mark rule for the classes that read the real heartbeat after it.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Live/Status.cls` -- `TestComputedOrder` passes "" as the heartbeat reading and expects `dailyCap,noModelKey,heartbeatStalled` with actives `110` and `000`; the two fixed-reading `Computed` calls of `TestActive` pass "" (still 2 active and 0 active); its comparison of `Active` with `ActiveOf(Computed(keys, budget))` stays two-argument (both read the real heartbeat) -- shared surface (Rule 19).
+- [x] `web/e2e/heartbeat/heartbeat.spec.ts` (new; project `chromium`, run by `live:sign-in` after `api/`) -- one test, with `test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' })` and a 90 s timeout, as the banners fixture user:
   - seed a production check (`seedCheck`, a unique name, last run 60 s ago, passed), `recordAnnouncements`, sign in, and wait for the loaded page with no `heartbeatStalled` banner and the row's meta "Last run {time} · Passed";
   - `since` = `InstanceSeq()`, `mark` = `Hold(240)`, `seqOn` = `WaitEvent(since, 1, 30)` (not 0); once `data-instance-seq` >= `seqOn`, within 1 s: the banner reads exactly "Background checks have paused: the heartbeat last ran at {mark as the page shows it}. Watches and reminders may be late until it recovers." (the time formatted as `pageTime` formats it), the row reads "Last run {time} (late) · Passed", and the announcer read the banner text once; a `GET /ocutalon/api/v1/state` through the page's own session (`page.request`) answers a `status` array holding `{"condition":"heartbeatStalled","active":true,"slots":{"time":"<mark>"}}`;
   - `Tick()`, then the same `GET` answers no `heartbeatStalled` member; `seqOff` = `WaitEvent(seqOn, 0, 30)` (not 0); once applied, within 1 s the banner is gone and the row reads "Last run {time} · Passed"; the banner text was announced exactly once in the whole test;
   - `finally`: `Release()` and `cleanFixtureRows`.
   This is the real-runtime test (Rule 3); the middle dot is written as an escape (Rule 14).
-- [ ] `web/e2e/demo-path/02-watch.spec.ts` -- append one self-contained block at the end, with its own imports under local aliases (`heartbeatTest`, `heartbeatExpect`, `heartbeatSnapshot`, `heartbeatSignIn`), so they never clash with names that lines Epic 4 adds import: a `describe` titled for Story 8.2 with one test whose title differs from the `notBuilt` line's. `heartbeatSnapshot` answers `/state` with the real answer, keeps the real `status` array, and puts one fixture check in `rail.checks` (`ref` `zz-fixture-orders`, `kind` `production`, `displayName` `Orders`, `lastRunAt` 30 s ago, `result` `passed`); `heartbeatSignIn`; then assert that the real `status` holds no `heartbeatStalled`, that the "Orders production" row's meta matches `Last run <time> · Passed` with no "(late)", and that no `heartbeatStalled` banner shows -- AC 3, fixture-backed.
+- [x] `web/e2e/demo-path/02-watch.spec.ts` -- append one self-contained block at the end, with its own imports under local aliases (`heartbeatTest`, `heartbeatExpect`, `heartbeatSnapshot`, `heartbeatSignIn`), so they never clash with names that lines Epic 4 adds import: a `describe` titled for Story 8.2 with one test whose title differs from the `notBuilt` line's. `heartbeatSnapshot` answers `/state` with the real answer, keeps the real `status` array, and puts one fixture check in `rail.checks` (`ref` `zz-fixture-orders`, `kind` `production`, `displayName` `Orders`, `lastRunAt` 30 s ago, `result` `passed`); `heartbeatSignIn`; then assert that the real `status` holds no `heartbeatStalled`, that the "Orders production" row's meta matches `Last run <time> · Passed` with no "(late)", and that no `heartbeatStalled` banner shows -- AC 3, fixture-backed.
 
 **Acceptance Criteria:**
 1. Given the production running, the real task held by `StallFixture` and a fixture session, when the tick mark is set 240 s back, then `Web.Api.StateBody(session).status` holds exactly one `heartbeatStalled` member, `{"condition":"heartbeatStalled","active":true,"slots":{"time":"<mark>"}}`, and `StatusMonitor`'s real job publishes that payload as a `status` event on the instance stream within 30 s. When `StallFixture.Tick()` then writes a real tick, `StateBody` holds no `heartbeatStalled` at once, `StatusMonitor` publishes `{"condition":"heartbeatStalled","active":false}` within 30 s, and no `heartbeatStalled` event lies between that onset and that clear. With no tick mark, `StateBody` holds no `heartbeatStalled`. (FR-32, AD-12, AD-18, AD-33)
@@ -108,6 +109,34 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-25 - Review pass
+- verdicts: 24 findings - high 0, medium 0, low 16, false 8, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: `StallFixture.Hold` clock wait (16 s) is shorter than its worst case (19 s) and ends silently - `WAITCLOCK` raised to 21 and its doc names the worst case.
+  - `[low]` `[patch]` blind: `Release` kills the remembered `Suspended` value even when the task save failed - the node is killed only when the save was OK.
+  - `[low]` `[reject]` blind: `Restore()` records a gap mark after the gaps were put back - the spec accepts it (VG-O7, Task line for `Restore()`); the class doc now says the closing tick may record a gap mark.
+  - `[false]` `[reject]` blind: `Computed`/`Active` read ambient heartbeat state - the spec's decided shape (shared files stay untouched); `TestStateAndMonitor` covers `Active` through `StateBody`, and the fresh-mark rule keeps other classes stable (45-class `lane-b` shard green in both orders).
+  - `[false]` `[reject]` blind: the appended 02-watch block, its aliases and mid-file imports - spec-directed (Epic 4's lines, append only); `npm --prefix web run lint` is green.
+  - `[low]` `[reject]` blind: `CALLINTERVAL` hard-coded to the production's 15 s - AD-18 fixes it; reading it from the production adds a lookup for a value that cannot change without an AD amendment.
+  - `[low]` `[patch]` blind: one-sided "240 s back" assertion in `TestStateAndMonitor` - now `$ZAbs(...) < 5`.
+  - `[false]` `[reject]` blind: no test for a stale mark at monitor start - the first-run-remembers rule is Epic 2's and its test is `Test.Core.StatusMonitor`; the matrix row is covered as audited under Design Notes.
+  - `[low]` `[patch]` edge: same as the Hold clock wait above - one fix.
+  - `[low]` `[reject]` edge: same as `Restore()` gap mark above - one decision.
+  - `[false]` `[reject]` edge: `Reading()` throwing aborts `Computed` - `StatusMark.Get` is the project's one reader of marks and its siblings `DailyCap` and `NoModelKey` take readings with no such guard; no failing path was shown.
+  - `[false]` `[reject]` edge: a stale mark during a planned stop shows the banner - that is the stalled heartbeat the story reports (matrix row "Restart after a long stop").
+  - `[low]` `[reject]` edge: `WaitEvent` reads at most 200 events - the instance stream holds a handful of events on a throwaway.
+  - `[false]` `[reject]` edge: imports appended mid-file fail a lint rule - `npm --prefix web run lint` is green, there is no such rule.
+  - `[low]` `[reject]` edge: `OnAfterOneTest` of 8.1's class writes no tick - the spec asks for the tick at the end of the class (`Restore()`); the other readers run after the class.
+  - `[low]` `[patch]` edge: the class doc says the gap marks are put back, but the closing tick can add one - doc comment amended.
+  - `[low]` `[reject]` verification-gap: `Restore()`'s fresh tick has no test or mutation line - it is not an acceptance criterion's pin; a test would have to call `Restore()` mid-class, which kills the class's own fixtures; its effect is exercised by the shard in both orders (`Heartbeat` then `StatusMonitor`, `Api`, `Stalled`).
+  - `[low]` `[reject]` verification-gap: `Test.Core.StatusMonitor` reads the ambient heartbeat - the spec's decided cost (no edit to the shared file); a mark moves only with a tick, and the production ticks every minute, so a fresh mark stays fresh.
+  - `[low]` `[reject]` verification-gap: `heartbeat.spec.ts` leaves two instance events that `api.spec.ts` only tolerates by run order - decided under Design Notes (one worker, path order, the stack is fresh per run); deleting events would break the stream's counters.
+  - `[low]` `[patch]` verification-gap: the spec's `finally` swallows a failed `Release` - the test now throws when `Release` does not answer `1`.
+  - `[low]` `[reject]` verification-gap: AC 3 guards only over-reporting and the AC 2 and AC 3 mutation runs are unobserved - the mutations were run in this pass: AC 3 red in `live demo-path`, AC 2 red in `live sign-in` (lines recorded under Verification).
+  - `[false]` `[reject]` verification-gap: `Hold`'s return equals `StatusMark.Get` is a near tautology - it is the contract that `Hold` returns the mark; the next assertion does the work.
+  - `[low]` `[reject]` verification-gap (other): the `Restore()` gap mark - same decision as above.
+  - `[false]` `[reject]` intent-alignment: descriptive report; no divergence to fix. It notes the stall is synthetic (the intent's own test method) and that the unit layer runs on throwaways only (Rule 21).
 
 ## Design Notes
 
@@ -130,8 +159,14 @@ deferred: []
 - AC 3's block: the existing `notBuilt('the "Orders production" check row shows a real last run', '8.2')` line is kept unchanged (lead ruling: Epic 4's lines while it runs), so it keeps skipping with "Story 8.2 turns this on". The appended test has its own title (Playwright refuses two tests with one title in a file) and its imports use local aliases. Its real part is the server's `/state` status (no `heartbeatStalled`), which the interception passes through untouched.
 - `StallFixture.Hold` waits for a clock second between 5 and 45 before it moves the mark, so a Task Manager run dispatched at the minute boundary has finished and can't overwrite the test's mark.
 - 8.1's `Restore()` now ends with a real tick, instead of leaving the found mark, which may be minutes old after the class's run.
+- Decided in-stage (implement): `StallFixture.WAITCLOCK` is 21 s, not the 16 s that the task line names, because the longest wait from clock second 46 to second 5 of the next minute is 19 s. `Release` kills its node only when the task was put back, so a failed save never loses the found `Suspended` value. `heartbeat.spec.ts` fails the test when `Release` does not answer `1`. The appended 02-watch test skips with "Story 8.2 needs the first-start stack (OCUTALON_URL)..." when `OCUTALON_URL` is unset, because `web/scripts/demo-path-summary.test.mjs` (`npm --prefix web test`) runs the demo-path project without a stack and expects every step to read skipped; with a stack the test runs. That test file is unchanged.
+- Matrix coverage (audit): never ticked, `TestNoTickIsOff` and `TestStalled`; fresh, boundary 180 s, 181 s, 240 s, unreadable, clock moved back and no usable reading, `TestStalled` and `TestStalledCondition`; real tick after a stall, `TestStateAndMonitor` and `heartbeat.spec.ts`; restart after a long stop, the first-run rule is Epic 2's `Test.Core.StatusMonitor`, and the catch-up tick's clear is `TestStateAndMonitor`.
 
 **For the lead (not this story's work):** the real switch of AC 3 has no owning story yet. On the integration branch, once Epics 5 and 8 have merged, someone replaces the `notBuilt(..., '8.2')` line with the real assertion (the guide's watch prompt makes the "Orders production" check, and `Checks` records its last run on real ticks) and drops the fixture block. It needs a ledger entry routed to the owner of that integration.
+
+**Task 0 measurements (implement stage, warm throwaway e8s2iw):**
+- (a) `StatusMonitor`'s job is found in the platform's job status by `$$$EnsJobStatus($$$SystemName, job, $$$eJobStartConfigName)` = `StatusMonitor`, and its registration time is `$$$eJobRegTime` (UTC, to the millisecond). Measured: one such job, registered when the production started, about 4 minutes before the first call. The signal `StallFixture.Hold` waits for is the newest `StatusMonitor` job registered at least `CALLINTERVAL` + 2 = 17 s ago (`MonitorAge`); a restart of the job registers a new job and so resets the wait. That `OnProcessInput` runs at the job's start and then every 15 s is (inference), from `Ens.InboundAdapter.OnTask` (it calls `ProcessInput` and then sets `%WaitForNextCallInterval`) and the production's `CallInterval` 15; not observed at a job start, because that needs a job restart. The cadence is measured below.
+- (b) Measured on one run: `Hold(240)` returned at once (the job was older than 17 s, the clock second inside the window, the lock free); `StatusMonitor` published the onset 4.6 s after `Hold` returned; after `Tick()` its clear was published 15.1 s later (it had just run before the tick, so this is the worst case of a 15 s interval plus the run). Both are inside the 30 s the tests wait. `Test.Schedule.Stalled` takes 17 to 27 s as a class on the warm stack.
 
 **Lead's spec gate (2026-10-25, runner C):**
 - Confirmed (ruling, decide): "within one live update" after a real tick counts from `StatusMonitor`'s publish of the clear, as decided in-stage above (NFR-9 measures from "being sent"; AD-33 keeps one `status` publisher; AD-18 fixes the 15 s interval).
@@ -162,11 +197,14 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries `L="OCUTALON_LOCK_DIR=<the lane
 - `(once, last, also after a failure)` `$L OCUTALON_RUN_TAG=e8s2iw ci/warm.sh down`, then `$L OCUTALON_RUN_TAG=e8s2i ci/iris.sh teardown`.
 
 **Mutations (Rule 19; record each one here as `mutation: <change> -> <test that went red>`):**
-- AC 1: `Heartbeat.STALLSECONDS` set to 300 -> `TestStateAndMonitor` red (no `heartbeatStalled` in `StateBody`, no event). Also: `Stalled` reads an empty `lastTick` as stalled -> `TestNoTickIsOff` red; `HeartbeatStalled` sets the slot to `now` -> the slot assertion red; `Computed` treats an omitted reading as "" -> `TestStateAndMonitor` red.
-- Matrix: `>` changed to `>=` -> `HeartbeatLogic.TestStalled` red on the 180 s row.
-- AC 2: `Heartbeat.Stalled` always returns 0 -> `heartbeat.spec.ts` red in `live sign-in` (one red run, then green after the revert).
-- AC 3: `Heartbeat.Stalled` always returns 1 -> the appended 02-watch test red in `live demo-path`.
-- Fresh-mark rule: `StallFixture.Release` without its `Tick()` -> `TestReleaseLeavesFresh` red.
+- mutation: `Heartbeat.STALLSECONDS` set to 300 -> `Test.Schedule.Stalled.TestStateAndMonitor` red (no `heartbeatStalled` in `StateBody`) (AC 1; observed on the warm throwaway, reverted byte-identical).
+- mutation: `Heartbeat.Stalled` reads an empty `lastTick` as stalled -> `Test.Schedule.Stalled.TestNoTickIsOff` red (AC 1; observed, reverted).
+- mutation: `HeartbeatStalled` sets the time slot to `now` -> `TestStateAndMonitor` red on the slot and the onset payload (AC 1; observed, reverted).
+- mutation: `Computed` treats an omitted reading as "" -> `TestStateAndMonitor` red (AC 1; observed, reverted).
+- mutation: `>` changed to `>=` in `Heartbeat.Stalled` -> `Test.Schedule.HeartbeatLogic.TestStalled` red on the 180 s rows, and `TestStalledCondition` red on the 180 s case (matrix; observed, reverted).
+- mutation: `StallFixture.Release` without its `Tick()` -> `Test.Schedule.Stalled.TestReleaseLeavesFresh` red (fresh-mark rule; observed, reverted).
+- mutation: `Heartbeat.Stalled` always returns 0 (a `Quit 0` as its first line, ahead of the empty-tick guard) -> `heartbeat.spec.ts` red in `live sign-in` (AC 2; observed in `live sign-in`: only `heartbeat.spec.ts` H1 red, 192 others passed; reverted byte-identical, then green in 439 s).
+- mutation: `Heartbeat.Stalled` always returns 1 (a `Quit 1` as its first line, ahead of the empty-tick guard: the demo-path stack has no tick mark yet, so a `Quit 1` after the guard survives) -> the appended 02-watch test red in `live demo-path` (AC 3; observed: `not.toContain` on the real `status` failed; reverted byte-identical, then green).
 
 **Shared surfaces:** `Status.Computed`'s list (now three conditions; `Test.Live.Status`, updated); `/state`'s `status` array and the instance stream's `status` events (`Test.Web.Api.TestStateBody`, unchanged and green; `Test.Core.StatusMonitor`, whose probe now reads the real heartbeat; `web/e2e/api/api.spec.ts`, which pins the instance stream at one event and runs before `heartbeat/`; `docker/tests/test-sign-in.sh`'s seeded instance event, written before any spec; the banners specs, which expect only the no-key banner from the snapshot, while the sign-in stack's heartbeat stays fresh); the `heartbeatTick` mark (8.1's `Restore()` and `StallFixture.Release()` leave it fresh); the demo-path step 2 summary (from skipped to partly skipped); `live:sign-in`'s run time; `^OcuTalonTest("StallFixture")`.
 
@@ -174,7 +212,27 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Baseline: `0818594182c4501edcc71eedc75db5b2a6f668ee` (branch `OCT-epic8`). No IRIS instance was touched and nothing was implemented.
+**Summary.** `Status.Computed` now computes `heartbeatStalled` (after `noModelKey`) from the tick mark and the clock through new `Heartbeat.Reading()`, `Heartbeat.Stalled()` and `Heartbeat.STALLSECONDS` (180), so `/state` and `StatusMonitor` report the real condition with no edit to either shared file.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Schedule/Heartbeat.cls`: `STALLSECONDS`, `Reading`, `Stalled`, stalled rule in the class doc.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Status.cls`: `Computed(keys, budget, heartbeat)`, private `HeartbeatStalled`, docs.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/StallFixture.cls` (new): cross-process hold, wait, tick and release of the real heartbeat.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Stalled.cls` (new): AC 1 on the real task, mark and `StatusMonitor` job.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/HeartbeatLogic.cls`: `TestStalled`, `TestStalledCondition`.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls`: `Restore()` ends with one real tick.
+- `src/ocutalon/cls/OcuTalon/Test/Live/Status.cls`: fixed-reading calls pass "" and expect three conditions.
+- `web/e2e/heartbeat/heartbeat.spec.ts` (new): AC 2 in a real browser.
+- `web/e2e/demo-path/02-watch.spec.ts`: one appended block (AC 3, fixture row).
+
+**Review.** 24 findings: patches applied 6 rows in 5 fixes (all low: clock-wait ceiling, which two layers reported, `Release` kills its node only on success, two-sided mark assertion, `finally` fails on a bad release, class doc), deferred 0, rejected 18 with their reasons in the triage log. Patched entries by verdict: low 6, medium 0, high 0.
+
+**Follow-up review recommended:** false.
+
+**Verification performed** (warm `e8s2iw`, lane C): `HeartbeatLogic`, `Stalled` (17-28 s), `Test.Live.Status`, `Test.Core.StatusMonitor`, `Test.Web.Api`, `Test.Schedule.Heartbeat` (140-188 s) passed (after the last patch `Stalled`, `HeartbeatLogic` and `Heartbeat` were re-run, and the lane shards ran every class again); `npm --prefix web run lint` exit 0. Fresh `e8s2i`: build; `shard lane-b` (45 classes, 316 s), `lane-b --reverse` (299 s) and `lane-a` (41 classes, 357 s) all passed; `live sign-in` passed in 439 s with `heartbeat.spec.ts` (the first run failed only on this pass's own `Release` check, which compared "1 " with "1"; fixed with a trim, then green); `live demo-path` passed with `STEP 2 watch: partly skipped, 1 passed, 3 skipped`; `npm --prefix web test` 565 passed (it failed once on the new demo-path test running with no stack, fixed by the skip noted under Design Notes); `bash ci/checks.sh` passed. Mutations: all eight lines under Verification observed red and reverted byte-identical. LOCK lines: `LOCK acquired warm-iris project=ocutalon-warm-e8s2iw-1792933096-64102`, then the fresh `throwaway-iris` locks of the shards and live units, each released. Teardown of `e8s2iw` and `e8s2i` done.
+
+**Residual risks.** The stall is synthetic (task suspended, mark moved back), as the spec's method; `Test.Core.StatusMonitor` and `Test.Web.Api` read the real heartbeat and rely on the fresh-mark rule; `Restore()`'s closing tick may record a gap mark (accepted, VG-O7); `Hold` and `Release` suspend and resume the real task, for throwaways and CI only.
+

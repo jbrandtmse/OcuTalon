@@ -1,8 +1,12 @@
 /// The heartbeat's rules and records (AD-18; FR-32): which Tick a run makes, and the two kinds of status mark that a run leaves.
-/// HeartbeatIn calls these; Story 8.2 reads the tick mark for the stalled warning and Story 17.5's digest reads the gaps.
+/// HeartbeatIn calls these; Status.Computed reads the tick mark through Reading and Stalled for the heartbeatStalled condition and
+/// Story 17.5's digest reads the gaps.
 ///   - The tick mark, heartbeatTick: the UTC time of the last tick that was taken.
 ///   - A gap mark, heartbeatGap.<start UTC>: one per gap of whole clock minutes between two ticks, {"start","end","missed"}. The
 ///     mark is named by the start, so a run that records the same gap again replaces it. Marks are kept like every other mark.
+///   - The stalled rule, Stalled: the heartbeat is stalled when the last tick is more than STALLSECONDS (3 minutes) older than now, by
+///     the whole seconds of Data.Time.Seconds. No readable tick (the install never ticked, or the mark is unreadable), a readable
+///     tick that is later than now (the clock moved back), and an unreadable now are not a stall.
 /// Minutes count by the clock minute (the seconds of Data.Time.Seconds, divided by 60), so a run that is a few seconds late is
 /// not a gap.
 Class OcuTalon.Schedule.Heartbeat
@@ -19,6 +23,10 @@ Parameter TARGET = "Checks";
 
 /// The lock that HeartbeatIn works under. It names no data; it only serializes the runs.
 Parameter LOCK = "^OcuTalonP.HeartbeatLock";
+
+/// The seconds after the last tick from which the heartbeat counts as stalled: a tick older than this is a stall (AD-18: more than
+/// 3 minutes).
+Parameter STALLSECONDS = 180;
 
 /// The Tick for a run at now when the previous tick was taken at previous (the tick mark, "" when there is none), and the number
 /// of clock minutes that passed with no tick in missed. It saves and sends nothing.
@@ -40,6 +48,23 @@ ClassMethod Next(previous As %String, now As %String, Output missed As %Integer)
 	If missed < 0 Set missed = 0
 	Set tick.CatchUp = $Select(missed > 0: 1, 1: 0)
 	Quit tick
+}
+
+/// The heartbeat reading that the heartbeatStalled condition is computed from: {"lastTick": <the tick mark, "" when there is none>,
+/// "now": <the current time, UTC>}. It reads the mark only through StatusMark.Get and the time only through Data.Time.
+ClassMethod Reading() As %DynamicObject
+{
+	Quit {"lastTick": (##class(OcuTalon.Data.StatusMark).Get(..#TICKMARK)), "now": (##class(OcuTalon.Data.Time).NowUtc())}
+}
+
+/// 1 when the last tick taken at lastTick is more than STALLSECONDS older than now (both UTC times to the second). Pure: it reads
+/// no mark and no clock. 0 for an empty or unreadable lastTick or now, and for a lastTick that is later than now.
+ClassMethod Stalled(lastTick As %String, now As %String) As %Boolean
+{
+	Set tick = ##class(OcuTalon.Data.Time).Seconds($Get(lastTick))
+	Set current = ##class(OcuTalon.Data.Time).Seconds($Get(now))
+	If (tick = "") || (current = "") Quit 0
+	Quit (current - tick) > ..#STALLSECONDS
 }
 
 /// Records the run: the gap mark first, when missed is more than 0 and the tick has a previous time, and then the tick mark, the
