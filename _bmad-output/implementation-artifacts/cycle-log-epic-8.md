@@ -73,3 +73,4 @@
 2026-10-25T15:43:08Z	Story 8.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI-web-unit-tests(demo-path-summary) scope_baseline=pending
 2026-10-25T15:43:08Z	Story 8.2	stage_spawned	stage=implement spawn_at=2026-10-25T15:43:08Z model=sonnet agent_name=8-2-heartbeat-stalled-implement-2 cycle_iteration=2
 2026-10-25T15:49:46Z	Story 8.2	dev_complete	spawn_at=2026-10-25T15:43:08Z model=sonnet agent_name=8-2-heartbeat-stalled-implement-2 build_sha=c3472d8 baseline_revision=018f9b9 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=1(+spec) loc_added=2 loc_removed=1 self_review=5_findings(0_high,0_med;1_low_patched:mutation_line) verification=repro_red_then_green;lint;npm_test_565;live_demo-path_pass(e8s2r_torn_down) cycle_iteration=2
+2026-10-25T15:49:47Z	Story 8.2	stage_spawned	stage=code-review spawn_at=2026-10-25T15:49:47Z model=opus agent_name=8-2-heartbeat-stalled-cr-2 cycle_iteration=2
