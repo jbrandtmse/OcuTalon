@@ -74,6 +74,8 @@ flowchart TD
   Agents --> Data
   Agents --> WatchReader["OcuTalon.Watch.Reader"]
   Data --> Guide
+  Guide --> TgIncluded
+  Guide --> DemoKey["OcuTalon.Install.Step.Demo (its demo-mode key constant; Guide.DemoOn)"]
   Web --> Commands["OcuTalon.Core.Commands.Submit"]
   Channel --> Commands
   Demo --> Commands
