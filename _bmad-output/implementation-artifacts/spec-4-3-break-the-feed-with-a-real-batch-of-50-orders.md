@@ -2,7 +2,7 @@
 title: 'Story 4.3: Break the feed with a real batch of 50 orders'
 type: 'feature'
 created: '2026-10-25'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -45,7 +45,7 @@ deferred: []
   - It calls `Partner.Send(COUNT 50, "MM/DD/YYYY", traceRef, "")`.
   - Orders bodies carry no `SessionRef` (AD-3, AD-4).
 - **The audit (AD-17).**
-  - Each run that reaches `PartnerTrigger` writes one `Action` entry through `Bridge.Audit.Write`, in `PartnerTrigger`'s job, before the send.
+  - Each run that reaches `PartnerTrigger` writes one `Action` entry through `Bridge.Audit.Record("Action", data)` with exactly that type's shape (`action, target, result, counts, approvalRef, irisUser, sessionRef, channel`; every member set, JSON types as `Bridge.Audit` requires), in `PartnerTrigger`'s job, before the send (lead ruling L3: since the integrate-forward at 3d76632, Story 3.7's `Test.Bridge.CodeRules` `TestOnlyTheAuditWriterAudits` forbids `Write` outside `Bridge.Audit`).
   - Its data is `{user, sessionRef, channel, action, orders, dateFormat}`, passed through `Bridge.Redact.Text`. `user` is the session row's `IrisUser`.
   - If the write fails, nothing is sent.
 - **Writers (AD-33).**
@@ -123,7 +123,7 @@ Conventions for the rows:
 - `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- the patterns for the audit:
   - `:80-86` `AuditData`: the data through `Bridge.Redact.Text`, with the key `user`, never `username`;
   - `:89` the `WriteAudit` seam.
-- `src/bridge/cls/OcuTalon/Bridge/Audit.cls:31` (contended, call only) -- `Write(type, data, description)`.
+- `src/bridge/cls/OcuTalon/Bridge/Audit.cls` (contended, call only) -- `Record(type, data)` (Story 3.7; never `Write`, see L3).
 - `src/ocutalon/cls/OcuTalon/Channel/WebChat/In.cls` -- the adapterless-service pattern. It sets `..%SuperSession` inside `OnProcessInput`.
 - `src/ocutalon/cls/OcuTalon/Web/Api.cls`:
   - `:1-24` the header;
@@ -225,10 +225,9 @@ Conventions for the rows:
   - it counts the batch with the now-public `Test.Demo.Production.Count`, polling up to 60 s;
   - every assertion is relative to the cursor;
   - the two `11.1` parts stay as they are.
-- [ ] `web/e2e/support/iris.ts` -- its header and `required()`'s message also name `docker/tests/test-demo-path.sh`.
-- [ ] **Contended, only once ruled (see `## Clarification Needed` in the Auto Run Result):**
-  - `docker/tests/test-demo-switch.sh:16,311-316`: step 5 expects 404 `not_found`;
-  - `docker/tests/test-demo-path.sh`: add `OCUTALON_E2E_IRIS_CONTAINER="$cid" \` to the e2e call at `:44-48`, and change header lines 12-13 to say that a step spec may seed fixtures for Lane A paths that are not merged yet.
+- [ ] `web/e2e/support/iris.ts` -- when `OCUTALON_E2E_IRIS_CONTAINER` is unset, find the IRIS container by the web port of `OCUTALON_URL` (`docker ps --filter publish=<port> --format {{.ID}}`; exactly one container, else fail naming the variable and the port), so the demo-path run reaches IRIS without any change to `docker/tests/test-demo-path.sh` (lead ruling L2); its header says so and names both ways.
+- [ ] `docker/tests/test-demo-switch.sh:16,311-316` (Epic 4's own script, Story 4.1; not contended: lead ruling L1): step 5 expects 404 `not_found`.
+- [ ] `docker/tests/test-demo-path.sh` is NOT edited (contended: Epics 10 and 13; lead ruling L2). The demo-path step spec reaches IRIS through `iris.ts`'s port lookup.
 
 **Acceptance Criteria:**
 - Given demo mode on and S signed in, when the page calls `POST /api/v1/demo/break-feed`, then:
@@ -246,6 +245,8 @@ Conventions for the rows:
 - Given the fresh demo-path stack, when 04's new test runs over real HTTP, then row 15 holds. Integration: the consumers `/events` (`breakfeed.progress` and the hook's `guide.state`) and the Orders production (50 failed headers) observe the press. NFR-7 is not asserted.
 
 ## Spec Change Log
+
+- 2026-10-25, spec gate (runner): rulings L1-L3, V1 kept, DW-98 routed to burndown; status set to ready-for-dev (the plan's blocking question is answered by L1 and L2).
 
 ## Review Triage Log
 
@@ -270,6 +271,14 @@ Conventions for the rows:
 - **The job afterwards.** `%Ensemble("ConfigName")` stays `PartnerTrigger`, and later requests on the same job work. OCUTALON logged no warning or error. The job runs as `_Ensemble`.
 - **Leftovers.** The job stays registered in OCUORDERS as a visiting temp job of `PartnerOrdersIn`, as any outside caller of an adapterless service does. Stopping and restarting the Orders production clears it, the `PartnerTrigger` job survives, and the next batch fails as expected.
 - **Unmeasured (inference).** `SendRequestSync` from the REST process; implement's Task 0 settles it.
+
+**Lead rulings at the spec gate (runner, 2026-10-25; policy 9e90866; after the mid-epic integrate-forward at 3d76632, which brought Epic 3):**
+- **L1 (decide):** `docker/tests/test-demo-switch.sh` is Epic 4's own new script (Story 4.1), so changing step 5 to 404 is no collision.
+- **L2 (decide):** `docker/tests/test-demo-path.sh` stays untouched (an existing script in Epics 10 and 13's footprints). `web/e2e/support/iris.ts` (Lane B, not contended) finds the IRIS container by `OCUTALON_URL`'s published port when `OCUTALON_E2E_IRIS_CONTAINER` is unset; only the `iris` service publishes the web port (`ci/compose.ci.yml`), and each runner and lane uses its own port. The script's header line "no fixture user, no seeded event" describes what the script itself creates; the step spec's fixture watch is the AC's "fixtures for Lane A's incident path".
+- **L3 (decide):** audit entries go only through `Bridge.Audit.Record(type, data)` with the type's fixed shape (Story 3.7, merged); Story 4.1 needed a rework for exactly this.
+- **V1 (veto, kept):** the new message class `OcuTalon.Demo.Msg.SendOrders`. Inbox item recorded by the runner.
+- **DW-98:** declined here as the plan says; the spec gate routes it `owner=burndown` with the residual restated: the `decision.recorded` half is met by Story 2.17's production tests (this story re-runs their mutation as evidence), and the `turn.step` half is now testable from Epic 4's side, because Story 3.2's gate merged at 3d76632 (a `Test/Core` test that drives the real gate and asserts its `turn.step` reaches the session stream through `BridgeSink`, no bridge edit).
+- **Spine:** the diagram edge to `Install.Step.Demo`'s constants becomes `Demo --> DemoKey` (Guide, BreakFeedIn and PartnerTrigger all read them); Rule 20, not an AD change.
 
 **Decided in-stage:**
 1. **REST contract.** The codes are the reasons; the hints are the UX texts. 200 carries the run's `breakfeed.progress` view, and the body is not read.
@@ -409,7 +418,7 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: Clarification Needed (contended paths, Rule 11 (c)). The spec is otherwise ready for development, but two existing `docker/tests/**` scripts must change beyond the one appended block that the standing ruling allows. (1) `docker/tests/test-demo-switch.sh` (Story 4.1's script), line 16 and lines 311-316: step 5 asserts that `POST /v1/demo/break-feed` answers 501 `not_built` with demo mode off. This story's AC makes that 404 `not_found`, so `live:demo-switch` turns red unless the check and its header line change to 404. (2) `docker/tests/test-demo-path.sh` (Story 0.8's script): lines 44-48 must pass `OCUTALON_E2E_IRIS_CONTAINER="$cid"` to the demo-path e2e run, and header lines 12-13 must say that a step spec may seed fixtures. Only then can the REL-2 spec `web/e2e/demo-path/04-incident.spec.ts` seed the README session's Orders watch (Lane A's watch is not merged) and count the batch in OCUORDERS, as the AC asks ("checks the press and the batch, using fixtures for Lane A's incident path"). Recommended ruling: a one-time footprint extension for exactly those lines, as in the Story 8.1 and 13.1 rulings. On that ruling, set the status to ready-for-dev; no re-plan is needed. If (2) is refused, the demo-path stack can check only the 409 press, and dropping the batch check from the AC is an owner-only scope call.
+Status: ready-for-dev
+Blocking condition: none (the plan's footprint question was answered at the spec gate: rulings L1 and L2 under Design Notes)
 
 **For the spec gate.** Veto V1 is the new message class `OcuTalon.Demo.Msg.SendOrders`. DW-98 is declined, with a re-own to `3-2-one-gate-decides-every-tool-call` recommended (Design Notes, Ledger). The spine needs one edge relabel, `Guide --> DemoKey` to `Demo --> DemoKey` (Rule 20, an edge only). Task 0 was measured in this plan on the throwaway `e4s3pw`, now torn down.
