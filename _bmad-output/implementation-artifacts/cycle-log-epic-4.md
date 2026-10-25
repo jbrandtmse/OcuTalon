@@ -53,3 +53,4 @@
 2026-10-25T17:05:58Z	Story 4.1	fresh_check	env=clean-node-process(web_node_tests_are_hermetic;tmpdir_per_case) tests=playwright-projects.test.mjs_alone(14)+full_web_suite(567) result=pass order=forward,isolated note=no_IRIS_change_in_the_rework;round-1_fresh_check(shards_fwd+rev)_stands model=claude-opus-5-5
 2026-10-25T17:06:23Z	Story 4.1	committed	sha=fe413b1 submodules= ci=pending runs=40214823108,40214823117 amendments=none fix_for=4-1-switch-demo-mode-from-the-terminal footprint_extension=+web/scripts/playwright-projects.test.mjs note=rework_1(CI)
 2026-10-25T17:06:23Z	Story 4.1	story_cycle	plan_to_commit_min=321 implement_passes=2 reviews=2 rework=1(ci) first_ci=story models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-10-25T17:10:11Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(spine_diagram_edges_4.1,4.2)+specs_4.1,4.2 model=claude-opus lines=254 subagent_tokens=104471
