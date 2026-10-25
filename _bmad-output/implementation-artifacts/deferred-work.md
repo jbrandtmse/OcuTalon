@@ -1001,6 +1001,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
+- 2026-10-25T16:37:49Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat note=run_40209749982_attempt_2_floor-webkit_G1_ring_bottom_600.86_over_600_(ci-6);rerun
 
 ### DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks once Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1026,3 +1027,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: web/scripts/demo-path-summary.test.mjs:332-337 deletes OCUTALON_URL and OCUTALON_E2E_JSON but sets no PLAYWRIGHT_BROWSERS_PATH, though its header says no browser starts; ffd7530 passed npm --prefix web test locally (565) and failed hosted run 40206917294; the 8.2 rework mutation (skip back in the test body) goes red only under PLAYWRIGHT_BROWSERS_PATH=/nonexistent-e8
 - 2026-10-25T16:00:04Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=Rule 19 hermeticity; 8.4 adds the next stack-only demo-path test (03-reminder); fix: missing browsers path in playwrightEnv
+
+### DW-211: flake: OcuTalon.Test.Agent.Runners TestStartRefused ('and the Production step's check names it as not running') failed once in shard lane-a on the Linux CI host and passed on an unchanged rerun
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci run 40209749982 attempt 1 (ocutalon-ci-13) red, attempt 2 (ocutalon-ci-6) lane-a passed 523s; the same IRIS code passed shards on ffd7530 (run 40206917294)
+- 2026-10-25T16:37:50Z status=routed owner=burndown by=harvest note=Lane A's test (Test/Agent/**, contended with Epic 3); burn-down re-owns it to the owning lane's story
