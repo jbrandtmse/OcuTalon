@@ -11,7 +11,16 @@
 #   - unchecked-prepare (AD-13, DW-17): outside the methods of ALLOW_UNCHECKED, no %Prepare whose second argument is not 1,
 #     no %PrepareClassQuery whose third argument is not 1, and no %ExecDirectNoPriv or %ExecDirectNoPrivNoAudit, even when the
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
-#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned.
+#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned by this rule, because it is
+#     not privilege-checked and this rule could not see it: the next rule keeps it out of src/;
+#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/ outside its string literals, in
+#     any case (a test's fixture text such as "&sql(DELETE ...)" is data, not embedded SQL), and no class
+#     query of type %SQLQuery, whose SELECT compiles to embedded SQL. Embedded SQL is not privilege-checked and the
+#     unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
+#   - trace-join (AD-26, Story 2.9): a call of OcuTalon.Core.Trace.Join, in any case, appears on a code line of src/ only in the
+#     packages OcuTalon.Channel and OcuTalon.Test (a package matches by whole name, a sub-package belongs to its package): only a
+#     channel service starts a session's trace thread; commands, approvals and notices inside a turn join through the bridge
+#     context's ThreadSessionId.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -27,7 +36,8 @@ trap 'rm -rf "$tmp"' EXIT
 
 # The only unchecked prepares of src/ (DW-17): Class:Method, one per line.
 ALLOW_UNCHECKED="OcuTalon.Data.Session:ForUser
-OcuTalon.Live.Event:Since"
+OcuTalon.Live.Event:Since
+OcuTalon.Data.Ownership:Rows"
 # The allow-list that the synthetic classes are judged by, so that the samples do not depend on the real list.
 SAMPLE_ALLOW="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since"
@@ -156,6 +166,36 @@ unchecked_prepares() {
       process()
       if (stale == 1) for (k in allow) if (!(k in used)) print "allow-list:" allow[k]
     }
+  ' "$@"
+}
+
+# embedded_sql <file>...: file:line of each code line of a class, routine or include file that holds embedded SQL: &sql( or
+# ##sql(, in any case, with blanks allowed before the parenthesis, or the declaration of a class query of type %SQLQuery.
+embedded_sql() {
+  awk '
+    FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
+    !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    { line = $0; gsub(/"([^"]|"")*"/, "\"\"", line) }
+    tolower(line) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+# trace_join <file>...: file:line of each code line of a class, routine or include file that calls OcuTalon.Core.Trace.Join, in
+# any case, outside the packages OcuTalon.Channel and OcuTalon.Test (whole package names; a sub-package belongs to its package).
+trace_join() {
+  awk '
+    FNR == 1 {
+      cls = FILENAME
+      sub(/^.*\/cls\//, "", cls)
+      sub(/\.cls$/, "", cls)
+      gsub(/\//, ".", cls)
+      pkg = cls
+      sub(/\.[^.]*$/, "", pkg)
+      ok = (pkg == "OcuTalon.Channel" || index(pkg, "OcuTalon.Channel.") == 1 || pkg == "OcuTalon.Test" || index(pkg, "OcuTalon.Test.") == 1)
+      code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
+    }
+    ok || !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    tolower($0) ~ /ocutalon\.core\.trace\)[ \t]*\.join[ \t]*\(/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -338,11 +378,49 @@ if [ "$samples_ok" -eq 1 ]; then
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
-    echo "FAIL unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "FAIL unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
     fails=$((fails + 1))
   else
-    echo "PASS unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
   fi
+fi
+
+# --- no-embedded-sql ---
+
+es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 INTO :x FROM T)' '	&SQL (SELECT 2 INTO :y FROM T)' '	Set a = ##sql(SELECT 3 INTO :z FROM T)' '}' \
+  'Query B(x As %String) As %SQLQuery(ROWSPEC = "y:%String") [ SqlProc ]' '{' 'SELECT y FROM T WHERE x = :x' '}' \
+  'Query C() As %Library.SQLQuery' '{' 'SELECT 1 FROM T' '}')
+es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}' \
+  'Query B() As %Query(ROWSPEC = "y:%String")' '{' '}' 'Query C() As %SQLQueryCustom' '{' '}')
+es_string=$(write_class es OcuTalon.Zz.EsString 'ClassMethod A(x)' '{' '	Set s = "&sql(SELECT 1 INTO :x FROM T)"' '	Do x.Matches($Char(9)_"&sql(DELETE FROM A.B)", "##sql(")' '	Set q = "a ""quoted"" &SQL ( text"' '	Quit 1' '}')
+es_after=$(write_class es OcuTalon.Zz.EsAfter 'ClassMethod A()' '{' '	Set a = "&sql(" &sql(SELECT 1 INTO :x FROM T)' '}')
+es_comment=$(write_class es OcuTalon.Zz.EsComment '/// Never write &sql( or ##sql( here.' 'ClassMethod A()' '{' '	// &sql(SELECT 1 INTO :x FROM T)' '	; &sql(SELECT 1 INTO :x FROM T)' '	Quit 1' '}')
+samples_ok=1
+expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 5
+expect_clean "no-embedded-sql" embedded_sql "$es_good"
+expect_clean "no-embedded-sql" embedded_sql "$es_comment"
+expect_clean "no-embedded-sql" embedded_sql "$es_string"
+expect_flagged "no-embedded-sql" embedded_sql "$es_after" 1
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "no-embedded-sql: no &sql( and no %SQLQuery class query on a code line of src/" embedded_sql \
+    "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
+fi
+
+# --- trace-join ---
+
+tj_bad1=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzBad 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_bad2=$(write_class tj/src/ocutalon/cls OcuTalon/Web/ZzBadCase 'ClassMethod A()' '{' '	Set thread = ##class(ocutalon.core.TRACE).join(ref, .sc)' '}')
+tj_bad3=$(write_class tj/src/ocutalon/cls OcuTalon/Channels/ZzBadPackage 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good1=$(write_class tj/src/ocutalon/cls OcuTalon/Channel/WebChat/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc, now)' '}')
+tj_good2=$(write_class tj/src/ocutalon/cls OcuTalon/Test/Core/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good3=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzComment '/// Never call ##class(OcuTalon.Core.Trace).Join( from a Core class.' 'ClassMethod A()' '{' '	// ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	; ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	Quit 1' '}')
+tj_good4=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzOther 'ClassMethod A()' '{' '	Set sc = ##class(OcuTalon.Core.Trace).Started(ref, 5150)' '	Set sc = ##class(OcuTalon.Core.Trace).Position(id, .a, .b)' '	Quit ##class(OcuTalon.Core.TraceJoin).Join(ref)' '}')
+samples_ok=1
+for f in "$tj_bad1" "$tj_bad2" "$tj_bad3"; do expect_flagged "trace-join" trace_join "$f" 1; done
+for f in "$tj_good1" "$tj_good2" "$tj_good3" "$tj_good4"; do expect_clean "trace-join" trace_join "$f"; done
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "trace-join: OcuTalon.Core.Trace.Join is called only from OcuTalon.Channel and OcuTalon.Test" trace_join \
+    "$tj_bad1" "$tj_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 
 if [ "$fails" -ne 0 ]; then

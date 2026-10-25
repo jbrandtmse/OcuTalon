@@ -1,4 +1,12 @@
-import type { ApprovalPayload, CheckPayload, DecisionPayload, LiveEventType, LivePayloads, ReminderPayload } from '../live/payloads';
+import type {
+  ApprovalPayload,
+  CheckPayload,
+  DecisionPayload,
+  LiveEventType,
+  LivePayloads,
+  ReminderPayload,
+  StatusPayload,
+} from '../live/payloads';
 
 /** A live event without its place in a stream: the type and the payload that goes with it. */
 export type LiveItem<T extends LiveEventType = LiveEventType> = T extends LiveEventType ? { type: T; payload: LivePayloads[T] } : never;
@@ -9,6 +17,16 @@ export type LiveEnvelope<T extends LiveEventType = LiveEventType> = LiveItem<T> 
   stream: 'session' | 'instance';
   ts: string;
 };
+
+/** The Telegram block of the snapshot: whether the release includes Telegram, the bot's state and the session's pairing. */
+export interface TelegramState {
+  included: boolean;
+  state: 'off' | 'on' | 'rejected';
+  botUserName: string;
+  paired: boolean;
+  displayName: string;
+  pausedUntil: string;
+}
 
 /** GET /ocutalon/api/v1/state: the snapshot that the page loads, then follows with GET /v1/events. */
 export interface StateSnapshot {
@@ -23,12 +41,30 @@ export interface StateSnapshot {
     reminders: ReminderPayload[];
     decisions: DecisionPayload[];
   };
+  user: string;
+  onlineDemo: boolean;
+  demoMode: boolean;
+  models: { triage: string; diagnosis: string; chat: string };
+  telegram: TelegramState;
+  status: StatusPayload[];
 }
 
 /** GET /ocutalon/api/v1/events?after=<sessionSeq>&afterInstance=<instanceSeq>: the session's events, then the instance's. */
 export interface EventsResponse {
   epoch: string;
   events: LiveEnvelope[];
+}
+
+/** POST /ocutalon/api/v1/messages: one message of the chat. The session is the caller's; the body never names one. */
+export interface MessagePost {
+  clientId: string;
+  text: string;
+  fromGuide: boolean;
+}
+
+/** The 202 answer to a message: its clientId, also for a repeat of one the server already holds. */
+export interface MessageAccepted {
+  clientId: string;
 }
 
 /** The body of every error answer. */

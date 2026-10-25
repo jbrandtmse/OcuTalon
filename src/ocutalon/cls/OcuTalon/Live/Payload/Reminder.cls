@@ -23,4 +23,17 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// The payload for a reminder row, with every row-backed field set. The reminder has no trace of its own, so
+/// traceHeaderId and traceNamespace stay empty.
+ClassMethod FromRow(row As OcuTalon.Data.Reminder) As OcuTalon.Live.Payload.Reminder
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Text = row.Text
+	Set payload.DueAt = row.DueAt
+	Set payload.State = row.State
+	Set payload.Late = row.Late
+	Quit payload
+}
+
 }
