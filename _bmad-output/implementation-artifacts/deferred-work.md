@@ -747,3 +747,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 3.6 spec Cross-epic; Epic 0's row contract (AD-33) has no Source or Runner column, and Test/Data/** is contended
 - 2026-10-25T07:09:50Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=spec_gate note=30.3 adds the two fields (a stored-data change in its own veto window) or derives them (for example from the decision's trace)
+
+### DW-195: A hold whose start times out after STARTSECONDS can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete)
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
+- 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
