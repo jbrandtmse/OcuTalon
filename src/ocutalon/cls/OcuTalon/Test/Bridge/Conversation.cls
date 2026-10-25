@@ -254,6 +254,7 @@ Method TestTaintedTurn()
 ///   - An untrusted turn of the same owner (gate-read, allowed because it is read-only) leaves the link and the saved data as they were, and its first request
 ///     carries its input alone.
 ///   - A user's continue turn (recall-tell) then sends turn 3's exchange before its input and not OUTSIDETEXT.
+/// The checks for OUTSIDETEXT and zz_gate_read read the JSON of the request's messages, so a tool call or a tool result in the history counts.
 Method TestQuarantineAfterTaint()
 {
 	If ..Guard() Quit
@@ -265,7 +266,8 @@ Method TestQuarantineAfterTaint()
 	Do $$$AssertEquals(told.Tainted, 0, "and is not tainted")
 	Set id = ..LinkOf(owner)
 	Set export = $ClassMethod(fixture, "SessionExport", id)
-	Do $$$AssertTrue((id '= "") && (export '= ""), "the link names a session with a history: "_id)
+	Do $$$AssertTrue(id '= "", "the link names a session: "_id)
+	Do $$$AssertTrue(export [ "ORION-7", "which holds turn 1's history (a reader that returns nothing would make every 'unchanged' check below pass for the wrong reason)")
 	Set mark = $ClassMethod(fixture, "SessionMark")
 
 	Set request = ..NewTurn("[[mock:gate-read]] Read the partner's text.", owner)
@@ -288,11 +290,12 @@ Method TestQuarantineAfterTaint()
 		Set sent = $ClassMethod(fixture, "Messages", loggedThree.%Get(0))
 		Do $$$AssertEquals(loggedThree.%Get(0).request.messages.%Size(), 1, "whose messages are exactly one")
 		Do $$$AssertEquals(sent, "user:"_seed_$Char(10, 10)_three.Input, "from the user: the seed, a blank line and the input")
-		Do $$$AssertTrue(sent '[ outside, "it holds no text of the tool result")
-		Do $$$AssertTrue(sent '[ "zz_gate_read", "and no name of the tool")
+		Set history = loggedThree.%Get(0).request.messages.%ToJSON()
+		Do $$$AssertTrue(history '[ outside, "it holds no text of the tool result")
+		Do $$$AssertTrue(history '[ "zz_gate_read", "and no call of the tool")
 	}
 	Set saved = $ClassMethod(fixture, "SessionExport", new)
-	Do $$$AssertTrue(saved '= "", "the new session holds data")
+	Do $$$AssertTrue(saved [ "ORION-7", "the new session holds data: the seed of its recap (a reader that returns nothing would make the checks on the outside text pass for the wrong reason)")
 	Do $$$AssertTrue(saved '[ outside, "the new session's data holds none of it either")
 
 	Set savedNew = saved
@@ -312,7 +315,7 @@ Method TestQuarantineAfterTaint()
 	If loggedFour.%Size() '< 1 {
 		Set sent = $ClassMethod(fixture, "Messages", loggedFour.%Get(0))
 		Do $$$AssertTrue(sent [ ("user:"_seed_$Char(10, 10)_three.Input_$Char(1)_"assistant:Noted."), "its first request holds turn 3's exchange")
-		Do $$$AssertTrue(sent '[ outside, "and not the outside text")
+		Do $$$AssertTrue(loggedFour.%Get(0).request.messages.%ToJSON() '[ outside, "and not the outside text")
 	}
 }
 

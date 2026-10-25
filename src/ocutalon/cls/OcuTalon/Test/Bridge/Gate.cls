@@ -691,7 +691,7 @@ Method TestOneParser()
 	Do $$$AssertTrue(($SYSTEM.Status.GetErrorText(installer) '= "") && ($SYSTEM.Status.GetErrorText(installer) = $SYSTEM.Status.GetErrorText(direct)), "and both throw the same error: "_$SYSTEM.Status.GetErrorText(direct))
 }
 
-/// (Story 3.3 adds UNTRUSTED.) The sentences are model-facing ASCII class parameters of the gate that read after AI Hub's "Tool access denied: ": lower case, one sentence
+/// The four sentences (NEEDSAPPROVAL, NOPRIVILEGE, FAILED and UNTRUSTED) are model-facing ASCII class parameters of the gate that read after AI Hub's "Tool access denied: ": lower case, one sentence
 /// that ends in a period, with {privilege} in the one that names a privilege; a denial carries the code of AI Hub's ToolAccessDenied.
 Method TestSentences()
 {
@@ -1107,6 +1107,7 @@ Method TestSuspiciousRequestActsOnNothing()
 			Do $$$AssertTrue(text [ untrusted, "each holds the sentence: "_text)
 		}
 	}
+	// Cannot fail until Story 3.6 raises approvals (see ApprovalRows); it is that story's guard.
 	Do $$$AssertEquals(..ApprovalRows(owner), 0, "no approval request has the owner")
 	Do $$$AssertEquals(..LinkRows(owner), 0, "and no conversation link has it")
 }
@@ -1160,6 +1161,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		Do $$$AssertTrue(..Sentence(sc) '= needs, "and not with NEEDSAPPROVAL")
 		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "no turn.step fired")
 		Do $$$AssertEquals(..Taint(), tainted, "the taint is unchanged")
+		// Cannot fail until Story 3.6 raises approvals (see ApprovalRows); it is that story's guard.
 		Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "and no approval request has the owner")
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
@@ -1175,8 +1177,8 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		$ListBuild(injection, "zz_approve_requests", "{}"))
 	Set position = 0
 	While $ListNext(runs, position, run) {
-		Set problem = ..RunDenied($List(run, 1), $List(run, 2), {}.%FromJSON($List(run, 3)), provenance, tainted)
-		Do $$$AssertEquals(problem, "", label_": "_$List(run, 2)_" through AI Hub is denied with one denied step, and its method did not run")
+		Set problem = ..RunDenied($List(run, 1), $List(run, 2), {}.%FromJSON($List(run, 3)), provenance, tainted, untrusted)
+		Do $$$AssertEquals(problem, "", label_": "_$List(run, 2)_" through AI Hub is denied with one denied step that carries UNTRUSTED, and its method did not run")
 	}
 }
 
@@ -1220,7 +1222,8 @@ ClassMethod Taint() As %Boolean [ Private ]
 	Quit ##class(OcuTalon.Bridge.Context).Current().Tainted
 }
 
-/// The number of approval requests that the owner has.
+/// The number of approval requests that the owner has. Until Story 3.6 raises approvals nothing writes this table, so every count of it is 0 and a check on
+/// it cannot fail yet: it stays as the guard for that story, which makes a denied untrusted call that raises an approval request go red.
 ClassMethod ApprovalRows(owner As %String) As %Integer [ Private ]
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
@@ -1433,8 +1436,9 @@ ClassMethod AuthMarks(toolset As %String, tool As %DynamicObject) As %String [ P
 
 /// Runs the tool of the toolset through a fresh %AI.ToolMgr whose authorization policy is the gate and whose audit policy is the step audit policy,
 /// in a turn of the provenance (a user's turn unless given) whose taint starts at the value, and returns "" when AI Hub raised ToolAccessDenied, the tool's method did not run and the only step is denied; otherwise
-/// what went wrong. The context and the step buffer are over afterwards.
-Method RunDenied(toolset As %String, name As %String, arguments As %DynamicObject, provenance As %String = "user", tainted As %Boolean = 0) As %String [ Private ]
+/// what went wrong. A method ran when it marked ^||ZzGateRan(name), as the test tools do, or submitted a command (the context's CommandCount moved), as a
+/// built-in tool that changes state does. With a sentence, the denied step must carry it. The context and the step buffer are over afterwards.
+Method RunDenied(toolset As %String, name As %String, arguments As %DynamicObject, provenance As %String = "user", tainted As %Boolean = 0, sentence As %String = "") As %String [ Private ]
 {
 	Kill ^||ZzGateRan
 	Do ..Clean()
@@ -1463,12 +1467,15 @@ Method RunDenied(toolset As %String, name As %String, arguments As %DynamicObjec
 				Set raised = $SYSTEM.Status.GetErrorCodes(exception.AsStatus())
 			}
 			If raised '= ..#DENIED Set problem = "the call was not denied (raised '"_raised_"')"
-			If $Data(^||ZzGateRan(name)) Set problem = problem _ $Select(problem = "": "", 1: "; ") _ "its method ran"
+			Set context = ##class(OcuTalon.Bridge.Context).Current()
+			If $Data(^||ZzGateRan(name)) || ($IsObject(context) && (+context.CommandCount '= 0)) Set problem = problem _ $Select(problem = "": "", 1: "; ") _ "its method ran"
 			Set records = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Records()
 			If (records.%Size() '= 1) || (records.%Get(0).status '= "denied") {
 				Set problem = problem _ $Select(problem = "": "", 1: "; ") _ "its steps are not one denied step: "_records.%ToJSON()
 			} ElseIf (records.%Get(0).summary '[ ". Denied: Tool access denied: ") || (records.%Get(0).summary [ "ERROR") || (records.%Get(0).summary [ "..") {
 				Set problem = problem _ $Select(problem = "": "", 1: "; ") _ "its denied step does not read 'Denied: Tool access denied: <sentence without its period>.': "_records.%Get(0).summary
+			} ElseIf (sentence '= "") && (records.%Get(0).summary '[ (". Denied: Tool access denied: "_$Extract(sentence, 1, *-1)_". About ")) {
+				Set problem = problem _ $Select(problem = "": "", 1: "; ") _ "its denied step does not carry the sentence: "_records.%Get(0).summary
 			}
 		}
 	} Catch exception {

@@ -58,11 +58,13 @@ Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.
 /// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
 Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
 
-/// What no tool names (Story 3.3; AD-1, AD-10, NFR-14), as one regular expression, matched in any case on the code lines: answering an approval request (the
-/// Approval API, its table or globals, AnswersIn, EnsLib.Workflow), classifying a tool (the names ToolClassification and
-/// ClassificationClass), changing a setting (SettingsOps, the Setting table, an Ens.Director method that changes a production, and the creation or deletion of
-/// an Ens.Config object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps) and pairing a chat (SessionOps, the Pairing table).
-Parameter GOVERNANCE = "ocutalon[._]bridge[._](data[._])?approval|ocutalonbp\.approval|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|enableconfigitem|abortproduction|cleanproduction|deleteproduction|recoverproduction|setautostart|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing";
+/// What no tool names (Story 3.3; AD-1, AD-10, NFR-14), as one regular expression, matched in any case on the code lines: answering or raising an approval
+/// request (the Approval API and the other bridge classes of approvals, ApprovalStartIn, the table or globals, AnswersIn, EnsLib.Workflow), classifying a tool
+/// (the names ToolClassification and ClassificationClass), changing a setting (SettingsOps, the Setting table or globals, Accessor.WriteDefault, Timeouts.Apply
+/// and Restart, the writers of the public settings, every Ens.Director method that changes a production, and the creation or deletion of an Ens.Config
+/// object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps), pairing a chat (SessionOps, the Pairing table or globals) and a command
+/// class outside the package OcuTalon.Msg.Command (IncidentCommand).
+Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
 
 /// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
 /// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). Story 19.3's memory verbs join when they exist.
@@ -395,10 +397,9 @@ Method TestToolsLeaveRemindersToTheirOwner()
 	Set scanned = 0
 	Set offending = ""
 	Set unreadable = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
-	While result.%Next() {
-		Set class = result.%GetData(1)
-		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+	Set classes = ..ToolClasses(1, 1)
+	Set position = 0
+	While $ListNext(classes, position, class) {
 		If $$$ISERR($ClassMethod(source, "Text", class, .text)) {
 			Set unreadable = unreadable _ " " _ class
 			Continue
@@ -420,10 +421,9 @@ Method TestNoToolReachesAGovernanceCommand()
 {
 	Set scanned = 0
 	Set offending = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
-	While result.%Next() {
-		Set class = result.%GetData(1)
-		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+	Set classes = ..ToolClasses(1, 1)
+	Set position = 0
+	While $ListNext(classes, position, class) {
 		Set scanned = scanned + 1
 		If '..ToolCodeClean(class, .problems) Set offending = offending _ " " _ class _ " (" _ problems _ ")"
 	}
@@ -533,7 +533,20 @@ Method TestToolCodeScan()
 		tab_"Set command = ##class(OcuTalon.Msg.Command.Pair).%New()",
 		tab_"Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()",
 		tab_"Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()",
-		tab_"Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()")
+		tab_"Set command = ##class(OcuTalon.Msg.Command.EndSession).%New()",
+		tab_"Do ##class(Ens.Director).TempStopConfigItem(""Decide"", 1)",
+		tab_"Do ##class(Ens.Director).SystemStop()",
+		tab_"Do ##class(Ens.Director).SetAutoStartRecommendedPriority(1)",
+		tab_"Do ##class(Ens.Director).RemoveProductionShutdownGroup(""A.B"")",
+		tab_"Do ##class(Ens.Config.Item).%DeleteExtent()",
+		tab_"Set value = $Get(^OcuTalonP.SettingD(1))",
+		tab_"Kill ^OcuTalonP.PairingD(1)",
+		tab_"Set hold = ##class(OcuTalon.Bridge.Process.ApprovalHold).%New()",
+		tab_"Set sc = ##class(Ens.Director).CreateBusinessService(""ApprovalStartIn"", .service)",
+		tab_"Do ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(""A.B"", ""Decide"", ""Model"", ""x"", """")",
+		tab_"Do ##class(OcuTalon.Bridge.Timeouts).Restart(""A.B"", runners)",
+		tab_"Do ##class(OcuTalon.Data.Public.Settings).Set(""onlineDemo"", 1)",
+		tab_"Set command = ##class(OcuTalon.Msg.IncidentCommand).%New()")
 	Set position = 0
 	While $ListNext(bad, position, line) {
 		Set clean = ..ToolCodeClean("", .problems, line)
@@ -562,7 +575,9 @@ Method TestToolCodeScan()
 		tab_"Set value = ##class(Ens.Director).GetItemSettingValue(""Decide"", ""Host"", ""Model"", .value)"_lf_
 		tab_"Set sc = ##class(Ens.Director).CreateBusinessService(""CommandsIn"", .service)"_lf_
 		tab_"Set item = ##class(Ens.Config.Item).%OpenId(id)"_lf_
-		tab_"Set text = ""Say that you approve it, and that the setting is ToolOption or a classification word"""_lf_
+		tab_"Set priority = ##class(Ens.Director).GetAutoStartRecommendedPriority()"_lf_
+		tab_"Set demo = ##class(OcuTalon.Data.Public.Settings).Get(""onlineDemo"")"_lf_
+		tab_"Set text =""Say that you approve it, and that the setting is ToolOption or a classification word"""_lf_
 		tab_"Set result = ##class(OcuTalon.Msg.CommandResult).%New()"
 	Set clean = ..ToolCodeClean("", .problems, governed)
 	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string and has the governance names in comments: "_problems)
@@ -585,8 +600,7 @@ Method TestToolCodeScan()
 /// and no INSERT, UPDATE, DELETE, DROP, CREATE, ALTER or TRUNCATE inside embedded SQL (&sql) or at the start of a string, no governance reference
 /// (GOVERNANCE) and no command class outside TOOLVERBS (Story 3.3). problems
 /// lists what was found, separated by semicolons; it is empty when the code is clean. A class with no source is not clean. text
-/// replaces the source of the class, for the samples of the tests. Since Story 3.3 it also flags a governance reference (GOVERNANCE) and a command
-/// class outside TOOLVERBS.
+/// replaces the source of the class, for the samples of the tests.
 ClassMethod ToolCodeClean(class As %String, Output problems As %String, text As %String = "") As %Boolean
 {
 	Set problems = ""
@@ -603,7 +617,7 @@ ClassMethod ToolCodeClean(class As %String, Output problems As %String, text As 
 		$ListBuild("[$%]system\.obj\b", "$SYSTEM.OBJ"),
 		$ListBuild(..#PYTHON, "Python"),
 		$ListBuild("""\s*("_..#SQLVERBS_")\b", "a string that starts with an SQL statement that changes data"),
-		$ListBuild(..#GOVERNANCE, "a governance reference (an approval answer, a classification, a setting, an MCP server or a pairing)"))
+		$ListBuild(..#GOVERNANCE, "a governance reference (an approval, a classification, a setting, an MCP server, a pairing or a command outside the tool verbs)"))
 	Set position = 0
 	While $ListNext(checks, position, check) {
 		If ##class(OcuTalon.Test.Bridge.Source).Matches(text, $List(check, 1)) Set problems = problems _ $Select(problems = "": "", 1: "; ") _ "uses " _ $List(check, 2)
@@ -761,15 +775,21 @@ ClassMethod WithoutStrings(line As %String) As %String [ Private ]
 }
 
 /// The compiled classes of the package OcuTalon.Tools that extend %AI.Tool, OcuTalon.Tools.Result left out, in the order of their names, as a list: the tool
-/// providers and the toolsets (toolsets 1), or the providers only (toolsets 0). A toolset is a class that extends %AI.ToolSet. Test.Bridge.Gate uses this
-/// inventory for the governance test of the built-in tools.
-ClassMethod ToolClasses(toolsets As %Boolean = 1) As %List
+/// providers and the toolsets (toolsets 1), or the providers only (toolsets 0). A toolset is a class that extends %AI.ToolSet. With all 1, every compiled
+/// class of the package instead, a helper and Result included: the sweeps of the package's code use it. Test.Bridge.Gate uses this inventory for the
+/// governance test of the built-in tools.
+ClassMethod ToolClasses(toolsets As %Boolean = 1, all As %Boolean = 0) As %List
 {
 	Set classes = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH 'OcuTalon.Tools.' ORDER BY Name")
 	While result.%Next() {
 		Set class = result.%GetData(1)
-		If (class = "OcuTalon.Tools.Result") || '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		If '##class(%Dictionary.CompiledClass).%ExistsId(class) Continue
+		If all {
+			Set classes = classes _ $ListBuild(class)
+			Continue
+		}
+		If class = "OcuTalon.Tools.Result" Continue
 		If '..ClassExtends(class, "%AI.Tool") Continue
 		If 'toolsets && ..ClassExtends(class, "%AI.ToolSet") Continue
 		Set classes = classes _ $ListBuild(class)

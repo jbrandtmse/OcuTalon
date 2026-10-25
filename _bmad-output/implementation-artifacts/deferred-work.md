@@ -519,6 +519,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.10 Tools/ReminderTools TRUSTEDOUTPUT<NAME>; AD-10 3a quarantine; spine row Saved conversations
 - 2026-10-23T23:00:53Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=spec_gate note=3.3 decides whether set_reminder and cancel_reminder declare TRUSTEDOUTPUT 1 (a class parameter each)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=set_reminder+cancel_reminder_declare_TRUSTEDOUTPUT_1(ReminderTools,commit_41bf263);pinned_by_Test.Bridge.Gate_TestTaintFollowsTrustedOutput+TestWatchToolsAreClassified+Test.Tools.Reminders_want(mutation_TRUSTEDOUTPUTSETREMINDER=0->reminder-set-two_second_call_denied);veto_U-60
 
 ### DW-137: A JSON true given as set_reminder's delaySeconds reaches SetReminder as 1 (AI Hub decodes arguments before the method runs), so it sets a reminder one second ahead instead of being refused
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
@@ -534,6 +535,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/ReminderTools TRUSTEDOUTPUTLISTREMINDERS; AD-10's trusted output is 'built by code from OcuTalon's own records'
 - 2026-10-24T01:30:42Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=harvest note=unverified; 3.1/3.3 decide whether a result carrying stored model-authored text is exempt from taint (with DW-136)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=list_reminders_stays_trusted_output;set_reminder_is_not_read-only_so_it_is_denied_in_every_untrusted_or_tainted_turn(rows2-3),so_no_text_from_outside_a_user's_untainted_turn_reaches_a_Reminder_row_through_a_tool;stated_in_ReminderTools_class_comment+spine_Tool_classification_row;mutation_TRUSTEDOUTPUTLISTREMINDERS=0->reminder-cancel_denied
 
 ### DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -697,3 +699,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
 - 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
+
+### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Context.Put sets any FIELDS name to any value (Context.cls Put); no tool writes Tainted 0 or Provenance today, and arriving content cannot make one do so
+- 2026-10-24T23:46:11Z status=wontfix-theoretical owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=real when a tool's code writes Tainted 0 or Provenance, or passes a context field name from its arguments to Put
+
+### DW-183: ToolCodeClean is a static scan: %Save on an opened Ens.Config object, a class name built at run time and a message-resend API pass it
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Design Notes limit the scan to the listed writes and AC 4 names no resend; AD-1's CommandsIn origin check (a refusing stub until Story 2.3) is the guard
+- 2026-10-24T23:46:11Z status=by-design owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=spec Design Notes: the scan backs AD-1 rather than replacing it; reopens only via a spec amendment
