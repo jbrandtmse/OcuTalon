@@ -3077,6 +3077,7 @@ So that reminders work the way I would ask a person.
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran (ledger; routed by harvest 2026-10-24)
 - DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls (ledger; routed by harvest 2026-10-24)
 - DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools, so a live model may refuse a reminder request (ledger; routed by cr 2026-10-24)
+- DW-210: demo-path-summary.test.mjs's playwrightEnv() leaves the machine's browsers usable, so 'skip every unbuilt part' stays green for a demo-path test that launches a browser before it skips wherever Chromium is installed; only the browserless hosted web job goes red (ledger; routed by cr 2026-10-25)
 
 ### Story 8.5: Reminders survive restarts and upgrades, and late ones say so
 

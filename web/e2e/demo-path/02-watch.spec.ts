@@ -14,7 +14,9 @@ import { changeSnapshot as heartbeatSnapshot } from '../support/api';
  * Story 8.2, with a fixture row (AD-29: Checks is not built here): the page's /state is the real answer with one "Orders production"
  * check row added to the rail, whose last run was 30 seconds ago. The real status array, which the answer keeps, holds no
  * heartbeatStalled, so the row shows its last run and Passed, with no "(late)" mark and no heartbeat banner. The test above that
- * stays skipped until the integration switch replaces it with the real watch's row.
+ * stays skipped until the integration switch replaces it with the real watch's row. It needs the first-start stack (OCUTALON_URL):
+ * without it the group skips as it is declared, before any fixture starts, because a run with no stack may have no browser either
+ * (the unit tests' demo-path run in the hosted web job), and a skip inside the test would launch one first.
  */
 heartbeatTest.describe('Story 8.2: the check row while the heartbeat is not stalled (fixture row)', () => {
   heartbeatTest.skip(!process.env['OCUTALON_URL'], 'Story 8.2 needs the first-start stack (OCUTALON_URL), which a run without one lacks');

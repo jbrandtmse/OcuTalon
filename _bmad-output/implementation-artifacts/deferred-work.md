@@ -1021,3 +1021,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Stalled.cls ClearOf/Clean match src/ocutalon/cls/OcuTalon/Test/Core/StatusMonitor.cls:301-316; the same DELETE of OcuTalon_Live.Event rows and Kill of ^OcuTalonP.LiveEventC sit in Test.Web.Api, Web.Install, Live.Publish and Data.Fixture
 - 2026-10-25T15:09:36Z status=wontfix-accepted owner=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat by=cr note=reopen_if=a change to OcuTalon_Live.Event or ^OcuTalonP.LiveEventC that has to be repeated in each test class's ClearOf copy
+
+### DW-210: demo-path-summary.test.mjs's playwrightEnv() leaves the machine's browsers usable, so 'skip every unbuilt part' stays green for a demo-path test that launches a browser before it skips wherever Chromium is installed; only the browserless hosted web job goes red
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: web/scripts/demo-path-summary.test.mjs:332-337 deletes OCUTALON_URL and OCUTALON_E2E_JSON but sets no PLAYWRIGHT_BROWSERS_PATH, though its header says no browser starts; ffd7530 passed npm --prefix web test locally (565) and failed hosted run 40206917294; the 8.2 rework mutation (skip back in the test body) goes red only under PLAYWRIGHT_BROWSERS_PATH=/nonexistent-e8
+- 2026-10-25T16:00:04Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=Rule 19 hermeticity; 8.4 adds the next stack-only demo-path test (03-reminder); fix: missing browsers path in playwrightEnv
