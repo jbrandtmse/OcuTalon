@@ -4094,6 +4094,7 @@ So that one package gives me a working OcuTalon in my existing instance.
 **And** this story needs no Lane B action: Lane B's Story 31.3 (was Story 16.10) adds the README's IPM section from that file (FR-58, AD-29)
 
 - DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
+- DW-212: With the online-demo flag off, an install into an instance whose `PasswordValidationRoutine` names another routine leaves the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition). Story 3.8's `TestForeignGuardIsRefused` pins the setting; add the assertion that the foreign routine still exists after the flag-off run, and prove both cases on this story's IPM install into an existing instance (ledger; routed by owner 2026-10-25, inbox U-75)
 
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
