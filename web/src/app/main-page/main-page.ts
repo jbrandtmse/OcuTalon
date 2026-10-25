@@ -167,10 +167,6 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
         flex: none;
         margin: var(--space-2) var(--space-3);
       }
-      .main {
-        flex: 1 0 auto;
-        min-height: auto;
-      }
       .rail {
         overflow: visible;
         width: auto;

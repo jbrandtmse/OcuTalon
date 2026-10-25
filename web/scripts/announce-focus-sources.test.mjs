@@ -128,8 +128,9 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel and the main page the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the main page and the header the shared rule, and each its own rule only', () => {
     const hosts = {
+      'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
       'app/chat/chat-panel.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{PART\}\]\[\$\{KEY\}\]`/,
@@ -144,9 +145,10 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/(function|private|protected)\s+keepFocus\b/), ['app/shared/focus-rule.ts'], 'only the shared module defines keepFocus');
   });
 
-  it('gives the chat\'s rule no whenGone, so that a message that is gone leaves focus to the main region, and the load error\'s no item', () => {
+  it('gives the chat\'s rule no whenGone, so that a message that is gone leaves focus to the main region, and the load error\'s, the note\'s and the Status button\'s no item', () => {
     const chat = file('app/chat/chat-panel.ts').code;
     assert.doesNotMatch(chat.slice(chat.indexOf('const FOCUS_RULE'), chat.indexOf('};', chat.indexOf('const FOCUS_RULE'))), /whenGone/);
     assert.doesNotMatch(file('app/main-page/main-page.ts').code, /(?:LOAD_ERROR|NOTE)_RULE: FocusRule = \{[^}]*item/);
+    assert.doesNotMatch(file('app/header/header.ts').code, /STATUS_RULE: FocusRule = \{[^}]*item/);
   });
 });

@@ -5,10 +5,13 @@ import {
   DestroyRef,
   DOCUMENT,
   ElementRef,
+  Injector,
   ViewContainerRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
   type TemplateRef,
 } from '@angular/core';
@@ -18,6 +21,7 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
+import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Layout } from '../shared/layout';
 import { LAYOUT_QUERIES, LAYOUT_TEXTS, statusCount } from '../shared/layout-view';
 import { Popovers, type PopoverRef } from '../shared/popover';
@@ -38,6 +42,9 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
 /** The custom property that holds the header's measured block size, on the root element. */
 const HEADER_SIZE = '--app-header-block-size';
 
+/** Where focus goes when the Status button that holds it leaves with its band (UX-DR131): the main region. */
+const STATUS_RULE: FocusRule = { within: '.status-button' };
+
 /**
  * The app header. Left: the mark and the wordmark (underlined, as every link is), both linking to the main page, and the context badge (Online demo,
  * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
@@ -55,7 +62,8 @@ const HEADER_SIZE = '--app-header-block-size';
  * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
  * rail's heading), both hidden from assistive technology beside the spoken name ("Status, 2 approval requests"). Before the snapshot
- * has loaded, and when it failed, it shows "Status" alone: it never shows a zero that it does not know.
+ * has loaded, and when it failed, it shows "Status" alone: it never shows a zero that it does not know. When the band changes while the
+ * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule.
  *
  * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its
  * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
@@ -329,6 +337,8 @@ export class Header {
   private readonly popovers = inject(Popovers);
   private readonly traceHelp = inject(TraceHelp);
   private readonly container = inject(ViewContainerRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private tracePopover: PopoverRef | undefined;
 
   protected readonly texts = LAYOUT_TEXTS;
@@ -369,8 +379,12 @@ export class Header {
   );
 
   constructor() {
+    effect(() => {
+      this.layout.band();
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, STATUS_RULE));
+    });
     const destroyed = inject(DestroyRef);
-    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const host = this.host.nativeElement;
     const root = inject(DOCUMENT).documentElement;
     const observer = new ResizeObserver(() => root.style.setProperty(HEADER_SIZE, `${host.getBoundingClientRect().height}px`));
     observer.observe(host);

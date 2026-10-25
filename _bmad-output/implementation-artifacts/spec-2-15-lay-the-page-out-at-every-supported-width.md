@@ -354,6 +354,33 @@ deferred: []
     - `MainPage` drives `NarrowNote` and renders `InlineNotice`'s Close (G6 and G7);
     - `TraceHelp` and `NarrowNote` read and write through `stored-flag.ts` (G7; the trace links' cases in `live:sign-in` unchanged).
 
+### Review Findings
+
+Code review, 2026-10-24 (first review; layers: blind, edge, verification-gap, acceptance). 23 raw findings, grouped into 14 kept entries (high 0, medium 7, low 7) and 6 rejected. Every patch is applied; nothing is left open.
+
+- [x] [Review][Patch] Focus fell to the page when the Status button that held it left with its band (after Esc or a press closed the drawer, then a zoom or resize out of 1024 to 1279px), against "focus survives a layout change" [web/src/app/header/header.ts:46] -- medium, fix-risk low (the page's own focus rule, as `MainPage` uses it): `STATUS_RULE` `{ within: '.status-button' }` from an effect on `Layout.band`, so focus goes to the main region without scrolling; the ratchet's hosts list gains `header.ts`; G3 widens with focus on the button.
+- [x] [Review][Patch] Widening from the column back to 1024px or more had no test: dropping `place`'s `main.before(rail)` left every case green [web/e2e/floor/layout.spec.ts:476] -- medium, fix-risk low: G4 widens to 1280 and expects `section.rail + main.main`, the rail's right edge at main's left, and the focused rail control (held by a handle) still focused.
+- [x] [Review][Patch] The Status button's count was checked only at load, so a count from the snapshot, or of every approval, stayed green [web/e2e/floor/layout.spec.ts:227] -- medium, fix-risk low: G2 raises a request live and answers it live, and the name and pill follow the rail's heading each time (Integration AC).
+- [x] [Review][Patch] "Status" alone after a failed load had no browser case; a count that shows 0 unless loading (a false all-clear) stayed green [web/e2e/floor/layout.spec.ts:295] -- medium, fix-risk low: a new G2 case answers `/state` with 500 and expects the name "Status" and no pill.
+- [x] [Review][Patch] Nothing checked that the skip links paint above the sticky header (`z-index: 2`), and G5 exempted them from the below-the-header check [web/e2e/floor/layout.spec.ts:560] -- medium, fix-risk low: G5's walk expects `elementFromPoint` at a focused skip link's centre to be the link.
+- [x] [Review][Patch] The empty-chat case could not tell a stretched list from one as tall as its content, and how much room it had depended on rows it did not create [web/e2e/floor/layout.spec.ts:492] -- medium, fix-risk low: the case empties the chat and the rail of its snapshot, opens 1000x1400, checks that main has room, and expects the list's height to equal the empty chat's box.
+- [x] [Review][Patch] Rule 2: `layout.spec.ts` copied `seedRow`, `skipLink`, `SKIP_CHAT`, `SKIP_STATUS` and `MOST_STOPS` from `keyboard.spec.ts` with no stated reason [web/e2e/support/floor.ts:52] -- medium, fix-risk low: moved to `support/floor.ts`, imported by both.
+- [x] [Review][Patch] `aria-controls` was compared with a literal, so removing the rail's `id` left it pointing at nothing with every case green [web/e2e/floor/layout.spec.ts:222] -- low: G2 expects `section.rail` to hold `id="status-region"`.
+- [x] [Review][Patch] G3's popover step did not check that focus survived the band change [web/e2e/floor/layout.spec.ts:400] -- low: it expects focus still inside the help.
+- [x] [Review][Patch] The stacked `.main` rule never applied: the later base `.main` rule of the same specificity overrode both of its declarations [web/src/app/main-page/main-page.ts:170] -- low: deleted (no computed style changes).
+- [x] [Review][Patch] Two comments claimed what no longer holds: `app.ts` (the app is the viewport's height at every width) and the ratchet's header (only K and W cases) [web/src/app/app.ts:14] -- low: corrected.
+- [x] [Review][Patch] The ratchets let `@media ${OTHER}` (an interpolation that is not `LAYOUT_QUERIES`) and a template's `style="position: fixed"` through [web/scripts/floor-sources.test.mjs:409] -- low: any interpolated condition is checked, and the position scan reads the whole source.
+- [x] [Review][Defer] `walk()` repeats K4's inline Tab loop with its own end test [web/e2e/floor/layout.spec.ts:113] -- deferred: DW-184, `wontfix-accepted` (low; the spec names K4's walk the pattern; sharing it rewrites K4, more than a two-way door).
+- [x] [Review][Defer] The initial bundle is over its 500 kB warning budget [web/angular.json:51] -- deferred: DW-185, `wontfix-accepted`. Measured on clean copies: 530.80 kB at the baseline, 538.57 kB after this story (+7.77 kB raw, +1.71 kB transfer, 1.5%), so the story's growth is not material and the overrun predates it.
+
+**Rejected:**
+- low: `Layout.focusRegion` opens the drawer only for the exact text `'section.rail'`, the `SKIP_LINKS` target -- a changed target turns G3 red at once ("Enter on Skip to status opens the drawer").
+- low: the rail control that `place` re-focuses with `preventScroll` can sit below the fold of the column -- spec-bound (Boundaries: "re-focused with `preventScroll`"), so it is `by-design` and reopens only through a spec amendment.
+- low: the spoken name's ", " is joined in the template, not taken from `LAYOUT_TEXTS` -- punctuation between two `LAYOUT_TEXTS` strings; the name renders exactly as ruled (U-61).
+- low: G4's live update runs at 1000x800 only, not at 200% -- the rail's move and the live update are the same code path at both widths.
+- low: `.text { flex: 1; min-width: 0 }` also styles `ServerButton`'s busy notice -- no visible change: the tint is on `.notice` and the text is start-aligned.
+- false (font) and low (the rest): the pill's `font-family: var(--font-ui)` is how every component sets its family (it resolves to the token's Inter, with fallbacks); the stacked `scroll-padding` on every side and `MainPage.collapse`'s `stopPropagation` serve stated rules (rings inside the viewport; one Esc, one layer) with no reachable harm.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -605,6 +632,22 @@ Review pass (2026-10-24). Browser reds are `live floor` on throwaway tag `e2s215
 **Measured (local, 2026-10-24).** `live floor` takes 160 s of the script's own run (24 cases before, 35 now: G1 to G7 are 11 Playwright cases), 158 s inside `group shards` (326 s in all, with `shard:lane-a` 63 s and `shard:lane-b` 105 s). `live sign-in` takes 417 s (190 passed, 2 skipped), `live demo-path` 68 s and `live bundle-folder` 88 s.
 
 **Measured at the last pass (local, 2026-10-24).** `live floor` 154 to 160 s (35 cases), `live sign-in` 407 s (190 passed, 2 skipped), `group shards` 318 s (`shard:lane-b` 101 s, `live:floor` 154 s), `live demo-path` and `live bundle-folder` green; `npm --prefix web test` 534 passed.
+
+**QA pass (2026-10-24).** Audit of every AC against its pinning test found each pinned and each already carrying a recorded, still-valid `mutation:` line (the pinning tests did not change). `layout.ts` was read against the spec's Code Map and Boundaries (bands, `drawerOpen` rule, `focusRegion`, `closeDrawer`, `afterNextRender`): it matches, with no leftover mutation, and G1 to G7 are green on the committed tree. One genuine gap was filled: the matrix's "a shown tooltip takes its Esc first, and the drawer stays open" had no case in the drawer.
+- (QA) `web/e2e/floor/layout.spec.ts` gains `G2: a shown tooltip takes its Esc before the drawer, which closes with the next` (a chip's tooltip inside the open drawer; the first Esc hides only the tooltip, the next closes the drawer with focus on the Status button). It seeds and removes its own decision row. No new file; `live:floor` is now 36 cases, 1.5 min of Playwright, about 160 s for the script. Browser reds are `live floor` on throwaway tag `e2s215q`; the tree was restored from a backup of this stage and checked by `git status --short`, the hash of `git diff` and the hashes of the touched files.
+- mutation: `Tooltip`'s Escape handler without `stopPropagation` (a shown tooltip no longer ends the event) -> the QA G2 tooltip case red (the drawer closes with the tooltip's Esc); K2 also red.
+
+**Code review pass (2026-10-24).** Browser reds are `live floor` on throwaway tag `e2s215r` after `ci/iris.sh build` (three batches, each mutation in a different case, each red read from its own failure message); the others are `node --test web/scripts/floor-sources.test.mjs`. Each restore came from this stage's own backup and was checked by `cmp` against it and by the hash of `git diff -- web/src`. The final tree: `live floor` 37 passed (158 s; the new G2 failed-load case makes 37), `live sign-in` 190 passed and 2 skipped (413 s), `npm --prefix web test` 534 passed, lint, `test-boundaries.sh` and `test-web-build.sh` green; teardown of `e2s215r` left nothing. The ratchet's focus-rule hosts gain `app/header/header.ts` (`STATUS_RULE`).
+- mutation: `Header`'s effect that calls `keepFocus` with `STATUS_RULE` removed -> G3 red (widened with focus on the Status button, the main region is not focused).
+- mutation: `MainPage.place` without `main.before(rail)` -> G4 red at 1000x800 (widened again, `section.rail + main.main` is absent).
+- mutation: `Header.count` over every approval of the store (`Object.keys(store.approvals).length`) -> G2 red (after the live answer the name is not "Status, n approval requests").
+- mutation: `Header.count` that shows 0 unless loading (`status() === 'loading' ? undefined : store === undefined ? 0 : ...`) -> the G2 failed-load case red (the name is not "Status" alone).
+- mutation: the skip link's `z-index` back to 1 -> G5 red (at "Skip to chat" the sticky header paints over the link).
+- mutation: the stacked `flex: none` of `ChatPanel`'s host and list removed -> the G4 empty-chat case red (the list is 899px against the empty chat's 361px; the room check passed).
+- mutation: `id="status-region"` removed from `section.rail` -> G2 red (the region does not hold the id that `aria-controls` names).
+- mutation: `Layout.changed` closing every popover on a band change -> G3 red (focus is no longer inside the help after narrowing).
+- mutation: `@media ${NARROW}` (a constant that is not `LAYOUT_QUERIES`) added to `chat-panel.ts` -> `floor-sources.test.mjs` red (both band tests).
+- mutation: `style="position: fixed"` added to `InlineNotice`'s template -> `floor-sources.test.mjs` red (fixed only in `skip-links.ts`).
 
 **Shared surfaces:**
 - **The ratchets' lists:** the speakers, `FOCUS_CALLS` (`skip-links.ts` 1 → 0; `layout.ts` 2; `main-page.ts` 1), the render list, `KEY_HANDLERS`, the key bindings, `ESC_HOSTS` and its `collapse` regex, and `floor-fixtures.test.mjs`'s file list. `FIXED_HEIGHTS` and the scrollers list are unchanged.

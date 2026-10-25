@@ -1,10 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { changeSnapshot, holdState } from '../support/api';
+import { STATE, changeSnapshot, holdState } from '../support/api';
 import {
   CARD_MS,
   HEADER,
+  MOST_STOPS,
+  SKIP_CHAT,
+  SKIP_STATUS,
   addReminder,
+  applied,
   composerOf,
   expectRing,
   expectRingInside,
@@ -13,12 +17,14 @@ import {
   railOf,
   readFocus,
   rowOf,
+  seedRow,
   seedScrollingPage,
   settled,
+  skipLink,
   unique,
   type Reading,
 } from '../support/floor';
-import { cleanFixtureRows, fixtureUser, seedApproval, seedDecision, seedIncident, seedTurns, turnRows } from '../support/iris';
+import { cleanFixtureRows, fixtureUser, seedApproval, seedIncident, seedTurns, setApprovalState, sinkEvent, turnRows } from '../support/iris';
 import { announcedTexts, announcements, recordAnnouncements } from '../support/page';
 
 /**
@@ -44,20 +50,13 @@ test.afterEach(async ({ page }) => {
 
 const KIND = 'FLOOR';
 
-const SKIP_CHAT = 'Skip to chat';
-const SKIP_STATUS = 'Skip to status';
-
 /** The note's text and its Close name, written out here as the independent oracle of the page's own (the UX's words). */
 const NOTE = 'This page is designed for a wider window. Everything still works.';
 const NOTE_CLOSE = 'Close narrow-window note';
 
-/** The most tab stops a walk takes before it gives up. */
-const MOST_STOPS = 150;
-
 const statusButton = (page: Page): Locator => page.locator('button.status-button');
 const railElement = (page: Page): Locator => page.locator('section.rail');
 const noteOf = (page: Page): Locator => page.locator('app-inline-notice.narrow-note');
-const skipLink = (page: Page, name: string): Locator => page.getByRole('link', { name, exact: true });
 
 /** The width and left and right edges of an element, in CSS pixels. */
 async function edges(element: Locator): Promise<{ left: number; right: number; width: number }> {
@@ -71,13 +70,6 @@ const pageScroll = (page: Page): Promise<{ overflow: number; top: number; across
     const root = document.scrollingElement!;
     return { overflow: root.scrollHeight - root.clientHeight, top: root.scrollTop, across: root.scrollWidth - root.clientWidth };
   });
-
-/** Seeds one decision row with a Trace link, and returns its summary. */
-async function seedRow(user: string, refs: string[], label: string): Promise<string> {
-  const summary = unique(label);
-  refs.push(await seedDecision(user, { outcome: 'act', summary, reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }));
-  return summary;
-}
 
 /** The tops of the page's layers, in the viewport's coordinates (the note's is -1 while it does not show), and whether main comes before the rail in the DOM. */
 function layers(page: Page): Promise<{ header: number; slot: number; note: number; main: number; rail: number; mainFirst: boolean; headerBlock: number }> {
@@ -219,15 +211,29 @@ test('G2: the Status button shows the approval request count and opens a drawer 
     hold = undefined;
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 
-    const heading = (await page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden').textContent())!;
+    const approvalsHeading = page.locator('app-status-rail [data-section="approvals"] h3 .visually-hidden');
+    const heading = (await approvalsHeading.textContent())!;
     const n = Number(/(\d+)$/.exec(heading.trim())![1]);
     expect(n, 'the rail holds at least the two approval requests of the case').toBeGreaterThanOrEqual(2);
     await expect(button, 'loaded, the name carries the count').toHaveAccessibleName(`Status, ${n} approval requests`);
     await expect(button.locator('.count'), 'the pill shows the same count').toHaveText(String(n));
     await expect(button.locator('.count')).toHaveAttribute('aria-hidden', 'true');
     await expect(button).toHaveAttribute('aria-controls', 'status-region');
+    await expect(railElement(page), 'which is the id of the region Status').toHaveAttribute('id', 'status-region');
     await expect(button).toHaveAttribute('aria-expanded', 'false');
     await expect(railOf(page), 'the region Status is not shown while the drawer is closed').toHaveCount(0);
+
+    // The count follows the live store, as the rail's heading does: a request raised live adds to it, and one answered live leaves it.
+    const raised = await seedApproval(user, { kind: 'tool_call', toolName: `zz_tool_g2_${Date.now().toString(36)}`, dryRun: null });
+    refs.push(raised);
+    await applied(page, await sinkEvent(user, 'approval.raised', { ref: raised }));
+    await expect(approvalsHeading, 'the rail counts the request raised live').toHaveText(new RegExp(`\\D${n + 1}\\s*$`));
+    await expect(button, 'and so does the Status button').toHaveAccessibleName(`Status, ${n + 1} approval requests`);
+    await expect(button.locator('.count')).toHaveText(String(n + 1));
+    await setApprovalState(raised, 'approved');
+    await applied(page, await sinkEvent(user, 'approval.answered', { ref: raised }));
+    await expect(approvalsHeading, 'the rail leaves out the request answered live').toHaveText(new RegExp(`\\D${n}\\s*$`));
+    await expect(button, 'and so does the Status button').toHaveAccessibleName(`Status, ${n} approval requests`);
 
     await button.click();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
@@ -285,6 +291,47 @@ test('G2: the Status button shows the approval request count and opens a drawer 
   }
 });
 
+/** G2, a failed load: the Status button shows "Status" alone, with no pill, so it never shows a zero that it does not know. */
+test('G2: after a failed load the Status button shows "Status" alone', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 720 });
+  await openFloor(page);
+  await page.route(`**${STATE}`, (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } } }));
+  await page.reload();
+  await expect(mainOf(page), 'the load failed').toHaveAttribute('data-snapshot', 'failed');
+  const button = statusButton(page);
+  await expect(button, 'the name is "Status" alone').toHaveAccessibleName('Status');
+  await expect(button.locator('.count'), 'with no pill').toHaveCount(0);
+});
+
+/** G2, the tooltip: a shown tooltip in the drawer takes its Esc first, and the drawer closes with the next one. */
+test('G2: a shown tooltip takes its Esc before the drawer, which closes with the next', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  try {
+    await page.setViewportSize({ width: 1100, height: 720 });
+    const summary = await seedRow(user, refs, 'G2 tip row');
+    await openFloor(page);
+    const button = statusButton(page);
+    await button.click();
+    await expect(button, 'the drawer is open').toHaveAttribute('aria-expanded', 'true');
+    await expect(railElement(page), 'with focus on the region').toBeFocused();
+    const tooltip = page.locator('app-tooltip');
+    await rowOf(page, summary).locator('app-outcome-chip .chip').hover();
+    await expect(tooltip, 'the pointer rests on a chip in the drawer and its tooltip shows').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(tooltip, 'the first Esc hides the tooltip').toHaveCount(0);
+    await settled(page);
+    await expect(button, 'and the drawer stays open').toHaveAttribute('aria-expanded', 'true');
+    await expect(railOf(page)).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    await page.keyboard.press('Escape');
+    await expect(button, 'the next Esc closes the drawer').toHaveAttribute('aria-expanded', 'false');
+    await expect(button, 'and focus moves to the Status button').toBeFocused();
+  } finally {
+    await cleanFixtureRows(refs);
+  }
+});
+
 /** G3: the skip links open a closed drawer; a change of band keeps the focus that is in the rail and starts closed otherwise. */
 test('G3: Skip to status opens the drawer, and a change of band keeps focus in the rail', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -312,6 +359,12 @@ test('G3: Skip to status opens the drawer, and a change of band keeps focus in t
     await page.keyboard.press('Escape');
     await expect(button, 'Esc closes the drawer').toHaveAttribute('aria-expanded', 'false');
     await expect(button, 'and returns focus to the Status button').toBeFocused();
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(statusButton(page), 'widened, the Status button leaves with its band').toHaveCount(0);
+    await expect(mainOf(page), 'and the focus it held goes to the main region, not to the page').toBeFocused();
+    await page.setViewportSize({ width: 1100, height: 720 });
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
 
     await skipLink(page, SKIP_CHAT).focus();
     await page.keyboard.press('Enter');
@@ -344,6 +397,7 @@ test('G3: Skip to status opens the drawer, and a change of band keeps focus in t
     await page.setViewportSize({ width: 1100, height: 720 });
     await expect(statusButton(page), 'narrowed with the help of a rail trigger open, the drawer is open').toHaveAttribute('aria-expanded', 'true');
     await expect(rowOf(page, summary).locator('app-trace-link a'), 'and the trigger of the help shows').toBeVisible();
+    await expect(help.locator(':focus'), 'and focus is still inside the help').toHaveCount(1);
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -405,7 +459,7 @@ async function expectColumn(page: Page, wideBlock: number, link: Locator): Promi
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
-/** G4: below 1024px the page is one column that scrolls as a page, in the order of the page, with only the compact header sticky. */
+/** G4: below 1024px the page is one column that scrolls as a page, in the order of the page, with only the compact header sticky; widened again, the rail goes back. */
 test('G4: at 1000x800 the page is one column with the rail after main, and only the header sticks', async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
@@ -416,20 +470,45 @@ test('G4: at 1000x800 the page is one column with the rail after main, and only 
     const text = await addReminder(page, user, unique('G4').replace(/ /g, '-'));
     await expect(rowOf(page, text), 'a reminder published after the move shows its row in the region Status').toBeVisible();
     expect(await placeOfFocus(page), 'and the move left focus in the rail').toBe('rail');
+
+    const held = await page.evaluateHandle(() => document.activeElement);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(page.locator('section.rail + main.main'), 'widened again, the rail goes back before main in the DOM').toHaveCount(1);
+    await expect.poll(() => page.evaluate((el) => el !== null && el === document.activeElement, held), { message: 'and the rail control that held focus keeps it' }).toBe(true);
+    const rail = await edges(railOf(page));
+    const main = await edges(mainOf(page));
+    expect(Math.abs(rail.right - main.left), 'and main starts at the right edge of the rail').toBeLessThanOrEqual(1);
   } finally {
     await cleanFixtureRows(refs);
   }
 });
 
-/** G4, an empty chat: the list is as tall as its content, and shorter than 70% of the window. (At 200% the empty chat's content is taller than 70% of the window, and the list scrolls.) */
-test('G4: at 1000x800 an empty chat list is as tall as its content', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 800 });
+/**
+ * G4, an empty chat: the list is as tall as its content (the empty chat's own box, which a stretched list would centre in more space),
+ * and shorter than 70% of the window. The case empties the chat and the rail of its snapshot and opens a tall window, so that main has
+ * room below the chat whatever rows the floor user holds, and checks that room first. (At 200% the empty chat's content is taller than
+ * 70% of the window, and the list scrolls.)
+ */
+test('G4: below 1024px an empty chat list is as tall as its content', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
+    const rail = snapshot['rail'] as Record<string, unknown>;
+    for (const section of ['approvals', 'checks', 'reminders', 'decisions']) rail[section] = [];
   });
   await openFloor(page);
-  const sizes = await page.locator('app-chat-panel .list').evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight, inner: window.innerHeight }));
+  await expect(page.locator('main.main + section.rail'), 'the column').toHaveCount(1);
+  const sizes = await page.locator('app-chat-panel .list').evaluate((el) => ({
+    client: el.clientHeight,
+    scroll: el.scrollHeight,
+    inner: window.innerHeight,
+    content: el.querySelector('app-empty-chat .empty')!.getBoundingClientRect().height,
+    main: document.querySelector('main.main')!.clientHeight,
+    dock: document.querySelector('app-chat-panel .dock')!.getBoundingClientRect().height,
+  }));
+  expect(sizes.main - sizes.dock - sizes.content, `main has room below the empty chat, where a list that stretched would grow (main ${sizes.main}px)`).toBeGreaterThan(40);
   expect(sizes.scroll - sizes.client, 'the list holds its whole content').toBeLessThanOrEqual(1);
+  expect(Math.abs(sizes.client - sizes.content), `and is no taller than it: the empty chat's ${sizes.content}px, not ${sizes.client}px`).toBeLessThanOrEqual(1);
   expect(sizes.client, 'and is shorter than 70vh').toBeLessThan(0.7 * sizes.inner);
 });
 
@@ -464,13 +543,22 @@ test.describe('at 200%: 640x360 at device scale 2', () => {
       await expect(page.locator('main.main + section.rail'), 'the column').toHaveCount(1);
       await settled(page);
 
-      // The skip links show above the header by design; every other stop must lie below it.
+      // The skip links show above the header, with nothing painted over them; every other stop must lie below it.
       let seenRail = false;
       const stops = await walk(
         page,
         { ends: (reading, place) => seenRail && (reading === null || place === 'skip') },
         async (reading, place) => {
           if (place === 'rail') seenRail = true;
+          if (place === 'skip') {
+            const onTop = await page.evaluate(() => {
+              const link = document.activeElement!;
+              const box = link.getBoundingClientRect();
+              const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+              return hit !== null && link.contains(hit);
+            });
+            expect(onTop, `${reading.what}: it shows above the sticky header`).toBe(true);
+          }
           if (place !== 'skip' && place !== 'header') {
             const bottom = await headerBottom(page);
             expect(reading.ring.top, `${reading.what}: its ring lies below the header (${bottom})`).toBeGreaterThanOrEqual(bottom - 0.5);

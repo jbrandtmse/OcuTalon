@@ -4,6 +4,9 @@ import { MESSAGES, changeSnapshot, holdState } from '../support/api';
 import { freeze } from '../support/clock';
 import {
   CARD_MS,
+  MOST_STOPS,
+  SKIP_CHAT,
+  SKIP_STATUS,
   addReminder,
   addResetSoon,
   applied,
@@ -19,12 +22,14 @@ import {
   replyOf,
   rowOf,
   seedFullPage,
+  seedRow,
   seedScrollingPage,
   settled,
+  skipLink,
   unique,
   type Reading,
 } from '../support/floor';
-import { cleanFixtureRows, fixtureUser, publishStatus, seedDecision, seedTurns, turnRows } from '../support/iris';
+import { cleanFixtureRows, fixtureUser, publishStatus, seedTurns, turnRows } from '../support/iris';
 import { tokenColor } from '../support/page';
 
 /**
@@ -48,12 +53,6 @@ test.afterEach(async ({ page }) => {
 
 const KIND = 'FLOOR';
 
-const SKIP_CHAT = 'Skip to chat';
-const SKIP_STATUS = 'Skip to status';
-
-/** The most tab stops K4 walks before it gives up looking for Send. */
-const MOST_STOPS = 150;
-
 /** Expects a focus target that is not a tab stop to draw the ring inside its own edge: 2px solid in the focus colour, with the surface halo inside it. */
 async function expectInsideRing(page: Page, reading: Reading, what: string): Promise<void> {
   const focus = await tokenColor(page, '--focus');
@@ -66,15 +65,7 @@ async function expectInsideRing(page: Page, reading: Reading, what: string): Pro
   expectRingInside(reading, what);
 }
 
-const skipLink = (page: Page, name: string): Locator => page.getByRole('link', { name, exact: true });
 const homeLink = (page: Page): Locator => page.locator('app-header a.home');
-
-/** Seeds the decision rows of a case: one attention decision with a trace link, whose row is a disclosure with a Trace link beside it. */
-async function seedRow(user: string, refs: string[], label: string): Promise<string> {
-  const summary = unique(label);
-  refs.push(await seedDecision(user, { outcome: 'act', summary, reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }));
-  return summary;
-}
 
 /** Whether the focused element is inside the locator's element and is not that element itself. */
 const focusIsInside = (region: Locator): Promise<boolean> =>

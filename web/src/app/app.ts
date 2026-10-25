@@ -11,8 +11,9 @@ import { LAYOUT_QUERIES } from './shared/layout-view';
  * The page: the skip links, which come first so that they are the first tab stops (Story 2.14), the app header, the slot for the
  * banners that sit under it, and the routed page. The slot holds the stack of status
  * banners (Story 2.10), which takes the height it needs and leaves the routed page the rest. The snapshot loads once
- * per page load, through LiveState, and every part of the page reads it from there. The app is the viewport's height, so the
- * routed page's regions scroll on their own.
+ * per page load, through LiveState, and every part of the page reads it from there. From 1024px wide the app is the viewport's height,
+ * so the routed page's regions scroll on their own; below it (the stacked column, Story 2.15) it is at least the viewport's height and
+ * the page itself scrolls.
  */
 @Component({
   selector: 'app-root',

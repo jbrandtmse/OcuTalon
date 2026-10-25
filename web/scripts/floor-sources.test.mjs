@@ -9,7 +9,7 @@
 //   bands    every width @media of the page is one of the four queries of layout-view.ts, and Layout reads matchMedia with them only
 //            (Story 2.15);
 //   sticky   nothing is sticky but the compact header below 1024px, and nothing fixed but the skip links (Story 2.15).
-// The browser cases K1 to K6 and W1 to W4 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
+// The browser cases K1 to K6, W1 to W4 and G1 to G7 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
 // sources, so a state no case reaches cannot bring one of these back without a test turning red. Each list below names the files that
 // may do the thing and why; a story that needs another entry adds it here, with its reason.
 // Run with: node --test web/scripts/
@@ -405,8 +405,8 @@ describe('the banned patterns (UX-DR129)', () => {
 
 describe('the width bands (Story 2.15)', () => {
   const QUERIES = Object.values(LAYOUT_QUERIES);
-  /** The condition of every `@media` rule that holds a width. */
-  const widthConditions = (css) => [...css.matchAll(/@media\s*((?:\$\{[^}]*\}|[^{])*)\{/g)].map((match) => match[1].trim()).filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{LAYOUT_QUERIES/.test(condition));
+  /** The condition of every `@media` rule that holds a width, or an interpolation, which may hold one. */
+  const widthConditions = (css) => [...css.matchAll(/@media\s*((?:\$\{[^}]*\}|[^{])*)\{/g)].map((match) => match[1].trim()).filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{/.test(condition));
 
   it('catches a width media query that is none of the four, in any syntax', () => {
     assert.deepEqual(widthConditions('@media (max-width: 1000px) { a { b: c } }'), ['(max-width: 1000px)']);
@@ -414,6 +414,7 @@ describe('the width bands (Story 2.15)', () => {
     assert.deepEqual(widthConditions('@media (width >= 1000px) { a { b: c } }'), ['(width >= 1000px)']);
     assert.deepEqual(widthConditions('@media screen and (400px < width < 900px) { a { b: c } }'), ['screen and (400px < width < 900px)']);
     assert.deepEqual(widthConditions('@media ${LAYOUT_QUERIES.stacked} { a { b: c } }'), ['${LAYOUT_QUERIES.stacked}']);
+    assert.deepEqual(widthConditions('@media ${NARROW} { a { b: c } }'), ['${NARROW}']);
     assert.deepEqual(widthConditions('@media (prefers-reduced-motion: reduce) { a { b: c } }'), []);
     assert.deepEqual(widthConditions('@media (forced-colors: active) { a { b: c } }'), []);
   });
@@ -455,16 +456,17 @@ describe('sticky and fixed positions (Story 2.15)', () => {
   const STICKY = { 'app/header/header.ts': 'the compact header is the one sticky element, below 1024px only' };
   const FIXED = { 'app/header/skip-links.ts': 'a skip link is fixed at the top left, clipped until it has focus' };
 
-  it('catches both positions', () => {
+  it('catches both positions, in a template\'s style attribute as well (the whole source is read)', () => {
     assert.ok(new RegExp(POSITION.source).test('  position: sticky;'));
     assert.ok(new RegExp(POSITION.source).test('position:fixed'));
+    assert.ok(new RegExp(POSITION.source).test('<div style="position: fixed">'));
     assert.equal(new RegExp(POSITION.source).test('  position: absolute;'), false);
   });
 
   it('has position: sticky only in header.ts, and only inside the stacked query', () => {
     const where = {};
     for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
-      if ([...cssOf(one).matchAll(POSITION)].some((match) => match[1] === 'sticky')) where[one.name] = true;
+      if ([...one.code.matchAll(POSITION)].some((match) => match[1] === 'sticky')) where[one.name] = true;
     }
     assert.deepEqual(Object.keys(where), Object.keys(STICKY));
     const css = cssOf(file('app/header/header.ts'));
@@ -477,7 +479,7 @@ describe('sticky and fixed positions (Story 2.15)', () => {
   it('has position: fixed only in skip-links.ts', () => {
     const where = [];
     for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
-      if ([...cssOf(one).matchAll(POSITION)].some((match) => match[1] === 'fixed')) where.push(one.name);
+      if ([...one.code.matchAll(POSITION)].some((match) => match[1] === 'fixed')) where.push(one.name);
     }
     assert.deepEqual(where, Object.keys(FIXED));
     for (const [name, why] of Object.entries(FIXED)) assert.ok(why.length > 20, `${name} says why`);

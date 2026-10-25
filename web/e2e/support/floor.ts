@@ -25,7 +25,8 @@ import { tokenColor } from './page';
  *
  * The ring readings of Story 2.14 live here too, for K4 and the layout cases (Story 2.15): `readFocus` reads the focused element's outline,
  * halo and ring box with the viewport and every scroller around it, `expectRingInside` and `expectRing` judge it, and `seedScrollingPage`
- * seeds the page whose rail and chat list both scroll.
+ * seeds the page whose rail and chat list both scroll. So do the skip links' texts, the bound of a Tab walk (`MOST_STOPS`) and
+ * `seedRow`, the decision row with a Trace link that K1 to K3 and the layout cases use.
  */
 
 /** How long a card may take to reach the page after the send returns: the route, the live poll (1 to 2 s) and the render. */
@@ -46,6 +47,21 @@ export const composerOf = (page: Page): Locator => page.getByRole('textbox', { n
 export const rowOf = (page: Page, marker: string): Locator => railOf(page).locator('li.row').filter({ hasText: marker });
 export const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="reply"][data-key="${key}"]`);
 export const banner = (page: Page, id: string): Locator => page.locator(`app-banner-stack [data-banner="${id}"]`);
+
+/** The skip links' texts, written out here as the independent oracle of the page's own. */
+export const SKIP_CHAT = 'Skip to chat';
+export const SKIP_STATUS = 'Skip to status';
+export const skipLink = (page: Page, name: string): Locator => page.getByRole('link', { name, exact: true });
+
+/** The most tab stops a walk of the page takes before it gives up. */
+export const MOST_STOPS = 150;
+
+/** Seeds one attention decision with a trace link, whose row is a disclosure with a Trace link beside it, and returns its summary. */
+export async function seedRow(user: string, refs: string[], label: string): Promise<string> {
+  const summary = unique(label);
+  refs.push(await seedDecision(user, { outcome: 'act', summary, reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }));
+  return summary;
+}
 
 /**
  * Returns once the page has rendered what a key press changed: after two animation frames and a task. A page that handles a key
