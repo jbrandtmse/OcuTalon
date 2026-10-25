@@ -17,8 +17,9 @@ import { changeSnapshot as heartbeatSnapshot } from '../support/api';
  * stays skipped until the integration switch replaces it with the real watch's row.
  */
 heartbeatTest.describe('Story 8.2: the check row while the heartbeat is not stalled (fixture row)', () => {
+  heartbeatTest.skip(!process.env['OCUTALON_URL'], 'Story 8.2 needs the first-start stack (OCUTALON_URL), which a run without one lacks');
+
   heartbeatTest('a fixture "Orders production" row shows its last run with no late mark while the real status holds no heartbeatStalled', async ({ page }) => {
-    heartbeatTest.skip(!process.env['OCUTALON_URL'], 'Story 8.2 needs the first-start stack (OCUTALON_URL), which a run without one lacks');
     let realStatus: Array<{ condition: string }> | undefined;
     await heartbeatSnapshot(page, (snapshot) => {
       realStatus = snapshot['status'] as Array<{ condition: string }>;
