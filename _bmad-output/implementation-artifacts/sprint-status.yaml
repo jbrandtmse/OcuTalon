@@ -65,7 +65,7 @@ development_status:
   1-13-epic-1-burn-down: done
   epic-1-retrospective: optional
 
-  epic-2: done
+  epic-2: in-progress
   2-1-lay-out-the-main-page-frame: done
   2-2-keep-the-session-and-load-its-snapshot-with-live-updates: done
   2-3-route-every-command-by-verb-with-origin-checks: done
@@ -82,7 +82,7 @@ development_status:
   2-14-work-the-whole-page-by-keyboard-with-labels-and-words: done
   2-15-lay-the-page-out-at-every-supported-width: done
   2-16-prove-the-floor-in-chromium-firefox-and-webkit: done
-  2-17-epic-2-s-tests-follow-the-real-decide: ready-for-dev
+  2-17-epic-2-s-tests-follow-the-real-decide: in-progress
   epic-2-retrospective: optional
 
   epic-3: backlog
