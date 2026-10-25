@@ -25,6 +25,18 @@ export interface DryRun {
   itemNoun?: ItemNoun;
 }
 
+export interface GuideBreakFeed {
+  active?: boolean;
+  reason?: string;
+  stage?: string;
+  startedAt?: string;
+}
+
+export interface GuideStep {
+  step?: number;
+  done?: boolean;
+}
+
 export interface IncidentEvidence {
   sampleHeaderId?: number;
   sampleError?: string;
@@ -227,6 +239,10 @@ export interface GuideStatePayload {
   runEpoch?: number;
   step?: number;
   finished?: boolean;
+  steps?: GuideStep[];
+  breakFeed?: GuideBreakFeed;
+  step4Variant?: string;
+  telegramRow?: boolean;
 }
 
 export interface IncidentPayload {

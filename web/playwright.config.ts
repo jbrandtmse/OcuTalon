@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Six projects:
  *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/ and e2e/floor/ (the sign-in and API units), Desktop Chrome;
  *   demo-path      the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh), Desktop Chrome;
- *   demo-switch    the badge spec of e2e/demo-switch/ (the demo-switch unit, docker/tests/test-demo-switch.sh, which names the stack's
+ *   demo-switch    the badge and guide specs of e2e/demo-switch/ (the demo-switch unit, docker/tests/test-demo-switch.sh, which names the stack's
  *                  demo mode in OCUTALON_E2E_DEMO_MODE), Desktop Chrome;
  *   floor          the accessibility floor's specs of e2e/floor/ (the floor unit, docker/tests/test-floor.sh), Desktop Chrome: every case;
  *   floor-firefox  the floor cases tagged @browsers, in Desktop Firefox;

@@ -67,7 +67,6 @@ const UNBUILT: ReadonlyArray<readonly [method: 'POST', path: string]> = [
   ['POST', '/ocutalon/api/v1/demo/break-feed'],
   ['POST', '/ocutalon/api/v1/mailbox/incoming'],
   ['POST', '/ocutalon/api/v1/mailbox/samples/zz'],
-  ['POST', '/ocutalon/api/v1/guide/markers'],
 ];
 
 /** The routes that name a record: a ref the session can't see answers 404 not_found, before the 501 of an unbuilt route. */
@@ -114,7 +113,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'guide']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
@@ -134,6 +133,15 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     pausedUntil: '',
   });
   expect(body['status'], 'the computed no-key condition of this stack: the model key is not set (Story 2.10)').toEqual([{ condition: 'noModelKey', active: true }]);
+  expect(body['guide'], "the README session has no rows: the blank guide of Story 4.2, last because demo mode is on").toEqual({
+    runEpoch: 1,
+    step: 1,
+    finished: false,
+    steps: [1, 2, 3, 4, 5].map((step) => ({ step, done: false })),
+    breakFeed: { active: false, reason: 'not_watching' },
+    step4Variant: 'unpaired',
+    telegramRow: false,
+  });
 });
 
 /**

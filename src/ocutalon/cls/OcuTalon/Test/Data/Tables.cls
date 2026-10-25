@@ -325,7 +325,8 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "SessionRef": "%String(MAXLEN=22)",
    "RunEpoch": "%Integer",
-   "TraceOpened": "%Boolean"
+   "TraceOpened": "%Boolean",
+   "RunStartedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "SessionRefIndex": "SessionRef unique"

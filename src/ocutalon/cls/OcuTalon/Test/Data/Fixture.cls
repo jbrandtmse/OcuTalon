@@ -4,7 +4,7 @@
 /// ChannelMessageId); every row it
 /// creates is recorded under ^OcuTalonTest("Fixture", <class>, <id>), and Clean deletes exactly the recorded rows,
 /// with the live events and counters of the fixture sessions' streams and every Delivery row of a fixture session it deletes
-/// (the rows that the production made included), so that an interrupted run is cleaned by the
+/// (the rows that the production made included), and the GuideState and BreakFeedRun rows of the session, so that an interrupted run is cleaned by the
 /// next. A row that a test makes another way (Session.ForUser, Ownership.Attach) is recorded with Adopt. A fixture
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
 /// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers,
@@ -149,6 +149,29 @@ ClassMethod Usage(decisionRef As %String, ownerRef As %String, fields As %Dynami
 	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Do ..SetFields(row, fields)
 	Quit ..Keep(row, decisionRef)
+}
+
+/// A Break the feed run of the session; state defaults to sent and startedAt to now. The row has no Ref of its own, so it is
+/// recorded under sessionRef, which is returned: Clean(sessionRef) removes it with the session's other rows.
+ClassMethod BreakFeedRun(sessionRef As %String, state As %String = "sent", startedAt As %String = {##class(OcuTalon.Data.Time).NowUtc()}) As %String
+{
+	Set row = ##class(OcuTalon.Data.BreakFeedRun).%New()
+	Set row.SessionRef = sessionRef
+	Set row.State = state
+	Set row.StartedAt = startedAt
+	Quit ..Keep(row, sessionRef)
+}
+
+/// The session's guide markers row: epoch runEpoch (1), runStartedAt ("" for the first epoch) and traceOpened (0). Recorded
+/// under sessionRef, which is returned, like BreakFeedRun.
+ClassMethod GuideState(sessionRef As %String, runEpoch As %Integer = 1, runStartedAt As %String = "", traceOpened As %Boolean = 0) As %String
+{
+	Set row = ##class(OcuTalon.Data.GuideState).%New()
+	Set row.SessionRef = sessionRef
+	Set row.RunEpoch = runEpoch
+	Set row.RunStartedAt = runStartedAt
+	Set row.TraceOpened = traceOpened
+	Quit ..Keep(row, sessionRef)
 }
 
 /// Sets the test seam that says whether this release includes Telegram (what Channel.Telegram.In's Included() reads) to
@@ -308,6 +331,7 @@ ClassMethod Clean(refs As %String = "")
 			If class = "OcuTalon.Data.Session" {
 				Do ..DropStream(ref)
 				Do ..DropDeliveries(ref)
+				Do ..DropGuide(ref)
 			}
 			Do $ClassMethod(class, "%DeleteId", id)
 			Kill ^OcuTalonTest("Fixture", class, id)
@@ -438,6 +462,16 @@ ClassMethod DropDeliveries(ownerRef As %String) [ Private ]
 	Set statement = ##class(%SQL.Statement).%New()
 	Set sc = statement.%Prepare("DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?")
 	Do statement.%Execute(ownerRef)
+}
+
+/// Removes the GuideState and BreakFeedRun rows of a session, the rows that the product made for a fixture session included.
+ClassMethod DropGuide(sessionRef As %String) [ Private ]
+{
+	For table = "OcuTalon_Data.GuideState", "OcuTalon_Data.BreakFeedRun" {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("DELETE FROM "_table_" WHERE SessionRef = ?")
+		Do statement.%Execute(sessionRef)
+	}
 }
 
 /// Removes the live events of a stream and its counter.

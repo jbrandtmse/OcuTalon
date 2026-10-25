@@ -2,7 +2,8 @@
 title: 'Story 4.2: Derive the guide state and Break the feed availability on the server'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '49f38823504ab56fce87dcf7d3c79be4c592233c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -234,6 +235,39 @@ Fixture session S, demo mode on, Compute through `Test.Demo.GuideProbe` (fixed c
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 29 findings -- high 0, medium 2, low 23, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: GuideMarkers answers 500 after RunAgain committed when the refresh fails, so a retry advances the epoch again -- the spec prescribes 500 for a failed refresh (Decided 9); the refresh fails only on a 5 s lock timeout; reopen_if a marker call is seen to 500 on a healthy stack.
+  - `[low]` `[reject]` Blind: RecentSessions compares StartedAt as a string and scans the table -- only Story 4.3 writes StartedAt, in this format; the table is demo-sized; no user-reachable failure.
+  - `[low]` `[patch]` Blind: RecentSessions and the tick's error branches have no direct test -- the 240 s window had only the 100, 200 and 300 s probes; added `TestWindowEdges` (230 s refreshed, 250 s not) with a mutation line; the error branches stay untested (not in the matrix).
+  - `[low]` `[reject]` Blind: two DemoOn implementations -- the spec's Rule 2 note records the copy (the spine has no Demo to Core edge).
+  - `[low]` `[reject]` Blind: REASONS and STAGES parameters unused -- the spec asks for parameters for the closed lists; they document the closed values.
+  - `[low]` `[reject]` Blind: the hook waits up to 5 s for the guide lock and a skipped refresh is not retried -- Decided 7 and matrix row 15 state both.
+  - `[low]` `[reject]` Blind: Fixture.DropGuide ignores the prepare status -- it mirrors DropDeliveries, as the spec says.
+  - `[low]` `[patch]` Blind: stale docs -- the `web/playwright.config.ts` header now names the guide spec; `docker/tests/test-demo-switch.sh` is contended and untouched.
+  - `[low]` `[reject]` Blind: guide.spec.ts leaves the README session changed -- the spec requires relative assertions so a re-run passes.
+  - `[low]` `[reject]` Edge: Run again in the same second as the latest run's StartedAt keeps the old run current -- the order within one second is unknowable and a press that fast is not reachable by a person.
+  - `[low]` `[reject]` Edge: GuideMarkers retry after a failed refresh -- same root cause as the first row.
+  - `[low]` `[reject]` Edge: a monitor stalled past 240 s misses the 180 s tick -- `/state` recomputes on every load; Decided 8 fixes the window.
+  - `[low]` `[reject]` Edge: a StartedAt in the future gives a negative age -- needs a clock step back; theoretical.
+  - `[low]` `[reject]` Edge: the tick can block 5 s per busy session -- a guide lock is held for milliseconds.
+  - `[low]` `[reject]` Edge: a failed Compute makes /state a 500 -- matrix row 18 says a failed read throws (500), as today.
+  - `[medium]` `[patch]` Verification gap: no TestFinished row has an approved fix together with a closed incident that has an open variant, so the variant clause is unpinned -- added four rows (rejected, fallback, no_fix, expired, each with a done request); mutation line written.
+  - `[medium]` `[patch]` Verification gap: the "only the marker changes" fingerprint omits approval requests in every state and the incident's fields -- Fingerprint now reads Incident (Ref, State, OpenVariant, NoticedAt) and ApprovalRequest (Ref, State) by owner; mutation line written.
+  - `[low]` `[reject]` Verification gap: the 500 branches of GuideMarkers have no test -- not a matrix row; reopen_if Story 4.3 changes the endpoint.
+  - `[low]` `[patch]` Verification gap: the tick window and guard are pinned only by redundant paths -- same root cause as the third row; the demo-off guard is duplicated by RefreshGuide and stays.
+  - `[low]` `[reject]` Verification gap: the instance-stream guards cannot fail on their own -- defensive duplicates of the Session-row check; no behaviour depends on them alone.
+  - `[low]` `[reject]` Verification gap: an unreadable StartedAt refreshes forever -- same root cause as the second row.
+  - `[low]` `[reject]` Verification gap: TestStateBody leaves demo.mode at 1 -- OnAfterAllTests restores it, and `shard lane-b --reverse` passed with 49 classes.
+  - `[low]` `[reject]` Verification gap: the guide.spec event assertions sit inside `if (!wasOpen)` -- on a fresh throwaway the branch is taken; it only weakens a re-run.
+  - `[low]` `[reject]` Verification gap: duplicate DemoOn predicate -- same root cause as the fourth row.
+  - `[false]` `[reject]` Intent: RecentSessions is a prepare outside Ownership.Rows -- the spec prescribes it as a checked prepare in BreakFeedRun, as Watchers does.
+  - `[low]` `[reject]` Intent: StatusMonitor gains two parameters, GUIDESECONDS and LOGGUIDE -- recorded as Decided 17; the constraint protects Epic 8's methods and the constant follows LOGRUN's pattern.
+  - `[false]` `[reject]` Intent: the marker body accepts extra members -- Decided 9 says other members are ignored.
+  - `[false]` `[reject]` Intent: incident namespace case under SQL equality -- Decided 12; the default collation is SQLUPPER and the matrix row 2 test passes.
+  - `[false]` `[reject]` Intent: a marker publishes an event only on change -- the Publishing boundary says it publishes only when the JSON differs.
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`):
@@ -291,6 +325,8 @@ Fixture session S, demo mode on, Compute through `Test.Demo.GuideProbe` (fixed c
     - production jobs run with `%All` (AD-24).
 
     The hook's cost per trigger publish is unmeasured (inference: a few ms). The implement stage records it.
+17. **Two constants on `StatusMonitor`.** `LOGGUIDE` (the warning text) sits beside `GUIDESECONDS`, as `LOGRUN` sits beside the run. Both are next to `GuideTick`, away from Epic 8's lines. `Live.Publish` has the same `LOGGUIDE`.
+18. **`Web/Playwright` header and `frame.spec.ts`.** `web/e2e/frame/frame.spec.ts` (Epic 2) F9 pins the exact `/state` keys, so its list gained `'guide'` (one word) for the new last key with demo mode on. `web/playwright.config.ts`'s header now names the guide spec.
 
 **Veto-window items (for the lead; the spec is written with the recommended option):**
 - **V1 (schema and stored format). Recommended.**
@@ -402,6 +438,30 @@ Fixture session S, demo mode on, Compute through `Test.Demo.GuideProbe` (fixed c
   - the `StateBody` line removed → `Test.Web.GuideApi`, `api.spec.ts` row 13 and `guide.spec.ts`.
 - AC 4, only the marker: `RunAgain` also deletes the session's `BreakFeedRun` rows → `Test.Web.GuideApi`'s "rows unchanged".
 
+**Measured (implement stage, warm stack `e4s2iw`):** the median of 20 `Guide.Compute` calls, for a session with all five steps' rows (Orders check, reminder, resolved Orders incident with an approved request, a Break the feed run and the trace marker), is 0.46 ms (min 0.42 ms, max 0.52 ms). The hook adds that to every trigger publish while demo mode is on, and nothing with demo mode off.
+
+**Mutations run (each applied, red observed, reverted byte-identical):**
+- mutation: `ReminderSetOrFired` also matches `cancelled` (Ownership statement) -> `Test.Demo.Guide` `TestStepTwo` red ("a cancelled reminder alone").
+- mutation: step 3 ignores the window (`window` = "") -> `Test.Demo.Guide` `TestSecondRun`, `TestRunAgain` and `TestStepThree` red.
+- mutation: `ANSWERED` gains `pending` -> `TestStepFour` red ("pending request").
+- mutation: `Finished` without the resolved check (`Set finished = 1`) -> `TestFinished` red ("while fixing").
+- mutation: the rejected/fallback/no_fix clamp of the current step removed -> `TestCurrentStep` red (three variants).
+- mutation: `TelegramState()` returns "on" -> `TestTelegramCountsAsOff` red.
+- mutation: the owner check of `newestIncident` dropped (statement keeps its bind count) -> `Test.Data.OwnershipGuide` `TestNewestIncident` red (isolation).
+- mutation: `NOTICEWAIT` 180 -> 181 -> `TestRunStages` ("180 s, sent") and `TestRunAgain` red.
+- mutation: `incidentInProgress` gains `resolved` -> `TestBusyIncident` red ("resolved incident").
+- mutation: `reminder` removed from `GUIDETRIGGERS` -> `Test.Live.GuideRefresh` red (`TestEachTriggerType`, `TestHookPublishesOnChange`, `TestHeldLock`, `TestEventsBodyServesTheGuide`).
+- mutation: publish without comparing (`json '= base` dropped) -> `Test.Live.GuideRefresh` `TestHookPublishesOnChange` ("the same view again publishes none") and `TestNoRefresh` red.
+- mutation: no blank base (`base` = "" when the stream has no guide.state) -> `Test.Live.GuideRefresh` `TestNoRefresh` ("a session whose view is the blank one") red; and `live:sign-in` aborts at its seeding check (the README session's second reminder event gets Seq 3, not 2), so row 13's `streams {session: 2}` is protected there.
+- mutation: the `GuideTick` call removed -> `Test.Core.StatusMonitorGuide` red.
+- mutation: `RunAgain` keeps `TraceOpened` -> `Test.Web.GuideApi` `TestRunAgain` red, and `live:demo-switch` fails at "demo mode 1: the page specs failed" (`guide.spec.ts`).
+- mutation: the demo-off check removed from `GuideMarkers` -> `Test.Web.GuideApi` `TestDemoOff` red, and `live:demo-switch` fails at "demo mode 0: the page specs failed".
+- mutation: the `StateBody` guide line removed -> `Test.Web.GuideApi` `TestStateCarriesTheGuide` red, and `live:demo-switch` fails at "demo mode 1: the page specs failed".
+- mutation: `RunAgain` also deletes the session's `BreakFeedRun` rows -> `Test.Web.GuideApi` `TestOnlyTheMarkerChanges` ("run_again changes none of the session's data rows") red.
+- mutation: the variant clause of `finished` removed (`closed` alone finishes) -> `Test.Demo.Guide` `TestFinished` red (four rows "closed after <variant> with an approved fix").
+- mutation: `RunAgain` also sets the session's incidents to `closed` -> `Test.Web.GuideApi` `TestOnlyTheMarkerChanges` red ("run_again changes none of the session's data rows"; the fingerprint now holds incident states and approval requests).
+- mutation: `GUIDESECONDS` 240 -> 290 -> `Test.Core.StatusMonitorGuide` `TestWindowEdges` red ("a run 250 s old is not").
+
 **Shared surfaces:**
 - The `/state` keys: `Test.Web.Api` `TestStateBody`/`TestStateFlags`, and `api.spec.ts` row 13. `guide` is the last key, with demo mode on.
 - The route table: `TestRoutes`, and `api.spec.ts` `UNBUILT`.
@@ -416,5 +476,19 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The server derives the guide: `Demo.Guide.Compute` and `Blank` read the session's rows through six new `Ownership` kinds, `Live.Publish.RefreshGuide` publishes `guide.state` only on a change (hook after the seven trigger types, `StatusMonitor.GuideTick` for runs under 240 s old, and the marker endpoint), `POST /v1/guide/markers` writes the two UI-only markers of `GuideState` (new `RunStartedAt`), and `/state` carries `guide` last while demo mode is on.
+
+**Files changed.**
+- Product: `Data/{GuideState,BreakFeedRun,Ownership}.cls`, `Demo/Guide.cls` (new), `Live/Publish.cls`, `Live/Payload/GuideState.cls`, `Live/Payload/Part/Guide{Step,BreakFeed}.cls` (new), `Core/StatusMonitor.cls`, `Web/Api.cls`, `web/src/app/live/payloads.ts` (generated).
+- Tests: `Test/Demo/{Guide,GuideProbe}.cls`, `Test/Data/OwnershipGuide.cls`, `Test/Live/GuideRefresh.cls`, `Test/Core/StatusMonitorGuide.cls`, `Test/Web/GuideApi.cls` (new); `Test/Data/{Fixture,Tables}.cls`, `Test/Live/Payloads.cls`, `Test/Web/Api.cls`, `web/e2e/api/api.spec.ts`, `web/e2e/frame/frame.spec.ts` (outside the footprint: Epic 2's F9 key list); `web/e2e/demo-switch/guide.spec.ts` (new); `web/playwright.config.ts` (header).
+
+**Review.** 29 findings: patches applied 5 entries (2 medium: the `finished` variant clause rows and the widened fingerprint of `TestOnlyTheMarkerChanges`; 3 low: the 240 s window test, the playwright header, the shared tick-window root cause), deferred 0, rejected 24 with the reasons in the Review Triage Log. The patches changed tests and one comment only.
+
+**Follow-up review recommended:** false. Patched: medium 2, low 3; each new assertion was shown red by a mutation and no product code changed in review.
+
+**Verification.** After the last patch: all 11 `(loop)` classes passed on the warm stack; `live demo-switch` (fresh) all PASS with `guide.spec.ts` in both modes; `shard lane-b` 49 classes and `shard lane-a` 41 classes passed; `live sign-in` 192 passed; `payloads.mjs --check`, `npm --prefix web run lint`, `npm --prefix web test` (567 pass) and `bash ci/checks.sh` passed. No stack with the tags `e4s2i` is left. The handoff subagent sent two warm class runs in one message once (both passed); no git or CI action by any subagent (HEAD unchanged until finalize).
+
+**Residual risks.** With demo mode on, a session stream gains `guide.state` events after the first trigger publish that changes its view (Epic 8 tests that count stream events must expect them or turn demo mode off). Compute's median is 0.46 ms over 20 calls on the warm stack (see Verification).

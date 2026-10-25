@@ -4,7 +4,9 @@
 ///     takes the page's message, {clientId, text, fromGuide}, hands it to WebChatIn through the production (AD-1, AD-30) and
 ///     answers 202 {clientId} (a repeat of a clientId included) or 400 bad_message for any other body. Every other
 ///     route of the release answers 501 not_built until its story ships, and the pairing routes answer 404 while
-///     Telegram is not included. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
+///     Telegram is not included. POST /v1/guide/markers takes {marker: trace_opened | run_again}, writes that UI-only marker of the
+///     session's GuideState, refreshes the guide and answers 200 with the guide view (404 not_found with demo mode off, 400
+///     bad_marker for any other body). The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions.
@@ -41,6 +43,8 @@ Parameter MESSAGEWRONGORIGIN = "OcuTalon refused this request because it came fr
 
 Parameter MESSAGEBADMESSAGE = "A message needs a clientId and some text.";
 
+Parameter MESSAGEBADMARKER = "A guide marker must be trace_opened or run_again.";
+
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
 Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.";
@@ -60,7 +64,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/demo/break-feed" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/mailbox/incoming" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/mailbox/samples/:name" Method="POST" Call="NotBuilt"/>
-<Route Url="/v1/guide/markers" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/guide/markers" Method="POST" Call="GuideMarkers"/>
 <Route Url="/v1/session/end" Method="POST" Call="EndSession"/>
 <Route Url="/v1/pairing/code" Method="POST" Call="Pairing"/>
 <Route Url="/v1/pairing" Method="DELETE" Call="Pairing"/>
@@ -234,6 +238,50 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 }
 
+/// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is
+/// read. The body is a JSON object whose marker is the string trace_opened or run_again; anything else is 400 bad_marker and
+/// nothing is written. A valid marker is written to the signed-in session's GuideState (trace_opened sets the flag, run_again
+/// starts the next epoch), the guide is refreshed (a guide.state event follows a change) and the answer is 200 with the guide
+/// view that /state carries. A session that can't be read, a marker that can't be written and a refresh that fails are 500
+/// server_error.
+ClassMethod GuideMarkers() As %Status
+{
+	If '##class(OcuTalon.Demo.Guide).DemoOn() Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If '..MarkerBody(.marker) Quit ..Fail(400, "bad_marker", ..#MESSAGEBADMARKER)
+	Set session = ..CurrentSession(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If marker = "trace_opened" {
+		Set sc = ##class(OcuTalon.Data.GuideState).TraceOpened(session.Ref)
+	} Else {
+		Set sc = ##class(OcuTalon.Data.GuideState).RunAgain(session.Ref)
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set sc = ##class(OcuTalon.Live.Publish).RefreshGuide(session.Ref, .guide)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(guide) Quit ..ServerError($SYSTEM.Status.Error(5001, "The guide could not be computed"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write ..PayloadObject(guide).%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The marker of the request body, and 1 when it is a valid one: a JSON object whose marker is the string trace_opened or
+/// run_again (other members are ignored). Otherwise 0, with the marker empty.
+ClassMethod MarkerBody(Output marker As %String) As %Boolean [ Private ]
+{
+	Set marker = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If body.%GetTypeOf("marker") '= "string" Quit 0
+	Set value = body.marker
+	If (value '= "trace_opened") && (value '= "run_again") Quit 0
+	Set marker = value
+	Quit 1
+}
+
 /// Every route whose story hasn't shipped: 501 not_built. arg is the route's :ref or :name.
 ClassMethod NotBuilt(arg As %String = "") As %Status
 {
@@ -253,7 +301,8 @@ ClassMethod Pairing() As %Status
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
-/// and the session's pairing, and status: the active status conditions. instanceStream is the stream reported as
+/// and the session's pairing, status: the active status conditions, and, last and only while demo mode is on, guide: the
+/// guide that Demo.Guide.Compute derives. instanceStream is the stream reported as
 /// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
@@ -291,6 +340,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
+	If body.demoMode Set body.guide = ..PayloadObject(##class(OcuTalon.Demo.Guide).Compute(sessionRef))
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body

@@ -1,5 +1,5 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 27 payload
-/// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 29 payload
+/// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
@@ -89,7 +89,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 27, "the contracts hold the 27 payload and part classes")
+	Do $$$AssertEquals(classes, 29, "the contracts hold the 29 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -698,7 +698,11 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "RunEpoch": "%Integer(%JSONFIELDNAME=runEpoch)",
    "Step": "%Integer(%JSONFIELDNAME=step)",
-   "Finished": "%Boolean(%JSONFIELDNAME=finished)"
+   "Finished": "%Boolean(%JSONFIELDNAME=finished)",
+   "Steps": "list Of OcuTalon.Live.Payload.Part.GuideStep(%JSONFIELDNAME=steps)",
+   "BreakFeed": "OcuTalon.Live.Payload.Part.GuideBreakFeed(%JSONFIELDNAME=breakFeed)",
+   "Step4Variant": "%String(%JSONFIELDNAME=step4Variant,MAXLEN=32)",
+   "TelegramRow": "%Boolean(%JSONFIELDNAME=telegramRow)"
   }
  },
  "OcuTalon.Live.Payload.Incident": {
@@ -841,6 +845,22 @@ XData Contracts [ MimeType = application/json ]
    "Before": "%String(%JSONFIELDNAME=before,MAXLEN=1000)",
    "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
    "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.GuideBreakFeed": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Active": "%Boolean(%JSONFIELDNAME=active)",
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=32)",
+   "Stage": "%String(%JSONFIELDNAME=stage,MAXLEN=32)",
+   "StartedAt": "%String(%JSONFIELDNAME=startedAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.GuideStep": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Step": "%Integer(%JSONFIELDNAME=step)",
+   "Done": "%Boolean(%JSONFIELDNAME=done)"
   }
  },
  "OcuTalon.Live.Payload.Part.IncidentEvidence": {

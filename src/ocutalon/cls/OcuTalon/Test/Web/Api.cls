@@ -17,6 +17,8 @@
 /// tests (in a process-private global), unset before each test and put back after them.
 /// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
 /// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
+/// Story 4.2: with demo mode on the snapshot's last key is guide (Demo.Guide.Compute's view), and with it off there is no guide key
+/// (TestStateBody, TestStateFlags); the markers route is GuideMarkers (TestRoutes; Test.Web.GuideApi has the endpoint).
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
@@ -98,6 +100,7 @@ Method TestStateBody()
 	Do $$$AssertStatusOK(sc, "the fixture session whose stream stands in for the instance stream")
 	Do ..PublishReminders(session.Ref, 3, "a")
 	Do ..PublishReminders(instance.Ref, 2, "b")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session, instance.Ref)
 	Set expectedVersion = ""
 	If ##class(%Dictionary.ClassDefinition).%ExistsId("%IPM.Storage.Module") {
@@ -118,7 +121,9 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status", "the snapshot's keys")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,guide", "the snapshot's keys, with the guide last while demo mode is on")
+	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
+	Do $$$AssertEquals(body.guide.%ToJSON(), guideJson, "the guide is Demo.Guide.Compute's view")
 	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
 	Do $$$AssertEquals(body.user, "zzapistate"_..Number, "and the fixture session's user")
 	Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", "the two flags are booleans")
@@ -168,15 +173,18 @@ Method TestStateFlags()
 			Do $$$AssertEquals(body.onlineDemo, online, label_": onlineDemo")
 			Do $$$AssertEquals(body.demoMode, mode, label_": demoMode")
 			Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", label_": both are booleans")
+			Do $$$AssertEquals(body.%IsDefined("guide"), mode, label_": guide is present exactly when demoMode is true")
 		}
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do ##class(OcuTalon.Test.Demo.Step).Remove()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
+	Do $$$AssertEquals(body.%IsDefined("guide"), 0, "and the snapshot has no guide")
 	Do ##class(OcuTalon.Test.Demo.Step).Put("yes", ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
+	Do $$$AssertEquals(body.%IsDefined("guide"), 0, "and the snapshot has no guide for another value")
 }
 
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
@@ -722,7 +730,7 @@ Method TestErrorTexts()
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed NotBuilt", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers NotBuilt", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed NotBuilt", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
 	Do $$$AssertEquals($ListLength(found), 12, "12 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
