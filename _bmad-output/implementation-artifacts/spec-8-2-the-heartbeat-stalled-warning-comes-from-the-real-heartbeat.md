@@ -2,7 +2,7 @@
 title: 'Story 8.2: The heartbeat-stalled warning comes from the real heartbeat'
 type: 'feature'
 created: '2026-10-25'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'b4a087af362d2c926d75d18448a939b13e237602'
 baseline_commit: 'b4a087af362d2c926d75d18448a939b13e237602'
 review_loop_iteration: 0
@@ -102,6 +102,8 @@ deferred: []
   This is the real-runtime test (Rule 3); the middle dot is written as an escape (Rule 14).
 - [x] `web/e2e/demo-path/02-watch.spec.ts` -- append one self-contained block at the end, with its own imports under local aliases (`heartbeatTest`, `heartbeatExpect`, `heartbeatSnapshot`, `heartbeatSignIn`), so they never clash with names that lines Epic 4 adds import: a `describe` titled for Story 8.2 with one test whose title differs from the `notBuilt` line's. `heartbeatSnapshot` answers `/state` with the real answer, keeps the real `status` array, and puts one fixture check in `rail.checks` (`ref` `zz-fixture-orders`, `kind` `production`, `displayName` `Orders`, `lastRunAt` 30 s ago, `result` `passed`); `heartbeatSignIn`; then assert that the real `status` holds no `heartbeatStalled`, that the "Orders production" row's meta matches `Last run <time> · Passed` with no "(late)", and that no `heartbeatStalled` banner shows -- AC 3, fixture-backed.
 
+- [ ] [CI] web: Unit tests (`npm --prefix web test`, `web/scripts/demo-path-summary.test.mjs` "skip every unbuilt part with a story, so that each step reads skipped") red on the story commit ffd7530: that test runs `playwright test --project=demo-path` with no stack and no browser installed (the hosted `web` job installs none), and the appended Story 8.2 test in `web/e2e/demo-path/02-watch.spec.ts` calls `heartbeatTest.skip(!process.env['OCUTALON_URL'], ...)` inside its body, after the `page` fixture has launched a browser, so the launch fails and Playwright exits 1 -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40206917294 (job web, 121209725059) -- the fix must skip without starting any fixture when `OCUTALON_URL` is unset (for example the same `heartbeatTest.skip(...)` as the first statement of the story's own `describe` callback, not inside the test body), changing only the story's appended block (no existing line of the file above it), keep the skip text starting "Story 8.2" (the demo-path summary reads it), and prove it: `PLAYWRIGHT_BROWSERS_PATH=/nonexistent-e8 node --test --test-name-pattern='skip every unbuilt part' web/scripts/demo-path-summary.test.mjs` red before, green after (lead reproduced the red locally), then `npm --prefix web test` green and `live demo-path` still runs the test (passes) on the stack.
+
 **Acceptance Criteria:**
 1. Given the production running, the real task held by `StallFixture` and a fixture session, when the tick mark is set 240 s back, then `Web.Api.StateBody(session).status` holds exactly one `heartbeatStalled` member, `{"condition":"heartbeatStalled","active":true,"slots":{"time":"<mark>"}}`, and `StatusMonitor`'s real job publishes that payload as a `status` event on the instance stream within 30 s. When `StallFixture.Tick()` then writes a real tick, `StateBody` holds no `heartbeatStalled` at once, `StatusMonitor` publishes `{"condition":"heartbeatStalled","active":false}` within 30 s, and no `heartbeatStalled` event lies between that onset and that clear. With no tick mark, `StateBody` holds no `heartbeatStalled`. (FR-32, AD-12, AD-18, AD-33)
 2. Given the banners user's page open on the sign-in stack with a seeded production check, when the tick mark is set 4 minutes back and `StatusMonitor`'s next run publishes the condition, then within one live update of the page applying that event the heartbeat-stalled banner shows the tick's time, the check row reads "Last run {time} (late)", the announcer reads the banner once, and `GET /ocutalon/api/v1/state` of that session holds `heartbeatStalled` with the tick's time as its slot; and when a real tick is written, then `/state` holds no `heartbeatStalled` at once, and within one live update of the page applying `StatusMonitor`'s clear, the banner and the "(late)" mark are gone. (FR-32, NFR-9, AD-12, UX-DR99, UX-DR132)
@@ -136,6 +138,8 @@ Rejected:
 - `false` "a lastTick that is not a string: off" cannot fail: it pins the outcome, and the never-ticked mutation (an empty tick read as stalled) turns it red; the type guard is defensive and harmless.
 
 ## Spec Change Log
+
+- 2026-10-25, rework iteration 1 (trigger ci): the lead re-opened the spec for one `[CI]` item (the hosted web job's unit tests, run 40206917294).
 
 ## Review Triage Log
 
