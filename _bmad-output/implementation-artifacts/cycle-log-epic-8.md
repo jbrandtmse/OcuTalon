@@ -71,3 +71,4 @@
 2026-10-25T15:43:08Z	Story 8.2	ci_resolved	story=8.2 sha=ffd7530 runs=40206917294,40206917259 failed=.github/workflows/ci.yml(web) via=none result=failure resolved_at=story_boundary
 2026-10-25T15:43:08Z	Story 8.2	ci_red_classified	run=40206917294 workflow=.github/workflows/ci.yml class=story test=web/scripts/demo-path-summary.test.mjs:skip_every_unbuilt_part note=appended_02-watch_test_skips_inside_body_after_page_fixture_launches_a_browser;hosted_web_job_has_no_browser;reproduced_locally_with_PLAYWRIGHT_BROWSERS_PATH=/nonexistent
 2026-10-25T15:43:08Z	Story 8.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI-web-unit-tests(demo-path-summary) scope_baseline=pending
+2026-10-25T15:43:08Z	Story 8.2	stage_spawned	stage=implement spawn_at=2026-10-25T15:43:08Z model=sonnet agent_name=8-2-heartbeat-stalled-implement-2 cycle_iteration=2
