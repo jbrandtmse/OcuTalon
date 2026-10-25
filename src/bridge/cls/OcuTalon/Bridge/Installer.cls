@@ -104,6 +104,14 @@ ClassMethod CheckAudit() As %Status
 	Quit ..InSystem("check")
 }
 
+/// Reads whether instance-wide auditing is on (Security.System AuditEnabled of SYSTEM): enabled is 1 or 0. It is a read only, and OcuTalon
+/// never changes the setting (AD-17). When IRIS audit is off it writes none of OcuTalon's entries. An error status, with enabled empty, when
+/// the setting cannot be read.
+ClassMethod InstanceAuditing(Output enabled As %Boolean) As %Status
+{
+	Quit ..InSystem("auditing", .enabled)
+}
+
 /// Sets up what approvals need in the current namespace (AD-11, AD-24), at every start and on its own:
 ///   - the Workflow role Approval WORKFLOWROLE exists;
 ///   - the Workflow user Approval WORKFLOWUSER exists and is active, because only active members get tasks;
@@ -160,17 +168,25 @@ ClassMethod Fail(what As %String, sc As %Status) As %Status [ Private ]
 /// The class's only method that switches to %SYS (AD-3, AD-17). The action is one of:
 ///   - audit: registers each of OcuTalon.Bridge.Audit.Events() and enables each one that is disabled;
 ///   - check: fails for the first of them that is missing or disabled and changes nothing;
+///   - auditing: reads instance-wide auditing into enabled (1 or 0) and changes nothing;
 ///   - login: makes the IRIS user of Approval WORKFLOWUSER, with login disabled, no roles, no escalation roles and a random password
 ///     of 44 characters that nothing reads. A user that exists gets Enabled 0, no roles and no escalation role, and keeps its password.
 ///     The user holds the name, so an account made later under it cannot sign in to the Workflow inbox.
 /// Only Security classes and $SYSTEM are used after the switch, because the bridge's classes are not mapped to %SYS.
-ClassMethod InSystem(action As %String) As %Status [ Private ]
+ClassMethod InSystem(action As %String, Output enabled As %Boolean) As %Status [ Private ]
 {
+	Set enabled = ""
 	Set home = $Namespace
 	Set events = ##class(OcuTalon.Bridge.Audit).Events()
 	Set user = ##class(OcuTalon.Bridge.Approval).#WORKFLOWUSER
 	New $Namespace
 	Set $Namespace = "%SYS"
+	If action = "auditing" {
+		Set sc = ##class(Security.System).Get("SYSTEM", .system)
+		If $$$ISERR(sc) Quit sc
+		Set enabled = $Select($Get(system("AuditEnabled")): 1, 1: 0)
+		Quit $$$OK
+	}
 	If action = "login" {
 		If ##class(Security.Users).Exists(user) {
 			Kill properties

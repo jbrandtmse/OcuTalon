@@ -9,6 +9,9 @@
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
 ///     StreamChat, StreamChatWithContent, SendChat, SendChatWithContent, RunAgent, ChatComplete, StreamChatComplete or an agent's Run
 ///     (AD-6);
+///   - TestOnlyTheAuditWriterAudits (Story 3.7; AD-17): no OcuTalon class outside the Test package, except OcuTalon.Bridge.Audit, calls
+///     $SYSTEM.Security.Audit, ##class(%SYSTEM.Security).Audit or Audit's raw writer Write, so that product code writes only through Record and every
+///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
 ///   - TestRunnerStartsNoJob: the runner and its adapter start no job and use no work manager, because the pool size is the
 ///     concurrency cap (AD-6);
 ///   - TestToolCodeScan: ToolCodeClean flags a tool class that runs an operating system command, executes code, loads or compiles
@@ -86,6 +89,13 @@ Parameter CHATCALLS = "\.(chat|chatwithcontent|streamchat|streamchatwithcontent|
 /// A job started by a command, or the work manager. The command Job (or J) starts a line or follows a brace or a semicolon.
 Parameter JOBS = "(^\s*|[{;]\s*)(job|j)(:[^ ]*)?\s+(\^|\.\.|##|\$|%|[a-z])|workmgr";
 
+/// The calls that write an IRIS audit entry: $SYSTEM.Security.Audit, ##class(%SYSTEM.Security).Audit and the raw writer of the audit class, by a
+/// class reference or by $ClassMethod (AD-17). Product code calls Record.
+Parameter AUDITCALLS = "\$system\.security\.audit|\#\#class\(\s*%system\.security\s*\)\s*\.\s*audit|\#\#class\(\s*ocutalon\.bridge\.audit\s*\)\s*\.\s*write\b|ocutalon\.bridge\.audit[""']\s*,\s*[""']write[""']";
+
+/// The one class that may write an audit entry.
+Parameter AUDITWRITERS = "OcuTalon.Bridge.Audit";
+
 /// The classes that may call the chat family: the runner and its adapter.
 Parameter CHATTERS = "OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent";
 
@@ -162,6 +172,27 @@ Method TestCallbackRule()
 	}
 	Do $$$AssertTrue(..IsCallbackClass("OcuTalon.Bridge.Ext.Classification") && ..IsCallbackClass("OcuTalon.Test.Bridge.ProbeSink"), "an extension base and a subclass of one are scanned")
 	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class, nor a class that they call, refers to %AI beyond its Class line, or uses Python")
+}
+
+/// No class outside the Test package writes an audit entry except the audit class: the scanner flags each form of the call and passes Record,
+/// and the scan finds exactly one class that matches, the audit class itself.
+Method TestOnlyTheAuditWriterAudits()
+{
+	Set pattern = ..#AUDITCALLS
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = $SYSTEM.Security.Audit(""OcuTalon"", ""Action"", ""Action"", data, text)", pattern), "the scanner flags $SYSTEM.Security.Audit")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(%SYSTEM.Security).Audit(""OcuTalon"", ""Action"", ""Action"", data, text)", pattern), "and ##class(%SYSTEM.Security).Audit")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Bridge.Audit).Write(""Approval"", data, text)", pattern), "and Audit's raw writer Write")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = $ClassMethod(""OcuTalon.Bridge.Audit"", ""Write"", ""Approval"", data)", pattern), "also through $ClassMethod")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = $system.security.AUDIT(a, b, c, d, e)", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Bridge.Audit).Record(""Approval"", data)"_$Char(10)_"/// Calls $SYSTEM.Security.Audit in a comment"_$Char(10)_tab_"; ##class(OcuTalon.Bridge.Audit).Write("_$Char(10)_tab_"Set sc = ##class(OcuTalon.Bridge.AuditWrite).Run()"_$Char(10)_tab_"Set sc = ##class(Security.Events).Create(name)", pattern), "and passes Record, comment lines, a look-alike and the registration of an event")
+
+	Set offending = ..Offenders(pattern, ..#AUDITWRITERS, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class but the audit class writes an audit entry")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#AUDITWRITERS, .text), ..#AUDITWRITERS_" has source")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does write an entry, the audit class")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.

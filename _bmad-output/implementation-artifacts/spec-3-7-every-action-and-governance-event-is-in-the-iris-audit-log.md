@@ -2,7 +2,8 @@
 title: 'Story 3.7: Every action and governance event is in the IRIS audit log'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9472b108217949721fb09e5f87c014fe276d2298'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -223,6 +224,54 @@ The marker of every row is a fresh Ref. "Read back" means `AuditLog.Wait` from a
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 40 findings -- high 0, medium 1, low 24, false 14, maybe-false 1
+- findings:
+  - Blind Hunter
+    - `[false]` `[reject]` stale `Status: ready-for-dev` in Auto Run Result -- the section is rewritten at finalize.
+    - `[low]` `[patch]` Step.Audit returned StatusMark.Record's error, failing the start for an informational mark -- now a warning, result OK.
+    - `[false]` `[reject]` Audit depends on Approval.IsRef -- the spec's Code Map reuses `IsRef`; both are bridge classes (AD-2).
+    - `[low]` `[reject]` Cancel's irisUser is unchecked -- the spec's who-table makes the argument the caller's statement; by design.
+    - `[false]` `[reject]` a throw after %Save loses the entry -- CompleteHoldTask catches everything and MoveLocked builds the facts right after the save, so nothing throws between them.
+    - `[low]` `[patch]` TestRecordRefusesAnyOtherShape matched the member as a bare substring -- now asserts the quoted member the error emits.
+    - `[low]` `[patch]` missing negative cases (22-character Ref with bad characters, 21-character ref) -- two cases added; the non-sensitive Settings path stays untested (low, no failure scenario).
+    - `[low]` `[reject]` Install.Audit restores the mark as "" when none existed -- a valid value; no test lists marks.
+    - `[low]` `[reject]` AUDITCALLS misses indirect `$ClassMethod` of %SYSTEM.Security -- theoretical; the scan guards against accidental calls.
+    - `[low]` `[reject]` AuditLog.Wait polls every 0.2 s -- only a failing wait runs long; WebStatus measured 15 s.
+  - Edge Case Hunter
+    - `[low]` `[reject]` empty irisUser and empty $Username -- an IRIS job always has a user.
+    - `[false]` `[reject]` an OwnerRef outside Ref, instance, eval is refused -- those are Approval's values by design (AD-11).
+    - `[low]` `[reject]` Answer with an empty sessionRef names the owner's session -- the spec's who-table rule (the row's OwnerRef when a Ref).
+    - `[false]` `[reject]` a throw after save -- same as the Blind Hunter row (CompleteHoldTask catches).
+    - `[low]` `[reject]` a crash between unlock and Audited loses the entry -- the spec's decided order (after the unlock, before the event); a crash drops the event too.
+    - `[low]` `[reject]` Cancel checks its arguments before the Ref -- the error still names a real fault.
+    - `[low]` `[reject]` 128 characters against bytes -- IRIS MAXLEN counts characters.
+    - `[maybe-false]` `[reject]` redaction could leave invalid JSON -- Redact.Text re-serializes JSON objects; would only be low.
+    - `[low]` `[reject]` non-string type argument -- theoretical.
+    - `[low]` `[patch]` StatusMark.Record failure fails the start -- same as the Blind Hunter row (a read throwing <PROTECT> is theoretical).
+    - `[false]` `[reject]` a missing AuditEnabled reads as off -- Security.System.Get always returns it.
+    - `[low]` `[reject]` Install.Audit cannot restore auditing after a killed process -- throwaway stacks only; theoretical.
+    - `[low]` `[reject]` TestTimerExpires needs the hold job's user to differ -- measured `_Ensemble` against `irisowner` on every stack.
+    - `[low]` `[reject]` the grid reads entry.data as an object -- every entry read is OcuTalon's own.
+    - `[false]` `[reject]` claim: descriptions hold caller text -- the spec derives them from shape members and redacts them.
+    - `[low]` `[reject]` claim: 128 characters against bytes -- as above.
+    - `[low]` `[reject]` claim: a mark failure fails the start -- patched with the row above.
+  - Verification Gap
+    - `[medium]` `[patch]` Write's redact-then-cut order and the 128 cut were unpinned -- a long-description case added to TestNoSecretInAnyEntry; mutation (cut first) shown red and recorded.
+    - `[low]` `[reject]` the Audit step's "unknown" branch is untested -- needs a seam in InstanceAuditing that the story does not provide; listed as a residual risk.
+    - `[low]` `[reject]` sub-behaviours without their own mutation line -- Rule 19 asks one demonstrated mutation per AC, and all are recorded.
+    - `[low]` `[reject]` comment says bytes -- same as the Edge Case Hunter row.
+    - `[false]` `[reject]` live install-start has no WARN Audit check -- the lead's run counted 0 `WARN Audit` lines on the fresh stack (auditing on).
+    - `[false]` `[reject]` layering note on IsRef -- same as the Blind Hunter row.
+  - Intent Alignment
+    - `[false]` `[reject]` tests read by time, not by the indexed view -- measured and decided (index lag up to 60 s); the Rule is to poll with a bound.
+    - `[false]` `[reject]` the warning is asserted in the in-process buffer -- Registry prints `TakeWarnings` as `WARN <step>` (Registry.cls:41-63).
+    - `[false]` `[reject]` production callers are not changed -- other lanes' stories; `Answer`'s sessionRef rule is in the contract.
+    - `[false]` `[reject]` Cancel's irisUser default -- the contract's who-table.
+    - `[low]` `[reject]` long Tool or MCP names are cut at 128 -- the derived description is bounded by IRIS's field.
+    - `[low]` `[reject]` the warning test names the private method Audited -- the Ref and the change are asserted.
+    - `[false]` `[reject]` WebStatus and Contracts edited -- both are named in Tasks & Acceptance.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -370,14 +419,31 @@ The marker of every row is a fresh Ref. "Read back" means `AuditLog.Wait` from a
 | DW-10 | `Test.Install.Audit.TestInstanceAuditingOff` | the step returns without the warning or the mark; or it turns auditing on |
 | Answer and Cancel | `TestAnswerRefusals`, `TestCancel` | the `sessionRef` check is removed; `Cancel` ignores its `irisUser` argument |
 
+**Mutations run** (Rule 19, warm stack `e3s7iw`; each file restored byte-identical from a scratchpad backup and the class green again):
+- mutation: `Record` drops its extra-member check -> `Test.Bridge.Audit.TestRecordRefusesAnyOtherShape` red
+- mutation: `Approval` calls `$SYSTEM.Security.Audit` directly -> `CodeRules.TestOnlyTheAuditWriterAudits` red
+- mutation: `Answer`'s entry takes `irisUser` from `$Username` -> `TestAnswerApprovesAFix`, `TestAnswerRejects`, `TestAnswerPastExpiry` red
+- mutation: `Expire` names `ocutalon` (the answerer) for the timer's expiry -> `TestTimerExpires` (and `TestExpireDoesNotWaitForTheClock`, `TestEveryOtherTransitionIsRefused`) red
+- mutation: `FinishExecution` passes an empty change, so it writes no entry -> `TestEveryOtherTransitionIsRefused` red
+- mutation: `Move` writes an entry for a refused change -> `TestCancel` and `TestExpireDoesNotWaitForTheClock` red (their refused second call must add no entry)
+- mutation: `Answer` returns `not_found` when the write fails -> `TestFailedAuditNeverUndoesAChange` red
+- mutation: `Answer` writes the entry with an empty `sessionRef` -> `TestAnswerApprovesAFix`, `TestAnswerPastExpiry`, `TestAnswerRejects` red
+- mutation: `Write` skips `Redact.Text` -> `Test.Bridge.Audit.TestNoSecretInAnyEntry` red
+- mutation: `Write` cuts the description at 128 before redacting it (a `sk-` key straddling the cut stays unredacted) -> `Test.Bridge.Audit.TestNoSecretInAnyEntry` red (two assertions of the long-description entry)
+- mutation: the Settings blanking is removed -> `Test.Bridge.Audit.TestNoSecretInAnyEntry` red
+- mutation: the `Audit` step returns before reading auditing, so no warning and no mark -> `Test.Install.Audit.TestInstanceAuditingOff` and `TestInstanceAuditingOn` red
+- mutation: the `Audit` step turns instance-wide auditing on -> `Test.Install.Audit.TestInstanceAuditingOff` red
+- mutation: `Answer`'s `sessionRef` check is removed -> `TestAnswerRefusals` red
+- mutation: `Cancel` ignores its `irisUser` argument -> `TestCancel` red
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (halted after planning).** The spec passed the READY-FOR-DEVELOPMENT check.
-- **Measured on the warm throwaway `e3s7pw`** (build 154; torn down, nothing left). An audit row is readable at once by `UTCTimeStamp` range, but only after up to 60 s by IRIS's audit indexes. With instance auditing off, or the event disabled, IRIS writes nothing and returns 0. The six shapes pass the redactor unchanged. Design Notes, "Measured at planning", has the figures.
-- **Footprint:** no footprint extension, and no contended path is edited. `docker/tests/test-audit.sh` is unchanged, because `Write` keeps its contract.
-- **Ledger:** DW-10 is addressed (row 10, two tasks and the DW-10 acceptance bullet).
-- **Lead items** (Design Notes, "For the lead"): a Rule 20 Conventions row "Audit entries", a factual correction of AD-17's S8 rationale, and five veto-window notes, none owner-only.
-- **Shard time:** about 350 to 440 s is expected for the fresh `lane-a` (inference), with a contingency that names the `ci/units.sh` entries.
+**Implement and review (this pass).**
+- **Summary.** `Bridge.Audit` gained `Record` and `Shape` (six fixed shapes, a derived description, Settings blanking) and `Write` now redacts the data and the description (redact, then cut at 128) and returns a plain error when IRIS writes nothing. The five Approval state methods each write one `Approval` entry after the unlock and before the event, naming the person by the who-table; a failed write is warned and the change stands. `Answer` refuses a malformed `sessionRef`; `Cancel` takes `channel`, `irisUser` and `sessionRef`. `Installer.InstanceAuditing` reads instance-wide auditing; the `Audit` step warns and records the `instanceAuditing` mark (DW-10). `Test.Bridge.AuditLog` reads entries by time.
+- **Files.** `src/bridge/cls/OcuTalon/Bridge/{Audit,Approval,Installer}.cls`; `src/ocutalon/cls/OcuTalon/Install/Step/Audit.cls`; new `Test/Bridge/{AuditLog,Audit}.cls` and `Test/Install/Audit.cls`; extended `Test/Bridge/{Approval,CodeRules,Contracts,WebStatus}.cls` (`WebStatus` lost `AuditMark` and `AuditRows`).
+- **Review.** Four layers, 40 findings: 5 patch rows applied (1 medium, 4 low: the long-description pin, the Step.Audit mark failure, the quoted-member assertion, two extra negative cases), 0 deferred, 35 rejected with their reasons in the triage log. Follow-up review recommended: false (one medium patched).
+- **Verification.** `bash ci/checks.sh` passes. On the warm stack every loop class passed (Audit, Install.Audit, Approval, Contracts, CodeRules, WebStatus, Gate). After the last patch, on fresh `e3s7i` stacks: `shard lane-a` 398 s, all 46 classes passed (`WebStatus` 15.5 s, against 78 s before); `shard lane-b` 76 s, 24 passed; `live audit`, `live install-start` (no `WARN Audit` line) and `live install-upgrade` passed. Teardown left nothing tagged `e3s7i` or `e3s7iw`. Fifteen mutations are recorded in `## Verification`, each shown red and restored.
+- **Residual risks.** (1) The Audit step's `unknown` branch (the read of the setting fails) and the mark-write warning have no test, because `InstanceAuditing` has no seam to fail. (2) `Shape(type)` returns a `%List`, like `Events()`; `Contracts` pins that. (3) The entry is written after the unlock, so a process death in between loses one entry (and its event), as designed. (4) The "no entry" checks rely on entries being readable at once (measured), with a bounded wait only where a count is expected. (5) `Move` gained four optional arguments and `Answer` a parameter, all private to the class.

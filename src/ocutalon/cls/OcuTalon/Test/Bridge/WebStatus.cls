@@ -20,6 +20,7 @@
 ///     mark (capped, with no spend), the gateway's spend of the day (spent, and capped when it reaches the cap) and the cap, and a day with
 ///     none of them is not capped; its first fault is the Usage line, whole, before the fault of another setting; it logs no warning. The days
 ///     are fixture days of 2031 (their marks are removed).
+/// The audit rows are read back through Test.Bridge.AuditLog, by time and not by IRIS's audit indexes, which lag up to a minute.
 /// Each test starts from the state it needs (the entries and the restarts), creates its own fixture user, and removes it. OnAfterAllTests
 /// puts the entries back to the placeholder of the Provider step (RestoreKeys) and fails when they are not there.
 Class OcuTalon.Test.Bridge.WebStatus Extends %UnitTest.TestCase
@@ -37,7 +38,7 @@ Parameter EVENT = "%System/%Security/AccessDenied";
 /// The longest the parent waits for the job's report, in seconds.
 Parameter JOBSECONDS = 60;
 
-/// The longest the parent waits for the audit row of the control to be readable, in seconds.
+/// The longest the parent waits for the audit row of the control to be readable (Test.Bridge.AuditLog.Wait), in seconds.
 Parameter AUDITSECONDS = 120;
 
 /// The daily cost cap that TestMissingReadsMissing sets, in US dollars: above 0, so that State would list the unpriced models.
@@ -126,7 +127,7 @@ Method TestMissingReadsMissing()
 	Do $$$AssertEquals(..UsageLine(ownFaults), 0, "control: the test process holds the SQL privilege on Usage, so its State has no Usage line")
 	Set user = ..NewUser("m")
 	If user = "" Quit
-	Set auditMark = ..AuditMark()
+	Set auditMark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set logMark = $ClassMethod(fixture, "EventMark")
 	Set run = ..RunProbe("missing", user, entry, config)
 	If run = "" Quit
@@ -143,12 +144,10 @@ Method TestMissingReadsMissing()
 	Do $$$AssertEquals($Get(@run@("absent")), 0, "Keys.Absent of TriageAgent is exactly 0 in the job: a reference that it cannot read is not judged absent")
 
 	// no Config Store read: the control's row is the only one
-	Set deadline = $ZHorolog + ..#AUDITSECONDS
-	While (..AuditRows(user, auditMark) < 1) && ($ZHorolog < deadline) {
-		Hang 2
-	}
-	Hang 3
-	Set rows = ..AuditRows(user, auditMark)
+	Set source = "%System"
+	Do ##class(OcuTalon.Test.Bridge.AuditLog).Wait(auditMark, source, "%Security", "AccessDenied", "", user, 1, ..#AUDITSECONDS)
+	Hang 1
+	Set rows = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(auditMark, source, "%Security", "AccessDenied", "", user).%Size()
 	Do $$$AssertTrue(rows > 0, "control: the row of the refused read of the control is readable in %SYS.Audit")
 	Do $$$AssertEquals(rows, 1, "the job's user has exactly one AccessDenied row since the mark, the control's")
 
@@ -498,26 +497,6 @@ ClassMethod Clean() [ Private ]
 	While result.%Next() {
 		Do ##class(Security.Users).Delete(result.%GetData(1))
 	}
-}
-
-/// The highest AuditIndex of %SYS.Audit: the mark that AuditRows reads from.
-ClassMethod AuditMark() As %Integer [ Private ]
-{
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(AuditIndex) FROM %SYS.Audit")
-	Do result.%Next()
-	Quit +result.%GetData(1)
-}
-
-/// The number of AccessDenied rows of the user in %SYS.Audit after the mark.
-ClassMethod AuditRows(user As %String, mark As %Integer) As %Integer [ Private ]
-{
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %SYS.Audit WHERE AuditIndex > ? AND Username = ? AND EventSource = ? AND EventType = ? AND Event = ?", mark, user, "%System", "%Security", "AccessDenied")
-	Do result.%Next()
-	Quit +result.%GetData(1)
 }
 
 /// The Enabled flag of the audit event, "1" or "0", or "" when the event does not exist.
