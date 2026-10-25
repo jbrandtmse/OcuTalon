@@ -19,7 +19,8 @@
 #     rows. The rows are removed afterwards.
 #     Story 2.4 adds the turn queue: before the kill a second fixture session holds a turn that was left running (Attempt 1)
 #     and a queued turn, each with its text; after the next start, within 60 s, both are done with the fallback reply
-#     conversation.turnFallback (the stub Decide answers an error status), the running one on its second attempt, and the
+#     conversation.turnFallback (the real Decide has no model key and answers no_key), the running one on its second attempt,
+#     each with both decision Refs set and the fallback Decision rows they name (tellnow, Fallback, no_key), and the
 #     session's stream holds exactly one done chat.message for each, the first turn's Seq below the second's. The rows are
 #     removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
@@ -216,12 +217,15 @@ if [ -n "$turns_session" ] && wait_until 60 turns_done; then
 else
   fail "row 20: the turns of the queue were not both done and published within 60 s ('$(turns_state "$turn_one" "$turn_two")', published '$(turns_published "$turns_session" "$turn_one" "$turn_two")')"
 fi
-check_session "row 20: both turns have the fallback reply, the first on its second attempt, with one done event each, in order" OCUTALON \
-  "CHK|turns|done|2|conversation.turnFallback|unusable|done|1|conversation.turnFallback|unusable
+check_session "row 20: both turns have the no_key fallback reply and their decisions, the first on its second attempt, with one done event each, in order" OCUTALON \
+  "CHK|turns|done|2|conversation.turnFallback|no_key|done|1|conversation.turnFallback|no_key
+CHK|refs|1|1|1|1|tellnow|1|no_key|tellnow|1|no_key
 CHK|events|1|1|1" \
   "Set b=\"$turns_session\",r1=\"$turn_one\",r2=\"$turn_two\"" \
   'Set t1=##class(OcuTalon.Data.Turn).RefIndexOpen(r1),t2=##class(OcuTalon.Data.Turn).RefIndexOpen(r2)' \
   'Write !,"CHK|turns|",t1.State,"|",t1.Attempt,"|",t1.ReplyCatalogKey,"|",t1.FallbackReason,"|",t2.State,"|",t2.Attempt,"|",t2.ReplyCatalogKey,"|",t2.FallbackReason' \
+  'Set d1=##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(t1.TriageDecisionRef),d2=##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(t2.TurnDecisionRef)' \
+  'Write !,"CHK|refs|",($Length(t1.TriageDecisionRef)>0),"|",($Length(t1.TurnDecisionRef)>0),"|",($Length(t2.TriageDecisionRef)>0),"|",($Length(t2.TurnDecisionRef)>0),"|",d1.Outcome,"|",d1.Fallback,"|",d1.FallbackReason,"|",d2.Outcome,"|",d2.Fallback,"|",d2.FallbackReason' \
   'Set e=##class(OcuTalon.Live.Event).Since(b,0,100,"session"),i=e.%GetIterator(),n1=0,n2=0,s1=0,s2=0' \
   'While i.%GetNext(,.x) { If x.payload.state="done" { If x.payload.ref=t1.Ref { Set n1=n1+1,s1=x.seq } If x.payload.ref=t2.Ref { Set n2=n2+1,s2=x.seq } } }' \
   'Write !,"CHK|events|",n1,"|",n2,"|",(s1<s2)' \

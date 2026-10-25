@@ -2,12 +2,12 @@
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has, and it changes the
 /// running configuration of the production for the length of the class. Where the production does not run, every test fails with
 /// that reason (Guard).
-/// Until Stories 1.3 and 1.5 build the real Decide and AgentSteps (Epic 11 removes this switch), Decide is a stub that answers an
-/// error status. So OnBeforeAllTests swaps the running item Decide to Test.Core.DecideDouble, through Ens.Config.Production and
-/// Ens.Director.UpdateProduction, and OnAfterAllTests puts back the class and the settings the item had, even after a failure. The
-/// double, as a production item, answers in the thread it was called in and sends two OcuTalon.Bridge.Msg.AgentStep messages for
-/// each decision it makes. Each test records the double's decisions (DecideDouble.Record), so that they carry the thread as their
-/// TraceSessionId.
+/// The swap stays until Epic 11 removes it: a real Decide on a throwaway, which has no model key, answers every turn no_key and
+/// sends no agent steps, and these tests need the double's replies, steps and decisions. So OnBeforeAllTests swaps the running
+/// item Decide to Test.Core.DecideDouble, through Ens.Config.Production and Ens.Director.UpdateProduction, and OnAfterAllTests
+/// puts back the class and the settings the item had, even after a failure. The double, as a production item, answers in the
+/// thread it was called in and sends two OcuTalon.Bridge.Msg.AgentStep messages for each decision it makes. Each test records the
+/// double's decisions (DecideDouble.Record), so that they carry the thread as their TraceSessionId.
 ///   - TestTwoTurnsOneThread: two messages of one session on one day are two turns, answered by the double, whose Items are in one
 ///     trace session T: the first Item's own id. The Session row holds T and today; every header of the session's SuperSession is in
 ///     T, and T holds, for each turn, its two requests to Decide with their two responses, the agent steps of every decision and
@@ -16,8 +16,9 @@
 ///     their Item headers (the second after the first, and both what Core.Trace.Position says afterwards);
 ///   - TestNewThreadAfterMidnight: with the Session row's day set to yesterday, the next message starts a new thread, its own Item's
 ///     id, which the row then holds with today, and everything of that turn is in it;
-///   - TestStubFallsBackAfterTheRestore: with Decide put back, a turn falls back through the stub (the reason unusable), and the
-///     double is swapped in again for the tests after it;
+///   - TestRealDecideAfterTheRestore: with Decide put back, the turn is answered by the real Decide (the fallback no_key, with both
+///     decision Refs, and a decision event for each, which shows that the restore brought back the HostSink setting as well as the
+///     class), and the double is swapped in again for the tests after it;
 ///   - TestBrokenRetryThroughTheProduction (QA; DW-112): a turn whose first answer is a broken session is retried through the
 ///     running production as a new Decide call under RetryItemId of the turn's ItemId, in the day's thread, and gets the reply, the
 ///     double refusing a second turn request of one ItemId as Decide does (AD-20).
@@ -191,16 +192,23 @@ Method TestNewThreadAfterMidnight()
 	Do $$$AssertEquals(second.TraceItemIndex, 1, "the new thread's first Item header is its first item")
 }
 
-/// With Decide put back, a turn falls back through the stub, which answers an error status (the fallback unusable); then the
-/// double is swapped in again.
-Method TestStubFallsBackAfterTheRestore()
+/// With Decide put back, the real Decide answers the turn: the fallback no_key (the stack has no model key), with the triage and
+/// the turn decision Refs set and different, and two decision events on the session's stream (published by the host sink the
+/// restore brought back); then the double is swapped in again.
+Method TestRealDecideAfterTheRestore()
 {
 	If '..Guard() Quit
-	Set session = ..Session("stub")
+	Set session = ..Session("real")
 	Try {
 		Do $$$AssertStatusOK(..UseDouble(0), "the item Decide is the real one again")
-		Set row = ..Turn(session, "stub1", "zz through the stub")
-		If $IsObject(row) Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|unusable|", "the turn falls back: the stub answers an error status")
+		Set row = ..Turn(session, "real1", "zz through the real Decide")
+		If $IsObject(row) {
+			Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|no_key|", "the turn falls back: the real Decide has no model key")
+			Do $$$AssertTrue((row.TriageDecisionRef '= "") && (row.TurnDecisionRef '= "") && (row.TriageDecisionRef '= row.TurnDecisionRef), "with both decision Refs, which differ: "_row.TriageDecisionRef_", "_row.TurnDecisionRef)
+			Set decisions = ##class(OcuTalon.Test.Core.Observe).Events(session, "decision", 2, ..#WAIT)
+			Do $$$AssertEquals(decisions.%Size(), 2, "and two decision events are on the session's stream")
+			If decisions.%Size() = 2 Do $$$AssertEquals(decisions.%Get(0).payload.ref_"|"_decisions.%Get(1).payload.ref, row.TriageDecisionRef_"|"_row.TurnDecisionRef, "the triage decision's, then the turn decision's")
+		}
 	} Catch exception {
 		Do $$$AssertTrue(0, "the test threw: "_exception.DisplayString())
 	}

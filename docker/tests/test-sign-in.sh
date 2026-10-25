@@ -21,7 +21,7 @@
 #     another spec's snapshot.
 #   - Story 2.5's chat panel (web/e2e/chat/chat.spec.ts): the panel user (OCUTALON_PANEL_USER), whose session the specs send
 #     on and seed turns into (C2 to C14); C1 reads the README account and sends nothing.
-#   - Story 2.6's decision strip (web/e2e/chat/decision.spec.ts D1 to D13, and chat.spec C15): the decision user
+#   - Story 2.6's decision strip (web/e2e/chat/decision.spec.ts D1 to D14, and chat.spec C15): the decision user
 #     (OCUTALON_DECISION_USER), whose session the D specs seed turns, decisions and usage rows into and publish on (they send
 #     nothing); only C15 sends, as the panel user.
 #   - Story 2.7's notice cards (web/e2e/chat/notice.spec.ts N1 to N15): the notice user (OCUTALON_NOTICE_USER), whose session the
@@ -38,7 +38,7 @@
 #     and the other cases give their trace tabs a stand-in page.
 #   - Story 2.10's status banners (web/e2e/banners/banners.spec.ts B1 to B12): the banners user (OCUTALON_BANNERS_USER), whose session the
 #     specs publish status events on, seed checks and decisions into and send a message from; the stack starts with no model key
-#     (check_no_key), so every page of it shows the no-key banner, and B6 turns itself on when the bridge's Decide is built.
+#     (check_no_key), so every page of it shows the no-key banner, and B6 replies through the real Decide's no-key fallback.
 #   - Story 2.11's connection tests (web/e2e/banners/banners.spec.ts B13 to B19): the banners user again, with the page's clock
 #     controlled by the test (page.clock) and, in all but B17, the page's API requests refused, failed, answered 503 or held in the
 #     browser (page.route); L13 (web/e2e/live/live.spec.ts) holds one poll of the live user the same way. The server is never stopped.
@@ -230,13 +230,13 @@ if [ "$e2e_status" -eq 0 ]; then
   show_log 30
   # N10 logs its elapsed time (P30); a passing run shows it too.
   grep -a '^N10: ' "$e2e_log" | sed 's/^/  /' || true
-  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D13 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project failed (exit $e2e_status)"
+  fail "rows 3-13, Story 0.5's rows 13-19, Story 2.2's L1-L13 and S1-S8, Story 2.5's C1-C14, Story 2.6's D1-D14 and C15, Story 2.7's N1-N15, Story 2.8's R1-R19, Story 2.9's T1-T4, Story 2.13's V1-V16, Story 2.10's B1-B12 and Story 2.11's B13-B19: the specs of the chromium project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

@@ -5,7 +5,6 @@ import { changeSnapshot, EVENTS, STATE } from '../support/api';
 import { freeze, gaps, lastAnswerAt, pageNow, pollStarts, recordTraffic, runUntil, traffic } from '../support/clock';
 import {
   cleanFixtureRows,
-  decideIsStub,
   fixtureUser,
   publishCheck,
   publishStatus,
@@ -17,12 +16,13 @@ import { announcedTexts, announcementCount, announcements, plain, recordAnnounce
 
 /**
  * Story 2.10, the status banners (B1 to B12), in a real browser against a real stack. Every case signs in as the banners fixture user
- * that test-sign-in.sh created (OCUTALON_BANNERS_USER), whose session holds nothing but what the case seeds. A case turns a condition on
+ * that test-sign-in.sh created (OCUTALON_BANNERS_USER), whose session holds nothing but what the case seeds, except the one message
+ * that B6 sends (it asserts only on its own clientId and leaves its turn, as the cases of chat.spec that send do). A case turns a condition on
  * and off by publishing a status event on that user's own session stream through Live.Publish, which the page applies exactly as it
  * applies StatusMonitor's events on the instance stream (no spec publishes on the instance stream, whose counts api.spec pins), and
  * clears every condition it turned on in finally; its fixture rows are removed there too. A case that checks a live update waits until
  * the page has applied the Seq that the helper returned (the page's data-session-seq) and then asserts within one second. Every
- * stack of this build shows the no-key banner from its snapshot (the model key is not set in CI, and the Keys stub answers 0), so a
+ * stack of this build shows the no-key banner from its snapshot (the model key is not set in CI), so a
  * case never assumes an empty banner slot beyond that one banner. The browser runs in Asia/Kolkata with the en-GB locale, so a page
  * time (instance zone UTC) reads differently from the instance's: 12:00 UTC is 17:30.
  *
@@ -394,9 +394,8 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
   }
 });
 
-/** B6: a start with no model key (FR-38): the banner from the real /state, and a reply with the fallback flag. Turns itself on with the real Decide. */
+/** B6: a start with no model key (FR-38): the banner from the real /state, and a reply with the fallback flag, from the real Decide's no-key fallback. */
 test('B6: the no-key start shows the banner from the real snapshot and replies that no model key is set', async ({ page }) => {
-  test.skip(await decideIsStub(), 'Story 1.6 turns this on');
   await open(page);
   await expect(banner(page, 'noModelKey').locator('.text'), 'the banner shows on load from the real /state').toHaveText(NO_KEY);
   await expect(banner(page, 'noModelKey').getByRole('link')).toHaveAttribute('href', README);

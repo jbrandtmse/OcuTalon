@@ -3,13 +3,15 @@
 /// OcuTalon.Production, which a slot never has. Where the production does not run, every test fails with that reason, so that a
 /// broken start can never give a green shard. A message is sent from a SimMailboxIn host, created in this process with
 /// Ens.Director.CreateBusinessService and given the session's TraceRef as its SuperSession, to the item under test, and the
-/// tests wait up to WAIT seconds for what the route leaves: Delivery rows, live events and message headers. Until Story 1.3
-/// builds Decide it answers an error status, so an Item takes Intake's fallback (unusable); the unit tests of
-/// OcuTalon.Test.Core.Intake cover every other answer.
-///   - TestUntrustedItemReachesTheWebChat: a mail Item goes to Decide, and Intake sends the fallback ItemDecision to
-///     OutcomeRouter, which sends a Notification to Notify, which sends it to WebChatOut. The session has one tell-now card with
-///     notice.tellNowFallback's text and one notification event, every hop is in the session's SuperSession, and there is no
-///     Turn row and no chat.message event (NFR-14);
+/// tests wait up to WAIT seconds for what the route leaves: Delivery rows, live events and message headers. A throwaway has no
+/// model key, so the real Decide answers an Item with its fallback no_key (one Decision row of kind decide, tellnow, with a
+/// DecisionRef, and a decision event) and Intake keeps that answer; the unit tests of OcuTalon.Test.Core.Intake cover every
+/// other answer.
+///   - TestUntrustedItemReachesTheWebChat: a mail Item goes to Decide, and Intake sends the fallback ItemDecision (no_key, with
+///     the decision's Ref) to OutcomeRouter, which sends a Notification to Notify, which sends it to WebChatOut. The session has
+///     one tell-now card with notice.tellNowFallback's text, the reason and the DecisionRef, one decision event and one
+///     notification event, every hop is in the session's SuperSession, and there is no Turn row and no chat.message event
+///     (NFR-14);
 ///   - TestEachOutcomeThroughTheRouter: ItemDecisions of each outcome, with and without a CatalogKey, sent into OutcomeRouter:
 ///     ignore leaves nothing, digest goes to DigestStore, tellnow and act each leave a card;
 ///   - TestEvalItemWritesNoDeliveryOrEvent: an Item owned by eval reaches EvalSink and nothing else, and leaves no Delivery row
@@ -30,9 +32,11 @@ Parameter WAIT = 20;
 /// Seconds to wait to be sure that a route left nothing.
 Parameter QUIET = 4;
 
-/// A mail Item from Dana with the subject Invoice is decided by the stub Decide as the fallback unusable, and the card it makes
-/// reaches the web chat: one Delivery row with the text of notice.tellNowFallback, one notification event with the same card,
-/// every hop in the session's SuperSession and in the Item's trace session, and no Turn row and no chat.message event.
+/// A mail Item from Dana with the subject Invoice is decided by the real Decide as the fallback no_key (one Decision row of
+/// kind decide, owned by the session, which the clean-up adopts), and the card it makes reaches the web chat: one Delivery row
+/// with the text of notice.tellNowFallback and the row's Ref as its DecisionRef, one decision event, one notification event with
+/// the same card and decision, every hop in the session's SuperSession and in the Item's trace session, and no Turn row and no
+/// chat.message event.
 Method TestUntrustedItemReachesTheWebChat()
 {
 	If '..Guard() Quit
@@ -45,35 +49,49 @@ Method TestUntrustedItemReachesTheWebChat()
 		Do $$$AssertTrue(0, "a card reached the web chat within "_..#WAIT_" seconds")
 		Quit
 	}
-	Do $$$AssertEquals(card.Kind_"|"_card.Channel_"|"_card.FallbackReason_"|"_card.DecisionRef_"|"_card.ApprovalRef, "tellnow|web|unusable||", "one tell-now card, a fallback with the reason unusable and no decision")
-	Do $$$AssertEquals(card.Text, "zz Dana: Invoice"_$Char(10)_"Why now: the model's reply couldn't be used", "with the text of notice.tellNowFallback: the summary, then the words of the reason")
+	Set decide = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(item.ItemId, "decide")
+	Do $$$AssertTrue($IsObject(decide), "Decide recorded one decision of kind decide for the Item")
+	If '$IsObject(decide) Quit
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Adopt(decide)
+	Do $$$AssertEquals(decide.OwnerRef_"|"_decide.Outcome_"|"_decide.Fallback_"|"_decide.FallbackReason, session_"|tellnow|1|no_key", "the decision is the session's fallback no_key, a tell now")
+	Do $$$AssertEquals(card.Kind_"|"_card.Channel_"|"_card.FallbackReason_"|"_card.DecisionRef_"|"_card.ApprovalRef, "tellnow|web|no_key|"_decide.Ref_"|", "one tell-now card, a fallback with the reason no_key and the decision's Ref")
+	Do $$$AssertEquals(card.Text, "zz Dana: Invoice"_$Char(10)_"Why now: no model key is set", "with the text of notice.tellNowFallback: the summary, then the words of the reason")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the session has one card")
+	Set decisions = ..WaitEvents(session, "decision", 1)
+	Do $$$AssertEquals(decisions.%Size(), 1, "one decision event is published")
+	If decisions.%Size() = 1 Do $$$AssertEquals(decisions.%Get(0).payload.ref, decide.Ref, "for the Item's decision")
 	Set events = ..WaitEvents(session, "notification", 1)
 	Do $$$AssertEquals(events.%Size(), 1, "one notification event is published")
 	If events.%Size() = 1 {
 		Set payload = events.%Get(0).payload
-		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.text_"|"_payload.whyNow_"|"_payload.fallbackReason, card.ChannelMessageId_"|tellnow|zz Dana: Invoice|Why now: the model's reply couldn't be used|unusable", "carrying the card")
+		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.text_"|"_payload.whyNow_"|"_payload.fallbackReason, card.ChannelMessageId_"|tellnow|zz Dana: Invoice|Why now: no model key is set|no_key", "carrying the card")
+		Do $$$AssertEquals(payload.decisionRef_"|"_payload.decision.ref, decide.Ref_"|"_decide.Ref, "and the decision")
 	}
 	Do ..WaitHops(trace, "Notify", "WebChatOut", 1)
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Set item1 = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "SimMailboxIn", "Intake")
 	Do $$$AssertEquals(item1.%Size(), 1, "one Item request header goes from SimMailboxIn to Intake, in the session's SuperSession")
-	Set decide = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "Decide")
-	Do $$$AssertEquals(decide.%Size(), 1, "one request goes from Intake to Decide (an item with the fallback never runs a turn)")
-	If decide.%Size() = 1 {
-		Set body = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(decide.%Get(0).bodyId)
+	Set requests = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "Decide")
+	Do $$$AssertEquals(requests.%Size(), 1, "one request goes from Intake to Decide (an item with the fallback never runs a turn)")
+	If requests.%Size() = 1 {
+		Set body = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(requests.%Get(0).bodyId)
 		Do $$$AssertEquals(body.Kind_"|"_body.Provenance_"|"_body.ItemId_"|"_body.OwnerRef_"|"_body.Summary_"|"_body.Channel, "decide|untrusted|"_item.ItemId_"|"_session_"|zz Dana: Invoice|mailbox", "a decide request for the untrusted Item, with its summary")
-		Do $$$AssertEquals(body.TraceRef_"|"_decide.%Get(0).sessionId_"|"_body.ThreadSessionId, trace_"|"_item1.%Get(0).sessionId_"|"_item1.%Get(0).sessionId, "in the session's trace, the Item's trace session and thread (AD-26)")
+		Do $$$AssertEquals(body.TraceRef_"|"_requests.%Get(0).sessionId_"|"_body.ThreadSessionId, trace_"|"_item1.%Get(0).sessionId_"|"_item1.%Get(0).sessionId, "in the session's trace, the Item's trace session and thread (AD-26)")
 	}
 	For hop = "Intake>OutcomeRouter", "OutcomeRouter>Notify", "Notify>WebChatOut" {
 		Set found = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, $Piece(hop, ">", 1), $Piece(hop, ">", 2))
 		Do $$$AssertEquals(found.%Size(), 1, "one request goes from "_$Piece(hop, ">", 1)_" to "_$Piece(hop, ">", 2)_", in the session's SuperSession")
 		If found.%Size() = 1 Do $$$AssertEquals(found.%Get(0).sessionId, item1.%Get(0).sessionId, "in the Item's trace session")
 	}
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "OutcomeRouter", "Notify")
+	If sent.%Size() = 1 {
+		Set notification = ##class(OcuTalon.Msg.Notification).%OpenId(sent.%Get(0).bodyId)
+		Do $$$AssertEquals(notification.CatalogKey_"|"_notification.Slots_"|"_notification.DecisionRef, "notice.tellNowFallback|{""whatHappened"":""zz Dana: Invoice"",""reason"":""no_key""}|"_decide.Ref, "the Notification is notice.tellNowFallback with the summary and the reason, and the decision")
+	}
 	Set routed = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "OutcomeRouter")
 	If routed.%Size() = 1 {
 		Set decision = ##class(OcuTalon.Msg.ItemDecision).%OpenId(routed.%Get(0).bodyId)
-		Do $$$AssertEquals(decision.ItemId_"|"_decision.OwnerRef_"|"_decision.Outcome_"|"_decision.Fallback_"|"_decision.FallbackReason_"|"_decision.DecisionRef, item.ItemId_"|"_session_"|tellnow|1|unusable|", "the ItemDecision is the fallback")
+		Do $$$AssertEquals(decision.ItemId_"|"_decision.OwnerRef_"|"_decision.Outcome_"|"_decision.Fallback_"|"_decision.FallbackReason_"|"_decision.DecisionRef, item.ItemId_"|"_session_"|tellnow|1|no_key|"_decide.Ref, "the ItemDecision is the fallback, with the decision's Ref")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "Conversation").%Size() + ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "Notify").%Size(), 0, "Intake sends nothing to Conversation or Notify")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 0, "no Turn row is made")

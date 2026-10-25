@@ -2,7 +2,8 @@
 title: 'Story 2.17: Epic 2''s tests follow the real Decide'
 type: 'bugfix'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f1909ae999ffeda3f3c5e3fd8d8bcfdfdafda04c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -239,6 +240,29 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-25 — Review pass
+- verdicts: 19 rows (31 reported findings, the duplicates across layers grouped into one row each) — high 0, medium 2, low 14, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` V2 can pass without the DW-129 override when its turn is the day's first (Blind 1) — V2 now posts a later turn and asserts the triage decision's own trace session differs from the turn's header; mutation recorded (V2 alone red).
+  - `[low]` `[reject]` `rowsOfTurn` fragile pick of the turn (Blind 2; verification-gap self-containment) — V2 now posts its own turn.
+  - `[low]` `[patch]` `rowsOfTurn` returned an unused itemId (Blind 3) — the helper is now `triageOfTurn` and returns what V2 reads.
+  - `[low]` `[reject]` row 20's refs line opens only t1's triage row and t2's turn row (Blind 4; Edge 1, 2, 9; Intent R-D) — the spec prescribes this exact line, and fixing it edits the spec; the other two Refs are checked as set.
+  - `[low]` `[reject]` row 20's header says the rows are removed, yet Decide's rows are not adopted (Blind 5; Edge 3, 10) — the header's rows are the seeded ones, the throwaway is torn down, and the `left` check reads what it claims.
+  - `[low]` `[reject]` Routing adopts the decide row after the card wait (Blind 6; Edge 4; verification-gap other) — only on a run that has already failed, on a throwaway; the fix adds a second lookup path.
+  - `[low]` `[reject]` TestTurnsRunInOrder has no Refs assertion (Blind 7) — it was not red, is not in the spec's list, and the ordering is its pin.
+  - `[low]` `[reject]` B6 sends with no clean-up (Blind 8; verification-gap) — Decided in-stage 3 (the convention of the sending cases); later B cases filter by their own stamp.
+  - `[low]` `[reject]` ThreadProduction has no key guard (Blind 9) — every throwaway starts keyless (check_no_key).
+  - `[low]` `[reject]` the 20 s plus 2 s helper window (Blind 10) — the spec prescribes it, and the 2 s starts when the reply text exists.
+  - `[low]` `[patch]` over-long doc lines in Fixture and ConversationProduction (Blind 11) — rewrapped.
+  - `[false]` `[reject]` Edge: INVALID OREF aborts the done-event assertions, Usage SQL, empty Turn in ThreadProduction, Routing Quit on a missing row (Edge 5-8 and the like) — each is a failing run that fails loudly at the cited place, and Turn already asserts the turn.
+  - `[low]` `[reject]` AdoptTurns could adopt by OwnerRef (Edge 7) — a crash mid-turn leaves no named row; a throwaway is torn down.
+  - `[medium]` `[patch]` AdoptTurns' new adoption had no test and no mutation (verification-gap) — TestTurnThroughProduction asserts that AdoptTurns records the turn and both Decision rows; mutation recorded.
+  - `[medium]` `[patch]` Routing's DecisionRef pins had no mutation (verification-gap) — mutation recorded (Intake keeps no DecisionRef: card, event, Notification and ItemDecision red).
+  - `[low]` `[reject]` Conversation's row-field and Usage pins have no mutation (verification-gap) — the row is Lane A's record, and a mutation would edit Lane A's Decide; the pin is read-only.
+  - `[low]` `[reject]` api reload ref and C15, D14, B6 detail pins have no mutation of their own (verification-gap) — each can fail on a value, sits beside a demonstrated pin on the same surface, and a snapshot-only mutation swamps the unit.
+  - `[false]` `[reject]` intent-alignment divergences (C2's poll and C9's visibility keep 20 s; row 20 checks fewer fields than the Always block; the 540 s deadline has no assertion) — the spec keeps C2's poll, row 20's line is prescribed, and the deadline is the script's own.
+  - `[false]` `[reject]` spec trailer still reads ready-for-dev (verification-gap) — finalize writes it.
+
 ## Design Notes
 
 **Governing ADs (Rule 6).**
@@ -343,6 +367,19 @@ No AC contradicts an AD's Rule. **Rule 5:** no NFR is involved. The 540 s and 12
 
 The implement stage records each run as `mutation: … -> …` below.
 
+- mutation: `Conversation.Reason` always `unusable` (warm, tag e2s217iw) -> red: ConversationProduction (TestTurnThroughProduction's reason, its done event and its Outbound slots; both reconcile tests' reason lines) and ThreadProduction (TestRealDecideAfterTheRestore's reason).
+- mutation: `Conversation.Replied` without `If answer.DecisionRef '= "" Set turn.TurnDecisionRef = ...` (warm) -> red: ConversationProduction (TestTurnThroughProduction's refs, "the turn's decision is the one it shows", the done event's decision, the decision events, the turn row, the Outbound's DecisionRef and the Delivery's; both reconcile tests' refs).
+- mutation: `Intake.Take` reason always `unusable` (warm) -> red: RoutingProduction (the card, its text, the event, the Notification and the ItemDecision).
+- mutation: ThreadProduction `UseDouble(0)` restores the class but no settings (warm) -> red: TestRealDecideAfterTheRestore, "and two decision events are on the session's stream" only (the turn is still `no_key`, since the precheck needs no HostSink, so the no_key assertion stays green; the decision events are what show the missing setting).
+- mutation: `Conversation.Reason` always `unusable` (fresh, tag e2s217i) -> red: row 20's `turns` line (1 of 3 values differ).
+- mutation: `Conversation.Replied` without the TurnDecisionRef line (fresh) -> red: row 20's `refs` line (1 of 3 values differ).
+- mutation: browser batch 1 (`Conversation.Reason` and `Intake.Take` reasons always `unusable`, `Live/Payload/Decision.FromRow` without the turn's trace override, and the strip's `meta` with `this.cost() ?? 0`) -> red, 19 failed, 171 passed, 2 did not run (the api row's serial followers): api (reason), B6, C2, C3, C4 (six cases), C7, C9, C10, C11 and C15 (sentence), N10 (Why now), V2 (href), D14 (cost shown), and N4, the one other case whose no-decision strip shows the cost.
+- mutation: browser batch 2 as planned (`ChatMessage.SetDecision` quits at once) -> red but swamped: 14 failed (api, C15, D1 to D9, D11 to D13), 107 passed, 71 did not run before the unit's Playwright deadline (7.7 min), so V1 never ran. The planned mutation is too wide: every seeded strip needs the decision payload too.
+- mutation: browser batch 2, narrowed to `ChatMessage.SetDecision` quitting for `no_key` turns (`If row.FallbackReason = "no_key" Quit` first) -> red, 3 failed, 187 passed, 2 did not run: C15 (no cost, no Details), api (`decision`), V1 (line 1 holds the link alone). Each mutation was reverted from a backup of this stage's own, and `git status --short` and the hash of `git diff` matched before and after every one (no untracked file was touched).
+- mutation (review pass): `Fixture.AdoptTurns` loops over no decision Refs (warm, tag e2s217iw) -> red: ConversationProduction TestTurnThroughProduction, "the clean-up records the turn and both of its Decision rows".
+- mutation (review pass): `Intake.Take` keeps no DecisionRef (warm) -> red: RoutingProduction, the card's DecisionRef, the event's decision, the Notification's DecisionRef and the ItemDecision's Ref.
+- mutation (review pass): V2 posts its own later turn, and `Live/Payload/Decision.FromRow` without the turn's trace override (fresh, tag e2s217i, `live sign-in`) -> red: V2 alone (1 failed, 1 skipped, 191 passed, 5.8 min). Each was reverted from a backup of this stage's own, and `git status --short` and the hash of `git diff` matched before and after.
+
 **Shared surfaces:**
 - the `decision` events on fixture-session streams (`ConversationProduction` counts them);
 - the Decision rows of fixture sessions (`AdoptTurns` now records them for `Clean`);
@@ -361,5 +398,32 @@ The implement stage records each run as `mutation: … -> …` below.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Epic 2's production and live tests now follow the merged tree's real `Decide`. On a keyless stack a turn ends `no_key` with both decision Refs, two fallback Decision rows, two `decision` events, and the Outbound's and Delivery's DecisionRef. An untrusted Item gives its decide row, ItemDecision, Notification, card and events with the `no_key` reason. The browser cases assert the no-key sentence, the keyless strip (C15) and the no-decision strip (D14, seeded), B6 runs unconditionally, and a fail-fast reply helper keeps `live:sign-in` inside its deadline. No product code changed, and no Lane A or contended file was touched.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Test/Core/ConversationProduction.cls`: the three red tests assert the measured turn, rows, events, Outbound and Delivery; adds the `AdoptTurns` pin.
+- `src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls`: the card, text, event, Notification, ItemDecision and the adopted decide row.
+- `src/ocutalon/cls/OcuTalon/Test/Core/ThreadProduction.cls`: `TestRealDecideAfterTheRestore`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/DecideDouble.cls`: header only.
+- `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls`: `AdoptTurns` also records each turn's Decision rows.
+- `docker/tests/test-production-restart.sh`: row 20's turns line and new refs line.
+- `docker/tests/test-sign-in.sh`: header and the PASS and FAIL lines (D14, B6).
+- `web/e2e/api/api.spec.ts`, `chat/chat.spec.ts`, `chat/decision.spec.ts`, `chat/notice.spec.ts`, `trace/links.spec.ts`, `banners/banners.spec.ts`, `support/iris.ts`: the web pins, D14, V2's own later turn, and `decideIsStub` removed.
+- This spec: mutation lines, the triage log and this result.
+
+**Review.** Four layers, 19 triage rows. Patches applied: 3 low (V2 made deterministic and its unused helper field dropped; long doc lines rewrapped) and 2 medium (an `AdoptTurns` pin with a recorded mutation; Routing's DecisionRef mutation recorded). Deferred: none. Rejected with reasons: 14 rows, recorded in the Review Triage Log (all low or false: the spec prescribes row 20's line and the 20 s plus 2 s helper window, failing-path-only cleanup, and mutations that would edit Lane A's Decide or swamp the unit).
+
+**Follow-up review recommended:** false. Patched entries by verdict: medium 2, low 3, high 0. Every patch was verified after it landed (mutation red, then the full runs below green), so no unverified risk is named.
+
+**Verification (local ARM, merged tree, tags e2s217i and e2s217iw).**
+- `npm --prefix web run lint` exit 0; `npm --prefix web test` 565 passed.
+- Warm: ConversationProduction, RoutingProduction and ThreadProduction passed.
+- `live production-restart` passed (105 s); `live sign-in` 192 passed, 1 skipped, 411 s for the call (5.7 min of Playwright), inside 540 s.
+- (once) `group install-fresh` 282 s, `group install-upgrade` 265 s, `group production` 204 s, `live demo-path` 66 s, `shard lane-a` 381 s (41 classes), `live floor` 225 s, `group image` 260 s (includes `shard lane-b`, 105 s), `shard lane-b --reverse` 100 s (42 classes): all passed. `bash ci/checks.sh` 68 s, `docker/tests/test-web-build.sh` 11 s, `docker/tests/test-mock.sh` 2 s: exit 0.
+- Mutations (Rule 19) are recorded under Verification, each reverted with the tree byte-identical. Two deviations from the plan: the ThreadProduction restore mutation turns only the decision-events assertion red (the precheck needs no HostSink), and browser batch 2 ran narrowed (`SetDecision` quits for `no_key` turns) because the planned form swamps the Playwright deadline.
+- Teardown of tags e2s217i and e2s217iw left nothing behind.
+
+**Residual risks.** C15's Duration row is matched by pattern (`/^\d+\.\d s$/`), not a fixed value. The api reload's decision-ref pin and the Conversation row-field pins have no mutation of their own (see the triage log). The `ERROR #5003: Not implemented` that `SimPhoneOut` logs is Story 4.5's stub, not this story's.

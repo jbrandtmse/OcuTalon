@@ -5,8 +5,8 @@ import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
 import { announcements, clock, fromBottom, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the fallback strip of a reply through the stub Decide; the rest of
- * Story 2.6 is decision.spec.ts), in a real browser against a real stack. C1 reads the README account and sends nothing;
+ * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the strip of a reply through the real Decide's no-key fallback; the rest
+ * of Story 2.6 is decision.spec.ts), in a real browser against a real stack. C1 reads the README account and sends nothing;
  * every other case signs in as the panel fixture user that test-sign-in.sh created (OCUTALON_PANEL_USER) and sends or seeds on
  * its own session, so that no spec publishes on the README session or the instance stream (api.spec pins their counts) or
  * touches the chat user's chat. Each case asserts only on the clientIds and refs it made. The browser runs in Asia/Kolkata with
@@ -34,8 +34,11 @@ interface Posted {
   fromGuide: boolean;
 }
 
-/** The sentence of a fallback for reason unusable, which the stack's stub model answers every turn with. */
-const FALLBACK = "I couldn't answer that: the model's reply couldn't be used. Nothing was changed.";
+/** The middle dot between the items of a line, with its spaces. */
+const DOT = ' \u00B7 ';
+
+/** The sentence of a fallback for reason no_key, which the real Decide answers every turn with on a stack that has no model key. */
+const FALLBACK = "I couldn't answer that: no model key is set. Nothing was changed.";
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';
 const DECIDING = 'Deciding\u2026';
 const WORKING = 'Working\u2026';
@@ -84,6 +87,16 @@ const sendWithClick = (page: Page, field: Locator, text: string): Promise<{ post
 
 const userOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="user"][data-key="${key}"]`);
 const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="reply"][data-key="${key}"]`);
+
+/**
+ * Waits up to 20 s for the reply's text to exist (the turn is done), then expects the no-key sentence within 2 s, so that a wrong
+ * sentence fails about 2 s after the turn is done and never holds the unit for the whole wait.
+ */
+async function expectFallbackReply(page: Page, key: string, message?: string): Promise<void> {
+  const text = replyOf(page, key).locator('.text');
+  await expect(text, message === undefined ? 'the turn is done' : `${message}: the turn is done`).toHaveCount(1, { timeout: 20_000 });
+  await expect(text, message).toHaveText(FALLBACK, { timeout: 2_000 });
+}
 
 /** Answers each /events poll with the real answer cut to its first event, so that a turn's stages arrive one poll apart. */
 async function oneEventPerPoll(page: Page): Promise<void> {
@@ -237,7 +250,7 @@ test('C2: Enter sends, and the turn shows Deciding, Working and then the fallbac
 
   await expect.poll(() => page.evaluate((from) => (window as unknown as { replyLog: string[] }).replyLog.slice(from), mark), { timeout: 20_000 }).toEqual([DECIDING, WORKING, FALLBACK]);
   const reply = replyOf(page, posted.clientId);
-  await expect(reply.locator('.text')).toHaveText(FALLBACK);
+  await expectFallbackReply(page, posted.clientId);
   await expect(field, 'a reply that lands takes no focus').toBeFocused();
   await expect(reply, 'the reply is unboxed: no background').toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(reply, 'and no border').toHaveCSS('border-top-width', '0px');
@@ -316,7 +329,7 @@ test('C3: Shift+Enter, growth to 5 lines, the name, and a second message mid-tur
 
   hold.release();
   for (const sent of [first, second]) {
-    await expect(replyOf(page, sent.posted.clientId).locator('.text'), 'each turn gets its reply').toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, sent.posted.clientId, 'each turn gets its reply');
   }
   const order = await page.locator('app-chat-panel [data-part="reply"]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset['key']));
   expect(order.indexOf(first.posted.clientId), 'the replies are in send order').toBeGreaterThanOrEqual(0);
@@ -353,7 +366,7 @@ test.describe('C4: a failed send', () => {
     await expect(page.getByRole('main').locator(LIVE_REGIONS), 'a failed message is no live region').toHaveCount(0);
 
     await retryOf(page, clientId).click();
-    await expect(replyOf(page, clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId);
     expect(posts().map((posted) => posted.clientId), 'the retry posts the same clientId').toEqual([clientId, clientId]);
     expect(posts()[1]!.text).toBe(text);
     await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
@@ -389,7 +402,7 @@ test.describe('C4: a failed send', () => {
     await expect(replyOf(page, clientId).locator('.indicator'), 'the accepted retry is deciding').toHaveText(DECIDING);
     expect(posts().map((posted) => posted.clientId)).toEqual([clientId, clientId]);
     hold.release();
-    await expect(replyOf(page, clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId);
     expect(await turnsWith(page, clientId), 'one turn only').toHaveLength(1);
     await expect(userOf(page, clientId), 'one bubble').toHaveCount(1);
   });
@@ -415,7 +428,7 @@ test.describe('C4: a failed send', () => {
     await expect(replyOf(page, clientId), 'and has no indicator').toHaveCount(0);
 
     await retryOf(page, clientId).click();
-    await expect(replyOf(page, clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId);
     expect(posts().map((posted) => posted.clientId), 'the retry posts the same clientId').toEqual([clientId, clientId]);
     expect(await turnsWith(page, clientId), 'the server holds one turn').toHaveLength(1);
   });
@@ -450,7 +463,7 @@ test.describe('C4: a failed send', () => {
     await expect.poll(() => announcements(page, 'Message not sent'), { message: 'the failure is announced once' }).toBe(1);
 
     await retryOf(page, clientId).click();
-    await expect(replyOf(page, clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId);
     expect(posts().map((posted) => posted.clientId), 'the retry posts the same clientId').toEqual([clientId, clientId]);
     expect(await turnsWith(page, clientId), 'the server holds one turn').toHaveLength(1);
     expect(await announcements(page, 'Message not sent'), 'and the retry that worked adds none').toBe(1);
@@ -472,7 +485,7 @@ test.describe('C4: a failed send', () => {
     const clientId = posts()[0]!.clientId;
     await expect(userOf(page, clientId).locator('.failed'), 'the entry failed first').toHaveText('Not sent');
     hold.release();
-    await expect(replyOf(page, clientId).locator('.text'), "the server's turn arrives").toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId, "the server's turn arrives");
     await expect(userOf(page, clientId), 'it replaced the local message').toHaveCount(1);
     await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
     await expect(retryOf(page, clientId)).toHaveCount(0);
@@ -511,7 +524,7 @@ test.describe('C4: a failed send', () => {
     await expect(userOf(page, clientId).getByText('Not sent')).toHaveCount(0);
     await expect(userOf(page, clientId), 'and the page shows the message once').toHaveCount(1);
     // The post reached the server, so its turn runs on: its reply is waited for here, so that it never lands inside a later case.
-    await expect(replyOf(page, clientId).locator('.text'), "the server's turn ends in its fallback reply").toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, clientId, "the server's turn ends in its fallback reply");
   });
 });
 
@@ -688,7 +701,7 @@ test('C7: the indicator\'s dots have no animation under reduced motion', async (
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await expect(dots).not.toHaveCSS('animation-name', 'none');
   hold.release();
-  await expect(replyOf(page, sent.posted.clientId).locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+  await expectFallbackReply(page, sent.posted.clientId);
 });
 
 /**
@@ -759,7 +772,7 @@ test('C9: scrolled up, a reply that lands shows New messages, Send goes to the b
   const before = (await firstBubble.boundingBox())!;
   hold.release();
   await expect(button, 'a reply that lands while the list is scrolled up shows New messages').toBeVisible({ timeout: 20_000 });
-  await expect(replyOf(page, sent.posted.clientId).locator('.text')).toHaveText(FALLBACK);
+  await expectFallbackReply(page, sent.posted.clientId);
   expect(await list.evaluate((el) => el.scrollTop), 'scrollTop did not change').toBe(0);
   expect((await firstBubble.boundingBox())!, 'nor did the first visible entry move').toEqual(before);
 
@@ -784,7 +797,7 @@ test('C10: in a long chat the list stays at the bottom through several sends and
   for (let i = 0; i < 8; i += 1) {
     const sent = await sendWithEnter(page, field, unique(`C10 ${i}`));
     expect(sent.status).toBe(202);
-    await expect(replyOf(page, sent.posted.clientId).locator('.text'), `message ${i} gets its reply`).toHaveText(FALLBACK, { timeout: 20_000 });
+    await expectFallbackReply(page, sent.posted.clientId, `message ${i} gets its reply`);
     await expect.poll(() => fromBottom(list), { message: `after message ${i} the list is at the bottom` }).toBeLessThanOrEqual(24);
     await expect(replyOf(page, sent.posted.clientId), `and the reply of message ${i} is in view`).toBeInViewport();
   }
@@ -821,16 +834,16 @@ test('C11: the first message replaces the empty chat panel at once, before the s
 
   expect(stuck, 'the post is held, not answered').toHaveLength(1);
   await stuck[0]!.continue();
-  await expect(replyOf(page, clientId).locator('.text'), 'the answered post gets its turn and reply').toHaveText(FALLBACK, { timeout: 20_000 });
+  await expectFallbackReply(page, clientId, 'the answered post gets its turn and reply');
   await expect(empty, 'the empty chat panel does not come back').toHaveCount(0);
   await expect(userOf(page, clientId), 'one bubble').toHaveCount(1);
 });
 
 /**
- * C12: a fallback reply reads in the words of its own reason. C2's stub model answers every turn with the reason that the
- * generic sentence names, so only a seeded turn can show that the page passes the turn's reason to the catalog: a reason of its
- * own reads as that reason, a catalog key the page does not render reads as the turn fallback with the turn's own reason, and a
- * reason outside the 12 reads as the generic one.
+ * C12: a fallback reply reads in the words of its own reason. The real Decide on this stack answers every turn with no_key, so only
+ * a seeded turn can show that the page passes the turn's reason to the catalog: a reason of its own reads as that reason, a catalog
+ * key the page does not render reads as the turn fallback with the turn's own reason, and a reason outside the 12 reads as the
+ * generic one.
  */
 test('C12: a fallback reply names its own reason, and an unknown reason reads as the generic one', async ({ page }) => {
   const stamp = Date.now().toString(36);
@@ -910,20 +923,30 @@ test.describe('C14: another zone and locale', () => {
 });
 
 /**
- * C15: a reply through the stack's stub Decide is a fallback that has no decision row, so its strip is the fallback strip alone:
- * Tell now, the Fallback flag and the reason as a sentence, with no confidence, no cost and no Details button.
+ * C15: a reply through the stack's real Decide, which has no model key, is a fallback with the decision that Decide recorded for it,
+ * so its strip is Tell now, the Fallback flag, the cost of the turn (<$0.0001, as it is 0) with no confidence, the trace link after
+ * the separator, the reason as a sentence and a Details button whose rows hold no model, no tokens and no steps. The strip of a
+ * fallback that has no decision row at all is pinned by decision.spec D14.
  */
-test('C15: a fallback reply through the stub Decide shows the fallback strip', async ({ page }) => {
+test('C15: a fallback reply through the real Decide shows the strip of the no-key decision', async ({ page }) => {
   const field = await open(page);
   const { posted } = await sendWithEnter(page, field, unique('C15'));
   const reply = replyOf(page, posted.clientId);
-  await expect(reply.locator('.text')).toHaveText(FALLBACK, { timeout: 20_000 });
+  await expectFallbackReply(page, posted.clientId);
   const strip = reply.locator('app-decision-strip');
   await expect(strip, 'the reply has one strip').toHaveCount(1);
   await expect(strip.locator('app-outcome-chip')).toHaveText('Tell now');
   await expect(strip.locator('app-fallback-flag')).toHaveText('Fallback');
-  await expect(strip.locator('.reason')).toHaveText(["The model's reply couldn't be used."]);
+  const meta = strip.locator('.line1 .meta');
+  await expect(meta, "the turn's cost, the separator and the trace link, with no confidence").toHaveText(new RegExp(`^<\\$0\\.0001${DOT}Trace`));
+  await expect(strip.locator('.line1 .meta > :last-child'), 'the link is the last item of line 1').toHaveJSProperty('tagName', 'APP-TRACE-LINK');
+  await expect(strip.locator('.line1 .meta > :nth-last-child(2)'), 'after the separator').toHaveText('\u00B7');
+  await expect(strip.locator('.reason')).toHaveText(['No model key is set.']);
   await expect(strip, 'no confidence').not.toContainText('Confidence');
-  await expect(strip, 'no cost').not.toContainText('$');
-  await expect(strip.getByRole('button'), 'no Details button').toHaveCount(0);
+  const button = strip.getByRole('button', { name: 'Decision details' });
+  await expect(button, 'one Details button').toHaveCount(1);
+  await button.click();
+  const details = strip.locator('dl.details');
+  await expect(details.locator('dt'), 'the rows of a decision that has no model').toHaveText(['Tokens', 'Agent steps', 'Duration', 'Decision message', 'Cost']);
+  await expect(details.locator('dd'), 'the figures of the no-key decision').toHaveText([`Input 0${DOT}Output (includes thinking) 0${DOT}Cache read 0${DOT}Cache write 0`, '0', /^\d+\.\d s$/, /^[A-Za-z0-9_-]{22}$/, '<$0.0001']);
 });

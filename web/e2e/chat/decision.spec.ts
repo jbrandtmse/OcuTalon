@@ -1,11 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
-import { finishTurn, fixtureUser, seedTurns, sinkEvent, type SeedDecision, type SeedTurn, type SeedUsage } from '../support/iris';
+import { cleanFixtureRows, finishTurn, fixtureUser, seedTurns, sinkEvent, turnRows, type SeedDecision, type SeedTurn, type SeedUsage } from '../support/iris';
 import { clock, plain, tokenColor } from '../support/page';
 
 /**
- * Story 2.6, the decision strip under every reply (D1 to D13), in a real browser against a real stack. Every case signs in as the
+ * Story 2.6, the decision strip under every reply (D1 to D14), in a real browser against a real stack. Every case signs in as the
  * decision fixture user that test-sign-in.sh created (OCUTALON_DECISION_USER) and seeds turns, decisions, usage rows and check
  * rows into its own session, so that nothing here publishes on the README session or the instance stream (api.spec pins their
  * counts), sends a message or touches another spec's chat; C15 of chat.spec is the one case that sends, as the panel user.
@@ -542,4 +542,36 @@ test('D13: a reply whose decision fell back shows the fallback strip with the de
   await expect(strip.locator('app-fallback-flag .flag')).toHaveText('Fallback');
   await expect(strip, 'no confidence on a fallback').not.toContainText('Confidence');
   await expect(strip.locator('.reason').first(), 'the decision\'s reason, as a sentence, comes first').toHaveText("The model's reply was empty.");
+});
+
+/**
+ * D14: a fallback turn that has no decision row at all (Conversation's own fallback unusable, which a stack with the real Decide
+ * still gives when a request fails) shows the fallback strip alone: Tell now, the Fallback flag and the reason as a sentence, with no
+ * confidence, no cost and no Details button. A reply through a keyless stack has its decision, and C15 of chat.spec pins that strip.
+ */
+test('D14: a fallback turn with no decision shows the fallback strip alone', async ({ page }) => {
+  const seeded = await seed([
+    turn('D14', {
+      createdAt: '2025-03-08T10:00:00Z',
+      replyText: '',
+      catalogKey: 'conversation.turnFallback',
+      fallbackReason: 'unusable',
+      triage: undefined,
+      turn: undefined,
+      usage: [],
+    }),
+  ]);
+  try {
+    await open(page);
+    const strip = stripOf(page, seeded.refs[0]!);
+    await expect(strip, 'the reply has one strip').toHaveCount(1);
+    await expect(strip.locator('app-outcome-chip')).toHaveText('Tell now');
+    await expect(strip.locator('app-fallback-flag')).toHaveText('Fallback');
+    await expect(strip.locator('.reason')).toHaveText(["The model's reply couldn't be used."]);
+    await expect(strip, 'no confidence').not.toContainText('Confidence');
+    await expect(strip, 'no cost').not.toContainText('$');
+    await expect(strip.getByRole('button'), 'no Details button').toHaveCount(0);
+  } finally {
+    await cleanFixtureRows(turnRows(seeded));
+  }
 });

@@ -271,8 +271,8 @@ test('N8: /events serves the notification with the card\'s fields', async ({ pag
 });
 
 /**
- * N9: markup in an arriving item shows as text. Like N10, the item's text carries the mock's refusal marker, so it becomes a
- * tell-now fallback card whichever Decide the stack has (the Epic 0 stub, or the mock's from Story 1.3).
+ * N9: markup in an arriving item shows as text. Like N10, the item's text carries the mock's refusal marker, which stays inert on a
+ * keyless stack: the real Decide's precheck answers no_key before anything is sent, so the item becomes a tell-now fallback card.
  */
 test('N9: markup in an arriving item shows as text', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
@@ -287,8 +287,9 @@ test('N9: markup in an arriving item shows as text', async ({ page }) => {
 
 /**
  * N10: an untrusted item reaches the web chat as a tell-now card within 5 seconds (P30). The item goes to the real Intake from a
- * SimMailboxIn host; the stack's Decide gives the fallback, so the card says why now and carries the Fallback flag. The clock
- * starts before the send, and the elapsed time is logged.
+ * SimMailboxIn host; the stack has no model key, so the real Decide's precheck answers no_key before anything is sent (the refusal
+ * marker stays inert), and the card says why now in the words of that reason and carries the Fallback flag. The clock starts
+ * before the send, and the elapsed time is logged.
  */
 test('N10: an untrusted item reaches the web chat as a tell-now card within 5 seconds', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
@@ -306,7 +307,7 @@ test('N10: an untrusted item reaches the web chat as a tell-now card within 5 se
   expect(seen, 'the card is in the web chat within 5 s, counted from before the send').toBe(true);
   expect(elapsed, 'in under 5000 ms').toBeLessThan(FIVE_SECONDS_MS);
   await expect(card.locator('.text')).toHaveText(`${sender}: Invoice`);
-  await expect(card.locator('.why'), 'with a Why now line').toHaveText(/^Why now: .+/);
+  await expect(card.locator('.why'), 'with the Why now line of the no-key fallback').toHaveText('Why now: no model key is set');
   await expect(card.locator('app-decision-strip app-fallback-flag'), 'and the Fallback flag').toHaveCount(1);
 });
 

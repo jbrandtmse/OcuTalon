@@ -2,14 +2,18 @@
 /// IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): it needs the running OcuTalon.Production, which a slot never has. Where the
 /// production does not run, every test fails with that reason, so that a broken start can never give a green shard. A message
 /// goes through Ens.Director.CreateBusinessService("WebChatIn") and ProcessInput, as the REST surface sends it, to the real
-/// Conversation and the Decide of Epic 0, which answers an error status until Lane A builds it (Story 1.3). So every turn ends
-/// in the fallback unusable; the unit tests of OcuTalon.Test.Core.ConversationTurns cover every other reply shape.
+/// Conversation and the real Decide. A throwaway has no model key, so Decide's precheck answers no_key before anything is
+/// sent: every turn ends in the fallback no_key, and Decide records one fallback Decision row for each of its two requests
+/// (tellnow, Fallback, no_key, with no Reasons, Confidence, Model, cost or Usage row) and publishes a decision event for it. The
+/// unit tests of OcuTalon.Test.Core.ConversationTurns cover every other reply shape.
 ///   - TestTurnThroughProduction: a message becomes a Turn that reaches done within 20 seconds with the text, the ClientId,
-///     the ItemId, the Item's header as the trace target and the fallback key and reason; the session's stream holds the
-///     three chat.message events; the Item, the two Decide requests (decide and turn, in the Item's trace session) and the
-///     one Outbound to Notify are all in the session's SuperSession (the TraceRef). The Outbound goes on through Notify to
-///     WebChatOut, which leaves one Delivery row for the web with the reply's DecisionRef and no ChannelMessageId, and
-///     publishes no notification event (Story 2.7);
+///     the ItemId, the Item's header as the trace target, the fallback key and reason and the two decision Refs (the triage
+///     one and the turn one, which differ; the turn's is the one shown); each Ref names a Decision row of the session; the
+///     session's stream holds the three chat.message events and the two decision events; the Item, the two Decide requests
+///     (decide and turn, in the Item's trace session) and the one Outbound to Notify are all in the session's SuperSession
+///     (the TraceRef). The Outbound carries the reason and the turn's DecisionRef and goes on through Notify to WebChatOut,
+///     which leaves one Delivery row for the web with the same DecisionRef and no ChannelMessageId, and publishes no
+///     notification event (Story 2.7);
 ///   - TestRepeatQueuesNothing: a second message with the same clientId is accepted as a duplicate and queues nothing;
 ///   - TestTurnsRunInOrder: three messages are three turns that run one after another, in the order they were posted, each
 ///     with one done event, and each turn's requests and Outbound are in its own Item's trace session (AD-26), and each
@@ -23,9 +27,10 @@
 /// run's sessions that are not done are removed, so that no test runs another's turns. The guard, the fixture sessions, the
 /// run's number (^OcuTalonTest("ConversationProduction","n")), the sending of a message (Send), the wait for a turn (WaitDone)
 /// and the clean-up are those of Test.Core.InProduction; the clean-up also removes the turns that Conversation made, with their
-/// events, and the Delivery rows that WebChatOut made for the fixture sessions. The Items of a session share its day's trace
-/// thread (Story 2.9; Core.Trace): the Item headers of the tests that send several messages for one session are in one trace
-/// session, so the assertions that compare a request's session with its Item's session hold for every message.
+/// events and the Decision rows that Decide wrote for them, and the Delivery rows that WebChatOut made for the fixture
+/// sessions. The Items of a session share its day's trace thread (Story 2.9; Core.Trace): the Item headers of the tests that
+/// send several messages for one session are in one trace session, so the assertions that compare a request's session with its
+/// Item's session hold for every message.
 Class OcuTalon.Test.Core.ConversationProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -55,10 +60,13 @@ Method OnAfterAllTests() As %Status
 	Quit ##super()
 }
 
-/// A message goes through WebChatIn and the turn is done within 20 seconds with the fallback unusable (the stub Decide answers an
-/// error status). The Turn keeps the text, the ClientId, the ItemId, the Item's header as the trace target, the key and the
-/// reason. The stream holds queued, running and done, once each. The Item, both Decide requests and the Outbound carry the
-/// session's TraceRef as SuperSession, and both Decide requests name the Item's session as their thread.
+/// A message goes through WebChatIn and the turn is done within 20 seconds with the fallback no_key (the real Decide, with no
+/// model key). The Turn keeps the text, the ClientId, the ItemId, the Item's header as the trace target, the key, the reason and
+/// the two decision Refs. Each Ref names one fallback Decision row of the session, under the turn's ItemId, in the Item's trace
+/// session and with no Usage row; the stream holds queued, running and done, once each, and two decision events (the triage
+/// one and the turn one); the done event carries the turn's decision and a turn cost of 0. The Item, both Decide requests and the
+/// Outbound carry the session's TraceRef as SuperSession, and both Decide requests name the Item's session as their thread. The
+/// Outbound and the Delivery row carry the turn's DecisionRef.
 Method TestTurnThroughProduction()
 {
 	If '..Guard() Quit
@@ -77,14 +85,25 @@ Method TestTurnThroughProduction()
 	Do $$$AssertEquals(row.State, "done", "the turn reaches done within "_..#WAIT_" seconds")
 	Do $$$AssertEquals(row.Text_"|"_row.ClientId_"|"_row.Channel_"|"_row.FromGuide, text_"|"_clientId_"|web|0", "it keeps the text, the ClientId, the channel and FromGuide")
 	Do $$$AssertTrue(row.ItemId ? 22(1AN,1"-",1"_"), "and the ItemId: "_row.ItemId)
-	Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|unusable|", "the stub Decide gives the fallback unusable")
-	Do $$$AssertEquals(row.Attempt_"|"_row.Tainted_"|"_row.TriageDecisionRef_"|"_row.TurnDecisionRef, "1|0||", "started once, with no decision to keep")
+	Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason_"|"_row.ReplyText, "conversation.turnFallback|no_key|", "the real Decide gives the fallback no_key, as the stack has no model key")
+	Do $$$AssertEquals(row.Attempt_"|"_row.Tainted, "1|0", "started once, not tainted")
+	Do ..AssertRefs(row, "the turn")
+	Do $$$AssertEquals(row.ShownDecisionRef(), row.TurnDecisionRef, "the turn's decision is the one it shows")
+	Set adopted = ","_##class(OcuTalon.Test.Data.Fixture).AdoptTurns(session, "")_","
+	Do $$$AssertTrue($Find(adopted, ","_row.Ref_",") && $Find(adopted, ","_row.TriageDecisionRef_",") && $Find(adopted, ","_row.TurnDecisionRef_","), "the clean-up records the turn and both of its Decision rows")
 	Set events = ..WaitEvents(session, 3)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the stream holds the three stages, once each")
 	If events.%Size() = 3 {
 		Set last = events.%Get(2).payload
-		Do $$$AssertEquals(last.ref_"|"_last.clientId_"|"_last.text_"|"_last.catalogKey_"|"_last.fallbackReason_"|"_last.replyText, row.Ref_"|"_clientId_"|"_text_"|conversation.turnFallback|unusable|", "and the last one is the turn as stored")
+		Do $$$AssertEquals(last.ref_"|"_last.clientId_"|"_last.text_"|"_last.catalogKey_"|"_last.fallbackReason_"|"_last.replyText, row.Ref_"|"_clientId_"|"_text_"|conversation.turnFallback|no_key|", "and the last one is the turn as stored")
 		Do $$$AssertEquals(last.traceHeaderId_"|"_last.traceNamespace, row.TraceHeaderId_"|"_$Namespace, "with the trace target")
+		Do $$$AssertEquals(last.decision.ref_"|"_last.decision.kind_"|"_last.decision.fallback_"|"_last.decision.fallbackReason, row.TurnDecisionRef_"|turn|1|no_key", "carrying the turn's decision")
+		Do $$$AssertEquals(+last.turnCost.costUSD, 0, "and a turn cost of 0")
+	}
+	Set decisions = ##class(OcuTalon.Test.Core.Observe).Events(session, "decision", 2, ..#WAIT)
+	Do $$$AssertEquals(decisions.%Size(), 2, "the stream holds two decision events")
+	If decisions.%Size() = 2 {
+		Do $$$AssertEquals(decisions.%Get(0).payload.ref_"|"_decisions.%Get(1).payload.ref, row.TriageDecisionRef_"|"_row.TurnDecisionRef, "the triage decision's, then the turn decision's")
 	}
 	Do ..WaitNotices(trace, 1)
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
@@ -94,6 +113,8 @@ Method TestTurnThroughProduction()
 	Set item = items.%Get(0)
 	Do $$$AssertEquals(item.bodyClass, "OcuTalon.Msg.Item", "its body is the Item")
 	Do $$$AssertEquals(row.TraceHeaderId, item.id, "the Turn's trace target is the Item's header")
+	Do ..AssertFallbackRow(row.TriageDecisionRef, "decide", session, row.ItemId, item.sessionId, "the triage decision")
+	Do ..AssertFallbackRow(row.TurnDecisionRef, "turn", session, row.ItemId, item.sessionId, "the turn decision")
 	Set decides = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Conversation", "Decide")
 	Do $$$AssertEquals(decides.%Size(), 2, "two requests go from Conversation to Decide")
 	If decides.%Size() = 2 {
@@ -115,7 +136,8 @@ Method TestTurnThroughProduction()
 	If notices.%Size() = 1 {
 		Set outbound = ##class(OcuTalon.Msg.Outbound).%OpenId(notices.%Get(0).bodyId)
 		Do $$$AssertEquals(notices.%Get(0).superSession, trace, "in the session's SuperSession")
-		Do $$$AssertEquals(outbound.SessionRef_"|"_outbound.OriginChannel_"|"_outbound.CatalogKey_"|"_outbound.Slots_"|"_outbound.Text, session_"|web|conversation.turnFallback|{""fallbackReason"":""unusable""}|", "carrying the key and the slots")
+		Do $$$AssertEquals(outbound.SessionRef_"|"_outbound.OriginChannel_"|"_outbound.CatalogKey_"|"_outbound.Slots_"|"_outbound.Text, session_"|web|conversation.turnFallback|{""fallbackReason"":""no_key""}|", "carrying the key and the slots")
+		Do $$$AssertEquals(outbound.DecisionRef, row.TurnDecisionRef, "and the turn's DecisionRef")
 	}
 	Do ..WaitDeliveries(session, 1)
 	Do $$$AssertTrue(..Handled(trace, 1), "WebChatOut has handled the Outbound")
@@ -125,7 +147,7 @@ Method TestTurnThroughProduction()
 	Do $$$AssertEquals(deliveries.Count(), 1, "WebChatOut leaves one Delivery row for the session")
 	If deliveries.Count() = 1 {
 		Set delivery = deliveries.GetAt(1)
-		Do $$$AssertEquals(delivery.OwnerRef_"|"_delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.Text_"|"_delivery.DecisionRef, session_"|web||||", "it is the reply's row: the web, no message id, no kind or text, and the reply's DecisionRef (none for the stub Decide)")
+		Do $$$AssertEquals(delivery.OwnerRef_"|"_delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.Text_"|"_delivery.DecisionRef, session_"|web||||"_row.TurnDecisionRef, "it is the reply's row: the web, no message id, no kind or text, and the turn's DecisionRef")
 	}
 	Do $$$AssertEquals(..Notifications(session), 0, "and no notification event is published for a reply")
 }
@@ -229,8 +251,9 @@ Method TestTurnsRunInOrder()
 	Do $$$AssertEquals(..Notifications(session), 0, "with no notification event")
 }
 
-/// A turn left running and two queued turns of a session are run by the reconcile, in order, each with one reply: Reconcile
-/// sends the sweep through WebChatIn, which puts the running turn back in its queue.
+/// A turn left running and two queued turns of a session are run by the reconcile, in order, each with one reply (the fallback
+/// no_key, with the two decision Refs that the real Decide gave it): Reconcile sends the sweep through WebChatIn, which puts the
+/// running turn back in its queue.
 Method TestReconcileResumesTurns()
 {
 	If '..Guard() Quit
@@ -249,7 +272,8 @@ Method TestReconcileResumesTurns()
 			Continue
 		}
 		Do $$$AssertEquals(row.State, "done", "turn "_i_" is done")
-		Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason, "conversation.turnFallback|unusable", "turn "_i_" has the fallback reply")
+		Do $$$AssertEquals(row.ReplyCatalogKey_"|"_row.FallbackReason, "conversation.turnFallback|no_key", "turn "_i_" has the fallback reply")
+		Do ..AssertRefs(row, "turn "_i)
 		Set itemIds(i) = row.ItemId
 		Do $$$AssertEquals(row.Attempt, $Select(i = 1: 2, 1: 1), "turn "_i_" started "_$Select(i = 1: "again", 1: "once"))
 	}
@@ -276,8 +300,9 @@ Method TestReconcileResumesTurns()
 }
 
 /// One reconcile resumes the turns of every session that has one: session A holds a running and a queued turn, session B a lone
-/// running turn and session C a lone queued turn. Every turn reaches done with the fallback reply, a turn that was running on its
-/// second attempt and the others on their first, with one done event and one Outbound each.
+/// running turn and session C a lone queued turn. Every turn reaches done with the fallback reply no_key and its two decision
+/// Refs, a turn that was running on its second attempt and the others on their first, with one done event and one Outbound
+/// each.
 Method TestReconcileResumesEverySession()
 {
 	If '..Guard() Quit
@@ -304,7 +329,8 @@ Method TestReconcileResumesEverySession()
 			Do $$$AssertTrue(0, label_" exists")
 			Continue
 		}
-		Do $$$AssertEquals(row.State_"|"_row.ReplyCatalogKey_"|"_row.FallbackReason, "done|conversation.turnFallback|unusable", label_": done with the fallback reply")
+		Do $$$AssertEquals(row.State_"|"_row.ReplyCatalogKey_"|"_row.FallbackReason, "done|conversation.turnFallback|no_key", label_": done with the fallback reply")
+		Do ..AssertRefs(row, label)
 		Do $$$AssertEquals(row.Attempt, $List(turns(i), 3), label_": started "_$Select($List(turns(i), 3) = 2: "again", 1: "once"))
 	}
 	For owner = 1:1:3 {
@@ -325,6 +351,29 @@ Method TestReconcileResumesEverySession()
 }
 
 /// --- helpers ---
+/// The turn names both decision Refs that the real Decide gave it: the triage one and the turn one are set and differ.
+Method AssertRefs(row As OcuTalon.Data.Turn, label As %String) [ Private ]
+{
+	Do $$$AssertTrue((row.TriageDecisionRef '= "") && (row.TurnDecisionRef '= ""), label_": TriageDecisionRef and TurnDecisionRef are both set: "_row.TriageDecisionRef_", "_row.TurnDecisionRef)
+	Do $$$AssertTrue(row.TriageDecisionRef '= row.TurnDecisionRef, label_": the two decision Refs differ")
+}
+
+/// The Decision row of the Ref is the fallback that Decide records without a model key: of the kind, owned by the session, under
+/// the ItemId, in the trace session, tellnow with Fallback and the reason no_key, and with no Reasons, Confidence, Model or cost
+/// and no Usage row.
+Method AssertFallbackRow(ref As %String, kind As %String, session As %String, itemId As %String, traceSession As %String, label As %String) [ Private ]
+{
+	Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(decision), label_": the Ref names a Decision row")
+	If '$IsObject(decision) Quit
+	Do $$$AssertEquals(decision.Kind_"|"_decision.OwnerRef_"|"_decision.ItemId_"|"_decision.Outcome_"|"_decision.Fallback_"|"_decision.FallbackReason, kind_"|"_session_"|"_itemId_"|tellnow|1|no_key", label_": kind, owner, ItemId, and the fallback no_key")
+	Do $$$AssertEquals(decision.Reasons_"|"_decision.Confidence_"|"_decision.Model_"|"_+decision.CostUSD, "|||0", label_": no Reasons, Confidence, Model or cost")
+	Do $$$AssertEquals(decision.TraceSessionId, traceSession, label_": in the Item's trace session")
+	Set usage = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
+	Do usage.%Next()
+	Do $$$AssertEquals(+usage.%GetData(1), 0, label_": and no Usage row")
+}
+
 /// The chat.message events of the session's stream, once there are count of them or WAIT seconds have passed.
 Method WaitEvents(session As %String, count As %Integer) As %DynamicArray [ Private ]
 {

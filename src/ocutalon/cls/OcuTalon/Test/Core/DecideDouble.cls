@@ -1,7 +1,7 @@
 /// The stand-in for the Decide process in the tests of the turn pipeline (Story 2.4; reused by Stories 2.7 and 2.9). It has no
 /// Test methods, and the product never refers to it. It extends Ens.BusinessProcess so that a test production can also
-/// carry it under the name Decide (Test.Core.ThreadProduction swaps it in on a throwaway, until Stories 1.3 and 1.5 build the
-/// real one); Test.Core.ConversationProbe hands it a request directly, with no production.
+/// carry it under the name Decide (Test.Core.ThreadProduction swaps it in on a throwaway, until Epic 11 removes the swap; the real
+/// Decide on a keyless stack answers every turn no_key); Test.Core.ConversationProbe hands it a request directly, with no production.
 /// OnRequest records each request under ^OcuTalonTest("DecideDouble", OwnerRef, "seen", n), with n counted in
 /// ^OcuTalonTest("DecideDouble", OwnerRef, "seen"): kind, provenance, input, itemId, summary, ownerRef, traceRef, channel,
 /// threadSessionId, sessionMode, seedText, systemNote, and the sessionId and superSession of the double itself. It then

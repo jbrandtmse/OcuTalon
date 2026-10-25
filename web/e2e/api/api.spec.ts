@@ -393,9 +393,10 @@ function traceUrlOf(payload: Record<string, unknown>): string {
 
 /**
  * Story 2.4, the Integration AC: a message that the page posts becomes a turn through WebChatIn and Conversation, the live
- * stream shows it queued, running and done, and the snapshot of a reload shows it with its text. Decide is still Epic 0's
- * stub, which answers an error status, so the reply is the fallback conversation.turnFallback with the reason unusable. The
- * chat user is the only one that posts, so the turns disturb no other spec.
+ * stream shows it queued, running and done, and the snapshot of a reload shows it with its text. The stack has no model key, so
+ * the real Decide answers no_key: the reply is the fallback conversation.turnFallback with the reason no_key, and the done event
+ * and the snapshot's turn carry the turn's own fallback decision (kind turn, tell now) with a turn cost of 0. The chat user is the
+ * only one that posts, so the turns disturb no other spec.
  */
 test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
   test.describe.configure({ mode: 'serial' });
@@ -405,6 +406,7 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
   let chat: APIRequestContext;
   let cursor = 0;
   let turnRef = '';
+  let decisionRef = '';
 
   test.beforeAll(async ({ playwright }) => {
     chat = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
@@ -437,7 +439,19 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
     expect(mine.map((event) => event.payload['state']), 'the three stages, in order').toEqual(['queued', 'running', 'done']);
     const done = mine[2].payload;
     turnRef = String(done['ref']);
-    expect(done).toMatchObject({ clientId, text, fromGuide: true, channel: 'web', state: 'done', catalogKey: 'conversation.turnFallback', fallbackReason: 'unusable' });
+    expect(done).toMatchObject({
+      clientId,
+      text,
+      fromGuide: true,
+      channel: 'web',
+      state: 'done',
+      catalogKey: 'conversation.turnFallback',
+      fallbackReason: 'no_key',
+      decision: { kind: 'turn', outcome: 'tellnow', fallback: true, fallbackReason: 'no_key' },
+      turnCost: { costUSD: 0 },
+    });
+    decisionRef = String((done['decision'] as Record<string, unknown>)['ref']);
+    expect(decisionRef.length, 'the turn decision has a Ref').toBe(22);
     expect(done['replyText'] ?? '', 'a fallback has no text of its own').toBe('');
     expect(typeof done['traceHeaderId'], 'the trace target is the Item header').toBe('number');
     expect(done['traceNamespace']).toBe('OCUTALON');
@@ -469,9 +483,10 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
       channel: 'web',
       state: 'done',
       catalogKey: 'conversation.turnFallback',
-      fallbackReason: 'unusable',
+      fallbackReason: 'no_key',
       traceNamespace: 'OCUTALON',
     });
+    expect((turns[0].payload['decision'] as Record<string, unknown>)['ref'], "the snapshot's turn shows the same decision as the done event").toBe(decisionRef);
     expect(typeof turns[0].payload['traceHeaderId']).toBe('number');
     expect(turns[0].payload['traceUrl'], "Story 2.9: so does the snapshot's turn").toBe(traceUrlOf(turns[0].payload));
   });

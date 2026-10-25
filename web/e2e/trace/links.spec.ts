@@ -188,9 +188,11 @@ test("V1: a reply's strip links to its turn, and the link opens Visual Trace on 
   await expect(link, "by the link's own rule: 1px thick").toHaveCSS('text-decoration-thickness', '1px');
   await expect(link, 'and 2px under the text').toHaveCSS('text-underline-offset', '2px');
 
-  // The stack's model answers with the fixed fallback, whose strip has no confidence and no cost: the link follows the flag.
+  // The stack has no model key, so the turn is the no-key fallback: its strip has no confidence and shows the turn's cost, <$0.0001, so the
+  // link follows the cost and the separator.
+  await expect(strip.locator('.line1 .meta'), "the turn's cost, the separator and the link").toHaveText(new RegExp(`^<\\$0\\.0001${DOT}Trace`));
   await expect(strip.locator('.line1 .meta > :last-child'), 'the link is the last item of line 1').toHaveJSProperty('tagName', 'APP-TRACE-LINK');
-  await expect(strip.locator('.line1 .meta > *'), 'and the only one: no separator stands before it').toHaveCount(1);
+  await expect(strip.locator('.line1 .meta > :nth-last-child(2)'), 'after the separator').toHaveText('\u00B7');
 
   const popup = await opensTab(page, () => link.click());
   await expectAddress(popup, `SESSIONID=${turn.traceHeaderId}`, 'the new tab opens at the turn');
@@ -223,27 +225,31 @@ test("V1: a notice card's strip links to its decision, last on line 1 after the 
   }
 });
 
-/** The ItemId of the turn with the Ref: the Item message that made it. */
-async function itemIdOf(turnRef: string): Promise<string> {
-  const lines = await irisScript(`Set t=##class(OcuTalon.Data.Turn).RefIndexOpen(${quoted(turnRef)})\nWrite !,"CHK|item|",$Select($IsObject(t):t.ItemId,1:"")`);
-  const item = chk(lines, 'item');
-  expect(item, 'the turn has an Item').toBeTruthy();
-  return item!;
+/** The Ref of the turn's triage (decide) decision, and the trace session that decision was recorded in. */
+async function triageOfTurn(turnRef: string): Promise<{ ref: string; traceSession: string }> {
+  const lines = await irisScript(
+    `Set t=##class(OcuTalon.Data.Turn).RefIndexOpen(${quoted(turnRef)})\nSet d=$Select($IsObject(t):##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(t.TriageDecisionRef),1:"")\nWrite !,"CHK|triage|",$Select($IsObject(d):d.Ref,1:"")\nWrite !,"CHK|session|",$Select($IsObject(d):d.TraceSessionId,1:"")`,
+  );
+  const ref = chk(lines, 'triage');
+  const traceSession = chk(lines, 'session');
+  expect(ref, 'the turn has a triage decision (the decide row of the real Decide)').toBeTruthy();
+  expect(traceSession, 'recorded in a trace session').toBeTruthy();
+  return { ref: ref!, traceSession: traceSession! };
 }
 
 /** V2: a rail decision of a chat turn opens on its turn (DW-129), and any other decision on its own session. */
 test('V2: a rail decision of a chat turn opens on its turn', async ({ page }) => {
   const { user } = fixtureUser(KIND);
-  const turn = await someTurn();
-  const itemId = await itemIdOf(turn.ref);
-  // An Item has one decision of each kind: a turn that already shows its decide row (a model that answered) is the row of a chat turn,
-  // and otherwise one is seeded for the turn's Item, with a TraceSessionId that is not the turn's header. BridgeSink gets its event as
-  // the bridge would after its commit.
+  // A turn after the day's first one, so that the thread its decision is recorded in (the first Item's session) is not its own header.
+  await someTurn();
+  const turn = await postTurn(api, cursor, 6, 'links');
+  // The rail lists the decide rows. The turn's own decide row is the one that the real Decide wrote for its Item (the turn's
+  // TriageDecisionRef; the decision that the turn shows is its turn row, which the rail does not list), and only the other decision
+  // is seeded. BridgeSink gets its event as the bridge would after its commit.
+  const { ref: decisionRef, traceSession } = await triageOfTurn(turn.ref);
+  expect(traceSession, "the decision's own trace session is not the turn's header, so the link must follow the turn (DW-129)").not.toBe(String(turn.traceHeaderId));
   const refs: string[] = [];
   try {
-    const seeded = turn.decision === undefined ? await seedDecisions(user, [{ itemId, outcome: 'act', summary: unique('v2 turn'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 42 }]) : [];
-    refs.push(...seeded);
-    const decisionRef = turn.decision?.ref ?? seeded[0]!;
     const [other] = await seedDecisions(user, [{ outcome: 'act', summary: unique('v2 other'), reasons: 'zz reason', confidence: 0.9, costUSD: 0.0003, traceSessionId: 4242 }]);
     refs.push(other!);
     await helpSeen(page);

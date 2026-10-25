@@ -9,8 +9,9 @@
 /// Session row is made here directly, never by ForUser, so a user name can have several rows (the online demo's case).
 /// RemoveMessages is the one clean-up of the production messages that the tests of a running production leave; Headers,
 /// SessionHeaders and Between read them. Header makes a synthetic message header in a SuperSession of the test, which is not
-/// recorded for Clean: RemoveMessages removes it with that SuperSession. AdoptTurns records the turns that Conversation made for fixture sessions, and States lists the states
-/// of a stream's chat.message events.
+/// recorded for Clean: RemoveMessages removes it with that SuperSession. AdoptTurns records the turns that Conversation made
+/// for fixture sessions, with the Decision rows that the real Decide wrote for them, and States lists the states of a stream's
+/// chat.message events.
 Class OcuTalon.Test.Data.Fixture
 {
 
@@ -234,8 +235,10 @@ ClassMethod Adopt(row As %Persistent) As %String
 	Quit row.Ref
 }
 
-/// Records every turn of the sessions (comma-separated Refs) with Adopt, the turns that Conversation made included, and returns
-/// refs (comma-separated) with the Refs of those turns added once each.
+/// Records every turn of the sessions (comma-separated Refs) with Adopt, the turns that Conversation made included, and the two
+/// Decision rows each turn names (TriageDecisionRef and TurnDecisionRef) when they exist and the session owns them, which are the
+/// rows that the real Decide wrote for it (so that Clean removes them). It returns refs (comma-separated) with the Refs of those
+/// turns and rows added once each.
 ClassMethod AdoptTurns(sessions As %String, refs As %String) As %String
 {
 	For i = 1:1:$Length(sessions, ",") {
@@ -243,8 +246,20 @@ ClassMethod AdoptTurns(sessions As %String, refs As %String) As %String
 		If session = "" Continue
 		Set turns = ##class(OcuTalon.Data.Ownership).Turns(session, .sc)
 		For j = 1:1:turns.Count() {
-			Set ref = ..Adopt(turns.GetAt(j))
-			If '$Find(","_refs_",", ","_ref_",") Set refs = refs_$Select(refs = "": "", 1: ",")_ref
+			Set turn = turns.GetAt(j)
+			Set list = $ListBuild(turn.Ref)
+			Do ..Adopt(turn)
+			For ref = turn.TriageDecisionRef, turn.TurnDecisionRef {
+				If ref = "" Continue
+				Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
+				If '$IsObject(decision) || (decision.OwnerRef '= session) Continue
+				Do ..Adopt(decision)
+				Set list = list_$ListBuild(ref)
+			}
+			Set pointer = 0
+			While $ListNext(list, pointer, one) {
+				If '$Find(","_refs_",", ","_one_",") Set refs = refs_$Select(refs = "": "", 1: ",")_one
+			}
 		}
 	}
 	Quit refs

@@ -751,17 +751,6 @@ export async function publishStatus(user: string, fields: { condition: string; a
   return seq;
 }
 
-/**
- * True while the bridge's Decide item still carries its STUB parameter, the project's built-or-not marker (Story 11.5's check):
- * the stack has no model call that can say there is no key. It is read from the class, so the answer follows the build.
- */
-export async function decideIsStub(): Promise<boolean> {
-  const lines = await irisScript(['Write !,"CHK|stub|",+$Parameter("OcuTalon.Bridge.Process.Decide","STUB")'].join('\n'));
-  const stub = chk(lines, 'stub');
-  if (stub !== '0' && stub !== '1') throw new Error(`Decide's STUB could not be read (${lines.join(' ')})`);
-  return stub === '1';
-}
-
 /** Writes a reminder of the user's own session through Test.Data.Fixture.Reminder (pending, due at dueAt when given). Returns its Ref; cleanFixtureRows removes it. */
 export async function seedReminder(user: string, fields: Omit<ReminderFields, 'ref' | 'traceHeaderId' | 'traceNamespace'> = {}): Promise<string> {
   const row = properties({ Text: fields.text });
