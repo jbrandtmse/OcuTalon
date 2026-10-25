@@ -108,6 +108,12 @@ sup {
   box-shadow: 0 0 0 2px var(--surface);
 }
 
+/* A region that fills its edge of the viewport or of the page (the rail, main, the chat list, a banner) draws the ring and its halo inside its own edge, so that no part of it is clipped. */
+.ring-inside:focus-visible {
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px var(--surface);
+}
+
 /* UX-DR14: with reduced motion, nothing animates or transitions. */
 @media (prefers-reduced-motion: reduce) {
   *,

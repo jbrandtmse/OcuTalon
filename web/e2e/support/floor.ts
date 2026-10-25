@@ -27,6 +27,10 @@ import { tokenColor } from './page';
  * halo and ring box with the viewport and every scroller around it, `expectRingInside` and `expectRing` judge it, and `seedScrollingPage`
  * seeds the page whose rail and chat list both scroll. So do the skip links' texts, the bound of a Tab walk (`MOST_STOPS`) and
  * `seedRow`, the decision row with a Trace link that K1 to K3 and the layout cases use.
+ *
+ * Story 2.16 adds what the three engines share: `stepKeys`, the key that steps between tab stops in the engine of a page (Tab, or
+ * Option+Tab in Safari's WebKit), and the rings at tab stops: `INSIDE_RING`, the regions that draw their ring inside their own edge,
+ * `expectInsideRing` for those and `expectStopRing`, which judges any stop of a walk.
  */
 
 /** How long a card may take to reach the page after the send returns: the route, the live poll (1 to 2 s) and the render. */
@@ -55,6 +59,57 @@ export const skipLink = (page: Page, name: string): Locator => page.getByRole('l
 
 /** The most tab stops a walk of the page takes before it gives up. */
 export const MOST_STOPS = 150;
+
+/** The keys that step to the next and the previous tab stop. */
+export interface StepKeys {
+  next: string;
+  back: string;
+}
+
+/** The step keys found for each engine, by the name of its browser type: a page needs the probe once per engine. */
+const stepKeysOf = new Map<string, Promise<StepKeys>>();
+
+/**
+ * The keys that step between tab stops in the page's engine. They are found once per engine, in a scratch context of its own that holds a
+ * link and a button: `Tab` when Tab reaches the link and then the button, else `Alt+Tab` (Option+Tab) when that does, else this throws.
+ * WebKit's Tab on macOS skips links and buttons, and Option+Tab reaches them. The engine is detected, not read from its name, because
+ * the Tab key of WebKit on Linux is not known to be the same.
+ */
+export function stepKeys(page: Page): Promise<StepKeys> {
+  const browser = page.context().browser();
+  if (browser === null) {
+    throw new Error('stepKeys needs a page of a launched browser');
+  }
+  const engine = browser.browserType().name();
+  let found = stepKeysOf.get(engine);
+  if (found === undefined) {
+    found = (async (): Promise<StepKeys> => {
+      const scratch = await browser.newContext();
+      try {
+        const probe = await scratch.newPage();
+        for (const next of ['Tab', 'Alt+Tab']) {
+          await probe.setContent('<a href="#probe">link</a> <button type="button">button</button>');
+          await probe.keyboard.press(next);
+          const first = await probe.evaluate(() => document.activeElement?.tagName ?? '');
+          await probe.keyboard.press(next);
+          const second = await probe.evaluate(() => document.activeElement?.tagName ?? '');
+          if (first === 'A' && second === 'BUTTON') {
+            return { next, back: `Shift+${next}` };
+          }
+        }
+      } finally {
+        await scratch.close();
+      }
+      throw new Error(`neither Tab nor Alt+Tab reaches a link and a button in ${engine}`);
+    })();
+    stepKeysOf.set(engine, found);
+    found.catch(() => stepKeysOf.delete(engine));
+  }
+  return found;
+}
+
+/** The regions that are tab stops or focus targets and draw their ring inside their own edge (the ring-inside class of styles/base.css). */
+export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list'] as const;
 
 /** Seeds one attention decision with a trace link, whose row is a disclosure with a Trace link beside it, and returns its summary. */
 export async function seedRow(user: string, refs: string[], label: string): Promise<string> {
@@ -168,11 +223,13 @@ export interface Reading {
   viewport: Box;
   /** The client boxes of the ancestors that clip what lies outside them. */
   scrollers: Array<Box & { what: string }>;
+  /** Whether the focused element is one of INSIDE_RING. */
+  inside: boolean;
 }
 
 /** Reads the focused element: its outline and halo, its ring box, the viewport and the client box of every ancestor that clips. */
 export function readFocus(page: Page): Promise<Reading | null> {
-  return page.evaluate(() => {
+  return page.evaluate((insideSelector) => {
     const el = document.activeElement;
     if (!(el instanceof HTMLElement) || el === document.body) return null;
     const style = getComputedStyle(el);
@@ -203,8 +260,9 @@ export function readFocus(page: Page): Promise<Reading | null> {
       ring: { left: rect.left - grow, top: rect.top - grow, right: rect.right + grow, bottom: rect.bottom + grow },
       viewport: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
       scrollers,
+      inside: el.matches(insideSelector),
     };
-  });
+  }, INSIDE_RING.join(','));
 }
 
 /** True when the inner box lies inside the outer one, within half a pixel. */
@@ -228,6 +286,31 @@ export async function expectRing(page: Page, reading: Reading, what: string): Pr
   expect(reading.outlineWidth, `${what}: 2px`).toBe('2px');
   expect(reading.outlineColor, `${what}: in the focus colour`).toBe(focus);
   expect(reading.boxShadow, `${what}: with the surface halo`).toContain(`${surface} 0px 0px 0px 2px`);
+}
+
+/** Expects a focus target that draws its ring inside its own edge: 2px solid in the focus colour, with the surface halo inside it. */
+export async function expectInsideRing(page: Page, reading: Reading, what: string): Promise<void> {
+  const focus = await tokenColor(page, '--focus');
+  const surface = await tokenColor(page, '--surface');
+  expect(reading.outlineStyle, `${what}: the ring is solid`).toBe('solid');
+  expect(reading.outlineWidth, `${what}: 2px`).toBe('2px');
+  expect(reading.outlineColor, `${what}: in the focus colour`).toBe(focus);
+  expect(reading.outlineOffset, `${what}: inside its own edge`).toBe('-2px');
+  expect(reading.boxShadow, `${what}: with the surface halo inside the ring`).toContain(`${surface} 0px 0px 0px 4px inset`);
+  expectRingInside(reading, what);
+}
+
+/**
+ * Judges the ring at one stop of a walk: the regions of INSIDE_RING draw it inside their own edge (expectInsideRing), and every other
+ * stop draws the page's ring and keeps it inside the viewport and every scroller.
+ */
+export async function expectStopRing(page: Page, reading: Reading): Promise<void> {
+  if (reading.inside) {
+    await expectInsideRing(page, reading, reading.what);
+    return;
+  }
+  await expectRing(page, reading, reading.what);
+  expectRingInside(reading, reading.what);
 }
 
 /**

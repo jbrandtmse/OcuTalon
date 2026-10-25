@@ -27,18 +27,21 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards image"
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 group_units() {
   case $1 in
-    install-fresh) echo "live:install-start" ;;
+    install-fresh) echo "live:install-start live:bundle-folder" ;;
     install-upgrade) echo "live:install-upgrade live:audit" ;;
     production) echo "live:production live:production-restart" ;;
-    browser) echo "live:demo-path live:sign-in live:bundle-folder" ;;
-    shards) echo "shard:lane-a shard:lane-b live:floor" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start" ;;
+    browser) echo "live:demo-path live:sign-in" ;;
+    shards) echo "shard:lane-a live:floor" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b" ;;
     *) return 1 ;;
   esac
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
 BROWSER_UNITS="demo-path sign-in floor"
+
+# The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
+FIREFOX_WEBKIT_UNITS="floor"
 
 # The paths whose change makes the web job run (ci/changes.sh): the web sources, the Live payload classes, the catalog
 # classes that the page's generated catalog module and its tests read (Msg/Catalog.cls, Msg/Catalog/Core.cls,

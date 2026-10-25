@@ -14,6 +14,7 @@ import {
   sendItemDecision,
   sendNotification,
   sinkEvent,
+  turnRows,
 } from '../support/iris';
 import { CARD_MS, banner, composerOf, inMs, mainOf, railOf, replyOf, unique } from '../support/floor';
 import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/page';
@@ -37,7 +38,7 @@ import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/
  * them off), a case that registers fixture rows removes them with cleanFixtureRows in finally, and a running turn is finished in
  * finally. The turns and cards a case seeds stay on the floor user's session and are found by their own marker or ref; the seeded
  * turns are dated in 2019, so they are the oldest entries of the chat and cannot push what a case makes now out of the newest 100
- * that /state serves.
+ * that /state serves. A1 also runs in Firefox and WebKit (tag @browsers).
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -120,14 +121,16 @@ async function stalledAndReset(page: Page): Promise<string[]> {
  * A1: a reply is announced once, as "OcuTalon replied:" and its first sentence, whether it is the model's text or a fallback's
  * catalog sentence; the turn's own text and Working are not.
  */
-test('A1: a reply is announced once, as OcuTalon replied and its first sentence', async ({ page }) => {
+test('A1: a reply is announced once, as OcuTalon replied and its first sentence', { tag: '@browsers' }, async ({ page }) => {
   const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
   let running: string | undefined;
   try {
     await open(page);
     const question = `zz A1 question ${Date.now().toString(36)}`;
-    const { refs } = await seedTurns(user, [{ createdAt: '2019-01-01T10:00:00Z', text: question, replyText: '', state: 'running' }], true);
-    const ref = refs[0]!;
+    const first = await seedTurns(user, [{ createdAt: '2019-01-01T10:00:00Z', text: question, replyText: '', state: 'running' }], true);
+    rows.push(...turnRows(first));
+    const ref = first.refs[0]!;
     running = ref;
     await expect(replyOf(page, ref).locator('.indicator'), 'the running turn shows its indicator').toHaveText('Working\u2026', { timeout: CARD_MS });
     await expect(page.locator('app-chat-panel .bubble').filter({ hasText: question }), 'and its message').toHaveCount(1);
@@ -146,10 +149,12 @@ test('A1: a reply is announced once, as OcuTalon replied and its first sentence'
       [{ createdAt: '2019-01-01T10:01:00Z', text: `zz A1 fallback ${Date.now().toString(36)}`, replyText: '', catalogKey: 'conversation.turnFallback', fallbackReason: 'no_key' }],
       true,
     );
+    rows.push(...turnRows(fallback));
     await expect(replyOf(page, fallback.refs[0]!).locator('.text'), 'a fallback reply shows the catalog sentence').toHaveText("I couldn't answer that: no model key is set. Nothing was changed.", { timeout: CARD_MS });
     await heard(page, ['OcuTalon replied: zz A1 See the guide here.', "OcuTalon replied: I couldn't answer that: no model key is set."]);
   } finally {
     if (running !== undefined) await finishTurn(user, running, 'zz A1 finished');
+    await cleanFixtureRows(rows);
   }
 });
 
@@ -226,12 +231,13 @@ test('A4: two banners that appear in one update are announced as one text, in st
 /** A5: two banners and two replies in one update are four messages: "4 new updates", and none of their texts. */
 test('A5: a burst of two banners and two replies in one update is announced as 4 new updates', async ({ page }) => {
   const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
   try {
     await conditionsOff(user);
     await open(page);
     const release = await holdPoll(page);
     await conditionsOn(user);
-    const { refs } = await seedTurns(
+    const seeded = await seedTurns(
       user,
       [
         { createdAt: '2019-05-01T10:00:00Z', text: 'zz A5 first', replyText: 'zz A5 first reply. More.' },
@@ -239,6 +245,8 @@ test('A5: a burst of two banners and two replies in one update is announced as 4
       ],
       true,
     );
+    rows.push(...turnRows(seeded));
+    const { refs } = seeded;
     await release();
 
     await stalledAndReset(page);
@@ -247,6 +255,7 @@ test('A5: a burst of two banners and two replies in one update is announced as 4
     await heard(page, [FOUR]);
   } finally {
     await conditionsOff(user);
+    await cleanFixtureRows(rows);
   }
 });
 
@@ -309,6 +318,7 @@ test('A7: the page has one live region, and announces nothing from the first sna
       { createdAt: '2019-07-01T10:01:00Z', text: 'zz A7 done', replyText: 'zz A7 reply. More.' },
     ]);
     running = seeded.refs[0];
+    refs.push(...turnRows(seeded));
     const dueAt = inMs(58_000);
     const countdownText = unique('A7 countdown');
     const cardText = unique('A7 card');

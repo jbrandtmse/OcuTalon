@@ -10,8 +10,8 @@ import {
   addReminder,
   applied,
   composerOf,
-  expectRing,
   expectRingInside,
+  expectStopRing,
   mainOf,
   openFloor,
   railOf,
@@ -21,6 +21,7 @@ import {
   seedScrollingPage,
   settled,
   skipLink,
+  stepKeys,
   unique,
   type Reading,
 } from '../support/floor';
@@ -38,7 +39,7 @@ import { announcedTexts, announcements, recordAnnouncements } from '../support/p
  * fails (G6, G7). It needs the stack that docker/tests/test-floor.sh starts: every case signs in as the floor user
  * (OCUTALON_FLOOR_USER, the user role) over real HTTP, in a fresh browser context, so its storage is empty. A case removes its rows
  * with cleanFixtureRows (the turns' included) in finally and unroutes in afterEach. No case lets a chat post reach the server, and no
- * poll is held for 8 s or longer.
+ * poll is held for 8 s or longer. G1 also runs in Firefox and WebKit (tag @browsers); the stacked layout's cases do not.
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -116,14 +117,14 @@ async function walk(
   each: (reading: Reading, place: string, index: number) => Promise<void>,
 ): Promise<Array<{ what: string; place: string }>> {
   const stops: Array<{ what: string; place: string }> = [];
+  const keys = await stepKeys(page);
   for (let i = 0; i < MOST_STOPS; i += 1) {
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     const reading = await readFocus(page);
     const place = reading === null ? 'none' : await placeOfFocus(page);
     if (rules.ends?.(reading, place)) return stops;
     expect(reading, `Tab ${i + 1} lands on an element`).not.toBeNull();
-    await expectRing(page, reading!, reading!.what);
-    expectRingInside(reading!, reading!.what);
+    await expectStopRing(page, reading!);
     await each(reading!, place, i);
     stops.push({ what: reading!.what, place });
     if (rules.last?.(reading!)) return stops;
@@ -132,7 +133,7 @@ async function walk(
 }
 
 /** G1: from 1440px the rail is 320px; at 1439px 288px; at 1280x600 the page does not scroll, each region does, and Tab reaches Send. */
-test('G1: the rail is 320px from 1440px and 288px below it, and at 1280x600 each region scrolls and the page does not', async ({ page }) => {
+test('G1: the rail is 320px from 1440px and 288px below it, and at 1280x600 each region scrolls and the page does not', { tag: '@browsers' }, async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
@@ -582,7 +583,7 @@ test.describe('at 200%: 640x360 at device scale 2', () => {
         if (place === 'skip' || place === 'header') break;
         const bottom = await headerBottom(page);
         expect(reading.ring.top, `${reading.what}: going back, its ring lies below the header (${bottom})`).toBeGreaterThanOrEqual(bottom - 0.5);
-        expectRingInside(reading, reading.what);
+        await expectStopRing(page, reading);
         checked += 1;
       }
       expect(checked, 'going back, the walk read every stop of the rail').toBeGreaterThan(12);

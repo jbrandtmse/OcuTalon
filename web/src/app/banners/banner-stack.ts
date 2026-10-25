@@ -55,7 +55,7 @@ const FOCUS_RULE: FocusRule = {
  *   The banners that appear in one update are handed to the announcer at once, in stack order, and it speaks them as one text.
  * - A closed banner stays away while its condition holds with the slots it had; it returns, announced, when the condition
  *   clears and starts again or its slots change. The records live for the page's life.
- * - A banner takes focus (tabindex -1) but is not in the tab order; its focus ring is drawn inside its own edge, because the banner fills the
+ * - A banner takes focus (tabindex -1) but is not in the tab order; its focus ring is drawn inside its own edge (the ring-inside class of styles/base.css), because the banner fills the
  *   page's width. When an update removes the banner that holds focus, or the link
  *   or Close button in it, focus moves without scrolling as FOCUS_RULE says, through the page's focus rule (shared/focus-rule.ts):
  *   to the banner that replaces it (REPLACED_BY) when that one is shown, else to the next banner, else the previous one, else the
@@ -69,7 +69,7 @@ const FOCUS_RULE: FocusRule = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (banner of banners(); track banner.id) {
-      <div class="banner" tabindex="-1" [attr.data-banner]="banner.id" [attr.data-variant]="banner.variant">
+      <div class="banner ring-inside" tabindex="-1" [attr.data-banner]="banner.id" [attr.data-variant]="banner.variant">
         <app-icon class="mark" [name]="banner.icon" [size]="20" />
         <span class="text">{{ banner.text }}</span>
         @if (banner.action; as action) {
@@ -129,10 +129,6 @@ const FOCUS_RULE: FocusRule = {
     .text {
       flex: 1;
       min-width: 0;
-    }
-    .banner:focus-visible {
-      outline-offset: -2px;
-      box-shadow: inset 0 0 0 4px var(--surface);
     }
     .action {
       display: inline-flex;

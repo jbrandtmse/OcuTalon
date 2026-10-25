@@ -13,6 +13,7 @@ import {
   seedDecision,
   seedTurns,
   sendItemDecision,
+  turnRows,
 } from '../support/iris';
 import { CARD_MS, HEADER, applied, banner, composerOf, inMs, mainOf, openFloor, railOf, replyOf, rowOf, unique } from '../support/floor';
 import { countFocusins, focusinCount } from '../support/page';
@@ -26,7 +27,7 @@ import { countFocusins, focusinCount } from '../support/page';
  * later, inside another case's window, in either order. P4, the one case that turns a condition on, starts with it off and turns it off
  * in finally, finishes its running turn and removes its fixture rows with cleanFixtureRows in finally; the other cases leave nothing
  * behind that outlives the page (P2's reminder is an event, fired in the case). Every case starts in a fresh browser context, so the
- * sign-in help of P2 is unseen in it.
+ * sign-in help of P2 is unseen in it. P2 also runs in Firefox and WebKit (tag @browsers).
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -88,7 +89,7 @@ test('P1: Retry sending leaves focus on its message, and it stays there when the
 });
 
 /** P2: a row leaves while its Trace help holds focus: focus goes to the heading of the section the row left. */
-test('P2: a row that leaves with its Trace help open gives focus to its section heading', async ({ page }) => {
+test('P2: a row that leaves with its Trace help open gives focus to its section heading', { tag: '@browsers' }, async ({ page }) => {
   const { user } = fixtureUser(KIND);
   await openFloor(page);
   const text = unique('P2 reminder');
@@ -164,6 +165,7 @@ test('P4: nothing else moves focus: the composer and a focused row keep it while
 
     const seeded = await seedTurns(user, [{ createdAt: '2019-09-01T10:00:00Z', text: 'zz P4 question', replyText: '', state: 'running' }], true);
     running = seeded.refs[0]!;
+    refs.push(...turnRows(seeded));
     await expect(replyOf(page, running).locator('.indicator'), 'a turn is running').toBeVisible({ timeout: CARD_MS });
     const reminder = `ZzFloorP4${stamp}`;
     const reminderText = unique('P4 reminder');

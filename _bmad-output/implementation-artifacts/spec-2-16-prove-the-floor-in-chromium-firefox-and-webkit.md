@@ -2,9 +2,10 @@
 title: 'Story 2.16: Prove the floor in Chromium, Firefox and WebKit'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3addc52ce1d220f08b8969162b6f2e25ee0e70d3'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -337,6 +338,47 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 — Review pass
+- verdicts: 36 findings — high 0, medium 2, low 21, false 10, maybe-false 3
+- findings:
+  - `[low]` `[reject]` ux-strings `holds()` is an unanchored substring match, so short strings ("Send", "Chat") pass on any occurrence — the spec defines `ux` as "holds it verbatim", which is what it does; boundary anchoring would change little and the fix adds a rule (Blind 1; intent-alignment sub-point).
+  - `[false]` `[reject]` `ac` and `ruled` entries are never checked against their sources — the spec writes them out on purpose because epics.md and the cycle log are bookkeeping paths that never run the web job (Blind 2; intent-alignment).
+  - `[low]` `[reject]` the template inventory skips bound attributes and single-quoted attributes — every bound attribute today reads an imported constant, and no template uses single quotes; unlikely to be met (Blind 3, Edge 9).
+  - `[low]` `[reject]` `revealRing` also runs on mouse-focus — a pointer press within 4 px of the visible edge could miss its control after the scroll, Firefox only; negligible, and a `:focus-visible` guard would add an unmeasured branch (Blind 4, Edge 1).
+  - `[maybe-false]` `[reject]` `revealRing` after the page focus rule's `preventScroll` focus still moves the scroller's own `scrollTop` — the spec's reveal changes only that scroller by design and never the page; would only be `low` (Edge 2).
+  - `[low]` `[patch]` no Node test covers `revealRing`, and its upward branch was green when made a no-op — patched: `web/scripts/reveal-ring.test.mjs` pins both directions, mutation recorded (Blind 5, Verification-gap `revealRing`).
+  - `[low]` `[reject]` no Node test for the popover press logic or the `ring-inside` class — E1 (all engines) pins the press, and K1, K4 and E2 read the class's computed values (Blind 5).
+  - `[false]` `[reject]` the list and the rail are tab stops whether or not they scroll — the spec makes the list `tabindex="0"` unconditionally and the rail's binding by layout band (Blind 6, intent-alignment).
+  - `[low]` `[patch]` the scan header says it plants nothing, yet it sets marks and a probe — patched: the header now says they are removed before it returns (Blind 7).
+  - `[low]` `[reject]` the contrast scan reads the default state and in-flow colours only, and uses 0.03928 — Decided 9 of the spec bounds the scan; 0.03928 is WCAG 2's own text and gives the same result for 8-bit colours (Blind 8).
+  - `[low]` `[reject]` the regrouping in `ci/units.sh` has no test of its new layout — the spec's Decided 3 and its figures say why; `test-ci-config.sh` is contended, and the gate pins the browser group (Blind 9, Verification-gap CI).
+  - `[low]` `[reject]` `playwright-projects.test.mjs` uses `>= 37` and never asserts project order — the bound is on the safe side and the script text pins the order (Blind 10).
+  - `[low]` `[reject]` `e2e:floor` needs all three browsers locally, and the install-deps hint repeats the version — both are the spec's own text (Blind 11).
+  - `[false]` `[reject]` `revealRing` reads a percentage scroll-padding as pixels — the page's scroll-padding is the 4px gutter; theoretical (Edge 3).
+  - `[low]` `[reject]` a secondary-button pointerdown on the trigger leaves `pressed` set until the next pointerup anywhere — the document listener clears it at the next press end; the harm is a popover that stays until then (Edge 4).
+  - `[low]` `[reject]` `boundingBox()` may be null in E1 — the case would fail either way, with a less readable message (Edge 5).
+  - `[low]` `[reject]` `ariaSnapshot()` on a detached marked stop waits for the test timeout — a failing case fails either way (Edge 6).
+  - `[low]` `[reject]` A1's and A7's `finishTurn` runs before `cleanFixtureRows` in finally, so a throw leaks rows — the order existed before this story, and the failure is a server call failing (Edge 7, Verification-gap other).
+  - `[false]` `[reject]` `#top` and `a[name]` fragments are reported as links to nothing — the spec's rule is that the fragment names an existing id (Edge 8).
+  - `[low]` `[reject]` a borderless control is judged by its ancestor's edge, not its own background (claims) — recorded under Decided in-stage; a transparent own background would otherwise have no boundary to measure (Edge 10, intent-alignment).
+  - `[low]` `[reject]` the names rule skips tab stops in `aria-hidden` or inert subtrees (claims) — recorded under Decided in-stage; a focusable element in such a subtree is a different defect that nothing here puts on the page (Edge 11, intent-alignment).
+  - `[medium]` `[patch]` DW-179: A5, A7 and P4 have no mutation line — patched: each `turnRows` removal run red in `floor-fixtures.test.mjs` and recorded; the `finally` calling `cleanFixtureRows` is read by A1's and H1's existing checks only (Verification-gap 1).
+  - `[low]` `[reject]` scan branches with no planted fault (ring, placeholder, custom tab stop, svg, Close alone, img) — the matrix fixes U3 at exactly five findings and the AC's "a planted fault of each kind" holds; kept as a residual risk below (Verification-gap 2).
+  - `[medium]` `[patch]` nothing pins which engine each floor project runs — patched: `playwright-projects.test.mjs` loads the config and asserts `defaultBrowserType` and `grep`; the Desktop Chrome swap run red and recorded (Verification-gap 3).
+  - `[low]` `[patch]` the rail's `(focusin)` and the upward branch have no mutation line — patched: the rail mutation ran red (K4 and G1 in Firefox) and the upward branch is pinned by the Node test (Verification-gap 4, mutation check).
+  - `[low]` `[patch]` the CI regrouping has no mutation lines — patched: `bundle-folder` in `BROWSER_UNITS` and `install-fresh` without `bundle-folder` both ran red and are recorded (Verification-gap 5).
+  - `[low]` `[reject]` `twice`, `badFormat` and `badCalendar` of the string test have no planted case — the three failure kinds of the contract are planted; these are guards on guards (Verification-gap 6).
+  - `[false]` `[reject]` the mutation-line check lists engines, DW-89 ring removal, DW-179 and Integration gaps — the same root causes as rows 22 to 26, closed there; DW-89's `ring-inside` is read by K4 and E2 (Verification-gap mutation check).
+  - `[low]` `[reject]` `test-floor.sh` passes when Playwright exits 0 without checking that Firefox and WebKit ran a test — the listing test pins the projects and tags; a project with no test cannot be listed (Verification-gap other).
+  - `[false]` `[reject]` intent-alignment: the themes are emulated through `emulateMedia`, as the spec's Tasks say.
+  - `[false]` `[reject]` intent-alignment: E1's Safari-like press is synthetic, as the spec's Tasks say; the real press is the manual check.
+  - `[false]` `[reject]` intent-alignment: the Node tests check structure and the behaviour is the live floor's — as the spec's AC tests name them.
+  - `[false]` `[reject]` intent-alignment: `unmeasured` also covers a partial opacity, and the step key's probe is a link then a button — both stricter than the spec, never weaker.
+  - `[false]` `[reject]` intent-alignment: G4 to G7 run in Chromium only — the spec's "Not this story".
+  - `[maybe-false]` `[reject]` intent-alignment: E1's withheld click means the "released over the chat list" case tests the end-of-press check alone — the withheld click is an outside press that closes the menu whatever the logic does (Decided in-stage); a real release also fires it, so the case isolates the rule the spec names.
+  - `[maybe-false]` `[reject]` Edge 2's twin in the claims check of the reveal ("never another scroller") — the code calls only the scroller's own `scrollBy`.
+
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -388,6 +430,15 @@ No AC contradicts an AD's Rule. **Rule 5:** every criterion is measurable as pla
 10. **The string test's model:** `ux` is a verbatim match in `EXPERIENCE.md`. A string the UX lacks names its other source or its ruling, so every string's provenance is written once and checked.
 11. **Ids:** U (the scan) and E (engines), because S is taken in `web/e2e/`.
 12. **No split.** It is one criterion and four ledger bullets. About 25 files change, each by a little, and nothing on the server.
+
+**Decided in-stage (implement stage, 2026-10-24).**
+- **Strings:** every inventory string found a source, so nothing is escalated. "Repair and resend" is `design` (DESIGN.md holds it verbatim). "Close About OcuTalon" is `ruled` (Story 2.14's ruling of 16:21:41Z). "{n} approval requests" is `ruled` (Story 2.15's ruling), "1 approval request" is `ux`. Templates that are only slots and unit words are `format`.
+- **Scan, tab stops:** the role of a custom tab stop comes from its aria snapshot, so the rail's implicit region role counts. Elements inside an `aria-hidden` or inert subtree (the CDK focus-trap anchors, the page behind About) are exempt from the tab-stop rule.
+- **Scan, boundary:** a control with no border and a transparent background is bounded by the first ancestor that draws an edge (the composer's bordered box). A partial opacity is an `unmeasured` finding.
+- **U2:** the failed load answers 500 first, then holds Retry while the page clock advances 10 s, so that the busy notice shows.
+- **E2:** it also asserts `tabindex="0"` on the list and the rail, because Firefox makes any scroller a tab stop and the list mutation was otherwise not red there.
+- **E1:** its release-over-the-list step withholds the engine's click on the two targets' common ancestor, because that click closes the menu as an outside press whatever the press logic does.
+- **Review patches:** `reveal-ring.test.mjs` (Node, stand-in elements) pins both directions of `revealRing`; `playwright-projects.test.mjs` pins the engine of each floor project; the scan header says it leaves nothing in the page.
 
 **Veto-window items:** none. No public text is added: the two new names are the headings "Chat" and "Status".
 
@@ -514,6 +565,32 @@ No AC contradicts an AD's Rule. **Rule 5:** every criterion is measurable as pla
 | CI | `FIREFOX_WEBKIT_UNITS` empty | `test-demo-path-gate.sh` |
 | IME | the composer guard without `keyCode === 229` | E3 in every engine; C3 |
 
+**Mutations run (implement stage, Rule 19).** Each was applied, observed red, and reverted; `git status --short`, the hash of `git diff` and the content of every untracked file were identical to the state before it. Browser mutations ran in groups on tag `e2s216i`, with disjoint expected reds.
+- mutation: `stepKeys` accepts `Tab` at once -> K1, K4, G1 (and E2) red in `floor-webkit` only.
+- mutation: `floor-firefox` dropped from `e2e:floor` -> `playwright-projects.test.mjs` red (two tests).
+- mutation: the banner Close's `aria-label` binding removed -> U1 red in all three engines and K5 red in Chromium (names rule).
+- mutation: the decision row's `.meta` coloured `#B0B0B0` -> U1 red in all three engines (contrast text, light, 2.02:1).
+- mutation: the scan's `unmeasured` reports nothing -> U3 red in all three engines.
+- mutation: `CHAT_TEXTS.deciding` written `'Deciding...'` -> `ux-strings.test.mjs` red (no entry, stale entry, three dots, ellipsis).
+- mutation: `<span>Hello</span>` added to `main-page.ts`'s template -> `ux-strings.test.mjs` red (`"Hello"` has no entry).
+- mutation: the chat list loses `tabindex="0"` -> E2 red in Chromium and WebKit; Firefox stayed green until E2 also asserted the attribute (Firefox makes any scroller a tab stop), after which the rail's mutation below was red in all three.
+- mutation: the rail's `tabindex` fixed at `-1` -> E2 red in all three engines.
+- mutation: the focus-leave check ignores the press -> E1 red in all three engines.
+- mutation: the press flag is never cleared without a click -> E1 red in all three engines at "released over the chat list". The case withholds the engine's click on the two targets' common ancestor (a capture listener on `window`), because that click closes the menu as a press outside whatever the press logic does.
+- mutation: `href="#nowhere"` on the skip links -> U1 and U2 red in all three engines (links rule); U3 red too, since the plant expects exactly five findings.
+- mutation: the list's `(focusin)` removed -> G1 red in `floor-firefox` only.
+- mutation: A1 without its `turnRows` -> `floor-fixtures.test.mjs` red.
+- mutation: `FIREFOX_WEBKIT_UNITS=""` -> `test-demo-path-gate.sh` red (two checks).
+- mutation: the composer guard without `keyCode === 229` -> E3 red in all three engines. C3 (`live:sign-in`) was not re-run with it.
+- mutation: `floor-webkit` given `devices['Desktop Chrome']` -> `playwright-projects.test.mjs` red (the engines of the three floor projects).
+- mutation: the `turnRows` line of A5, of A7 and of P4 removed, one at a time -> `floor-fixtures.test.mjs` red, naming the file.
+- mutation: `bundle-folder` added to `BROWSER_UNITS` -> `test-demo-path-gate.sh` red (`live: bundle-folder installs no browser`).
+- mutation: `install-fresh` without `live:bundle-folder` -> `test-ci-config.sh` red (`units: the test scripts, the shards and the areas`; every script is in exactly one group).
+- mutation: the rail's `(focusin)="reveal($event)"` removed -> K4 and G1 red in `floor-firefox` only.
+- mutation: `revealRing`'s upward branch made a no-op -> `reveal-ring.test.mjs` red (two tests); the floor unit stayed green (67 passed), so the upward branch is pinned by the Node test alone.
+
+**Measured at the implement stage** (macOS, tag `e2s216i`): `ci/iris.sh live floor` 229 s from `build` to the PASS line (2.6 min of Playwright, 67 cases: 43 in `floor`, 12 in each other project); `live sign-in` 190 passed and 2 skipped in about 5.7 min of Playwright; `live demo-path` passed. After the review patches, in seconds: `group install-fresh` 295 (`install-start` 207, `bundle-folder` 88); `group image` 255 (`storage-roundtrip` 67, `build-inputs` 5, `compose-start` 78, `shard:lane-b` 104); `group shards` 290 (`shard:lane-a` 66, `live:floor` 223). The CI figures above stay estimates until the first CI run.
+
 **Shared surfaces:**
 - **The tab order:** region "Chat" in every band, and region "Status" in the framed bands. K1, K4, G1, G5 and E2 walk it, and the other Tab readers are listed in the Sweep.
 - **`section.rail`'s `tabindex`:** F1 allows only -1 and 0.
@@ -534,8 +611,27 @@ No AC contradicts an AD's Rule. **Rule 5:** every criterion is measurable as pla
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement stage (2026-10-24).**
+- **Summary.** The floor unit now runs, on its one stack, every floor case in Chromium and the 12 `@browsers` cases in Firefox and WebKit (67 cases). The page fixes are in: DW-145 (`Popovers` keeps a press on the trigger inside until it ends), DW-89 (the list and the rail are named tab stops, `ring-inside` in `base.css`), Firefox's clipped ring (`revealRing`), DW-178 (the scan's links rule) and DW-179 (`turnRows` in A1, A5, A7, P4). The scan (`support/scan.ts`), the string test (`ux-strings.test.mjs`) and the CI changes (`ci/units.sh`, `ci/iris.sh`, `test-floor.sh`, `test-demo-path-gate.sh`) are in.
+- **Files changed.**
+  - Page: `web/src/app/shared/popover.ts` (press logic), `web/src/app/shared/reveal-ring.ts` (new), `web/src/app/chat/chat-panel.ts`, `web/src/app/main-page/main-page.ts`, `web/src/app/banners/banner-stack.ts`, `web/src/app/header/skip-links.ts` (doc), `web/src/styles/base.css` (`.ring-inside`).
+  - Floor tests: `web/e2e/support/floor.ts` (`stepKeys`, ring helpers), `web/e2e/support/scan.ts` (new), `web/e2e/floor/{keyboard,layout,focus,announcements}.spec.ts`, `web/e2e/floor/scan.spec.ts` (new, U1 to U3), `web/e2e/floor/browsers.spec.ts` (new, E1 to E3).
+  - Node tests: `web/scripts/ux-strings.test.mjs` (new), `web/scripts/reveal-ring.test.mjs` (new), `web/scripts/playwright-projects.test.mjs`, `web/scripts/floor-fixtures.test.mjs`.
+  - Config and CI: `web/playwright.config.ts`, `web/package.json`, `ci/units.sh`, `ci/iris.sh`, `docker/tests/test-floor.sh`, `docker/tests/test-demo-path-gate.sh`.
+- **Review (one pass, 36 findings: medium 2, low 21, false 10, maybe-false 3).**
+  - Patches applied (5 entries, 2 of them medium): the engine of each floor project is pinned in `playwright-projects.test.mjs`; mutation lines for A5, A7 and P4; `reveal-ring.test.mjs` for both directions of `revealRing`; the scan header wording; mutation lines for the rail's `(focusin)` and for the CI regrouping.
+  - Deferred: none.
+  - Rejected: every other row of the triage log, each with its recorded reason.
+- **Follow-up review recommended: true.** Two medium entries were patched (both test pins). The unverified risk is Linux Firefox and WebKit (the Tab key, focus on a press, the edge reveal), which stay unmeasured until the first CI run, with the hosts' packages installed by the Contest Planner.
+- **Verification.** `npm --prefix web test` 558 passed; lint, `catalog.mjs --check`, `test-web-build.sh`, `test-boundaries.sh`, `test-demo-path-gate.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/checks.sh` exit 0. On tag `e2s216i`: `live floor` 67 passed (223 to 239 s), `group install-fresh` 295 s, `group image` 255 s, `group shards` 290 s, `live sign-in` 190 passed with 2 skipped, `live demo-path` passed; teardown left nothing. Mutations: 22, listed under Verification.
+- **Residual risks.**
+  - The scan's ring, placeholder, custom tab stop, svg, Close-alone and img branches have no planted fault (U3 is fixed at five findings by the matrix); they are pinned only by a clean U1 and U2.
+  - The CI figures (35 minutes, 1.25 times the mean) are estimates until the first CI run.
+  - The hosts need `npx -y playwright@1.64.1 install-deps firefox webkit` as root before the first push (Contest Planner).
+  - `C3` was not re-run with the IME mutation; E3 covers it in all three engines.
 
 **Plan stage (2026-10-24).** The plan halted after planning, as the dispatch asked.
 - It reused the committed `epic-2-context.md` without recompiling it, and took Story 2.15 as the continuity context.

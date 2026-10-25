@@ -157,23 +157,51 @@ export class Popovers {
   /**
    * Closes the popover when focus ends up outside both the trigger and the panel. The check runs after the focus
    * change has settled, and not while the browser window itself has lost focus (the popover waits for it).
+   *
+   * A press that starts on the trigger (pointerdown on it) counts as inside until the press ends: Safari, and Firefox on macOS,
+   * take focus away from a pressed button, and that focus must not close the popover before the trigger's own click can toggle it
+   * closed. A press that ends without a click on the trigger (pointerup or pointercancel anywhere else) runs the check again, once
+   * the click that a press ending on the trigger would have run is behind it (a task after pointerup).
    */
   private closeOnFocusLeave(trigger: HTMLElement, pane: HTMLElement, ref: PopoverRef): () => void {
     let pending: number | undefined;
+    let ending: number | undefined;
+    let pressed = false;
+    const check = (): void => {
+      const active = document.activeElement;
+      const inside = pressed || (active !== null && (trigger.contains(active) || pane.contains(active)));
+      if (!inside && document.hasFocus()) {
+        ref.close();
+      }
+    };
     const onFocusOut = (): void => {
       window.clearTimeout(pending);
-      pending = window.setTimeout(() => {
-        const active = document.activeElement;
-        const inside = active !== null && (trigger.contains(active) || pane.contains(active));
-        if (!inside && document.hasFocus()) {
-          ref.close();
-        }
+      pending = window.setTimeout(check);
+    };
+    const onPressEnd = (): void => {
+      document.removeEventListener('pointerup', onPressEnd, true);
+      document.removeEventListener('pointercancel', onPressEnd, true);
+      window.clearTimeout(ending);
+      ending = window.setTimeout(() => {
+        pressed = false;
+        check();
       });
     };
+    const onPressStart = (): void => {
+      pressed = true;
+      window.clearTimeout(ending);
+      document.addEventListener('pointerup', onPressEnd, true);
+      document.addEventListener('pointercancel', onPressEnd, true);
+    };
+    trigger.addEventListener('pointerdown', onPressStart);
     trigger.addEventListener('focusout', onFocusOut);
     pane.addEventListener('focusout', onFocusOut);
     return () => {
       window.clearTimeout(pending);
+      window.clearTimeout(ending);
+      document.removeEventListener('pointerup', onPressEnd, true);
+      document.removeEventListener('pointercancel', onPressEnd, true);
+      trigger.removeEventListener('pointerdown', onPressStart);
       trigger.removeEventListener('focusout', onFocusOut);
       pane.removeEventListener('focusout', onFocusOut);
     };

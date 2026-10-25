@@ -10,6 +10,7 @@ import { Layout } from '../shared/layout';
 import { LAYOUT_QUERIES, LAYOUT_TEXTS } from '../shared/layout-view';
 import { NarrowNote } from '../shared/narrow-note';
 import { Popovers } from '../shared/popover';
+import { revealRing } from '../shared/reveal-ring';
 import { ServerButton } from '../shared/server-button';
 
 /** The labels of the rail's four list sections, in order, for the loading and failed states; the loaded rail adds its counts (Telegram is unknown until then). */
@@ -44,8 +45,11 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
  * Once it has loaded, the rail holds the status rail and main holds the chat panel after its hidden heading. When the load error
  * holds focus (its Retry button) as the page loads, focus moves to main without scrolling, through the page's focus rule
  * (shared/focus-rule.ts); a Retry that fails leaves focus where it is. Retry is described by the load error's text
- * (aria-describedby), and by its busy notice as well while that shows. The rail and main take focus (tabindex -1) but are not tab stops: the skip links
- * of the header move focus to them (Story 2.14), and each draws its focus ring inside its own edge, so that no part of it falls outside the viewport. The page's
+ * (aria-describedby), and by its busy notice as well while that shows. Main takes focus (tabindex -1) but is not a tab stop: the skip links
+ * of the header move focus to it and to the rail (Story 2.14). The rail is a tab stop (tabindex 0) while it scrolls on its own and
+ * tabindex -1 when stacked, and the chat list is one too (DW-89, Story 2.16): each is a region named by its hidden heading, "Status" and "Chat" (chat-title).
+ * Rail, main, the list and the banners draw their focus ring inside their own edge (the ring-inside class of styles/base.css), so that no part of it
+ * falls outside the viewport, and a focusin in the rail keeps the ring of a control at its edge inside it (shared/reveal-ring.ts). The page's
  * data-snapshot says how the load went, and data-session-seq and data-instance-seq the last event of each stream that the page has
  * applied.
  */
@@ -59,14 +63,15 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
       <app-inline-notice class="narrow-note" variant="info" [closeName]="noteClose" (closed)="narrowNote.close()">{{ noteText }}</app-inline-notice>
     }
     <section
-      class="rail"
+      class="rail ring-inside"
       id="status-region"
-      tabindex="-1"
+      [attr.tabindex]="layout.stacked() ? -1 : 0"
       aria-labelledby="rail-title"
       [class.drawer]="layout.band() === 'drawer'"
       [class.open]="layout.drawerOpen()"
       [attr.aria-busy]="loading() ? 'true' : null"
       (keydown.escape)="collapse($event)"
+      (focusin)="reveal($event)"
     >
       <h2 id="rail-title" class="visually-hidden">Status</h2>
       @if (live.status() === 'loaded') {
@@ -89,14 +94,14 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
       }
     </section>
     <main
-      class="main"
+      class="main ring-inside"
       tabindex="-1"
       [attr.data-snapshot]="live.status()"
       [attr.data-session-seq]="live.sessionSeq() ?? null"
       [attr.data-instance-seq]="live.instanceSeq() ?? null"
       [attr.aria-busy]="loading() ? 'true' : null"
     >
-      <h2 class="visually-hidden">Chat</h2>
+      <h2 id="chat-title" class="visually-hidden">Chat</h2>
       @if (loading()) {
         <div class="skeleton-chat" aria-hidden="true">
           <span class="skeleton chat-bubble"></span>
@@ -140,12 +145,6 @@ const NOTE_RULE: FocusRule = { within: '.narrow-note' };
     .rail > .rail-heading,
     .rail > .skeleton-rows {
       margin-inline: var(--space-2);
-    }
-    /* A focus target that is not a tab stop draws the ring and its halo inside its own edge, which is the viewport's edge. */
-    .rail:focus-visible,
-    .main:focus-visible {
-      outline-offset: -2px;
-      box-shadow: inset 0 0 0 4px var(--surface);
     }
     /* In the drawer band (Layout.band) the rail is not displayed until the drawer is open. Layout decides the band and the state in one step, so that
        a rail that holds focus is never hidden by the width alone before the drawer has opened. */
@@ -285,6 +284,11 @@ export class MainPage {
         atLoad = false;
       });
     });
+  }
+
+  /** Focus reached something in the rail: the rail scrolls just far enough to keep that control's ring inside it (Firefox leaves it clipped). */
+  protected reveal(event: Event): void {
+    revealRing(event.currentTarget as HTMLElement, event.target);
   }
 
   /** Esc in the rail closes an open drawer, unless a popover is open: it closes alone, and a disclosure that used the Esc stopped it. */

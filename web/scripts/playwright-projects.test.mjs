@@ -1,12 +1,13 @@
-// Tests of the three Playwright projects of web/playwright.config.ts (Stories 0.8 and 2.14), listed through the npm scripts that
-// the unit scripts call: which spec files each project runs, that every demo-path spec maps to a step of demo-path-summary.mjs, and the
-// form in which the report gives the floor test's tag. Then one run of an API spec with none of the sign-in unit's variables.
+// Tests of the five Playwright projects of web/playwright.config.ts (Stories 0.8, 2.14 and 2.16), listed through the npm scripts that
+// the unit scripts call: which spec files each project runs, that every demo-path spec maps to a step of demo-path-summary.mjs, the
+// form in which the report gives the floor test's tag, and that the floor script runs every floor case in Chromium and the cases tagged
+// @browsers in Firefox and WebKit. Then one run of an API spec with none of the sign-in unit's variables.
 // No browser starts and no stack is needed, none of the sign-in unit's OCUTALON_ variables is set, and the run writes its
 // results to a scratch folder of its own, never to web/test-results.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -104,6 +105,72 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
       'shows the empty chat panel and the composer',
       'shows the status rail with its sections, counts and empty states',
     ]);
+  });
+});
+
+/** Every spec of a listing, with its title, its tags and the projects that run it. */
+function specsOf(report) {
+  const found = [];
+  const walk = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      found.push({ file: spec.file, title: spec.title, tags: spec.tags, projects: spec.tests.map((one) => one.projectName) });
+    }
+    for (const child of suite.suites ?? []) walk(child);
+  };
+  report.suites.forEach(walk);
+  return found;
+}
+
+describe('the floor script runs the floor in three engines (Story 2.16)', () => {
+  const specs = specsOf(reportOf('e2e:floor'));
+  const titlesOf = (project) => [...new Set(specs.filter((one) => one.projects.includes(project)).map((one) => `${one.file}: ${one.title}`))].sort();
+  const unique = (list) => [...new Set(list)].sort();
+  const tagged = unique(specs.filter((one) => one.tags.includes('browsers')).map((one) => `${one.file}: ${one.title}`));
+
+  it('is the three floor projects, Chromium first', () => {
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:floor'];
+    assert.equal(script, 'playwright test --project=floor --project=floor-firefox --project=floor-webkit');
+    assert.deepEqual([...new Set(specs.flatMap((one) => one.projects))].sort(), ['floor', 'floor-firefox', 'floor-webkit']);
+  });
+
+  it('runs floor in Chromium, floor-firefox in Firefox and floor-webkit in WebKit, the last two on the @browsers cases', () => {
+    const run = spawnSync(
+      process.execPath,
+      [
+        '--no-warnings',
+        '--input-type=module',
+        '-e',
+        "const { default: config } = await import('./playwright.config.ts'); console.log(JSON.stringify(config.projects.map((one) => [one.name, one.use?.defaultBrowserType, String(one.grep ?? '')])));",
+      ],
+      { cwd: webDir, env: bareEnv(), encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, run.stderr.slice(0, 2000));
+    const projects = Object.fromEntries(JSON.parse(run.stdout).map(([name, engine, grep]) => [name, { engine, grep }]));
+    assert.deepEqual(projects['floor'], { engine: 'chromium', grep: '' });
+    assert.deepEqual(projects['floor-firefox'], { engine: 'firefox', grep: '/@browsers/' });
+    assert.deepEqual(projects['floor-webkit'], { engine: 'webkit', grep: '/@browsers/' });
+  });
+
+  it('runs every floor test in floor, and the same @browsers tests in floor-firefox and floor-webkit', () => {
+    assert.ok(titlesOf('floor').length >= 37, `floor lists ${titlesOf('floor').length} tests`);
+    assert.deepEqual(titlesOf('floor'), [...new Set(specs.map((one) => `${one.file}: ${one.title}`))].sort());
+    assert.ok(tagged.length > 0);
+    assert.deepEqual(titlesOf('floor-firefox'), tagged);
+    assert.deepEqual(titlesOf('floor-webkit'), tagged);
+  });
+
+  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U3 and E1 to E3', () => {
+    const ids = tagged.map((title) => /^[^:]+: ([A-Z]\d)/.exec(title)?.[1]);
+    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'E1', 'E2', 'E3']) {
+      assert.ok(ids.includes(id), `${id} is tagged @browsers: ${tagged.join(' | ')}`);
+    }
+    assert.equal(ids.filter((id) => id === 'K2').length, 1, 'only the first K2 case is tagged');
+    assert.ok(tagged.some((title) => /K2: Esc hides the tooltip first/.test(title)));
+  });
+
+  it('is run by neither the chromium script nor the demo-path script', () => {
+    assert.deepEqual(filesOf('e2e').filter((name) => name.startsWith('floor/')), []);
+    assert.deepEqual(filesOf('e2e:demo-path').filter((name) => name.startsWith('floor/')), []);
   });
 });
 

@@ -19,6 +19,7 @@ import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
+import { revealRing } from '../shared/reveal-ring';
 import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS, chatView, isFreshChat, type ChatEntryView } from './chat-view';
@@ -71,6 +72,9 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
  * "Tell now:" and its first sentence, and a new reminder card is its text. The user's messages, Deciding and Working, the
  * seconds and a card updated in place are silent.
  *
+ * The list is a tab stop (DW-89, Story 2.16): a region named by the hidden "Chat" heading of the main page, with its ring inside its own edge, so
+ * that the keyboard scrolls it; a focusin in it keeps the ring of a control at its edge inside it (shared/reveal-ring.ts).
+ *
  * Focus: only the user's New messages button moves it, and the page's focus rule (shared/focus-rule.ts) when an update removes the
  * element that holds it inside the list: an item that is still there takes it (the message of Retry sending), else the main region.
  *
@@ -91,7 +95,15 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
   imports: [Composer, EmptyChat, Icon, NoticeCard, OcutalonReply, UserMessage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="list" #list (scroll)="onScroll()">
+    <div
+      class="list ring-inside"
+      #list
+      tabindex="0"
+      role="region"
+      aria-labelledby="chat-title"
+      (scroll)="onScroll()"
+      (focusin)="reveal($event)"
+    >
       <div class="content" #content>
         @if (fresh()) {
           <app-empty-chat />
@@ -300,6 +312,11 @@ export class ChatPanel {
     for (const text of texts) {
       this.announcer.announce(text);
     }
+  }
+
+  /** Focus reached something in the list: the list scrolls just far enough to keep that control's ring inside it (Firefox leaves it clipped). */
+  protected reveal(event: Event): void {
+    revealRing(this.list().nativeElement, event.target);
   }
 
   /** At the bottom (within 24 px) the list is at the bottom; away from it, it has left the bottom only if it was scrolled up. */

@@ -30,8 +30,8 @@ describe('seedTurns records what it writes', () => {
   });
 });
 
-describe('the floor cases of Stories 2.14 and 2.15 list the turns they seed', () => {
-  for (const name of ['floor/keyboard.spec.ts', 'floor/layout.spec.ts', 'floor/words.spec.ts', 'support/floor.ts']) {
+describe('the floor cases of Stories 2.14 to 2.16 list the turns they seed', () => {
+  for (const name of ['floor/announcements.spec.ts', 'floor/focus.spec.ts', 'floor/keyboard.spec.ts', 'floor/layout.spec.ts', 'floor/words.spec.ts', 'support/floor.ts']) {
     it(`${name}: every seedTurns call has its turnRows`, () => {
       const text = read(name);
       const seeds = calls(text, 'seedTurns');

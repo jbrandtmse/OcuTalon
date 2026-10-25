@@ -13,8 +13,10 @@ import {
   banner,
   clearFullPage,
   composerOf,
+  expectInsideRing,
   expectRing,
   expectRingInside,
+  expectStopRing,
   mainOf,
   openFloor,
   railOf,
@@ -26,11 +28,11 @@ import {
   seedScrollingPage,
   settled,
   skipLink,
+  stepKeys,
   unique,
-  type Reading,
 } from '../support/floor';
 import { cleanFixtureRows, fixtureUser, publishStatus, seedTurns, turnRows } from '../support/iris';
-import { tokenColor } from '../support/page';
+import { expectNamed } from '../support/scan';
 
 /**
  * Story 2.14, the keyboard and the labels (K1 to K6), in a real browser against a real stack. It pins that the whole page works by the
@@ -41,7 +43,8 @@ import { tokenColor } from '../support/page';
  * It needs the stack that docker/tests/test-floor.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role)
  * over real HTTP, in a fresh browser context, so the Trace help of a rail row is unseen in it. A case removes its rows with
  * cleanFixtureRows and turns the conditions it publishes off in finally. No case lets a chat post reach the server, so no turn of one
- * case replies inside another case's window.
+ * case replies inside another case's window. K1, the first K2 case and K4 also run in Firefox and WebKit (tag @browsers), with the step key of
+ * the engine (stepKeys), and K5's names rule is the scan's (support/scan.ts).
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -53,18 +56,6 @@ test.afterEach(async ({ page }) => {
 
 const KIND = 'FLOOR';
 
-/** Expects a focus target that is not a tab stop to draw the ring inside its own edge: 2px solid in the focus colour, with the surface halo inside it. */
-async function expectInsideRing(page: Page, reading: Reading, what: string): Promise<void> {
-  const focus = await tokenColor(page, '--focus');
-  const surface = await tokenColor(page, '--surface');
-  expect(reading.outlineStyle, `${what}: the ring is solid`).toBe('solid');
-  expect(reading.outlineWidth, `${what}: 2px`).toBe('2px');
-  expect(reading.outlineColor, `${what}: in the focus colour`).toBe(focus);
-  expect(reading.outlineOffset, `${what}: inside its own edge`).toBe('-2px');
-  expect(reading.boxShadow, `${what}: with the surface halo inside the ring`).toContain(`${surface} 0px 0px 0px 4px inset`);
-  expectRingInside(reading, what);
-}
-
 const homeLink = (page: Page): Locator => page.locator('app-header a.home');
 
 /** Whether the focused element is inside the locator's element and is not that element itself. */
@@ -72,13 +63,14 @@ const focusIsInside = (region: Locator): Promise<boolean> =>
   region.evaluate((el) => el !== document.activeElement && el.contains(document.activeElement));
 
 /** K1: the skip links are the first tab stops, show while focused, and move focus to the regions without changing the address. */
-test('K1: Skip to chat and Skip to status are the first tab stops and move focus to their regions', async ({ page }) => {
+test('K1: Skip to chat and Skip to status are the first tab stops and move focus to their regions', { tag: '@browsers' }, async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   let hold: Awaited<ReturnType<typeof holdState>> | undefined;
   try {
     const summary = await seedRow(user, refs, 'K1 row');
     await openFloor(page);
+    const keys = await stepKeys(page);
     await expect(rowOf(page, summary), 'the rail has a control to reach').toHaveCount(1);
     const home = page.url();
     const mark = (): Promise<void> => page.evaluate(() => history.replaceState(null, '', `${location.pathname}${location.search}#/k1`));
@@ -86,7 +78,7 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     const address = page.url();
     expect(address, 'the case gives the address a mark that a followed link would change').not.toBe(home);
 
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_CHAT), 'the first tab stop is Skip to chat').toBeFocused();
     let reading = (await readFocus(page))!;
     expect(reading.clipPath, 'it shows while it has focus').toBe('none');
@@ -96,7 +88,7 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     expectRingInside(reading, SKIP_CHAT);
     await expect(skipLink(page, SKIP_STATUS), 'the other link is hidden').toHaveCSS('clip-path', 'inset(50%)');
 
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_STATUS), 'the second is Skip to status').toBeFocused();
     reading = (await readFocus(page))!;
     expect(reading.clipPath).toBe('none');
@@ -104,26 +96,26 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     expectRingInside(reading, SKIP_STATUS);
     await expect(skipLink(page, SKIP_CHAT), 'and the first is hidden again').toHaveCSS('clip-path', 'inset(50%)');
 
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(homeLink(page), 'the third is the home link').toBeFocused();
 
-    await page.keyboard.press('Shift+Tab');
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press(keys.back);
+    await page.keyboard.press(keys.back);
     await expect(skipLink(page, SKIP_CHAT)).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(mainOf(page), 'Enter puts focus on the main region').toBeFocused();
     expect(page.url(), 'and leaves the address as it was').toBe(address);
     reading = (await readFocus(page))!;
     expectRingInside(reading, 'main');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     expect(await focusIsInside(mainOf(page)), 'the next Tab is inside main').toBe(true);
 
     await page.evaluate((url) => history.replaceState(null, '', url), home);
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(rowOf(page, summary)).toHaveCount(1);
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
+    await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_STATUS)).toBeFocused();
     await mark();
     await page.keyboard.press('Enter');
@@ -133,7 +125,7 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     expect(page.url(), 'and leaves the address as it was').toBe(address);
     reading = (await readFocus(page))!;
     expectRingInside(reading, 'the rail');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     expect(await focusIsInside(rail), "the next Tab reaches the rail's first control").toBe(true);
 
     await page.clock.install();
@@ -143,14 +135,14 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
     await expect(mainOf(page), 'the page is still loading').toHaveAttribute('data-snapshot', 'loading');
     await expect(page.locator('.skeleton').first()).toBeVisible();
     await freeze(page);
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_CHAT), 'while loading, the first stop is the same').toBeFocused();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(skipLink(page, SKIP_STATUS), 'and so is the second').toBeFocused();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await expect(homeLink(page)).toBeFocused();
-    await page.keyboard.press('Shift+Tab');
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press(keys.back);
+    await page.keyboard.press(keys.back);
     await expect(skipLink(page, SKIP_CHAT)).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(mainOf(page), 'Enter puts focus on main while it shows its skeletons').toBeFocused();
@@ -163,7 +155,7 @@ test('K1: Skip to chat and Skip to status are the first tab stops and move focus
 });
 
 /** K2: one Esc acts on one layer: a shown tooltip, then an open popover, then the disclosure that holds focus. */
-test('K2: Esc hides the tooltip first, closes the popover next, and collapses the row last', async ({ page }) => {
+test('K2: Esc hides the tooltip first, closes the popover next, and collapses the row last', { tag: '@browsers' }, async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
@@ -355,7 +347,7 @@ test('K3: the keys a, s, t, /, ? and 1 change nothing', async ({ page }) => {
 });
 
 /** K4: the focus ring is 2px, solid, in the focus colour with its halo, and lies inside the viewport and inside every scroller. */
-test('K4: no focus ring is clipped, at every tab stop of a page whose rail and chat both scroll', async ({ page }) => {
+test('K4: no focus ring is clipped, at every tab stop of a page whose rail and chat both scroll', { tag: '@browsers' }, async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
@@ -364,6 +356,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     const stamp = unique('K4');
     await seedScrollingPage(user, refs, stamp);
     await openFloor(page);
+    const keys = await stepKeys(page);
     await addResetSoon(page, user);
     await expect(railOf(page).locator('app-decision-row').filter({ hasText: stamp }), 'twelve decision rows').toHaveCount(12);
     const scrolls = await page.evaluate(() => {
@@ -376,11 +369,10 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
 
     const stops: string[] = [];
     for (let i = 0; i < MOST_STOPS; i += 1) {
-      await page.keyboard.press('Tab');
+      await page.keyboard.press(keys.next);
       const reading = await readFocus(page);
       expect(reading, `Tab ${i + 1} lands on an element`).not.toBeNull();
-      await expectRing(page, reading!, reading!.what);
-      expectRingInside(reading!, reading!.what);
+      await expectStopRing(page, reading!);
       stops.push(reading!.what);
       if (await page.locator('app-composer button').evaluate((el) => el === document.activeElement)) break;
     }
@@ -399,7 +391,7 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     const newMessages = page.getByRole('button', { name: 'New messages' });
     await expect(newMessages, 'a turn that lands while the list is scrolled up shows New messages').toBeVisible();
     await composerOf(page).focus();
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press(keys.back);
     await expect(newMessages, 'Shift+Tab from the composer reaches it').toBeFocused();
     const newReading = (await readFocus(page))!;
     await expectRing(page, newReading, 'New messages');
@@ -407,14 +399,14 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
 
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
     await page.keyboard.press('Enter');
     await expect(mainOf(page)).toBeFocused();
     await expectInsideRing(page, (await readFocus(page))!, 'main');
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(keys.next);
+    await page.keyboard.press(keys.next);
     await page.keyboard.press('Enter');
     await expect(page.locator('section.rail')).toBeFocused();
     await expectInsideRing(page, (await readFocus(page))!, 'the rail');
@@ -447,17 +439,6 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     await cleanFixtureRows(refs);
   }
 });
-
-/** The names of the controls of a page, as the accessibility tree gives them: every control has one, no icon is read, and nothing is named Close alone. */
-async function expectNamed(page: Page, what: string): Promise<void> {
-  const snapshot = await page.locator('body').ariaSnapshot();
-  const unnamed = snapshot.split('\n').filter((line) => /^\s*- (button|link|textbox|menuitem)(?!\w)(?!\s+")/.test(line));
-  expect(unnamed, `${what}: every button, link, textbox and menuitem has a name`).toEqual([]);
-  expect(snapshot, `${what}: no control is named Close alone`).not.toContain('"Close"');
-  expect(snapshot, `${what}: no image is read`).not.toMatch(/^\s*- img\b/m);
-  const open = await page.evaluate(() => Array.from(document.querySelectorAll('svg')).filter((svg) => svg.getAttribute('aria-hidden') !== 'true').length);
-  expect(open, `${what}: every svg is hidden from assistive technology`).toBe(0);
-}
 
 /** K5: every control is named, an icon-only button names its action and its object, and no icon is read. */
 test('K5: every control has a name, and the banner and About Close buttons name their object', async ({ page }) => {

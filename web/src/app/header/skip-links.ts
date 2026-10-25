@@ -9,8 +9,8 @@ export interface SkipLink {
 }
 
 /**
- * The skip links in tab order (UX: Skip to chat, Skip to status). The targets are the page's own regions, which take focus without
- * being tab stops (tabindex -1). A later story adds its link here, in the place the UX gives it.
+ * The skip links in tab order (UX: Skip to chat, Skip to status). The targets are the page's own regions: main takes focus without
+ * being a tab stop (tabindex -1), and the rail is one only while it scrolls on its own (tabindex -1 when stacked). A later story adds its link here, in the place the UX gives it.
  */
 export const SKIP_LINKS: readonly SkipLink[] = [
   { text: 'Skip to chat', target: 'main.main' },
