@@ -108,3 +108,5 @@
 2026-10-25T02:08:07Z	Story 3.4	ledger_routed_planned	story=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing entries=1(DW-187) excess=0 by=harvest
 2026-10-25T02:08:07Z	Story 3.4	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_3.4's_ACs_to_lead-run_agent-time_tooling;Workflow,Raise,Reconcile_pinned_by_%UnitTest_and_live_units_on_throwaways model=claude-opus-5-5
 2026-10-25T02:08:07Z	Story 3.4	stage_spawned	stage=qa spawn_at=2026-10-25T02:08:07Z model=claude-sonnet-5-5 agent_name=3-4-qa-1 cycle_iteration=1
+2026-10-25T02:23:22Z	Story 3.4	qa_complete	spawn_at=2026-10-25T02:08:07Z model=claude-sonnet-5-5 tests=Test.Bridge.Approval(+TestReconcileLeavesSettledRows,+TestReconcileTriesEveryRow) tests_added=2_methods mutations_demonstrated=5 first_run_failures=0 clarifications=0 checks=pass shard_lane_a=44_fresh(410s) approval_class_twice_on_warm=pass teardown=clean closing_sections_present=true agent=a246e6697003078e4 cycle_iteration=1
+2026-10-25T02:23:22Z	Story 3.4	stage_spawned	stage=code-review spawn_at=2026-10-25T02:23:22Z model=claude-opus-5-5 agent_name=3-4-code-review-1 cycle_iteration=1
