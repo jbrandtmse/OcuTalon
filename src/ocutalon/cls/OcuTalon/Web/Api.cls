@@ -9,7 +9,7 @@
 ///     bad_marker for any other body). The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
-///     and the active status conditions.
+///     and the active status conditions, and, last and only while demo mode is on, the guide that Demo.Guide.Compute derives.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403

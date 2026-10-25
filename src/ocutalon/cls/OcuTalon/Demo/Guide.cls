@@ -8,7 +8,7 @@
 ///     trace-opened marker, which only Run again resets.
 ///   - Break the feed is available while the session watches Orders, no visible Orders incident is open, awaiting approval or
 ///     fixing, and the session's latest run (of any epoch) has either brought a notice or waited NOTICEWAIT seconds. The stage
-///     of the run is reported only for a run of the current epoch.
+///     of the run is reported only for a run of the current epoch, and only while the session watches Orders.
 ///   - Telegram counts as on only when the release includes it and TelegramState() says "on"; that stays "off", as /state's
 ///     telegram block does, until Story 10.3 records the real state.
 /// Times are UTC strings YYYY-MM-DDThh:mm:ssZ; ages are whole seconds. Compute throws when a read fails.
@@ -149,10 +149,11 @@ ClassMethod Compute(sessionRef As %String) As OcuTalon.Live.Payload.GuideState
 	Quit ..View(epoch, done, step, finished, active, reason, stage, startedAt, variant, telegramRow)
 }
 
-/// The view of a session with no rows: epoch 1, step 1, nothing done, Break the feed unavailable because nothing is watched.
+/// The view of a session with no rows: epoch 1, step 1, nothing done, Break the feed unavailable because nothing is watched, and
+/// the Telegram row shown exactly when Telegram counts as on (no pairing, no watch).
 ClassMethod Blank() As OcuTalon.Live.Payload.GuideState
 {
-	Quit ..View(1, $ListBuild(0, 0, 0, 0, 0), 1, 0, 0, "not_watching", "", "", "unpaired", 0)
+	Quit ..View(1, $ListBuild(0, 0, 0, 0, 0), 1, 0, 0, "not_watching", "", "", "unpaired", ''..TelegramOn())
 }
 
 /// 1 when demo mode is on: the demo.mode setting is "1".

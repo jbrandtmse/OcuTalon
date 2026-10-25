@@ -3,10 +3,13 @@
 ///   - TestHookPublishesOnChange: after a trigger event of a session whose view is not the blank one, exactly one guide.state follows,
 ///     a repeat with the same view publishes none, a changed view publishes one more, and a view that went back to the blank one is
 ///     published too (the base is the stream's latest guide.state);
-///   - TestEachTriggerType: each of the seven trigger types does it;
+///   - TestEachTriggerType: each of AD-12's seven trigger types, named in the test, does it;
+///   - TestEachTriggerTypeOnlyOnChange and TestNonTriggerTypes (QA): each trigger type publishes only on a change, and none of the eight
+///     other types triggers a refresh;
 ///   - TestNoRefresh: none for a non-trigger type, with demo mode off, on a stream that is no session's, for the instance stream (called
 ///     directly, so that nothing is published on it) and for a session whose view equals the blank one;
 ///   - TestHeldLock: with the guide lock held by another job, Publish answers OK with its event committed and logs one warning;
+///   - TestHeldLockCallerWait: the caller's lock wait bounds the refresh too, so BridgeSink's 1 s (AD-31) is not stretched to 5 s;
 ///   - TestEventsBodyServesTheGuide (an Integration AC): Web.Api.EventsBody serves the guide.state the hook published, as the page polls it.
 /// demo.mode is saved before the tests and put back after them.
 Class OcuTalon.Test.Live.GuideRefresh Extends %UnitTest.TestCase
@@ -87,18 +90,61 @@ Method TestHookPublishesOnChange()
 	Do $$$AssertEquals(events.%Get(2).payload.%ToJSON(), blank, "and it is the blank view")
 }
 
-/// Each of the seven trigger types is followed by a guide.state when the view changed.
+/// Each of AD-12's seven trigger types, named here rather than read from GUIDETRIGGERS, is followed by a guide.state when the view
+/// changed, and GUIDETRIGGERS holds seven types.
 Method TestEachTriggerType()
 {
-	Set types = $ListFromString(##class(OcuTalon.Live.Publish).#GUIDETRIGGERS)
-	Do $$$AssertEquals($ListLength(types), 7, "there are seven trigger types")
+	Set types = $ListBuild("chat.message", "incident", "approval", "check", "reminder", "pairing", "breakfeed.progress")
+	Set triggers = $ListFromString(##class(OcuTalon.Live.Publish).#GUIDETRIGGERS)
+	Do $$$AssertEquals($ListLength(triggers), 7, "there are seven trigger types")
 	Set position = 0
 	While $ListNext(types, position, type) {
+		Do $$$AssertTrue($ListFind(triggers, type), type_" is a trigger type")
 		Set ref = ..NewSession()
 		Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD)
 		Do ..Trigger(ref, type)
 		Do $$$AssertEquals(..GuideEvents(ref).%Size(), 1, type_" is followed by one guide.state")
 	}
+}
+
+/// Each of the seven trigger types publishes only on a change (QA): a second event of the same type with the same view is followed
+/// by none, and one more follows once the view changed.
+Method TestEachTriggerTypeOnlyOnChange()
+{
+	Set types = $ListFromString(##class(OcuTalon.Live.Publish).#GUIDETRIGGERS)
+	Set position = 0
+	While $ListNext(types, position, type) {
+		Set ref = ..NewSession()
+		Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD)
+		Do ..Trigger(ref, type)
+		Do ..Trigger(ref, type)
+		Do $$$AssertEquals(..GuideEvents(ref).%Size(), 1, type_": the same view again publishes none")
+		Do ##class(OcuTalon.Test.Data.Fixture).Reminder(ref)
+		Do ..Trigger(ref, type)
+		Do ..Trigger(ref, type)
+		Do $$$AssertEquals(..GuideEvents(ref).%Size(), 2, type_": a changed view publishes one more, once")
+	}
+}
+
+/// No other event type refreshes the guide (QA): every type of the event table that is neither a trigger nor guide.state is published on
+/// a session whose view differs from the blank one, and none is followed by a guide.state.
+Method TestNonTriggerTypes()
+{
+	Set triggers = $ListFromString(##class(OcuTalon.Live.Publish).#GUIDETRIGGERS)
+	Set pairs = $ListFromString(##class(OcuTalon.Live.Publish).#TYPES)
+	Set ref = ..NewSession()
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD)
+	Set checked = 0, position = 0
+	While $ListNext(pairs, position, pair) {
+		Set type = $Piece(pair, ":", 1)
+		If $ListFind(triggers, type) || (type = "guide.state") Continue
+		Do ..Trigger(ref, type)
+		Set checked = checked + 1
+	}
+	Do $$$AssertEquals(checked, 8, "eight types are neither a trigger nor guide.state")
+	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 0, "none of them is followed by a guide.state")
+	Do ..Trigger(ref, "reminder")
+	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 1, "while a trigger on the same session is")
 }
 
 /// No guide.state follows a non-trigger type, a trigger with demo mode off, an event of a stream that is no session's or the instance
@@ -161,6 +207,29 @@ Method TestHeldLock()
 	Kill ^OcuTalonTest("GuideRefresh", "hold", ref)
 	Do ..Trigger(ref, "reminder")
 	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 1, "the next trigger publishes once the lock is free")
+}
+
+/// A caller's lock wait bounds the refresh too (AD-31: BridgeSink waits on no lock for longer than one second): with the guide lock
+/// held by another job, an approval published with a 1 s wait answers OK in under 3 s, its event committed and one warning logged.
+Method TestHeldLockCallerWait()
+{
+	Set ref = ..NewSession()
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD)
+	Kill ^OcuTalonTest("GuideRefresh", "hold", ref)
+	Job ##class(OcuTalon.Test.Live.GuideRefresh).Holder(ref)
+	Do ..WaitFor($Name(^OcuTalonTest("GuideRefresh", "hold", ref, "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("GuideRefresh", "hold", ref, "ready")), 1, "another job holds the guide lock")
+	Set start = $ZHorolog
+	Set sc = ##class(OcuTalon.Live.Publish).Publish(ref, "approval", ##class(OcuTalon.Live.Payload.Approval).%New(), .seq, 1)
+	Set elapsed = $ZHorolog - start
+	Set ^OcuTalonTest("GuideRefresh", "hold", ref, "release") = 1
+	Do $$$AssertStatusOK(sc, "Publish answers OK")
+	Do $$$AssertEquals(seq, 1, "its event is committed")
+	Do $$$AssertTrue(elapsed < 3, "the refresh waited no longer than the caller's 1 s: "_elapsed_" s in all")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Publish", ##class(OcuTalon.Live.Publish).#LOGGUIDE), 1, "one warning is logged: "_$Get(text))
+	Do ..WaitFor($Name(^OcuTalonTest("GuideRefresh", "hold", ref, "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("GuideRefresh", "hold", ref, "done")), 1, "the holder ended")
+	Kill ^OcuTalonTest("GuideRefresh", "hold", ref)
 }
 
 /// Integration: Web.Api.EventsBody, as the page polls it, serves the guide.state that the hook published.

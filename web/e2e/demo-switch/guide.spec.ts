@@ -96,6 +96,7 @@ test('the guide follows the demo mode of the stack', async ({ request }) => {
   expect(afterAgain.runEpoch, 'the epoch rose by 1').toBe(initial.runEpoch + 1);
   expect(afterAgain.steps[4].done, 'step 5 is open again').toBe(false);
   const events = guides(await sessionEvents(request, cursor, (found) => guides(found).some((event) => (event.payload as unknown as Guide).runEpoch === afterAgain.runEpoch)));
+  expect(events.length, 'a guide.state of the new epoch followed').toBeGreaterThanOrEqual(1);
   expect(events[events.length - 1].payload, 'the last guide.state is the new epoch').toEqual(afterAgain);
   expect((await state(request)).guide).toEqual(afterAgain);
 

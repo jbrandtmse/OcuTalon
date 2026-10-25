@@ -2427,6 +2427,7 @@ So that I finish the demo in about two minutes and know what I saw.
 **When** this epic's page parts are on the integration branch
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
 - DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
+- DW-215: Guide.Compute could report finished true together with step 4 current and a rejected, fallback or no_fix variant if a resolved incident keeps that OpenVariant (unverified until Story 5.5's IncidentManager exists): when this story renders the finish state and the step 4 hints, make the finish condition exclude an incident whose variant is rejected, fallback or no_fix, or prove with a test that a resolved incident never keeps one (ledger; routed by cr 2026-10-25)
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 

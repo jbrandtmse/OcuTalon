@@ -8,6 +8,7 @@ Include Ensemble
 ///     no_notice once the run is 200 s old;
 ///   - TestOldRunIsNotRefreshed: a run 300 s old is not refreshed;
 ///   - TestWindowEdges: the window is 240 s: a run 230 s old is refreshed and one 250 s old is not;
+///   - TestEverySessionWithARecentRun: one run refreshes every session with a recent run;
 ///   - TestDemoOffDoesNothing: with demo mode off the tick publishes nothing.
 /// demo.mode is saved before the tests and put back after them.
 Class OcuTalon.Test.Core.StatusMonitorGuide Extends %UnitTest.TestCase
@@ -103,11 +104,30 @@ Method TestWindowEdges()
 	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 0, "a run 250 s old is not")
 }
 
-/// With demo mode off the tick publishes nothing.
+/// One run of the monitor refreshes every session with a recent run (QA): runs 100 s, 200 s and 300 s old; the first two get their
+/// stage and the third nothing.
+Method TestEverySessionWithARecentRun()
+{
+	Set first = ..WatchingSession(100)
+	Set second = ..WatchingSession(200)
+	Set third = ..WatchingSession(300)
+	Set probe = ..Probe()
+	Do probe.OnProcessInput($$$NULLOREF, .output)
+	Set one = ..GuideEvents(first)
+	Set two = ..GuideEvents(second)
+	Do $$$AssertEquals(one.%Size(), 1, "the session with a run 100 s old is refreshed")
+	Do $$$AssertEquals(one.%Size() && (one.%Get(0).payload.breakFeed.stage = "still_waiting"), 1, "still_waiting")
+	Do $$$AssertEquals(two.%Size(), 1, "the session with a run 200 s old is refreshed")
+	Do $$$AssertEquals(two.%Size() && (two.%Get(0).payload.breakFeed.stage = "no_notice"), 1, "no_notice")
+	Do $$$AssertEquals(..GuideEvents(third).%Size(), 0, "the session with a run 300 s old is not")
+}
+
+/// With demo mode off the tick publishes nothing. Demo mode goes off before the session's rows exist, so the production's own
+/// StatusMonitor, which ticks on the test stack too, has nothing to refresh in between.
 Method TestDemoOffDoesNothing()
 {
-	Set ref = ..WatchingSession(100)
 	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+	Set ref = ..WatchingSession(100)
 	Set probe = ..Probe()
 	Do probe.OnProcessInput($$$NULLOREF, .output)
 	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 0, "no guide.state with demo mode off")

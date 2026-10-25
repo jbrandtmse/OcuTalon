@@ -4,8 +4,8 @@
 ///     while run_again starts the next epoch and clears step 5;
 ///   - TestBadBody: any other body is 400 bad_marker and nothing is written;
 ///   - TestDemoOff: with demo mode off the answer is 404 not_found, before the body is read, and nothing is written;
-///   - TestOnlyTheMarkerChanges: a marker changes only the session's GuideState, and Run again leaves its turns, checks, reminders,
-///     incidents and Break the feed runs as they were (counts and refs); a sessionRef in the body is ignored;
+///   - TestOnlyTheMarkerChanges: a marker changes only the session's GuideState, and Run again leaves its session row, pairing, turns,
+///     checks, reminders, incidents and Break the feed runs as they were (counts and refs); a sessionRef in the body is ignored;
 ///   - TestStateCarriesTheGuide: /state's guide is Compute's view with demo mode on, and absent with it off.
 /// The fixture session is a row of the IRIS user (zzguideapi rows are removed by Fixture.Clean); demo.mode is saved before the tests and
 /// put back after them.
@@ -152,6 +152,8 @@ Method TestOnlyTheMarkerChanges()
 	Do $ClassMethod(fixture, "Approval", ref, incident, "approved")
 	Do $ClassMethod(fixture, "BreakFeedRun", ref)
 	Do $ClassMethod(fixture, "GuideState", other, 5, "", 1)
+	Do ##class(OcuTalon.Live.Publish).Publish(ref, "chat.message", ##class(OcuTalon.Live.Payload.ChatMessage).%New())
+	Do ##class(OcuTalon.Live.Publish).Publish(ref, "reminder", ##class(OcuTalon.Live.Payload.Reminder).%New())
 	Set before = ..Fingerprint(ref)
 	Set otherBefore = ..Fingerprint(other)
 	Do ..Post(csp, "{""marker"":""trace_opened"",""sessionRef"":"""_other_"""}", .response)
@@ -186,12 +188,18 @@ Method TestStateCarriesTheGuide()
 	Do $$$AssertEquals(state.%IsDefined("guide"), 0, "with demo mode off there is no guide key")
 }
 
-/// A fingerprint of the session's data rows that the guide reads: the refs of its turns, checks, pending reminders and incidents,
-/// the incidents' states, variants and notice times, its approval requests in every state, and the IDs and times of its Break the
-/// feed runs, with their count.
+/// A fingerprint of the session's data: its session row and pairing, and the rows the guide reads: the refs of its turns, checks,
+/// pending reminders and incidents, the incidents' states, variants and notice times, its approval requests in every state, its live
+/// events other than guide.state (Seq and type), and the IDs and times of its Break the feed runs, with their count.
 Method Fingerprint(ref As %String) As %String [ Private ]
 {
 	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, TraceRef, IrisUser, CreatedAt, Epoch, ThreadSessionId, ThreadDay FROM OcuTalon_Data.Session WHERE Ref = ?", ref)
+	While result.%Next() {
+		For column = 1:1:7 Set text = text_"session:"_result.%GetData(column)_";"
+	}
+	Set pairing = ##class(OcuTalon.Data.Ownership).Pairing(ref, .sc)
+	Set text = text_"pairing:"_$Select($IsObject(pairing): pairing.%Id(), 1: "")_";"
 	For method = "Turns", "Checks", "Reminders", "Incidents", "Approvals" {
 		Set rows = $ClassMethod("OcuTalon.Data.Ownership", method, ref, .sc)
 		For i = 1:1:rows.Count() {
@@ -209,6 +217,10 @@ Method Fingerprint(ref As %String) As %String [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Ref, State FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? ORDER BY ID", ref)
 	While result.%Next() {
 		Set text = text_"request:"_result.%Get("ID")_","_result.%Get("Ref")_","_result.%Get("State")_";"
+	}
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Seq, Type FROM OcuTalon_Live.Event WHERE Stream = ? AND Type <> 'guide.state' ORDER BY Seq", ref)
+	While result.%Next() {
+		Set text = text_"event:"_result.%Get("Seq")_","_result.%Get("Type")_";"
 	}
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE SessionRef = ?", ref)
 	Do result.%Next()

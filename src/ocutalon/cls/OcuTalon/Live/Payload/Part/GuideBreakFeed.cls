@@ -9,7 +9,7 @@ Property Active As %Boolean(%JSONFIELDNAME = "active") [ InitialExpression = 0 ]
 Property Reason As %String(%JSONFIELDNAME = "reason", MAXLEN = 32);
 
 /// How the current run's batch is doing: sending, waiting, still_waiting, no_notice or notice_arrived; empty when the
-/// current guide run has no batch.
+/// current guide run has no batch, and while the session does not watch Orders (the reason is then not_watching).
 Property Stage As %String(%JSONFIELDNAME = "stage", MAXLEN = 32);
 
 /// When the current run's batch started, UTC to the second; empty with no stage.

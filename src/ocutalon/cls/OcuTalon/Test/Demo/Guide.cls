@@ -1,6 +1,6 @@
 /// Tests of Demo.Guide (Story 4.2; matrix rows 1 to 14; AD-12, AD-15): Compute derives the guide from the session's fixture rows
 /// through Data.Ownership, with a fixed clock and the Telegram seam of Test.Demo.GuideProbe. The clock is 2030-01-01T12:00:00Z.
-/// TestTelegramCountsAsOff and TestBlank use the real Guide. Every session is a fixture session (zzguide<n>), removed after
+/// TestTelegramCountsAsOff and TestBlankEqualsCompute use the real Guide. Every session is a fixture session (zzguide<n>), removed after
 /// its test (Fixture.Clean); demo.mode, onlineDemo and ^OcuTalonTest("TelegramIncluded") are saved before the tests and put back after them.
 Class OcuTalon.Test.Demo.Guide Extends %UnitTest.TestCase
 {
@@ -76,6 +76,10 @@ Method TestBlank()
 	Do ##class(OcuTalon.Test.Demo.GuideProbe).Blank().%JSONExportToString(.blank)
 	Do $$$AssertEquals(computed, blank, "Blank() exports the same JSON as Compute of a session with no rows")
 	Do $$$AssertEquals(view.steps.%Size(), 5, "five steps")
+	Set ^OcuTalonTest("GuideProbe", "telegram") = 1
+	Do ##class(OcuTalon.Test.Demo.GuideProbe).Compute(ref).%JSONExportToString(.computed)
+	Do ##class(OcuTalon.Test.Demo.GuideProbe).Blank().%JSONExportToString(.blank)
+	Do $$$AssertEquals(computed, blank, "and with Telegram on, where the Telegram row shows: "_blank)
 }
 
 /// Row 1 with the real Guide: Blank() equals Compute of a fresh fixture session.
@@ -363,6 +367,74 @@ Method TestRunAgain()
 	Do $ClassMethod(fixture, "BreakFeedRun", old, "sent", ..At(-180))
 	Do $ClassMethod(fixture, "GuideState", old, 2, ..At(-30), 0)
 	Do ..Assert(..View(old), "run again with a 180 s old run", {"epoch": 2, "stage": "", "active": 1, "reason": ""})
+}
+
+/// Row 12, the stage precedence (QA): a notice outranks the 180 s wait and a batch still sending, and a batch still marked sending
+/// stops blocking at 180 s like any other: sending at 100 s is sending (unavailable), sending at 200 s is no_notice (available),
+/// a run 200 s old with a notice since its start is notice_arrived, and so is a run still sending with a notice.
+Method TestStagePrecedence()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set sending = ..NewSession()
+	Do $ClassMethod(fixture, "Check", sending, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "BreakFeedRun", sending, "sending", ..At(-100))
+	Do ..Assert(..View(sending), "sending at 100 s", {"stage": "sending", "active": 0, "reason": "incident_in_progress"})
+	Set stale = ..NewSession()
+	Do $ClassMethod(fixture, "Check", stale, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "BreakFeedRun", stale, "sending", ..At(-200))
+	Do ..Assert(..View(stale), "sending at 200 s", {"stage": "no_notice", "active": 1, "reason": ""})
+	Set late = ..NewSession()
+	Do $ClassMethod(fixture, "Check", late, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "BreakFeedRun", late, "sent", ..At(-200))
+	Do $ClassMethod(fixture, "Incident", late, ..At(-150), ..#NS, ..#PROD, {"State": "resolved"})
+	Do ..Assert(..View(late), "a notice in a run 200 s old", {"stage": "notice_arrived", "active": 1, "reason": "", "startedAt": (..At(-200))})
+	Set early = ..NewSession()
+	Do $ClassMethod(fixture, "Check", early, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "BreakFeedRun", early, "sending", ..At(-20))
+	Do $ClassMethod(fixture, "Incident", early, ..At(-10), ..#NS, ..#PROD, {"State": "resolved"})
+	Do ..Assert(..View(early), "a notice in a run still sending", {"stage": "notice_arrived", "active": 1})
+}
+
+/// Row 14 (QA): a run of the current epoch (it started after Run again) reports its stage and starts the window, so an incident
+/// noticed after Run again but before the run does not count for steps 3 and 4, and one noticed since the run does.
+Method TestRunInsideTheEpoch()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = ..NewSession()
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Do $ClassMethod(fixture, "GuideState", ref, 2, ..At(-60), 0)
+	Do $ClassMethod(fixture, "BreakFeedRun", ref, "sent", ..At(-20))
+	Do ..Assert(..View(ref), "a run after Run again", {"epoch": 2, "done": "10000", "stage": "waiting", "startedAt": (..At(-20)), "active": 0, "reason": "incident_in_progress"})
+	Set before = $ClassMethod(fixture, "Incident", ref, ..At(-40), ..#NS, ..#PROD, {"State": "resolved"})
+	Do $ClassMethod(fixture, "Approval", ref, before, "approved")
+	Do ..Assert(..View(ref), "an incident noticed after Run again but before the run", {"done": "10000", "stage": "waiting", "finished": 0})
+	Do $ClassMethod(fixture, "Incident", ref, ..At(-10), ..#NS, ..#PROD, {"State": "resolved"})
+	Do ..Assert(..View(ref), "an incident noticed since the run", {"done": "10100", "stage": "notice_arrived", "active": 1})
+}
+
+/// Row 14 (QA): a notice that came after the latest run started, before Run again, ends that run's wait: Break the feed is
+/// available at 60 s although steps 3 to 5 are open and no stage is reported.
+Method TestRunAgainAfterTheNotice()
+{
+	Set ref = ..Finishing("resolved", "fix", "approved", 0, -50)
+	Do ##class(OcuTalon.Test.Data.Fixture).BreakFeedRun(ref, "sent", ..At(-60))
+	Do ##class(OcuTalon.Test.Data.Fixture).GuideState(ref, 2, ..At(-30), 0)
+	Do ..Assert(..View(ref), "Run again after the run's notice", {"epoch": 2, "done": "10000", "stage": "", "startedAt": "", "active": 1, "reason": "", "finished": 0})
+}
+
+/// Rows 4, 5 and 11 (QA): an instance incident of the watched production, with its instance request, counts for the watching session
+/// on a local install (steps 3 and 4 done, Break the feed busy while it is open) and for nobody with onlineDemo 1.
+Method TestInstanceIncident()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = ..NewSession()
+	Do $ClassMethod(fixture, "Check", ref, ..#NS, ..#PROD)
+	Set incident = $ClassMethod(fixture, "Incident", "instance", ..At(-10), ..#NS, ..#PROD, {"State": "open"})
+	Do $ClassMethod(fixture, "Approval", "instance", incident, "approved")
+	Do ..Assert(..View(ref), "local install", {"done": "10110", "active": 0, "reason": "incident_in_progress"})
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..Assert(..View(ref), "onlineDemo 1", {"done": "10000", "active": 1, "reason": ""})
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 }
 
 /// A session with a watch, a noticed Orders incident (state, openVariant) and a request (approvalState, "pending" and so on); the

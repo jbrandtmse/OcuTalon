@@ -990,3 +990,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Core/Admin.cls Result, Core/SettingsOps.cls Result, Core/CommandsIn.cls:151 Result (private, contended). Unifying needs a public factory on the cross-lane Msg.CommandResult contract or a public helper on the terminal API.
 - 2026-10-25T15:36:22Z status=wontfix-accepted owner=4-1-switch-demo-mode-from-the-terminal by=cr note=reopen_if=a fourth CommandResult builder appears outside OcuTalon.Test, or CommandResult gains a field that every answer must set
+
+### DW-215: Guide.Compute could report finished true with step 4 and a rejected/fallback/no_fix variant if a resolved incident keeps that OpenVariant (unverified)
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Demo/Guide.cls:105 finishes on any resolved incident while :92/:115 read OpenVariant without its state; AD-15 sets the variant only on moves to open, but no IncidentManager exists in this tree to confirm the overlap rows clear it
+- 2026-10-25T19:46:38Z status=routed owner=4-7-finish-the-demo-guide by=cr note=unverified (maybe-false); settle with Story 5.5 IncidentManager: does a resolved incident ever carry a VARIANTS value?
+
+### DW-216: Spine edge Guide --> Install.Step.Demo names only the demo-mode key; Compute also reads NAMESPACE and PRODUCTION
+- source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:78 labels the edge 'its demo-mode key constant; Guide.DemoOn' while Demo/Guide.cls:45-46 reads #NAMESPACE and #PRODUCTION
+- 2026-10-25T19:46:38Z status=wontfix-accepted owner=4-2-derive-the-guide-state-and-break-the-feed-availability-on-th by=cr note=reopen_if=a plan or review relies on the spine for Guide's reads of Install.Step.Demo; lead may relabel at a Rule 20 commit
