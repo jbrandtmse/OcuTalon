@@ -13,7 +13,8 @@
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
 #     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned by this rule, because it is
 #     not privilege-checked and this rule could not see it: the next rule keeps it out of src/;
-#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/, in any case, and no class
+#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/ outside its string literals, in
+#     any case (a test's fixture text such as "&sql(DELETE ...)" is data, not embedded SQL), and no class
 #     query of type %SQLQuery, whose SELECT compiles to embedded SQL. Embedded SQL is not privilege-checked and the
 #     unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
 #   - trace-join (AD-26, Story 2.9): a call of OcuTalon.Core.Trace.Join, in any case, appears on a code line of src/ only in the
@@ -174,7 +175,8 @@ embedded_sql() {
   awk '
     FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
     !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
-    tolower($0) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
+    { line = $0; gsub(/"([^"]|"")*"/, "\"\"", line) }
+    tolower(line) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -390,11 +392,15 @@ es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 
   'Query C() As %Library.SQLQuery' '{' 'SELECT 1 FROM T' '}')
 es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}' \
   'Query B() As %Query(ROWSPEC = "y:%String")' '{' '}' 'Query C() As %SQLQueryCustom' '{' '}')
+es_string=$(write_class es OcuTalon.Zz.EsString 'ClassMethod A(x)' '{' '	Set s = "&sql(SELECT 1 INTO :x FROM T)"' '	Do x.Matches($Char(9)_"&sql(DELETE FROM A.B)", "##sql(")' '	Set q = "a ""quoted"" &SQL ( text"' '	Quit 1' '}')
+es_after=$(write_class es OcuTalon.Zz.EsAfter 'ClassMethod A()' '{' '	Set a = "&sql(" &sql(SELECT 1 INTO :x FROM T)' '}')
 es_comment=$(write_class es OcuTalon.Zz.EsComment '/// Never write &sql( or ##sql( here.' 'ClassMethod A()' '{' '	// &sql(SELECT 1 INTO :x FROM T)' '	; &sql(SELECT 1 INTO :x FROM T)' '	Quit 1' '}')
 samples_ok=1
 expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 5
 expect_clean "no-embedded-sql" embedded_sql "$es_good"
 expect_clean "no-embedded-sql" embedded_sql "$es_comment"
+expect_clean "no-embedded-sql" embedded_sql "$es_string"
+expect_flagged "no-embedded-sql" embedded_sql "$es_after" 1
 if [ "$samples_ok" -eq 1 ]; then
   scan_rule "no-embedded-sql: no &sql( and no %SQLQuery class query on a code line of src/" embedded_sql \
     "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
