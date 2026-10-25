@@ -5,7 +5,10 @@
 //   heights  a height is a minimum: every fixed height of the app and the styles is on the list below, with its reason;
 //   motion   nothing scrolls smoothly, nothing transitions, and every animation stops under prefers-reduced-motion: reduce;
 //   banned   none of the patterns UX-DR129 bans appears (toasts, sounds, drag and drop, progress bars, intersection observers,
-//            self-switching tabs, native dialogs and alerts, celebrations, modal notifications, controls that exist only on hover).
+//            self-switching tabs, native dialogs and alerts, celebrations, modal notifications, controls that exist only on hover);
+//   bands    every width @media of the page is one of the four queries of layout-view.ts, and Layout reads matchMedia with them only
+//            (Story 2.15);
+//   sticky   nothing is sticky but the compact header below 1024px, and nothing fixed but the skip links (Story 2.15).
 // The browser cases K1 to K6 and W1 to W4 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
 // sources, so a state no case reaches cannot bring one of these back without a test turning red. Each list below names the files that
 // may do the thing and why; a story that needs another entry adds it here, with its reason.
@@ -13,9 +16,11 @@
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { sourceFiles } from './source-files.mjs';
+
+const { LAYOUT_QUERIES } = await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'shared', 'layout-view.ts')).href);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sources = join(here, '..', 'src');
@@ -59,7 +64,7 @@ const reducedMotion = (text) => blocksAfter(text, '@media (prefers-reduced-motio
 function cssOf(one) {
   if (one.name.endsWith('.css')) return one.code;
   if (!one.name.endsWith('.ts')) return '';
-  return [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1]).join('\n');
+  return [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1].replace(/\$\{LAYOUT_QUERIES\.(\w+)\}/g, (_whole, name) => LAYOUT_QUERIES[name] ?? `\${LAYOUT_QUERIES.${name}}`)).join('\n');
 }
 
 /** The rules of some CSS that hold no rule of their own: the selector and the declarations. */
@@ -98,6 +103,7 @@ describe('keys: only Enter and Escape', () => {
   const KEY_HANDLERS = {
     'app/chat/composer.ts': 'Enter sends and Shift+Enter adds a line; the IME guard (keyCode 229) keeps a composition open',
     'app/chat/decision-strip.ts': 'Escape collapses the details when focus is inside the strip',
+    'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
     'app/shared/popover.ts': 'Escape closes the popover (the CDK overlay\'s keydown stream)',
     'app/shared/tooltip.ts': 'Escape hides the tooltip (a capture-phase listener on the document)',
@@ -143,7 +149,7 @@ describe('keys: only Enter and Escape', () => {
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_BINDING)) bindings.push(`${one.name} ${match[1]} ${match[2] ?? ''}`.trim());
     }
-    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/rail/decision-row.ts down escape']);
+    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape']);
   });
 
   it('has no keyup or keypress handler and no accesskey', () => {
@@ -158,7 +164,7 @@ describe('keys: only Enter and Escape', () => {
 });
 
 describe('Esc acts on one layer, the topmost', () => {
-  const ESC_HOSTS = ['app/chat/decision-strip.ts', 'app/rail/decision-row.ts'];
+  const ESC_HOSTS = ['app/chat/decision-strip.ts', 'app/main-page/main-page.ts', 'app/rail/decision-row.ts'];
 
   it('has the popovers say whether any is open', () => {
     assert.match(file('app/shared/popover.ts').code, /hasOpen\(\): boolean \{\s*return this\.open\.size > 0;\s*\}/);
@@ -169,9 +175,23 @@ describe('Esc acts on one layer, the topmost', () => {
     for (const name of ESC_HOSTS) {
       const { code: text } = file(name);
       assert.match(text, /private readonly popovers = inject\(Popovers\);/, `${name} injects the popovers`);
-      const handler = text.slice(text.indexOf('protected collapse(): void {'));
-      assert.match(handler, /^protected collapse\(\): void \{\s*if \(this\.popovers\.hasOpen\(\)\) \{\s*return;\s*\}/, `${name} asks hasOpen() first`);
+      const handler = text.slice(text.indexOf('protected collapse(event: Event): void {'));
+      assert.match(handler, /^protected collapse\(event: Event\): void \{\s*if \(this\.popovers\.hasOpen\(\)\) \{\s*return;\s*\}/, `${name} asks hasOpen() first`);
     }
+  });
+
+  it('has the row and the strip stop the Escape that they collapse on, so that the drawer around them closes only on an Escape that nothing inside it used', () => {
+    for (const name of ['app/chat/decision-strip.ts', 'app/rail/decision-row.ts']) {
+      const { code: text } = file(name);
+      assert.match(text, /\(keydown\.escape\)="collapse\(\$event\)"/, `${name} passes the event`);
+      assert.match(text, /if \(this\.open\(\)\) \{\s*this\.open\.set\(false\);\s*event\.stopPropagation\(\);\s*\}/, `${name} stops the event when it collapses`);
+    }
+  });
+
+  it('closes the drawer from the rail only in the drawer band with the drawer open, and asks the popovers first', () => {
+    const { code: text } = file('app/main-page/main-page.ts');
+    assert.match(text, /\(keydown\.escape\)="collapse\(\$event\)"/);
+    assert.match(text, /if \(this\.layout\.band\(\) === 'drawer' && this\.layout\.drawerOpen\(\)\) \{[^}]*this\.layout\.closeDrawer\(\);/);
   });
 
   it('listens for the tooltip\'s Escape on the document in the capture phase, and stops the event only when the tooltip showed', () => {
@@ -380,5 +400,86 @@ describe('the banned patterns (UX-DR129)', () => {
     }
     assert.ok(hovered >= 5, `the :hover rules are found (${hovered})`);
     assert.deepEqual(offenders, []);
+  });
+});
+
+describe('the width bands (Story 2.15)', () => {
+  const QUERIES = Object.values(LAYOUT_QUERIES);
+  /** The condition of every `@media` rule that holds a width. */
+  const widthConditions = (css) => [...css.matchAll(/@media\s*((?:\$\{[^}]*\}|[^{])*)\{/g)].map((match) => match[1].trim()).filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{LAYOUT_QUERIES/.test(condition));
+
+  it('catches a width media query that is none of the four, in any syntax', () => {
+    assert.deepEqual(widthConditions('@media (max-width: 1000px) { a { b: c } }'), ['(max-width: 1000px)']);
+    assert.deepEqual(widthConditions('@media (min-width: 1440px) { a { b: c } }'), ['(min-width: 1440px)']);
+    assert.deepEqual(widthConditions('@media (width >= 1000px) { a { b: c } }'), ['(width >= 1000px)']);
+    assert.deepEqual(widthConditions('@media screen and (400px < width < 900px) { a { b: c } }'), ['screen and (400px < width < 900px)']);
+    assert.deepEqual(widthConditions('@media ${LAYOUT_QUERIES.stacked} { a { b: c } }'), ['${LAYOUT_QUERIES.stacked}']);
+    assert.deepEqual(widthConditions('@media (prefers-reduced-motion: reduce) { a { b: c } }'), []);
+    assert.deepEqual(widthConditions('@media (forced-colors: active) { a { b: c } }'), []);
+  });
+
+  it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {
+    const found = [];
+    for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
+      for (const condition of widthConditions(cssOf(one))) found.push([one.name, condition]);
+    }
+    assert.ok(found.length >= 6, `the width queries are found (${found.length})`);
+    for (const [name, condition] of found) assert.ok(QUERIES.includes(condition), `${name}: ${condition} is one of the four queries`);
+    assert.deepEqual(
+      [...new Set(found.map(([name]) => name))].sort(),
+      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
+    );
+  });
+
+  it('writes every query of a component as an interpolation of LAYOUT_QUERIES, and only base.css writes one out', () => {
+    for (const one of files.filter((one) => /^app\/.*\.ts$/.test(one.name))) {
+      const css = [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1]).join('\n');
+      for (const condition of widthConditions(css)) assert.match(condition, /^\$\{LAYOUT_QUERIES\.(?:stacked|framed|drawer|wide)\}$/, `${one.name}: ${condition}`);
+    }
+  });
+
+  it('has Layout call matchMedia with the queries only', () => {
+    const { code: text } = file('app/shared/layout.ts');
+    const calls = [...text.matchAll(/matchMedia\(([^)]*)\)/g)].map((match) => match[1].trim());
+    assert.deepEqual(calls, ['text']);
+    const queries = [...text.matchAll(/this\.query\(([^)]*)\)/g)].map((match) => match[1].trim());
+    assert.ok(queries.length >= 3);
+    for (const query of queries) assert.match(query, /^LAYOUT_QUERIES\.(?:stacked|drawer|wide)$/, query);
+    assert.deepEqual(filesWith(/\bmatchMedia\b/), ['app/shared/layout.ts'], 'no other file reads a media query');
+  });
+});
+
+describe('sticky and fixed positions (Story 2.15)', () => {
+  const POSITION = /(?:^|[^-\w])position\s*:\s*(sticky|fixed)\b/g;
+  /** The files that may be sticky or fixed, with the reason. */
+  const STICKY = { 'app/header/header.ts': 'the compact header is the one sticky element, below 1024px only' };
+  const FIXED = { 'app/header/skip-links.ts': 'a skip link is fixed at the top left, clipped until it has focus' };
+
+  it('catches both positions', () => {
+    assert.ok(new RegExp(POSITION.source).test('  position: sticky;'));
+    assert.ok(new RegExp(POSITION.source).test('position:fixed'));
+    assert.equal(new RegExp(POSITION.source).test('  position: absolute;'), false);
+  });
+
+  it('has position: sticky only in header.ts, and only inside the stacked query', () => {
+    const where = {};
+    for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
+      if ([...cssOf(one).matchAll(POSITION)].some((match) => match[1] === 'sticky')) where[one.name] = true;
+    }
+    assert.deepEqual(Object.keys(where), Object.keys(STICKY));
+    const css = cssOf(file('app/header/header.ts'));
+    const inStacked = blocksAfter(css, `@media ${LAYOUT_QUERIES.stacked}`).join('\n');
+    assert.match(inStacked, /position:\s*sticky/);
+    assert.equal([...css.matchAll(/position\s*:\s*sticky/g)].length, [...inStacked.matchAll(/position\s*:\s*sticky/g)].length, 'every sticky of header.ts is inside the stacked query');
+    for (const [name, why] of Object.entries(STICKY)) assert.ok(why.length > 20, `${name} says why`);
+  });
+
+  it('has position: fixed only in skip-links.ts', () => {
+    const where = [];
+    for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
+      if ([...cssOf(one).matchAll(POSITION)].some((match) => match[1] === 'fixed')) where.push(one.name);
+    }
+    assert.deepEqual(where, Object.keys(FIXED));
+    for (const [name, why] of Object.entries(FIXED)) assert.ok(why.length > 20, `${name} says why`);
   });
 });

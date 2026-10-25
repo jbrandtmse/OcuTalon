@@ -17,6 +17,7 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
 import { ChatOutbox } from './chat-outbox';
@@ -62,6 +63,8 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
  * The chat panel (UX-DR58, UX-DR67, UX-DR126), inside the page's main landmark once the snapshot has loaded. The list shows the
  * live store's chat.message entries and its tell-now and reminder notice cards in store order and then this page's own messages
  * that the store does not hold yet; a fresh session shows the empty chat panel instead. The composer sits under the list. Nothing here is a live region.
+ * From 1024px wide the panel fills main and the list takes the height that is left. Below it (the stacked column, Story 2.15) the list is
+ * as tall as its content up to 70vh and scrolls on its own beyond that, with the composer under it.
  *
  * Announcements (chat-announcements.ts, through the polite Announcer): the chat announces its own entries, once each, and the first
  * look at the entries is silent. A reply that has landed is "OcuTalon replied:" and its first sentence, a new tell-now card is
@@ -125,7 +128,9 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
       flex-direction: column;
       min-height: 0;
     }
+    /* The list is the containing block of the visually hidden texts of its entries, so that they scroll with it and never lengthen the page. */
     .list {
+      position: relative;
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -133,6 +138,15 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
       padding-inline: var(--chat-panel-padding-inline);
       overflow-y: auto;
       scroll-padding: var(--space-scroll-gutter);
+    }
+    @media ${LAYOUT_QUERIES.stacked} {
+      :host {
+        flex: none;
+      }
+      .list {
+        flex: none;
+        max-height: 70vh;
+      }
     }
     .content {
       flex: 1 0 auto;

@@ -293,12 +293,17 @@ function listSection(id: SectionId, label: string, rows: RailRow[], empty: strin
   };
 }
 
-/** The rail for the store: the sections in order and whether Telegram is one of them. */
-export function railView(store: LiveStore, format: RailFormat): RailView {
-  const approvals = sortedBy(
+/** The approval requests that still wait for an answer, oldest raised first: the rail's list and the one count of its heading and of the Status button. */
+export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
+  return sortedBy(
     inStoreOrder(store.approvals).filter((approval) => approval.state === 'pending'),
     (approval) => approval.raisedAt ?? '',
   );
+}
+
+/** The rail for the store: the sections in order and whether Telegram is one of them. */
+export function railView(store: LiveStore, format: RailFormat): RailView {
+  const approvals = pendingApprovals(store);
   const checks = inStoreOrder(store.checks);
   const late = Object.hasOwn(store.status, 'heartbeatStalled') && store.status['heartbeatStalled']?.active === true;
   const reminders = sortedBy(

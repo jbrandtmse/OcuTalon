@@ -9,10 +9,12 @@ import {
   seedApproval,
   seedCheck,
   seedDecision,
+  seedDecisions,
   seedIncident,
   seedTurns,
   turnRows,
 } from './iris';
+import { tokenColor } from './page';
 
 /**
  * What the floor specs (web/e2e/floor/) share: the floor user's page and its regions, and the one page that K5, W1 and W2 read,
@@ -20,6 +22,10 @@ import {
  * shows a chip and the Fallback flag, and the no-key and Reset soon banners (the stack has no model key, so the no-key banner is
  * there; Reset soon is published once the page has loaded, because a session's status events reach the page only live). Every row it
  * makes is recorded in the caller's `refs`, for cleanFixtureRows, and the condition it publishes is turned off by `clearFullPage`.
+ *
+ * The ring readings of Story 2.14 live here too, for K4 and the layout cases (Story 2.15): `readFocus` reads the focused element's outline,
+ * halo and ring box with the viewport and every scroller around it, `expectRingInside` and `expectRing` judge it, and `seedScrollingPage`
+ * seeds the page whose rail and chat list both scroll.
  */
 
 /** How long a card may take to reach the page after the send returns: the route, the live poll (1 to 2 s) and the render. */
@@ -122,4 +128,115 @@ export async function addResetSoon(page: Page, user: string): Promise<void> {
 export async function clearFullPage(user: string, refs: string[]): Promise<void> {
   await publishStatus(user, { condition: 'resetSoon', active: false });
   await cleanFixtureRows(refs);
+}
+
+/** A box in the viewport's coordinates. */
+export interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** What the focused element draws, and the boxes around it. */
+export interface Reading {
+  what: string;
+  outlineStyle: string;
+  outlineWidth: string;
+  outlineColor: string;
+  outlineOffset: string;
+  boxShadow: string;
+  clipPath: string;
+  /** The border box grown by what the outline reaches beyond it: the offset plus the width, when that is positive. */
+  ring: Box;
+  viewport: Box;
+  /** The client boxes of the ancestors that clip what lies outside them. */
+  scrollers: Array<Box & { what: string }>;
+}
+
+/** Reads the focused element: its outline and halo, its ring box, the viewport and the client box of every ancestor that clips. */
+export function readFocus(page: Page): Promise<Reading | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLElement) || el === document.body) return null;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const grow = Math.max(0, parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth));
+    const scrollers: Array<Box & { what: string }> = [];
+    for (let parent = el.parentElement; parent !== null; parent = parent.parentElement) {
+      const own = getComputedStyle(parent);
+      if (own.overflowX === 'visible' && own.overflowY === 'visible') continue;
+      const box = parent.getBoundingClientRect();
+      scrollers.push({
+        what: `${parent.tagName.toLowerCase()}${parent.className ? `.${String(parent.className).split(' ')[0]}` : ''}`,
+        left: box.left + parent.clientLeft,
+        top: box.top + parent.clientTop,
+        right: box.left + parent.clientLeft + parent.clientWidth,
+        bottom: box.top + parent.clientTop + parent.clientHeight,
+      });
+    }
+    const name = el.getAttribute('aria-label') ?? (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    return {
+      what: `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''} "${name}"`,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      outlineColor: style.outlineColor,
+      outlineOffset: style.outlineOffset,
+      boxShadow: style.boxShadow,
+      clipPath: style.clipPath,
+      ring: { left: rect.left - grow, top: rect.top - grow, right: rect.right + grow, bottom: rect.bottom + grow },
+      viewport: { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+      scrollers,
+    };
+  });
+}
+
+/** True when the inner box lies inside the outer one, within half a pixel. */
+const inside = (inner: Box, outer: Box): boolean =>
+  inner.left >= outer.left - 0.5 && inner.top >= outer.top - 0.5 && inner.right <= outer.right + 0.5 && inner.bottom <= outer.bottom + 0.5;
+
+/** Expects the ring to lie inside the viewport and inside every ancestor that clips. */
+export function expectRingInside(reading: Reading, what: string): void {
+  const ring = JSON.stringify(reading.ring);
+  expect(inside(reading.ring, reading.viewport), `${what}: the ring ${ring} lies inside the viewport ${JSON.stringify(reading.viewport)}`).toBe(true);
+  for (const scroller of reading.scrollers) {
+    expect(inside(reading.ring, scroller), `${what}: the ring ${ring} lies inside ${scroller.what} ${JSON.stringify(scroller)}`).toBe(true);
+  }
+}
+
+/** Expects the focused element to draw the page's ring: 2px solid in the focus colour, with the surface halo. */
+export async function expectRing(page: Page, reading: Reading, what: string): Promise<void> {
+  const focus = await tokenColor(page, '--focus');
+  const surface = await tokenColor(page, '--surface');
+  expect(reading.outlineStyle, `${what}: the ring is solid`).toBe('solid');
+  expect(reading.outlineWidth, `${what}: 2px`).toBe('2px');
+  expect(reading.outlineColor, `${what}: in the focus colour`).toBe(focus);
+  expect(reading.boxShadow, `${what}: with the surface halo`).toContain(`${surface} 0px 0px 0px 2px`);
+}
+
+/**
+ * Seeds the page whose rail and chat list both scroll at 1280x720: twelve decision rows, each with a Trace link, and eight done turns.
+ * Every row it makes is recorded in the caller's `refs`, for cleanFixtureRows. Call it before the page loads.
+ */
+export async function seedScrollingPage(user: string, refs: string[], stamp: string): Promise<void> {
+  const rows = Array.from({ length: 12 }, (_unused, n) => ({
+    outcome: 'act',
+    summary: `${stamp} decision ${String(n).padStart(2, '0')}`,
+    reasons: 'zz first reason.\nzz second reason.',
+    confidence: 0.9,
+    costUSD: 0.0003,
+    traceSessionId: 4242,
+    recordedAt: inMs(-(n + 1) * 60_000),
+  }));
+  refs.push(...(await seedDecisions(user, rows)));
+  const turns = await seedTurns(
+    user,
+    Array.from({ length: 8 }, (_unused, n) => ({
+      createdAt: `2019-03-0${n + 1}T10:00:00Z`,
+      text: `${stamp} question ${n}`,
+      replyText: `${stamp} reply ${n}. Second sentence.`,
+      turn: { outcome: 'act', reasons: 'zz first reason.\nzz second reason.', confidence: 0.9, costUSD: 0.0003 },
+    })),
+  );
+  refs.push(...turnRows(turns));
 }

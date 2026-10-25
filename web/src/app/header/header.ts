@@ -3,12 +3,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  DOCUMENT,
+  ElementRef,
   ViewContainerRef,
   computed,
   inject,
   signal,
   viewChild,
-  type ElementRef,
   type TemplateRef,
 } from '@angular/core';
 
@@ -17,7 +18,10 @@ import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import { SessionGate } from '../session/session-gate';
 import { Dialogs } from '../shared/dialogs';
+import { Layout } from '../shared/layout';
+import { LAYOUT_QUERIES, LAYOUT_TEXTS, statusCount } from '../shared/layout-view';
 import { Popovers, type PopoverRef } from '../shared/popover';
+import { pendingApprovals } from '../rail/rail-view';
 import { Tooltip } from '../shared/tooltip';
 import { TraceHelp } from '../shared/trace-help';
 import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
@@ -30,6 +34,9 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
 ];
+
+/** The custom property that holds the header's measured block size, on the root element. */
+const HEADER_SIZE = '--app-header-block-size';
 
 /**
  * The app header. Left: the mark and the wordmark (underlined, as every link is), both linking to the main page, and the context badge (Online demo,
@@ -44,6 +51,15 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
  * either way, so a turn that arrives while it has focus leaves the focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
  * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
  * was seen. Otherwise it is headed "Visual Trace" and records nothing.
+ *
+ * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
+ * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
+ * rail's heading), both hidden from assistive technology beside the spoken name ("Status, 2 approval requests"). Before the snapshot
+ * has loaded, and when it failed, it shows "Status" alone: it never shows a zero that it does not know.
+ *
+ * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its
+ * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
+ * the focused element is never scrolled under it.
  */
 @Component({
   selector: 'app-header',
@@ -61,6 +77,23 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
         }
       </div>
       <div class="side right">
+        @if (layout.band() === 'drawer') {
+          <button
+            type="button"
+            class="button button-ghost header-button status-button"
+            aria-controls="status-region"
+            [attr.aria-expanded]="layout.drawerOpen()"
+            (click)="layout.toggleStatus()"
+          >
+            @if (count(); as shown) {
+              <span aria-hidden="true">{{ texts.status }}</span>
+              <span class="count" aria-hidden="true">{{ shown.pill }}</span>
+              <span class="visually-hidden">{{ texts.status }}, {{ shown.spoken }}</span>
+            } @else {
+              <span>{{ texts.status }}</span>
+            }
+          </button>
+        }
         <button
           #traceTrigger
           type="button"
@@ -149,6 +182,9 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
     </ng-template>
   `,
   styles: `
+    :host {
+      display: block;
+    }
     .header {
       display: flex;
       align-items: center;
@@ -215,6 +251,29 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
       color: var(--ink);
       font-weight: var(--type-body-strong-font-weight);
     }
+    .count {
+      padding: 0 var(--space-2);
+      border-radius: var(--tab-badge-radius);
+      background: var(--tab-badge-background);
+      color: var(--tab-badge-foreground);
+      font-family: var(--font-ui);
+      font-size: var(--tab-badge-typography-font-size);
+      font-weight: var(--tab-badge-typography-font-weight);
+      line-height: var(--tab-badge-typography-line-height);
+    }
+    @media ${LAYOUT_QUERIES.stacked} {
+      :host {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      .header {
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-3);
+        min-height: var(--space-12);
+        padding-inline: var(--space-3);
+      }
+    }
     .reason {
       margin: 0;
       color: var(--ink-muted);
@@ -260,6 +319,7 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
 })
 export class Header {
   protected readonly live = inject(LiveState);
+  protected readonly layout = inject(Layout);
   protected readonly theme = inject(Theme);
   private readonly dialogs = inject(Dialogs);
   private readonly gate = inject(SessionGate);
@@ -271,6 +331,7 @@ export class Header {
   private readonly container = inject(ViewContainerRef);
   private tracePopover: PopoverRef | undefined;
 
+  protected readonly texts = LAYOUT_TEXTS;
   protected readonly traceTexts = TRACE_TEXTS;
   protected readonly traceHeadingId = newTraceHeadingId();
   /** The id of the reason that the inactive conversation link is described by. */
@@ -293,6 +354,12 @@ export class Header {
     return snapshot?.demoMode ? 'Demo mode' : '';
   });
 
+  /** The Status button's count: the pending approval requests of the loaded store, none before the snapshot has loaded or when it failed. */
+  protected readonly count = computed(() => {
+    const store = this.live.store();
+    return statusCount(this.live.status() === 'loaded' && store !== undefined ? pendingApprovals(store).length : undefined);
+  });
+
   /** The signed-in user's name, or Account until the snapshot loads (and when it fails). */
   protected readonly accountName = computed(() => this.live.snapshot()?.user || 'Account');
 
@@ -302,7 +369,15 @@ export class Header {
   );
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.tracePopover?.close());
+    const destroyed = inject(DestroyRef);
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const root = inject(DOCUMENT).documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty(HEADER_SIZE, `${host.getBoundingClientRect().height}px`));
+    observer.observe(host);
+    destroyed.onDestroy(() => {
+      observer.disconnect();
+      this.tracePopover?.close();
+    });
   }
 
   /** Opens the Visual Trace popover, or closes it when it is open. */

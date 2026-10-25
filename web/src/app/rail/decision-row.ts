@@ -18,7 +18,8 @@ let lastId = 0;
  *   the button is described by the outcome's meaning from a hidden element, so the chip's pointer tooltip is never its only copy.
  * - Line 2 is the first reason line on one line with an ellipsis, a fallback's sentence first and in the warning colour. Expanded, every
  *   reason line replaces it in place. Esc inside the row collapses it and focus stays where it is, unless a popover is open: Esc then closes
- *   the popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either.
+ *   the popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either. A row that collapses stops the Esc, so
+ *   that the drawer around it (Story 2.15) closes only on an Esc that nothing inside it used.
  * - The meta line holds the time, the confidence (not on a fallback) and the decision's own cost, then the trace link beside the
  *   button (never inside it) when the decision has a traceUrl.
  * Every text is bound by interpolation. The row is not a live region.
@@ -28,7 +29,7 @@ let lastId = 0;
   imports: [FallbackFlag, Icon, OutcomeChip, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="row" (keydown.escape)="collapse()">
+    <div class="row" (keydown.escape)="collapse($event)">
       <button
         type="button"
         class="line1"
@@ -161,13 +162,14 @@ export class DecisionRow {
     return chip === undefined ? '' : meaningOf(chip);
   });
 
-  /** Esc inside the row collapses it when it is open and no popover is; focus stays where it is. */
-  protected collapse(): void {
+  /** Esc inside the row collapses it when it is open and no popover is, and stops the event then; focus stays where it is. */
+  protected collapse(event: Event): void {
     if (this.popovers.hasOpen()) {
       return;
     }
     if (this.open()) {
       this.open.set(false);
+      event.stopPropagation();
     }
   }
 }

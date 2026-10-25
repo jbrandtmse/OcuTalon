@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
+const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
@@ -187,6 +187,21 @@ describe('the sections', () => {
 });
 
 describe('approval requests', () => {
+  it('gives the Status button and the rail\'s heading one count: pendingApprovals, the pending ones in the rail\'s order', () => {
+    const states = ['pending', 'approved', 'rejected', 'expired', 'cancelled', 'executing', 'done', 'failed'];
+    const store = fromSnapshot(
+      snapshot({
+        approvals: [
+          ...states.map((state) => approval(`a-${state}`, { state, raisedAt: '2026-10-22T10:00:00Z' })),
+          approval('early', { raisedAt: '2026-10-22T09:00:00Z' }),
+        ],
+      }),
+    );
+    assert.deepEqual(pendingApprovals(store).map((one) => one.ref), ['early', 'a-pending']);
+    assert.equal(pendingApprovals(fromSnapshot(snapshot())).length, 0);
+    assert.equal(pendingApprovals(store).length, section(railView(store, format()), 'approvals').count);
+  });
+
   it('lists the pending ones only', () => {
     const states = ['pending', 'approved', 'rejected', 'expired', 'cancelled', 'executing', 'done', 'failed'];
     const view = viewOf({ approvals: states.map((state) => approval(`a-${state}`, { state })) });

@@ -5,6 +5,7 @@ import { BannerStack } from './banners/banner-stack';
 import { Header } from './header/header';
 import { SkipLinks } from './header/skip-links';
 import { LiveState } from './live/live-state';
+import { LAYOUT_QUERIES } from './shared/layout-view';
 
 /**
  * The page: the skip links, which come first so that they are the first tab stops (Story 2.14), the app header, the slot for the
@@ -27,8 +28,14 @@ import { LiveState } from './live/live-state';
     :host {
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      height: 100dvh;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+    @media ${LAYOUT_QUERIES.framed} {
+      :host {
+        height: 100vh;
+        height: 100dvh;
+      }
     }
     .banner-slot {
       flex: none;

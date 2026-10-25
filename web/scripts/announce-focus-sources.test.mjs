@@ -91,13 +91,14 @@ describe('the page speaks only through the Announcer', () => {
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the load failure and the busy notice', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the load failure, the busy notice and the narrow-window note', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
       'app/live/live-state.ts',
       'app/shared/announcer.ts',
+      'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
     ]);
   });
@@ -110,7 +111,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
     'app/shared/popover.ts': [2, 'a popover returns focus to its trigger when the user closes it, and takes it into its panel when the user opens it'],
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
-    'app/header/skip-links.ts': [1, 'a skip link moves focus to its region when the user presses it (Story 2.14)'],
+    'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
+    'app/main-page/main-page.ts': [1, 'a focused element of the rail keeps its focus when the layout moves the rail (Story 2.15)'],
   };
 
   it('has a .focus( call only in the files that the user\'s own action or the focus rule moves focus from, and no more of them', () => {
@@ -122,8 +124,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover that the user opened, and for the focus rule', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover or the drawer that the user opened, and for the focus rule', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel and the main page the shared rule, and each its own rule only', () => {
@@ -131,7 +133,7 @@ describe('focus moves only for the user or through the focus rule', () => {
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
       'app/chat/chat-panel.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{PART\}\]\[\$\{KEY\}\]`/,
-      'app/main-page/main-page.ts': /const LOAD_ERROR_RULE: FocusRule = \{ within: '\.load-error' \}/,
+      'app/main-page/main-page.ts': /const LOAD_ERROR_RULE: FocusRule = \{ within: '\.load-error' \}[\s\S]*const NOTE_RULE: FocusRule = \{ within: '\.narrow-note' \}/,
     };
     for (const [name, rule] of Object.entries(hosts)) {
       const { code: text } = file(name);
@@ -145,6 +147,6 @@ describe('focus moves only for the user or through the focus rule', () => {
   it('gives the chat\'s rule no whenGone, so that a message that is gone leaves focus to the main region, and the load error\'s no item', () => {
     const chat = file('app/chat/chat-panel.ts').code;
     assert.doesNotMatch(chat.slice(chat.indexOf('const FOCUS_RULE'), chat.indexOf('};', chat.indexOf('const FOCUS_RULE'))), /whenGone/);
-    assert.doesNotMatch(file('app/main-page/main-page.ts').code, /LOAD_ERROR_RULE: FocusRule = \{[^}]*item/);
+    assert.doesNotMatch(file('app/main-page/main-page.ts').code, /(?:LOAD_ERROR|NOTE)_RULE: FocusRule = \{[^}]*item/);
   });
 });

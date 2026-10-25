@@ -5,6 +5,10 @@ import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { RAIL_TEXTS } from '../rail/rail-view';
 import { StatusRail } from '../rail/status-rail';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
+import { InlineNotice } from '../shared/inline-notice';
+import { Layout } from '../shared/layout';
+import { LAYOUT_QUERIES, LAYOUT_TEXTS } from '../shared/layout-view';
+import { NarrowNote } from '../shared/narrow-note';
 import { Popovers } from '../shared/popover';
 import { ServerButton } from '../shared/server-button';
 
@@ -20,10 +24,19 @@ const LOAD_ERROR_TEXT_ID = 'load-error-text';
 /** Where focus goes when the load error that holds it gives way to the loaded page (UX-DR131): the main region. */
 const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
 
+/** Where focus goes when the narrow-window note that holds it (its Close button) is closed (UX-DR131): the main region. */
+const NOTE_RULE: FocusRule = { within: '.narrow-note' };
+
 /**
  * The main page: the status rail and the chat region, under the page's one visually hidden h1. The h1 is the routed
- * page's own first element, so each later page names itself. The rail is a region named Status, 288px wide and 320px from a
- * 1440px viewport, which scrolls on its own; main follows it and takes the rest of the width.
+ * page's own first element, so each later page names itself. The rail is a region named Status (id status-region), 288px wide and 320px
+ * from a 1440px viewport, which scrolls on its own; main follows it and takes the rest of the width. The page has four width bands
+ * (Story 2.15, layout-view.ts):
+ * - 1024 to 1279px: the rail is a drawer, not displayed until the Status button of the header (or Skip to status) opens it, and then
+ *   the column beside main that it is above 1280px; it pushes the chat and covers nothing. Esc in the rail closes it, after any popover
+ *   and any disclosure that used the Esc first (Layout.closeDrawer).
+ * - Below 1024px: one column that scrolls as a page: the narrow-window note (once per session, until closed), main, then the rail, which
+ *   is moved after main in the DOM so that the tab order is the visual order. A focused element of the moved rail keeps focus.
  *
  * While the snapshot loads, both regions are aria-busy and show static skeletons, hidden from assistive technology:
  * two rows in each of the rail's four sections and three entries in main. When the load fails (no data by 10 seconds, or an error
@@ -38,11 +51,23 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
  */
 @Component({
   selector: 'app-main-page',
-  imports: [ChatPanel, ServerButton, StatusRail],
+  imports: [ChatPanel, InlineNotice, ServerButton, StatusRail],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="visually-hidden">OcuTalon</h1>
-    <section class="rail" tabindex="-1" aria-labelledby="rail-title" [attr.aria-busy]="loading() ? 'true' : null">
+    @if (narrowNote.visible()) {
+      <app-inline-notice class="narrow-note" variant="info" [closeName]="noteClose" (closed)="narrowNote.close()">{{ noteText }}</app-inline-notice>
+    }
+    <section
+      class="rail"
+      id="status-region"
+      tabindex="-1"
+      aria-labelledby="rail-title"
+      [class.drawer]="layout.band() === 'drawer'"
+      [class.open]="layout.drawerOpen()"
+      [attr.aria-busy]="loading() ? 'true' : null"
+      (keydown.escape)="collapse($event)"
+    >
       <h2 id="rail-title" class="visually-hidden">Status</h2>
       @if (live.status() === 'loaded') {
         <app-status-rail />
@@ -96,7 +121,9 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
       flex: 1;
       min-height: 0;
     }
+    /* The rail is the containing block of the visually hidden texts of its rows, so that they scroll with it and never lengthen the page. */
     .rail {
+      position: relative;
       flex: none;
       display: flex;
       flex-direction: column;
@@ -120,9 +147,35 @@ const LOAD_ERROR_RULE: FocusRule = { within: '.load-error' };
       outline-offset: -2px;
       box-shadow: inset 0 0 0 4px var(--surface);
     }
-    @media (min-width: 1440px) {
+    /* In the drawer band (Layout.band) the rail is not displayed until the drawer is open. Layout decides the band and the state in one step, so that
+       a rail that holds focus is never hidden by the width alone before the drawer has opened. */
+    .rail.drawer:not(.open) {
+      display: none;
+    }
+    @media ${LAYOUT_QUERIES.wide} {
       .rail {
         width: var(--space-rail-width-wide);
+      }
+    }
+    @media ${LAYOUT_QUERIES.stacked} {
+      :host {
+        flex: 1 0 auto;
+        flex-direction: column;
+        min-height: auto;
+      }
+      .narrow-note {
+        flex: none;
+        margin: var(--space-2) var(--space-3);
+      }
+      .main {
+        flex: 1 0 auto;
+        min-height: auto;
+      }
+      .rail {
+        overflow: visible;
+        width: auto;
+        border-right: 0;
+        border-top: var(--status-rail-border-right);
       }
     }
     .rail-heading {
@@ -204,6 +257,10 @@ export class MainPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
+  protected readonly layout = inject(Layout);
+  protected readonly narrowNote = inject(NarrowNote);
+  protected readonly noteText = LAYOUT_TEXTS.note;
+  protected readonly noteClose = LAYOUT_TEXTS.closeNote;
   protected readonly sections = RAIL_SECTIONS;
   protected readonly skeletonRows = SKELETON_ROWS;
   protected readonly loadFailed = LOAD_FAILED;
@@ -219,5 +276,52 @@ export class MainPage {
       this.live.status();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, LOAD_ERROR_RULE));
     });
+    effect(() => {
+      this.narrowNote.visible();
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, NOTE_RULE));
+    });
+    let atLoad = true;
+    effect(() => {
+      const stacked = this.layout.stacked();
+      untracked(() => {
+        this.place(stacked);
+        this.narrowNote.layoutChanged(stacked, atLoad);
+        atLoad = false;
+      });
+    });
+  }
+
+  /** Esc in the rail closes an open drawer, unless a popover is open: it closes alone, and a disclosure that used the Esc stopped it. */
+  protected collapse(event: Event): void {
+    if (this.popovers.hasOpen()) {
+      return;
+    }
+    if (this.layout.band() === 'drawer' && this.layout.drawerOpen()) {
+      event.stopPropagation();
+      this.layout.closeDrawer();
+    }
+  }
+
+  /**
+   * Puts the rail after main while the layout is stacked and before it otherwise, so that the DOM order is the visual order. Moving the
+   * rail blurs the element in it that held focus, which gets it back without scrolling.
+   */
+  private place(stacked: boolean): void {
+    const host = this.host.nativeElement;
+    const rail = host.querySelector<HTMLElement>(':scope > .rail');
+    const main = host.querySelector<HTMLElement>(':scope > .main');
+    if (rail === null || main === null || (stacked ? rail.previousElementSibling === main : rail.nextElementSibling === main)) {
+      return;
+    }
+    const active = document.activeElement;
+    const held = active instanceof HTMLElement && rail.contains(active) ? active : undefined;
+    if (stacked) {
+      main.after(rail);
+    } else {
+      main.before(rail);
+    }
+    if (held !== undefined && document.activeElement !== held) {
+      held.focus({ preventScroll: true });
+    }
   }
 }

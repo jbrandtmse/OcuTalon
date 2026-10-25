@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Live test of the page's accessibility floor (NFR-25; Stories 2.12 and 2.14): builds the image and starts it in one throwaway
+# Live test of the page's accessibility floor and layout (NFR-25; Stories 2.12, 2.14 and 2.15): builds the image and starts it in one throwaway
 # compose project, then drives a real browser through the Playwright project floor, which is every spec under web/e2e/floor/:
 #   - Story 2.12's announcements (announcements.spec.ts A1 to A7): the page speaks through one polite live region and says each event
 #     once, and nothing else is a live region;
@@ -9,7 +9,10 @@
 #     that no scroller or edge clips, every control named, and the inactive conversation link that explains itself;
 #   - Story 2.14's words (words.spec.ts W1 to W4): every link underlined, text at 200% without loss, reduced motion, and the errors
 #     linked to their buttons;
-#   - the QA case of Story 2.14 (fixtures.spec.ts H1): the turns and decisions that seedTurns writes are removed by cleanFixtureRows.
+#   - the QA case of Story 2.14 (fixtures.spec.ts H1): the turns and decisions that seedTurns writes are removed by cleanFixtureRows;
+#   - Story 2.15's layout (layout.spec.ts G1 to G7): the four width bands (the rail at 320px and 288px, a push drawer behind the Status
+#     button at 1024 to 1279px, one scrolling column with the sticky compact header below 1024px and at 200%), the keyboard and focus
+#     rules in each band, and the narrow-window note: once per session, closed per browser, announced only when it appears after load.
 # The stack holds what the first start creates and one fixture user, the floor user ZzFloor (OCUTALON_FLOOR_USER, with the user role),
 # whose session the specs seed turns, reminders, decisions and conditions into and publish on, and whose /events poll they hold for one
 # update; the stack starts with no model key (check_no_key), so its page shows the no-key banner. The chat posts of A6, P1 and W4 are
@@ -78,13 +81,13 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6, W1-W4 and H1: the specs of the floor project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
+  pass "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1 and Story 2.15's G1-G7: the specs of the floor project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tail -n 1))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  fail "Story 2.12's A1-A7 and P1-P4 and Story 2.14's K1-K6, W1-W4 and H1: the specs of the floor project failed (exit $e2e_status)"
+  fail "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1 and Story 2.15's G1-G7: the specs of the floor project failed (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

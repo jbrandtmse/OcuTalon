@@ -37,7 +37,7 @@ export function fallbackSentence(reason: string | undefined): string | undefined
  *   lines on the newest strip, the first line only, on one line with an ellipsis, on the others.
  * - Last, when there is a decision, the Details button named "Decision details": it opens the details inline below, with
  *   aria-expanded; Esc collapses them and focus stays on the button, unless a popover is open: Esc then closes the
- *   popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either.
+ *   popover alone (Popovers.hasOpen), and a tooltip that shows takes the Esc before either. A strip that collapses stops the Esc.
  * - With reasons off (a notice card's strip, whose text already says why now) line 2 holds the Details button alone.
  * The strip is a group named by its chip's label and described by the outcome's meaning, from a hidden element. A fallback with no
  * decision has the chip, the flag and the reason alone. It is not a live region, and nothing here moves focus. Every text is bound by
@@ -53,7 +53,7 @@ export function fallbackSentence(reason: string | undefined): string | undefined
       role="group"
       [attr.aria-labelledby]="chip() ? chipId : null"
       [attr.aria-describedby]="chip() ? descriptionId : null"
-      (keydown.escape)="collapse()"
+      (keydown.escape)="collapse($event)"
     >
       <div class="line1">
         @if (chip(); as outcome) {
@@ -239,13 +239,14 @@ export class DecisionStrip {
     return items;
   });
 
-  /** Esc on the strip collapses the details when they are open and no popover is; focus stays where it is. */
-  protected collapse(): void {
+  /** Esc on the strip collapses the details when they are open and no popover is, and stops the event then; focus stays where it is. */
+  protected collapse(event: Event): void {
     if (this.popovers.hasOpen()) {
       return;
     }
     if (this.open()) {
       this.open.set(false);
+      event.stopPropagation();
     }
   }
 }

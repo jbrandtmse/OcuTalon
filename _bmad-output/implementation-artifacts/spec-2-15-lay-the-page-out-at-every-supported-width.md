@@ -2,9 +2,10 @@
 title: 'Story 2.15: Lay the page out at every supported width'
 type: 'feature'
 created: '2026-10-24'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '050ca9aff992d66c2978922d350f5b7c292ff7cb'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -356,6 +357,40 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-10-24 - Review pass
+- verdicts: 30 findings - high 0, medium 4, low 24, false 2, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` blind: the "every query is an interpolation" test captured `$` and could not fail - patched: the width conditions are read with a pattern that keeps `${...}`, a self-test for it, and a mutation (a typo'd name) that goes red.
+  - `[low]` `[reject]` blind: the stacked list is capped at `70vh`, not `dvh` - the spec fixes `max-height: 70vh` and G4 measures 70% of `innerHeight`; it is spec-bound.
+  - `[low]` `[reject]` blind: the header's `ResizeObserver` has no guard and no cleanup - the header lives as long as the page, and every supported browser has the observer; a guard is added complexity for no reachable failure.
+  - `[low]` `[reject]` blind: no unit tests for `Layout`, `NarrowNote` and `stored-flag` - the spec's test plan puts them in G1 to G7, which run them for real; a host for the services is new infrastructure.
+  - `[low]` `[reject]` blind: Esc on the Status button does not close the drawer - spec-bound (Decided: the Esc handler is on the rail, the button toggles), so it reopens only through a spec amendment.
+  - `[low]` `[reject]` blind: G6 and G7 use a 1.5 s wait before an absence check - the recorded mutations show the checks fail when the defect is present.
+  - `[low]` `[patch]` blind: a wrong doc on `headerBottom`, a missing doc on the G7 storage case, an unneeded export of `inside` - patched.
+  - `[low]` `[reject]` edge: no range-syntax media query support - the range syntax is Decided 1's choice and holds in the supported browsers (Chrome 104, Firefox 63, Safari 16.4).
+  - `[low]` `[reject]` edge: the Status button is removed while it holds focus when the band changes - a window change with focus on the button is rare and recovers at the next Tab; the fix (a focus rule for the header) is not a two-way door. reopen_if=a user report of lost focus after a zoom change.
+  - `[low]` `[reject]` edge: Esc on the Status button - the same finding as the blind one above.
+  - `[low]` `[reject]` edge: the `ResizeObserver` is not guarded - the same finding as the blind one above.
+  - `[low]` `[reject]` edge: the root property is not removed on destroy - the header is never destroyed while the page lives.
+  - `[false]` `[reject]` edge: `place` may run before the view exists - the rail and main are in the template unconditionally, and G4 and G5 load at 1000 and 640px and find `main.main + section.rail`.
+  - `[low]` `[reject]` edge: the refocus of a moved rail element may aim at a removed node - the rail's elements are not removed by the move, and a removed node's `focus()` does nothing.
+  - `[low]` `[reject]` edge: `scrollIntoView` runs in every band - in the framed bands no ancestor scrolls as a page, so it changes nothing there; G1 and K1 pass unchanged.
+  - `[low]` `[reject]` edge: the G1 walk ends at any name that holds "Send" - the walk asserts the first stop and the Trace count, and no rail or chat control before the composer holds "Send".
+  - `[low]` `[reject]` edge: the G5 walk's failure message is generic - the failure names the stop count and the last five stops in the thrown error.
+  - `[false]` `[reject]` edge: `drawerOpen` stays true outside the drawer band - it is read only under the `drawer` class and on entering the band, where `changed()` sets it from focus.
+  - `[low]` `[reject]` edge: the same `scrollIntoView` claim - rejected as above.
+  - `[medium]` `[patch]` verification-gap: the skip-link case did not pin the region into the window - patched: the ring's top must lie inside the window, with a mutation (no `scrollIntoView`) that goes red.
+  - `[medium]` `[patch]` verification-gap: the popover-trigger arm of the band entry had no test - patched: G3 opens a rail Trace link's help at 1280px and narrows, with a mutation (no `triggerOf`) that goes red.
+  - `[medium]` `[patch]` verification-gap: the header's measured size was never told from the 56px default - patched: G5 expects the root property to equal the header's height, with a mutation (the observer never observing) that goes red.
+  - `[low]` `[reject]` verification-gap: `DecisionStrip`'s `stopPropagation` has no consumer - it is the lead's ruling (Decided 4: both disclosures stop the Esc), kept for the drawer's Esc order; the source check pins it.
+  - `[low]` `[patch]` verification-gap: `layout-view.test.mjs` had no mutation line - patched: the singular branch of `statusCount` is mutated and the line recorded.
+  - `[low]` `[patch]` verification-gap: several pinning tests had no mutation line - patched: `closeDrawer`'s focus move, `NOTE_RULE`, `writeFlag`'s `try`, the Close wiring, `preventDefault` and the wide query each have a recorded mutation.
+  - `[low]` `[patch]` verification-gap: assertions that cannot fail - patched where it was real: the G5 backward walk now expects it read the rail's stops; the focus-then-assert steps of G2 and G3 set up the case, and the G6 and G7 waits are rejected as above.
+  - `[low]` `[reject]` intent: the Status button after a failed load is not tested in a browser - `statusCount(undefined)` is in the node test and the button reads it, so a failed load shows "Status" alone.
+  - `[low]` `[reject]` intent: an Esc taken by a shown tooltip is not exercised - the tooltip's capture-phase Esc is Story 2.14's and unchanged; the drawer adds no handler before it.
+  - `[low]` `[reject]` intent: no case at 1023px or at a fractional width - the range queries leave no gap and `layout-view.test.mjs` evaluates the edges; G2 reaches 1024 and 1279.
+  - `[low]` `[reject]` intent: G7 does not narrow again after a failing storage - the matrix asks that Close works for the page, which G7 asserts.
+
 ## Design Notes
 
 **Governing ADs and conventions (Rule 6).**
@@ -528,6 +563,48 @@ Every other command runs in the foreground with `timeout: 600000`.
 | Bands | a `@media (max-width: 1000px)` added to a component | `floor-sources.test.mjs` (bands) |
 | Bands | `position: sticky` in `chat-panel.ts` | `floor-sources.test.mjs` (sticky) |
 
+**Recorded mutations (Rule 19).** Each was applied, run, observed red and reverted to a byte-identical tree (`git status --short` and the hash of every file under `web/src`, `web/e2e`, `web/scripts` and `docker/tests` unchanged). Browser reds are `live floor` on throwaway tag `e2s215i`; the others are `node --test web/scripts/`.
+- mutation: the wide query's `.rail` width rule removed -> G1 red (the rail is 288px at 1440px).
+- mutation: `app.ts` with `min-height` only, at every width -> G1 red (the page scrolls at 1280x600); K1 and K4 also red.
+- mutation: the Status button without its count (`count` always undefined) -> G2 red (the name is "Status" and not "Status, n approval requests").
+- mutation: `pendingApprovals` without the `pending` filter -> `rail-view.test.mjs` red (three tests).
+- mutation: the closed drawer not hidden (the `display: none` rule removed) -> G2 red (the region shows while collapsed).
+- mutation: `DecisionRow.collapse` without `stopPropagation` -> G2 red (one Esc collapses the row and closes the drawer); `floor-sources.test.mjs` red.
+- mutation: `DecisionStrip.collapse` without `stopPropagation` -> `floor-sources.test.mjs` red (no browser case reaches a strip inside the drawer).
+- mutation: `MainPage.collapse` ignores `hasOpen()` -> G2 red (the Trace help step closes the drawer); `floor-sources.test.mjs` red.
+- mutation: `focusRegion` focusing without opening the drawer -> G3 red (Skip to status leaves `aria-expanded` false).
+- mutation: the band-entry rule ignoring focus in the rail (`drawerOpen` set to false on entering) -> G3 red (narrowed with focus in the rail, the drawer is closed).
+- mutation: the rail placed with CSS `order` only, no DOM move -> G4 red at 1000x800 and at 200% (`main.main + section.rail` is absent); G5 red (stop order).
+- mutation: the stacked `html` `scroll-padding-top` removed -> G5 red in both cases (going back, a ring lies under the header; Skip to status leaves its ring at 3.8px under a 56px header).
+- mutation: `app-header` not sticky -> G4 red at 1000x800 and at 200% (the header leaves the top after scrolling).
+- mutation: the compact header's rules removed -> G4 red at 1000x800 and at 200% (the header is not shorter than at 1280x720).
+- mutation: the stacked list's `max-height` removed -> G4 red at 200% (the list is as tall as its content, not 70% of the window).
+- mutation: the placement without the re-focus -> G4 red at 1000x800 and at 200% (the rail's Trace link lost focus).
+- mutation: "shown" not written to sessionStorage -> G6 red (a reload in the same tab shows the note again).
+- mutation: "closed" not written to localStorage -> G6 red (the third page shows the note).
+- mutation: the note announced at load (`atLoad` ignored) -> G6 red (its text was announced at load).
+- mutation: no announcement after load -> G7 red (the note's text is never announced).
+- mutation: `readFlag` without its `try` -> G7 red (the page does not load: no `main.main`, so no note).
+- mutation: a `@media (max-width: 1000px)` added to a component -> `floor-sources.test.mjs` red (bands: both lists of width conditions).
+- mutation: `position: sticky` in `chat-panel.ts` -> `floor-sources.test.mjs` red (sticky).
+
+Review pass (2026-10-24). Browser reds are `live floor` on throwaway tag `e2s215i` (one batch applies mutations to different files or cases, and the red that names each is the one recorded); the others are `node --test web/scripts/`. A restore is checked by the hash of `git diff` and by a diff of `web/src` against the diff taken before the batch (untracked files are not in `git diff`).
+- mutation: the width of a component's `@media` typed as `${LAYOUT_QUERIES.stacekd}` -> `floor-sources.test.mjs` red (the interpolation test and the bands test).
+- mutation: `statusCount`'s singular branch (`n === 1`) never taken -> `layout-view.test.mjs` red ("1 approval request").
+- mutation: `Layout.closeDrawer` without the move of focus to the Status button -> G2 red (focus is not on the button after the second Esc).
+- mutation: `NOTE_RULE`'s effect removed from `MainPage` -> G6 red (focus is not on the main region after Close).
+- mutation: `writeFlag` without its `try` -> G7 red (with a storage that throws the note does not show).
+- mutation: the skip link without `preventDefault` -> G3 red (the address changed after Skip to status); K1 also red.
+- mutation: `focusTarget` without `scrollIntoView` -> G5 red (Skip to status: the ring's top lies below the window, the page is scrolled to 0).
+- mutation: `focusInRail` without `Popovers.triggerOf` -> G3 red (narrowed with the help of a rail trigger open, the drawer is closed).
+- mutation: `InlineNotice`'s Close without `closed.emit()` -> G6 and G7 red (Close does not take the note away).
+- mutation: `LAYOUT_QUERIES.wide` at 1280px instead of 1440px -> G1 red (the rail is 320px at 1439px and 1280px) and G2 red (at 1280px the rail is not 288px).
+- mutation: the header's `ResizeObserver` never observing -> G5 red (the root holds no `--app-header-block-size`).
+
+**Measured (local, 2026-10-24).** `live floor` takes 160 s of the script's own run (24 cases before, 35 now: G1 to G7 are 11 Playwright cases), 158 s inside `group shards` (326 s in all, with `shard:lane-a` 63 s and `shard:lane-b` 105 s). `live sign-in` takes 417 s (190 passed, 2 skipped), `live demo-path` 68 s and `live bundle-folder` 88 s.
+
+**Measured at the last pass (local, 2026-10-24).** `live floor` 154 to 160 s (35 cases), `live sign-in` 407 s (190 passed, 2 skipped), `group shards` 318 s (`shard:lane-b` 101 s, `live:floor` 154 s), `live demo-path` and `live bundle-folder` green; `npm --prefix web test` 534 passed.
+
 **Shared surfaces:**
 - **The ratchets' lists:** the speakers, `FOCUS_CALLS` (`skip-links.ts` 1 → 0; `layout.ts` 2; `main-page.ts` 1), the render list, `KEY_HANDLERS`, the key bindings, `ESC_HOSTS` and its `collapse` regex, and `floor-fixtures.test.mjs`'s file list. `FIXED_HEIGHTS` and the scrollers list are unchanged.
 - **The header's right group** gains the Status button in the drawer band only, so F3 and F7 at 1280px are unaffected.
@@ -550,7 +627,7 @@ Every other command runs in the foreground with `timeout: 600000`.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (2026-10-24).** The plan halted after planning, as the dispatch asked.
@@ -563,3 +640,14 @@ Blocking condition: none
   - Decided 2 (a push drawer) and Decided 6 (the rail moves after main in the column);
   - Decided 4's edit to the strip's and the row's `collapse`;
   - the balance estimate for `shards`, 1.20 to 1.22 times the mean (inference).
+
+**Implement and review (2026-10-24).**
+- **Summary:** the page has the four width bands: the rail at 320px from 1440px, at 288px from 1280px, a push drawer behind a "Status" header button with the approval request count from 1024px, and below 1024px one scrolling column with the sticky compact header, the rail after main in the DOM and the once-per-session note. One module (`layout-view.ts`) holds the queries for the CSS and the `Layout` service. G1 to G7 join `live:floor` (35 cases).
+- **Files:**
+  - new: `web/src/app/shared/layout-view.ts`, `layout.ts`, `narrow-note.ts`, `stored-flag.ts`; `web/e2e/floor/layout.spec.ts`; `web/scripts/layout-view.test.mjs`.
+  - changed: `app.ts`, `header.ts`, `skip-links.ts`, `main-page.ts`, `chat-panel.ts`, `decision-row.ts`, `decision-strip.ts`, `rail-view.ts`, `inline-notice.ts`, `trace-help.ts` and `base.css` under `web/src`; the node ratchets and `rail-view.test.mjs`; `web/e2e/support/floor.ts`, `keyboard.spec.ts`; `docker/tests/test-floor.sh` (the text of its messages).
+- **Departures from the spec (decided in stage):** `position: relative` on `.rail` and `.list` (their hidden texts lengthened the page); the closed drawer is hidden by a class that `Layout` sets, not by the width query alone; the Status button's visible text and pill are `aria-hidden` beside a spoken name; `focusTarget` focuses with `preventScroll` and then scrolls the region's top into view; G4's empty chat runs at 1000x800 and G5's About asserts what fits at 640x360.
+- **Review:** 8 patched, 4 at medium (a vacuous interpolation test, and the skip-link, popover-arm and header-size gaps) and 4 at low (docs and an export, mutation lines, the backward walk's count); nothing deferred; 22 rejected with their reasons in the triage log, 2 of them false.
+- **Follow-up review recommended:** true, because four mediums were patched. The unverified risk is the keyboard and focus behaviour at a real browser zoom of 200% in Chrome, Firefox and Safari, and the focus lost when the Status button leaves with its band (rejected as rare).
+- **Verification:** `npm --prefix web test` 534 passed, lint, `catalog.mjs --check`, `test-web-build.sh`, `test-boundaries.sh` green; `live floor` 35 passed (154 to 160 s); `test-ci-config.sh`, `ci/checks.sh` green; `live sign-in` 407 s (190 passed, 2 skipped), `live demo-path`, `live bundle-folder` and `group shards` (318 s) green; 11 mutations at review and 23 at implement went red and were reverted; teardown of tag `e2s215i` left nothing.
+- **Residual risks:** the initial bundle is 538 kB against the 500 kB warning budget (a warning; the error budget is 1 MB), not compared with the baseline; real browser zoom is the human's check; the focus loss above.
