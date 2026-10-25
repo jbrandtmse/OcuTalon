@@ -1158,6 +1158,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: irislib/Ens/Director.cls GetProductionStatus empties the name when no job, runtime or suspended node exists (a clean stop), not only when nothing ever ran (spec Task 0); start_watch and stop_watch both resolve through Reader.Find, so both answer unknown_production
 - 2026-10-25T21:52:35Z status=decision-pending owner=burndown by=cr note=product call: list a stopped namespace's last production and/or resolve stop_watch from the session's own rows
+- 2026-10-25T22:25:43Z status=routed owner=5-2-new-failures-are-picked-up-within-seconds by=spec_gate note=decided(U5_decision_dependency;FR-23:every_readable_namespace's_production):Watch.Reader also lists a readable namespace's last production when none runs (the platform's record of it measured in a Task 0 on a throwaway, never every Ens.Config.Production row, DW-38 kept), so a stopped production can be watched (its check reports the state, Story 5.6); stop_watch also resolves from the session's own BackgroundCheck rows, so a watch can always be stopped
 
 ### DW-223: Install.Step.Demo.WithOrdersData (Story 5.1, U-79) is a near-copy of WithOrders (about 18 of its 20 lines), differing only in the resource list it edits
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
