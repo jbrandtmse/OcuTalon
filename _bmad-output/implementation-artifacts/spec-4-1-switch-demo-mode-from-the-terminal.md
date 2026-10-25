@@ -2,9 +2,9 @@
 title: 'Story 4.1: Switch demo mode from the terminal'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-progress'
+status: 'done'
 baseline_revision: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
-baseline_commit: '2bb605c'
+baseline_commit: 'cdce4c6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -32,10 +32,12 @@ deferred: []
   - then writes the value (`"1"` or `"0"`);
   - then runs `Install.Step.Demo.Run()`, takes its warnings with `Install.Step.TakeWarnings()`, and answers.
 - It never answers an error status. Every answer is a `CommandResult` with `Ok`, `Outcome` and `Message`.
-- The audit event data is `{"user", "sessionRef", "channel", "origin", "setting", "value"}`, passed through `Bridge.Redact.Text`:
-  - `user` is the command's `ActingUser`;
+- The audit entry is written through `Bridge.Audit.Record("Settings", data)` (Story 3.7; AD-17), whose data is exactly `{"setting", "from", "to", "irisUser", "sessionRef", "channel"}`, every member a JSON string:
+  - `setting` is `demo.mode`, `from` is the row's value before the write ("" when absent) and `to` the new value;
+  - `irisUser` is the command's `ActingUser`;
+  - `sessionRef` is the command's SessionRef (empty or a 22-character Ref);
   - `channel` is `system` for origin `system` and `web` for `web_admin`.
-  - The key is `user`, never `username`, because the redactor treats `username` as sensitive.
+  - `Record` builds the description and writes through `Audit.Write`, which passes the data through `Bridge.Redact.Text`; `SettingsOps` does no redaction of its own. The key is `irisUser`, never `username`, because the redactor treats `username` as sensitive.
 - Product values apply by `Setting.Get`'s 60-second cache. `Setting.Set` drops its own process's cache entry.
 - Destructive checks (the switch adds or removes OCUORDERS) run only on lane-B throwaways (`ci/iris.sh`), never on slot B.
 
@@ -49,8 +51,8 @@ deferred: []
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Off, `OcuTalonAdmin` holder | Docker throwaway with demo on. The admin fixture of the next row runs `do ##class(OcuTalon.Core.Admin).SetDemoMode(0)` | It prints T2. The `demo.mode` row is `"0"`. An `OcuTalon/Settings` audit entry has `user` set to the admin fixture and `value` `"0"`. OCUORDERS, its databases, the mappings, `/ocutalon/trace/ocuorders/`, the trace role's OCUORDERS grants and its SQL privilege are gone, and the Orders production is stopped. | none |
-| On, `OcuTalonAdmin` holder | A user with `OcuTalonAdmin,%Developer,%DB_OCUTALON_CODE,%DB_OCUTALON_DATA,OcuTalonUser` (no `%All`), demo off | It prints T1. The row is `"1"`. OCUORDERS, the trace app and the grants exist, and the Orders production runs with `OrdersFromPartner` and `OrdersToWarehouse` alive. The audit `user` is that user. | none |
+| Off, `OcuTalonAdmin` holder | Docker throwaway with demo on. The admin fixture of the next row runs `do ##class(OcuTalon.Core.Admin).SetDemoMode(0)` | It prints T2. The `demo.mode` row is `"0"`. An `OcuTalon/Settings` audit entry has `irisUser` set to the admin fixture, `from` `"1"` and `to` `"0"`. OCUORDERS, its databases, the mappings, `/ocutalon/trace/ocuorders/`, the trace role's OCUORDERS grants and its SQL privilege are gone, and the Orders production is stopped. | none |
+| On, `OcuTalonAdmin` holder | A user with `OcuTalonAdmin,%Developer,%DB_OCUTALON_CODE,%DB_OCUTALON_DATA,OcuTalonUser` (no `%All`), demo off | It prints T1. The row is `"1"`. OCUORDERS, the trace app and the grants exist, and the Orders production runs with `OrdersFromPartner` and `OrdersToWarehouse` alive. The audit `irisUser` is that user, with `from` `"0"` and `to` `"1"`. | none |
 | Refused | A user with `%Developer,%DB_OCUTALON_CODE,%DB_OCUTALON_DATA,OcuTalonUser` and no `OcuTalonAdmin`; also `irisowner` (`%All`, no `OcuTalonAdmin`; V1 ruling) | It prints `MESSAGEADMINONLY`. No header goes to `SettingsOps`. The row, OCUORDERS and the audit log are unchanged. | Outcome `not_allowed` |
 | Bad argument | `SetDemoMode(2)`, `("on")`, `()` | It prints T6, and nothing is submitted. Only `0` and `1` (number or string) are accepted. | Outcome `invalid` |
 | No production | `Submit` returns an error status | It prints T7, and nothing changes. | Outcome `not_running` |
@@ -58,7 +60,7 @@ deferred: []
 | Same mode again | `SetDemoMode(1)` with demo on | Audited, written and the step rerun (idempotent). It prints T1. | none |
 | Off, foreign OCUORDERS | The step's keep path, which records `demoKept` | `Ok 1`, `off_kept`. It prints T3 with the `demoKept` note's `how` sentence. | none |
 | Step fails | `Install.Step.Demo.Run()` returns an error | `Ok 0`, `step_failed`, T4 with the error sentence. The row keeps the new value, so the next start converges. | answered, never thrown |
-| Audit fails | `Bridge.Audit.Write` is not OK | `Ok 0`, `not_audited`, T5. Nothing is written and the step does not run. | answered |
+| Audit fails | `Bridge.Audit.Record` is not OK (a failed write, or a refused shape such as an empty `ActingUser`) | `Ok 0`, `not_audited`, T5. Nothing is written and the step does not run. | answered |
 | Other command | Any class other than `OcuTalon.Msg.Command.SetDemoMode` reaches `SettingsOps` | `Ok 0`, `unknown_command`, `CommandsIn.#MESSAGEUNKNOWN`. Nothing is written. | answered |
 | Key off the list | The guarded write is given `digest.time` | It is refused with an error status, and no row is written. | status |
 
@@ -82,7 +84,7 @@ deferred: []
   - the keep note's `how` sentence (`:363`).
 - `src/ocutalon/cls/OcuTalon/Install/Step.cls:52,58` -- `Warn` and `TakeWarnings` ("code that runs a step on its own takes them").
 - `src/ocutalon/cls/OcuTalon/Data/StatusMark.cls:39` (read-only, contended) -- `Get("demoKept")`: the JSON note with `how`.
-- `src/bridge/cls/OcuTalon/Bridge/Audit.cls:31` (read-only) -- `Write(type, data As %DynamicObject, description)`. Types include `Settings`.
+- `src/bridge/cls/OcuTalon/Bridge/Audit.cls` (read-only) -- `Record(type, data)` (the product writer: one shape per type, `Settings` is `setting, from, to` plus `irisUser, sessionRef, channel`) over the raw `Write`, which CodeRules `TestOnlyTheAuditWriterAudits` allows only inside `Audit`.
 - `src/bridge/cls/OcuTalon/Bridge/Redact.cls` (read-only) -- `Text(text)`. `SENSITIVEKEYS` (`:32`) includes `username` and `userid`.
 - `src/ocutalon/cls/OcuTalon/Core/Rule/Functions.cls:19` and `Core/Rule/Notify.cls:42-47` -- `DemoOn()` reads `Setting.Get(MODEKEY)`, so `Notify` adds `SimPhoneOut` only while demo mode is on. On/off is already tested in `Test/Core/Routing.cls` (TestNotifyTargets).
 - `src/ocutalon/cls/OcuTalon/Web/Api.cls:280` (`/state` `demoMode` from `Setting.Get`) and `:60-63` (the demo routes are `NotBuilt` 501). Both unchanged.
@@ -111,7 +113,7 @@ deferred: []
 - [x] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- remove `STUB` and implement `OnMessage` as the Boundaries describe:
   - `Parameter ALLOWLIST = "demo.mode"`;
   - a private guarded write `Apply(key, value)`, which refuses keys off the list;
-  - a private `WriteAudit(data)` seam (`Bridge.Audit.Write("Settings", <redacted data>, "Demo mode set to on|off")`);
+  - a private `WriteAudit(data)` seam (`Bridge.Audit.Record("Settings", data)`; Record builds the description and redacts);
   - a private `RunStep(Output kept, Output warnings)` seam (`Install.Step.Demo.Run()`, `TakeWarnings()`, and `StatusMark.Get("demoKept")`'s `how` when the mark is set);
   - the texts T1 to T5, and the outcomes `on`, `off`, `off_kept`, `step_failed`, `not_audited`, `unknown_command` and `failed`;
   - an error thrown inside is logged once (`$$$LOGERROR`) and answers `failed` with `MESSAGEFAILED`.
@@ -124,7 +126,7 @@ deferred: []
   - it records each call in `^OcuTalonTest("SettingsOpsProbe", ...)` (the data object as JSON, and the value `Setting.Get(MODEKEY)` reads inside `RunStep`);
   - it answers from that global (OK, an error, or a `demoKept` note it records through `StatusMark.Record`, saved and restored by the test).
 - [x] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (new, lane-b shard) -- drives a shadow instance of the probe. It saves and restores the `demo.mode` row with `Test.Demo.Step`, the probe global and the `demoKept` mark. Tests:
-  - TestSwitch: with `DemoMode` 0 and 1, `Ok 1`, `off` or `on`, T2 or T1. The row value and `UpdatedAt` are written. The audit call came first and the step ran after the write (the probe saw the new value). The event data has `user`, `sessionRef`, `channel` `system`, `origin` `system`, `setting` `demo.mode` and `value`.
+  - TestSwitch: with `DemoMode` 0 and 1, `Ok 1`, `off` or `on`, T2 or T1. The row value and `UpdatedAt` are written. The audit call came first and the step ran after the write (the probe saw the new value). The event data has exactly `setting` `demo.mode`, `from` (the row's value before), `to`, `irisUser`, `sessionRef` and `channel` `system`, each a JSON string. TestAuditAccepted runs the real `Record` behind the seam (accepted for a user and a key-shaped user, refused for no `ActingUser` or an origin with no channel).
   - TestKept: `off_kept`, with T3 built from the note's `how`.
   - TestStepFails: `step_failed`, T4 carries the error sentence, and the row keeps the new value.
   - TestAuditFails: `not_audited`, T5, the row is unchanged, and the step did not run.
@@ -154,8 +156,8 @@ deferred: []
   5. Every `/state` answer from 61 s after step 4 returned reports `demoMode` false (polled every 2 s from the start), and `chat` and `rail` equal S0. `POST /v1/demo/break-feed` still answers 501 `not_built`. A new tell-now Notification leaves no header to `SimPhoneOut`. `npm --prefix web run e2e:demo-switch` with `OCUTALON_E2E_DEMO_MODE=0` passes.
   6. As the admin fixture, run `SetDemoMode(1)`: T1 is printed. `check_demo_on` and `check_orders_jobs` pass, and `compare_surfaces` against F0 passes.
   7. Poll `%SYS.Audit` from the mark, up to 180 s, for `OcuTalon/Settings/Settings` entries:
-     - one with the admin fixture and `value` `"0"`;
-     - one with the admin fixture and `"1"`;
+     - one with the admin fixture as `irisUser`, `from` `"1"` and `to` `"0"`;
+     - one with the admin fixture, `from` `"0"` and `to` `"1"`;
      - none naming the non-admin or `irisowner`.
   8. From 61 s after step 6, `/state` reports `demoMode` true and `chat` and `rail` equal S0. The e2e script with `OCUTALON_E2E_DEMO_MODE=1` passes.
   - It prints PASS or FAIL lines and keeps a local deadline, like the other live units.
@@ -175,7 +177,7 @@ deferred: []
 
 - [x] [CI] `ci` workflow, job `web`, step "Unit tests" (`npm --prefix web test`): `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/" fails on c8b4354, because this story put `**/e2e/demo-switch/**` in the `chromium` project's `testIgnore` while the test still expects chromium to list `demo-switch/badge.spec.ts` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40209803845/job/121218409733 -- make the test's rule match the config (chromium lists every spec outside `demo-path/`, `floor/` and `demo-switch/`, and the `demo-switch` project lists exactly `demo-switch/`), keeping its ability to fail on a spec that no project lists; add `npm --prefix web test` as a `(loop)` line under `## Verification`, and run it green.
 
-- [ ] [CI] Integrate-forward red (feature dba452a merged at 3d76632, bringing Epic 3's Story 3.7): `OcuTalon.Test.Bridge.CodeRules` `TestOnlyTheAuditWriterAudits` fails because `SettingsOps.WriteAudit` calls `OcuTalon.Bridge.Audit.Write`, Audit's raw writer; Story 3.7 (AD-17) lets product code write only through `Bridge.Audit.Record(type, data)`, which checks the type's one shape. Change the `Settings` audit to `Record("Settings", data)` with exactly the shape `setting, from, to, irisUser, sessionRef, channel` (`setting` = `demo.mode`, `from` = the row's value before the write, `to` = the new value, `irisUser` = the command's `ActingUser`, `sessionRef` = empty or the command's Ref, `channel` = `system` for origin `system` and `web` for `web_admin`; `origin` and `user` are no longer members; Record builds the description and redacts a sensitive setting itself, so drop the local `Redact.Text` pass if Record covers it). Update every test and probe that reads the entry's old members (`Test.Core.SettingsOps`, `SettingsOpsProbe`, `TestAuditRedacted`), `docker/tests/test-demo-switch.sh` step 7 (the entries now carry `irisUser`, `from`, `to` and `channel`), and the spec's matrix wording where it names the old members. Verify: `ci/iris.sh class OcuTalon.Test.Bridge.CodeRules` and `class OcuTalon.Test.Bridge.Audit` (warm), the 4.1 classes (warm), `ci/iris.sh live demo-switch` (fresh), `bash ci/checks.sh`; write the `mutation:` lines for the changed pins.
+- [x] [CI] Integrate-forward red (feature dba452a merged at 3d76632, bringing Epic 3's Story 3.7): `OcuTalon.Test.Bridge.CodeRules` `TestOnlyTheAuditWriterAudits` fails because `SettingsOps.WriteAudit` calls `OcuTalon.Bridge.Audit.Write`, Audit's raw writer; Story 3.7 (AD-17) lets product code write only through `Bridge.Audit.Record(type, data)`, which checks the type's one shape. Change the `Settings` audit to `Record("Settings", data)` with exactly the shape `setting, from, to, irisUser, sessionRef, channel` (`setting` = `demo.mode`, `from` = the row's value before the write, `to` = the new value, `irisUser` = the command's `ActingUser`, `sessionRef` = empty or the command's Ref, `channel` = `system` for origin `system` and `web` for `web_admin`; `origin` and `user` are no longer members; Record builds the description and redacts a sensitive setting itself, so drop the local `Redact.Text` pass if Record covers it). Update every test and probe that reads the entry's old members (`Test.Core.SettingsOps`, `SettingsOpsProbe`, `TestAuditRedacted`), `docker/tests/test-demo-switch.sh` step 7 (the entries now carry `irisUser`, `from`, `to` and `channel`), and the spec's matrix wording where it names the old members. Verify: `ci/iris.sh class OcuTalon.Test.Bridge.CodeRules` and `class OcuTalon.Test.Bridge.Audit` (warm), the 4.1 classes (warm), `ci/iris.sh live demo-switch` (fresh), `bash ci/checks.sh`; write the `mutation:` lines for the changed pins.
 
 **Acceptance Criteria:**
 - Given a fresh install, when it first starts, then demo mode is `"1"` on the Docker install and `"0"` without the image's version file (IPM), written as a seed that a later write survives at restarts and upgrades.
@@ -243,7 +245,7 @@ Rejected:
 
 ## Spec Change Log
 
-- 2026-10-25, rework iteration 2 (trigger: integrate-forward red; Story 3.7's audit-writer rule): one `[CI]` item under Tasks & Acceptance.
+- 2026-10-25, rework iteration 2 (trigger: integrate-forward red; Story 3.7's audit-writer rule): one `[CI]` item under Tasks & Acceptance. By the item, the wording of the intent block that named the old audit members (the Boundaries bullet on the audit data and the matrix rows "Off", "On" and "Audit fails") now names the Settings shape of `Bridge.Audit.Record`: it read `{"user", "sessionRef", "channel", "origin", "setting", "value"}` through `Bridge.Redact.Text` and `Bridge.Audit.Write`. The behaviour stays: audit first, then write, then the step; every outcome is kept.
 
 - 2026-10-25, rework iteration 1 (trigger: CI red on c8b4354, the hosted `web` job's unit tests): one `[CI]` item under Tasks & Acceptance.
 
@@ -283,6 +285,23 @@ Rejected:
   - `[low]` `[reject]` Edge: the spec records no result for `npm --prefix web test` -- recorded in this pass's `## Auto Run Result`.
   - `[low]` `[patch]` Verification-gap: the union case and the `e2e:demo-switch` case have no `mutation:` line -- both mutations demonstrated (union red alone among the target cases; demo-switch case red), both lines written under `## Verification`, both files restored byte-identical.
 - intent-alignment: no divergence between the readings and the diff that needs work; reading C (derive the rule from the config) is rejected above.
+
+### 2026-10-25 — Review pass (rework iteration 2, the `[CI]` item only; diff since cdce4c6)
+- verdicts: 12 rows for the findings of the blind, edge-case and verification-gap layers (findings with one root cause share a row; the intent-alignment audit was descriptive) -- high 0, medium 0, low 10, false 2, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind and Edge: `TestAuditAccepted` writes a real audit entry and needs auditing on, unstated -- the class header now says so (it is the same precondition as `Test.Bridge.Audit`).
+  - `[low]` `[patch]` Blind, Edge and VG: the redaction check was dropped, and the key-shaped-user leg asserted nothing beyond the plain leg -- the leg is removed and the header no longer claims it; redaction is `Record`'s, read back by `Test.Bridge.Audit` (the intent block says `SettingsOps` does none).
+  - `[low]` `[patch]` Blind and VG: nothing pins that `Stored` bypasses the cache -- TestFromIgnoresCache added; mutation line written (red demonstrated).
+  - `[low]` `[patch]` VG: `TestFromAbsentRow` could not tell an empty `from` from a missing one -- type and size assertions added, and an absent-row leg in TestAuditAccepted against the real `Record`; mutation line written (red demonstrated).
+  - `[low]` `[patch]` Blind: the probe header had one very long line -- rewrapped.
+  - `[low]` `[reject]` Blind: no test sends a malformed SessionRef to the real `Record` -- `Record`'s own check, covered by `Test.Bridge.Audit`; an invalid ref only turns a switch into `not_audited`, which changes nothing.
+  - `[low]` `[reject]` Blind and Intent: the description lost its on/off word, `origin` left the data, and the `not_audited` text names no cause -- by the item (Record builds the description, the shape has no `origin`); the cause is in the Event Log line, and T5 is V2's text.
+  - `[low]` `[reject]` Edge: the entry records an attempt when `Apply` fails -- Decided in-stage 1 (audit before write, so no change is unaudited).
+  - `[false]` `[reject]` Edge: two concurrent switches can read the same `from` -- the `SettingsOps` item has pool size 1 (Code Map), so switches run one at a time.
+  - `[low]` `[reject]` Edge: a `web_admin` command with no `ActingUser` answers `not_audited` -- no submitter sets origin `web_admin` yet (Story 18.1 sets `ActingUser` from the session); it fails safe, and Design Notes 12 records it.
+  - `[low]` `[reject]` Edge: `settings_audit_rows` shifts arguments for the old two-argument form -- one caller, in this script, updated in this pass.
+  - `[false]` `[reject]` Intent-alignment: the report is descriptive and files no defect; its surface note (the live script alone reads the written entry) is the design: `live:demo-switch` step 7 is the read-back and its mutation is recorded.
+- intent-alignment: reading A (the data handed to `Record`) is what the diff implements, with reading B (Record's accept and refuse) pinned by TestAuditAccepted and reading C (the written row) by step 7; no divergence that needs work.
 
 ## Design Notes
 
@@ -347,7 +366,7 @@ Rejected:
 9. `Admin.SetDemoMode` validates the argument before it checks the role, so a bad argument prints T6 whoever types it.
 10. `Admin.ErrorText(sc)` (public) is the one place that strips `ERROR #n:` and the closing full stop from a status text. `SettingsOps` calls it for T4, so the two classes share it (Rule 2).
 11. `SettingsOps.RunStep` turns an error thrown by the step into the step's error status, so `step_failed` (T4) answers it. Only an error thrown elsewhere in `OnMessage` answers `failed`. The step's warnings are logged with `$$$LOGWARNING`.
-12. The audit data goes through `Bridge.Redact.Text` in `SettingsOps.AuditData`, and the `WriteAudit` seam receives the redacted `%DynamicObject`. The seam's second argument is the description.
+12. The audit data is built in `SettingsOps.AuditData` in the Settings shape of `Bridge.Audit.Record`, with every member set as a JSON string (a literal `{"from": (x)}` turns a value such as `"1"` into a number, which Record refuses), and the `WriteAudit(data)` seam calls `Record`, which describes the entry and redacts it through `Write`. `from` is read by the private `Stored(key)` from the row, never from the 60-second cache. An empty `ActingUser` or an origin with no channel is refused by Record, so the command answers `not_audited` (decided in-stage, iteration 2; it was audited as written before Story 3.7).
 13. `Setting.Seed` and `Setting.Set` share a private `Refusal(key, verb)` and a private `Upsert(key, value)` (Rule 2); `Seed`'s refusal text is unchanged.
 14. `live:demo-switch` creates its two fixture users in step 1, before F0, so that F0 holds their roles and the later surface comparisons are exact. Step 3's refusals run against the same F0.
 15. `SettingsOpsProbe.Guarded` is a public wrapper of the private `Apply` for TestAllowList; the probe, not the test, is the subclass that can call it.
@@ -397,7 +416,9 @@ The integration checks run against a real throwaway, not a mock.
 - `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Data.Setting` (loop) -- expected: passed.
 - `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Msg.Contracts` (loop) -- expected: passed.
 - `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Core.ProductionItems` (loop) -- expected: passed.
-- `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Core.CommandsInProduction` (loop) -- expected: passed.
+- `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Core.CommandsInProduction` (loop) -- expected: passed. A warm run does not replace the code of a running production job: after a change to `SettingsOps`, toggle the item (`Ens.Director.EnableConfigItem("SettingsOps", 0, 1)` then `1`) before this class.
+- `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Bridge.CodeRules` (loop) -- expected: passed (TestOnlyTheAuditWriterAudits).
+- `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Bridge.Audit` (loop) -- expected: passed.
 - `<lane B vars> OCUTALON_RUN_TAG=e4s1i ci/iris.sh live demo-switch` (loop; fresh, destructive; also Task 0) -- expected: every line PASS, exit 0.
 - `npm --prefix web test` (loop) -- expected: all tests pass.
 - `npm --prefix web run lint` (loop) -- expected: exit 0.
@@ -428,6 +449,12 @@ The integration checks run against a real throwaway, not a mock.
 - mutation: AC 1, `Install.Step.Demo.DefaultMode()` returns 1 unconditionally -> `Test.Demo.Step` TestDefaultMode red ("a version file that is absent gives 0").
 - mutation: AC 2, `SettingsOps` skips `RunStep` -> TestSwitch red (two seams, the step second, the step seeing the new value); `live:demo-switch` step 4 red (278 surface lines still name OCUORDERS, 15 of 15 off values differ).
 - mutation: AC 2, the step runs before the write -> TestSwitch red ("the step saw the new value").
+- mutation (iteration 2): AC 2 (audit), the `WriteAudit` seam calls `Bridge.Audit.Write("Settings", data, "x")` instead of `Record` -> `Test.Bridge.CodeRules` TestOnlyTheAuditWriterAudits red ("no class but the audit class writes an audit entry").
+- mutation (iteration 2): AC 2 (audit shape), `AuditData` adds an `origin` member -> TestSwitch ("and nothing else") and TestAuditAccepted red (the real `Record` refuses the shape).
+- mutation (iteration 2): AC 2 (audit shape), `AuditData` sets `from` as a number (`from+0`) -> TestSwitch ("every member is a JSON string") and TestFromAbsentRow red.
+- mutation (iteration 2): AC 2 (audit `from`), `Carry` passes the new value as `from` (`AuditData(command, key, value, value)`) -> TestSwitch ("the audit has the value before the write") and TestFromAbsentRow red; `live:demo-switch` step 7 red (0 entries from 1 to 0 and 0 from 0 to 1 within 180 s; run 'e4s1i3', the unmutated run on the same tree passed all 37 checks).
+- mutation (iteration 2): AC 2 (audit `from` is the stored value), `Stored` reads through `Setting.Get` (the 60-second cache) -> TestFromIgnoresCache red ("the audit's from is the row's value, not the cached one").
+- mutation (iteration 2): AC 2 (audit `from` of an absent row), `AuditData` leaves `from` out when it is empty -> TestFromAbsentRow ("a string member", "all six members") and TestAuditAccepted ("with no row Record accepts the entry too") red.
 - mutation: AC 2 (audit), the `WriteAudit` call dropped -> TestSwitch and TestAuditFails red; `live:demo-switch` step 7 red (no Settings entry for the admin within 180 s).
 - mutation: AC 2, `Apply` writes nothing -> TestSwitch, TestKept and TestOnlyRunTimeWriter red; `live:demo-switch` step 4 (row stays 1), step 5 (`/state` still true, the Notification still reaches SimPhoneOut, and the page spec for mode 0) red.
 - mutation: AC 3, `Admin.SetDemoMode` submits with the origin `web_admin` -> `Test.Core.Admin` TestSubmits red ("from the origin system").
@@ -454,14 +481,14 @@ The integration checks run against a real throwaway, not a mock.
 
 **QA stage (2026-10-25)**: no new test file; (QA) tests added to existing classes, no new live run (no live unit or web file changed).
 - (QA) `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls`: TestPrinted (the one printed line, through `AdminProbe.Capture`), TestArgumentBeforeRole. `Test/Core/AdminProbe.cls` gains `Capture`.
-- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`: TestSameMode, TestApplyFails, TestKeptOnlyForOff, TestWarningsTaken, TestAuditRedacted. `Test/Core/SettingsOpsProbe.cls` gains the `apply` and `warn` answers and an `Apply` override that is the real one unless told to fail.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`: TestSameMode, TestApplyFails, TestKeptOnlyForOff, TestWarningsTaken, TestAuditRedacted (iteration 2: replaced by TestAuditAccepted). `Test/Core/SettingsOpsProbe.cls` gains the `apply` and `warn` answers and an `Apply` override that is the real one unless told to fail.
 - mutation: Matrix row "printed line", the `Write result.Message, !` of `Admin.SetDemoMode` removed -> `Test.Core.Admin` TestPrinted red (three assertions).
 - mutation: Design Notes 9, the argument check after the role check -> `Test.Core.Admin` TestArgumentBeforeRole red (and TestInvalidArgument).
 - mutation: AC 2 (audit before write, write failure), `SettingsOps.Carry` ignores the status of `Apply` -> TestApplyFails red.
 - mutation: Matrix row "Same mode again", `Carry` returns early when the row already holds the value -> TestSameMode red.
 - mutation: Matrix row "Off, foreign OCUORDERS", the `word = "off"` guard of the `off_kept` answer removed -> TestKeptOnlyForOff red.
 - mutation: Boundaries (the step's warnings taken), `RunStep` no longer calls `TakeWarnings()` -> TestWarningsTaken red.
-- mutation: Boundaries (audit data through `Bridge.Redact.Text`), `AuditData` returns the data unredacted -> TestAuditRedacted red.
+- Redaction of the audit data (it replaces the TestAuditRedacted line, as `SettingsOps` no longer redacts): `Record` redacts through `Audit.Write`, pinned by `Test.Bridge.Audit`; TestAuditAccepted pins that `SettingsOps` hands `Record` data it accepts, by the iteration 2 `origin` mutation above.
 - Each applied from a backup, run on the warm stack, restored; md5 of `Admin.cls` and `SettingsOps.cls` and `git status --short`/`git diff --stat` identical after each. Without `OCUTALON_E2E_DEMO_MODE` the badge spec fails at once naming the variable (run with `npm --prefix web exec playwright test --project=demo-switch`, no stack needed).
 
 **Code review (2026-10-25)**: warm stack `e4s1rw` for the class runs and mutations, fresh throwaways `e4s1r` for `CommandsInProduction`'s mutation and the live runs; all torn down. After the patches: `Test.Core.SettingsOps`, `Test.Core.Admin`, `Test.Data.Setting` and `Test.Core.CommandsInProduction` passed (warm), `shard lane-b` passed (44 classes, warm, after every revert), `live:demo-switch` passed (fresh, 265 s, 37 PASS lines) and `bash ci/checks.sh` passed. Each mutation was applied from a backup and restored; md5 of the three product files, `git status --short` and `git diff --stat` identical after each.
@@ -508,5 +535,7 @@ Blocking condition: none
 **Verification.** Warm class runs of `Test.Core.SettingsOps`, `Core.Admin`, `Data.Setting`, `Msg.Contracts`, `Install.Production` (reads ProductionItems) and `Core.CommandsInProduction` passed; `live demo-switch` passed (35 PASS plus step 8's Notify check, the mutated run red at steps 2 and 8); `npm --prefix web run lint`, `test-ci-config.sh`, `shard lane-b` (44 classes), `shard lane-a` (41 classes) and `ci/checks.sh` passed. The mutations listed under `## Verification` were each applied, seen red and reverted. No stack with the `e4s1` tags is left.
 
 **Residual risks.** The runner duration of `live:demo-switch` is an inference (8 to 10 minutes; 244 s on ARM). A switch reaches an open page only at its next snapshot load (T1 and T2 say to reload). Cross-epic notes for the lead: the dependency edge `Core -> Install.Step.Demo.Run()` (AD-23) goes into the spine under Rule 20, and the V1 reversal is the owner's (`Admin.Allowed`, TestAllowed, `live:demo-switch` steps 3, 4 and 7).
+
+**Rework iteration 2 (the `[CI]` item only).** `SettingsOps` writes its `Settings` audit entry through `Bridge.Audit.Record("Settings", data)` with exactly `setting, from, to, irisUser, sessionRef, channel` (every member a JSON string; `from` read from the row by `Stored`, never from the cache); the local redaction pass and the description are gone because `Record` does both. `Test.Bridge.CodeRules` TestOnlyTheAuditWriterAudits passes. Changed: `Core/SettingsOps.cls`, `Test/Core/SettingsOps.cls` (TestSwitch, TestFromAbsentRow, TestFromIgnoresCache, TestAuditAccepted in place of TestAuditRedacted), `Test/Core/SettingsOpsProbe.cls` (the `WriteAudit(data)` seam and a "record" answer), `docker/tests/test-demo-switch.sh` (step 7 reads `irisUser`, `from`, `to`, `channel`), and the spec's wording. Behaviour change: a command with an empty `ActingUser` or an origin with no channel now answers `not_audited` (Record refuses it). Review: 4 layers, 5 patched rows (all low: header notes, a dropped vacuous leg, two new pins with mutation lines, a rewrap), 7 rejected with their reasons in the Review Triage Log. Follow-up review recommended: false (no high patched). Verification: warm stack `e4s1i3w`, `Test.Bridge.CodeRules`, `Test.Bridge.Audit`, `Test.Core.SettingsOps`, `Test.Core.Admin` and `Test.Core.CommandsInProduction` passed one per call on the final tree (CommandsInProduction after the item's job picked up the new code; on a fresh stack it starts with it), six mutations red and reverted byte-identical; `live demo-switch` (fresh, `e4s1i3`) 37 PASS, exit 0, `SetDemoMode(0)` 3 s and `SetDemoMode(1)` 2 s, and red at step 7 under the `from` mutation; `npm --prefix web test` 567 of 567; `bash ci/checks.sh` passed; `docker ps -a --filter name=e4s1i3` is empty. Residual risk: `live:demo-switch` was run before the review's test-only patches (no product file changed after it; `SettingsOps.cls` is byte-identical to the live-tested one).
 
 **Rework iteration 1 (the `[CI]` item only).** `web/scripts/playwright-projects.test.mjs` now states the chromium rule against `OWN_PROJECT_DIRS` (`demo-path`, `demo-switch`, `floor`), has a case that `e2e:demo-switch` lists exactly `demo-switch/`, and a case that every spec on disk is listed by one of the four scripts. `web/playwright.config.ts` is unchanged. Review: 6 findings, 1 patched (two missing `mutation:` lines, written after demonstrating both reds), 5 rejected with their reasons in the Review Triage Log. Follow-up review recommended: false (no high patched). Verification: `npm --prefix web test` 567 of 567 passed, `npm --prefix web run lint` exit 0, `bash ci/checks.sh` all scripts passed. Residual risk: the hosted `web` job itself runs on the next push.

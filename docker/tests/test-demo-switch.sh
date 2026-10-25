@@ -17,8 +17,8 @@
 #      page shows no demo badge (web/e2e/demo-switch/badge.spec.ts with OCUTALON_E2E_DEMO_MODE=0);
 #   6. the admin runs SetDemoMode(1): the on line is printed, the row is "1", the on checks pass, the Orders production runs with its
 #      two jobs, and the surfaces equal F0;
-#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for the admin with value "0" and one with "1", both
-#      from the channel system, and no other Settings entry (none names the refused users);
+#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for the admin (irisUser) from "1" to "0" and one from "0"
+#      to "1", both from the channel system, and no other Settings entry (none names the refused users);
 #   8. from 61 s after step 6, /state reports demoMode true with the chat and rail equal S0, a tell-now Notification leaves a header
 #      to SimPhoneOut again, and the page shows the demo badge.
 # The project is unique, publishes its web port only on 127.0.0.1 (first free port of 52800-52819, or OCUTALON_TEST_WEB_PORT) and
@@ -100,17 +100,19 @@ settings_audit_total() {
     'Halt' | session_value %SYS n
 }
 
-# settings_audit_rows <user> <value> [<channel>]: the Settings entries whose data names the user and, when value and channel are not
-# empty, the value and the channel.
+# settings_audit_rows <user> <from> <to> [<channel>]: the Settings entries whose data names the user as irisUser and, when from and to
+# are not empty, the value before and after the write, and, when the channel is not empty, the channel.
 settings_audit_rows() {
   printf '%s\n' \
     'Set q=$Char(34)' \
-    "Set u=q_\"user\"_q_\":\"_q_\"$1\"_q" \
-    "Set v=\"$2\"" \
-    "Set c=\"${3:-}\"" \
-    'If v'"'"'="" { Set v=q_"value"_q_":"_q_v_q } Else { Set v=u }' \
+    "Set u=q_\"irisUser\"_q_\":\"_q_\"$1\"_q" \
+    "Set f=\"$2\"" \
+    "Set t=\"$3\"" \
+    "Set c=\"${4:-}\"" \
+    'If f'"'"'="" { Set f=q_"from"_q_":"_q_f_q } Else { Set f=u }' \
+    'If t'"'"'="" { Set t=q_"to"_q_":"_q_t_q } Else { Set t=u }' \
     'If c'"'"'="" { Set c=q_"channel"_q_":"_q_c_q } Else { Set c=u }' \
-    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND Event = ? AND EventData [ ? AND EventData [ ? AND EventData [ ?","OcuTalon","Settings","Settings",u,v,c) Do rs.%Next() Write !,"CHK|n|",rs.%GetData(1)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND Event = ? AND EventData [ ? AND EventData [ ? AND EventData [ ? AND EventData [ ?","OcuTalon","Settings","Settings",u,f,t,c) Do rs.%Next() Write !,"CHK|n|",rs.%GetData(1)' \
     'Halt' | session_value %SYS n
 }
 
@@ -348,18 +350,18 @@ compare_surfaces "step 6: the surfaces equal F0" "$tmp/f0.surf" "$tmp/s6.surf"
 # --- step 7: the audit log names the admin, and nobody else ---
 
 settings_audit_seen() {
-  [ "$(settings_audit_rows "$adminuser" 0 system)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 1 system)" = 1 ]
+  [ "$(settings_audit_rows "$adminuser" 1 0 system)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 0 1 system)" = 1 ]
 }
 if wait_until 180 settings_audit_seen; then
-  pass "step 7: one OcuTalon/Settings/Settings entry names $adminuser with value 0 and one with value 1, both from the channel system"
+  pass "step 7: one OcuTalon/Settings/Settings entry names $adminuser (irisUser) from 1 to 0 and one from 0 to 1, both from the channel system"
 else
-  fail "step 7: the audit log holds '$(settings_audit_rows "$adminuser" 0 system)' entry(ies) with value 0 and '$(settings_audit_rows "$adminuser" 1 system)' with value 1 from the channel system for $adminuser within 180 s ('$(settings_audit_rows "$adminuser" 0)' and '$(settings_audit_rows "$adminuser" 1)' from any channel)"
+  fail "step 7: the audit log holds '$(settings_audit_rows "$adminuser" 1 0 system)' entry(ies) from 1 to 0 and '$(settings_audit_rows "$adminuser" 0 1 system)' from 0 to 1 from the channel system for $adminuser within 180 s ('$(settings_audit_rows "$adminuser" 1 0)' and '$(settings_audit_rows "$adminuser" 0 1)' from any channel)"
 fi
 total=$(settings_audit_total)
-if [ "$total" = "$((audit0 + 2))" ] && [ "$(settings_audit_rows "$plainuser" '')" = 0 ] && [ "$(settings_audit_rows irisowner '')" = 0 ]; then
+if [ "$total" = "$((audit0 + 2))" ] && [ "$(settings_audit_rows "$plainuser" '' '')" = 0 ] && [ "$(settings_audit_rows irisowner '' '')" = 0 ]; then
   pass "step 7: those are the only two new Settings entries, and none names $plainuser or irisowner"
 else
-  fail "step 7: the Settings entries are $total (wanted $((audit0 + 2))); $plainuser: $(settings_audit_rows "$plainuser" ''), irisowner: $(settings_audit_rows irisowner '')"
+  fail "step 7: the Settings entries are $total (wanted $((audit0 + 2))); $plainuser: $(settings_audit_rows "$plainuser" '' ''), irisowner: $(settings_audit_rows irisowner '' '')"
 fi
 
 # --- step 8: the page and /state follow ---

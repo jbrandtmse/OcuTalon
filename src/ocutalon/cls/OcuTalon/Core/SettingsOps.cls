@@ -1,14 +1,16 @@
 /// SettingsOps, the business operation that carries out the settings commands (AD-19). It is the only run-time writer of
 /// OcuTalon.Data.Setting, and it writes only the keys of ALLOWLIST. Release 1 has one command, SetDemoMode. For every
 /// accepted SetDemoMode it:
-///   - writes the Settings audit entry first (AD-17), so that no change is unaudited;
+///   - writes the Settings audit entry first (AD-17), through Bridge.Audit.Record, so that no change is unaudited and the entry has the
+///     one shape of its type;
 ///   - then writes the value of demo.mode, "1" or "0";
 ///   - then runs OcuTalon.Install.Step.Demo.Run() (AD-23), which creates or removes the demo namespace, and takes the step's
 ///     warnings.
 /// It answers every command with a CommandResult (Ok, Outcome and Message) and never an error status. The outcomes:
 ///   - on, off: carried out; off_kept: off, and the step kept an OCUORDERS that is not its own (Ok 1);
 ///   - step_failed: the value is written and the step failed; the next start runs the step again (Ok 0);
-///   - not_audited: the audit entry could not be written, so nothing was written (Ok 0);
+///   - not_audited: the audit entry could not be written (Record refuses it, for example when the command has no ActingUser), so nothing
+///     was written (Ok 0);
 ///   - unknown_command: a command class other than SetDemoMode (Ok 0);
 ///   - failed: an error was thrown, or the value could not be saved (Ok 0).
 /// A written value applies to other processes when their 60-second Setting cache entries expire.
@@ -53,7 +55,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set key = ##class(OcuTalon.Install.Step.Demo).#MODEKEY
 	Set value = $Select(command.DemoMode: "1", 1: "0")
 	Set word = $Select(command.DemoMode: "on", 1: "off")
-	Set sc = ..WriteAudit(..AuditData(command, key, value), "Demo mode set to "_word)
+	Set sc = ..WriteAudit(..AuditData(command, key, ..Stored(key), value))
 	If $$$ISERR(sc) {
 		Set text = $SYSTEM.Status.GetErrorText(sc)
 		$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
@@ -74,19 +76,34 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Quit ..Result(1, word, $Select(word = "on": ..#MESSAGEON, 1: ..#MESSAGEOFF))
 }
 
-/// The audit event data of the command, passed through the redactor: user is the command's ActingUser (the key is never
-/// username, which the redactor treats as sensitive), and channel is where the command came from.
-ClassMethod AuditData(command As OcuTalon.Msg.Command.SetDemoMode, key As %String, value As %String) As %DynamicObject [ Private ]
+/// The audit event data of the command, in the shape of the Settings type (Bridge.Audit.Record): setting, from (the stored value before
+/// the write, "" when the row is absent), to, irisUser (the command's ActingUser), sessionRef (the command's, possibly empty) and channel
+/// (where the command came from; "" for an origin that is not in CHANNELS, which Record refuses). Every member is typed as a JSON string, as
+/// Record requires (a value such as "1" would otherwise become a number). Record redacts and describes it.
+ClassMethod AuditData(command As OcuTalon.Msg.Command.SetDemoMode, key As %String, from As %String, to As %String) As %DynamicObject [ Private ]
 {
 	Set channel = $Piece($Piece(","_..#CHANNELS, ","_command.Origin_":", 2), ",", 1)
-	Set data = {"user": (command.ActingUser), "sessionRef": (command.SessionRef), "channel": (channel), "origin": (command.Origin), "setting": (key), "value": (value)}
-	Quit {}.%FromJSON(##class(OcuTalon.Bridge.Redact).Text(data.%ToJSON()))
+	Set data = {}
+	Do data.%Set("setting", key, "string")
+	Do data.%Set("from", from, "string")
+	Do data.%Set("to", to, "string")
+	Do data.%Set("irisUser", command.ActingUser, "string")
+	Do data.%Set("sessionRef", command.SessionRef, "string")
+	Do data.%Set("channel", channel, "string")
+	Quit data
 }
 
-/// The one audit write of the class: an entry of type Settings. A test subclass overrides it.
-Method WriteAudit(data As %DynamicObject, description As %String) As %Status [ Private ]
+/// The value stored for the key right now, read from its row and never from the per-process cache, or "" when the row is absent.
+ClassMethod Stored(key As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Bridge.Audit).Write("Settings", data, description)
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Quit $Select($IsObject(row): row.Value, 1: "")
+}
+
+/// The one audit write of the class: an entry of type Settings, through the one writer of product code. A test subclass overrides it.
+Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
 }
 
 /// The guarded write: the value of the key, only when the key is on ALLOWLIST; any other key is an error status and no row is

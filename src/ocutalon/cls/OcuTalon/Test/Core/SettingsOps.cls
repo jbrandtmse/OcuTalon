@@ -3,7 +3,10 @@
 /// or removed. The real switch is the job of docker/tests/test-demo-switch.sh. Every text is written out here, never read
 /// from SettingsOps.
 ///   - TestSwitch: a SetDemoMode of 0 or 1 audits first, writes the value, and runs the step after the write; the answer is
-///     on or off with its text, and the audit data holds the user, the SessionRef, the channel, the origin, the setting and the value;
+///     on or off with its text, and the audit data has exactly the members of the Settings shape: setting, from (the row's value before the
+///     write), to, irisUser, sessionRef and channel;
+///   - TestFromAbsentRow: with no demo.mode row the entry's from is an empty string (still a member of the entry);
+///   - TestFromIgnoresCache: from is the stored value even when this process holds an older value in its Setting cache;
 ///   - TestKept: a step that kept a foreign OCUORDERS answers off_kept with the note's how sentence;
 ///   - TestStepFails: a failed step answers step_failed with the error sentence, the value stays written, and the failure is
 ///     logged as an error;
@@ -13,7 +16,9 @@
 ///     logged as an error;
 ///   - TestKeptOnlyForOff: a demoKept mark does not turn an on switch into off_kept;
 ///   - TestWarningsTaken: the step's warnings are taken, so none is left for the next step, and are logged;
-///   - TestAuditRedacted: the audit data passes the redactor;
+///   - TestAuditAccepted: with the real Bridge.Audit.Record behind the seam (it writes a real Settings entry, so it needs the audit events
+///     that the installer enables, like Test.Bridge.Audit), a switch is carried out for a user and answers not_audited, writing nothing,
+///     for a command with no ActingUser or an unknown origin. Record's redaction of the entry is read back by Test.Bridge.Audit;
 ///   - TestOtherCommand: a command other than SetDemoMode answers unknown_command and writes nothing;
 ///   - TestStepThrows: an error thrown by the step is the step's error status and answers step_failed;
 ///   - TestThrown: an error thrown elsewhere inside answers failed and is logged once as an error;
@@ -27,6 +32,9 @@ Class OcuTalon.Test.Core.SettingsOps Extends %UnitTest.TestCase
 
 /// The probe under test.
 Parameter PROBE = "OcuTalon.Test.Core.SettingsOpsProbe";
+
+/// A 22-character Ref for the command's SessionRef.
+Parameter REF = "zzsession0123456789abc";
 
 /// The step, whose parameters name the setting and the mark.
 Parameter STEP = "OcuTalon.Install.Step.Demo";
@@ -72,7 +80,7 @@ Method TestSwitch()
 		Set label = outcome_" from "_origin
 		Do ..Reset()
 		Do ##class(OcuTalon.Test.Demo.Step).Put($Select(mode: "0", 1: "1"), "2000-01-01T00:00:00Z")
-		Set result = ..Send(mode, origin, "zzadmin", "zzsession")
+		Set result = ..Send(mode, origin, "zzadmin", ..#REF)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|"_outcome, label_": carried out")
 		Do $$$AssertEquals(result.Message, $Select(mode: on, 1: off), label_": the text")
 		Set written = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
@@ -83,16 +91,51 @@ Method TestSwitch()
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 2)), "step", label_": the step came second")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "seen")), 'mode, label_": the audit saw the old value, so the write came after it")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 2, "seen")), mode, label_": the step saw the new value")
-		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "description")), "Demo mode set to "_outcome, label_": the audit description")
 		Set data = {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data")))
-		Do $$$AssertEquals(data.user, "zzadmin", label_": the audit names the acting user")
-		Do $$$AssertEquals(data.sessionRef, "zzsession", label_": the audit has the SessionRef")
+		Do $$$AssertEquals(data.irisUser, "zzadmin", label_": the audit names the acting user")
+		Do $$$AssertEquals(data.sessionRef, ..#REF, label_": the audit has the SessionRef")
 		Do $$$AssertEquals(data.channel, channel, label_": the audit has the channel")
-		Do $$$AssertEquals(data.origin, origin, label_": the audit has the origin")
 		Do $$$AssertEquals(data.setting, "demo.mode", label_": the audit has the setting")
-		Do $$$AssertEquals(data.value, mode, label_": the audit has the value")
-		Do $$$AssertEquals(data.%Size(), 6, label_": and nothing else")
+		Do $$$AssertEquals(data.from, $Select(mode: "0", 1: "1"), label_": the audit has the value before the write")
+		Do $$$AssertEquals(data.to, mode, label_": the audit has the new value")
+		Do $$$AssertEquals(data.%Size(), 6, label_": and nothing else (irisUser, sessionRef, channel, setting, from and to)")
+		Set types = ""
+		For name = "setting", "from", "to", "irisUser", "sessionRef", "channel" Set types = types_$Select(types = "": "", 1: ",")_data.%GetTypeOf(name)
+		Do $$$AssertEquals(types, "string,string,string,string,string,string", label_": every member is a JSON string (Record requires it; from and to are digits)")
 	}
+}
+
+/// With no demo.mode row the audit's from is empty and the switch writes the row.
+Method TestFromAbsentRow()
+{
+	Do ..Reset()
+	Do ##class(OcuTalon.Test.Demo.Step).Remove()
+	Set result = ..Send(1, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|on", "no row: carried out")
+	Set data = {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data")))
+	Do $$$AssertEquals(data.%GetTypeOf("from"), "string", "the audit's from is a string member")
+	Do $$$AssertEquals(data.%Get("from"), "", "the audit's from is empty")
+	Do $$$AssertEquals(data.%Size(), 6, "and the entry still has all six members")
+	Do $$$AssertEquals(data.to, "1", "and its to is the new value")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode").Value, "1", "the row is written")
+}
+
+/// The audit's from is the row's stored value, not the per-process Setting cache's: with an older value cached in this process, from is
+/// the one the row holds.
+Method TestFromIgnoresCache()
+{
+	Do ..Reset()
+	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("demo.mode"), "1", "the cache holds 1")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Set row.Value = "0"
+	Do $$$AssertStatusOK(row.%Save(), "the row is changed behind the cache")
+	Kill row
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("demo.mode"), "1", "and the cache still says 1")
+	Set result = ..Send(1, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Outcome, "on", "the switch is carried out")
+	Set data = {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data")))
+	Do $$$AssertEquals(data.from, "0", "the audit's from is the row's value, not the cached one")
 }
 
 /// A step that kept a foreign OCUORDERS: Ok 1, off_kept, and the text is the note's how sentence between the fixed words.
@@ -185,17 +228,32 @@ Method TestWarningsTaken()
 	Do $$$AssertEquals(..Logged("zz warning"), logged0 + 1, "the warning was logged once")
 }
 
-/// The audit data passes the redactor: a key-shaped acting user is not in the entry. The user key itself is not redacted.
-Method TestAuditRedacted()
+/// With the real Bridge.Audit.Record behind the seam: the data is an entry that Record accepts, so the switch is carried out, also with no
+/// row (from is an empty string). A command with no ActingUser, and one from an origin without a channel, are refused by Record:
+/// not_audited, and the row is as it was.
+Method TestAuditAccepted()
 {
 	Do ..Reset()
-	Set secret = "sk-" _ "ant-api03-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
-	Set result = ..Send(1, "system", secret, "zzsession")
-	Do $$$AssertEquals(result.Outcome, "on", "the switch is carried out")
-	Set json = $Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data"))
-	Do $$$AssertTrue(json '[ "zzzzzzzz", "the key is not in the audit data")
-	Do $$$AssertEquals({}.%FromJSON(json).user, "[redacted]", "the user is redacted")
-	Do $$$AssertEquals({}.%FromJSON(json).sessionRef, "zzsession", "and the rest is as it was")
+	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set result = ..Send(0, "system", "zzadmin", ..#REF)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|off", "Record accepts the entry and the switch is carried out")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, "and the step ran after it")
+	Do ..Reset()
+	Do ##class(OcuTalon.Test.Demo.Step).Remove()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set result = ..Send(1, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|on", "with no row Record accepts the entry too (from is an empty string)")
+	For case = "no user|system|", "no channel|nowhere|zzadmin" {
+		Do ..Reset()
+		Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
+		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+		Set result = ..Send(0, $Piece(case, "|", 2), $Piece(case, "|", 3), "")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", $Piece(case, "|", 1)_": Record refuses the entry, so not_audited")
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+		Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", $Piece(case, "|", 1)_": the row is as it was")
+		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, $Piece(case, "|", 1)_": the step did not run")
+	}
 }
 
 /// An audit that fails: Ok 0, not_audited, the row is as it was and the step did not run.
