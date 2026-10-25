@@ -9,3 +9,7 @@
 2026-10-25T17:36:47Z	Epic 16	sprint_planning_complete	gate=PASS in_sync=true epics=33 stories=185 warnings=title_headings_only model=claude-opus-5-5
 2026-10-25T17:36:47Z	Epic 16	retro_review_skipped	reason=no_story_x0_input_assigned_skip ledger_burndown_or_none_or_earlier_owned=0 open_action_items=3_owner_held(epic-32-retro-item-1,epic-1-retro-item-3,epic-2-retro-item-4) gates.retrospective=skip
 2026-10-25T17:43:27Z	Epic 16	epic_context_compiled	reason=initial model=claude-opus-4-8 words=2240
+2026-10-25T17:45:15Z	Epic 16	report_error	fault=lead field=epic_context_compiled.model reported=claude-opus-4-8 actual=claude-opus-5-5 impact=none
+2026-10-25T17:45:15Z	Epic 16	ci_resolved	story=epic-start sha=5009033 runs=40217003289,40217003283 result=success failed=none via=none resolved_at=epic_start
+2026-10-25T17:45:15Z	Epic 16	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON from=d56344d bridge=45 ocutalon=315 compile=CompilePackage(OcuTalon,ck-d) errors=0 leftovers_from=epic-8,epic-13
+2026-10-25T17:45:15Z	Story 16.1	stage_spawned	stage=plan spawn_at=2026-10-25T17:45:15Z model=claude-opus-5-5 agent_name=16-1-plan-1 cycle_iteration=1
