@@ -2047,7 +2047,8 @@ So that my own risky tools never run without a yes.
 **Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
 **When** they run
 **Then** the risky test tool never runs without an approved request, and a rejected or expired request runs nothing (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: "an approved request runs the call exactly once" moved to Story 30.3]
-- DW-187: Approval.Raise inside an open transaction fails closed, because the hold's job cannot see the uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25)
+- DW-187: Approval.Raise inside an open transaction: its ApprovalStartIn ProcessInput commits every open transaction level of the caller, and the hold's job cannot see an uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25, effect corrected by 3.4's review)
+- DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which replaces the job's session and current header ids; from the runner's job the gate's later event-log rows would lose their session; restore them after the call, or start the hold another way (ledger; routed by cr 2026-10-25)
 
 ### Story 3.7: Every action and governance event is in the IRIS audit log
 

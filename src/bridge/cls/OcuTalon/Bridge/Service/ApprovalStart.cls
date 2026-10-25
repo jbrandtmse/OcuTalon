@@ -1,7 +1,8 @@
 /// ApprovalStartIn, the adapterless service through which any job starts the hold of one approval request (AD-11): the gate's
 /// %CanExecute through Approval.Raise (synchronously), IncidentManager, and the Reconcile step through Approval.Reconcile. It takes an
 /// OcuTalon.Bridge.Msg.ApprovalStart and sends it to ApprovalHold with a time limit of Approval STARTSECONDS. The hold answers once it has
-/// sent its Workflow task and set its timer, so the call returns while the hold keeps waiting. The hold joins the session and SuperSession
+/// sent its Workflow task and set its timer, so the call returns while the hold keeps waiting. A hold that gives no answer within the time
+/// limit is an error (the framework's own timeout is OK with no response), so OK means held. The hold joins the session and SuperSession
 /// that the message carries (AD-26); the service base clears both before OnProcessInput, so they are set there.
 Class OcuTalon.Bridge.Service.ApprovalStart Extends Ens.BusinessService
 {
@@ -14,7 +15,11 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	}
 	If pInput.SessionId > 0 Set ..%SessionId = pInput.SessionId
 	Set ..%SuperSession = pInput.SuperSession
-	Quit ..SendRequestSync(##class(OcuTalon.Bridge.Approval).#HOLDITEM, pInput, .pOutput, ##class(OcuTalon.Bridge.Approval).#STARTSECONDS)
+	Set sc = ..SendRequestSync(##class(OcuTalon.Bridge.Approval).#HOLDITEM, pInput, .pOutput, ##class(OcuTalon.Bridge.Approval).#STARTSECONDS)
+	If $$$ISOK(sc) && '$IsObject(pOutput) {
+		Set sc = $SYSTEM.Status.Error(5001, "ApprovalStartIn: ApprovalHold did not answer the start of " _ pInput.Ref _ " within " _ ##class(OcuTalon.Bridge.Approval).#STARTSECONDS _ " seconds")
+	}
+	Quit sc
 }
 
 }

@@ -1,11 +1,12 @@
 /// Tests of Approval.Raise, the hold and its Reconcile (Story 3.4; AD-5, AD-11, AD-23, AD-26, AD-31). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI
-/// ONLY (Rule 21): it raises requests through the running production, completes Workflow tasks as OcuTalonWorkflow, disables ApprovalStartIn for
-/// a moment, restarts the production once, and writes a System Default Settings row of Decide's ApprovalRole. Each live test is guarded by
-/// RunnerFixture.ReadyReason. The tests make no IRIS user or role. Every Ref a test raised is tracked under ^OcuTalonTest("Approval","refs"):
+/// ONLY (Rule 21): it raises requests through the running production, completes Workflow tasks as OcuTalonWorkflow, disables ApprovalStartIn or
+/// ApprovalHold for a moment, restarts the production once, and writes a System Default Settings row of Decide's ApprovalRole. Each live test is
+/// guarded by RunnerFixture.ReadyReason. The tests make no IRIS user or role. Every Ref a test raised is tracked under ^OcuTalonTest("Approval","refs"):
 /// before and after each test, and so after a failed run too, each tracked request is ended (its open tasks are completed with Approve, as Story 3.5's
-/// Answer will do, and the test waits for its hold to end, so that no late response reaches a removed hold) and its row is deleted. A test never
-/// changes a row's State; rows 12 and 13 move a fixture row's RaisedAt and ExpiresAt directly. The settings row, the item state and the Workflow
-/// objects that a test changed are put back.
+/// Answer will do, and the test waits for its hold to end, so that no late response reaches a removed hold) and its row is deleted; the same cleanup
+/// enables the two items again, releases the lock job of TestLockHeld and deletes the fixture Workflow role of TestReconcileCancelsOnlyOrphans and its
+/// task. Rows 12 and 13 move a fixture row's RaisedAt and ExpiresAt directly, and the Reconcile tests settle a fixture row (State approved), as
+/// Story 3.5 will; no other test changes a row. The settings row, the item state and the Workflow objects that a test changed are put back.
 ///   - TestRaiseToolCall (rows 3 and 5): a tool_call request gives one pending row with the given fields, RequiredRole OcuTalonUser, RaisedAt now
 ///     and ExpiresAt exactly 24 hours later, a 22-character base64url Ref, and no other field; the three messages of the hold share one new
 ///     session whose SuperSession is the TraceRef; the sink got one approval.raised, with the OwnerRef and {"ref"}, at transaction level 0 and
@@ -13,17 +14,26 @@
 ///     in OcuTalonApprovals unassigned with one worklist item for OcuTalonWorkflow; the timer asks 86,395 to 86,400 seconds and ^Ens.Alarm holds it;
 ///     one ApprovalHold waits for exactly the keys task and expiry;
 ///   - TestRaiseFix (row 4): the same for a fix request, with DryRun, IncidentRef and ResultTarget kept and the tool fields empty;
+///   - TestOwnerRefKinds: a request owned by the literal instance or eval (AD-2) is held and keeps its OwnerRef;
 ///   - TestCallerSession (row 6): the hold's messages are in the caller's session and SuperSession, from a bridge context and from Raise's arguments;
-///     an argument wins over the context's value, and each of the two is resolved on its own;
+///     an argument wins over the context's value, and each of the two is resolved on its own (only a session, only a SuperSession);
 ///   - TestApprovalRole (row 7): RequiredRole is the ApprovalRole setting; an empty setting refuses Raise, which creates nothing;
 ///   - TestRefused (row 8): every refusal names its field, leaves ref empty, and makes no row, no hold and no sink call;
 ///   - TestLockHeld (row 9): a lock that another job holds gives an error that names it after about two seconds, and nothing is created;
 ///   - TestStartFails (row 10): with ApprovalStartIn disabled, Raise returns the director's error and nothing is left;
+///   - TestStartTimesOut (row 10, a timeout): with ApprovalHold disabled, Raise returns ApprovalStartIn's timeout after about STARTSECONDS and
+///     nothing is left; once the item is enabled again the hold takes the late start, refuses it and holds nothing;
 ///   - TestRestartKeepsTheHold (row 11): after a production restart and the Reconcile step the same hold, task and timer remain, nothing new starts,
 ///     and completing the task ends that hold;
 ///   - TestReconcileReArms (row 12): a hold that is gone gets a new one in a new session tagged with the TraceRef, timed from the row's ExpiresAt,
 ///     its orphaned task is discarded, the new task reaches the new hold, and a second Reconcile changes nothing;
 ///   - TestReconcilePastExpiry (row 13): a row past its expiry gets a hold whose timer asks 1 second, which ends the hold and its task;
+///   - TestReconcileLeavesSettledRows: a request whose row is no longer pending gets no hold, its orphaned task is still discarded, and a start
+///     of it is refused by the hold;
+///   - TestReconcileCancelsOnlyOrphans: Reconcile leaves an answered task and an open task of another Workflow role alone, and discards the task
+///     of a live hold whose row is no longer pending;
+///   - TestReconcileTriesEveryRow: with ApprovalStartIn disabled Reconcile's one error names every Ref and the orphaned tasks are still
+///     discarded; once the item is enabled again, Reconcile re-arms every request (QA);
 ///   - TestHoldIsFrozen (row 14): ApprovalHold stores exactly Ref and declares exactly OnRequest and OnResponse, each one line that calls Approval.
 Class OcuTalon.Test.Bridge.Approval Extends %UnitTest.TestCase
 {
@@ -42,6 +52,9 @@ Property Saved As %List;
 
 /// 1 while the test has ApprovalStartIn disabled.
 Property Disabled As %Boolean [ InitialExpression = 0 ];
+
+/// 1 while the test has ApprovalHold disabled.
+Property HoldDisabled As %Boolean [ InitialExpression = 0 ];
 
 Method OnBeforeAllTests() As %Status
 {
@@ -72,6 +85,10 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If ..Disabled {
 		Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalStartIn", 1), "ApprovalStartIn is enabled again")
 		Set ..Disabled = 0
+	}
+	If ..HoldDisabled {
+		Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalHold", 1), "ApprovalHold is enabled again")
+		Set ..HoldDisabled = 0
 	}
 	Do ..Clean()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..Saved), "the ApprovalRole row is put back")
@@ -217,6 +234,29 @@ Method TestCallerSession()
 	Set sc = ..RaiseInContext(sixth, .ref6, session, super, session2, "")
 	Do $$$AssertStatusOK(sc, "(d) Raise in the context with only a session is OK")
 	Do ..AssertJoined(ref6, session2, super, "(d)")
+
+	// (e) a context and only the SuperSession: the session is the context's
+	Set seventh = ..NewRow("tool_call")
+	Set super4 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ..RaiseInContext(seventh, .ref7, session, super, "", super4)
+	Do $$$AssertStatusOK(sc, "(e) Raise in the context with only a SuperSession is OK")
+	Do ..AssertJoined(ref7, session, super4, "(e)")
+}
+
+/// An OwnerRef may be the literal instance or eval (AD-2): Raise holds such a request, keeps the OwnerRef and tells the sink.
+Method TestOwnerRefKinds()
+{
+	If '..Ready() Quit
+	For owner = "instance", "eval" {
+		Set row = ..NewRow($Select(owner = "instance": "tool_call", 1: "fix"))
+		Set row.OwnerRef = owner
+		Kill ^||ZzProbeSink
+		Do $$$AssertStatusOK(..Raise(row, .ref), "Raise of a request owned by "_owner_" is OK")
+		Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+		Do $$$AssertEquals($Select($IsObject(saved): saved.OwnerRef, 1: "<no row>"), owner, "its row keeps the OwnerRef "_owner)
+		Do ..AssertSink(ref, owner, owner_": the sink")
+		Do $$$AssertTrue(..WaitTask(ref, 10) '= "", owner_": the request is held")
+	}
 }
 
 /// Raises the request inside a bridge context of the session and the SuperSession, with Raise's own session arguments, and ends the context.
@@ -359,6 +399,37 @@ Method TestStartFails()
 	Set ..Disabled = 0
 }
 
+/// Row 10, a timeout: with ApprovalHold disabled the start waits in its queue, so Raise returns ApprovalStartIn's timeout after about
+/// STARTSECONDS, and no row, live hold or sink call is left. Once the item is enabled again, the hold takes the late start, refuses it
+/// (there is no row) and holds nothing.
+Method TestStartTimesOut()
+{
+	If '..Ready() Quit
+	Set rowsBefore = ..RowCount()
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Kill ^||ZzProbeSink
+	Set ..HoldDisabled = 1
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalHold", 0), "ApprovalHold is disabled")
+	Set row = ..NewRow("tool_call")
+	Set begun = $ZHorolog
+	Set sc = ..Raise(row, .ref)
+	Set waited = $ZHorolog - begun
+	Do $$$AssertStatusNotOK(sc, "Raise fails")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "did not answer", "with ApprovalStartIn's timeout: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertTrue((waited >= 9) && (waited < 30), "after about STARTSECONDS: "_waited)
+	Do $$$AssertEquals(ref, "", "ref is empty")
+	Do $$$AssertEquals(..RowCount(), rowsBefore, "no row is left")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and the sink got no call")
+	Set late = ..StartRef(mark)
+	Do $$$AssertTrue(late '= "", "the start waits in ApprovalHold's queue: "_late)
+	If late '= "" Set ^OcuTalonTest("Approval", "refs", late) = ""
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalHold", 1), "ApprovalHold is enabled again")
+	Set ..HoldDisabled = 0
+	Do $$$AssertEquals(..WaitStartDone(mark, 15), 1, "the hold takes the late start")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(late), "", "and holds nothing: no hold is live")
+	Do $$$AssertEquals(..TaskCount(late), 0, "and no task was sent")
+}
+
 /// Row 11: the production restarts and the Reconcile step runs; the hold, its task and its timer are the same, and the answer reaches it.
 Method TestRestartKeepsTheHold()
 {
@@ -392,10 +463,12 @@ Method TestReconcileReArms()
 {
 	If '..Ready() Quit
 	Set row = ..NewRow("tool_call")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Do $$$AssertStatusOK(..Raise(row, .ref), "Raise is OK")
+	Set firstSession = ..HoldMessages(mark, ref).session
 	Set oldTask = ..WaitTask(ref, 10)
 	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
-	Do $$$AssertTrue((oldTask '= "") && (oldHold '= ""), "the first hold and its task exist")
+	Do $$$AssertTrue((oldTask '= "") && (oldHold '= "") && (firstSession '= ""), "the first hold, its session and its task exist")
 	Do ..Age(ref, 82800, 3600)
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(ref), "", "no hold is live")
@@ -405,12 +478,13 @@ Method TestReconcileReArms()
 	Do $$$AssertEquals(old.%TaskStatus.IsComplete_"|"_..WorklistUsers(oldTask), "1|", "the orphaned task is discarded: it is complete and has no worklist item")
 	Set newHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
 	Do $$$AssertTrue((newHold '= "") && (newHold '= oldHold), "a new ApprovalHold is live: "_newHold)
+	Do $$$AssertEquals(..HoldCount(ref), 1, "and it is the only ApprovalHold with the Ref")
 	Set newTask = ..WaitTask(ref, 10)
 	Do $$$AssertTrue((newTask '= "") && (newTask '= oldTask), "with a new open task: "_newTask)
 	Set hold = ##class(OcuTalon.Bridge.Process.ApprovalHold).%OpenId(newHold)
 	If $IsObject(hold) {
 		Do $$$AssertEquals(hold.%SuperSession, row.TraceRef, "its SuperSession is the TraceRef")
-		Do $$$AssertTrue(hold.%SessionId > 0, "in a session of its own: "_hold.%SessionId)
+		Do $$$AssertTrue((hold.%SessionId > 0) && (hold.%SessionId '= firstSession), "in a new session of its own: "_hold.%SessionId_", not "_firstSession)
 		Do $$$AssertEquals(..Keys(hold), "expiry,task", "it waits for the keys task and expiry")
 		Set seconds = ..TimerSeconds(hold.%SessionId)
 		Do $$$AssertTrue((seconds >= 3595) && (seconds <= 3600), "its timer asks 3,595 to 3,600 seconds: "_seconds)
@@ -455,6 +529,96 @@ Method TestReconcilePastExpiry()
 	While $ListNext(taskId, position, id) {
 		Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(id)
 		Do $$$AssertEquals(task.%TaskStatus.IsComplete_"|"_..WorklistUsers(id), "1|", "task "_id_" is complete and has no worklist item")
+	}
+}
+
+/// Reconcile re-arms only a pending request: a request whose row is no longer pending gets no hold, and its orphaned task is still discarded.
+Method TestReconcileLeavesSettledRows()
+{
+	If '..Ready() Quit
+	Set row = ..NewRow("tool_call")
+	Do $$$AssertStatusOK(..Raise(row, .ref), "Raise is OK")
+	Set oldTask = ..WaitTask(ref, 10)
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do $$$AssertTrue((oldTask '= "") && (oldHold '= ""), "the hold and its task exist")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is deleted")
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set saved.State = "approved"
+	Do $$$AssertStatusOK(saved.%Save(), "the row is settled (approved), as Story 3.5's Answer will leave it")
+
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step runs")
+	Set old = ##class(EnsLib.Workflow.TaskResponse).%OpenId(oldTask)
+	Do $$$AssertEquals(old.%TaskStatus.IsComplete_"|"_..WorklistUsers(oldTask), "1|", "the orphaned task is discarded")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(ref), "", "no hold is live for the settled request")
+	Do $$$AssertEquals(..StartsSince(mark), 0, "no hold was started")
+	Do $$$AssertEquals(..HoldCount(ref), 0, "no ApprovalHold instance has the Ref")
+	Do $$$AssertEquals(..OpenTasks(ref), "", "and the request has no open task")
+	Set sc = ##class(OcuTalon.Bridge.Approval).StartHold(ref)
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ (ref_" is approved, not pending"), "a start of the settled request is refused by the hold: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(ref)_"|"_..OpenTasks(ref), "|", "and holds nothing")
+}
+
+/// Reconcile cancels only orphaned tasks of its own role: an answered task keeps its status and completion time, an open task of another
+/// Workflow role stays open, and the task of a live hold whose row is no longer pending is discarded.
+Method TestReconcileCancelsOnlyOrphans()
+{
+	If '..Ready() Quit
+	Set answered = ..NewRow("tool_call")
+	Do $$$AssertStatusOK(..Raise(answered, .ref1), "the first request is raised")
+	Set task1 = ..WaitTask(ref1, 10)
+	Do $$$AssertStatusOK(..Complete(task1), "its task is answered")
+	Do $$$AssertEquals(..WaitHoldGone(ref1, 15), 1, "and its hold ends")
+	Do $$$AssertStatusOK(..Settle(ref1), "its row is settled")
+	Set before1 = ..TaskState(task1)
+	Set held = ..NewRow("tool_call")
+	Do $$$AssertStatusOK(..Raise(held, .ref2), "the second request is raised")
+	Set task2 = ..WaitTask(ref2, 10)
+	Set hold2 = ##class(OcuTalon.Bridge.Approval).LiveHold(ref2)
+	Do $$$AssertTrue((task2 '= "") && (hold2 '= ""), "its hold and task exist")
+	Do $$$AssertStatusOK(..Settle(ref2), "its row is settled while its hold is live")
+	Set other = ..OtherRoleTask()
+	Do $$$AssertTrue(other '= "", "an open task of another Workflow role exists")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
+	Do $$$AssertEquals(..TaskState(task1), before1, "the answered task keeps its status and completion time")
+	Do $$$AssertEquals(..TaskState(other), "|0||", "the other role's task is still open")
+	Set state2 = ..TaskState(task2)
+	Do $$$AssertEquals($Piece(state2, "|", 2)_"|"_$Piece(state2, "|", 4), "1|", "the task of the live hold of a settled row is discarded: "_state2)
+	Do ##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(hold2)
+	Do ..RemoveOther()
+}
+
+/// Reconcile tries every task and every row, even when a start fails: with ApprovalStartIn disabled it returns one error that names each Ref,
+/// still discards the orphaned tasks, and a run once the item is enabled again re-arms both requests.
+Method TestReconcileTriesEveryRow()
+{
+	If '..Ready() Quit
+	For number = 1:1:2 {
+		Set row = ..NewRow("tool_call")
+		Do $$$AssertStatusOK(..Raise(row, .ref), "request "_number_" is raised")
+		Set refs(number) = ref
+		Set task(number) = ..WaitTask(ref, 10)
+		Set holdId = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+		Do $$$AssertTrue((task(number) '= "") && (holdId '= ""), "request "_number_" has a hold and a task")
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(holdId), "its hold instance is deleted")
+	}
+	Set ..Disabled = 1
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalStartIn", 0), "ApprovalStartIn is disabled")
+	Set sc = ##class(OcuTalon.Bridge.Approval).Reconcile()
+	Do $$$AssertStatusNotOK(sc, "Reconcile reports the failed starts")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue((text [ refs(1)) && (text [ refs(2)), "its one error names both Refs: "_text)
+	For number = 1:1:2 {
+		Do $$$AssertEquals(..OpenTasks(refs(number)), "", "the orphaned task of request "_number_" is discarded in spite of the failure")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(refs(number)), "", "request "_number_" has no hold yet")
+	}
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("ApprovalStartIn", 1), "ApprovalStartIn is enabled again")
+	Set ..Disabled = 0
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile is OK now")
+	For number = 1:1:2 {
+		Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).LiveHold(refs(number)) '= "", "request "_number_" has a live hold again")
+		Do $$$AssertTrue(..WaitTask(refs(number), 10) '= "", "and an open task")
 	}
 }
 
@@ -838,16 +1002,111 @@ ClassMethod StartsSince(mark As %Integer) As %Integer [ Private ]
 	Quit result.%GetData(1)
 }
 
-/// Ends every request that a test tracked, also those a failed earlier run left: each is ended and its row deleted.
+/// The Ref of the first ApprovalStart message sent after the header mark, or "".
+ClassMethod StartRef(mark As %Integer) As %String [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalStart' ORDER BY ID", mark)
+	If 'result.%Next() Quit ""
+	Set body = ##class(OcuTalon.Bridge.Msg.ApprovalStart).%OpenId(result.%GetData(1))
+	Quit $Select($IsObject(body): body.Ref, 1: "")
+}
+
+/// 1 once ApprovalHold has handled the first ApprovalStart message sent after the header mark (its status is past created, queued and
+/// delivered; polled up to the seconds), otherwise 0.
+ClassMethod WaitStartDone(mark As %Integer, seconds As %Integer) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Status FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalStart' ORDER BY ID", mark)
+		Set status = $Select(result.%Next(): result.%GetData(1), 1: "")
+		Set done = (status '= "") && '$ListFind($ListBuild(1, 2, 3), status)
+		If done || ($ZHorolog >= deadline) Quit
+		Hang 0.1
+	}
+	Quit done
+}
+
+/// Settles the fixture row of the Ref (State approved), as Story 3.5's Answer will leave it.
+ClassMethod Settle(ref As %String) As %Status [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit $SYSTEM.Status.Error(5001, "no row has the Ref "_ref)
+	Set row.State = "approved"
+	Quit row.%Save()
+}
+
+/// "<%Status>|<IsComplete>|<TimeCompleted>|<worklist users>" of the task, read again from the database.
+ClassMethod TaskState(taskId As %String) As %String [ Private ]
+{
+	Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(taskId)
+	If '$IsObject(task) Quit "<none>"
+	Quit task.%Status_"|"_task.%TaskStatus.IsComplete_"|"_task.%TaskStatus.TimeCompleted_"|"_..WorklistUsers(taskId)
+}
+
+/// Makes an open task of the fixture Workflow role ZzApprovalOther<n>, which no hold sent, and tracks the role and the task for the cleanup.
+/// Returns the task's id, or "".
+Method OtherRoleTask() As %String [ Private ]
+{
+	Set role = "ZzApprovalOther"_..Number
+	Set ^OcuTalonTest("Approval", "other", role) = ""
+	If '##class(EnsLib.Workflow.RoleDefinition).%ExistsId(role) && $$$ISERR(##class(EnsLib.Workflow.RoleDefinition).CreateRole(role)) Quit ""
+	Set request = ##class(EnsLib.Workflow.TaskRequest).%New()
+	Set request.%Subject = role_" task"
+	If $$$ISERR(request.%Save()) Quit ""
+	Set task = ##class(EnsLib.Workflow.TaskResponse).%New()
+	Set task.%Subject = request.%Subject
+	Set task.%TaskStatus.Role = ##class(EnsLib.Workflow.RoleDefinition).%OpenId(role)
+	Set task.%TaskStatus.Request = request
+	If $$$ISERR(task.%Save()) Quit ""
+	Set ^OcuTalonTest("Approval", "other", role, task.%Id()) = request.%Id()
+	Quit task.%Id()
+}
+
+/// Deletes the fixture Workflow roles of OtherRoleTask and their tasks, also those a failed earlier run left.
+ClassMethod RemoveOther() [ Private ]
+{
+	Set role = ""
+	For {
+		Set role = $Order(^OcuTalonTest("Approval", "other", role))
+		Quit:role=""
+		Set taskId = ""
+		For {
+			Set taskId = $Order(^OcuTalonTest("Approval", "other", role, taskId), 1, requestId)
+			Quit:taskId=""
+			Do ##class(EnsLib.Workflow.TaskResponse).%DeleteId(taskId)
+			Do ##class(EnsLib.Workflow.TaskRequest).%DeleteId(requestId)
+		}
+		Do ##class(EnsLib.Workflow.RoleDefinition).%DeleteId(role)
+	}
+	Kill ^OcuTalonTest("Approval", "other")
+}
+
+/// Ends every request that a test tracked, also those a failed earlier run left: it enables ApprovalStartIn and ApprovalHold again if a
+/// killed run left one disabled, releases a lock job that still holds the lock, ends each request and deletes its row, and deletes the
+/// fixture Workflow roles.
 ClassMethod Clean() [ Private ]
 {
+	For item = "ApprovalStartIn", "ApprovalHold" {
+		Set status = $$$OK
+		If '##class(Ens.Director).IsItemEnabled(item, .status) && $$$ISOK(status) Do ##class(Ens.Director).EnableConfigItem(item, 1)
+	}
+	Set number = ""
+	For {
+		Set number = $Order(^OcuTalonTest("Approval", "job", number))
+		Quit:number=""
+		If $Get(^OcuTalonTest("Approval", "job", number, "locked")) && '$Get(^OcuTalonTest("Approval", "job", number, "done")) {
+			Set ^OcuTalonTest("Approval", "job", number, "release") = 1
+			Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), 20)
+		}
+	}
+	Kill ^OcuTalonTest("Approval", "job")
 	Set ref = ""
 	For {
 		Set ref = $Order(^OcuTalonTest("Approval", "refs", ref))
 		Quit:ref=""
 		Do ..Remove(ref)
 	}
-	Kill ^OcuTalonTest("Approval", "job")
+	Do ..RemoveOther()
 }
 
 /// Ends the hold of the Ref by completing its open tasks, waits for it to end (a hold that is still live without an open task is deleted),

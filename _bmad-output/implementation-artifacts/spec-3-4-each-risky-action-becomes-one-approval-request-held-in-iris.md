@@ -241,9 +241,47 @@ Terms used in the table:
 - Given the stubs that Stories 3.5 and 3.6 build, when `Test.Bridge.Api` runs, then `Answer` still answers `not_found`, and `Expire`, `Cancel`, `StartExecution` and `FinishExecution` still say they are not implemented.
 - Given the fresh `shard lane-a`, `shard lane-b`, `live install-start`, `live install-upgrade`, `live audit`, `live production`, `live production-restart`, `live storage-roundtrip` and `live demo-path`, when they run, then every class and unit passes.
 
+### Review Findings
+
+Code review of 2026-10-24 (four layers, full tier; 38 raw rows, 15 entries after grouping: high 1, med 6, low 8; 16 rows rejected). Every patch below was applied in the review pass; the fresh `shard lane-a` passed afterwards (44 classes).
+
+- [x] [Review][Patch] **HIGH** -- a start that times out was reported as success: `Ens.Host.queueRequestSync` returns OK with no response on a timeout, so Raise kept the row, fired `approval.raised` and returned OK with no hold, and the queued start later held it. This broke Boundaries step 4, AC 2 ("a failed start creates nothing") and the Consistency Conventions row "Approval requests" ("OK means held"; Rule 6). ApprovalStartIn now returns an error when the hold gives no answer, so `SaveAndStart` deletes the row and the late start is refused by the hold. Pinned by the new `TestStartTimesOut` (blind+edge+auditor). Fix-risk: low (one guard on the documented framework behaviour). [src/bridge/cls/OcuTalon/Bridge/Service/ApprovalStart.cls:19]
+- [x] [Review][Patch] MED -- the OwnerRef literals `instance` and `eval` (AD-2) were accepted but never raised in a test, so a mutation that refused them stayed green. New `TestOwnerRefKinds` (verification-gap). Fix-risk: low. [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:247]
+- [x] [Review][Patch] MED -- nothing pinned what Reconcile's first pass must leave alone (an answered task, an open task of another Workflow role), or the "row is pending" branch of `OwnedByLiveHold` (a live hold whose row is settled). New `TestReconcileCancelsOnlyOrphans` (verification-gap). Fix-risk: low. [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:564]
+- [x] [Review][Patch] MED -- `TestCallerSession` had no case where only the SuperSession is passed inside a bridge context, so a coupled resolution passed. Case (e) added (verification-gap). Fix-risk: low. [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:238]
+- [x] [Review][Patch] MED -- the create path of the IRIS user `OcuTalonWorkflow` (login disabled, no roles) was never asserted; every assertion followed a Modify. `TestApprovalsWorkflowRepaired` (a) now also deletes the IRIS user, so the run recreates it (verification-gap). Fix-risk: low. [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls:722]
+- [x] [Review][Patch] LOW -- no test covered the hold's own refusal of a non-pending row. `TestReconcileLeavesSettledRows` now starts the settled request and asserts the refusal; `TestStartTimesOut` covers the missing row (blind). [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:558]
+- [x] [Review][Patch] LOW -- `Approval.Hold` returned a status with no `As %Status` (blind+auditor). [src/bridge/cls/OcuTalon/Bridge/Approval.cls:225]
+- [x] [Review][Patch] LOW -- the context lookup after the save ran outside `SaveAndStart`'s inner `Try`, so an error there would have kept the row; the `Try` now covers everything after the save (auditor). [src/bridge/cls/OcuTalon/Bridge/Approval.cls:88]
+- [x] [Review][Patch] LOW -- row 12 did not compare the re-armed hold's session with the first one, or count the holds with the Ref (auditor). [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:487]
+- [x] [Review][Patch] LOW -- a failed `TestLockHeld` left its job holding the lock for 60 s, because `Clean` killed the job's node without releasing it; `Clean` now releases it first (blind). [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:1097]
+- [x] [Review][Patch] LOW -- a killed run could leave ApprovalStartIn (or now ApprovalHold) disabled for later runs on a warm stack; `Clean` enables both again (verification-gap). [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:1091]
+- [x] [Review][Patch] LOW -- the class comment said a test never changes a row's State, but the Reconcile tests settle a fixture row (verification-gap). [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:9]
+- [x] [Review][Patch] LOW -- the `TestSecondsUntil` comment named bounds the assertions don't use and an assertion that isn't there (blind+verification-gap). [src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls:141]
+- [x] [Review][Defer] MED -- Raise inside an open transaction does not fail closed: `Ens.BusinessService.ProcessInput` TCommits every open level, so Raise silently commits the caller's transaction (blind+edge) [src/bridge/cls/OcuTalon/Bridge/Approval.cls:117] -- deferred: same root cause as DW-187 (routed to 3.6), occurrence appended with the corrected effect.
+- [x] [Review][Defer] MED -- `ProcessInput` in the caller's job kills `$$$JobSessionId` and replaces `$$$JobCurrentHeaderId`, so from a host job (3.6's gate, Epic 5's IncidentManager) the host's later event-log rows lose their session (edge) [src/bridge/cls/OcuTalon/Bridge/Approval.cls:117] -- deferred: DW-191, routed to 3-6 (no host-job caller before 3.6, whose Consumed-by line already asks it to check the runner's session after the call; `Core.Commands.Submit` shares the pattern).
+
+Rejected:
+- `false` Blind: a fix request can be raised with no `IncidentRef` and `DryRun` `{}` -- Boundaries define the fix checks; AD-11 says "IncidentRef when there is one" (AD-31's no-incident fix), and AD-16 lets later kinds add keys. The fix would edit the spec.
+- `false` Blind: the spec's Design Notes say the password is "rewritten at every start" -- the intent contract (Boundaries) says an existing user keeps its password, which the code does; the fix edits the spec (for the lead: lines 323 and 340 contradict Boundaries line 36).
+- `false` Blind: the Auto Run Result says "eleven tests" -- a spec edit.
+- `false` Blind: the Registry comment's reason for running the installer before `ClearWorkflow` -- `RemoveUserFromRole` also clears worklist items, which the SQL delete would skip; the comment is accurate.
+- `false` Blind: the order of the story notes in the `Test.Bridge.Contracts` header -- no named harm.
+- `false` Blind: cleanup completes leftover tasks with Approve -- the matrix defines completing a task that way, and AD-11's hold acts on a TaskResponse only when the row shows that answer.
+- `low` Blind: Reconcile skips a task whose TaskRequest cannot be opened -- needs a purge without KeepIntegrity; reporting it would fail every start.
+- `low` Blind / Edge: a late start after a Reconcile re-arm can make a second hold -- needs ApprovalHold stalled for over 10 s across two starts; a guard adds a branch.
+- `low` Edge: `OwnedByLiveHold`'s header query failing -- a plain select that nothing reachable fails.
+- `low` Edge: a live hold whose task was cancelled by hand is never re-armed -- no person is a Workflow user who could cancel it.
+- `low` Edge: a non-integer `sessionId` or a SuperSession over 64 characters -- fails closed (the message does not save) and leaves nothing.
+- `low` Edge: `SetUpApprovals` run alone in a non-Interoperability namespace throws -- only `Run()` is called by the product, and it checks the namespace.
+- `false` Verification gap: AC 5's storage checks have no `mutation:` line -- AC 5's pinning test is `TestHoldIsFrozen`, which has its lines; the storage checks are Epic 0's.
+- `false` Auditor: `OnRequest` does not store `Ref` itself -- "each one line" and AD-5 put the store in `Approval.Hold`; the intent holds.
+- `false` Auditor: the spec's password lines -- as above.
+
 ## Spec Change Log
 
 - 2026-10-25, lead spec gate: AD-11 is not amended. The plan's five points went into a new Consistency Conventions row "Approval requests" (Rule 20 light path): the `ApprovalRole` setting, the synchronous start and the failed Raise that leaves nothing, the caller's and the re-armed hold's sessions, the frozen hold, the installer's membership rule and the Workflow login's name hold, and where a request's targets and change live. The last one is the reading of AD-11's "fixed targets; exact change" against Epic 0's row contract (AD-33) and AD-16 ("FixExecutor loads kind, targets and change from the row ... the message list comes from the failure group"): no column is added in this story, and the first fix kind (Epic 7) writes its keys into `DryRun`. Ruled in the veto window: the IRIS user `OcuTalonWorkflow` (login disabled, no roles) and the membership-only rule (privileges and roles), and the stored-data additions (`Decide`'s `ApprovalRole` value 16, `ApprovalHold`'s `Ref`, the new `Msg.ApprovalStart`). All kept as planned.
+- 2026-10-25, lead after code review: the two Design Notes lines that said the Workflow login's password is "rewritten at every start" now match Boundaries and the code (the password is set at create and kept; Enabled 0, no roles and no escalation roles are restored at every start). The veto item's text repeated the old wording; a report item corrects it.
 
 ## Review Triage Log
 
@@ -320,7 +358,7 @@ No AC contradicts an AD's Rule.
 - **A failed Raise deletes its own row.** That row was never announced. The hold refuses a missing or non-pending row, so a late start after a timeout holds nothing. Reconcile's orphan rule also cancels a task whose row is not pending.
 - **The caller's session:** explicit arguments win (Epic 5's `IncidentManager` will pass its own), then the bridge context (Story 3.6's gate), then a new session tagged with `TraceRef`. A re-armed hold takes its own session with the tag, which is AD-26's waiter rule. The row stores no header id, and its first session may be purged.
 - **Membership is what the installer enforces.** Only members of `OcuTalonApprovals` get its tasks, and the hold never names a `%UserName`. So the installer removes every other member, but never deletes a Workflow user it did not make: in a developer's own namespace, other Workflow users may serve another production. A fresh install has no other Workflow user (row 1), and `Test.Install.Registry` `TestEveryRole` keeps checking the accounts.
-- **The Workflow login is an IRIS user with login disabled.** It holds the name, so that no account created later under that name can sign in to the Workflow inbox (`UserDefinition`: a Workflow user with no system user cannot sign in there). Every start rewrites it like `OcuTalonService`.
+- **The Workflow login is an IRIS user with login disabled.** It holds the name, so that no account created later under that name can sign in to the Workflow inbox (`UserDefinition`: a Workflow user with no system user cannot sign in there). Every start puts it back to Enabled 0 with no roles and no escalation roles; its password is set once, at create, and kept (Boundaries).
 - **`ApprovalRole` defaults to `OcuTalonUser` in the bridge**, as `ServiceUser` defaults to `OcuTalonService`. An empty value refuses Raise, which fails closed.
 - **The timer gets whole seconds, at least 1**, because `Ens.Util.Time.SecondsUntil` reads a `Z` timestamp as local time. A past expiry fires at once, and Story 3.5's handler expires the row. Until then, such a row stays pending and is re-armed at each start. No release-1 caller raises before Story 3.6.
 - **An IRIS restart needs no live script.** A hold survives it the way it survives the production restart of row 11: its instance and its `^Ens.Alarm` entry are on the durable volume, and `Ens.Alarm` restores alarms at start. The after-start then runs the same Reconcile step. Changing a live restart script would mean editing `docker/tests/**`, which is contended. `live production-restart` still proves that every start, Reconcile included, ends OK.
@@ -337,7 +375,7 @@ No AC contradicts an AD's Rule.
 - **Alarm entries are polled in the tests.** `Ens.Alarm` stores a hold's `^Ens.Alarm` entry when it handles the AlarmRequest, so on a loaded fresh shard the entry can come after the task: `Test.Bridge.Approval` polls for it for up to 10 s (found by the first fresh `shard lane-a`, where two assertions failed).
 
 **For the lead (veto window; Rule 20, the plan does not write the spine):**
-- **Security posture and privileges:** the IRIS user `OcuTalonWorkflow` (login disabled, no roles, a random password, rewritten at every start), and membership-only enforcement (no deletion of a Workflow user that the installer did not make).
+- **Security posture and privileges:** the IRIS user `OcuTalonWorkflow` (login disabled, no roles, a random password set at create and kept; disabled and stripped again at every start), and membership-only enforcement (no deletion of a Workflow user that the installer did not make).
 - **Stored data:** `Decide` gains the stored setting `ApprovalRole` (slot 16), `ApprovalHold` its first stored property `Ref`, and the new message class `Msg.ApprovalStart` is added. No `ApprovalRequest` column changes.
 - **Spine, Rule 20:** consider recording these in AD-11.
   - The approval-role setting is `Decide`'s host setting `ApprovalRole`, default `OcuTalonUser`.
@@ -488,6 +526,26 @@ Mutations recorded by the implement stage (Rule 19), each applied alone to the w
 - mutation: `Time.PlusSeconds` adds a day to the result, or `SecondsUntil` reverses its sign -> `Test.Bridge.Time` `TestPlusSeconds` and `TestSecondsUntil` red.
 - mutation: `SaveAndStart` clears `request.OwnerRef` after the checks (the given fields are compared with a snapshot taken before Raise) -> `TestRaiseToolCall` and `TestRaiseFix` red (the given OwnerRef and the sink call).
 - mutation: `SaveAndStart` always takes the context's `ThreadSessionId` over Raise's `sessionId` argument -> `TestCallerSession` (c) and (d) red.
+
+Mutations recorded at QA (Rule 19), each applied alone to the warm stack `e3s4qw`, the named class observed red, then the file restored from the stage's own backup (`cmp` identical, `git status --short` and `git diff --stat` as before) and the class green again:
+- mutation: `Reconcile` skips the re-arm (`StartHold` replaced by OK) -> `Test.Bridge.Approval` `TestReconcileReArms` red (also `TestReconcilePastExpiry`; row 12, the process-gone guarantee).
+- mutation: `OwnedByLiveHold` answers 0, so Reconcile cancels a live hold's task -> `TestRestartKeepsTheHold` red ("its task is the same open task") and `TestReconcileReArms` red ("cancels no task"; rows 11 and 12).
+- mutation: Reconcile's pending-row query drops `WHERE State = 'pending'` -> the new `TestReconcileLeavesSettledRows` red.
+- mutation: Reconcile returns at the second failed start instead of naming it -> the new `TestReconcileTriesEveryRow` red (its one error must name both Refs).
+- mutation: `Installer.SetUpApprovals` also creates a second Workflow user (`ZzRegistry0Mutant`, no membership) -> `Test.Install.Registry` `TestApprovalsWorkflow` red ("the only Workflow user of OCUTALON is the technical one"); the fixture user is removed by the class's `ClearWorkflow`, and a read of the warm stack afterwards shows the one Workflow user `OcuTalonWorkflow`, the one membership `OcuTalonApprovals:OcuTalonWorkflow` and no tracked approval Ref left.
+
+Mutations recorded at code review (Rule 19), each applied alone to the warm stack `e3s4rw`, the named class observed red, then the file restored from the stage's own backup (`cmp` identical, `git status --short` and `git diff --stat` as before) and the class green again on the same stack:
+- mutation: `ApprovalStartIn.OnProcessInput` returns `SendRequestSync`'s status unchanged (no check for a missing response) -> `Test.Bridge.Approval` `TestStartTimesOut` red (Raise OK after the timeout, the row and the sink call left, and the late start held: AC 2, "a failed start creates nothing").
+- mutation: `Validate` accepts only a 22-character OwnerRef (no `instance`, no `eval`) -> `TestOwnerRefKinds` red (AC 2, "the OwnerRef").
+- mutation: `SaveAndStart` reads the context only when `superSession` is empty -> `TestCallerSession` (e) red (AC 3, the caller's session).
+- mutation: Reconcile's task query drops `TaskStatus_IsComplete = 0` -> `TestReconcileCancelsOnlyOrphans` red ("the answered task keeps its status"); the query ignores the role (`OR 1 = 1`) -> the same test red ("the other role's task is still open"); `OwnedByLiveHold` answers 1 whatever the row's state -> the same test red ("the task of the live hold of a settled row is discarded") (AC 4).
+- mutation: `Approval.Hold` drops its non-pending check -> `TestReconcileLeavesSettledRows` red ("a start of the settled request is refused by the hold").
+- mutation: `Installer.InSystem("login")` creates the IRIS user with Enabled 1 -> `Test.Install.Registry` `TestApprovalsWorkflowRepaired` (a) red (AC 1, "whose IRIS user has login disabled").
+
+QA review of the waits (Rule 19): every wait in `Test.Bridge.Approval` is a bounded poll on a `$ZHorolog` deadline (`WaitTask`, `WaitHoldGone`, `WaitNode`, `AlarmEntry`, the lock job's loop); there is no fixed sleep. The class passed twice in a row on the warm stack before any mutation.
+
+Test files created or changed by QA:
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls` (QA): `TestReconcileLeavesSettledRows` and `TestReconcileTriesEveryRow`, and the class comment.
 
 ## Auto Run Result
 

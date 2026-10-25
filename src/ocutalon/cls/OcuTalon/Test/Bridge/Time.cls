@@ -138,8 +138,8 @@ Method TestPlusSeconds()
 	Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "1840-12-31T00:00:00Z", -1), "", "a result before the calendar's start is empty")
 }
 
-/// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 99 or 100 (the clock moves
-/// between the two reads), the second just passed reads -1 at most, a time a minute ago reads -61 to -60, and the same in every zone.
+/// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 98 to 100 (the clock moves
+/// between the reads), a time a minute ago reads -62 to -60, and a day ahead reads 86,398 to 86,400, each a whole number, the same in every zone.
 Method TestSecondsUntil()
 {
 	Set time = "OcuTalon.Bridge.Time"

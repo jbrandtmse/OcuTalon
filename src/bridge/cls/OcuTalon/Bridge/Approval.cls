@@ -86,13 +86,13 @@ ClassMethod SaveAndStart(request As OcuTalon.Bridge.Data.ApprovalRequest, newRef
 	Set sc = request.%Save()
 	If $$$ISERR(sc) Quit sc
 	Set id = request.%Id()
-	Set context = ##class(OcuTalon.Bridge.Context).Current()
-	If $IsObject(context) {
-		If sessionId '> 0 Set sessionId = context.ThreadSessionId
-		If superSession = "" Set superSession = context.SuperSession
-	}
-	If superSession = "" Set superSession = request.TraceRef
 	Try {
+		Set context = ##class(OcuTalon.Bridge.Context).Current()
+		If $IsObject(context) {
+			If sessionId '> 0 Set sessionId = context.ThreadSessionId
+			If superSession = "" Set superSession = context.SuperSession
+		}
+		If superSession = "" Set superSession = request.TraceRef
 		Set sc = ..StartHold(newRef, sessionId, superSession)
 	} Catch exception {
 		Set sc = exception.AsStatus()
@@ -222,7 +222,7 @@ ClassMethod FinishExecution(ref As %String, result As %String) As %Status
 /// the row's ExpiresAt (at least 1) with the key expiry, and replies to the start, so that ApprovalStartIn returns while the hold keeps
 /// waiting. The task sets no %UserName, %Title, %Message or %Command: a %UserName would assign the task to that Workflow user, a member of
 /// the role or not, and without one it goes to every active member, which is the one technical user. Makes no %AI call and runs no Python (AD-6).
-ClassMethod Hold(hold As OcuTalon.Bridge.Process.ApprovalHold, request As OcuTalon.Bridge.Msg.ApprovalStart, Output response As %Persistent) [ Internal ]
+ClassMethod Hold(hold As OcuTalon.Bridge.Process.ApprovalHold, request As OcuTalon.Bridge.Msg.ApprovalStart, Output response As %Persistent) As %Status [ Internal ]
 {
 	Set response = ""
 	Set ref = request.Ref

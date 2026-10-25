@@ -3,7 +3,7 @@
 /// Bridge.Installer (AD-11, AD-24): TestApprovalsWorkflow pins that after two runs the Workflow role OcuTalonApprovals has exactly one
 /// member, the active Workflow user OcuTalonWorkflow, whose IRIS user has login disabled and no roles or escalation roles, that it is the
 /// only Workflow user of OCUTALON, that no person or public account is one, and that the production item of that name is a Workflow
-/// operation; TestApprovalsWorkflowRepaired pins that a run repairs a deleted role and user, and an inactive user, an enabled or
+/// operation; TestApprovalsWorkflowRepaired pins that a run repairs a deleted role, Workflow user and IRIS user, and an inactive user, an enabled or
 /// role-holding login and extra members (fixture Workflow users ZzRegistry<n>Person and ZzRegistry<n>Demo), deleting no Workflow user.
 /// OnAfterAllTests and Clean run the installer again before ClearWorkflow, so that the fixture members leave the role before their Workflow
 /// users are deleted and the setup is whole after any failure. The fixture area, a role, a task
@@ -705,7 +705,8 @@ Method TestApprovalsWorkflow()
 	Do $$$AssertEquals(itemClass, "EnsLib.Workflow.Operation", "the production item named "_role_" is a Workflow operation")
 }
 
-/// Matrix row 2 (AC 1): (a) with the role and the Workflow user deleted, and (b) with fixture Workflow users as members, OcuTalonWorkflow
+/// Matrix row 2 (AC 1): (a) with the role, the Workflow user and its IRIS user deleted (the run makes the IRIS user again, through its create
+/// path), and (b) with fixture Workflow users as members, OcuTalonWorkflow
 /// not a member and inactive, and its IRIS user enabled with a role and an escalation role, a run of Bridge.Installer makes row 1's state again.
 /// The fixture Workflow users still exist, and are no members: the installer deletes no Workflow user that it did not make.
 Method TestApprovalsWorkflowRepaired()
@@ -718,9 +719,10 @@ Method TestApprovalsWorkflowRepaired()
 
 	Do ##class(EnsLib.Workflow.RoleDefinition).%DeleteId(role)
 	Do ##class(EnsLib.Workflow.UserDefinition).%DeleteId(user)
-	Do $$$AssertEquals(..WorkflowRows(user), 0, "(a) the Workflow user and its membership are deleted")
+	Do ..RemoveUser(user)
+	Do $$$AssertEquals(..WorkflowRows(user)_"|"_..LoginState(user), "0|none", "(a) the Workflow user, its membership and its IRIS user are deleted")
 	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "(a) the run after the deletion is OK")
-	Do ..AssertWorkflowSetUp("(a) after the role and the Workflow user were deleted")
+	Do ..AssertWorkflowSetUp("(a) after the role, the Workflow user and its IRIS user were deleted")
 
 	Set person = "ZzRegistry"_..Number_"Person"
 	Set demo = "ZzRegistry"_..Number_"Demo"
