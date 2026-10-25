@@ -63,6 +63,7 @@ flowchart TD
   Core --> Input["OcuTalon.Agent.Input"]
   Core --> Render["OcuTalon.Checks.Render"]
   Core --> Drop["OcuTalon.Docs/Memory.DropSession (step 3)"]
+  Core --> DemoStep["OcuTalon.Install.Step.Demo.Run() (SettingsOps, on a demo-mode switch; AD-23)"]
   Demo["Demo: OcuTalon.Demo"] --> Msg
   Demo --> Data
   Domain["Domain: Watch, Fix, Schedule, Checks, Digest, Memory, Docs, Mcp"] --> Msg
