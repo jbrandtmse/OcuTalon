@@ -5,8 +5,9 @@
 // verbatim), `design` (DESIGN.md does), `ac` (a story's acceptance criteria state it), `ruled` (the UX does not write it and a ruling of
 // the cycle log fixed it), `calendar` or `format` (checked here, mechanically). The criteria and the rulings are bookkeeping paths that
 // never run the web job, so they are written out here with their story; the two UX documents are web inputs and are read.
-// It fails for an inventory string with no entry, an entry that matches no inventory string, and a document that does not hold its
-// entry's string; no string holds "...", a string that holds the ellipsis holds U+2026 once and has the UX's, and the only non-ASCII
+// It fails for an inventory string with no entry, an entry that matches no inventory string, a document that does not hold its
+// entry's string, a string without a slot that EXPERIENCE.md holds while its entry names a later source, and a *_TEXTS constant that is
+// not imported; no string holds "...", a string that holds the ellipsis holds U+2026 once and has the UX's, and the only non-ASCII
 // characters are U+2026 and U+00B7. A string that none of these sources covers is public text that nobody ruled: it is never given an
 // invented source, and the story's stage escalates it.
 // Run with: node --test web/scripts/
@@ -16,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { code, sourceFiles } from './source-files.mjs';
+import { sourceFiles } from './source-files.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = join(here, '..', 'src', 'app');
@@ -407,6 +408,13 @@ describe('the inventory', () => {
     assert.ok(inventory.has('Default model: {slot}.'), 'an interpolation inside a text node is a {slot}');
     assert.ok(inventory.has('Chat') && inventory.has('Status'), "main page's hidden headings");
   });
+
+  it('imports every *_TEXTS constant of the page, so that a new text module joins the inventory', () => {
+    const names = IMPORTED.flatMap(([, list]) => list);
+    const exported = sources.flatMap((file) => [...file.code.matchAll(/export const ([A-Z][A-Z_]*_TEXTS)\b/g)].map((match) => [file.name, match[1]]));
+    assert.ok(exported.length >= 9, `${exported.length} *_TEXTS constants`);
+    assert.deepEqual(exported.filter(([, name]) => !names.includes(name)).map(([file, name]) => `${file} ${name}`), []);
+  });
 });
 
 describe('the sources', () => {
@@ -426,6 +434,12 @@ describe('the sources', () => {
 
   it('finds each ux and design string in its document', () => {
     assert.deepEqual(wrong.unheld, []);
+  });
+
+  it('names the UX first: no design, ac or ruled string without a slot is one that EXPERIENCE.md holds', () => {
+    const second = entries(SOURCES).filter(([text, kind]) => ['design', 'ac', 'ruled'].includes(kind) && !/\{[A-Za-z]+\}/.test(text));
+    assert.ok(second.length >= 9, `${second.length} strings with a source after the UX`);
+    assert.deepEqual(second.filter(([text]) => holds(documents.ux, text)).map(([text, kind, why]) => `${JSON.stringify(text)} is in EXPERIENCE.md, not only ${kind} (${why})`), []);
   });
 
   it('holds every format string to punctuation, digits, the separator and unit words, and every calendar string to the names', () => {

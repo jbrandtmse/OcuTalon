@@ -447,6 +447,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: chat-panel.ts .list and main-page.ts section.rail: overflow-y auto, no tabindex or name; entries are tabindex=-1; Chromium and Firefox focus a scroller, WebKit does not
 - 2026-10-22T22:18:28Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=2.12 owns WebKit runs and the a11y scan: e.g. tabindex=0 plus aria-labelledby the Chat heading; the rail too
 - 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit run that checks it is Story 2.16's
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=the chat list (tabindex 0, named by its Chat heading) and the rail (tabindex 0 while it scrolls on its own) are tab stops with the ring inside; E2 (@browsers, Chromium, Firefox, WebKit) tabs to both and scrolls them by keyboard; K4 and G1 walks; mutations recorded in the spec
 
 ### DW-90: checks.notEverything and notEverythingRestPassed take a whatFailed slot that the pinned Checks.Render(results, *rows) has no way to return, so the page (Story 2.6) shows no sentence for those keys
 - source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -539,6 +540,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: popover.ts closeOnFocusLeave closes when focus is outside the trigger and the pane; WebKit and macOS Firefox do not focus a pressed button, so header.ts toggleTrace finds it closed and reopens it (FR-12 lists Safari)
 - 2026-10-24T03:06:53Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=fix in popover.ts (a press on the trigger keeps it inside); verify in 2.12's WebKit and Firefox runs; chromium V7 passes
 - 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit and Firefox runs that check it are Story 2.16's
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=popover.ts: a primary-button press that starts on the trigger or inside the panel counts as inside until it ends (completed at review, which found the same cause inside the panel in WebKit); E1 presses the button and inside the menu with a press that takes no focus, in all three engines; removing the listener turns E1 red in all three
 
 ### DW-146: Specs that open real Visual Trace pages starve later cases of the same live sign-in stack; the cause (each signed-in trace tab holds a licence connection until its session times out) is an inference, and no spec signs its trace tabs out
 - source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: high | footprint: in-story
@@ -605,12 +607,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-14-work-the-whole-page-by-keyboard-with-labels-and-words.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: skip links in web/src/app/header/skip-links.ts carry href="#/" and move focus by script; Story 2.16's scan is where it would show (unverified)
 - 2026-10-24T18:24:29Z status=routed owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=harvest note=implement-stage defer (medium, unverified): Story 2.16's own scan settles it
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=href=#/ kept as a hash route; the in-house scan's links rule (support/scan.ts) accepts hash routes and flags fragments with no target; U1 and U2 find no link to nothing in three engines, U3 and U4 plant the link-to-nothing cases and see them
 
 ### DW-179: The turns that seedTurns writes are never removed: it does not adopt them, so cleanFixtureRows cannot delete them
 - source: spec-2-14-work-the-whole-page-by-keyboard-with-labels-and-words.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/e2e/support/iris.ts seedTurns keeps no refs for cleanFixtureRows; rows accumulate on the throwaway's session (pre-existing)
 - 2026-10-24T18:24:29Z status=open owner=2-14-work-the-whole-page-by-keyboard-with-labels-and-words by=harvest note=implement-stage defer; code review settles it (throwaways are torn down, so it is test hygiene only)
 - 2026-10-24T20:43:50Z status=routed owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=root cause fixed in 2.14 (seedTurns now adopts its turn and Decision rows; turnRows; H1 in e2e/floor/fixtures.spec.ts and the floor-fixtures ratchet; 2.14's K and W cases clean their turns). Residual: Story 2.12's A1, A5, A7 and P4 still pass no turnRows to cleanFixtureRows, so their turns stay; Story 2.16 runs the floor unit in more browser projects on one stack, where leftovers multiply and K4's tab walk is bounded at 150 stops - opt those four cases in there
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=A1, A5, A7 and P4 pass turnRows to cleanFixtureRows; the floor-fixtures ratchet checks each case cleans the turns it seeds (5 cases), with a mutation per case recorded; the floor unit runs three engines on one stack (70 cases green)
 
 ### DW-184: layout.spec.ts's Tab walk (walk) repeats K4's inline Tab loop in keyboard.spec.ts, with its own end test
 - source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: low | footprint: in-story
@@ -626,3 +630,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: Story 2.16 plan Task 0 (macOS, Playwright 1.64.1, WebKit 27.2): G2's and G6's click steps leave document.activeElement on body in WebKit; keyboard paths unaffected
 - 2026-10-25T02:31:37Z status=wontfix-accepted owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=reopen_if=a Safari keyboard path loses focus after the drawer or the note closes, or a Safari mouse user reports losing their place; Story 2.15's Decided 3 held this by inference only
+
+### DW-193: A focused banner's ring abuts its 4px accent on the left edge (ring, accent, halo) at 1.07 to 1.25:1, and the scan's ring rule (halo plus backdrop) cannot measure it, so Story 2.14's reopen trigger never fires
+- source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: outline-offset -2px covers 2px of banner-stack.ts's border-left 4px accent; --focus vs the six accent tokens computes 1.07-1.25:1 (light and dark); vs the page and the halo 5.5:1+. Spec Decided 9 says the ring rule now measures it.
+- 2026-10-25T05:57:24Z status=decision-pending owner=burndown by=cr note=design call (Story 2.14: a fix needs a design choice): keep, as the outer side contrasts, or restyle the banner's focus edge

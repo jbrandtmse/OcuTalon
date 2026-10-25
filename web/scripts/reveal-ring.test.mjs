@@ -26,9 +26,10 @@ function scroller(overrides = {}) {
     padding: { top: '4px', bottom: '4px' },
     calls: [],
     inside: new Set(),
-    getBoundingClientRect: () => ({ top: 100 }),
+    getBoundingClientRect: () => ({ top: 100, bottom: 200 }),
+    // As Node.contains does, a scroller contains itself, so that only revealRing's own check keeps it from scrolling for itself.
     contains(target) {
-      return this.inside.has(target);
+      return target === this || this.inside.has(target);
     },
     scrollBy(options) {
       this.calls.push(options);

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-25-2026 04:22
+last_updated: 10-25-2026 05:59
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -80,7 +80,7 @@ development_status:
   2-13-open-visual-trace-from-the-page: done
   2-14-work-the-whole-page-by-keyboard-with-labels-and-words: done
   2-15-lay-the-page-out-at-every-supported-width: done
-  2-16-prove-the-floor-in-chromium-firefox-and-webkit: review
+  2-16-prove-the-floor-in-chromium-firefox-and-webkit: done
   epic-2-retrospective: optional
 
   epic-3: backlog

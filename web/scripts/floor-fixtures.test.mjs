@@ -1,5 +1,5 @@
 // Tests that the floor specs of Story 2.14 leave no turn behind (DW-179): seedTurns records the turns and the Decision rows it writes
-// for Test.Data.Fixture.Clean, and every case that seeds a turn lists them (turnRows) in the refs that cleanFixtureRows removes. The
+// for Test.Data.Fixture.Clean, and every case that seeds a turn lists them (turnRows) in refs that the same case passes to cleanFixtureRows. The
 // browser case H1 (web/e2e/floor/fixtures.spec.ts) pins that the clean-up removes them on a running stack; this reads the sources, so
 // a seed that forgets its refs cannot come back without a test turning red.
 // Run with: node --test web/scripts/
@@ -37,6 +37,22 @@ describe('the floor cases of Stories 2.14 to 2.16 list the turns they seed', () 
       const seeds = calls(text, 'seedTurns');
       assert.ok(seeds > 0, `${name} seeds turns`);
       assert.equal(calls(text, 'turnRows'), seeds, `${name} records the rows of each of its ${seeds} seeds`);
+    });
+  }
+});
+
+describe('the floor cases remove the turns they list', () => {
+  for (const name of ['floor/announcements.spec.ts', 'floor/focus.spec.ts', 'floor/keyboard.spec.ts', 'floor/layout.spec.ts', 'floor/words.spec.ts']) {
+    it(`${name}: a case that lists turnRows in its refs passes those refs to cleanFixtureRows`, () => {
+      let lists = 0;
+      for (const body of read(name).split(/\n\s*test\(/).slice(1)) {
+        const title = /^'([^']{0,40})/.exec(body)?.[1] ?? 'a case';
+        for (const [, refs] of body.matchAll(/\b(\w+)\.push\(\.\.\.turnRows\(/g)) {
+          lists += 1;
+          assert.match(body, new RegExp(`\\bcleanFixtureRows\\([^)]*\\b${refs}\\b`), `${name}: ${title} removes ${refs} with cleanFixtureRows`);
+        }
+      }
+      assert.ok(lists > 0, `${name} lists turnRows in its cases`);
     });
   }
 });

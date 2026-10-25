@@ -158,10 +158,11 @@ export class Popovers {
    * Closes the popover when focus ends up outside both the trigger and the panel. The check runs after the focus
    * change has settled, and not while the browser window itself has lost focus (the popover waits for it).
    *
-   * A press that starts on the trigger (pointerdown on it) counts as inside until the press ends: Safari, and Firefox on macOS,
-   * take focus away from a pressed button, and that focus must not close the popover before the trigger's own click can toggle it
-   * closed. A press that ends without a click on the trigger (pointerup or pointercancel anywhere else) runs the check again, once
-   * the click that a press ending on the trigger would have run is behind it (a task after pointerup).
+   * A press of the primary button that starts on the trigger or inside the panel (pointerdown on either) counts as inside until the
+   * press ends: Safari, and Firefox on macOS, take focus away from a pressed button or link, and that focus must not close the
+   * popover before the press's own click has run (the trigger's click toggles it closed; a control's in the panel does what it
+   * does). When the press ends (pointerup or pointercancel anywhere), the check runs again, once that click is behind it (a task
+   * after pointerup).
    */
   private closeOnFocusLeave(trigger: HTMLElement, pane: HTMLElement, ref: PopoverRef): () => void {
     let pending: number | undefined;
@@ -187,13 +188,17 @@ export class Popovers {
         check();
       });
     };
-    const onPressStart = (): void => {
+    const onPressStart = (event: PointerEvent): void => {
+      if (event.button !== 0) {
+        return;
+      }
       pressed = true;
       window.clearTimeout(ending);
       document.addEventListener('pointerup', onPressEnd, true);
       document.addEventListener('pointercancel', onPressEnd, true);
     };
     trigger.addEventListener('pointerdown', onPressStart);
+    pane.addEventListener('pointerdown', onPressStart);
     trigger.addEventListener('focusout', onFocusOut);
     pane.addEventListener('focusout', onFocusOut);
     return () => {
@@ -202,6 +207,7 @@ export class Popovers {
       document.removeEventListener('pointerup', onPressEnd, true);
       document.removeEventListener('pointercancel', onPressEnd, true);
       trigger.removeEventListener('pointerdown', onPressStart);
+      pane.removeEventListener('pointerdown', onPressStart);
       trigger.removeEventListener('focusout', onFocusOut);
       pane.removeEventListener('focusout', onFocusOut);
     };

@@ -36,8 +36,8 @@ import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/
  * The chat posts of A6 are answered in the browser and never reach the server, so no turn of these cases replies, up to 20 s later,
  * inside another case's window, in either order. A case that turns conditions on turns them off in finally (A4 and A5 also start with
  * them off), a case that registers fixture rows removes them with cleanFixtureRows in finally, and a running turn is finished in
- * finally. The turns and cards a case seeds stay on the floor user's session and are found by their own marker or ref; the seeded
- * turns are dated in 2019, so they are the oldest entries of the chat and cannot push what a case makes now out of the newest 100
+ * finally. A case finds the turns and cards it seeds by their own marker or ref, and removes the turns it seeds with its fixture rows
+ * (turnRows); the seeded turns are dated in 2019, so they are the oldest entries of the chat and cannot push what a case makes now out of the newest 100
  * that /state serves. A1 also runs in Firefox and WebKit (tag @browsers).
  */
 test.describe.configure({ timeout: 90_000 });

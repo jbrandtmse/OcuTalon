@@ -108,7 +108,10 @@ export function stepKeys(page: Page): Promise<StepKeys> {
   return found;
 }
 
-/** The regions that are tab stops or focus targets and draw their ring inside their own edge (the ring-inside class of styles/base.css). */
+/**
+ * The regions that a walk or a skip link reaches and that draw their ring inside their own edge (the class ring-inside of
+ * styles/base.css, which a banner also carries; a banner is no stop of a walk).
+ */
 export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list'] as const;
 
 /** Seeds one attention decision with a trace link, whose row is a disclosure with a Trace link beside it, and returns its summary. */

@@ -14,11 +14,11 @@
 #   - Story 2.15's layout (layout.spec.ts G1 to G7): the four width bands (the rail at 320px and 288px, a push drawer behind the Status
 #     button at 1024 to 1279px, one scrolling column with the sticky compact header below 1024px and at 200%), the keyboard and focus
 #     rules in each band, and the narrow-window note: once per session, closed per browser, announced only when it appears after load;
-#   - Story 2.16's scan (scan.spec.ts U1 to U3): no unnamed control, no contrast failure and no link to nothing on the page and its overlays,
-#     in the light and dark themes, and the scan's own planted faults;
+#   - Story 2.16's scan (scan.spec.ts U1 to U4): no unnamed control, no contrast failure and no link to nothing on the page and its overlays,
+#     in the light and dark themes, and the scan's own planted faults, each branch of it;
 #   - Story 2.16's engine cases (browsers.spec.ts E1 to E3): the Visual Trace button closes its own menu, the chat list and the rail are tab
 #     stops, and the Enter that ends an IME composition sends nothing.
-# The subset in Firefox and WebKit (the cases tagged @browsers) is K1, the first K2 case, K4, G1, P2, A1, U1 to U3 and E1 to E3.
+# The subset in Firefox and WebKit (the cases tagged @browsers) is K1, the first K2 case, K4, G1, P2, A1, U1 to U4 and E1 to E3.
 # The stack holds what the first start creates and one fixture user, the floor user ZzFloor (OCUTALON_FLOOR_USER, with the user role),
 # whose session the specs seed turns, reminders, decisions and conditions into and publish on, and whose /events poll they hold for one
 # update; the stack starts with no model key (check_no_key), so its page shows the no-key banner. The chat posts of A6, P1 and W4 are
@@ -88,7 +88,7 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
 e2e_status=$?
 if [ "$e2e_status" -eq 0 ]; then
   show_log 30
-  pass "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1, Story 2.15's G1-G7 and Story 2.16's U1-U3 and E1-E3: the specs of the floor project pass in Chromium, and its @browsers cases in Firefox and WebKit ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
+  pass "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1, Story 2.15's G1-G7 and Story 2.16's U1-U4 and E1-E3: the specs of the floor project pass in Chromium, and its @browsers cases in Firefox and WebKit ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"
 else
   show_log 80
   if grep -q "Executable doesn't exist" "$e2e_log"; then
@@ -97,7 +97,7 @@ else
   if grep -q "Host system is missing dependencies" "$e2e_log"; then
     echo "  the host lacks the packages of a browser: run npx -y playwright@1.64.1 install-deps firefox webkit (as root)"
   fi
-  fail "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1, Story 2.15's G1-G7 and Story 2.16's U1-U3 and E1-E3: the specs of the floor projects failed in Chromium, Firefox or WebKit (exit $e2e_status)"
+  fail "Story 2.12's A1-A7 and P1-P4, Story 2.14's K1-K6, W1-W4 and H1, Story 2.15's G1-G7 and Story 2.16's U1-U4 and E1-E3: the specs of the floor projects failed in Chromium, Firefox or WebKit (exit $e2e_status)"
 fi
 
 if [ "$fails" -ne 0 ]; then

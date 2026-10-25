@@ -18,7 +18,8 @@ import { cleanFixtureRows, fixtureUser } from '../support/iris';
 
 /**
  * Story 2.16, what differs between the engines (E1 to E3), in a real browser against a real stack, in Chromium, Firefox and WebKit. It
- * pins the Visual Trace button, which closes its own menu even when the engine takes focus away from a pressed button (DW-145, E1); the
+ * pins the Visual Trace button, which closes its own menu even when the engine takes focus away from a pressed button, and a press inside
+ * that menu, which reaches its control in the same case (DW-145, E1); the
  * chat list and the rail, which are tab stops named by their headings, draw their ring inside their edge and scroll by key (DW-89,
  * E2); and the composer, which sends nothing for the Enter that ends an IME composition in Safari's event order (E3). It needs the stack that
  * docker/tests/test-floor.sh starts: every case signs in as the floor user (OCUTALON_FLOOR_USER, the user role) over real HTTP, in a
@@ -35,7 +36,10 @@ test.afterEach(async ({ page }) => {
 
 const KIND = 'FLOOR';
 
-/** E1: a press on the Visual Trace button closes its open menu, with and without the no-focus press of Safari and Firefox on macOS. */
+/**
+ * E1: a press on the Visual Trace button closes its open menu, with and without the no-focus press of Safari and Firefox on macOS, and a
+ * no-focus press inside the open menu reaches its link before the menu closes.
+ */
 test('E1: pressing the Visual Trace button closes its menu and leaves focus on it, with a press that takes no focus too', { tag: '@browsers' }, async ({ page }) => {
   await openFloor(page);
   const trigger = page.getByRole('button', { name: 'Visual Trace', exact: true });
@@ -91,6 +95,32 @@ test('E1: pressing the Visual Trace button closes its menu and leaves focus on i
     await page.keyboard.press('Escape');
     await expect(popover).toHaveCount(0);
   }
+
+  // A press inside the open menu reaches its control, even when the press takes focus away from the menu (the link holds it on open): the
+  // focus that the press took closes the menu only once the press has ended. The click's default is prevented, so no tab opens.
+  await trigger.click();
+  await expect(popover).toHaveCount(1);
+  const link = popover.getByRole('link');
+  await link.evaluate((el) => {
+    const counted = window as unknown as { panePresses: number };
+    counted.panePresses = 0;
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      counted.panePresses += 1;
+    }, { capture: true });
+    el.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      (document.activeElement as HTMLElement | null)?.blur();
+    }, { capture: true, once: true });
+  });
+  await expect(link, 'the menu has put focus on its link').toBeFocused();
+  // hover() waits until the placed menu holds still under the pointer, so the press lands on the link.
+  await link.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { panePresses: number }).panePresses), { message: 'a press inside the menu reaches its link' }).toBe(1);
+  await expect(popover, 'then the menu closes, since focus has left it').toHaveCount(0);
 
   // A press that starts on the button and ends over the chat list is no click on the button: the menu still closes, and no pane stays open.
   // The engine's click on the two targets' common ancestor would close it as a press outside, so the case withholds that click from the

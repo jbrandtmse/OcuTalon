@@ -159,9 +159,9 @@ describe('the floor script runs the floor in three engines (Story 2.16)', () => 
     assert.deepEqual(titlesOf('floor-webkit'), tagged);
   });
 
-  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U3 and E1 to E3', () => {
+  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U4 and E1 to E3', () => {
     const ids = tagged.map((title) => /^[^:]+: ([A-Z]\d)/.exec(title)?.[1]);
-    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'E1', 'E2', 'E3']) {
+    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'U4', 'E1', 'E2', 'E3']) {
       assert.ok(ids.includes(id), `${id} is tagged @browsers: ${tagged.join(' | ')}`);
     }
     assert.equal(ids.filter((id) => id === 'K2').length, 1, 'only the first K2 case is tagged');

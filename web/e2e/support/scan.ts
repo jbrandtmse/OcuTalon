@@ -142,7 +142,9 @@ export function scanLinks(page: Page, what: string): Promise<string[]> {
  * - decorative borders: only the boundaries of a textarea, an input, a secondary button and a chip control are checked, and card
  *   borders in `--border` are decorative by design;
  * - text that is not painted: `visibility: hidden`, opacity 0, clipped by `clip` or `clip-path`, display none, and the visually hidden
- *   class, because nobody sees it.
+ *   class, because nobody sees it;
+ * - the boundary of a checkbox or a radio input, whose box the engine draws itself, so that its computed border is not what is painted,
+ *   and of a hidden input, which shows nothing.
  */
 export function scanContrast(page: Page, what: string): Promise<string[]> {
   return page.evaluate(
@@ -321,11 +323,13 @@ export function scanContrast(page: Page, what: string): Promise<string[]> {
         const ring = over(focus, [255, 255, 255]);
         const halo = ratio(ring, over(surface, [255, 255, 255]));
         if (halo < graphicRatio) findings.add(`${prefix}: contrast ring: --focus against --surface ${halo.toFixed(2)}:1 is under ${graphicRatio}:1`);
-        const focusables = 'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])';
+        // Every element that can take focus, a focus target that is no tab stop (tabindex -1: a banner, main, a heading) included.
+        const focusables = 'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]';
         for (const control of Array.from(document.querySelectorAll(focusables))) {
           if (!visible(control) || unpainted(control)) continue;
-          // A region that draws its ring inside its own edge has its own background behind the ring; any other control, its parent's.
-          const behind = backdrop(control, control.classList.contains('ring-inside'));
+          // The halo lies on one side of the ring and the parent's backdrop on the other, whether the ring is drawn outside the
+          // control or inside its own edge (the ring-inside class), so the ring is measured against the parent's backdrop.
+          const behind = backdrop(control, false);
           if (typeof behind === 'string') {
             unmeasured(control, `ring: ${behind}`);
             continue;
