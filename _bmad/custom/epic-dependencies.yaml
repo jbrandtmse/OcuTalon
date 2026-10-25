@@ -17,6 +17,11 @@
 # of slots."): Epic 9 moves to runner B on its real dependencies (2, 5; 9.5 on 7); Epic 10 to runner B with the unlink swap
 # (10.3 builds the unlink, 16.4 reuses it); Epics 30, 13, 31, 15 and 14 form a pool for runners B and C; 14 and 15 lose
 # their order-only edges on 13 and 14. epics.md's Lane and Depends-on lines are aligned in the same commit.
+# Changed 2026-10-25T04:00:50Z, approved by the owner through the Contest Planner (inbox U-65, quoting the owner: "Yes let's do it"):
+# Epic 16 drops its edge on Epic 8, so runner C takes Epic 16 when Epic 3 merges (Story 16.4 cancels reminders through a
+# recording ReminderOps double until Story 8.4 turns on the real path and the closed-page reminder); Story 29.4 gains a
+# story wait on Epic 8 (its sessions' reminders), which it had only through Epic 16. 16 vs 8 overlap only on shared entries
+# (Web/Api.cls, Core/StatusMonitor.cls) and ci/mock/scenarios/B/**, below the 0.20 threshold. epics.md aligned in the same commit.
 #
 # Dispatch rules on top of depends_on (the orchestrator enforces them):
 #   - At most one live runner per lane: each lane has one dev slot (skill-rules Rule 21).
@@ -41,10 +46,10 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "53a4fa9695c179945abe2b042ac9f2d146a433301499a25e19a1f1bafdfe525d"
+epics_md_hash: "28efe5824ba346caa0733d973d7f76a57dd22250df77d404008f7a2689964e3b"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
-approved_at: "2026-10-23T13:32:40Z"
+approved_at: "2026-10-25T04:00:50Z"
 
 lanes:
   A: {slot: ocutalon-slot-a, order: [1, 3, 5, 7, 11, 12]}
@@ -143,12 +148,12 @@ epics:
             story_waits: {"8.2": epic-2,                    # Epic 2's heartbeat-stalled banner and check rows (2891)
                           "8.3": [epic-2, epic-4],          # Epic 2's Reminders rows and Notify (2909, 2918); the simulated phone, 4.5 (2918)
                           "8.4": epic-4}}                   # guide step 2 and the shared B scenario, 4.2 and 4.4 (2937, 2940); 8.5 follows 8.3 and 8.4
-  epic-16: {lane: C, depends_on: [epic-2, epic-3, epic-8], submodules: [],           # epic-2: 2.2, 2.4, 2.9, 2.10 (4012, 4088, 4212, 4234); epic-3: Story 3.8; epic-8: the real ReminderOps (16.4)
+  epic-16: {lane: C, depends_on: [epic-2, epic-3], submodules: [],                   # epic-2: 2.2, 2.4, 2.9, 2.10 (4012, 4088, 4212, 4234); epic-3: Story 3.8; epic-8 dropped 2026-10-25 (U-65): 16.4 cancels reminders through a recording double until 8.4
             paths_hint: ["src/ocutalon/cls/OcuTalon/Web/Public/**", "src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Data/{Ownership,Session,AddressCounter,Setting}.cls", "src/ocutalon/cls/OcuTalon/Data/Public/**", "src/ocutalon/cls/OcuTalon/Core/{Allowance,BridgeSink,SessionOps,StatusMonitor}*.cls", "src/ocutalon/cls/OcuTalon/Channel/{WebChat,SimMailbox}/In*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Test/{Web,Data}/**", "web/src/signin/**", "web/src/app/{header,session,live,api,banners,guide,mailbox}/**", "web/e2e/demo-path/online-*.spec.ts", "docker/**/{busy,maintenance,probe}*", "ci/mock/scenarios/B/**"],
             story_waits: {"16.4": epic-10,                  # reuses Story 10.3's pairing unlink (the swap)
                           "16.9": epic-6}}                  # 16.9 checks that Approve and Reject keep working
   epic-29: {lane: C, depends_on: [epic-16, epic-3], submodules: [], paths_hint: ["web/e2e/demo-path/**", "release/**"],
-            story_waits: {"29.4": [epic-5, epic-7]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path
+            story_waits: {"29.4": [epic-5, epic-7, epic-8]},   # 29.4's first two criteria need Lane A's real watch, incident and fix-approval path
             note: "Story 29.3 is the demo host (outside the repo, the owner's) and parks; Story 29.4's real-proxy load case needs the host. Nothing in Lane A depends on Epic 29's merge; Story 31.4 waits on it."}
   epic-10: {lane: B, depends_on: [], submodules: [],                                # no epic-level need (10.1 is the install script); 10.2->4 and 10.3->6 imply Epic 2; 10.1 may start early (fill_ahead_any)
             paths_hint: ["README.md", "install.sh", ".env.example", "docker-compose.yml", "docker/**", ".github/workflows/ci.yml", "ci/mock/**", "ci/compose.ci.yml", "src/ocutalon/cls/OcuTalon/Core/{SessionOps,AnswersIn,StatusMonitor,Allowance,Trace}*.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Data/{Pairing,Delivery,StatusMark}.cls", "src/ocutalon/cls/OcuTalon/Demo/Guide*.cls", "web/src/app/api/**"],
