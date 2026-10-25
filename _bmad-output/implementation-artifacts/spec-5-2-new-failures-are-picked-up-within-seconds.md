@@ -2,7 +2,7 @@
 title: 'New failures are picked up within seconds'
 type: 'feature'
 created: '2026-10-25'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -31,7 +31,7 @@ deferred: []
 
 **Never:**
 - No `Incident`, `FailureGroup`, `watch.progress`, `incident` event, notice or settle logic (Story 5.3), no evidence pack (5.4), no check runs or `check` event (5.6).
-- No change to `OcuTalon.Msg.*` contracts, `Core/*`, `Data/Session.cls`, `Data/Ownership.cls`, or any contended path except the one named in Design Notes under the pending ruling.
+- No change to `OcuTalon.Msg.*` contracts, `Core/*`, `Data/Session.cls`, `Data/Ownership.cls`, or any contended path except the two Contracts entries of `Test/Data/Tables.cls` ruled in Design Notes.
 - No embedded SQL and no unchecked prepare (`ci/checks.sh` class rules); no `%AI`, Python or session call in any class the watch tools call (AD-6).
 - No pickup-time assertion in CI: NFR-7's 15 s / typical 3 s is measured in the clean-machine rehearsal.
 
@@ -87,8 +87,8 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 **Execution:**
 - Task 0 is done (Code Map, "Platform measured"). The implement stage re-measures only where a test contradicts it, and records the difference under Design Notes.
-- `src/ocutalon/cls/OcuTalon/Data/WatchMark.cls` -- add `MarkAt` (`%String(MAXLEN = 23)`: the newest failure time read, as IRIS stores it, UTC `YYYY-MM-DD HH:MM:SS.sss`) and `Seen` (`%String(MAXLEN = "")`: the failures already batched whose time is within the overlap before `MarkAt`, `h<header id>` / `l<log id>`, comma-separated). Storage appended by the compiler, committed (AD-5). [Contract change pending the ruling.]
-- `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls` -- add `CreatedAt` (`%String(MAXLEN = 20)`, UTC to the second). [Contract change pending the ruling.]
+- `src/ocutalon/cls/OcuTalon/Data/WatchMark.cls` -- add `MarkAt` (`%String(MAXLEN = 23)`: the newest failure time read, as IRIS stores it, UTC `YYYY-MM-DD HH:MM:SS.sss`) and `Seen` (`%String(MAXLEN = "")`: the failures already batched whose time is within the overlap before `MarkAt`, `h<header id>` / `l<log id>`, comma-separated). Storage appended by the compiler, committed (AD-5).
+- `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls` -- add `CreatedAt` (`%String(MAXLEN = 20)`, UTC to the second).
 - `src/ocutalon/cls/OcuTalon/Watch/Ops.cls` -- `OnStart` writes `CreatedAt` with the same `NowUtc()` value as `NextDueAt`; doc comment.
 - `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` --
   - `Current`: when `GetProductionStatus` gives "", take `Ens.Director.GetActiveProductionName()` (DW-222).
@@ -104,7 +104,7 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - `src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls` -- `StopWatch` calls `ResolveStop` with the context's `OwnerRef`; class and method docs say stop reads the session's own watches through the ownership API.
 - `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- add `OcuTalon.Data.BackgroundCheck` to `CALLBACKHELPERS` and `READERCLASSES`.
 - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- oracle row `FailurePoller`: `pool` 1, `stub` 0, `settings` `[{"target": "Adapter", "name": "CallInterval", "value": "3"}]`; header comment.
-- [CONTENDED, Epic 16; only under the ruling asked for in Auto Run Result] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- in the Contracts XData only: `OcuTalon.Data.WatchMark` gains `"MarkAt": "%String(MAXLEN=23)"`, `"Seen": "%String(MAXLEN=)"`; `OcuTalon.Data.BackgroundCheck` gains `"CreatedAt": "%String(MAXLEN=20)"`. Nothing else.
+- [Epic 16's file; one-time footprint extension by orchestrator ruling (decide)] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- in the Contracts XData only: `OcuTalon.Data.WatchMark` gains `"MarkAt": "%String(MAXLEN=23)"`, `"Seen": "%String(MAXLEN=)"`; `OcuTalon.Data.BackgroundCheck` gains `"CreatedAt": "%String(MAXLEN=20)"`. Nothing else.
 - Tests (throwaway-only ones fail with the reason without OCUORDERS, as 5.1's do):
   - `Test/Watch/Mark.cls` (new, pure): `ErrorText.Sentence` on the measured text, a plain `ERROR #5001:` text, a text with no prefix, a long text; `Mark` start rule (no mark, mark later than `CreatedAt`, `CreatedAt` later than mark, no `CreatedAt`), `Seen` filtering, the cap, the overlap window, `FailedAt`.
   - `Test/Watch/Poller.cls` (new, throwaway, over the running production): matrix rows Session-tagged, Untagged, Scopes in one poll, Nothing new, Again / restart (`TempStopConfigItem("FailurePoller", 1, 1)` then `(…, 0, 1)`, which leave the definition unchanged), Late error (a fixture header saved in OCUORDERS with `Status` 3 and the run's `TraceRef`, later moved to 8 with `SetStatus`, which sets `TimeProcessed`), Watch after failures, Unreadable, Headerless log row (fixture `Ens_Util.Log` rows of `Type` 2 and 6 in OCUORDERS with no session and a `ConfigName` of the test's own). Waits poll every 0.5 s up to 30 s, a test bound and not NFR-7; "no further batch" waits 7 s (two polls). Keep the class under about 60 s on the developer machine.
@@ -123,6 +123,8 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - Given `OcuTalon.Production`, when its definition is read, then `FailurePoller` has pool size 1, `CallInterval` 3 and no `STUB`, and `IncidentManager` still carries `STUB` and answers 5003 to anything but a `FailureBatch`.
 
 ## Spec Change Log
+
+- 2026-10-25, spec gate (Epic 5 runner): the plan's intent gap (contended `Test/Data/Tables.cls`) was ruled by the orchestrator, option (a); the schema change was ruled veto U-83; the spine candidates were written as the Consistency Conventions row "Watch failures" (no AD text changed); status set to `ready-for-dev`. Rulings under Design Notes.
 
 ## Review Triage Log
 
@@ -170,9 +172,14 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 **DW entries:** DW-35 is addressed (failure definition, `Reader.Failures` error text, `ErrorText.Sentence`, matrix row Session-tagged, `Test.Watch.Mark`). DW-222 is addressed (matrix rows Stopped production and Stop from own rows, AC 4 and 5). **Declined:** none.
 
-**Footprint extensions** (not contended): `Test/Install/Production.cls` (the `FailurePoller` row), `Test/Bridge/CodeRules.cls` (one class in two lists).
+**Footprint extensions** (not contended): `Test/Install/Production.cls` (the `FailurePoller` row), `Test/Bridge/CodeRules.cls` (one class in two lists). By orchestrator ruling also Epic 16's `Test/Data/Tables.cls` (two Contracts entries only).
 
-**Contended path (pending ruling):** `Test/Data/Tables.cls` (Epic 16). See Auto Run Result.
+**Orchestrator ruling (2026-10-25, on the plan's intent gap):** `Test/Data/Tables.cls` (Epic 16) is allowed as a one-time footprint extension: only the two Lane A entries of its Contracts XData change (`OcuTalon.Data.WatchMark` + `MarkAt`, `Seen`; `OcuTalon.Data.BackgroundCheck` + `CreatedAt`), nothing else in the file (option (a), decide; the registry is keyed by class and both classes are Lane A's under AD-33). A conflict at an integrate-forward is a plain union, both entries kept. DW-222's decide ruling stands.
+
+**Spec-gate rulings (Epic 5 runner, 2026-10-25):**
+- The three new stored properties (`WatchMark.MarkAt`, `WatchMark.Seen`, `BackgroundCheck.CreatedAt`): veto, inbox item U-83.
+- Spine (Rule 20, light path): the candidates below were written as the Consistency Conventions row "Watch failures" (failure definition, own-production rule, time-based `WatchMark`, batch per production and scope per poll, send then save); AD-3 and AD-15 text is unchanged.
+- Shard time: if the fresh `lane-a` shard passes 540 s on the developer machine, report the measured time in the spec (do not chain anything after it in the same call); the lead decides the split.
 
 **Spine candidates for the lead (Rule 20):** AD-15's Rule could state the failure definition, the time-based `WatchMark` (`MarkAt`, `Seen`, 2 s overlap) and the batch per production and scope per poll, which 5.3, 5.4, 6.1 and 7.4 build on; AD-3's reader bullet could say "the running production, else the last started (`GetActiveProductionName`)".
 
@@ -191,7 +198,7 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 **Shared surfaces:**
 - The production item table: `FailurePoller` pool, setting and `STUB` (`Test.Install.Production`), and one more running job in OCUTALON.
-- The Data contracts of `WatchMark` and `BackgroundCheck` (`Test.Data.Tables`, contended).
+- The Data contracts of `WatchMark` and `BackgroundCheck` (`Test.Data.Tables`, Epic 16's file; two entries by ruling).
 - `CALLBACKHELPERS` and `READERCLASSES`.
 - The reader's list (stopped productions now listed): `Test.Watch.Reader`, `Test.Watch.Tools` (`unknown_production` lists).
 - `BackgroundCheck` rows (`CreatedAt`) and the Orders `WatchMark` row (poller-owned; no test asserts it across classes).
@@ -214,17 +221,7 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: contended path `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (Epic 16). AD-15 names `WatchMark` as the per-production high-water mark, but the table holds only `Namespace` and `Production`; the story needs `WatchMark.MarkAt` and `WatchMark.Seen`, and (recommended) `BackgroundCheck.CreatedAt`, and `Test.Data.Tables.TestContracts` pins both tables' exact property sets, so the change fails a contended test unless its Contracts XData changes.
+Status: ready-for-dev
+Blocking condition: none
 
-**Questions for the lead / orchestrator:**
-1. May Epic 5 edit only the two Contracts entries of `Test/Data/Tables.cls` (`OcuTalon.Data.WatchMark` + `MarkAt`, `Seen`; `OcuTalon.Data.BackgroundCheck` + `CreatedAt`), as a one-time footprint extension? Options:
-   - (a) yes (recommended): two JSON entries Epic 16 does not own, so a later merge is a plain union;
-   - (b) Epic 16 makes the edit and 5.2's implement stage waits for it;
-   - (c) as (a) for `WatchMark` only, with `WatchOps` creating or resetting the production's `WatchMark` at its first watch instead of a `BackgroundCheck.CreatedAt` (no `BackgroundCheck` change, but two writers of `WatchMark`).
-   Rejected: storing the mark anywhere else (a raw global, `StatusMark`, a new class outside `OcuTalon.Data`), because it breaks AD-15 or AD-33, or dodges the registry and contract checks.
-2. Veto-window items (schema): the three new stored properties on Lane A tables (append-only, AD-5). No grant, no privilege change.
-
-**Evidence:** `Test/Data/Tables.cls` L454-483; `Data/WatchMark.cls`; the measured behaviour under Code Map (the BP logs before the status, an operation logs a repeated error once, `EnQueue` commits open transactions), which is why the mark must be durable, time-based and exact at the watch's start. The rest of the spec is complete for option (a); for (c) only the `CreatedAt` tasks, the `Mark` start rule and one matrix row change.
-
-**Task 0:** measured on the lane-A warm throwaway `e5s2pw` (started and torn down by this stage; lock released; tree unchanged).
+Plan stage, 2026-10-25: the plan halted `blocked` on the contended `Test/Data/Tables.cls` (Epic 16) and one schema veto item; the epic runner applied the orchestrator's ruling (option (a)) and its own spec-gate rulings (Design Notes, Spec Change Log) and set the spec `ready-for-dev`. Task 0 was measured on the lane-A warm throwaway `e5s2pw` (Code Map, "Platform measured"; started and torn down by the plan stage).
