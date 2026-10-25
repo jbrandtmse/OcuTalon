@@ -118,6 +118,22 @@ warm_is_class() {
 
 # --- up and down ---
 
+# warm_start_result <title>: the check of warm_up, run by stack_ready once the project is up (DW-164). 0 when the last RESULT line of
+# the after-start log is "RESULT OK ..." (or the log has no content at all, which only a stub gives: the health gate of the start
+# already needs the install to end ready). Otherwise it prints "FAIL <title>: ..." naming that line, or saying there is none, and
+# returns 1, which ends the up before any READY line.
+warm_start_result() {
+  local log line
+  log=$(start_log)
+  [ -n "$log" ] || return 0
+  line=$(printf '%s\n' "$log" | grep '^RESULT ' | tail -n 1)
+  case $line in
+    "RESULT OK" | "RESULT OK "*) return 0 ;;
+  esac
+  echo "FAIL $1: the last RESULT line of the after-start log is: ${line:-(no RESULT line)}"
+  return 1
+}
+
 warm_up() {
   local tag=$OCUTALON_RUN_TAG state started=$SECONDS held
   state=$(warm_state_dir "$tag")
@@ -140,7 +156,7 @@ warm_up() {
   printf 'services:\n  iris:\n    volumes:\n      - ./src:/opt/ocutalon/warm-src:ro\n' > "$state/warm.yml"
   LIVE_FILES=("${LIVE_FILES[0]}" "$state/decoy.yml" "${LIVE_FILES[@]:2}" "$state/warm.yml")
   warm_manifest > "$state/manifest" || exit 1
-  stack_ready warm "$started"
+  stack_ready warm "$started" warm_start_result
   printf '%s\n' "$root" > "$state/root"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$state/since"
   printf '%s\n' "${LIVE_FILES[@]}" > "$state/files"

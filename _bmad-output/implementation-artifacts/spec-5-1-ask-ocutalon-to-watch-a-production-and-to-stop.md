@@ -2,12 +2,22 @@
 title: 'Ask OcuTalon to watch a production, and to stop'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ec4cc15a75aa85dbcbf6b873dc85da0e53ba7952'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      WatchOps' failure answers (session lock timeout, a failed save or delete) and the lock's serialisation of one session's commands have no test.
+    evidence: |-
+      Watch/Ops.cls OnStart and OnStop answer `failed` with Ok 0 when `Lock +^OcuTalon.Watch(session):5` times out or %Save/%DeleteId fails.
+      Test.Watch.Ops asserts started, already_watching, stopped, not_watching, unknown_production, only_orders and no_session only. A lock in the
+      same process is re-entrant, so the test needs a second job that holds the lock for more than 5 s; deleting the lock line leaves every test green.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/Ops.cls:OnStart, OnStop, Lock
+    severity: medium
 ---
 
 <intent-contract>
@@ -179,6 +189,44 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 ## Review Triage Log
 
+### 2026-10-25 - Review pass
+- verdicts: 34 findings - high 0, medium 5, low 27, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: stop_watch cannot stop a watch whose production the reader no longer lists - the spec's own rule (stop resolves through `Reader.Find`; `OnStop` itself would delete); needs a table-reading fallback in a tool or a new command shape, for a rare state (a revoked grant or a production gone); Story 16.4's `SessionOps.End` goes through WatchOps.
+  - `[low]` `[reject]` Blind: Description is free text under TRUSTEDOUTPUT - an instance admin writes it (no outside content), and the classification is the spec-gate ruling U-80; the length and line-break part is the patched Label row below.
+  - `[low]` `[reject]` Blind: name matching is only the display name or the class name - the matching rule is the spec's (Decided in-stage); an empty Description matches by class name as specified.
+  - `[low]` `[reject]` Blind: `Reader.Productions` runs several times per request - no wrong outcome; `skipLockIfRunning` and a 1 s lock bound it, and the lists are short.
+  - `[low]` `[reject]` Blind: `Productions` can throw before the Try in `OnStart` - it throws only on an unreadable ServiceUser setting or a failed ListAll, a configuration error that fails loudly; CommandsIn answers `failed` for it.
+  - `[low]` `[reject]` Blind: Chat instructions name no sentence for stop's `failed`, `no_session` - the model says why from the message; unlikely to be met, and the fix adds instruction text (and moves token-size tests).
+  - `[low]` `[reject]` Blind: `warm_start_result` passes an empty log - the real log always holds a RESULT line once the health-gated start is up; an unreadable log is unlikely, and telling it from a stub's empty log means changing existing lines of `test-ci-warm.sh`, which the spec forbids.
+  - `[medium]` `[defer]` Blind: test gaps in `Test.Watch.Ops` (lock timeout, failed save) - same root cause as the verification-gap row on the failure answers; deferred. The Demo step's off path and the missing-role sentence are covered by the shared-edit keep block and `ServiceRole`'s one branch; low, not worth a test.
+  - `[low]` `[reject]` Blind: the spec's status and Auto Run Result lines are out of step during the run - the finalize step writes them.
+  - `[low]` `[reject]` Blind: the old summary line prints before the appended block of `test-ci-warm.sh` and `test-install-start.sh` - the spec forbids changing existing lines; the exit code and the block's own summary are final.
+  - `[low]` `[reject]` Edge: `Productions` throws on an unreadable ServiceUser or ListAll - as the blind row above: a loud configuration error.
+  - `[medium]` `[patch]` Edge: a Description longer than 128 characters (or with line breaks) overflows `DisplayName` (MAXLEN 128) on the command and the row, so the start fails - verified: `Reader.Current` took the whole Description. Fix: `Reader.Label` collapses white space and cuts to 128; `Test.Watch.Reader` `TestLabel` pins it (mutation line written).
+  - `[low]` `[reject]` Edge: `Submitted` has no name or list when the owner refuses after the tool's own read listed the production - needs a state change between the two reads; the answer still carries the outcome and the message.
+  - `[low]` `[reject]` Edge: a namespace argument that matches nothing answers unknown_production while naming the production elsewhere - the argument is only for a follow-up to `ambiguous`; the list answer is still correct.
+  - `[low]` `[reject]` Edge: on the online demo with Orders unreadable the answer is only_orders - the Demo step grants the read whenever demo mode is on; edge of a broken install.
+  - `[low]` `[reject]` Edge: `Readable` with an empty ServiceUser setting - an empty setting is a configuration error, and CheckUserPermission then denies.
+  - `[low]` `[reject]` Edge: stop for a production that dropped out of the reader - same as the blind row.
+  - `[false]` `[reject]` Edge: `Admits` is case-sensitive where `Find` is not - the tool passes the entry's own namespace from the reader, so the cases agree; a forged command in another case is refused, the safe direction.
+  - `[medium]` `[patch]` Edge: `TestUsageTurn`'s `first '= ""` cannot fail (the `+` makes it numeric) - verified. Fix: `first > 0`; `Test.Agent.Decide` runs green.
+  - `[low]` `[reject]` Edge: `warm_start_result` empty-log pass - as the blind row.
+  - `[low]` `[reject]` Edge: the WatchTools class comment claims no outside content - as the Description row above.
+  - `[medium]` `[patch]` Gap: `Tools.WatchAnswers` runs in the callback but is not in `CALLBACKHELPERS`, so the AD-6 scan never reads it - verified. Fix: listed in `CALLBACKHELPERS` and in `READERCLASSES` (a loop pins it); the mutation line is written.
+  - `[medium]` `[defer]` Gap: WatchOps' `failed` paths and the session lock have no test - needs a second job that holds the lock over 5 s; recorded in `deferred:`.
+  - `[low]` `[patch]` Gap (Rule 19): AC 1, 2, 3, 4, 7 and 8 had no `mutation:` line - each mutation applied, red observed, reverted (tree byte-identical); lines written under Verification.
+  - `[low]` `[reject]` Gap: `TestChat` compares the constant with a literal - the literal is the UX sentence and the next assertion compares the instructions text; the constant check is a second pin and the AC4 mutation turned `TestChat` red.
+  - `[low]` `[reject]` Gap: the `READERCLASSES` and `SINKCLASSES` loops repeat the list - they pin that the listed callees stay in `CALLBACKHELPERS` (the DW-177 mutation turned the test red); the callees are read from BridgeSink by hand as the spec says.
+  - `[low]` `[reject]` Gap: `TestListProductions`'s disjunct is weak - it can fail (no " and " in the list) and pins the joined list; order is not the AC's claim.
+  - `[low]` `[reject]` Gap: `TestUsageTurn` derives its expectation from the estimate - the largest-request rule is pinned in `Test.Bridge.Usage`; this test only joins the two.
+  - `[false]` `[reject]` Gap: `TestInjectedStop` has no positive control that the helper sees WatchOps traffic - the AC3 mutation (READONLYSTOPWATCH 1) turned its "no command reached WatchOps" assertion red, so it can fail.
+  - `[low]` `[reject]` Gap: the Watch classes rely on the Demo grant and demo mode - by design: `Case.Ready` fails with the reason, and `Test.Install.Registry` restores the role.
+  - `[low]` `[reject]` Gap: assertions assume the throwaway's namespace set - the throwaway's set is fixed (OCUORDERS and OCUTALON); each fails with its reason if it changes.
+  - `[low]` `[reject]` Gap (other): stop for an unlisted production - as the blind row.
+  - `[low]` `[reject]` Gap (other): `warm_start_result` passes an empty log - as the blind row.
+  - `[low]` `[reject]` Intent audit: the headline expectations sit at the chat and install surfaces and the tests exercise class-level surfaces and the scripted mock - `Test.Watch.Turns` runs the real Decide, tool, `CommandsIn`, WatchOps and `Ownership.Checks` in a throwaway; the model's choice of tool and wording is scripted by design (AD-22).
+
 ## Design Notes
 
 **Governing ADs:**
@@ -233,6 +281,13 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
   - If list_productions tainted the turn, the gate would deny a start_watch that followed it in the same turn, which breaks UJ-1.
   - This is a veto-window item, raised in Auto Run Result.
 
+- Implement stage, tool side: `Tools.WatchTools` returns only through `Return` (the code-rules scan flags any other `Quit` value in a tool provider), so the shaping of the answers is `Tools.WatchAnswers` (`Resolve`, the pure `Decide`, `Submitted`, `Listed`, `Joined`). `CommandCall` gained `Session()` (the NOSESSION check, which `Run` also uses), so a watch tool answers NOSESSION before it looks anything up. An empty list reads "no productions". `READMELINK` stays a `WatchTools` parameter and `WatchAnswers` reads it.
+- Implement stage, owner side: `WatchOps` answers `failed` (Ok 0) when a lock or a save fails, takes a lock on the session for each command (`^OcuTalon.Watch(sessionRef)`), and takes the display name from the reader, never from the command. `stop_watch` resolves the name through the reader like `start_watch`, so a watch whose production the reader no longer lists (an unreadable namespace) cannot be stopped by the tool: it answers `unknown_production`.
+- Implement stage, Demo step: `ServiceRole(on)` is a sibling of `System` that `System` calls after it switches back to the home namespace (`Demo` classes do not resolve in `%SYS`); `WithOrdersData` is the pure helper. The off and keep paths call it before they branch, so both remove the grant.
+- Implement stage, tests: `Test.Watch.Case` (abstract) and `Test.Watch.Grant` are new beside the four named classes. `Test.Install.Registry` now saves and restores the service role's resources as it does the trace role's: its `OnAfterAllTests` runs the Roles step, which drops the Demo step's grant and left every later Watch class with an empty list in a fresh shard. Chat's request is now above `min_tokens_for_cache` and above Test.Agent.Decide's measured usage, so `Test.Agent.Runners` expects Chat's system block marked (`systemMarked`) and `Test.Agent.Decide` `TestUsageTurn` expects the larger of the measured last request and the first request's estimate; both are consequences of the six tools and the longer instructions, with no change of product code. `Test.Tools.Reminders` follows the six tool names. The service role's off and keep removal is pinned by one block appended to `docker/tests/test-install-start.sh` (seed the grant, rerun the step in the keep state, expect no OCUORDERS resource).
+- Implement stage, DW-164: `stack_ready` takes the optional check, `warm_start_result` fails the up when the after-start log's last `RESULT` line is not `RESULT OK ...` or there is none. A log with no content at all (only a stub gives one: the start is health-gated) passes, so the existing hermetic checks keep their stubs unchanged.
+- `Reader.Label` makes the display name of a production description: white-space runs become one space and the text is cut to 128 characters (the length of `DisplayName` in the command and the row), so a long or multi-line Description never fails a start. Review pass, 2026-10-25.
+
 **Declined:** none. DW-38 (the reader's own-production rule and its matrix row), DW-74, DW-164 and DW-177 are all addressed above.
 
 **Footprint extensions** (not contended): `Agent/Chat.cls`, `Test/Agent/{Instructions,Runners}.cls`, `Test/Bridge/{Gate,CodeRules,Decide}.cls`, `Test/Install/Production.cls` (the `WatchOps` row only), `ci/warm.sh`, `ci/iris.sh` (`stack_ready` hook), and `docker/tests/test-ci-warm.sh` (one block appended). By orchestrator ruling also Epic 4's `Install/Step/Demo.cls` and `Test/Core/CommandsInProduction.cls` (below), and, if used, one block appended at the end of `docker/tests/test-install-start.sh`.
@@ -279,9 +334,46 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - Drop the restore in `CommandCall` → the job-session test fails.
 - Remove the `RESULT` check → the `test-ci-warm.sh` block fails.
 
+**Observed pinning mutations** (Rule 19; each applied, run, observed red, reverted; the tree was byte-identical afterwards):
+- mutation: drop the `CheckUserPermission` filter (`Reader.Readable` quits 1) -> `Test.Watch.Reader` `TestUnreadableNamespaceIsLeftOut` fails (OCUTALON is listed and admitted).
+- mutation: read a production row by description instead of the current production (`Reader.Current` takes the `Ens_Config.Production` row described Orders) -> `Test.Watch.Reader` `TestReadableNamespaceOffersItsOwnProduction` fails (the DW-38 row matches twice).
+- mutation: skip the natural-key check (`Ops.OnStart` sets `ref` to "") -> `Test.Watch.Ops` `TestRepeat` fails (two rows).
+- mutation: delete by `Namespace` and `Production` only (`Ops.OnStop`) -> `Test.Watch.Ops` `TestStop` fails (the other session's row goes).
+- mutation: `READONLYSTARTWATCH` 1 -> `Test.Bridge.Gate` `TestUntrustedTurnRunsOnlySafeReadOnly` and `TestWatchToolsAreClassified` fail (start_watch is no longer denied).
+- mutation: drop the job-session restore in `CommandCall.Run` -> `Test.Watch.Tools` `TestSubmitKeepsTheJobSession` fails (five assertions).
+- mutation: drop the `RESULT` check (`warm_up` passes no check to `stack_ready`) -> the appended block of `docker/tests/test-ci-warm.sh` fails (4 checks).
+- mutation: drop the keep and off path's `ServiceRole(0)` in `Demo.System` -> the appended block of `docker/tests/test-install-start.sh` fails (`CHK|role|1`, wanted 0).
+- mutation: `Ops.OnStart` writes `Kind` "other" (fresh stack) -> `Test.Watch.Turns` `TestStartThroughTheAgent` fails (the row's Kind and `Ownership.Checks`' Kind) (AC 1).
+- mutation: `Ops.OnStop` deletes by `Namespace` and `Production` only, with SQL (fresh stack) -> `Test.Watch.Turns` `TestStopLeavesTheOtherSession` fails (the other session's row is gone and `Ownership.Checks` no longer lists it) (AC 2).
+- mutation: `WatchTools` `READONLYSTOPWATCH` 1 (fresh stack) -> `Test.Watch.Turns` `TestInjectedStop` fails (the stop_watch step is not denied, the row is deleted, WatchOps and CommandsIn see the command) (AC 3).
+- mutation: the started sentence of `Agent.Chat` says "stay silent" -> `Test.Agent.Instructions` `TestChat` fails; `TOOLSETS` without `OcuTalon.Tools.Watching` -> `TestToolsets` fails (AC 4).
+- mutation: `OcuTalon.Live.Event` removed from `CALLBACKHELPERS` -> `Test.Bridge.CodeRules` `TestCallbackRule` fails (BridgeSink's callee, DW-177); `OcuTalon.Tools.WatchAnswers` removed from it -> the same test fails (AC 7).
+- mutation: `Demo.WithOrdersData` also adds `%DB_OCUORDERS_CODE:R` -> `Test.Watch.Grant` `TestHelper` fails (five assertions); `Demo.System` skips `ServiceRole(1)` on the on path (fresh stack) -> `Test.Watch.Grant` `TestReaderNeedsTheGrant` and `TestRoleHoldsTheDataDatabaseOnly` fail (AC 8).
+- mutation: `Reader.Label` without the 128-character cut -> `Test.Watch.Reader` `TestLabel` fails (a 299-character label).
+- Note: a warm stack reloads classes, but a running production job keeps its old code, so a mutation of `WatchOps` is seen by `Test.Watch.Ops` (shadow instance) on a warm stack and by `Test.Watch.Turns` (the production's item) only on a fresh one.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage, 2026-10-25: the plan halted `blocked` on two Epic 4 paths and one veto classification; the epic runner applied the orchestrator's rulings and its own spec-gate ruling (Design Notes, Spec Change Log) and set the spec `ready-for-dev`. Task 0 evidence (slot A, read-only): `GetNSInfo` gives each namespace's data-database resource without `%SYS`; OCUTALON holds a compiled `OcuTalon.Demo.Orders.Production` row described "Orders" (DW-38); `GetProductionStatus` gives each namespace's own production.
+**Summary.** The Chat agent now has start_watch, stop_watch and list_productions (`Tools.Watching`, `Tools.WatchTools`, `Tools.WatchAnswers`). `Watch.Reader` is the one namespace switcher and read-access check; `WatchOps` is real (natural-key repeat, own-row stop, owner check on every start, asking user from the `Session` row). The Chat instructions carry the UX sentences. `Install.Step.Demo` gives `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` only with demo mode on, and the off and keep paths remove it (U-79). DW-164 (`warm up` reads the after-start log's last `RESULT` line), DW-177 (`CALLBACKHELPERS` covers BridgeSink's callees) and DW-74 (job session kept) are closed.
+
+**Files changed** (paths under `src/ocutalon/cls/OcuTalon/` unless noted):
+- New: `Watch/Reader.cls`; `Tools/{WatchTools,WatchAnswers,Watching}.cls`; `Test/Watch/{Case,Reader,Grant,Ops,Tools,Turns}.cls`; `ci/mock/scenarios/A/watch-{start-orders,start-unknown,stop-orders,injected-stop}.json`.
+- Changed: `Watch/Ops.cls` (real WatchOps), `Tools/CommandCall.cls` (neutral texts, `Session()`), `Agent/Chat.cls`, `Install/Step/Demo.cls` (service-role grant), `ci/{iris,warm,units}.sh`, one appended block each in `docker/tests/test-ci-warm.sh` and `docker/tests/test-install-start.sh`.
+- Tests changed: `Test/Bridge/{Gate,CodeRules,Decide}.cls`, `Test/Agent/{Instructions,Runners,Decide}.cls`, `Test/Tools/{CommandsDouble,Reminders}.cls`, `Test/Install/{Production,Registry}.cls`, `Test/Core/CommandsInProduction.cls` (WatchOps row only).
+
+**Review.** 34 findings: high 0, medium 5, low 27, false 2. Patched (4 entries): `Reader.Label` (a description over 128 characters or with line breaks overflowed `DisplayName`), `TestUsageTurn`'s unfailable `first > 0` assertion, `Tools.WatchAnswers` added to `CALLBACKHELPERS` and `READERCLASSES`, and the missing Rule 19 mutation lines for AC 1, 2, 3, 4, 7, 8 (each mutation observed red and reverted). Deferred: 1 (WatchOps' `failed` paths and session lock untested; in `deferred:`). Rejected: the rest, each with its reason in the Review Triage Log. Patched by verdict: medium 3, low 1.
+
+**Follow-up review recommended: true** (three medium entries were patched on this first pass). The unverified risk: `Reader.Label` is pinned by a pure test and by the Orders description "Orders" through the real path, but no real production with a long or multi-line Description has gone through `Reader.Current`, `WatchOps` and the rail.
+
+**Verification** (after the last patch): `bash docker/tests/test-ci-warm.sh` all PASS; warm up READY (the `RESULT OK` check ran); warm class runs passed for `Watch.Reader`, `.Ops`, `.Tools`, `.Turns`, `.Grant`, `Bridge.Gate`, `.CodeRules`, `.Decide`, `Agent.Instructions`, `.Runners`, `.Decide`, `Tools.Reminders`, `Install.Production`; fresh `shard lane-a` passed (52 classes, 422 s); fresh `shard lane-b` passed (42 classes, 138 s); `bash ci/checks.sh` all pass; `bash docker/tests/test-mock.sh` 94 of 94; fresh `ci/iris.sh live install-start` passed (with the U-79 block). Warm stack `e5s1iw` and fresh `e5s1i` torn down, no leftover container or lock. The mutation runs are under Verification (observed list); the tree was byte-identical after them.
+
+**Veto-window items for the lead** (both ruled before this stage): U-79 (the service role's Read on `%DB_OCUORDERS_DATA`, `Install/Step/Demo.cls`) and U-80 (`TRUSTEDOUTPUT` 1 on all three watch tools).
+
+**Residual risks.**
+- A watch cannot be stopped through the tool once the reader stops listing its production (the spec's rule; `WatchOps` itself would delete the row; Story 16.4's `SessionOps.End` goes through WatchOps).
+- `warm_start_result` passes a log with no content at all, because the existing hermetic stubs return none; a real start's log always holds a RESULT line.
+- A warm stack reloads classes but a running production job keeps its old code: a change to WatchOps is proved by `Test.Watch.Turns` only on a fresh stack (noted for Rule 21's warm-mode note).
+- `Test.Install.Registry` now restores the service role (its Roles step otherwise drops the Demo step's grant); a later test that reruns the Roles step without restoring would blank every Watch class.

@@ -622,7 +622,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "OcuTalonApprovals", "class": "EnsLib.Workflow.Operation", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "FailurePoller", "class": "OcuTalon.Watch.FailurePoller", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "IncidentManager", "class": "OcuTalon.Watch.IncidentManager", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "WatchOps", "class": "OcuTalon.Watch.Ops", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
+ {"lane": "A", "name": "WatchOps", "class": "OcuTalon.Watch.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "EvalIn", "class": "OcuTalon.Eval.In", "pool": 0, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "EvalSink", "class": "OcuTalon.Eval.Sink", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
  {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 1, "enabled": 1, "stub": 1, "settings": []},

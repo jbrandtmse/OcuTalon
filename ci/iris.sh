@@ -245,15 +245,18 @@ stack_start() {
   live_start "$1"
 }
 
-# stack_ready <title> <start second>: the STACK line, the build and start of the project, and the READY line.
+# stack_ready <title> <start second> [<check>]: the STACK line, the build and start of the project, and the READY line. The optional
+# check is a command that runs once the project is up and before the READY line: it prints its own FAIL line and returns non-zero
+# to end the run (exit 1, so the caller's exit trap tears the project down). A fresh run passes none.
 stack_ready() {
-  local title=$1 started=$2 ready
+  local title=$1 started=$2 check=${3:-} ready
   echo "STACK $title: project $P"
   if ! dc up -d --build --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>&1; then
     tail -n 30 "$tmp/up.log"
     echo "FAIL $title: the stack did not become ready"
     exit 1
   fi
+  if [ -n "$check" ] && ! "$check" "$title"; then exit 1; fi
   live_track_image
   ready=$((SECONDS - started))
   echo "READY $title ${ready}s"

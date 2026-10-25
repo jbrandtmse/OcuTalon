@@ -161,7 +161,7 @@ Method TestDeclarations()
 	Set names = "OcuTalon.Tools.Names"
 	Do $$$AssertTrue(..StartsWithSqlVerb("  delete the reminders"), "control: a text that starts with an SQL verb is flagged")
 	Do $$$AssertNotTrue(..StartsWithSqlVerb("Sets a reminder, then deletes nothing"), "and one that does not start with one is not")
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ..#TOOLSET, "Chat's TOOLSETS is "_..#TOOLSET)
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ..#TOOLSET_",OcuTalon.Tools.Watching", "Chat's TOOLSETS is "_..#TOOLSET_" and, since Story 5.1, OcuTalon.Tools.Watching")
 	Set expected = $ListBuild($Parameter(names, "SETREMINDER"), $Parameter(names, "LISTREMINDERS"), $Parameter(names, "CANCELREMINDER"))
 	Set want("set_reminder") = $ListBuild("safe", 0, 1, "Setting a reminder", "delaySeconds,localDueAt,text", "text")
 	Set want("list_reminders") = $ListBuild("safe", 1, 1, "Listing your reminders", "", "")
@@ -260,7 +260,7 @@ Method TestSetRelative()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,list_reminders,set_reminder", "the second request offers the three reminder tools")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,list_productions,list_reminders,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Story 5.1, the three watch tools")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..SetAnswer(), "the model reads the answer of the owner")

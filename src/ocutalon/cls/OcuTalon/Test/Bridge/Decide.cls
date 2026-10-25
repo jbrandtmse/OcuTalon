@@ -1508,7 +1508,7 @@ Method TestPrecheckOrder()
 /// The estimate counts what the first model request of the runner carries (Story 1.9; AD-6, AD-20), at 4 characters a token and rounded up: the system
 /// prompt and the tool schemas of the runner's agent (RequestSize.AgentChars), the stored history of a linked turn that continues
 /// (RequestSize.HistoryChars) and the input that Chat gets (Adapter.Agent ChatInput).
-///   - The agent part: AgentChars of Triage is the length of the system prompt of the live agent, of Chat that and the JSON of the Reminders toolset's
+///   - The agent part: AgentChars of Triage is the length of the system prompt of the live agent, of Chat that and the JSON of the Reminders and Watching toolsets'
 ///     tools, of Diagnosis that and the JSON of the Watch toolset's tools (a little less than the live tool catalog, which adds a status to each tool),
 ///     and of a class that does not exist it is 0 with an error status;
 ///   - the estimate of a decide, a diagnose, an untrusted turn, a user turn with no link and a user fresh turn with a seed and a note is the agent
@@ -1535,7 +1535,10 @@ Method TestEstimateTokens()
 	Do ..LiveSizes(chatClass, .prompt, .catalog)
 	Set reminders = $Length(##class(OcuTalon.Tools.Reminders).%New().%Discover().%Get("tools").%ToJSON())
 	Do $$$AssertTrue(reminders > 500, "the JSON of the three Reminders tools is measured: "_reminders)
-	Do $$$AssertEquals(chat, prompt + reminders, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders toolset's tools, "_reminders)
+	Set watching = $Length(##class(OcuTalon.Tools.Watching).%New().%Discover().%Get("tools").%ToJSON())
+	Do $$$AssertTrue(watching > 500, "the JSON of the three Watching tools is measured: "_watching)
+	Set reminders = reminders + watching
+	Do $$$AssertEquals(chat, prompt + reminders, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders and Watching toolsets' tools, "_reminders)
 	Do $$$AssertTrue((catalog '< reminders) && ((catalog - reminders) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)
 	Set diagnosis = $ClassMethod(size, "AgentChars", diagnosisClass, .sc)
 	Do $$$AssertStatusOK(sc, "AgentChars of Diagnosis is worked out")

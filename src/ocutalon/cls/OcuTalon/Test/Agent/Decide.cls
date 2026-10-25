@@ -966,7 +966,7 @@ Method TestUsageDecide()
 
 /// A user's turn with the scenario usage-turn: a request that asks for a tool ChatAgent does not have, and a final text (1,000 prompt
 /// tokens and 512 written to the cache, then 1,100 prompt tokens and 512 read from it). One Usage row holds the sums of the two requests
-/// and the largest request, which is the last one. The Reply of the runner, the Decision row and the answer hold them, with a step count
+/// and the largest request, which is the larger of the last one and the estimate of the first (since Story 5.1 the estimate of Chat's first request is the larger). The Reply of the runner, the Decision row and the answer hold them, with a step count
 /// of the two requests plus the tool call.
 Method TestUsageTurn()
 {
@@ -989,7 +989,17 @@ Method TestUsageTurn()
 	Do $$$AssertEquals(usage.RequestCount, 2, "two model requests")
 	Do $$$AssertEquals(usage.InputTokens, 3124, "InputTokens: prompt 1,000 + 1,100, cache read 512 and cache write 512")
 	Do $$$AssertEquals(usage.OutputTokens_"|"_usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "130|512|512", "OutputTokens 50 + 80, and the cache counts")
-	Do $$$AssertEquals(usage.LargestRequestTokens, 1612, "the largest request is the last one: prompt 1,100 and cache read 512")
+	#; The larger of the last request's measured input (prompt 1,100 and cache read 512) and the estimate of the first request, which is Chat's
+	#; system prompt, its tool schemas and the input: the estimate passes the measured 1,612 once Chat's toolsets are the reminder and watch tools.
+	Set largest = 1612
+	Set first = ""
+	Set iterator = $ClassMethod(fixture, "StepsOf", answer.DecisionRef).%GetIterator()
+	While iterator.%GetNext(, .step) {
+		If (first = "") && (step.kind = "model") Set first = +step.estimatedTokens
+	}
+	Do $$$AssertTrue(first > 0, "the first model step has an estimate: "_first)
+	If first > largest Set largest = first
+	Do $$$AssertEquals(usage.LargestRequestTokens, largest, "the largest request is the larger of the last one (prompt 1,100 and cache read 512: 1,612) and the estimate of the first ("_first_")")
 	Do $$$AssertEquals(usage.CostUSD, .000344, "the cost is that of the sums at the Price row of the model")
 	Set expected = "3124|130|512|512|.000344|claude-haiku-5-5|"_..#USAGETURNSTEPS
 	Set runner = ..HeaderTo($ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
