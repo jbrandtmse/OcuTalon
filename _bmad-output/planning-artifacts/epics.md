@@ -2113,6 +2113,7 @@ So that two answers can never both act and an old request can't be approved by s
 **Given** a `TaskResponse` reaches ApprovalHold
 **When** it handles the response
 **Then** it acts only if the row already shows that answer; on approval, rejection or expiry it sends `ApprovalOutcome` to the row's `ResultTarget`, except that an approved `tool_call` gets the replay instead (Story 30.3, AD-11; until it merges, an approved `tool_call` gets neither and runs nothing [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 3.6]), a rejection runs nothing, and `HostSinkClass` receives `approval.answered`, `approval.expired` or `approval.cancelled` with the `Ref` (FR-8, NFR-13, AD-11, AD-31)
+- DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; the expiry path must not require the clock to be past ExpiresAt, or the request stays pending (ledger; routed by harvest 2026-10-25)
 
 ### Story 3.6: A risky tool call waits for approval and runs nothing
 
@@ -2133,6 +2134,8 @@ So that my own risky tools never run without a yes.
 **Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
 **When** they run
 **Then** the risky test tool never runs without an approved request, and a rejected or expired request runs nothing (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: "an approved request runs the call exactly once" moved to Story 30.3]
+- DW-187: Approval.Raise inside an open transaction: its ApprovalStartIn ProcessInput commits every open transaction level of the caller, and the hold's job cannot see an uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25, effect corrected by 3.4's review)
+- DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which replaces the job's session and current header ids; from the runner's job the gate's later event-log rows would lose their session; restore them after the call, or start the hold another way (ledger; routed by cr 2026-10-25)
 
 ### Story 3.7: Every action and governance event is in the IRIS audit log
 
@@ -2189,6 +2192,7 @@ So that the online-demo epics (Lane A's Epic 29 and Lane B's Epic 16 [AMENDED 20
 **Given** a test stack with the online-demo start values
 **When** the three are exercised
 **Then** the public keys read back through `OcuTalon.Data.Public.Settings`, a password change for either public account is refused while the installer's write succeeds, and a decision at the cap falls back with `daily_cap` without a request being sent (FR-40, FR-59)
+- DW-160: On a fresh flag-on volume's first start the Users step cannot pin the public accounts' Visual Trace page size in OCUORDERS (the Demo step creates OCUORDERS after Users), so the Public step's last phase (after Production and Reconcile, before SetReady) calls Users.PinTrace for both public accounts (ledger; routed by spec_gate 2026-10-24)
 
 ## Epic 4: The demo page: guide, simulated phone and mailbox, and Break the feed
 
@@ -2467,6 +2471,8 @@ So that a background check starts or stops without any configuration.
 
 - DW-38: Matching a production by its display name finds only productions registered in their own namespace, so the never-running `OcuTalon.Demo.Orders.Production` row that compiling the package leaves in OCUTALON (description "Orders") is never offered as the Orders production (measured in Story 0.10) (ledger; routed by code review 2026-10-20)
 - DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread. This story's start-watch tool is the first tool job that calls Commands.Submit inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId, and if they don't, restore the id after Submit (`Core/Commands.cls`) with a test (ledger; routed by burndown 2026-10-25)
+- DW-164: `ci/warm.sh up` printed `READY warm 543s` while the warm stack's after-start log said `RESULT FAILED` and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure. Fix the tooling before Lane A relies on warm mode again: `READY` only after the after-start `RESULT OK` (ledger; routed by burndown 2026-10-25)
+- DW-177: The classes that `OcuTalon.Core.BridgeSink` calls once it publishes (Lane B) are not in `CodeRules.CALLBACKHELPERS`, so the callback rule does not scan them, although the gate fires `turn.step` (and, since 3.6, `approval.raised`) to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job. With Epic 2's publishing BridgeSink on the feature, list its callees in `CALLBACKHELPERS` (ledger; routed by burndown 2026-10-25)
 
 ### Story 5.2: New failures are picked up within seconds
 
@@ -2734,6 +2740,7 @@ So that nothing risky happens without my yes, and I know at once whether my answ
 **And** a press that lost the race shows "Already answered: approved from Telegram at 14:15.", channels read "the web chat", "the simulated phone" or "Telegram", and on a local install with more than one OcuTalon user the status names who answered ("Approved by sam from the web chat at 14:15") (FR-8, UX-DR76)
 - DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request. Story 2.8 made the failed read loud (Watchers and Recipients pass its status on; BridgeSink logs it and publishes nothing). Residual for this story: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; this story hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113) (ledger; routed by adjudication 2026-10-23)
 - DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green; no role change, login or bound value makes the checked prepare fail in %UnitTest. This story's privilege-limited REST answer path is where the read really fails: pin those branches there (ledger; routed by merge_gate 2026-10-25)
+- DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. A test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
 
 ### Story 6.3: Answer on the simulated phone and see every answer everywhere
 
@@ -3405,6 +3412,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **When** this story merges
 **Then** it pins a QR-code library and records it in the spine's Stack section (as for the component library), adds the typed API-client methods for the pairing endpoints and the `TelegramState` interface, and creates the Telegram parts of the REL-2 demo-path specs as separate, skipped spec files, `web/e2e/demo-path/telegram-*.spec.ts`, which Lane A owns from Epic 12 with the rail's Telegram card (REL-2, AD-29)
 **And** every criterion above runs on fixtures (a fixture pairing, fixture `TelegramIn` submissions and fixture `AnswersIn` calls), because Lane A's Telegram epic builds `TelegramIn` and `TelegramOut` after release 1 (AD-29)
+- DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live `Pairing` row, never a `ChatRef` or chat id: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. The entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
@@ -4087,6 +4095,7 @@ So that one package gives me a working OcuTalon in my existing instance.
 **And** this story needs no Lane B action: Lane B's Story 31.3 (was Story 16.10) adds the README's IPM section from that file (FR-58, AD-29)
 
 - DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
+- DW-212: With the online-demo flag off, an install into an instance whose `PasswordValidationRoutine` names another routine leaves the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition). Story 3.8's `TestForeignGuardIsRefused` pins the setting; add the assertion that the foreign routine still exists after the flag-off run, and prove both cases on this story's IPM install into an existing instance (ledger; routed by owner 2026-10-25, inbox U-75)
 
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
@@ -5211,6 +5220,7 @@ So that a new or changed tool can never act without my say.
 **Given** the model, an item's content or a tool result
 **When** it tries to classify a tool
 **Then** nothing changes: no tool can classify, and `McpOps` accepts a classify command only with origin `web_admin`, behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4) (FR-7, FR-49, NFR-14, AD-1)
+- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24)
 
 ### Story 22.3: Call MCP tools only through the governed proxy
 
@@ -6355,6 +6365,9 @@ So that my own risky tools work through the bridge and never run without a yes.
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
 - DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
+- DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no `ApprovalOutcome` is sent until the next Reconcile. This story reworks the hold's delivery: Reconcile or the hold delivers an answered or expired row that has no live hold, including the expired outcome to `ResultTarget` (ledger; routed by merge_gate 2026-10-25, veto U-78)
+- DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call). This story adds the two fields (a stored-data change, in its own veto window) or derives them, for example from the decision's trace (ledger; routed by spec_gate 2026-10-25)
+- DW-195: A hold whose start times out after `STARTSECONDS` can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete). With DW-194, measure `ApprovalStartIn` held past `STARTSECONDS` and re-check the row before the task is sent (ledger; routed by burndown 2026-10-25)
 
 ### Story 30.4: A stopped production or a disabled item is reported once
 

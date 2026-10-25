@@ -1,0 +1,19 @@
+{
+  "name": "gate-read",
+  "match": {
+    "marker": "gate-read"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_read",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the outside text."
+    }
+  ]
+}

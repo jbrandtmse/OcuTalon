@@ -37,7 +37,9 @@ Property ThreadSessionId As %Integer;
 /// The SuperSession that the messages of the call carry.
 Property SuperSession As %String(MAXLEN = 64);
 
-/// True when untrusted content reached the turn.
+/// True when a tool result that is not trusted output has reached the turn (AD-10). The gate sets it when it allows a call whose tool is
+/// not trusted output, and a tool may set it itself. Begin starts every turn at 0, an untrusted turn included: the provenance says whether
+/// the item came from the user, and this says whether such a result reached the model.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
 /// JSON a tool may fill, such as check rows.

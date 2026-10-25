@@ -1,0 +1,12 @@
+{
+  "name": "suspicious-triage",
+  "match": {
+    "marker": "suspicious-triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock decides act for the suspicious request, so that its untrusted turn runs.\"],\"confidence\":0.6}"
+    }
+  ]
+}

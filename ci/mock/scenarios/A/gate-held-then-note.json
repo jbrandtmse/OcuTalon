@@ -1,0 +1,25 @@
+{
+  "name": "gate-held-then-note",
+  "match": {
+    "marker": "gate-held-then-note"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_gate_held",
+          "input": {}
+        },
+        {
+          "name": "zz_gate_note",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "The CI mock called a held tool and then a note tool in one response."
+    }
+  ]
+}

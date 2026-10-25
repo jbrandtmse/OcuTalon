@@ -51,6 +51,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Clean() in Test.Web.Install, Test.Web.Shell and Test.Install.Users, and CreateRoles in Test.Web.Install and Test.Install.Users, repeat one pattern with their own prefixes, 6 to 12 lines each
 - 2026-10-19T06:11:53Z status=wontfix-accepted owner=0-3-sign-in-to-an-empty-ocutalon-page by=cr note=reopen_if=a fourth test class repeats the delete-by-prefix or CreateRoles helper (then extract one OcuTalon.Test fixture class)
+- 2026-10-24T15:47:10Z occurrence=3-1-roles-and-the-service-user-grant-only-what-the-architecture
+- 2026-10-24T15:47:10Z status=wontfix-accepted owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=4th copy: Test.Install.Registry Clean deletes ZzRegistry users by prefix; extraction spans Lane B Test.Web. reopen_if=a 5th test class repeats it
 
 ### DW-9: flake: OcuTalon.Test.Install.Users:TestEnsureCreates read an empty password hash once (1 of 7 runs on slot A), then passed on 3 unchanged reruns
 - source: fresh_check 0.3 | severity: med | fix-risk: low | footprint: in-epic
@@ -63,6 +65,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Bridge.Installer, Step.Audit and Bridge.Audit.Write never read Security.System AuditEnabled; build 154 has it on by default (measured), an existing instance may not
 - 2026-10-19T08:48:58Z status=routed owner=3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=harvest note=Audit step warns plainly (log warning + a status the security overview and README point to); never changes the setting (AD-17; Contest Planner 2026-10-19)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=Audit_step_warns_when_instance_auditing_is_off_and_records_on/off/unknown_in_the_status_mark_instanceAuditing;never_changes_the_setting;Test.Install.Audit(4_tests,mutations)+live_audit_AD-17_row
 
 ### DW-11: AC5 (each Storage block equals the compiler's output) is checked once by a load-compile-export round trip, not by a recurring CI check
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: in-epic
@@ -522,6 +525,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 1.10 Tools/ReminderTools TRUSTEDOUTPUT<NAME>; AD-10 3a quarantine; spine row Saved conversations
 - 2026-10-23T23:00:53Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=spec_gate note=3.3 decides whether set_reminder and cancel_reminder declare TRUSTEDOUTPUT 1 (a class parameter each)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=set_reminder+cancel_reminder_declare_TRUSTEDOUTPUT_1(ReminderTools,commit_41bf263);pinned_by_Test.Bridge.Gate_TestTaintFollowsTrustedOutput+TestWatchToolsAreClassified+Test.Tools.Reminders_want(mutation_TRUSTEDOUTPUTSETREMINDER=0->reminder-set-two_second_call_denied);veto_U-60
 
 ### DW-137: A JSON true given as set_reminder's delaySeconds reaches SetReminder as 1 (AI Hub decodes arguments before the method runs), so it sets a reminder one second ahead instead of being refused
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: low | footprint: in-story
@@ -537,6 +541,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/ReminderTools TRUSTEDOUTPUTLISTREMINDERS; AD-10's trusted output is 'built by code from OcuTalon's own records'
 - 2026-10-24T01:30:42Z status=routed owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=harvest note=unverified; 3.1/3.3 decide whether a result carrying stored model-authored text is exempt from taint (with DW-136)
+- 2026-10-24T23:49:42Z status=resolved-by:3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=adjudication note=list_reminders_stays_trusted_output;set_reminder_is_not_read-only_so_it_is_denied_in_every_untrusted_or_tainted_turn(rows2-3),so_no_text_from_outside_a_user's_untainted_turn_reaches_a_Reminder_row_through_a_tool;stated_in_ReminderTools_class_comment+spine_Tool_classification_row;mutation_TRUSTEDOUTPUTLISTREMINDERS=0->reminder-cancel_denied
 
 ### DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -558,6 +563,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Tools/WatchFixture.cls gained only STEPLABEL<NAME> in Story 1.10; spine convention 'Tool classification': an undeclared tool is unclassified
 - 2026-10-24T02:57:20Z status=routed owner=3-2-one-gate-decides-every-tool-call by=cr note=3.2 declares the watch tools' classification (event-log and message text never trusted output, AD-10) or scans for it
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=WatchFixture_declares_CLASSIFICATION/READONLY/TRUSTEDOUTPUT_per_tool(safe,1,0);pinned_by_Test.Bridge.Gate:TestWatchToolsAreClassified+TestEveryBuiltInToolIsClassified+Test.Agent.Runners(mutation_recorded);commit_c88bd3b
 
 ### DW-144: Test.Tools.Reminders.Prepare is the fifth copy of the live-test readiness helper (Test.Agent.RequestSize, Agent.Decide, Agent.Conversation, Bridge.Budget), with the CommandsIn swap added, instead of one shared helper in RunnerFixture
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: low | fix-risk: med | footprint: in-epic
@@ -721,6 +727,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-1 :105 (amended 2026-10-19 from Story 0.6's ruling: the admin-checked endpoints and 2.3's CommandsIn own those checks); CommandsIn.cls: Role checks are not made here; AD-19 puts the admin role check in Admin.SetDemoMode
 - 2026-10-22T10:56:07Z status=decision-pending owner=burndown by=cr note=veto U7: amend the AD-1 sub-bullet to origin checks, or add a role check to CommandsIn; lead routes to orchestrator
 - 2026-10-25T11:58:31Z status=decision-pending owner=burndown by=unattended note=inbox=U-70(AD-1_re-architecture_under_U7c;recommended_a:amend_the_Submit_sub-bullet_to_as_built)
+- 2026-10-25T12:10:22Z status=resolved-by:2-3-route-every-command-by-verb-with-origin-checks owner=2-3-route-every-command-by-verb-with-origin-checks by=owner note=U-70(a):AD-1's_Submit_sub-bullet_amended_to_as_built(CommandsIn_makes_the_origin_checks;the_role_check_is_in_the_admin-checked_endpoints,AD-19);Story_4.1_already_refuses_a_non-admin_caller_before_submitting;no_code_change
 
 ### DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -903,6 +910,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an agent cannot run a screen reader; Story 2.12 builds the joined announcement and its automated test (A4)
 - 2026-10-24T11:52:16Z status=decision-pending owner=burndown by=spec_gate note=human=screen-reader check of the announcer (VoiceOver on macOS, NVDA on Windows)
 - 2026-10-25T11:58:32Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=merge_gate note=action_item:epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi(owner:user)
+- 2026-10-25T17:43:08Z status=dropped owner=2-12-meet-the-accessibility-and-responsive-floor by=owner note=action_item_replaced:epic-2-retro-item-5-accessibility-tree-check-of-the-announce(owner:Contest_Planner);the_VoiceOver/NVDA_listening_test_dropped_by_the_owner's_decision(option_1)
 
 ### DW-161: A2 to A5 hold the page's poll while seeding, so on a host 2.5 times slower the hold may near the 10 s after which Reconnecting shows
 - source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
@@ -971,6 +979,147 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
 
+### DW-160: On a fresh flag-on volume's first start the Users step cannot pin the public accounts' Visual Trace page size in OCUORDERS (AD-23 runs the Demo step, which creates OCUORDERS, after Users), so UX-DR148's pin in both namespaces holds only from the second start; the Public step's last phase (after Production and Reconcile, before SetReady) should call Users.PinTrace for both public accounts
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec 3.1 Design Notes, Decided in-stage: The OCUORDERS pin
+- 2026-10-24T13:17:50Z status=routed owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=spec_gate note=routed at Story 3.1's spec gate; 3.8 owns the Public step's last phase
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=Public.Ready()_pins_both_public_accounts'_Visual_Trace_page_size(Users.PinTrace)_after_Production_and_Reconcile,before_SetReady;Test.Install.Public(mutation_recorded)
+
+### DW-164: ci/warm.sh up printed READY warm 543s while the warm stack's after-start log said RESULT FAILED and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
+- 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow(no_charter:3_story-closable_entries_under_cap_8,none_with_2+_occurrences);ci/warm.sh_tooling_fix_(READY_only_after_the_after-start_RESULT_OK)_before_Lane_A's_next_epic_relies_on_warm_mode;Epic_5's_X.0_fix-or-close_pass
+
+### DW-165: Security.Users Create and Modify accept a role that does not exist, so EnsureService's 'the role must exist' is a precondition that nothing checks
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Measured at review on the warm throwaway e3s1rw: Modify(user, Roles=ZzCrNoSuchRole) returned 1. AD-23's order runs Roles (which creates OcuTalonServiceRole from the Tools area's role-alone entry) before Users, and a missing role grants nothing.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if the Users step runs without the Roles step before it (a reordered registry, or a Roles failure that does not stop the start)
+
+### DW-166: AD-24's 'no services' for the service user is not enforced against a later RESOURCES declaration of a %Service_ resource
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The service user's login is disabled (Enabled 0, matrix rows 1 and 2), which closes every service; no tool declares RESOURCES yet, so OcuTalonServiceRole holds nothing; its resource set shows only the instance's public permissions.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a tool or fix kind declares a %Service_ resource for OcuTalonServiceRole (Story 3.2's gate, Stories 7.x)
+
+### DW-167: The Users step never removes a Workflow user or Workflow role membership that is added by hand for a public account
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: AD-24 says public accounts are never Workflow users; the step never makes one and TestEveryRole checks it on test stacks, but a start does not take one away; the online demo is a fresh volume (AD-25).
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real if an operator makes a public account a Workflow user on a kept flag-on volume; Story 3.4 owns OcuTalonApprovals' exact membership
+
+### DW-168: The Roles step leaves an OcuTalon-prefixed role that no area declares as it is, so FORBIDDEN and the GrantedRoles reset never reach it
+- source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Roles.Compose and Apply touch only declared roles; no OcuTalon release has shipped, so no installed volume holds a role that a later version stopped declaring.
+- 2026-10-24T15:47:10Z status=wontfix-theoretical owner=3-1-roles-and-the-service-user-grant-only-what-the-architecture by=cr note=real once a release drops a role from every Grants() while kept volumes still hold it
+
+### DW-173: A zero from CheckUserPermission for the ServiceUser reads as a missing privilege with no log, so a runner job without %Admin_Secure:USE would deny every tool that declares RESOURCES; the production runner job's user was not measured
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: CheckUserPermission returns 0 on error and needs %Admin_Secure:USE for another user (irislib/%SYSTEM/Security.cls); tests ran as irisowner
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead: settle in 3.2's QA or smoke with one gate call from a production runner job on a throwaway
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=measured_at_QA_on_a_fresh_throwaway:production_AgentRunner_job_runs_as__Ensemble;zz_gate_public(%DB_IRISLIB:R)_allowed_and_ran,zz_gate_admin(%Admin_Secure:U)_denied_NOPRIVILEGE;pinned_by_Test.Bridge.Gate:TestPrivilegeInProductionRunnerJob(2_mutations);residual:a_production_with_another_acting_user_unmeasured
+
+### DW-174: Whether AI Hub gives an MCP tool a toolref that starts mcp: is unmeasured; another form (the JSON configuration form of %AI.Tool.Resolver) would take metadata.origin_class as the source, so a shadowing MCP tool could take a built-in's classification
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
+- 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
+- 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
+
+### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: send_mail and sendmail in one class read the same CLASSIFICATIONSENDMAIL
+- 2026-10-24T18:06:19Z status=wontfix-accepted owner=3-2-one-gate-decides-every-tool-call by=harvest note=reopen_if=a tool class declares two tools whose names differ only in _, - or case
+
+### DW-176: A tool that AI Hub's metadata marks as requiring authorization but whose class declares safe is not held, because the gate never reads metadata's requirements; a governance-test check that no built-in tool is both safe and REQUIRESAUTH is the smallest guard
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Boundaries: the gate never reads metadata's requirements; implement deferred it for the lead (security posture)
+- 2026-10-24T18:06:19Z status=open owner=3-2-one-gate-decides-every-tool-call by=harvest note=lead ruling: add the governance-test check in 3.2's code review (tightens only)
+- 2026-10-24T20:57:42Z status=resolved-by:3-2-one-gate-decides-every-tool-call by=adjudication note=governance_test_fails_if_any_built-in_tool_is_REQUIRESAUTH_and_safe_or_argument-classified(Gate.AuthMarks,TestEveryRiskyBuiltInIsDenied);mutation_REQUIRESAUTH=1_on_ReminderTools->red
+
+### DW-177: The classes that OcuTalon.Core.BridgeSink calls once it publishes (Lane B) are not in CodeRules.CALLBACKHELPERS, so the callback rule does not scan them, although the gate fires turn.step to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job (AD-6)
+- source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
+- 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
+- 2026-10-25T09:16:27Z occurrence=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow;needs_Lane_B's_publishing_BridgeSink_on_the_feature_branch_(Epic_2)_before_CodeRules.CALLBACKHELPERS_can_list_its_callees;occurrence_3.6_(approval.raised_from_the_callback);Epic_5's_X.0_fix-or-close_pass
+
+### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Context.Put sets any FIELDS name to any value (Context.cls Put); no tool writes Tainted 0 or Provenance today, and arriving content cannot make one do so
+- 2026-10-24T23:46:11Z status=wontfix-theoretical owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=real when a tool's code writes Tainted 0 or Provenance, or passes a context field name from its arguments to Put
+
+### DW-183: ToolCodeClean is a static scan: %Save on an opened Ens.Config object, a class name built at run time and a message-resend API pass it
+- source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Design Notes limit the scan to the listed writes and AC 4 names no resend; AD-1's CommandsIn origin check (a refusing stub until Story 2.3) is the guard
+- 2026-10-24T23:46:11Z status=by-design owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=spec Design Notes: the scan backs AD-1 rather than replacing it; reopens only via a spec amendment
+
+### DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; an expiry handler that requires the clock to be past ExpiresAt would leave the request pending
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Approval.Hold SetTimer gets the whole seconds until ExpiresAt, at least 1 (implement report residual risk; spec Decided in-stage)
+- 2026-10-25T02:07:44Z status=routed owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=3.5's expiry path must accept a timer that fires up to 1 s early (treat the timer as the expiry, or re-arm for the remainder)
+- 2026-10-25T06:22:33Z status=resolved-by:3-5-the-first-answer-wins-and-unanswered-requests-expire by=adjudication note=Expire_never_compares_the_clock;its_callers_(the_hold's_timer,Answer's_past-expiry_step)_decide;matrix_row8_TestExpireDoesNotWaitForTheClock(mutation_recorded);spine_Approval_requests_row
+
+### DW-187: Approval.Raise inside an open transaction fails closed with the hold's 'no approval request' error, because the hold's job cannot see the uncommitted row; if AI Hub's %CanExecute callback runs at a TLevel above 0, Story 3.6's gate could never hold a call
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Review triage Blind 2 / Edge 5 (rejected for 3.4: no release-1 caller raises inside a transaction); the gate is 3.6's first caller
+- 2026-10-25T02:07:44Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=harvest note=3.6 Task 0: measure TLevel inside %CanExecute on build 154 and either commit-safe the call or refuse clearly
+- 2026-10-25T03:03:19Z occurrence=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=cr note=effect corrected: ProcessInput TCommits every open level, so Raise silently commits the caller's transaction
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=measured_TLevel_0_inside_%CanExecute_on_build_154;Raise_refuses_at_TLevel>0_leaving_the_caller's_transaction_open;TestRaiseRefusesInATransaction(levels_1,2)+Gate_row4b(mutation_recorded)
+
+### DW-188: Approval.LiveHold finds a hold by scanning ApprovalHold instances by Ref with no index
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: an index would change stored data (veto window); scan cost grows with the number of hold instances
+- 2026-10-25T02:07:44Z status=wontfix-accepted owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=reopen_if=Reconcile or Raise takes more than 1 s with more than a few thousand ApprovalHold instances
+
+### DW-189: A Raise running at the same moment as Reconcile at start is not serialized with it, so Reconcile could see a pending row before its hold has registered
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the window is milliseconds and opens only during the after-start Reconcile step
+- 2026-10-25T02:07:44Z status=wontfix-theoretical owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=real when a caller raises during the after-start (no release-1 caller does; the gate's first raise needs a running production)
+
+### DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which kills $$$JobSessionId and replaces $$$JobCurrentHeaderId; from a host job (Story 3.6's gate in the runner, Epic 5's IncidentManager) the host's later event-log rows lose their session and message
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: irislib Ens/BusinessService.cls ProcessInput ends with Kill $$$JobSessionId, SendRequestSync sets $$$JobCurrentHeaderId, and Ens/Util/Log.cls:87-88 reads both for every event-log row; Core.Commands.Submit (Lane B) starts its service the same way
+- 2026-10-25T03:03:19Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=3.6 measures the runner's session and header after Raise (spec Consumed-by) and restores them; Commands.Submit shares it
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=StartHold_puts_the_job's_session_and_current_header_ids_back_after_the_ApprovalStartIn_round_trip(also_after_an_error);TestRaiseKeepsTheCallersJobIds(mutation_recorded);exception_branch_untested(residual,DW-196_wontfix-accepted)
+
+### DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no ApprovalOutcome is sent until the next Reconcile
+- source: spec-3-5-the-first-answer-wins-and-unanswered-requests-expire.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: HoldResponse sends nothing for a task whose action does not match the row (row 14); a late Answer still expires the row, so only the expired outcome to ResultTarget is missing
+- 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
+- 2026-10-25T06:21:01Z status=escalated owner=burndown by=cr note=fix-risk high: Reconcile/Hold must deliver answered or expired rows with no hold (3.5 Never list, row 14); operator-only
+- 2026-10-25T17:27:23Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=merge_gate note=Story_30.3_reworks_the_hold's_delivery:Reconcile_or_the_hold_delivers_an_answered_or_expired_row_that_has_no_live_hold(the_expired_outcome_to_ResultTarget);veto_U-78
+
+### DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call)
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 3.6 spec Cross-epic; Epic 0's row contract (AD-33) has no Source or Runner column, and Test/Data/** is contended
+- 2026-10-25T07:09:50Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=spec_gate note=30.3 adds the two fields (a stored-data change in its own veto window) or derives them (for example from the decision's trace)
+
+### DW-195: A hold whose start times out after STARTSECONDS can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete)
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
+- 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
+- 2026-10-25T16:29:37Z owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=burndown note=overflow;the_replay_story_reworks_the_hold's_start_and_delivery_(with_DW-194);measure_ApprovalStartIn_held_past_STARTSECONDS_and_re-check_the_row_before_the_task_is_sent
+
+### DW-196: TestRaiseKeepsTheCallersJobIds' 'both ids still undefined' checks cannot fail in the unit-test process, so StartHold's re-kill of an undefined id is unpinned
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Outside a production job, closing ApprovalStartIn (OnTearDown) kills the whole %Ensemble array before the restore, so deleting both Else-Kill arms keeps every test green; row 5b has both ids defined.
+- 2026-10-25T09:16:27Z status=wontfix-accepted owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=reopen_if=a production job with no session or header id (a service before its first send) calls Raise or StartHold
+
+### DW-201: The spine's Approval requests and Audit entries rows omit Answer's sessionRef refusal and Cancel's person arguments (Story 3.7)
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Row 913 lists Answer's not_allowed causes without the malformed sessionRef; row 914 omits Cancel(ref,sinkClass,channel,irisUser,sessionRef); Stories 6.2, 12.7, 16.4 and 22.x plan from the spine
+- 2026-10-25T12:46:35Z status=routed owner=burndown by=cr note=lead Rule 20 write; else 16.4/22.x Cancel entries name the system user (AD-17 Prevents)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=spine_Conventions_row_Audit_entries_now_names_Answer's_sessionRef_refusal_and_Cancel's_channel,irisUser,sessionRef(Rule20_light_path);Ac_pins_Cancel's_five_arguments
+
+### DW-203: The password guard matches the lower-cased name exactly; with multiple domains enabled IRIS passes the name with its domain, so a public account's password change would pass the guard
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Security.System documents the routine's name carries the domain when multiple domains are enabled (implement deferred, unverified)
+- 2026-10-25T14:30:39Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=harvest note=for the 3.8 code review: match the part before the domain too (fails closed), or route with a reason
+- 2026-10-25T15:37:09Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=patched by cr: Check also matches the name before its last @; TestGuardDecidesByNameAndPassword pins it (mutation)
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=the_generated_guard_also_matches_the_name_before_its_last_@(fails_closed);TestGuardDecidesByNameAndPassword(domain_assertions,mutation_recorded)
+
+### DW-209: A flag-on start with renamed published accounts leaves the old online-demo account enabled with its published password, outside the password guard
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Users.Accounts disables MARKER accounts only with the flag off (DisablePublic); Guard and EnsurePublic cover only the current demoUser and readonlyUser
+- 2026-10-25T15:37:09Z status=wontfix-accepted owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=reopen_if=the deployment renames OCUTALON_DEMO_USER or OCUTALON_READONLY_USER between flag-on starts (Story 29.3)
 ### DW-197: No check counts the Decision rows left after the production tests, so a lost adopt (RoutingProduction's two, Fixture.AdoptTurns) or D14's finally clean-up would leak rows with every test green
 - source: spec-2-17-epic-2-s-tests-follow-the-real-decide.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Dropping RoutingProduction's eval adopt leaves 1 eval Decision row and the class green (QA, counted by SQL); a leftover count needs a shard-level check and this story adds no unit
@@ -1000,3 +1149,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-2-derive-the-guide-state-and-break-the-feed-availability-on-th.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md:78 labels the edge 'its demo-mode key constant; Guide.DemoOn' while Demo/Guide.cls:45-46 reads #NAMESPACE and #PRODUCTION
 - 2026-10-25T19:46:38Z status=wontfix-accepted owner=4-2-derive-the-guide-state-and-break-the-feed-availability-on-th by=cr note=reopen_if=a plan or review relies on the spine for Guide's reads of Install.Step.Demo; lead may relabel at a Rule 20 commit
+### DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers not_allowed for any other sessionRef
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; AnswersIn is a stub on the feature (69c7f06) until Epic 6
+- 2026-10-25T12:10:22Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=owner note=U-69 condition (the Contest Planner for the owner): a test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers not_allowed
+
+### DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live Pairing row, never a ChatRef or chat id: since Story 3.7, Answer answers not_allowed for any other sessionRef
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
+- 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+
+### DW-212: With the online-demo flag off, an install into an instance whose PasswordValidationRoutine names another routine must leave the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition); Story 3.8's TestForeignGuardIsRefused pins the setting but not that the foreign routine still exists
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
+- 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
