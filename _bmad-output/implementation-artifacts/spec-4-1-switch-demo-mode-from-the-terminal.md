@@ -186,6 +186,42 @@ deferred: []
   - the conversation and rail are unchanged, and the demo routes still answer 501 (`live:demo-switch` steps 2, 5 and 8).
 - Given `SettingsOps`, when any command reaches it, then it is the only run-time writer of settings, writes only `demo.mode`, and a value applies within 60 s by cache expiry: TestOnlyRunTimeWriter, TestAllowList and TestOtherCommand, plus `Test.Data.Setting`'s existing cache-expiry test.
 
+### Review Findings
+
+Code review 2026-10-25 (`bmad-code-review`, full mode, 4 layers on the full-opus tier: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 33 layer findings plus 1 of the reviewer's own; after grouping, 17 entries (high 0, med 4, low 13); 12 findings rejected (appendix). Each entry: severity, fix-risk, footprint, disposition.
+
+- [x] [Review][Defer] An on switch with an OCUORDERS that OcuTalon did not create keeps `demo.mode` "1" after the Demo step refuses (`Plan` answers `error`, AD-3), so every later start stops at `STEP Demo FAILED` before Production and Ready, and the documented command then answers `not_running` [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:61] -- deferred: med, fix-risk med (any fix changes the matrix row "Step fails" and needs a new terminal text, V2), in-story; `decision-pending owner=burndown` DW-207 for the decision sheet, recommended: refuse the on switch before the audit and the write when `Plan` says `error`. Right after the failed switch the production still runs, so `SetDemoMode(0)` recovers it before a restart. The class comment's "which the next start repairs" was corrected in this pass to "the next start runs the step again".
+- [x] [Review][Patch] `TestSettingsOpsSwitches` switched on a `demo.mode` row it did not create (a missing row would have sent a real off switch) and did not put the row back (Shared surfaces) [src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls:64] -- med, fix-risk low, in-story: `Saved`, fail with no row, `Put` with a dated-back time, `PutBack` right after the submit.
+- [x] [Review][Patch] `TestKept` set no row, so "the row holds 0" could fail only after an earlier test left "1" [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:99] -- med, fix-risk low, in-story: it puts "1" first.
+- [x] [Review][Patch] QA's `TestAuditRedacted` held a literal `sk-ant-` key shape, which fails `test-boundaries.sh` ("keys: nothing key-like"), so `ci/checks.sh` and the hosted `checks` job go red [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:192] -- med, fix-risk low, in-story (reviewer's own): built by concatenation, as `Test.Bridge.Redact` does.
+- [x] [Review][Patch] `TestSettingsOpsSwitches`' "the row holds the mode" could not fail (the same mode is sent) [src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls:64] -- low, fix-risk low: the job must move the dated-back `UpdatedAt`.
+- [x] [Review][Patch] `Admin.ErrorText` left an Interoperability code (`ERROR <Ens>Err...:`) at the head of T4 and T8 [src/ocutalon/cls/OcuTalon/Core/Admin.cls:66] -- low, fix-risk low: any `ERROR ` prefix is dropped; TestErrorText.
+- [x] [Review][Patch] `TestOnlyRunTimeWriter`'s pattern missed `%KillExtent`, `%DeleteExtent`, `KeyIndexDelete` and an extended global reference [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:277] -- low, fix-risk low: added, with synthetic violators.
+- [x] [Review][Patch] `poll_state` stopped 12 s after the 61st second even with fewer than 3 late answers, a spurious red on a slow runner [docker/tests/test-demo-switch.sh:172] -- low, fix-risk low: it polls on until 3 late answers or the deadline.
+- [x] [Review][Patch] `not_audited` logged nothing to the Event Log [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:57] -- low, fix-risk low: `$$$LOGERROR` with the status text.
+- [x] [Review][Patch] No test read the Event Log errors of `SettingsOps` [src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls:313] -- low, fix-risk low: `Logged(text, type)`; TestStepFails, TestAuditFails, TestApplyFails and TestThrown count one error row each.
+- [x] [Review][Defer] Rule 2: `Admin.Result` and `SettingsOps.Result` are near-copies of the private `CommandsIn.Result` [src/ocutalon/cls/OcuTalon/Core/Admin.cls:75] -- deferred: low, fix-risk med, in-story, not a two-way door (the sibling is private in a contended class; unifying needs a public factory on the cross-lane `Msg.CommandResult` contract); `wontfix-accepted` DW-208, reopen_if a fourth builder appears outside `OcuTalon.Test` or `CommandResult` gains a field every answer must set.
+- [x] [Review][Patch] Live step 3's "the audit log is unchanged" was read seconds after the refusals, before any entry can be readable (M6: about 57 s) [docker/tests/test-demo-switch.sh:279] -- low, fix-risk low: the claim moved to step 7, which polls.
+- [x] [Review][Patch] Live step 6 did not check that the row is "1" (matrix row "On") [docker/tests/test-demo-switch.sh:338] -- low, fix-risk low: added.
+- [x] [Review][Patch] The origin of the real `Admin.Send` was pinned only through the probe; live step 7 matched user and value, so a `web_admin` origin passed [docker/tests/test-demo-switch.sh:105] -- low, fix-risk low: step 7 also requires `"channel":"system"`.
+- [x] [Review][Patch] `TestSet` read the object it still held open, so an update that never saved passed, and "the same row" was 1 by construction [src/ocutalon/cls/OcuTalon/Test/Data/Setting.cls:113] -- low, fix-risk low: the object is dropped before the overwrite, and the ids are compared.
+- [x] [Review][Patch] `TestInvalidArgument`'s "no header" and "row unchanged" checks could not fail on their own (the test session holds `%All` without `OcuTalonAdmin`, so the role check refused anyway) [src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls:55] -- low, fix-risk low: an `OcuTalonAdmin` probe loop asserts nothing is submitted.
+- [x] [Review][Patch] AC 1's seed guard (`Seed` now writes through `Upsert`, so its `KeyIndexExists` guard alone keeps a later write) had no `mutation:` line [src/ocutalon/cls/OcuTalon/Data/Setting.cls:49] -- low, closed in this pass: mutation applied, red observed, line recorded under Verification.
+
+Rejected:
+- `low` Edge: the Demo step could outlast `CommandsIn`'s 120 s timeout -- Task 0 measured 1 to 3 s; the answer would be `MESSAGEFAILED` ("may not have finished"), which is true (`wontfix-theoretical`: a Demo step run over 120 s would make it real).
+- `false` Edge: the audit data lacks the actor's role -- AD-17 asks for the role "from step 6"; the spec's six fields are release 1's.
+- `false` Edge: a repeated `IdempotencyKey` is carried out again -- the owner's dedup is for tool commands (AD-1, AD-8); `SetDemoMode` is refused from `tool`, `Admin` sets no key, and the matrix row "Same mode again" reruns by design.
+- `false` Edge: `check_demo_off`/`check_demo_on`'s "STEP Demo OK" reads the first start's log -- the same helpers' namespace, database, grant and production checks fail when the switch's step does not run (recorded mutation "skips `RunStep`", step 4 red).
+- `low` Blind: `run_admin` runs the command after a failed login -- under the strict check the fallback `irisowner` is refused and step 3 and 4 check `login` and `$USERNAME` (`wontfix-theoretical`: a V1 reversal that accepts `%All` would make it real; the reversal already lists steps 3, 4 and 7).
+- `false` VG: TestAllowList's "an empty key is refused" cannot fail -- it fails when both guards stop refusing; an assertion over defence in depth is still falsifiable.
+- `low` VG: AC 4's "the conversation and rail are unchanged" has no mutation line -- one mutation per AC is the bar, and AC 4 has three.
+- `low` VG: AC 4's badge and 501 route have no mutation line -- the same bar; rejected in the implement review too.
+- `low` VG: AC 5's cache expiry has no mutation line -- AC 5 has four.
+- `low` Acceptance: the printed line is not preceded by `Write:$X !` -- after a typed command `$X` is 0 in a terminal; the piped session's prefix is its own prompt, which `live:demo-switch` strips, and the effect of the fix in a piped session is unmeasured.
+- `low` Acceptance: step 5 starts polling after step 4's checks -- every answer from the 61st second is polled and compared, and a lasting change of chat or rail cannot hide in the few seconds before the first poll.
+- Acceptance: `MESSAGEFAILED` and `MESSAGEUNKNOWN` can reach the terminal although the Never line names only V2's texts -- the Tasks and the matrix specify those reused texts; the fix would edit the spec.
+
 ## Spec Change Log
 
 - 2026-10-25, spec gate (runner): V1 ruled strict (`OcuTalonAdmin` only; `%All` alone refused) per AD-19 as written (U7 step 1); V2 and V3 kept as veto items; rows, tasks and criteria updated to match.
@@ -377,6 +413,28 @@ The integration checks run against a real throwaway, not a mock.
 - mutation: `Setting.Set` does not drop the cache entry -> TestSet red ("Get in this process sees the new value at once"); `Setting.Set` without its key check -> TestSet red (a subscript error on the empty key).
 - mutation: `SetDemoMode.ActingUser` MAXLEN 160 -> 100 -> `Test.Msg.Contracts` TestContracts red.
 - mutation: `SettingsOps` answers `Ok 0 not_built` after a switch -> `Test.Core.CommandsInProduction` TestSettingsOpsSwitches red (run after the `SettingsOps` item was toggled, Decided in-stage 16).
+
+**QA stage (2026-10-25)**: no new test file; (QA) tests added to existing classes, no new live run (no live unit or web file changed).
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls`: TestPrinted (the one printed line, through `AdminProbe.Capture`), TestArgumentBeforeRole. `Test/Core/AdminProbe.cls` gains `Capture`.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`: TestSameMode, TestApplyFails, TestKeptOnlyForOff, TestWarningsTaken, TestAuditRedacted. `Test/Core/SettingsOpsProbe.cls` gains the `apply` and `warn` answers and an `Apply` override that is the real one unless told to fail.
+- mutation: Matrix row "printed line", the `Write result.Message, !` of `Admin.SetDemoMode` removed -> `Test.Core.Admin` TestPrinted red (three assertions).
+- mutation: Design Notes 9, the argument check after the role check -> `Test.Core.Admin` TestArgumentBeforeRole red (and TestInvalidArgument).
+- mutation: AC 2 (audit before write, write failure), `SettingsOps.Carry` ignores the status of `Apply` -> TestApplyFails red.
+- mutation: Matrix row "Same mode again", `Carry` returns early when the row already holds the value -> TestSameMode red.
+- mutation: Matrix row "Off, foreign OCUORDERS", the `word = "off"` guard of the `off_kept` answer removed -> TestKeptOnlyForOff red.
+- mutation: Boundaries (the step's warnings taken), `RunStep` no longer calls `TakeWarnings()` -> TestWarningsTaken red.
+- mutation: Boundaries (audit data through `Bridge.Redact.Text`), `AuditData` returns the data unredacted -> TestAuditRedacted red.
+- Each applied from a backup, run on the warm stack, restored; md5 of `Admin.cls` and `SettingsOps.cls` and `git status --short`/`git diff --stat` identical after each. Without `OCUTALON_E2E_DEMO_MODE` the badge spec fails at once naming the variable (run with `npm --prefix web exec playwright test --project=demo-switch`, no stack needed).
+
+**Code review (2026-10-25)**: warm stack `e4s1rw` for the class runs and mutations, fresh throwaways `e4s1r` for `CommandsInProduction`'s mutation and the live runs; all torn down. After the patches: `Test.Core.SettingsOps`, `Test.Core.Admin`, `Test.Data.Setting` and `Test.Core.CommandsInProduction` passed (warm), `shard lane-b` passed (44 classes, warm, after every revert), `live:demo-switch` passed (fresh, 265 s, 37 PASS lines) and `bash ci/checks.sh` passed. Each mutation was applied from a backup and restored; md5 of the three product files, `git status --short` and `git diff --stat` identical after each.
+- mutation: Matrix row "Off, foreign OCUORDERS" (TestKept on its own row), `SettingsOps.Apply` writes nothing -> TestKept red ("kept: the row holds 0").
+- mutation: Tasks (the failures are logged with `$$$LOGERROR`), the `step_failed` and `not_audited` log lines removed -> TestStepFails and TestAuditFails red; the thrown-error and failed-write log lines removed -> TestThrown and TestApplyFails red.
+- mutation: AC 5, `%KillExtent` and the extended global reference dropped from the scanner's pattern -> TestOnlyRunTimeWriter red ("the scanner flags a %KillExtent", "... by an extended reference").
+- mutation: Matrix row "Step fails" (T4 without the code prefix), `Admin.ErrorText` strips only `ERROR #` -> `Test.Core.Admin` TestErrorText red ("an Interoperability code is dropped too").
+- mutation: `Setting.Upsert` does not save a row that exists -> `Test.Data.Setting` TestSet red ("the stored row holds the new value"); green before the patch, which read the open object.
+- mutation: AC 1 (a seed that a later write survives), `Setting.Seed` without its `KeyIndexExists` guard -> `Test.Data.Setting` TestSeedOnlyWritesAnAbsentKey red ("the second Seed changed nothing").
+- mutation: AC 2 (the real job writes the row), `SettingsOps.Apply` writes nothing -> `Test.Core.CommandsInProduction` TestSettingsOpsSwitches red ("the SettingsOps job wrote the row with the same mode"; fresh stack, 69 s).
+- mutation: AC 2 (origin `system` at the real seam), `Admin.Send` submits with `web_admin` -> `live:demo-switch` step 7 red (0 and 0 entries from the channel system, 1 and 1 from any channel; 368 s); green before the patch.
 
 **Shared surfaces:**
 - the `SettingsOps` rows of `Test.Core.ProductionItems` and `Test.Core.CommandsInProduction`;

@@ -5,11 +5,18 @@
 ///   - TestSwitch: a SetDemoMode of 0 or 1 audits first, writes the value, and runs the step after the write; the answer is
 ///     on or off with its text, and the audit data holds the user, the SessionRef, the channel, the origin, the setting and the value;
 ///   - TestKept: a step that kept a foreign OCUORDERS answers off_kept with the note's how sentence;
-///   - TestStepFails: a failed step answers step_failed with the error sentence, and the value stays written;
-///   - TestAuditFails: a failed audit answers not_audited, writes nothing and runs no step;
+///   - TestStepFails: a failed step answers step_failed with the error sentence, the value stays written, and the failure is
+///     logged as an error;
+///   - TestAuditFails: a failed audit answers not_audited, writes nothing, runs no step, and is logged as an error;
+///   - TestSameMode: the mode the row already has is audited, written and the step rerun all the same;
+///   - TestApplyFails: a value that cannot be saved answers failed after the audit, the step does not run, and the failure is
+///     logged as an error;
+///   - TestKeptOnlyForOff: a demoKept mark does not turn an on switch into off_kept;
+///   - TestWarningsTaken: the step's warnings are taken, so none is left for the next step, and are logged;
+///   - TestAuditRedacted: the audit data passes the redactor;
 ///   - TestOtherCommand: a command other than SetDemoMode answers unknown_command and writes nothing;
 ///   - TestStepThrows: an error thrown by the step is the step's error status and answers step_failed;
-///   - TestThrown: an error thrown elsewhere inside answers failed;
+///   - TestThrown: an error thrown elsewhere inside answers failed and is logged once as an error;
 ///   - TestAllowList: the allow-list is demo.mode alone, and the guarded write refuses any other key;
 ///   - TestOnlyRunTimeWriter: no compiled OcuTalon class outside the tests and Data.Setting writes the Setting rows except
 ///     SettingsOps, and only the Install classes seed them.
@@ -92,6 +99,7 @@ Method TestSwitch()
 Method TestKept()
 {
 	Do ..Reset()
+	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
 	Set how = "OcuTalon left the OCUORDERS namespace in place because it holds zz. To remove it, delete it."
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "step") = "kept"
 	Set ^OcuTalonTest("SettingsOpsProbe", "note") = {"text": "zz", "namespace": "OCUORDERS", "globals": "", "routines": "", "how": (how)}.%ToJSON()
@@ -108,14 +116,86 @@ Method TestStepFails()
 	Do ..Reset()
 	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "step") = "error"
+	Set logged0 = ..Logged("The Demo step failed: zz step failed", 2)
 	Set result = ..Send(0, "system", "zzadmin", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|step_failed", "the step fails: step_failed")
 	Do $$$AssertEquals(result.Message, "Demo mode is set to off, but the Demo step failed: zz step failed. OcuTalon runs the step again at its next start.", "the text carries the error sentence")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode").Value, "0", "the row keeps the new value")
+	Do $$$AssertEquals(..Logged("The Demo step failed: zz step failed", 2), logged0 + 1, "the failure is in the Event Log as an error")
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "step") = "error"
 	Set result = ..Send(1, "system", "zzadmin", "")
 	Do $$$AssertEquals(result.Message, "Demo mode is set to on, but the Demo step failed: zz step failed. OcuTalon runs the step again at its next start.", "and the text names on")
+}
+
+/// The mode the row already has: audited, written (UpdatedAt moves) and the step called, and the answer is that of the mode.
+Method TestSameMode()
+{
+	For mode = 1, 0 {
+		Do ..Reset()
+		Do ##class(OcuTalon.Test.Demo.Step).Put(mode, "2000-01-01T00:00:00Z")
+		Set result = ..Send(mode, "system", "zzadmin", "")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|"_$Select(mode: "on", 1: "off"), "mode "_mode_" again: carried out")
+		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, "mode "_mode_" again: the audit and the step were called")
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+		Do $$$AssertEquals(row.Value, mode, "mode "_mode_" again: the row holds it")
+		Do $$$AssertTrue(row.UpdatedAt '= "2000-01-01T00:00:00Z", "mode "_mode_" again: the row was written")
+	}
+}
+
+/// A value that cannot be saved: Ok 0, failed with CommandsIn's text; the audit was written first and the step did not run, and the
+/// row is as it was.
+Method TestApplyFails()
+{
+	Do ..Reset()
+	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "error"
+	Set logged0 = ..Logged("zz apply failed", 2)
+	Set result = ..Send(0, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the write fails: failed")
+	Do $$$AssertEquals(..Logged("zz apply failed", 2), logged0 + 1, "the failed write is in the Event Log as an error")
+	Do $$$AssertEquals(result.Message, "Something went wrong inside OcuTalon, so the command may not have finished.", "the text")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, "only the audit was called")
+	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1)), "audit", "the audit came first")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", "the row is as it was")
+}
+
+/// A demoKept mark that is set (the Demo step keeps a foreign OCUORDERS only when it removes) does not change an on switch.
+Method TestKeptOnlyForOff()
+{
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "step") = "kept"
+	Set ^OcuTalonTest("SettingsOpsProbe", "note") = {"text": "zz", "namespace": "OCUORDERS", "globals": "", "routines": "", "how": "zz how."}.%ToJSON()
+	Set result = ..Send(1, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|on", "a kept mark and an on switch: on")
+	Do $$$AssertEquals(result.Message, "Demo mode is on. The Orders production runs in namespace OCUORDERS. Reload the OcuTalon page in a minute to see the change.", "the on text")
+}
+
+/// The step's warning lines are taken (none is left in the process for the next step) and written to the Event Log as warnings.
+Method TestWarningsTaken()
+{
+	Do ..Reset()
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "step") = "warn"
+	Set logged0 = ..Logged("zz warning")
+	Set result = ..Send(1, "system", "zzadmin", "")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|on", "a step with a warning still answers on")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step).TakeWarnings(), "", "no warning is left for the next step")
+	Do $$$AssertEquals(..Logged("zz warning"), logged0 + 1, "the warning was logged once")
+}
+
+/// The audit data passes the redactor: a key-shaped acting user is not in the entry. The user key itself is not redacted.
+Method TestAuditRedacted()
+{
+	Do ..Reset()
+	Set secret = "sk-" _ "ant-api03-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+	Set result = ..Send(1, "system", secret, "zzsession")
+	Do $$$AssertEquals(result.Outcome, "on", "the switch is carried out")
+	Set json = $Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data"))
+	Do $$$AssertTrue(json '[ "zzzzzzzz", "the key is not in the audit data")
+	Do $$$AssertEquals({}.%FromJSON(json).user, "[redacted]", "the user is redacted")
+	Do $$$AssertEquals({}.%FromJSON(json).sessionRef, "zzsession", "and the rest is as it was")
 }
 
 /// An audit that fails: Ok 0, not_audited, the row is as it was and the step did not run.
@@ -124,8 +204,10 @@ Method TestAuditFails()
 	Do ..Reset()
 	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
+	Set logged0 = ..Logged("The Settings audit entry could not be written: ERROR #5001: zz audit failed", 2)
 	Set result = ..Send(0, "system", "zzadmin", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "the audit fails: not_audited")
+	Do $$$AssertEquals(..Logged("The Settings audit entry could not be written: ERROR #5001: zz audit failed", 2), logged0 + 1, "the failed audit is in the Event Log as an error")
 	Do $$$AssertEquals(result.Message, "OcuTalon couldn't write the audit entry, so demo mode was not changed.", "the text says nothing was changed")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 	Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", "the row is as it was")
@@ -167,10 +249,12 @@ Method TestThrown()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "throw"
 	Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()
 	Set command.Origin = "system"
+	Set logged0 = ..Logged("zz audit threw", 2)
 	Set sc = ..Probe().OnMessage(command, .result)
 	Do $$$AssertStatusOK(sc, "the status is OK")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "failed")
 	Do $$$AssertEquals(result.Message, "Something went wrong inside OcuTalon, so the command may not have finished.", "the text")
+	Do $$$AssertEquals(..Logged("zz audit threw", 2), logged0 + 1, "the thrown error is in the Event Log once, as an error")
 }
 
 /// The allow-list is exactly demo.mode; the guarded write refuses another key with an error status and writes no row.
@@ -186,17 +270,21 @@ Method TestAllowList()
 }
 
 /// The run-time writer is SettingsOps alone: over every compiled OcuTalon class outside OcuTalon.Test and Data.Setting itself,
-/// a code line that writes Data.Setting (Set, %New, %OpenId, %Open, KeyIndexOpen, %DeleteId or %Delete of the class, its
-/// global, its SQL table, or a $ClassMethod of the class) is in OcuTalon.Core.SettingsOps, and a Seed is in an OcuTalon.Install class. The scanner is first shown to flag
+/// a code line that writes Data.Setting (Set, %New, %OpenId, %Open, KeyIndexOpen, KeyIndexDelete, %DeleteId, %Delete,
+/// %DeleteExtent or %KillExtent of the class, its global, also by an extended reference, its SQL table, or a $ClassMethod of the
+/// class) is in OcuTalon.Core.SettingsOps, and a Seed is in an OcuTalon.Install class. The scanner is first shown to flag
 /// synthetic violators and to pass a comment-only mention.
 Method TestOnlyRunTimeWriter()
 {
-	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|%DeleteId|%Delete)\(|\^OcuTalonP\.Setting|OcuTalon_Data\.Setting|\$ClassMethod\(.OcuTalon\.Data\.Setting)"
+	Set writer = "(OcuTalon\.Data\.Setting\)\.(Set|%New|%OpenId|%Open|KeyIndexOpen|KeyIndexDelete|%DeleteId|%DeleteExtent|%Delete|%KillExtent)\(|\^(\|[^|]*\||\[[^\]]*\])?OcuTalonP\.Setting|OcuTalon_Data\.Setting|\$ClassMethod\(.OcuTalon\.Data\.Setting)"
 	Set seeder = "OcuTalon\.Data\.Setting\)\.Seed\("
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).Set(k, v)", writer), "the scanner flags a Set")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set row = ##class(OcuTalon.Data.Setting).%New()", writer), "the scanner flags a %New")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(k)", writer), "the scanner flags a KeyIndexOpen")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^OcuTalonP.SettingD(1)", writer), "the scanner flags the global")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Kill ^|""OCUTALON""|OcuTalonP.SettingD", writer), "the scanner flags the global by an extended reference")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).%KillExtent()", writer), "the scanner flags a %KillExtent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(k)", writer), "the scanner flags a KeyIndexDelete")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  &sql(UPDATE OcuTalon_Data.Setting SET Value = 1)", writer), "the scanner flags an SQL write")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do $ClassMethod(""OcuTalon.Data.Setting"", ""Set"", k, v)", writer), "the scanner flags a $ClassMethod write")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches("  Do ##class(OcuTalon.Data.Setting).Seed(k, v)", seeder), "the scanner flags a Seed")
@@ -221,6 +309,14 @@ Method TestOnlyRunTimeWriter()
 }
 
 /// --- helpers ---
+/// The number of Event Log rows of the type (3 a warning, 2 an error) whose text contains the text.
+ClassMethod Logged(text As %String, type As %Integer = 3) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE Type = ? AND Text [ ?", type, text)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
 /// Clears the probe's global and the demoKept mark.
 Method Reset() [ Private ]
 {

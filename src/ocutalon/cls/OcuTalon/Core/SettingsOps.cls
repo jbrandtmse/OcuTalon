@@ -7,7 +7,7 @@
 ///     warnings.
 /// It answers every command with a CommandResult (Ok, Outcome and Message) and never an error status. The outcomes:
 ///   - on, off: carried out; off_kept: off, and the step kept an OCUORDERS that is not its own (Ok 1);
-///   - step_failed: the value is written and the step failed, which the next start repairs (Ok 0);
+///   - step_failed: the value is written and the step failed; the next start runs the step again (Ok 0);
 ///   - not_audited: the audit entry could not be written, so nothing was written (Ok 0);
 ///   - unknown_command: a command class other than SetDemoMode (Ok 0);
 ///   - failed: an error was thrown, or the value could not be saved (Ok 0).
@@ -54,7 +54,11 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set value = $Select(command.DemoMode: "1", 1: "0")
 	Set word = $Select(command.DemoMode: "on", 1: "off")
 	Set sc = ..WriteAudit(..AuditData(command, key, value), "Demo mode set to "_word)
-	If $$$ISERR(sc) Quit ..Result(0, "not_audited", ..#MESSAGENOTAUDITED)
+	If $$$ISERR(sc) {
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+		Quit ..Result(0, "not_audited", ..#MESSAGENOTAUDITED)
+	}
 	Set sc = ..Apply(key, value)
 	If $$$ISERR(sc) {
 		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))

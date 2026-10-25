@@ -980,3 +980,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
+
+### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SettingsOps.Carry writes the value before RunStep; Install.Step.Demo.Plan answers error for on + a foreign namespace (AD-3); Install.Registry.Run stops at the first failed step (Demo precedes Production, Ready). Reachable on an IPM install into an instance with its own OCUORDERS.
+- 2026-10-25T15:36:14Z status=decision-pending owner=burndown by=cr note=product call (matrix row Step fails keeps the value; any fix needs new terminal text, V2): refuse the on switch before audit and write when Plan says error
+
+### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
+- source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/Admin.cls Result, Core/SettingsOps.cls Result, Core/CommandsIn.cls:151 Result (private, contended). Unifying needs a public factory on the cross-lane Msg.CommandResult contract or a public helper on the terminal API.
+- 2026-10-25T15:36:22Z status=wontfix-accepted owner=4-1-switch-demo-mode-from-the-terminal by=cr note=reopen_if=a fourth CommandResult builder appears outside OcuTalon.Test, or CommandResult gains a field that every answer must set

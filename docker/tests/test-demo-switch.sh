@@ -8,16 +8,17 @@
 #      their roles too;
 #   2. control: a tell-now Notification sent into Notify from a host made with CreateBusinessService leaves a header to SimPhoneOut;
 #   3. a user without OcuTalonAdmin, and irisowner (the session's OS login, %All without OcuTalonAdmin), run the command: the
-#      refusal line is printed, no header goes to SettingsOps, and the setting and the surfaces are unchanged;
+#      refusal line is printed, no header goes to SettingsOps, and the setting and the surfaces are unchanged (step 7 checks the
+#      audit log, whose entries become readable only about a minute after they are written);
 #   4. an OcuTalonAdmin holder (no %All) runs SetDemoMode(0): the off line is printed, the row is "0", the surfaces equal F0 less
 #      OCUORDERS, and the off checks of the Demo step pass. The Demo step ran in the SettingsOps job (Story 4.1, Task 0);
 #   5. from 61 s after step 4 returned, every /state answer reports demoMode false (polled every 2 s), the chat and rail equal S0,
 #      POST /v1/demo/break-feed still answers 501 not_built, a new tell-now Notification leaves no header to SimPhoneOut, and the
 #      page shows no demo badge (web/e2e/demo-switch/badge.spec.ts with OCUTALON_E2E_DEMO_MODE=0);
-#   6. the admin runs SetDemoMode(1): the on line is printed, the on checks pass, the Orders production runs with its two jobs, and
-#      the surfaces equal F0;
-#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for the admin with value "0" and one with "1", and no
-#      other Settings entry (none names the refused users);
+#   6. the admin runs SetDemoMode(1): the on line is printed, the row is "1", the on checks pass, the Orders production runs with its
+#      two jobs, and the surfaces equal F0;
+#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for the admin with value "0" and one with "1", both
+#      from the channel system, and no other Settings entry (none names the refused users);
 #   8. from 61 s after step 6, /state reports demoMode true with the chat and rail equal S0, a tell-now Notification leaves a header
 #      to SimPhoneOut again, and the page shows the demo badge.
 # The project is unique, publishes its web port only on 127.0.0.1 (first free port of 52800-52819, or OCUTALON_TEST_WEB_PORT) and
@@ -99,14 +100,17 @@ settings_audit_total() {
     'Halt' | session_value %SYS n
 }
 
-# settings_audit_rows <user> <value>: the Settings entries whose data names the user and, when value is not empty, the value.
+# settings_audit_rows <user> <value> [<channel>]: the Settings entries whose data names the user and, when value and channel are not
+# empty, the value and the channel.
 settings_audit_rows() {
   printf '%s\n' \
     'Set q=$Char(34)' \
     "Set u=q_\"user\"_q_\":\"_q_\"$1\"_q" \
     "Set v=\"$2\"" \
+    "Set c=\"${3:-}\"" \
     'If v'"'"'="" { Set v=q_"value"_q_":"_q_v_q } Else { Set v=u }' \
-    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND Event = ? AND EventData [ ? AND EventData [ ?","OcuTalon","Settings","Settings",u,v) Do rs.%Next() Write !,"CHK|n|",rs.%GetData(1)' \
+    'If c'"'"'="" { Set c=q_"channel"_q_":"_q_c_q } Else { Set c=u }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND Event = ? AND EventData [ ? AND EventData [ ? AND EventData [ ?","OcuTalon","Settings","Settings",u,v,c) Do rs.%Next() Write !,"CHK|n|",rs.%GetData(1)' \
     'Halt' | session_value %SYS n
 }
 
@@ -163,13 +167,13 @@ e2e() {
 }
 
 # poll_state <label> <second the switch returned> <wanted demoMode>: asks /state every 2 s from the switch until 12 s after the 61st
-# second (and at least 12 s from now). Every answer carries S0's chat and rail; every answer from the 61st second reports the wanted
-# demoMode.
+# second (and at least 12 s from now), and on until 3 answers from the 61st second have come, within the deadline. Every answer
+# carries S0's chat and rail; every answer from the 61st second reports the wanted demoMode.
 poll_state() {
   local label=$1 since=$2 want=$3 line mode hash t total=0 late=0 badmode=0 badchat=0 end
   end=$((since + 61 + 12))
   if [ $((SECONDS + 12)) -gt "$end" ]; then end=$((SECONDS + 12)); fi
-  while [ "$SECONDS" -lt "$end" ] && [ "$SECONDS" -lt "$deadline" ]; do
+  while { [ "$SECONDS" -lt "$end" ] || [ "$late" -lt 3 ]; } && [ "$SECONDS" -lt "$deadline" ]; do
     t=$SECONDS
     line=$(state_line)
     mode=${line%%|*}
@@ -272,8 +276,8 @@ for who in plain owner; do
     fail "step 3: $label was not refused with the exact line"
   fi
 done
-if [ "$(setting_row)" = 1 ] && [ "$(settingsops_headers)" = "$heads0" ] && [ "$(settings_audit_total)" = "$audit0" ]; then
-  pass "step 3: the row, the headers to SettingsOps and the audit log are unchanged"
+if [ "$(setting_row)" = 1 ] && [ "$(settingsops_headers)" = "$heads0" ]; then
+  pass "step 3: the row and the headers to SettingsOps are unchanged (step 7 checks the audit log)"
 else
   fail "step 3: the row is '$(setting_row)', the headers to SettingsOps '$(settingsops_headers)' (were $heads0)"
 fi
@@ -331,6 +335,11 @@ else
   fail "step 6: the admin's SetDemoMode(1) did not print the on line"
 fi
 echo "INFO Task 0: SetDemoMode(1) took $on_s s end to end, outcome '$admin_outcome'"
+if [ "$(setting_row)" = 1 ]; then
+  pass "step 6: the demo.mode row is 1"
+else
+  fail "step 6: the demo.mode row is '$(setting_row)', wanted 1"
+fi
 check_demo_on "step 6"
 check_orders_jobs "step 6"
 demo_surfaces "$tmp/s6.surf"
@@ -339,12 +348,12 @@ compare_surfaces "step 6: the surfaces equal F0" "$tmp/f0.surf" "$tmp/s6.surf"
 # --- step 7: the audit log names the admin, and nobody else ---
 
 settings_audit_seen() {
-  [ "$(settings_audit_rows "$adminuser" 0)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 1)" = 1 ]
+  [ "$(settings_audit_rows "$adminuser" 0 system)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 1 system)" = 1 ]
 }
 if wait_until 180 settings_audit_seen; then
-  pass "step 7: one OcuTalon/Settings/Settings entry names $adminuser with value 0 and one with value 1"
+  pass "step 7: one OcuTalon/Settings/Settings entry names $adminuser with value 0 and one with value 1, both from the channel system"
 else
-  fail "step 7: the audit log holds '$(settings_audit_rows "$adminuser" 0)' entry(ies) with value 0 and '$(settings_audit_rows "$adminuser" 1)' with value 1 for $adminuser within 180 s"
+  fail "step 7: the audit log holds '$(settings_audit_rows "$adminuser" 0 system)' entry(ies) with value 0 and '$(settings_audit_rows "$adminuser" 1 system)' with value 1 from the channel system for $adminuser within 180 s ('$(settings_audit_rows "$adminuser" 0)' and '$(settings_audit_rows "$adminuser" 1)' from any channel)"
 fi
 total=$(settings_audit_total)
 if [ "$total" = "$((audit0 + 2))" ] && [ "$(settings_audit_rows "$plainuser" '')" = 0 ] && [ "$(settings_audit_rows irisowner '')" = 0 ]; then

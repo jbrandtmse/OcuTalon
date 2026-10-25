@@ -61,11 +61,12 @@ ClassMethod Allowed(roles As %String) As %Boolean
 	Quit ''$ListFind($ListFromString($Get(roles)), ..#ROLE)
 }
 
-/// The text of an error status for a plain-English line: without its ERROR #n: prefix and without a closing full stop.
+/// The text of an error status for a plain-English line: without its code prefix (ERROR #n: or, for an Interoperability error,
+/// ERROR <Ens>Err...:) and without a closing full stop.
 ClassMethod ErrorText(sc As %Status) As %String
 {
 	Set text = $SYSTEM.Status.GetErrorText(sc)
-	If $Extract(text, 1, 7) = "ERROR #" Set text = $Piece(text, ": ", 2, *)
+	If $Extract(text, 1, 6) = "ERROR " Set text = $Piece(text, ": ", 2, *)
 	If $Extract(text, *) = "." Set text = $Extract(text, 1, *-1)
 	Quit text
 }

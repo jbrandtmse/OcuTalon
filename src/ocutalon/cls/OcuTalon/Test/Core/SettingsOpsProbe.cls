@@ -4,7 +4,9 @@
 /// value that Setting.Get reads for demo.mode while it runs ("seen"), and for the audit the data as JSON ("data") and the
 /// description ("description"). The answers come from ^OcuTalonTest("SettingsOpsProbe", "answer", seam): "" is OK, "error" is
 /// an error status, "throw" throws, and for "step" "kept" records the demoKept mark with the note in
-/// ^OcuTalonTest("SettingsOpsProbe", "note") and answers OK. The product never refers to it.
+/// ^OcuTalonTest("SettingsOpsProbe", "note") and answers OK, and "warn" records one step warning line ("zz warning") and answers
+/// OK. The guarded write Apply answers an error status when the "apply" answer is "error" and is the real one otherwise. The
+/// product never refers to it.
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
 
@@ -27,11 +29,19 @@ Method RunDemo() As %Status [ Private ]
 	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "step"))
 	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz step threw"))
 	If answer = "error" Quit $SYSTEM.Status.Error(5001, "zz step failed.")
+	If answer = "warn" Do ##class(OcuTalon.Install.Step).Warn("zz warning")
 	If answer = "kept" {
 		Set sc = ##class(OcuTalon.Data.StatusMark).Record(##class(OcuTalon.Install.Step.Demo).#KEPTMARK, $Get(^OcuTalonTest("SettingsOpsProbe", "note")))
 		If $$$ISERR(sc) Quit sc
 	}
 	Quit $$$OK
+}
+
+/// The guarded write, failing when the test says so: the value could not be saved.
+ClassMethod Apply(key As %String, value As %String) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "apply")) = "error" Quit $SYSTEM.Status.Error(5001, "zz apply failed")
+	Quit ##super(key, value)
 }
 
 /// The guarded write of SettingsOps, which is private there, for the tests.

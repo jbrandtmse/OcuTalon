@@ -120,12 +120,14 @@ Method TestSet()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "first", "Get reads it")
 	Set row.UpdatedAt = "2000-01-01T00:00:00Z"
 	Do $$$AssertStatusOK(row.%Save(), "the row is dated back")
+	Set id = row.%Id()
+	Kill row
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, "second"), "a present key is overwritten")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "default"), "second", "Get in this process sees the new value at once, over a fresh cache entry")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
-	Do $$$AssertEquals(row.Value, "second", "the row holds the new value")
+	Do $$$AssertEquals(row.Value, "second", "the stored row holds the new value")
 	Do $$$AssertTrue(row.UpdatedAt '= "2000-01-01T00:00:00Z", "UpdatedAt is the time of the second write")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).%ExistsId(row.%Id()), 1, "and it is the same row")
+	Do $$$AssertEquals(row.%Id(), id, "and it is the same row")
 
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Data.Setting).Set("", "x"), "an empty key is refused")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(""), 0, "no row was written for the empty key")

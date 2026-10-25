@@ -6,8 +6,8 @@
 ///   - TestStubOwnersAnswerPlainEnglish: a command to each stub owner gives status OK and a CommandResult with Ok 0, not_built
 ///     and the plain-English text;
 ///   - TestSettingsOpsSwitches: a SetDemoMode from the system, with the mode the stack already has, is carried out by the real
-///     SettingsOps (the Demo step reruns, changing nothing) with the text of its mode, and its answer is one response header
-///     that is not an error;
+///     SettingsOps (the Demo step reruns, changing nothing), which writes the row, with the text of its mode, and its answer is
+///     one response header that is not an error; the demo.mode row is put back after it;
 ///   - TestTraceAndThread: outside a turn the command and the owner's answer are messages of one session whose SuperSession is
 ///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId. A stub owner's answer is
 ///     one response header (type 2, IsError 1) from the owner to CommandsIn, which carries the owner's error status;
@@ -57,21 +57,34 @@ Method TestStubOwnersAnswerPlainEnglish()
 }
 
 /// A SetDemoMode from the system, with the mode the stack already has, reaches the real SettingsOps once: it is carried out
-/// (Ok 1, on or off with the text of that mode), the row holds the same mode, and the owner's answer is one response header to
-/// CommandsIn that is not an error. The Demo step reruns in the SettingsOps job and changes nothing.
+/// (Ok 1, on or off with the text of that mode), the job writes the row (the same mode, and an UpdatedAt that moves from the
+/// test's dated-back one), and the owner's answer is one response header to CommandsIn that is not an error. The Demo step
+/// reruns in the SettingsOps job and changes nothing. The demo.mode row is saved first and put back after the switch
+/// (Test.Demo.Step); without a row (the Demo step seeds it at the first start) the test fails and switches nothing.
 Method TestSettingsOpsSwitches()
 {
 	If '..Guard() Quit
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
+	If 'found {
+		Do $$$AssertTrue(0, "the stack has a demo.mode row (the Demo step seeds it at the first start)")
+		Quit
+	}
 	Set a = ..Session("settings")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set mode = (..Mode() = "1")
+	Set mode = (value = "1")
 	Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()
 	Set command.SessionRef = a
 	Set command.IdempotencyKey = "zzkey"_..Number_"SetDemoMode"
 	Set command.DemoMode = mode
 	Set command.ActingUser = $USERNAME
 	Set before = ..Sent("SettingsOps")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(value, "2000-01-01T00:00:00Z")
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Set written = $Select($IsObject(row): row.Value_"|"_(row.UpdatedAt '= "2000-01-01T00:00:00Z"), 1: "<none>")
+	Kill row
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+	Do $$$AssertEquals(written, $Select(mode: "1", 1: "0")_"|1", "the SettingsOps job wrote the row with the same mode")
 	Do $$$AssertStatusOK(sc, "SetDemoMode to SettingsOps: the status is OK")
 	If '$IsObject(result) {
 		Do $$$AssertTrue(0, "SetDemoMode to SettingsOps: a CommandResult comes back, not '"_$Get(result)_"'")
@@ -80,7 +93,6 @@ Method TestSettingsOpsSwitches()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|"_$Select(mode: "on", 1: "off"), "SetDemoMode to SettingsOps: carried out")
 	Do $$$AssertEquals(result.Message, $Select(mode: "Demo mode is on. The Orders production runs in namespace OCUORDERS. Reload the OcuTalon page in a minute to see the change.", 1: "Demo mode is off. The Orders production is stopped and namespace OCUORDERS is removed. Reload the OcuTalon page in a minute to see the change."), "and the text is that of the mode")
 	Do $$$AssertEquals(..Sent("SettingsOps"), before + 1, "the command reached SettingsOps once")
-	Do $$$AssertEquals(..Mode(), $Select(mode: "1", 1: "0"), "the row holds the mode")
 	Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 2, "SettingsOps", "CommandsIn")
 	Do $$$AssertEquals(answers.%Size(), 1, "the answer is one response header to CommandsIn")
 	If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).isError, 0, "that is not an error")

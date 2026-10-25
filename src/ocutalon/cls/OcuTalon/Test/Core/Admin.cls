@@ -7,8 +7,12 @@
 ///   - TestRefused: a caller without OcuTalonAdmin, a holder of %All included, gets the admin-only text and submits nothing;
 ///   - TestNotRunning: a submit that answers an error status (no production) prints the not-running text;
 ///   - TestSubmitThrows: a submit that throws prints the text with the error, and a submit with no answer is failed;
+///   - TestPrinted: the answer's message is the one line that SetDemoMode prints, for an admin's switch, a refusal and a bad
+///     argument;
+///   - TestArgumentBeforeRole: a bad argument is invalid whoever types it, and a good one from a caller without the role is refused;
 ///   - TestInvalidArgument: only 0 and 1 (a number or a string) are arguments; any other prints the invalid text, submits
-///     nothing and leaves the demo.mode row as it was.
+///     nothing (an OcuTalonAdmin holder's included) and leaves the demo.mode row as it was;
+///   - TestErrorText: the error text of a line drops the status's code prefix and its closing full stop.
 /// The demo.mode row is saved before the tests and put back after them (Test.Demo.Step).
 Class OcuTalon.Test.Core.Admin Extends %UnitTest.TestCase
 {
@@ -62,6 +66,18 @@ Method TestInvalidArgument()
 	Do $$$AssertEquals(..Sent("SettingsOps"), before, "no header went to SettingsOps")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 	Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", "the row is as it was")
+	Do ..Reset("OcuTalonAdmin")
+	For argument = 2, "on", "", "01" {
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(argument).Outcome, "invalid", "'"_argument_"' from an admin is invalid")
+	}
+	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent"), 0), 0, "and an admin's bad argument submits nothing")
+}
+
+/// ErrorText drops the code prefix of an error status, an Interoperability code included, and the closing full stop.
+Method TestErrorText()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Core.Admin).ErrorText($SYSTEM.Status.Error(5001, "zz plain failed.")), "zz plain failed", "ERROR #5001: and the full stop are dropped")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Admin).ErrorText($SYSTEM.Status.Error("<Ens>ErrGeneral", "zz ens failed.")), "zz ens failed", "an Interoperability code is dropped too")
 }
 
 /// An OcuTalonAdmin holder (with other roles too): one submit with the mode and $USERNAME, and the CommandResult comes back.
@@ -113,6 +129,29 @@ Method TestSubmitThrows()
 	Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(1)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "no answer is failed")
 	Do $$$AssertEquals(result.Message, "Something went wrong inside OcuTalon, so the command may not have finished.", "with CommandsIn's text")
+}
+
+/// The answer's message is printed on a line of its own, and nothing else: the admin's switch (the submit's message), a refusal and
+/// a bad argument.
+Method TestPrinted()
+{
+	Do ..Reset("OcuTalonAdmin")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture(1), "zz done"_$Char(10), "an admin's switch prints the message and a line feed")
+	Do ..Reset("%All")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture(1), "Only an OcuTalon admin can change settings. Nothing was changed."_$Char(10), "a refusal prints its line")
+	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent"), 0), 0, "and submits nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture("on"), "SetDemoMode takes 1 (on) or 0 (off). Nothing was changed."_$Char(10), "a bad argument prints its line")
+}
+
+/// A bad argument is invalid even for a caller without the role, and nothing is submitted; a good one from that caller is refused.
+Method TestArgumentBeforeRole()
+{
+	Do ..Reset("")
+	Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(2)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|invalid", "a bad argument is invalid for a caller without the role")
+	Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(0)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_allowed", "a good argument is refused for that caller")
+	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent"), 0), 0, "nothing was submitted")
 }
 
 /// Clears the probe's global and sets the roles that the probe reports.
