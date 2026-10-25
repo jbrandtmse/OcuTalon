@@ -2026,6 +2026,7 @@ So that two answers can never both act and an old request can't be approved by s
 **Given** a `TaskResponse` reaches ApprovalHold
 **When** it handles the response
 **Then** it acts only if the row already shows that answer; on approval, rejection or expiry it sends `ApprovalOutcome` to the row's `ResultTarget`, except that an approved `tool_call` gets the replay instead (Story 30.3, AD-11; until it merges, an approved `tool_call` gets neither and runs nothing [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 3.6]), a rejection runs nothing, and `HostSinkClass` receives `approval.answered`, `approval.expired` or `approval.cancelled` with the `Ref` (FR-8, NFR-13, AD-11, AD-31)
+- DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; the expiry path must not require the clock to be past ExpiresAt, or the request stays pending (ledger; routed by harvest 2026-10-25)
 
 ### Story 3.6: A risky tool call waits for approval and runs nothing
 
@@ -2046,6 +2047,7 @@ So that my own risky tools never run without a yes.
 **Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
 **When** they run
 **Then** the risky test tool never runs without an approved request, and a rejected or expired request runs nothing (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: "an approved request runs the call exactly once" moved to Story 30.3]
+- DW-187: Approval.Raise inside an open transaction fails closed, because the hold's job cannot see the uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25)
 
 ### Story 3.7: Every action and governance event is in the IRIS audit log
 

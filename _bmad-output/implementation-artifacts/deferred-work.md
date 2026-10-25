@@ -709,3 +709,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Design Notes limit the scan to the listed writes and AC 4 names no resend; AD-1's CommandsIn origin check (a refusing stub until Story 2.3) is the guard
 - 2026-10-24T23:46:11Z status=by-design owner=3-3-content-that-didn-t-come-from-the-user-can-only-look-notify by=cr note=spec Design Notes: the scan backs AD-1 rather than replacing it; reopens only via a spec amendment
+
+### DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; an expiry handler that requires the clock to be past ExpiresAt would leave the request pending
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Approval.Hold SetTimer gets the whole seconds until ExpiresAt, at least 1 (implement report residual risk; spec Decided in-stage)
+- 2026-10-25T02:07:44Z status=routed owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=3.5's expiry path must accept a timer that fires up to 1 s early (treat the timer as the expiry, or re-arm for the remainder)
+
+### DW-187: Approval.Raise inside an open transaction fails closed with the hold's 'no approval request' error, because the hold's job cannot see the uncommitted row; if AI Hub's %CanExecute callback runs at a TLevel above 0, Story 3.6's gate could never hold a call
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Review triage Blind 2 / Edge 5 (rejected for 3.4: no release-1 caller raises inside a transaction); the gate is 3.6's first caller
+- 2026-10-25T02:07:44Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=harvest note=3.6 Task 0: measure TLevel inside %CanExecute on build 154 and either commit-safe the call or refuse clearly
+
+### DW-188: Approval.LiveHold finds a hold by scanning ApprovalHold instances by Ref with no index
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: an index would change stored data (veto window); scan cost grows with the number of hold instances
+- 2026-10-25T02:07:44Z status=wontfix-accepted owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=reopen_if=Reconcile or Raise takes more than 1 s with more than a few thousand ApprovalHold instances
+
+### DW-189: A Raise running at the same moment as Reconcile at start is not serialized with it, so Reconcile could see a pending row before its hold has registered
+- source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the window is milliseconds and opens only during the after-start Reconcile step
+- 2026-10-25T02:07:44Z status=wontfix-theoretical owner=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=harvest note=real when a caller raises during the after-start (no release-1 caller does; the gate's first raise needs a running production)
