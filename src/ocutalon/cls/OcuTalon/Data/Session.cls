@@ -1,5 +1,7 @@
 /// A signed-in session (AD-4). Lane B. Each IRIS user has one durable row on a local install; ForUser finds or
-/// creates it.
+/// creates it. Only Ownership.Attach calls ForUser: the REST surface resolves the caller through Ownership.SessionRef.
+/// Recipients says which sessions an owner's records go to. The row also keeps the session's trace thread for the day
+/// (AD-26): ThreadSessionId and ThreadDay, which Core.Trace reads and writes under the row's own lock.
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
@@ -21,6 +23,13 @@ Property CreatedAt As %String(MAXLEN = 20);
 /// The opaque epoch of the session (AD-13): it is not secret, and it changes only when the OcuTalon session itself
 /// ended. /state returns it, and the page compares it after a sign-in.
 Property Epoch As %String(MAXLEN = 22);
+
+/// The session id of today's trace thread (AD-26): the SessionId of the first Item header of ThreadDay, which every later
+/// Item of that day is sent in. Empty until the session's first message.
+Property ThreadSessionId As %Integer;
+
+/// The instance-zone local date, YYYY-MM-DD, of the thread in ThreadSessionId.
+Property ThreadDay As %String(MAXLEN = 10);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -73,10 +82,25 @@ ClassMethod ForUser(irisUser As %String, Output sc As %Status) As OcuTalon.Data.
 	Quit session
 }
 
-/// The SessionRefs that receive what the owner owns, as a list, narrowed to the incident's recipients when incidentRef
-/// is set. Not implemented yet: it answers an empty list. Lane B implements it in Story 2.2.
-ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "") As %List
+/// The SessionRefs that receive what the owner owns, as a list:
+///   - a session's Ref that has a Session row: that Ref alone;
+///   - instance with the Ref of an instance incident: the sessions that watch the incident's production, in
+///     SessionRef order (Ownership.Watchers), none when onlineDemo is on;
+///   - eval, an empty owner, an unknown Ref, instance without an instance incident: none, the empty list.
+/// sc is OK unless the watcher read failed (DW-68). Then the result is "" and means nothing: it never means that nobody
+/// watches. That read prepares with the privilege check, so it runs only in production jobs and tests; a caller in a
+/// REST request gets the error.
+ClassMethod Recipients(ownerRef As %String, incidentRef As %String = "", Output sc As %Status) As %List
 {
+	Set sc = $SYSTEM.Status.OK()
+	If (ownerRef = "") || (ownerRef = ##class(OcuTalon.Data.Ownership).#EVAL) Quit ""
+	If ownerRef = ##class(OcuTalon.Data.Ownership).#INSTANCE {
+		If incidentRef = "" Quit ""
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(incidentRef)
+		If '$IsObject(incident) || (incident.OwnerRef '= ownerRef) Quit ""
+		Quit ##class(OcuTalon.Data.Ownership).Watchers(incident.Namespace, incident.Production, .sc)
+	}
+	If ..RefIndexExists(ownerRef) Quit $ListBuild(ownerRef)
 	Quit ""
 }
 
@@ -100,6 +124,12 @@ Storage Default
 </Value>
 <Value name="6">
 <Value>Epoch</Value>
+</Value>
+<Value name="7">
+<Value>ThreadSessionId</Value>
+</Value>
+<Value name="8">
+<Value>ThreadDay</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SessionD</DataLocation>

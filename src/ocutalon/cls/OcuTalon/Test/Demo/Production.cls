@@ -12,8 +12,9 @@
 ///     fresh recording has the same projection as the committed one.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in Snapshot and the private class methods below, each of which calls only classes that
-/// resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain values or dynamic objects.
+/// Switching to OCUORDERS happens only in Snapshot, the private class methods below and Test.Data.Fixture.RemoveMessages, each of
+/// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
+/// values or dynamic objects.
 /// Every test makes its references before it switches, and OnAfterAllTests deletes the headers, bodies and event-log rows of the
 /// references of the run.
 Class OcuTalon.Test.Demo.Production Extends %UnitTest.TestCase
@@ -51,7 +52,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
-	If ..Missing = "" Do ..RemoveMessages(..Refs)
+	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Refs, ..#NAMESPACE)
 	Quit $$$OK
 }
 
@@ -421,33 +422,10 @@ ClassMethod Resend(headerId As %String, date As %String) As %DynamicObject [ Pri
 	Quit {"id": ($Get(newId)), "error": ($Select($$$ISOK(sc): "", 1: $SYSTEM.Status.GetErrorText(sc)))}
 }
 
-/// Deletes the headers, the bodies and the event-log rows of the sessions of the references.
+/// Deletes the headers, the bodies and the event-log rows of the sessions of the references, in OCUORDERS.
 ClassMethod RemoveMessages(refs As %DynamicArray) As %Status [ Private ]
 {
-	New $NAMESPACE
-	Set $NAMESPACE = ..#NAMESPACE
-	For i = 0:1:refs.%Size() - 1 {
-		Kill ids, sessions
-		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE SuperSession = ?", refs.%Get(i))
-		While rs.%Next() {
-			Set ids(rs.%Get("ID")) = $ListBuild(rs.%Get("MessageBodyClassName"), rs.%Get("MessageBodyId"))
-			Set sessions(rs.%Get("SessionId")) = ""
-		}
-		Set id = ""
-		For {
-			Set id = $Order(ids(id), 1, body)
-			Quit:id=""
-			If $List(body, 1) '= "" Do $ClassMethod($List(body, 1), "%DeleteId", $List(body, 2))
-			Do ##class(Ens.MessageHeader).%DeleteId(id)
-		}
-		Set session = ""
-		For {
-			Set session = $Order(sessions(session))
-			Quit:session=""
-			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
-		}
-	}
-	Quit $$$OK
+	Quit ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(refs, ..#NAMESPACE)
 }
 
 /// The snapshot of the failures of the batch that carries the reference, as one dynamic object (the reader snapshot of Story

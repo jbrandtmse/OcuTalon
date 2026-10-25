@@ -37,7 +37,8 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The application table of the Web step, key by key: four applications, every key passed, an empty CORS list.
+/// The application table of the Web step, key by key: four applications, every key passed, an empty CORS list, and the
+/// session event class OcuTalon.Web.SessionEvents on /ocutalon alone.
 Method TestDefinitions()
 {
 	Set sc = ##class(OcuTalon.Install.Step.Web).Definitions(.apps)
@@ -66,6 +67,29 @@ Method TestDefinitions()
 			Do $$$AssertTrue($Data(expected(key)), name_" "_key_" is in the table")
 		}
 	}
+}
+
+/// The Web area declares the live-event purge (AD-27, Story 30.2 calls it): Purge(90) deletes every live event older than
+/// 24 hours, whatever the number, keeps the newer ones and leaves the stream's counter alone. It deletes the events of
+/// every stream, rows this test did not create too, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeDeclaration()
+{
+	Set stream = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("WebInstall", "streams", stream) = ""
+	For i = 1:1:2 {
+		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+		Set payload.Ref = "ZzWeb"_..Number_"p"_i
+		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "event "_i_" is published")
+	}
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("UPDATE OcuTalon_Live.Event SET Ts = ? WHERE Stream = ? AND Seq = 1")
+	Do statement.%Execute(##class(OcuTalon.Test.Data.Fixture).HoursAgo(25), stream)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(stream), "1,2", "two events, the first aged to 25 hours")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(90), "the Web area's Purge")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(stream), "2", "the aged event is deleted and the fresh one kept, whatever the number of days")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), 2, "the stream's counter is unchanged")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "the next event is published")
+	Do $$$AssertEquals(seq, 3, "and continues the stream's Seq")
 }
 
 /// The trace application of a namespace: its name from the namespace, AD-24's seven permitted classes, no
@@ -368,6 +392,7 @@ ClassMethod Expected(name As %String, Output expected) [ Private ]
 	Set expected("AutoCompile") = 0
 	Set expected("CSPZENEnabled") = 1
 	Set expected("CorsAllowlist") = ""
+	Set expected("EventClass") = ""
 	If name = "/ocutalon/trace/ocutalon" {
 		Set expected("DispatchClass") = ""
 		Set expected("Path") = ""
@@ -393,6 +418,7 @@ ClassMethod Expected(name As %String, Output expected) [ Private ]
 	Set expected("PermittedClasses") = ""
 	If name = "/ocutalon" {
 		Set expected("DispatchClass") = "OcuTalon.Web.Public.Shell"
+		Set expected("EventClass") = "OcuTalon.Web.SessionEvents"
 		Set expected("Path") = $SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/"
 		Set expected("ServeFiles") = 3
 	} Else {
@@ -464,6 +490,15 @@ Method CreateRoles() As %Status [ Private ]
 /// privilege, and the fixture's nodes.
 ClassMethod Clean() [ Private ]
 {
+	Set stream = ""
+	For {
+		Set stream = $Order(^OcuTalonTest("WebInstall", "streams", stream))
+		Quit:stream=""
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("DELETE FROM OcuTalon_Live.Event WHERE Stream = ?")
+		Do statement.%Execute(stream)
+		Kill ^OcuTalonP.LiveEventC(stream)
+	}
 	Kill ^OcuTalonTest("WebInstall")
 	New $Namespace
 	Set home = $Namespace

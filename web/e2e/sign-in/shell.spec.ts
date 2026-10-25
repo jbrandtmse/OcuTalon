@@ -27,19 +27,32 @@ test('row 8: the README sign-in loads the shell', async ({ page }) => {
   await expect.soft(home.locator('img.mark'), 'the mark links to the main page').toHaveCount(1);
   await expect.soft(home.locator('.wordmark'), 'the wordmark links to the main page').toHaveCount(1);
 
-  const account = page.getByRole('button', { name: 'Account' });
+  const account = page.getByRole('button', { name: README_ACCOUNT.user, exact: true });
   await expect.soft(account.locator('svg[aria-hidden=true]'), 'the chevron').toHaveCount(1);
   await account.click();
   await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   const main = page.getByRole('main');
-  await expect.soft(main.locator('*'), 'main holds the hidden heading and nothing else').toHaveCount(1);
-  const heading = main.getByRole('heading', { level: 1 });
-  await expect(heading).toHaveText('OcuTalon');
-  const box = (await heading.boundingBox())!;
-  expect(box.width, 'the heading is visually hidden').toBeLessThanOrEqual(1);
-  expect(box.height, 'the heading is visually hidden').toBeLessThanOrEqual(1);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect.soft(main.locator('> *'), 'main holds its hidden heading and the chat panel').toHaveCount(2);
+  await expect.soft(main.locator('> app-chat-panel'), 'the chat panel follows the heading').toHaveCount(1);
+  await expect.soft(main.locator('app-chat-panel app-empty-chat'), 'a fresh session shows the empty chat panel').toHaveCount(1);
+  await expect.soft(main.getByRole('textbox', { name: 'Message OcuTalon' }), 'and the composer').toHaveCount(1);
+  await expect.soft(main.getByRole('heading'), 'main has exactly one heading').toHaveCount(1);
+  const chat = main.getByRole('heading', { level: 2 });
+  await expect(chat).toHaveText('Chat');
+  const chatBox = (await chat.boundingBox())!;
+  expect(chatBox.width, 'the Chat heading is visually hidden').toBeLessThanOrEqual(1);
+  expect(chatBox.height, 'the Chat heading is visually hidden').toBeLessThanOrEqual(1);
+
+  const title = page.getByRole('heading', { level: 1 });
+  await expect(title, 'the page has one h1').toHaveCount(1);
+  await expect(title).toHaveText('OcuTalon');
+  await expect(main.getByRole('heading', { level: 1 }), 'the h1 is outside main').toHaveCount(0);
+  const titleBox = (await title.boundingBox())!;
+  expect(titleBox.width, 'the h1 is visually hidden').toBeLessThanOrEqual(1);
+  expect(titleBox.height, 'the h1 is visually hidden').toBeLessThanOrEqual(1);
 
   expect(violations).toEqual([]);
 
@@ -164,7 +177,7 @@ test('row 11: Sign out ends the shell, the API and the trace application', async
   const open = await page.request.get('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
   expect(await open.text(), 'a trace session is open before Sign out').toContain('Message Viewer');
 
-  await page.getByRole('button', { name: 'Account' }).click();
+  await page.getByRole('button', { name: README_ACCOUNT.user, exact: true }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page).toHaveTitle('Sign in \u00b7 OcuTalon');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in to OcuTalon');

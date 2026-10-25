@@ -1553,6 +1553,8 @@ So that I see my own conversation and status, and every change, as soon as it ha
 
 - DW-15: `GET /state` and `GET /events` resolve the caller's session through `OcuTalon.Data.Ownership` from the CSP session (AD-4), replacing Epic 0's interim `Session.ForUser($Username)` lookup, so two visitors signed in with one shared account never see each other's events; a test signs in twice with one account and shows each poll holds only its own session's events (ledger; routed by cr 2026-10-19)
 
+- DW-57: Story 2.1's server button, inline notice and announcer get their first browser test through this story's **Retry**: while busy the button keeps its label, shows the spinner and has `aria-busy` and `aria-disabled` true (never `disabled`); with no answer by 10 s it restores and shows the warning notice "Couldn't reach OcuTalon. Try again. Nothing was changed." under it, announced once through the polite announcer (ledger; routed by cr 2026-10-22)
+
 ### Story 2.3: Route every command by verb, with origin checks
 
 As a security reviewer,
@@ -1568,7 +1570,7 @@ So that a tool or arriving content can never reach a governance command, and eve
 
 **Given** a command with origin `tool`
 **When** `CommandsIn` checks it
-**Then** it accepts only setting or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1)
+**Then** it accepts only setting, listing or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1) [AMENDED 2026-10-22, Story 2.3 spec validation, Rule 5 tier 1, Epic 2 runner: it read "setting or cancelling a reminder"; AD-1's Rule and Story 1.10's list tool include listing]
 **And** a test submits each governance command with origin `tool` and expects the refusal (AD-1, AD-22)
 
 **Given** the settings and demo-mode verbs, and the pairing verb
@@ -1613,6 +1615,8 @@ So that OcuTalon never leaves a message of mine unanswered.
 **When** IRIS or its container restarts
 **Then** queued turns are still queued and run in order, and a turn left `running` is run again (FR-6, NFR-16, AD-30)
 
+- DW-61: Each `Turn` keeps my message text, its reply text as sent, the `clientId` and the trace target, and `ChatMessage.FromRow` (Story 2.2) maps them, so `/state`'s chat shows every turn with its reply after a reload; Story 2.2's snapshot carries the turn entries without text until then (ledger; routed by spec_gate 2026-10-22)
+
 ### Story 2.5: Chat with OcuTalon in the page
 
 As a user,
@@ -1645,6 +1649,8 @@ So that talking to OcuTalon is a quiet conversation I can follow.
 **When** new content arrives
 **Then** the chat doesn't move, and a floating "New messages" button with `chevron-down` appears centred above the composer, just before it in tab order; pressing it scrolls down and focuses the first new message (UX-DR67, UX-DR126)
 **And** the REL-2 spec for UJ-1's page step, one Playwright spec per UJ-1 step under `web/e2e/demo-path/` whose runner configuration and fixtures Lane B owns, checks the chat panel and the composer (REL-2, AD-29)
+
+- DW-65: `/state`'s chat (Story 2.2's `Web.Api.ChatItems`) loads and serializes every turn and noticed incident of the session with no cap or paging, and a durable local session only grows; this story decides a cap or paging for the snapshot's chat within AD-12's snapshot shape, and a test pins it on a long session (ledger; routed by harvest 2026-10-22)
 
 ### Story 2.6: Show every decision with its reasons and cost
 
@@ -1717,6 +1723,10 @@ So that only what needs me interrupts me, and nothing an outsider sends can act.
 **And** page times use the browser's zone and hour format with no suffix, and a page time beside message text adds the browser's zone abbreviation when it differs from the instance's ("20:15 CEST"); a Playwright test runs the browser in a zone different from the instance's (FR-12, UX-DR123)
 **And** a CI check against the mock on every run finds a tell-now notification in the page's web chat within 5 seconds of its decision, and on the simulated phone within 5 seconds once Story 4.5 builds `SimPhoneOut` and turns that half on; the 19-of-20 figure over real networks is measured in the rehearsal and on the online demo (FR-1, NFR-9, P30)
 
+- DW-62: Each web notice card is kept where the snapshot can read it, and `StateBody`'s chat merge (Story 2.2) adds its `notification` entries in time order, so a reload shows the cards in the conversation (ledger; routed by spec_gate 2026-10-22)
+
+- DW-81: With `DecideDouble` (Story 2.4) running inside a throwaway production, a `Busy` answer makes `Conversation` (Story 2.4) wait about 3 seconds through the real `Ens.Alarm`, then resend on the reopened instance, at most 5 times before the fallback route, and a test shows it end to end (ledger; routed by cr 2026-10-22) [AMENDED 2026-10-23, Story 2.7 spec gate, Epic 2 runner: declined by Story 2.7's plan (it needs a production of its own with DecideDouble as Decide) and re-owned to the Epic 2 burn-down; ledger DW-81]
+
 ### Story 2.8: Show the status rail
 
 As a user,
@@ -1757,6 +1767,8 @@ So that I see at a glance what OcuTalon is doing for me.
 **And** the rail's Telegram card is its own Angular component under `web/src/app/rail/telegram-card/`, which Lane A owns from Epic 12 (AD-29, AD-33)
 **And** the REL-2 spec for UJ-1's page step also checks the status rail's sections (REL-2)
 
+- DW-68: `Session.Recipients` finds an `instance` incident's watchers where the read is allowed (a production job, not the signed-in user's REST request, which holds no SQL grant under AD-13), or the story asks for an AD-13 amendment; a failed watcher read is loud, never the same as "nobody watches"; a test shows two watching sessions both get BridgeSink's `approval` event (ledger; routed by cr 2026-10-22)
+
 ### Story 2.9: Open anything in Visual Trace
 
 As a judge,
@@ -1775,19 +1787,10 @@ So that I can watch the assistant work like any other production.
 **Then** `OcuTalon.Web.TraceLink`, the one builder of trace URLs, adds the URL: OcuTalon's own trace application for the namespace (`/ocutalon/trace/ocutalon/` or `/ocutalon/trace/ocuorders/`), `SESSIONID` set to the target header id, and `PAGE` = ceil(item index ÷ page size), where the item index counts the thread's headers up to the target plus every event-log, rule-log and I/O-log row of the thread logged up to the target's creation, and the page size and "Show events" are the opening viewer's own Visual Trace settings (defaults 40 and on), read through one helper (AD-24, AD-26)
 **And** a test builds a thread of more than 40 items and finds that the link to a late turn opens Visual Trace on that turn (AD-26)
 
-**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
-**When** it renders
-**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
-**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+**[AMENDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): the page half - the trace links on the strip and the rail rows, the Visual Trace menu and the sign-in popover, with DW-58 - moved word for word to Story 2.13, which consumes this story's `traceUrl`.]**
 
-**Given** the app header
-**When** I open the Visual Trace menu, a ghost menu button with `external-link`
-**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
-
-**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
-**When** I press a trace link or open the Visual Trace menu
-**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
-**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+- DW-74: A throwaway check settles whether `Commands.Submit` (Story 2.3) loses the calling job's job-local `SessionId` (`Ens.BusinessService.ProcessInput` kills it on exit): inside an operation job with the id set, `Submit`, then log an event and read its `SessionId`; if it is lost, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's Visual Trace thread (ledger; routed by harvest 2026-10-22) [AMENDED 2026-10-23, Story 2.9 spec gate, Epic 2 runner: declined by Story 2.9's plan (the fix belongs in the contended `Core/Commands.cls`) and re-owned to the Epic 2 burn-down; ledger DW-74]
+- DW-112: A `SessionBroken` turn's retry in `Conversation.Rebuild` (Story 2.4) is a new `Decide` call under a new `ItemId` (derived from the turn's), never the turn's own `ItemId`, which AD-20's one decision per item and kind makes `Decide` refuse; the broken attempt keeps its `error` fallback row, the Turn keeps its own `ItemId` and links to the retry's decision, and a test shows a SessionBroken retry reaching `Decide` under a new `ItemId` and getting an answer (ledger; routed by cr 2026-10-23, orchestrator cross-epic ruling)
 
 ### Story 2.10: Show status banners for a missing key or a stalled heartbeat
 
@@ -1856,6 +1859,49 @@ So that the page works for me as well as for anyone.
 **When** the page applies it, whether it came from me or from another channel
 **Then** focus moves to its replacement, to the section heading when a row leaves its list, or otherwise to the nearest container; live content never moves focus in any other case (NFR-25, UX-DR126, UX-DR131)
 
+**[AMENDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): the keyboard-and-labels and colour-zoom-motion criteria moved word for word to Story 2.14, the layout criterion to Story 2.15, and the cross-browser, scan and string-test criterion with DW-89 and DW-145 to Story 2.16; this story keeps the announcement and focus criteria and DW-153.]**
+
+- DW-153: Banners that appear in one update are announced so that a screen reader keeps each text (one message per update, or each held long enough), checked with VoiceOver and NVDA (ledger; routed by cr 2026-10-24)
+
+### Story 2.13: Open Visual Trace from the page
+
+As a judge,
+I want every decision strip and rail row to link to the right place in Visual Trace, and a header menu that opens my conversation,
+So that I can follow the assistant's work from the page in one click.
+
+[ADDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): Story 2.9's page half, word for word; it uses the `traceUrl` that `/state` and `/events` carry from Story 2.9, and it is planned next after Story 2.9.]
+
+**Acceptance Criteria:**
+
+**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
+**When** it renders
+**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
+**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+
+**Given** the app header
+**When** I open the Visual Trace menu, a ghost menu button with `external-link`
+**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
+
+**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
+**When** I press a trace link or open the Visual Trace menu
+**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
+**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+
+- DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; moved from Story 2.9 with its first consumer, the Visual Trace menu; routed by cr 2026-10-22)
+
+- DW-129: A decision's trace link opens on the decision itself, not on page 1 of the day's thread with its first Item selected: with Story 2.9's day thread a decision's `traceHeaderId` is the thread and no index is known, so the link needs the decision message's place (or its own header) (ledger; routed by cr 2026-10-23)
+
+
+### Story 2.14: Work the whole page by keyboard, with labels and words
+
+As a user who works by keyboard or with a screen reader,
+I want every function reachable by keyboard, every control labelled and every state in words,
+So that the page works for me as well as for anyone.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned next after Story 2.12.]
+
+**Acceptance Criteria:**
+
 **Given** I use only the keyboard
 **When** I work through the page
 **Then** every function works: the first tab stops are "Skip to chat" and "Skip to status"; Enter sends and Shift+Enter adds a line; Esc closes the topmost popover or dialog and collapses a disclosure only when focus is inside it; there are no single-character shortcuts; and the focus ring is always visible and never clipped, because every scrolling region keeps `scroll-gutter` (NFR-25, UX-DR11, UX-DR33, UX-DR125)
@@ -1866,14 +1912,54 @@ So that the page works for me as well as for anyone.
 **Then** it never relies on colour alone (every state has a word and every link is underlined), text resizes to 200% without loss because heights are minimums, errors are text beside their cause linked to their field, and under `prefers-reduced-motion` nothing rotates, pulses, shimmers or scrolls smoothly (NFR-25, UX-DR14, UX-DR134, UX-DR135)
 **And** none of the banned patterns appears: modal notification interruptions, toasts as the only copy, sounds, tabs that switch by themselves, hover-only controls, drag-and-drop as the only way, model-progress bars, celebration effects, or infinite scroll in counted lists (UX-DR129)
 
+### Story 2.15: Lay the page out at every supported width
+
+As a user in a smaller window or at 200% zoom,
+I want the page laid out for my window,
+So that everything stays readable and reachable.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Story 2.14.]
+
+**Acceptance Criteria:**
+
 **Given** the browser window's size
 **When** the page lays out
 **Then** from 1440px wide the rail is `rail-width-wide`; from 1280 to 1439px it is `rail-width` and every UJ-1 control is reachable without scrolling the page, because each region scrolls on its own; from 1024 to 1279px the rail becomes a drawer opened from a "Status" header button that shows the approval request count; below 1024px or at 200% zoom the page becomes one scrolling column (header, banners, the chat scrolling on its own at `min(70vh, content)`, then the status sections) with only a compact header sticky (FR-12, UX-DR20, UX-DR137)
 **And** in the stacked layout, the info inline notice "This page is designed for a wider window. Everything still works." shows once per session, and its close is remembered per browser (UX-DR35, UX-DR128, UX-DR138)
 
+### Story 2.16: Prove the floor in Chromium, Firefox and WebKit
+
+As a user of any supported browser,
+I want the accessibility floor checked in Chromium, Firefox and WebKit,
+So that the page works for me whichever browser I use.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Stories 2.14 and 2.15, whose surfaces its scan and string test cover.]
+
+**Acceptance Criteria:**
+
 **Given** the CI demo-path environment
 **When** the page tests run
 **Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
+
+- DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
+- DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
+- DW-178: The skip links (Story 2.14) pass this story's accessibility scan in every browser: no link points at nothing (for example an in-page target in place of `href="#/"`) (ledger; routed by harvest 2026-10-24)
+- DW-179: Every floor case removes the turns it seeds: Story 2.12's A1, A5, A7 and P4 pass `turnRows` to `cleanFixtureRows` as Story 2.14's cases do, so running the floor unit in several browser projects on one stack leaves no turns behind for K4's bounded tab walk (ledger; routed by adjudication 2026-10-24)
+
+
+### Story 2.17: Epic 2's tests follow the real Decide
+
+As the team merging Epic 2 onto the feature branch,
+I want Epic 2's live and production tests to assert what the merged system does now that Epic 1's real Decide has replaced Epic 0's stub,
+So that the merged branch is green for the right reasons and every Epic 2 promise is still proven.
+
+[ADDED 2026-10-25, Epic 2 integrate-forward, Epic 2 runner, fix-forward (U5: one fix-forward story per root cause, the failing code in this epic's own changes; veto item). Root cause: Epic 2's tests were written against Epic 0's stub Decide, whose fallback reason is `unusable`; on the merged tree the real Decide of Epic 1 answers a stack with no model key with the `noModelKey` fallback ("I couldn't answer that: no model key is set. Nothing was changed.").]
+
+**Acceptance Criteria:**
+
+**Given** the feature branch merged into Epic 2 (Epic 1's real Decide, a throwaway stack with no model key, and the CI model mock where a test uses it)
+**When** Epic 2's tests run on the merged tree: `shard:lane-b` (`OcuTalon.Test.Core.ConversationProduction`, `RoutingProduction`, `ThreadProduction`), `live:production-restart` (row 20), `live:sign-in` (Story 2.4's api row and Story 2.5's C2-C4, C7, C9-C11 and C15, and every case that did not run after them) and every other group
+**Then** each asserts the outcome the merged system produces (the reply text, the fallback reason, the turn's states and events, and whatever decision record the real Decide keeps), every Epic 2 acceptance criterion those tests pin is still pinned by a test that can fail, no product behaviour changes unless a test exposes a real integration defect (which this story then fixes, with a test), and all six IRIS groups and the hosted checks pass on the merged tree
 
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 

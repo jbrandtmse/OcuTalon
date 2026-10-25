@@ -325,6 +325,7 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Ownership", "method": "TurnCost", "args": "turnRef", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Data.Ownership", "method": "RunCost", "args": "sessionRef,since", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Core.Commands", "method": "Submit", "args": "command,origin,*result", "returns": "%Status"},
+ {"class": "OcuTalon.Core.Allowance", "method": "TryConsume", "args": "sessionRef,channel,text,*retryAt,*firstRefusal", "returns": "%Boolean"},
  {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "ClassFor", "args": "setting,production,item,*sc", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "Check", "args": "setting,class", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "OnEvent", "args": "type,ownerRef,payload", "returns": "%Status"},

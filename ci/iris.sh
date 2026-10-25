@@ -13,7 +13,8 @@
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each
 #   ci/iris.sh class <Class>              the same for one test class
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
-#                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium
+#                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
+#                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
@@ -382,6 +383,9 @@ cmd_live() {
   preflight
   case " $BROWSER_UNITS " in
     *" $name "*) npx --prefix web playwright install chromium || exit 1 ;;
+  esac
+  case " $FIREFOX_WEBKIT_UNITS " in
+    *" $name "*) npx --prefix web playwright install firefox webkit || exit 1 ;;
   esac
   bash "docker/tests/test-$name.sh"
 }

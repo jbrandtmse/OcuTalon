@@ -1,7 +1,8 @@
 /// The Web step: OcuTalon's four web applications and the trace role (AD-13, AD-24). The first three share one
 /// sign-in group.
 ///   - /ocutalon: dispatched by OcuTalon.Web.Public.Shell, password authentication, serving the built Angular
-///     files from the durable csp/ocutalon-web/ folder;
+///     files from the durable csp/ocutalon-web/ folder; its session event class OcuTalon.Web.SessionEvents attaches
+///     the user's durable session at sign-in (AD-4);
 ///   - /ocutalon/api: OcuTalon.Web.Api, the REST surface;
 ///   - /ocutalon/trace/ocutalon: the Visual Trace portal pages of OCUTALON, restricted to AD-24's seven classes;
 ///   - /ocutalon/public: OcuTalon.Web.Public.Status, unauthenticated and outside the sign-in group.
@@ -39,6 +40,9 @@ Parameter OCUTALONMARKER = "<base href=""/ocutalon/"">";
 /// The top-level files of a bundle that carry a content hash.
 Parameter STALEFILES = "^(main|chunk|polyfills|styles)-[A-Za-z0-9]+\.(js|css)(\.map)?$";
 
+/// The session event class of /ocutalon: OnLogin attaches the user's durable session (AD-4). The other applications have none.
+Parameter SESSIONEVENTS = "OcuTalon.Web.SessionEvents";
+
 /// The application's name, in lower case, is appended to this for each trace application.
 Parameter TRACEPREFIX = "/ocutalon/trace/";
 
@@ -72,6 +76,20 @@ ClassMethod Prepare(dataDirectory As %String) As %Status
 	Quit ..RemoveOldBundle(dataDirectory_..#OLDBUNDLEFOLDER, dataDirectory_..#BUNDLEFOLDER)
 }
 
+/// Lane B's areas reconcile here (AD-5, AD-23): the turn queue is started again, through WebChatIn, by Conversation.Reconcile.
+/// With no production running it answers OK and does nothing; the next start reconciles.
+ClassMethod Reconcile() As %Status
+{
+	Quit ##class(OcuTalon.Core.Conversation).Reconcile()
+}
+
+/// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
+/// touched. This is Lane B's live-event retention, declared in the Web area, which the purge task calls (Story 30.2).
+ClassMethod Purge(daysToKeep As %Integer) As %Status
+{
+	Quit ##class(OcuTalon.Live.Event).Purge(daysToKeep)
+}
+
 /// The trace role holds exactly: Use on %Ens_Portal, %Ens_MessageTrace, %Ens_MessageHeader and
 /// %Ens_MessageContent, and Read on the OCUTALON data and code databases, never the private database. Its SQL
 /// SELECT on Ens.MessageHeader is GrantTraceSql's. The OCUORDERS grants are the Demo step's.
@@ -90,6 +108,7 @@ ClassMethod Definitions(Output apps) As %Status
 	Kill apps
 	Do ..Common(.shell, "OCUTALON", "/ocutalon/")
 	Set shell("DispatchClass") = "OcuTalon.Web.Public.Shell"
+	Set shell("EventClass") = ..#SESSIONEVENTS
 	Set shell("Path") = $SYSTEM.Util.DataDirectory()_..#BUNDLEFOLDER
 	Set shell("ServeFiles") = 3
 	Set shell("MatchRoles") = ..#APPLICATIONROLES
@@ -155,6 +174,7 @@ ClassMethod Common(Output props, namespace As %String, cookiePath As %String) [ 
 	Set props("IsNameSpaceDefault") = 0
 	Set props("AutoCompile") = 0
 	Set props("CorsAllowlist") = ""
+	Set props("EventClass") = ""
 }
 
 /// Creates the application, or modifies the one that exists, to hold props. Runs in %SYS.

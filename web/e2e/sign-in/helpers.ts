@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { expect, type APIResponse, type Page, type Response } from '@playwright/test';
+import { expect, type APIRequestContext, type APIResponse, type Page, type Response } from '@playwright/test';
 
 /** The README account of a local install. */
 export const README_ACCOUNT = { user: 'ocutalon', password: 'ocutalon' } as const;
@@ -60,6 +60,34 @@ export async function submitSignIn(page: Page): Promise<Response> {
 export async function signIn(page: Page, user: string, password: string, path = '/ocutalon/'): Promise<Response> {
   await fillSignIn(page, user, password, path);
   return submitSignIn(page);
+}
+
+/** Signs a user in over HTTP, the way a script does: the sign-in page of the path, then the three fields of its form. */
+export async function signInOverHttp(request: APIRequestContext, user: string, password: string, path = '/ocutalon/'): Promise<APIResponse> {
+  await request.get(path);
+  return request.post(path, { form: { IRISUsername: user, IRISPassword: password, IRISLogin: 'Sign in' } });
+}
+
+/** The origin of the stack under test: OCUTALON_URL, which the config also uses as baseURL. */
+export function stackOrigin(): string {
+  const url = process.env['OCUTALON_URL'];
+  if (!url) throw new Error('OCUTALON_URL must name the stack');
+  return new URL(url).origin;
+}
+
+/**
+ * The headers of the browser envelope of a state-changing call (AD-13): the JSON content type, X-OcuTalon-Request: 1 and the
+ * stack's own Origin, which an APIRequestContext does not send by itself. An override replaces one part, or with undefined
+ * leaves it out.
+ */
+export function envelope(overrides: Record<string, string | undefined> = {}): Record<string, string> {
+  const headers: Record<string, string | undefined> = {
+    'content-type': 'application/json',
+    'x-ocutalon-request': '1',
+    origin: stackOrigin(),
+    ...overrides,
+  };
+  return Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== undefined));
 }
 
 /** Signs the README account in and waits for the shell, with its stylesheets and images loaded. */

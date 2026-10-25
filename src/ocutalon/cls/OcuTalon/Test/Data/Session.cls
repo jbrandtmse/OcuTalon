@@ -1,23 +1,32 @@
-/// Tests of Data.Session.ForUser (matrix row 8): one durable row per IRIS user, matched without regard to case,
-/// with a Ref, a TraceRef and an Epoch of its own. The fixture users are zzsess<n> and zzsessother<n>, with n from
-/// ^OcuTalonTest("SessionForUser","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every session row
-/// of a user name that starts with zzsess.
+/// Tests of Data.Session: ForUser (matrix row 8), one durable row per IRIS user, matched without regard to case, with a
+/// Ref, a TraceRef and an Epoch of its own; and Recipients (Story 2.2), who receives what an owner owns. The fixture
+/// users are zzsess<n> and zzsessother<n>, with n from ^OcuTalonTest("SessionForUser","n") (never reset);
+/// OnBeforeAllTests and OnAfterAllTests delete every session row of a user name that starts with zzsess, and the rows
+/// of Test.Data.Fixture. onlineDemo is saved and put back.
 Class OcuTalon.Test.Data.Session Extends %UnitTest.TestCase
 {
 
 /// The run's number.
 Property Number As %Integer;
 
+/// The public setting onlineDemo before the tests, "" when it was absent.
+Property SavedOnline As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Set ..Number = $Increment(^OcuTalonTest("SessionForUser", "n"))
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
 	Do ..Clean()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -26,11 +35,11 @@ Method OnAfterAllTests() As %Status
 Method TestFindsOrCreates()
 {
 	Set user = "zzsess"_..Number
-	Do $$$AssertEquals(..Count(user), 0, "no row to begin with")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 0, "no row to begin with")
 	Set first = ##class(OcuTalon.Data.Session).ForUser(user, .sc)
 	Do $$$AssertStatusOK(sc, "the first call")
 	Do $$$AssertTrue($IsObject(first), "the first call returns the row")
-	Do $$$AssertEquals(..Count(user), 1, "one row is created")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "one row is created")
 	Do $$$AssertEquals(first.IrisUser, user, "the row keeps the user name")
 	For field = "Ref", "TraceRef", "Epoch" {
 		Do $$$AssertTrue($Property(first, field) ? 22(1AN,1"-",1"_"), field_" is 22 base64url characters: "_$Property(first, field))
@@ -47,12 +56,59 @@ Method TestFindsOrCreates()
 	Do $$$AssertEquals(upper.%Id(), first.%Id(), "it returns the same row")
 	Do $$$AssertEquals(upper.Epoch, first.Epoch, "with the same Epoch")
 	Do $$$AssertEquals(upper.Ref, first.Ref, "and the same Ref")
-	Do $$$AssertEquals(..Count(user), 1, "still one row")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount(user), 1, "still one row")
 
 	Set other = ##class(OcuTalon.Data.Session).ForUser("zzsessother"_..Number, .sc)
 	Do $$$AssertStatusOK(sc, "another user")
 	Do $$$AssertTrue(other.%Id() '= first.%Id(), "another user has another row")
 	Do $$$AssertTrue((other.Ref '= first.Ref) && (other.TraceRef '= first.TraceRef) && (other.Epoch '= first.Epoch), "with other references")
+}
+
+/// Recipients: a session-owned record goes to its session; an instance incident to every session that watches its
+/// production, on a local install; an unwatched one, an eval record, an unknown Ref and any instance record with
+/// onlineDemo on go to nobody. The status is OK in every one of these cases: only a failed watcher read (DW-68) makes it
+/// an error.
+Method TestRecipients()
+{
+	Set a = ##class(OcuTalon.Test.Data.Fixture).Session("zzsessrecip"_..Number_"a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzsessrecip"_..Number_"b")
+	Set watched = "Zz.Recip"_..Number_".Watched"
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(a, "ZZNS", watched)
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", watched)
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS", "Zz.Recip"_..Number_".OnlyB")
+	Set instanceWatched = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", watched)
+	Set instanceUnwatched = ##class(OcuTalon.Test.Data.Fixture).Incident("instance", , "ZZNS", "Zz.Recip"_..Number_".Nobody")
+	Set own = ##class(OcuTalon.Test.Data.Fixture).Incident(a, , "ZZNS", watched)
+	Set eval = ##class(OcuTalon.Test.Data.Fixture).Incident("eval", , "ZZNS", watched)
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do ..AssertRecipients(a, "", $ListBuild(a), "a session-owned record goes to its session")
+	Do ..AssertRecipients(a, own, $ListBuild(a), "also when it names an incident")
+	Set list = ##class(OcuTalon.Data.Session).Recipients("instance", instanceWatched, .sc)
+	Do $$$AssertStatusOK(sc, "the status of an instance incident is OK")
+	Do $$$AssertEquals($ListLength(list), 2, "an instance incident goes to the two sessions that watch its production")
+	Do $$$AssertTrue($ListFind(list, a) && $ListFind(list, b), "A and B")
+	Do ..AssertRecipients("instance", instanceUnwatched, "", "an unwatched instance incident goes to nobody")
+	Do ..AssertRecipients("instance", own, "", "an incident that a session owns is not an instance incident")
+	Do ..AssertRecipients("instance", "zzmissing"_..Number, "", "nor is a missing one")
+	Do ..AssertRecipients("instance", "", "", "instance with no incident goes to nobody")
+	Do ..AssertRecipients("eval", eval, "", "an eval record goes to nobody")
+	Do ..AssertRecipients("eval", "", "", "also with no incident")
+	Do ..AssertRecipients("zzunknown"_..Number, "", "", "an unknown Ref goes to nobody")
+	Do ..AssertRecipients("", "", "", "an empty owner goes to nobody")
+
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..AssertRecipients("instance", instanceWatched, "", "with onlineDemo on, an instance incident goes to nobody")
+	Do ..AssertRecipients(a, own, $ListBuild(a), "and a session-owned record still goes to its session")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// Asserts what Recipients answers for the owner and the incident, and that its status is OK.
+Method AssertRecipients(owner As %String, incident As %String, expected As %List, text As %String) [ Private ]
+{
+	Set got = ##class(OcuTalon.Data.Session).Recipients(owner, incident, .sc)
+	Do $$$AssertEquals(got, expected, text)
+	Do $$$AssertStatusOK(sc, "the status is OK: "_text)
 }
 
 /// An empty user name is refused, and no row is created.
@@ -82,7 +138,7 @@ Method TestConcurrentFirstCall()
 	Do $$$AssertEquals($Get(@run@("error"), ""), "", "without an error")
 	Set split = ""
 	For i = 1:1:20 {
-		If (..Count(user_i) '= 1) || ($Get(@run@("ref", i, 1)) = "") || ($Get(@run@("ref", i, 1)) '= $Get(@run@("ref", i, 2))) Set split = split_" "_i
+		If (##class(OcuTalon.Test.Data.Fixture).SessionCount(user_i) '= 1) || ($Get(@run@("ref", i, 1)) = "") || ($Get(@run@("ref", i, 1)) '= $Get(@run@("ref", i, 2))) Set split = split_" "_i
 	}
 	Do $$$AssertEquals(split, "", "every user has one row, and both jobs got its Ref")
 	Kill @run
@@ -120,16 +176,6 @@ ClassMethod WaitFor(ref As %String, count As %Integer, seconds As %Integer) [ Pr
 	While (+$Get(@ref) < count) && ($ZHorolog < deadline) {
 		Hang 0.05
 	}
-}
-
-/// The rows of a user, matched without regard to case.
-ClassMethod Count(user As %String) As %Integer [ Private ]
-{
-	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE IrisUser = ?")
-	Set result = statement.%Execute(user)
-	Do result.%Next()
-	Quit result.%GetData(1)
 }
 
 ClassMethod CountAll() As %Integer [ Private ]

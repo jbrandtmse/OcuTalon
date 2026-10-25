@@ -12,7 +12,7 @@ Parameter TYPES = "chat.message:ChatMessage,notification:Notification,phone:Phon
 /// The stream of the instance-wide events.
 Parameter INSTANCE = "instance";
 
-/// Seconds to wait for the stream's lock.
+/// Seconds to wait for the stream's lock, unless the caller names a shorter or longer wait.
 Parameter LOCKWAIT = 5;
 
 /// The full name of the payload class of a type, "" when the type is not in the event table.
@@ -47,9 +47,9 @@ ClassMethod IsStream(stream As %String) As %Boolean
 
 /// Publishes payload, the full current view of one entity, as the next event of stream. type must be in the event
 /// table and payload an object of that type's class. seq is the new event's number. Refused inside an open
-/// transaction: a nested commit would release the lock before the outer commit. On failure nothing is written
-/// and the counter is unchanged.
-ClassMethod Publish(stream As %String, type As %String, payload As %RegisteredObject, Output seq As %Integer) As %Status
+/// transaction: a nested commit would release the lock before the outer commit. lockWait is the seconds to wait for the
+/// stream's lock (LOCKWAIT by default). On failure nothing is written and the counter is unchanged.
+ClassMethod Publish(stream As %String, type As %String, payload As %RegisteredObject, Output seq As %Integer, lockWait As %Integer = {..#LOCKWAIT}) As %Status
 {
 	Set seq = 0
 	If $TLevel > 0 Quit $SYSTEM.Status.Error(5001, "Live events can't be published inside an open transaction")
@@ -61,9 +61,9 @@ ClassMethod Publish(stream As %String, type As %String, payload As %RegisteredOb
 	Set sc = $SYSTEM.Status.OK()
 	Set locked = 0
 	Try {
-		Lock +^OcuTalonP.LiveEventC(stream):..#LOCKWAIT
+		Lock +^OcuTalonP.LiveEventC(stream):lockWait
 		If '$Test {
-			Set sc = $SYSTEM.Status.Error(5001, "The stream '"_stream_"' is busy: its lock wasn't free in "_..#LOCKWAIT_" seconds")
+			Set sc = $SYSTEM.Status.Error(5001, "The stream '"_stream_"' is busy: its lock wasn't free in "_lockWait_" seconds")
 		} Else {
 			Set locked = 1
 			TSTART

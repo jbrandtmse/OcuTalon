@@ -26,6 +26,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Error:FullURL and the 303 Location carry no fragment; harmless until the first hash route ships (Epic 2 frame)
 - 2026-10-19T05:10:58Z status=routed owner=2-1-lay-out-the-main-page-frame by=harvest note=Rule 22 ruling: routed, not wontfix, because Story 2.1 adds the first routes and the defect then becomes certain; fix in Shell/signin.js
+- 2026-10-22T02:09:17Z status=resolved-by:2-1-lay-out-the-main-page-frame by=adjudication note=signin.js_appends_location.hash_to_the_form_action_once(de7dc48;Shell.cls_unchanged:a_fragment-less_303_Location_inherits_the_fragment);sign-in.spec.ts_DW-4_rows(#/x_and_index.html?q=1#/x_land_on_/ocutalon/#/x_after_boot;wrong_password_first;double_submit;no-fragment_lands_on_#/)_red_under_the_dropped_append_and_the_dropped_guard_mutations;56_of_56_chromium_on_throwaway_e2s21r
 
 ### DW-5: On the non-Health image the namespace's default application /csp/ocutalon serves the bundle folder without sign-in and without the shell's policy
 - source: spec-0-3-sign-in-to-an-empty-ocutalon-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -89,11 +90,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-5-live-events-and-the-rest-skeleton.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the API refuses a state-changing call without both (403 not_json / no_request_header); ApiClient has no POST or DELETE yet
 - 2026-10-19T12:43:59Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=harvest note=Rule 22 ruling: routed, not wontfix, because 2.2 adds the first POST (session/end) and the gap then becomes certain
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=envelope.interceptor.ts_sets_Content-Type_and_X-OcuTalon-Request_on_POST/PUT/PATCH/DELETE_under_/ocutalon/api;session.spec_S1_(204_with_both_headers)_and_S2_(403_not_json/no_request_header);red_under_the_omitted-header_mutation
 
 ### DW-15: Web.Api State and Events resolve the caller's session with Session.ForUser($Username), outside Data.Ownership (AD-4), so 16.3 has two lookups to replace
 - source: spec-0-5-live-events-and-the-rest-skeleton.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Api.cls State() and Events() call Data.Session.ForUser($Username) and read Live.Event.Since directly. AD-4 says REST reads go through Ownership; Stories 2.2 (AC 17) and 16.3 (one session per visitor) expect Ownership to resolve the caller's SessionRef from the CSP session, never the IRIS user name. Isolation holds today (one durable session per user).
 - 2026-10-19T13:50:49Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=2.2: resolve State/Events' session via Ownership; lead reconciles AD-4's last bullet with AD-13's Oct 19 amendment
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=Web.Api_State_and_Events_resolve_through_Ownership.SessionRef_(no_ForUser($Username)_left_in_Web.Api);TestPollsResolveTheCspSession_red_under_the_ForUser_mutation;Story_16.3_extends_the_one_resolution_method_(DW-16)
 
 ### DW-16: On the online demo every visitor shares one IRIS account, so session resolution by user name would merge visitors; the one Ownership lookup (DW-15) needs a per-sign-in / resume-cookie branch
 - source: Contest Planner note 2026-10-19 (0.5 review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -181,6 +184,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 Rule 22 ruling: Render renders times only through Data.Time.ForMessage; EXPERIENCE banner table; Story 2.10 renders the banners
 - 2026-10-20T05:25:07Z status=routed owner=2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=harvest note=2.10 decides: pass a web-formatted time, or render the banner's time in the browser
 - 2026-10-20T06:51:54Z occurrence=0-9-the-message-catalog-and-its-one-renderer by=cr note=also the web cards' answered statuses (Formats: page time beside message text, 20:15 CEST): 6.3/6.4 follow 2.10
+- 2026-10-24T07:07:21Z status=resolved-by:2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=adjudication note=build ae0d062: the page formats each banner's UTC time slot as a page time in the browser's zone with no instance-zone suffix; banner-view.test.mjs, B4 (Asia/Kolkata) and B8 (New York, 12-hour)
 
 ### DW-30: Nothing limits a rendered text's length, while Telegram caps a message at 4,096 characters, so a long model-written slot could make sendMessage fail
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: out-of-epic
@@ -622,6 +626,328 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-21T21:49:22Z status=decision-pending owner=burndown by=lead note=human=CI capacity: fix, resize or cap ocutalon-ci-c; a ~10 min job needs faster hosts
 - 2026-10-21T22:10:11Z status=dropped by=unattended note=action_item:epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i(human=CI_capacity;decision_sheet_epic_32)
 
+### DW-57: Story 2.1's server button, inline notice and announcer ship with no executed test host; the matrix Busy rows are pinned only through BusyState
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: No spec or page renders app-server-button, app-inline-notice or Announcer; busy-state.test.mjs covers only the framework-free state machine; the Busy AC places their first browser test in Story 2.2
+- 2026-10-22T02:05:46Z status=routed owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=Retry is the first consumer: browser-test aria-busy and aria-disabled, the spinner, the notice text, announced once
+- 2026-10-22T07:51:44Z status=resolved-by:2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=adjudication note=Retry_is_the_first_browser_test_of_the_server_button_notice_and_announcer:live.spec_L6_(busy_label_spinner_aria-busy/aria-disabled_never_disabled;10s_notice_announced_once)_and_L11_(answered_Retry);red_under_the_disabled-while-busy_and_unannounced-notice_mutations
+
+### DW-58: Story 2.1's popover service ships with no executed test host
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: No code calls Popovers.show; the spec's Integration ACs place its first browser test in Story 2.9 (the Visual Trace menu)
+- 2026-10-22T02:05:46Z status=routed owner=2-9-open-anything-in-visual-trace by=cr note=The menu is the first consumer: test the dialog role and name, focus on open, Esc, an outside press and focus leaving
+- 2026-10-23T16:42:48Z owner=2-13-open-visual-trace-from-the-page by=spec_gate note=moved with Story 2.9's page half (split, U5 decide): its first consumer, the Visual Trace menu, is Story 2.13's
+- 2026-10-24T03:09:18Z status=resolved-by:2-13-open-visual-trace-from-the-page by=adjudication note=build 91ffd1a plus QA and review: the popover service's first browser tests through the Visual Trace menu and the sign-in help (V4, V7, V12, V13; a dialog named by its heading, no aria-modal, focus to its first control, Esc, outside press and focus leaving close it and return focus) in Chromium; the WebKit and Firefox remainder is DW-145 (Story 2.12)
+
+### DW-59: No test can tell the snapshot's three models keys apart, because every agent resolves to the same model
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Swapping TriageAgent and DiagnosisAgent in Web.Api.StateBody leaves Test.Web.Api, api.spec row 13 and frame F9 green; all three resolve to claude-haiku-5-5 (Task 0)
+- 2026-10-22T02:05:46Z status=wontfix-accepted owner=2-1-lay-out-the-main-page-frame by=cr note=reopen_if=an OcuTalon.Production agent item gets its own Model (Production.cls, an installer step or a default setting)
+
+### DW-60: F2's Demo guide and Simulated devices absence checks cannot fail until those regions exist
+- source: spec-2-1-lay-out-the-main-page-frame.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Neither text appears anywhere in web/src, so toHaveCount(0) holds in every mode; F2's pinning assertion is main's geometry (flex: none)
+- 2026-10-22T02:05:46Z status=wontfix-accepted owner=2-1-lay-out-the-main-page-frame by=cr note=reopen_if=web/src renders a Demo guide or Simulated devices region and frame.spec F2 has no demo-mode-on twin
+
+### DW-61: Story 2.2's snapshot carries each turn without my message text or its reply text, because Data.Turn has no text columns
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data.Turn holds SessionRef, State, Channel, FromGuide, CreatedAt only; Story 2.2's snapshot AC asks for turns with their replies; Story 2.4's Tainted-reply recap already builds on Turn rows holding the messages and replies as sent
+- 2026-10-22T02:54:40Z status=routed owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=spec_gate note=Turn keeps the message text, the reply text as sent, the clientId and the trace target, and ChatMessage.FromRow (Story 2.2) maps them, so /state's chat shows each turn with its reply after a reload; veto ruling at 2.2 spec validation
+- 2026-10-22T16:16:48Z status=resolved-by:2-4-answer-every-chat-message-through-the-turn-pipeline by=adjudication note=Turn_keeps_Text,ReplyText,ClientId,TraceHeaderId(slots_10-18);ChatMessage.FromRow_maps_them;api.spec_CHAT_reload_and_Test.Live.Payloads_TestFromRowBuilders;red_under_FromRow_omitting_Text
+
+### DW-62: Story 2.2's snapshot carries no notice cards, because no table keeps a delivered web notice card's text (Delivery keeps references only)
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Delivery.Record keeps ownerRef, channel, channelMessageId and approvalRef; Story 2.2's snapshot AC asks for the conversation with its notice cards; Story 2.7 publishes the notification event and records Delivery
+- 2026-10-22T02:54:40Z status=routed owner=2-7-route-untrusted-items-and-notifications-by-outcome by=spec_gate note=keep each web notice card where the snapshot can read it, and add notification entries to StateBody's chat merge (Story 2.2), so a reload shows the cards in order; veto ruling at 2.2 spec validation
+- 2026-10-23T11:08:44Z status=resolved-by:2-7-route-untrusted-items-and-notifications-by-outcome by=adjudication note=Delivery keeps each web card (Kind, Text, DecisionRef, DueAt, FallbackReason; build 4fdc430); Ownership.RecentNotices and Web.Api ChatItems merge cards by time; TestStateChatNotices, TestStateChatNoticeCardFields, notice.spec N7 and N14 pin it
+
+### DW-65: Web.Api.StateBody loads and serializes every turn and every noticed incident of the session on each /state call and snapshot reload, with no cap or paging
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: ChatItems reads Ownership.Turns and Ownership.Incidents without a limit, opens each row and exports it; a durable local session only grows (Web/Api.cls ChatItems)
+- 2026-10-22T06:27:39Z status=routed owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=the chat's renderer decides a cap or paging for /state's chat (AD-12's snapshot shape) and a test pins it on a long session
+- 2026-10-22T07:48:43Z occurrence=2-2-keep-the-session-and-load-its-snapshot-with-live-updates
+- 2026-10-22T22:46:30Z status=resolved-by:2-5-chat-with-ocutalon-in-the-page by=adjudication note=Web.Api_CHATMAX_100_newest_entries_via_Ownership_recentTurns/recentIncidents;TestStateChatCapped(103_turns)_and_TestStateChatCappedTies;Task_0:1000_turns_1.38MB->138KB;veto_U-24
+
+### DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rule 2 copy forced by the lanes (spec Design Notes, Extend don't copy); Web/Api.cls CheckView builds Live.Payload.Check for StateBody's rail.checks
+- 2026-10-22T06:27:39Z status=routed owner=5-6-the-production-watch-runs-on-every-heartbeat by=harvest note=the check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it; orchestrator writes the acceptance bullet after Epic 2 merges
+
+### DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Watchers prepares with the privilege check and answers "" on any error, the same as nobody watching. AD-11 and AD-31 put BridgeSink's approval.* events in the AnswersIn job, which the REST endpoint calls synchronously as the signed-in user, who holds no SQL grant (AD-13), so (inference, not run) the read fails there and the watchers silently get no event.
+- 2026-10-22T07:48:19Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 resolves watchers where the read is allowed (a production job) or asks for an AD-13 amendment, and makes a failed read loud
+- 2026-10-22T07:48:35Z status=routed owner=2-8-show-the-status-rail by=cr note=2.8 reads watchers where the read is allowed (a production job) or asks for an AD-13 amendment; a failed read is loud
+- 2026-10-23T15:55:30Z status=routed owner=6-2-approve-or-reject-a-fix-from-the-web-chat by=adjudication note=delivered in 2.8 (build 8bb62bd): Watchers and Recipients pass a failed read's status on, BridgeSink logs it loudly and publishes nothing (never nobody-watches), Ownership.ApprovalIncident, TestInstanceApprovalReachesEveryWatcher and R4. Residual for 6.2: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; 6.2 hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113)
+
+### DW-69: LiveState prepends every decision event to store.decisions with no cap, while the snapshot carries the 20 newest decide decisions
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: live-store.ts applyEvent's decisions case puts a new decision first and never trims, so after live events the list holds more than a reload would; no view renders it until Story 2.8, which shows the 20 newest.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Story 2.8's Recent decisions shows more than 20 rows, or other rows than a reload shows, after live decision events
+- 2026-10-22T07:48:35Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Story 2.8's Recent decisions shows over 20 rows, or other rows than a reload, after live decision events
+
+### DW-70: The Envelope criterion's Content-Type half is satisfied by Angular for an object body, so no test can see the interceptor drop it
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: S1 checks content-type application/json on POST /session/end, but HttpClient sets that header itself for an object body ({}), so deleting it from envelope.interceptor.ts keeps every spec green; no current call has a body-less or non-object changing request.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=ApiClient gains a state-changing call with no body or a non-object body (e.g. DELETE /v1/pairing) and no spec checks its content-type
+- 2026-10-22T07:48:35Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=ApiClient gains a body-less or non-object state-changing call and no spec checks its content-type
+
+### DW-71: TestStateFailsLoudly sees only the first failing section read of StateBody, so a later read's lost Check would pass
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The test calls StateBody with a session that has no Ref, so the turns read throws first and the seven later Check(sc) calls never run; Ownership offers no seam to fail one read without a test-only hook, which the spec forbids.
+- 2026-10-22T07:48:19Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=a /state 200 is seen with an empty chat or rail section while the session holds rows of that kind
+
+### DW-72: The live-event retention is declared by Install.Step.Web.Purge, while AD-27 names the area OcuTalon.Live; its move to Install.Step.Live is recorded only in the spec
+- source: spec-2-2-keep-the-session-and-load-its-snapshot-with-live-updates.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Install.Step.Web.Purge delegates to Live.Event.Purge (the logic is in OcuTalon.Live), because the registry finds only Install.Step.<Area> classes and Install/** other than Web.cls is Lane A's; spec Design Note 10 plans the move, and nothing else tracks it.
+- 2026-10-22T07:48:43Z status=wontfix-accepted owner=2-2-keep-the-session-and-load-its-snapshot-with-live-updates by=cr note=reopen_if=Install/Step/ is open to Lane B, or an OcuTalon.Install.Step.Live class exists, and Web still declares it
+
+### DW-73: CommandsIn checks a tool's Dismiss against the command's SessionRef and never compares it with the active bridge context's OwnerRef, so a tool that filled SessionRef from model-supplied arguments could dismiss another session's incident
+- source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Core/CommandsIn.cls tool Dismiss branch uses command.SessionRef; Bridge.Context.Current().OwnerRef is never compared; no tool submits yet (unverified)
+- 2026-10-22T10:04:50Z status=open owner=2-3-route-every-command-by-verb-with-origin-checks by=harvest note=code review patches the cross-check (context active: SessionRef must equal Context.Current().OwnerRef, else not_found) with a test, or dispositions it with reason
+- 2026-10-22T10:57:48Z status=resolved-by:2-3-route-every-command-by-verb-with-origin-checks by=cr note=context Dismiss with SessionRef not OwnerRef is not_found; TestContextDismissSeesOwnIncidentOnly red without it
+
+### DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread
+- source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Ens.BusinessService.ProcessInput kills JobSessionId in preProcessInput and at Exit (irislib/Ens/BusinessService.cls:79,100); CommandsIn runs in the caller's process; behaviour since Story 0.6 (unverified)
+- 2026-10-22T10:04:50Z status=routed owner=2-9-open-anything-in-visual-trace by=harvest note=a throwaway check inside an operation job with JobSessionId set: Submit, then log an event and read its SessionId; if lost, Trace.Join or the runner restores the id
+- 2026-10-22T10:56:07Z occurrence=2-3-route-every-command-by-verb-with-origin-checks
+- 2026-10-23T16:42:48Z status=routed owner=burndown by=spec_gate note=declined by Story 2.9's plan: the fix belongs in Core/Commands.cls (Commands.Submit's ProcessInput kills the job-local SessionId on exit, irislib Ens/BusinessService.cls:79, read from source), which is contended in this run; the burn-down gate re-checks the contention or overflows it to the epic that owns Commands
+- 2026-10-25T06:36:24Z status=routed owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=Story 5.1's start-watch tool is the first tool job that calls Commands.Submit (origin tool) inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId; if ProcessInput's kill of JobSessionId drops them (irislib Ens/BusinessService.cls:79,100), restore the id after Submit (Core/Commands.cls) with a test
+
+### DW-75: AD-1's Submit sub-bullet says role checks stay with the admin-checked endpoints and CommandsIn, but CommandsIn makes none (Story 2.3 Design Notes 6 reads the clause as its origin rules)
+- source: spec-2-3-route-every-command-by-verb-with-origin-checks.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Spine AD-1 :105 (amended 2026-10-19 from Story 0.6's ruling: the admin-checked endpoints and 2.3's CommandsIn own those checks); CommandsIn.cls: Role checks are not made here; AD-19 puts the admin role check in Admin.SetDemoMode
+- 2026-10-22T10:56:07Z status=decision-pending owner=burndown by=cr note=veto U7: amend the AD-1 sub-bullet to origin checks, or add a role check to CommandsIn; lead routes to orchestrator
+
+### DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run
+- source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: AD-23: on an IPM install Reconcile runs on every production start; only Install.Step.Reconcile calls CallAreas(Reconcile), inside the installer order; no OnStart hook in src (Registry.cls, Production.cls are Lane A)
+- 2026-10-22T13:35:56Z status=routed owner=burndown by=harvest note=a production-start hook calls the Reconcile declarations (AD-23), with a test that restarts the production alone
+- 2026-10-25T06:36:24Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=burndown note=Story 15.3's criterion that every area's Reconcile() runs once the autostarted production's items run is this entry: a production started on its own (IPM autostart, or a stop and start with no installer run) must run the Reconcile declarations (AD-23), so a turn left running is picked up; test a restart of the production alone
+
+### DW-81: Conversation's Busy wait and resend run end to end only against a probe replacing SetTimer, never through the real Ens.Alarm and the reopened instance
+- source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: TestBusyRequeues drives Wait through ConversationProbe; Task 0 measured the timer path once with a reverted temporary change; production tests reach only the Epic 0 Decide stub
+- 2026-10-22T13:35:56Z status=open owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=harvest note=code review closes it: a throwaway test production with DecideDouble answering Busy, or a reasoned disposition
+- 2026-10-22T16:01:16Z status=routed owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=probe now replaces only SetTimer (Wait runs); real Ens.Alarm resend e2e once 2.7 puts DecideDouble in a production
+- 2026-10-23T05:47:06Z status=routed owner=burndown by=spec_gate note=declined by Story 2.7's plan: an end-to-end Busy wait and resend needs a production of its own with DecideDouble as Decide, which stops and restarts the lane-b shard's production; nothing else in 2.7 needs one; a test-infrastructure item for Epic 2's burn-down
+- 2026-10-25T06:36:24Z status=wontfix-accepted by=burndown note=no later story builds a production with DecideDouble as Decide; Wait runs for real with only SetTimer probed, and Task 0 measured the Ens.Alarm path once. reopen_if=after Epic 1's real Decide merges, a Busy answer (Story 1.7's rate-limit path) in a production run does not wait and resend once, or any Busy-resend defect is reported
+
+### DW-82: No test observes that WebChatIn's Allowed reaches Allowance.TryConsume, because TryConsume cannot refuse yet
+- source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: WebChatIn.Allowed delegates to TryConsume, a constant 1 until Story 16.9; replacing Allowed with Quit 1 changes no test
+- 2026-10-22T13:35:56Z status=wontfix-accepted owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=harvest note=reopen_if=Story 16.9's online-demo refusal test passes with WebChatIn.Allowed replaced by Quit 1
+
+### DW-84: The no-production branches (Reconcile with no production, the REST 500 when WebChatIn can't be made) run only on the slot, never in CI
+- source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestReconcileWithoutProduction and TestMessagesNoProductionIs500 skip where a production runs, and CI's lane-b shard runs Core and Web with the production up
+- 2026-10-22T16:01:16Z status=wontfix-accepted owner=2-4-answer-every-chat-message-through-the-turn-pipeline by=cr note=reopen_if=either branch changes or CI gains a unit with no production; both mutations were seen red on slot B
+
+### DW-88: The chat panel's at-the-bottom flag can turn false when an entry lands between the panel's own scroll to the bottom and that scroll's event, so the list stops following new content
+- source: spec-2-5-chat-with-ocutalon-in-the-page.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: chat-panel.ts onScroll/scrollToBottom: scrollTop set, a DOM growth over 24 px, then the scroll event measures the geometry; not reproduced in C6/C10 (unverified)
+- 2026-10-22T20:12:26Z status=open owner=2-5-chat-with-ocutalon-in-the-page by=harvest note=code review patches it (e.g. ignore the scroll event the panel caused itself) with a test, or dispositions it with a reason
+- 2026-10-22T22:45:19Z status=resolved-by:2-5-chat-with-ocutalon-in-the-page by=cr note=reproduced by C13 (red on the old rule); onScroll leaves the bottom only on a scroll up; patched with C13
+
+### DW-89: The chat list and the rail scroll on their own with no tab stop, so a keyboard user in Safari cannot scroll them unless a link or button sits inside
+- source: spec-2-5-chat-with-ocutalon-in-the-page.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: chat-panel.ts .list and main-page.ts section.rail: overflow-y auto, no tabindex or name; entries are tabindex=-1; Chromium and Firefox focus a scroller, WebKit does not
+- 2026-10-22T22:18:28Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=2.12 owns WebKit runs and the a11y scan: e.g. tabindex=0 plus aria-labelledby the Chat heading; the rail too
+- 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit run that checks it is Story 2.16's
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=the chat list (tabindex 0, named by its Chat heading) and the rail (tabindex 0 while it scrolls on its own) are tab stops with the ring inside; E2 (@browsers, Chromium, Firefox, WebKit) tabs to both and scrolls them by keyboard; K4 and G1 walks; mutations recorded in the spec
+
+### DW-90: checks.notEverything and notEverythingRestPassed take a whatFailed slot that the pinned Checks.Render(results, *rows) has no way to return, so the page (Story 2.6) shows no sentence for those keys
+- source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Msg/Catalog/Watch.cls:49-75 (whatFailed: text); Checks/Render.cls returns only a key and rows (pinned results,*rows); 2.6 renders only the three slotless checks.* keys and shows the rows
+- 2026-10-22T23:33:46Z status=routed owner=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=spec_gate note=5.7 says how the page gets whatFailed (from the failing row, or a slot path through Render) and the page renders both keys; orchestrator writes the bullet after Epic 2 merges
+
+### DW-91: Test.Bridge.Ext's comment says BridgeSink adds nothing, which Story 2.6 makes stale (BridgeSink now publishes decision and turn.step events for session owners)
+- source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Test/Bridge/Ext.cls:95-122 (Lane A) stays green: it calls OnEvent with owner zz, which is no session Ref
+- 2026-10-22T23:33:46Z status=wontfix-accepted owner=2-6-show-every-decision-with-its-reasons-and-cost by=spec_gate note=reopen_if=Test.Bridge.Ext is next edited by a Lane A story, or it asserts BridgeSink publishes nothing for a session owner
+
+### DW-97: TurnCost can leave out the usage of an earlier attempt's decision when a broken session is retried, because Conversation.Replied overwrites Turn.TurnDecisionRef on every non-busy answer
+- source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Conversation.Replied overwrites TurnDecisionRef (SessionBroken answer included); Ownership.TurnCost sums only TriageDecisionRef and TurnDecisionRef (unverified: Decide is a stub)
+- 2026-10-23T02:34:42Z status=open owner=2-6-show-every-decision-with-its-reasons-and-cost by=harvest note=code review settles it: keep every attempt's DecisionRef (or sum usage by turn) with a test, or a reasoned disposition
+- 2026-10-23T04:43:23Z status=wontfix-theoretical owner=2-6-show-every-decision-with-its-reasons-and-cost by=cr note=real only if Story 1.8 gives a retried SessionBroken turn a second DecisionRef; AD-20 unique (ItemId,Kind) forbids it
+
+### DW-98: No test drives the bridge's own emission of decision.recorded and turn.step into BridgeSink; every test calls OnEvent directly
+- source: spec-2-6-show-every-decision-with-its-reasons-and-cost.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: BridgeSink tests and the D6/D10 sinkEvent helper call OnEvent directly; Decide is Epic 0's stub and no Lane A emitter is merged
+- 2026-10-23T02:34:42Z status=routed owner=burndown by=harvest note=when Lane A's emitter lands: a real Decide records a decision for a session and a decision event reaches that session's stream
+- 2026-10-25T06:36:24Z status=routed owner=4-3-break-the-feed-with-a-real-batch-of-50-orders by=burndown note=Lane A's emitter has merged (Epic 1); Story 4.3's real batch makes the real Decide record decisions for a session: assert that a decision.recorded (and a turn.step) the bridge emits reaches that session's stream through BridgeSink, not only OnEvent called directly
+
+### DW-99: Story 2.8's real approval.result path for a replayed tool call has no story that turns it on (epics.md:1706); Story 30.3 must turn it on
+- source: epics.md:1706 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md:1706 (Story 2.8) says the replayed tool call's approval.result real path turns on when Story 30.3 does; Story 30.3's criteria do not turn it on, and Story 11.1's catch-all leaves Epic 30/31 clauses to that story
+- 2026-10-23T03:24:57Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=load note=Contest Planner's routing at the graph review (2026-10-23); the orchestrator adds the DW bullet to Story 30.3 after Epic 2 merges (Rule 17 (1b)); Story 31.2 waits for Epic 30 in the approved graph
+
+### DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run
+- source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Slot B, 2026-10-23: Ens_Util.Log holds 112 rows of SourceClass OcuTalon.Test.Core.ConversationProbe (first 2026-10-22 12:02, last 09:50), no ConfigName; ConversationTurns (Stories 2.4, 2.6) never removes them; Rule 19 hermeticity
+- 2026-10-23T11:06:38Z status=routed owner=burndown by=cr note=in-epic MED, owning stories done; fix: remove the probe's log rows in ConversationTurns' teardown (Observe.RemoveWarnings shape)
+- 2026-10-23T20:36:31Z occurrence=2-9-open-anything-in-visual-trace
+- 2026-10-25T06:36:24Z status=routed owner=6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and by=burndown note=Story 6.4's fallbacks extend Conversation's turn tests (inference): remove ConversationProbe's Ens log rows (Begin, Ask, Tell, OnResponse) in Test.Core.ConversationTurns' teardown, the Observe.RemoveWarnings shape (Rule 19)
+
+### DW-106: Lane B's production tests assert the Epic 0 stub Decide's fallback unusable, so they need new expectations when Story 1.3's real Decide merges
+- source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: RoutingProduction.TestUntrustedItemReachesTheWebChat (item text without a mock marker, exact unusable texts) and ConversationProduction (Story 2.4's unusable rows, Story 2.7's reply DecisionRef "") assert the stub's answer; with the CI mock an unmarked item is triaged digest (ci/mock/scenarios/A/triage.json)
+- 2026-10-23T11:06:38Z status=by-design owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=AD-29: callers test against the stub until the API lands; the AC Until Story 1.3 says so; the merge that brings 1.3 updates them
+- 2026-10-25T07:37:05Z occurrence=2-17-epic-2-s-tests-follow-the-real-decide
+
+### DW-107: Two 'is this owner a session' predicates over Session.Recipients: WebChat.Out.IsSession and Core.Rule.Functions.IsSession
+- source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Channel/WebChat/Out.cls IsSession and Core/Rule/Functions.cls IsSession both test Recipients(ref) without an incident; the spine bars a channel from calling OcuTalon.Core.Rule, so neither can call the other (Rule 2, weak stated reason)
+- 2026-10-23T11:06:38Z status=wontfix-accepted owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=reopen_if=a third such predicate appears, or Recipients without an incident can answer one Ref other than the owner
+
+### DW-112: Conversation.Rebuild retries a SessionBroken turn under the same ItemId, which AD-20's one Decision row per (ItemId, Kind) makes Decide refuse; the retry must be a new Decide call under a new ItemId
+- source: src/ocutalon/cls/OcuTalon/Core/Conversation.cls:469 (Story 2.4) | severity: high | fix-risk: low | footprint: in-footprint
+- evidence: Rebuild calls Ask(turn), whose Request(turn) is built from ItemOf(turn), so the retry carries the turn's ItemId; Decide.ResponseFromRow (src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls ~825) refuses a second turn decision for an ItemId (AD-20); latent until Epic 1's Story 1.8 (linked sessions, error fallback row for the broken attempt)
+- 2026-10-23T14:14:25Z status=routed owner=2-9-open-anything-in-visual-trace by=cr note=orchestrator cross-epic ruling 2026-10-23 (U14, decide): comply with AD-20, AD-20 and AD-30 unchanged; fix Rebuild so the retry is a new Decide call under a new ItemId (e.g. derived from the turn's), the broken attempt keeps its error fallback row, the Turn keeps its own ItemId and links to the retry's decision; pinning test: a SessionBroken retry reaches Decide under a new ItemId and gets an answer; add the Conventions row with the fix; must be resolved before the integrate-forward, never overflowed
+- 2026-10-23T20:50:47Z status=resolved-by:2-9-open-anything-in-visual-trace by=adjudication note=build 94806a0 plus review patch: Conversation.Rebuild retries under Conversation.RetryItemId(turn.ItemId), a new Decide call; the broken attempt keeps its row; the Turn keeps its own ItemId and TurnDecisionRef is the retry's; pinned by TestBrokenRetryIsANewItem, TestBrokenRetryAfterATaintedTurn and ThreadProduction.TestBrokenRetryThroughTheProduction (red on the old code); Conventions row 'SessionBroken retry'; leftovers DW-126 (escalated) and DW-128 (burndown)
+
+### DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green
+- source: spec-2-8-show-the-status-rail.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: TestFailedWatcherReadIsLoud fails the read through the BridgeSink.Recipients seam above the code that can fail; measured on slot B: no role change, login or bound value makes the checked prepare fail in %UnitTest; only a privilege-limited login (Story 6.2's REST answer path) or a private statement seam in Ownership/Session can
+- 2026-10-23T14:14:35Z status=open owner=2-8-show-the-status-rail by=harvest note=implement-stage defer; code review settles it: a statement seam with a pinning test, or a reasoned disposition (Story 6.2 is where the read really fails)
+- 2026-10-23T15:53:16Z status=escalated owner=burndown by=cr note=fix-risk high: every full pin crosses a boundary (product test hook, Session subclass, login fixture); recommend 6-2
+
+### DW-120: page-time.ts and rail-view.ts each define the same {name} template filler, because neither Node-run module can import a value from the other
+- source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/chat/page-time.ts fill and web/src/app/rail/rail-view.ts fill are the same one-pass regex; both modules import only types so Node runs them as they are
+- 2026-10-23T15:53:19Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=a third copy of the {name} filler appears under web/src/app, or the two copies' placeholder grammar diverges
+
+### DW-121: The initial web bundle is 503.22 kB, over the 500 kB warning budget of web/angular.json, so every web build now prints a budget warning
+- source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Story 2.8's rail took the initial bundle from 485.9 kB to 503.22 kB; the error limit is 1 MB and no PRD, epic or spine target sets the budget (Angular's default)
+- 2026-10-23T15:53:22Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=the initial bundle passes 550 kB, or a build or CI step fails on the budget warning; then split or lazy-load
+
+### DW-122: A session that stops watching a production keeps that production's pending instance approval rows in its live rail until a reload, because later approval events no longer reach it
+- source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: BridgeSink.Approved publishes each approval.* event only to Session.Recipients' current watchers, and the live store drops an approval only on its own event, while a reload's Rows(approvals) leaves it out
+- 2026-10-23T15:53:24Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=after Stop watching ships (Epic 5) a live rail keeps an instance request whose later event it never got
+
+### DW-126: A turn re-run after a restart that followed a broken first answer sends its first request under the turn's own ItemId again; whether the real Decide answers from the existing (ItemId, turn) row or refuses is not settled
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Conversation.Begin resets BrokenRetried to 0 (Conversation.cls:320) and Ask uses RetryItemId only while BrokenRetried is 1, so a restarted sweep goes out under the turn's own ItemId, which already has the broken attempt's fallback row; DecideDouble refuses a second turn request per ItemId; the real Decide is Lane A's stub until Stories 1.3 and 1.5
+- 2026-10-23T19:23:09Z status=open owner=2-9-open-anything-in-visual-trace by=harvest note=implement-stage defer (medium, unverified); code review settles it: a persisted retry marker or the Attempt number choosing the derived ItemId (a stored-data change, veto), or a reasoned disposition
+- 2026-10-23T20:36:31Z status=escalated owner=burndown by=cr note=settled: real Decide refuses (OCT-epic1 ResponseFromRow), turn ends unusable; fix-risk high: persisted marker = veto 3
+
+### DW-128: BridgeSink.Step drops every turn.step of a SessionBroken retry: the bridge context carries RetryItemId(turn.ItemId), and Step publishes only when the context's ItemId is the running turn's own
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Conversation.Ask sends the retry under RetryItemId (Conversation.cls:406); Bridge.Context.Begin copies request.ItemId (src/bridge Context.cls:52); BridgeSink.Step quits when Context.Current().ItemId '= running.ItemId (BridgeSink.cls:145); no test covers a retried turn's steps; reachable once Stories 1.3/1.5 emit steps
+- 2026-10-23T20:36:21Z status=routed owner=burndown by=cr note=in-epic MED (Core/BridgeSink.cls, Stories 2.6/2.8 done); fix: Step also accepts RetryItemId(running.ItemId), plus a test
+- 2026-10-25T06:36:24Z status=routed owner=6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher by=burndown note=Story 6.3 makes BridgeSink join the turn's thread through the bridge context; with Epic 1's step emitter merged a SessionBroken retry's turn.step is now reachable: Step also accepts RetryItemId(running.ItemId) (Core/BridgeSink.cls:145), with a test of a retried turn's steps
+
+### DW-129: A decision's traceUrl opens page 1 of the day's thread with the first Item selected, not the decision: traceHeaderId is the decision's TraceSessionId (now the thread) and no index is known
+- source: spec-2-9-open-anything-in-visual-trace.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Live.Payload.Decision.FromRow sets traceHeaderId = row.TraceSessionId (Decision.cls:88); DecideDouble and Lane A's Decide write the thread there (AD-26: a decision's target is the session holding its message); TraceLink.Url adds PAGE only with an index; Decided 5's details pane on the target held only while each turn was its own session
+- 2026-10-23T20:36:24Z status=routed owner=2-13-open-visual-trace-from-the-page by=cr note=2.13 owns where decision-strip links open; likely needs the decision message's header id and position (AD-26 decision-target wording)
+- 2026-10-24T03:09:18Z status=resolved-by:2-13-open-visual-trace-from-the-page by=adjudication note=Decision.FromRow reads the checked Ownership.TurnOfItem so a chat turn's decision carries its turn's target and index and its link opens the day's thread at the turn; TestDecisionOfATurnOpensAtTheTurn, Test.Web.Api and Test.Core.BridgeSink (seen red) and V2 on the real viewer
+
+### DW-145: The Visual Trace menu's button cannot close its open popover in Safari or macOS Firefox: a press there does not focus the button, so Popovers' focus-leave rule closes the popover on mousedown and the click opens it again
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: popover.ts closeOnFocusLeave closes when focus is outside the trigger and the pane; WebKit and macOS Firefox do not focus a pressed button, so header.ts toggleTrace finds it closed and reopens it (FR-12 lists Safari)
+- 2026-10-24T03:06:53Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=fix in popover.ts (a press on the trigger keeps it inside); verify in 2.12's WebKit and Firefox runs; chromium V7 passes
+- 2026-10-24T11:52:16Z owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=moved with Story 2.12's split: the WebKit and Firefox runs that check it are Story 2.16's
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=popover.ts: a primary-button press that starts on the trigger or inside the panel counts as inside until it ends (completed at review, which found the same cause inside the panel in WebKit); E1 presses the button and inside the menu with a press that takes no focus, in all three engines; removing the listener turns E1 red in all three
+
+### DW-146: Specs that open real Visual Trace pages starve later cases of the same live sign-in stack; the cause (each signed-in trace tab holds a licence connection until its session times out) is an inference, and no spec signs its trace tabs out
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Story 2.13 Decided 14: a run with every links.spec tab real left V8 drawing nothing and trace.spec T1 without a session; V3-V6 and V9-V16 stub their trace tabs to stay green
+- 2026-10-24T03:06:56Z status=escalated owner=burndown by=cr note=settle by measuring licence and gateway connections on a throwaway while trace tabs are open; 4.7 and 6.1 add real trace pages
+
+### DW-147: AD-26's decision bullet still says a decision's trace target is the session holding its decision message, while the Live events convention gives a chat turn's decision its turn's header and item index (DW-129)
+- source: spec-2-13-open-visual-trace-from-the-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-26: 'The decision event's trace target is that session'; the Conventions Live events row (Story 2.13 amendment) and Decision.FromRow use Ownership.TurnOfItem
+- 2026-10-24T03:06:59Z status=wontfix-accepted owner=2-13-open-visual-trace-from-the-page by=cr note=reopen_if=a later spec or review cites AD-26 against Decision.FromRow's turn target (lead ruled: AD-26 extended)
+
+### DW-148: After Epic 1 merges, /state may compute noModelKey as off on a start with no key: Lane A's Keys.Status cannot read the Config Store entry in an /ocutalon/api request and then counts the key as present (a false all-clear); Budget.State's Usage SELECT also lacks its SQL grant there
+- source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: high | fix-risk: med | footprint: out-of-footprint
+- evidence: OCT-epic1 Bridge/Keys.cls: when ConfigStore.Details fails, present = Configuration.Exists(fqn), which answers 1; Configuration.Get needs %Admin_ConfigStore:USE, which the API application lacks (Install/Step/Web.cls :35), and audits each refusal; Budget.cls :129 Usage SELECT has no SQL grant in the request (inference from source; stubs here)
+- 2026-10-24T03:56:49Z status=escalated owner=burndown by=harvest note=found by Story 2.10's plan; cross-epic (Lane A's Keys.Status and Budget.State, Stories 1.6 and 1.4, done on OCT-epic1); raised to the orchestrator for routing to Epic 1 before its merge; Story 2.10's B6, B1 and api.spec row 13 turn red at the merge if it is not fixed
+- 2026-10-24T03:59:27Z status=routed owner=1-12-items-saved-for-the-digest-are-kept-for-it by=adjudication note=cross-epic:fixed_in_Epic_1's_burn-down_story_before_its_merge(orchestrator_ruling);canonical_entry_in_Epic_1's_ledger
+- 2026-10-24T06:49:46Z occurrence=2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat by=cr note=also Ens_Config.Item embedded-SQL reads per /state (Keys.Status, Budget settings: Ens.Director.GetItemSettingValue)
+
+### DW-153: Banners that appear in one update are announced 150 ms apart, and each later announce() clears the earlier text about 50 ms after it landed, which a screen reader may drop (unverified)
+- source: spec-2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: banner-stack.ts ANNOUNCE_GAP_MS 150; CDK LiveAnnouncer.announce clears at once and sets the text 100 ms later; the B specs count DOM insertions, not speech; no screen reader runs here
+- 2026-10-24T06:49:46Z status=routed owner=2-12-meet-the-accessibility-and-responsive-floor by=cr note=maybe-false; settle with VoiceOver+NVDA on two banners in one update, or announce one update's new banners as one message
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=one update's banners are one text, pinned by A4 and announce-queue.test.mjs; the screen-reader check stays DW-159
+
+### DW-155: After a sleep, or in a tab hidden long enough for Chrome's intensive timer throttling, the page's poll and its 10 s and 30 s thresholds fire in one batch, so Unreachable renders and is announced and then clears when that poll answers
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Chrome aligns a hidden tab's chained timers to one minute after 5 min hidden; the poll timer, then both ContactWatch timers fire in that batch before the poll answers (live-state.ts schedulePoll, contact-watch.ts answered)
+- 2026-10-24T10:31:40Z status=wontfix-accepted owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=reopen_if=a page hidden over 5 min or woken from sleep renders Unreachable while its in-flight /events answers 200 in 1 s
+
+### DW-156: A 503 of /events, or of a loaded page's /state, counts as a live-path answer on its status alone, so a run of 503s (one not from IRIS's busy path, or a busy reload after a skipped Seq) shows no lost-contact banner
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: live-state.ts isBusy reads only HttpErrorResponse.status === 503 (poll error handler and fetchSnapshot); IRIS's own licence-cap 503 carries no OcuTalon envelope (S13), so a body check would miss the real busy state
+- 2026-10-24T10:31:46Z status=by-design owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=spec Decided 2 and 11, AD-13, AD-25; Story 16.5 shows the busy text for any API 503, so the page is not silent then
+
+### DW-158: B15 and B16 copy L3's five-line skipped-Seq injection (fetch, parse, push an event two past the cursor, fulfill) inline instead of sharing one helper in web/e2e/support/api.ts
+- source: spec-2-11-say-plainly-when-the-page-loses-contact.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: banners.spec.ts B15 and B16 skip branches repeat live.spec.ts L3 lines 157-166; the spec's reason is 'B15's skip reuses L3's injection pattern' (Rule 2: a weak reason)
+- 2026-10-24T11:03:10Z status=wontfix-accepted owner=2-11-say-plainly-when-the-page-loses-contact by=cr note=reopen_if=a fourth spec injects a skipped Seq, or an event envelope change is applied to one of the three copies only
+
+### DW-159: Screen-reader check of the announcer (DW-153): VoiceOver and NVDA on two banners in one update, a reply and a burst of four announcements
+- source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: an agent cannot run a screen reader; Story 2.12 builds the joined announcement and its automated test (A4)
+- 2026-10-24T11:52:16Z status=decision-pending owner=burndown by=spec_gate note=human=screen-reader check of the announcer (VoiceOver on macOS, NVDA on Windows)
+
+### DW-161: A2 to A5 hold the page's poll while seeding, so on a host 2.5 times slower the hold may near the 10 s after which Reconnecting shows
+- source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: holdPoll (web/e2e/support/api.ts) reports a hold of 8 s or more only as a test annotation
+- 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=QA's holdPoll stops the page clock during a hold, and a 12 s hold passes, so Reconnecting cannot show
+
+### DW-162: A rail row is not focusable, so focus-rule.ts cannot return focus to a row that stays when an update removes only the control inside it that held focus
+- source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: status-rail.ts renders li.row with no tabindex; HTMLElement.focus() on a non-focusable li does nothing
+- 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=resolved-by:2-12-meet-the-accessibility-and-responsive-floor by=cr note=keepFocus passes a focus its target cannot take to main.main; focus-rule.test.mjs pins it (cr patch)
+
+### DW-163: No browser case runs the chat reload row (a skipped seq reloads the snapshot and only entries new since the last view are announced)
+- source: spec-2-12-meet-the-accessibility-and-responsive-floor.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: chat-announcements.test.mjs pins the diff on hand-built entries; no A or P case causes a skipped seq
+- 2026-10-24T13:41:33Z status=open owner=2-12-meet-the-accessibility-and-responsive-floor by=harvest note=implement-stage defer; code review settles it
+- 2026-10-24T15:27:58Z status=wontfix-accepted by=cr note=reopen_if=a reply that lands across a skipped seq is not announced, or a reload announces the chat again
+
+### DW-178: The skip links' href="#/" points at no element on the page, so a rule-based accessibility scan may flag them
+- source: spec-2-14-work-the-whole-page-by-keyboard-with-labels-and-words.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: skip links in web/src/app/header/skip-links.ts carry href="#/" and move focus by script; Story 2.16's scan is where it would show (unverified)
+- 2026-10-24T18:24:29Z status=routed owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=harvest note=implement-stage defer (medium, unverified): Story 2.16's own scan settles it
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=href=#/ kept as a hash route; the in-house scan's links rule (support/scan.ts) accepts hash routes and flags fragments with no target; U1 and U2 find no link to nothing in three engines, U3 and U4 plant the link-to-nothing cases and see them
+
+### DW-179: The turns that seedTurns writes are never removed: it does not adopt them, so cleanFixtureRows cannot delete them
+- source: spec-2-14-work-the-whole-page-by-keyboard-with-labels-and-words.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/iris.ts seedTurns keeps no refs for cleanFixtureRows; rows accumulate on the throwaway's session (pre-existing)
+- 2026-10-24T18:24:29Z status=open owner=2-14-work-the-whole-page-by-keyboard-with-labels-and-words by=harvest note=implement-stage defer; code review settles it (throwaways are torn down, so it is test hygiene only)
+- 2026-10-24T20:43:50Z status=routed owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=root cause fixed in 2.14 (seedTurns now adopts its turn and Decision rows; turnRows; H1 in e2e/floor/fixtures.spec.ts and the floor-fixtures ratchet; 2.14's K and W cases clean their turns). Residual: Story 2.12's A1, A5, A7 and P4 still pass no turnRows to cleanFixtureRows, so their turns stay; Story 2.16 runs the floor unit in more browser projects on one stack, where leftovers multiply and K4's tab walk is bounded at 150 stops - opt those four cases in there
+- 2026-10-25T06:00:48Z status=resolved-by:2-16-prove-the-floor-in-chromium-firefox-and-webkit by=adjudication note=A1, A5, A7 and P4 pass turnRows to cleanFixtureRows; the floor-fixtures ratchet checks each case cleans the turns it seeds (5 cases), with a mutation per case recorded; the floor unit runs three engines on one stack (70 cases green)
+
+### DW-184: layout.spec.ts's Tab walk (walk) repeats K4's inline Tab loop in keyboard.spec.ts, with its own end test
+- source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/floor/layout.spec.ts walk() and keyboard.spec.ts K4's loop share the press, read and ring steps; G1 ends at a name holding Send, K4 at the composer button; the spec names K4's walk the pattern (a weak reason)
+- 2026-10-25T01:26:03Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=a third spec copies the Tab loop, or G1 and K4 end on different stops of one page; the identical helpers moved
+
+### DW-185: The initial web bundle is over its 500 kB warning budget, before and after Story 2.15 (a warning; the error budget is 1 MB)
+- source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: ng build of clean copies: 050ca9a 530.80 kB raw (128.04 kB transfer), a35f7bc 538.57 kB (129.75 kB); the story adds 7.77 kB raw and 1.71 kB transfer (1.5%), not material
+- 2026-10-25T01:26:11Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=the initial bundle passes 600 kB raw or 150 kB transfer, or a page-load measurement misses its target
+
+### DW-190: In WebKit (Safari) a mouse press on the Status button or on the narrow-window note's Close leaves focus on the page body: Safari focuses no pressed button, so Story 2.15's focus hand-back after a click does not run
+- source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Story 2.16 plan Task 0 (macOS, Playwright 1.64.1, WebKit 27.2): G2's and G6's click steps leave document.activeElement on body in WebKit; keyboard paths unaffected
+- 2026-10-25T02:31:37Z status=wontfix-accepted owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=reopen_if=a Safari keyboard path loses focus after the drawer or the note closes, or a Safari mouse user reports losing their place; Story 2.15's Decided 3 held this by inference only
+
+### DW-193: A focused banner's ring abuts its 4px accent on the left edge (ring, accent, halo) at 1.07 to 1.25:1, and the scan's ring rule (halo plus backdrop) cannot measure it, so Story 2.14's reopen trigger never fires
+- source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: outline-offset -2px covers 2px of banner-stack.ts's border-left 4px accent; --focus vs the six accent tokens computes 1.07-1.25:1 (light and dark); vs the page and the halo 5.5:1+. Spec Decided 9 says the ring rule now measures it.
+- 2026-10-25T05:57:24Z status=decision-pending owner=burndown by=cr note=design call (Story 2.14: a fix needs a design choice): keep, as the outer side contrasts, or restyle the banner's focus edge
 ### DW-111: parallel.yaml lists no warm-iris lock, so the stale-lock rule (throwaway-iris, 20 minutes) does not describe a warm stack's lock, which is held for a whole stage
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md (plan, For the lead) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 32.4 adds warm-iris.lock in each lane folder (held from ci/warm.sh up to down); _bmad/custom/parallel.yaml runtime_locks names only runtime and throwaway-iris (stale_minutes 20); _bmad/ is owner-only
@@ -637,3 +963,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
+
+### DW-197: No check counts the Decision rows left after the production tests, so a lost adopt (RoutingProduction's two, Fixture.AdoptTurns) or D14's finally clean-up would leak rows with every test green
+- source: spec-2-17-epic-2-s-tests-follow-the-real-decide.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Dropping RoutingProduction's eval adopt leaves 1 eval Decision row and the class green (QA, counted by SQL); a leftover count needs a shard-level check and this story adds no unit
+- 2026-10-25T10:53:35Z status=wontfix-accepted owner=2-17-epic-2-s-tests-follow-the-real-decide by=cr note=reopen_if=a warm-stack SQL count finds OcuTalon_Bridge_Data.Decision rows owned by eval or a zz fixture session after the shards
+
+### DW-198: flake: floor-webkit G1 (web/e2e/floor/layout.spec.ts:136) at 1280x600 on the Linux CI host: a rail Trace link's focus ring ends 0.78 px past the viewport's bottom (600.78 vs 600), beyond the ring check's half-pixel tolerance
+- source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
+- 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
