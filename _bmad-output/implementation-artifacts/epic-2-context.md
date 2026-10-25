@@ -4,115 +4,112 @@
 
 ## Goal
 
-Epic 2 makes the signed-in page release 1's main page. A user chats with OcuTalon and sees each reply with its decision, cost and trace link, a live status rail and status banners, all without a reload. Stories 2.1 to 2.14 are done. Two stories remain, and together they finish the accessibility floor (keyboard alone, every control labelled, AA contrast; not a full audit). Story 2.15 lays the page out at every supported width. Story 2.16 proves the floor in Chromium, Firefox and WebKit, with an accessibility scan and a string test. Epic 2 is part of the October 30 milestone, "working demo path (local)".
+Epic 2 makes the signed-in page release 1's main page. A user chats with OcuTalon and sees each reply with its decision, cost and trace link. The page also has a live status rail and banners, all updated without a reload. Every message gets exactly one reply, and the conversation survives a restart.
+
+Stories 2.1 to 2.16 are done. Since then the branch has merged the feature branch, which brought Epic 1 (Lane A): its real `Decide`, runners and agents replaced Epic 0's stub `Decide`. The one remaining story, fix-forward Story 2.17, makes Epic 2's tests assert what the merged system does. That way the merged tree is green for the right reasons, and every Epic 2 promise is still pinned by a test that can fail.
 
 ## Stories
 
-- Stories 2.1 to 2.14 (done): the frame; the session and live updates; routing commands; the turn pipeline; chat; decisions; outcome routing; the rail; Visual Trace; banners; lost contact; announcements and focus; Visual Trace from the page; keyboard and labels
-- Story 2.15: Lay the page out at every supported width
-- Story 2.16: Prove the floor in Chromium, Firefox and WebKit
+- Stories 2.1 to 2.16 (done): the frame; the session and live updates; routing commands; the turn pipeline; chat; decisions; outcome routing; the rail; Visual Trace; banners; lost contact; the accessibility floor; Visual Trace from the page; keyboard and labels; layout widths; the floor in three browsers
+- Story 2.17: Epic 2's tests follow the real Decide
 
 ## Requirements & Constraints
 
-- **Layout (2.15).** The page fills the viewport, each region scrolls on its own, and regions are separated by 1px borders.
-
-  | Width (CSS px) | Layout |
-  | --- | --- |
-  | 1440 and wider | The rail is `rail-width-wide` (320px). |
-  | 1280 to 1439 | The rail is `rail-width` (288px). Every UJ-1 control is reachable without scrolling the page. |
-  | 1024 to 1279 | The rail becomes a drawer, opened from a "Status" header button that shows the approval request count. |
-  | Under 1024, or at 200% zoom | One column that scrolls as a page: header, banners, the chat (scrolling on its own at `min(70vh, content)`), then the status sections. Only a compact header is sticky. |
-
-  - 200% browser zoom at 1280px gives a 640px layout, so it lands in the stacked layout.
-  - Text must resize to 200% without loss, so heights are minimums.
-  - Optional, beyond the floor: no horizontal scrolling at 320px.
-- **The narrow-window note (2.15).** In the stacked layout, an info inline notice (an icon and text on a tint, with no accent bar) reads "This page is designed for a wider window. Everything still works."
-  - It shows once per session.
-  - Its close is remembered per browser in local storage, and a storage failure is tolerated.
-  - It is announced only if it appears after the page has loaded.
-- **Supported browsers:** current desktop Chrome, Edge, Firefox and Safari. Story 2.16's tests run at 1280×720 and 1280×600, in the light and dark themes.
-- **Contrast, in both themes:**
-  - Load-bearing text: at least 4.5:1.
-  - Interactive boundaries (inputs, the composer, secondary buttons, actionable chips) and the focus ring: at least 3:1.
-  - The orange "Talon" wordmark is large bold text, so it needs only 3:1.
-  - Exempt: the decorative `border` and the inactive Break the feed outline.
-- **Fixed strings match the UX word for word,** with the single "…" character ("Deciding…", "Working…", "Reconnecting…"). The turn indicator shows "Deciding" with animated dots and speaks "Deciding…".
-- **New public text is a veto-window item.** The UX doesn't give:
-  - the drawer's heading, its close control, its count format, or whether it is modal;
-  - what the compact header holds;
-  - the name of the note's Close button. That name must include its object; a bare "Close" isn't enough.
-- **Dependencies:** a new one must be MIT, BSD-2/3-Clause, Apache-2.0 or ISC, pinned to an exact version, and recorded as a Stack row.
-  - `axe-core` and `@axe-core/playwright` are MPL-2.0, so the scan is written in-house.
-  - Unlabelled controls: use Playwright's accessible names.
-  - Contrast: compute it from computed styles in `page.evaluate`, with WCAG's formula and the exemptions above.
-- **CI budget:**
-  - A full run takes at most 35 minutes.
-  - No IRIS job runs more than about 25% over the mean of the six jobs.
-  - If the slowest job runs over about 10 minutes, its times go to the owner as a CI-capacity item.
+- **The red run, one root cause.**
+  - Three IRIS groups are red:
+    - `image`: `shard:lane-b` fails in `OcuTalon.Test.Core.ConversationProduction`, `RoutingProduction` and `ThreadProduction`.
+    - `browser`: `live:sign-in` has 14 failed and 78 not run. Each failure waited 20 s, so the unit ran out of time. `live:demo-path` passed.
+    - `production`: `live:production-restart` fails at row 20.
+  - Passing: `shards`, `install-fresh`, `install-upgrade`, the hosted checks, and the web node tests (565).
+  - Every failing assertion expects the stub's reason `unusable`. Keyless stacks now answer `no_key`.
+- **What Story 2.17 must deliver.**
+  - Each test asserts the merged outcome: the reply text, the fallback reason, the turn's states and events, and the Decision rows that the real Decide now keeps.
+  - Every criterion these tests pinned stays pinned by a test that can fail. Show a red for each.
+  - No product change, unless a test exposes a real integration defect. Then fix it, with a test.
+  - Restoring a stub Decide for the tests was rejected, because it hides the integration. How the tests are fixed is a veto item (U-68). This is fix-forward 1 of 1 for the epic.
+  - All six IRIS groups and the hosted checks pass on the merged tree. Rerun each red unit alone: `bash ci/iris.sh shard lane-b`, `bash ci/iris.sh live sign-in`, `bash ci/iris.sh live production-restart`.
+- **Where the stub's outcome is asserted:**
+  - **`ConversationProduction`:**
+    - `conversation.turnFallback|unusable|` on the turn row and on the done `chat.message`.
+    - The Outbound's slots `{"fallbackReason":"unusable"}`.
+    - Empty `TriageDecisionRef` and `TurnDecisionRef` ("no decision to keep").
+    - The reply's Delivery row with an empty DecisionRef.
+    - Both reconcile tests expect `unusable`.
+  - **`RoutingProduction.TestUntrustedItemReachesTheWebChat`:**
+    - The card's reason `unusable` and its empty DecisionRef.
+    - The card text "…Why now: the model's reply couldn't be used", and the same in the event payload.
+    - The ItemDecision `tellnow|1|unusable|` with no DecisionRef.
+  - **`ThreadProduction.TestStubFallsBackAfterTheRestore`:** expects `unusable` once the double is swapped out. The swap itself (`UseDouble`, through `Ens.Config.Production` and `UpdateProduction`) now restores the real `Decide` with its settings: HostSinkClass `OcuTalon.Core.BridgeSink` and ReplyFilterClass `OcuTalon.Checks.ReplyGuard`.
+  - **`docker/tests/test-production-restart.sh` row 20:** `CHK|turns|done|2|conversation.turnFallback|unusable|done|1|…|unusable`.
+  - **`web/e2e/api/api.spec.ts`, Story 2.4's row:** `fallbackReason: 'unusable'` in the done event and in the reload's snapshot.
+  - **`web/e2e/chat/chat.spec.ts`:** the `FALLBACK` constant (the generic sentence) in C2 to C4, C7, C9 to C11 and C15. C15 also asserts "no decision row": no cost and no Details button.
+  - **Stale comments:** headers in these files, and in `DecideDouble`, still call `Decide` Epic 0's stub.
+- **Keep unchanged:**
+  - The probe-level unit tests (`ConversationTurns`, `Intake`, `Routing`) hand requests to `DecideDouble` through a shadow instance, with no production. They pin every reason, the error status, and an unknown reason becoming `unusable`. Once the production tests follow the real Decide, they are the only pin of the error-status path.
+  - Seeded-turn specs (`decision.spec.ts`, chat C12).
+- **Newly live:** banners B6 skipped while `decideIsStub()` was true. That helper reads `Decide`'s `STUB` parameter, which the real class no longer has, so B6 now runs.
+  - B6 checks the no-key banner from the real `/state`, and a reply "I couldn't answer that: no model key is set. Nothing was changed." with the Fallback flag.
+  - It has never run green in CI. Every case that did not run in the red run needs checking too.
+- **Time budget:**
+  - Before the merge, `live:sign-in` took 413 s locally (190 passed, 2 skipped).
+  - Its deadline is 1200 s in CI and 540 s locally.
+  - The `browser` job ran 795 s in CI.
 
 ## Technical Decisions
 
-- **The web app:** Lane B owns `web/`. It uses standalone Angular components with signals, hash routing, and the Angular CDK plus custom components styled from the `DESIGN.md` tokens. There is one typed API client and one live-event service.
-- **Security:** the CSP is `script-src 'self'`, and model text renders as text. Measure first whether the scan's `page.evaluate` runs under this CSP in Firefox and WebKit.
-- **Announcements and focus (a binding convention):**
-  - The page speaks only through `Announcer`, a single polite region.
-  - Focus moves only when an update removes the focused element, and only through `shared/focus-rule.ts`.
-  - A source ratchet pins each file's number of `.focus(` calls, so every new call needs its count and a reason.
-- **Floor tests:**
-  - The floor specs live in `web/e2e/floor/` and run only in their own unit, `live:floor` (`docker/tests/test-floor.sh`). Never add them to `live:sign-in`, which is near its deadline.
-  - An unbuilt part is a `notBuilt(title, 'N.M')` call, and a test that must never skip again carries `@floor`.
-  - Floor cases never stop IRIS or its web server, never hold a poll for 8 s or longer, and never let a chat post reach the server.
-- **The `live:floor` unit today:**
-  - It has 24 cases and takes about 140 s locally. It runs in the `shards` group, where the CI estimate is 330 to 450 s.
-  - Story 2.14's first CI run, still pending, measures `shards` against the balance rule.
-  - Firefox and WebKit are estimated to add 9 to 12 minutes on the runner, so Story 2.16's plan places the unit again. The extra time fits in `shards` but not in `browser`.
-- **Registering units:** Lane B registers units only in its own entries of `ci/units.sh`. `ci/iris.sh`, `ci/warm.sh` and `docker/tests/test-ci-config.sh` are contended and stay read-only.
-- **CI hosts:** `ocutalon-ci-b` and `-c` have only Chromium's system packages, and the runner user has no sudo.
-  - Before Story 2.16 is implemented, the owner has to install the Firefox and WebKit packages, for example with `sudo npx -y playwright@1.64.1 install-deps firefox webkit`.
-  - The alternative, a digest-pinned Playwright image, is a new dependency and so a veto item. It also costs about 2 GB per host.
-  - There is no record that this owner item has been raised or resolved, so confirm it at Story 2.16's plan.
-- **Trace tabs stay stubbed in the added browsers (DW-146, escalated):** real trace tabs seem to hold licence connections and starve the cases that run after them.
+- **The real Decide with no key.** Every throwaway starts with no key on purpose. The CI override sets the mock's base URL and `OCUTALON_MOCK_KEY_HEADER=1`, but no key.
+  - **Precheck:** `Keys.Absent(runner)`, read live in Decide's job, gives `no_key`. Nothing is sent: no runner request, no timer, no agent steps, and nothing in the mock's log. `Absent` is also 1 when no production is active or the runner item is missing. If a request were sent anyway, the runner's failure text (`@{env:` … `has no value`) would also classify as `no_key`.
+  - **The fallback row:** `RecordFallback` writes one Decision row per (ItemId, kind): outcome `tellnow`, `Fallback` 1, reason `no_key`, and no reasons, confidence, payload or token totals. It then fires `decision.recorded`, and BridgeSink publishes a `decision` event on the session owner's stream.
+  - **The answers:**
+    - A decide request gets a DecisionResponse with a DecisionRef.
+    - A turn gets a new Reply with `Fallback` 1, `no_key` and the DecisionRef, and no text.
+  - **What changes for a chat turn:**
+    - It ends done with both `TriageDecisionRef` and `TurnDecisionRef` set.
+    - For a fallback, the shown decision is the turn's. Its Ref becomes the Delivery row's DecisionRef, and it fills `decision` and `turnCost` in `chat.message`.
+  - **What changes for an untrusted Item:** its ItemDecision, Notification and card carry the DecisionRef and `no_key`.
+  - **Unchanged:** the request counts (two Decide requests per turn, one per Item).
+- **Busy and repeats:**
+  - A Busy answer comes only when a user turn's conversation lock is held. With no key, nothing holds it.
+  - A repeated decide for an ItemId is answered from the existing row.
+  - A repeated turn for an ItemId is refused with an error, which Conversation ends as `unusable`. That is DW-126, which is on the decision sheet, so leave it. Row 20's seeded turns have no rows, so they get `no_key`.
+- **With the CI mock (optional):**
+  - Lane A's `Test.Agent.RunnerFixture.PointKeys` and `RestoreKeys` point the runners' Config Store entries at the mock key and restart the runners. Call them; never copy or edit them.
+  - The default scripts then answer:
+    - `triage` answers `digest`. A user's digest becomes `tellnow`, with the "always answered" line.
+    - `chat` calls `list_productions` and then replies "The CI mock looked at the productions.". The turn gets Usage rows and agent steps.
+  - An unmarked untrusted Item is then triaged `digest`, so no card is made (DW-106).
+  - Never switch keys on the shared `live:sign-in` stack. It runs one serial worker, and every spec assumes a keyless stack.
+- **Fallback rules:**
+  - Only `Decide` classifies a reply. The order: `no_key`, `daily_cap`, `budget` and `too_large` (prechecks; the request is never sent), then `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid` and `unusable`.
+  - `Conversation` never classifies a reply. An error status, no answer, an answer of the wrong class, or a reason outside `FALLBACKREASON` all become `unusable`.
+  - **The reply text:** catalog key `conversation.turnFallback`, "I couldn't answer that: {fallbackReason}. Nothing was changed.", rendered only by `Msg.Catalog.Render`.
+  - **Reason words (`REASONKEYS`):** `no_key` maps to "no model key is set"; `invalid` and `unusable` map to the generic "the model's reply couldn't be used".
+  - **Untrusted-item card:** `notice.tellNowFallback`, "{whatHappened}\nWhy now: {reason}".
+  - A fallback never triggers a tool, a fix or an approval.
+- **Footprint:**
+  - Lane B, this story: `Test.Core`, `docker/tests`, `web/e2e`, `Conversation` and the catalog.
+  - Lane A, read only: `OcuTalon.Bridge`, `.Agent`, `.Checks`, `Test.Agent`, `Test.Bridge`, `ci/mock/scenarios/A/`.
+  - The contended `ci/iris.sh`, `ci/warm.sh` and `docker/tests/test-ci-config.sh` stay read only.
+- **Clean-up:** the real Decide's Decision rows for test items are not fixture rows. `Fixture.Adopt` can record them for `Clean`.
 
 ## UX & Interaction Patterns
 
-- **Skip links:** "Skip to chat" and "Skip to status" are the first tab stops, and each target takes focus. "Skip to status" must keep working when the rail is a drawer or a stacked section.
-- **Focus ring:** 2px solid `focus` at a 2px offset with a `surface` halo, never clipped and never removed. The drawer's and the stacked layout's scrollers keep the 4px `scroll-gutter` and `scroll-padding`.
-- **Focus in the drawer:** when a row leaves its list, focus goes to the section heading through the focus-rule helper. The note's Close returns focus the same way.
-- **Labels:** icon buttons name their action and object, state is text, and icons are hidden from assistive technology. A control that can't act uses `aria-disabled` with its visible reason linked by `aria-describedby`. Disclosures use `aria-expanded`.
-- **Never colour alone:** every state has a word and every link is underlined.
-- **Reduced motion:** nothing rotates, pulses, shimmers or scrolls smoothly.
-- **Banned:** modal notification interruptions, toasts as the only copy, sounds, tabs that switch by themselves, hover-only controls, drag-and-drop as the only way, model-progress bars, celebrations, and infinite scroll in counted lists.
+- A keyless reply reads "I couldn't answer that: no model key is set. Nothing was changed.". The turn indicator still shows "Deciding…", then "Working…", then the reply.
+- The reply's strip now has a decision:
+  - Line 1: Tell now, the Fallback flag and the turn's cost. A cost of 0 shows as "<$0.0001", and a fallback shows no confidence.
+  - The reason sentence "No model key is set." comes first.
+  - Then the "Decision details" button.
+- C15's strip with no cost and no Details belonged to a fallback with no decision. Confirm on a stack what the strip shows now.
+- The no-key banner already showed on every keyless stack, because the old `Keys.Status` stub answered 0.
 
 ## Cross-Story Dependencies
 
-- **Story 2.15 builds on:**
-  - Story 2.1's header, popovers and dialogs;
-  - Story 2.8's rail (its Telegram card, `web/src/app/rail/telegram-card/`, is Lane A's from Epic 12);
-  - the banners of Stories 2.10 and 2.11;
-  - Story 2.14's skip links.
-- **Story 2.16 comes after Stories 2.14 and 2.15,** because its scan and string test cover their surfaces.
-  - **The string test** checks these against EXPERIENCE.md's quoted texts:
-    - the text constants `CHAT_TEXTS`, `NOTICE_TEXTS`, `DECISION_TEXTS`, `RAIL_TEXTS`, `TRACE_TEXTS` (including `conversationNotYet`), `BANNER_TEXTS`, `BUSY_NOTICE`, `LOAD_FAILED` and `NEW_UPDATES`;
-    - `SKIP_LINKS`, the two banner Close names and About's Close;
-    - the header's inline strings;
-    - Story 2.15's drawer and note texts.
-  - **The scan's names check** extends Story 2.14's K5 case.
-  - **A lean Firefox and WebKit subset is suggested:** the load, the skip links, the Visual Trace menu toggle, the scrollers' tab stops, the scan in both themes, and one announcement. Chromium keeps the full suite.
-  - **Also check in Firefox and WebKit:** the announcer and the focus rule, and (WebKit) that an Enter confirming IME input doesn't send.
-- **Ledger items owned by Story 2.16:**
-  - **DW-89:** the chat list and the rail each get a tab stop and a name, for example `tabindex="0"` labelled by the heading. On the rail this replaces Story 2.14's `tabindex="-1"`, and the skip link's target stays focusable. The WebKit run checks it.
-  - **DW-145:** in Safari and macOS Firefox, pressing the Visual Trace button reopens its open menu instead of closing it. The fix is in `popover.ts`: a press on the trigger counts as inside the popover. The Firefox and WebKit runs check it.
-  - **DW-178:** the skip links' `href="#/"` points at nothing, and the scan may flag it.
-    - If it does, give each link a target the scan accepts, such as a real id on each region, and keep the prevented default.
-    - A plain in-page `#id` would navigate the hash router.
-  - **DW-179:** Story 2.12's cases A1, A5, A7 and P4 must pass `turnRows` to `cleanFixtureRows`.
-    - Otherwise the turns they seed pile up when the floor unit runs in several browser projects on one stack.
-    - K4's tab walk is bounded at 150 stops, and the leftover turns add stops to it.
-- **Story 2.14's low residuals, to recheck at 200%:**
-  - About's Close scrolls with the text.
-  - A wrapped composer draft keeps a stale height after a text-size change.
-  - The inset halo sits inside a banner's 4px accent. Reopen it if the scan flags it.
-- **Not in these stories:** DW-159, the screen-reader check with VoiceOver and NVDA, is for a human. DW-81 and DW-74 belong to the Epic 2 burn-down.
-- **Later epics:**
-  - Story 4.5 inserts "Skip to simulated devices" into `SKIP_LINKS`.
-  - The guide and simulated devices (Epic 4) and the unpaired Telegram card (Epic 12) take their places in the drawer and stacked layouts in their own epics.
+- **Criteria that now meet their real path:**
+  - Story 2.4: the fallback reply names its reason; the double that forces each reason stays.
+  - Story 2.7: its "until Story 1.3 merges" clause has expired, so `RoutingProduction` now covers the real path. N10's 5-second tell-now card holds through the keyless fallback.
+  - Story 2.10: the CI test of a start with no key (B6).
+  - Story 2.6: the strip of a real fallback decision.
+- **Ledger:**
+  - DW-106 (Lane B's production tests assert the stub's `unusable`) is this story's root cause.
+  - DW-98 (a `decision.recorded` emitted by the bridge reaching the stream) goes to Story 4.3, and DW-128 goes to Story 6.3.
+- **Later:** Epic 11 removes `ThreadProduction`'s double swap. It stays valid until then.

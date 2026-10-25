@@ -796,6 +796,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: RoutingProduction.TestUntrustedItemReachesTheWebChat (item text without a mock marker, exact unusable texts) and ConversationProduction (Story 2.4's unusable rows, Story 2.7's reply DecisionRef "") assert the stub's answer; with the CI mock an unmarked item is triaged digest (ci/mock/scenarios/A/triage.json)
 - 2026-10-23T11:06:38Z status=by-design owner=2-7-route-untrusted-items-and-notifications-by-outcome by=cr note=AD-29: callers test against the stub until the API lands; the AC Until Story 1.3 says so; the merge that brings 1.3 updates them
+- 2026-10-25T07:37:05Z occurrence=2-17-epic-2-s-tests-follow-the-real-decide
 
 ### DW-107: Two 'is this owner a session' predicates over Session.Recipients: WebChat.Out.IsSession and Core.Rule.Functions.IsSession
 - source: spec-2-7-route-untrusted-items-and-notifications-by-outcome.md | severity: low | fix-risk: low | footprint: in-story
