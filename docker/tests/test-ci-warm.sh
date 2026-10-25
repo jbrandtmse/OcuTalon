@@ -1441,11 +1441,13 @@ echo "test-ci-warm: all checks passed"
 # --- warm up reads the after-start log (DW-164; Story 5.1): READY and the WARM up line only when the log's last RESULT line is OK. ---
 # This block is self-contained: it runs after the summary above and ends with a summary of its own.
 
-# dw164_run <tag> <log text, with \n for a line break>: warm_up with the start stubbed and the after-start log given to `dc exec ... cat`.
-# Sets dw164_out, dw164_rc, and the dc calls in $work/dw164.calls. The lane folder is $work/locks-dw164.
+# dw164_run <tag> <log text, with \n for a line break> [<exit status of dc exec>]: warm_up with the start stubbed and the after-start log
+# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, and the dc calls in
+# $work/dw164.calls. The lane folder is $work/locks-dw164.
 dw164_run() {
   local tag=$1
   dw164_text=$2
+  dw164_exec_rc=${3:-0}
   mkdir -p "$work/locks-dw164"
   : > "$work/dw164.calls"
   dw164_out=$(
@@ -1456,7 +1458,7 @@ dw164_run() {
       docker() { docker_stub "$@"; }
       dc() {
         echo "dc $*" >> "$work/dw164.calls"
-        if [ "$1" = exec ]; then printf '%b' "$dw164_text"; fi
+        if [ "$1" = exec ]; then printf '%b' "$dw164_text"; return "$dw164_exec_rc"; fi
         return 0
       }
       warm_up
@@ -1490,6 +1492,11 @@ rm -f "$work/locks-dw164"/*
 dw164_run cw-d4 "${dw164_begin}${dw164_end}"
 check "DW-164: a log with no RESULT line fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the last RESULT line of the after-start log is: \(no RESULT line\)$' '!^READY' '!^WARM up'
 rm -rf "$(state_of cw-d4)"
+rm -f "$work/locks-dw164"/*
+
+dw164_run cw-d5 "" 1
+check "DW-164: a log that cannot be read fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the after-start log could not be read$' '!^READY' '!^WARM up'
+rm -rf "$(state_of cw-d5)"
 rm -f "$work/locks-dw164"/*
 
 if [ "$fails" -ne 0 ]; then

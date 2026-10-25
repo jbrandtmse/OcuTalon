@@ -70,6 +70,7 @@ Method TestStopLeavesTheOtherSession()
 	Do $$$AssertEquals(checks.Count(), 0, "Ownership.Checks no longer lists the first session's watch")
 	Do $$$AssertEquals(..Rows(b).%ToJSON(), rowB, "and the other session's row is unchanged")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(b).Count(), 1, "which Ownership.Checks still lists")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		If $ListLength(results) = 1 {
@@ -92,6 +93,7 @@ Method TestUnknownName()
 	If '..AssertTurn(sc, answer, request, sentence) Quit
 	Do $$$AssertEquals(..Rows(session).%Size(), 0, "no row is written")
 	Do $$$AssertEquals(..RowCount(), rows, "and no row at all")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "the second request carries one tool result")
@@ -129,6 +131,7 @@ Method TestInjectedStop()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionSince(mark, "CommandsIn"), "", "nor CommandsIn")
 	Do $$$AssertEquals(..Rows(session).%ToJSON(), before, "the row remains, unchanged")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Checks(session).Count(), 1, "and Ownership.Checks still lists it")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertTrue($ListLength(results) = 1, "the second request carries one tool result")

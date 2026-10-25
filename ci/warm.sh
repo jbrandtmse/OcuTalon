@@ -119,12 +119,15 @@ warm_is_class() {
 # --- up and down ---
 
 # warm_start_result <title>: the check of warm_up, run by stack_ready once the project is up (DW-164). 0 when the last RESULT line of
-# the after-start log is "RESULT OK ..." (or the log has no content at all, which only a stub gives: the health gate of the start
-# already needs the install to end ready). Otherwise it prints "FAIL <title>: ..." naming that line, or saying there is none, and
-# returns 1, which ends the up before any READY line.
+# the after-start log is "RESULT OK ...". A log that cannot be read fails the up; a log that is read and holds nothing passes, which
+# only the hermetic stubs give (a real start writes the log as it runs). Otherwise it prints "FAIL <title>: ..." naming that line, or
+# saying there is none or that the log could not be read, and returns 1, which ends the up before any READY line.
 warm_start_result() {
   local log line
-  log=$(start_log)
+  if ! log=$(set -o pipefail; start_log); then
+    echo "FAIL $1: the after-start log could not be read"
+    return 1
+  fi
   [ -n "$log" ] || return 0
   line=$(printf '%s\n' "$log" | grep '^RESULT ' | tail -n 1)
   case $line in

@@ -7,8 +7,8 @@
 ///     no write on it;
 ///   - TestReaderNeedsTheGrant: Watch.Reader finds Orders with the grant and not without it (the test takes the grant away and puts it back), and finds it
 ///     again once the grant is back.
-/// The off path (the role's grant removed with the namespace) and the keep path are pinned by the appended block of docker/tests/test-install-start.sh,
-/// which ends in the keep state and checks that the role holds no OCUORDERS resource.
+/// The keep path is pinned by the appended block of docker/tests/test-install-start.sh, which ends in the keep state and checks that the run took the keep
+/// path and that the role holds no OCUORDERS resource. The off path shares that role edit (Demo.System calls ServiceRole(0) before it branches).
 Class OcuTalon.Test.Watch.Grant Extends OcuTalon.Test.Watch.Case
 {
 

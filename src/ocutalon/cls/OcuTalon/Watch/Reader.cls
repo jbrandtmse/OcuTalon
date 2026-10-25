@@ -8,8 +8,9 @@
 ///     resource of the namespace's default global database ($SYSTEM.Security.CheckUserPermission). An unreadable namespace, and one that
 ///     cannot be entered, are left out. On the online demo (the public flag onlineDemo) the list holds only the Orders demo production, when
 ///     it is readable.
-///   - Find gives the entries that a name matches: the name is trimmed, a trailing " production" is dropped, and the rest is compared without
-///     regard to case with the display name and with the class name. An optional namespace narrows the match.
+///   - Find gives the entries that a name matches: the name is made like a display name (Label: trimmed, white-space runs made one space), a
+///     trailing " production" is dropped, and the rest is compared without regard to case with the display name and with the class name. An
+///     optional namespace narrows the match.
 ///   - Label turns a production's description into its display name: white-space runs become one space and the text is cut to 128 characters
 ///     (the length of the DisplayName of the command and of the watch's row), so that a long or multi-line description never fails a start.
 ///   - Admits says whether one namespace and production are an entry, and gives its display name.
@@ -48,7 +49,8 @@ ClassMethod Productions() As %DynamicArray
 		Set production = ..Current(namespace, .description)
 		If production = "" Continue
 		If onlyOrders && (production '= ordersProduction) Continue
-		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(description '= "": description, 1: production))})
+		Set label = ..Label(description)
+		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(label '= "": label, 1: production))})
 	}
 	Quit list
 }
@@ -100,10 +102,10 @@ ClassMethod Label(description As %String) As %String
 	Quit $ZStrip(text, "<>W")
 }
 
-/// A name for comparison: trimmed, in lower case, without a trailing " production".
+/// A name for comparison: made like a display name (Label), in lower case, without a trailing " production".
 ClassMethod Normalize(name As %String) As %String [ Private ]
 {
-	Set text = $ZConvert($ZStrip($Get(name), "<>W"), "L")
+	Set text = $ZConvert(..Label($Get(name)), "L")
 	Set suffix = ..#SUFFIX
 	If ($Length(text) > $Length(suffix)) && ($Extract(text, *-$Length(suffix)+1, *) = suffix) {
 		Set text = $ZStrip($Extract(text, 1, *-$Length(suffix)), "<>W")
@@ -123,9 +125,9 @@ ClassMethod Readable(user As %String, namespace As %String) As %Boolean [ Privat
 	Quit ''$SYSTEM.Security.CheckUserPermission(user, resource, "R")
 }
 
-/// The name of the namespace's own current production, as Ens.Director.GetProductionStatus gives it, and its description in description.
-/// "" when the namespace has no current production, or when it cannot be entered or read. This is the one method that switches namespace,
-/// and it calls no OcuTalon class there.
+/// The name of the namespace's own current production, as Ens.Director.GetProductionStatus gives it, and its definition's Description, as
+/// written, in description. "" when the namespace has no current production, or when it cannot be entered or read. This is the one method
+/// that switches namespace, and it calls no OcuTalon class there, this one's methods included (Productions makes the display name).
 ClassMethod Current(namespace As %String, Output description As %String) As %String [ Private ]
 {
 	Set description = ""
@@ -138,7 +140,7 @@ ClassMethod Current(namespace As %String, Output description As %String) As %Str
 		If $$$ISERR(sc) Set name = ""
 		If name '= "" {
 			Set definition = ##class(Ens.Config.Production).%OpenId(name)
-			If $IsObject(definition) Set description = ..Label(definition.Description)
+			If $IsObject(definition) Set description = definition.Description
 		}
 	} Catch {
 		Set name = ""

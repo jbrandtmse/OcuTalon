@@ -30,7 +30,8 @@ Parameter MESSAGEUNKNOWN = "That production is not one that OcuTalon can watch, 
 
 Parameter MESSAGEONLYORDERS = "On the online demo only the Orders production can be watched, so nothing was started.";
 
-Parameter MESSAGEFAILED = "The watch could not be saved, so nothing was done.";
+/// The answer when the session's watches are busy (another command holds them) or the row cannot be saved or removed.
+Parameter MESSAGEFAILED = "The watch could not be changed just now, so nothing was done.";
 
 XData MessageMap
 {

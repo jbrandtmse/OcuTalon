@@ -184,6 +184,43 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - Given `CALLBACKHELPERS`, when `TestCallbackRule` runs, then every listed class, BridgeSink's callees included, is compiled, scanned and clean (DW-177).
 - Given a throwaway with demo mode on, when the Demo step has run, then `OcuTalonServiceRole` holds `%DB_OCUORDERS_DATA:R` and no other OCUORDERS resource, and `Watch.Reader` finds Orders only while it does; given demo mode off (or kept), then the role holds no OCUORDERS resource (U-79).
 
+### Review Findings
+
+Code review, 2026-10-25, all four layers run with no model override. Verdicts: 47 rows (44 from the layers and 3 found by the reviewer) grouped into 35 entries. 14 survive: high 0, medium 4, low 10. 21 were rejected.
+
+- [x] [Review][Patch] (med) The Chat stop rule said "answer as for start_watch" for ambiguous, whose branch tells the model to call start_watch again, so a stop could start a watch. failed, no_session, NOSESSION and NOTSENT had no branch. Fix: a stop rule of its own (retry with stop_watch, "anything else: why nothing was stopped"); `TestChat` pins it [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:47]
+- [x] [Review][Patch] (med) QA's `TestFailedSave` used `&sql(UPDATE ...)` on a code line, which fails the hosted `no-embedded-sql` class rule (`ci/checks.sh` red). Fix: `%SQL.Statement` `%ExecDirect` [src/ocutalon/cls/OcuTalon/Test/Watch/Ops.cls:244]
+- [x] [Review][Patch] (low) `Reader.Current` called `..Label` while switched into the other namespace, against its own doc and the Demo step's rule. Fix: Current returns the raw Description and `Productions` makes the display name [src/ocutalon/cls/OcuTalon/Watch/Reader.cls:52]
+- [x] [Review][Patch] (low) `Normalize` only trimmed, while `Label` also turns line breaks and runs of white space into one space, so the two sides were not normalised alike. Fix: `Normalize` reuses `Label`; `TestOrdersIsListed` adds a CRLF and a tab form [src/ocutalon/cls/OcuTalon/Watch/Reader.cls:108]
+- [x] [Review][Patch] (low) `TestLabel`'s "no trailing space" check could not fail: the 128th character of "ab "x100 is "b". Fix: "abc "x50, whose cut ends on a space, expects 127 characters ending "c" [src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls:112]
+- [x] [Review][Patch] (low) `TestLockIsReleased`'s "control" repeated the previous assertion, and the probe was never shown to see a held lock. Fix: a real control (another job holds the lock, the probe answers 0) [src/ocutalon/cls/OcuTalon/Test/Watch/Ops.cls:231]
+- [x] [Review][Patch] (low) WatchOps' `failed` sentence said "could not be saved" for a busy lock and a failed stop as well. Fix: "The watch could not be changed just now, so nothing was done." [src/ocutalon/cls/OcuTalon/Watch/Ops.cls:34]
+- [x] [Review][Patch] (low) `warm_start_result` passed a log it could not read, and its comment's reason (the health gate needs the install to end ready) is contradicted by DW-164's own incident. Fix: an unreadable log (the `dc exec` read fails, under pipefail) fails the up, the comment is corrected, and the appended block gains case d5 [ci/warm.sh:127]
+- [x] [Review][Patch] (low) The U-79 block relied on the script's keep end state without checking it, so a later edit could quietly make it test the off path. Fix: `CHK|kept|1` (the run records the demoKept note again) [docker/tests/test-install-start.sh:759]
+- [x] [Review][Patch] (low) `Test.Watch.Grant`'s doc said the appended block pins the off path. Fix: the doc says it pins the keep path, whose role edit the off path shares [src/ocutalon/cls/OcuTalon/Test/Watch/Grant.cls:10]
+- [x] [Review][Patch] (low) Three `Test.Watch.Turns` tests skipped their tool-result checks silently when the mock log came back short. Fix: assert two requests before each guard [src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls:73]
+- [x] [Review][Defer] (med) The reader lists only running, suspended or troubled productions: `GetProductionStatus` gives "" after a clean stop, not only "when nothing ever ran". So a stopped production cannot be watched, and a watch on it cannot be stopped through the tool [src/ocutalon/cls/OcuTalon/Watch/Reader.cls:137] — deferred: DW-222 `decision-pending owner=burndown`, a product call against the intent's "the name that GetProductionStatus gives"; it has architectural weight for 5.2, 5.6 and 5.7
+- [x] [Review][Defer] (med) `Demo.WithOrdersData` is a near-copy of `WithOrders` (Rule 2). The U-79 ruling forced it, because it forbade reshaping WithOrders in Epic 4's file [src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls:176] — deferred: DW-223 `routed owner=burndown` (out-of-footprint)
+- [x] [Review][Defer] (low) `Test.Watch.Turns` and `Test.Watch.Case` copy `Test.Tools.Reminders`' turn helpers. The weak reason: the spec called them templates. Sharing them needs one helper across two test hierarchies [src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls:145] — deferred: DW-224 `wontfix-accepted`, reopen_if a third copy appears or a fix to one copy is missed in another
+
+**Rejected** (one line each):
+- false: `$ZHorolog` wraps at midnight. It counts seconds since the instance started.
+- false: the test-install-start comment says the role edit runs "before either branch removes anything else". That is true: `ServiceRole(0)` runs before the keep/off branch point.
+- false: `Joined` drops a repeated name. That is documented design: the `productions` array keeps both, and a second ask gets `ambiguous`.
+- by-design (U-80): Description text under TRUSTEDOUTPUT.
+- by-design: the appended blocks print the old summary first. The spec forbids changing existing lines (adjudicated in the first pass).
+- by-design: "Orders production" as a Description reads "production production". The display name is the Description per the spec.
+- low: a failed save or delete is not logged. It is not met in everyday use, and the fix adds logging behaviour.
+- low: an exception (ServiceUser unreadable, ListAll failure) yields no CommandResult and crosses the tool callback. That is a loud configuration error (adjudicated).
+- low: `Productions` scans two or three times, and a production job takes the ConfigItem lock with a 1 s wait. That lock is held only during install or a demo switch, so the namespace drops out only transiently.
+- low: the off path fails part-way before `ServiceRole(0)`. The step fails loudly with every OCUORDERS object left, and the next run removes them all.
+- low: the online demo with Orders unlisted answers only_orders; the ServiceUser setting is blank (adjudicated).
+- theoretical: a class name over 128 characters; an unreachable ECP database; onlineDemo holding a value other than 0 or 1.
+- theoretical: `CheckUserPermission` without %Admin_Secure:USE. The callers are production jobs and tests, and the gate makes the same call.
+- adjudicated: `TestUsageTurn` derives its expectation (Test.Bridge.Usage pins the rule); `TestListProductions`' disjunct can fail; `TestChat`'s constant check is a second pin.
+- ruling: the CommandsInProduction WatchOps row was removed by the orchestrator's ruling.
+- spec edit: the stale frontmatter `deferred:` entry is build-auto's state, and DW-218 is the canonical record.
+
 ## Spec Change Log
 
 - 2026-10-25, spec gate (Epic 5 runner): the plan's intent gap was ruled by the orchestrator (option (a)); the two Epic 4 paths became footprint extensions, the grant gained its pinning tests and an acceptance criterion, the TRUSTEDOUTPUT classification was ruled veto U-80; status set to `ready-for-dev`. Rulings under Design Notes.
@@ -352,6 +389,28 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - mutation: `Demo.WithOrdersData` also adds `%DB_OCUORDERS_CODE:R` -> `Test.Watch.Grant` `TestHelper` fails (five assertions); `Demo.System` skips `ServiceRole(1)` on the on path (fresh stack) -> `Test.Watch.Grant` `TestReaderNeedsTheGrant` and `TestRoleHoldsTheDataDatabaseOnly` fail (AC 8).
 - mutation: `Reader.Label` without the 128-character cut -> `Test.Watch.Reader` `TestLabel` fails (a 299-character label).
 - Note: a warm stack reloads classes, but a running production job keeps its old code, so a mutation of `WatchOps` is seen by `Test.Watch.Ops` (shadow instance) on a warm stack and by `Test.Watch.Turns` (the production's item) only on a fresh one.
+
+**QA stage additions** (Rule 19; each applied on the warm stack `e5s1qw`, observed red, reverted from a backup, and the class green again on the same stack; the tree was byte-identical afterwards):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Watch/Ops.cls` extended with `TestLockTimeout`, `TestLockIsReleased` and `TestFailedSave` (closes the deferred DW-218): a second job (`Holder`, `Probe`; bounded to 60 s, signalled through `^OcuTalonTest("WatchOps","job",...)`, which `OnAfterOneTest` releases and kills) holds `^OcuTalon.Watch(session)`; start and stop wait about 5 s and answer `failed` (Ok 0, no Ref, rows unchanged); another session is not held up; the same stop works after the release; the lock is free after every answer; a row that cannot be saved (the session's asking user longer than `AskedBy`) answers `failed` with no row. Not tested: a failed `%DeleteId` (it needs a row-lock holder that makes `%DeleteId` wait its 30 s default; no reliable, fast way to fail it).
+- mutation: `Ops.Lock` takes no lock (`Quit 1`) -> `Test.Watch.Ops` `TestLockTimeout` fails (DW-218, lock).
+- mutation: `Ops.OnStart` drops its `Lock -` -> `Test.Watch.Ops` `TestLockIsReleased`, `TestFailedSave` and `TestLockTimeout` fail (the lock leaks).
+- mutation: `Ops.OnStart` treats a failed `%Save` as success (`If 1`) -> `Test.Watch.Ops` `TestFailedSave` fails (DW-218, failed answer).
+- mutation (matrix "No session"): `CommandCall.IsSessionRef` always true -> `Test.Watch.Tools` `TestNoSession` fails.
+- mutation (matrix "Submit fails"): `CommandCall.Run` never takes the error branch -> `Test.Watch.Tools` `TestSubmitFails`, `TestSubmitEmpty` and `TestSubmitKeepsTheJobSession` fail.
+- mutation (matrix "Ambiguous"): `WatchAnswers.Decide` takes the first of several matches -> `Test.Watch.Tools` `TestDecide` fails.
+- mutation (matrix "Online demo, another name", tool side): `WatchAnswers.Decide` never answers `only_orders` -> `Test.Watch.Tools` `TestOnlyOrders` and `TestDecide` fail.
+- mutation (matrix "Online demo" and "Owner check", WatchOps side): `Ops.OnStart` ignores `Reader.OnlineDemo()` -> `Test.Watch.Ops` `TestOwnerCheck` fails; `Ops.OnStart` skips the `no_session` check -> `TestOwnerCheck` fails.
+- mutation (matrix "Untrusted or tainted turn", list_productions runs): `READONLYLISTPRODUCTIONS` 0 -> `Test.Bridge.Gate` `TestUntrustedTurnRunsOnlySafeReadOnly`, `TestTaintedTurnRunsOnlySafeReadOnly` and `TestFlagsAreListed` fail.
+- Fresh runs after the additions: `ci/iris.sh class OcuTalon.Test.Watch.Ops` passed on `e5s1q`, and `shard lane-a --reverse` passed (52 classes, reverse order). Both throwaways were torn down.
+
+**Code review additions** (Rule 19). Each mutation was applied on the warm stack `e5s1rw`, observed red, restored from the reviewer's copy, and the class was green again on the same stack. The tree was byte-identical afterwards.
+- mutation (AC 4, `TestChat` extended): Chat's old stop bullet ("answer as for start_watch") -> `Test.Agent.Instructions` `TestChat` fails (no stop_watch retry, no "why nothing was stopped").
+- mutation: the lock probe always answers free (`Probe` sets `free = 1`) -> `Test.Watch.Ops` `TestLockIsReleased` fails (its control). The QA lines for `TestLockIsReleased` stand.
+- mutation (DW-218, `TestFailedSave` fixture now dynamic SQL): `Ops.OnStart` treats a failed `%Save` as success (`If 1`) -> `Test.Watch.Ops` `TestFailedSave` fails again.
+- mutation: `Reader.Label` without its last trim -> `Test.Watch.Reader` `TestLabel` fails (127 characters ending "c" expected).
+- mutation: `Reader.Normalize` trims only (no `Label`) -> `Test.Watch.Reader` `TestOrdersIsListed` fails (`Find("Orders"_CRLF)`).
+- mutation (DW-164, unreadable log): `warm_start_result` reads with `log=$(start_log)` again -> case d5 of the appended block of `docker/tests/test-ci-warm.sh` fails (READY printed).
+- Runs after the patches: `bash docker/tests/test-ci-warm.sh` passed. Warm classes `Watch.Reader`, `.Ops`, `.Turns` and `Agent.Instructions` passed. Fresh `shard lane-a` passed on `e5s1r` (52 classes, 475 s), before the `TestFailedSave` fixture change, which then passed warm. Fresh `ci/iris.sh live install-start` passed, with the U-79 block's four values. `bash ci/checks.sh` passed after the fixture change. `e5s1r` and `e5s1rw` were torn down.
 
 ## Auto Run Result
 

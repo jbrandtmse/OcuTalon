@@ -1,8 +1,9 @@
 /// Tests of OcuTalon.Watch.Reader (Story 5.1; AD-3, AD-4). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through
 /// Test.Watch.Case: they need the running production and the Orders demo production in OCUORDERS, and fail with the reason where they do not have them.
 ///   - TestOrdersIsListed: Productions lists the Orders production, as {namespace OCUORDERS, production OcuTalon.Demo.Orders.Production, displayName
-///     Orders}, once, and Find finds it by the display name in any case, with white space around it, with a trailing " production", by the class name, and
-///     with the namespace argument in any case; a name that is not Orders, an empty name and another namespace find nothing;
+///     Orders}, once, and Find finds it by the display name in any case, with white space around it (a line break included, as Label treats it), with a
+///     trailing " production", by the class name, and with the namespace argument in any case; a name that is not Orders, an empty name and another
+///     namespace find nothing;
 ///   - TestUnreadableNamespaceIsLeftOut: the service user cannot read OCUTALON's data database in a throwaway, and OCUTALON is not listed (a filter that
 ///     is dropped lists it);
 ///   - TestReadableNamespaceOffersItsOwnProduction (DW-38): with OCUTALON made readable and its definition table holding OcuTalon.Demo.Orders.Production
@@ -34,7 +35,7 @@ Method TestOrdersIsListed()
 		}
 	}
 	Do $$$AssertEquals(count, 1, orders_" is listed once")
-	For name = "Orders", "orders", "  ORDERS  ", "Orders production", "the Orders Production", production, $ZConvert(production, "U") {
+	For name = "Orders", "orders", "  ORDERS  ", "Orders"_$Char(13, 10), "Orders"_$Char(9)_" production", "Orders production", "the Orders Production", production, $ZConvert(production, "U") {
 		Set found = $ClassMethod(..#READER, "Find", name)
 		Do $$$AssertEquals(found.%Size(), $Select(name [ "the ": 0, 1: 1), "Find('"_name_"') finds "_$Select(name [ "the ": "nothing (the leading word is not dropped)", 1: "the Orders production"))
 		If found.%Size() = 1 Do $$$AssertEquals(found.%Get(0).namespace_"|"_found.%Get(0).production, orders_"|"_production, "and it is the one of "_orders)
@@ -105,10 +106,10 @@ Method TestLabel()
 	Do $$$AssertEquals($ClassMethod(reader, "Label", "Orders"), "Orders", "a plain description is kept")
 	Do $$$AssertEquals($ClassMethod(reader, "Label", "  Orders"_$Char(13, 10)_"  production"_$Char(9)_" x "), "Orders production x", "white-space runs become one space and the ends are trimmed")
 	Set long = ""
-	For i = 1:1:100 Set long = long_"ab "
+	For i = 1:1:50 Set long = long_"abc "
 	Set label = $ClassMethod(reader, "Label", long)
 	Do $$$AssertTrue($Length(label) <= 128, "a long description is cut to 128 characters: "_$Length(label))
-	Do $$$AssertEquals($Extract(label, *), "b", "and the cut leaves no trailing space")
+	Do $$$AssertEquals($Length(label)_"|"_$Extract(label, *), "127|c", "and a cut that ends on a space leaves no trailing space (the 128th character is a space)")
 	Do $$$AssertEquals($ClassMethod(reader, "Label", ""), "", "an empty description stays empty")
 }
 

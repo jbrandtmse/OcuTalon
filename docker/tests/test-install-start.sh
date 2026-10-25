@@ -751,14 +751,15 @@ echo "test-install-start: all checks passed"
 # --- Story 5.1 (veto U-79): the keep path takes the service role's Read on the OCUORDERS data database away. ---
 # This block is self-contained: it runs after the summary above and ends with a summary of its own. The script ends in the keep state (demo mode off,
 # the foreign OCUORDERS kept). A start rewrites the roles first, so the block seeds the grant itself (and the resource, when the keep left none), reruns
-# the Demo step as the mode switch does, and checks that the service role holds no OCUORDERS resource afterwards. The off path shares the keep path's
-# role edit, which runs before either branch removes anything else.
+# the Demo step as the mode switch does, and checks that the run took the keep path (it records the demoKept note again) and that the service role
+# holds no OCUORDERS resource afterwards. The off path shares the keep path's role edit (Demo.System calls ServiceRole(0) before it branches).
 check_session "Story 5.1 (U-79): the Demo step in the keep state removes the service role's OCUORDERS data grant, and the role holds no OCUORDERS resource" OCUTALON \
   "CHK|seeded|1|1
 CHK|run|1|
+CHK|kept|1
 CHK|role|0" \
   'Set $Namespace="%SYS" Set made=0 If '\''##class(Security.Resources).Exists("%DB_OCUORDERS_DATA") { Set made=$SYSTEM.Status.IsOK(##class(Security.Resources).Create("%DB_OCUORDERS_DATA","Story 5.1 fixture")) } Set ok=##class(Security.Roles).Get("OcuTalonServiceRole",.p) Kill q Set q("Resources")=p("Resources")_$Select(p("Resources")="":"",1:",")_"%DB_OCUORDERS_DATA:R" Set mc=##class(Security.Roles).Modify("OcuTalonServiceRole",.q) Set ok=##class(Security.Roles).Get("OcuTalonServiceRole",.p) Write !,"CHK|seeded|",$SYSTEM.Status.IsOK(mc),"|",(p("Resources")["%DB_OCUORDERS_DATA:R") Set $Namespace="OCUTALON"' \
-  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc)' \
+  "$demo_run"' Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Status.GetErrorText(sc) Write !,"CHK|kept|",(##class(OcuTalon.Data.StatusMark).Get("demoKept")'\''="")' \
   'Set $Namespace="%SYS" Set ok=##class(Security.Roles).Get("OcuTalonServiceRole",.p) Write !,"CHK|role|",($Get(p("Resources"))["OCUORDERS") If made { Set d=##class(Security.Resources).Delete("%DB_OCUORDERS_DATA") } Set $Namespace="OCUTALON"' \
   'Halt'
 if [ "$fails" -ne 0 ]; then

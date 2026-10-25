@@ -12,7 +12,12 @@
 ///   - TestOwnerCheck ("Owner check"): a StartWatch for a production that the reader does not list (the production of OCUTALON, an unknown namespace,
 ///     another name), from any origin, answers Ok 0 and unknown_production with no row, and only_orders on the online demo; an unknown session answers
 ///     no_session for a start and for a stop, with no row;
-///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row.
+///   - TestThroughTheProduction: the item answers a StartWatch and a StopWatch with a CommandResult and writes and removes the row;
+///   - TestLockTimeout (QA, DW-218): another job holds the session's lock (^OcuTalon.Watch(session)); a start and a stop wait about 5 seconds and
+///     answer failed, Ok 0, with no Ref and no change to the rows; another session is not held up; once the other job lets go the same commands work;
+///   - TestLockIsReleased (QA): after not_watching, started, already_watching and stopped, another job can take the session's lock, and the same probe
+///     cannot take it while another job holds it (the control);
+///   - TestFailedSave (QA, DW-218): a row that cannot be saved (the asking user is longer than AskedBy allows) answers failed, Ok 0, with no Ref and no row.
 Class OcuTalon.Test.Watch.Ops Extends OcuTalon.Test.Watch.Case
 {
 
@@ -159,6 +164,93 @@ Method TestThroughTheProduction()
 	Do $$$AssertEquals(..Rows(session).%Size(), 0, "the row is gone")
 }
 
+/// Another job holds the session's lock (DW-218): a start and a stop wait for it (about LOCKWAIT seconds), then answer failed with Ok 0 and no Ref, and
+/// change nothing. The lock is per session, so another session's start is not held up. Once the other job lets go, the same stop works.
+Method TestLockTimeout()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set held = ..Session("lockHeld")
+	Set free = ..Session("lockFree")
+	If '..Hold(held, "a") Quit
+	Set began = $ZHorolog
+	Do $$$AssertStatusOK(host.OnStart(..Start(held, "zzlock1"), .blocked), "a start of a held session is answered")
+	Set waited = $ZHorolog - began
+	Do $$$AssertEquals(blocked.Ok_"|"_blocked.Outcome_"|"_blocked.Ref, "0|failed|", "failed, Ok 0 and no Ref")
+	Do $$$AssertEquals(blocked.Message, ##class(OcuTalon.Watch.Ops).#MESSAGEFAILED, "with the plain sentence of the failure")
+	Do $$$AssertTrue((waited > 4) && (waited < 30), "after waiting about 5 seconds: "_waited)
+	Do $$$AssertEquals(..Rows(held).%Size(), 0, "and no row was written")
+	Do $$$AssertStatusOK(host.OnStart(..Start(free, "zzlock2"), .other), "another session's start is answered while the first is held")
+	Do $$$AssertEquals(other.Outcome, "started", "and it is not held up: the lock is per session")
+	Do ..Release("a")
+	Do $$$AssertStatusOK(host.OnStart(..Start(held, "zzlock3"), .later), "the start is answered once the other job lets go")
+	Do $$$AssertEquals(later.Ok_"|"_later.Outcome, "1|started", "and it is started")
+	If '..Hold(held, "b") Quit
+	Set row = ..Rows(held).%ToJSON()
+	Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+	Set stop.SessionRef = held
+	Set stop.Namespace = ..#ORDERS
+	Set stop.Production = ..#ORDERSPRODUCTION
+	Set began = $ZHorolog
+	Do $$$AssertStatusOK(host.OnStop(stop, .stopBlocked), "a stop of a held session is answered")
+	Set waited = $ZHorolog - began
+	Do $$$AssertEquals(stopBlocked.Ok_"|"_stopBlocked.Outcome_"|"_stopBlocked.Ref, "0|failed|", "failed, Ok 0 and no Ref")
+	Do $$$AssertTrue((waited > 4) && (waited < 30), "after waiting about 5 seconds: "_waited)
+	Do $$$AssertEquals(..Rows(held).%ToJSON(), row, "and the row is still there, unchanged")
+	Do ..Release("b")
+	Do $$$AssertStatusOK(host.OnStop(stop, .stopped), "the stop is answered once the other job lets go")
+	Do $$$AssertEquals(stopped.Ok_"|"_stopped.Outcome, "1|stopped", "and it is stopped")
+	Do $$$AssertEquals(..Rows(held).%Size(), 0, "and the row is gone")
+}
+
+/// WatchOps lets go of the session's lock on every path of an answer (a second job, because a lock is held per process).
+Method TestLockIsReleased()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set session = ..Session("released")
+	Set stop = ##class(OcuTalon.Msg.Command.StopWatch).%New()
+	Set stop.SessionRef = session
+	Set stop.Namespace = ..#ORDERS
+	Set stop.Production = ..#ORDERSPRODUCTION
+	Do host.OnStop(stop, .response)
+	Do $$$AssertEquals(response.Outcome, "not_watching", "a stop of no watch is not_watching")
+	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free after it")
+	Do host.OnStart(..Start(session, "zzrel1"), .response)
+	Do $$$AssertEquals(response.Outcome, "started", "a start is started")
+	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free after it")
+	Do host.OnStart(..Start(session, "zzrel2"), .response)
+	Do $$$AssertEquals(response.Outcome, "already_watching", "a repeat is already_watching")
+	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free after it")
+	Do host.OnStop(stop, .response)
+	Do $$$AssertEquals(response.Outcome, "stopped", "a stop is stopped")
+	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free after it")
+	If '..Hold(session, "c") Quit
+	Do $$$AssertEquals(..LockFree(session), 0, "control: the probe sees the lock while another job holds it")
+	Do ..Release("c")
+}
+
+/// A row that cannot be saved (DW-218): the asking user of the session is longer than the AskedBy column, so the save fails its validation. The answer
+/// is failed with Ok 0 and no Ref, no row is written, and the lock is let go.
+Method TestFailedSave()
+{
+	If '..Ready() Quit
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set session = ..Session("save")
+	Set long = $Translate($Justify("", 300), " ", "u")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "UPDATE %NOCHECK OcuTalon_Data.Session SET IrisUser = ? WHERE Ref = ?", long, session)
+	Do $$$AssertEquals(rs.%SQLCODE, 0, "the session's asking user is made longer than AskedBy allows: "_rs.%Message)
+	Do $$$AssertEquals($Length(##class(OcuTalon.Data.Session).RefIndexOpen(session).IrisUser), 300, "and it is stored in full")
+	Do $$$AssertStatusOK(host.OnStart(..Start(session, "zzsave1"), .response), "the start is answered")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref, "0|failed|", "failed, Ok 0 and no Ref")
+	Do $$$AssertEquals(response.Message, ##class(OcuTalon.Watch.Ops).#MESSAGEFAILED, "with the plain sentence of the failure")
+	Do $$$AssertEquals(..Rows(session).%Size(), 0, "no row was written")
+	Do $$$AssertEquals(..LockFree(session), 1, "and the lock is free")
+}
+
 /// --- helpers ---
 
 
@@ -209,6 +301,88 @@ ClassMethod Others(a As %String, b As %String) As %Integer [ Private ]
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE Namespace = ? AND Production = ? AND SessionRef NOT IN (?, ?)", ..#ORDERS, ..#ORDERSPRODUCTION, a, b)
 	Do rs.%Next()
 	Quit rs.%GetData(1)
+}
+
+/// Starts a job that holds the lock of the session's commands under the key, and waits until it says that it holds it. 1 when it does; otherwise a
+/// failed assertion and 0. Release lets it go; OnAfterOneTest does too, so a failed test leaves nothing held.
+Method Hold(session As %String, key As %String) As %Boolean [ Private ]
+{
+	Set key = ..Number_"_"_key
+	Kill ^OcuTalonTest("WatchOps", "job", key)
+	Job ##class(OcuTalon.Test.Watch.Ops).Holder(session, key)
+	Do ..WaitFor($Name(^OcuTalonTest("WatchOps", "job", key, "ready")), 60)
+	Set held = ''$Get(^OcuTalonTest("WatchOps", "job", key, "ready"))
+	Do $$$AssertTrue(held, "another job holds the lock of the session")
+	Quit held
+}
+
+/// Lets the holder of the key go, and waits until it has.
+Method Release(key As %String) [ Private ]
+{
+	Set key = ..Number_"_"_key
+	Set ^OcuTalonTest("WatchOps", "job", key, "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("WatchOps", "job", key, "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("WatchOps", "job", key, "done")), 1, "the other job lets go")
+}
+
+/// The job body of the holder: takes the lock that WatchOps takes, says so, keeps it until released (60 seconds at most), lets go and says so.
+ClassMethod Holder(session As %String, key As %String)
+{
+	Lock +^OcuTalon.Watch(session):5
+	If '$Test Quit
+	Set ^OcuTalonTest("WatchOps", "job", key, "ready") = 1
+	Set deadline = $ZHorolog + 60
+	While '$Get(^OcuTalonTest("WatchOps", "job", key, "release")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Lock -^OcuTalon.Watch(session)
+	Set ^OcuTalonTest("WatchOps", "job", key, "done") = 1
+}
+
+/// The job body of the lock probe: tries the session's lock for 2 seconds and records whether it got it, then lets go.
+ClassMethod Probe(session As %String, key As %String)
+{
+	Lock +^OcuTalon.Watch(session):2
+	Set free = $Test
+	If free Lock -^OcuTalon.Watch(session)
+	Set ^OcuTalonTest("WatchOps", "job", key, "result") = free
+}
+
+/// 1 when another job can take the session's lock now, 0 when it cannot (a lock is held per process, so only a second job can tell), and "" when the
+/// job gave no answer within 60 seconds, which no assertion takes for either.
+Method LockFree(session As %String) As %Boolean [ Private ]
+{
+	Set key = ..Number_"_probe"
+	Kill ^OcuTalonTest("WatchOps", "job", key)
+	Job ##class(OcuTalon.Test.Watch.Ops).Probe(session, key)
+	Do ..WaitFor($Name(^OcuTalonTest("WatchOps", "job", key, "result")), 60)
+	Quit $Get(^OcuTalonTest("WatchOps", "job", key, "result"))
+}
+
+/// Waits up to seconds for the global node named by ref to hold a value.
+ClassMethod WaitFor(ref As %String, seconds As %Integer) [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	While ('$Data(@ref)) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+}
+
+/// Lets every holder of this run go before the base class cleans up, and forgets the run's job nodes, also after a failed test.
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	Set key = ""
+	For {
+		Set key = $Order(^OcuTalonTest("WatchOps", "job", key))
+		Quit:key=""
+		If $Extract(key, 1, $Length(..Number) + 1) '= (..Number_"_") Continue
+		If '$Data(^OcuTalonTest("WatchOps", "job", key, "done")) {
+			Set ^OcuTalonTest("WatchOps", "job", key, "release") = 1
+			Do ..WaitFor($Name(^OcuTalonTest("WatchOps", "job", key, "done")), 10)
+		}
+		Kill ^OcuTalonTest("WatchOps", "job", key)
+	}
+	Quit ##super(testname)
 }
 
 }
