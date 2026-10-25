@@ -653,6 +653,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 3.1 implement Auto Run Result, residual risks: tooling observation (warm up on tag e3s1iw)
 - 2026-10-24T14:47:52Z status=routed owner=burndown by=harvest note=ci/warm.sh is outside Epic 3's footprint and not contended (Epic 32's, merged); the burn-down story may fix it as a footprint extension
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow(no_charter:3_story-closable_entries_under_cap_8,none_with_2+_occurrences);ci/warm.sh_tooling_fix_(READY_only_after_the_after-start_RESULT_OK)_before_Lane_A's_next_epic_relies_on_warm_mode;Epic_5's_X.0_fix-or-close_pass
 
 ### DW-165: Security.Users Create and Modify accept a role that does not exist, so EnsureService's 'the role must exist' is a precondition that nothing checks
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: low | fix-risk: low | footprint: in-story
@@ -702,6 +703,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
 - 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
 - 2026-10-25T09:16:27Z occurrence=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing
+- 2026-10-25T16:29:37Z owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=burndown note=overflow;needs_Lane_B's_publishing_BridgeSink_on_the_feature_branch_(Epic_2)_before_CodeRules.CALLBACKHELPERS_can_list_its_callees;occurrence_3.6_(approval.raised_from_the_callback);Epic_5's_X.0_fix-or-close_pass
 
 ### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
 - source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
@@ -757,6 +759,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
 - 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
+- 2026-10-25T16:29:37Z owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=burndown note=overflow;the_replay_story_reworks_the_hold's_start_and_delivery_(with_DW-194);measure_ApprovalStartIn_held_past_STARTSECONDS_and_re-check_the_row_before_the_task_is_sent
 
 ### DW-196: TestRaiseKeepsTheCallersJobIds' 'both ids still undefined' checks cannot fail in the unit-test process, so StartHold's re-kill of an undefined id is unpinned
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
