@@ -1,7 +1,8 @@
-/// Tests of OcuTalon.Core.SettingsOps (Story 4.1; AD-17, AD-19, AD-23). Safe on a slot: they drive a shadow instance of
-/// OcuTalon.Test.Core.SettingsOpsProbe, which stands in for the audit write and the Demo step, so that no namespace is created
-/// or removed. The real switch is the job of docker/tests/test-demo-switch.sh. Every text is written out here, never read
-/// from SettingsOps.
+/// Tests of OcuTalon.Core.SettingsOps (Story 4.1; AD-17, AD-19, AD-23). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21):
+/// TestAuditAccepted writes real Settings entries to the IRIS audit log of the instance, so instance-wide auditing and OcuTalon's events
+/// must be on, as a clean install leaves them. The tests drive a shadow instance of OcuTalon.Test.Core.SettingsOpsProbe, which stands in
+/// for the Demo step and, except in TestAuditAccepted, for the audit write, so that no namespace is created or removed. The real switch is
+/// the job of docker/tests/test-demo-switch.sh. Every text is written out here, never read from SettingsOps.
 ///   - TestSwitch: a SetDemoMode of 0 or 1 audits first, writes the value, and runs the step after the write; the answer is
 ///     on or off with its text, and the audit data has exactly the members of the Settings shape: setting, from (the row's value before the
 ///     write), to, irisUser, sessionRef and channel;
@@ -11,7 +12,7 @@
 ///   - TestStepFails: a failed step answers step_failed with the error sentence, the value stays written, and the failure is
 ///     logged as an error;
 ///   - TestAuditFails: a failed audit answers not_audited, writes nothing, runs no step, and is logged as an error;
-///   - TestSameMode: the mode the row already has is audited, written and the step rerun all the same;
+///   - TestSameMode: the mode the row already has is audited (from and to both that mode), written and the step rerun all the same;
 ///   - TestApplyFails: a value that cannot be saved answers failed after the audit, the step does not run, and the failure is
 ///     logged as an error;
 ///   - TestKeptOnlyForOff: a demoKept mark does not turn an on switch into off_kept;
@@ -180,6 +181,8 @@ Method TestSameMode()
 		Set result = ..Send(mode, "system", "zzadmin", "")
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|"_$Select(mode: "on", 1: "off"), "mode "_mode_" again: carried out")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, "mode "_mode_" again: the audit and the step were called")
+		Set data = {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data")))
+		Do $$$AssertEquals(data.%GetTypeOf("from")_"|"_data.from_"|"_data.to, "string|"_mode_"|"_mode, "mode "_mode_" again: the audit's from is the stored value, the same as to")
 		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 		Do $$$AssertEquals(row.Value, mode, "mode "_mode_" again: the row holds it")
 		Do $$$AssertTrue(row.UpdatedAt '= "2000-01-01T00:00:00Z", "mode "_mode_" again: the row was written")
