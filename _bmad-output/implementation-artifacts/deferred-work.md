@@ -1001,3 +1001,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
+
+### DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks once Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: epics.md Story 8.2 AC3 defers the real switch until Epics 5 and 8 merge; Story 11.1 turns every UJ-1 step spec on; 02-watch.spec.ts lines are Epic 4's while it runs (append-only ruling)
+- 2026-10-25T12:55:18Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=AC3 real-path residual of 8.2; the notBuilt label names 8.2 but the switch needs Lane A's Checks/WatchOps (Stories 5.1, 5.6)
