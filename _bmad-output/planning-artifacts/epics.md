@@ -2470,6 +2470,8 @@ So that a background check starts or stops without any configuration.
 
 - DW-38: Matching a production by its display name finds only productions registered in their own namespace, so the never-running `OcuTalon.Demo.Orders.Production` row that compiling the package leaves in OCUTALON (description "Orders") is never offered as the Orders production (measured in Story 0.10) (ledger; routed by code review 2026-10-20)
 - DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread. This story's start-watch tool is the first tool job that calls Commands.Submit inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId, and if they don't, restore the id after Submit (`Core/Commands.cls`) with a test (ledger; routed by burndown 2026-10-25)
+- DW-164: `ci/warm.sh up` printed `READY warm 543s` while the warm stack's after-start log said `RESULT FAILED` and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure. Fix the tooling before Lane A relies on warm mode again: `READY` only after the after-start `RESULT OK` (ledger; routed by burndown 2026-10-25)
+- DW-177: The classes that `OcuTalon.Core.BridgeSink` calls once it publishes (Lane B) are not in `CodeRules.CALLBACKHELPERS`, so the callback rule does not scan them, although the gate fires `turn.step` (and, since 3.6, `approval.raised`) to the HostSinkClass from inside AI Hub's authorization callback; a session call or Python there would deadlock or crash the job. With Epic 2's publishing BridgeSink on the feature, list its callees in `CALLBACKHELPERS` (ledger; routed by burndown 2026-10-25)
 
 ### Story 5.2: New failures are picked up within seconds
 
@@ -5216,6 +5218,7 @@ So that a new or changed tool can never act without my say.
 **Given** the model, an item's content or a tool result
 **When** it tries to classify a tool
 **Then** nothing changes: no tool can classify, and `McpOps` accepts a classify command only with origin `web_admin`, behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4) (FR-7, FR-49, NFR-14, AD-1)
+- DW-174: Whether AI Hub gives an MCP tool a toolref that starts `mcp:` is unmeasured; another form (the JSON configuration form of `%AI.Tool.Resolver`) would take `metadata.origin_class` as the source, so a shadowing MCP tool could take a built-in's classification. Measure a real MCP tool's toolref and metadata in `%CanExecute` (stdio, remote, JSON configuration) when step 4 registers MCP servers (ledger; routed by harvest 2026-10-24)
 
 ### Story 22.3: Call MCP tools only through the governed proxy
 
@@ -6360,6 +6363,9 @@ So that my own risky tools work through the bridge and never run without a yes.
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
 - DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
+- DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no `ApprovalOutcome` is sent until the next Reconcile. This story reworks the hold's delivery: Reconcile or the hold delivers an answered or expired row that has no live hold, including the expired outcome to `ResultTarget` (ledger; routed by merge_gate 2026-10-25, veto U-78)
+- DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call). This story adds the two fields (a stored-data change, in its own veto window) or derives them, for example from the decision's trace (ledger; routed by spec_gate 2026-10-25)
+- DW-195: A hold whose start times out after `STARTSECONDS` can still create its Workflow task and timer after Raise has deleted the row (the hold passed its row check before the delete). With DW-194, measure `ApprovalStartIn` held past `STARTSECONDS` and re-check the row before the task is sent (ledger; routed by burndown 2026-10-25)
 
 ### Story 30.4: A stopped production or a disabled item is reported once
 

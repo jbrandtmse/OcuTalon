@@ -1084,6 +1084,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: HoldResponse sends nothing for a task whose action does not match the row (row 14); a late Answer still expires the row, so only the expired outcome to ResultTarget is missing
 - 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
 - 2026-10-25T06:21:01Z status=escalated owner=burndown by=cr note=fix-risk high: Reconcile/Hold must deliver answered or expired rows with no hold (3.5 Never list, row 14); operator-only
+- 2026-10-25T17:27:23Z status=routed owner=30-3-an-approved-tool-call-runs-exactly-once-with-no-model by=merge_gate note=Story_30.3_reworks_the_hold's_delivery:Reconcile_or_the_hold_delivers_an_answered_or_expired_row_that_has_no_live_hold(the_expired_outcome_to_ResultTarget);veto_U-78
 
 ### DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call)
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: out-of-footprint
