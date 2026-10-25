@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-25-2026 16:29
+last_updated: 10-25-2026 16:30
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -65,19 +65,24 @@ development_status:
   1-13-epic-1-burn-down: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-lay-out-the-main-page-frame: backlog
-  2-2-keep-the-session-and-load-its-snapshot-with-live-updates: backlog
-  2-3-route-every-command-by-verb-with-origin-checks: backlog
-  2-4-answer-every-chat-message-through-the-turn-pipeline: backlog
-  2-5-chat-with-ocutalon-in-the-page: backlog
-  2-6-show-every-decision-with-its-reasons-and-cost: backlog
-  2-7-route-untrusted-items-and-notifications-by-outcome: backlog
-  2-8-show-the-status-rail: backlog
-  2-9-open-anything-in-visual-trace: backlog
-  2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: backlog
-  2-11-say-plainly-when-the-page-loses-contact: backlog
-  2-12-meet-the-accessibility-and-responsive-floor: backlog
+  epic-2: done
+  2-1-lay-out-the-main-page-frame: done
+  2-2-keep-the-session-and-load-its-snapshot-with-live-updates: done
+  2-3-route-every-command-by-verb-with-origin-checks: done
+  2-4-answer-every-chat-message-through-the-turn-pipeline: done
+  2-5-chat-with-ocutalon-in-the-page: done
+  2-6-show-every-decision-with-its-reasons-and-cost: done
+  2-7-route-untrusted-items-and-notifications-by-outcome: done
+  2-8-show-the-status-rail: done
+  2-9-open-anything-in-visual-trace: done
+  2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: done
+  2-11-say-plainly-when-the-page-loses-contact: done
+  2-12-meet-the-accessibility-and-responsive-floor: done
+  2-13-open-visual-trace-from-the-page: done
+  2-14-work-the-whole-page-by-keyboard-with-labels-and-words: done
+  2-15-lay-the-page-out-at-every-supported-width: done
+  2-16-prove-the-floor-in-chromium-firefox-and-webkit: done
+  2-17-epic-2-s-tests-follow-the-real-decide: done
   epic-2-retrospective: optional
 
   epic-3: done
@@ -338,6 +343,14 @@ action_items:
       cut at max_tokens and reports only the last response stop reason; also measure
       whether such a call can be truncated on the real Anthropic API (DW-92). Until
       then Epic 3 gate governs risky tool calls."
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi"
+    epic: 2
+    action: "Screen-reader check of the announcer: VoiceOver on macOS and NVDA on
+      Windows, on two banners in one update, a reply, and a burst of four announcements
+      (DW-159; Story 2.12 built the joined announcement and its automated test A4)"
     owner: "user"
     status: open
     ref: ""

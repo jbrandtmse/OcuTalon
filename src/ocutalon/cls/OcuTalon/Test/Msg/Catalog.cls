@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 63 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 64 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,9 +77,9 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 63, "the expected Core list has 63 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 64, "the expected Core list has 64 keys")
 	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 63 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 64 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 85 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 86 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -286,6 +286,8 @@ Method TestCost()
 	Set cases = $ListBuild($ListBuild("5", "$5.00"), $ListBuild("1.24", "$1.24"), $ListBuild("0.042", "$0.042"), $ListBuild("0.0006", "$0.0006"), $ListBuild("0.00004", "<$0.0001"))
 	Set cases = cases_$ListBuild($ListBuild("0", "<$0.0001"), $ListBuild("0.0001", "$0.0001"), $ListBuild("0.01", "$0.010"), $ListBuild("1", "$1.00"), $ListBuild("12.5", "$12.50"))
 	Set cases = cases_$ListBuild($ListBuild("0.99996", "$1.00"), $ListBuild("0.99949", "$0.999"), $ListBuild("0.009996", "$0.010"), $ListBuild("0.009949", "$0.0099"))
+	// The ties round up on the decimal amount; the page's formatter (web/scripts/decision-view.test.mjs) holds the same six.
+	Set cases = cases_$ListBuild($ListBuild("0.00015", "$0.0002"), $ListBuild("0.00035", "$0.0004"), $ListBuild("0.00045", "$0.0005"), $ListBuild("0.1235", "$0.124"), $ListBuild("1.005", "$1.01"), $ListBuild("0.009995", "$0.010"))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $ListGet(cases, i)
 		Set slots = ##class(%DynamicAbstractObject).%FromJSON("{""cap"": "_$List(case, 1)_", ""time"": ""2026-10-16T18:15:00Z""}")
@@ -987,6 +989,7 @@ XData Keys [ MimeType = application/json ]
   "fallbackReason.noKey",
   "fallbackReason.generic",
   "notice.tellNow",
+  "notice.tellNowFallback",
   "reminder.due",
   "reminder.late",
   "banner.allowance",
@@ -1188,6 +1191,7 @@ XData Fixtures [ MimeType = application/json ]
  "fallbackReason.noKey": {"slots": {}, "text": "no model key is set"},
  "fallbackReason.generic": {"slots": {}, "text": "the model's reply couldn't be used"},
  "notice.tellNow": {"slots": {"whatHappened": "Mail from Dana Smith: Invoice 4412 is overdue", "reason": "It mentions a deadline today."}, "text": "Mail from Dana Smith: Invoice 4412 is overdue\nWhy now: It mentions a deadline today."},
+ "notice.tellNowFallback": {"slots": {"whatHappened": "Mail from Dana Smith: Invoice 4412 is overdue", "reason": "refusal"}, "text": "Mail from Dana Smith: Invoice 4412 is overdue\nWhy now: the model declined to answer"},
  "reminder.due": {"slots": {"text": "Call the vendor."}, "text": "Reminder: Call the vendor."},
  "reminder.late": {"slots": {"time": "2026-10-15T14:00:00Z", "text": "Call the vendor."}, "text": "Reminder (late; it was due on Thursday at 10:00 ET): Call the vendor."},
  "banner.allowance": {"slots": {"limit": 50, "time": "2026-10-16T19:02:00Z"}, "text": "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 15:02 ET."},

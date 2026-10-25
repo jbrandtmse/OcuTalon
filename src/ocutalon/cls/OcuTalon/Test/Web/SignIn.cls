@@ -101,6 +101,37 @@ Method TestNoRole()
 	Do $$$AssertEquals(..Count(page, " autofocus"), 1, "one element has autofocus")
 }
 
+/// signedOut=1 with no error code shows the API's signed-out text in the error paragraph, which has the focus, and marks
+/// no field. The wrong-credentials and no-role messages come first, the first-visit code (864) still shows the notice,
+/// and without signedOut=1 the page shows no error element.
+Method TestSignedOutNotice()
+{
+	Set text = $Parameter("OcuTalon.Web.Public.ApiBase", "MESSAGESIGNEDOUT")
+	Do $$$AssertEquals(text, "You were signed out. Sign in again to continue.", "the text is the API's")
+	Do $$$AssertTrue(..IsAscii(text), "and printable ASCII")
+	Set page = ..Page("", "", "", 1)
+	Do $$$AssertTrue(page [ ("<p class=""error"" id=""ocu-error"" tabindex=""-1"" autofocus>"), "the notice is in the error paragraph, which has the focus")
+	Do $$$AssertTrue(page [ ("<span>"_text_"</span>"), "with the signed-out text")
+	Do $$$AssertTrue(page '[ "aria-invalid", "no field is marked")
+	Do $$$AssertTrue(page '[ "class=""input invalid""", "and none is drawn as invalid")
+	Do $$$AssertEquals(..Count(page, " autofocus"), 1, "one element has autofocus")
+	Do $$$AssertTrue(page '[ "didn't work", "it is not the wrong-credentials text")
+	Set page = ..Page("", $SYSTEM.Status.Error(864), "", 1)
+	Do $$$AssertTrue(page [ ("<span>"_text_"</span>"), "the first-visit code (864) shows the notice too")
+	Set page = ..Page("", $SYSTEM.Status.Error(822), "", 1)
+	Do $$$AssertTrue(page [ "<span>That user name and password didn't work.</span>", "with code 822 the credentials text shows")
+	Do $$$AssertTrue(page '[ text, "and the signed-out text does not")
+	Do $$$AssertEquals(..Count(page, "aria-invalid=""true"" aria-describedby=""ocu-error"""), 2, "both fields are marked")
+	Set page = ..Page("norole", "", "", 1)
+	Do $$$AssertTrue(page [ "<span>This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.</span>", "the no-role text comes first")
+	Do $$$AssertTrue(page '[ text, "and the signed-out text does not show")
+	Set page = ..Page("", "", "", 0)
+	Do $$$AssertTrue(page '[ "ocu-error", "without signedOut=1 there is no error element")
+	Do $$$AssertTrue(page '[ text, "and no signed-out text")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).Message("", "", 1), text, "Message gives the notice for no code")
+	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).Message("", "", 0), "", "and nothing without signedOut")
+}
+
 /// The page loads no script or file but its own inline blocks and the five images, and has no style attribute.
 Method TestNoExternalReference()
 {
@@ -180,8 +211,9 @@ ClassMethod IsAscii(text As %String) As %Boolean [ Private ]
 	Quit ascii
 }
 
-/// Renders the page for a state, the server's error code and the typed user name, and returns it.
-Method Page(state As %String, code As %String, user As %String) As %String [ Private ]
+/// Renders the page for a state, the server's error code and the typed user name (and the query signedOut=1 when
+/// signedOut is 1), and returns it.
+Method Page(state As %String, code As %String, user As %String, signedOut As %Boolean = 0) As %String [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(%CSP.Request).%New()
@@ -191,6 +223,7 @@ Method Page(state As %String, code As %String, user As %String) As %String [ Pri
 	Set %request.Data("Error:URL", 1) = "/ocutalon/x"
 	If code '= "" Set %request.Data("Error:ErrorCode", 1) = code
 	If user '= "" Set %request.Data("IRISUsername", 1) = user
+	If signedOut Set %request.Data("signedOut", 1) = 1
 	Set %OcuTalonState = state
 	Set file = ##class(%File).TempFilename("html")
 	Set io = $IO

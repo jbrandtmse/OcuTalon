@@ -102,9 +102,10 @@ Method TestDecisionPayloadKeys()
 	Set payload.FallbackReason = "timeout", payload.InputTokens = 1, payload.OutputTokens = 2, payload.CacheReadTokens = 3
 	Set payload.CacheWriteTokens = 4, payload.AgentStepCount = 5, payload.DurationMs = 6, payload.CostUSD = 0.5
 	Set payload.Model = "model", payload.RecordedAt = "2026-10-19T06:57:07Z", payload.TraceHeaderId = 7, payload.TraceNamespace = "OCUTALON"
+	Set payload.TraceItemIndex = 8, payload.TraceItemIndexNoEvents = 9
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
 	Set exported = {}.%FromJSON(json)
-	Set expected = $ListBuild("ref", "kind", "itemId", "itemSummary", "outcome", "reasons", "confidence", "fallback", "fallbackReason", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "agentStepCount", "durationMs", "costUSD", "model", "recordedAt", "traceHeaderId", "traceNamespace")
+	Set expected = $ListBuild("ref", "kind", "itemId", "itemSummary", "outcome", "reasons", "confidence", "fallback", "fallbackReason", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "agentStepCount", "durationMs", "costUSD", "model", "recordedAt", "traceHeaderId", "traceNamespace", "traceItemIndex", "traceItemIndexNoEvents")
 	Set found = ""
 	Set iterator = exported.%GetIterator()
 	While iterator.%GetNext(.key) {
@@ -118,6 +119,7 @@ Method TestDecisionPayloadKeys()
 	Do $$$AssertEquals(exported.%GetTypeOf("fallback"), "boolean", "fallback is a boolean")
 	Do $$$AssertEquals(exported.fallback, 1, "fallback is true")
 	Do $$$AssertEquals(exported.traceHeaderId, 7, "traceHeaderId is the trace session id")
+	Do $$$AssertEquals(exported.traceItemIndex_"|"_exported.traceItemIndexNoEvents, "8|9", "the two item indexes are the turn's positions")
 }
 
 /// Included() is 1 only when the test-only global is 1: absent, 0, 2 and 1.
@@ -171,7 +173,8 @@ XData Contracts [ MimeType = application/json ]
    "Subject": "%String(MAXLEN=1000)",
    "FromGuide": "%Boolean",
    "CatalogKey": "%String(MAXLEN=128)",
-   "Slots": "%String(MAXLEN=)"
+   "Slots": "%String(MAXLEN=)",
+   "ClientId": "%String(MAXLEN=128)"
   }
  },
  "OcuTalon.Msg.ItemDecision": {
@@ -212,7 +215,9 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=)",
    "CatalogKey": "%String(MAXLEN=128)",
    "Slots": "%String(MAXLEN=)",
-   "CheckRows": "%String(MAXLEN=)"
+   "CheckRows": "%String(MAXLEN=)",
+   "DecisionRef": "%String(MAXLEN=22)",
+   "CheckKey": "%String(MAXLEN=128)"
   }
  },
  "OcuTalon.Msg.Tick": {
@@ -370,7 +375,9 @@ XData Contracts [ MimeType = application/json ]
    "Model": "%String(%JSONFIELDNAME=model,MAXLEN=128)",
    "RecordedAt": "%String(%JSONFIELDNAME=recordedAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
-   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "TraceItemIndex": "%Integer(%JSONFIELDNAME=traceItemIndex)",
+   "TraceItemIndexNoEvents": "%Integer(%JSONFIELDNAME=traceItemIndexNoEvents)"
   }
  }
 }

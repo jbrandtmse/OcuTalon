@@ -558,8 +558,9 @@ Epics are numbered in dispatch order, except Epics 29 to 32 (below). Two `/epic-
   - **Lane A:** 1, 3, 5, 7, 9, 11, 12, then its step epics.
   - **Lane B:** 32, 2, 4, 6, 31, then its step epics.
   - **Lane C:** 8, 16, 29, 10, then 30, 13, 14 and 15.
-  - **Why this order.** Epic 8 depends on Epic 1 (the chat agent's reminder tools), so runner C starts it when Epic 1 merges; its Stories 8.2 and 8.3 wait for Epic 2 (the heartbeat-stalled banner, the background check and Reminders rows, `Notify`) and Stories 8.3 and 8.4 for Epic 4 (the simulated phone, guide step 2), and it merges before Epic 16, so Story 16.4 cancels reminders through the real `ReminderOps`. Epic 16 then waits for Epic 3 (Story 3.8); while it waits, runner C may take Epic 10 ahead of it, setting Story 10.3 aside until Epic 16 merges (Story 10.3 reuses Story 16.4's unlink). Story 16.9 waits for Lane B's Epic 6 (it checks that Approve and Reject keep working). Epic 30 depends only on Lane A's Epics 1, 3, 5 and 7, and Epics 13 to 15 follow it (Story 13.2 needs Story 30.3). Epic 31 follows Epic 6 in Lane B; its story-level needs are unchanged. Every dependency that was only a lane order and now crosses runners was removed, and each story-level need behind one is kept as a story-level wait (Stories 16.9, 10.3 and 13.2). The graph approval of October 23 added the story-level waits the removed edges had hidden (Stories 8.2, 8.3, 8.4, 10.2, 10.3, 13.3, 14.1, 14.2, 15.2, 15.3, 30.1, 31.1 and 31.2; see each epic's Depends on line). [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: "Epic 8 depends only on Epic 1" was wrong; the waits added]
+  - **Why this order.** Epic 8 depends on Epic 1 (the chat agent's reminder tools), so runner C starts it when Epic 1 merges; its Stories 8.2 and 8.3 wait for Epic 2 (the heartbeat-stalled banner, the background check and Reminders rows, `Notify`) and Stories 8.3 and 8.4 for Epic 4 (the simulated phone, guide step 2), and it merges before Epic 16, so Story 16.4 cancels reminders through the real `ReminderOps`. Epic 16 then waits for Epic 3 (Story 3.8); while it waits, runner C may take Epic 10 ahead of it, setting Story 10.3 aside until Epic 16 merges (Story 10.3 reuses Story 16.4's unlink). Story 16.9 waits for Lane B's Epic 6 (it checks that Approve and Reject keep working). Epic 30 depends only on Lane A's Epics 1, 3, 5 and 7, and Epics 13 to 15 follow it (Story 13.2 needs Story 30.3). Epic 31 follows Epic 6 in Lane B; its story-level needs are unchanged. Every dependency that was only a lane order and now crosses runners was removed, and each story-level need behind one is kept as a story-level wait (Stories 16.9, 10.3 and 13.2). The graph approval of October 23 added the story-level waits the removed edges had hidden (Stories 8.2, 8.3, 8.4, 10.2, 10.3, 13.3, 14.1, 14.2, 15.2, 15.3, 30.1, 31.1 and 31.2; see each epic's Depends on line). [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: "Epic 8 depends only on Epic 1" was wrong; the waits added] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): Epic 16 no longer waits for Epic 8. Runner C takes Epic 16 when Epic 3 merges (Epic 8 waits after Story 8.2), Stories 8.3 to 8.5 follow once Epic 4 has merged, on whichever of runners B and C is free first, Story 16.4 cancels reminders through a test double until Story 8.4 turns on the real path, and Story 29.4 waits for Epic 8.]
   - **The October 23 rebalance** [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots."]. To start Epic 11 as early as possible and fill the runners' idle windows, the lanes are: **Lane A** 1, 3, 5, 7, 11, 12; **Lane B** 32 (merged), 2, 4, 6, 10, 9; **Lane C** 32 (Story 32.4), 8, 16, 29; then a **pool** that runner B or C takes, in this order, as each frees up: 30, 13, 31, 15, 14. Epic 10 (Story 10.1) and Epic 13 (Story 13.1) may start early in a runner's idle window and resume later. Each epic keeps its home lane's files. An epic that may run on more than one runner says `**Lane:** B or C (pool)`, and its dispatch fixes its runner and developer instance: before its first stage there, the runner loads and compiles the epic's classes into that instance and checks it (Rule 21). Epic 9 no longer waits for Epic 7 (only Story 9.5 does), Epics 14 and 15 no longer wait for Epics 13 and 14 (runner C's order only), and Story 10.3 builds the pairing unlink that Story 16.4 reuses (it was the other way round), so Epic 10, and with it Epic 11, no longer waits for Epic 16.
+  - **The October 25 changes** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-65, the owner: "Yes let's do it."; inbox U-67)]. Epic 16 no longer waits for Epic 8 (Story 16.4 cancels reminders through a test double until Story 8.4 turns on the real path), and Story 29.4 waits for Epic 8. Epic 12 depends on Epic 10: the first free runner builds it alongside Epic 11, and it merges only once `v0.1.0` is tagged, so 0.1.0 never contains Telegram. The orders: **Lane A** 1, 3, 5, 7, 11; **Lane B** 32, 2, 4, 6, 9, 10; **Lane C** 32, 8, 16, 29; then the **pool**, which runners A, B and C take as each frees up: 12, 30, 13, 31, 15, 14. Epics 9, 10 and 13 may fill an idle window ahead of order.
 
 ### Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -620,14 +621,14 @@ For a data-format cause, OcuTalon proposes repair and resend with a dry run that
 ### Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
-**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 1 (the chat agent's reminder tools); story-level: Stories 8.2 and 8.3 need Epic 2 merged (its heartbeat-stalled banner, background check rows, Reminders rows and `Notify`), and Stories 8.3 and 8.4 need Epic 4 merged (the simulated phone, and guide step 2 with the shared B scenario); Story 8.5 follows Stories 8.3 and 8.4. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: in Lane B's order it now follows Epics 16 and 29; Story 8.4 turns on Story 16.4's real `ReminderOps` cancel path.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B, depending on Epic 6 (lane order) and Epic 1; runner C starts it when Epic 1 merges and merges it before Epic 16, so Story 16.4 uses the real `ReminderOps` and Story 8.4 turns on nothing in it.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: the story-level waits on Epics 2 and 4 added]
+**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 1 (the chat agent's reminder tools); story-level: Stories 8.2 and 8.3 need Epic 2 merged (its heartbeat-stalled banner, background check rows, Reminders rows and `Notify`), and Stories 8.3 and 8.4 need Epic 4 merged (the simulated phone, and guide step 2 with the shared B scenario); Story 8.5 follows Stories 8.3 and 8.4. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: in Lane B's order it now follows Epics 16 and 29; Story 8.4 turns on Story 16.4's real `ReminderOps` cancel path.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B, depending on Epic 6 (lane order) and Epic 1; runner C starts it when Epic 1 merges and merges it before Epic 16, so Story 16.4 uses the real `ReminderOps` and Story 8.4 turns on nothing in it.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: the story-level waits on Epics 2 and 4 added] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): Epic 16 no longer waits for this epic, so Story 8.4 again turns on Story 16.4's real `ReminderOps` cancel path, and also its closed-page case with a real reminder that fires after the CSP session ended; Story 29.4 waits for this epic.]
 **FRs covered:** FR-32, FR-33 (check list on the page), FR-34.
 **Also covers:** NFR-10, NFR-16; AD-5 (ReminderTimer), AD-18.
 
 ### Epic 9: Quality is measured: the evaluation set
 
 A recorded evaluation set (at least 20 items across all four outcomes, injection cases including the suspicious-request email, the all-clear cases and at least 10 recorded incidents including the demo's) scores decisions and causes, records cost and the largest request, runs against the mock on every push and on Claude Haiku 5.5 for each release candidate, and gates the release with the 10-run demo-incident check.
-**Lane:** B (runner B, in Lane A's files). **Depends on:** Epic 2 (`Intake` sending evaluation decisions to `EvalSink`) and Epic 5 (Stories 9.1, 9.3 and 9.4 use `IncidentManager`, `EvidencePack`, `WatchOps` and `Checks`); story-level: Story 9.5 needs Epic 7 merged (the repair-and-resend kind's validation, Story 7.1). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: was Epic 29 (lane order only), which now runs in Lane B after Epic 16.] [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 7 (lane order).] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was Lane A, depending on Epic 7 (lane order) and Epic 2]
+**Lane:** B (runner B, in Lane A's files). **Depends on:** Epic 2 (`Intake` sending evaluation decisions to `EvalSink`) and Epic 5 (Stories 9.1, 9.3 and 9.4 use `IncidentManager`, `EvidencePack`, `WatchOps` and `Checks`); story-level: Story 9.5 needs Epic 7 merged (the repair-and-resend kind's validation, Story 7.1). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: was Epic 29 (lane order only), which now runs in Lane B after Epic 16.] [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 7 (lane order).] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was Lane A, depending on Epic 7 (lane order) and Epic 2] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): runner B takes it right after Epic 6 (Lane B: 32, 2, 4, 6, 9, 10), and it may fill ahead: the first free runner takes it once Epic 5 has merged, because Epic 11 waits for it.]
 **FRs covered:** FR-10 (evaluation case: asked to run a command, no tool is called), FR-62.
 **Also covers:** NFR-3, NFR-4, NFR-14 (injection cases), REL-5; AD-22.
 
@@ -647,8 +648,8 @@ The whole web demo path (UJ-1 without Telegram) runs end to end on real componen
 
 ### Epic 12: Approve from your own phone with Telegram
 
-A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A (moved from Lane B on October 17) after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2).
-**Lane:** A. **Depends on:** Epic 11.
+A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A (moved from Lane B on October 17) after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
+**Lane:** pool (runner A, B or C, in Lane A's files). **Depends on:** Epic 10 (Story 10.3's session side of Telegram; Epic 10's merge also brings Epics 2, 4 and 6); story-level: Story 12.6 waits for Epics 5, 7 and 8 (the Watch notice keys, the fix results and reminders), and Story 12.7 for Epics 11 (it extends Story 11.2's upgrade and restart harness) and 16 (Story 16.3's Telegram-card check). It merges into the integration branch only once the `v0.1.0` tag exists, so no 0.1.0 candidate, re-cut or not, contains Telegram (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): it read "**Lane:** A. **Depends on:** Epic 11."; the first free runner builds it alongside Epic 11 once Epic 10 has merged.]
 **FRs covered:** FR-8 (Telegram channel), FR-18, FR-19, FR-20, FR-21, FR-22.
 **Also covers:** NFR-6, NFR-11; AD-14; UX-DR55, UX-DR56 (Telegram card), UX-DR109, UX-DR114, UX-DR136, Message Catalog › Pairing and Telegram.
 
@@ -676,7 +677,7 @@ An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with i
 ### Epic 16: Anyone can try the online demo
 
 A visitor opens the online demo with no install and no key, signs in from the splash screen, sees the reset countdown, the busy state when the demo is full and the demo's allowances, and leaves or signs out cleanly; the busy and maintenance pages and the monitoring probe are ready for the demo host, busy refusals are logged per day, and the README leads to the demo. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test moved to Lane A's Epic 29 (Stories 29.1 to 29.4): the public settings and accounts, the session a browser resumes until the reset, the demo host, and isolation under load.] [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Stories 29.1 and 29.2 are back here as Stories 16.1 and 16.3, and Story 16.10 moved to Story 31.3 in Epic 31; Epic 29 keeps the demo host (Story 29.3) and isolation under load (Story 29.4).]
-**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 2 (Stories 2.2, 2.4, 2.9 and 2.10, which this epic extends), Epic 3 (Story 3.8: the online demo's public settings, password guard and spending cap) and Epic 8 (Story 16.4 cancels reminders through the real `ReminderOps`); story-level: Story 16.4 waits for Epic 10 (it reuses Story 10.3's pairing unlink), and Story 16.9 waits for Lane B's Epic 6 (it checks that Approve and Reject keep working). The README links point at the README that Epic 10's Story 10.2 writes, whose link check covers them once it merges. [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Epic 2 named; the sentence on a ReminderOps test double until Story 8.4 removed, as the October 22 change superseded it] [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." it was Epic 10 (lane order), with story-level edges on Lane A's Epic 29 (Story 16.2 needed Story 29.1 and Story 16.4 needed Story 29.2) and Story 16.10's on Story 15.2; Stories 16.1 and 16.3 are back in this epic, and Story 16.10 is Story 31.3.] [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 16.2 no longer waits for Story 11.1, because its online-demo run follows the web run's steps, which Story 11.1 turns on, and runs only its splash sign-in until then; Story 16.7's edge to Story 11.5 and Story 16.10's to Story 11.1 went with them to Epic 29.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B, depending on Epic 6 (lane order; Story 16.9) and Epic 3; Epic 8 now merges first, so the sentence above on Story 16.4's test double is superseded.] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." Story 16.4's wait on Epic 10 added with the unlink swap]
+**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 2 (Stories 2.2, 2.4, 2.9 and 2.10, which this epic extends) and Epic 3 (Story 3.8: the online demo's public settings, password guard and spending cap); story-level: Story 16.4 waits for Epic 10 (it reuses Story 10.3's pairing unlink), and Story 16.9 waits for Lane B's Epic 6 (it checks that Approve and Reject keep working). The README links point at the README that Epic 10's Story 10.2 writes, whose link check covers them once it merges. [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Epic 2 named; the sentence on a ReminderOps test double until Story 8.4 removed, as the October 22 change superseded it] [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." it was Epic 10 (lane order), with story-level edges on Lane A's Epic 29 (Story 16.2 needed Story 29.1 and Story 16.4 needed Story 29.2) and Story 16.10's on Story 15.2; Stories 16.1 and 16.3 are back in this epic, and Story 16.10 is Story 31.3.] [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: Story 16.2 no longer waits for Story 11.1, because its online-demo run follows the web run's steps, which Story 11.1 turns on, and runs only its splash sign-in until then; Story 16.7's edge to Story 11.5 and Story 16.10's to Story 11.1 went with them to Epic 29.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B, depending on Epic 6 (lane order; Story 16.9) and Epic 3; Epic 8 now merges first, so the sentence above on Story 16.4's test double is superseded.] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." Story 16.4's wait on Epic 10 added with the unlink swap] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): Epic 8 dropped, so runner C takes this epic when Epic 3 merges; until Story 8.4 merges, Story 16.4's tests cancel reminders through a `ReminderOps` test double that records the call, and Story 8.4 turns on the real path and a real reminder in the closed-page case. It read "… Epic 3 (Story 3.8 …) and Epic 8 (Story 16.4 cancels reminders through the real `ReminderOps`)".]
 **FRs covered:** FR-14 (the splash, leaving and signing out, and the session a browser resumes until the reset), FR-15 (one session per browser, busy, allowances), FR-40 (online-demo caps), FR-59 (the public settings and accounts, the splash's published details, the probe). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: FR-58's 1.0.0 README moved with Story 16.10 to Story 31.3; the resume session and the public accounts came back with Stories 16.1 and 16.3.]
 **Also covers:** NFR-15, NFR-23; AD-13, AD-25 (the busy and maintenance pages, the probe); UX-DR24 to UX-DR27, UX-DR87, UX-DR107, online-demo state rows; the 1.0.0 kit. [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: AD-4 (the resume cookie), AD-24 (the trace accounts) and AD-27 (the address counter's purge) moved with Stories 16.1 and 16.3 to Epic 29.] [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: AD-4 (the resume cookie), AD-24 (the trace accounts) and AD-27 (the address counter's purge) are back here with Stories 16.1 and 16.3.]
 
@@ -766,7 +767,7 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 ### Epic 29: The online demo's platform side
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, Stories 16.1, 16.3 and 16.7 and Story 16.10's isolation and load test, renumbered 29.1 to 29.4.] The online demo's start values and public accounts are in place, each browser's sign-in opens a session it resumes until the reset, the demo host is adapted for the launch, and sessions stay isolated under load, so the online demo lands by November 1. Lane A builds these four stories after its demo-path epics and before Epics 9, 11 and 12. The files they change stay Lane B's, under AD-29's Epic 29 exception; Lane B builds the rest of the online demo in Epic 16. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner; the owner: "Bring Epic 16 forward, we need the demo as early as practicle." Stories 29.1 and 29.2 went back to Epic 16 as Stories 16.1 and 16.3; this epic keeps Stories 29.3 and 29.4, and Lane B builds them right after Epic 16, under AD-29's Epic 29 exception for Story 29.4's load test in `release/`.]
-**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 16 (Story 29.3 needs Stories 16.5 and 16.6, the busy and maintenance pages and the probe the host serves and runs; Story 29.4 needs Story 16.2, the REL-2 online-demo run, and Story 16.5, the busy text) and Epic 3 (Story 3.8). Story 29.4's paired-chat cases moved to Story 31.4. Story 29.4 also waits for Lane A's Epics 5 and 7 to merge (its first two criteria need the real watch, incident and fix-approval path), and its real-proxy load case is the author's to run once the host is adapted and the release is deployed [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the story-level wait added]. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Lane A, after Epic 7 (lane order), with story-level edges on Epic 16.] Story 29.3 doesn't wait for Story 11.5, which Story 16.7 did: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. Story 29.4 doesn't wait for Story 11.1: its online-demo run follows the web run's steps, which Story 11.1 turns on. [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B; the Epic 29 exception (AD-29) is unchanged.]
+**Lane:** C (runner C, in Lane B's files). **Depends on:** Epic 16 (Story 29.3 needs Stories 16.5 and 16.6, the busy and maintenance pages and the probe the host serves and runs; Story 29.4 needs Story 16.2, the REL-2 online-demo run, and Story 16.5, the busy text) and Epic 3 (Story 3.8). Story 29.4's paired-chat cases moved to Story 31.4. Story 29.4 also waits for Lane A's Epics 5 and 7 to merge (its first two criteria need the real watch, incident and fix-approval path) and for Epic 8 (each session's reminders stay its own), and its real-proxy load case is the author's to run once the host is adapted and the release is deployed [AMENDED 2026-10-21, readiness gate at the unattended launch, worked out with the Contest Planner: the story-level wait added]. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Lane A, after Epic 7 (lane order), with story-level edges on Epic 16.] Story 29.3 doesn't wait for Story 11.5, which Story 16.7 did: AD-25 fixes the two host commands, and Story 11.5 tests its hook against a stand-in. Story 29.4 doesn't wait for Story 11.1: its online-demo run follows the web run's steps, which Story 11.1 turns on. [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B; the Epic 29 exception (AD-29) is unchanged.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the wait on Epic 8 added; this epic depended on Epic 8 only through Epic 16, which no longer waits for it.]
 **FRs covered:** FR-15 (isolation and load), FR-40 (the gateway's daily cost cap, Story 29.3), FR-59 (the demo host). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: FR-14's resume session and FR-59's public settings and accounts went back to Epic 16 with Stories 16.1 and 16.3.]
 **Also covers:** NFR-15, NFR-23; AD-13, AD-25 (the demo host), AD-29 (its Epic 29 exception, for Story 29.4's load test in `release/`); the 1.0.0 kit. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: AD-4, AD-24, AD-27, UX-DR87 and UX-DR95 went back to Epic 16 with Stories 16.1 and 16.3.]
 
@@ -1552,6 +1553,8 @@ So that I see my own conversation and status, and every change, as soon as it ha
 
 - DW-15: `GET /state` and `GET /events` resolve the caller's session through `OcuTalon.Data.Ownership` from the CSP session (AD-4), replacing Epic 0's interim `Session.ForUser($Username)` lookup, so two visitors signed in with one shared account never see each other's events; a test signs in twice with one account and shows each poll holds only its own session's events (ledger; routed by cr 2026-10-19)
 
+- DW-57: Story 2.1's server button, inline notice and announcer get their first browser test through this story's **Retry**: while busy the button keeps its label, shows the spinner and has `aria-busy` and `aria-disabled` true (never `disabled`); with no answer by 10 s it restores and shows the warning notice "Couldn't reach OcuTalon. Try again. Nothing was changed." under it, announced once through the polite announcer (ledger; routed by cr 2026-10-22)
+
 ### Story 2.3: Route every command by verb, with origin checks
 
 As a security reviewer,
@@ -1567,7 +1570,7 @@ So that a tool or arriving content can never reach a governance command, and eve
 
 **Given** a command with origin `tool`
 **When** `CommandsIn` checks it
-**Then** it accepts only setting or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1)
+**Then** it accepts only setting, listing or cancelling a reminder, starting or stopping a watch, saving or forgetting a memory (once step 3 adds those verbs), and dismissing one of the session's own incidents (PRD FR-24 allows a dismissal from the chat); any other verb (an approval answer, a settings or demo-mode change, a classification, adding or removing an MCP server, pairing or unpairing, ending a session) is refused with a plain-English `CommandResult` and changes nothing (FR-24, NFR-14, AD-1) [AMENDED 2026-10-22, Story 2.3 spec validation, Rule 5 tier 1, Epic 2 runner: it read "setting or cancelling a reminder"; AD-1's Rule and Story 1.10's list tool include listing]
 **And** a test submits each governance command with origin `tool` and expects the refusal (AD-1, AD-22)
 
 **Given** the settings and demo-mode verbs, and the pairing verb
@@ -1612,6 +1615,8 @@ So that OcuTalon never leaves a message of mine unanswered.
 **When** IRIS or its container restarts
 **Then** queued turns are still queued and run in order, and a turn left `running` is run again (FR-6, NFR-16, AD-30)
 
+- DW-61: Each `Turn` keeps my message text, its reply text as sent, the `clientId` and the trace target, and `ChatMessage.FromRow` (Story 2.2) maps them, so `/state`'s chat shows every turn with its reply after a reload; Story 2.2's snapshot carries the turn entries without text until then (ledger; routed by spec_gate 2026-10-22)
+
 ### Story 2.5: Chat with OcuTalon in the page
 
 As a user,
@@ -1644,6 +1649,8 @@ So that talking to OcuTalon is a quiet conversation I can follow.
 **When** new content arrives
 **Then** the chat doesn't move, and a floating "New messages" button with `chevron-down` appears centred above the composer, just before it in tab order; pressing it scrolls down and focuses the first new message (UX-DR67, UX-DR126)
 **And** the REL-2 spec for UJ-1's page step, one Playwright spec per UJ-1 step under `web/e2e/demo-path/` whose runner configuration and fixtures Lane B owns, checks the chat panel and the composer (REL-2, AD-29)
+
+- DW-65: `/state`'s chat (Story 2.2's `Web.Api.ChatItems`) loads and serializes every turn and noticed incident of the session with no cap or paging, and a durable local session only grows; this story decides a cap or paging for the snapshot's chat within AD-12's snapshot shape, and a test pins it on a long session (ledger; routed by harvest 2026-10-22)
 
 ### Story 2.6: Show every decision with its reasons and cost
 
@@ -1716,6 +1723,10 @@ So that only what needs me interrupts me, and nothing an outsider sends can act.
 **And** page times use the browser's zone and hour format with no suffix, and a page time beside message text adds the browser's zone abbreviation when it differs from the instance's ("20:15 CEST"); a Playwright test runs the browser in a zone different from the instance's (FR-12, UX-DR123)
 **And** a CI check against the mock on every run finds a tell-now notification in the page's web chat within 5 seconds of its decision, and on the simulated phone within 5 seconds once Story 4.5 builds `SimPhoneOut` and turns that half on; the 19-of-20 figure over real networks is measured in the rehearsal and on the online demo (FR-1, NFR-9, P30)
 
+- DW-62: Each web notice card is kept where the snapshot can read it, and `StateBody`'s chat merge (Story 2.2) adds its `notification` entries in time order, so a reload shows the cards in the conversation (ledger; routed by spec_gate 2026-10-22)
+
+- DW-81: With `DecideDouble` (Story 2.4) running inside a throwaway production, a `Busy` answer makes `Conversation` (Story 2.4) wait about 3 seconds through the real `Ens.Alarm`, then resend on the reopened instance, at most 5 times before the fallback route, and a test shows it end to end (ledger; routed by cr 2026-10-22) [AMENDED 2026-10-23, Story 2.7 spec gate, Epic 2 runner: declined by Story 2.7's plan (it needs a production of its own with DecideDouble as Decide) and re-owned to the Epic 2 burn-down; ledger DW-81]
+
 ### Story 2.8: Show the status rail
 
 As a user,
@@ -1756,6 +1767,8 @@ So that I see at a glance what OcuTalon is doing for me.
 **And** the rail's Telegram card is its own Angular component under `web/src/app/rail/telegram-card/`, which Lane A owns from Epic 12 (AD-29, AD-33)
 **And** the REL-2 spec for UJ-1's page step also checks the status rail's sections (REL-2)
 
+- DW-68: `Session.Recipients` finds an `instance` incident's watchers where the read is allowed (a production job, not the signed-in user's REST request, which holds no SQL grant under AD-13), or the story asks for an AD-13 amendment; a failed watcher read is loud, never the same as "nobody watches"; a test shows two watching sessions both get BridgeSink's `approval` event (ledger; routed by cr 2026-10-22)
+
 ### Story 2.9: Open anything in Visual Trace
 
 As a judge,
@@ -1774,19 +1787,10 @@ So that I can watch the assistant work like any other production.
 **Then** `OcuTalon.Web.TraceLink`, the one builder of trace URLs, adds the URL: OcuTalon's own trace application for the namespace (`/ocutalon/trace/ocutalon/` or `/ocutalon/trace/ocuorders/`), `SESSIONID` set to the target header id, and `PAGE` = ceil(item index ÷ page size), where the item index counts the thread's headers up to the target plus every event-log, rule-log and I/O-log row of the thread logged up to the target's creation, and the page size and "Show events" are the opening viewer's own Visual Trace settings (defaults 40 and on), read through one helper (AD-24, AD-26)
 **And** a test builds a thread of more than 40 items and finds that the link to a late turn opens Visual Trace on that turn (AD-26)
 
-**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
-**When** it renders
-**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
-**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+**[AMENDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): the page half - the trace links on the strip and the rail rows, the Visual Trace menu and the sign-in popover, with DW-58 - moved word for word to Story 2.13, which consumes this story's `traceUrl`.]**
 
-**Given** the app header
-**When** I open the Visual Trace menu, a ghost menu button with `external-link`
-**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
-
-**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
-**When** I press a trace link or open the Visual Trace menu
-**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
-**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+- DW-74: A throwaway check settles whether `Commands.Submit` (Story 2.3) loses the calling job's job-local `SessionId` (`Ens.BusinessService.ProcessInput` kills it on exit): inside an operation job with the id set, `Submit`, then log an event and read its `SessionId`; if it is lost, `Trace.Join` or the runner restores it, so a tool's later steps stay in the turn's Visual Trace thread (ledger; routed by harvest 2026-10-22) [AMENDED 2026-10-23, Story 2.9 spec gate, Epic 2 runner: declined by Story 2.9's plan (the fix belongs in the contended `Core/Commands.cls`) and re-owned to the Epic 2 burn-down; ledger DW-74]
+- DW-112: A `SessionBroken` turn's retry in `Conversation.Rebuild` (Story 2.4) is a new `Decide` call under a new `ItemId` (derived from the turn's), never the turn's own `ItemId`, which AD-20's one decision per item and kind makes `Decide` refuse; the broken attempt keeps its `error` fallback row, the Turn keeps its own `ItemId` and links to the retry's decision, and a test shows a SessionBroken retry reaching `Decide` under a new `ItemId` and getting an answer (ledger; routed by cr 2026-10-23, orchestrator cross-epic ruling)
 
 ### Story 2.10: Show status banners for a missing key or a stalled heartbeat
 
@@ -1855,6 +1859,49 @@ So that the page works for me as well as for anyone.
 **When** the page applies it, whether it came from me or from another channel
 **Then** focus moves to its replacement, to the section heading when a row leaves its list, or otherwise to the nearest container; live content never moves focus in any other case (NFR-25, UX-DR126, UX-DR131)
 
+**[AMENDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): the keyboard-and-labels and colour-zoom-motion criteria moved word for word to Story 2.14, the layout criterion to Story 2.15, and the cross-browser, scan and string-test criterion with DW-89 and DW-145 to Story 2.16; this story keeps the announcement and focus criteria and DW-153.]**
+
+- DW-153: Banners that appear in one update are announced so that a screen reader keeps each text (one message per update, or each held long enough), checked with VoiceOver and NVDA (ledger; routed by cr 2026-10-24)
+
+### Story 2.13: Open Visual Trace from the page
+
+As a judge,
+I want every decision strip and rail row to link to the right place in Visual Trace, and a header menu that opens my conversation,
+So that I can follow the assistant's work from the page in one click.
+
+[ADDED 2026-10-23, Story 2.9 plan, Epic 2 runner, split (U5 decide): Story 2.9's page half, word for word; it uses the `traceUrl` that `/state` and `/events` carry from Story 2.9, and it is planned next after Story 2.9.]
+
+**Acceptance Criteria:**
+
+**Given** the page shows a decision strip, decision row, check row, reminder row or approval request row
+**When** it renders
+**Then** each carries a trace link (an `external-link` icon and an underlined "Trace" in `action-ink` caption text) beside, never inside, the row's button, opening in a new tab with "(opens in a new tab)" in its name (UX-DR42, UX-DR57, UX-DR61)
+**And** the links open: a turn at its user message, decision, agent steps and reply; a decision at the decision message's session; a check at its latest run; a reminder at its waiting process; an approval request row at its incident's trace (NFR-20, UX-DR52, UX-DR139)
+
+**Given** the app header
+**When** I open the Visual Trace menu, a ghost menu button with `external-link`
+**Then** its popover holds "Open my conversation in Visual Trace", which opens the current day's thread in a new tab (UX-DR29, UX-DR39, UX-DR139)
+
+**Given** a local or IPM install and a browser session that hasn't seen the sign-in popover
+**When** I press a trace link or open the Visual Trace menu
+**Then** trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`, and the first press shows the popover headed "Sign in to Visual Trace" with "Visual Trace opens in the IRIS Management Portal in a new tab. Sign in with your IRIS account if it asks.", "Don't show this again" (remembered per browser) and the optional "Open Visual Trace" button, which opens the target (UX-DR38, UX-DR42, UX-DR128, UX-DR140)
+**And** after it has been seen in the browser session, links open directly; with the online-demo flag set, links open directly and the popover never shows (FR-14, UX-DR140)
+
+- DW-58: Story 2.1's popover service gets its first browser test through this story's Visual Trace menu: the container is a `dialog` named by its heading without `aria-modal`, focus goes to its first control on open, and Esc, a press outside, or focus leaving both the trigger and the panel closes it and returns focus to the trigger (ledger; moved from Story 2.9 with its first consumer, the Visual Trace menu; routed by cr 2026-10-22)
+
+- DW-129: A decision's trace link opens on the decision itself, not on page 1 of the day's thread with its first Item selected: with Story 2.9's day thread a decision's `traceHeaderId` is the thread and no index is known, so the link needs the decision message's place (or its own header) (ledger; routed by cr 2026-10-23)
+
+
+### Story 2.14: Work the whole page by keyboard, with labels and words
+
+As a user who works by keyboard or with a screen reader,
+I want every function reachable by keyboard, every control labelled and every state in words,
+So that the page works for me as well as for anyone.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned next after Story 2.12.]
+
+**Acceptance Criteria:**
+
 **Given** I use only the keyboard
 **When** I work through the page
 **Then** every function works: the first tab stops are "Skip to chat" and "Skip to status"; Enter sends and Shift+Enter adds a line; Esc closes the topmost popover or dialog and collapses a disclosure only when focus is inside it; there are no single-character shortcuts; and the focus ring is always visible and never clipped, because every scrolling region keeps `scroll-gutter` (NFR-25, UX-DR11, UX-DR33, UX-DR125)
@@ -1865,14 +1912,54 @@ So that the page works for me as well as for anyone.
 **Then** it never relies on colour alone (every state has a word and every link is underlined), text resizes to 200% without loss because heights are minimums, errors are text beside their cause linked to their field, and under `prefers-reduced-motion` nothing rotates, pulses, shimmers or scrolls smoothly (NFR-25, UX-DR14, UX-DR134, UX-DR135)
 **And** none of the banned patterns appears: modal notification interruptions, toasts as the only copy, sounds, tabs that switch by themselves, hover-only controls, drag-and-drop as the only way, model-progress bars, celebration effects, or infinite scroll in counted lists (UX-DR129)
 
+### Story 2.15: Lay the page out at every supported width
+
+As a user in a smaller window or at 200% zoom,
+I want the page laid out for my window,
+So that everything stays readable and reachable.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Story 2.14.]
+
+**Acceptance Criteria:**
+
 **Given** the browser window's size
 **When** the page lays out
 **Then** from 1440px wide the rail is `rail-width-wide`; from 1280 to 1439px it is `rail-width` and every UJ-1 control is reachable without scrolling the page, because each region scrolls on its own; from 1024 to 1279px the rail becomes a drawer opened from a "Status" header button that shows the approval request count; below 1024px or at 200% zoom the page becomes one scrolling column (header, banners, the chat scrolling on its own at `min(70vh, content)`, then the status sections) with only a compact header sticky (FR-12, UX-DR20, UX-DR137)
 **And** in the stacked layout, the info inline notice "This page is designed for a wider window. Everything still works." shows once per session, and its close is remembered per browser (UX-DR35, UX-DR128, UX-DR138)
 
+### Story 2.16: Prove the floor in Chromium, Firefox and WebKit
+
+As a user of any supported browser,
+I want the accessibility floor checked in Chromium, Firefox and WebKit,
+So that the page works for me whichever browser I use.
+
+[ADDED 2026-10-24, Story 2.12 plan, Epic 2 runner, split (U5 decide): part of Story 2.12, word for word; planned after Stories 2.14 and 2.15, whose surfaces its scan and string test cover.]
+
+**Acceptance Criteria:**
+
 **Given** the CI demo-path environment
 **When** the page tests run
 **Then** Playwright runs the main page in Chromium, Firefox and WebKit at 1280×720 and 1280×600, an automated accessibility scan finds no unlabelled control and no contrast failure in the light and dark themes, and a string test checks every fixed interface string this epic introduced against the UX, including the single "…" character in "Deciding…", "Working…" and "Reconnecting…" (FR-12, NFR-25, UX-DR8, UX-DR117, UX-DR138)
+
+- DW-89: The chat list (Story 2.5's `chat-panel`) and the rail scroll on their own with no tab stop, so a keyboard user in WebKit cannot scroll them; each scroller gets a tab stop and a name (for example `tabindex="0"` labelled by its heading), and the WebKit run checks it (ledger; routed by cr 2026-10-22)
+- DW-145: In Safari and macOS Firefox the Visual Trace menu button closes its own open menu, as it does in Chromium: Story 2.1's popover service treats the trigger's own press as the close, and this story's WebKit and Firefox runs check it (ledger; routed by cr 2026-10-24)
+- DW-178: The skip links (Story 2.14) pass this story's accessibility scan in every browser: no link points at nothing (for example an in-page target in place of `href="#/"`) (ledger; routed by harvest 2026-10-24)
+- DW-179: Every floor case removes the turns it seeds: Story 2.12's A1, A5, A7 and P4 pass `turnRows` to `cleanFixtureRows` as Story 2.14's cases do, so running the floor unit in several browser projects on one stack leaves no turns behind for K4's bounded tab walk (ledger; routed by adjudication 2026-10-24)
+
+
+### Story 2.17: Epic 2's tests follow the real Decide
+
+As the team merging Epic 2 onto the feature branch,
+I want Epic 2's live and production tests to assert what the merged system does now that Epic 1's real Decide has replaced Epic 0's stub,
+So that the merged branch is green for the right reasons and every Epic 2 promise is still proven.
+
+[ADDED 2026-10-25, Epic 2 integrate-forward, Epic 2 runner, fix-forward (U5: one fix-forward story per root cause, the failing code in this epic's own changes; veto item). Root cause: Epic 2's tests were written against Epic 0's stub Decide, whose fallback reason is `unusable`; on the merged tree the real Decide of Epic 1 answers a stack with no model key with the `noModelKey` fallback ("I couldn't answer that: no model key is set. Nothing was changed.").]
+
+**Acceptance Criteria:**
+
+**Given** the feature branch merged into Epic 2 (Epic 1's real Decide, a throwaway stack with no model key, and the CI model mock where a test uses it)
+**When** Epic 2's tests run on the merged tree: `shard:lane-b` (`OcuTalon.Test.Core.ConversationProduction`, `RoutingProduction`, `ThreadProduction`), `live:production-restart` (row 20), `live:sign-in` (Story 2.4's api row and Story 2.5's C2-C4, C7, C9-C11 and C15, and every case that did not run after them) and every other group
+**Then** each asserts the outcome the merged system produces (the reply text, the fallback reason, the turn's states and events, and whatever decision record the real Decide keeps), every Epic 2 acceptance criterion those tests pin is still pinned by a test that can fail, no product behaviour changes unless a test exposes a real integration defect (which this story then fixes, with a test), and all six IRIS groups and the hosted checks pass on the merged tree
 
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
@@ -2200,6 +2287,7 @@ So that I see OcuTalon handle a genuine failure, not a canned one.
 **Then** it is a production message in Visual Trace and never a turn: it creates no `Turn` row and no attention decision, and it never counts toward the session's message allowance (FR-16, UX-DR49, UX-DR126)
 **And** it is written to the IRIS audit log as an `Action` naming the IRIS user, the `SessionRef` and the channel, through `OcuTalon.Bridge.Audit` (FR-9, AD-17)
 **And** the REL-2 spec for UJ-1's incident step presses Break the feed and checks the press and the batch, using fixtures for Lane A's incident path; Epic 11 turns it on end to end; NFR-7's 60 seconds from the press to the notice is measured in the rehearsal, not asserted in CI (NFR-7, REL-2, AD-29, UX-DR102)
+- DW-98: No test drives the bridge's own emission of `decision.recorded` and `turn.step` into BridgeSink; every test calls OnEvent directly. With Lane A's emitter merged (Epic 1), this story's real batch makes the real Decide record decisions for a session: assert that a `decision.recorded` (and a `turn.step`) the bridge emits reaches that session's stream through BridgeSink (ledger; routed by burndown 2026-10-25)
 
 ### Story 4.4: Show the demo guide and the Break the feed box
 
@@ -2237,6 +2325,7 @@ So that I can follow the two-minute demo without reading any instructions.
 **Given** the guide's size and visibility
 **When** I press "Hide guide" (only that collapses it)
 **Then** the guide collapses to one bar, "Demo guide · step {n} of 5 · Show guide", whose "Show guide" button carries `aria-expanded`, with the Break the feed box keeping its place and rules at the bar's right end, and the choice is remembered per browser; under 680px tall the guide uses its compact single row, and from 1024 to 1279px wide the steps show numbers instead of labels (UX-DR46, UX-DR128)
+- DW-198: flake: floor-webkit G1 (`web/e2e/floor/layout.spec.ts:136`) at 1280x600 on the Linux CI host: a rail Trace link's focus ring ends 0.78 px past the viewport's bottom (600.78 vs 600), beyond the ring check's half-pixel tolerance. This story adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs (ledger; routed by flake 2026-10-25)
 
 ### Story 4.5: Get notifications on the simulated phone
 
@@ -2341,6 +2430,7 @@ So that I finish the demo in about two minutes and know what I saw.
 **Given** the REL-2 specs under `web/e2e/demo-path/`
 **When** this epic's page parts are on the integration branch
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
+- DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 
@@ -2379,6 +2469,7 @@ So that a background check starts or stops without any configuration.
 **And** an injected "stop watching" in an untrusted item stops nothing (NFR-14, AD-22)
 
 - DW-38: Matching a production by its display name finds only productions registered in their own namespace, so the never-running `OcuTalon.Demo.Orders.Production` row that compiling the package leaves in OCUTALON (description "Orders") is never offered as the Orders production (measured in Story 0.10) (ledger; routed by code review 2026-10-20)
+- DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread. This story's start-watch tool is the first tool job that calls Commands.Submit inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId, and if they don't, restore the id after Submit (`Core/Commands.cls`) with a test (ledger; routed by burndown 2026-10-25)
 
 ### Story 5.2: New failures are picked up within seconds
 
@@ -2543,6 +2634,7 @@ So that I can see when each check last ran and what it found.
 **Given** incidents that aren't closed
 **When** `Checks` runs
 **Then** it sends `closeQuiet` to `IncidentManager` for each incident whose last failure is older than 15 minutes, and `IncidentManager` applies it only where the transition table allows (Story 5.5) (FR-24, P26, AD-15)
+- DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace. The check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it (ledger; routed by harvest 2026-10-22)
 
 ### Story 5.7: Asked whether everything is fine, OcuTalon never gives a false all-clear
 
@@ -2569,6 +2661,7 @@ So that an all-clear means every check passed.
 **When** the user asks "is everything OK?"
 **Then** the reply contains no all-clear, and `Render` names the failing check first (FR-37)
 **And** with a mock scenario under `ci/mock/scenarios/A/` in which the model claims everything is fine while a check fails, the reply still contains no all-clear (FR-37)
+- DW-90: `checks.notEverything` and `notEverythingRestPassed` take a whatFailed slot that the pinned `Checks.Render(results, *rows)` has no way to return, so the page (Story 2.6) shows no sentence for those keys. This story says how the page gets whatFailed (from the failing row, or a slot path through Render), and the page renders both keys (ledger; routed by spec_gate 2026-10-22)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
@@ -2642,6 +2735,9 @@ So that nothing risky happens without my yes, and I know at once whether my answ
 **When** the card applies the result or the `approval` event
 **Then** the label reads "Approval request", the answered status replaces the two buttons in the same row ("Approved from the web chat at 14:15", with no final period), the fixed-targets line, the expiry and "Nothing has changed yet." are removed, and the dry run stays as a record; if a button had focus, focus moves to the status line (`tabindex="-1"`) (FR-8, UX-DR75, UX-DR76, UX-DR131)
 **And** a press that lost the race shows "Already answered: approved from Telegram at 14:15.", channels read "the web chat", "the simulated phone" or "Telegram", and on a local install with more than one OcuTalon user the status names who answered ("Approved by sam from the web chat at 14:15") (FR-8, UX-DR76)
+- DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request. Story 2.8 made the failed read loud (Watchers and Recipients pass its status on; BridgeSink logs it and publishes nothing). Residual for this story: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; this story hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113) (ledger; routed by adjudication 2026-10-23)
+- DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green; no role change, login or bound value makes the checked prepare fail in %UnitTest. This story's privilege-limited REST answer path is where the read really fails: pin those branches there (ledger; routed by merge_gate 2026-10-25)
+- DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. A test pins that a web answer passes the session's Ref, and that a malformed sessionRef answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
 
 ### Story 6.3: Answer on the simulated phone and see every answer everywhere
 
@@ -2679,6 +2775,7 @@ So that I can approve from the phone and trust that one answer settles the reque
 **When** `NoticesIn` (`OcuTalon.Core.NoticesIn`, an adapterless service, a real item, not a stub) receives it, asynchronously
 **Then** it joins the turn's own thread through the bridge context's `ThreadSessionId` when there is one, forwards the notification to `Notify`, and a test with a fixture notification finds it delivered on each of the session's channels (AD-26, AD-31, AD-32)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] `BridgeSink`'s own sends through `NoticesIn` arrive with Story 31.2 (a tool call's notifications) and Story 16.9 (the daily-cap message)
+- DW-128: BridgeSink.Step drops every `turn.step` of a SessionBroken retry: the bridge context carries `RetryItemId(turn.ItemId)`, and Step publishes only when the context's ItemId is the running turn's own. With Epic 1's step emitter merged, a retry's `turn.step` is now reachable: Step also accepts `RetryItemId(running.ItemId)` (`Core/BridgeSink.cls`), with a test of a retried turn's steps (ledger; routed by burndown 2026-10-25)
 
 ### Story 6.4: Close the loop with results, rejections, expiry, fallbacks and Dismiss
 
@@ -2722,6 +2819,7 @@ So that I always know the outcome and can start a new run.
 **Given** a resolved incident left alone, or replaced by a new Break the feed run, or, with demo mode off, an Open one left alone
 **When** `IncidentManager` closes it after 15 quiet minutes or by the replay rule (P26)
 **Then** the card compacts to its headline and result in place, and a later same-cause failure opens a new card (FR-24, UX-DR73)
+- DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run. This story's fallbacks extend Conversation's turn tests: remove those rows in the test's teardown, the Observe.RemoveWarnings shape (Rule 19) (ledger; routed by burndown 2026-10-25)
 
 ## Epic 7: Approve the fix and the orders go through
 
@@ -2979,7 +3077,7 @@ So that reminders work the way I would ask a person.
 **When** one user sends "Cancel my reminder to stretch." (a mock scenario that lists, then cancels by `Ref`)
 **Then** `ReminderOps` answers the `ListReminders` command with only that session's pending reminder, and on the `CancelReminder` command with its `ReminderRef` marks its row cancelled, its waiter ends without sending any notification, a `reminder` event (cancelled) removes the row from the rail within one live update, the reply confirms, and the other session's reminder is untouched (FR-34, NFR-9, AD-1, AD-4, UX-DR54)
 **And** a cancel naming another session's reminder, or one already fired or cancelled, is refused with a plain-English reason and changes nothing, and a command repeated with the same `IdempotencyKey` returns the first result without creating a second row or waiter (AD-1, AD-4, AD-8)
-**And** this story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, which cancels reminders through a test double until this story merges (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before this epic] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before Epic 16 starts, so Story 16.4 uses the real path from the start and this story turns on nothing in it.]
+**And** this story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, which cancels reminders through a test double until this story merges (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before this epic] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before Epic 16 starts, so Story 16.4 uses the real path from the start and this story turns on nothing in it.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for this epic. This story turns on the real `ReminderOps` cancel path in Story 16.4's sign-out test, and in Story 16.4's closed-page case a reminder set before the CSP session times out fires on time after it ended.]
 - DW-135: Cross-lane contract for ReminderOps (Story 8.4): ListReminders answers with CommandResult.Data = {"reminders":[{"ref","text","dueAt"}]}, the command's session's pending reminders, earliest due first, dueAt in UTC; Story 1.10's list tool and its CommandsIn test double read and answer exactly this shape (ledger; routed by spec_gate 2026-10-23)
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time, ending as an unusable turn after the cancels ran (ledger; routed by harvest 2026-10-24)
 - DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls (ledger; routed by harvest 2026-10-24)
@@ -3311,6 +3409,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 **When** this story merges
 **Then** it pins a QR-code library and records it in the spine's Stack section (as for the component library), adds the typed API-client methods for the pairing endpoints and the `TelegramState` interface, and creates the Telegram parts of the REL-2 demo-path specs as separate, skipped spec files, `web/e2e/demo-path/telegram-*.spec.ts`, which Lane A owns from Epic 12 with the rail's Telegram card (REL-2, AD-29)
 **And** every criterion above runs on fixtures (a fixture pairing, fixture `TelegramIn` submissions and fixture `AnswersIn` calls), because Lane A's Telegram epic builds `TelegramIn` and `TelegramOut` after release 1 (AD-29)
+- DW-200: AnswersIn's Telegram entry must pass Approval.Answer either an empty sessionRef or the paired session's 22-character Ref from the live `Pairing` row, never a `ChatRef` or chat id: since Story 3.7, Answer answers `not_allowed` for any other sessionRef. The entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers `not_allowed` (ledger; routed by owner 2026-10-25, inbox U-69)
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
@@ -3475,7 +3574,7 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 **Given** every gate passed
 **When** the sequence reaches each later step that acts outside the machine
-**Then** it stops for the author's word before each one: opening the release pull request from the candidate branch that passed, merging it into `main` only when every required check is green (it reads `main`'s branch protection, which the author sets up with the `ci.yml` and `lane-a.yml` checks required before the sequence first runs, and refuses if those checks aren't required), tagging the release, merging `main` back into the integration branch after the merge and the tag, so the version bump and the built web bundle are on it and the next candidate's pull request doesn't conflict with `main`, and updating the online demo; it never publishes the notes, which the author does (REL-1, REL-8, REL-11, AD-29)
+**Then** it stops for the author's word before each one: opening the release pull request from the candidate branch that passed, merging it into `main` only when every required check is green (it reads `main`'s branch protection, which the author sets up with the `ci.yml` and `lane-a.yml` checks required before the sequence first runs, and refuses if those checks aren't required; while the repository is private on a GitHub plan that offers no branch protection, which GitHub answers with HTTP 403, the sequence instead checks every job of the `ci.yml` and `lane-a.yml` runs for the pull request's head commit itself, merges only when each one has succeeded or was skipped by its own condition, and records in the candidate's record that it checked the jobs itself because branch protection was unavailable) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "We won't make the repo public until we release on Open Exchange." On GitHub Free a private repository has no branch protection, so the first public release merges to `main` while the repository is still private; the author makes it public together with the Open Exchange release, and the Contest Planner then sets up the branch protection for every later release], tagging the release, merging `main` back into the integration branch after the merge and the tag, so the version bump and the built web bundle are on it and the next candidate's pull request doesn't conflict with `main`, and updating the online demo; it never publishes the notes, which the author does (REL-1, REL-8, REL-11, AD-29)
 
 **Given** the author's word to update the online demo
 **When** the update hook runs
@@ -3520,7 +3619,7 @@ So that what the automated tests can't see is found and fixed before the first r
 
 ## Epic 12: Approve from your own phone with Telegram
 
-A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2).
+A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
 
 ### Story 12.1: Telegram stays off without a token, and CI mocks the Telegram API
 
@@ -4024,6 +4123,7 @@ So that the IPM install is as durable as the Docker one.
 **Given** the author has published 1.0.0 to the package registry, on the author's word
 **When** the registry install path is run once on a clean build 154 instance with the README's two commands
 **Then** it gives the same working OcuTalon, and the result is recorded in the release notes (FR-57, REL-8, REL-11)
+- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
 
 ## Epic 16: Anyone can try the online demo
 
@@ -4173,7 +4273,7 @@ So that other visitors can get in while my session waits for me.
 **When** the tests run
 **Then** a closed page's session is resumed after its CSP session ended, an idle page returns to the splash and is resumed, and a signed-out session's pairing, reminders, watches and pending requests end while another session's are untouched (FR-14, FR-15, AD-4)
 **And** until Lane A's Story 5.1 merges, the tests stop watches through a `WatchOps` test double that records the call, and this story's Telegram cases (0.1.1's Telegram channel, Epic 12) stay off; Story 31.3 (was Story 16.10) turns on the real `WatchOps` path and those cases (AD-29)
-**And** until Lane B's Story 8.4 merges, the tests cancel reminders through a `ReminderOps` test double that records the call, and Story 8.4 turns on the real path (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before Epic 8] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before this epic starts, so the tests cancel reminders through the real `ReminderOps` and no test double is needed.]
+**And** until Lane B's Story 8.4 merges, the tests cancel reminders through a `ReminderOps` test double that records the call, and Story 8.4 turns on the real path (AD-18, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Epic 16 now runs before Epic 8] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." superseded: Epic 8 now merges before this epic starts, so the tests cancel reminders through the real `ReminderOps` and no test double is needed.] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): the October 22 supersession is reverted, because Epic 16 no longer waits for Epic 8. Until Story 8.4 merges, the tests cancel reminders through the recording test double, and the closed-page case checks that the session's reminder rows are untouched; Story 8.4 turns on the real cancel path and a real reminder that fires after the CSP session ended.]
 
 ### Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready
 
@@ -6259,6 +6359,7 @@ So that my own risky tools work through the bridge and never run without a yes.
 **Given** a test answers an approval request and replays its approved test tool
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
+- DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
 
 ### Story 30.4: A stopped production or a disabled item is reported once
 
