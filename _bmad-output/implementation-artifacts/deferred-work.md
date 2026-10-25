@@ -735,3 +735,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: irislib Ens/BusinessService.cls ProcessInput ends with Kill $$$JobSessionId, SendRequestSync sets $$$JobCurrentHeaderId, and Ens/Util/Log.cls:87-88 reads both for every event-log row; Core.Commands.Submit (Lane B) starts its service the same way
 - 2026-10-25T03:03:19Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=3.6 measures the runner's session and header after Raise (spec Consumed-by) and restores them; Commands.Submit shares it
+
+### DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no ApprovalOutcome is sent until the next Reconcile
+- source: spec-3-5-the-first-answer-wins-and-unanswered-requests-expire.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: HoldResponse sends nothing for a task whose action does not match the row (row 14); a late Answer still expires the row, so only the expired outcome to ResultTarget is missing
+- 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
