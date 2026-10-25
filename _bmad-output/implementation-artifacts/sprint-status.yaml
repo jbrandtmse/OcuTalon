@@ -133,7 +133,7 @@ development_status:
 
   epic-8: in-progress
   8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: done
-  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: ready-for-dev
+  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: in-progress
   8-3-a-reminder-fires-on-time-on-every-channel: backlog
   8-4-set-list-and-cancel-reminders-in-plain-words: backlog
   8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: backlog
