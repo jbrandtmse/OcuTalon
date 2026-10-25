@@ -1143,3 +1143,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling 2026-10-25 on Story 5.1 (veto U-79): Install/Step/Demo.cls grants OcuTalonServiceRole %DB_OCUORDERS_DATA:R only with demo mode on (AD-3 readable-namespace rule; AD-24 Prevents: a role that grants more than the security overview says)
 - 2026-10-25T18:12:36Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=spec_gate note=orchestrator_ruling:the_generated_overview_marks_this_grant_demo-mode-only;its_DW_bullet_is_the_orchestrator's_after_Epic_5's_merge
+
+### DW-218: WatchOps' failure answers (session lock timeout, a failed save or delete) and the per-session lock's serialisation of one session's commands have no test
+- source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch/Ops.cls OnStart/OnStop answer failed (Ok 0) when Lock +^OcuTalon.Watch(session):5 times out or %Save/%DeleteId fails; Test.Watch.Ops covers the other outcomes only; deleting the lock line leaves every test green (needs a second job holding the lock >5 s)
+- 2026-10-25T20:35:03Z status=open owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=harvest note=implement_deferred(build-auto_review);code_review_may_patch_it
