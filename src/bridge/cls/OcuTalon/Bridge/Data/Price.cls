@@ -1,4 +1,5 @@
 /// The price of a model, in US dollars per million tokens, with the long-input tier (AD-19, AD-20). Lane A.
+/// Cost prices the usage of one agent turn from a row, and CostFor looks the row up by the exact model id.
 Class OcuTalon.Bridge.Data.Price Extends %Persistent
 {
 
@@ -30,6 +31,37 @@ Property LongInputPerMTok As %Numeric(SCALE = 4);
 Property LongOutputPerMTok As %Numeric(SCALE = 4);
 
 Index ModelIndex On Model [ Unique ];
+
+/// The cost in US dollars of the usage of one agent turn at this row's rates, rounded to 6 decimals (AD-20):
+/// (prompt x InputPerMTok + cacheRead x CacheReadPerMTok + cacheWrite x CacheWritePerMTok + completion x OutputPerMTok) / 1,000,000.
+/// When LongThresholdTokens is set and the largest request of the turn is above it, the whole turn is priced at the long tier:
+/// input at LongInputPerMTok, output at LongOutputPerMTok, and each cache rate scaled by LongInputPerMTok / InputPerMTok. The largest
+/// request is largest, or, when largest is empty, the input of the turn (prompt, cache-read and cache-write tokens) divided by
+/// requestCount (at least 1). A token count or rate that is empty counts as 0.
+Method Cost(prompt As %Integer, cacheRead As %Integer, cacheWrite As %Integer, completion As %Integer, largest As %Integer = "", requestCount As %Integer = 1) As %Numeric
+{
+	Set prompt = +prompt, cacheRead = +cacheRead, cacheWrite = +cacheWrite, completion = +completion
+	Set input = ..InputPerMTok, readRate = ..CacheReadPerMTok, writeRate = ..CacheWritePerMTok, outputRate = ..OutputPerMTok
+	If largest = "" Set largest = (prompt + cacheRead + cacheWrite) / $Select(+requestCount < 1: 1, 1: +requestCount)
+	If (+..LongThresholdTokens > 0) && (largest > ..LongThresholdTokens) {
+		Set scale = $Select(+..InputPerMTok = 0: 1, 1: ..LongInputPerMTok / ..InputPerMTok)
+		Set input = ..LongInputPerMTok
+		Set readRate = readRate * scale
+		Set writeRate = writeRate * scale
+		Set outputRate = ..LongOutputPerMTok
+	}
+	Quit $Number((prompt * input + (cacheRead * readRate) + (cacheWrite * writeRate) + (completion * outputRate)) / 1000000, 6)
+}
+
+/// The cost of the usage of one agent turn for the model (Cost at the row whose Model is exactly model), or "" when no row has the
+/// model: an unknown cost is never 0.
+ClassMethod CostFor(model As %String, prompt As %Integer, cacheRead As %Integer, cacheWrite As %Integer, completion As %Integer, largest As %Integer = "", requestCount As %Integer = 1) As %Numeric
+{
+	If model = "" Quit ""
+	Set price = ..ModelIndexOpen(model)
+	If '$IsObject(price) || (price.Model '= model) Quit ""
+	Quit price.Cost(prompt, cacheRead, cacheWrite, completion, largest, requestCount)
+}
 
 Storage Default
 {

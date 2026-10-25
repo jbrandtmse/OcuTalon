@@ -3,7 +3,7 @@
 # Defines variables and functions only.
 
 # The hermetic and static scripts of the hosted `checks` job: docker/tests/test-<name>.sh.
-CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate"
+CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file pinned-sources after-start healthcheck lib-live bootstrap demo-path-gate ci-warm"
 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
@@ -14,7 +14,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Install" ;;
+    lane-a) echo "Agent Bridge Install Tools Digest" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Web" ;;
     *) return 1 ;;
   esac

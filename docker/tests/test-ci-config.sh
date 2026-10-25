@@ -33,8 +33,8 @@
 #     web bundle (each of the markers alone is enough); group_input_pattern answers for each group with a pattern that matches
 #     ci/units.sh, the workflow and src/, and for no unknown group; and every file that a live script of the group sources or adds
 #     ($root/<file>, $(dirname "$0")/<file> in a code line) is claimed by the group's pattern;
-#   - recipe: ci/iris.sh refuses a bad run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with
-#     exit 1; its web port is 52810 plus the runner's number on runners 0 to 9 and 52819 minus it on runners 10 to 19, a set
+#   - recipe: ci/iris.sh (with no OCUTALON_WARM from the caller: Story 32.4's warm mode has its own pins in test-ci-warm.sh) refuses a bad
+#     run tag, an unknown shard, class, live unit or group with exit 2, and a missing base image with exit 1; its web port is 52810 plus the runner's number on runners 0 to 9 and 52819 minus it on runners 10 to 19, a set
 #     OCUTALON_TEST_WEB_PORT wins (whatever the runner, none included), any other runner name (a number of 20 or more, a letter after
 #     the number, none) and no runner leave `auto` (DW-49, Story 32.3), and the ports of runners 1 to 19 are distinct, within
 #     52800-52819 and none in LIVE_FORBIDDEN_PORTS; the real live_web_port (port_in_use stubbed, nothing listens) accepts the fixed
@@ -49,8 +49,11 @@
 #   - lane-a: lane-a.yml exists and has the job standalone-bridge; both .yml and .yaml files are workflow files;
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
-#     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else (ci/iris.sh
-#     is sourced with a stub for dc, docker and run_classes);
+#     classes in name order and reversed with --reverse, and teardown removes what carries its tag and nothing else, the lane's
+#     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
+#     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
+#     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
+#     run_classes, and a lock folder and a temporary folder of its own);
 #   - yaml: ruby -ryaml parses each file (SKIP, and never a PASS, when Ruby is missing).
 # A failing rule prints file:line and its name, never the text of the file. Prints one PASS or FAIL line per rule; exits 0
 # only when none fails.
@@ -1133,8 +1136,8 @@ fi
 
 # --- the recipe's refusals and its web port ---
 
-# iris_env <env assignments...> <command...>: the command with no run tag, web port or runner name from the caller's environment.
-iris_env() { env -u OCUTALON_RUN_TAG -u OCUTALON_TEST_WEB_PORT -u RUNNER_NAME "$@"; }
+# iris_env <env assignments...> <command...>: the command with no run tag, web port, runner name or warm mode from the caller's environment.
+iris_env() { env -u OCUTALON_RUN_TAG -u OCUTALON_TEST_WEB_PORT -u RUNNER_NAME -u OCUTALON_WARM "$@"; }
 
 # recipe <expected exit> <expected text or -> <env assignments...> -- <ci/iris.sh arguments...>
 recipe_fail=""
@@ -1203,7 +1206,7 @@ recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-
 recipe 1 "PORT the web port of the browser units: auto$" IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- live demo-path
 # The runners of one host share its 127.0.0.1 (DW-49), so the 19 runners 1 to 19 must get 19 distinct ports, each one that live_web_port
 # accepts: within 52800-52819 and not in LIVE_FORBIDDEN_PORTS (read from a sourced ci/iris.sh, which defines functions and runs nothing).
-forbidden_ports=$(unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME; . ci/iris.sh; printf '%s' "$LIVE_FORBIDDEN_PORTS")
+forbidden_ports=$(unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM; . ci/iris.sh; printf '%s' "$LIVE_FORBIDDEN_PORTS")
 if [ -z "$forbidden_ports" ]; then
   recipe_fail="$recipe_fail [LIVE_FORBIDDEN_PORTS could not be read from a sourced ci/iris.sh]"
 fi
@@ -1365,7 +1368,7 @@ preflight_run() {
   pf_calls=$tmp/pf-calls
   : > "$pf_calls"
   (
-    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME IRIS_IMAGE
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM IRIS_IMAGE
     . ci/iris.sh
     OCUTALON_PULL_PAUSE=$pause
     docker() {
@@ -1523,7 +1526,7 @@ fi
 # shard_order <arguments of cmd_shard...>: the title and the classes that cmd_shard hands to run_classes, which is a stub.
 shard_order() {
   (
-    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME
+    unset OCUTALON_RUN_TAG OCUTALON_TEST_WEB_PORT RUNNER_NAME OCUTALON_WARM
     . ci/iris.sh
     run_classes() { shift; printf '%s\n' "TITLE $1"; shift; printf '%s\n' "$@"; }
     cmd_shard "$@"
@@ -1544,53 +1547,94 @@ fi
 
 # --- ci/iris.sh teardown: it removes what carries its tag, and nothing else ---
 
-# The fixtures: two projects of the tag abc-7; and another tag, a tag that extends this one, a slot, a name outside ocutalon- and the
-# preloaded base image, none of which may be touched. `docker` is a stub that answers the listings and records each removal.
+# The fixtures: two projects of the tag abc-7, and the warm stack of that tag (what a killed stage leaves behind); and another tag, a tag
+# that extends this one, the same tag with a w after it (the warm tag of a stage whose fresh tag is abc-7, so that the teardown of the
+# fresh tag never reaches the warm stack), another tag's warm stack, a slot, a name outside ocutalon- and the preloaded base image,
+# none of which may be touched. `docker` is a stub that answers the listings and records each removal. The lane
+# has a lock folder of its own, with a warm-iris.lock that names the project given to teardown_fixture (none when it is empty), and a
+# temporary folder of its own with the warm state folders of the tag, of another tag and of the tag abc-7-1.
 mine1=ocutalon-shard-lane-a-abc-7-1792446641-23730
 mine2=ocutalon-class-abc-7-1792446700-111
+mine3=ocutalon-warm-abc-7-1792446641-23730
 others="ocutalon-shard-lane-a-abd-7-1792446641-23730 ocutalon-t07rt-abc-7-1-1792446641-23730 ocutalon-slot-abc-7-1792446641-23730 other-abc-7-1792446641-23730"
-(
-  OCUTALON_RUN_TAG=abc-7
-  . ci/iris.sh
-  calls="$tmp/teardown-calls"
-  : > "$calls"
-  : > "$tmp/teardown-compose-args"
-  docker() {
-    case "$1" in
-      ps)
-        case "$*" in
-          *label=*) printf '%s\n' $mine1 $mine2 $others ;;
-          *) for n in $mine1 $mine2 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
-        esac
-        ;;
-      volume) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_durable\n' "$n"; done; else echo "volume $4" >> "$calls"; fi ;;
-      network) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_default\n' "$n"; done; else echo "network $3" >> "$calls"; fi ;;
-      image)
-        if [ "$2" = ls ]; then
-          for n in $mine1 $others; do printf '%s-iris:latest\n' "$n"; done
-          printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0 node:24.15.0-slim
-        else echo "image $4" >> "$calls"; fi
-        ;;
-      compose) echo "compose $3" >> "$calls"; echo "$*" >> "$tmp/teardown-compose-args" ;;
-      rm) echo "rm $4" >> "$calls" ;;
-    esac
-  }
-  cmd_teardown > /dev/null
-  sort "$calls"
-) > "$tmp/teardown-removed"
+others="$others ocutalon-warm-abc-7w-1792446641-23730 ocutalon-warm-abd-7-1792446641-23730"
+teardown_fixture() { # teardown_fixture <project that the warm lock names>: the sorted calls in $tmp/teardown-removed, the output in $tmp/teardown-out
+  rm -rf "$tmp/teardown-locks" "$tmp/teardown-tmp"
+  mkdir -p "$tmp/teardown-locks" "$tmp/teardown-tmp/ocutalon-warm-abc-7" "$tmp/teardown-tmp/ocutalon-warm-abd-7" "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" \
+    "$tmp/teardown-tmp/ocutalon-warm-abc-7w"
+  if [ -n "$1" ]; then printf 'epic=0 stage=qa project=%s acquired_at=2026-10-23T00:00:00Z\n' "$1" > "$tmp/teardown-locks/warm-iris.lock"; fi
+  (
+    OCUTALON_RUN_TAG=abc-7
+    OCUTALON_LOCK_DIR="$tmp/teardown-locks"
+    TMPDIR="$tmp/teardown-tmp"
+    . ci/iris.sh
+    calls="$tmp/teardown-calls"
+    : > "$calls"
+    : > "$tmp/teardown-compose-args"
+    docker() {
+      case "$1" in
+        ps)
+          case "$*" in
+            *label=*) printf '%s\n' $mine1 $mine2 $mine3 $others ;;
+            *) for n in $mine1 $mine2 $mine3 $others; do printf '%s-iris-1\n' "$n"; done; printf '%s\n' ocutalon-slot-a ocupilot ;;
+          esac
+          ;;
+        volume) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_durable\n' "$n"; done; else echo "volume $4" >> "$calls"; fi ;;
+        network) if [ "$2" = ls ]; then for n in $mine1 $others; do printf '%s_default\n' "$n"; done; else echo "network $3" >> "$calls"; fi ;;
+        image)
+          if [ "$2" = ls ]; then
+            for n in $mine1 $others; do printf '%s-iris:latest\n' "$n"; done
+            printf '%s\n' ocutalon-iris-base:2026.3.0AI.154.0 node:24.15.0-slim
+          else echo "image $4" >> "$calls"; fi
+          ;;
+        compose) echo "compose $3" >> "$calls"; echo "$*" >> "$tmp/teardown-compose-args" ;;
+        rm) echo "rm $4" >> "$calls" ;;
+      esac
+    }
+    cmd_teardown > "$tmp/teardown-out"
+    sort "$calls"
+  ) > "$tmp/teardown-removed"
+}
+# The warm stack of the tag goes with the rest (an orphan), and its lock is released; the stack and the lock of another tag, of a tag that
+# extends this one (abc-7-1) and of the tag with a w after it (abc-7w) are kept.
+teardown_fixture $mine3
 removed=$(cat "$tmp/teardown-removed")
-want=$(printf '%s\n' "compose $mine1" "compose $mine2" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "volume ${mine1}_durable" | sort)
-if [ "$removed" = "$want" ]; then
-  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image"
+lock_ok=1
+lock_note=""
+if [ -e "$tmp/teardown-locks/warm-iris.lock" ] || ! grep -qx 'LOCK released warm-iris project=ocutalon-warm-abc-7-1792446641-23730' "$tmp/teardown-out" \
+  || [ "$(tail -n 1 "$tmp/teardown-out" | cut -c 1-16)" != "TEARDOWN tag abc" ]; then
+  lock_ok=0
+  lock_note="$lock_note [the warm lock of the tag was not released, or TEARDOWN is not the last line]"
+fi
+if [ -e "$tmp/teardown-tmp/ocutalon-warm-abc-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abd-7" ] || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7-1" ] \
+  || [ ! -d "$tmp/teardown-tmp/ocutalon-warm-abc-7w" ]; then
+  lock_ok=0
+  lock_note="$lock_note [the warm state folder of the tag was kept, or the folder of another tag, of the tag abc-7-1 or of the tag abc-7w was removed]"
+fi
+for other_lock in ocutalon-warm-abd-7-1792446641-23730 ocutalon-warm-abc-7-1-1792446641-23730 ocutalon-warm-abc-7w-1792446641-23730; do
+  teardown_fixture "$other_lock"
+  if [ ! -e "$tmp/teardown-locks/warm-iris.lock" ] || grep -q '^LOCK released' "$tmp/teardown-out"; then
+    lock_ok=0
+    lock_note="$lock_note [the warm lock of $other_lock was released]"
+  fi
+done
+teardown_fixture ""
+if grep -q '^LOCK released' "$tmp/teardown-out"; then
+  lock_ok=0
+  lock_note="$lock_note [a LOCK released line with no warm lock]"
+fi
+want=$(printf '%s\n' "compose $mine1" "compose $mine2" "compose $mine3" "image $mine1-iris:latest" "network ${mine1}_default" "rm $mine1-iris-1" "rm $mine2-iris-1" "rm $mine3-iris-1" "volume ${mine1}_durable" | sort)
+if [ "$removed" = "$want" ] && [ "$lock_ok" -eq 1 ]; then
+  echo "PASS teardown: it removes the projects, containers, volumes, networks and images of its tag, and no other tag's, slot's, outside name or the base image or the mock's public image, and also the warm stack of its tag (an orphan), releases the lane's warm-iris.lock and removes the warm state folder of its tag only (not another tag's, nor the tag abc-7-1's, nor the tag abc-7w's)"
 else
-  echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'"
+  echo "FAIL teardown: it removed '$(printf '%s' "$removed" | tr '\n' ' ')', wanted '$(printf '%s' "$want" | tr '\n' ' ')'$lock_note"
   fails=$((fails + 1))
 fi
 
 # Each project comes down with the CI override among its files and with `down -v --rmi local --remove-orphans`: the volumes and
 # the images built for the project go, and a pulled public image such as the mock's stays.
 down_ok=1
-[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 2 ] || down_ok=0
+[ "$(grep -c . "$tmp/teardown-compose-args")" -eq 3 ] || down_ok=0
 while IFS= read -r line; do
   case $line in *" -f "*"/ci/compose.ci.yml down -v --rmi local --remove-orphans") ;; *) down_ok=0 ;; esac
 done < "$tmp/teardown-compose-args"

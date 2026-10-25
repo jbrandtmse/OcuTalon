@@ -1,0 +1,28 @@
+{
+  "name": "reminder-cancel",
+  "match": {
+    "marker": "reminder-cancel"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_reminders",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "cancel_reminder",
+        "input": {
+          "reminderRef": "zzReminderStretch00001"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock cancelled the reminder."
+    }
+  ]
+}

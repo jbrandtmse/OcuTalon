@@ -2,10 +2,15 @@
 /// a production, and nothing is written to the audit log.
 ///   - TestAccessorInAnotherJob: a job that did not start the production reads the three extension classes of Decide
 ///     from the production definition, and gets "" with an error for a bad setting, item, production or class;
+///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4); since Story 1.9 also of a setting of
+///     an item's adapter, such as the AgentClass of a runner, when the target is Adapter;
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
 ///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter and ReplyGuard pass
 ///     text through and Classification classifies nothing;
-///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current; the
+///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
+///     description, changes the row when it exists, and ValueFor reads the value;
+///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current and starts the taint, the host data, the
+///     characters of the tool results and (Story 1.10) the count of the commands that the tools submit at their start; the
 ///     process-private context is invisible to another job; Put changes it; End removes it.
 /// The run's number is n from ^OcuTalonTest("BridgeExt","n") (never reset); the child jobs report through
 /// ^OcuTalonTest("BridgeExt",n,...), which OnBeforeAllTests and OnAfterAllTests delete with the reports of earlier runs.
@@ -55,6 +60,84 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertTrue($Get(@run@("checkEmptyText")) [ "names no class", "an empty class is refused as such: "_$Get(@run@("checkEmptyText")))
 	Do $$$AssertTrue($Get(@run@("checkMissingText")) [ "is not compiled", "a class that does not exist is refused as such: "_$Get(@run@("checkMissingText")))
 	Kill @run
+}
+
+/// WriteDefault (the one writer of System Default Settings rows, AD-19): a row of the Decide item of the example production (which no one starts)
+/// is created with the value and the description for any host class, ValueFor then reads the value, and a second write changes the same row
+/// instead of making another. The row is deleted again.
+Method TestWriteDefault()
+{
+	Set accessor = "OcuTalon.Bridge.Ext.Accessor"
+	Set production = "OcuTalon.BridgeExample.Production"
+	Set id = production_"||Decide||*||TimerSeconds"
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", 33, "First write."), "a row is written")
+		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id), "it exists, with the host class *")
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+		Do $$$AssertEquals(row.ProductionName_"|"_row.ItemName_"|"_row.HostClassName_"|"_row.SettingName_"|"_row.SettingValue_"|"_row.Description, production_"|Decide|*|TimerSeconds|33|First write.", "with the production, the item, the setting, the value and the description")
+		Do $$$AssertEquals($ClassMethod(accessor, "ValueFor", "TimerSeconds", production, "Decide"), 33, "ValueFor reads the value")
+		Do $$$AssertStatusOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", 44, "Second write."), "the row is written again")
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id)
+		Do $$$AssertEquals(row.SettingValue_"|"_row.Description, "44|Second write.", "which changed the row")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = 'Decide' AND SettingName = 'TimerSeconds'", production)
+		Do result.%Next()
+		Do $$$AssertEquals(result.%GetData(1), 1, "and made no second row")
+		Kill row
+		Do $$$AssertStatusNotOK($ClassMethod(accessor, "WriteDefault", production, "Decide", "TimerSeconds", "x", "Not a number."), "a value that the setting's datatype refuses is an error status")
+		Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT SettingValue FROM Ens_Config.DefaultSettings WHERE ID = ?", id)
+		Do stored.%Next()
+		Do $$$AssertEquals(stored.%GetData(1), 44, "and the stored row keeps its value")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	Do $$$AssertEquals(##class(Ens.Config.DefaultSettings).%ExistsId(id), 0, "the row is deleted again")
+}
+
+/// ValueFor (Story 1.4) reads any host setting of the item, from the item's settings, the System Default Settings and the property's
+/// initial value, and gives "" with an error for an item, a setting or a production that is none; ClassFor builds on it.
+Method TestValueFor()
+{
+	Set accessor = "OcuTalon.Bridge.Ext.Accessor"
+	Set value = $ClassMethod(accessor, "ValueFor", "ReplyFilterClass", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "the ReplyFilterClass of Decide is read")
+	Do $$$AssertEquals(value, "OcuTalon.Checks.ReplyGuard", "it is the class that the production names")
+	Do $$$AssertEquals($ClassMethod(accessor, "ClassFor", "ReplyFilterClass", ..#PRODUCTION), value, "which is what ClassFor gives")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "a setting that is no extension class is read too")
+	Do $$$AssertTrue(value ? 1.N, "TimerSeconds is a whole number: "_value)
+	Set value = $ClassMethod(accessor, "ValueFor", "DailyCostCapUSD", ..#PRODUCTION, , .sc)
+	Do $$$AssertStatusOK(sc, "so is DailyCostCapUSD")
+	Do $$$AssertTrue($IsValidNum(value, "", 0), "which is a number of 0 or more: "_value)
+	Set value = $ClassMethod(accessor, "ValueFor", "ZzNoSuchSetting", ..#PRODUCTION, , .sc)
+	Do $$$AssertEquals(value, "", "a setting that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, "ZzNoSuchItem", .sc)
+	Do $$$AssertEquals(value, "", "an item that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", "Zz.NoSuchProduction", , .sc)
+	Do $$$AssertEquals(value, "", "a production that does not exist gives an empty value")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
+	Set value = $ClassMethod(accessor, "ClassFor", "TimerSeconds", ..#PRODUCTION, , .sc)
+	Do $$$AssertEquals(value, "", "ClassFor still refuses a setting that is no extension setting")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
+
+	// a setting of the adapter: the AgentClass of a runner
+	Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, "TriageAgent", .sc)
+	Do $$$AssertEquals(value, "", "AgentClass is a setting of the adapter, so a read of a host setting does not find it")
+	Do $$$AssertStatusNotOK(sc, "and gives an error status")
+	For case = $ListBuild("TriageAgent", "OcuTalon.Agent.Triage"), $ListBuild("DiagnosisAgent", "OcuTalon.Agent.Diagnosis"), $ListBuild("ChatAgent", "OcuTalon.Agent.Chat") {
+		Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, $List(case, 1), .sc, "Adapter")
+		Do $$$AssertStatusOK(sc, "with the target Adapter the AgentClass of "_$List(case, 1)_" is read")
+		Do $$$AssertEquals(value, $List(case, 2), "it is "_$List(case, 2))
+	}
+	Set value = $ClassMethod(accessor, "ValueFor", "TimerSeconds", ..#PRODUCTION, "Decide", .sc, "Adapter")
+	Do $$$AssertEquals(value, "", "a host setting is not found as a setting of the adapter")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
+	Set value = $ClassMethod(accessor, "ValueFor", "AgentClass", ..#PRODUCTION, "ZzNoSuchItem", .sc, "Adapter")
+	Do $$$AssertEquals(value, "", "an item that does not exist gives an empty value for an adapter setting too")
+	Do $$$AssertStatusNotOK(sc, "and an error status")
 }
 
 /// The job body of TestAccessorInAnotherJob: reads each case and records the class and 1 for OK, 0 for an error.
@@ -155,6 +238,13 @@ Method TestContext()
 		Do $$$AssertEquals(current.SuperSession, super, "Current carries the SuperSession")
 		Do $$$AssertEquals(current.Tainted, 0, "the taint starts at 0")
 		Do $$$AssertEquals(current.HostData, "", "and the host data is empty")
+		Do $$$AssertEquals(current.ToolResultChars, 0, "and the characters of the tool results start at 0")
+		Do $$$AssertEquals(current.CommandCount, 0, "and so does the count of the commands that the tools submit (Story 1.10)")
+		Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Bridge.Context).#FIELDS), "CommandCount"), "CommandCount is a field of the context")
+		Do ##class(OcuTalon.Bridge.Context).Put("CommandCount", 3)
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().CommandCount, 3, "Put sets it")
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, super), "Begin again")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().CommandCount, 0, "a context that begins again starts the count at 0 again")
 
 		Set run = $Name(^OcuTalonTest("BridgeExt", ..Number))
 		Kill @run
