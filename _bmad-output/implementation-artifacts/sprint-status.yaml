@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-25-2026 16:30
+last_updated: 10-25-2026 10:42
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -352,5 +352,14 @@ action_items:
       Windows, on two banners in one update, a reply, and a burst of four announcements
       (DW-159; Story 2.12 built the joined announcement and its automated test A4)"
     owner: "user"
+    status: done
+    ref: ""
+  - id: "epic-2-retro-item-5-accessibility-tree-check-of-the-announce"
+    epic: 2
+    action: "Accessibility-tree check of the announcer in Chrome (the owner chose
+      it over a VoiceOver/NVDA listening test, which is dropped): observe the live
+      region on two banners in one update, a reply, and a burst of four announcements,
+      on the Planner's own Docker install of the feature head (DW-159; replaces epic-2-retro-item-4)"
+    owner: "Contest Planner"
     status: open
     ref: ""
