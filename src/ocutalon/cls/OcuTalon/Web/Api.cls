@@ -240,6 +240,20 @@ ClassMethod NotBuilt(arg As %String = "") As %Status
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 }
 
+/// The snapshot's last key, traceAccount: {"user", "password"}, the read-only Visual Trace account that the online demo
+/// publishes (AD-19 calls the published accounts not secrets), for the header's Visual Trace menu. Present only when the
+/// public setting onlineDemo is 1 and both readonlyUser and readonlyPassword are set; any other state returns "" and the
+/// snapshot has no such key, so a local install's snapshot keeps its keys. Both values are read through Data.Setting.Get,
+/// as StateBody reads onlineDemo. It is a page-only field: no live event carries it.
+ClassMethod TraceAccount() As %DynamicObject [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit ""
+	Set user = ##class(OcuTalon.Data.Setting).Get("readonlyUser")
+	Set password = ##class(OcuTalon.Data.Setting).Get("readonlyPassword")
+	If (user = "") || (password = "") Quit ""
+	Quit {"user": (user), "password": (password)}
+}
+
 /// The pairing routes: 404 while the release doesn't include Telegram, otherwise 501 until Story 10.3.
 ClassMethod Pairing() As %Status
 {
@@ -291,6 +305,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	}
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
+	Set account = ..TraceAccount()  Set:$IsObject(account) body.traceAccount = account
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body

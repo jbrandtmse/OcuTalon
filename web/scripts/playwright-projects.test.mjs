@@ -191,3 +191,12 @@ describe('the API specs read the sign-in unit\'s variables when a test uses one'
     assert.match(run.stdout + run.stderr, /OCUTALON_TRACEONLY_USER must be set by docker\/tests\/test-sign-in\.sh/);
   });
 });
+
+describe('the online-demo project (Story 16.1)', () => {
+  it('online-demo (the e2e:online-demo script) lists exactly the spec files of web/e2e-online/', () => {
+    const onlineOnDisk = specFilesOnDisk(join(webDir, 'e2e-online'));
+    assert.ok(onlineOnDisk.length > 0, 'web/e2e-online/ holds spec files');
+    // The listing names a file relative to the config's own testDir (e2e/), so this project's files start with ../e2e-online/.
+    assert.deepEqual(filesOf('e2e:online-demo'), onlineOnDisk.map((name) => `../e2e-online/${name}`));
+  });
+});

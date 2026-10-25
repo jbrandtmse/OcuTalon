@@ -42,5 +42,8 @@ export default defineConfig({
     { name: 'floor', testDir: './e2e/floor', use: { ...devices['Desktop Chrome'] } },
     { name: 'floor-firefox', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Firefox'] } },
     { name: 'floor-webkit', testDir: './e2e/floor', grep: /@browsers/, use: { ...devices['Desktop Safari'] } },
+    // online-demo: the specs of e2e-online/ (the online-demo unit, docker/tests/test-online-demo.sh, on a flag-on throwaway), Desktop Chrome.
+    // Its folder lies outside e2e/, so the chromium project never runs it.
+    { name: 'online-demo', testDir: './e2e-online', use: { ...devices['Desktop Chrome'] } },
   ],
 });

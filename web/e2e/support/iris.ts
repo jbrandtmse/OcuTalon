@@ -7,12 +7,29 @@ import { spawn } from 'node:child_process';
  */
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user)`);
+  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user, or docker/tests/test-online-demo.sh for the public accounts)`);
   return value;
 }
 
-/** The kinds of fixture user of the sign-in unit, and FLOOR, the floor unit's. */
-export type FixtureKind = 'LIVE' | 'SESSION' | 'SIGNIN' | 'CHAT' | 'PANEL' | 'DECISION' | 'NOTICE' | 'RAIL' | 'THREAD' | 'LINKS' | 'BANNERS' | 'FLOOR';
+/**
+ * The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, and DEMOACCOUNT and READONLYACCOUNT, the online-demo unit's
+ * two public accounts (their values are the unit's test start values).
+ */
+export type FixtureKind =
+  | 'LIVE'
+  | 'SESSION'
+  | 'SIGNIN'
+  | 'CHAT'
+  | 'PANEL'
+  | 'DECISION'
+  | 'NOTICE'
+  | 'RAIL'
+  | 'THREAD'
+  | 'LINKS'
+  | 'BANNERS'
+  | 'FLOOR'
+  | 'DEMOACCOUNT'
+  | 'READONLYACCOUNT';
 
 /** A fixture user of the sign-in or the floor unit: OCUTALON_<kind>_USER and OCUTALON_<kind>_PASSWORD. */
 export function fixtureUser(kind: FixtureKind): { user: string; password: string } {

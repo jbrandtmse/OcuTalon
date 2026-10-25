@@ -31,6 +31,7 @@ import { TraceHelp } from '../shared/trace-help';
 import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
+import { CredentialRows } from './credential-rows';
 
 /** The theme menu's options, in order. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
@@ -57,7 +58,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * described by (aria-describedby) and which goes with the description when a turn gives the link its address. It is one element
  * either way, so a turn that arrives while it has focus leaves the focus on it. While the sign-in help is needed (TraceHelp) the popover is the help: it is
  * headed "Sign in to Visual Trace", holds the help text and "Don't show this again", and showing it records that the help
- * was seen. Otherwise it is headed "Visual Trace" and records nothing.
+ * was seen. Otherwise it is headed "Visual Trace" and records nothing. On the online demo, where the snapshot carries the read-only
+ * account (traceAccount), the popover also shows its user name and password below the link, each with a copy button
+ * (CredentialRows); a local install's snapshot has no traceAccount and its popover has no such rows.
  *
  * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
@@ -71,7 +74,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, Icon, TraceHelpBlock, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, Icon, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -159,6 +162,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         >
         @if (conversation() === undefined) {
           <p class="reason" [id]="conversationReasonId">{{ traceTexts.conversationNotYet }}</p>
+        }
+        @if (traceAccount(); as account) {
+          <app-credential-rows [account]="account" />
         }
       </app-trace-help>
     </ng-template>
@@ -350,6 +356,8 @@ export class Header {
   protected readonly traceOpen = signal(false);
   /** True when the open popover is the sign-in help; fixed when it opens, because opening records that the help was seen. */
   protected readonly traceHelpShown = signal(false);
+  /** The read-only Visual Trace account of the snapshot: present on the online demo only. */
+  protected readonly traceAccount = computed(() => this.live.snapshot()?.traceAccount);
   /** The target of "Open my conversation in Visual Trace": the newest turn's traceUrl, undefined with no such turn. */
   protected readonly conversation = computed(() => conversationUrl(this.live.store()?.chat));
 

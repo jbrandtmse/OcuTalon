@@ -18,6 +18,7 @@
 /// Story 2.13: a rail decision of a chat turn, and the decision nested in the turn's entry, carry the turn's target and position
 /// (the same traceUrl as the turn's own), and an approval whose incident has a trace carries the incident's.
 /// Story 2.10: the snapshot's status holds the active conditions that Status.Active computes, member for member (TestStateBody).
+/// Story 16.1: TestStateTraceAccount (the snapshot's traceAccount, online demo only).
 Class OcuTalon.Test.Web.Api Extends %UnitTest.TestCase
 {
 
@@ -1242,6 +1243,65 @@ ClassMethod Items(chat As %DynamicArray) As %String [ Private ]
 		Set items = items_$Select(items = "": "", 1: ",")_chat.%Get(i).type_":"_chat.%Get(i).payload.ref
 	}
 	Quit items
+}
+
+/// Story 16.1: the snapshot's traceAccount is the read-only account's user name and password, the last key, only when onlineDemo
+/// is 1 and both values are set. Flag 0 with both set: no key and the local key list. Flag 1 with both: the key, last, with both
+/// values. Flag 1 with an empty password, and with an empty user name: no key. The three public settings are put back, also after
+/// a failure; the fixture session is zzapitrace<n>.
+Method TestStateTraceAccount()
+{
+	Set names = $ListBuild("onlineDemo", "readonlyUser", "readonlyPassword")
+	For i = 1:1:$ListLength(names) {
+		Set saved($List(names, i)) = ##class(OcuTalon.Data.Public.Settings).Get($List(names, i))
+	}
+	Set local = "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status"
+	Set error = ""
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapitrace"_..Number, .sc)
+		Do $$$AssertStatusOK(sc, "the fixture session")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "TraceReader"_..Number)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), local, "flag 0 with both read-only values set: the local key list, no traceAccount")
+		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "unassigned", "flag 0: traceAccount is absent")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), local_",traceAccount", "flag 1 with both values: traceAccount is the last key")
+		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "object", "traceAccount is an object")
+		Do $$$AssertEquals(..KeyList(body.traceAccount), "user,password", "traceAccount holds user, then password")
+		Do $$$AssertEquals(body.traceAccount.user, "TraceReader"_..Number, "the user name is readonlyUser")
+		Do $$$AssertEquals(body.traceAccount.password, "pw"_..Number_"zz", "the password is readonlyPassword")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), local, "flag 1 with an empty password: no traceAccount")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "")
+		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+		Do $$$AssertEquals(..KeyList(body), local, "flag 1 with an empty user name: no traceAccount")
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	For i = 1:1:$ListLength(names) {
+		Do ##class(OcuTalon.Data.Public.Settings).Set($List(names, i), saved($List(names, i)))
+	}
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// The keys of a dynamic object, comma-separated, in order.
+ClassMethod KeyList(object As %DynamicObject) As %String [ Private ]
+{
+	Set keys = ""
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Quit keys
 }
 
 /// Deletes the fixture sessions with their events and counters.

@@ -47,6 +47,8 @@ export interface StateSnapshot {
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
+  /** The read-only Visual Trace account that the online demo publishes; present only on the online demo, never on a local install. */
+  traceAccount?: { user: string; password: string };
 }
 
 /** GET /ocutalon/api/v1/events?after=<sessionSeq>&afterInstance=<instanceSeq>: the session's events, then the instance's. */

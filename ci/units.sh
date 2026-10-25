@@ -32,13 +32,13 @@ group_units() {
     production) echo "live:production live:production-restart" ;;
     browser) echo "live:demo-path live:sign-in" ;;
     shards) echo "shard:lane-a live:floor" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b" ;;
+    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:online-demo" ;;
     *) return 1 ;;
   esac
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor"
+BROWSER_UNITS="demo-path sign-in floor online-demo"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"

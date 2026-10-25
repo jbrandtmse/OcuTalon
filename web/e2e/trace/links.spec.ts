@@ -522,6 +522,9 @@ test('V7: the Visual Trace menu opens a popover that closes on Esc, a press outs
   await expect(later, 'later opens are headed Visual Trace').toBeVisible();
   await expect(page.getByText(HEADING)).toHaveCount(0);
   await expect(later.getByRole('link', { name: CONVERSATION_NAME, exact: true })).toBeFocused();
+  await expect(later.getByRole('button', { name: 'Copy Visual Trace user name' }), 'a local install shows no credential row').toHaveCount(0);
+  await expect(later.getByRole('button', { name: 'Copy Visual Trace password' })).toHaveCount(0);
+  await expect(later.getByText('User name', { exact: true })).toHaveCount(0);
   await page.locator('app-chat-panel').click({ position: { x: 4, y: 4 } });
   await expect(later, 'a press on the chat panel closes it').toHaveCount(0);
   await expect(button).toHaveAttribute('aria-expanded', 'false');

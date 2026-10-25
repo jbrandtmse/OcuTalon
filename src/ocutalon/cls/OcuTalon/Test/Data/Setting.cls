@@ -108,6 +108,54 @@ Method TestPublicKey()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "no row was written for the public key")
 }
 
+/// Every public key, and the readiness key, written through Public.Settings is read back by Setting.Get at once, and gives the
+/// default after it is removed (Story 16.1). Readiness goes through SetReady and ClearReady. Each key's value is put back, also
+/// after a failure.
+Method TestEveryPublicKeyIsDelegated()
+{
+	Set keys = ##class(OcuTalon.Data.Public.Settings).#KEYS_",ready"
+	Set count = $Length(keys, ",")
+	Do $$$AssertEquals(count, 14, "the 13 keys and ready")
+	For i = 1:1:count {
+		Set saved($Piece(keys, ",", i)) = $ClassMethod(..#PUBLIC, "Get", $Piece(keys, ",", i))
+	}
+	Set error = ""
+	Try {
+		For i = 1:1:count {
+			Set key = $Piece(keys, ",", i)
+			Set value = "zz"_..Number_"v"_i
+			If key = "ready" {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "SetReady"), "readiness is set")
+				Set value = 1
+			} Else {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "Set", key, value), key_" is written")
+			}
+			Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "d"), value, key_" is read at once through Setting.Get")
+			If key = "ready" {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "ClearReady"), "readiness is cleared")
+			} Else {
+				Do $$$AssertStatusOK($ClassMethod(..#PUBLIC, "Set", key, ""), key_" is removed")
+			}
+			Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(key, "d"), "d", key_" gives the default once removed")
+		}
+	} Catch ex {
+		Set error = ex.DisplayString()
+	}
+	For i = 1:1:count {
+		Set key = $Piece(keys, ",", i)
+		If key = "ready" {
+			If saved(key) = "" {
+				Do $ClassMethod(..#PUBLIC, "ClearReady")
+			} Else {
+				Do $ClassMethod(..#PUBLIC, "SetReady")
+			}
+		} Else {
+			Do $ClassMethod(..#PUBLIC, "Set", key, saved(key))
+		}
+	}
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
 /// Removes the fixture's rows and cache entries.
 Method Clean() [ Private ]
 {

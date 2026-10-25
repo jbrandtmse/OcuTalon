@@ -32,6 +32,12 @@ describe('the fixed strings', () => {
         menu: 'Visual Trace',
         openConversation: 'Open my conversation in Visual Trace',
         conversationNotYet: 'Available after your first message.',
+        userNameLabel: 'User name',
+        passwordLabel: 'Password',
+        copyUserName: 'Copy Visual Trace user name',
+        copyPassword: 'Copy Visual Trace password',
+        copied: 'Copied',
+        copyFailed: "Couldn't copy. Select the text and copy it yourself.",
       },
     );
     for (const value of Object.values(TRACE_TEXTS)) {

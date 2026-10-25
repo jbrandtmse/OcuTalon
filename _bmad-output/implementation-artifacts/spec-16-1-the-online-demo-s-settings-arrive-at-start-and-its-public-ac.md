@@ -2,7 +2,7 @@
 title: 'Story 16.1: The online demo''s settings arrive at start, and its public accounts are safe to publish'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-review'
+status: 'done'
 baseline_revision: 'ea1b455e01102a0cc3f2034e64bf20aec75aac6d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -10,7 +10,14 @@ context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-13 "One sign-in group", "Password changes" and the online-demo session lifetime; AD-19 "Online-demo start values" and "Public settings"; AD-24 the trace role, trace applications and the public accounts bullet; AD-25 "The probe" and "Capacity"; AD-12 the snapshot bullet; and the Consistency Conventions row "Online-demo start")'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (read only its Boundaries table of start values and its Design Notes "Measured at planning")'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      StateBody's doc comment and the class comment of Web/Api.cls do not name the new traceAccount key; only TraceAccount()'s own comment does.
+    evidence: |-
+      The spec's task list asks for both comments to name the key and its condition, but the lead's spec gate for the shared file Web/Api.cls allows one new method and one call line and no other changed line; StateBody's "keys in this order, ending at status" sentence would have to change, so the review routes it instead of patching.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Api.cls:1-20 and the StateBody comment
+    severity: low
 ---
 
 <intent-contract>
@@ -138,6 +145,40 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 - 2026-10-25, lead (runner C), after the implement stage's `intent gap` halt on row 6: ruling (veto window, recorded in the run's inbox) -- row 6 and AC 2's last clause now say what AD-13, AD-24 and AD-25 already state: OcuTalon's own pages offer no password change; IRIS's own `%CSP.PasswordChange.cls`, which build 154 serves at the trace applications to a signed-in user whatever `PermittedClasses` holds, is covered by the guard (F12 asserts the refusal for both public accounts) and, on the online demo, by the demo host's proxy, which blocks every password-change page (AD-25, Story 29.3; the measured page path is filed in the ledger for Story 29.3). The Never list's ban on a `PermittedClasses` or application change stands. Status reset to `in-review`: the implementation is complete in the working tree and resumes at review.
 
 ## Review Triage Log
+
+### 2026-10-25 - Review pass
+- verdicts: 30 findings - high 0, medium 5, low 18, false 7, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: sign-out coverage of the trace applications rests on the group-wide logout alone - `signOutGroup` now also sends each trace application's `?IRISLogout=end` (the script's `logout_all` already does both); a failed request is still not a failure of the case.
+  - `[medium]` `[patch]` blind: "never in a log line, live event, production message or audit entry" has no test - the unit now searches the container output, messages.log and the after-start log, and the production event log (Ens_Util.Log), for both published passwords (`check_password_not_logged`); mutation recorded.
+  - `[low]` `[reject]` blind: copy buttons have no keyboard coverage - they are native buttons, no AC or Boundaries line asks for a keyboard path, and the popover's keyboard cases are the floor project's; the fix is a new test surface for a behaviour the platform gives.
+  - `[low]` `[reject]` blind: overlapping copy presses can show a stale result or orphan a timer - needs two presses within the milliseconds a clipboard write takes; cosmetic (a "Copied" cleared early); the fix adds a sequence guard.
+  - `[low]` `[patch]` blind: the silent-files filter in `announce-focus-sources.test.mjs` leans on `&&` binding tighter than `||` - parenthesised the `&&` side.
+  - `[low]` `[defer]` blind: StateBody's contract is documented only on the private `TraceAccount()` - the lead's gate for the shared `Web/Api.cls` forbids changing its existing lines; routed to `deferred:`.
+  - `[low]` `[reject]` blind: a 4-hour reset boundary between `NextReset()` and the `/status` curl gives a false red - the window is about a second in 14,400; the fix is a retry branch.
+  - `[low]` `[reject]` blind: `hexpw` and `dc stop`/`dc start` ignore errors - an empty password makes `redact`'s sed fail loudly and the forms' rows red, and a failed restart ends in `die` at `wait_started_ready`; no silent pass.
+  - `[false]` `[reject]` blind: the `image` group gets heavier with no recorded timing - `## Verification` records 138 s for the unit and the guideline of 600 s for the group.
+  - `[low]` `[reject]` edge: overlapping copy presses (the same claim as the blind row above) - carried to that row's reason.
+  - `[low]` `[patch]` edge: an empty `page_token` makes F1, F3 or F12 at a trace application a request that never signs in, which would read as "unchanged" for a public account - each of the three call sites now fails the check when the token is empty.
+  - `[low]` `[reject]` edge: `control_now` goes stale after a mismatched control outcome - the mismatch itself is already a FAIL line, which is the cause the reader needs.
+  - `[low]` `[reject]` edge: the 4-hour boundary (the same claim as the blind row above) - carried.
+  - `[low]` `[reject]` edge: the sign-in-page watcher may read a response body after the assertion - the assertion follows `drawnMessages`, which polls for seconds, so a document's body is long read; the fix adds promise bookkeeping.
+  - `[false]` `[reject]` edge: another OCUORDERS header between `before` and the Send makes `seedOrder` open the wrong session - the Orders production has no poller or adapter (its service has PoolSize 0, `Partner.cls`), so no background header exists.
+  - `[low]` `[defer]` edge: StateBody's comment does not list traceAccount (the same claim as the blind row above) - carried to the same deferred item.
+  - `[medium]` `[patch]` verification-gap: the "Copied" and failure announcements are pinned by no running test - O5 and O6 now record the live region (`recordAnnouncements`) and assert one "Copied" per successful press and one failure text per failed press; mutations recorded.
+  - `[medium]` `[patch]` verification-gap: the failure line clearing on the next copy is not pinned - O6 now ends with a successful copy and asserts "Copied" shows and the failure line is gone; mutation recorded.
+  - `[low]` `[patch]` verification-gap: V7's local-popover assertions have no recorded mutation - applied "the header's traceAccount falls back to a fixed account", V7 red alone, reverted; line recorded.
+  - `[false]` `[reject]` verification-gap: several rows (3, 13, 6, O1, O2) have no mutation of their own - Rule 19 asks one demonstrated mutation per AC and each AC has one; the layer calls it a note.
+  - `[low]` `[reject]` verification-gap: overlapping copy presses (the same claim as the blind row above) - carried.
+  - `[medium]` `[patch]` intent-alignment: no test reads the announcer for the copy texts - the same defect as the verification-gap announcements row, fixed once.
+  - `[low]` `[reject]` intent-alignment: "Copied" is asserted gone within 5 s, not as lasting 2 s; the failure line's clearing on close and a missing `navigator.clipboard` are untested - 2000 ms is a constant a timing assertion would only make flaky, a missing clipboard throws into the same catch the rejection test exercises.
+  - `[medium]` `[patch]` intent-alignment: the Never line on logs, events and audit has no scan - the same defect as the blind row, fixed once.
+  - `[low]` `[reject]` intent-alignment: row 5 re-checks only the targeted account after its own form - a form carries one user name, so it cannot reach the other account; each public account is checked after its own forms.
+  - `[false]` `[reject]` intent-alignment: README account "not enabled" against "disabled" - decided in-stage under `## Design Notes` (a fresh flag-on volume never creates it; absent or disabled both read 0).
+  - `[false]` `[reject]` intent-alignment: row 3 must see existing empty rows - a missing row prints `<none>` and fails the check, so the check is strict.
+  - `[false]` `[reject]` intent-alignment: Task 0's record is outside the diff - it is in `## Verification` ("Implement-stage results").
+  - `[false]` `[reject]` intent-alignment: row 6's signed-in 200 is only a code comment - it is recorded in `## Verification` as the ruling asks (recorded, not asserted).
+  - `[low]` `[reject]` intent-alignment: the watcher is never detached - it lives as long as the context, which ends with the case.
 
 ## Design Notes
 
@@ -269,13 +310,32 @@ The first four mutations shared one live run (rows 2, O3, O4 and the omit of O5 
 
 **Loop commands run:** `bash ci/checks.sh` (all scripts passed), `npm --prefix web test` (566 pass), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, `ci/warm.sh up` (log `RESULT OK`), `OcuTalon.Test.Web.Api`, `OcuTalon.Test.Data.Setting` and `OcuTalon.Test.Data.PublicSettings` on the warm stack, `ci/warm.sh down`, and the live unit (last clean run: all checks passed). Left for the parent: shard lane-a, shard lane-b, live sign-in, live floor.
 
+### Review-stage results (2026-10-25, build 154, lane C, tag `e16s1i`)
+
+Patches: `web/e2e-online/support.ts` (sign-out of each trace application too), `web/e2e-online/demo-account.spec.ts` (announcements in O5 and O6, a successful copy after the failures in O6), `docker/tests/test-online-demo.sh` (the published passwords searched for in the container output, messages.log, the after-start log and the event log; a missing session token fails the check), `web/scripts/announce-focus-sources.test.mjs` (parentheses). Row 6's code matches the restated row: no field on the sign-in page, none on the trace applications' page with no session, F12 asserted for both public accounts, the signed-in 200 recorded above and asserted nowhere.
+
+- mutation: AC 4, `CredentialRows.copy` no longer announces "Copied" (the web bundle rebuilt): `demo-account.spec.ts` O5 red ("user: Copied is announced once").
+- mutation: AC 4, `CredentialRows.copy` no longer clears the failure line (`this.failed.set(false)` removed): O6 red ("and takes the failure line away"); it shared the run with the line above, each red in its own test.
+- mutation: AC 4, `CredentialRows.copy` no longer announces the failure: O6 red alone ("the failure is announced"), O5 green.
+- mutation: Never (no password in a log), `TraceAccount()` writes the read-only password to the console log and to the event log: `live online-demo` red on two lines, "the read-only account's password: '2' line(s) of the container's output, messages.log or the after-start log hold it" and "the production event log holds neither published password".
+- mutation: AC 5, the header's `traceAccount` falls back to a fixed account when the snapshot has none (bundle rebuilt): links V7 red alone ("a local install shows no credential row"), run through `live sign-in` (191 passed, 1 failed).
+- Each mutation was reverted from a backup made before it; `shasum`, `git status --short` and `git diff --stat` equal the state before, and the bundle was rebuilt from the restored tree.
+
+**Once lines after the last patch (all green):** `shard lane-a` (47 classes passed), `shard lane-b` (42 classes passed, `Test.Web.Api` and `Test.Data.Setting` among them), `live sign-in` (192 passed), `live floor` (70 passed), then `teardown` (nothing tagged `e16s1i` left). Loop lines after the patches: `bash ci/checks.sh` (all scripts passed), `npm --prefix web test` (566 pass), `npm --prefix web run lint`, and `live online-demo` (76 PASS lines, 116 s through `ci/iris.sh`, the unit's new log checks included).
+
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: matrix row 6 and AC 2 ("no page offers a password change") do not hold on build 154 at the trace applications, and closing it needs a `PermittedClasses` change in Lane A's `Install/Step/Web.cls` (the spec's Never list forbids it)
+Status: done
+Blocking condition: none
 
-Evidence (measured by the implement stage on lane C's throwaway, `live online-demo`): a signed-in user is served IRIS's own `%CSP.PasswordChange.cls` page with 200 at both trace applications (the row says 404). With no session it is IRIS's sign-in page with no old-password or repeat-password field. A change posted through that page (F12) succeeds for a user with no public account and is refused for both public accounts by the guard, so AC 2's password outcome holds; every one of the 19 request kinds left both public passwords unchanged. The implement stage did not edit the intent contract; the unit's row 6 check covers the no-session page only, and F12 asserts the outcome.
+Summary: the online demo's flag-on live unit (`live online-demo`, 76 checks: start, keys, budget rows, accounts and guard, 12 password-change forms over HTTP, six browser cases, the log search and the restart), `traceAccount` in `/state` on the online demo only, and the Visual Trace menu's two credential rows with copy buttons. Row 6 and AC 2 follow the lead's restated layering (no OcuTalon page offers a password change; F12 is refused for both public accounts; IRIS's signed-in page is recorded, not asserted absent).
 
-Recommended amendment (veto-window: it weakens a stated guarantee, so the lead decides): restate row 6 and AC 2's last clause as "no page OcuTalon serves offers a password change; with no session the trace applications' page for `%CSP.PasswordChange.cls` is IRIS's sign-in page; a signed-in user is served IRIS's own page, and the guard refuses the change for both public accounts", which is the layering AD-13, AD-24 and AD-25 already state (the guard is the tested fallback, the proxy blocks every password-change page, the probe is the backstop). The alternative, a 404 for that page, needs an owner-approved `PermittedClasses`/application change in `Install/Step/Web.cls`.
+Files changed: `src/ocutalon/cls/OcuTalon/Web/Api.cls` (`TraceAccount()` and one call line), `Test/Web/Api.cls` and `Test/Data/Setting.cls` (new test methods), `web/src/app/header/credential-rows.ts` (new component), `header.ts`, `api-types.ts`, `trace-view.ts`, `icon.ts` (the rows, the key, the texts, the `copy` icon), `web/e2e-online/` (three files: the online-demo project's specs and sign-out helper), `docker/tests/test-online-demo.sh` (new unit), `ci/units.sh`, `web/playwright.config.ts`, `web/package.json`, `web/tsconfig.e2e.json`, `web/e2e/support/iris.ts`, `web/e2e/trace/links.spec.ts` (V7's local pins) and the node tests that pin the strings, the projects and the announcers.
 
-State at halt: the implementation is complete and uncommitted in the working tree on top of `ea1b455` (nothing committed, nothing pushed; `HEAD` unchanged). Verified: `bash ci/checks.sh`, `npm --prefix web test` (566 pass), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, the three warm classes, `live online-demo` (138 s, rows 1 to 13 with the row 6 reading above), and seven mutations (see `## Verification`). Not yet run: the (once) lines (`shard lane-a`, `shard lane-b`, `live sign-in`, `live floor`) and the review layers. All `e16s1*` stacks are torn down.
+Review: 30 findings from four layers - patches applied for 6 entries (the log search, the announcements, the failure line's clearing, the trace sign-outs, the empty session token, the V7 mutation line) plus one parenthesis fix; deferred 1 entry (StateBody's comment, two findings, shared-file gate); rejected 19 findings (12 low, 7 false) with the reasons in `## Review Triage Log`.
+
+Follow-up review recommended: false. Three medium entries were patched (logs, announcements, failure line); each was verified by a demonstrated mutation and the (once) lines ran green after the last patch, so no unverified risk is left to name.
+
+Verification: see `## Verification` (Implement-stage results and Review-stage results): `ci/checks.sh`, `npm --prefix web test`, `npm --prefix web run lint`, `live online-demo`, `shard lane-a`, `shard lane-b`, `live sign-in`, `live floor` and `teardown` all passed after the last patch.
+
+Residual risks: the 4-hour boundary between `NextReset()` and the `/status` read in row 2 can give a rare false red; `signOutGroup` swallows a failed sign-out, so a held licence connection would show only as a later cap problem; the signed-in `%CSP.PasswordChange.cls` page stays reachable at the trace applications on build 154 (the guard refuses the change for both public accounts, and the demo host's proxy is the layer that blocks the page, Story 29.3).

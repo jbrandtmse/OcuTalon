@@ -86,16 +86,19 @@ describe('the page speaks only through the Announcer', () => {
   it('announces from one place per event: the rail, the header and the reply, card and message components do not announce', () => {
     // A story that makes one of these announce moves the event's announcement from the chat or the control that owns it, so that the
     // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason.
-    const silent = files.filter((one) => /^app\/(rail|header)\//.test(one.name) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts'].includes(one.name));
+    // Story 16.1: the header's credential rows speak (credential-rows.ts: "Copied" or the copy failure, once, after the user's own press on a
+    // copy button), so that file is the one header file that is not silent; the header itself still is.
+    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts'].includes(one.name));
     assert.ok(silent.length >= 6, 'the silent files are found');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the load failure, the busy notice and the narrow-window note', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the load failure, the busy notice and the narrow-window note (and, from Story 16.1, the credential rows)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
+      'app/header/credential-rows.ts',
       'app/live/live-state.ts',
       'app/shared/announcer.ts',
       'app/shared/narrow-note.ts',
