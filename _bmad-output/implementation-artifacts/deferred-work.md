@@ -714,6 +714,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Approval.Hold SetTimer gets the whole seconds until ExpiresAt, at least 1 (implement report residual risk; spec Decided in-stage)
 - 2026-10-25T02:07:44Z status=routed owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=3.5's expiry path must accept a timer that fires up to 1 s early (treat the timer as the expiry, or re-arm for the remainder)
+- 2026-10-25T06:22:33Z status=resolved-by:3-5-the-first-answer-wins-and-unanswered-requests-expire by=adjudication note=Expire_never_compares_the_clock;its_callers_(the_hold's_timer,Answer's_past-expiry_step)_decide;matrix_row8_TestExpireDoesNotWaitForTheClock(mutation_recorded);spine_Approval_requests_row
 
 ### DW-187: Approval.Raise inside an open transaction fails closed with the hold's 'no approval request' error, because the hold's job cannot see the uncommitted row; if AI Hub's %CanExecute callback runs at a TLevel above 0, Story 3.6's gate could never hold a call
 - source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: low | footprint: in-epic
@@ -740,3 +741,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-5-the-first-answer-wins-and-unanswered-requests-expire.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: HoldResponse sends nothing for a task whose action does not match the row (row 14); a late Answer still expires the row, so only the expired outcome to ResultTarget is missing
 - 2026-10-25T05:16:11Z status=open owner=3-5-the-first-answer-wins-and-unanswered-requests-expire by=harvest note=for the 3.5 code review: patch (re-arm or expire-and-deliver when the hold ends with a pending row) or route with a reason
+- 2026-10-25T06:21:01Z status=escalated owner=burndown by=cr note=fix-risk high: Reconcile/Hold must deliver answered or expired rows with no hold (3.5 Never list, row 14); operator-only

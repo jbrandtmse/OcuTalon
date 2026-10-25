@@ -4,9 +4,10 @@ Include Ensemble
 ///   - Raise validates an unsaved ApprovalRequest, saves it as pending under its lock and starts its hold synchronously through
 ///     ApprovalStartIn; a failed Raise leaves no row, no hold and no event, and approval.raised fires once, after the unlock;
 ///   - Answer, Expire, Cancel, StartExecution and FinishExecution are the five state methods: each takes
-///     LOCK +^OcuTalon.Bridge.Approval(<Ref>) for LOCKSECONDS plus TASKSECONDS, changes the row along AD-11's one path (pending to approved,
-///     rejected, expired or cancelled; approved to executing to done or failed; approved to failed), refuses every other change with
-///     nothing changed and no event, and fires its HostSink event after the unlock, from its own job (AD-31);
+///     LOCK +^OcuTalon.Bridge.Approval(<Ref>) for LOCKSECONDS plus TASKSECONDS (FinishExecution refuses an unknown result before it locks),
+///     reads the row as the database holds it under that lock, changes it along AD-11's one path (pending to approved, rejected, expired or
+///     cancelled; approved to executing to done or failed; approved to failed), refuses every other change with nothing changed and no event,
+///     and fires its HostSink event after the unlock, from its own job (AD-31; StartExecution has no event);
 ///   - Hold and HoldResponse are the logic of the business process ApprovalHold, which stores only the request's Ref (AD-5): Hold sends the
 ///     Workflow task to the role WORKFLOWROLE and sets the 24-hour timer, and replies to the start; HoldResponse acts only on what the row
 ///     shows: on the timer it expires the row, and it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix only), rejection
@@ -211,7 +212,7 @@ ClassMethod Answer(ref As %String, action As %String, channel As %String, irisUs
 	Set result = "not_found"
 	Set event = ""
 	Set owner = ""
-	If ref = "" Quit result
+	If '..IsRef(ref) Quit result
 	If '..TakeLock(ref) {
 		$$$LOGWARNING("OcuTalon.Bridge.Approval.Answer recorded nothing for "_ref_": it could not take the lock in "_(..#LOCKSECONDS + ..#TASKSECONDS)_" seconds")
 		Quit result
@@ -234,7 +235,7 @@ ClassMethod AnswerLocked(ref As %String, action As %String, channel As %String, 
 {
 	Set event = ""
 	Set owner = ""
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row = ..LockedRow(ref)
 	If '$IsObject(row) || (row.State = "cancelled") Quit "not_found"
 	If '$ListFind($ListBuild("approve", "reject"), action) || '$ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#CHANNEL), channel) || '..HoldsRole(irisUser, row.RequiredRole) Quit "not_allowed"
 	If row.State = "expired" Quit "expired"
@@ -244,14 +245,12 @@ ClassMethod AnswerLocked(ref As %String, action As %String, channel As %String, 
 	}
 	Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil(row.ExpiresAt)
 	If '(seconds > 0) {
-		Set row.State = "expired"
-		Set sc = row.%Save()
+		Set sc = ..MoveLocked(ref, "OcuTalon.Bridge.Approval.Answer", "pending", "expired", "", 0, 0, .owner)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING("OcuTalon.Bridge.Approval.Answer could not expire "_ref_": "_$SYSTEM.Status.GetErrorText(sc))
 			Quit "not_found"
 		}
 		Set event = ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALEXPIRED
-		Set owner = row.OwnerRef
 		Quit "expired"
 	}
 	Set row.AnsweredAction = action
@@ -270,24 +269,25 @@ ClassMethod AnswerLocked(ref As %String, action As %String, channel As %String, 
 	Quit "done"
 }
 
-/// 1 when the IRIS user holds the role: it is in the user's recursed role set. An empty user or role, an unknown user and an error from the
-/// role set (reading another user's set needs %Admin_Secure:USE) hold nobody.
+/// 1 when the IRIS user holds the role: it is in the user's recursed role set, the names compared without case, as IRIS names roles. An empty
+/// user or role, an unknown user and an error from the role set (reading another user's set needs %Admin_Secure:USE) hold nobody.
 ClassMethod HoldsRole(irisUser As %String, role As %String) As %Boolean [ Private ]
 {
 	If (irisUser = "") || (role = "") Quit 0
 	Set holds = 0
 	Try {
 		Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(irisUser, .roles)
-		Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), role)
+		Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString($ZConvert(roles, "L")), $ZConvert(role, "L"))
 	} Catch exception {
 		Set holds = 0
 	}
 	Quit holds
 }
 
-/// Expires a pending request, whatever the clock says (DW-186): its callers decide that the time is up, the hold's timer (set from ExpiresAt in
-/// whole seconds, rounded down) and Answer's past-expiry step. A missing row, or a row in any other state, is an error that names the Ref and the
-/// state, and nothing changes. After the unlock it fires approval.expired from this job, to sinkClass (empty: the HostSinkClass setting).
+/// Expires a pending request, whatever the clock says (DW-186): its caller, the hold's timer (set from ExpiresAt in whole seconds, rounded down),
+/// decides that the time is up; Answer's past-expiry step makes the same change through the same helper, MoveLocked. A missing row, or a row in
+/// any other state, is an error that names the Ref and the state, and nothing changes. After the unlock it fires approval.expired from this job,
+/// to sinkClass (empty: the HostSinkClass setting).
 ClassMethod Expire(ref As %String, sinkClass As %String = "") As %Status
 {
 	Quit ..Move(ref, "Expire", sinkClass, "pending", "expired", ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALEXPIRED)
@@ -309,15 +309,15 @@ ClassMethod StartExecution(ref As %String) As %Status
 	Quit ..Move(ref, "StartExecution", "", "approved", "executing", , , 1)
 }
 
-/// Closes a request with the result of the run. result must be done, failed or interrupted; any other value is an error that names it, and
-/// nothing is locked. An executing row becomes done (result done) or failed (failed or interrupted); an approved row whose run could not
+/// Closes a request with the result of the run. result must be done, failed or interrupted; any other value is an error that names it and the
+/// Ref, and nothing is locked. An executing row becomes done (result done) or failed (failed or interrupted); an approved row whose run could not
 /// start becomes failed, but only with the result failed. Result is set to the given result and FinishedAt to now. Every other case, and a
 /// missing row, is an error that names the Ref, the state and the result. After the unlock it fires approval.result from this job, to
 /// sinkClass (empty: the HostSinkClass setting).
 ClassMethod FinishExecution(ref As %String, result As %String, sinkClass As %String = "") As %Status
 {
 	If '$ListFind($ListBuild("done", "failed", "interrupted"), result) {
-		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Approval.FinishExecution refuses the result '" _ result _ "': it is not done, failed or interrupted")
+		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Approval.FinishExecution refuses the result '" _ result _ "' for " _ $Extract(ref, 1, 64) _ ": it is not done, failed or interrupted")
 	}
 	Quit ..Move(ref, "FinishExecution", sinkClass, $Select(result = "failed": "executing,approved", 1: "executing"), $Select(result = "done": "done", 1: "failed"), ##class(OcuTalon.Bridge.Ext.HostSink).#APPROVALRESULT, result)
 }
@@ -325,12 +325,12 @@ ClassMethod FinishExecution(ref As %String, result As %String, sinkClass As %Str
 /// The one state change of Expire, Cancel, StartExecution and FinishExecution: under the row's lock, a row whose state is in from (a comma
 /// list) gets the state to, and the result and FinishedAt when result is given; ahead 1 also needs ExpiresAt still ahead; cancelTask 1
 /// completes the hold's task with no action after the save. Returns an error that names caller, the Ref, the state and the result for a row
-/// that is missing or in another state, and for a lock that is not taken; a refusal changes nothing and fires no event. After the unlock it
-/// fires event (when given) from this job.
+/// that is missing or in another state, for a Ref that is not a 22-character reference (no row can have it), and for a lock that is not
+/// taken; a refusal changes nothing and fires no event. After the unlock it fires event (when given) from this job.
 ClassMethod Move(ref As %String, caller As %String, sinkClass As %String, from As %String, to As %String, event As %String = "", result As %String = "", ahead As %Boolean = 0, cancelTask As %Boolean = 0) As %Status [ Private ]
 {
 	Set where = "OcuTalon.Bridge.Approval." _ caller
-	If ref = "" Quit $SYSTEM.Status.Error(5001, where _ " refuses an empty Ref")
+	If '..IsRef(ref) Quit $SYSTEM.Status.Error(5001, where _ " refuses " _ $Extract(ref, 1, 64) _ ": there is no approval request with that Ref")
 	If '..TakeLock(ref) {
 		Quit $SYSTEM.Status.Error(5001, where _ " could not take the lock ^OcuTalon.Bridge.Approval(""" _ ref _ """) in " _ (..#LOCKSECONDS + ..#TASKSECONDS) _ " seconds")
 	}
@@ -346,11 +346,11 @@ ClassMethod Move(ref As %String, caller As %String, sinkClass As %String, from A
 	Quit $$$OK
 }
 
-/// Move's work under the lock. owner is the row's OwnerRef once the row has changed.
+/// Move's work under the lock, and the expiry of Answer's past-expiry step. owner is the row's OwnerRef once the row has changed.
 ClassMethod MoveLocked(ref As %String, where As %String, from As %String, to As %String, result As %String, ahead As %Boolean, cancelTask As %Boolean, Output owner As %String) As %Status [ Private ]
 {
 	Set owner = ""
-	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set row = ..LockedRow(ref)
 	If '$IsObject(row) Quit $SYSTEM.Status.Error(5001, where _ " refuses " _ ref _ ": there is no approval request with that Ref")
 	Set about = $Select(result '= "": " and the result " _ result, 1: "")
 	If '$ListFind($ListFromString(from), row.State) {
@@ -369,6 +369,16 @@ ClassMethod MoveLocked(ref As %String, where As %String, from As %String, to As 
 	Set owner = row.OwnerRef
 	If cancelTask Do ..CompleteHoldTask(ref, "")
 	Quit $$$OK
+}
+
+/// The row of the Ref as the database holds it, or "" when there is none. A row that this process already has open (a caller kept it) is read
+/// again, so that a state method under the lock never checks or saves a stale copy.
+ClassMethod LockedRow(ref As %String) As OcuTalon.Bridge.Data.ApprovalRequest [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit ""
+	If $$$ISERR(row.%Reload()) Quit ""
+	Quit row
 }
 
 /// 1 when the lock ^OcuTalon.Bridge.Approval(ref) is taken (the caller unlocks it), waiting up to LOCKSECONDS plus TASKSECONDS.
