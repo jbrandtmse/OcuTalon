@@ -20,9 +20,9 @@
 #     Story 2.4 adds the turn queue: before the kill a second fixture session holds a turn that was left running (Attempt 1)
 #     and a queued turn, each with its text; after the next start, within 60 s, both are done with the fallback reply
 #     conversation.turnFallback (the real Decide has no model key and answers no_key), the running one on its second attempt,
-#     each with both decision Refs set and the fallback Decision rows they name (tellnow, Fallback, no_key), and the
-#     session's stream holds exactly one done chat.message for each, the first turn's Seq below the second's. The rows are
-#     removed afterwards.
+#     each with both decision Refs set, the first turn's triage row and the second turn's turn row the fallback (tellnow,
+#     Fallback, no_key), and the session's stream holds exactly one done chat.message for each, the first turn's Seq below
+#     the second's. The rows are removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.

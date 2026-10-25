@@ -925,8 +925,8 @@ test.describe('C14: another zone and locale', () => {
 /**
  * C15: a reply through the stack's real Decide, which has no model key, is a fallback with the decision that Decide recorded for it,
  * so its strip is Tell now, the Fallback flag, the cost of the turn (<$0.0001, as it is 0) with no confidence, the trace link after
- * the separator, the reason as a sentence and a Details button whose rows hold no model, no tokens and no steps. The strip of a
- * fallback that has no decision row at all is pinned by decision.spec D14.
+ * the separator, the reason as a sentence and one button, Decision details, whose rows show no model and 0 tokens and steps. The
+ * strip of a fallback that has no decision row at all is pinned by decision.spec D14.
  */
 test('C15: a fallback reply through the real Decide shows the strip of the no-key decision', async ({ page }) => {
   const field = await open(page);
@@ -943,8 +943,9 @@ test('C15: a fallback reply through the real Decide shows the strip of the no-ke
   await expect(strip.locator('.line1 .meta > :nth-last-child(2)'), 'after the separator').toHaveText('\u00B7');
   await expect(strip.locator('.reason')).toHaveText(['No model key is set.']);
   await expect(strip, 'no confidence').not.toContainText('Confidence');
+  await expect(strip.getByRole('button'), 'one button').toHaveCount(1);
   const button = strip.getByRole('button', { name: 'Decision details' });
-  await expect(button, 'one Details button').toHaveCount(1);
+  await expect(button, 'and it is Decision details').toHaveCount(1);
   await button.click();
   const details = strip.locator('dl.details');
   await expect(details.locator('dt'), 'the rows of a decision that has no model').toHaveText(['Tokens', 'Agent steps', 'Duration', 'Decision message', 'Cost']);

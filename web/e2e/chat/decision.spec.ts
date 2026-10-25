@@ -81,7 +81,7 @@ const turn = (label: string, over: Partial<SeedTurn> = {}): SeedTurn => ({
   ...over,
 });
 
-/** The fallback reply that the stack's own Decide gives, with the turn decision that fell back. */
+/** A seeded fallback reply, with the turn decision that fell back. */
 const FALLBACK: Partial<SeedTurn> = {
   replyText: '',
   catalogKey: 'conversation.turnFallback',

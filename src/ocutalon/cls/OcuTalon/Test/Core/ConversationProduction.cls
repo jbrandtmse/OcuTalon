@@ -90,7 +90,11 @@ Method TestTurnThroughProduction()
 	Do ..AssertRefs(row, "the turn")
 	Do $$$AssertEquals(row.ShownDecisionRef(), row.TurnDecisionRef, "the turn's decision is the one it shows")
 	Set adopted = ","_##class(OcuTalon.Test.Data.Fixture).AdoptTurns(session, "")_","
-	Do $$$AssertTrue($Find(adopted, ","_row.Ref_",") && $Find(adopted, ","_row.TriageDecisionRef_",") && $Find(adopted, ","_row.TurnDecisionRef_","), "the clean-up records the turn and both of its Decision rows")
+	Do $$$AssertTrue($Find(adopted, ","_row.Ref_",") && $Find(adopted, ","_row.TriageDecisionRef_",") && $Find(adopted, ","_row.TurnDecisionRef_","), "AdoptTurns returns the turn and both of its Decision Refs")
+	For ref = row.TriageDecisionRef, row.TurnDecisionRef {
+		Set decision = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
+		Do $$$AssertTrue($IsObject(decision) && ($Get(^OcuTalonTest("Fixture", "OcuTalon.Bridge.Data.Decision", decision.%Id())) = ref), "and records the Decision row "_ref_" for Clean")
+	}
 	Set events = ..WaitEvents(session, 3)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the stream holds the three stages, once each")
 	If events.%Size() = 3 {
@@ -98,7 +102,7 @@ Method TestTurnThroughProduction()
 		Do $$$AssertEquals(last.ref_"|"_last.clientId_"|"_last.text_"|"_last.catalogKey_"|"_last.fallbackReason_"|"_last.replyText, row.Ref_"|"_clientId_"|"_text_"|conversation.turnFallback|no_key|", "and the last one is the turn as stored")
 		Do $$$AssertEquals(last.traceHeaderId_"|"_last.traceNamespace, row.TraceHeaderId_"|"_$Namespace, "with the trace target")
 		Do $$$AssertEquals(last.decision.ref_"|"_last.decision.kind_"|"_last.decision.fallback_"|"_last.decision.fallbackReason, row.TurnDecisionRef_"|turn|1|no_key", "carrying the turn's decision")
-		Do $$$AssertEquals(+last.turnCost.costUSD, 0, "and a turn cost of 0")
+		Do $$$AssertTrue($IsObject(last.turnCost) && last.turnCost.%IsDefined("costUSD") && (+last.turnCost.costUSD = 0), "and a turn cost of 0")
 	}
 	Set decisions = ##class(OcuTalon.Test.Core.Observe).Events(session, "decision", 2, ..#WAIT)
 	Do $$$AssertEquals(decisions.%Size(), 2, "the stream holds two decision events")

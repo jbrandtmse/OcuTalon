@@ -963,3 +963,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
+
+### DW-197: No check counts the Decision rows left after the production tests, so a lost adopt (RoutingProduction's two, Fixture.AdoptTurns) or D14's finally clean-up would leak rows with every test green
+- source: spec-2-17-epic-2-s-tests-follow-the-real-decide.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Dropping RoutingProduction's eval adopt leaves 1 eval Decision row and the class green (QA, counted by SQL); a leftover count needs a shard-level check and this story adds no unit
+- 2026-10-25T10:53:35Z status=wontfix-accepted owner=2-17-epic-2-s-tests-follow-the-real-decide by=cr note=reopen_if=a warm-stack SQL count finds OcuTalon_Bridge_Data.Decision rows owned by eval or a zz fixture session after the shards

@@ -237,6 +237,35 @@ deferred: []
   - **when** it is listed,
   - **then** it touches only test files and the two live scripts. The only exception is an integration defect recorded under Design Notes with its own test.
 
+### Review Findings
+
+Code review (2026-10-25, the story's first `bmad-code-review` pass; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 29 reported findings, 22 entries after grouping: 0 decision-needed, 9 patch (all applied and verified), 1 defer, 12 rejected. Two verdicts were settled by a measured mutation rather than by reading: the server's turn-cost check was confirmed (it stayed green with no `turnCost`), and the "no Usage row passes on a failed query" claim was disproved.
+
+- [x] [Review][Patch] `[medium]` The `AdoptTurns` pin checks the returned list, not the record that `Clean` reads: dropping `Do ..Adopt(decision)` alone kept it green while every turn left its two Decision rows. The pin now also asserts each row's `^OcuTalonTest("Fixture", ...)` record [src/ocutalon/cls/OcuTalon/Test/Core/ConversationProduction.cls:93]
+- [x] [Review][Patch] `[low]` The server's turn-cost check (`+last.turnCost.costUSD = 0`) stayed green with no `turnCost` in the done event (measured); it now requires the object and its `costUSD` [src/ocutalon/cls/OcuTalon/Test/Core/ConversationProduction.cls:105]
+- [x] [Review][Patch] `[low]` Row 20's header said both turns' rows are read; it now names the two rows the refs line reads (the first turn's triage row, the second turn's turn row) [docker/tests/test-production-restart.sh:22]
+- [x] [Review][Patch] `[low]` RoutingProduction's header named no adopted decide row; the eval test's bullet and the clean-up sentence now do [src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls:17]
+- [x] [Review][Patch] `[low]` C15's "one button" counted only buttons named "Decision details"; it now counts every button of the strip, then names it [web/e2e/chat/chat.spec.ts:946]
+- [x] [Review][Patch] `[low]` C15's doc said the Details rows hold no tokens and no steps; it now says 0 tokens and steps, as the case asserts [web/e2e/chat/chat.spec.ts:928]
+- [x] [Review][Patch] `[low]` api.spec's doc said the snapshot's turn carries the turn decision and a turn cost of 0, but the reload checked only the decision's ref; the reload now asserts the decision's kind, outcome, fallback and reason and `turnCost.costUSD` 0 [web/e2e/api/api.spec.ts:488]
+- [x] [Review][Patch] `[low]` decision.spec's `FALLBACK` doc said the stack's own Decide gives this seeded fallback, which carries reasons and a confidence that the real Decide's fallback never has; it now says it is seeded [web/e2e/chat/decision.spec.ts:84]
+- [x] [Review][Patch] `[low]` Three checks this story added had no demonstrated mutation: Routing's decision event, ThreadProduction's two Refs, the server's turn cost (Rule 19 LOW, closed in pass; mutation lines under Verification) [src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls:60]
+- [x] [Review][Defer] `[low]` No check counts the Decision rows left after the shards, so a lost adopt (Routing's two, `AdoptTurns`) or D14's `finally` would leak with every test green [src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls:197] — deferred: DW-197 `wontfix-accepted` (a leftover count is a shard-level check, and this story adds no unit; QA measured 0 rows left by SQL)
+
+**Rejected** (one line each):
+- `[low]` B6 still waits up to 30 s for its sentence (blind-hunter; acceptance-auditor note): one 30 s wait fits the unit's margin (about 415 of 540 s), the spec scopes the helper to chat.spec, and a copy in banners.spec would be a Rule 2 near-copy.
+- `[low]` C15's Decision message is matched by pattern (blind-hunter): D3 pins on the page that the strip shows the turn decision and not the triage one, api.spec and ConversationProduction pin the payload's decision as the turn's, and the spec prescribes "a 22-character ref".
+- `[low]` V2 relies on an earlier turn of the same trace day, and re-publishes the turn's decision event (blind-hunter; edge-case-hunter): a run that crosses UTC midnight fails loudly at V2's precondition (never a false green), a second post only narrows that window, and the rail keys rows by Ref, so the extra event changes nothing.
+- `[low]` A turn that never reaches done leaves its Decision rows (blind-hunter; edge-case-hunter): only on a run that has already failed, on a throwaway; the earlier triage rejected the same class.
+- `[low]` Routing quits before adopting when no card comes (edge-case-hunter): the same, rejected by the earlier triage.
+- `[low]` Row 20 does not adopt the four Decision rows of the restart turns (edge-case-hunter): the unit's throwaway is torn down after it, and the header's "rows" are the seeded ones (earlier triage).
+- `[false]` A missing `decision` in the done event aborts the test (edge-case-hunter): the comparison fails with the field empty, loudly; no false green.
+- `[low]` `AdoptTurns` misses Usage rows and superseded attempt rows (edge-case-hunter): a keyless stack writes no Usage row (asserted) and the real Decide never retries there; the double's rows are recorded by `DecideDouble.Record`.
+- `[false]` Row 20's refs line breaks on an empty Ref and hides which (edge-case-hunter): the four `$Length` flags are written before the row fields, so the partial line names the empty Ref.
+- `[low]` C2 still polls `replyLog` for 20 s (edge-case-hunter): the spec keeps C2's poll (Code Map), so the fix edits the spec.
+- `[false]` "No Usage row" passes when the count query fails (blind-hunter; edge-case-hunter): measured with a table name that does not exist, `%GetData` raises `<METHOD DOES NOT EXIST>` on the failed result, so the check already fails loudly; no change kept.
+- `[low]` The decision-then-notification order is not asserted (blind-hunter; acceptance-auditor): BridgeSink publishes in Decide's job before Decide answers Intake, which only then routes the card (AD-31), so no mutation short of a re-architecture can reorder them and the assertion would have no observable red.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -380,6 +409,24 @@ The implement stage records each run as `mutation: … -> …` below.
 - mutation (review pass): `Fixture.AdoptTurns` loops over no decision Refs (warm, tag e2s217iw) -> red: ConversationProduction TestTurnThroughProduction, "the clean-up records the turn and both of its Decision rows".
 - mutation (review pass): `Intake.Take` keeps no DecisionRef (warm) -> red: RoutingProduction, the card's DecisionRef, the event's decision, the Notification's DecisionRef and the ItemDecision's Ref.
 - mutation (review pass): V2 posts its own later turn, and `Live/Payload/Decision.FromRow` without the turn's trace override (fresh, tag e2s217i, `live sign-in`) -> red: V2 alone (1 failed, 1 skipped, 191 passed, 5.8 min). Each was reverted from a backup of this stage's own, and `git status --short` and the hash of `git diff` matched before and after.
+
+**QA pass (2026-10-25).** An audit, with one gap closed. Each mutation was reverted from a backup of this stage's own, and `git status --short`, `git diff` and the file hashes matched before and after.
+- (QA) gap: `RoutingProduction.TestEvalItemWritesNoDeliveryOrEvent` left a Decision row behind. The real Decide records its decide row for an eval-owned Item too (owner `eval`), and `AdoptTurns` never sees it. The test now asserts that the row exists and adopts it, so that `Clean` removes it. Measured on a warm stack by counting `OcuTalon_Bridge_Data.Decision` rows after `ConversationProduction`, `RoutingProduction` and `ThreadProduction`: 1 row left before the fix, 0 with it.
+- (QA) mutation: `RoutingProduction` without the new adopt (warm, tag e2s217qw) -> the class stays green and 1 `eval` Decision row is left (counted by SQL); with the adopt, 0 left. A hermeticity pin, shown by the row count, since a leak is not an assertion.
+- (QA) mutation (test-side data, no Lane A source edited): after the production ran, `ConversationProduction.TestTurnThroughProduction` rewrote the triage row (`digest`, Fallback 0, `error`, Reasons, Confidence, Model, cost, TraceSessionId + 1), moved the turn row's Kind, OwnerRef and ItemId, and added a Usage row for it (warm) -> red: every `AssertFallbackRow` pin, "kind, owner, ItemId, and the fallback no_key" (both rows), "no Reasons, Confidence, Model or cost", "in the Item's trace session" and "and no Usage row".
+- (QA) mutation: every `"unusable"` in `Core/Conversation.cls` and `Core/Intake.cls` becomes `"error"` (warm; Lane B code) -> red: `ConversationTurns` (TestBusyRequeues, TestCallbackFailureEndsTurn, TestEveryFallbackReason for 'error', 'wrong', 'fallback:zzbogus' and 'fallback:', TestSendFailuresNeverStrandTurn) and `Intake` (TestCallbackFailureSendsTheFallback, TestDecideFailureIsAFallback, every answer and the unknown reason). So the stub-era `unusable` path keeps its pin at the probe level, with `DecideDouble`.
+- (QA) mutation: `Web/Api.cls` `ChatItems` builds the snapshot turn with `TurnDecisionRef` set to `TriageDecisionRef` for `no_key` turns (the snapshot only, so the done event is untouched), plus `Live/Payload/Decision.FromRow` setting `Model` for `no_key` rows (fresh, tag e2s217q, `live sign-in`) -> red, 2 failed, 190 passed, 1 skipped, 5.9 min: the api reload ("the snapshot's turn shows the same decision as the done event") and C15 ("the rows of a decision that has no model"). The api reload ref pin is shown red with no Lane A edit.
+- (QA) checked, no mutation needed: D14 pins the strip of a fallback with no decision (chip, flag and reason alone, no cost, no Details), and the implement stage's `meta` mutation shows it red (D14 and N4).
+- (QA) after the gap fix: `shard lane-b` passed (42 classes, 103 s, fresh, tag e2s217q); `teardown` of e2s217q and e2s217qw left nothing behind.
+- (QA) the test files changed: `src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls` (the adopt and its assertion). No file was created.
+
+**Code review pass (2026-10-25).** Warm tag e2s217rw, fresh tag e2s217r. Each mutation was reverted from a backup of this stage's own; `git status --short` and the hash of `git diff` matched before and after every one, and each class was green again on the same stack after its revert.
+- (CR) mutation: `Fixture.AdoptTurns` without `Do ..Adopt(decision)`, the Ref still returned (warm) -> red: ConversationProduction TestTurnThroughProduction, "and records the Decision row <ref> for Clean" for both rows (the returned-list pin alone stayed green).
+- (CR) mutation: `Live/Payload/ChatMessage.SetDecision` without its TurnCost line (warm) -> green with the old `+last.turnCost.costUSD = 0`; red with the patched check: ConversationProduction "and a turn cost of 0".
+- (CR) mutation: `Core/BridgeSink.OnEvent` drops `decision.recorded` (warm) -> red: RoutingProduction TestUntrustedItemReachesTheWebChat, "one decision event is published".
+- (CR) mutation: `Conversation.Replied` without the TurnDecisionRef line (warm) -> red: ThreadProduction TestRealDecideAfterTheRestore ("with both decision Refs, which differ", "the triage decision's, then the turn decision's") and TestBrokenRetryThroughTheProduction ("the retry's decision is the turn's, in the thread").
+- (CR) check: the "no Usage row" query with a table name that does not exist (test-side, warm) -> red: `%GetData` raises `<METHOD DOES NOT EXIST>` on the failed result, so the original check already fails loudly (no change kept).
+- (CR) after the patches: warm ConversationProduction, RoutingProduction and ThreadProduction passed; fresh `shard lane-b` passed (42 classes, 104 s); `live sign-in` 192 passed, 1 skipped (5.7 min of Playwright, about 415 s for the call, inside 540 s); `live production-restart` passed (94 s); `teardown` of e2s217r and `ci/warm.sh down` of e2s217rw left nothing behind; `bash ci/checks.sh` and `npm --prefix web run lint` exit 0.
 
 **Shared surfaces:**
 - the `decision` events on fixture-session streams (`ConversationProduction` counts them);

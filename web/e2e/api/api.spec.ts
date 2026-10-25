@@ -485,6 +485,8 @@ test.describe('Story 2.4: a posted message becomes a turn with a reply', () => {
       catalogKey: 'conversation.turnFallback',
       fallbackReason: 'no_key',
       traceNamespace: 'OCUTALON',
+      decision: { kind: 'turn', outcome: 'tellnow', fallback: true, fallbackReason: 'no_key' },
+      turnCost: { costUSD: 0 },
     });
     expect((turns[0].payload['decision'] as Record<string, unknown>)['ref'], "the snapshot's turn shows the same decision as the done event").toBe(decisionRef);
     expect(typeof turns[0].payload['traceHeaderId']).toBe('number');

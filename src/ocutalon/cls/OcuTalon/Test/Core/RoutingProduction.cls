@@ -15,11 +15,12 @@
 ///   - TestEachOutcomeThroughTheRouter: ItemDecisions of each outcome, with and without a CatalogKey, sent into OutcomeRouter:
 ///     ignore leaves nothing, digest goes to DigestStore, tellnow and act each leave a card;
 ///   - TestEvalItemWritesNoDeliveryOrEvent: an Item owned by eval reaches EvalSink and nothing else, and leaves no Delivery row
-///     and no live event (AD-22);
+///     and no live event (AD-22); the decide row that the real Decide records for it (owner eval) is adopted for the clean-up;
 ///   - TestReplyRecordsItsDeliveryOnly: an Outbound sent to Notify reaches WebChatOut, which records its Delivery row and
 ///     publishes no notification event.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("RoutingProduction","n")) and the clean-up are those of
-/// Test.Core.InProduction; the clean-up also removes the Delivery rows of the fixture sessions.
+/// Test.Core.InProduction; the clean-up also removes the Delivery rows of the fixture sessions and the decide rows that the tests
+/// adopt.
 Class OcuTalon.Test.Core.RoutingProduction Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -165,7 +166,8 @@ Method TestEachOutcomeThroughTheRouter()
 
 /// An Item owned by eval goes through Intake to EvalSink and nowhere else: no request to OutcomeRouter, Notify or WebChatOut,
 /// no Delivery row for the owner eval or the session whose trace the host used, and no live event on that session's stream. The
-/// stub EvalSink answers an error status, which the route ignores.
+/// stub EvalSink answers an error status, which the route ignores. The real Decide records its decide row for the Item (owner
+/// eval), which the test adopts, so that the clean-up leaves no Decision row behind.
 Method TestEvalItemWritesNoDeliveryOrEvent()
 {
 	If '..Guard() Quit
@@ -191,6 +193,9 @@ Method TestEvalItemWritesNoDeliveryOrEvent()
 		}
 		Do $$$AssertEquals(found, 0, "nothing is sent to "_target)
 	}
+	Set decide = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexOpen(item.ItemId, "decide")
+	Do $$$AssertTrue($IsObject(decide), "Decide recorded its decision for the Item of the owner eval, which the clean-up removes")
+	If $IsObject(decide) Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Adopt(decide)
 	Do $$$AssertEquals(..Count("eval"), before, "no Delivery row for the owner eval")
 	Do $$$AssertEquals(..Deliveries(session).Count(), 0, "and none for the session")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(session), 0, "no live event on the session's stream")
