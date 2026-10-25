@@ -5,7 +5,8 @@
 /// The page carries its stylesheet and one script inline, generated into OcuTalon.Web.Public.SignInAssets, and
 /// the Content-Security-Policy header pins both by hash. There is no style attribute, no external script and
 /// no font file: the fonts are the system's. The page keeps its own copy of the UX texts as parameters (AD-3);
-/// a non-ASCII character in them is an HTML entity.
+/// a non-ASCII character in them is an HTML entity. With the online-demo flag set, Show hands the page to its subclass
+/// OcuTalon.Web.Public.Splash, the online demo's splash screen.
 Class OcuTalon.Web.Public.Login Extends (%CSP.Login, OcuTalon.Web.Public.SignInAssets)
 {
 
@@ -84,6 +85,12 @@ ClassMethod OnPreHTTP() As %Boolean [ ServerOnly = 1 ]
 	Quit ok
 }
 
+/// 1 when the online-demo flag is set, so that the page is the splash screen. Splash returns 0.
+ClassMethod UseSplash() As %Boolean
+{
+	Quit ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = "1"
+}
+
 /// Sends the page: the response headers, then the page. state is "" for the page that a request without a
 /// session gets, or "norole" for a signed-in user who lacks the OcuTalon user role. writeHeader is 1 where
 /// nothing has been sent yet (the Login method of a dispatch class), and 0 inside a REST dispatch, where the
@@ -91,6 +98,7 @@ ClassMethod OnPreHTTP() As %Boolean [ ServerOnly = 1 ]
 /// status of writing the header or the page.
 ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1) As %Status
 {
+	If ..UseSplash() Quit ##class(OcuTalon.Web.Public.Splash).Show(state, writeHeader)
 	Set %OcuTalonState = state
 	If '..OnPreHTTP() Quit $SYSTEM.Status.OK()
 	If writeHeader {

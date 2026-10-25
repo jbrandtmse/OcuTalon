@@ -3,8 +3,8 @@ import { expect, test, type Page, type PlaywrightWorkerArgs } from '@playwright/
 import { STATE } from '../e2e/support/api';
 import { chk, fixtureUser, irisScript } from '../e2e/support/iris';
 import { drawnMessages, postTurn, signInToTrace, type Cursor, type Turn } from '../e2e/support/trace';
-import { signIn, signInOverHttp } from '../e2e/sign-in/helpers';
-import { SIGN_OUT, signOutGroup } from './support';
+import { signInOverHttp } from '../e2e/sign-in/helpers';
+import { SIGN_OUT, signInFromSplash, signOutGroup } from './support';
 
 /**
  * Story 16.1, the read-only public account in a real browser on the online-demo throwaway (O1 to O3; matrix rows 7 to 9). Every case
@@ -87,7 +87,7 @@ async function expectViewerRows(page: Page, label: string): Promise<void> {
 test('O1: the read-only account at /ocutalon gets the no-role message and no session', async ({ page }) => {
   const { user, password } = fixtureUser(KIND);
   try {
-    await signIn(page, user, password);
+    await signInFromSplash(page, user, password);
     await expect(page.locator('#ocu-error')).toHaveText(NO_ROLE);
     await expect(page.locator('app-root'), 'the shell is never served').toHaveCount(0);
     expect((await page.request.get(STATE)).status(), 'the session ended').toBe(401);

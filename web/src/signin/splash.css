@@ -1,0 +1,315 @@
+/*
+  The online demo's splash screen rules. System font stacks only: the page's Content-Security-Policy allows no font file.
+  Every var(--x) is a token from DESIGN.md; tokens.mjs inlines the ones used here, light and dark. ASCII only.
+*/
+:root { color-scheme: light dark; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--splash-canvas-background); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--splash-canvas-background);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: var(--type-body-font-size);
+  line-height: var(--type-body-line-height);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The focus ring: 2px, offset 2px, the surface halo inside the offset. An input's ring is drawn on its box. */
+.input:has(input:focus-visible),
+.icon-btn:focus-visible,
+.btn-primary:focus-visible,
+.link:focus-visible,
+.field-error:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* The column */
+.splash {
+  max-width: var(--space-splash-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-10);
+}
+.full-logo { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 auto -4px; }
+.splash h1 {
+  margin: 0;
+  text-align: center;
+  color: var(--ink);
+  font-family: 'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: var(--type-display-lg-font-size);
+  font-weight: var(--type-display-lg-font-weight);
+  line-height: var(--type-display-lg-line-height);
+  letter-spacing: var(--type-display-lg-letter-spacing);
+}
+.subhead {
+  margin: var(--space-1) 0 var(--space-2);
+  text-align: center;
+  color: var(--ink);
+  font-size: var(--type-title-font-size);
+  font-weight: var(--type-title-font-weight);
+  line-height: var(--type-title-line-height);
+}
+.lead {
+  max-width: 920px;
+  margin: 0 auto var(--space-4);
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: var(--type-body-font-size);
+  line-height: var(--type-body-line-height);
+}
+
+/* Cards */
+.splash-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: stretch;
+}
+.card {
+  min-width: 0;
+  padding: var(--space-4) var(--space-6) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rounded-md);
+}
+.card-title {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: var(--type-title-font-size);
+  font-weight: var(--type-title-font-weight);
+  line-height: var(--type-title-line-height);
+}
+
+/* The sign-in form: the labels sit beside the prefilled values, in an 88px column */
+.field {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  align-items: center;
+  column-gap: var(--space-3);
+}
+.field + .field { margin-top: var(--space-1); }
+.field-label {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--type-body-strong-font-size);
+  font-weight: var(--type-body-strong-font-weight);
+  line-height: var(--type-body-strong-line-height);
+}
+.input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--space-control-height-lg);
+  padding: 0 3px 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--rounded-xs);
+}
+.input.invalid { border-color: var(--danger-ink); }
+.input input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--type-mono-font-size);
+  line-height: var(--type-mono-line-height);
+  outline: none;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--space-target-min);
+  height: var(--space-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  color: var(--action-ink);
+  cursor: pointer;
+}
+.copied {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.hint {
+  margin: var(--space-1) 0 var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--inline-notice-warning-radius);
+  background: var(--inline-notice-warning-background);
+  color: var(--inline-notice-warning-foreground);
+  font-size: var(--inline-notice-warning-typography-font-size);
+  font-weight: var(--inline-notice-warning-typography-font-weight);
+  line-height: var(--inline-notice-warning-typography-line-height);
+}
+.notice .icon { margin-top: 1px; color: var(--inline-notice-warning-icon-color); }
+.notice p { margin: 0; }
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--space-control-height);
+  margin-top: var(--space-2);
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: var(--action);
+  color: var(--on-action);
+  font: inherit;
+  font-weight: var(--type-body-strong-font-weight);
+  cursor: pointer;
+}
+.btn-primary:hover { background: var(--action-hover); }
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 2px var(--space-1);
+  border-radius: var(--rounded-xs);
+  color: var(--field-error-foreground);
+  font-size: var(--field-error-typography-font-size);
+  font-weight: var(--field-error-typography-font-weight);
+  line-height: var(--field-error-typography-line-height);
+}
+.field-error .icon { margin-top: 1px; }
+.field-error p, .field-error span { margin: 0; }
+
+/* Before you start */
+.facts { margin: 0; padding: 0; list-style: none; }
+.facts li {
+  position: relative;
+  padding-left: var(--space-4);
+  color: var(--ink);
+}
+.facts li + li { margin-top: var(--space-3); }
+.facts li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.nowrap { white-space: nowrap; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* The Visual Trace card */
+.vt-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-6);
+  padding: var(--space-5) var(--space-6);
+}
+.vt-text { flex: 1; min-width: 0; }
+.vt-text .card-title { margin: 0; }
+.vt-text p {
+  margin: 2px 0 0;
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.creds { display: flex; gap: var(--space-6); margin: 0; }
+.cred { display: flex; flex-direction: column; gap: var(--space-1); }
+.cred dt {
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.cred dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  min-width: 196px;
+  min-height: var(--space-control-height);
+  margin: 0;
+  padding: 0 2px 0 var(--space-3);
+  background: var(--credential-card-background);
+  border: var(--credential-card-border);
+  border-radius: var(--rounded-xs);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--credential-card-value-typography-font-size);
+  font-weight: var(--credential-card-value-typography-font-weight);
+  line-height: var(--credential-card-value-typography-line-height);
+}
+.cred dd span { min-width: 0; overflow-wrap: anywhere; }
+.cred dd .copied { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+
+/* The footer */
+.splash-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-size: var(--type-body-sm-font-size);
+  line-height: var(--type-body-sm-line-height);
+}
+.splash-footer p { margin: 0; }
+.link {
+  color: var(--link-foreground);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  border-radius: var(--rounded-xs);
+  white-space: nowrap;
+}
+.link:hover, .link:focus-visible { text-decoration-thickness: 2px; }
+.link .icon { width: 14px; height: 14px; margin-left: var(--space-1); vertical-align: -2px; }
+
+/* Below 720px the cards stack: side by side they would overflow a phone */
+@media (max-width: 720px) {
+  .splash-cards { grid-template-columns: 1fr; }
+  .vt-card { flex-direction: column; align-items: stretch; gap: var(--space-4); }
+  .creds { flex-wrap: wrap; }
+  .splash-footer { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+}

@@ -6,8 +6,7 @@ import { fixtureUser } from '../e2e/support/iris';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
 import { drawnMessages, postTurn, type Cursor, type Turn } from '../e2e/support/trace';
-import { signIn } from '../e2e/sign-in/helpers';
-import { signOutGroup } from './support';
+import { signInFromSplash, signOutGroup } from './support';
 
 /**
  * Story 16.1, the demo account on the page of the online-demo throwaway (O4 to O6; matrix rows 10 to 12). Every case is the DEMOACCOUNT
@@ -45,7 +44,7 @@ const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Vis
 async function open(page: Page): Promise<Cursor> {
   await recordAnnouncements(page);
   const { user, password } = fixtureUser(KIND);
-  await signIn(page, user, password);
+  await signInFromSplash(page, user, password);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   const state = (await (await page.request.get(STATE)).json()) as { streams: { session: number } };
   return { seq: state.streams.session };

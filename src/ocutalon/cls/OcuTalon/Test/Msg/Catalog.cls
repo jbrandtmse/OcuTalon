@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 64 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 88 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,9 +77,9 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 64, "the expected Core list has 64 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 88, "the expected Core list has 88 keys")
 	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 64 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 88 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 86 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 110 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1016,6 +1016,30 @@ XData Keys [ MimeType = application/json ]
   "signIn.userLabel",
   "signIn.passwordLabel",
   "signIn.showPassword",
+  "splash.title",
+  "splash.heading",
+  "splash.subheading",
+  "splash.description",
+  "splash.signInHeading",
+  "splash.sessionNote",
+  "splash.warning",
+  "splash.submit",
+  "splash.copyUserName",
+  "splash.copyPassword",
+  "splash.copied",
+  "splash.copyFailed",
+  "splash.beforeHeading",
+  "splash.resetLine",
+  "splash.ownLine",
+  "splash.telegramLine",
+  "splash.limitLine",
+  "splash.shellLine",
+  "splash.visualTrace",
+  "splash.copyTraceUserName",
+  "splash.copyTracePassword",
+  "splash.footerNote",
+  "splash.install",
+  "splash.newTab",
   "audit.recorded"
  ],
  "watch": [
@@ -1218,6 +1242,30 @@ XData Fixtures [ MimeType = application/json ]
  "signIn.userLabel": {"slots": {}, "text": "User name"},
  "signIn.passwordLabel": {"slots": {}, "text": "Password"},
  "signIn.showPassword": {"slots": {}, "text": "Show password"},
+ "splash.title": {"slots": {}, "text": "Try OcuTalon"},
+ "splash.heading": {"slots": {}, "text": "Try OcuTalon in two minutes"},
+ "splash.subheading": {"slots": {}, "text": "Break the feed, and approve the fix from your phone."},
+ "splash.description": {"slots": {}, "text": "OcuTalon is an assistant that lives inside InterSystems IRIS Interoperability. When a feed breaks, it reads the failed messages and the trace, names the cause in plain English, and proposes a fix that waits for your approval. For everything that arrives, an AI Hub agent makes one attention decision (ignore it, save it for your daily digest, tell you now, or act), and every decision, with its reasons and cost, is a production message you can open in Visual Trace. No API key needed."},
+ "splash.signInHeading": {"slots": {}, "text": "Sign in to the demo"},
+ "splash.sessionNote": {"slots": {}, "text": "Your session is yours alone and lasts until the next reset. Signing in again from this browser picks it up."},
+ "splash.warning": {"slots": {}, "text": "Other visitors can see messages in Visual Trace, so don't type personal information."},
+ "splash.submit": {"slots": {}, "text": "Sign in and start"},
+ "splash.copyUserName": {"slots": {}, "text": "Copy user name"},
+ "splash.copyPassword": {"slots": {}, "text": "Copy password"},
+ "splash.copied": {"slots": {}, "text": "Copied"},
+ "splash.copyFailed": {"slots": {}, "text": "Couldn't copy. Select the text and copy it yourself."},
+ "splash.beforeHeading": {"slots": {}, "text": "Before you start"},
+ "splash.resetLine": {"slots": {"interval": "4 hours", "time": "16:00", "countdown": "in 1 h 42 min"}, "text": "The demo resets every 4 hours. Next reset: 16:00 (in 1 h 42 min)."},
+ "splash.ownLine": {"slots": {}, "text": "Your chat, phone, mailbox and orders are yours alone."},
+ "splash.telegramLine": {"slots": {}, "text": "Have Telegram? You can scan a QR code inside to get the notices on your own phone."},
+ "splash.limitLine": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat or Telegram."},
+ "splash.shellLine": {"slots": {}, "text": "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."},
+ "splash.visualTrace": {"slots": {}, "text": "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step."},
+ "splash.copyTraceUserName": {"slots": {}, "text": "Copy Visual Trace user name"},
+ "splash.copyTracePassword": {"slots": {}, "text": "Copy Visual Trace password"},
+ "splash.footerNote": {"slots": {}, "text": "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation."},
+ "splash.install": {"slots": {}, "text": "Install it yourself (README)"},
+ "splash.newTab": {"slots": {}, "text": "(opens in a new tab)"},
  "audit.recorded": {"slots": {}, "text": "Recorded in the IRIS audit log."},
  "watch.productionStopped": {"slots": {"production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The Orders production stopped at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.itemDisabled": {"slots": {"itemName": "order importer", "production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The order importer in the Orders production was disabled at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},

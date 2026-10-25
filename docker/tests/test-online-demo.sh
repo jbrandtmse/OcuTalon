@@ -13,7 +13,12 @@
 #     CHANGE_FORMS (Task 0 measured them on build 154; a change in IRIS's behaviour turns this unit red in either direction); the sign-in
 #     page has no old-password or repeat-password field and neither has a trace application's page for %CSP.PasswordChange.cls with no
 #     session; F12 posts IRIS's own password-change page of each trace application (served to a signed-in user on build 154) the same way;
-#   - the browser (rows 7 to 12): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
+#   - the splash with no session (Story 16.2, row 11): the /ocutalon* applications in IRIS are exactly the five, every OcuTalon path that
+#     needs a sign-in gives the splash (the h1, no app-root), a sign-in image is served, /ocutalon/public/status answers and
+#     /ocutalon/public/x does not, the API answers 401 signed_out and the trace applications' pages give IRIS's sign-in page; the
+#     splash form's input names are printed as "MEASURED splash form inputs:" and none is outside the four of the proxy's allow-list;
+#   - the browser (rows 7 to 12, and the splash's S1 to S10 and the REL-2 online run's step 1 of Story 16.2): the project online-demo of
+#     web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -410,7 +415,7 @@ echo "MEASURED the requests that changed the control's password:${measured:- non
 next_probe
 login_page=$(curl -s --max-time 30 "$base/ocutalon/?probe=$probes")
 case $login_page in
-  *'Sign in to OcuTalon'*) login_shown=1 ;;
+  *'Try OcuTalon in two minutes'*) login_shown=1 ;;
   *) login_shown=0 ;;
 esac
 if [ "$login_shown" = 1 ] && ! printf '%s' "$login_page" | grep -Eqi 'name="[^"]*(OldPassword|RepeatPassword)'; then
@@ -432,6 +437,97 @@ for app in ocutalon ocuorders; do
   else
     fail "row 6: with no session the $app trace application's page for %CSP.PasswordChange.cls is not IRIS's sign-in page (status '$code', or no password field) or offers a password-change field"
   fi
+done
+
+# --- Story 16.2, row 11: with no session, every OcuTalon path gives the splash, the status or a sign-in page ---
+
+# splash_get <path>: GETs the path on a jar of its own with a unique probe, leaves the body in $tmp/splash.body, ends the jar's session
+# on /ocutalon/ and prints the HTTP status.
+splash_get() {
+  local jar code sep='?'
+  next_probe
+  jar="$tmp/jar.$probes"
+  : > "$jar"
+  case $1 in *\?*) sep='&' ;; esac
+  code=$(curl -s --max-time 30 -o "$tmp/splash.body" -w '%{http_code}' -c "$jar" -b "$jar" "$base$1${sep}probe=$probes")
+  logout_all "$jar" /ocutalon/
+  printf '%s' "$code"
+}
+
+check_session "row 11: the /ocutalon* applications in IRIS are exactly the five" %SYS \
+  "CHK|apps|/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocuorders,/ocutalon/trace/ocutalon" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE Name LIKE ? ORDER BY Name","/ocutalon%") Set l="" While rs.%Next() { Set l=l_$Select(l="":"",1:",")_rs.%Get("Name") } Write !,"CHK|apps|",l' \
+  'Halt'
+
+bundle_main=$(dc exec -T iris sh -c "ls /durable/iris/csp/ocutalon-web" 2>/dev/null | tr -d '\r' | grep -E '^main-[A-Za-z0-9]+\.js$' | head -n 1)
+if [ -z "$bundle_main" ]; then
+  fail "row 11: no main-<hash>.js bundle file in the stack's web folder"
+  bundle_main=main.js
+fi
+for path in /ocutalon/ '/ocutalon/x/y?a=1' /ocutalon/index.html "/ocutalon/$bundle_main"; do
+  code=$(splash_get "$path")
+  if [ "$code" = 200 ] && grep -q '<h1>Try OcuTalon in two minutes</h1>' "$tmp/splash.body" && ! grep -q '<app-root' "$tmp/splash.body"; then
+    pass "row 11: with no session $path gives the splash (200, its h1, no app-root)"
+  else
+    fail "row 11: with no session $path gives status '$code', not the splash"
+  fi
+  if [ "$path" = '/ocutalon/x/y?a=1' ]; then
+    inputs=$(grep -o '<input [^>]*' "$tmp/splash.body" | sed -n 's/.* name="\([^"]*\)".*/\1/p' | sort -u | tr '\n' ' ')
+    echo "MEASURED splash form inputs: ${inputs% }"
+    outside=
+    for name in $inputs; do
+      case $name in IRISSessionToken | IRISUsername | IRISPassword | IRISLogin) ;; *) outside="$outside $name" ;; esac
+    done
+    if [ -z "$outside" ] && printf '%s' "$inputs" | grep -q IRISUsername; then
+      pass "row 7: the splash form's input names are within IRISSessionToken, IRISUsername, IRISPassword and IRISLogin"
+    else
+      fail "row 7: the splash form's input names are outside the four of the proxy's allow-list:${outside:- (or the form has no user name field)}"
+    fi
+  fi
+done
+
+next_probe
+jar="$tmp/jar.$probes"
+: > "$jar"
+logo=$(curl -s --max-time 30 -o /dev/null -w '%{http_code} %{content_type}' -c "$jar" -b "$jar" "$base/ocutalon/assets/brand/OcuTalon-Logo-light-640.png?probe=$probes")
+logout_all "$jar" /ocutalon/
+if [ "$logo" = '200 image/png' ]; then
+  pass "row 11: with no session the 1x logo is served as image/png"
+else
+  fail "row 11: with no session the 1x logo gives '$logo', wanted '200 image/png'"
+fi
+
+code=$(splash_get /ocutalon/public/status)
+status_keys=$(node -e 'try { console.log(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))).sort().join(",")); } catch { console.log("not JSON"); }' "$tmp/splash.body")
+if [ "$code" = 200 ] && [ "$status_keys" = busy,lastReset,lastResetKind,nextReset,ready ]; then
+  pass "row 11: /ocutalon/public/status gives 200 JSON with its five keys"
+else
+  fail "row 11: /ocutalon/public/status gives status '$code' and keys '$status_keys'"
+fi
+code=$(splash_get /ocutalon/public/x)
+if [ "$code" = 404 ]; then
+  pass "row 11: /ocutalon/public/x gives 404"
+else
+  fail "row 11: /ocutalon/public/x gives '$code', wanted 404"
+fi
+for path in /ocutalon/api/v1/state /ocutalon/api/v1/events; do
+  code=$(splash_get "$path")
+  if [ "$code" = 401 ] && grep -q 'signed_out' "$tmp/splash.body"; then
+    pass "row 11: with no session $path gives 401 signed_out"
+  else
+    fail "row 11: with no session $path gives status '$code' (wanted 401 with signed_out)"
+  fi
+done
+for app in ocutalon ocuorders; do
+  for page in EnsPortal.VisualTrace.zen EnsPortal.MessageViewer.zen; do
+    code=$(splash_get "/ocutalon/trace/$app/$page")
+    if [ "$code" = 200 ] && grep -Eq 'name="?IRISPassword' "$tmp/splash.body" && ! grep -q '<app-root' "$tmp/splash.body" \
+      && ! grep -q 'Try OcuTalon in two minutes' "$tmp/splash.body"; then
+      pass "row 11: with no session the $app trace application's $page is IRIS's sign-in page (200, a password field, no app-root, not the splash)"
+    else
+      fail "row 11: with no session the $app trace application's $page gives status '$code', not IRIS's sign-in page"
+    fi
+  done
 done
 
 # --- rows 7 to 12: the browser ---

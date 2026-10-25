@@ -2,9 +2,10 @@
 title: 'Story 16.2: The splash screen shows the demo and its sign-in details'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f235fceb7c84d3429aac5ea81cc89865b8ba9906'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-13 "The login page" and its CSP header line; AD-3 "The public database"; AD-25 the proxy''s sign-in allow-list bullet)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only Pages / The splash screen (online demo), lines 98-124; Component Patterns / Sign-in, 314-315; Formats, 176-190)'
@@ -244,6 +245,39 @@ Rows 1 to 10 and 15 run as browser cases (`web/e2e-online/`) in the `online-demo
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 29 findings -- high 0, medium 4, low 22, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the focus ring of the inputs depends on `:has()` -- the DESIGN and this spec's task name `:has(input:focus-visible)`; every current engine supports it, and a fallback adds a second rule for no reachable user.
+  - `[medium]` `[patch]` Blind: a failed copy does not focus the input, so the selection is not painted and not copyable -- `splash.js` `selectValue` now calls `source.focus()` first, `FOCUS_CALLS` in `announce-focus-sources.test.mjs` gains `'signin/splash.js': [1, ...]`, S4 asserts `document.activeElement` for both inputs; S4 red when the call is removed.
+  - `[medium]` `[patch]` Blind: the same live-region text is not announced again -- `announce` empties the region and refills it 50 ms later (timer cleared on a new announcement); S3 and S4 poll for exactly one announcement per press. Grouped with the Edge finding of the same cause.
+  - `[false]` `[reject]` Blind: the countdown is never resynchronised with the server -- AD-25 and the spec's Decided in-stage say an unscheduled reset does not shift the schedule, and the page rolls forward by the interval; the status endpoint's `nextReset` is the same value the page was served.
+  - `[low]` `[patch]` Blind: the phone-width layout is untested -- S12 (390px: cards stack, no horizontal scroll, the button and the four copy buttons inside the width); S12 red with the media query disabled. Grouped with the verification-gap finding.
+  - `[low]` `[reject]` Blind: an allowance of 1 reads "1 messages" -- the AC fixes the sentence word for word, the allowance is 50, and a count form would be new public text (veto window).
+  - `[low]` `[reject]` Blind: row 11 fetches one image only -- the spec's row 11 names the 1x logo; S10 pins every reference against the five images.
+  - `[low]` `[reject]` Blind: the Visual Trace heading ends in a comma -- the AC says the part up to and including the first comma is the card's `h2`.
+  - `[low]` `[reject]` Blind: "row 7" and "row 11" labels are ambiguous -- the labels are the spec's matrix row numbers, in the file's own `row N` style; no test result is misread.
+  - `[low]` `[reject]` Blind: no test for an empty `demoUser` or `demoPassword` or a zero interval -- the `Public` step always writes the demo values; `NextReset()` returns "" for a zero, negative or non-numeric interval, so the line is omitted and "0 hours" cannot be written; a guard would be new behaviour the spec does not ask for.
+  - `[low]` `[patch]` Edge: row 11's trace-page check would pass on the splash, which has an `IRISPassword` field and no `app-root` -- the check also requires that the body lacks `Try OcuTalon in two minutes`.
+  - `[low]` `[reject]` Edge: demo user or password unset with the flag on gives empty prefilled fields -- same as the Blind row on empty values: the `Public` step writes them before the page is served.
+  - `[low]` `[reject]` Edge: with JavaScript off the reset line has no time or countdown -- the page's one job there is the sign-in form, which works without the script; the copy buttons and the countdown need it; a server-side fallback is new behaviour.
+  - `[false]` `[reject]` Edge: a 24-hour interval shows only a clock time -- EXPERIENCE > Formats and `page-time.ts` `pageTime` give a time of day only, which the spec's Always names as the format.
+  - `[medium]` `[patch]` Edge: the live region does not re-announce an identical text -- same cause and fix as the Blind live-region row.
+  - `[low]` `[reject]` Edge: `TestCopiesEqualTheCatalog` reads `entry.slots` of an error result -- a missing key fails the class loudly either way; no everyday path.
+  - `[low]` `[reject]` Edge: `Render` leaves state behind if the temp file cannot open -- `OnLoginPage` kills the state, and a failed open fails the test that asked for it.
+  - `[low]` `[reject]` Edge: `stream.Read(200000)` could truncate -- the page is about 14 KB and later assertions on `</main>` fail on a truncated page.
+  - `[low]` `[patch]` Edge: no in-process pin of the form's input names -- `TestPage` collects every `name=` in the form and asserts each is one of the four and that the three required ones are there; red with a hidden `ocuSince`.
+  - `[low]` `[patch]` Edge (claim): `TestPage` did not enumerate the form's input names -- the same fix.
+  - `[medium]` `[patch]` Verification gap: the `location.hash` submit hook has no test -- S11 signs in at an address with `#/x` and expects the page to land on it; red with the hook disabled.
+  - `[low]` `[reject]` Verification gap: nothing asserts `InsertHiddenFields` is called -- Task 0 (b) measured that build 154 writes no hidden input for these requests, so a removed call changes no output a test could observe; the spec's Never line stands as a code-review rule (inference, unmeasured with a cookie).
+  - `[low]` `[patch]` Verification gap: the phone-width stacking is unverified -- S12, with the Blind row.
+  - `[low]` `[patch]` Verification gap: escaping is pinned only for the demo user -- `TestEdgeValues` loops `demoPassword`, `readonlyUser`, `readonlyPassword` and `messageAllowance` with `zz<"&'>`; red with `TraceRow` unescaped.
+  - `[low]` `[patch]` Verification gap: the singular countdown branches never run -- S2b at 1 h 1 min, 1 min and 1 s against the `countdownText` oracle; red with the plural ignoring the count.
+  - `[low]` `[patch]` Verification gap: S3, S5, S9, S1 and `TestEdgeValues` have no `mutation:` line -- recorded above; each observed red and reverted.
+  - `[low]` `[reject]` Other: `signInFromSplash` and `signOutGroup` carry no `probe=` -- inherited from the helper it replaces; Story 16.1's `signIn` had the same default and the unit has run green with it.
+  - `[low]` `[reject]` Other: S8's scan filter is a substring match -- it removes only a finding that contains `- img "OcuTalon"`, the one finding the AC's required alt causes; a finding with the same text plus other problems is not produced by `scanPage`'s one-line findings.
+  - `[false]` `[reject]` Other: S6's wrong password could lock the demo account on a rerun -- the throwaway account's next successful sign-in resets the count (the same unit signs in after it) and the unit starts from a fresh stack.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -274,6 +308,13 @@ Rows 1 to 10 and 15 run as browser cases (`web/e2e-online/`) in the `online-demo
 - **No `autofocus` without a message:** the fields are prefilled, so focus starts at the top of the page. `?signedOut=1` shows nothing, because the UX gives the splash no signed-out state; 16.4 adds the place-freed notice.
 - **`web/e2e/sign-in/helpers.ts` is not reused for the splash sign-in:** its label lookup is not exact and its button name is fixed, and that suite must stay unchanged. `signInFromSplash` lives in `web/e2e-online/support.ts`.
 - **The splash's live-region recorder is the spec's own,** because `support/page.ts`' recorder is bound to the CDK announcer's class.
+- **The splash's own text parameters** (`SUBHEADING`, `DESCRIPTION`, `SIGNINHEADING`, `SESSIONNOTE`, `WARNING`, `COPIED`, `COPYFAILED`, `RESETLINE`, `LIMITLINE`, `VISUALTRACE` and the rest) each match one `splash.*` key; `TITLE`, `HEADING` and `SUBMIT` override Login's. The AC's sentence of the Visual Trace card is one parameter and one key; the server splits it after its first comma into the card's `h2` and its paragraph. The "(opens in a new tab)" text is stored without its leading space (`splash.newTab`), because the catalog's typography test forbids a space at an end; the markup writes the space.
+- **`PublicTexts` compares a key with slots against the entry's own `text`** (placeholders included), because such a key has no rendering without its slots.
+- **The reset line's time and countdown elements are empty in the server's markup** and the script fills them at once (the script runs before the first paint); the `datetime` attribute is left as the server wrote it until the countdown rolls forward, so row 2's equality with `/status` holds.
+- **S8 leaves one finding of `scanPage` out of its "finds nothing":** `names: - img "OcuTalon"` (an image that is read). The AC requires the logo's alt "OcuTalon" (row 1), so the scan's rule against a read image would otherwise fail every splash. Every other finding still fails S8.
+- **A failed copy gives an input the focus before it selects its value** (`source.focus()`, then `setSelectionRange`), so that the selection is painted and can be copied by hand (review pass 1). The one `.focus(` call is entered in `announce-focus-sources.test.mjs`' `FOCUS_CALLS` as `'signin/splash.js': [1, ...]`, with its reason: it follows the user's press of the copy button. That entry is the one line added to a file outside this story's footprint; the ratchet's own header says a story that needs another call adds it there. A Visual Trace row (a `span`) takes the document selection, which is painted without focus.
+- **The splash's live region is emptied and refilled 50 ms later** (`announce` in `splash.js`), so that a text equal to the one before is spoken again; the browser cases poll for the one announcement.
+- **The layout is tightened inside the design's tokens** (the card's padding, the hint and notice margins, the 8px field gap and the column's top padding) so the button's bottom edge is at 574 of 600 at 1280x600 (the mockup's spacing gives 614).
 - **The path lists that name `SignInAssets.cls`** (`ci/units.sh` `WEB_INPUT_PATTERN`, `test-ci-changes.sh`, `test-compose-file.sh`, `test-boundaries.sh`) are not extended. SplashAssets changes only with `web/src/signin/**` (a web input), and any IRIS job's bundle build runs `tokens.mjs --check` (inference from `package.json` `build`). Extending them would change existing lines in shared or contended files.
 
 **Integration ACs:** the splash consumes the public settings that the `Public` step writes on a real flag-on start (row 2: the published values, the interval, the allowance, and `NextReset` equal to `/status`'s). The REL-2 online run consumes the splash and the shell (rows 5 and 15).
@@ -345,7 +386,38 @@ Rows 1 to 10 and 15 run as browser cases (`web/e2e-online/`) in the `online-demo
 
 **Task 0 (implement; record results here):**
 - (a) The first warm run of `Test.Web.Splash` `TestPolicy`: the inherited generators and `Inheritance = right` give the splash's hashes.
+  - Result (implement): `TestPolicy` passed on its first warm run (the only red test of that run was `TestEdgeValues`, a test slip). The inherited `StyleHash`/`ScriptHash` generators hash SplashAssets' blocks, `Splash.Policy()` is exact and `Login.Policy()` is unchanged, so `Splash` declares no generators of its own. A subclass reuse of `Login.Show`, `OnPreHTTP` and `Policy` binds to the subclass's parameters and `UseSplash()` (`TestShowFollowsTheFlag` green).
 - (b) The first `live online-demo` run's `MEASURED splash form inputs:`: the hidden inputs that build 154's `InsertHiddenFields` writes into the splash form, at a URL with a query string.
+  - Result (implement): `MEASURED splash form inputs: IRISPassword IRISUsername` at `/ocutalon/x/y?a=1` (a request with no cookie). `InsertHiddenFields` wrote no hidden input there (no `IRISSessionToken`, because that page's response did not need a token), so the POST names are within AD-25's four; `IRISLogin` is the button. The unit fails on any input name outside the four, and S7 pins the browser's POST.
+
+**Implement stage record (2026-10-25, lane C):**
+- **After the review patches** (final tree): `live online-demo` PASS in 185 s by `time` (3:05; 24 browser cases passed and 5 `notBuilt` skipped in about 78 s). Local gates re-run on the final tree: the six warm classes (`Splash`, `PublicTexts`, `SignIn`, `Status`, `Catalog`), `shard lane-b` 43 classes 118 s, `shard lane-a` 47 classes 417 s, `live sign-in` 192 cases 7 min 9 s, `npm --prefix web test` 568, `lint`, `test-web-build.sh`, `ci/checks.sh`, teardown clean.
+- `online-demo` unit, flag-on throwaway (`e16s2i`), PASS on the last change: 165 s by `time` (2:45), 177 s on the first green run (Story 16.1: 116 to 141 s; the expected 170 to 230 s holds, inside the 540 s default deadline). The browser step ran 21 passed and 5 skipped (the `notBuilt` steps) in about 58 s; the node tests count 568 (`npm --prefix web test`).
+- Local gates: `shard lane-b` 43 classes in 118 s, `shard lane-a` 47 classes in 415 s, `live sign-in` 192 browser cases in 7 min 9 s (the local page unchanged), the five warm classes, `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, `bash ci/checks.sh`: all green. `SignInAssets.cls` and `Shell.cls` show no diff.
+- Layout on this host (the system sans of macOS): the **Sign in and start** button's bottom edge is at 574 px of 600 at 1280x600, light and dark. Another host's system font that sets wider text could push it lower; the spacing was tightened to the design's tokens for headroom, not past them.
+
+**Mutations (Rule 19; each applied, observed red, reverted byte-identical, confirmed with `cmp` against a saved copy and `git status --short`):**
+- mutation: `Splash` reads `messageAllowance` as `connectionCap` -> `splash.spec.ts` S2 red (the limit line says 8).
+- mutation: the wrong-credentials branch prefills the published password -> S6 red.
+- mutation: the form gains a hidden field `ocuSince` -> S7 red, and the unit's row 7 input-name check red (`ocuSince`).
+- mutation: the failure path skips the selection (`selectValue(source)` removed from `splash.js`, regenerated) -> S4 red.
+- mutation: the splash column's `max-width` raised to 1400px (`splash.css`, regenerated) -> S8 red.
+- mutation: `Splash.OnLoginPage` writes the style element's text with one extra space -> S10 red (with S8, S9 and two more cases red through the blocked style).
+- mutation: `Shell.Login` serves `index.html` to a request with no session -> the unit's row 11 red (four paths no longer give the splash; the unit's other rows also went red).
+- mutation: `Login.UseSplash()` returns 1 always -> `Test.Web.Splash.TestShowFollowsTheFlag` red.
+- mutation: one splash parameter loses its final period (`OWNLINE`) -> `Test.Web.PublicTexts.TestCopiesEqualTheCatalog` red.
+- mutation (review pass 1, patched pinning tests; the seven asset and class mutations below were applied together, in one `live online-demo` run, each on its own file or region, and every named case went red; then reverted byte-identical, `cmp` against saved copies, `tokens.mjs --check` current):
+  - mutation: `writeText(value)` writes the constant 'x' (`splash.js`) -> S3 red.
+  - mutation: the `.icon-btn:focus-visible` selector is dropped from the ring rule (`splash.css`) -> S9 red (the ring of a copy button).
+  - mutation: an empty `<span>` is written between the warning notice and the button (`Splash.cls`) -> S1 red.
+  - mutation: the submit hook's `location.hash` condition made `false` (`splash.js`) -> S11 red.
+  - mutation: the media query's `max-width` set to 1px (`splash.css`) -> S12 red.
+  - mutation: `source.focus()` removed from `selectValue` (`splash.js`) -> S4 red (the focused input).
+  - mutation: the countdown's `plural` ignores the count (`fill(other, ...)` in `splash.js`) -> S2b red.
+  - mutation: a disabled hidden submit button written first in the form (`Splash.cls`), so that Enter submits nothing -> only S5 red (its Enter half).
+  - mutation: `TraceRow` writes the read-only value unescaped (`Splash.cls`) -> `Test.Web.Splash.TestEdgeValues` red (`readonlyUser` and `readonlyPassword`).
+  - mutation: a hidden input `ocuSince` written in the form (`Splash.cls`) -> `Test.Web.Splash.TestPage` red (the form field outside the four), as well as S7 and the unit's row 7.
+  - The unit's row 11 trace-page check (no `Try OcuTalon in two minutes` in a trace page) was added as a direct guard and pinned by the existing row 11 mutation; `announce`'s emptying of the live region (a repeated text is spoken again) is a screen-reader behaviour that no browser case can observe, so it carries no mutation line.
 
 **Shared surfaces:**
 - Story 16.1's flag-on `/ocutalon/` page. `readonly.spec.ts` O1, `demo-account.spec.ts` O4 to O10 and the unit's row 6 are updated here. `signin_outcome`'s markers are kept.
@@ -370,7 +442,26 @@ Rows 1 to 10 and 15 run as browser cases (`web/e2e-online/`) in the `online-demo
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as the dispatch asked. The spec passed the READY FOR DEVELOPMENT gate after one repair: the Always line about the script's texts now allows the countdown words. Epic context reused (`epic-16-context.md`); continuity from Story 16.1 (`ab3203b`). Ledger inbox: none.
+**Summary.** With the online-demo flag set, `/ocutalon/` without a session now shows the splash: `Login.Show` hands the page to the new `OcuTalon.Web.Public.Splash` (a `Login` subclass with its own generated `SplashAssets`, hash-pinned by the inherited policy generators), with the head, the sign-in card, the Before you start card (the reset time and countdown filled by the script), the Visual Trace card and the footer. With the flag off the local page is byte-identical (`SignInAssets.cls` and `Shell.cls` show no diff; `live sign-in` 192 cases green). Task 0 (a): the inherited generators hash SplashAssets' blocks. Task 0 (b): the splash form's measured inputs are `IRISPassword IRISUsername`, so no AD-13 against AD-25 conflict.
+
+**Files changed.**
+- `web/src/signin/splash.css`, `splash.js` (new): the splash's stylesheet and script.
+- `web/scripts/tokens.mjs`, `tokens.test.mjs`: `renderSplashAssets` and the three new options; the SignInAssets output is unchanged.
+- `web/scripts/announce-focus-sources.test.mjs`: one `FOCUS_CALLS` entry for `signin/splash.js` (footprint extension from review).
+- `src/ocutalon/cls/OcuTalon/Web/Public/Splash.cls`, `SplashAssets.cls` (new, generated): the page and its assets.
+- `src/ocutalon/cls/OcuTalon/Web/Public/Login.cls`: `UseSplash()` and the hand-over line in `Show`.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`, `Test/Msg/Catalog.cls`, `Test/Web/PublicTexts.cls`, `Test/Web/SignIn.cls`: 24 `splash.*` keys, counts, classification, the style-attribute list.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls` (new): the in-process tests.
+- `web/e2e-online/splash.spec.ts` (S1 to S12 and S2b), `demo-path.spec.ts` (REL-2 online step 1, steps 2 to 6 `notBuilt` for 11.1), `support.ts`, `readonly.spec.ts`, `demo-account.spec.ts`: the browser cases and the splash sign-in helper.
+- `docker/tests/test-online-demo.sh`: row 11 curl checks, the heading check, the `MEASURED` line.
+
+**Review.** 29 findings from four layers: 0 high, 4 medium, 22 low, 3 false. Patches applied (9 entries): failed copy focuses the input (and the ratchet entry), the live region re-announces, the singular countdown cases (S2b), the fragment case (S11), the phone-width case (S12), the trace-page-is-not-the-splash guard, the form-input-names assertion, the escaping loop, and the mutation lines. Deferred: none. Rejected with their reasons are in the Review Triage Log. The intent-alignment audit reported no divergence (its three-reading description matches the diff; the intent's surface is the browser and curl rows, which the unit runs).
+
+**Follow-up review recommended: true.** Three medium entries were patched (the failed-copy focus, the live-region re-announcement, the fragment test); the risk to verify is that the new focus call and the 50 ms announcement timer in `splash.js` behave in real screen readers and in Safari and Firefox, which only the Chromium unit exercised.
+
+**Verification.** `npm --prefix web run tokens` (SignInAssets unchanged), `npm --prefix web test` 568 pass, `lint` rc 0, `test-web-build.sh`, `ci/checks.sh`; warm classes `Splash`, `PublicTexts`, `SignIn`, `Status`, `Catalog` green; `live online-demo` 185 s, 24 passed and 5 `notBuilt` skipped; `shard lane-b` 43 classes, `shard lane-a` 47 classes, `live sign-in` 192 cases; teardown clean (no `e16s2i` or `e16s2iw` resource left).
+
+**Residual risks.** (1) The button's bottom edge is 574 of 600 at 1280x600 on this host's font; a wider system font in CI could push it lower. (2) S8 filters the one `scanPage` finding that the required logo alt causes. (3) The public texts that become true only with Stories 16.3 and 16.9 and Telegram 0.1.1 are built as the AC writes them (lead gate). (4) `online-demo` unit time is 185 s locally (DW-220 tracks the CI `image` job's length).

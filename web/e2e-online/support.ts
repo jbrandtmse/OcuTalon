@@ -1,4 +1,4 @@
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Page, Response } from '@playwright/test';
 
 /**
  * What the specs of the online-demo project share (Story 16.1). The project runs on the throwaway that docker/tests/test-online-demo.sh
@@ -25,4 +25,43 @@ export async function signOutGroup(target: Page | BrowserContext): Promise<void>
       /* The context may be closed already. */
     }
   }
+}
+
+/**
+ * Signs in from the splash at path: it opens the page, fills a field only when its value is given (the exact labels "User name" and
+ * "Password"; the fields are prefilled with the published values), presses **Sign in and start** and returns the server's answer to
+ * the form. The caller then asserts what the next page shows, with an assertion that waits for it.
+ */
+export async function signInFromSplash(page: Page, user?: string, password?: string, path = '/ocutalon/'): Promise<Response> {
+  await page.goto(path);
+  if (user !== undefined) await page.getByLabel('User name', { exact: true }).fill(user);
+  if (password !== undefined) await page.getByLabel('Password', { exact: true }).fill(password);
+  const answered = page.waitForResponse((response) => response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Sign in and start', exact: true }).click();
+  return answered;
+}
+
+/**
+ * Before the page's scripts run: records every text that the splash's one polite live region (#ocu-live) receives, each node added to
+ * it, as window.announced, so that a case can count how often a message was announced. The CDK announcer's recorder of support/page.ts
+ * does not see this region: it watches the announcer's own element.
+ */
+export async function recordSplashAnnouncements(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const announced: string[] = [];
+    (window as unknown as { announced: string[] }).announced = announced;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (!(record.target instanceof HTMLElement) || record.target.id !== 'ocu-live') continue;
+        for (const node of Array.from(record.addedNodes)) {
+          if (node.textContent) announced.push(node.textContent);
+        }
+      }
+    }).observe(document, { subtree: true, childList: true });
+  });
+}
+
+/** The texts that the splash's live region received so far, in order (recordSplashAnnouncements). */
+export function splashAnnouncements(page: Page): Promise<string[]> {
+  return page.evaluate(() => [...((window as unknown as { announced?: string[] }).announced ?? [])]);
 }
