@@ -106,8 +106,8 @@ development_status:
   4-7-finish-the-demo-guide: backlog
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: ready-for-dev
+  epic-5: in-progress
+  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: in-progress
   5-2-new-failures-are-picked-up-within-seconds: backlog
   5-3-same-cause-failures-become-one-incident-by-the-settle-rule: backlog
   5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: backlog
