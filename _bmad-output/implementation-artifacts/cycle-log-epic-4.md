@@ -13,3 +13,4 @@
 2026-10-25T12:09:16Z	Epic 4	retro_review_skipped	reason=no_story_4.0_input:epic_2_leftovers_routed_to_named_stories_or_terminal;DW-75_decision-pending_owner_burndown_waits_as_inbox_U-70(skipped_U8);open_action_items_owner_held(epic-32-retro-item-1_ci-capacity_U-8,epic-1-retro-item-3_report-to-intersystems_Contest_Planner,epic-2-retro-item-4_screen-reader_human) assigned=skip(orchestrator) model=claude-opus-5-5
 2026-10-25T12:09:16Z	Epic 4	ruling	question=retro_review_gate choice=skip rejected=insert_story_4.0 why=orchestrator_assignment;no_closable_input category=decide policy=9e90866967ca1df8611dd39038aa64433017fe58
 2026-10-25T12:14:20Z	Epic 4	epic_context_compiled	reason=initial spawn_at=2026-10-25T12:09:22Z model=claude-opus lines=194
+2026-10-25T12:17:01Z	Story 4.1	stage_spawned	spawn_at=2026-10-25T12:17:01Z stage=plan model=claude-opus agent_name=4-1-switch-demo-mode-from-the-terminal-plan-1 cycle_iteration=1
