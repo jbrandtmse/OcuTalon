@@ -2,7 +2,7 @@
 title: 'Story 4.1: Switch demo mode from the terminal'
 type: 'feature'
 created: '2026-10-25'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 baseline_commit: '2bb605c'
 review_loop_iteration: 0
@@ -175,6 +175,8 @@ deferred: []
 
 - [x] [CI] `ci` workflow, job `web`, step "Unit tests" (`npm --prefix web test`): `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/" fails on c8b4354, because this story put `**/e2e/demo-switch/**` in the `chromium` project's `testIgnore` while the test still expects chromium to list `demo-switch/badge.spec.ts` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40209803845/job/121218409733 -- make the test's rule match the config (chromium lists every spec outside `demo-path/`, `floor/` and `demo-switch/`, and the `demo-switch` project lists exactly `demo-switch/`), keeping its ability to fail on a spec that no project lists; add `npm --prefix web test` as a `(loop)` line under `## Verification`, and run it green.
 
+- [ ] [CI] Integrate-forward red (feature dba452a merged at 3d76632, bringing Epic 3's Story 3.7): `OcuTalon.Test.Bridge.CodeRules` `TestOnlyTheAuditWriterAudits` fails because `SettingsOps.WriteAudit` calls `OcuTalon.Bridge.Audit.Write`, Audit's raw writer; Story 3.7 (AD-17) lets product code write only through `Bridge.Audit.Record(type, data)`, which checks the type's one shape. Change the `Settings` audit to `Record("Settings", data)` with exactly the shape `setting, from, to, irisUser, sessionRef, channel` (`setting` = `demo.mode`, `from` = the row's value before the write, `to` = the new value, `irisUser` = the command's `ActingUser`, `sessionRef` = empty or the command's Ref, `channel` = `system` for origin `system` and `web` for `web_admin`; `origin` and `user` are no longer members; Record builds the description and redacts a sensitive setting itself, so drop the local `Redact.Text` pass if Record covers it). Update every test and probe that reads the entry's old members (`Test.Core.SettingsOps`, `SettingsOpsProbe`, `TestAuditRedacted`), `docker/tests/test-demo-switch.sh` step 7 (the entries now carry `irisUser`, `from`, `to` and `channel`), and the spec's matrix wording where it names the old members. Verify: `ci/iris.sh class OcuTalon.Test.Bridge.CodeRules` and `class OcuTalon.Test.Bridge.Audit` (warm), the 4.1 classes (warm), `ci/iris.sh live demo-switch` (fresh), `bash ci/checks.sh`; write the `mutation:` lines for the changed pins.
+
 **Acceptance Criteria:**
 - Given a fresh install, when it first starts, then demo mode is `"1"` on the Docker install and `"0"` without the image's version file (IPM), written as a seed that a later write survives at restarts and upgrades.
   - No code changes for this. It is already pinned by `Test.Demo.Step` (TestDefaultMode, TestMode) and `live:install-start` row 6.
@@ -240,6 +242,8 @@ Rejected:
 - `low` Edge: a new directory added to `OWN_PROJECT_DIRS` with no exact-listing case lets its project list specs outside it unnoticed -- it needs a misconfigured project and a skipped case; the fix (generating the cases from one map) is a restructuring, and the patched comment now names the exact-listing case.
 
 ## Spec Change Log
+
+- 2026-10-25, rework iteration 2 (trigger: integrate-forward red; Story 3.7's audit-writer rule): one `[CI]` item under Tasks & Acceptance.
 
 - 2026-10-25, rework iteration 1 (trigger: CI red on c8b4354, the hosted `web` job's unit tests): one `[CI]` item under Tasks & Acceptance.
 
