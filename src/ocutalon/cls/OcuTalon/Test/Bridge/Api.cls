@@ -1,8 +1,8 @@
 /// Tests of the cross-lane API stubs of Lane A (Story 0.6, matrix row 9): each stub answers what the architecture says a
 /// caller sees until its owner builds it. A status method returns an error that says it is not implemented yet and names
 /// the method; the others return their neutral value. Nothing is written anywhere.
-///   - TestApprovalStubs: Raise, Expire, Cancel, StartExecution and FinishExecution; Answer answers not_found with an
-///     empty winner;
+///   - TestApprovalStubs: Expire, Cancel, StartExecution and FinishExecution (Raise is built since Story 3.4; Test.Bridge.Approval pins
+///     it); Answer answers not_found with an empty winner;
 ///   - TestNeutralValues: Keys.Status of an item that is not in the production (Keys.Status is no stub since Story 1.6; Test.Bridge.Keys
 ///     pins it), Timeouts.Derive of a timer that is refused (Derive is no stub since Story 1.7; Test.Bridge.Timeouts pins it), Agent.Input.Render of an empty Item (which renders "" since Story 1.3) and
 ///     Checks.Render.Render (Budget.State is no stub since Story 1.4; Test.Bridge.Budget pins it);
@@ -12,13 +12,10 @@
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
 {
 
-/// Raise, Expire, Cancel, StartExecution and FinishExecution each return an error status whose text says that the method
-/// is not implemented yet and names it. Raise leaves ref empty. Answer returns not_found and an empty winner.
+/// Expire, Cancel, StartExecution and FinishExecution each return an error status whose text says that the method
+/// is not implemented yet and names it. Answer returns not_found and an empty winner. Raise is no stub (Story 3.4).
 Method TestApprovalStubs()
 {
-	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(##class(OcuTalon.Bridge.Data.ApprovalRequest).%New(), .ref)
-	Do ..AssertNotImplemented(sc, "OcuTalon.Bridge.Approval.Raise")
-	Do $$$AssertEquals(ref, "", "Raise leaves the ref empty")
 	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).Expire("zz"), "OcuTalon.Bridge.Approval.Expire")
 	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).Cancel("zz"), "OcuTalon.Bridge.Approval.Cancel")
 	Do ..AssertNotImplemented(##class(OcuTalon.Bridge.Approval).StartExecution("zz"), "OcuTalon.Bridge.Approval.StartExecution")

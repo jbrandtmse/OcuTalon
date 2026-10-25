@@ -85,11 +85,11 @@ Include Ensemble
 /// None is a setting. The three extension settings name the classes through which the bridge reaches its host (AD-31); the production
 /// definition sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
-/// settings of Decide itself. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
+/// settings of Decide itself. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,ServiceUser:Bridge,ToolClassification:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -175,6 +175,11 @@ Property DecisionTokenBudget As %Integer [ InitialExpression = 0 ];
 /// creates; the bridge cannot read the installer's constant (AD-2), so the name is a host setting. The gate reads it only for a tool that declares
 /// resources.
 Property ServiceUser As %String(MAXLEN = 160) [ InitialExpression = "OcuTalonService" ];
+
+/// The role a person needs to answer an approval request (AD-11, FR-5, FR-8): Approval.Raise copies it to the row's
+/// RequiredRole. OcuTalon seeds OcuTalonUser, as ServiceUser seeds OcuTalonService; the bridge cannot read the installer's constant (AD-2),
+/// so the name is a host setting. An empty value refuses Raise.
+Property ApprovalRole As %String(MAXLEN = 128) [ InitialExpression = "OcuTalonUser" ];
 
 /// The classification of a developer's own tools (AD-10, AD-31): a JSON array of {"class","tool","classification"[,"readOnly"][,"trustedOutput"]}
 /// objects, where class is the tool's implementing class, tool its name, classification safe or risky, and readOnly and trustedOutput are 1 or 0.
@@ -1028,6 +1033,9 @@ Storage Default
 </Value>
 <Value name="15">
 <Value>ToolClassification</Value>
+</Value>
+<Value name="16">
+<Value>ApprovalRole</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

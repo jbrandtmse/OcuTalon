@@ -3,7 +3,7 @@
 ///   - error: OnEvent returns an error status;
 ///   - throw: OnEvent throws.
 /// Every call is kept in ^||ZzProbeSink(<call>) as a $ListBuild of the type, the owner, the payload as JSON, $TLevel, 1 when the
-/// Decision row that the payload's ref names exists at that moment (empty when the payload has no ref), and 1 when the day mark
+/// Decision row or ApprovalRequest row that the payload's ref names exists at that moment (empty when the payload has no ref), and 1 when the day mark
 /// ^OcuTalonBP.UsageCapped(<the payload's day>) exists at that moment, else 0 (empty when the payload has no day), and 1 when any
 /// process holds the lock of that day's mark at that moment (LockHeld), else 0 (empty when the payload has no day).
 /// ^||ZzProbeSink holds the number of calls. The test that sets the global kills it.
@@ -20,7 +20,7 @@ ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObj
 	Set n = $Increment(^||ZzProbeSink)
 	Set ref = payload.%Get("ref")
 	Set day = payload.%Get("day")
-	Set rowExists = $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 1: "")
+	Set rowExists = $Select(ref '= "": ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref) || ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexExists(ref), 1: "")
 	Set markExists = $Select(day '= "": $Data(^OcuTalonBP.UsageCapped(day)) > 0, 1: "")
 	Set ^||ZzProbeSink(n) = $ListBuild(type, ownerRef, payload.%ToJSON(), $TLevel, rowExists, markExists, $Select(day '= "": ..LockHeld(day), 1: ""))
 	If $Get(^OcuTalonTest("ProbeSink", "shared")) = 1 {

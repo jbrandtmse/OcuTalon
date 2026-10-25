@@ -4,9 +4,9 @@
 Class OcuTalon.Bridge.Installer
 {
 
-/// Prepares what the bridge needs in the current namespace: it registers the audit events of OcuTalon.Bridge.Audit, writes the
-/// three model families of OcuTalon.Bridge.Data.ModelFamily (AD-7) and the prices of the two Claude models of
-/// OcuTalon.Bridge.Data.Price that the product ships (AD-19, AD-20).
+/// Prepares what the bridge needs in the current namespace: it registers the audit events of OcuTalon.Bridge.Audit, sets up the
+/// approvals' Workflow role and user (SetUpApprovals, AD-11), writes the three model families of OcuTalon.Bridge.Data.ModelFamily (AD-7)
+/// and the prices of the two Claude models of OcuTalon.Bridge.Data.Price that the product ships (AD-19, AD-20).
 /// Returns an error naming the namespace when it is not an Interoperability namespace.
 ClassMethod Run() As %Status
 {
@@ -14,6 +14,8 @@ ClassMethod Run() As %Status
 		Quit $$$ERROR($$$GeneralError, "Namespace "_$Namespace_" is not an Interoperability namespace")
 	}
 	Set sc = ..RegisterAudit()
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..SetUpApprovals()
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..SeedModelFamilies()
 	If $$$ISERR(sc) Quit sc
@@ -93,21 +95,97 @@ ClassMethod SeedPrices() As %Status
 /// The events are structural: they are re-enabled at every start. Instance-wide auditing is never changed.
 ClassMethod RegisterAudit() As %Status
 {
-	Quit ..AuditEvents(1)
+	Quit ..InSystem("audit")
 }
 
 /// Fails, naming the first of OcuTalon.Bridge.Audit.Events() that is missing or disabled. Changes nothing.
 ClassMethod CheckAudit() As %Status
 {
-	Quit ..AuditEvents(0)
+	Quit ..InSystem("check")
 }
 
-/// The class's only method that switches to %SYS (AD-3): registers (create is true) or checks (create is false) the audit events.
-ClassMethod AuditEvents(create As %Boolean) As %Status [ Private ]
+/// Sets up what approvals need in the current namespace (AD-11, AD-24), at every start and on its own:
+///   - the Workflow role Approval WORKFLOWROLE exists;
+///   - the Workflow user Approval WORKFLOWUSER exists and is active, because only active members get tasks;
+///   - that user is a member of the role and every other member is removed from it, so the Workflow inbox can't answer for a person;
+///   - the IRIS user of the same name exists with login disabled, no roles and no escalation roles (InSystem).
+/// It deletes no Workflow user, role or membership that is not the role's own: a developer's namespace may hold other Workflow users for
+/// another production, and only the role's membership decides who receives its tasks.
+ClassMethod SetUpApprovals() As %Status
 {
+	Set role = ##class(OcuTalon.Bridge.Approval).#WORKFLOWROLE
+	Set user = ##class(OcuTalon.Bridge.Approval).#WORKFLOWUSER
+	If '##class(EnsLib.Workflow.RoleDefinition).%ExistsId(role) {
+		Set sc = ##class(EnsLib.Workflow.RoleDefinition).CreateRole(role)
+		If $$$ISERR(sc) Quit ..Fail("the Workflow role "_role, sc)
+	}
+	If ##class(EnsLib.Workflow.UserDefinition).%ExistsId(user) {
+		Set definition = ##class(EnsLib.Workflow.UserDefinition).%OpenId(user, , .sc)
+		If $$$ISERR(sc) Quit ..Fail("the Workflow user "_user, sc)
+		If 'definition.IsActive {
+			Set definition.IsActive = 1
+			Set sc = definition.%Save()
+			If $$$ISERR(sc) Quit ..Fail("the Workflow user "_user, sc)
+		}
+	} Else {
+		Set sc = ##class(EnsLib.Workflow.UserDefinition).CreateUser(user, "OcuTalon approvals")
+		If $$$ISERR(sc) Quit ..Fail("the Workflow user "_user, sc)
+	}
+	Set members = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT UserName FROM EnsLib_Workflow.RoleMembership WHERE RoleName = ?", role)
+	If result.%SQLCODE < 0 Quit ..Fail("the members of the Workflow role "_role, $SYSTEM.Status.Error(5001, "SQLCODE "_result.%SQLCODE_" "_result.%Message))
+	While result.%Next() {
+		Set members = members _ $ListBuild(result.%Get("UserName"))
+	}
+	Set position = 0
+	While $ListNext(members, position, member) {
+		If member = user Continue
+		Set sc = ##class(EnsLib.Workflow.RoleDefinition).RemoveUserFromRole(role, member)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit ..Fail("the Workflow role "_role, sc)
+	If '$ListFind(members, user) {
+		Set sc = ##class(EnsLib.Workflow.RoleDefinition).AddUserToRole(role, user)
+		If $$$ISERR(sc) Quit ..Fail("the Workflow role "_role, sc)
+	}
+	Quit ..InSystem("login")
+}
+
+/// An error status that names what could not be set up and the reason.
+ClassMethod Fail(what As %String, sc As %Status) As %Status [ Private ]
+{
+	Quit $SYSTEM.Status.Error(5001, "The bridge installer could not set up "_what_": "_$SYSTEM.Status.GetErrorText(sc))
+}
+
+/// The class's only method that switches to %SYS (AD-3, AD-17). The action is one of:
+///   - audit: registers each of OcuTalon.Bridge.Audit.Events() and enables each one that is disabled;
+///   - check: fails for the first of them that is missing or disabled and changes nothing;
+///   - login: makes the IRIS user of Approval WORKFLOWUSER, with login disabled, no roles, no escalation roles and a random password
+///     of 44 characters that nothing reads. A user that exists gets Enabled 0, no roles and no escalation role, and keeps its password.
+///     The user holds the name, so an account made later under it cannot sign in to the Workflow inbox.
+/// Only Security classes and $SYSTEM are used after the switch, because the bridge's classes are not mapped to %SYS.
+ClassMethod InSystem(action As %String) As %Status [ Private ]
+{
+	Set home = $Namespace
 	Set events = ##class(OcuTalon.Bridge.Audit).Events()
+	Set user = ##class(OcuTalon.Bridge.Approval).#WORKFLOWUSER
 	New $Namespace
 	Set $Namespace = "%SYS"
+	If action = "login" {
+		If ##class(Security.Users).Exists(user) {
+			Kill properties
+			Set properties("Enabled") = 0
+			Set properties("Roles") = ""
+			Set properties("EscalationRoles") = ""
+			Set sc = ##class(Security.Users).Modify(user, .properties)
+		} Else {
+			Set password = $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.GenCryptRand(32), 1)
+			Set sc = ##class(Security.Users).Create(user, "", password, "OcuTalon Workflow user", home, "", "", 0, 0, "Created by the OcuTalon bridge installer; login is disabled.", 1, "", "", , 1, 1)
+		}
+		If $$$ISERR(sc) Quit $SYSTEM.Status.Error(5001, "The bridge installer could not set up the login of the Workflow user "_user_": "_$SYSTEM.Status.GetErrorText(sc))
+		Quit sc
+	}
+	Set create = (action = "audit")
 	Set position = 0
 	While $ListNext(events, position, name) {
 		Kill event, properties

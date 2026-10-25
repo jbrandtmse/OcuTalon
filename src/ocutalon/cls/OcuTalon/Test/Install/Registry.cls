@@ -1,5 +1,12 @@
 /// Tests of the installer-step registry with a fixture area (AD-23, AD-24, AD-27, AD-29): discovery, the Roles,
-/// Tasks and Reconcile steps, the purge task, and the roles that the Roles step composes (Story 3.1). The fixture area, a role, a task
+/// Tasks and Reconcile steps, the purge task, and the roles that the Roles step composes (Story 3.1). Story 3.4 adds the Workflow setup of
+/// Bridge.Installer (AD-11, AD-24): TestApprovalsWorkflow pins that after two runs the Workflow role OcuTalonApprovals has exactly one
+/// member, the active Workflow user OcuTalonWorkflow, whose IRIS user has login disabled and no roles or escalation roles, that it is the
+/// only Workflow user of OCUTALON, that no person or public account is one, and that the production item of that name is a Workflow
+/// operation; TestApprovalsWorkflowRepaired pins that a run repairs a deleted role and user, and an inactive user, an enabled or
+/// role-holding login and extra members (fixture Workflow users ZzRegistry<n>Person and ZzRegistry<n>Demo), deleting no Workflow user.
+/// OnAfterAllTests and Clean run the installer again before ClearWorkflow, so that the fixture members leave the role before their Workflow
+/// users are deleted and the setup is whole after any failure. The fixture area, a role, a task
 /// and the resource ZzOcuTalonGrantProbe are created in OnBeforeAllTests and removed in OnAfterAllTests, with the fixture's ^OcuTalonTest
 /// nodes. The Roles step rebuilds the real roles, so OnBeforeAllTests saves the resources of the trace role and OnAfterAllTests puts them
 /// back, together with the other security objects that the tests made (a service user, the roles that did not exist). The two steps
@@ -74,6 +81,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Do ##class(OcuTalon.Bridge.Installer).Run()
 	Do ..RemoveRoles()
 	Do ..RemoveTask(..TaskName)
 	Do ..Clean()
@@ -673,6 +681,83 @@ Method TestWorkflowCheckCountsAWorkflowUser()
 	}
 }
 
+/// Matrix row 1 (AC 1): after the start, then two runs of Bridge.Installer, the role OcuTalonApprovals has exactly one member, the active Workflow
+/// user OcuTalonWorkflow; its IRIS user has login disabled and no roles or escalation roles; it is the only Workflow user in OCUTALON, and the
+/// README account has no Workflow row; the production's item named like the role is an EnsLib.Workflow.Operation. Both runs return OK.
+Method TestApprovalsWorkflow()
+{
+	Set installer = "OcuTalon.Bridge.Installer"
+	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "the first run is OK")
+	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "the second run is OK")
+	Do ..AssertWorkflowSetUp("after two runs")
+	Set readme = $Parameter("OcuTalon.Install.Step.Users", "USER")
+	Do $$$AssertEquals(..WorkflowRows(readme), 0, "the README account is no Workflow user and no member of a Workflow role")
+	Do $$$AssertEquals(..WorkflowUsers(), $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWUSER"), "the only Workflow user of OCUTALON is the technical one")
+	Set role = $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWROLE")
+	Set production = ##class(Ens.Config.Production).%OpenId("OcuTalon.Production")
+	Do $$$AssertTrue($IsObject(production), "the production definition opens")
+	Set itemClass = "<none>"
+	If $IsObject(production) {
+		For i = 1:1:production.Items.Count() {
+			If production.Items.GetAt(i).Name = role Set itemClass = production.Items.GetAt(i).ClassName
+		}
+	}
+	Do $$$AssertEquals(itemClass, "EnsLib.Workflow.Operation", "the production item named "_role_" is a Workflow operation")
+}
+
+/// Matrix row 2 (AC 1): (a) with the role and the Workflow user deleted, and (b) with fixture Workflow users as members, OcuTalonWorkflow
+/// not a member and inactive, and its IRIS user enabled with a role and an escalation role, a run of Bridge.Installer makes row 1's state again.
+/// The fixture Workflow users still exist, and are no members: the installer deletes no Workflow user that it did not make.
+Method TestApprovalsWorkflowRepaired()
+{
+	Set installer = "OcuTalon.Bridge.Installer"
+	Set role = $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWROLE")
+	Set user = $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWUSER")
+	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "the installer runs first")
+	Do $$$AssertTrue(..RoleExists("OcuTalonUser"), "control: the role used for the enabled login exists")
+
+	Do ##class(EnsLib.Workflow.RoleDefinition).%DeleteId(role)
+	Do ##class(EnsLib.Workflow.UserDefinition).%DeleteId(user)
+	Do $$$AssertEquals(..WorkflowRows(user), 0, "(a) the Workflow user and its membership are deleted")
+	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "(a) the run after the deletion is OK")
+	Do ..AssertWorkflowSetUp("(a) after the role and the Workflow user were deleted")
+
+	Set person = "ZzRegistry"_..Number_"Person"
+	Set demo = "ZzRegistry"_..Number_"Demo"
+	Do $$$AssertStatusOK(##class(EnsLib.Workflow.UserDefinition).CreateUser(person, "Zz person"), "(b) the fixture Workflow user "_person_" is made")
+	Do $$$AssertStatusOK(##class(EnsLib.Workflow.UserDefinition).CreateUser(demo, "Zz demo"), "(b) the fixture Workflow user "_demo_" is made")
+	Do $$$AssertStatusOK(##class(EnsLib.Workflow.RoleDefinition).AddUserToRole(role, person), "(b) "_person_" is a member")
+	Do $$$AssertStatusOK(##class(EnsLib.Workflow.RoleDefinition).AddUserToRole(role, demo), "(b) "_demo_" is a member")
+	Do $$$AssertStatusOK(##class(EnsLib.Workflow.RoleDefinition).RemoveUserFromRole(role, user), "(b) "_user_" is no member")
+	Set definition = ##class(EnsLib.Workflow.UserDefinition).%OpenId(user)
+	Set definition.IsActive = 0
+	Do $$$AssertStatusOK(definition.%Save(), "(b) "_user_" is inactive")
+	Do $$$AssertStatusOK(..SetLogin(user, 1, "OcuTalonUser", "OcuTalonUser"), "(b) the login is enabled and holds a role and an escalation role")
+	Do $$$AssertEquals(..LoginState(user), "1|OcuTalonUser|OcuTalonUser", "(b) control: the login state was changed")
+	Do $$$AssertEquals(..Members(role), ..Sorted(demo_","_person), "(b) the members are the two fixtures")
+	Do $$$AssertStatusOK($ClassMethod(installer, "Run"), "(b) the run is OK")
+	Do ..AssertWorkflowSetUp("(b) after the repairs")
+	Do $$$AssertEquals(..WorkflowRows(person), 1, "(b) the fixture Workflow user "_person_" still exists, and is no member")
+	Do $$$AssertEquals(..WorkflowRows(demo), 1, "(b) the fixture Workflow user "_demo_" still exists, and is no member")
+	Do $ClassMethod(installer, "Run")
+	Do ..ClearWorkflow()
+	Do $$$AssertEquals(..WorkflowRows(person)_"|"_..WorkflowRows(demo), "0|0", "the fixture Workflow users are deleted again")
+}
+
+/// The Workflow state of row 1, with the label in each message: the role has exactly one member, the Workflow user, who is active and who
+/// is OcuTalonWorkflow; the IRIS user of that name has Enabled 0, no roles and no escalation roles. Fixture members are listed by name.
+Method AssertWorkflowSetUp(label As %String) [ Private ]
+{
+	Set role = $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWROLE")
+	Set user = $Parameter("OcuTalon.Bridge.Approval", "WORKFLOWUSER")
+	Do $$$AssertEquals(role_"|"_user, "OcuTalonApprovals|OcuTalonWorkflow", label_": the role and the Workflow user have their names")
+	Do $$$AssertTrue(##class(EnsLib.Workflow.RoleDefinition).%ExistsId(role), label_": the Workflow role exists")
+	Do $$$AssertEquals(..Members(role), user, label_": the role has exactly one member, "_user)
+	Set definition = ##class(EnsLib.Workflow.UserDefinition).%OpenId(user)
+	Do $$$AssertTrue($IsObject(definition) && definition.IsActive, label_": the Workflow user exists and is active")
+	Do $$$AssertEquals(..LoginState(user), "0||", label_": its IRIS user has Enabled 0, no roles and no escalation roles: "_..LoginState(user))
+}
+
 /// --- fixtures ---
 /// 1 when the resource exists. Runs in %SYS.
 ClassMethod ResourceExists(resource As %String) As %Boolean [ Private ]
@@ -680,6 +765,57 @@ ClassMethod ResourceExists(resource As %String) As %Boolean [ Private ]
 	New $Namespace
 	Set $Namespace = "%SYS"
 	Quit ''##class(Security.Resources).Exists(resource)
+}
+
+/// The names of the members of the Workflow role as a sorted comma list.
+ClassMethod Members(role As %String) As %String [ Private ]
+{
+	Set members = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT UserName FROM EnsLib_Workflow.RoleMembership WHERE RoleName = ?", role)
+	While result.%Next() {
+		Set members = members _ $Select(members = "": "", 1: ",") _ result.%GetData(1)
+	}
+	Quit ..Sorted(members)
+}
+
+/// The names of all Workflow users of the current namespace as a sorted comma list.
+ClassMethod WorkflowUsers() As %String [ Private ]
+{
+	Set users = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM EnsLib_Workflow.UserDefinition ORDER BY Name")
+	While result.%Next() {
+		Set users = users _ $Select(users = "": "", 1: ",") _ result.%GetData(1)
+	}
+	Quit users
+}
+
+/// "<Enabled>|<Roles>|<EscalationRoles>" of the IRIS user, or "none" when there is none. Runs in %SYS.
+ClassMethod LoginState(user As %String) As %String [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If '##class(Security.Users).Exists(user) Quit "none"
+	Do ##class(Security.Users).Get(user, .properties)
+	Quit $Get(properties("Enabled"))_"|"_$Get(properties("Roles"))_"|"_$Get(properties("EscalationRoles"))
+}
+
+/// Sets Enabled, the roles and the escalation roles of the IRIS user. Runs in %SYS.
+ClassMethod SetLogin(user As %String, enabled As %Boolean, roles As %String, escalation As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set properties("Enabled") = enabled
+	Set properties("Roles") = roles
+	Set properties("EscalationRoles") = escalation
+	Quit ##class(Security.Users).Modify(user, .properties)
+}
+
+/// 1 when the IRIS role exists. Runs in %SYS.
+ClassMethod RoleExists(role As %String) As %Boolean [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ''##class(Security.Roles).Exists(role)
 }
 
 /// Deletes the fixture Workflow users, in OCUTALON and in OCUORDERS where it exists.
@@ -760,6 +896,7 @@ ClassMethod Clean() [ Private ]
 		Do $SYSTEM.OBJ.Delete(result.%GetData(1), "-d")
 	}
 	Kill ^OcuTalonTest("Registry")
+	Do ##class(OcuTalon.Bridge.Installer).Run()
 	Do ..ClearWorkflow()
 	New $Namespace
 	Set $Namespace = "%SYS"

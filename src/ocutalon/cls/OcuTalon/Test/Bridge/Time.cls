@@ -7,6 +7,9 @@
 ///     the first instant of a day is its local midnight and the second before it is 23:59:59 of the day before; in America/Havana
 ///     2025-03-09, whose midnight does not exist, starts at its first instant, local 01:00; with no zone a day is a UTC day;
 ///   - TestUnreadable: every method gives "" for an input it cannot read;
+///   - TestPlusSeconds, TestSecondsUntil (Story 3.4): PlusSeconds moves a UTC time by whole seconds across a day, a month end (also 29 February
+///     of a leap year) and a year end, backwards too, and gives "" for an unreadable time or count; SecondsUntil is the whole seconds,
+///     rounded down, to a UTC time, negative for the past, the same in three zones, and "" for an unreadable time;
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
 ///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
 ///     (at least 600 ms less, whatever pause there is between the two reads);
@@ -100,6 +103,56 @@ Method TestUnreadable()
 	}
 	For input = "", "x", "2025-03-09", "2025-03-09T05:00:00Z", "2025-03-09 05:00", "2025-13-09 05:00:00", "2025-03-09 25:00:00", "2025-03-09 05:00:00." {
 		Do $$$AssertEquals($ClassMethod(time, "MsSince", input), "", "MsSince of '"_input_"' is empty")
+	}
+	For input = "", "x", "2025-03-09", "2025-03-09 05:00:00", "2025-03-09T05:00:00", "2025-13-09T05:00:00Z", "2025-02-30T05:00:00Z", "2025-03-09T25:00:00Z" {
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", input, 60)_"|"_$ClassMethod(time, "SecondsUntil", input), "|", "PlusSeconds and SecondsUntil of '"_input_"' are empty")
+	}
+	For seconds = "", "x", "1.5", "1e3" {
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2025-03-09T05:00:00Z", seconds), "", "PlusSeconds by '"_seconds_"' seconds is empty")
+	}
+}
+
+/// PlusSeconds adds whole seconds to a UTC time, whatever the zone of the process: a day (86,400 s) is the next date at the same time, 24 hours
+/// from a time of the 31st is the first of the next month, 28 and 29 February are told apart by the leap year, 31 December rolls to the
+/// next year, a negative count moves back across the same edges, and a count of 0 keeps the time. A result before the calendar's start is "".
+Method TestPlusSeconds()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set label = "in the zone '"_zone_"': "
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 86400), "2026-10-25T13:05:09Z", label_"a day later")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 0), "2026-10-24T13:05:09Z", label_"0 seconds keep the time")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 1), "2026-10-24T13:05:10Z", label_"a second later")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-31T23:59:59Z", 1), "2026-11-01T00:00:00Z", label_"a month end")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-31T12:00:00Z", 86400), "2026-11-01T12:00:00Z", label_"a day across the end of October")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-12-31T23:59:59Z", 1), "2027-01-01T00:00:00Z", label_"a year end")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-12-31T12:00:00Z", 86400), "2027-01-01T12:00:00Z", label_"a day across the end of the year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2027-02-28T12:00:00Z", 86400), "2027-03-01T12:00:00Z", label_"28 February of a common year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2028-02-28T12:00:00Z", 86400), "2028-02-29T12:00:00Z", label_"28 February of a leap year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-11-01T00:00:00Z", -1), "2026-10-31T23:59:59Z", label_"a month end, backwards")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2027-01-01T00:00:00Z", -1), "2026-12-31T23:59:59Z", label_"a year end, backwards")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", -3600), "2026-10-24T12:05:09Z", label_"an hour earlier")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 3600 * 24 * 365), "2027-10-24T13:05:09Z", label_"a year of 365 days")
+	}
+	Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "1840-12-31T00:00:00Z", -1), "", "a result before the calendar's start is empty")
+}
+
+/// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 99 or 100 (the clock moves
+/// between the two reads), the second just passed reads -1 at most, a time a minute ago reads -61 to -60, and the same in every zone.
+Method TestSecondsUntil()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+		Set ahead = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, 100))
+		Do $$$AssertTrue((ahead >= 98) && (ahead <= 100), "a time 100 s ahead is "_ahead_" s ahead in the zone '"_zone_"'")
+		Do $$$AssertEquals(ahead, ahead \ 1, "in whole seconds")
+		Set behind = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, -60))
+		Do $$$AssertTrue((behind >= -62) && (behind <= -60), "a time a minute ago is "_behind_" s ahead in the zone '"_zone_"'")
+		Set day = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, 86400))
+		Do $$$AssertTrue((day >= 86398) && (day <= 86400), "a day ahead is "_day_" s ahead in the zone '"_zone_"'")
 	}
 }
 
