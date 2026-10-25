@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-25-2026 06:38
+last_updated: 10-25-2026 07:25
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -82,6 +82,7 @@ development_status:
   2-14-work-the-whole-page-by-keyboard-with-labels-and-words: done
   2-15-lay-the-page-out-at-every-supported-width: done
   2-16-prove-the-floor-in-chromium-firefox-and-webkit: done
+  2-17-epic-2-s-tests-follow-the-real-decide: backlog
   epic-2-retrospective: optional
 
   epic-3: backlog

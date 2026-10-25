@@ -1946,6 +1946,21 @@ So that the page works for me whichever browser I use.
 - DW-178: The skip links (Story 2.14) pass this story's accessibility scan in every browser: no link points at nothing (for example an in-page target in place of `href="#/"`) (ledger; routed by harvest 2026-10-24)
 - DW-179: Every floor case removes the turns it seeds: Story 2.12's A1, A5, A7 and P4 pass `turnRows` to `cleanFixtureRows` as Story 2.14's cases do, so running the floor unit in several browser projects on one stack leaves no turns behind for K4's bounded tab walk (ledger; routed by adjudication 2026-10-24)
 
+
+### Story 2.17: Epic 2's tests follow the real Decide
+
+As the team merging Epic 2 onto the feature branch,
+I want Epic 2's live and production tests to assert what the merged system does now that Epic 1's real Decide has replaced Epic 0's stub,
+So that the merged branch is green for the right reasons and every Epic 2 promise is still proven.
+
+[ADDED 2026-10-25, Epic 2 integrate-forward, Epic 2 runner, fix-forward (U5: one fix-forward story per root cause, the failing code in this epic's own changes; veto item). Root cause: Epic 2's tests were written against Epic 0's stub Decide, whose fallback reason is `unusable`; on the merged tree the real Decide of Epic 1 answers a stack with no model key with the `noModelKey` fallback ("I couldn't answer that: no model key is set. Nothing was changed.").]
+
+**Acceptance Criteria:**
+
+**Given** the feature branch merged into Epic 2 (Epic 1's real Decide, a throwaway stack with no model key, and the CI model mock where a test uses it)
+**When** Epic 2's tests run on the merged tree: `shard:lane-b` (`OcuTalon.Test.Core.ConversationProduction`, `RoutingProduction`, `ThreadProduction`), `live:production-restart` (row 20), `live:sign-in` (Story 2.4's api row and Story 2.5's C2-C4, C7, C9-C11 and C15, and every case that did not run after them) and every other group
+**Then** each asserts the outcome the merged system produces (the reply text, the fallback reason, the turn's states and events, and whatever decision record the real Decide keeps), every Epic 2 acceptance criterion those tests pin is still pinned by a test that can fail, no product behaviour changes unless a test exposes a real integration defect (which this story then fixes, with a test), and all six IRIS groups and the hosted checks pass on the merged tree
+
 ## Epic 3: Nothing risky happens without a yes, and everything is audited
 
 Every action is classified safe or risky by fixed rules the model and arriving content can't change; each risky action becomes one IRIS Workflow approval request fixed to exact targets, answered once (first answer wins), expiring after 24 hours and surviving restarts; every action and governance event is written to the IRIS audit log; roles and the service user decide who may do what.
