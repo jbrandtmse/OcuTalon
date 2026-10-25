@@ -204,7 +204,7 @@ Timing bounds over real networks are measured in the clean-machine rehearsal and
 - REL-4: A full CI run takes at most 35 minutes [AMENDED 2026-10-20, owner decision 7]; tests against a live IRIS run on a dedicated runner and everything else on hosted runners; the model and Telegram are mocked, with the model mock serving the shipped Anthropic provider path; the AI Hub image never enters CI caches or artifacts, and fork pull requests never run on the IRIS runner.
 - REL-5: On every push the evaluation harness runs against the mocked model; on each release candidate the evaluation set and the demo incident gate run on Claude Haiku 5.5 against SM-1, SM-2, NFR-3 and NFR-4; a candidate below target is run twice more and passes if two of three runs meet target, otherwise the release is blocked unless the author overrides it with the reason in the release notes.
 - REL-6: Each release passes the demo path, an install on a clean machine, and an in-place upgrade from the previous release.
-- REL-7: Each build step ends with a hands-on pass using real keys, and fixes for what it finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram on iOS, Android and desktop clients (P29). Later passes include Telegram on those clients.
+- REL-7: Each build step ends with a hands-on pass using real keys, and fixes for what it finds, before that step's release. Step 1 has two: before 0.1.0 on the web demo path, and before 0.1.1 with Telegram (P29). Later passes include Telegram. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Yeah, we're not going to do a hands on pass by me at release, I want you to do that instead."] The Contest Planner runs every hands-on pass on the author's behalf: it installs the candidate from the README with Docker and real keys, drives the web app in a browser and Telegram through Telegram Web (logged in once by the author), and records each finding with its fix or its own decision, under the author's delegation, to defer it. When convenient, the author may look at one notice and one approval on a phone; that look never blocks a release, and the record notes it when it was skipped.
 - REL-8: Each release has plain-language notes grouped by area, published by the author.
 - REL-9: Releases before the first public Open Exchange release are 0.1.x (release 1 is 0.1.0); 1.0.0 is the first public Open Exchange release, no later than the submission; 1.0.0 and later include the 1.0.0 kit.
 - REL-10: Once the demo host exists (November 1 at the latest), the online demo is updated with every release, with access restricted until the author launches it; a release cut before then is installed by the host's first deploy (P31).
@@ -648,7 +648,7 @@ On a machine with the build 154 image loaded, one script checks, retags and star
 
 ### Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
-The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the author's hands-on pass; the release checklist covers naming, licence notices and public text.
+The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the Contest Planner's hands-on pass; the release checklist covers naming, licence notices and public text.
 **Lane:** A. **Depends on:** Epic 9 and Epic 10 (and every release-1 floor epic, 0 to 10).
 **FRs covered:** FR-6 (the container-restart test), FR-60.
 **Also covers:** NFR-7 (rehearsal measurement), NFR-17, REL-1, REL-3, REL-6, REL-8, REL-9, REL-7 (the 0.1.0 hands-on pass, Story 11.6), REL-10 (restricted demo update hook), CON-2, CON-5; AD-5, AD-22, AD-23.
@@ -855,13 +855,13 @@ Ships in the release that completes this step, which bumps the minor version (th
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new list: the criteria only the owner or the Contest Planner can meet left the feature stories, so that no story parks on the owner and holds its epic's merge; each story keeps a one-line release check, whose note quotes the removed criterion] Each item is checked at its step's release (the 1.0.0 item at the 1.0.0 release), in the release checklist and sequence (Stories 11.4 and 11.5), and a finding is fixed before that release ships. A step ships in the release that completes it, which bumps the minor version (see each step epic's version line).
 
-- **1.0.0:** Story 31.3, the author's, on the launched online demo [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: moved verbatim from Story 31.3 as a 1.0.0 release check, so Story 31.3 never parks on the launch and Epic 31 merges once `v0.1.1` is tagged]: **Given** the online demo after launch **When** the measurement runs 20 times each **Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
-- **Step 2:** Story 17.3: the author's hands-on pass with real keys (REL-7) runs the demo path on each provider, and a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes.
-- **Step 3:** Story 20.2: the author's hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram.
+- **1.0.0:** Story 31.3, run by the Contest Planner (REL-7's amendment of 2026-10-25), on the launched online demo [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: moved verbatim from Story 31.3 as a 1.0.0 release check, so Story 31.3 never parks on the launch and Epic 31 merges once `v0.1.1` is tagged]: **Given** the online demo after launch **When** the measurement runs 20 times each **Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
+- **Step 2:** Story 17.3: the Contest Planner's hands-on pass with real keys (REL-7) runs the demo path on each provider, and a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes.
+- **Step 3:** Story 20.2: the Contest Planner's hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram.
 - **Step 4:** Story 22.6: the author follows the worked Jira example on a clean local install with a real Jira MCP server: the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace. Story 35.1 (was 22.1): the Contest Planner checks on the demo host that its gateway configuration lets traffic through to exactly the online demo's preconfigured MCP servers, that the release checklist names each one, and that a call to a server off the list is refused on the running demo. Story 35.2 (was 21.1): the Contest Planner checks on the demo host that the proxy's allow-list blocks the webhook path.
-- **Step 5:** Story 24.4: the author's hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram.
-- **Step 6:** Story 26.2: the Contest Planner checks on the demo host that the outbound gateway swaps the dummy token on Telegram's file-download path too, a route the demo host's configuration adds before the release reaches the online demo, and the release checklist confirms it. Story 26.4: the author's hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role.
-- **Step 7 (Could):** Story 28.3: the Contest Planner checks on the demo host that `/mcp` is outside the proxy's allow-list, so the service is never reachable there. Story 28.3: the author's hands-on pass with real keys exercises each step 7 feature that ships.
+- **Step 5:** Story 24.4: the Contest Planner's hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram.
+- **Step 6:** Story 26.2: the Contest Planner checks on the demo host that the outbound gateway swaps the dummy token on Telegram's file-download path too, a route the demo host's configuration adds before the release reaches the online demo, and the release checklist confirms it. Story 26.4: the Contest Planner's hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role.
+- **Step 7 (Could):** Story 28.3: the Contest Planner checks on the demo host that `/mcp` is outside the proxy's allow-list, so the service is never reachable there. Story 28.3: the Contest Planner's hands-on pass with real keys exercises each step 7 feature that ships.
 
 ## Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -3486,7 +3486,7 @@ So that Lane A's Telegram epic changes only its own files and never waits on Lan
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
-The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the author's hands-on pass; the release checklist covers naming, licence notices and public text.
+The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the Contest Planner's hands-on pass; the release checklist covers naming, licence notices and public text.
 
 ### Story 11.1: The web demo path passes end to end in the REL-2 test
 
@@ -3629,7 +3629,7 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the author starts the release sequence in `release/` with a version
 **Then** it refuses a version that isn't 0.1.x before the first public release (unless the author asks for 1.0.0 and confirms the 1.0.0 kit is in it) and a version already tagged; it sets the version in `src/module.xml`, which the package, the image's ready marker and the About dialog report, builds the web bundle with Node.js and commits it on a new candidate branch, `release/<version>-rc<n>`, so a Docker install needs no Node.js, and checks the version inside the built image (REL-3, REL-9, AD-23)
 **And** that commit is the cut: the candidate is identified by its version and commit SHA, its branch is never changed after it, and a failed gate means a fix on the integration branch and a new candidate, `rc<n+1>`, cut from the integration branch's head or, to carry a hands-on pass over, from the previous candidate plus the fix commits (the hands-on gate below) (REL-1, REL-7)
-**And** the candidate's record lives on the integration branch in `release/records/<version>/rc<n>.md`: the candidate's commit SHA, each gate's result, the hands-on pass (each finding with its fix or the author's decision to defer it) and the author's hands-on time (REL-1, REL-3, REL-7)
+**And** the candidate's record lives on the integration branch in `release/records/<version>/rc<n>.md`: the candidate's commit SHA, each gate's result, the hands-on pass (each finding with its fix or the Contest Planner's decision to defer it) and the author's hands-on time (REL-1, REL-3, REL-7)
 
 **Given** the cut
 **When** the sequence takes its first outward step
@@ -3637,13 +3637,13 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 **Given** the pushed candidate
 **When** the gates run
-**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the author's REL-7 hands-on pass on this candidate (with no open finding the author hasn't deferred: Story 11.6 for 0.1.0, Story 12.7 for 0.1.1) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5)
+**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: Story 11.6 for 0.1.0, Story 12.7 for 0.1.1) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5)
 **And** it refuses a candidate in which an enabled production item still answers "not implemented", so unfinished features stay off the demo path (REL-1, AD-29)
 
 **Given** the hands-on gate
 **When** the sequence reaches it
-**Then** it stops and names the candidate to install; the author runs the pass, records it in the candidate's record and resumes the sequence with its resume command, which refuses to go on until the record holds a pass or a carry-over for this candidate; the time spent on the pass doesn't count toward the 15 minutes (REL-3, REL-7)
-**And** the release that ends a build step (0.1.0's web demo path, 0.1.1's Telegram, each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the author's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29)
+**Then** it stops and names the candidate to install; the Contest Planner runs the pass and records it in the candidate's record, and the sequence is resumed with its resume command, which refuses to go on until the record holds a pass or a carry-over for this candidate; the time spent on the pass doesn't count toward the 15 minutes (REL-3, REL-7)
+**And** the release that ends a build step (0.1.0's web demo path, 0.1.1's Telegram, each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29)
 
 **Given** every gate passed
 **When** the sequence reaches each later step that acts outside the machine
@@ -3672,22 +3672,22 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 ### Story 11.6: A hands-on pass with real keys finds and fixes what the tests missed before 0.1.0
 
 As the author,
-I want to run the web demo path by hand with a real model key before 0.1.0 is cut,
+I want the Contest Planner to run the web demo path by hand with a real model key before 0.1.0 is cut, on my behalf (REL-7's amendment of 2026-10-25),
 So that what the automated tests can't see is found and fixed before the first release (REL-7).
 
 **Acceptance Criteria:**
 
 **Given** Stories 11.1 to 11.5 merged, and Story 11.5's sequence stopped at the hands-on gate for the 0.1.0 candidate `release/0.1.0-rc<n>`
-**When** the author installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
-**Then** each finding goes into the candidate's record (`release/records/0.1.0/rc<n>.md`) with its fix or the author's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29)
+**When** the Contest Planner installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand in a browser: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
+**Then** each finding goes into the candidate's record (`release/records/0.1.0/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29)
 **And** the pass has no Telegram, because 0.1.0 has none; Story 12.7 runs the Telegram pass for 0.1.1 (REL-7)
 
 **Given** fixes made after the pass
 **When** Story 11.5's sequence cuts the next candidate and reaches the hands-on gate
-**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the author's note in its record; otherwise, as for a re-cut from the integration branch's head, the author runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
+**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the Contest Planner's note in its record; otherwise, as for a re-cut from the integration branch's head, the Contest Planner runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
 
 **Given** the real 0.1.0 cut through Story 11.5's sequence
-**When** the author resumes it after the recorded pass and it finishes
+**When** it is resumed after the recorded pass and it finishes
 **Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
 
 ## Epic 12: Approve from your own phone with Telegram
@@ -3720,7 +3720,7 @@ So that Telegram is optional and the web demo path never waits on it.
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` still returns 0, so `/state` keeps the Telegram section hidden and the pairing endpoints answer 404, and this epic's tests turn Telegram on through Epic 0's test-only seam `^OcuTalonTest("TelegramIncluded")`; Story 12.7 sets `Included()` to 1 with the README's Telegram section (FR-21, FR-58)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it
 
@@ -3753,7 +3753,7 @@ So that no message is lost or repeated and two installs never fight over one bot
 **When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
 **Then** it finds none (NFR-11, AD-14)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.3: The Telegram card shows a fresh pairing code as a QR code
 
@@ -3780,7 +3780,7 @@ So that I can pair my phone in one scan without typing anything.
 **When** a test searches the production messages, headers, event log, live events and audit entries
 **Then** no code appears in any of them (FR-18, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.4: A valid code pairs the chat with the session
 
@@ -3814,7 +3814,7 @@ So that I know my phone will get OcuTalon's notices.
 **When** the REL-2 spec for UJ-1's page step reaches its Telegram pairing part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it reads the code from the page's "Open in Telegram" link, injects `/start <code>` from a private chat, and sees "Telegram paired" on the card and the confirmation sent to the chat (REL-2, AD-29, UX-DR101)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.5: Bad codes, a bare start command and unpairing get polite answers
 
@@ -3845,7 +3845,7 @@ So that nobody pairs with my session by accident or learns anything about it.
 **When** a chat paired with A pairs with B, or A pairs a second chat
 **Then** a chat keeps at most one live pairing: in the first case A's card shows "Telegram unpaired" and then a new code, from the `pairing` event `SessionOps` publishes to every session whose state changed; in the second the first chat gets "Another Telegram chat was paired with this OcuTalon session, so this chat is no longer paired." from the `pairing` `Notification` that `SessionOps` sends (Story 10.3), and no more of A's messages; and each change is audited (FR-18, FR-9, AD-4, UX-DR56, UX-DR109)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.6: Chat and get notifications in the paired Telegram chat
 
@@ -3877,7 +3877,7 @@ So that I can follow and steer it from my own phone.
 **When** a test searches the production messages, Visual Trace, the agent steps, the event log and the IRIS audit log
 **Then** none holds the chat's Telegram id or display name; only the `Pairing` row does (FR-15, FR-3, FR-9, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
 
@@ -3912,15 +3912,15 @@ So that I can approve the fix from my own phone and see the result there.
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it presses Approve on the notice's button, sees the answered status on the chat card and the phone, the edited Telegram message and "All 50 orders went through." in the paired chat, and finds the approval in the IRIS audit log with channel Telegram and no Telegram identity (FR-8, FR-9, REL-1, REL-2, UX-DR101, UX-DR103)
 
 **Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>`
-**When** the author installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal and iOS, Android and desktop Telegram clients), and runs the step's hands-on pass
-**Then** pairing, a reminder, the incident notice and Approve work in Telegram on iOS, Android and desktop clients; each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the author's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
+**When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass
+**Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
 
 **Given** Story 11.2's upgrade and restart harness
 **When** this story merges
 **Then** it extends the harness so the restart check includes a pairing through the Telegram mock from 0.1.1 and the upgrade check from 0.1.2, once the previous release includes Telegram, and the pairing still receives notifications afterwards (FR-60, NFR-16, NFR-17)
 
 **Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot
-**When** the author runs pairing and an approval answered from Telegram 20 times each by hand (the Bot API can't act as a user), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery
+**When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery
 **Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)
 
 **Given** every Telegram story merged
@@ -3928,7 +3928,7 @@ So that I can approve the fix from my own phone and see the result there.
 **Then** `OcuTalon.Channel.Telegram.In.Included()` returns 1, so `/state` shows the rail's Telegram card (Story 2.8), the pairing endpoints answer, and with a token set the Telegram installer step enables `TelegramIn` and `TelegramOut` (Story 12.1's one switch), in the same change that adds the README's Telegram section (creating a bot with BotFather, turning groups off for it, setting `TELEGRAM_BOT_TOKEN` in `.env` and restarting OcuTalon, and that each OcuTalon needs its own bot), which the card's "How to set it up" link and the "Set up a bot" banner link open, so the link never points at a missing section and Story 10.2's README link check covers it from this change on (FR-21, FR-22, FR-58, UX-DR98)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, because Lane A's Epic 29 now runs before this epic] this story also turns on the online demo's Telegram case that Epic 16 leaves off: Story 16.3's check that the rail's Telegram card shows a resumed session's pairing (FR-14, FR-15, FR-20, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Story 29.2 is Story 16.3 again; Story 29.4's paired-chat cases moved to Story 31.4]
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ## Epic 13: Any production can use the bridge
 
@@ -4566,7 +4566,7 @@ So that I can use the provider and model I already pay for.
 **When** the bridge merges the agent's Config Store entry through `OcuTalon.Bridge.ConfigStore.Merge`
 **Then** only the provider, the model and the key placeholder `@{env:<the provider's variable>}` pass; any other environment variable, a `base_url`, a header, a `secret://` value or any other `@{` form is refused with a plain reason and nothing changes, and a test submits each (NFR-11, AD-19) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became this criterion; it read "- DW-52: Bridge.ConfigStore.Merge validates only api_key's placeholder form and nested @{: any @{env:NAME}, base_url, header or secret:// passes, so a user-facing caller could pair the key placeholder with an arbitrary base_url (ledger; routed by adjudication 2026-10-21)"]
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 2 hands-on pass with real keys (REL-7) **When** the demo path is run on each provider **Then** a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes; a provider whose run fails stays unsupported and isn't offered (FR-39, REL-7, REL-8)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 2 hands-on pass with real keys (REL-7) **When** the demo path is run on each provider **Then** a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes; a provider whose run fails stays unsupported and isn't offered (FR-39, REL-7, REL-8)"]
 
 ### Story 17.4: Apply model, price, budget and zone changes through the bridge
 
@@ -4802,7 +4802,7 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 **When** this epic's stories merge
 **Then** the demo path still passes, and a Playwright test covers the Settings page as the README account, a fixture digest card and **Got it** (REL-2, UX-DR117)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
@@ -5013,7 +5013,7 @@ So that I can tell where an answer came from.
 **Then** it is a button whose name includes its document or memory, its popover follows the popover rules, and nothing relies on colour alone (NFR-25, UX-DR38, UX-DR130, UX-DR134)
 **And** the fixed-strings test covers the new texts (UX-DR117)
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 
@@ -5295,7 +5295,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** it is regenerated for this release
 **Then** the MCP section drops its opening statement that the release can't connect to MCP servers and links the worked example; the generated tool list adds the governed proxy tool `call_mcp_tool`; the service user's privileges add each server's own resource `OcuTalon_MCP_<server>`; and the data section names calls to configured MCP servers as live (FR-61, FR-10, FR-49, NFR-12, NFR-18, AD-24)
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
 
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
@@ -5615,7 +5615,7 @@ So that the backup is woken only when the on-call person really didn't answer.
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 
@@ -5646,9 +5646,9 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 25: Usage, history and files in the page (step 6)
 
@@ -5808,7 +5808,7 @@ So that I can ask about a file without adding it as a document first.
 **When** the user sends a document or a photo
 **Then** `TelegramIn` (Lane A's from Epic 12) checks the size Telegram reports before downloading, stores the file through Lane B's file-store call from Story 25.3, sends the same kind of Item, and never logs the download address, which holds the bot token (FR-54, AD-14, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 
@@ -5876,9 +5876,9 @@ So that only the right people can approve each kind of change.
 **When** a user with only another kind's role, a user with that kind's role, a holder of `OcuTalonApprover` and a viewer answer
 **Then** only the right roles succeed, every refusal changes nothing, the audit entries carry the role, the role-assignment method refuses `OcuTalonAdmin` and `%All`, and the security overview lists the new roles and what each may do (FR-11, NFR-13, FR-61)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 27: Slack (step 7, Could)
 
@@ -6031,7 +6031,7 @@ So that I can check status and history from my own tools without opening a new w
 **When** they try each refusal and a successful read-only call
 **Then** the results match, and the security overview lists the service's tools from its specification and the `OcuTalonMCPClient` role (FR-51, FR-61)
 
-**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
+**Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 29: The online demo's platform side
 
