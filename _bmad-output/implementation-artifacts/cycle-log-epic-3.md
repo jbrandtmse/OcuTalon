@@ -211,3 +211,6 @@
 2026-10-25T16:29:38Z	Epic 3	epic_status_done	stories=8
 2026-10-25T16:29:50Z	Epic 3	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=4.38 unresolved_high_med_avg=0.63 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=2(3.4,3.5;both_patched_in_pass) review_med=33 result=hold applied=false gate=record_only
 2026-10-25T16:29:50Z	Epic 3	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-10-25T17:05:41Z	Epic 3	integrate_suite	tree=merge_2b30a3d checks=pass shard_lane-a=47_pass(410s) shard_lane-b=42_pass(109s) live=production,demo-path(floor_3/3;after_rebuilding_the_stale_local_web_bundle:first_two_runs_failed_on_the_old_bundle,environment_not_product),install-start,audit,sign-in_pass smoke=gate_held_call_through_production_ChatAgent+reject(pass) teardown=clean(e3ifw,e3ifsw)
+2026-10-25T17:05:41Z	Epic 3	integrated_forward	feature=e3702de head=2b30a3d conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(regenerated,Epic_3_statuses_re-applied),_bmad-output/implementation-artifacts/unattended-inbox-snapshot.md(feature's) code_conflicts=none
+2026-10-25T17:05:41Z	Epic 3	epic_runner_complete	stories_completed=8 retro=skipped(policy) applied=none decisions_for_user=DW-192
