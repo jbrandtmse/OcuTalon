@@ -100,7 +100,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 **4.9 Memory and documents**
 
 - FR-41 [Step 3]: "Remember that the Results partner's contact is Lee" is stored in OcuTalon's own database with an IRIS vector index and a keyword index. A later question matching by meaning ("who do I call about Results?") or keyword ("Lee") retrieves it, and an answer that uses a memory says so. Memories can be listed, searched and forgotten in the chat, and a forgotten memory leaves search at once. Embeddings work offline: on a fresh Docker install with outbound network blocked, storing and recalling works on first use; the model ships in the image; an IPM install downloads it once during install. A memory belongs to the user who stored it (on the online demo, to the session; P23).
-- FR-42 [Step 3: Markdown and plain text; Step 6: PDF and Word]: Documents are added in the web app; answers drawn from them cite each document and section; if none is relevant OcuTalon says so rather than guessing; at most 5 passages per model request. On a local install, documents are shared by every user; on the online demo, each session's are its own (P23).
+- FR-42 [Step 3: Markdown, plain text, PDF and Word]: Documents are added in the web app; answers drawn from them cite each document and section; if none is relevant OcuTalon says so rather than guessing; at most 5 passages per model request. On a local install, documents are shared by every user; on the online demo, each session's are its own (P23). [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): it read "[Step 3: Markdown and plain text; Step 6: PDF and Word]"]
 - FR-43 [Step 7, Could]: Memories unused for a configured period rank lower in recall; a nightly job merges duplicates, keeping their sources, and records each merge.
 
 **4.10 Email, webhooks and Slack**
@@ -121,7 +121,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 
 - FR-52 [Step 6]: Tokens and cost shown by day, agent, channel and model; totals equal the sum of decision and turn costs; the view shows each day's largest model request against the 100,000-token limit.
 - FR-53 [Step 6]: Decisions filter by outcome, channel, date and fallback; each opens to its reasons and trace link; incidents are listed with state and summary.
-- FR-54 [Step 6; PDF and Word may move to Step 3 if the contest lists an Embedded Python bonus]: A user sends a PDF, a Word file or a photo from the web app or Telegram. Embedded Python extracts text from PDF and Word; the file becomes an item and can be added as a document. A photo gets a model caption stored as a memory. Files over 10 MB are refused with a clear message. A failed extraction is reported to the user.
+- FR-54 [Step 6; reading PDF and Word files from Step 3]: A user sends a PDF, a Word file or a photo from the web app or Telegram. Embedded Python extracts text from PDF and Word; the file becomes an item and can be added as a document. A photo gets a model caption stored as a memory. Files over 10 MB are refused with a clear message. A failed extraction is reported to the user. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): it read "[Step 6; PDF and Word may move to Step 3 if the contest lists an Embedded Python bonus]"]
 
 **4.13 Install, packaging, documentation and the online demo**
 
@@ -294,7 +294,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 
 **Stack**
 
-- IRIS for Health AI Hub Early Access 2026.3.0AI build 154 (primary; the non-Health image supported); IPM 0.10.10; `claude-haiku-5-5` by default (`claude-sonnet-5-5` for diagnosis if needed); AllMiniLM-L6-v2 (384 dimensions); Angular and Angular CDK 22.2.x; TypeScript ~6.0.3; Node.js 24 LTS (build and CI only); Playwright 1.64.x; fastembed 0.9.0 (step 3); pdfplumber 0.11.10 and python-docx 1.1.2 (step 6, through Embedded Python). The component library is recorded by the first web-shell story.
+- IRIS for Health AI Hub Early Access 2026.3.0AI build 154 (primary; the non-Health image supported); IPM 0.10.10; `claude-haiku-5-5` by default (`claude-sonnet-5-5` for diagnosis if needed); AllMiniLM-L6-v2 (384 dimensions); Angular and Angular CDK 22.2.x; TypeScript ~6.0.3; Node.js 24 LTS (build and CI only); Playwright 1.64.x; fastembed 0.9.0 (step 3); pdfplumber 0.11.10 and python-docx 1.1.2 (step 3, through Embedded Python; [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "step 6"]). The component library is recorded by the first web-shell story.
 
 **Deferred: build only the hook**
 
@@ -520,7 +520,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-39: Epic 17 (model per agent); Epic 18 (in the settings page, and the README's provider section)
 - FR-40: Epic 17 (budgets); Epic 18 (in the settings page); Epic 3 (the online demo's $20 cap and gateway spend, Story 3.8); Epic 16 (online-demo caps); Epic 29 (the gateway's cap, Story 29.3) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-41: Epic 19 (memory with hybrid search)
-- FR-42: Epic 19 (retrieval and citations); Epic 20 (adding documents); Epic 26 (PDF and Word)
+- FR-42: Epic 19 (retrieval and citations; PDF and Word, Story 19.7); Epic 20 (adding documents) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "…; Epic 26 (PDF and Word)"]
 - FR-43: Epic 28 (memory fading, Could)
 - FR-44: Epic 21 (email channels); Epic 22 (the email tool: safe to the user, risky to anyone else)
 - FR-45: Epic 21 (webhook)
@@ -532,7 +532,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-51: Epic 28 (OcuTalon as an MCP server, Could)
 - FR-52: Epic 25 (usage and cost view)
 - FR-53: Epic 25 (decision and incident history)
-- FR-54: Epic 25 (sending files); Epic 26 (extraction and captions)
+- FR-54: Epic 19 (extraction, Story 19.6); Epic 25 (sending files); Epic 26 (files as items, and captions) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: it read "- FR-54: Epic 25 (sending files); Epic 26 (extraction and captions)"]
 - FR-55: Epic 0 (image, retag, compose and health check core); Epic 10 (install script complete)
 - FR-56: Epic 0 (own namespace)
 - FR-57: Epic 15 (IPM package)
@@ -541,7 +541,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-60: Epic 11 (upgrade in place, from 0.1.1)
 - FR-61: Epic 14 (security overview)
 - FR-62: Epic 9 (evaluation set); Epic 17 (digest cases); Epic 23 (setting-change incidents)
-- [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step contracts] Epics 33 to 37 hold each step's first two stories, so the parts those stories deliver are covered there: FR-17 (the settings page and its save path, Epic 33); FR-42 (the Documents page, Epic 34); FR-45 (webhooks, Epic 35, wholly); FR-47 and FR-48 (registered MCP servers attached, every new tool unclassified, Epic 35); FR-27 (the setting history, Epic 36); FR-28 (the on-call configuration, Epic 36); FR-52 (the usage and cost view, Epic 37, wholly); FR-54 (extraction from PDF and Word files, Epic 37). Each line above still names the step's feature epics for the rest.
+- [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step contracts] Epics 33 to 37 hold each step's first two stories, so the parts those stories deliver are covered there: FR-17 (the settings page and its save path, Epic 33); FR-42 (the Documents page, Epic 34); FR-45 (webhooks, Epic 35, wholly); FR-47 and FR-48 (registered MCP servers attached, every new tool unclassified, Epic 35); FR-27 (the setting history, Epic 36); FR-28 (the on-call configuration, Epic 36); FR-52 (the usage and cost view, Epic 37, wholly); FR-54 (the PDF and Word extraction's names and package lines, Epic 34). Each line above still names the step's feature epics for the rest.
 
 ## Epic List
 
@@ -706,10 +706,10 @@ Ships in the release that completes this step, which bumps the minor version (th
 
 ### Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
-A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown and text documents with citations, saying so when nothing is relevant.
-**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 34 (real: Story 34.1 (was 19.1)'s names, tables and stubs; Story 34.2 (was 20.1)'s memory and document command verbs, which Stories 19.3 and 19.4 submit and handle, and its Dockerfile lines, which Story 19.2 uses); story-level: Story 19.2 needs Epic 15 merged (real: the IPM install downloads the model), and Story 19.5 needs Epics 13, 16 and 17 merged (real: the standalone bridge job with `OcuTalon.BridgeExample`, Epic 13, and `SessionOps.End`, Story 16.4; footprint: Story 17.3 changes the adapter method that composes the session config). Runner order: in the pool, after Epic 34. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 17; story-level: Story 19.3 needs Story 20.1 (the save-memory verb)."; it was Lane A. Epic 17 was lane order only (inference: no story here uses Epic 17's work); Story 20.1 is now Story 34.2, which Epic 34 carries, and Story 19.4 uses its document verbs too]
+A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown, text, PDF and Word documents with citations, saying so when nothing is relevant.
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 34 (real: Story 34.1 (was 19.1)'s names, tables and stubs; Story 34.2 (was 20.1)'s memory and document command verbs, which Stories 19.3 and 19.4 submit and handle, and its Dockerfile lines, which Story 19.2 uses); story-level: Story 19.2 needs Epic 15 merged (real: the IPM install downloads the model), and Story 19.5 needs Epics 13, 16 and 17 merged (real: the standalone bridge job with `OcuTalon.BridgeExample`, Epic 13, and `SessionOps.End`, Story 16.4; footprint: Story 17.3 changes the adapter method that composes the session config), and Story 19.6 needs Epic 15 merged (real: the IPM package declares `pdfplumber` and `python-docx`). Story 19.7 follows Story 19.6 (real: it indexes what Story 19.6 extracts). Runner order: in the pool, after Epic 34. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 17; story-level: Story 19.3 needs Story 20.1 (the save-memory verb)."; it was Lane A. Epic 17 was lane order only (inference: no story here uses Epic 17's work); Story 20.1 is now Story 34.2, which Epic 34 carries, and Story 19.4 uses its document verbs too] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: Stories 19.6 and 19.7 added; the epic's description gains PDF and Word documents]
 Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
-**FRs covered:** FR-41, FR-42 (retrieval and citations).
+**FRs covered:** FR-41, FR-42 (retrieval and citations; PDF and Word documents, Story 19.7), FR-54 (extraction from PDF and Word files, Story 19.6).
 **Also covers:** NFR-3, NFR-18; AD-21 (memory and documents), `TurnToolsClass`.
 
 ### Epic 20: Add documents in the web app (step 3)
@@ -762,10 +762,10 @@ Ships in the release that completes this step, which bumps the minor version (th
 
 ### Epic 26: Approver roles and reading files (step 6)
 
-An admin assigns approver roles (for all risky actions or one kind) and a viewer role; OcuTalon extracts text from PDF and Word files with Embedded Python, captions photos as memories, and adds files as documents.
-**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 37 (real: Story 37.1 (was 26.1)'s extraction, spine names and stubs, which Stories 26.2 to 26.4 build on); story-level: Story 26.2 needs Epics 19 and 25 merged (real: the Docs indexing, Epic 19; the file-store call and the mock's `getFile`, Story 25.3), Story 26.3 needs Epic 19 merged (real: the save-memory command and memory), and Story 26.4 needs Epics 14, 23 and 25 merged (real: the security overview; step 5's approval kinds; `AnswersIn`'s `not_allowed` result, Story 25.5). Runner order: in the pool, after Epic 25. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 23; story-level: Story 26.4 needs Story 25.5 (`AnswersIn`'s `not_allowed` result), and Story 26.2 needs Story 25.3 (the file-store call and the mock's `getFile`)."; it was Lane A. Epic 23 was real only for Story 26.4, now its story-level wait]
+An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 37 (real: Story 37.1 (was 26.1)'s spine names and stubs, which Stories 26.2 to 26.4 build on); story-level: Story 26.2 needs Epics 19 and 25 merged (real: the extraction, Story 19.6; the file-store call and the mock's `getFile`, Story 25.3), Story 26.3 needs Epic 19 merged (real: the save-memory command and memory), and Story 26.4 needs Epics 14, 23 and 25 merged (real: the security overview; step 5's approval kinds; `AnswersIn`'s `not_allowed` result, Story 25.5). Runner order: in the pool, after Epic 25. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 23; story-level: Story 26.4 needs Story 25.5 (`AnswersIn`'s `not_allowed` result), and Story 26.2 needs Story 25.3 (the file-store call and the mock's `getFile`)."; it was Lane A. Epic 23 was real only for Story 26.4, now its story-level wait] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction and the PDF and Word documents left for Stories 19.6 and 19.7; it read "… Story 37.1 (was 26.1)'s extraction, spine names and stubs … (real: the Docs indexing, Epic 19; …"]
 Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
-**FRs covered:** FR-11 (approver and viewer roles), FR-42 (PDF and Word), FR-54 (extraction).
+**FRs covered:** FR-11 (approver and viewer roles), FR-54 (files sent from the chat and Telegram as items, and photo captions).
 **Also covers:** AD-11 (per-kind checks), AD-24.
 
 ### Epic 27: Slack (step 7, Could)
@@ -821,10 +821,10 @@ Ships in the release that completes this step, which bumps the minor version (th
 
 ### Epic 34: Step 3's contracts, and a Documents page (step 3)
 
-[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown and plain-text documents on a Documents page, so that Epics 19 and 20 build in parallel.
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown, plain-text, PDF and Word documents on a Documents page, so that Epics 19 and 20 build in parallel.
 **Lane:** pool (runner A, B or C; in Lane A's files for Story 34.1 and Lane B's for Story 34.2; the dispatch fixes the runner). **Depends on:** Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate); story-level: Story 34.1 needs Epic 15 merged (real: its FastEmbed path check on an IPM install), and Story 34.2 needs Epics 33 and 16 merged (real: the header navigation Story 33.2 adds; `SessionOps.End`, Story 16.4). Story 34.2 follows Story 34.1 (real: it routes to the names Story 34.1 fixes). Runner order: in the pool, after Epic 18. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
 Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
-**FRs covered:** FR-15, FR-41 and FR-42 (P6 confirmed, and the step 3 contracts, Story 34.1); FR-57 (the FastEmbed model path on an IPM install, Story 34.1); FR-42 (adding and removing documents on the Documents page, Story 34.2).
+**FRs covered:** FR-15, FR-41 and FR-42 (P6 confirmed, and the step 3 contracts, Story 34.1); FR-57 (the FastEmbed model path on an IPM install, Story 34.1); FR-42 (adding and removing documents on the Documents page, Story 34.2); FR-54 (the PDF and Word extraction's names, Story 34.1, and its Python package lines, Story 34.2). [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the PDF and Word additions]
 **Also covers:** NFR-18; AD-1, AD-3, AD-4, AD-21, AD-23, AD-29, AD-33; UX-DR144.
 
 ### Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
@@ -843,12 +843,12 @@ Ships in the release that completes this step, which bumps the minor version (th
 **FRs covered:** FR-27 (the setting history it links to, Story 36.1); FR-28 (the paging channels in the spine, Story 36.1; the on-call configuration with each person's channels, Story 36.2); the step 5 contracts of FR-26, FR-28, FR-29, FR-30 and FR-33 (Stories 36.1 and 36.2).
 **Also covers:** NFR-11, NFR-12, NFR-19; AD-5, AD-15, AD-16, AD-18, AD-24, AD-27, AD-29, AD-33; UX-DR141.
 
-### Epic 37: Step 6's contracts: text from PDF and Word files, and the Usage page (step 6)
+### Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
-[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, OcuTalon extracts text from PDF and Word files with Embedded Python, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel.
-**Lane:** pool (runner A, B or C; in Lane A's files for Story 37.1 and Lane B's for Story 37.2; the dispatch fixes the runner). **Depends on:** Epic 36 (real: step 5's approval kinds, which Story 37.1's approver roles list); story-level: Story 37.1 needs Epics 15 and 19 merged (real: the IPM package declares both Python packages; the `OcuTalon.Docs` area it extends). Story 37.2 follows Story 37.1 (real: it appends what Story 37.1 asks for). Runner order: in the pool, after Epic 24. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 37.1 and Lane B's for Story 37.2; the dispatch fixes the runner). **Depends on:** Epic 36 (real: step 5's approval kinds, which Story 37.1's approver roles list); Story 37.2 follows Story 37.1 (real: it appends what Story 37.1 asks for). Runner order: in the pool, after Epic 24. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph] [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction left Story 37.1, so its waits on Epics 15 and 19 went with it to Story 19.6; the epic was titled "Step 6's contracts: text from PDF and Word files, and the Usage page (step 6)"]
 Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
-**FRs covered:** FR-54 (extraction from PDF and Word files, Story 37.1); FR-52 (the usage and cost view, Story 37.2); the step 6 contracts of FR-11 and FR-54 (Stories 37.1 and 37.2).
+**FRs covered:** FR-52 (the usage and cost view, Story 37.2); the step 6 contracts of FR-11 and FR-54 (Stories 37.1 and 37.2).
 **Also covers:** NFR-3, NFR-24, NFR-25; AD-6, AD-20, AD-21, AD-23, AD-24, AD-29, AD-33; UX-DR147.
 
 ### Step release checks (owner and Contest Planner)
@@ -4806,7 +4806,7 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
-A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown and text documents with citations, saying so when nothing is relevant.
+A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown, text, PDF and Word documents with citations, saying so when nothing is relevant.
 
 **Story 19.1 moved to Story 34.1** (step 3 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 34, so that neither of step 3's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
@@ -4927,6 +4927,59 @@ So that no other visitor sees or searches what I added.
 **Given** the upgrade-in-place harness in `release/`
 **When** it runs from this release on
 **Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
+
+### Story 19.6: Extract text from PDF and Word files with Embedded Python
+
+[AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 37.1 (was 26.1)'s extraction criteria, moved verbatim, and the IPM package line of its Python packages; only its cross-references name step 3's stories]
+
+As a user,
+I want OcuTalon to read the text of a PDF or Word file I add,
+So that it can answer from it as a document.
+
+**Acceptance Criteria:**
+
+**Given** a PDF or Word (.docx) file of at most 10 MB
+**When** extraction is asked for, by any caller, a tool inside a turn included
+**Then** it runs pdfplumber 0.11.10 for a PDF, or `python-docx` 1.1.2 for a .docx file, through Embedded Python in a `%SYSTEM.WorkMgr` worker, never in the calling process, from a `.py` resource imported with `%SYS.Python.Import`, and returns the text with page or heading markers for citations, cut at a fixed size and saying so when cut (FR-54, AD-6, NFR-3)
+
+**Given** a file that can't be read (encrypted, damaged, a PDF with no text layer, a legacy .doc file, or extraction slower than its time limit)
+**When** extraction ends
+**Then** it returns a failure with a plain reason that fits "I couldn't read that file: {reason}.", and nothing is stored from it (FR-54, NFR-24, UX-DR147)
+
+**Given** an IPM install
+**When** the package installs
+**Then** the package declares `pdfplumber==0.11.10` and `python-docx==1.1.2` for the install, and their licence notices are kept (FR-54, FR-57, AD-23, CON-2)
+
+**Given** automated tests in `OcuTalon.Test.Docs` with sample PDF and Word files
+**When** they run on the IRIS runner, on a developer image or test stack whose test setup installs `pdfplumber==0.11.10` and `python-docx==1.1.2` with the same `pip install --target` line until Lane B's Story 34.2 (was 20.1) pins both in the image (Story 19.7 then runs the same tests on the real image)
+**Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
+**And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
+
+### Story 19.7: Answer from PDF and Word documents
+
+[AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 26.2's PDF and Word document criteria, moved verbatim except that in step 3 a file is added from the Documents page; Story 26.2 keeps the files sent from the chat and Telegram. It follows Story 19.6]
+
+As a user,
+I want my runbooks in PDF or Word to answer questions with citations,
+So that I don't have to turn them into Markdown first.
+
+**Acceptance Criteria:**
+
+**Given** the user adds a PDF or Word file as a document from the Documents page (from step 6 also from a file reply's **Add to documents**, Story 25.3)
+**When** `OcuTalon.Docs` indexes it
+**Then** it joins the session's knowledge base like a Markdown document (one per session on the online demo), split by pages or headings, and its status becomes ready, or shows the failure reason (FR-42, FR-54, AD-21, UX-DR144)
+
+**Given** a question answered from a PDF or Word document
+**When** the reply is built
+**Then** it cites each document and section used, retrieves at most 5 passages per model request, and says "None of your documents cover that." when nothing is relevant (FR-42)
+
+**Given** automated tests with CI mock scenarios under `ci/mock/scenarios/A/`
+**When** a PDF runbook and a Word runbook are added and asked about, and one is then removed
+**Then** each answer cites the right document and section, and the removed document is cited no more (FR-42)
+
+**Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 34.2 (was 20.1)
+**When** Story 19.6's extraction tests and this story's tests run on the IRIS runner
+**Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
 
 ## Epic 20: Add documents in the web app (step 3)
 
@@ -5655,10 +5708,9 @@ So that OcuTalon can read it, keep it as a document, or remember what a photo sh
 **Then** it is refused before it is stored, with the UX's text (fixture "That file is 14 MB; the limit is 10 MB."), and nothing else happens (FR-54, UX-DR147)
 **And** a file of any other type is refused the same way with "I couldn't read that file: {reason}." and a plain reason (FR-54, UX-DR147)
 
-**Given** the result of reading a file (from Lane A's Stories 37.1 (was 26.1), 26.2 and 26.3, under the contract Story 37.1 (was 26.1) fixes, or a fixture until they merge)
+**Given** the result of reading a file (from Lane A's Stories 19.6, 26.2 and 26.3, under the contracts Stories 34.1 (was 19.1) and 37.1 (was 26.1) fix, or a fixture until they merge) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction is Story 19.6's, and the Documents page's PDF and Word types are Story 34.2 (was 20.1)'s; the criterion "**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)" left this story]
 **When** the reply is sent
 **Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
-**And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)
 
 **Given** the online demo
 **When** a visitor sends a file
@@ -5729,21 +5781,23 @@ So that I know who has to approve it.
 
 ## Epic 26: Approver roles and reading files (step 6)
 
-An admin assigns approver roles (for all risky actions or one kind) and a viewer role; OcuTalon extracts text from PDF and Word files with Embedded Python, captions photos as memories, and adds files as documents.
+An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
 
 **Story 26.1 moved to Story 37.1** (step 6 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 37, so that neither of step 6's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
-### Story 26.2: Files become items and PDF and Word documents
+### Story 26.2: Files sent from the chat or Telegram become items
+
+[AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: its PDF and Word document criteria moved to Story 19.7, and Story 37.1 (was 26.1)'s extraction is Story 19.6's. It was titled "Files become items and PDF and Word documents", and its user story read "As a user, I want a PDF or Word file I send to become an item OcuTalon answers about, and to add it as a document with one press, So that my runbooks in PDF or Word answer questions with citations."]
 
 As a user,
-I want a PDF or Word file I send to become an item OcuTalon answers about, and to add it as a document with one press,
-So that my runbooks in PDF or Word answer questions with citations.
+I want a PDF or Word file I send from the chat or Telegram to become an item OcuTalon answers about,
+So that I can ask about a file without adding it as a document first.
 
 **Acceptance Criteria:**
 
 **Given** an Item carrying a PDF or Word file's `Ref` (from Lane B's Story 25.3, under the contract Story 37.1 (was 26.1) fixes; a fixture Item until it merges)
 **When** `OcuTalon.Agent.Input` renders it
-**Then** the extracted text reaches the model as quoted, untrusted data, never as the user's own words, so the turn is tainted and only read-only tools run in it (FR-54, AD-10, AD-14, NFR-6)
+**Then** the extracted text (Story 19.6's extraction) reaches the model as quoted, untrusted data, never as the user's own words, so the turn is tainted and only read-only tools run in it (FR-54, AD-10, AD-14, NFR-6)
 **And** a file containing an instruction such as "approve all pending requests" changes nothing and takes no action (NFR-14)
 
 **Given** a file that couldn't be read
@@ -5753,25 +5807,10 @@ So that my runbooks in PDF or Word answer questions with citations.
 **Given** Lane B's Story 25.3 merged (its file-store call and the mock's `getFile`, AD-29), and the paired Telegram chat
 **When** the user sends a document or a photo
 **Then** `TelegramIn` (Lane A's from Epic 12) checks the size Telegram reports before downloading, stores the file through Lane B's file-store call from Story 25.3, sends the same kind of Item, and never logs the download address, which holds the bot token (FR-54, AD-14, NFR-11)
-**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
-
-**Given** the user adds a read file as a document, from its reply's **Add to documents** or from the Documents page
-**When** `OcuTalon.Docs` indexes it
-**Then** it joins the session's knowledge base like a Markdown document (one per session on the online demo), split by pages or headings, and its status becomes ready, or shows the failure reason (FR-42, FR-54, AD-21, UX-DR144)
-
-**Given** a question answered from a PDF or Word document
-**When** the reply is built
-**Then** it cites each document and section used, retrieves at most 5 passages per model request, and says "None of your documents cover that." when nothing is relevant (FR-42)
-
-**Given** automated tests with CI mock scenarios under `ci/mock/scenarios/A/`
-**When** a PDF runbook and a Word runbook are added and asked about, and one is then removed
-**Then** each answer cites the right document and section, and the removed document is cited no more (FR-42)
-
-**Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 37.2 (was 25.1)
-**When** Story 37.1 (was 26.1)'s extraction tests and this story's tests run on the IRIS runner
-**Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 
@@ -6478,7 +6517,7 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 
 ## Epic 34: Step 3's contracts, and a Documents page (step 3)
 
-[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown and plain-text documents on a Documents page, so that Epics 19 and 20 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 19 and 20) and its partner in this epic.
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown, plain-text, PDF and Word documents on a Documents page, so that Epics 19 and 20 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 19 and 20) and its partner in this epic.
 
 ### Story 34.1: Settle step 3 ownership and fix its contracts
 
@@ -6499,7 +6538,8 @@ So that memory and documents are built once, with the right owner, by both lanes
 **When** this story updates `ARCHITECTURE-SPINE.md`
 **Then** it adds the memory and document operations (Lane A), the embedding worker category `OcuTalon.Memory.Embedder`, the tables `OcuTalon.Data.Memory` and `OcuTalon.Data.Document` (Lane A) and the knowledge-base tables `OcuTalon.Docs` creates, the `document` live event with its single publisher, the memory and document tool names, the hybrid-ranking parameters, the fourth extension class `TurnToolsClass`, and how a reply marks the passages and memories it used, each in the ownership tables in the same change (AD-21, AD-31, AD-33)
 **And** it aligns AD-21's dropping of per-session knowledge-base tables with the reset as the spine now fixes it: the reset restores the golden copy and runs nothing, so no demo session's tables or memories survive it, and no code drops them at the reset; a sign-out drops them instead through the per-session drop methods `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)` (Lane A, built in Story 19.5), which Lane B's `SessionOps.End` calls (Story 34.2 (was 20.1)) (AD-4, AD-21, AD-25, AD-29)
-**And** it records that Lane B's Story 34.2 (was 20.1), the first story of Lane B's step 3 epic, fixes the Lane B contracts these stories use: the memory and document command verbs in `OcuTalon.Msg` with their `CommandsIn` routing (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes and the Dockerfile lines for `fastembed` 0.9.0 and the baked model; and that Lane B's Story 20.2 carries a reply's memories and citations onto `chat.message` (AD-1, AD-23, AD-29)
+**And** it records that Lane B's Story 34.2 (was 20.1), the first story of Lane B's step 3 epic, fixes the Lane B contracts these stories use: the memory and document command verbs in `OcuTalon.Msg` with their `CommandsIn` routing (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes and the Dockerfile lines for `fastembed` 0.9.0 and the baked model, and for `pdfplumber` 0.11.10 and `python-docx` 1.1.2; and that Lane B's Story 20.2 carries a reply's memories and citations onto `chat.message` (AD-1, AD-23, AD-29)
+**And** it adds Lane A's PDF and Word additions, moved from Story 37.1 (was 26.1): the extraction class in `OcuTalon.Docs` and its own `%SYSTEM.WorkMgr` worker category; its Python resource under `src/ocutalon/python/`; and the pinned Python package that reads Word (.docx) files, `python-docx` 1.1.2, in the Stack row beside pdfplumber, which reads PDF only; and, with PRD Open Question 3's answer recorded in the PRD (2026-10-25), it puts UX-DR144's "PDF, Word from S6" to the author for step 3 (FR-42, FR-54, AD-21, AD-33) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction's names moved here]
 
 **Given** the update is merged
 **When** the package compiles and the production starts
@@ -6524,14 +6564,15 @@ So that OcuTalon can answer from my own documents.
 **Given** Lane B's part of step 3
 **When** this story updates `ARCHITECTURE-SPINE.md` and the code
 **Then** it adds the memory and document command verbs in `OcuTalon.Msg`, routed by `CommandsIn` to Lane A's memory and document operations under the names Lane A's Story 34.1 (was 19.1) fixes (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes, and the Dockerfile lines that install `fastembed==0.9.0` pinned into IRIS's Python folder and bake the AllMiniLM-L6-v2 model into a root-owned, read-only folder named by `FASTEMBED_CACHE_DIR`; each new route and class goes into the spine's tables in the same change (AD-1, AD-21, AD-23, AD-29, AD-33)
+**And** the same Dockerfile lines install `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (FR-54, AD-23, CON-2) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: moved from Story 37.2 (was 25.1)]
 
 **Given** a signed-in user
 **When** the header navigation shows
 **Then** it adds "Documents", which opens a page titled "Documents · OcuTalon" listing each document's name, date added, size and status ("Indexing…", "Ready" or "Couldn't read it: {reason}"), updated live from `document` events; with no documents it reads "No documents yet. Add a runbook to get cited answers." (FR-42, UX-DR21, UX-DR22, UX-DR144)
 
 **Given** the user presses **Add documents**
-**When** they pick Markdown or plain-text files, or drop them on the page
-**Then** each file goes through the documents route, which submits the add command with origin `web_user`, and its row appears as "Indexing…"; a file of any other type is refused and its row reads "Couldn't read it: {reason}" (FR-42, AD-1, UX-DR144)
+**When** they pick Markdown, plain-text, PDF or Word (.docx) files, or drop them on the page
+**Then** each file goes through the documents route, which submits the add command with origin `web_user`, and its row appears as "Indexing…"; a file of any other type, or a PDF or Word file over 10 MB, is refused and its row reads "Couldn't read it: {reason}" (FR-42, FR-54, AD-1, UX-DR144) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: PDF and Word files added, moved from Story 25.3; Lane A's Story 19.6 reads them, and until it merges they show "Couldn't read it: {reason}"]
 **And** the file picker is always there, so drag-and-drop is never the only way, and every control works by keyboard (NFR-25, UX-DR125, UX-DR129)
 
 **Given** a document row
@@ -6697,45 +6738,29 @@ So that incidents page the right people on a channel that can reach them.
 **Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
 
 
-## Epic 37: Step 6's contracts: text from PDF and Word files, and the Usage page (step 6)
+## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
-[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, OcuTalon extracts text from PDF and Word files with Embedded Python, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
 
-### Story 37.1: Extract text from PDF and Word files with Embedded Python
+### Story 37.1: Fix step 6's contracts: approver roles and the photo caption
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 26.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 25 waited for Story 26.1 while Epic 26's Stories 26.2 and 26.4 waited for Epic 25's Stories 25.3 and 25.5, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
-As a user,
-I want OcuTalon to read the text of a PDF or Word file I send,
-So that it can answer from the file or keep it as a document.
+[AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: this story's extraction criteria are Story 19.6's and the Python package lines are Stories 34.1 (was 19.1) and 34.2 (was 20.1)'s; it keeps step 6's contracts. It was titled "Extract text from PDF and Word files with Embedded Python", and its user story read "As a user, I want OcuTalon to read the text of a PDF or Word file I send, So that it can answer from the file or keep it as a document."; its first criterion, on PRD Open Question 3, is settled]
+
+As a developer in Lane A,
+I want step 6's photo-caption request, approver roles and role-check methods named in the spine and present in the code as stubs,
+So that both lanes build step 6 against fixed names without waiting for each other.
 
 **Acceptance Criteria:**
 
-**Given** the contest's bonus list, published after October 26
-**When** it includes an Embedded Python bonus
-**Then** this story and the PDF and Word document story move to step 3, alongside FR-42, as PRD Open Question 3 decides, recorded in the PRD; otherwise they stay in step 6 (FR-54, FR-42)
-
 **Given** step 6 starts in Lane A
 **When** this story begins
-**Then** the spine is updated in the same change with Lane A's step-6 additions: the extraction class in `OcuTalon.Docs` and its own `%SYSTEM.WorkMgr` worker category; its Python resource under `src/ocutalon/python/`; the pinned Python package that reads Word (.docx) files, `python-docx` 1.1.2, in the Stack row beside pdfplumber, which reads PDF only; the photo-caption request; the approver roles and the resources they hold, with how they take over from the bridge's approval-role setting (seeded `OcuTalonUser` until step 6); the online demo account's `OcuTalonApprover` grant as an AD-24 amendment; and the role-check and role-assignment methods Lane B calls (FR-11, FR-42, FR-54, AD-11, AD-21, AD-24, AD-29, AD-33)
-**And** Lane B's Story 37.2 (was 25.1), the first story of Lane B's step 6 epic, adds `pdfplumber==0.11.10` and `python-docx==1.1.2` to the image's pinned Python packages, installed the same way; the package declares both for an IPM install, and their licence notices are kept (AD-23, AD-29, CON-2)
+**Then** the spine is updated in the same change with Lane A's step-6 additions: the photo-caption request; the approver roles and the resources they hold, with how they take over from the bridge's approval-role setting (seeded `OcuTalonUser` until step 6); the online demo account's `OcuTalonApprover` grant as an AD-24 amendment; and the role-check and role-assignment methods Lane B calls (FR-11, FR-54, AD-11, AD-24, AD-29, AD-33) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the extraction class, its worker category, its Python resource and `python-docx`'s Stack row moved to Story 34.1 (was 19.1)]
 
 **Given** the spine update is merged
 **When** the package compiles
 **Then** the step 6 Lane A APIs it fixes, `Approval.MayAnswer` and the role-assignment method, exist in code as signatures with stub bodies that Lane B's Stories 25.4 and 25.5 can call until Story 26.4 builds them, as Story 33.1 (was 17.1) does for step 2 (FR-11, AD-29)
-
-**Given** a PDF or Word (.docx) file of at most 10 MB
-**When** extraction is asked for, by any caller, a tool inside a turn included
-**Then** it runs pdfplumber 0.11.10 for a PDF, or `python-docx` 1.1.2 for a .docx file, through Embedded Python in a `%SYSTEM.WorkMgr` worker, never in the calling process, from a `.py` resource imported with `%SYS.Python.Import`, and returns the text with page or heading markers for citations, cut at a fixed size and saying so when cut (FR-54, AD-6, NFR-3)
-
-**Given** a file that can't be read (encrypted, damaged, a PDF with no text layer, a legacy .doc file, or extraction slower than its time limit)
-**When** extraction ends
-**Then** it returns a failure with a plain reason that fits "I couldn't read that file: {reason}.", and nothing is stored from it (FR-54, NFR-24, UX-DR147)
-
-**Given** automated tests in `OcuTalon.Test.Docs` with sample PDF and Word files
-**When** they run on the IRIS runner, on a developer image or test stack whose test setup installs `pdfplumber==0.11.10` and `python-docx==1.1.2` with the same `pip install --target` line until Lane B's Story 37.2 (was 25.1) pins both in the image (Story 26.2 then runs the same tests on the real image)
-**Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
-**And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
 
 ### Story 37.2: See tokens and cost over time on the Usage page
 
@@ -6750,7 +6775,7 @@ So that I can see what OcuTalon costs and spot a request close to the size limit
 **Given** step 6 starts in Lane B
 **When** this story begins
 **Then** the spine's REST table and ownership tables gain Lane B's step-6 additions in the same change: the usage and history reads, the file upload route and the private file table, the Roles section's routes, and the header navigation's History and Usage entries (AD-29, AD-33)
-**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 37.1 (was 26.1) names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)
+**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner (AD-29, AD-33) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: the Dockerfile lines for `pdfplumber` and `python-docx` moved to Story 34.2 (was 20.1); it read "**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 37.1 (was 26.1) names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)"]
 
 **Given** a signed-in user
 **When** they open Usage from the header navigation
