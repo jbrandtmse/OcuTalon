@@ -644,7 +644,7 @@ When a setting in a watched production changed shortly before failures began, th
 OcuTalon pages the on-call person about an incident and escalates to a backup if nobody acknowledges it.
 
 **Acceptance criteria:**
-- An admin configures an on-call person and a backup, each with a channel. A Telegram channel works only for someone who has already started the bot, because the bot can't message anyone first; for anyone else, the channel is email.
+- An admin configures an on-call person and a backup. Each is paged by Telegram and by email by default, and each can choose Telegram, email or both in their on-call settings (Open Question 5). A Telegram channel works only for someone who has already started the bot, because the bot can't message anyone first; for anyone else, the channel is email. [AMENDED 2026-10-25, owner decision (Open Question 5; the author: "A. Both, and person can choose."): it read "An admin configures an on-call person and a backup, each with a channel."]
 - An incident pages the on-call person. If nobody acknowledges within the configured time (default 15 minutes), OcuTalon pages the backup. `[ASSUMPTION: 15-minute default]`
 - An acknowledgement from any channel stops escalation.
 - IRIS Managed Alerts keep working, and OcuTalon never turns them off.
@@ -852,12 +852,12 @@ A user tells OcuTalon to remember something, and it recalls it later by meaning 
 
 #### FR-42: Documents and runbooks with cited answers [Step 3]
 
-**Delivery:** Markdown and plain-text documents in step 3; PDF and Word files from step 6.
+**Delivery:** Markdown, plain-text, PDF and Word documents in step 3. [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "Markdown and plain-text documents in step 3; PDF and Word files from step 6."]
 
 A user adds documents, and OcuTalon answers from them with citations. Realizes UJ-2.
 
 **Acceptance criteria:**
-- Markdown and plain-text documents can be added in the web app. From step 6, PDF and Word files can be added too (FR-54).
+- Markdown and plain-text documents can be added in the web app. From step 3, PDF and Word files can be added too (FR-54). [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "From step 6"]
 - An answer drawn from documents cites each document and section used.
 - If no document is relevant, OcuTalon says so rather than guessing.
 - On a local install, documents are shared by every user of the install; on the online demo, each session's documents are its own.
@@ -983,6 +983,8 @@ A user can look back at past decisions and incidents.
 - Incidents are listed with their state and summary.
 
 #### FR-54: Files and photos [Step 6]
+
+**Delivery:** reading PDF and Word files in step 3 (Open Question 3); files and photos sent from the web app or Telegram, and photo captions, in step 6. [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "no Delivery line: all of FR-54 in step 6"]
 
 A user sends a PDF, a Word file or a photo, and OcuTalon reads it.
 
@@ -1240,10 +1242,10 @@ The full product is defined now and built in this order. **The build order is th
 | **1 (release 1, then 0.1.1)** | Must | The two-minute demo plus Telegram, in this order: the bridge, attention decision, cost, fallback route, approvals, audit and roles; the web app and demo mode; IRIS watch with repair and resend; the heartbeat, production watch and reminders; the install script, namespace, README, evaluation set and CI; then Telegram last | FR-1 to FR-10, FR-11 (admin and user roles), FR-12, FR-13, FR-14 (local sign-in), FR-16, FR-18 to FR-25, FR-32 to FR-34, FR-37 (chat rule), FR-38, FR-55, FR-56, FR-58, FR-62 |
 | **1.0.0 kit** (parallel track, from release 1) | Must, never cut | The IPM package; the bridge guide and example production; the online demo with its splash screen, isolation, caps and read-only account; the security overview | FR-5 (guide and example), FR-14 (online demo), FR-15, FR-40 (demo caps), FR-57, FR-59, FR-61 |
 | **2** | Should | The daily digest, choosing the model in settings, and budgets | FR-17, FR-35 to FR-37, FR-39, FR-40 |
-| **3** | Should | Memory and documents | FR-41, FR-42 |
+| **3** | Should | Memory and documents, PDF and Word files included | FR-41, FR-42, FR-54 (reading PDF and Word files) [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "Memory and documents" and "FR-41, FR-42"] |
 | **4** | Should | Email, webhooks, and extension through MCP | FR-44, FR-45, FR-47 to FR-50 |
 | **5** | Should; queue backlog and SQL query watch Could | Deeper IRIS watch | FR-26 to FR-30, FR-33 (step 5 checks) |
-| **6** | Should | Usage and cost views, history, approver and viewer roles, files and photos | FR-11 (approver and viewer roles), FR-52 to FR-54 |
+| **6** | Should | Usage and cost views, history, approver and viewer roles, files and photos | FR-11 (approver and viewer roles), FR-52, FR-53, FR-54 (files and photos sent from the web app or Telegram) [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "FR-52 to FR-54"] |
 | **7** (if time allows) | Could | Slack (webhook only), drafted transform changes, memory fading, OcuTalon as an MCP server | FR-31, FR-43, FR-46, FR-51 |
 
 - **Every release at or after 1.0.0 includes the 1.0.0 kit,** whatever step the build has reached. In-place upgrades (FR-60) apply to every release from 0.1.1 on.
@@ -1340,7 +1342,7 @@ These bonuses fit genuinely. The contest's bonus list comes out after October 26
 | LLM AI | The attention decision and IRIS watch (FR-1, FR-24) | 1 |
 | Docker | The `docker compose up` install (FR-55) | 1 |
 | Vector Search | Memory with IRIS vector search (FR-41) | 3 |
-| Embedded Python | Reading PDF and Word files (FR-54) | 6 |
+| Embedded Python | Reading PDF and Word files (FR-54) | 3 [AMENDED 2026-10-25, owner decision (Open Question 3; the author: "B. Yes."): reading PDF and Word files moves into step 3, regardless of the bonus list; it read "6"] |
 | IPM | The IPM package (FR-57) | 1.0.0 kit |
 | Online Demo | The online demo (FR-59) | 1.0.0 kit |
 
@@ -1446,9 +1448,9 @@ Candidates to check once the list is out: a bonus for implementing the contest's
 
 1. **When is 1.0.0 published?** The author decides, no later than the contest submission (REL-9). It does not block planning.
 2. **Is Claude Sonnet 5.5 needed for diagnosis?** The evaluation set decides once it exists in step 1. If Claude Sonnet 5.5 is needed, the bridge's settings switch the diagnosis model (FR-5), and step 2 makes the choice in the settings page.
-3. **Which bonuses does the contest list?** The list comes after October 26. It may confirm or change §8.2, including the two candidates. Bonus-driven work is not moved ahead of its build step, with one exception, decided by the author on October 16. If the list includes an Embedded Python bonus, reading PDF and Word documents (that part of FR-54) moves into step 3, alongside FR-42; if it doesn't, it stays in step 6. The extraction library is already proven on build 154, so the move is cheap.
+3. **Which bonuses does the contest list?** The list comes after October 26. It may confirm or change §8.2, including the two candidates. Bonus-driven work is not moved ahead of its build step, with one exception, decided by the author on October 16. If the list includes an Embedded Python bonus, reading PDF and Word documents (that part of FR-54) moves into step 3, alongside FR-42; if it doesn't, it stays in step 6. The extraction library is already proven on build 154, so the move is cheap. Answered by the author (2026-10-25): PDF and Word reading moves into step 3 regardless of the bonus list (the author: "B. Yes.").
 4. **What happens to MCP if the platform's MCP client fails its test?** Answered by the architecture (October 17): OcuTalon's own minimal MCP client behind one governed proxy tool (architecture AD-21). Email and webhooks ship in step 4 either way.
-5. **Which channel pages the on-call person**, Telegram, email or both? Decide before step 5 (FR-28).
+5. **Which channel pages the on-call person**, Telegram, email or both? Decide before step 5 (FR-28). Answered by the author (2026-10-25): both channels by default; each on-call person can choose Telegram, email or both in their on-call settings (the author: "A. Both, and person can choose.").
 6. **Does the bridge ship as its own IPM module?** Decided by the author (October 17): not within OcuTalon. OcuTalon's one IPM package contains the bridge and installs it itself, because an Open Exchange listing carries one IPM package; the bridge becomes its own product, with its own package and listing, as a follow-on (architecture AD-2). FR-5 holds either way.
 
 ## 13. Assumptions index
