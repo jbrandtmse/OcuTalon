@@ -16,8 +16,8 @@ import { changeSnapshot as heartbeatSnapshot } from '../support/api';
  * heartbeatStalled, so the row shows its last run and Passed, with no "(late)" mark and no heartbeat banner. The test above that
  * stays skipped until the integration switch replaces it with the real watch's row.
  */
-heartbeatTest.describe('Story 8.2: the check row on a fresh heartbeat (fixture row)', () => {
-  heartbeatTest('a fixture "Orders production" row shows its last run with no late mark while the real heartbeat is fresh', async ({ page }) => {
+heartbeatTest.describe('Story 8.2: the check row while the heartbeat is not stalled (fixture row)', () => {
+  heartbeatTest('a fixture "Orders production" row shows its last run with no late mark while the real status holds no heartbeatStalled', async ({ page }) => {
     heartbeatTest.skip(!process.env['OCUTALON_URL'], 'Story 8.2 needs the first-start stack (OCUTALON_URL), which a run without one lacks');
     let realStatus: Array<{ condition: string }> | undefined;
     await heartbeatSnapshot(page, (snapshot) => {
@@ -36,7 +36,7 @@ heartbeatTest.describe('Story 8.2: the check row on a fresh heartbeat (fixture r
     await heartbeatSignIn(page);
     await heartbeatExpect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
-    heartbeatExpect(realStatus, "the real /state answered, and its status holds no heartbeatStalled while the heartbeat ticks").toBeDefined();
+    heartbeatExpect(realStatus, "the real /state answered, and its status holds no heartbeatStalled").toBeDefined();
     heartbeatExpect((realStatus ?? []).map((one) => one.condition)).not.toContain('heartbeatStalled');
     const row = page.getByRole('region', { name: 'Status', exact: true }).locator('li.row').filter({ hasText: 'Orders production' });
     await heartbeatExpect(row, 'the fixture row is listed').toHaveCount(1);

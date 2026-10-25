@@ -1,14 +1,20 @@
+Include Ensemble
+
 /// Tests of the heartbeat-stalled condition on the real heartbeat (Story 8.2; FR-32, AD-12, AD-18, AD-33). THESE TESTS RUN IN THROWAWAY STACKS
 /// AND IN CI ONLY (Rule 21), like Test.Schedule.Heartbeat: they suspend the real task, move the tick mark of the running production and wait
 /// for the production's own StatusMonitor job, so OnBeforeAllTests fails with the reason where the production does not run. Test.Schedule.StallFixture
 /// does the stalling, across processes, and every test ends with Release, so that the task is as found and the mark is fresh.
 ///   - TestStateAndMonitor (AC 1): with the tick mark 240 s back, Web.Api.StateBody holds exactly one heartbeatStalled member, active, with the mark
 ///     as its time, and StatusMonitor's job publishes that payload on the instance stream; after a real tick StateBody holds none at once and the job
-///     publishes the clear, with no heartbeatStalled event between the two. The only test that stalls, and it waits for its own clear;
+///     publishes the clear, with no heartbeatStalled event between the two. It waits for its own clear;
+///   - TestMonitorStartsOnStaleMark (QA; the matrix row "Restart after a long stop"): a StatusMonitor whose first run finds the mark 240 s back
+///     remembers it silently, publishes nothing while it holds, and publishes the clear after a real tick (a probe on a private stream). When the
+///     production's own StatusMonitor job published an onset on the instance stream while the mark was back, the test waits for that job's clear,
+///     so that no event of it lands in a later test's window;
 ///   - TestNoTickIsOff (AC 1): with no tick mark StateBody holds no heartbeatStalled;
 ///   - TestReading: Heartbeat.Reading holds the tick mark and the current time;
 ///   - TestReleaseLeavesFresh: Release puts the task back as found, kills the fixture's node and leaves a mark that is at most 5 s old.
-/// The fixture sessions are zzstall<n>; their events and counters are removed before and after.
+/// The fixture sessions are zzstall<n>; they are deleted with their events and counters before the tests, after each one and after them all.
 Class OcuTalon.Test.Schedule.Stalled Extends %UnitTest.TestCase
 {
 
@@ -31,7 +37,9 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
-	Quit ##class(OcuTalon.Test.Schedule.StallFixture).Release()
+	Set sc = ##class(OcuTalon.Test.Schedule.StallFixture).Release()
+	Do ..Clean()
+	Quit sc
 }
 
 Method OnAfterAllTests() As %Status
@@ -70,6 +78,49 @@ Method TestStateAndMonitor()
 	Do $$$AssertEquals(..Payloads(events, 0), "{""condition"":""heartbeatStalled"",""active"":false}", "the clear's payload carries no slots")
 	Do $$$AssertEquals(..Count(events, since, seqOn), 0, "no heartbeatStalled event lies before the onset")
 	Do $$$AssertEquals(..Count(events, seqOn, seqOff), 0, "and none between the onset and the clear")
+}
+
+/// The matrix row "Restart after a long stop" (QA): a StatusMonitor that starts while the mark is stale remembers the stall silently (Epic 2's
+/// rule), /state shows it, and the catch-up tick's clear is published. A probe (Test.Core.StatusMonitorProbe) stands for the job that starts,
+/// on a private stream, with keys and budget that raise no other condition, so that only the heartbeat reading can change.
+Method TestMonitorStartsOnStaleMark()
+{
+	Set session = ##class(OcuTalon.Data.Session).ForUser("zzstall"_..Number_"m", .sc)
+	Do $$$AssertStatusOK(sc, "the fixture session is made")
+	Set stream = session.Ref
+	Do ..ClearOf(stream)
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.StatusMonitorProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	Set probe.StreamRef = stream
+	Set probe.KeysReading = {"TriageAgent": 1, "DiagnosisAgent": 1, "ChatAgent": 1}
+	Set probe.BudgetReading = {"capped": false}
+
+	Set since = ##class(OcuTalon.Test.Schedule.StallFixture).InstanceSeq()
+	Set mark = ##class(OcuTalon.Test.Schedule.StallFixture).Hold(240)
+	Do $$$AssertStatusOK(probe.OnProcessInput("", .output), "the first run, on a stale mark, returns OK")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Event).Since(stream, 0, 200, "session").%Size(), 0, "it remembers the stall and publishes nothing")
+	Do $$$AssertEquals(..Members(##class(OcuTalon.Web.Api).StateBody(session)).%Size(), 1, "while /state shows it")
+	Do probe.OnProcessInput("", .output)
+	Do $$$AssertEquals(##class(OcuTalon.Live.Event).Since(stream, 0, 200, "session").%Size(), 0, "the stall that holds publishes nothing at the next run either")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Schedule.StallFixture).Tick(), "the catch-up tick is written")
+	Do probe.OnProcessInput("", .output)
+	Set events = ##class(OcuTalon.Live.Event).Since(stream, 0, 200, "session")
+	Do $$$AssertEquals(events.%Size(), 1, "the run after the tick publishes one event")
+	Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.%ToJSON(), "status|{""condition"":""heartbeatStalled"",""active"":false}", "the clear, with no slots")
+	Do probe.OnProcessInput("", .output)
+	Do $$$AssertEquals(##class(OcuTalon.Live.Event).Since(stream, 0, 200, "session").%Size(), 1, "and the clear is published once")
+	Do ..ClearOf(stream)
+	Do $$$AssertTrue(..RealClear(since), "an onset that the production's own StatusMonitor published meanwhile is cleared before the test ends")
+}
+
+/// 1 when the production's own StatusMonitor job published no heartbeatStalled onset on the instance stream after since, or when it
+/// published one and then its clear within 30 s. A test that sets the mark back without waiting for that job calls it last.
+ClassMethod RealClear(since As %Integer) As %Boolean [ Private ]
+{
+	Set onset = ##class(OcuTalon.Test.Schedule.StallFixture).WaitEvent(since, 1, 0)
+	If onset = 0 Quit 1
+	Quit ##class(OcuTalon.Test.Schedule.StallFixture).WaitEvent(onset, 0, 30) > 0
 }
 
 /// AC 1. Never ticked: the condition is off.

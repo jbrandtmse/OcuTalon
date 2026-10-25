@@ -26,11 +26,13 @@ Parameter CALLINTERVAL = 15;
 /// The seconds added to CALLINTERVAL.
 Parameter MARGIN = 2;
 
-/// The longest, in seconds, that Hold waits for the clock second, for the lock, and for the monitor's job to be old enough.
+/// The longest, in seconds, that Hold waits for the clock second to enter its window.
 Parameter WAITCLOCK = 21;
 
+/// The longest, in seconds, that Hold waits for the heartbeat's lock.
 Parameter WAITLOCK = 10;
 
+/// The longest, in seconds, that Hold waits for the monitor's job to be old enough.
 Parameter WAITMONITOR = 60;
 
 /// Suspends the real task (remembering its Suspended value the first time), waits for a clock second between 5 and 45 (up to WAITCLOCK
@@ -127,8 +129,9 @@ ClassMethod MonitorSettled() As %Boolean [ Private ]
 	Quit (age '= "") && (age >= (..#CALLINTERVAL + ..#MARGIN))
 }
 
-/// The seconds since the newest job of the StatusMonitor item was registered (the platform's job status, $$$eJobRegTime), or ""
-/// when there is no such job.
+/// The whole seconds since the newest job of the StatusMonitor item was registered, or "" when there is no such job. The registration
+/// time is the platform's job status, $$$eJobRegTime (UTC, "YYYY-MM-DD hh:mm:ss.fff"); it is read to the second and counted through
+/// Data.Time.Seconds, like the current time.
 ClassMethod MonitorAge() As %Numeric [ Private ]
 {
 	Set newest = ""
@@ -137,14 +140,12 @@ ClassMethod MonitorAge() As %Numeric [ Private ]
 		Set job = $Order($$$EnsJobStatus($$$SystemName, job))
 		If job = "" Quit
 		If $Get($$$EnsJobStatus($$$SystemName, job, $$$eJobStartConfigName)) '= ..#MONITOR Continue
-		Set registered = $Get($$$EnsJobStatus($$$SystemName, job, $$$eJobRegTime))
+		Set registered = ##class(OcuTalon.Data.Time).Seconds($Translate($Extract($Get($$$EnsJobStatus($$$SystemName, job, $$$eJobRegTime)), 1, 19), " ", "T")_"Z")
 		If registered = "" Continue
-		Set registered = $$$timeUTCtoUTCH(registered)
-		If (newest = "") || (($Piece(registered, ",", 1) * 86400 + $Piece(registered, ",", 2)) > ($Piece(newest, ",", 1) * 86400 + $Piece(newest, ",", 2))) Set newest = registered
+		If (newest = "") || (registered > newest) Set newest = registered
 	}
 	If newest = "" Quit ""
-	Set now = $ZTimeStamp
-	Quit (($Piece(now, ",", 1) - $Piece(newest, ",", 1)) * 86400) + ($Piece(now, ",", 2) - $Piece(newest, ",", 2))
+	Quit ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()) - newest
 }
 
 /// Throws the status when it is an error.

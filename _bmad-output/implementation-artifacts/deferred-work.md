@@ -1006,3 +1006,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 8.2 AC3 defers the real switch until Epics 5 and 8 merge; Story 11.1 turns every UJ-1 step spec on; 02-watch.spec.ts lines are Epic 4's while it runs (append-only ruling)
 - 2026-10-25T12:55:18Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=AC3 real-path residual of 8.2; the notBuilt label names 8.2 but the switch needs Lane A's Checks/WatchOps (Stories 5.1, 5.6)
+
+### DW-204: heartbeat.spec.ts leaves two instance-stream status events, and api.spec.ts still pins the instance stream at one event, green only because api/ runs before heartbeat/
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/api/api.spec.ts:121,159,208-211 expect instance 1; web/e2e/heartbeat/heartbeat.spec.ts causes StatusMonitor's onset and clear on the sign-in stack; only workers 1 and path order keep them apart
+- 2026-10-25T15:09:29Z status=routed owner=burndown by=cr note=Rule 19 shared surface left in its old shape: api.spec should read instance counts against a baseline (outside Epic 8's footprint)
+
+### DW-205: StallFixture's ticks after Hold record synthetic heartbeatGap marks (start = the moved-back mark) that no test removes
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: a Tick after Hold(240) or Hold(100) finds the previous tick 2 to 4 clock minutes back, so Heartbeat.Record writes heartbeatGap.<mark>; Test.Schedule.Stalled and heartbeat.spec.ts leave them on throwaways
+- 2026-10-25T15:09:32Z status=wontfix-theoretical owner=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat by=cr note=real once a test or the step-2 digest reads Heartbeat.Gaps unfiltered on a stack that ran Stalled or heartbeat.spec
+
+### DW-206: Test.Schedule.Stalled's ClearOf and Clean copy Test.Core.StatusMonitor's (zzstall for zzstatmon), the per-class cleanup idiom of six test classes
+- source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Stalled.cls ClearOf/Clean match src/ocutalon/cls/OcuTalon/Test/Core/StatusMonitor.cls:301-316; the same DELETE of OcuTalon_Live.Event rows and Kill of ^OcuTalonP.LiveEventC sit in Test.Web.Api, Web.Install, Live.Publish and Data.Fixture
+- 2026-10-25T15:09:36Z status=wontfix-accepted owner=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat by=cr note=reopen_if=a change to OcuTalon_Live.Event or ^OcuTalonP.LiveEventC that has to be repeated in each test class's ClearOf copy
