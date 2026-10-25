@@ -74,7 +74,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 - FR-25 [Step 1]: For a data-format cause, OcuTalon proposes repair and resend: reformatting a field (such as a date or number) into the expected format, running no model-written code. The dry run shows the count, one before-and-after example and what will be resent, and changes nothing (a test finds no message, setting or queue changed). After approval it resends repaired copies, keeps the originals unchanged, and reports how many were resent and completed (demo: "All 50 orders went through"). One approval covers at least 500 messages, tested at 500. A resent message that fails again is reported and never retried without a new approval. The resend is audited.
 - FR-26 [Step 5]: OcuTalon can propose rerouting messages, suspending or resuming a production item, and rolling back a setting, each with a dry run and only after approval. Suspend is undone by resume and a rollback restores the earlier value, each undo a single approved action.
 - FR-27 [Step 5]: If a watched production's setting changed in the 24 hours before the first failure, the incident names the change, its time and the gap in plain English ("the feed broke four minutes after this setting changed"), and offers a rollback when it would plausibly fix the incident. From step 5 the evaluation set holds at least two setting-change incidents.
-- FR-28 [Step 5]: An admin configures an on-call person and a backup, each with a channel (Telegram only for someone who has already started the bot; otherwise email). An incident pages the on-call person and, without acknowledgement within the configured time (default 15 minutes), the backup. An acknowledgement from any channel stops escalation. IRIS Managed Alerts keep working and are never turned off.
+- FR-28 [Step 5]: An admin configures an on-call person and a backup; each is paged by Telegram and by email by default and can choose Telegram, email or both (Telegram only for someone who has already started the bot; otherwise email). An incident pages the on-call person and, without acknowledgement within the configured time (default 15 minutes), the backup. An acknowledgement from any channel stops escalation. IRIS Managed Alerts keep working and are never turned off. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel (Telegram only for someone who has already started the bot; otherwise email)"]
 - FR-29 [Step 5]: OcuTalon drafts a delay notice for affected partners and sends it only after approval; the approver sees the exact text and recipients first. Only admin-configured partner contacts are ever sent to.
 - FR-30 [Step 5]: When an incident closes, OcuTalon stores a summary with the timeline, cause, evidence, fix, approvals (who and when), messages affected and the incident's model cost; it can be sent to the user's channels, and from step 6 it is listed in the history.
 - FR-31 [Step 7, Could]: OcuTalon drafts a transform change attached to the incident as a proposal, and never compiles, deploys or applies it.
@@ -488,7 +488,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-7: Epic 3 (safe and risky classification, untrusted content limits); Epic 22 (MCP tools)
 - FR-8: Epic 3 (approval requests, fixed targets, first answer wins, expiry); Epic 6 (answering from the web chat and simulated phone); Epic 12 (Telegram buttons); Epic 30 (the approved tool-call replay); Epic 31 (tool-call approvals on the phone and in the paired chat) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-9: Epic 3 (audit trail)
-- FR-10: Epic 1 (no shell tools, tool inventory test); Epic 9 (evaluation case: asked to run a command, no tool is called); Epic 14 (documented in the security overview); Epic 22 (the admin guide's rule; in the README from step 5, Story 24.1)
+- FR-10: Epic 1 (no shell tools, tool inventory test); Epic 9 (evaluation case: asked to run a command, no tool is called); Epic 14 (documented in the security overview); Epic 22 (the admin guide's rule; in the README from step 5, Story 36.2 (was 24.1))
 - FR-11: Epic 0 (admin and user roles created); Epic 3 (service user, trace role, step 1 role rules); Epic 26 (approver and viewer roles, bridge backstop); Epic 25 (role screens and the answer check)
 - FR-12: Epic 2 (the web app); Epic 4 (demo-mode panels); Epic 31 (the WebSocket on local installs) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - FR-13: Epic 4 (simulated phone and mailbox)
@@ -541,6 +541,7 @@ Every FR maps to at least one epic. Where an FR's parts land in different epics,
 - FR-60: Epic 11 (upgrade in place, from 0.1.1)
 - FR-61: Epic 14 (security overview)
 - FR-62: Epic 9 (evaluation set); Epic 17 (digest cases); Epic 23 (setting-change incidents)
+- [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step contracts] Epics 33 to 37 hold each step's first two stories, so the parts those stories deliver are covered there: FR-17 (the settings page and its save path, Epic 33); FR-42 (the Documents page, Epic 34); FR-45 (webhooks, Epic 35, wholly); FR-47 and FR-48 (registered MCP servers attached, every new tool unclassified, Epic 35); FR-27 (the setting history, Epic 36); FR-28 (the on-call configuration, Epic 36); FR-52 (the usage and cost view, Epic 37, wholly); FR-54 (extraction from PDF and Word files, Epic 37). Each line above still names the step's feature epics for the rest.
 
 ## Epic List
 
@@ -559,8 +560,14 @@ Epics are numbered in dispatch order, except Epics 29 to 32 (below). Two `/epic-
   - **Lane B:** 32, 2, 4, 6, 31, then its step epics.
   - **Lane C:** 8, 16, 29, 10, then 30, 13, 14 and 15.
   - **Why this order.** Epic 8 depends on Epic 1 (the chat agent's reminder tools), so runner C starts it when Epic 1 merges; its Stories 8.2 and 8.3 wait for Epic 2 (the heartbeat-stalled banner, the background check and Reminders rows, `Notify`) and Stories 8.3 and 8.4 for Epic 4 (the simulated phone, guide step 2), and it merges before Epic 16, so Story 16.4 cancels reminders through the real `ReminderOps`. Epic 16 then waits for Epic 3 (Story 3.8); while it waits, runner C may take Epic 10 ahead of it, setting Story 10.3 aside until Epic 16 merges (Story 10.3 reuses Story 16.4's unlink). Story 16.9 waits for Lane B's Epic 6 (it checks that Approve and Reject keep working). Epic 30 depends only on Lane A's Epics 1, 3, 5 and 7, and Epics 13 to 15 follow it (Story 13.2 needs Story 30.3). Epic 31 follows Epic 6 in Lane B; its story-level needs are unchanged. Every dependency that was only a lane order and now crosses runners was removed, and each story-level need behind one is kept as a story-level wait (Stories 16.9, 10.3 and 13.2). The graph approval of October 23 added the story-level waits the removed edges had hidden (Stories 8.2, 8.3, 8.4, 10.2, 10.3, 13.3, 14.1, 14.2, 15.2, 15.3, 30.1, 31.1 and 31.2; see each epic's Depends on line). [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: "Epic 8 depends only on Epic 1" was wrong; the waits added] [AMENDED 2026-10-25, owner decision through the Contest Planner (the owner: "Yes let's do it."; inbox U-65): Epic 16 no longer waits for Epic 8. Runner C takes Epic 16 when Epic 3 merges (Epic 8 waits after Story 8.2), Stories 8.3 to 8.5 follow once Epic 4 has merged, on whichever of runners B and C is free first, Story 16.4 cancels reminders through a test double until Story 8.4 turns on the real path, and Story 29.4 waits for Epic 8.]
-  - **The October 23 rebalance** [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots."]. To start Epic 11 as early as possible and fill the runners' idle windows, the lanes are: **Lane A** 1, 3, 5, 7, 11, 12; **Lane B** 32 (merged), 2, 4, 6, 10, 9; **Lane C** 32 (Story 32.4), 8, 16, 29; then a **pool** that runner B or C takes, in this order, as each frees up: 30, 13, 31, 15, 14. Epic 10 (Story 10.1) and Epic 13 (Story 13.1) may start early in a runner's idle window and resume later. Each epic keeps its home lane's files. An epic that may run on more than one runner says `**Lane:** B or C (pool)`, and its dispatch fixes its runner and developer instance: before its first stage there, the runner loads and compiles the epic's classes into that instance and checks it (Rule 21). Epic 9 no longer waits for Epic 7 (only Story 9.5 does), Epics 14 and 15 no longer wait for Epics 13 and 14 (runner C's order only), and Story 10.3 builds the pairing unlink that Story 16.4 reuses (it was the other way round), so Epic 10, and with it Epic 11, no longer waits for Epic 16.
+  - **The October 23 rebalance** [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots."]. To start Epic 11 as early as possible and fill the runners' idle windows, the lanes are: **Lane A** 1, 3, 5, 7, 11, 12; **Lane B** 32 (merged), 2, 4, 6, 10, 9; **Lane C** 32 (Story 32.4), 8, 16, 29; then a **pool** that runner B or C takes, in this order, as each frees up: 30, 13, 31, 15, 14. Epic 10 (Story 10.1) and Epic 13 (Story 13.1) may start early in a runner's idle window and resume later. Each epic keeps its home lane's files. An epic that may run on more than one runner says `**Lane:** B or C (pool)` [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." from October 25 it says `**Lane:** pool (runner A, B or C; in Lane X's files)`, because runner A joined the pool after Epic 11 (inbox U-67); see the October 25 step contracts below], and its dispatch fixes its runner and developer instance: before its first stage there, the runner loads and compiles the epic's classes into that instance and checks it (Rule 21). Epic 9 no longer waits for Epic 7 (only Story 9.5 does), Epics 14 and 15 no longer wait for Epics 13 and 14 (runner C's order only), and Story 10.3 builds the pairing unlink that Story 16.4 reuses (it was the other way round), so Epic 10, and with it Epic 11, no longer waits for Epic 16.
   - **The October 25 changes** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-65, the owner: "Yes let's do it."; inbox U-67)]. Epic 16 no longer waits for Epic 8 (Story 16.4 cancels reminders through a test double until Story 8.4 turns on the real path), and Story 29.4 waits for Epic 8. Epic 12 depends on Epic 10: the first free runner builds it alongside Epic 11, and it merges only once `v0.1.0` is tagged, so 0.1.0 never contains Telegram. The orders: **Lane A** 1, 3, 5, 7, 11; **Lane B** 32, 2, 4, 6, 9, 10; **Lane C** 32, 8, 16, 29; then the **pool**, which runners A, B and C take as each frees up: 12, 30, 13, 31, 15, 14. Epics 9, 10 and 13 may fill an idle window ahead of order.
+- **The October 25 step contracts** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." from the step readiness review of 2026-10-24]. The parallel build merges whole epics, and AD-29's step rule pairs each step's Lane A first story (the step's contracts) with its Lane B first story (the step's command verbs), so in steps 2 to 6 each feature epic needed the other's first story, and no order could merge either. Each step's two first stories move, whole and verbatim, into a step-contract epic that merges before both feature epics: Epic 33 (step 2: Story 33.1 (was 17.1) and Story 33.2 (was 18.1)), Epic 34 (step 3: Story 34.1 (was 19.1) and Story 34.2 (was 20.1)), Epic 35 (step 4: Story 35.1 (was 22.1) and Story 35.2 (was 21.1)), Epic 36 (step 5: Story 36.1 (was 23.1) and Story 36.2 (was 24.1)) and Epic 37 (step 6: Story 37.1 (was 26.1) and Story 37.2 (was 25.1)). Each moved story keeps its home lane's files; the other stories keep their numbers. Epic 18 no longer waits for Epic 31, and Epic 17 no longer waits for Epic 15; both edges were lane order only. Each step epic's Depends-on line marks every edge as real, footprint or runner order, and adds the story-level needs on the kit and hardening epics (13, 14, 15, 16, 30 and 31). The criteria only the owner or the Contest Planner can meet (the hands-on passes with real keys, and the demo-host checks) move to the step release checks at the end of this list. The runners:
+  - **Runner A:** its own order goes on after Epic 11 with Epics 17, 22, 23 and 28, Lane A's bridge, Checks, Watch and Fix chain, which share files and so stay on one runner.
+  - **The pool (runner A, B or C):** after Epic 12 and the 1.0.0 kit epics (30, 13, 31, 15 and 14), the other step epics, first eligible in order: 33, 18, 34, 19, 20, 35, 21, 36, 24, 37, 25, 26 and 27. Each keeps its home lane's files (Lane A's for 19 and 26; Lane B's for 18, 20, 21, 24, 25 and 27; both for 33 to 37, story by story).
+  - **One rule for every runner.** When nothing in a runner's own order is eligible (every remaining epic there merged, held, or ended parked, stopped or waiting, or blocked by an unmerged dependency or a missing gate tag), it takes the first eligible epic in lanes.pool.order (Epic 12 heads it). When its own next epic becomes eligible, it takes that when its current epic run ends, with no preemption. So runner A takes the pool until Epic 17 is eligible (v0.1.1 tagged and Epic 33 merged), and again whenever its next epic waits on a dependency; runners B and C, whose own orders end before the steps, take only the pool. A pool epic's Lane line reads "pool (runner A, B or C; in Lane X's files)": it keeps Lane X's files whichever runner takes it.
+  - No step epic starts before v0.1.1 is tagged (`gate: {tag: v0.1.1}` on Epics 33, 34, 17 and 18 in the dependency graph). The orchestrator checks the tag at every notification and dispatch, as for merge_gate. While every remaining epic waits only on a missing tag, the run ends with its report (U14), and the next launch after the tag dispatches them. Epics 33 to 37 are numbered after Epic 32 and dispatch where this order puts them.
+  - Finished step epics may merge before 1.0.0 is cut; 1.0.0 ships them, and the release that completes a step bumps the minor version. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "C. Yes allow it." the open question whether a step epic may merge into the integration branch before `v1.0.0` is tagged is answered, so no step epic has a merge gate on `v1.0.0`]
 
 ### Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -656,21 +663,21 @@ A user scans the page's QR code to pair their Telegram private chat with their s
 ### Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.
-**Lane:** B or C (pool; in Lane A's files; Story 13.1 may start early on an idle runner, and each dispatch fixes the runner). **Depends on:** Epic 1 (the bridge); story-level: Story 13.2 needs Epic 30 merged (Story 30.3, the approved tool-call replay), and Story 13.3 needs Epic 11 merged (its release checklist item, Story 11.4). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 12 (lane order).] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 13.3's wait on Epic 11 added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 30]
+**Lane:** pool (runner A, B or C; in Lane A's files; Story 13.1 may start early on an idle runner, and each dispatch fixes the runner). **Depends on:** Epic 1 (the bridge); story-level: Story 13.2 needs Epic 30 merged (Story 30.3, the approved tool-call replay), and Story 13.3 needs Epic 11 merged (its release checklist item, Story 11.4). [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 12 (lane order).] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 13.3's wait on Epic 11 added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 30] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the pool is runner A's too since runner A joined it after Epic 11 (inbox U-67); it read "**Lane:** B or C (pool; …"]
 **FRs covered:** FR-5 (guide, example production, standalone install).
 **Also covers:** AD-2, AD-31; the 1.0.0 kit.
 
 ### Epic 14: A security reviewer can approve OcuTalon
 
 A security reviewer reads one overview, generated in part from the product, listing every built-in tool with its classification, the service user's privileges and the limits of that check, the approval and audit rules, what data leaves the instance, how MCP tools are classified and the online demo's protections; a test fails if the tool list drifts.
-**Lane:** B or C (pool; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epics 3, 5 and 7 (the roles, tools and fix kinds it lists; Epic 13 was runner C's order only); story-level: Story 14.1 needs Epic 11 merged (the release sequence, Story 11.5), and Story 14.2 needs Epics 11 and 16 merged (the release checklist, and the online demo's protections it lists). [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 14.1 and 14.2's waits added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 13]
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epics 3, 5 and 7 (the roles, tools and fix kinds it lists; Epic 13 was runner C's order only); story-level: Story 14.1 needs Epic 11 merged (the release sequence, Story 11.5), and Story 14.2 needs Epics 11 and 16 merged (the release checklist, and the online demo's protections it lists). [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 14.1 and 14.2's waits added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 13] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the pool is runner A's too since runner A joined it after Epic 11 (inbox U-67); it read "**Lane:** B or C (pool; …"]
 **FRs covered:** FR-61, FR-10 (documentation part).
 **Also covers:** NFR-12, NFR-18; AD-24; the 1.0.0 kit.
 
 ### Epic 15: Install into an existing IRIS with IPM
 
 An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with its one IPM package (two runs of the same package, or `iris merge` then one), gets a working OcuTalon with demo mode off, and the bridge installs with it; a CI job runs FR-57's acceptance criterion.
-**Lane:** B or C (pool; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 3 (the installer core; Epic 14 was runner C's order only); story-level: Story 15.2 needs Epic 4 merged (release 1's seed sets demo mode off), and Story 15.3 needs Epics 9 and 11 merged (it turns on Story 9.1's IPM case, and hooks the release gate, Story 11.5). [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 15.2 and 15.3's waits added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 14]
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 3 (the installer core; Epic 14 was runner C's order only); story-level: Story 15.2 needs Epic 4 merged (release 1's seed sets demo mode off), and Story 15.3 needs Epics 9 and 11 merged (it turns on Story 9.1's IPM case, and hooks the release gate, Story 11.5). [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 15.2 and 15.3's waits added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 14] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the pool is runner A's too since runner A joined it after Epic 11 (inbox U-67); it read "**Lane:** B or C (pool; …"]
 **FRs covered:** FR-57.
 **Also covers:** AD-2, AD-23 (CPF resource and map-and-stop step); the 1.0.0 kit.
 
@@ -684,83 +691,95 @@ A visitor opens the online demo with no install and no key, signs in from the sp
 ### Epic 17: A daily digest you can trust, and model choice with budgets (step 2)
 
 Once a day OcuTalon sends a short digest with the vital signs, a coverage list where every entry is passed, failed or not checked, what needs the user and what was saved for later, giving an all-clear only when code allows it; an admin can choose the provider and model for each agent, set budgets and a second model for the fallback retry.
-**Lane:** A. **Depends on:** Epic 15 and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence; no step 2 work before Telegram ships); story-level: Story 17.6 needs Story 18.1 (the `SendDigest` and Got it verbs).
+**Lane:** A. **Depends on:** Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate, Story 12.7's hands-on pass and Story 11.5's release sequence, so no step 2 work starts before Telegram ships; Story 17.6 sends through `TelegramOut` and takes **Got it** through `TelegramIn`), and Epic 33 (real: Story 33.1 (was 17.1)'s names and stubs, which every story here builds on, and Story 33.2 (was 18.1)'s `SendDigest` and **Got it** verbs, which Story 17.6 uses); story-level: Story 17.5 needs Epic 14 merged (real: the security overview's generated privilege list, Story 14.1), Stories 17.2, 17.3, 17.4, 17.5, 17.6 and 17.7 need Epic 30 merged (footprint: the bridge, `Checks`, `OcuTalon.Msg.Catalog.Watch` and `eval/`, which Epic 30's stories also change), and Stories 17.2, 17.3 and 17.5 need Epic 15 merged (footprint: the installer's `Provider` and `Digest` steps, inside Epic 15's installer footprint, whose Story 15.2 runs and changes the installer steps on an IPM install). Runner order: the first step epic in runner A's own order, after Epic 11; while it isn't eligible, runner A takes the first eligible epic in lanes.pool.order (Epic 12 heads it), and it takes this epic when its current epic run ends once it is eligible, with no preemption. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 15 and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence; no step 2 work before Telegram ships); story-level: Story 17.6 needs Story 18.1 (the `SendDigest` and Got it verbs)."; Epic 15 was Lane A's old order only, and no story here uses IPM; Story 18.1 is now Story 33.2, which Epic 33 carries]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-4 (second-model retry), FR-35, FR-36, FR-37 (digest rule), FR-39, FR-40 (budgets), FR-62 (digest cases).
 **Also covers:** AD-7, AD-18, AD-19, AD-20, AD-28; UX-DR142 (the digest's parts).
 
 ### Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
-**Lane:** B. **Depends on:** Epic 31 (lane order; [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 16]), Story 17.1 (the step 2 contracts) and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence).
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate, Story 12.7's hands-on pass and Story 11.5's release sequence; Story 18.4's Telegram copy is `TelegramOut`'s), and Epic 33 (real: Story 33.2 (was 18.1)'s settings page and save path, which Stories 18.2 and 18.3 extend, and Story 33.1 (was 17.1)'s stub signatures, which they test against). Runner order: in the pool, after Epic 33. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 31 (lane order; [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Epic 16]), Story 17.1 (the step 2 contracts) and 0.1.1 shipped (Story 12.7's hands-on pass and Story 11.5's release sequence)."; it was Lane B. Epic 31 was lane order only, and Epic 31 merges only after Story 31.3's measurement on the launched online demo, so every step would have waited for the launch; Story 17.1 is now Story 33.1]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-17, FR-39 (in the settings page, and the README's provider section), FR-40 (in the settings page).
 **Also covers:** AD-19 (SettingsOps); UX-DR141 to UX-DR143 (settings, the digest card, Got it).
 
 ### Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
 A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown and text documents with citations, saying so when nothing is relevant.
-**Lane:** A. **Depends on:** Epic 17; story-level: Story 19.3 needs Story 20.1 (the save-memory verb).
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 34 (real: Story 34.1 (was 19.1)'s names, tables and stubs; Story 34.2 (was 20.1)'s memory and document command verbs, which Stories 19.3 and 19.4 submit and handle, and its Dockerfile lines, which Story 19.2 uses); story-level: Story 19.2 needs Epic 15 merged (real: the IPM install downloads the model), and Story 19.5 needs Epics 13, 16 and 17 merged (real: the standalone bridge job with `OcuTalon.BridgeExample`, Epic 13, and `SessionOps.End`, Story 16.4; footprint: Story 17.3 changes the adapter method that composes the session config). Runner order: in the pool, after Epic 34. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 17; story-level: Story 19.3 needs Story 20.1 (the save-memory verb)."; it was Lane A. Epic 17 was lane order only (inference: no story here uses Epic 17's work); Story 20.1 is now Story 34.2, which Epic 34 carries, and Story 19.4 uses its document verbs too]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-41, FR-42 (retrieval and citations).
 **Also covers:** NFR-3, NFR-18; AD-21 (memory and documents), `TurnToolsClass`.
 
 ### Epic 20: Add documents in the web app (step 3)
 
 A user adds Markdown and plain-text documents from the web app and sees which documents an answer cited.
-**Lane:** B. **Depends on:** Epic 18 and Story 19.1 (step 3's ownership and contracts).
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 34 (real: the citation and memory shape of a reply that Story 34.1 (was 19.1) fixes, which Story 20.2 carries, and the Documents page that Story 34.2 (was 20.1) builds, where Story 20.2's Open document shows a document); story-level: Story 20.2 needs Epic 18 merged (footprint: the web chat's message view and its tests, where Story 18.4 adds the digest card and **Got it** and Story 20.2 its citation and memory chips). Runner order: in the pool, after Epic 19. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 18 and Story 19.1 (step 3's ownership and contracts)."; it was Lane B. Epic 18 was real only for Story 20.1's header navigation, now Story 34.2's wait on Epic 33; Story 19.1 is now Story 34.1]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-42 (adding documents).
 **Also covers:** UX-DR144.
 
 ### Epic 21: Email, webhooks and MCP settings (step 4)
 
 An admin connects a real mailbox and SMTP server and creates webhooks with their own secrets, and adds, removes and classifies MCP servers and tools from the settings page; each email and webhook event is an item with a decision in Visual Trace.
-**Lane:** B. **Depends on:** Epic 20 and Story 22.1 (step 4's contracts).
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 35 (real: Story 35.2 (was 21.1)'s routes, verbs, webhook table and poll-outcome record, which Stories 21.2 to 21.5 extend, and Story 35.1 (was 22.1)'s `McpOps` names and `Tools(server)` stub, which Story 21.4 calls); story-level: Story 21.2 needs Epics 17 and 18 merged (real: the digest that `EmailOut` sends, Story 17.6, and Settings › Daily digest, Story 18.2), Story 21.4 needs Epic 18 merged (real: a new Settings section), and Story 21.5 needs Epic 31 merged (real: the tool-call notices through `NoticesIn`, moved from Story 6.3 to Story 31.2). Runner order: in the pool, after Epic 35. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 20 and Story 22.1 (step 4's contracts)."; it was Lane B. Epic 20 was lane order only; Story 22.1 is now Story 35.1]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-44, FR-45, FR-47 (settings page), FR-48 (classification screens).
 **Also covers:** UX-DR145.
 
 ### Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 
 Tools from an added MCP server become OcuTalon's tools under the same gate, classification, approval and audit, unclassified counting as risky and changed tools losing their classification; a read-only MCP tool can be polled as a source on the digest's coverage list, with a worked Jira example.
-**Lane:** A. **Depends on:** Epic 19; story-level: Story 22.2 needs Story 21.1 (the MCP command verbs and `OcuTalon.Core.SettingsOps.RestartRunners()`).
-**FRs covered:** FR-7 (MCP tools), FR-10 (the admin guide's rule; in the README from step 5, Story 24.1), FR-33 (source polls), FR-37 (the unreachable-source test), FR-44 (the email tool: safe to the user, risky to anyone else), FR-47, FR-48, FR-49, FR-50, FR-59 (the gateway's MCP allow-list from step 4).
+**Lane:** A. **Depends on:** Epic 35 (real: Story 35.1 (was 22.1)'s `McpOps` names, mock MCP server and attach in `OnAfterAgentInit`; Story 35.2 (was 21.1)'s MCP command verbs and `OcuTalon.Core.SettingsOps.RestartRunners()`, which Story 22.2 uses, its source-poll verb, which Story 22.5 handles, and its `SendEmail` verb, which Story 22.7 submits); story-level: Story 22.4 needs Epic 30 merged (real: the approved tool-call replay, moved from Story 3.6 to Story 30.3), Story 22.5 needs Epics 17 and 30 merged (real: the coverage list's sources section and the digest, Stories 17.5 and 17.6; the `tool` request path, Story 30.3), and Stories 22.6 and 22.7 need Epic 14 merged (real: the security overview they regenerate and extend). Runner order: after Epic 17 on runner A. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 19; story-level: Story 22.2 needs Story 21.1 (the MCP command verbs and `OcuTalon.Core.SettingsOps.RestartRunners()`)."; Epic 19 was a footprint need only (the adapter), now Story 35.1's wait on Epics 17 and 19; Story 21.1 is now Story 35.2, which Epic 35 carries]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-7 (MCP tools), FR-10 (the admin guide's rule; in the README from step 5, Story 36.2 (was 24.1)), FR-33 (source polls), FR-37 (the unreachable-source test), FR-44 (the email tool: safe to the user, risky to anyone else), FR-47, FR-48, FR-49, FR-50, FR-59 (the gateway's MCP allow-list from step 4).
 **Also covers:** NFR-12, NFR-14; AD-10, AD-21 (MCP).
 
 ### Epic 23: Deeper IRIS watch (step 5)
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
-**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb).
+**Lane:** A. **Depends on:** Epic 36 (real: Story 36.1 (was 23.1)'s spine names and setting history, which Stories 23.2 to 23.8 build on; Story 36.2 (was 24.1)'s on-call keys and acknowledgement verb, which Story 23.4 uses, and its save-SQL-query-watch verb, which Story 23.8 handles); story-level: Story 23.2 needs Epic 14 merged (real: the overview's generated list shows the new kinds), Story 23.5 needs Epics 21 and 22 merged (real: `EmailOut` and the mock mail server, Story 21.2; the email fix path, Story 22.7), Story 23.7 needs Epic 17 merged (real: the `checks.thresholds.*` keys Story 17.5 seeds), and Story 23.8 needs Epic 14 merged (real: the security overview lists the read-only SQL user); Stories 23.4 and 23.6 also use the Watch area's purge (real: Story 30.2), which Epic 30 brings in before Epic 36 through Story 36.1's wait. Runner order: after Epic 22 on runner A. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 22; story-level: Story 23.4 needs Story 24.1 (the acknowledgement verb and the on-call keys), and Story 23.8 needs Story 24.1 (the save-SQL-query-watch verb)."; Epic 22 was real only for Story 23.5, now its story-level wait; Story 24.1 is now Story 36.2, which Epic 36 carries]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-26, FR-27, FR-28, FR-29, FR-30, FR-33 (step 5 checks), FR-62 (setting-change incidents).
 **Also covers:** AD-15 (setting history), AD-16; UX-DR146 (Lane A's part).
 
 ### Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
-**Lane:** B. **Depends on:** Epic 21 and Story 23.1 (Lane A's first step 5 story).
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 36 (real: Story 36.2 (was 24.1)'s settings sections, keys, verbs and partner-contact table, which Stories 24.2 to 24.4 extend, and Story 36.1 (was 23.1)'s paging contract and payload fields); story-level: Story 24.3 needs Epic 21 merged (real: pages by email through `EmailOut`). Runner order: in the pool, after Epic 36. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 21 and Story 23.1 (Lane A's first step 5 story)."; it was Lane B. Epic 21 was real only for Story 24.3, now its story-level wait; Story 23.1 is now Story 36.1]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-28 (configuration), FR-29 (contacts), FR-33 (SQL watch set-up).
 **Also covers:** UX-DR146.
 
 ### Epic 25: Usage, history and files in the page (step 6)
 
 A user sees tokens and cost by day, agent, channel and model, filters past decisions and incidents, and sends a PDF, Word file or photo from the web app or Telegram.
-**Lane:** B. **Depends on:** Epic 24 and Story 26.1 (Lane A's first step 6 story).
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 37 (real: Story 37.2 (was 25.1)'s spine rows, header navigation and Python package lines; Story 37.1 (was 26.1)'s role names and its `Approval.MayAnswer` and role-assignment stubs, which Stories 25.4 and 25.5 call); story-level: Story 25.3 needs Epic 20 merged (real: the Documents page's **Add documents**), and Story 25.4 needs Epics 16 and 18 merged (real: the online demo account, Story 16.1; a Settings section). Runner order: in the pool, after Epic 37. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 24 and Story 26.1 (Lane A's first step 6 story)."; it was Lane B. Epic 24 was lane order only (inference); Story 26.1 is now Story 37.1]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-11 (role screens and the answer check), FR-30 (listed in the history), FR-52, FR-53, FR-54 (sending files).
 **Also covers:** UX-DR147.
 
 ### Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; OcuTalon extracts text from PDF and Word files with Embedded Python, captions photos as memories, and adds files as documents.
-**Lane:** A. **Depends on:** Epic 23; story-level: Story 26.4 needs Story 25.5 (`AnswersIn`'s `not_allowed` result), and Story 26.2 needs Story 25.3 (the file-store call and the mock's `getFile`).
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epic 37 (real: Story 37.1 (was 26.1)'s extraction, spine names and stubs, which Stories 26.2 to 26.4 build on); story-level: Story 26.2 needs Epics 19 and 25 merged (real: the Docs indexing, Epic 19; the file-store call and the mock's `getFile`, Story 25.3), Story 26.3 needs Epic 19 merged (real: the save-memory command and memory), and Story 26.4 needs Epics 14, 23 and 25 merged (real: the security overview; step 5's approval kinds; `AnswersIn`'s `not_allowed` result, Story 25.5). Runner order: in the pool, after Epic 25. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 23; story-level: Story 26.4 needs Story 25.5 (`AnswersIn`'s `not_allowed` result), and Story 26.2 needs Story 25.3 (the file-store call and the mock's `getFile`)."; it was Lane A. Epic 23 was real only for Story 26.4, now its story-level wait]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-11 (approver and viewer roles), FR-42 (PDF and Word), FR-54 (extraction).
 **Also covers:** AD-11 (per-kind checks), AD-24.
 
 ### Epic 27: Slack (step 7, Could)
 
 Slack works as a channel through its webhook route, with replies as Slack messages and no socket mode.
-**Lane:** B. **Depends on:** Epic 25.
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 35 (real: the `/ocutalon/hook` application that Story 35.2 (was 21.1) creates, under which Story 27.1 adds the Slack route). Runner order: last in the pool, after Epic 26. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** B. **Depends on:** Epic 25."; it was Lane B. Epic 25 was lane order only]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-46.
 
 ### Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 
 OcuTalon drafts a transform change as a proposal it never applies, fades and consolidates old memories, and offers its read-only tools to MCP clients under IRIS authentication.
-**Lane:** A. **Depends on:** Epic 26.
+**Lane:** A. **Depends on:** Epic 23 (real: the incident summary, Story 23.6, which Story 28.1's draft joins); story-level: Story 28.1 needs Epic 27 merged (real: the `DraftTransform` command verb that Story 27.1 creates, which Story 28.1's chat path submits), Story 28.2 needs Epic 19 merged (real: memory recall and `OcuTalon.Data.Memory`), and Story 28.3 needs Epics 14 and 22 merged (real: the security overview; the Mcp area's installer step). Runner order: after Epic 23 on runner A. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." it read "**Lane:** A. **Depends on:** Epic 26."; Epic 26 was lane order only]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
 **FRs covered:** FR-31, FR-43, FR-51.
 **Also covers:** AD-21 (MCP server), AD-24.
 
@@ -774,14 +793,14 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 ### Epic 30: Lane A post-demo hardening
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane A's demo-path stories moved after the demo path.] Long conversations are compacted before they reach the request-size limit, old messages and records are purged on schedule, an approved tool call is replayed exactly once with no model, a stopped production or a disabled item is reported once, and a mixed or still-running resend says how far it got. Each part lands before 1.0.0.
-**Lane:** B or C (pool; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epics 1, 3, 5 and 7, the epics its stories came from (Stories 1.9, 1.11, 3.6, 5.6 and 7.5); story-level: Story 30.1 needs Epic 9 merged (the release-candidate run, Story 9.5, executes its live smoke test); in Lane A's order it follows Epic 12, and Lane A may take it before Epic 11 while Epic 11 waits for Lane B's Epic 10. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: dependency set to its real dependencies so it fills Lane A's wait for Epic 10; owner goal of 2026-10-21; it was Epic 12 (lane order).] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A; in runner C's order it follows Epic 10, so the sentence above on Lane A's order is superseded.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 30.1's wait on Epic 9 added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 29]
+**Lane:** pool (runner A, B or C; in Lane A's files; the dispatch fixes the runner). **Depends on:** Epics 1, 3, 5 and 7, the epics its stories came from (Stories 1.9, 1.11, 3.6, 5.6 and 7.5); story-level: Story 30.1 needs Epic 9 merged (the release-candidate run, Story 9.5, executes its live smoke test); in Lane A's order it follows Epic 12, and Lane A may take it before Epic 11 while Epic 11 waits for Lane B's Epic 10. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: dependency set to its real dependencies so it fills Lane A's wait for Epic 10; owner goal of 2026-10-21; it was Epic 12 (lane order).] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane A; in runner C's order it follows Epic 10, so the sentence above on Lane A's order is superseded.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 30.1's wait on Epic 9 added] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 29] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the pool is runner A's too since runner A joined it after Epic 11 (inbox U-67); it read "**Lane:** B or C (pool; …"]
 **FRs covered:** FR-8 (the approved tool-call replay), FR-23 and FR-33 (the stopped-production and disabled-item findings), FR-25 (the mixed and still-running results).
 **Also covers:** NFR-3 (compaction), NFR-13, NFR-19 (retention tasks); AD-8, AD-10, AD-11, AD-16, AD-18, AD-20, AD-27.
 
 ### Epic 31: Lane B post-demo hardening
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane B's demo-path stories moved after the demo path.] On a local install the page gets live events over a WebSocket, with polling as the fallback, and a risky tool call's approval request reaches the simulated phone and the paired chat with Approve and Reject and is edited in place when answered. Each part lands before 1.0.0.
-**Lane:** B or C (pool; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 6 (Story 31.2 extends its approval notices); story-level: Stories 31.1 and 31.2 need Epic 16 merged (Stories 16.3 and 16.4 change the live client Story 31.1 extends, and Story 16.9 the `BridgeSink` Story 31.2 extends), and Story 31.2 also needs Epic 30 merged (Story 30.3's `approval.result`, so its real path is on in the story itself); Story 31.3 (was Story 16.10) needs Epics 12 to 15 merged (Epic 12 is Lane A's; Epics 13 to 15 are runner C's), and its measurement after launch needs the launched online demo, which is the author's; Story 31.4 needs Lane A's Epic 12 and Epic 29 merged. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Epic 16 (lane order only); Stories 31.3 and 31.4 added.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Epic 10 (lane order), which moved to runner C; its story-level needs are unchanged.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 31.1 and 31.2's waits added; Epics 13 to 15 named as runner C's] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was Lane B after Epic 6]
+**Lane:** pool (runner A, B or C; in Lane B's files; the dispatch fixes the runner). **Depends on:** Epic 6 (Story 31.2 extends its approval notices); story-level: Stories 31.1 and 31.2 need Epic 16 merged (Stories 16.3 and 16.4 change the live client Story 31.1 extends, and Story 16.9 the `BridgeSink` Story 31.2 extends), and Story 31.2 also needs Epic 30 merged (Story 30.3's `approval.result`, so its real path is on in the story itself); Story 31.3 (was Story 16.10) needs Epics 12 to 15 merged (Epic 12 is Lane A's; Epics 13 to 15 are runner C's); Story 31.4 needs Lane A's Epic 12 and Epic 29 merged. The epic merges into the integration branch only once `v0.1.1` is tagged: polling stays release 1's contract, and Story 31.1's WebSocket never reaches 0.1.1. Story 31.3's measurement after launch is a 1.0.0 release check (the step release checks at the end of this list), so no story here waits for the launch. [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: it was Epic 16 (lane order only); Stories 31.3 and 31.4 added.] [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Epic 10 (lane order), which moved to runner C; its story-level needs are unchanged.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Stories 31.1 and 31.2's waits added; Epics 13 to 15 named as runner C's] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was Lane B after Epic 6] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: the merge gate on `v0.1.1` added, and Story 31.3's measurement after launch moved to the release checks; "B or C (pool" became "pool (runner A, B or C" (inbox U-67); it read "… needs Epics 12 to 15 merged (…), and its measurement after launch needs the launched online demo, which is the author's; Story 31.4 …"]
 **FRs covered:** FR-8 (tool-call approvals on the phone and in the paired chat), FR-12 (the WebSocket on local installs), FR-15 and FR-20 (the paired chat isolated under load, Story 31.4), FR-58 (completed for 1.0.0, Story 31.3). [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Stories 31.3 and 31.4 added.]
 **Also covers:** NFR-9; AD-12, AD-13, AD-31, AD-32; UX-DR91, UX-DR149.
 
@@ -791,6 +810,58 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 **Lane:** B for Stories 32.1 to 32.3; C for Story 32.4 (runner C, in Lane B's files). **Depends on:** Epic 0. [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Send your questions to the planner when you have them. I've been away from the desk and don't want development to slow down.": Story 32.4 added, and Epic 32 re-opened on runner C ahead of Epic 8 while runner C waits for Epic 1.]
 **FRs covered:** none (delivery).
 **Also covers:** REL-4, REL-2; AD-22.
+
+### Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 33.1 and Lane B's for Story 33.2; the dispatch fixes the runner). **Depends on:** Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate, Story 12.7's hands-on pass and Story 11.5's release sequence, so no step work starts before Telegram ships); story-level: Story 33.1 needs Epic 30 merged (footprint: the bridge stubs and the `OcuTalon.Msg.Catalog.Watch` keys it adds, beside Epic 30's bridge, `Checks` and `Catalog.Watch` changes). Story 33.2 follows Story 33.1 (real: it uses Story 33.1's names). Runner order: the first step epic in the pool, after Epic 12 and the 1.0.0 kit epics (30, 13, 31, 15 and 14). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-17 (the settings page: admins only, each section saved on its own, applied within a minute and audited, with the Check thresholds and Demo mode sections, Story 33.2); the step 2 contracts of FR-4, FR-17, FR-35 to FR-37, FR-39 and FR-40 (Story 33.1), which Epics 17 and 18 build.
+**Also covers:** AD-1, AD-5, AD-8, AD-14, AD-19, AD-29, AD-33; UX-DR21, UX-DR22, UX-DR141.
+
+### Epic 34: Step 3's contracts, and a Documents page (step 3)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown and plain-text documents on a Documents page, so that Epics 19 and 20 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 34.1 and Lane B's for Story 34.2; the dispatch fixes the runner). **Depends on:** Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate); story-level: Story 34.1 needs Epic 15 merged (real: its FastEmbed path check on an IPM install), and Story 34.2 needs Epics 33 and 16 merged (real: the header navigation Story 33.2 adds; `SessionOps.End`, Story 16.4). Story 34.2 follows Story 34.1 (real: it routes to the names Story 34.1 fixes). Runner order: in the pool, after Epic 18. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-15, FR-41 and FR-42 (P6 confirmed, and the step 3 contracts, Story 34.1); FR-57 (the FastEmbed model path on an IPM install, Story 34.1); FR-42 (adding and removing documents on the Documents page, Story 34.2).
+**Also covers:** NFR-18; AD-1, AD-3, AD-4, AD-21, AD-23, AD-29, AD-33; UX-DR144.
+
+### Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 22.1 and 21.1, moved whole and verbatim as Stories 35.1 and 35.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 4's names fixed in the spine and in code as stubs, the MCP servers an admin registers are attached to OcuTalon's agents with every new tool unclassified, and webhooks with their own secrets turn JSON events into items, so that Epics 21 and 22 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 35.1 and Lane B's for Story 35.2; the dispatch fixes the runner). **Depends on:** Epic 33 (real: the settings page and its routes, Story 33.2, which Story 35.2's Settings › Channels and email and MCP settings routes extend); story-level: Story 35.1 needs Epics 17 and 19 merged (footprint: the adapter that Stories 17.3 and 19.5 change; real (inference): Story 19.5's per-turn tool manager must carry the MCP servers Story 35.1 attaches), and Story 35.2 needs Epic 18 merged (real: the settings page and `SettingsOps` it extends). Story 35.2 follows Story 35.1 (real: it routes to `McpOps` under Story 35.1's names). Runner order: in the pool, after Epic 20. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-47 and FR-48 (registered MCP servers attached to the agents, every new tool unclassified, Story 35.1); FR-45 (webhooks, Story 35.2); the step 4 contracts of FR-44, FR-47, FR-48 and FR-50 (Stories 35.1 and 35.2).
+**Also covers:** NFR-11, NFR-14; AD-1, AD-6, AD-13, AD-16, AD-21, AD-23, AD-29, AD-31, AD-33; UX-DR145.
+
+### Epic 36: Step 5's contracts: setting history, and the on-call person in Settings (step 5)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 23.1 and 24.1, moved whole and verbatim as Stories 36.1 and 36.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 5's names fixed in the spine, with the paging channels PRD Open Question 5's answer gives (Telegram and email by default, chosen per person), OcuTalon records the setting history of each watched production, and an admin sets the on-call person and backup in Settings, so that Epics 23 and 24 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 36.1 and Lane B's for Story 36.2; the dispatch fixes the runner). **Depends on:** Epic 35 (real (inference): Story 36.1 extends the `OcuTalon.Data.BackgroundCheck` row types and the step 4 names that Story 35.1 fixes); story-level: Story 36.1 needs Epics 14, 22 and 30 merged (real: the security overview's generated privilege list shows `%Ens_ProductionConfig`, Epic 14; the Watch area's purge, Story 30.2, which its tables use; footprint: the `BackgroundCheck` row types and `Checks`, which Story 22.5 changes), and Story 36.2 needs Epic 22 merged (real: with Epic 22 merged, it links Story 22.6's worked example). Story 36.2 follows Story 36.1 (real: it appends what Story 36.1 asks for). Runner order: in the pool, after Epic 21. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-27 (the setting history it links to, Story 36.1); FR-28 (the paging channels in the spine, Story 36.1; the on-call configuration with each person's channels, Story 36.2); the step 5 contracts of FR-26, FR-28, FR-29, FR-30 and FR-33 (Stories 36.1 and 36.2).
+**Also covers:** NFR-11, NFR-12, NFR-19; AD-5, AD-15, AD-16, AD-18, AD-24, AD-27, AD-29, AD-33; UX-DR141.
+
+### Epic 37: Step 6's contracts: text from PDF and Word files, and the Usage page (step 6)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, OcuTalon extracts text from PDF and Word files with Embedded Python, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel.
+**Lane:** pool (runner A, B or C; in Lane A's files for Story 37.1 and Lane B's for Story 37.2; the dispatch fixes the runner). **Depends on:** Epic 36 (real: step 5's approval kinds, which Story 37.1's approver roles list); story-level: Story 37.1 needs Epics 15 and 19 merged (real: the IPM package declares both Python packages; the `OcuTalon.Docs` area it extends). Story 37.2 follows Story 37.1 (real: it appends what Story 37.1 asks for). Runner order: in the pool, after Epic 24. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph]
+Ships in the release that completes this step, which bumps the minor version (the next 1.x.0; the number follows the order in which steps complete, not the step number). Releases in between are patch releases. [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "Okay you have convensed me, minor release steps it is."]
+**FRs covered:** FR-54 (extraction from PDF and Word files, Story 37.1); FR-52 (the usage and cost view, Story 37.2); the step 6 contracts of FR-11 and FR-54 (Stories 37.1 and 37.2).
+**Also covers:** NFR-3, NFR-24, NFR-25; AD-6, AD-20, AD-21, AD-23, AD-24, AD-29, AD-33; UX-DR147.
+
+### Step release checks (owner and Contest Planner)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new list: the criteria only the owner or the Contest Planner can meet left the feature stories, so that no story parks on the owner and holds its epic's merge; each story keeps a one-line release check, whose note quotes the removed criterion] Each item is checked at its step's release (the 1.0.0 item at the 1.0.0 release), in the release checklist and sequence (Stories 11.4 and 11.5), and a finding is fixed before that release ships. A step ships in the release that completes it, which bumps the minor version (see each step epic's version line).
+
+- **1.0.0:** Story 31.3, the author's, on the launched online demo [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: moved verbatim from Story 31.3 as a 1.0.0 release check, so Story 31.3 never parks on the launch and Epic 31 merges once `v0.1.1` is tagged]: **Given** the online demo after launch **When** the measurement runs 20 times each **Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
+- **Step 2:** Story 17.3: the author's hands-on pass with real keys (REL-7) runs the demo path on each provider, and a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes.
+- **Step 3:** Story 20.2: the author's hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram.
+- **Step 4:** Story 22.6: the author follows the worked Jira example on a clean local install with a real Jira MCP server: the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace. Story 35.1 (was 22.1): the Contest Planner checks on the demo host that its gateway configuration lets traffic through to exactly the online demo's preconfigured MCP servers, that the release checklist names each one, and that a call to a server off the list is refused on the running demo. Story 35.2 (was 21.1): the Contest Planner checks on the demo host that the proxy's allow-list blocks the webhook path.
+- **Step 5:** Story 24.4: the author's hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram.
+- **Step 6:** Story 26.2: the Contest Planner checks on the demo host that the outbound gateway swaps the dummy token on Telegram's file-download path too, a route the demo host's configuration adds before the release reaches the online demo, and the release checklist confirms it. Story 26.4: the author's hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role.
+- **Step 7 (Could):** Story 28.3: the Contest Planner checks on the demo host that `/mcp` is outside the proxy's allow-list, so the service is never reachable there. Story 28.3: the author's hands-on pass with real keys exercises each step 7 feature that ships.
 
 ## Epic 0: OcuTalon installs, starts and lets you sign in
 
@@ -3649,6 +3720,8 @@ So that Telegram is optional and the web demo path never waits on it.
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` still returns 0, so `/state` keeps the Telegram section hidden and the pairing endpoints answer 404, and this epic's tests turn Telegram on through Epic 0's test-only seam `^OcuTalonTest("TelegramIncluded")`; Story 12.7 sets `Included()` to 1 with the README's Telegram section (FR-21, FR-58)
 
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
 ### Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it
 
 As a user,
@@ -3680,6 +3753,8 @@ So that no message is lost or repeated and two installs never fight over one bot
 **When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
 **Then** it finds none (NFR-11, AD-14)
 
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
 ### Story 12.3: The Telegram card shows a fresh pairing code as a QR code
 
 As a user,
@@ -3704,6 +3779,8 @@ So that I can pair my phone in one scan without typing anything.
 **Given** codes issued during a test run
 **When** a test searches the production messages, headers, event log, live events and audit entries
 **Then** no code appears in any of them (FR-18, AD-4)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.4: A valid code pairs the chat with the session
 
@@ -3737,6 +3814,8 @@ So that I know my phone will get OcuTalon's notices.
 **When** the REL-2 spec for UJ-1's page step reaches its Telegram pairing part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it reads the code from the page's "Open in Telegram" link, injects `/start <code>` from a private chat, and sees "Telegram paired" on the card and the confirmation sent to the chat (REL-2, AD-29, UX-DR101)
 
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
 ### Story 12.5: Bad codes, a bare start command and unpairing get polite answers
 
 As a user,
@@ -3765,6 +3844,8 @@ So that nobody pairs with my session by accident or learns anything about it.
 **Given** two sessions, A and B
 **When** a chat paired with A pairs with B, or A pairs a second chat
 **Then** a chat keeps at most one live pairing: in the first case A's card shows "Telegram unpaired" and then a new code, from the `pairing` event `SessionOps` publishes to every session whose state changed; in the second the first chat gets "Another Telegram chat was paired with this OcuTalon session, so this chat is no longer paired." from the `pairing` `Notification` that `SessionOps` sends (Story 10.3), and no more of A's messages; and each change is audited (FR-18, FR-9, AD-4, UX-DR56, UX-DR109)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.6: Chat and get notifications in the paired Telegram chat
 
@@ -3795,6 +3876,8 @@ So that I can follow and steer it from my own phone.
 **Given** a Telegram turn, a pairing and several notices have run
 **When** a test searches the production messages, Visual Trace, the agent steps, the event log and the IRIS audit log
 **Then** none holds the chat's Telegram id or display name; only the `Pairing` row does (FR-15, FR-3, FR-9, AD-4)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
 
@@ -3844,6 +3927,8 @@ So that I can approve the fix from my own phone and see the result there.
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` returns 1, so `/state` shows the rail's Telegram card (Story 2.8), the pairing endpoints answer, and with a token set the Telegram installer step enables `TelegramIn` and `TelegramOut` (Story 12.1's one switch), in the same change that adds the README's Telegram section (creating a bot with BotFather, turning groups off for it, setting `TELEGRAM_BOT_TOKEN` in `.env` and restarting OcuTalon, and that each OcuTalon needs its own bot), which the card's "How to set it up" link and the "Set up a bot" banner link open, so the link never points at a missing section and Story 10.2's README link check covers it from this change on (FR-21, FR-22, FR-58, UX-DR98)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, because Lane A's Epic 29 now runs before this epic] this story also turns on the online demo's Telegram case that Epic 16 leaves off: Story 16.3's check that the rail's Telegram card shows a resumed session's pairing (FR-14, FR-15, FR-20, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Story 29.2 is Story 16.3 again; Story 29.4's paired-chat cases moved to Story 31.4]
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ## Epic 13: Any production can use the bridge
 
@@ -4418,38 +4503,7 @@ So that the demo stays affordable and available, and I always know what still wo
 
 Once a day OcuTalon sends a short digest with the vital signs, a coverage list where every entry is passed, failed or not checked, what needs the user and what was saved for later, giving an all-clear only when code allows it; an admin can choose the provider and model for each agent, set budgets and a second model for the fallback retry.
 
-### Story 17.1: Fix the step 2 contracts in the spine
-
-As a developer in Lane A,
-I want step 2's new items, tables, settings and cross-lane APIs named in the spine and present in the code as stubs,
-So that both lanes build step 2 against fixed names without waiting for each other.
-
-**Acceptance Criteria:**
-
-**Given** the details the spine leaves to step 2: the second-model retry (AD-8), the digest's composition and coverage-list storage, provider resolution by available key and a time zone changed at run time (Deferred)
-**When** this story updates `ARCHITECTURE-SPINE.md`
-**Then** the update fixes one retry runner item per agent (class `OcuTalon.Bridge.Operation.AgentRunner`, each with its own Config Store entry in the `AI.LLM.OcuTalon<Agent>` form), the bridge setting that names each agent's retry item, which fallback reasons are retried, how a retry stays within the bridge timer's limit, and how a retried `turn` treats the conversation link (FR-4, AD-5, AD-6, AD-8)
-**And** it fixes the provider table (each supported provider with its default model, its selectable models, its key's environment variable and a supported flag), the resolution rule that runs before `no_key` with its fixed provider order, and the instance zone's single run-time source: a bridge value that `OcuTalon.Bridge.Time` reads and `OcuTalon.Data.Time` reads too (FR-39, AD-7, AD-8, AD-18)
-
-**Given** the digest
-**When** the update is written
-**Then** it fixes the `Digest` item (`OcuTalon.Digest.Process`), the coverage-list storage (per check run, enough to tell whether each entry ran successfully throughout the window, missed runs included), the per-session record of the last digest, the agent and request kind of the digest's one model request, and the digest `Notification` (kind `digest`, catalog keys in `OcuTalon.Msg.Catalog.Watch`, its Slots, and check rows in release 1's check-row shape) (FR-35, FR-36, AD-28, AD-32)
-**And** every new item and table is added to the ownership tables in the same change, and each new table sets `DEFAULTGLOBAL` under `^OcuTalonP.` or `^OcuTalonBP.` from the short-name registry (AD-3, AD-33)
-
-**Given** the settings page that Lane B builds in step 2
-**When** the update lists step 2's cross-lane APIs
-**Then** it names the bridge APIs `SettingsOps` calls: the providers and models with key presence and the supported flag, a model change for one agent, a price edit, a model test, and the allow-list with validation for the token budget per decision, the daily cost cap, each agent's second model and the instance zone (FR-17, FR-39, FR-40, AD-19)
-**And** it names the step 2 setting keys in `OcuTalon.Data.Setting`: `digest.time`, `digest.channels` and `checks.thresholds.*`, which Lane B's Story 18.1 stores and the settings page edits, and which Lane A's stories read through `OcuTalon.Data.Setting.Get` with the PRD defaults (FR-17, FR-35, FR-36, AD-19)
-**And** it records that Lane B's Story 18.1, the first story of Lane B's step 2 epic, fixes the Lane B contracts these stories use: the `SendDigest` command verb and its `CommandsIn` routing to `Digest`, `Notify`'s routing of kind `digest` to the digest channels, and the handled marker that **Got it** sets on a tell-now notice (AD-1, AD-14, AD-29)
-
-**Given** the update is merged
-**When** the package compiles and the production starts
-**Then** the new Lane A items sit in Lane A's region of the one `ProductionDefinition` block (AD-29) as stubs that answer "not implemented" and stay disabled until their story enables them, the new tables compile with committed storage blocks, and the bridge APIs exist as signatures with stub bodies that Lane B can call (AD-5, AD-29)
-**And** CI's bridge-boundary, `%AI` allow-list, storage, storage-diff and duplicate `DEFAULTGLOBAL` checks pass (AD-2, AD-22)
-
-**Given** the digest texts the UX doesn't give yet: the variants beyond UJ-2's two (a session that watches no productions, a digest whose saved-for-later summary is unavailable, each not-checked reason, and the time-of-day greetings)
-**When** this story starts
-**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (FR-35, FR-37, UX-DR117, UX-DR142)
+**Story 17.1 moved to Story 33.1** (step 2 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 33, so that neither of step 2's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 17.2: Retry once on a second model before falling back
 
@@ -4480,6 +4534,7 @@ So that one model's failure doesn't turn a decision, diagnosis or reply into a f
 **Given** the CI model mock with scenarios under `ci/mock/scenarios/A/`
 **When** the tests force refusal, empty, cut off, error, timeout, rate limit and over budget on the first runner, each with the retry answering and with the retry failing
 **Then** each case retries or doesn't as the rules above say and ends in exactly one decision message, and every fallback carries its flag and reason, all on the shipped Anthropic provider path (FR-4, NFR-5, REL-4, AD-22)
+**And** with the CI-only `OCUTALON_MOCK_KEY_HEADER=1`, `OcuTalon.Install.Step.Provider` adds `x-ocutalon-mockkey` to each retry runner's `custom_headers` too, and a test in which the retry answers arms the mock's per-test countdown (`POST /_mock/countdown`) for its one marker, so the first attempt gets the failing reply and the retry the answer (AD-19, AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L6]
 
 ### Story 17.3: Run each agent on a supported provider
 
@@ -4507,10 +4562,11 @@ So that I can use the provider and model I already pay for.
 **When** such a reply arrives
 **Then** a reply the bridge can't classify falls to `unusable` and is never treated as an answer (NFR-5, AD-8)
 
-**Given** the step 2 hands-on pass with real keys (REL-7)
-**When** the demo path is run on each provider
-**Then** a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes; a provider whose run fails stays unsupported and isn't offered (FR-39, REL-7, REL-8)
-- DW-52: Bridge.ConfigStore.Merge validates only api_key's placeholder form and nested @{: any @{env:NAME}, base_url, header or secret:// passes, so a user-facing caller could pair the key placeholder with an arbitrary base_url (ledger; routed by adjudication 2026-10-21)
+**Given** a model change that `SettingsOps` submits
+**When** the bridge merges the agent's Config Store entry through `OcuTalon.Bridge.ConfigStore.Merge`
+**Then** only the provider, the model and the key placeholder `@{env:<the provider's variable>}` pass; any other environment variable, a `base_url`, a header, a `secret://` value or any other `@{` form is refused with a plain reason and nothing changes, and a test submits each (NFR-11, AD-19) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became this criterion; it read "- DW-52: Bridge.ConfigStore.Merge validates only api_key's placeholder form and nested @{: any @{env:NAME}, base_url, header or secret:// passes, so a user-facing caller could pair the key placeholder with an arbitrary base_url (ledger; routed by adjudication 2026-10-21)"]
+
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 2 hands-on pass with real keys (REL-7) **When** the demo path is run on each provider **Then** a provider's supported flag is set, so it is offered in settings and named in the release notes, only after its run passes; a provider whose run fails stays unsupported and isn't offered (FR-39, REL-7, REL-8)"]
 
 ### Story 17.4: Apply model, price, budget and zone changes through the bridge
 
@@ -4541,7 +4597,9 @@ So that I control what OcuTalon spends without restarting anything.
 **Given** an admin's time-zone change saved through `SettingsOps`
 **When** the bridge applies it
 **Then** `OcuTalon.Bridge.Time` reads the new zone from the single run-time source within a minute, so the daily cost cap's day ends at midnight in the new zone, and the test comparing `OcuTalon.Bridge.Time` with `OcuTalon.Data.Time` across a daylight-saving change passes with a changed zone (FR-17, AD-18, AD-20)
-- DW-100: The catalog's fallbackReason.timeout says 'the model didn't answer within 60 seconds', which is inexact once the bridge timer can be changed (Timeouts.Apply, Story 1.7; SettingsOps, Story 17.4); fallbackReason.rateLimited ('retries ran out') also shows when a tool ran and Decide, by AD-8, did not re-send (ledger; routed by spec_gate 2026-10-23)
+**And** if Story 33.1 (was 17.1) took its fallback (the process zone, applied by a restart), the new zone applies after that restart instead, as the settings page text and Visual Trace label it, and the tests check it after the restart (AD-18) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." Story 33.1's time-zone fallback, so a zone that needs a restart holds no step epic]
+
+**DW-100 moved to Story 18.3** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became an acceptance criterion of Story 18.3, the Lane B story that owns `OcuTalon.Msg.Catalog.Core`, where both texts live]
 
 ### Story 17.5: Check the vital signs and every coverage entry
 
@@ -4557,7 +4615,7 @@ So that the digest can say exactly what was covered and what wasn't.
 
 **Given** the check thresholds
 **When** OcuTalon installs or upgrades
-**Then** the digest area's install step seeds the defaults as `seed` values in `OcuTalon.Data.Setting` under the `checks.thresholds.*` keys Story 17.1 names (disk or journal free space below 10%; licence use above 90%; a queue backlog above 100 messages or with its oldest message waiting over 10 minutes), and the checks read them through `OcuTalon.Data.Setting.Get` on every run, so a value an admin saves in Lane B's Check thresholds section (Story 18.1) is used once the 60-second cache expires (FR-36, AD-19)
+**Then** the digest area's install step seeds the defaults as `seed` values in `OcuTalon.Data.Setting` under the `checks.thresholds.*` keys Story 33.1 (was 17.1) names (disk or journal free space below 10%; licence use above 90%; a queue backlog above 100 messages or with its oldest message waiting over 10 minutes), and the checks read them through `OcuTalon.Data.Setting.Get` on every run, so a value an admin saves in Lane B's Check thresholds section (Story 33.2 (was 18.1)) is used once the 60-second cache expires (FR-36, AD-19)
 
 **Given** each coverage entry
 **When** its check runs
@@ -4582,13 +4640,13 @@ So that one message tells me how my IRIS system is doing and what needs me.
 
 **Given** the digest time, read as `digest.time` through `OcuTalon.Data.Setting.Get` (default 08:00 in the instance zone, through `OcuTalon.Data.Time`)
 **When** the heartbeat's tick reaches it
-**Then** `Digest` composes one digest for each session and sends one `Notification` of kind `digest` with the spine update's catalog keys and Slots, which `Notify` routes to the digest channels (Lane B's Story 18.2, under the contract Story 18.1 fixes) (FR-35, AD-18, AD-32)
+**Then** `Digest` composes one digest for each session and sends one `Notification` of kind `digest` with the spine update's catalog keys and Slots, which `Notify` routes to the digest channels (Lane B's Story 18.2, under the contract Story 33.2 (was 18.1) fixes) (FR-35, AD-18, AD-32)
 **And** a digest that fell due while IRIS was down is sent once after the restart, never repeated (FR-32, FR-35, NFR-16)
 
 **Given** a digest being composed
 **When** its Slots are filled
 **Then** they hold the five parts in the PRD's order: the vital signs; the coverage list with each result as check rows; needs you (failed checks first, then tell-now items not yet dealt with by an answered approval request or by **Got it**); saved for later (digest-outcome items since the last digest, with a count and a summary); and the previous day's model cost, from midnight to midnight in the instance zone, summed from `Usage` rows owned by the session or by `instance`, never `eval` (FR-35, FR-36, AD-20, UX-DR142)
-**And** the **Got it** handled marker is read read-only from the Lane B table that Lane B's Story 18.1 fixes and Story 18.4 sets; until Story 18.4 merges, tests use fixture markers (FR-35, AD-29)
+**And** the **Got it** handled marker is read read-only from the Lane B table that Lane B's Story 33.2 (was 18.1) fixes and Story 18.4 sets; until Story 18.4 merges, tests use fixture markers (FR-35, AD-29)
 
 **Given** the saved-for-later summary
 **When** it is written
@@ -4599,9 +4657,10 @@ So that one message tells me how my IRIS system is doing and what needs me.
 **When** the digest is rendered with the catalog's texts
 **Then** it is at most 150 words (FR-35)
 
-**Given** Lane B's Story 18.1 merged (this story needs it for the `SendDigest` and **Got it** command verbs in `OcuTalon.Msg`, AD-29), and a user asks "send my digest now" in the chat
+**Given** Lane B's Story 33.2 (was 18.1) merged (this story needs it for the `SendDigest` and **Got it** command verbs in `OcuTalon.Msg`, AD-29), and a user asks "send my digest now" in the chat
 **When** the Chat agent calls the digest tool (a safe action, FR-7)
-**Then** the tool submits `SendDigest` through `Commands.Submit` with origin `tool` and an idempotency key, which `CommandsIn` accepts from that origin as Lane B's Story 18.1 records in AD-1, and the digest goes to the digest channels; the same command from Settings (origin `web_admin`) does the same, and a digest of either kind starts the next window (FR-35, FR-7, AD-1)
+**Then** the tool submits `SendDigest` through `Commands.Submit` with origin `tool` and an idempotency key, which `CommandsIn` accepts from that origin as Lane B's Story 33.2 (was 18.1) records in AD-1, and the digest goes to the digest channels; the same command from Settings (origin `web_admin`) does the same, and a digest of either kind starts the next window (FR-35, FR-7, AD-1)
+**And** the digest tool's name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** a `Notification` of kind `digest` that `Notify` routes to the paired Telegram chat (Lane B's Story 18.2; a fixture notification sent straight to `TelegramOut` until it merges)
 **When** `TelegramOut` (Lane A's from Epic 12) renders it
@@ -4646,40 +4705,7 @@ So that a quiet digest really means everything I watch was checked and passed.
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
 
-### Story 18.1: Open the settings page as an admin
-
-As an admin,
-I want a settings page that saves each section on its own, applies it within a minute and records it in the audit log,
-So that I can change OcuTalon's settings without a terminal or a restart.
-
-**Acceptance Criteria:**
-
-**Given** Lane B's step 2 contracts
-**When** this story updates `ARCHITECTURE-SPINE.md`
-**Then** the update adds the settings REST routes (`GET /api/v1/settings` and one admin-checked save route per section), the `SendDigest` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to `Digest` (origins `tool` and `web_admin` accepted, and AD-1's list of commands accepted from origin `tool` gains it), the **Got it** command and the Lane B table holding each tell-now notice's handled marker, a `handled` notification that tells each `*Out` operation to update its copy (Telegram's through Story 17.6) and a `Delivery` lookup by the notice's `Ref`, and `Notify`'s routing of kind `digest`, each added to the ownership tables in the same change (AD-1, AD-14, AD-29, AD-33)
-**And** the bridge settings APIs, the `Digest` item and the instance zone's run-time source are Lane A's, fixed by Lane A's Story 17.1 and built in Stories 17.3, 17.4 and 17.6; this epic calls them by the spine's names and tests against Story 17.1's stub signatures until those stories merge (AD-19, AD-29)
-
-**Given** a signed-in user with `OcuTalonAdmin`
-**When** the page loads
-**Then** the header shows navigation with "Chat" and "Settings" (D `header-nav-item`, the current page marked `aria-current="page"`, inside a navigation landmark), and Settings opens a page titled "Settings · OcuTalon" with section navigation on the left: Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode (FR-17, UX-DR21, UX-DR22, UX-DR29, UX-DR130, UX-DR141)
-
-**Given** a signed-in user without `OcuTalonAdmin`
-**When** they use the app or open the settings address directly
-**Then** no Settings link shows, the address shows "Only OcuTalon admins can open settings." with a link back to the chat, and every settings API call answers 403 in the error shape `{"error": {"code", "message"}}` (FR-17, AD-13, UX-DR141)
-
-**Given** an admin changed a section's values
-**When** they press **Save changes**
-**Then** the web layer submits one command through `Commands.Submit` with origin `web_admin`; `SettingsOps` writes each value, audits it through `OcuTalon.Bridge.Audit` (type `Settings`, with the admin's IRIS user, `SessionRef`, channel, and old and new values, never a secret) and applies it within a minute without restarting IRIS or the production; and the section confirms "Saved. Applies within a minute. Recorded in the audit log." (FR-17, FR-9, AD-1, AD-17, AD-19, UX-DR141)
-**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141)
-
-**Given** the Check thresholds and Demo mode sections
-**When** an admin saves them
-**Then** thresholds save as product values under the `checks.thresholds.*` keys, read through `OcuTalon.Data.Setting.Get`, so checks use them within 60 seconds, and Demo mode switches through the same `SettingsOps` path as `OcuTalon.Core.Admin.SetDemoMode` (FR-17, FR-36, FR-16, AD-19)
-**And** `OcuTalon.Data.Setting` stores every step 2 setting key Lane A's Story 17.1 names (`digest.time`, `digest.channels`, `checks.thresholds.*`), written only by `SettingsOps` and edited on this page (the digest keys in Story 18.2's Daily digest section), and Lane A's stories read them through `Setting.Get` with the PRD defaults (FR-17, FR-35, FR-36, AD-19)
-
-**Given** the tests
-**When** they run
-**Then** one reads each kind of settings change back from the IRIS audit log, one submits a settings command with origin `tool` and expects a refusal, and the fixed-strings test covers every new label (FR-9, AD-1, AD-22, UX-DR117)
+**Story 18.1 moved to Story 33.2** (step 2 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 33, so that neither of step 2's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 18.2: Set the time zone and the daily digest at run time
 
@@ -4689,14 +4715,15 @@ So that times and the digest fit where I work without a restart.
 
 **Acceptance Criteria:**
 
-**Given** the instance zone's single run-time source, a bridge value that `OcuTalon.Bridge.Time` reads, fixed by Lane A's Story 17.1 and applied in the bridge by Story 17.4
+**Given** the instance zone's single run-time source, a bridge value that `OcuTalon.Bridge.Time` reads, fixed by Lane A's Story 33.1 (was 17.1) and applied in the bridge by Story 17.4
 **When** an admin picks a zone in Time zone and saves
 **Then** `SettingsOps` writes it through the bridge's allow-list, `OcuTalon.Data.Time` reads the same source, and within a minute message times, reminder phrasing such as "Thursday at 10", the digest time and each model request's local-time preamble use the new zone (FR-17, FR-12, FR-34, AD-18, UX-DR123)
 **And** pending reminders keep their stored UTC due times, and page times stay in the browser's zone (FR-34, AD-18)
+**And** this story changes `OcuTalon.Data.Time` (Lane B's) to read that source, in the way Task 0 of Story 33.1 (was 17.1) measured, and the test comparing it with `OcuTalon.Bridge.Time` across a daylight-saving change passes with a changed zone (AD-18, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M6]
 
 **Given** the Daily digest section
 **When** an admin sets the time (default 08:00) and the channels (the web chat, the simulated phone in demo mode, and Telegram when it is set up) and saves
-**Then** both save as product values (`digest.time` and `digest.channels`, the keys Story 17.1 names), and `Notify` routes a `Notification` of kind `digest` only to the chosen channels from the next digest (FR-17, FR-35, AD-14)
+**Then** both save as product values (`digest.time` and `digest.channels`, the keys Story 33.1 (was 17.1) names), and `Notify` routes a `Notification` of kind `digest` only to the chosen channels from the next digest (FR-17, FR-35, AD-14)
 **And** **Send my digest now** submits `SendDigest` with origin `web_admin`, follows the busy pattern, and the digest arrives on the chosen channels (FR-35, UX-DR32, UX-DR142)
 
 **Given** the Channels section
@@ -4706,6 +4733,7 @@ So that times and the digest fit where I work without a restart.
 **Given** a test changes the zone, the digest time and the digest channels
 **When** it checks the next minute's behaviour
 **Then** each change applies without restarting IRIS or the production and appears in the audit log (FR-17, FR-9)
+**And** if Story 33.1 (was 17.1) took its fallback (the process zone, applied by a restart), the Time zone section says that saving a zone restarts the production, the zone change applies after that restart, and the test checks it after the restart; the digest's time and channels still apply without one (FR-17, AD-18) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." Story 33.1's time-zone fallback, so a zone that needs a restart holds no step epic]
 
 ### Story 18.3: Choose models and set budgets in Settings
 
@@ -4736,6 +4764,10 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 **When** the page shows the no-model-key banner
 **Then** it uses the text from step 2 on, "OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.", with "How to set a key" (FR-38, FR-39, UX-DR98, UX-DR116)
 
+**Given** the catalog's `fallbackReason.timeout` and `fallbackReason.rateLimited` texts in `OcuTalon.Msg.Catalog.Core`
+**When** the bridge timer can change (`Timeouts.Apply`, Story 1.7; `SettingsOps`, Story 17.4) and `Decide`, by AD-8, doesn't re-send after a tool ran
+**Then** this story proposes new wording for both to the author and ships only the accepted text: the timeout text names no fixed number of seconds, and the rate-limit text no longer says that retries ran out when a tool ran and nothing was re-sent (FR-4, AD-8, UX-DR117) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the ledger bullet routed to Story 17.4 became this criterion of the Lane B story that owns `Catalog.Core`; it read "- DW-100: The catalog's fallbackReason.timeout says 'the model didn't answer within 60 seconds', which is inexact once the bridge timer can be changed (Timeouts.Apply, Story 1.7; SettingsOps, Story 17.4); fallbackReason.rateLimited ('retries ran out') also shows when a tool ran and Decide, by AD-8, did not re-send (ledger; routed by spec_gate 2026-10-23)"]
+
 **Given** the README
 **When** this story merges
 **Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model, and claims only providers marked supported (FR-39, FR-58, NFR-11)
@@ -4748,7 +4780,7 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 
 **Acceptance Criteria:**
 
-**Given** a `Notification` of kind `digest` with the Slots and check rows Lane A's Story 17.1 fixes (a fixture until Lane A's Story 17.6 merges), rendered with the catalog texts the author accepted from Story 17.1's proposal
+**Given** a `Notification` of kind `digest` with the Slots and check rows Lane A's Story 33.1 (was 17.1) fixes (a fixture until Lane A's Story 17.6 merges), rendered with the catalog texts the author accepted from Story 33.1 (was 17.1)'s proposal
 **When** `WebChatOut` delivers it
 **Then** the web chat shows a digest card (D `digest-card`: a 4px brand-teal accent bar, the digest text, then "What I checked ({n})" as a disclosure of check rows), expanded when any entry failed or wasn't checked and collapsed otherwise (FR-35, FR-36, UX-DR142, UX-DR65, UX-DR127)
 
@@ -4770,38 +4802,13 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 **When** this epic's stories merge
 **Then** the demo path still passes, and a Playwright test covers the Settings page as the README account, a fixture digest card and **Got it** (REL-2, UX-DR117)
 
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
 A user tells OcuTalon to remember something and it recalls it later by meaning or keyword, offline, from its own database; OcuTalon answers from added Markdown and text documents with citations, saying so when nothing is relevant.
 
-### Story 19.1: Settle step 3 ownership and fix its contracts
-
-As a developer in Lane A,
-I want P6's decision, made through P23, confirmed in every document, and step 3's items, tables and extension class named in the spine,
-So that memory and documents are built once, with the right owner, by both lanes.
-
-**Acceptance Criteria:**
-
-**Given** P6 (on the online demo, documents and memories belong to the session and clear at the reset; UX change 9) and spike S14's result
-**When** this story starts
-**Then** P6 was decided through P23; this story confirms that the PRD (FR-15, FR-41, FR-42), the UX's open items and assumptions, and the spine record it (FR-15, FR-41, FR-42, UX-DR107, UX-DR153, AD-4)
-**And** the stories below follow that decision: per session on the online demo, cleared at the reset, and on a local install, memories per user and documents shared by every user, as the author decided in P23 on October 17 and AD-4 and AD-21 record (FR-15, FR-41, FR-42, AD-4, AD-21)
-
-**Given** the details the spine leaves to step 3
-**When** this story updates `ARCHITECTURE-SPINE.md`
-**Then** it adds the memory and document operations (Lane A), the embedding worker category `OcuTalon.Memory.Embedder`, the tables `OcuTalon.Data.Memory` and `OcuTalon.Data.Document` (Lane A) and the knowledge-base tables `OcuTalon.Docs` creates, the `document` live event with its single publisher, the memory and document tool names, the hybrid-ranking parameters, the fourth extension class `TurnToolsClass`, and how a reply marks the passages and memories it used, each in the ownership tables in the same change (AD-21, AD-31, AD-33)
-**And** it aligns AD-21's dropping of per-session knowledge-base tables with the reset as the spine now fixes it: the reset restores the golden copy and runs nothing, so no demo session's tables or memories survive it, and no code drops them at the reset; a sign-out drops them instead through the per-session drop methods `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)` (Lane A, built in Story 19.5), which Lane B's `SessionOps.End` calls (Story 20.1) (AD-4, AD-21, AD-25, AD-29)
-**And** it records that Lane B's Story 20.1, the first story of Lane B's step 3 epic, fixes the Lane B contracts these stories use: the memory and document command verbs in `OcuTalon.Msg` with their `CommandsIn` routing (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes and the Dockerfile lines for `fastembed` 0.9.0 and the baked model; and that Lane B's Story 20.2 carries a reply's memories and citations onto `chat.message` (AD-1, AD-23, AD-29)
-
-**Given** the update is merged
-**When** the package compiles and the production starts
-**Then** the new items are stubs in Lane A's region of the one `ProductionDefinition` block (AD-29), disabled until their story enables them; the new tables commit their storage blocks and set `DEFAULTGLOBAL` under `^OcuTalonP.`; the two drop methods exist as signatures with stub bodies that Lane B can call; and a CI check fails any knowledge-base `CREATE TABLE` without that rule (AD-3, AD-5, AD-29, AD-33)
-**And** every start's private-data check covers the memory, document and knowledge-base globals and `^IRIS.IF.*`, and fails if any of them lands in the data database (NFR-18, AD-3, AD-23)
-
-**Given** an IPM install into an existing instance, where the package can't set the IRIS process's environment
-**When** this story checks the FastEmbed model path on a clean build 154 instance with outbound network access blocked after the install
-**Then** the install downloads the model once into `<mgr>/fastembed/`; OcuTalon passes that folder explicitly, as the Python `fastembed` package's `cache_dir` and as `FASTEMBED_CACHE_DIR` set inside its own worker before first use; and the check confirms that AI Hub's FastEmbed, used for documents, finds the model by that path offline on first use (FR-41, FR-42, FR-57, AD-21)
-**And** the result is recorded in the spine update; if AI Hub's FastEmbed doesn't find the model that way, the story stops and puts the gap to the author before any document code is written (AD-21)
+**Story 19.1 moved to Story 34.1** (step 3 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 34, so that neither of step 3's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 19.2: Compute embeddings offline in a worker
 
@@ -4811,7 +4818,7 @@ So that memory works offline and nothing I store leaves IRIS.
 
 **Acceptance Criteria:**
 
-**Given** the image built with the lines Lane B's Story 20.1 adds (`fastembed==0.9.0` installed pinned into IRIS's Python folder, and the AllMiniLM-L6-v2 model baked into a root-owned, read-only folder named by `FASTEMBED_CACHE_DIR`), or a developer image with the same lines until it merges
+**Given** the image built with the lines Lane B's Story 34.2 (was 20.1) adds (`fastembed==0.9.0` installed pinned into IRIS's Python folder, and the AllMiniLM-L6-v2 model baked into a root-owned, read-only folder named by `FASTEMBED_CACHE_DIR`), or a developer image with the same lines until it merges
 **When** OcuTalon embeds text
 **Then** `OcuTalon.Memory.Embedding` (an `%Embedding.Interface` class) returns 384-dimension vectors from the Python `fastembed` package, identical to AI Hub's AllMiniLM-L6-v2 vectors for the same text, so `EMBEDDING()` and embedding columns work (FR-41, CON-4, AD-21, AD-23)
 
@@ -4825,7 +4832,7 @@ So that memory works offline and nothing I store leaves IRIS.
 
 **Given** an IPM install into an existing instance
 **When** the package installs
-**Then** the package declares `fastembed==0.9.0` for the install, the memory area's install step downloads the model once into `<mgr>/fastembed/`, and `OcuTalon.Memory.Embedder` passes that folder as the package's `cache_dir` and sets `FASTEMBED_CACHE_DIR` inside its own worker before first use, by the path Story 19.1 confirmed; later starts and upgrades don't download it again (FR-41, FR-57, AD-21)
+**Then** the package declares `fastembed==0.9.0` for the install, the memory area's install step downloads the model once into `<mgr>/fastembed/`, and `OcuTalon.Memory.Embedder` passes that folder as the package's `cache_dir` and sets `FASTEMBED_CACHE_DIR` inside its own worker before first use, by the path Story 34.1 (was 19.1) confirmed; later starts and upgrades don't download it again (FR-41, FR-57, AD-21)
 
 ### Story 19.3: Remember, recall, list and forget in the chat
 
@@ -4835,9 +4842,10 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 
 **Acceptance Criteria:**
 
-**Given** Lane B's Story 20.1 merged (this story needs it for the save-memory and forget command verbs in `OcuTalon.Msg`, AD-29), and a user says "Remember that the Results partner's contact is Lee"
+**Given** Lane B's Story 34.2 (was 20.1) merged (this story needs it for the save-memory and forget command verbs in `OcuTalon.Msg`, AD-29), and a user says "Remember that the Results partner's contact is Lee"
 **When** the Chat agent calls the save-memory tool (a safe action, FR-7)
 **Then** the tool submits the save command through `Commands.Submit` (origin `tool`, idempotency key), and the memory operation stores it in `OcuTalon.Data.Memory` with its owner, the date and its provenance, a `VECTOR(DOUBLE,384)` embedding under an HNSW index, and an `%iFind` keyword index (FR-41, FR-7, AD-1, AD-21)
+**And** the memory tools' names are added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** stored memories
 **When** a later question matches by meaning ("who do I call about Results?") or by keyword ("Lee")
@@ -4872,6 +4880,7 @@ So that I can trust the answer and check the passage myself.
 **When** the Chat agent searches them
 **Then** the search tool is named `documents` and returns at most 5 passages per model request (the gate clamps `top_k` to 5), and the reply carries a citation for each passage it used, naming its document and section from `source` and `chunk_index` (FR-42, NFR-3, AD-10, AD-21)
 **And** document results are never trusted output, so the turn is tainted and the next one is quarantined (NFR-14, AD-10)
+**And** the `documents` tool's name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** a question no document covers
 **When** the agent answers
@@ -4900,6 +4909,7 @@ So that no other visitor sees or searches what I added.
 **Given** a turn
 **When** the runner prepares it
 **Then** the bridge's `TurnToolsClass` setting returns the session's knowledge base or none, and the adapter builds a fresh tool manager for the turn (the agent's tools, that knowledge base, the gate and the audit policy) and assigns it before `OpenSession`, in the method that composes the session config, so no knowledge base stays bound across turns (AD-6, AD-21, AD-31)
+**And** the fresh tool manager also carries the MCP servers the runner attached in `OnAfterAgentInit` (from step 4, the registered servers Story 35.1 (was 22.1) attaches), so no MCP tool drops out of a turn; this story records it in AD-21's per-turn attach, and a test with a fixture toolset attached in `OnAfterAgentInit` finds it in the turn's tool manager (AD-6, AD-21) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M5]
 **And** with its do-nothing default the bridge runs alone as before, and the standalone bridge job with `OcuTalon.BridgeExample` still passes (FR-5, AD-2, AD-31)
 
 **Given** two concurrent online-demo sessions with different documents and memories
@@ -4911,7 +4921,7 @@ So that no other visitor sees or searches what I added.
 **Then** no demo session's knowledge-base tables or memories exist, because the golden copy holds none, and a session's table, once gone, is never reopened or rebuilt (FR-15, FR-59, AD-21, AD-25)
 
 **Given** an online-demo session with documents and memories that signs out
-**When** Lane B's `SessionOps.End` calls `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, which this story builds in place of Story 19.1's stubs
+**When** Lane B's `SessionOps.End` calls `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, which this story builds in place of Story 34.1 (was 19.1)'s stubs
 **Then** the first drops that session's knowledge-base tables (`OcuTalonKB.S<session>` and its `_Config`) and its documents, the second deletes that session's memories, each is idempotent and touches no other session's data, and the dropped table is never reopened (FR-14, FR-15, FR-41, FR-42, AD-4, AD-21)
 
 **Given** the upgrade-in-place harness in `release/`
@@ -4922,38 +4932,7 @@ So that no other visitor sees or searches what I added.
 
 A user adds Markdown and plain-text documents from the web app and sees which documents an answer cited.
 
-### Story 20.1: Add and remove documents on a Documents page
-
-As a user,
-I want a Documents page where I add Markdown and plain-text runbooks and remove them,
-So that OcuTalon can answer from my own documents.
-
-**Acceptance Criteria:**
-
-**Given** Lane B's part of step 3
-**When** this story updates `ARCHITECTURE-SPINE.md` and the code
-**Then** it adds the memory and document command verbs in `OcuTalon.Msg`, routed by `CommandsIn` to Lane A's memory and document operations under the names Lane A's Story 19.1 fixes (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes, and the Dockerfile lines that install `fastembed==0.9.0` pinned into IRIS's Python folder and bake the AllMiniLM-L6-v2 model into a root-owned, read-only folder named by `FASTEMBED_CACHE_DIR`; each new route and class goes into the spine's tables in the same change (AD-1, AD-21, AD-23, AD-29, AD-33)
-
-**Given** a signed-in user
-**When** the header navigation shows
-**Then** it adds "Documents", which opens a page titled "Documents · OcuTalon" listing each document's name, date added, size and status ("Indexing…", "Ready" or "Couldn't read it: {reason}"), updated live from `document` events; with no documents it reads "No documents yet. Add a runbook to get cited answers." (FR-42, UX-DR21, UX-DR22, UX-DR144)
-
-**Given** the user presses **Add documents**
-**When** they pick Markdown or plain-text files, or drop them on the page
-**Then** each file goes through the documents route, which submits the add command with origin `web_user`, and its row appears as "Indexing…"; a file of any other type is refused and its row reads "Couldn't read it: {reason}" (FR-42, AD-1, UX-DR144)
-**And** the file picker is always there, so drag-and-drop is never the only way, and every control works by keyboard (NFR-25, UX-DR125, UX-DR129)
-
-**Given** a document row
-**When** the user chooses to remove it
-**Then** a dialog asks "Remove '{name}'? Answers will stop citing it." (fixture "Remove 'Results runbook'? Answers will stop citing it."), and confirming submits the remove command and the row leaves the list (FR-42, UX-DR144, UX-DR38)
-
-**Given** the online demo, with P6 decided as proposed (Lane A's Story 19.1) and per-session knowledge bases built by Lane A's Story 19.5 (fixture rows of two sessions until it merges)
-**When** a session opens Documents
-**Then** it lists only that session's documents, which clear at the reset, and never another session's (FR-15, AD-4, UX-DR107)
-
-**Given** an online-demo session that signs out
-**When** `SessionOps.End` (Story 16.4) runs
-**Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 19.1's stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
+**Story 20.1 moved to Story 34.2** (step 3 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 34, so that neither of step 3's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 20.2: See citations and memories in answers
 
@@ -4963,7 +4942,7 @@ So that I can tell where an answer came from.
 
 **Acceptance Criteria:**
 
-**Given** a `Reply` whose `HostData` carries citations or memories, in the shape Lane A's Story 19.1 fixes and Stories 19.3 and 19.4 fill (fixture replies until they merge)
+**Given** a `Reply` whose `HostData` carries citations or memories, in the shape Lane A's Story 34.1 (was 19.1) fixes and Stories 19.3 and 19.4 fill (fixture replies until they merge)
 **When** `Conversation` records the turn
 **Then** it puts them on the outbound reply and on `chat.message` after the reply filter has run, as it does for check rows (AD-6, AD-28, AD-30)
 
@@ -4981,48 +4960,13 @@ So that I can tell where an answer came from.
 **Then** it is a button whose name includes its document or memory, its popover follows the popover rules, and nothing relies on colour alone (NFR-25, UX-DR38, UX-DR130, UX-DR134)
 **And** the fixed-strings test covers the new texts (UX-DR117)
 
-**Given** step 3's stories in both lanes have merged
-**When** step 3's release is prepared
-**Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 3's stories in both lanes have merged **When** step 3's release is prepared **Then** a hands-on pass with real keys exercises memory and cited document answers on the web app and in Telegram, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 21: Email, webhooks and MCP settings (step 4)
 
 An admin connects a real mailbox and SMTP server and creates webhooks with their own secrets, and adds, removes and classifies MCP servers and tools from the settings page; each email and webhook event is an item with a decision in Visual Trace.
 
-### Story 21.1: Fix Lane B's step 4 contracts and send events to OcuTalon through a webhook
-
-As an admin,
-I want to create webhooks, each with its own secret, that turn any JSON event into an item,
-So that other systems can tell OcuTalon what happened and it decides what needs me.
-
-**Acceptance Criteria:**
-
-**Given** Lane B's step 4 contracts, including the webhook details the spine leaves to step 4
-**When** this story updates `ARCHITECTURE-SPINE.md`
-**Then** the update adds a Lane B webhook table (each webhook's reference, name, owning session and salted secret hash), the `/ocutalon/hook` application created by `OcuTalon.Install.Step.Web` (a dispatch class only, no session, and a minimal webhook role whose grants the install step declares through `Grants()`), the header that carries the secret and the body size cap, the email and MCP settings routes, and the record where `EmailIn` keeps each poll's outcome (which Lane A's Story 22.5 reads), each added to the ownership tables in the same change (FR-44, FR-45, FR-47, AD-13, AD-23, AD-33)
-**And** it adds the command verbs in `OcuTalon.Msg` with their `CommandsIn` routing: the MCP verbs (add or remove a server, classify a tool, set or remove a source poll) to Lane A's `McpOps` under the names Lane A's Story 22.1 fixes, refused from origin `tool`; and `SendEmail` to `EmailOut`, accepted from origin `tool` only when every recipient is the session user's own address, which AD-1's list of commands accepted from origin `tool` gains (FR-44, FR-47, AD-1, AD-29)
-
-**Given** Lane A's `McpOps` (Story 22.2), which must restart the runners after a server is added or removed
-**When** it calls `OcuTalon.Core.SettingsOps.RestartRunners()`, which this story builds
-**Then** the runner items restart through `Ens.Director`, so each runner builds its agent again with the servers then registered, and a test calls it and finds every runner item restarted with the production still running (FR-47, AD-19, AD-21, AD-29)
-
-**Given** the step 4 texts the UX doesn't give yet: the email and webhook settings, the changed-tool banner in Settings, the source-poll form and the cancelled status of an approval request
-**When** this story starts
-**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps › Step 4), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
-
-**Given** an admin in Settings › Channels
-**When** they create a webhook with a name and a secret
-**Then** the secret is stored only as a salted hash, its field is write-only and never shows the value again, any value containing `@{` is refused, the webhook's events belong to the admin's session, and the change is audited without the secret (FR-45, FR-9, NFR-11, AD-19)
-
-**Given** a `POST` to that webhook with the right secret and a JSON body under the cap
-**When** it arrives
-**Then** the endpoint answers 202 within 1 second, before any decision, and `WebhookIn` sends the event to `Intake` as an untrusted Item, which gets its attention decision afterwards; the event and its decision appear in Visual Trace in the event's own trace session (FR-45, FR-1, FR-7, NFR-14, NFR-20, AD-14, AD-26, AD-30)
-
-**Given** a request for an unknown webhook, or with a missing or wrong secret
-**When** it arrives
-**Then** it gets the same 401, the secret is compared as a salted hash in constant time, nothing becomes an item, and the rejection is recorded in the audit log at a capped rate (FR-45, FR-14, AD-13, AD-17)
-**And** a body over the cap, or one that isn't JSON, is refused without becoming an item (FR-45, AD-13)
-**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, and on the online demo the proxy's allow-list blocks the webhook path (FR-14, AD-25)
+**Story 21.1 moved to Story 35.2** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 21.2: Read a mailbox and send email over POP3 and SMTP
 
@@ -5035,16 +4979,17 @@ So that each new email gets an attention decision and OcuTalon can email me.
 **Given** an admin in Settings › Channels on a local or IPM install
 **When** they enter a POP3 server and an SMTP server with their credentials and save
 **Then** `SettingsOps` stores the credentials in IRIS Interoperability credentials (write-only fields, `@{` refused), sets the `EmailIn` and `EmailOut` host settings with the installer's client SSL configuration, applies them within a minute and audits the change without secrets; the mailbox belongs to the admin's session, and its address is that user's own address (FR-44, FR-17, FR-9, NFR-11, AD-19)
-**And** a `SendEmail` command reaches `EmailOut` from origin `tool` only when every recipient is the session user's own address, and is refused otherwise, as Story 21.1 fixed; Lane A's email tool (Story 22.7) relies on this (FR-44, AD-1)
+**And** a `SendEmail` command reaches `EmailOut` from origin `tool` only when every recipient is the session user's own address, and is refused otherwise, as Story 35.2 (was 21.1) fixed; Lane A's email tool (Story 22.7) relies on this (FR-44, AD-1)
 
 **Given** a connected mailbox
 **When** `EmailIn` polls it
 **Then** each email that arrived after the mailbox was connected becomes one untrusted Item sent to `Intake` for its attention decision, mail stays on the server (the adapter's `DeleteMessage` is off), and an email already seen never becomes an item again, across restarts too (FR-44, FR-33, FR-7, NFR-14, AD-14, AD-30)
-**And** each poll's outcome (its time, and success or a plain reason) is recorded where Story 21.1 fixed it, so Lane A's Story 22.5 can show the mailbox as a source on the digest's coverage list (FR-36, AD-28)
+**And** each poll's outcome (its time, and success or a plain reason) is recorded where Story 35.2 (was 21.1) fixed it, so Lane A's Story 22.5 can show the mailbox as a source on the digest's coverage list (FR-36, AD-28)
 
 **Given** email chosen as a digest channel in Settings › Daily digest, which offers it once a mailbox is connected
 **When** `EmailOut` sends the digest
 **Then** it goes only to the user's own address, as plain text rendered from the catalog, recorded as a `Delivery` (FR-44, FR-35, FR-17, AD-14, AD-32)
+**And** this story adds the `email` channel to `OcuTalon.Msg.Catalog.Render` as the renderer's owner (Lane B), as plain text under the `phone` channel's rules, so `EmailOut` renders the digest here and the pages of Story 24.3, and the render tests cover every key `EmailOut` sends (AD-32) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M9]
 
 **Given** the online demo
 **When** it runs
@@ -5093,12 +5038,12 @@ So that I decide which added tools OcuTalon may use, and how.
 **Given** an admin opens Settings › Tools and MCP servers, the section step 4 adds
 **When** it loads
 **Then** it lists each server's name, address, status, tool count and count of unclassified tools, and a tools table with a classification control per tool that can be filtered with "Unclassified only" (FR-47, FR-48, UX-DR141, UX-DR145)
-**And** the tools and their counts come from Lane A's read API `OcuTalon.Mcp.Ops.Tools(server)` (each discovered tool's name, classification and status, unclassified tools included), tested against Story 22.1's stub until Lane A's Story 22.2 merges (FR-48, AD-29)
+**And** the tools and their counts come from Lane A's read API `OcuTalon.Mcp.Ops.Tools(server)` (each discovered tool's name, classification and status, unclassified tools included), tested against Story 35.1 (was 22.1)'s stub until Lane A's Story 22.2 merges (FR-48, AD-29)
 
 **Given** an admin presses **Add server** and enters a name, an `https://` address and an optional secret
 **When** they save
-**Then** the admin-checked route submits the add command with origin `web_admin` to Lane A's `McpOps` (Story 22.2, under the contract Story 22.1 fixes; a fixture operation until it merges); an address that isn't `https://` (or loopback for development) or a value containing `@{` gets a field error; the secret field is write-only; and the server's tools arrive as Unclassified (FR-47, FR-48, NFR-11, AD-19, AD-21, UX-DR36)
-**And** `CommandsIn` refuses every MCP verb from origin `tool`, as Story 21.1 fixed, and a test submits each with origin `tool` and expects a refusal (FR-47, AD-1)
+**Then** the admin-checked route submits the add command with origin `web_admin` to Lane A's `McpOps` (Story 22.2, under the contract Story 35.1 (was 22.1) fixes; a fixture operation until it merges); an address that isn't `https://` (or loopback for development) or a value containing `@{` gets a field error; the secret field is write-only; and the server's tools arrive as Unclassified (FR-47, FR-48, NFR-11, AD-19, AD-21, UX-DR36)
+**And** `CommandsIn` refuses every MCP verb from origin `tool`, as Story 35.2 (was 21.1) fixed, and a test submits each with origin `tool` and expects a refusal (FR-47, AD-1)
 
 **Given** an admin presses **Remove** on a server
 **When** the dialog asks "Remove {server}? Its {n} tools go at once, and {m} pending approval request for them is canceled." (fixture "Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is canceled.")
@@ -5110,7 +5055,7 @@ So that I decide which added tools OcuTalon may use, and how.
 
 **Given** a tool whose description or inputs changed, which Lane A's Story 22.2 made Unclassified
 **When** an admin opens Settings
-**Then** a banner, in the wording the author accepted from Story 21.1's proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
+**Then** a banner, in the wording the author accepted from Story 35.2 (was 21.1)'s proposal, names the tool, and its control shows Unclassified, alongside the notice card the admin's chat gets (FR-48, UX-DR145)
 
 **Given** the online demo
 **When** anyone signs in
@@ -5126,7 +5071,7 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 
 **Given** a tool classified Read-only
 **When** an admin sets it up as a source poll with a name, its arguments and an interval, and saves
-**Then** the form uses the wording the author accepted from Story 21.1's proposal, the admin-checked route submits the source-poll command to Lane A's `McpOps`, which Lane A's Story 22.5 runs, the source belongs to the admin's session, and a tool that isn't Read-only can't be chosen, with the reason shown beside it (FR-50, FR-33, UX-DR145, UX-DR133)
+**Then** the form uses the wording the author accepted from Story 35.2 (was 21.1)'s proposal, the admin-checked route submits the source-poll command to Lane A's `McpOps`, which Lane A's Story 22.5 runs, the source belongs to the admin's session, and a tool that isn't Read-only can't be chosen, with the reason shown beside it (FR-50, FR-33, UX-DR145, UX-DR133)
 **And** until Story 22.5 merges, the tests submit the source-poll command to a `McpOps` test double that records it (AD-29)
 
 **Given** a pending approval request of kind `tool_call` with no incident, raised by Lane A's Story 22.4 (a fixture request until it merges)
@@ -5141,39 +5086,13 @@ So that sources feed OcuTalon new items and I approve only calls I understand.
 
 **Given** a pending request that Lane A's Story 22.4 cancelled because its server was removed
 **When** the cancellation arrives
-**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 21.1's proposal (FR-47, FR-8, AD-11)
+**Then** its buttons stop working on every channel, it leaves the rail within one live update, and its card shows the cancelled status in the wording the author accepted from Story 35.2 (was 21.1)'s proposal (FR-47, FR-8, AD-11)
 
 ## Epic 22: Extend OcuTalon with MCP servers, governed like built-in tools (step 4)
 
 Tools from an added MCP server become OcuTalon's tools under the same gate, classification, approval and audit, unclassified counting as risky and changed tools losing their classification; a read-only MCP tool can be polled as a source on the digest's coverage list, with a worked Jira example.
 
-### Story 22.1: Fix step 4's contracts and register MCP servers
-
-As an admin,
-I want the MCP servers I register attached to OcuTalon's agents so that their tools are listed for OcuTalon,
-So that I can extend OcuTalon with tools I already run.
-
-**Acceptance Criteria:**
-
-**Given** the details the spine leaves to step 4
-**When** this story updates `ARCHITECTURE-SPINE.md`
-**Then** the update adds the MCP operation `McpOps` (class `OcuTalon.Mcp.Ops`, Lane A), which owns `OcuTalon.Mcp.Server` and `OcuTalon.Mcp.ToolClassification`; the commands it accepts (add or remove a server, classify a tool, set or remove a source poll); the source-poll row type in `OcuTalon.Data.BackgroundCheck`; the read API `OcuTalon.Mcp.Ops.Tools(server)`, which returns each discovered tool's name, classification and status from `OcuTalon.Mcp.ToolClassification` rows (every discovered tool has a row, unclassified included) and which Lane B's settings page reads; and the email fix kind with the path by which a standalone fix's approval reaches `FixExecutor` and its send through `EmailOut`, each in the ownership tables in the same change (FR-44, FR-47, FR-48, FR-50, AD-16, AD-21, AD-33)
-**And** it records that Lane B's Story 21.1, the first story of Lane B's step 4 epic, fixes the Lane B contracts these stories use: the MCP command verbs with `CommandsIn` routing to `McpOps` that refuses origin `tool`, the `SendEmail` verb with its routing to `EmailOut` for the session user's own address, the record where `EmailIn` keeps its poll outcomes, and `OcuTalon.Core.SettingsOps.RestartRunners()`, which restarts the runner items through `Ens.Director` and which `McpOps` calls after a server is added or removed (AD-1, AD-21, AD-29)
-**And** it records in AD-31 that a fix request with no incident (the email fix kind, Story 22.7) gets its `approval`, `answered` and `result` notifications from `OcuTalon.Core.BridgeSink`, as tool calls do, which Lane B's Story 21.5 builds; `IncidentManager` does this only for kind `fix` requests of an incident (AD-31, AD-32)
-**And** once the update is merged, `Tools(server)` exists in code as a signature with a stub body that Lane B's Story 21.4 can call until Story 22.2 builds it (AD-29)
-
-**Given** the step 4 texts Lane A's stories need that the UX doesn't give yet: the changed-tool notice card in an admin's chat, the notices for an unavailable server and a refused shadowing tool, a replay refused because its tool changed, and a source that stopped polling
-**When** this story starts
-**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
-
-**Given** a registered server (in this story's tests, a fixture `OcuTalon.Mcp.Server` row with its Config Store entry `AI.MCP.OcuTalon_<server>`; Story 22.2 handles the add and remove commands)
-**When** a runner builds its agent
-**Then** the adapter attaches it in `OnAfterAgentInit`, after the agent's own toolsets, as `mcp:remote:@{config:AI.MCP.OcuTalon_<server>}`, checks the attach and tool statuses, reports an unavailable server, refuses a tool whose name shadows a built-in and tells admins, and every new tool starts unclassified (FR-47, FR-48, AD-6, AD-21)
-**And** the tests run against a mock MCP server on loopback from `OcuTalon.Test.Mcp`, offering a read-only tool and a risky one, which the later stories of this epic reuse (AD-22)
-
-**Given** the online demo with its preconfigured MCP servers on the demo's allow-list
-**When** the step 4 release is prepared
-**Then** the demo host's gateway configuration (outside the repository) lets traffic through to exactly those servers and to no other MCP destination, the release checklist names each allowed server, and a check against the running demo confirms that a call to a server off the list is refused (FR-47, FR-59, NFR-15, AD-25)
+**Story 22.1 moved to Story 35.1** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 22.2: Classify MCP tools by server and name
 
@@ -5183,22 +5102,22 @@ So that a new or changed tool can never act without my say.
 
 **Acceptance Criteria:**
 
-**Given** Lane B's Story 21.1 merged (this story needs it for the MCP command verbs in `OcuTalon.Msg` and for `OcuTalon.Core.SettingsOps.RestartRunners()`, AD-29), and an add command from an admin's settings page
+**Given** Lane B's Story 35.2 (was 21.1) merged (this story needs it for the MCP command verbs in `OcuTalon.Msg` and for `OcuTalon.Core.SettingsOps.RestartRunners()`, AD-29), and an add command from an admin's settings page
 **When** `McpOps` handles it
-**Then** it writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` (its `url`, and any secret only as a `secret://` IRIS Wallet reference), the `OcuTalon.Mcp.Server` row and the server's IRIS resource `OcuTalon_MCP_<server>` granted to the service user, accepts only `https://` addresses (or loopback for development), audits the addition, and calls `RestartRunners()`, so the runners attach the server as Story 22.1 builds (FR-47, FR-9, NFR-11, NFR-12, AD-17, AD-19, AD-21, AD-24)
+**Then** it writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` (its `url`, and any secret only as a `secret://` IRIS Wallet reference), the `OcuTalon.Mcp.Server` row and the server's IRIS resource `OcuTalon_MCP_<server>` granted to the service user, accepts only `https://` addresses (or loopback for development), audits the addition, and calls `RestartRunners()`, so the runners attach the server as Story 35.1 (was 22.1) builds (FR-47, FR-9, NFR-11, NFR-12, AD-17, AD-19, AD-21, AD-24)
 
 **Given** a remove command
 **When** `McpOps` handles it
 **Then** the server's tools go at once: the gate denies any call to them, the runners restart without the server through `RestartRunners()`, its entry, row, classifications and resource are removed, and the removal is audited (FR-47, FR-9, AD-21)
 
 **Given** a registered server whose tools the runners discovered
-**When** Lane B's settings page calls `OcuTalon.Mcp.Ops.Tools(server)`, which this story builds in place of Story 22.1's stub
+**When** Lane B's settings page calls `OcuTalon.Mcp.Ops.Tools(server)`, which this story builds in place of Story 35.1 (was 22.1)'s stub
 **Then** it returns each discovered tool's name, classification and status from its `OcuTalon.Mcp.ToolClassification` row, every discovered tool having a row, unclassified included, and a removed server's tools no longer appear (FR-47, FR-48, AD-21, AD-29)
 
 **Given** an add or remove asked for in the chat, or sent on the online demo
 **When** it reaches `McpOps`
 **Then** nothing changes: no agent tool can add or remove a server, `McpOps` accepts these commands only with origin `web_admin`, a second check behind `CommandsIn`'s refusal of origin `tool` (Lane B's Story 21.4), and the online demo has only the allow-listed servers its installer sets up (FR-47, NFR-14, AD-1, AD-25)
-**And** the tests run against Story 22.1's mock MCP server on loopback (AD-22)
+**And** the tests run against Story 35.1 (was 22.1)'s mock MCP server on loopback (AD-22)
 
 **Given** a classify command from an admin
 **When** `McpOps` handles it
@@ -5210,7 +5129,7 @@ So that a new or changed tool can never act without my say.
 
 **Given** a classified tool whose description or inputs changed
 **When** the change is found
-**Then** its classification is cleared, the change is audited, and each admin's chat gets a notice card, in the wording the author accepted from Story 22.1's proposal, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
+**Then** its classification is cleared, the change is audited, and each admin's chat gets a notice card, in the wording the author accepted from Story 35.1 (was 22.1)'s proposal, so the settings page shows the tool Unclassified (FR-48, FR-9, AD-32, UX-DR145)
 
 **Given** an MCP tool with the same name as a built-in tool, or one carrying annotations such as `readOnlyHint`
 **When** the gate classifies a call
@@ -5233,6 +5152,7 @@ So that adding an MCP server never opens a path around OcuTalon's governance.
 **When** it runs
 **Then** the gate rewrites it into the governed proxy tool `call_mcp_tool(server, tool, arguments)`, which calls the server with OcuTalon's minimal Streamable HTTP client (`initialize`, `tools/call`) and returns the result through `OcuTalon.Tools.Result`, cut and marked as cut so that all results of one model step pass at most 10,000 tokens (FR-49, NFR-3, AD-10, AD-21)
 **And** a direct call to `call_mcp_tool` is classified by its (server, tool) arguments the same way (AD-21)
+**And** `call_mcp_tool`'s name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** any MCP call
 **When** the gate decides it
@@ -5298,8 +5218,8 @@ So that new tickets get an attention decision and I know when a source wasn't ch
 
 **Given** the digest's coverage list
 **When** it is built
-**Then** each source poll, and the connected mailbox from the poll outcomes `EmailIn` records (Lane B's Story 21.2, in the record Story 21.1 fixes; fixture outcomes until it merges), is a source entry that counts as checked only if its poll ran successfully in the window, otherwise not checked with its reason (unreachable, error or timeout) (FR-36, FR-50, AD-28)
-**And** a source whose tool became unclassified or risky stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 22.1's proposal (FR-48, FR-50)
+**Then** each source poll, and the connected mailbox from the poll outcomes `EmailIn` records (Lane B's Story 21.2, in the record Story 35.2 (was 21.1) fixes; fixture outcomes until it merges), is a source entry that counts as checked only if its poll ran successfully in the window, otherwise not checked with its reason (unreachable, error or timeout) (FR-36, FR-50, AD-28)
+**And** a source whose tool became unclassified or risky stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
 
 **Given** the step 4 test: an unreachable source
 **When** the digest is composed with the mock MCP server down since 02:10 and everything else passing
@@ -5316,19 +5236,17 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the documentation in `docs/`
 **When** this story merges
 **Then** a worked example connects a Jira MCP server over HTTPS with its credential as a `secret://` IRIS Wallet reference, classifies its tools (searches read-only; creating, changing or commenting on tickets risky), sets "new tickets assigned to me" as a source poll, and shows the digest's Jira entry and a held risky call (FR-50, FR-48, UX-DR106)
-**And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 24.1 adds the README link, so it needs no Lane B action (FR-58, AD-29)
+**And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.2 (was 24.1) adds the README link, so it needs no Lane B action (FR-58, AD-29)
 
 **Given** the security overview, whose MCP section Epic 14 wrote for releases without MCP support
 **When** it is regenerated for this release
 **Then** the MCP section drops its opening statement that the release can't connect to MCP servers and links the worked example; the generated tool list adds the governed proxy tool `call_mcp_tool`; the service user's privileges add each server's own resource `OcuTalon_MCP_<server>`; and the data section names calls to configured MCP servers as live (FR-61, FR-10, FR-49, NFR-12, NFR-18, AD-24)
 
-**Given** the worked example
-**When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server
-**Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the worked example **When** it is followed in step 4's hands-on pass on a clean local install with a real Jira MCP server **Then** the tools appear unclassified, a read-only search runs, a risky call waits for approval, and new tickets assigned to the user become items with decisions in Visual Trace (FR-50, FR-49, REL-7)"]
 
 **Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
 **When** it describes classifying MCP tools
-**Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 24.1 copies that sentence into the README's admin section with the link (FR-10, FR-61)
+**Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -5341,10 +5259,12 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** the built-in email tool
 **When** the gate classifies a call
 **Then** its `Classify(arguments)` makes it safe when every recipient is the session user's own address and risky otherwise, and no model, item content or tool result can change that (FR-44, FR-7, AD-10)
+**And** this story extends the spine's Tool classification convention row with that form: a tool whose classification depends on its arguments declares a `Classify(arguments)` class method, which the gate calls in place of the class parameters, and the gate's tests cover it (AD-10) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L4]
+**And** the email tool's name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** a safe call in a user's turn
 **When** it runs
-**Then** it submits `SendEmail` through `Commands.Submit` (origin `tool`, idempotency key), which reaches `EmailOut` through the routing Lane B's Story 21.2 builds under the contract Story 21.1 fixes (a fixture `EmailOut` until it merges), and the send is audited (FR-44, FR-9, AD-1)
+**Then** it submits `SendEmail` through `Commands.Submit` (origin `tool`, idempotency key), which reaches `EmailOut` through the routing Lane B's Story 21.2 builds under the contract Story 35.2 (was 21.1) fixes (a fixture `EmailOut` until it merges), and the send is audited (FR-44, FR-9, AD-1)
 
 **Given** a risky call in a user's turn
 **When** the gate decides
@@ -5363,39 +5283,7 @@ So that email to me just goes and email to anyone else waits for my approval.
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
 
-### Story 23.1: Record the setting history of each watched production
-
-As a production developer,
-I want OcuTalon to keep a history of the setting changes in every production it watches,
-So that an incident can later name the change that came just before the failures.
-
-**Acceptance Criteria:**
-
-**Given** step 5 starts in Lane A
-**When** this story begins
-**Then** the spine is updated in the same change with step 5's Lane A additions: `OcuTalon.Watch.SettingHistory` and the tables `SettingSnapshot` and `SettingChange`; the reroute, suspend, resume, roll-back and partner-warning kinds under `OcuTalon.Fix.Kind`, each with its parameter schema and declared `RESOURCES`; the paging owner, its table and its escalation message; where an incident's summary is stored; the queue-backlog and SQL-query check types on `OcuTalon.Data.BackgroundCheck` and how a SQL query runs as a read-only SQL user; the new `OcuTalon.Msg.Catalog.Watch` keys; and the new fields of the `incident` live-event payload (AD-15, AD-16, AD-18, AD-29, AD-33)
-**And** it records that Lane B's Story 24.1, the first story of Lane B's step 5 epic, fixes the Lane B contracts these stories use (the page notification and its route in `Notify`, the escalation kind on `Reminder` that `ReminderTimer` runs, the command verbs to acknowledge a page and to save a SQL query watch, the on-call setting keys and the partner-contact table); Lane A never edits them (AD-29, AD-33)
-**And** the channel texts step 5 needs that the UX doesn't give yet (a page, an escalation, each new fix's dry run and result, the partner warning request, the incident summary) are proposed to the author as additions to `EXPERIENCE.md` › Message Catalog with their catalog keys, following the voice and plain-English rules, and no story ships a text the author hasn't accepted (UX-DR117, UX-DR118, UX-DR119)
-
-**Given** the spine update lists each new kind's declared `RESOURCES`
-**When** it is written
-**Then** it records that the roll-back kind declares `%Ens_ProductionConfig` with WRITE, so the service user holds it from step 5, and AD-24's list of privileges no OcuTalon role holds names this one grant as its exception; suspend and resume declare only `%Ens_ConfigItemRun`, and reroute declares `%Ens_MessageResend` (AD-16, AD-24, NFR-12)
-**And** the installer composes the service user's grants from those declarations, the security overview's generated privilege list shows `%Ens_ProductionConfig` with the roll-back kind that needs it, and Epic 3's forbidden-privilege test allows exactly that grant to the service user and still fails on any other forbidden privilege or holder (FR-61, NFR-12, AD-23, AD-24)
-
-**Given** PRD Open Question 5 (which channel pages the on-call person: Telegram, email or both)
-**When** this story starts
-**Then** the question is put to the author, and the answer, with how a page is acknowledged on each channel, is recorded in the PRD's open questions and in the spine update before any paging work starts (FR-28)
-
-**Given** a watched production
-**When** the heartbeat's `Tick` reaches `Checks`
-**Then** `Checks` compares Interoperability's per-namespace production-change counter with the last value it saw, and only when the counter moved, after a restart, or once an hour as a safety net, `SettingHistory` takes a snapshot through `OcuTalon.Watch.Reader` of every item's host and adapter settings plus the System Default Settings that apply, and diffs it with the previous snapshot (AD-15, AD-18)
-**And** each difference becomes one `SettingChange` row (production, item, target, setting, old value, new value, detected at in UTC); a production's first snapshot records no changes (AD-15)
-**And** a credential-type value is removed before anything is stored, so a change to it is recorded with both values blank, and no value of it reaches a message, a log or an agent step (AD-15, NFR-11)
-
-**Given** automated tests in `OcuTalon.Test.Watch`
-**When** they change a test production's settings in another namespace, once through the production configuration and once through System Default Settings
-**Then** both changes appear as `SettingChange` rows after the next heartbeat that sees the counter move, each detected time is within the check interval, no row names who made the change, and taking a snapshot changes nothing in the watched production (AD-15, FR-27)
-**And** both tables commit their storage blocks with `DEFAULTGLOBAL` from the short-name registry, and their rows older than `daysToKeep` (90 by default) are purged through the area's `Purge(daysToKeep)` declaration (AD-3, AD-5, AD-27, NFR-19)
+**Story 23.1 moved to Story 36.1** (step 5 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 36, so that neither of step 5's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 23.2: Suspend, resume and reroute with a dry run
 
@@ -5449,7 +5337,7 @@ So that the likely cause and its fix arrive together.
 **When** it proposes the roll-back kind
 **Then** the kind accepts only a `SettingChange` row from the pack's window on the failing item, its adapter or the defaults that apply to it; its dry run shows the setting with "Before" as the current value and "After" as the value it restores; and after approval `FixExecutor` re-checks that the current value still equals the change's new value (skipping and reporting it otherwise), restores the old value, reports the result and audits it (FR-26, FR-27, FR-8, FR-9, AD-16, UX-DR77)
 **And** undoing a rollback is one approved action that restores the value the rollback replaced (FR-26)
-**And** `FixExecutor` checks the service user's `%Ens_ProductionConfig` grant from Story 23.1, the kind's declared resource, before the rollback runs, and the rollback runs from `FixExecutor`'s one namespace-switching method (NFR-12, AD-3, AD-16, AD-24)
+**And** `FixExecutor` checks the service user's `%Ens_ProductionConfig` grant from Story 36.1 (was 23.1), the kind's declared resource, before the rollback runs, and the rollback runs from `FixExecutor`'s one namespace-switching method (NFR-12, AD-3, AD-16, AD-24)
 
 **Given** the evaluation set
 **When** this story lands
@@ -5464,9 +5352,9 @@ So that someone answers every incident even when the people watching are away.
 
 **Acceptance Criteria:**
 
-**Given** Lane B's Story 24.1 merged (this story needs it for the on-call setting keys and the acknowledgement command verb, AD-29), and an on-call person and a backup configured with their channels, read through `OcuTalon.Data.Setting.Get` from the keys Story 24.1 fixes
+**Given** Lane B's Story 36.2 (was 24.1) merged (this story needs it for the on-call setting keys and the acknowledgement command verb, AD-29), and an on-call person and a backup configured with their channels, read through `OcuTalon.Data.Setting.Get` from the keys Story 36.2 (was 24.1) fixes
 **When** an incident's notice is sent, a fallback notice included
-**Then** the paging owner decides to page: it records one page row for the incident and sends one page notification for the on-call person, which Lane B's Story 24.3 routes to the channels Open Question 5's answer allows (this story's `TelegramOut` part delivers it in Telegram), however many sessions watch the production (FR-28, FR-23, AD-32)
+**Then** the paging owner decides to page: it records one page row for the incident and sends one page notification for the on-call person, which Lane B's Story 24.3 routes to the person's chosen channels, Telegram and email by default (this story's `TelegramOut` part delivers it in Telegram), however many sessions watch the production (FR-28, FR-23, AD-32) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "routes to the channels Open Question 5's answer allows"]
 **And** the page needs no approval request, is audited as an action with its target and result, and puts no Telegram identity in a production message, log or audit entry (FR-7, FR-9, AD-4, AD-17)
 
 **Given** a page has been sent
@@ -5475,12 +5363,12 @@ So that someone answers every incident even when the people watching are away.
 **And** if the incident closes before the time runs out, the paging owner cancels the timer through `ReminderOps`, and an escalation message that still arrives changes nothing (FR-28, FR-24)
 
 **Given** a page
-**When** an acknowledgement reaches the paging owner through `CommandsIn`, by the command verb Story 24.1 fixes, from whichever channel took it (Telegram below; the others in Lane B's Story 24.3)
+**When** an acknowledgement reaches the paging owner through `CommandsIn`, by the command verb Story 36.2 (was 24.1) fixes, from whichever channel took it (Telegram below; the others in Lane B's Story 24.3)
 **Then** escalation stops at once, the page row records when and from which channel, the escalation timer is cancelled, and a later acknowledgement changes nothing (FR-28, AD-1)
 
-**Given** Open Question 5's answer includes Telegram, and a page notification that `Notify` routes to the person's paired chat (Lane B's Story 24.3; a fixture notification sent straight to `TelegramOut` until it merges)
+**Given** the person is paged by Telegram (a default channel, or their choice), and a page notification that `Notify` routes to the person's paired chat (Lane B's Story 24.3; a fixture notification sent straight to `TelegramOut` until it merges) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "**Given** Open Question 5's answer includes Telegram,"]
 **When** `TelegramOut` delivers it and the person presses its **Got it** button
-**Then** the page arrives as plain text rendered from the catalog key the author accepted from Story 23.1's proposal, with a **Got it** button carrying an unguessable reference; `TelegramIn` submits the acknowledgement command through `CommandsIn` only for a press from that paired chat; the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed whichever channel acknowledged it; and a second press changes nothing (FR-28, FR-20, AD-1, AD-14, AD-29, AD-32, UX-DR108, UX-DR143)
+**Then** the page arrives as plain text rendered from the catalog key the author accepted from Story 36.1 (was 23.1)'s proposal, with a **Got it** button carrying an unguessable reference; `TelegramIn` submits the acknowledgement command through `CommandsIn` only for a press from that paired chat; the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed whichever channel acknowledged it; and a second press changes nothing (FR-28, FR-20, AD-1, AD-14, AD-29, AD-32, UX-DR108, UX-DR143)
 
 **Given** an escalation message that arrives after IRIS or its container restarted, from a timer Lane B's reconciler re-armed
 **When** the paging owner handles it
@@ -5493,7 +5381,7 @@ So that someone answers every incident even when the people watching are away.
 **And** with no on-call person configured, as always on the online demo, no page is sent and nothing else changes (FR-28)
 
 **Given** automated tests in `OcuTalon.Test.Watch`
-**When** they run against a fixture for the escalation timer (until Lane B's Story 24.3 merges), with on-call values set under Story 24.1's keys and acknowledgements submitted with its command verb
+**When** they run against a fixture for the escalation timer (until Lane B's Story 24.3 merges), with on-call values set under Story 36.2 (was 24.1)'s keys and acknowledgements submitted with its command verb
 **Then** they cover the page, escalation after the configured time, an acknowledgement stopping escalation (a Telegram **Got it** press among them, with the CI mock for Telegram), an incident closing before escalation, and a repeated escalation message after a restart (FR-28)
 
 ### Story 23.5: Draft partner delay notices that are sent only after approval
@@ -5504,7 +5392,7 @@ So that partners hear about a delay early without anything leaving the instance 
 
 **Acceptance Criteria:**
 
-**Given** an incident in a production with partner contacts configured for it (Lane B's partner-contact table, fixed by Story 24.1 and filled by Story 24.2, or a test fixture with its fields until Story 24.2 merges) and an email channel connected (step 4)
+**Given** an incident in a production with partner contacts configured for it (Lane B's partner-contact table, fixed by Story 36.2 (was 24.1) and filled by Story 24.2, or a test fixture with its fields until Story 24.2 merges) and an email channel connected (step 4)
 **When** the incident's notice is built, or the user asks for a partner warning in the chat
 **Then** OcuTalon drafts the notice through `Decide` from the incident's count, times, affected flow and plain cause only, never a message body or setting value, and `IncidentManager` raises one request of the partner-warning kind holding the exact text and the exact recipients (FR-29, AD-6, AD-11, AD-16)
 **And** the request is an extra approval request in the incident, and its dry run holds the exact text and every recipient for the approver to read before anything is sent (FR-29, UX-DR74, UX-DR146)
@@ -5547,6 +5435,7 @@ So that I can review or share what happened without rebuilding the timeline myse
 **When** the user asks for it in the chat
 **Then** a read-only tool returns it, built by code with the summary's catalog key, and the reply carries it to the channel the user asked on and to the web chat; its evidence line and sample error are untrusted content, so the tool's result isn't trusted output (FR-30, FR-7, AD-10, AD-14)
 **And** a summary is visible only to the sessions that own its incident, and is purged with its incident, older than `daysToKeep` (90 by default), through the Watch area's `Purge(daysToKeep)` (AD-4, AD-27, NFR-19)
+**And** the incident-summary tool's name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts (AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L5]
 
 **Given** automated tests in `OcuTalon.Test.Watch`
 **When** a recorded incident runs from its failures through approval and the fix to closing
@@ -5592,11 +5481,11 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 **Acceptance Criteria:**
 
-**Given** the read-only SQL user and connection that Story 23.1's spine update names
+**Given** the read-only SQL user and connection that Story 36.1 (was 23.1)'s spine update names
 **When** the installer runs
 **Then** it creates that user with no OcuTalon role and no privilege beyond SQL `SELECT` on what an admin grants it, and the security overview lists the user and what it can and can't do (FR-33, AD-24, FR-61)
 
-**Given** Lane B's Story 24.1 merged (its save-SQL-query-watch verb, AD-29) and an admin saves a query (Lane B's Story 24.2 submits that verb to `WatchOps`; a test submits the same command until Story 24.2 merges)
+**Given** Lane B's Story 36.2 (was 24.1) merged (its save-SQL-query-watch verb, AD-29) and an admin saves a query (Lane B's Story 24.2 submits that verb to `WatchOps`; a test submits the same command until Story 24.2 merges)
 **When** `WatchOps` handles it
 **Then** it accepts only a single `SELECT` statement, runs it once as the read-only SQL user to confirm it works, and stores it as a SQL-query row in `OcuTalon.Data.BackgroundCheck`, owned by the admin's session, with its schedule; any other statement, or one the SQL user can't run, is refused with a plain reason and nothing is saved (FR-33, AD-1, NFR-24)
 
@@ -5614,41 +5503,7 @@ So that I can watch a data condition without giving OcuTalon any way to change d
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
 
-### Story 24.1: Set the on-call person and backup in Settings
-
-As an admin,
-I want to choose the on-call person and the backup, each with a channel, and the time before escalation,
-So that incidents page the right people on a channel that can reach them.
-
-**Acceptance Criteria:**
-
-**Given** step 5 starts in Lane B
-**When** this story begins
-**Then** the spine is updated in the same change with Lane B's step-5 additions: the settings sections for on-call, partner contacts and SQL query watches and their routes; the on-call setting keys in `OcuTalon.Data.Setting`; a partner-contact table owned by Lane B and written only by `SettingsOps`; the page notification and its route in `OcuTalon.Core.Rule.Notify`; an escalation kind on `Reminder`, whose `ReminderTimer` waiter sends the escalation message to the paging owner; the `approval` payload's fields for the new kinds' dry runs; the command verbs to acknowledge a page and to save a SQL query watch, and a `handled` notification and a `Delivery` lookup by the page's `Ref`, so every copy of an acknowledged page updates (Telegram's through Story 23.4) (FR-28, AD-5, AD-12, AD-29, AD-33)
-**And** the step-5 additions that Lane A's Story 23.1 asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
-**And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
-**And** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
-
-**Given** an admin opens the on-call section
-**When** they choose the on-call person and the backup
-**Then** each is either an OcuTalon user or an email address, on the channels PRD Open Question 5's answer allows (put to the author by Lane A's Story 23.1); Telegram is offered only for a user whose session has a paired chat, because the bot can't message anyone first; and the time before escalation defaults to 15 minutes (FR-28)
-**And** **Save changes** saves the section on its own and confirms "Saved. Applies within a minute. Recorded in the audit log.", and leaving with unsaved changes asks first (FR-17, UX-DR141)
-
-**Given** a saved change
-**When** a minute has passed
-**Then** `OcuTalon.Data.Setting.Get` returns the new values without a restart, `SettingsOps` was the only writer, and the IRIS audit log holds a settings entry with the admin's IRIS user and session (FR-17, FR-9, AD-17, AD-19)
-
-**Given** an email address that isn't valid, or a time before escalation that isn't a whole number of minutes above zero
-**When** the admin saves
-**Then** a field error marks the field, focus moves to the first error, and nothing is saved; a save that fails on the server shows "Couldn't save. Nothing was changed." (UX-DR36, UX-DR141)
-
-**Given** a user without the admin role
-**When** they call the on-call section's routes
-**Then** the routes refuse with 403 and change nothing, as every settings route does from step 2; the online demo, which has no admin, never has an on-call configuration (FR-17, AD-13)
-
-**Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
-**When** an admin saves, corrects and saves the section again
-**Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
+**Story 24.1 moved to Story 36.2** (step 5 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 36, so that neither of step 5's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 24.2: Set partner contacts and saved SQL query watches in Settings
 
@@ -5665,7 +5520,7 @@ So that partner warnings can go only to people I chose, and data conditions are 
 
 **Given** the SQL query watches section
 **When** an admin saves a query with its name and schedule
-**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 24.1 fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
+**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
 **And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
 
 **Given** a saved query
@@ -5688,14 +5543,14 @@ So that the backup is woken only when the on-call person really didn't answer.
 
 **Acceptance Criteria:**
 
-**Given** a page notification from Lane A's paging owner, which decides when to page and escalate (Story 23.4, under the contract Story 23.1 fixes; a test fixture sending the same message until it merges)
+**Given** a page notification from Lane A's paging owner, which decides when to page and escalate (Story 23.4, under the contract Story 36.1 (was 23.1) fixes; a test fixture sending the same message until it merges)
 **When** `OcuTalon.Core.Rule.Notify` routes it
-**Then** it goes only to the person's configured channels, as PRD Open Question 5's answer names them: the paired Telegram chat of that user's session through `TelegramOut`, or the email address through `EmailOut`; its text is rendered by the `*Out` operation from the catalog key the author accepted from Story 23.1's proposal, as plain text, and `TelegramOut`'s delivery with its **Got it** button is Lane A's Story 23.4 (FR-28, AD-14, AD-29, AD-32, UX-DR108)
+**Then** it goes only to the person's chosen channels, by default both: the paired Telegram chat of that user's session through `TelegramOut`, and the email address through `EmailOut`; a person who chose one channel is paged only there; its text is rendered by the `*Out` operation from the catalog key the author accepted from Story 36.1 (was 23.1)'s proposal, as plain text, and `TelegramOut`'s delivery with its **Got it** button is Lane A's Story 23.4 (FR-28, AD-14, AD-29, AD-32, UX-DR108) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "it goes only to the person's configured channels, as PRD Open Question 5's answer names them: the paired Telegram chat of that user's session through `TelegramOut`, or the email address through `EmailOut`;"]
 **And** a Telegram chat that is no longer paired gets nothing, and the page is reported back to the paging owner as undelivered with a plain reason (FR-28, FR-19)
 
 **Given** a delivered page
-**When** the person acknowledges it from any channel it reached other than Telegram, by the paths Open Question 5's answer fixes (such as **Got it** on the web page, or a reply to the page email carrying the page's unguessable reference)
-**Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 24.1 fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
+**When** the person acknowledges it from any channel it reached other than Telegram, by the paths Story 36.1 (was 23.1)'s spine update fixes for each channel (such as **Got it** on the web page, or a reply to the page email carrying the page's unguessable reference) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "by the paths Open Question 5's answer fixes"]
+**Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 36.2 (was 24.1) fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
 **And** **Got it** on Telegram, which submits the same command and edits the Telegram copy in place, is Lane A's Story 23.4 (FR-20, AD-29)
 
 **Given** the paging owner (Lane A's Story 23.4) asks `ReminderOps` for an escalation timer with origin `system`
@@ -5706,6 +5561,8 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Given** automated tests in `OcuTalon.Test.Schedule` and `OcuTalon.Test.Channel`, with a mock mail server, against a fixture paging owner
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
 
@@ -5732,48 +5589,19 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** each happens
 **Then** the answered statuses and results follow the UX's rules ("Approved from {channel} at {time}", "Rejected from {channel} at {time}. Nothing was changed.", "Expired at {time}. Nothing was changed.", and "Recorded in the IRIS audit log." after every result), every copy updates within 5 seconds, and an undo arrives as its own approval request card in the same incident (FR-8, FR-26, UX-DR74, UX-DR76, UX-DR79, NFR-9)
 
-**Given** the payload fields Lane A's Story 23.1 names for `incident` and that Lane B's Story 24.1 names for `approval`
+**Given** the payload fields Lane A's Story 36.1 (was 23.1) names for `incident` and that Lane B's Story 36.2 (was 24.1) names for `approval`
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
 
-**Given** step 5's stories in both lanes have merged
-**When** step 5's release is prepared
-**Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 25: Usage, history and files in the page (step 6)
 
 A user sees tokens and cost by day, agent, channel and model, filters past decisions and incidents, and sends a PDF, Word file or photo from the web app or Telegram.
 
-### Story 25.1: See tokens and cost over time on the Usage page
-
-As a user,
-I want a Usage page that shows tokens and cost by day, agent, channel and model,
-So that I can see what OcuTalon costs and spot a request close to the size limit.
-
-**Acceptance Criteria:**
-
-**Given** step 6 starts in Lane B
-**When** this story begins
-**Then** the spine's REST table and ownership tables gain Lane B's step-6 additions in the same change: the usage and history reads, the file upload route and the private file table, the Roles section's routes, and the header navigation's History and Usage entries (AD-29, AD-33)
-**And** the step-6 additions that Lane A's Story 26.1 asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 26.1 names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)
-
-**Given** a signed-in user
-**When** they open Usage from the header navigation
-**Then** the page, titled "Usage · OcuTalon" with `aria-current="page"` on its navigation item, shows a range, a grouping (day, agent, channel or model), the usage chart with token bars and the cost line, each labelled directly as well as in the legend, and a table beneath with a row for every bar and point (FR-52, UX-DR21, UX-DR22, UX-DR147)
-**And** tokens and costs follow the number formats in tabular figures (UX-DR10, UX-DR124)
-
-**Given** the usage rows the ownership API lets the caller see
-**When** the view totals a range in any grouping
-**Then** the totals equal the sum of the decision and turn costs in that range, compaction rows count under their own agent and are marked as estimated, and `eval` rows never appear (FR-52, AD-20, AD-31)
-**And** each day shows its largest model request against the 100,000-token limit (FR-52, NFR-3)
-
-**Given** a range with no model use
-**When** the page loads
-**Then** it shows "No model use in this period." (UX-DR147)
-
-**Given** automated tests and a Playwright spec under `web/e2e/` with fixture usage rows across days, agents, channels and models
-**When** each grouping is chosen
-**Then** each total equals the sum of its rows, the chart and the table agree, another session's rows never appear, and the page works by keyboard with labelled controls and never relies on colour alone (FR-52, AD-4, NFR-25, UX-DR134)
+**Story 25.1 moved to Story 37.2** (step 6 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 37, so that neither of step 6's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 25.2: Filter past decisions and incidents on the History page
 
@@ -5827,7 +5655,7 @@ So that OcuTalon can read it, keep it as a document, or remember what a photo sh
 **Then** it is refused before it is stored, with the UX's text (fixture "That file is 14 MB; the limit is 10 MB."), and nothing else happens (FR-54, UX-DR147)
 **And** a file of any other type is refused the same way with "I couldn't read that file: {reason}." and a plain reason (FR-54, UX-DR147)
 
-**Given** the result of reading a file (from Lane A's Stories 26.1 to 26.3, under the contract Story 26.1 fixes, or a fixture until they merge)
+**Given** the result of reading a file (from Lane A's Stories 37.1 (was 26.1), 26.2 and 26.3, under the contract Story 37.1 (was 26.1) fixes, or a fixture until they merge)
 **When** the reply is sent
 **Then** a failure reads "I couldn't read that file: {reason}." with a plain reason; a file that was read gets a reply offering **Add to documents**, which adds it through the documents route; and a photo's reply shows a "Saved to memory" chip (FR-54, UX-DR147)
 **And** the Documents page's **Add documents** accepts PDF and Word files as well as Markdown and plain text (FR-42, UX-DR144)
@@ -5850,7 +5678,7 @@ So that only the right people can approve each kind of action, and others can lo
 
 **Given** an admin opens Settings › Roles
 **When** it loads
-**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 26.1 fixes; a stub until it merges); no other role can be granted or removed there (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
+**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges); no other role can be granted or removed there (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
 **And** each change confirms with the step-2 settings text and is audited as a settings change (FR-9, FR-17)
 
 **Given** a user holding `OcuTalonViewer`
@@ -5860,13 +5688,13 @@ So that only the right people can approve each kind of action, and others can lo
 
 **Given** the online demo from step 6
 **When** the demo account signs in
-**Then** it holds `OcuTalonApprover` beside `OcuTalonUser` and `OcuTalonTraceViewer`, as Story 26.1's spine update records and Lane A's Story 26.4's installer step grants (the fixture role, granted by this story's test setup, until then), so its approval buttons stay; the owning-session rule still applies, so both checks run and a visitor answers only their own session's requests; and no Roles section or settings link shows, because the demo account isn't an admin (FR-8, FR-11, FR-15, AD-4, AD-24)
+**Then** it holds `OcuTalonApprover` beside `OcuTalonUser` and `OcuTalonTraceViewer`, as Story 37.1 (was 26.1)'s spine update records and Lane A's Story 26.4's installer step grants (the fixture role, granted by this story's test setup, until then), so its approval buttons stay; the owning-session rule still applies, so both checks run and a visitor answers only their own session's requests; and no Roles section or settings link shows, because the demo account isn't an admin (FR-8, FR-11, FR-15, AD-4, AD-24)
 
 **Given** a user without the admin role
 **When** they call the Roles routes
 **Then** the routes refuse with 403 (FR-17, AD-13)
 
-**Given** automated tests and a Playwright spec under `web/e2e/`, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 26.1 fixes until Story 26.4's installer step creates them, so no criterion here waits on Story 26.4
+**Given** automated tests and a Playwright spec under `web/e2e/`, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, so no criterion here waits on Story 26.4
 **When** an admin grants and removes each role, and a viewer tries every state-changing route
 **Then** the role changes are audited, the viewer is refused every time, and the section works by keyboard with every control labelled (FR-11, NFR-25, UX-DR130, AD-29)
 
@@ -5880,7 +5708,7 @@ So that I know who has to approve it.
 
 **Given** an answer to a pending approval request from any channel
 **When** `AnswersIn`'s one handler receives it
-**Then** before calling `OcuTalon.Bridge.Approval.Answer`, it asks Lane A's role check, `Approval.MayAnswer` (Story 26.4, under the contract Story 26.1 fixes; a stub until it merges), whether the answering IRIS user holds the request's required approver role, and refuses with `not_allowed` and the kind when they don't, answering nothing (FR-11, AD-11, NFR-13)
+**Then** before calling `OcuTalon.Bridge.Approval.Answer`, it asks Lane A's role check, `Approval.MayAnswer` (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges), whether the answering IRIS user holds the request's required approver role, and refuses with `not_allowed` and the kind when they don't, answering nothing (FR-11, AD-11, NFR-13)
 **And** on the online demo both rules apply: the demo account passes the role check because it holds `OcuTalonApprover` (the fixture role in this story's tests), and the owning-session rule still refuses an answer to another session's request (FR-8, FR-11, AD-4)
 
 **Given** a user without the right approver role
@@ -5895,7 +5723,7 @@ So that I know who has to approve it.
 **When** the answer is recorded
 **Then** every copy shows "Approved from {channel} at {time}" within 5 seconds as before, and `AnswersIn` passes the answering IRIS user and session to `Approval.Answer`, so Lane A's audit entry can name the approver's role (FR-8, FR-11, AD-11, NFR-9)
 
-**Given** automated tests in `OcuTalon.Test.Core` and the REL-2 demo-path test, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 26.1 fixes until Story 26.4's installer step creates them, and answer `Approval.MayAnswer` from a test double over those roles until Story 26.4 replaces Story 26.1's stub, so no criterion here waits on Story 26.4
+**Given** automated tests in `OcuTalon.Test.Core` and the REL-2 demo-path test, whose test setup creates `OcuTalonApprover`, the `OcuTalonApprover_<kind>` roles and `OcuTalonViewer` as fixture roles with the names Story 37.1 (was 26.1) fixes until Story 26.4's installer step creates them, and answer `Approval.MayAnswer` from a test double over those roles until Story 26.4 replaces Story 37.1 (was 26.1)'s stub, so no criterion here waits on Story 26.4
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
 
@@ -5903,39 +5731,7 @@ So that I know who has to approve it.
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; OcuTalon extracts text from PDF and Word files with Embedded Python, captions photos as memories, and adds files as documents.
 
-### Story 26.1: Extract text from PDF and Word files with Embedded Python
-
-As a user,
-I want OcuTalon to read the text of a PDF or Word file I send,
-So that it can answer from the file or keep it as a document.
-
-**Acceptance Criteria:**
-
-**Given** the contest's bonus list, published after October 26
-**When** it includes an Embedded Python bonus
-**Then** this story and the PDF and Word document story move to step 3, alongside FR-42, as PRD Open Question 3 decides, recorded in the PRD; otherwise they stay in step 6 (FR-54, FR-42)
-
-**Given** step 6 starts in Lane A
-**When** this story begins
-**Then** the spine is updated in the same change with Lane A's step-6 additions: the extraction class in `OcuTalon.Docs` and its own `%SYSTEM.WorkMgr` worker category; its Python resource under `src/ocutalon/python/`; the pinned Python package that reads Word (.docx) files, `python-docx` 1.1.2, in the Stack row beside pdfplumber, which reads PDF only; the photo-caption request; the approver roles and the resources they hold, with how they take over from the bridge's approval-role setting (seeded `OcuTalonUser` until step 6); the online demo account's `OcuTalonApprover` grant as an AD-24 amendment; and the role-check and role-assignment methods Lane B calls (FR-11, FR-42, FR-54, AD-11, AD-21, AD-24, AD-29, AD-33)
-**And** Lane B's Story 25.1, the first story of Lane B's step 6 epic, adds `pdfplumber==0.11.10` and `python-docx==1.1.2` to the image's pinned Python packages, installed the same way; the package declares both for an IPM install, and their licence notices are kept (AD-23, AD-29, CON-2)
-
-**Given** the spine update is merged
-**When** the package compiles
-**Then** the step 6 Lane A APIs it fixes, `Approval.MayAnswer` and the role-assignment method, exist in code as signatures with stub bodies that Lane B's Stories 25.4 and 25.5 can call until Story 26.4 builds them, as Story 17.1 does for step 2 (FR-11, AD-29)
-
-**Given** a PDF or Word (.docx) file of at most 10 MB
-**When** extraction is asked for, by any caller, a tool inside a turn included
-**Then** it runs pdfplumber 0.11.10 for a PDF, or `python-docx` 1.1.2 for a .docx file, through Embedded Python in a `%SYSTEM.WorkMgr` worker, never in the calling process, from a `.py` resource imported with `%SYS.Python.Import`, and returns the text with page or heading markers for citations, cut at a fixed size and saying so when cut (FR-54, AD-6, NFR-3)
-
-**Given** a file that can't be read (encrypted, damaged, a PDF with no text layer, a legacy .doc file, or extraction slower than its time limit)
-**When** extraction ends
-**Then** it returns a failure with a plain reason that fits "I couldn't read that file: {reason}.", and nothing is stored from it (FR-54, NFR-24, UX-DR147)
-
-**Given** automated tests in `OcuTalon.Test.Docs` with sample PDF and Word files
-**When** they run on the IRIS runner, on a developer image or test stack whose test setup installs `pdfplumber==0.11.10` and `python-docx==1.1.2` with the same `pip install --target` line until Lane B's Story 25.1 pins both in the image (Story 26.2 then runs the same tests on the real image)
-**Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
-**And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
+**Story 26.1 moved to Story 37.1** (step 6 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 37, so that neither of step 6's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 26.2: Files become items and PDF and Word documents
 
@@ -5945,7 +5741,7 @@ So that my runbooks in PDF or Word answer questions with citations.
 
 **Acceptance Criteria:**
 
-**Given** an Item carrying a PDF or Word file's `Ref` (from Lane B's Story 25.3, under the contract Story 26.1 fixes; a fixture Item until it merges)
+**Given** an Item carrying a PDF or Word file's `Ref` (from Lane B's Story 25.3, under the contract Story 37.1 (was 26.1) fixes; a fixture Item until it merges)
 **When** `OcuTalon.Agent.Input` renders it
 **Then** the extracted text reaches the model as quoted, untrusted data, never as the user's own words, so the turn is tainted and only read-only tools run in it (FR-54, AD-10, AD-14, NFR-6)
 **And** a file containing an instruction such as "approve all pending requests" changes nothing and takes no action (NFR-14)
@@ -5957,7 +5753,7 @@ So that my runbooks in PDF or Word answer questions with citations.
 **Given** Lane B's Story 25.3 merged (its file-store call and the mock's `getFile`, AD-29), and the paired Telegram chat
 **When** the user sends a document or a photo
 **Then** `TelegramIn` (Lane A's from Epic 12) checks the size Telegram reports before downloading, stores the file through Lane B's file-store call from Story 25.3, sends the same kind of Item, and never logs the download address, which holds the bot token (FR-54, AD-14, NFR-11)
-**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)
+**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 
 **Given** the user adds a read file as a document, from its reply's **Add to documents** or from the Documents page
 **When** `OcuTalon.Docs` indexes it
@@ -5971,9 +5767,11 @@ So that my runbooks in PDF or Word answer questions with citations.
 **When** a PDF runbook and a Word runbook are added and asked about, and one is then removed
 **Then** each answer cites the right document and section, and the removed document is cited no more (FR-42)
 
-**Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 25.1
-**When** Story 26.1's extraction tests and this story's tests run on the IRIS runner
+**Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 37.2 (was 25.1)
+**When** Story 37.1 (was 26.1)'s extraction tests and this story's tests run on the IRIS runner
 **Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 
@@ -6015,8 +5813,8 @@ So that only the right people can approve each kind of change.
 **Given** the installer's role step
 **When** it runs at install and at upgrade
 **Then** it creates `OcuTalonApprover` (every kind), one `OcuTalonApprover_<kind>` per approval kind the spine update lists (at least resend, reroute, suspend and resume, roll back, partner warnings and tool calls) and `OcuTalonViewer`, composing their grants from each area's `Grants()`, and none of them holds a resource AD-24 forbids (FR-11, AD-23, AD-24)
-**And** the README account gains `OcuTalonApprover`, so a local install still approves after the upgrade; the online demo account gains it too, as Story 26.1's spine update records in AD-24, and the owning-session rule still applies, so on the online demo both checks run and a visitor answers only their own session's requests (FR-11, FR-8, FR-60, AD-4, AD-24)
-**And** the upgrade moves the bridge's approval-role setting from its seeded `OcuTalonUser` to the approver roles as Story 26.1's update fixes, and `OcuTalonViewer` holds what Lane B's post-sign-in check (Story 25.4) needs to admit a viewer who has no `OcuTalonUser` (FR-11, AD-11, AD-13)
+**And** the README account gains `OcuTalonApprover`, so a local install still approves after the upgrade; the online demo account gains it too, as Story 37.1 (was 26.1)'s spine update records in AD-24, and the owning-session rule still applies, so on the online demo both checks run and a visitor answers only their own session's requests (FR-11, FR-8, FR-60, AD-4, AD-24)
+**And** the upgrade moves the bridge's approval-role setting from its seeded `OcuTalonUser` to the approver roles as Story 37.1 (was 26.1)'s update fixes, and `OcuTalonViewer` holds what Lane B's post-sign-in check (Story 25.4) needs to admit a viewer who has no `OcuTalonUser` (FR-11, AD-11, AD-13)
 
 **Given** `OcuTalon.Bridge.Approval.Raise`
 **When** it creates a request
@@ -6029,7 +5827,7 @@ So that only the right people can approve each kind of change.
 
 **Given** Lane B's `AnswersIn` handler and Roles section (Stories 25.5 and 25.4)
 **When** they need the role rules
-**Then** Lane A provides, in place of Story 26.1's stubs, `Approval.MayAnswer(Ref, IrisUser)`, which returns whether the user may answer or the kind they'd need, and a role-assignment method in the installer's role area that grants or removes only the approver and viewer roles and refuses any other (FR-11, AD-3, AD-24)
+**Then** Lane A provides, in place of Story 37.1 (was 26.1)'s stubs, `Approval.MayAnswer(Ref, IrisUser)`, which returns whether the user may answer or the kind they'd need, and a role-assignment method in the installer's role area that grants or removes only the approver and viewer roles and refuses any other (FR-11, AD-3, AD-24)
 
 **Given** Lane B's Story 25.5 merged (this story needs `AnswersIn`'s `not_allowed` result, AD-29), and a user without the right approver role in their paired Telegram chat
 **When** they press **Approve** or **Reject**, and `AnswersIn`'s Telegram entry returns `not_allowed` with the kind
@@ -6039,9 +5837,9 @@ So that only the right people can approve each kind of change.
 **When** a user with only another kind's role, a user with that kind's role, a holder of `OcuTalonApprover` and a viewer answer
 **Then** only the right roles succeed, every refusal changes nothing, the audit entries carry the role, the role-assignment method refuses `OcuTalonAdmin` and `%All`, and the security overview lists the new roles and what each may do (FR-11, NFR-13, FR-61)
 
-**Given** step 6's stories in both lanes have merged
-**When** step 6's release is prepared
-**Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the author's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 27: Slack (step 7, Could)
 
@@ -6058,6 +5856,7 @@ So that I can use it where my team already talks (step 7, Could).
 **Given** step 7 starts in Lane B
 **When** this story begins
 **Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**And** as the first story of Lane B's step 7 epic, it creates the `DraftTransform` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to Lane A's `IncidentManager`, under the name Lane A's Story 28.1 fixes, accepted from origin `tool` only for one of the session's own incidents (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: Story 28.1's chat path submits it]
 **And** the Slack signing secret and bot token come only from environment variables that `.env.example` lists by name, and never appear in IRIS, a setting, a log, a message, an agent step or an audit entry (NFR-11, AD-19)
 **And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
@@ -6122,6 +5921,7 @@ So that I can review a starting point for the real fix (step 7, Could).
 **Given** step 7 starts in Lane A
 **When** this story begins
 **Then** the spine is updated in the same change with Lane A's step-7 additions: where a transform draft is stored with its incident, the memory-fading setting and the merge record, the nightly consolidation task, and `OcuTalon.Mcp.Service` with its web application, resource, role and installer step (AD-16, AD-21, AD-24, AD-29, AD-33)
+**And** the update names the command verb by which a chat request asks for a draft: `DraftTransform`, carrying the incident's `IncidentRef`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents (AD-1's list of commands accepted from origin `tool` gains it) and routes to `IncidentManager`, which writes the draft; Lane B's Story 27.1 creates the verb under that name, and this story's chat path waits for Epic 27 (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: a tool that changes state does so only through a command verb]
 **And** the step 7 texts the UX doesn't give (the transform draft's presentation and its never-applied note, and a memory merge as the user sees it) are proposed to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
 **Given** an incident whose cause is a data format a transform doesn't accept
@@ -6186,17 +5986,13 @@ So that I can check status and history from my own tools without opening a new w
 **Then** no offered tool can do it, nothing changes, and the action can only happen through an approved approval request raised in OcuTalon's own channels (FR-51, FR-7, NFR-13)
 **And** every call is audited with the calling IRIS user (FR-9, AD-17)
 
-**Given** the online demo
-**When** its proxy serves requests
-**Then** `/mcp` is outside the proxy's allow-list, so the service is never reachable there (AD-24, AD-25)
+**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the online demo **When** its proxy serves requests **Then** `/mcp` is outside the proxy's allow-list, so the service is never reachable there (AD-24, AD-25)"]
 
 **Given** automated tests on the IRIS runner with a minimal MCP client
 **When** they try each refusal and a successful read-only call
 **Then** the results match, and the security overview lists the service's tools from its specification and the `OcuTalonMCPClient` role (FR-51, FR-61)
 
-**Given** the step 7 stories that were built have merged
-**When** step 7's release is prepared
-**Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)
+**Release check:** verified at this step's release by the author's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
 
 ## Epic 29: The online demo's platform side
 
@@ -6464,9 +6260,7 @@ So that I can try OcuTalon in two minutes from the README.
 **When** this story's tests run
 **Then** it turns on Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths (`WatchOps` stopping a signed-out session's watches; the approval that completes while both caps hold) (FR-14, FR-20, FR-40, AD-29)
 
-**Given** the online demo after launch
-**When** the measurement runs 20 times each
-**Then** it records the time from Break the feed to the incident notice on the simulated phone (at most 60 seconds in at least 19 of 20, NFR-7), from sending a chat message to its decision with reasons on the page (at most 10 seconds in at least 19 of 20, NFR-8), from an event to the page (2 seconds) and an approval's result on the other channels (5 seconds), each in at least 19 of 20 (NFR-9, P30), a tell-now notification reaching the web chat and the simulated phone (5 seconds in at least 19 of 20, FR-1), a Telegram pairing showing on the page (5 seconds in at least 19 of 20, FR-18; the pairing done by hand, as in Story 12.7), and a reminder's firing against its due time (10 seconds, NFR-10), and the results go into the release notes (FR-1, FR-18, NFR-7, NFR-8, NFR-9, NFR-10)
+**Release check:** measured on the launched online demo at the 1.0.0 release, the author's [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 
 ### Story 31.4: The paired chat stays isolated under load too
 
@@ -6597,3 +6391,381 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 **Then** Rule 21's recipe gains when the stages use it (appended as a recipe, the run's own write), and the story measures the same classes run warm and fresh in one stage and records both times
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
+
+## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
+
+### Story 33.1: Fix the step 2 contracts in the spine
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 17.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 18 waited for Story 17.1 while Epic 17's Story 17.6 waited for Story 18.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a developer in Lane A,
+I want step 2's new items, tables, settings and cross-lane APIs named in the spine and present in the code as stubs,
+So that both lanes build step 2 against fixed names without waiting for each other.
+
+**Acceptance Criteria:**
+
+**Given** a time zone changed at run time, which the spine leaves to step 2 (AD-18: today every production job inherits the container's `TZ`, as measured on build 154)
+**When** this story starts, as its Task 0, before the spine update
+**Then** it measures on build 154 how `OcuTalon.Bridge.Time` and `OcuTalon.Data.Time` can convert in a named zone, daylight-saving time included, inside production jobs that inherited the container's `TZ`, and pick up a changed zone within a minute without a restart; the update below fixes the instance zone's run-time source by that result. If no run-time way to change the zone works, the story uses the process zone with a restart to apply it, labels it in the settings page text and in Visual Trace, and records the choice as a veto item (FR-17, AD-18) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M6: the time-zone measurement added as Task 0; Story 18.2 changes `OcuTalon.Data.Time`, Lane B's] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a fallback the run decides itself, because a stop in Epic 33 would hold every step epic; it read "and if no way works, the story stops and puts the gap to the author before any zone code is written"]
+
+**Given** the details the spine leaves to step 2: the second-model retry (AD-8), the digest's composition and coverage-list storage, provider resolution by available key and a time zone changed at run time (Deferred)
+**When** this story updates `ARCHITECTURE-SPINE.md`
+**Then** the update fixes one retry runner item per agent (class `OcuTalon.Bridge.Operation.AgentRunner`, each with its own Config Store entry in the `AI.LLM.OcuTalon<Agent>` form), the bridge setting that names each agent's retry item, which fallback reasons are retried, how a retry stays within the bridge timer's limit, and how a retried `turn` treats the conversation link (FR-4, AD-5, AD-6, AD-8)
+**And** it fixes the provider table (each supported provider with its default model, its selectable models, its key's environment variable and a supported flag), the resolution rule that runs before `no_key` with its fixed provider order, and the instance zone's single run-time source: a bridge value that `OcuTalon.Bridge.Time` reads and `OcuTalon.Data.Time` reads too (FR-39, AD-7, AD-8, AD-18)
+**And** it decides how a retried `turn` is handled under the Saved conversations convention and the conversation lock, so that a late first attempt is never saved over the retry's answer and the retry is never refused as busy (for example, the retry runs in a throwaway session seeded with the conversation's recap), and amends the convention row in the same change (FR-4, FR-6, AD-6, AD-8) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M8]
+
+**Given** the digest
+**When** the update is written
+**Then** it fixes the `Digest` item (`OcuTalon.Digest.Process`), the coverage-list storage (per check run, enough to tell whether each entry ran successfully throughout the window, missed runs included), the per-session record of the last digest, the agent and request kind of the digest's one model request, and the digest `Notification` (kind `digest`, catalog keys in `OcuTalon.Msg.Catalog.Watch`, its Slots, and check rows in release 1's check-row shape) (FR-35, FR-36, AD-28, AD-32)
+**And** every new item and table is added to the ownership tables in the same change, and each new table sets `DEFAULTGLOBAL` under `^OcuTalonP.` or `^OcuTalonBP.` from the short-name registry (AD-3, AD-33)
+**And** the digest's summary and Slots are kept in private table rows, never in the `Digest` business process's properties, because a business process keeps no private text in its properties (AD-3) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L7]
+**And** it records the digest evaluation cases (Story 17.7: recorded check results run through `EvalIn` with owner `eval` to `EvalSink`, scored on the all-clear flag and the named entries) as a case kind in AD-22 (FR-37, FR-62, AD-22) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L9]
+
+**Given** the settings page that Lane B builds in step 2
+**When** the update lists step 2's cross-lane APIs
+**Then** it names the bridge APIs `SettingsOps` calls: the providers and models with key presence and the supported flag, a model change for one agent, a price edit, a model test, and the allow-list with validation for the token budget per decision, the daily cost cap, each agent's second model and the instance zone (FR-17, FR-39, FR-40, AD-19)
+**And** it names the step 2 setting keys in `OcuTalon.Data.Setting`: `digest.time`, `digest.channels` and `checks.thresholds.*`, which Lane B's Story 33.2 (was 18.1) stores and the settings page edits, and which Lane A's stories read through `OcuTalon.Data.Setting.Get` with the PRD defaults (FR-17, FR-35, FR-36, AD-19)
+**And** it records that Lane B's Story 33.2 (was 18.1), the first story of Lane B's step 2 epic, fixes the Lane B contracts these stories use: the `SendDigest` command verb and its `CommandsIn` routing to `Digest`, `Notify`'s routing of kind `digest` to the digest channels, and the handled marker that **Got it** sets on a tell-now notice (AD-1, AD-14, AD-29)
+
+**Given** the update is merged
+**When** the package compiles and the production starts
+**Then** the new Lane A items sit in Lane A's region of the one `ProductionDefinition` block (AD-29) as stubs that answer "not implemented" and stay disabled until their story enables them, the new tables compile with committed storage blocks, and the bridge APIs exist as signatures with stub bodies that Lane B can call (AD-5, AD-29)
+**And** CI's bridge-boundary, `%AI` allow-list, storage, storage-diff and duplicate `DEFAULTGLOBAL` checks pass (AD-2, AD-22)
+
+**Given** the digest texts the UX doesn't give yet: the variants beyond UJ-2's two (a session that watches no productions, a digest whose saved-for-later summary is unavailable, each not-checked reason, and the time-of-day greetings)
+**When** this story starts
+**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (FR-35, FR-37, UX-DR117, UX-DR142)
+
+### Story 33.2: Open the settings page as an admin
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 18.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 18 waited for Story 17.1 while Epic 17's Story 17.6 waited for Story 18.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As an admin,
+I want a settings page that saves each section on its own, applies it within a minute and records it in the audit log,
+So that I can change OcuTalon's settings without a terminal or a restart.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's step 2 contracts
+**When** this story updates `ARCHITECTURE-SPINE.md`
+**Then** the update adds the settings REST routes (`GET /api/v1/settings` and one admin-checked save route per section), the `SendDigest` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to `Digest` (origins `tool` and `web_admin` accepted, and AD-1's list of commands accepted from origin `tool` gains it), the **Got it** command and the Lane B table holding each tell-now notice's handled marker, a `handled` notification that tells each `*Out` operation to update its copy (Telegram's through Story 17.6) and a `Delivery` lookup by the notice's `Ref`, and `Notify`'s routing of kind `digest`, each added to the ownership tables in the same change (AD-1, AD-14, AD-29, AD-33)
+**And** the bridge settings APIs, the `Digest` item and the instance zone's run-time source are Lane A's, fixed by Lane A's Story 33.1 (was 17.1) and built in Stories 17.3, 17.4 and 17.6; this epic calls them by the spine's names and tests against Story 33.1 (was 17.1)'s stub signatures until those stories merge (AD-19, AD-29)
+
+**Given** a signed-in user with `OcuTalonAdmin`
+**When** the page loads
+**Then** the header shows navigation with "Chat" and "Settings" (D `header-nav-item`, the current page marked `aria-current="page"`, inside a navigation landmark), and Settings opens a page titled "Settings · OcuTalon" with section navigation on the left: Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode (FR-17, UX-DR21, UX-DR22, UX-DR29, UX-DR130, UX-DR141)
+
+**Given** a signed-in user without `OcuTalonAdmin`
+**When** they use the app or open the settings address directly
+**Then** no Settings link shows, the address shows "Only OcuTalon admins can open settings." with a link back to the chat, and every settings API call answers 403 in the error shape `{"error": {"code", "message"}}` (FR-17, AD-13, UX-DR141)
+
+**Given** an admin changed a section's values
+**When** they press **Save changes**
+**Then** the web layer submits one command through `Commands.Submit` with origin `web_admin`; `SettingsOps` writes each value, audits it through `OcuTalon.Bridge.Audit` (type `Settings`, with the admin's IRIS user, `SessionRef`, channel, and old and new values, never a secret) and applies it within a minute without restarting IRIS or the production; and the section confirms "Saved. Applies within a minute. Recorded in the audit log." (FR-17, FR-9, AD-1, AD-17, AD-19, UX-DR141)
+**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141)
+
+**Given** the Check thresholds and Demo mode sections
+**When** an admin saves them
+**Then** thresholds save as product values under the `checks.thresholds.*` keys, read through `OcuTalon.Data.Setting.Get`, so checks use them within 60 seconds, and Demo mode switches through the same `SettingsOps` path as `OcuTalon.Core.Admin.SetDemoMode` (FR-17, FR-36, FR-16, AD-19)
+**And** `OcuTalon.Data.Setting` stores every step 2 setting key Lane A's Story 33.1 (was 17.1) names (`digest.time`, `digest.channels`, `checks.thresholds.*`), written only by `SettingsOps` and edited on this page (the digest keys in Story 18.2's Daily digest section), and Lane A's stories read them through `Setting.Get` with the PRD defaults (FR-17, FR-35, FR-36, AD-19)
+
+**Given** the tests
+**When** they run
+**Then** one reads each kind of settings change back from the IRIS audit log, one submits a settings command with origin `tool` and expects a refusal, and the fixed-strings test covers every new label (FR-9, AD-1, AD-22, UX-DR117)
+
+
+## Epic 34: Step 3's contracts, and a Documents page (step 3)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 19.1 and 20.1, moved whole and verbatim as Stories 34.1 and 34.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get P6 confirmed and step 3's names fixed in the spine and in code as stubs, with the FastEmbed model path checked on an IPM install, and a user adds and removes Markdown and plain-text documents on a Documents page, so that Epics 19 and 20 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 19 and 20) and its partner in this epic.
+
+### Story 34.1: Settle step 3 ownership and fix its contracts
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 19.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 20 waited for Story 19.1 while Epic 19's Story 19.3 waited for Story 20.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a developer in Lane A,
+I want P6's decision, made through P23, confirmed in every document, and step 3's items, tables and extension class named in the spine,
+So that memory and documents are built once, with the right owner, by both lanes.
+
+**Acceptance Criteria:**
+
+**Given** P6 (on the online demo, documents and memories belong to the session and clear at the reset; UX change 9) and spike S14's result
+**When** this story starts
+**Then** P6 was decided through P23; this story confirms that the PRD (FR-15, FR-41, FR-42), the UX's open items and assumptions, and the spine record it (FR-15, FR-41, FR-42, UX-DR107, UX-DR153, AD-4)
+**And** the stories below follow that decision: per session on the online demo, cleared at the reset, and on a local install, memories per user and documents shared by every user, as the author decided in P23 on October 17 and AD-4 and AD-21 record (FR-15, FR-41, FR-42, AD-4, AD-21)
+
+**Given** the details the spine leaves to step 3
+**When** this story updates `ARCHITECTURE-SPINE.md`
+**Then** it adds the memory and document operations (Lane A), the embedding worker category `OcuTalon.Memory.Embedder`, the tables `OcuTalon.Data.Memory` and `OcuTalon.Data.Document` (Lane A) and the knowledge-base tables `OcuTalon.Docs` creates, the `document` live event with its single publisher, the memory and document tool names, the hybrid-ranking parameters, the fourth extension class `TurnToolsClass`, and how a reply marks the passages and memories it used, each in the ownership tables in the same change (AD-21, AD-31, AD-33)
+**And** it aligns AD-21's dropping of per-session knowledge-base tables with the reset as the spine now fixes it: the reset restores the golden copy and runs nothing, so no demo session's tables or memories survive it, and no code drops them at the reset; a sign-out drops them instead through the per-session drop methods `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)` (Lane A, built in Story 19.5), which Lane B's `SessionOps.End` calls (Story 34.2 (was 20.1)) (AD-4, AD-21, AD-25, AD-29)
+**And** it records that Lane B's Story 34.2 (was 20.1), the first story of Lane B's step 3 epic, fixes the Lane B contracts these stories use: the memory and document command verbs in `OcuTalon.Msg` with their `CommandsIn` routing (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes and the Dockerfile lines for `fastembed` 0.9.0 and the baked model; and that Lane B's Story 20.2 carries a reply's memories and citations onto `chat.message` (AD-1, AD-23, AD-29)
+
+**Given** the update is merged
+**When** the package compiles and the production starts
+**Then** the new items are stubs in Lane A's region of the one `ProductionDefinition` block (AD-29), disabled until their story enables them; the new tables commit their storage blocks and set `DEFAULTGLOBAL` under `^OcuTalonP.`; the two drop methods exist as signatures with stub bodies that Lane B can call; and a CI check fails any knowledge-base `CREATE TABLE` without that rule (AD-3, AD-5, AD-29, AD-33)
+**And** every start's private-data check covers the memory, document and knowledge-base globals and `^IRIS.IF.*`, and fails if any of them lands in the data database (NFR-18, AD-3, AD-23)
+
+**Given** an IPM install into an existing instance, where the package can't set the IRIS process's environment
+**When** this story checks the FastEmbed model path on a clean build 154 instance with outbound network access blocked after the install
+**Then** the install downloads the model once into `<mgr>/fastembed/`; OcuTalon passes that folder explicitly, as the Python `fastembed` package's `cache_dir` and as `FASTEMBED_CACHE_DIR` set inside its own worker before first use; and the check confirms that AI Hub's FastEmbed, used for documents, finds the model by that path offline on first use (FR-41, FR-42, FR-57, AD-21)
+**And** the result is recorded in the spine update; if AI Hub's FastEmbed doesn't find the model that way, the story stops and puts the gap to the author before any document code is written (AD-21)
+
+### Story 34.2: Add and remove documents on a Documents page
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 20.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 20 waited for Story 19.1 while Epic 19's Story 19.3 waited for Story 20.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a user,
+I want a Documents page where I add Markdown and plain-text runbooks and remove them,
+So that OcuTalon can answer from my own documents.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's part of step 3
+**When** this story updates `ARCHITECTURE-SPINE.md` and the code
+**Then** it adds the memory and document command verbs in `OcuTalon.Msg`, routed by `CommandsIn` to Lane A's memory and document operations under the names Lane A's Story 34.1 (was 19.1) fixes (origin `tool` accepted only for saving and forgetting a memory), the documents REST routes, and the Dockerfile lines that install `fastembed==0.9.0` pinned into IRIS's Python folder and bake the AllMiniLM-L6-v2 model into a root-owned, read-only folder named by `FASTEMBED_CACHE_DIR`; each new route and class goes into the spine's tables in the same change (AD-1, AD-21, AD-23, AD-29, AD-33)
+
+**Given** a signed-in user
+**When** the header navigation shows
+**Then** it adds "Documents", which opens a page titled "Documents · OcuTalon" listing each document's name, date added, size and status ("Indexing…", "Ready" or "Couldn't read it: {reason}"), updated live from `document` events; with no documents it reads "No documents yet. Add a runbook to get cited answers." (FR-42, UX-DR21, UX-DR22, UX-DR144)
+
+**Given** the user presses **Add documents**
+**When** they pick Markdown or plain-text files, or drop them on the page
+**Then** each file goes through the documents route, which submits the add command with origin `web_user`, and its row appears as "Indexing…"; a file of any other type is refused and its row reads "Couldn't read it: {reason}" (FR-42, AD-1, UX-DR144)
+**And** the file picker is always there, so drag-and-drop is never the only way, and every control works by keyboard (NFR-25, UX-DR125, UX-DR129)
+
+**Given** a document row
+**When** the user chooses to remove it
+**Then** a dialog asks "Remove '{name}'? Answers will stop citing it." (fixture "Remove 'Results runbook'? Answers will stop citing it."), and confirming submits the remove command and the row leaves the list (FR-42, UX-DR144, UX-DR38)
+
+**Given** the online demo, with P6 decided as proposed (Lane A's Story 34.1 (was 19.1)) and per-session knowledge bases built by Lane A's Story 19.5 (fixture rows of two sessions until it merges)
+**When** a session opens Documents
+**Then** it lists only that session's documents, which clear at the reset, and never another session's (FR-15, AD-4, UX-DR107)
+
+**Given** an online-demo session that signs out
+**When** `SessionOps.End` (Story 16.4) runs
+**Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 34.1 (was 19.1)'s stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
+
+
+## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 22.1 and 21.1, moved whole and verbatim as Stories 35.1 and 35.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 4's names fixed in the spine and in code as stubs, the MCP servers an admin registers are attached to OcuTalon's agents with every new tool unclassified, and webhooks with their own secrets turn JSON events into items, so that Epics 21 and 22 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 21 and 22) and its partner in this epic.
+
+### Story 35.1: Fix step 4's contracts and register MCP servers
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 22.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As an admin,
+I want the MCP servers I register attached to OcuTalon's agents so that their tools are listed for OcuTalon,
+So that I can extend OcuTalon with tools I already run.
+
+**Acceptance Criteria:**
+
+**Given** the details the spine leaves to step 4
+**When** this story updates `ARCHITECTURE-SPINE.md`
+**Then** the update adds the MCP operation `McpOps` (class `OcuTalon.Mcp.Ops`, Lane A), which owns `OcuTalon.Mcp.Server` and `OcuTalon.Mcp.ToolClassification`; the commands it accepts (add or remove a server, classify a tool, set or remove a source poll); the source-poll row type in `OcuTalon.Data.BackgroundCheck`; the read API `OcuTalon.Mcp.Ops.Tools(server)`, which returns each discovered tool's name, classification and status from `OcuTalon.Mcp.ToolClassification` rows (every discovered tool has a row, unclassified included) and which Lane B's settings page reads; and the email fix kind with the path by which a standalone fix's approval reaches `FixExecutor` and its send through `EmailOut`, each in the ownership tables in the same change (FR-44, FR-47, FR-48, FR-50, AD-16, AD-21, AD-33)
+**And** it records that Lane B's Story 35.2 (was 21.1), the first story of Lane B's step 4 epic, fixes the Lane B contracts these stories use: the MCP command verbs with `CommandsIn` routing to `McpOps` that refuses origin `tool`, the `SendEmail` verb with its routing to `EmailOut` for the session user's own address, the record where `EmailIn` keeps its poll outcomes, and `OcuTalon.Core.SettingsOps.RestartRunners()`, which restarts the runner items through `Ens.Director` and which `McpOps` calls after a server is added or removed (AD-1, AD-21, AD-29)
+**And** it records in AD-31 that a fix request with no incident (the email fix kind, Story 22.7) gets its `approval`, `answered` and `result` notifications from `OcuTalon.Core.BridgeSink`, as tool calls do, which Lane B's Story 21.5 builds; `IncidentManager` does this only for kind `fix` requests of an incident (AD-31, AD-32)
+**And** once the update is merged, `Tools(server)` exists in code as a signature with a stub body that Lane B's Story 21.4 can call until Story 22.2 builds it (AD-29)
+
+**Given** the step 4 texts Lane A's stories need that the UX doesn't give yet: the changed-tool notice card in an admin's chat, the notices for an unavailable server and a refused shadowing tool, a replay refused because its tool changed, and a source that stopped polling
+**When** this story starts
+**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
+
+**Given** a registered server (in this story's tests, a fixture `OcuTalon.Mcp.Server` row with its Config Store entry `AI.MCP.OcuTalon_<server>`; Story 22.2 handles the add and remove commands)
+**When** a runner builds its agent
+**Then** the adapter attaches it in `OnAfterAgentInit`, after the agent's own toolsets, as `mcp:remote:@{config:AI.MCP.OcuTalon_<server>}`, checks the attach and tool statuses, reports an unavailable server, refuses a tool whose name shadows a built-in and tells admins, and every new tool starts unclassified (FR-47, FR-48, AD-6, AD-21)
+**And** the tests run against a mock MCP server on loopback from `OcuTalon.Test.Mcp`, offering a read-only tool and a risky one, which the later stories of this epic reuse (AD-22)
+
+**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the online demo with its preconfigured MCP servers on the demo's allow-list **When** the step 4 release is prepared **Then** the demo host's gateway configuration (outside the repository) lets traffic through to exactly those servers and to no other MCP destination, the release checklist names each allowed server, and a check against the running demo confirms that a call to a server off the list is refused (FR-47, FR-59, NFR-15, AD-25)"]
+
+### Story 35.2: Fix Lane B's step 4 contracts and send events to OcuTalon through a webhook
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 21.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As an admin,
+I want to create webhooks, each with its own secret, that turn any JSON event into an item,
+So that other systems can tell OcuTalon what happened and it decides what needs me.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's step 4 contracts, including the webhook details the spine leaves to step 4
+**When** this story updates `ARCHITECTURE-SPINE.md`
+**Then** the update adds a Lane B webhook table (each webhook's reference, name, owning session and salted secret hash), the `/ocutalon/hook` application created by `OcuTalon.Install.Step.Web` (a dispatch class only, no session, and a minimal webhook role whose grants the install step declares through `Grants()`), the header that carries the secret and the body size cap, the email and MCP settings routes, and the record where `EmailIn` keeps each poll's outcome (which Lane A's Story 22.5 reads), each added to the ownership tables in the same change (FR-44, FR-45, FR-47, AD-13, AD-23, AD-33)
+**And** it adds the command verbs in `OcuTalon.Msg` with their `CommandsIn` routing: the MCP verbs (add or remove a server, classify a tool, set or remove a source poll) to Lane A's `McpOps` under the names Lane A's Story 35.1 (was 22.1) fixes, refused from origin `tool`; and `SendEmail` to `EmailOut`, accepted from origin `tool` only when every recipient is the session user's own address, which AD-1's list of commands accepted from origin `tool` gains (FR-44, FR-47, AD-1, AD-29)
+
+**Given** Lane A's `McpOps` (Story 22.2), which must restart the runners after a server is added or removed
+**When** it calls `OcuTalon.Core.SettingsOps.RestartRunners()`, which this story builds
+**Then** the runner items restart through `Ens.Director`, so each runner builds its agent again with the servers then registered, and a test calls it and finds every runner item restarted with the production still running (FR-47, AD-19, AD-21, AD-29)
+
+**Given** the step 4 texts the UX doesn't give yet: the email and webhook settings, the changed-tool banner in Settings, the source-poll form and the cancelled status of an approval request
+**When** this story starts
+**Then** it proposes their wording to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps › Step 4), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
+
+**Given** an admin in Settings › Channels
+**When** they create a webhook with a name and a secret
+**Then** the secret is stored only as a salted hash, its field is write-only and never shows the value again, any value containing `@{` is refused, the webhook's events belong to the admin's session, and the change is audited without the secret (FR-45, FR-9, NFR-11, AD-19)
+
+**Given** a `POST` to that webhook with the right secret and a JSON body under the cap
+**When** it arrives
+**Then** the endpoint answers 202 within 1 second, before any decision, and `WebhookIn` sends the event to `Intake` as an untrusted Item, which gets its attention decision afterwards; the event and its decision appear in Visual Trace in the event's own trace session (FR-45, FR-1, FR-7, NFR-14, NFR-20, AD-14, AD-26, AD-30)
+
+**Given** a request for an unknown webhook, or with a missing or wrong secret
+**When** it arrives
+**Then** it gets the same 401, the secret is compared as a salted hash in constant time, nothing becomes an item, and the rejection is recorded in the audit log at a capped rate (FR-45, FR-14, AD-13, AD-17)
+**And** a body over the cap, or one that isn't JSON, is refused without becoming an item (FR-45, AD-13)
+**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted (FR-14, AD-25)
+**Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; the criterion read "**And** a test calling `/ocutalon/hook` and every other OcuTalon path without signing in finds only a webhook `POST` with its secret accepted, and on the online demo the proxy's allow-list blocks the webhook path (FR-14, AD-25)", and its repository test stays above]
+
+
+## Epic 36: Step 5's contracts: setting history, and the on-call person in Settings (step 5)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 23.1 and 24.1, moved whole and verbatim as Stories 36.1 and 36.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 5's names fixed in the spine, with the paging channels PRD Open Question 5's answer gives (Telegram and email by default, chosen per person), OcuTalon records the setting history of each watched production, and an admin sets the on-call person and backup in Settings, so that Epics 23 and 24 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 23 and 24) and its partner in this epic.
+
+### Story 36.1: Record the setting history of each watched production
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 23.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 24 waited for Story 23.1 while Epic 23's Stories 23.4 and 23.8 waited for Story 24.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a production developer,
+I want OcuTalon to keep a history of the setting changes in every production it watches,
+So that an incident can later name the change that came just before the failures.
+
+**Acceptance Criteria:**
+
+**Given** step 5 starts in Lane A
+**When** this story begins
+**Then** the spine is updated in the same change with step 5's Lane A additions: `OcuTalon.Watch.SettingHistory` and the tables `SettingSnapshot` and `SettingChange`; the reroute, suspend, resume, roll-back and partner-warning kinds under `OcuTalon.Fix.Kind`, each with its parameter schema and declared `RESOURCES`; the paging owner, its table and its escalation message; where an incident's summary is stored; the queue-backlog and SQL-query check types on `OcuTalon.Data.BackgroundCheck` and how a SQL query runs as a read-only SQL user; the new `OcuTalon.Msg.Catalog.Watch` keys; and the new fields of the `incident` live-event payload (AD-15, AD-16, AD-18, AD-29, AD-33)
+**And** it records that Lane B's Story 36.2 (was 24.1), the first story of Lane B's step 5 epic, fixes the Lane B contracts these stories use (the page notification and its route in `Notify`, the escalation kind on `Reminder` that `ReminderTimer` runs, the command verbs to acknowledge a page and to save a SQL query watch, the on-call setting keys and the partner-contact table); Lane A never edits them (AD-29, AD-33)
+**And** the channel texts step 5 needs that the UX doesn't give yet (a page, an escalation, each new fix's dry run and result, the partner warning request, the incident summary) are proposed to the author as additions to `EXPERIENCE.md` › Message Catalog with their catalog keys, following the voice and plain-English rules, and no story ships a text the author hasn't accepted (UX-DR117, UX-DR118, UX-DR119)
+
+**Given** the spine update lists each new kind's declared `RESOURCES`
+**When** it is written
+**Then** it records that the roll-back kind declares `%Ens_ProductionConfig` with WRITE, so the service user holds it from step 5, and AD-24's list of privileges no OcuTalon role holds names this one grant as its exception; suspend and resume declare only `%Ens_ConfigItemRun`, and reroute declares `%Ens_MessageResend` (AD-16, AD-24, NFR-12)
+**And** the installer composes the service user's grants from those declarations, the security overview's generated privilege list shows `%Ens_ProductionConfig` with the roll-back kind that needs it, and Epic 3's forbidden-privilege test allows exactly that grant to the service user and still fails on any other forbidden privilege or holder (FR-61, NFR-12, AD-23, AD-24)
+
+**Given** PRD Open Question 5's answer (the author, 2026-10-25: Telegram and email both by default, and each on-call person can choose Telegram, email or both)
+**When** this story updates the spine
+**Then** the update records that a page goes to the on-call person and to the backup by Telegram and by email by default, or only on the channels each has chosen in their on-call settings, with how a page is acknowledged on each channel, before any paging work starts; Telegram reaches only a user whose session has a paired chat, so a person without one is paged by email (FR-28) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): the question is answered, so it is no longer put to the author and nothing waits on it; it read "**Given** PRD Open Question 5 (which channel pages the on-call person: Telegram, email or both) **When** this story starts **Then** the question is put to the author, and the answer, with how a page is acknowledged on each channel, is recorded in the PRD's open questions and in the spine update before any paging work starts (FR-28)"]
+
+**Given** a watched production
+**When** the heartbeat's `Tick` reaches `Checks`
+**Then** `Checks` compares Interoperability's per-namespace production-change counter with the last value it saw, and only when the counter moved, after a restart, or once an hour as a safety net, `SettingHistory` takes a snapshot through `OcuTalon.Watch.Reader` of every item's host and adapter settings plus the System Default Settings that apply, and diffs it with the previous snapshot (AD-15, AD-18)
+**And** each difference becomes one `SettingChange` row (production, item, target, setting, old value, new value, detected at in UTC); a production's first snapshot records no changes (AD-15)
+**And** a credential-type value is removed before anything is stored, so a change to it is recorded with both values blank, and no value of it reaches a message, a log or an agent step (AD-15, NFR-11)
+
+**Given** automated tests in `OcuTalon.Test.Watch`
+**When** they change a test production's settings in another namespace, once through the production configuration and once through System Default Settings
+**Then** both changes appear as `SettingChange` rows after the next heartbeat that sees the counter move, each detected time is within the check interval, no row names who made the change, and taking a snapshot changes nothing in the watched production (AD-15, FR-27)
+**And** both tables commit their storage blocks with `DEFAULTGLOBAL` from the short-name registry, and their rows older than `daysToKeep` (90 by default) are purged through the area's `Purge(daysToKeep)` declaration (AD-3, AD-5, AD-27, NFR-19)
+
+### Story 36.2: Set the on-call person and backup in Settings
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 24.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 24 waited for Story 23.1 while Epic 23's Stories 23.4 and 23.8 waited for Story 24.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As an admin,
+I want to choose the on-call person and the backup, each paged by Telegram, email or both (both by default), and the time before escalation, [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "each with a channel, and the time before escalation,"]
+So that incidents page the right people on a channel that can reach them.
+
+**Acceptance Criteria:**
+
+**Given** step 5 starts in Lane B
+**When** this story begins
+**Then** the spine is updated in the same change with Lane B's step-5 additions: the settings sections for on-call, partner contacts and SQL query watches and their routes; the on-call setting keys in `OcuTalon.Data.Setting`; a partner-contact table owned by Lane B and written only by `SettingsOps`; the page notification and its route in `OcuTalon.Core.Rule.Notify`; an escalation kind on `Reminder`, whose `ReminderTimer` waiter sends the escalation message to the paging owner; the `approval` payload's fields for the new kinds' dry runs; the command verbs to acknowledge a page and to save a SQL query watch, and a `handled` notification and a `Delivery` lookup by the page's `Ref`, so every copy of an acknowledged page updates (Telegram's through Story 23.4) (FR-28, AD-5, AD-12, AD-29, AD-33)
+**And** the step-5 additions that Lane A's Story 36.1 (was 23.1) asks for in `OcuTalon.Msg` and `OcuTalon.Data` are appended by Lane B as their owner, and Lane A's stories never edit them (AD-29, AD-33)
+**And** the section names and texts the UX doesn't give (the on-call, partner-contact and SQL query watch sections and their field errors) are proposed to the author as additions to `EXPERIENCE.md` › Later Steps › Step 5 and the Message Catalog, every other text is the step-2 settings text, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR141)
+**And** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+
+**Given** an admin opens the on-call section
+**When** they choose the on-call person and the backup
+**Then** each is either an OcuTalon user or an email address, paged by Telegram and email by default, with each person's choice of Telegram, email or both saved in their on-call settings; Telegram is offered only for a user whose session has a paired chat, because the bot can't message anyone first, so a person without one, or given only as an email address, is paged by email; and the time before escalation defaults to 15 minutes (FR-28) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 5; the owner: "A. Both, and person can choose."): it read "on the channels PRD Open Question 5's answer allows (put to the author by Lane A's Story 36.1 (was 23.1)); Telegram is offered only for a user whose session has a paired chat, because the bot can't message anyone first;"]
+**And** **Save changes** saves the section on its own and confirms "Saved. Applies within a minute. Recorded in the audit log.", and leaving with unsaved changes asks first (FR-17, UX-DR141)
+
+**Given** a saved change
+**When** a minute has passed
+**Then** `OcuTalon.Data.Setting.Get` returns the new values without a restart, `SettingsOps` was the only writer, and the IRIS audit log holds a settings entry with the admin's IRIS user and session (FR-17, FR-9, AD-17, AD-19)
+
+**Given** an email address that isn't valid, or a time before escalation that isn't a whole number of minutes above zero
+**When** the admin saves
+**Then** a field error marks the field, focus moves to the first error, and nothing is saved; a save that fails on the server shows "Couldn't save. Nothing was changed." (UX-DR36, UX-DR141)
+
+**Given** a user without the admin role
+**When** they call the on-call section's routes
+**Then** the routes refuse with 403 and change nothing, as every settings route does from step 2; the online demo, which has no admin, never has an on-call configuration (FR-17, AD-13)
+
+**Given** automated tests in `OcuTalon.Test.Core` and a Playwright spec under `web/e2e/`
+**When** an admin saves, corrects and saves the section again
+**Then** the stored values, the audit entries and the page's states match, and the section works by keyboard with every control labelled (NFR-25, UX-DR125, UX-DR130)
+
+
+## Epic 37: Step 6's contracts: text from PDF and Word files, and the Usage page (step 6)
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, OcuTalon extracts text from PDF and Word files with Embedded Python, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
+
+### Story 37.1: Extract text from PDF and Word files with Embedded Python
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 26.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 25 waited for Story 26.1 while Epic 26's Stories 26.2 and 26.4 waited for Epic 25's Stories 25.3 and 25.5, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a user,
+I want OcuTalon to read the text of a PDF or Word file I send,
+So that it can answer from the file or keep it as a document.
+
+**Acceptance Criteria:**
+
+**Given** the contest's bonus list, published after October 26
+**When** it includes an Embedded Python bonus
+**Then** this story and the PDF and Word document story move to step 3, alongside FR-42, as PRD Open Question 3 decides, recorded in the PRD; otherwise they stay in step 6 (FR-54, FR-42)
+
+**Given** step 6 starts in Lane A
+**When** this story begins
+**Then** the spine is updated in the same change with Lane A's step-6 additions: the extraction class in `OcuTalon.Docs` and its own `%SYSTEM.WorkMgr` worker category; its Python resource under `src/ocutalon/python/`; the pinned Python package that reads Word (.docx) files, `python-docx` 1.1.2, in the Stack row beside pdfplumber, which reads PDF only; the photo-caption request; the approver roles and the resources they hold, with how they take over from the bridge's approval-role setting (seeded `OcuTalonUser` until step 6); the online demo account's `OcuTalonApprover` grant as an AD-24 amendment; and the role-check and role-assignment methods Lane B calls (FR-11, FR-42, FR-54, AD-11, AD-21, AD-24, AD-29, AD-33)
+**And** Lane B's Story 37.2 (was 25.1), the first story of Lane B's step 6 epic, adds `pdfplumber==0.11.10` and `python-docx==1.1.2` to the image's pinned Python packages, installed the same way; the package declares both for an IPM install, and their licence notices are kept (AD-23, AD-29, CON-2)
+
+**Given** the spine update is merged
+**When** the package compiles
+**Then** the step 6 Lane A APIs it fixes, `Approval.MayAnswer` and the role-assignment method, exist in code as signatures with stub bodies that Lane B's Stories 25.4 and 25.5 can call until Story 26.4 builds them, as Story 33.1 (was 17.1) does for step 2 (FR-11, AD-29)
+
+**Given** a PDF or Word (.docx) file of at most 10 MB
+**When** extraction is asked for, by any caller, a tool inside a turn included
+**Then** it runs pdfplumber 0.11.10 for a PDF, or `python-docx` 1.1.2 for a .docx file, through Embedded Python in a `%SYSTEM.WorkMgr` worker, never in the calling process, from a `.py` resource imported with `%SYS.Python.Import`, and returns the text with page or heading markers for citations, cut at a fixed size and saying so when cut (FR-54, AD-6, NFR-3)
+
+**Given** a file that can't be read (encrypted, damaged, a PDF with no text layer, a legacy .doc file, or extraction slower than its time limit)
+**When** extraction ends
+**Then** it returns a failure with a plain reason that fits "I couldn't read that file: {reason}.", and nothing is stored from it (FR-54, NFR-24, UX-DR147)
+
+**Given** automated tests in `OcuTalon.Test.Docs` with sample PDF and Word files
+**When** they run on the IRIS runner, on a developer image or test stack whose test setup installs `pdfplumber==0.11.10` and `python-docx==1.1.2` with the same `pip install --target` line until Lane B's Story 37.2 (was 25.1) pins both in the image (Story 26.2 then runs the same tests on the real image)
+**Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
+**And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
+
+### Story 37.2: See tokens and cost over time on the Usage page
+
+[AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 25.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 25 waited for Story 26.1 while Epic 26's Stories 26.2 and 26.4 waited for Epic 25's Stories 25.3 and 25.5, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+As a user,
+I want a Usage page that shows tokens and cost by day, agent, channel and model,
+So that I can see what OcuTalon costs and spot a request close to the size limit.
+
+**Acceptance Criteria:**
+
+**Given** step 6 starts in Lane B
+**When** this story begins
+**Then** the spine's REST table and ownership tables gain Lane B's step-6 additions in the same change: the usage and history reads, the file upload route and the private file table, the Roles section's routes, and the header navigation's History and Usage entries (AD-29, AD-33)
+**And** the step-6 additions that Lane A's Story 37.1 (was 26.1) asks for in Lane B's contracts are appended by Lane B as their owner, including the Dockerfile lines that install the Python packages Story 37.1 (was 26.1) names (`pdfplumber==0.11.10` and `python-docx==1.1.2`) pinned, like `fastembed`, with the same `pip install --target` line and their licence notices kept (AD-23, AD-29, AD-33, CON-2)
+
+**Given** a signed-in user
+**When** they open Usage from the header navigation
+**Then** the page, titled "Usage · OcuTalon" with `aria-current="page"` on its navigation item, shows a range, a grouping (day, agent, channel or model), the usage chart with token bars and the cost line, each labelled directly as well as in the legend, and a table beneath with a row for every bar and point (FR-52, UX-DR21, UX-DR22, UX-DR147)
+**And** tokens and costs follow the number formats in tabular figures (UX-DR10, UX-DR124)
+
+**Given** the usage rows the ownership API lets the caller see
+**When** the view totals a range in any grouping
+**Then** the totals equal the sum of the decision and turn costs in that range, compaction rows count under their own agent and are marked as estimated, and `eval` rows never appear (FR-52, AD-20, AD-31)
+**And** each day shows its largest model request against the 100,000-token limit (FR-52, NFR-3)
+
+**Given** a range with no model use
+**When** the page loads
+**Then** it shows "No model use in this period." (UX-DR147)
+
+**Given** automated tests and a Playwright spec under `web/e2e/` with fixture usage rows across days, agents, channels and models
+**When** each grouping is chosen
+**Then** each total equals the sum of its rows, the chart and the table agree, another session's rows never appear, and the page works by keyboard with labelled controls and never relies on colour alone (FR-52, AD-4, NFR-25, UX-DR134)
