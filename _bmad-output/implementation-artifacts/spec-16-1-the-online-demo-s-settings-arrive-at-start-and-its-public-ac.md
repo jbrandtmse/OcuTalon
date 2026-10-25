@@ -2,7 +2,8 @@
 title: 'Story 16.1: The online demo''s settings arrive at start, and its public accounts are safe to publish'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'in-review'
+baseline_revision: 'ea1b455e01102a0cc3f2034e64bf20aec75aac6d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -61,7 +62,7 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 | 3 | Budget rows (AC 1) | After row 1 | `Decide`'s System Default Settings: `DailyCostCapUSD` 20, `GatewaySpendUSD` and `GatewaySpendDate` empty | -- |
 | 4 | Accounts and guard (AC 2) | After row 1 | `DemoVisitor` holds exactly `OcuTalonUser,OcuTalonTraceViewer`, `TraceReader` exactly `OcuTalonTraceViewer`; both enabled, `ChangePassword` 0, password and account never expire; the README account disabled. `PasswordValidationRoutine` is the literal `Check^OcuTalonPasswordGuard`, `OcuTalonPasswordGuard` exists, `OcuTalonPasswordGuardNew` does not, and the routine's source holds neither password. Both names' Visual Trace page size is 100 in OCUTALON and OCUORDERS (DW-160 on a real fresh volume) | -- |
 | 5 | Every S17 form (AC 2) | F1 to F11, each for the demo account, the read-only account (name in capitals) and the control | After each form both public accounts still sign in with their published passwords and not with the attempted one; the control's password changed exactly for the forms in `CHANGE_FORMS` | -- |
-| 6 | No password-change page (AC 2) | No session | The sign-in page at `/ocutalon/` has no field named `*OldPassword` or `*RepeatPassword`; `%25CSP.PasswordChange.cls` answers 404 on both trace applications | -- |
+| 6 | No password-change page (AC 2) [AMENDED 2026-10-25, Story 16.1, unattended ruling (veto), runner C lead: was "`%25CSP.PasswordChange.cls` answers 404 on both trace applications"; measured on build 154, IRIS serves its own page there to a signed-in user whatever `PermittedClasses` says] | No session; then signed in at each trace application | OcuTalon's own pages offer no password change: the sign-in page at `/ocutalon/` has no field named `*OldPassword` or `*RepeatPassword`, and with no session `%25CSP.PasswordChange.cls` at each trace application is IRIS's sign-in page with no such field. Signed in, IRIS's own `%25CSP.PasswordChange.cls` page is served (recorded, not asserted absent); a change posted through it (F12) is refused for both public accounts by the guard (row 5). On the online demo the demo host's proxy blocks every password-change page and every `*OldPassword` / `*RepeatPassword` field (AD-25, Story 29.3) | -- |
 | 7 | Read-only at `/ocutalon` (AC 3) | `TraceReader` signs in through the sign-in form | The page shows "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it." and never the shell; `GET /ocutalon/api/v1/state` then answers 401 | -- |
 | 8 | Read-only opens trace (AC 3) | `TraceReader` signed in at `/ocutalon/trace/ocutalon/`; a seeded OCUTALON turn session and one seeded OCUORDERS order session | In each namespace Visual Trace draws the seeded session's messages and the message viewer lists at least one row; the second application asks for no sign-in | -- |
 | 9 | Read-only refused (AC 3) | `TraceReader` signed in to both trace applications | Each of `EnsPortal.ProductionConfig.zen`, `EnsPortal.Productions.zen`, `EnsPortal.StartStopFrame.zen`, `EnsPortal.MessageResend.zen`, `%25CSP.UI.Portal.SQL.Home.zen`, `EnsPortal.Credentials.zen`, `%25CSP.UI.Portal.Users.zen` and `EnsPortal.DefaultSettings.zen` answers 404 in both applications, and on the Visual Trace page `zenPage.canResend` is false (the property checks the resend resource, `irislib/EnsPortal/VisualTrace.cls:92`) | -- |
@@ -127,12 +128,14 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 
 **Acceptance Criteria:**
 - Given AD-19's online-demo start values on a fresh throwaway, when the container starts, then the `Public` step runs right after `Bridge.Installer`, every step succeeds, readiness is set last, every public value reads back through `OcuTalon.Data.Public.Settings` (and through `Setting.Get`, which delegates), `/ocutalon/public/status` reports the next reset that `NextReset` computes with the last reset and its kind, and `Decide`'s cap is 20; no class but the accessor names the global (the existing `class-rules` check). Rows 1, 2, 3, 13 and 16 hold.
-- Given the demo and read-only accounts of that start, when any S17 form tries to change either password at any OcuTalon application, then the password stays the published one (the name in capitals included), the control user's password changes exactly where IRIS treats the form as a change, the restart's installer rewrites the published value through the live guard, and no page offers a password change. Rows 4, 5, 6 and 13 hold.
+- Given the demo and read-only accounts of that start, when any S17 form tries to change either password at any OcuTalon application, then the password stays the published one (the name in capitals included), the control user's password changes exactly where IRIS treats the form as a change, the restart's installer rewrites the published value through the live guard, and no page of OcuTalon's own offers a password change (IRIS's own `%CSP.PasswordChange.cls` at the trace applications reaches no public account's password: the guard refuses it, and the demo host's proxy blocks the page, AD-25) [AMENDED 2026-10-25, unattended ruling (veto)]. Rows 4, 5, 6 and 13 hold.
 - Given the read-only account, when it signs in at the two trace applications and at `/ocutalon`, then it opens Visual Trace and the message viewer in both namespaces with one sign-in, is refused production, resend, SQL, security, settings and credential pages, and gets the "no OcuTalon role" message at `/ocutalon`. Rows 7, 8 and 9 hold.
 - Given the demo account signed in on the page, when it presses a trace link and "Open my conversation in Visual Trace", then Visual Trace opens in a new tab at the link's target with no second sign-in; and its Visual Trace menu shows the read-only credential rows from `/state` with working copy buttons. Rows 10, 11 and 12 hold (the integration AC: the header reads `traceAccount` from the snapshot on a real flag-on instance).
 - Given a local install, when it starts and its page loads, then `/state` has no `traceAccount` and the same keys as before, and the Visual Trace menu shows no credential rows; the existing local tests stay green unchanged. Rows 14 and 15 hold.
 
 ## Spec Change Log
+
+- 2026-10-25, lead (runner C), after the implement stage's `intent gap` halt on row 6: ruling (veto window, recorded in the run's inbox) -- row 6 and AC 2's last clause now say what AD-13, AD-24 and AD-25 already state: OcuTalon's own pages offer no password change; IRIS's own `%CSP.PasswordChange.cls`, which build 154 serves at the trace applications to a signed-in user whatever `PermittedClasses` holds, is covered by the guard (F12 asserts the refusal for both public accounts) and, on the online demo, by the demo host's proxy, which blocks every password-change page (AD-25, Story 29.3; the measured page path is filed in the ledger for Story 29.3). The Never list's ban on a `PermittedClasses` or application change stands. Status reset to `in-review`: the implementation is complete in the working tree and resumes at review.
 
 ## Review Triage Log
 
@@ -166,6 +169,7 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 - **Copy feedback**: "Copied" in the row for 2 seconds plus one announcement; the failure line stays until the next copy or close. A new `copy` icon from the Lucide set the page already uses.
 - **Row labels** "User name" and "Password": the UX mockup's popover rows (`mockups/main-page.html:727-728`) and EXPERIENCE.md's labels (:701); no new public text.
 - **No live local-install check is added**: the flag-off steps are the same code the in-process tests run, and a second fresh stack per run would push the unit near CI's 1,200 s deadline on the runner.
+- **Implement stage (decided):** on a fresh flag-on volume the README account is never created, so row 4 asserts "not enabled" (absent or disabled). `OCUTALON_RESET_ANCHOR` and `OCUTALON_LAST_RESET` are quoted in the compose override (unquoted, compose rewrites the timestamp into a form the Public step refuses). `web/scripts/announce-focus-sources.test.mjs` exempts `credential-rows.ts` (it must announce "Copied" and the failure; the test required everything under `header/` to be silent). The key's contract is in `TraceAccount()`'s comment only, because the lead gate allows no other line to change in `Web/Api.cls`. `CHANGE_FORMS` entries are `<form>@<where>`, because F1 and F3 go to several URLs. F12 (IRIS's own password-change page at each trace application) was added to the unit as an extra form.
 - **`check_security` is not called** on the flag-on stack: its README-account row expects the local install's enabled account.
 
 **Integration ACs:** the header's popover consumes `/state`'s `traceAccount` on a real flag-on instance (row 11); IRIS's password paths consume the guard over HTTP (row 5); the trace applications consume the public accounts' roles through the sign-in group (rows 8 to 10).
@@ -192,6 +196,8 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 - Rule 21 candidate after implement: the `online-demo` unit's measured time and its group.
 
 **Ledger inbox:** none.
+
+**Lead ruling on the implement-stage halt (2026-10-25, runner C; unattended, veto window):** the row 6 404 was the plan's own expectation, stricter than AC 2 and the spine. The spine's layering for IRIS's password-change paths is the proxy (AD-25: it blocks every password-change page and every `(IRIS|Cache)(Old|Repeat)?Password` field), the guard (AD-13, tested fallback) and the probe (backstop); AD-24's "no page OcuTalon serves offers it" is OcuTalon's own pages. So row 6 and AC 2 are restated, the unit keeps F12 as an asserted form (refused for both public accounts, measured outcome for the control), and the signed-in page's 200 is recorded in `## Verification`, not asserted absent. Reversal, if the owner wants a fourth layer: a follow-up story measures whether a trace-application setting can make build 154 refuse `%CSP.PasswordChange.cls` and, if so, sets it in `Install/Step/Web.cls`.
 
 **Lead spec gate (2026-10-25, runner C):**
 - Shared with Epic 4 by the orchestrator's ruling: `web/playwright.config.ts`, `web/scripts/playwright-projects.test.mjs` and `web/package.json` take new entries only; no existing line changes, header comments and count words included (Epic 4's branch already rewrote those headers; the count reconciles at integrate-forward as a plain union). `ci/units.sh`: your two tokens only (Epic 4 adds `live:demo-switch` to the same `image` line; a plain union at integrate-forward).
@@ -239,9 +245,37 @@ Rows 1 to 13 run in the `online-demo` live unit on a fresh flag-on throwaway (ro
 | AC 4 | `demo-account.spec.ts` O5, O6 | `StateBody` omits `traceAccount`; the failure path skips the selection |
 | AC 5 | `Test.Web.Api.TestStateTraceAccount`, links V7 | `TraceAccount()` ignores the flag |
 
+### Implement-stage results (2026-10-25, build 154, lane C, tags `e16s1i` and `e16s1iw`)
+
+**Task 0, the S17 forms on build 154** (the unit's first run, then re-measured with the trace applications' session token). The control user (no public account) is sent each form with its current password and a new one; "changes" means the new password then signs in and the old one is refused. The unit's `CHANGE_FORMS` (a request is `<form>@<where>`; where is `root` = `/ocutalon/`, `state` = `/ocutalon/api/v1/state`, `trace-ocutalon` and `trace-ocuorders` = the message viewers, `pwpage-ocutalon` and `pwpage-ocuorders` = F12):
+- Changes the control's password (18 requests): `F1@root F1@state F1@trace-ocutalon F1@trace-ocuorders F2@root F3@root F3@state F3@trace-ocutalon F3@trace-ocuorders F4@root F5@root F6@root F7@root F8@root F9@root F10@root F12@pwpage-ocutalon F12@pwpage-ocuorders`.
+- Leaves it: `F11@root` only (the mixed-case names).
+- So, per form: F1 (POST, current names) and F3 (GET, current names) change it at every URL tried; F2, F4, F5, F6, F7, F8, F9 and F10 (legacy names, query string, encoded names, multipart, chunked) change it at `/ocutalon/`; F11 does not; F12 (IRIS's own password-change page at each trace application) changes it.
+- For the demo account and the read-only account (name in capitals) every one of the 19 request kinds left the published password signing in (shell / no-role page) and the attempted one refused: the guard holds for every form.
+- The first measurement posted F1 and F3 to the trace applications without the sign-in page's `IRISSessionToken` and read them as "unchanged"; a form posted without the token does not sign in at all, so that reading was invalid and the unit now sends the token (as a browser does).
+- Row 6, signed in: `%25CSP.PasswordChange.cls` answers 200 (IRIS's password-change page: IRISUsername, IRISOldPassword, IRISPassword, IRISRepeatPassword), not 404, at both trace applications; with no session it is IRIS's sign-in page with no such field. Recorded under `deferred:`.
+
+**The `online-demo` unit's measured time:** 138 s wall on this machine through `ci/iris.sh live online-demo` (image layers cached, Chromium installed; 73 PASS lines, rows 1 to 13), of which the six browser cases take about 9 s. Well inside the 540 s default deadline and far below the `image` group's 600 s guideline for CI beside `demo-switch`.
+
+**Mutations (Rule 19; each applied temporarily, observed red, reverted byte-identical, checked by `shasum` against a backup and by `git status --short` / `git diff --stat` equal to the state before):**
+- mutation: AC 1, `Status.cls` sets `nextReset` to null: `live online-demo` row 2 red ("nextReset is not what NextReset() computes ...").
+- mutation: AC 1, `Setting.IsPublic` matches only `ready`: `Test.Data.Setting.TestEveryPublicKeyIsDelegated` red ("onlineDemo is read at once through Setting.Get").
+- mutation: AC 2, `Users.Accounts` skips `Guard` (Lane A file, temporary): `live online-demo` row 5 red for 38 requests (a public account's password changes); reverted byte-identical.
+- mutation: AC 3, `Web.PERMITTED` gains `EnsPortal.ProductionConfig`: `readonly.spec.ts` O3 red ("ocutalon: EnsPortal.ProductionConfig.zen answers 404").
+- mutation: AC 4, `Users.DEMOROLES` drops `OcuTalonTraceViewer` (Lane A file, temporary): `demo-account.spec.ts` O4 red (the tab cannot draw Visual Trace); row 4 also red.
+- mutation: AC 4, `StateBody` omits `traceAccount`: O5 red ("/state carries the read-only account"); and the failure path skips the selection (`this.select(row.key)` removed, web bundle rebuilt): O6 red alone ("the selection is exactly the password"), O5 green.
+- mutation: AC 5, `TraceAccount()` ignores the flag: `Test.Web.Api.TestStateTraceAccount` red (flag 0 gives a `traceAccount`). Links V7 does not turn red from this mutation (a local stack has no read-only values), so TestStateTraceAccount is its pin.
+The first four mutations shared one live run (rows 2, O3, O4 and the omit of O5 each red for its own mutation; O6 was red there too only because the omit also removes its rows).
+
+**Loop commands run:** `bash ci/checks.sh` (all scripts passed), `npm --prefix web test` (566 pass), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, `ci/warm.sh up` (log `RESULT OK`), `OcuTalon.Test.Web.Api`, `OcuTalon.Test.Data.Setting` and `OcuTalon.Test.Data.PublicSettings` on the warm stack, `ci/warm.sh down`, and the live unit (last clean run: all checks passed). Left for the parent: shard lane-a, shard lane-b, live sign-in, live floor.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: matrix row 6 and AC 2 ("no page offers a password change") do not hold on build 154 at the trace applications, and closing it needs a `PermittedClasses` change in Lane A's `Install/Step/Web.cls` (the spec's Never list forbids it)
 
-Planned only (Halt after planning). The spec passed the READY FOR DEVELOPMENT gate after one repair pass (sign-in meaning for the form checks, the lane-a shard added as a once command, two mutation lines clarified). No veto-window or owner-only item was found; footprint extensions are listed under Design Notes.
+Evidence (measured by the implement stage on lane C's throwaway, `live online-demo`): a signed-in user is served IRIS's own `%CSP.PasswordChange.cls` page with 200 at both trace applications (the row says 404). With no session it is IRIS's sign-in page with no old-password or repeat-password field. A change posted through that page (F12) succeeds for a user with no public account and is refused for both public accounts by the guard, so AC 2's password outcome holds; every one of the 19 request kinds left both public passwords unchanged. The implement stage did not edit the intent contract; the unit's row 6 check covers the no-session page only, and F12 asserts the outcome.
+
+Recommended amendment (veto-window: it weakens a stated guarantee, so the lead decides): restate row 6 and AC 2's last clause as "no page OcuTalon serves offers a password change; with no session the trace applications' page for `%CSP.PasswordChange.cls` is IRIS's sign-in page; a signed-in user is served IRIS's own page, and the guard refuses the change for both public accounts", which is the layering AD-13, AD-24 and AD-25 already state (the guard is the tested fallback, the proxy blocks every password-change page, the probe is the backstop). The alternative, a 404 for that page, needs an owner-approved `PermittedClasses`/application change in `Install/Step/Web.cls`.
+
+State at halt: the implementation is complete and uncommitted in the working tree on top of `ea1b455` (nothing committed, nothing pushed; `HEAD` unchanged). Verified: `bash ci/checks.sh`, `npm --prefix web test` (566 pass), `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh`, the three warm classes, `live online-demo` (138 s, rows 1 to 13 with the row 6 reading above), and seven mutations (see `## Verification`). Not yet run: the (once) lines (`shard lane-a`, `shard lane-b`, `live sign-in`, `live floor`) and the review layers. All `e16s1*` stacks are torn down.

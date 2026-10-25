@@ -1138,3 +1138,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+
+### DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.1 implement stage, live online-demo on lane C: signed in, %25CSP.PasswordChange.cls answers 200 at both trace apps; a change through it (F12) succeeds for a non-public user and is refused for both public accounts by the guard
+- 2026-10-25T19:05:03Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=harvest note=29.3 blocks every password-change page: include /ocutalon/trace/*/%CSP.PasswordChange.cls (any letter case, percent-encoded) in the proxy's blocked list and its test
