@@ -219,6 +219,55 @@ The marker of every row is a fresh Ref. "Read back" means `AuditLog.Wait` from a
 - DW-10: given instance-wide auditing is off (an IPM install into an existing instance; build 154 ships it on), when the `Audit` step runs, then it says so plainly: a log warning (the registry's `WARN Audit` line) and a recorded status (the StatusMark `instanceAuditing`) that the security overview and the README can point to, so FR-9's "every action audited" never fails quietly. OcuTalon never changes the setting (AD-17) (ledger; routed by harvest 2026-10-19). Addressed by row 10 and the `Install.Step.Audit` and `Installer` tasks.
 - Given the fresh `shard lane-a`, `shard lane-b`, `live audit`, `live install-start` and `live install-upgrade`, when they run, then every class and check passes.
 
+### Review Findings
+
+Code review of 2026-10-25 (stage code-review). It ran on the full tier: four layers with no model override, because `_bmad/custom/model-overrides.yaml` is absent. The layers reported 26 rows, plus one Rule 2 check by the reviewer. 11 entries survived: 5 medium and 6 low, no high. Every patch below is applied in this pass, and one medium is routed (DW-201).
+
+Evidence:
+- On warm `e3s7rw`: `Test.Bridge.Audit`, `Test.Install.Audit`, `Test.Bridge.Approval`, `Test.Bridge.WebStatus`, `Test.Bridge.CodeRules` and `Test.Contract.Ac` are green. Each of the four new mutations under `## Verification` went red, and its class was green again after a byte-identical revert.
+- `bash ci/checks.sh` passed every block.
+- On fresh `e3s7r` stacks: `shard lane-a` passed 46 classes in 398 s and `shard lane-b` 24 classes in 70 s. `live audit`, `live install-start` (no `WARN Audit` line) and `live install-upgrade` passed.
+
+Findings:
+- [x] [Review][Patch] (medium) Rule 2: `Test.Bridge.Approval`'s new `AuditEventState` and `SetAuditEvent` repeated `Test.Bridge.WebStatus`'s `EventState` and `SetEvent` line for line, with only the event name changed, and the spec gives no reason for the copy. Both classes now call the new `Test.Bridge.AuditLog.EventState(event)` and `SetEvent(event, enabled)`, and WebStatus's copies are gone [src/ocutalon/cls/OcuTalon/Test/Bridge/AuditLog.cls:73; Approval.cls:2104; WebStatus.cls:504]. Fix-risk low.
+- [x] [Review][Patch] (medium) No test changed a request owned by `instance` or `eval` (AD-2). Dropping `Audited`'s `IsRef` guard on the OwnerRef fallback, or `eval` from `OWNERNAMES`, would make every such change write no entry (only a warning) while every test stayed green. `TestOwnerRefKinds` now cancels both rows and reads back one entry each, with the literal `ownerRef` and an empty `sessionRef` [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:325]. Fix-risk low; mutation recorded.
+- [x] [Review][Patch] (medium) Rule 19 (hermeticity): `AssertNoEntry` read for the Ref before its control had shown the window to be readable, so a late-readable entry could pass the check. It now waits for the control first and only then reads [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:2094]. Fix-risk low.
+- [x] [Review][Patch] (medium) AC 7's evidence predated QA's product edit of `Install/Step/Audit.cls` (the `INSTALLER` and `MARKS` seam): no fresh `live audit`, `live install-start` or `live install-upgrade` had run on it. This pass ran all three and both shards on fresh `e3s7r` stacks, and all passed [src/ocutalon/cls/OcuTalon/Install/Step/Audit.cls:27]. Fix-risk low.
+- [x] [Review][Defer] (medium) The spine's "Approval requests" row lists `Answer`'s `not_allowed` causes without the malformed `sessionRef`. Neither that row nor "Audit entries" names `Cancel`'s `channel`, `irisUser` and `sessionRef`. Stories 6.2 and 12.7 (`AnswersIn`) and 16.4 and 22.x (`Cancel` when a session ends or an MCP server is removed) plan from the spine, so their cancels would name the system user, which AD-17's Prevents line forbids [_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:913] -- deferred: DW-201 `routed owner=burndown`. The fix is a Rule 20 spine write for the lead, outside the reviewer's footprint. Fix-risk low.
+- [x] [Review][Patch] (low) `Write` passed an IRIS error through only when `$ListValid(sc)`, which a `%Status` error ("0 " followed by a list) never is, so a real error would be reported as "auditing is off or the event is disabled". It now returns any status that starts with "0 " as it is [src/bridge/cls/OcuTalon/Bridge/Audit.cls:190]. No test: here IRIS returns only 1 or 0 (measured).
+- [x] [Review][Patch] (low) `Write`'s comment said the description is cut at 128 bytes, but `$Extract` cuts characters. Corrected [src/bridge/cls/OcuTalon/Bridge/Audit.cls:171].
+- [x] [Review][Patch] (low) The Cancel half of `TestFailedAuditNeverUndoesAChange` checked the state and the warning, but not that `approval.cancelled` still fires (the Boundaries' "the event still fires"). It now clears the probe sink and asserts the event [src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls:1311].
+- [x] [Review][Patch] (low) `Test.Contract.Ac` pinned `Write` but not `Record(type,data)` or `Shape(type)`, which the other lanes call, and it pinned `Cancel` as `ref` only. `Record` and `Shape` are now pinned, and `Cancel` is pinned with its five arguments [src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls:306]. Mutation recorded.
+- [x] [Review][Patch] (low) The mark's name `instanceAuditing`, which Story 14.2 and the install docs will point to, was read only through `#MARK`, so a rename stayed green. `TestInstanceAuditingOff` now also reads the mark by its literal name [src/ocutalon/cls/OcuTalon/Test/Install/Audit.cls:66]. Mutation recorded.
+- [x] [Review][Patch] (low) Rule 19: `TestSensitiveSettingsAreBlanked` checked only the part of the description before " changed", which never holds the values. It now checks the whole description [src/ocutalon/cls/OcuTalon/Test/Bridge/Audit.cls:173]. Mutation recorded.
+
+Also noted:
+- **QA's seam in `Install.Step.Audit`: kept.**
+  - The defaults are the real classes, and `CheckAudit` is still a direct call, so the start path is unchanged.
+  - `INSTALLER` and `MARKS` are compile-time class parameters, not CONFIGURABLE and not settings, so only a compiled subclass can change them.
+  - The registry runs `OcuTalon.Install.Step.Audit` by its fixed name, and `Areas()` takes only `OcuTalon.Install.Step.*`, so the `Zz` fixtures in `OcuTalon.Test.Install` never run as a step.
+  - It is the same pattern as Story 3.1's `ZzUsersPins`.
+- **DW-10, for the lead's adjudication.** The delivered scope covers it:
+  - when instance-wide auditing is off, the step warns with the spec's sentence;
+  - it records `on`, `off` or `unknown` in `instanceAuditing`, writing the mark only when the value changes;
+  - it returns OK in each case and never changes the setting.
+  - Evidence: `TestInstanceAuditingOff`, `TestInstanceAuditingOn`, `TestInstanceAuditingUnknown`, `TestMarkWriteFailureWarns`, and the AD-17 row of `live audit`.
+- **Rule 3: satisfied.** The surfaces are the `WARN Audit` line of the after-start log and the IRIS audit entries. `live install-start` and `live audit` run the real start, and the test classes read the real audit log on throwaways.
+- **Rule 6: no AD violation found** against AD-2, AD-3, AD-11, AD-17, AD-18, AD-22, AD-23 or AD-33.
+
+**Rejected** (9 entries, 13 layer rows):
+- `low` The redactor's `sk-` pattern can blank a Ref that starts with `sk-` (or has `-sk-` or `_sk-` near its start), about 4 in a million Refs (blind, edge). Rejected because it is rare and the fix would add a bypass for checked members to `Write` or the redactor. It becomes real when a consumer correlates entries by Ref at volume (Story 11.1's read-back).
+- `low` An Action or Tool whose name ends in a sensitive word (`refresh-token: done`) has the value in its description redacted (blind). The description formats are the spec's, the over-redaction is fail-safe, and the data keeps the values.
+- `low` The Auto Run Result is stale after QA: residual risk 1, the file list, the mutation count and `Answer`'s "parameter" (blind, edge, gap and auditor; 4 rows). The fix would edit build-auto's section of the spec, not `## Verification`, and the QA block already records the closure.
+- `low` When `Redact.Text` fails closed, the entry's data is the `UNCHECKED` text and `Write` returns OK (edge). Theoretical (wontfix-theoretical):
+  - Record's shapes are flat strings, so only JSON nested more than 100 levels deep, or text near the string limit, triggers it.
+  - Even then nothing leaks, and the derived description still records the event.
+- `low` After the unlock, another job's change can be audited before `Answer`'s (edge). The spec and the "Audit entries" row put the write after the unlock. `StartExecution` follows an answer only after the hold's asynchronous outcome, and each entry carries `from`, `to` and a millisecond time.
+- `false` AC 3's pinning table names `TestEveryOtherTransitionIsRefused`, but the refusal mutation went red in other tests (gap). AC 3's pinning test has its own recorded mutation (FinishExecution writes no entry), Rule 19 asks for one per AC, and `TestCancel` and `TestExpireDoesNotWaitForTheClock` show the refusal half.
+- `low` An answer with an empty `sessionRef` names the owner's session (auditor). This is the spec's who-table rule (by design), and `AnswersIn` passes the answering session.
+- `low` The free-text members (`reason`, `result`, `target`, a non-sensitive setting's values, and Cancel's `irisUser`) rely on the redactor (auditor). By design: the spec measured that plain identity text is not redacted, and the convention row gives consumers the structural guard (no identity member and a derived description).
+- `low` A read of the setting that throws fails the start instead of recording `unknown` (auditor). Theoretical (wontfix-theoretical): `CheckAudit` has just made the same %SYS switch in the same step, and `Security.System.Get` returns a status. It would become real if a role could run `CheckAudit` but could not read `Security.System`.
+
 ## Spec Change Log
 
 - 2026-10-25, lead spec gate: AD-17 is not amended. Its rationale's "IRIS writes some rows minutes late" is corrected by measurement in the new Consistency Conventions row "Audit entries" (Rule 20 light path: the shapes, `Record` versus `Write`, the derived description and redaction, the "who" rule, the order after the unlock, the read by `UTCTimeStamp` range, and the `instanceAuditing` mark), not in the AD's text, which a runner does not amend (U14). Ruled in the veto window and kept as planned: the six stored data shapes, the stronger redaction and the `Record`-only rule, `Answer`'s `sessionRef` check, the WARN line, and the new `StatusMark` row `instanceAuditing`.
@@ -436,6 +485,34 @@ The marker of every row is a fresh Ref. "Read back" means `AuditLog.Wait` from a
 - mutation: the `Audit` step turns instance-wide auditing on -> `Test.Install.Audit.TestInstanceAuditingOff` red
 - mutation: `Answer`'s `sessionRef` check is removed -> `TestAnswerRefusals` red
 - mutation: `Cancel` ignores its `irisUser` argument -> `TestCancel` red
+
+**QA (stage qa, warm stack `e3s7qw`; each file restored byte-identical from a scratchpad backup, `git diff` compared before and after):**
+- Files changed (QA):
+  - `src/ocutalon/cls/OcuTalon/Test/Bridge/Audit.cls` (QA): `TestSensitiveSettingsAreBlanked` (new); a control entry after the "no entry" check of `TestRecordRefusesAnyOtherShape`.
+  - `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls` (QA): `AssertNoEntry` writes and finds a control entry of its own window; `TestFailedAuditNeverUndoesAChange` shows `Record` refused while the event is disabled.
+  - `src/ocutalon/cls/OcuTalon/Test/Install/Audit.cls` (QA): `TestInstanceAuditingUnknown` and `TestMarkWriteFailureWarns` (new).
+  - `src/ocutalon/cls/OcuTalon/Test/Install/ZzAuditSeam.cls`, `ZzAuditUnreadable.cls`, `ZzAuditUnmarked.cls` (QA, new fixtures, no Test method; not areas of the registry).
+  - `src/ocutalon/cls/OcuTalon/Install/Step/Audit.cls` (QA): the seam, two parameters `INSTALLER` and `MARKS` that default to the real classes, read through `$ClassMethod`; no behaviour change.
+- Mutations recorded at QA:
+  - mutation: the Settings blanking applies only to names containing "Token" -> `Test.Bridge.Audit.TestSensitiveSettingsAreBlanked` red (six names); `TestNoSecretInAnyEntry` stays green, so the old test could not see it (AC 5)
+  - mutation: `Write` skips `Redact.Text` on the data -> `Test.Bridge.Audit.TestNoSecretInAnyEntry` red (AC 5, repeated at QA)
+  - mutation: `AuditLog.Entries` reads from a time in the future (a blind read) -> the only failing assertion of `Test.Bridge.Audit.TestRecordRefusesAnyOtherShape` is the new control; its "no entry carries the marker" assertion passed vacuously, so before QA it stayed green (AC 1)
+  - mutation: the same blind read -> in `Test.Bridge.Approval` the only failing assertions of `TestAnswerRefusals`, `TestCancel` (c) and `TestFailedAuditNeverUndoesAChange` (two) are the `AssertNoEntry` controls (AC 3)
+  - mutation: `Write` returns OK when IRIS wrote nothing -> `TestFailedAuditNeverUndoesAChange` red at the new control (Record refused while the event is disabled) and at its warning count (AC 3)
+  - mutation: the `Audit` step returns the mark's error when it cannot record the mark -> `Test.Install.Audit.TestMarkWriteFailureWarns` red (DW-10)
+  - mutation: the `Audit` step records "off" instead of "unknown" when the read fails -> `Test.Install.Audit.TestInstanceAuditingUnknown` red (DW-10)
+- The `Audit` step's `unknown` branch and the mark-write warning are now tested through the seam; the residual risk (1) above is closed.
+
+**Code review (stage code-review, warm stack `e3s7rw`; each file restored byte-identical from the stage's own scratchpad backup, and the class green again on the same stack):**
+- Mutations recorded at review:
+  - mutation: `Approval.Audited` takes the row's OwnerRef as the session even when it is not a Ref -> `Test.Bridge.Approval.TestOwnerRefKinds` red, for both `instance` and `eval` (Record refuses the sessionRef, so no entry) (AC 3)
+  - mutation: the `Audit` step's `MARK` is renamed `instanceAudit` -> `Test.Install.Audit.TestInstanceAuditingOff` red at the read by the name `instanceAuditing` (DW-10). A rename that changes only the case stays green, because `StatusMark` finds a mark in any case.
+  - mutation: `Record` builds the Settings description from the caller's data, with its `from` and `to` -> `Test.Bridge.Audit.TestSensitiveSettingsAreBlanked` red for all eight names (AC 5)
+  - mutation: `Cancel`'s `channel` and `irisUser` parameters swap places -> `Test.Contract.Ac.TestCrossLaneSignatures` red (the cross-lane pin of `Cancel`)
+- Fresh runs after the review's patches (`e3s7r`):
+  - `shard lane-a`: 46 classes passed in 398 s (`Approval` 28.8 s, `WebStatus` 15.5 s, `Bridge.Audit` 2.6 s, `Install.Audit` 2.5 s);
+  - `shard lane-b`: 24 classes passed in 70 s;
+  - `live audit`, `live install-start` (no `WARN Audit` line) and `live install-upgrade`: all passed.
 
 ## Auto Run Result
 

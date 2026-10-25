@@ -168,13 +168,13 @@ ClassMethod Describe(type As %String, data As %DynamicObject) As %String [ Priva
 		: "")
 }
 
-/// Writes one audit entry of the given type, with the data's JSON as the entry's event data and the description cut at 128 bytes. This is the
-/// raw writer under Record: it takes any dynamic object and checks no shape. It passes the data's JSON and the description through
+/// Writes one audit entry of the given type, with the data's JSON as the entry's event data and the description cut at 128 characters. This is
+/// the raw writer under Record: it takes any dynamic object and checks no shape. It passes the data's JSON and the description through
 /// Redact.Text first, and cuts the description after that, so a secret is never cut in two before it is recognised.
 /// A type that is not in TYPES is refused with an error status that names it. Otherwise the status is a success when IRIS writes the entry.
 /// When IRIS writes nothing it returns 0, and the status is an error that says so (measured on build 154: instance-wide auditing is off, or
-/// the event is disabled or not registered). The entry is readable in %SYS.Audit by its UTCTimeStamp at once, and by IRIS's audit indexes
-/// up to a minute later.
+/// the event is disabled or not registered); an error status that IRIS returns is returned as it is. The entry is readable in %SYS.Audit by
+/// its UTCTimeStamp at once, and by IRIS's audit indexes up to a minute later.
 ClassMethod Write(type As %String, data As %DynamicObject, description As %String = "") As %Status
 {
 	If '$ListFind($ListFromString(..#TYPES), type) {
@@ -187,7 +187,7 @@ ClassMethod Write(type As %String, data As %DynamicObject, description As %Strin
 	Set text = $Extract(##class(OcuTalon.Bridge.Redact).Text(description), 1, 128)
 	Set sc = $SYSTEM.Security.Audit(..#SOURCE, type, type, eventData, text)
 	If sc = 1 Quit $$$OK
-	If $ListValid(sc) Quit sc
+	If $Extract(sc, 1, 2) = "0 " Quit sc
 	Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Audit.Write: no entry of type " _ type _ " was written: instance-wide auditing is off or the event is disabled or missing")
 }
 

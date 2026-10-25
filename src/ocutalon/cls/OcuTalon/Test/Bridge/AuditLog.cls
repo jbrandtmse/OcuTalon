@@ -9,6 +9,7 @@
 ///     {at, username, data, description}: at is the UTCTimeStamp, username the writing process's $Username, data the event data as an
 ///     object when it is JSON (else the text) and description the text.
 ///   - Wait polls Entries until it finds count entries or seconds pass, and returns the last result.
+///   - EventState and SetEvent read and set an audit event's Enabled flag in %SYS. A test that switches an event off puts it back itself.
 Class OcuTalon.Test.Bridge.AuditLog
 {
 
@@ -66,6 +67,25 @@ ClassMethod Wait(since As %String, source As %String = "", type As %String = "",
 		Hang ..#PAUSE
 	}
 	Quit entries
+}
+
+/// The Enabled flag of the audit event (Source/Type/Name), 1 or 0, or "" when the event does not exist.
+ClassMethod EventState(event As %String) As %String
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Kill found
+	If '##class(Security.Events).Exists(event, , , .found) Quit ""
+	Quit +found.Enabled
+}
+
+/// Sets the Enabled flag of the audit event (Source/Type/Name).
+ClassMethod SetEvent(event As %String, enabled As %Boolean)
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set properties("Enabled") = enabled
+	Do ##class(Security.Events).Modify(event, , , .properties)
 }
 
 }

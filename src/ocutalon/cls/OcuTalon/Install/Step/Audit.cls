@@ -12,13 +12,19 @@ Class OcuTalon.Install.Step.Audit Extends OcuTalon.Install.Step
 /// The status mark that holds whether instance-wide auditing is on: on, off or unknown.
 Parameter MARK = "instanceAuditing";
 
+/// The class whose InstanceAuditing reads the setting. A test subclass names a class whose read fails, because the real read cannot.
+Parameter INSTALLER = "OcuTalon.Bridge.Installer";
+
+/// The class whose Get and Record keep the mark. A test subclass names a class whose Record fails, because the real one cannot.
+Parameter MARKS = "OcuTalon.Data.StatusMark";
+
 /// Fails when an audit event is missing or disabled. Otherwise it records the state of instance-wide auditing and warns when it is off or
 /// unknown, and returns OK.
 ClassMethod Run() As %Status
 {
 	Set sc = ##class(OcuTalon.Bridge.Installer).CheckAudit()
 	If $$$ISERR(sc) Quit sc
-	Set sc = ##class(OcuTalon.Bridge.Installer).InstanceAuditing(.enabled)
+	Set sc = $ClassMethod(..#INSTALLER, "InstanceAuditing", .enabled)
 	If $$$ISERR(sc) {
 		Set state = "unknown"
 		Do ..Warn("could not read whether instance-wide auditing is on: " _ $SYSTEM.Status.GetErrorText(sc))
@@ -28,8 +34,8 @@ ClassMethod Run() As %Status
 		Set state = "off"
 		Do ..Warn("instance-wide auditing is off, so IRIS writes none of OcuTalon's audit entries; OcuTalon does not change this setting: an administrator turns it on in the Management Portal (System Administration > Security > Auditing > Enable Auditing)")
 	}
-	If ##class(OcuTalon.Data.StatusMark).Get(..#MARK) = state Quit $$$OK
-	Set sc = ##class(OcuTalon.Data.StatusMark).Record(..#MARK, state)
+	If $ClassMethod(..#MARKS, "Get", ..#MARK) = state Quit $$$OK
+	Set sc = $ClassMethod(..#MARKS, "Record", ..#MARK, state)
 	If $$$ISERR(sc) Do ..Warn("could not record the instance-wide auditing status (" _ state _ "): " _ $SYSTEM.Status.GetErrorText(sc))
 	Quit $$$OK
 }

@@ -15,10 +15,12 @@
 /// Test.Bridge.Gate reuses: TrackOwner tracks every row of an owner, so that the gate's held requests are ended and deleted by Clean.
 /// Story 3.7: the five state methods write one Approval audit entry for every change they make, and these tests read it back from the IRIS audit
 /// log through Test.Bridge.AuditLog (a mark taken just before the call, the Ref as the marker): TestAnswerApprovesAFix, TestAnswerRejects,
-/// TestAnswerPastExpiry, TestTimerExpires, TestExpireDoesNotWaitForTheClock, TestCancel and TestEveryOtherTransitionIsRefused check the entry's
+/// TestAnswerPastExpiry, TestTimerExpires, TestExpireDoesNotWaitForTheClock, TestCancel, TestOwnerRefKinds and TestEveryOtherTransitionIsRefused check the entry's
 /// data (the Approval shape, the change, the states, the outcome, the target, the OwnerRef and the person it names), its description, its time and
 /// the writing user; TestAnswerRefusals shows that a malformed sessionRef is not_allowed and that no refusal writes an entry;
 /// TestFailedAuditNeverUndoesAChange shows that a write that fails (the event disabled) is warned, never undoes the change and never stops the event.
+/// Every "no entry" check (AssertNoEntry) first writes an entry of its own window and finds it again with the same read, so that it cannot pass
+/// because the read sees nothing; TestFailedAuditNeverUndoesAChange also shows that Record itself is refused while the event is disabled.
 /// Every sessionRef that a test passes is a fresh Ref: Answer refuses anything else.
 /// Story 3.5's tests, with the rows of its matrix:
 ///   - TestAnswerApprovesAFix (row 1): the answer is recorded with the given action, channel and user, the task is completed with Approve by
@@ -318,7 +320,8 @@ Method TestCallerSession()
 	Do ..AssertJoined(ref7, session, super4, "(e)")
 }
 
-/// An OwnerRef may be the literal instance or eval (AD-2): Raise holds such a request, keeps the OwnerRef and tells the sink.
+/// An OwnerRef may be the literal instance or eval (AD-2): Raise holds such a request, keeps the OwnerRef and tells the sink. Its Cancel writes
+/// one Approval entry that keeps the literal OwnerRef and names no session (the OwnerRef is not a Ref).
 Method TestOwnerRefKinds()
 {
 	If '..Ready() Quit
@@ -331,6 +334,9 @@ Method TestOwnerRefKinds()
 		Do $$$AssertEquals($Select($IsObject(saved): saved.OwnerRef, 1: "<no row>"), owner, "its row keeps the OwnerRef "_owner)
 		Do ..AssertSink(ref, owner, owner_": the sink")
 		Do $$$AssertTrue(..WaitTask(ref, 10) '= "", owner_": the request is held")
+		Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(ref, ..#SINK), owner_": Cancel is OK")
+		Do ..AssertOneEntry(mark, ..Want(ref, row.Kind, "cancelled", "pending", "cancelled", "", $Select(row.Kind = "tool_call": row.ToolName, 1: row.IncidentRef), owner, $Username, "", "system"), owner_": the audit entry keeps the OwnerRef and names no session")
 	}
 }
 
@@ -1279,6 +1285,10 @@ Method TestFailedAuditNeverUndoesAChange()
 	Set ..AuditEventOff = 1
 	Do ..SetAuditEvent(0)
 	Do $$$AssertEquals(..AuditEventState(), 0, "the audit event is disabled for the test")
+	Set probe = ..Want(##class(OcuTalon.Bridge.Ids).NewRef(), "fix", "answered", "pending", "approved", "approved", ##class(OcuTalon.Bridge.Ids).NewRef(), "instance", user, ##class(OcuTalon.Bridge.Ids).NewRef(), "web")
+	Set probeSc = ##class(OcuTalon.Bridge.Audit).Record("Approval", probe)
+	Do $$$AssertStatusNotOK(probeSc, "control: Record of a valid Approval entry is refused while the event is disabled")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(probeSc) [ "no entry of type Approval was written", "control: and the error says that no entry was written: "_$SYSTEM.Status.GetErrorText(probeSc))
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set logMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
@@ -1295,8 +1305,10 @@ Method TestFailedAuditNeverUndoesAChange()
 	Set second = ..RaiseHeld("fix")
 	If '$IsObject(second) Quit
 	Set logMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Kill ^||ZzProbeSink
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(second.ref, ..#SINK), "Cancel is still OK")
 	Do $$$AssertEquals(..Prop(second.ref, "State"), "cancelled", "and the row is cancelled")
+	Do ..AssertEvents("approval.cancelled", "the sink, after Cancel")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(logMark, "OcuTalon.Bridge.Approval", "Audited", $ListBuild(second.ref, "cancelled")), 1, "with one warning")
 	Do ..AssertNoEntry(mark, second.ref, "and no entry")
 }
@@ -2076,29 +2088,29 @@ Method AssertOneEntry(mark As %String, want As %DynamicObject, label As %String)
 	If entries.%Size() = 1 Do ..AssertEntry(entries.%Get(0), mark, want, label)
 }
 
-/// Asserts that no Approval entry carries the Ref since the mark. Entries are written before the call returns and are readable at once.
+/// Asserts that no Approval entry carries the Ref since the mark. Entries are written before the call returns and are readable at once. So that
+/// the check cannot pass because the read sees nothing of its window, it first writes an Action entry with a fresh marker and waits until the
+/// same read from the same mark finds it, and only then reads for the Ref, whose entry, if any, was written before the control's.
 Method AssertNoEntry(mark As %String, ref As %String, label As %String) [ Private ]
 {
+	Set control = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set data = {"action": "control", "target": (control), "result": "written", "counts": {}, "approvalRef": "", "irisUser": "ocutalon", "sessionRef": "", "channel": "system"}
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Action", data), label_": control: an entry of the same window is written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "Action", control).%Size(), 1, label_": control: the same read from the same mark finds that entry")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", ref).%Size(), 0, label)
 }
 
-/// The Enabled flag of the Approval audit event, 1 or 0, or "" when it does not exist.
+/// The Enabled flag of the Approval audit event, 1 or 0, or "" when it does not exist (Test.Bridge.AuditLog EventState).
 ClassMethod AuditEventState() As %String [ Private ]
 {
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Kill event
-	If '##class(Security.Events).Exists(..#AUDITEVENT, , , .event) Quit ""
-	Quit +event.Enabled
+	Quit ##class(OcuTalon.Test.Bridge.AuditLog).EventState(..#AUDITEVENT)
 }
 
-/// Sets the Enabled flag of the Approval audit event. A test that disables it sets AuditEventOff first, so that OnAfterOneTest enables it again.
+/// Sets the Enabled flag of the Approval audit event (Test.Bridge.AuditLog SetEvent). A test that disables it sets AuditEventOff first, so that
+/// OnAfterOneTest enables it again.
 ClassMethod SetAuditEvent(enabled As %Boolean) [ Private ]
 {
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Set properties("Enabled") = enabled
-	Do ##class(Security.Events).Modify(..#AUDITEVENT, , , .properties)
+	Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#AUDITEVENT, enabled)
 }
 
 /// --- the helpers of Story 3.5's tests ---

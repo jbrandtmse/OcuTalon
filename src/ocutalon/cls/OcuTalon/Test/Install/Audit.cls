@@ -4,7 +4,11 @@
 ///   - TestInstanceAuditingOff: with auditing off, Run is OK, warns exactly once with the one sentence that says IRIS writes none of OcuTalon's entries
 ///     and that OcuTalon does not change the setting, records the mark off (and a second Run does not stamp it again), leaves the setting off, and
 ///     Audit.Record returns the error that no entry was written;
-///   - TestInstanceAuditingOn: with auditing on, Run is OK with no warning, records the mark on over a stored off, leaves the setting on, and Record writes.
+///   - TestInstanceAuditingOn: with auditing on, Run is OK with no warning, records the mark on over a stored off, leaves the setting on, and Record writes;
+///   - TestInstanceAuditingUnknown: when the read fails, Run is OK, warns once ("could not read whether instance-wide auditing is on: <error>"), and
+///     records the mark unknown, once while it holds (the fixture ZzAuditUnreadable swaps in a read that fails);
+///   - TestMarkWriteFailureWarns: when the mark cannot be written, Run is OK and warns once with the status and the error, and the real mark is
+///     untouched (the fixture ZzAuditUnmarked swaps in a mark that fails).
 /// A start that finds an event missing or disabled still fails (the step's CheckAudit); the live check of the fresh stack shows the start itself.
 Class OcuTalon.Test.Install.Audit Extends %UnitTest.TestCase
 {
@@ -59,6 +63,7 @@ Method TestInstanceAuditingOff()
 	Do $$$AssertEquals($ListLength(lines), 1, "Run warned exactly once")
 	Do $$$AssertEquals($ListGet(lines, 1), ..#OFFWARNING, "and the warning is the one sentence")
 	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get(mark), "off", "the mark is off")
+	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get("instanceAuditing"), "off", "read by its name instanceAuditing, which the security overview and the README point to")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).InstanceAuditing(.enabled), "the setting is read again")
 	Do $$$AssertEquals(enabled, 0, "OcuTalon did not change the setting: it is still off")
 	Set stamped = ..RecordedAt(mark)
@@ -93,6 +98,51 @@ Method TestInstanceAuditingOn()
 	Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set data = {"action": "resend", "target": (marker), "result": "done", "counts": {}, "approvalRef": "", "irisUser": "ocutalon", "sessionRef": (marker), "channel": "web"}
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Action", data), "Record writes with auditing on")
+}
+
+/// DW-10, unknown: when the read of instance-wide auditing fails (ZzAuditUnreadable, whose installer is ZzAuditSeam), Run is OK, warns exactly once
+/// with the one sentence "could not read ..." followed by the error, records the mark unknown (and a second Run does not stamp it again), and
+/// changes nothing about the real setting.
+Method TestInstanceAuditingUnknown()
+{
+	Set step = "OcuTalon.Test.Install.ZzAuditUnreadable"
+	Set mark = ##class(OcuTalon.Install.Step.Audit).#MARK
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record(mark, "on"), "the mark is on to begin with")
+	Do $$$AssertEquals($Parameter(step, "MARK"), mark, "control: the fixture step keeps the real mark's name")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).InstanceAuditing(.before), "control: the real setting is read")
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "Run is OK when the read fails")
+	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertEquals($ListLength(lines), 1, "Run warned exactly once")
+	Set expected = "could not read whether instance-wide auditing is on: " _ $SYSTEM.Status.GetErrorText($SYSTEM.Status.Error(5001, ##class(OcuTalon.Test.Install.ZzAuditSeam).#READERROR))
+	Do $$$AssertEquals($ListGet(lines, 1), expected, "and the warning is the one sentence with the error: "_$ListGet(lines, 1))
+	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get(mark), "unknown", "the mark is unknown")
+	Set stamped = ..RecordedAt(mark)
+	Hang 1.2
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "a second Run is OK")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Install.Step).TakeWarnings()), 1, "and warns once again")
+	Do $$$AssertEquals(..RecordedAt(mark), stamped, "the mark is not stamped again while its value holds")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).InstanceAuditing(.after), "the real setting is read again")
+	Do $$$AssertEquals(after, before, "and it is as it was: "_before)
+}
+
+/// DW-10, a mark that cannot be written: when Record of the mark fails (ZzAuditUnmarked, whose marks are ZzAuditSeam), Run is still OK, with
+/// auditing on it warns exactly once that it could not record the status, with the status and the error, and the real mark is untouched.
+Method TestMarkWriteFailureWarns()
+{
+	Set step = "OcuTalon.Test.Install.ZzAuditUnmarked"
+	Set mark = ##class(OcuTalon.Install.Step.Audit).#MARK
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.StatusMark).Record(mark, "off"), "the mark is off to begin with")
+	Do ..SetAuditing(1)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).InstanceAuditing(.enabled), "control: the setting is read")
+	Do $$$AssertEquals(enabled, 1, "control: instance-wide auditing is on")
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "Run is OK although the mark cannot be written")
+	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertEquals($ListLength(lines), 1, "Run warned exactly once")
+	Set expected = "could not record the instance-wide auditing status (on): " _ $SYSTEM.Status.GetErrorText($SYSTEM.Status.Error(5001, ##class(OcuTalon.Test.Install.ZzAuditSeam).#WRITEERROR))
+	Do $$$AssertEquals($ListGet(lines, 1), expected, "and the warning names the status and the error: "_$ListGet(lines, 1))
+	Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get(mark), "off", "the real mark is untouched")
 }
 
 /// The mark's RecordedAt, "" when it has no row.

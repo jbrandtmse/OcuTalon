@@ -64,6 +64,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Bridge.Installer, Step.Audit and Bridge.Audit.Write never read Security.System AuditEnabled; build 154 has it on by default (measured), an existing instance may not
 - 2026-10-19T08:48:58Z status=routed owner=3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=harvest note=Audit step warns plainly (log warning + a status the security overview and README point to); never changes the setting (AD-17; Contest Planner 2026-10-19)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=Audit_step_warns_when_instance_auditing_is_off_and_records_on/off/unknown_in_the_status_mark_instanceAuditing;never_changes_the_setting;Test.Install.Audit(4_tests,mutations)+live_audit_AD-17_row
 
 ### DW-11: AC5 (each Storage block equals the compiler's output) is checked once by a load-compile-export round trip, not by a recurring CI check
 - source: spec-0-4-the-cross-lane-message-and-data-contracts.md | severity: med | fix-risk: low | footprint: in-epic
@@ -760,3 +761,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Outside a production job, closing ApprovalStartIn (OnTearDown) kills the whole %Ensemble array before the restore, so deleting both Else-Kill arms keeps every test green; row 5b has both ids defined.
 - 2026-10-25T09:16:27Z status=wontfix-accepted owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=reopen_if=a production job with no session or header id (a service before its first send) calls Raise or StartHold
+
+### DW-201: The spine's Approval requests and Audit entries rows omit Answer's sessionRef refusal and Cancel's person arguments (Story 3.7)
+- source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Row 913 lists Answer's not_allowed causes without the malformed sessionRef; row 914 omits Cancel(ref,sinkClass,channel,irisUser,sessionRef); Stories 6.2, 12.7, 16.4 and 22.x plan from the spine
+- 2026-10-25T12:46:35Z status=routed owner=burndown by=cr note=lead Rule 20 write; else 16.4/22.x Cancel entries name the system user (AD-17 Prevents)
+- 2026-10-25T12:50:32Z status=resolved-by:3-7-every-action-and-governance-event-is-in-the-iris-audit-log by=adjudication note=spine_Conventions_row_Audit_entries_now_names_Answer's_sessionRef_refusal_and_Cancel's_channel,irisUser,sessionRef(Rule20_light_path);Ac_pins_Cancel's_five_arguments

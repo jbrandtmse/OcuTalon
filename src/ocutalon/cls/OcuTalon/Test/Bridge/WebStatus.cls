@@ -94,7 +94,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).WaitAllRun()
 	}
 	If ..EventWas '= "" {
-		Do ..SetEvent(..EventWas)
+		Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#EVENT, ..EventWas)
 		Set ..EventWas = ""
 	}
 	If ..Saved '= "" {
@@ -499,40 +499,22 @@ ClassMethod Clean() [ Private ]
 	}
 }
 
-/// The Enabled flag of the audit event, "1" or "0", or "" when the event does not exist.
-ClassMethod EventState() As %String [ Private ]
-{
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Kill event
-	If '##class(Security.Events).Exists(..#EVENT, , , .event) Quit ""
-	Quit +event.Enabled
-}
-
-/// Sets the Enabled flag of the audit event.
-ClassMethod SetEvent(enabled As %Boolean) [ Private ]
-{
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Set properties("Enabled") = enabled
-	Do ##class(Security.Events).Modify(..#EVENT, , , .properties)
-}
-
 /// Switches the audit event on for this run when it is off, and remembers to put it back. 1 when it is on. Otherwise the test fails
 /// with the reason, and quits.
 Method EventOn() As %Boolean [ Private ]
 {
-	Set state = ..EventState()
+	Set state = ##class(OcuTalon.Test.Bridge.AuditLog).EventState(..#EVENT)
 	If state = "" {
 		Do $$$AssertTrue(0, "the audit event "_..#EVENT_" does not exist")
 		Quit 0
 	}
 	If 'state {
 		Set ..EventWas = 0
-		Do ..SetEvent(1)
+		Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#EVENT, 1)
 	}
-	Do $$$AssertEquals(..EventState(), 1, "the audit event "_..#EVENT_" is on")
-	Quit ..EventState() = 1
+	Set state = ##class(OcuTalon.Test.Bridge.AuditLog).EventState(..#EVENT)
+	Do $$$AssertEquals(state, 1, "the audit event "_..#EVENT_" is on")
+	Quit state = 1
 }
 
 }

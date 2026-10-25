@@ -5,7 +5,11 @@
 ///     exactly Shape(type) with the given values, the derived description, a time between the mark and now, and the writing user;
 ///   - TestRecordRefusesAnyOtherShape (row 2): a missing or extra member, a value of the wrong JSON type or outside its set, an empty required value, a
 ///     malformed Ref, an unknown type and data that is not an object are each refused, with an error that names the type and the member and not the
-///     value, and no entry is written;
+///     value, and no entry is written (a valid entry written afterwards from the same mark is found by the same read, so that the empty result is not
+///     a blind read);
+///   - TestSensitiveSettingsAreBlanked (row 3, Settings): the values of a setting named like an api key, access token, password, secret, bot token,
+///     chat id or display name are blanked in the entry read back, in the data and the description, and a setting that is not sensitive keeps its
+///     values;
 ///   - TestNoSecretInAnyEntry (row 3): a model key, an access token, a password, a Telegram chat id and display name, a bearer token and URL
 ///     credentials, in Write's data and description and in the free text of Record's entries, are in no entry read back, also when a key in a long
 ///     description would straddle the 128-character cut (the description is redacted first, then cut); a sensitive setting's values are blanked, and
@@ -136,6 +140,45 @@ Method TestRecordRefusesAnyOtherShape()
 	}
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "", "", marker, "", 1, ..#REFUSEDSECONDS)
 	Do $$$AssertEquals(entries.%Size(), 0, "no entry carries the marker: nothing was written")
+	Set control = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Action", ..Valid("Action", control)), "control: a valid entry of the same window is written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "", "", control).%Size(), 1, "control: the same read from the same mark finds it, so the empty result above was not a blind read")
+}
+
+/// Row 3, Settings: the values of every setting that Redact.SensitiveKey flags are blanked, whatever the name's form (an api key, an access token,
+/// a password, a secret, a bot token, a Telegram chat id and display name), and the caller's object is unchanged; a setting it does not flag keeps
+/// its values.
+Method TestSensitiveSettingsAreBlanked()
+{
+	Set redacted = ##class(OcuTalon.Bridge.Redact).#REDACTED
+	Set names = $ListBuild("ApiKey", "Anthropic_Api-Key", "AccessToken", "Password", "ClientSecret", "TelegramBotToken", "ChatId", "DisplayName")
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set from = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set to = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set data = ..Valid("Settings", marker)
+		Do data.%Set("setting", "Zz" _ name, "string")
+		Do data.%Set("from", from, "string")
+		Do data.%Set("to", to, "string")
+		Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Settings", data), name_": Record writes the Settings entry")
+		Do $$$AssertEquals(data.from_"|"_data.to, from_"|"_to, name_": the caller's object is unchanged")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", marker)
+		Do $$$AssertEquals(entries.%Size(), 1, name_": one Settings entry carries the marker")
+		If entries.%Size() '= 1 Continue
+		Set entry = entries.%Get(0)
+		Do $$$AssertEquals(entry.data.from_"|"_entry.data.to, redacted_"|"_redacted, name_": from and to are "_redacted)
+		Do $$$AssertEquals(entry.data.setting, "Zz" _ name, name_": the setting's name remains")
+		Do $$$AssertTrue((entry.description '[ from) && (entry.description '[ to), name_": and the description holds neither value: "_entry.description)
+	}
+	Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set data = ..Valid("Settings", marker)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Settings", data), "control: a setting that is not sensitive is written")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", marker)
+	Do $$$AssertEquals(entries.%Size(), 1, "control: one entry")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.from_"|"_entries.%Get(0).data.to, marker_"|b", "control: its values are kept")
 }
 
 /// Row 3: no secret in any entry.
