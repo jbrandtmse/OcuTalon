@@ -3,7 +3,7 @@
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
 ///     %AI.Shell.StreamRenderer, or an extension base whose subclass the gate calls: the host sink and the classification extension), and a class whose
-///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls), names %AI on no code
+///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls, Approval.Raise's included), names %AI on no code
 ///     line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
@@ -40,7 +40,7 @@
 ///     line with a trailing comment, and matches in any case, also as plain text.
 /// ToolCodeClean(class, .problems) is the scan that the live inventory test (Test.Agent.Runners) applies to the provider of each tool. Since Story 1.10 the
 /// classes that the reminder tools call inside AI Hub's callback (CommandCall, the redactor, Commands, CommandsIn and Data.Time) are scanned by the callback rule
-/// too (CALLBACKHELPERS).
+/// too (CALLBACKHELPERS), and since Story 3.6 so are the classes that Approval.Raise runs there for a held call (Approval, Service.ApprovalStart, Ids and Time).
 Class OcuTalon.Test.Bridge.CodeRules Extends %UnitTest.TestCase
 {
 
@@ -52,8 +52,9 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// step audit policy append to (AD-9), the context, which the gate, the step renderer and the tools read and put (AD-6, AD-10), and, since the reminder
 /// tools (Story 1.10), the helper that submits their commands, the redactor that cleans its warnings, the one way to submit a command, the service that
 /// receives it and the converter of times, and, since the gate (Story 3.2), the classes that it calls inside the callback: the settings accessor, Decide
-/// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES).
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink";
+/// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
+/// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator and the clock.
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time";
 
 /// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
 Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
@@ -153,6 +154,10 @@ Method TestCallbackRule()
 	}
 	Do $$$AssertTrue(classes >= 3, "the scan found the tool and toolset classes of OcuTalon: "_classes)
 	Do $$$AssertEquals(helpers, $ListLength($ListFromString(..#CALLBACKHELPERS)), "and every class of CALLBACKHELPERS, which the callbacks call")
+	Set listed = $ListFromString(..#CALLBACKHELPERS)
+	For raiseClass = "OcuTalon.Bridge.Approval", "OcuTalon.Bridge.Service.ApprovalStart", "OcuTalon.Bridge.Ids", "OcuTalon.Bridge.Time" {
+		Do $$$AssertTrue($ListFind(listed, raiseClass) > 0 && ..IsCallbackClass(raiseClass), "Approval.Raise runs " _ raiseClass _ " inside the callback, so it is in CALLBACKHELPERS and scanned")
+	}
 	Do $$$AssertTrue(..IsCallbackClass("OcuTalon.Bridge.Ext.Classification") && ..IsCallbackClass("OcuTalon.Test.Bridge.ProbeSink"), "an extension base and a subclass of one are scanned")
 	Do $$$AssertEquals(offending, "", "no tool, toolset, policy or renderer class, nor a class that they call, refers to %AI beyond its Class line, or uses Python")
 }

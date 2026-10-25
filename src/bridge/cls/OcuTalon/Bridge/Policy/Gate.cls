@@ -25,7 +25,18 @@ Include Ensemble
 ///      0. In an untrusted or tainted turn a call runs only when its classification is safe and its readOnly is 1: every other call (a safe
 ///      tool that is not read-only, a risky tool even if it is read-only, an unclassified tool and an MCP tool) is denied with UNTRUSTED, fires
 ///      no turn.step and never reaches step 5, so no approval request can come from it. This holds for every request kind.
-///   5. The result: a safe call is allowed, and every other call is denied with NEEDSAPPROVAL (Story 3.6 raises an approval request here).
+///   5. The result: a safe call is allowed, and every other call is held (Hold): the gate raises one approval request of kind tool_call through
+///      Approval.Raise and denies the call with HELD. The request is built from the call and the context only:
+///        - Kind tool_call, ToolName the call's name, and ToolArguments the call's arguments as given: an object as its %ToJSON(), a JSON text that
+///          is not blank verbatim, and no arguments (or null) as {}. Arguments of any other type (an array, a number, a boolean) are not held: the
+///          call is denied with FAILED. The call is never modified;
+///        - OwnerRef and TraceRef of the context, and no ResultTarget, IncidentRef or DryRun, so the hold sends no outcome;
+///        - the host sink of the gate (sinkClass, empty: the HostSinkClass setting of Decide) receives approval.raised from Raise, after the row is
+///          saved and unlocked. Raise takes the trace session and the SuperSession from the context (AD-26), so the call's request is held in the
+///          thread of its turn: the gate passes neither.
+///      A held call fires no turn.step and does not taint the turn, and its only event is approval.raised. A Raise that fails (a lock it cannot
+///      take, an open transaction, a hold that does not start, a row it refuses) is denied with FAILED, never HELD, because nothing is held: Check
+///      logs its one warning with Raise's error, and no row, hold or event is left.
 ///      Right before it allows a call, after turn.step is reported, the gate sets the Tainted of the context to 1 (Context.Put) unless the
 ///      trustedOutput of the classification is 1, because the tool's result reaches the model. So the next call, even in the same model
 ///      response, sees the taint. A denied call never taints, and an error status from Put denies the call with FAILED.
@@ -33,7 +44,8 @@ Include Ensemble
 /// gate reads no flag from MCP: FromExtension keeps readOnly and trustedOutput at 0.
 /// An allowed call fires turn.step through Decide.FireEvent to the HostSinkClass setting of Decide, owned by the session of the context, with
 /// the payload HostSink.TurnStepPayload(DecisionRef, label) and the tool's step label. A denied call fires nothing. A sink that fails is logged
-/// and never changes the decision. The gate never modifies the call and takes no lock.
+/// and never changes the decision. The gate never modifies the call. It takes no lock itself: only Raise's lock on the new request's Ref, for a
+/// held call, and Raise refuses to run inside an open transaction.
 /// The class has no instance property (AI Hub infers a policy's statefulness from its properties), makes no call into AI Hub beyond its base
 /// class and runs no Python: it runs inside a callback (AD-6). Only the Class line names the AI Hub package.
 Class OcuTalon.Bridge.Policy.Gate Extends %AI.Policy.Authorization
@@ -43,8 +55,9 @@ Class OcuTalon.Bridge.Policy.Gate Extends %AI.Policy.Authorization
 Parameter DENIEDCODE = "<%AICore>ToolAccessDenied";
 
 /// The sentences of the denials, which the model reads after AI Hub's "Tool access denied: ". They hold no argument and no model text, and
-/// only NOPRIVILEGE names anything of the system: the resource and the permission letter that the service user lacks.
-Parameter NEEDSAPPROVAL = "this tool is risky or not classified, so it needs an approval, and nothing was run.";
+/// only NOPRIVILEGE names anything of the system: the resource and the permission letter that the service user lacks. HELD is said only for a
+/// call whose approval request Raise has made and held.
+Parameter HELD = "held for your approval; nothing was run.";
 
 /// {privilege} is the resource and the permission letter that the service user lacks, such as %DB_IRISLIB:W.
 Parameter NOPRIVILEGE = "the service user lacks the privilege {privilege} that this tool needs, so nothing was run.";
@@ -112,13 +125,40 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	Set missing = ..MissingPrivilege(source, name)
 	If missing '= "" Quit ..Denial($Replace(..#NOPRIVILEGE, "{privilege}", missing))
 	If ((context.Provenance '= ..#USERPROVENANCE) || (context.Tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
-	If classification.classification '= ..#SAFE Quit ..Denial(..#NEEDSAPPROVAL)
+	If classification.classification '= ..#SAFE Quit ..Hold(context, name, call, sinkClass)
 	Do ..ReportStep(context, source, name, sinkClass)
 	If classification.trustedOutput '= 1 {
 		Set sc = ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
 	}
 	Quit $$$OK
+}
+
+/// Holds a call that is not safe: raises one tool_call request for it through Approval.Raise (see the class comment, step 5) and denies the
+/// call with HELD. It throws Raise's status when Raise fails, which Check turns into FAILED and one warning.
+ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
+{
+	Set type = call.%GetTypeOf("arguments")
+	If (type '= "object") && (type '= "string") && (type '= "null") && (type '= "unassigned") {
+		$$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments of the call are a " _ type _ ", not an object or a JSON text"))
+	}
+	Set arguments = ..ArgumentsOf(call)
+	If $IsObject(arguments) {
+		Set text = arguments.%ToJSON()
+	} ElseIf $ZStrip(arguments, "*WC") '= "" {
+		Set text = arguments
+	} Else {
+		Set text = "{}"
+	}
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Kind = "tool_call"
+	Set request.ToolName = name
+	Set request.ToolArguments = text
+	Set request.OwnerRef = context.OwnerRef
+	Set request.TraceRef = context.TraceRef
+	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .ref, sinkClass)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	Quit ..Denial(..#HELD)
 }
 
 /// The source of the call: its toolref when that starts mcp:, else metadata.origin_class, else "".

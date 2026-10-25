@@ -2,7 +2,10 @@ Include Ensemble
 
 /// The approval API (AD-11): the only way an approval request changes state.
 ///   - Raise validates an unsaved ApprovalRequest, saves it as pending under its lock and starts its hold synchronously through
-///     ApprovalStartIn; a failed Raise leaves no row, no hold and no event, and approval.raised fires once, after the unlock;
+///     ApprovalStartIn; a failed Raise leaves no row, no hold and no event, and approval.raised fires once, after the unlock. It refuses to run
+///     inside an open transaction ($TLevel above 0): the round trip to ApprovalStartIn commits every open level of the caller, and the hold's job
+///     cannot see a row that is not committed. It runs in the caller's job and leaves that job's session and current header ids as they were
+///     (StartHold), so a host job's later event-log rows keep their session. The gate (Policy.Gate) raises a tool_call request for a held call;
 ///   - Answer, Expire, Cancel, StartExecution and FinishExecution are the five state methods: each takes
 ///     LOCK +^OcuTalon.Bridge.Approval(<Ref>) for LOCKSECONDS plus TASKSECONDS (FinishExecution refuses an unknown result before it locks),
 ///     reads the row as the database holds it under that lock, changes it along AD-11's one path (pending to approved, rejected, expired or
@@ -61,10 +64,12 @@ Parameter TASKSECONDS = 5;
 ///      ApprovalStartIn. A lock that is not taken is an error that names the lock.
 ///   3. A failure after the save deletes the row and returns the error, so a failed Raise leaves no row, no hold and no event.
 ///   4. After the unlock it fires approval.raised once through Decide.FireEvent, with the row's OwnerRef and {"ref"}.
-/// ref is empty when Raise fails.
+/// ref is empty when Raise fails. A $TLevel above 0 is refused first (Refuse names $TLevel and its value) before anything is written, and the
+/// caller's transaction stays open and unchanged.
 ClassMethod Raise(request As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String, sinkClass As %String = "", sessionId As %String = "", superSession As %String = "") As %Status
 {
 	Set ref = ""
+	If $TLevel > 0 Quit ..Refuse("$TLevel", "is " _ $TLevel _ ": Raise runs ApprovalStartIn's round trip, which commits every open transaction level of the caller, and the hold's job cannot see an uncommitted row")
 	Set sc = ..Validate(request, .role)
 	If $$$ISERR(sc) Quit sc
 	Set newRef = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -116,16 +121,45 @@ ClassMethod SaveAndStart(request As OcuTalon.Bridge.Data.ApprovalRequest, newRef
 
 /// Starts the hold of the request with the Ref, through ApprovalStartIn, from any job: a sessionId above 0 is the trace session that the
 /// hold joins (otherwise a new one starts) and superSession the tag of its messages. Returns the service's error, the hold's error or a
-/// timeout of STARTSECONDS.
+/// timeout of STARTSECONDS. The service's ProcessInput runs in this job and replaces the job's session id ($$$JobSessionId) and current header
+/// id ($$$JobCurrentHeaderId), so both are put back afterwards, after the service is closed (closing it in a job that is no production job kills
+/// the job-local array), also after an error status or an exception (which is thrown again): a defined value is set back, an undefined one is
+/// killed again. Every caller keeps its own session: the gate, Reconcile and the incident manager.
 ClassMethod StartHold(ref As %String, sessionId As %String = "", superSession As %String = "") As %Status [ Internal ]
 {
-	Set sc = ##class(Ens.Director).CreateBusinessService(..#STARTITEM, .service)
-	If $$$ISERR(sc) Quit sc
-	Set message = ##class(OcuTalon.Bridge.Msg.ApprovalStart).%New()
-	Set message.Ref = ref
-	Set message.SessionId = $Select(sessionId > 0: sessionId, 1: "")
-	Set message.SuperSession = superSession
-	Quit service.ProcessInput(message, .output)
+	Set hadSession = $Data($$$JobSessionId) # 2
+	Set session = $Get($$$JobSessionId)
+	Set hadHeader = $Data($$$JobCurrentHeaderId) # 2
+	Set header = $Get($$$JobCurrentHeaderId)
+	Set sc = $$$OK
+	Set thrown = ""
+	Try {
+		Set sc = ##class(Ens.Director).CreateBusinessService(..#STARTITEM, .service)
+		If $$$ISOK(sc) {
+			Set message = ##class(OcuTalon.Bridge.Msg.ApprovalStart).%New()
+			Set message.Ref = ref
+			Set message.SessionId = $Select(sessionId > 0: sessionId, 1: "")
+			Set message.SuperSession = superSession
+			Set sc = service.ProcessInput(message, .output)
+		}
+	} Catch exception {
+		Set thrown = exception
+	}
+	// A service that CreateBusinessService made in a job that is not a production job kills the whole job-local array when it is closed, so it is
+	// closed before the ids are put back.
+	Set service = ""
+	If hadSession {
+		Set $$$JobSessionId = session
+	} Else {
+		Kill $$$JobSessionId
+	}
+	If hadHeader {
+		Set $$$JobCurrentHeaderId = header
+	} Else {
+		Kill $$$JobCurrentHeaderId
+	}
+	If $IsObject(thrown) Throw thrown
+	Quit sc
 }
 
 /// OK when the request may be raised; otherwise the first refusal, an error that names the field. role is the ApprovalRole setting.

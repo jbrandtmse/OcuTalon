@@ -9,6 +9,9 @@
 /// for its hold to end, so that no late response reaches a removed hold) and its row is deleted; the same cleanup enables the three items again and
 /// deletes the fixture Workflow role of TestReconcileCancelsOnlyOrphans and its task. The settings row, Decide's HostSinkClass, the item state and
 /// the Workflow objects that a test changed are put back. Reconcile's tests move a fixture row's RaisedAt and ExpiresAt directly and settle one.
+/// Story 3.6: TestRaiseKeepsTheCallersJobIds (row 5a, DW-191) shows that Raise leaves the caller's session and current header ids as they were.
+/// Its helpers Clean, TaskIds, WaitHoldSettled, Age, TrackOwner, WaitTask, HoldMessages and HoldRequests are public class methods, which
+/// Test.Bridge.Gate reuses: TrackOwner tracks every row of an owner, so that the gate's held requests are ended and deleted by Clean.
 /// Story 3.5's tests, with the rows of its matrix:
 ///   - TestAnswerApprovesAFix (row 1): the answer is recorded with the given action, channel and user, the task is completed with Approve by
 ///     OcuTalonWorkflow, the sink hears one approval.answered with the row already approved, and the hold sends one approved outcome;
@@ -310,6 +313,48 @@ Method TestOwnerRefKinds()
 		Do ..AssertSink(ref, owner, owner_": the sink")
 		Do $$$AssertTrue(..WaitTask(ref, 10) '= "", owner_": the request is held")
 	}
+}
+
+/// Story 3.6, row 5a (DW-191): Raise runs ApprovalStartIn's round trip in the caller's job, which replaces the job's session and current header
+/// ids, and puts both back: with %Ensemble("SessionId") and %Ensemble("CurrentHeaderId") set to known values they are unchanged afterwards, and
+/// with both undefined they are still undefined, and a StartHold that fails keeps them the same way. The test kills both at the end.
+Method TestRaiseKeepsTheCallersJobIds()
+{
+	If '..Ready() Quit
+	Try {
+		Set %Ensemble("SessionId") = 4711
+		Set %Ensemble("CurrentHeaderId") = 4712
+		Set sc = ..Raise(..NewRow("tool_call"), .ref)
+		Do $$$AssertStatusOK(sc, "Raise with the ids of the job defined is OK")
+		Set seen = $Get(%Ensemble("SessionId")) _ "|" _ $Get(%Ensemble("CurrentHeaderId"))
+		Do $$$AssertTrue(seen = "4711|4712", "the job's session and current header ids are unchanged (got '" _ seen _ "')")
+		Do $$$AssertTrue(..WaitTask(ref, 10) '= "", "and the request is held")
+		Kill %Ensemble("SessionId"), %Ensemble("CurrentHeaderId")
+		Set sc = ..Raise(..NewRow("tool_call"), .ref)
+		Do $$$AssertStatusOK(sc, "Raise with both ids undefined is OK")
+		Do $$$AssertEquals(($Data(%Ensemble("SessionId")) # 2) _ "|" _ ($Data(%Ensemble("CurrentHeaderId")) # 2), "0|0", "both are still undefined")
+		Do $$$AssertTrue(..WaitTask(ref, 10) '= "", "and that request is held")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "Raise did not throw")
+	}
+	Kill %Ensemble("SessionId"), %Ensemble("CurrentHeaderId")
+
+	// a start that fails (ApprovalStartIn refuses a message with no Ref) leaves the ids as they were too
+	Try {
+		Set %Ensemble("SessionId") = 4711
+		Set %Ensemble("CurrentHeaderId") = 4712
+		Set sc = ##class(OcuTalon.Bridge.Approval).StartHold("")
+		Do $$$AssertStatusNotOK(sc, "a start with no Ref fails")
+		Set seen = $Get(%Ensemble("SessionId")) _ "|" _ $Get(%Ensemble("CurrentHeaderId"))
+		Do $$$AssertTrue(seen = "4711|4712", "after the failed start the ids are unchanged (got '" _ seen _ "')")
+		Kill %Ensemble("SessionId"), %Ensemble("CurrentHeaderId")
+		Set sc = ##class(OcuTalon.Bridge.Approval).StartHold("")
+		Do $$$AssertStatusNotOK(sc, "a second failed start with both ids undefined fails")
+		Do $$$AssertEquals(($Data(%Ensemble("SessionId")) # 2) _ "|" _ ($Data(%Ensemble("CurrentHeaderId")) # 2), "0|0", "and both are still undefined")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "StartHold did not throw")
+	}
+	Kill %Ensemble("SessionId"), %Ensemble("CurrentHeaderId")
 }
 
 /// Raises the request inside a bridge context of the session and the SuperSession, with Raise's own session arguments, and ends the context.
@@ -1399,7 +1444,7 @@ Method AssertJoined(ref As %String, session As %Integer, super As %String, label
 
 /// The headers of the hold that Raise started after the mark, as {"session", "start", "task", "alarm"}; each header is {"id", "session",
 /// "super", "bodyId"}. The session is the one of the ApprovalStart that names the Ref.
-Method HoldMessages(mark As %Integer, ref As %String) As %DynamicObject [ Private ]
+ClassMethod HoldMessages(mark As %Integer, ref As %String) As %DynamicObject
 {
 	Set messages = {"session": "", "start": {}, "task": {}, "alarm": {}}
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, SuperSession, MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalStart' AND SourceConfigName = 'ApprovalStartIn' AND TargetConfigName = 'ApprovalHold' ORDER BY ID", mark)
@@ -1440,7 +1485,7 @@ Method TaskSession(taskId As %String) As %Integer [ Private ]
 }
 
 /// The ids of the tasks that carry the Ref in their subject, oldest first, as a list.
-ClassMethod TaskIds(ref As %String, openOnly As %Boolean = 0) As %List [ Private ]
+ClassMethod TaskIds(ref As %String, openOnly As %Boolean = 0) As %List
 {
 	Set ids = ""
 	Set sql = "SELECT ID FROM EnsLib_Workflow.TaskResponse WHERE %Subject = ?"_$Select(openOnly: " AND TaskStatus_IsComplete = 0", 1: "")_" ORDER BY ID"
@@ -1464,7 +1509,7 @@ ClassMethod TaskCount(ref As %String) As %Integer [ Private ]
 }
 
 /// The id of the open task of the Ref once it exists (polled up to the seconds), or "".
-Method WaitTask(ref As %String, seconds As %Integer) As %String [ Private ]
+ClassMethod WaitTask(ref As %String, seconds As %Integer) As %String
 {
 	Set deadline = $ZHorolog + seconds
 	Set id = ..OpenTasks(ref)
@@ -1487,7 +1532,7 @@ ClassMethod JustNow(stamp As %String) As %Boolean [ Private ]
 /// message to it in that session is still created, queued or delivered, which is when its OnResponse has returned (polled up to the seconds),
 /// otherwise 0. The response must exist, so that a wrong session or a response that never came cannot pass as settled. A test that expects the
 /// hold to have sent nothing reads after it.
-ClassMethod WaitHoldSettled(ref As %String, session As %String, seconds As %Integer) As %Boolean [ Private ]
+ClassMethod WaitHoldSettled(ref As %String, session As %String, seconds As %Integer) As %Boolean
 {
 	Set deadline = $ZHorolog + seconds
 	Set settled = 0
@@ -1604,7 +1649,7 @@ ClassMethod AlarmEntry(headerId As %String, seconds As %Integer = 0) As %List [ 
 
 /// Moves a fixture row's RaisedAt back by raisedAgo seconds and sets ExpiresAt expiresIn seconds from now (negative: in the past). Only a
 /// test does this; the row's State never changes.
-ClassMethod Age(ref As %String, raisedAgo As %Integer, expiresIn As %Integer) [ Private ]
+ClassMethod Age(ref As %String, raisedAgo As %Integer, expiresIn As %Integer)
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
@@ -1724,7 +1769,7 @@ ClassMethod RemoveOther() [ Private ]
 /// OcuTalonApprovals again if a killed run left one disabled, releases the row locks that the test process holds (tracked under
 /// ^OcuTalonTest("Approval","held")), waits for every job to be done (a job that is still waiting for a lock is released first), ends each
 /// request and deletes its row, deletes the fixture Workflow roles, and kills the shared sink's calls.
-ClassMethod Clean() [ Private ]
+ClassMethod Clean()
 {
 	For item = "ApprovalStartIn", "ApprovalHold", "OcuTalonApprovals" {
 		Set status = $$$OK
@@ -1772,6 +1817,16 @@ ClassMethod Remove(ref As %String) [ Private ]
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	If $IsObject(row) Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%DeleteId(row.%Id())
 	Kill ^OcuTalonTest("Approval", "refs", ref)
+}
+
+/// Tracks every approval row of the owner under ^OcuTalonTest("Approval","refs"), so that Clean ends its hold and deletes it. A test of another
+/// class (Test.Bridge.Gate) that makes the gate raise requests tracks its owners, because the gate does not return the Ref.
+ClassMethod TrackOwner(owner As %String)
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
+	While result.%Next() {
+		Set ^OcuTalonTest("Approval", "refs", result.%Get("Ref")) = ""
+	}
 }
 
 /// --- the helpers of Story 3.5's tests ---
@@ -1931,7 +1986,7 @@ Method AssertOneOutcome(ref As %String, outcome As %String, info As %DynamicObje
 }
 
 /// The classes of the requests that the hold of the session sent, sorted, as a comma list.
-Method HoldRequests(session As %String) As %String [ Private ]
+ClassMethod HoldRequests(session As %String) As %String
 {
 	Set classes = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyClassName FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = 'ApprovalHold' AND Type = 1 ORDER BY MessageBodyClassName", session)

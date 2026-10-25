@@ -1,4 +1,4 @@
-/// The toolset of the provenance and taint tests (Story 3.3; AD-10): the six tools of OcuTalon.Test.Bridge.ZzGateTool that the injection cases
+/// The toolset of the provenance and taint tests (Story 3.3; AD-10): the seven tools of OcuTalon.Test.Bridge.ZzGateTool that the injection cases
 /// need, in a toolset of their own because OcuTalon.Test.Bridge.ZzGateTools is the governance sample of Test.Bridge.Gate (TestGovernanceSample),
 /// and more tools there would change its run and flag sets. A test fixture, never part of a production. The tool class compiles first
 /// (DependsOn), because the toolset's generator reads the methods that the tools name.
@@ -15,6 +15,7 @@ XData Definition [ MimeType = application/xml ]
   <Tool Name="zz_resend_failed" Class="OcuTalon.Test.Bridge.ZzGateTool" Method="ResendFailed"/>
   <Tool Name="zz_change_endpoint" Class="OcuTalon.Test.Bridge.ZzGateTool" Method="ChangeEndpoint"/>
   <Tool Name="zz_approve_requests" Class="OcuTalon.Test.Bridge.ZzGateTool" Method="ApproveRequests"/>
+  <Tool Name="zz_gate_note" Class="OcuTalon.Test.Bridge.ZzGateTool" Method="Note"/>
 </ToolSet>
 }
 

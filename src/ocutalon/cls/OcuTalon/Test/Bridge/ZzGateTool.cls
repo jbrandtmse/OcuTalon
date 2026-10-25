@@ -1,3 +1,5 @@
+Include Ensemble
+
 /// The tools of the gate tests (Story 3.2; AD-10): a test fixture, never part of a production, and never in the package OcuTalon.Tools. Each
 /// tool method records that it ran in the process-private global ^||ZzGateRan(<the tool's name>) and answers {"ran":"<the tool's name>"}, so
 /// that a test can show that a denied call did not run. The parameters, by the one naming rule of the tool parameters (the tool's name in
@@ -15,7 +17,9 @@
 ///   - zz_gate_trusted is safe, read-only and trusted output;
 ///   - zz_gate_risky_read is risky and read-only;
 ///   - zz_resend_failed is risky, and zz_change_endpoint is safe and not read-only (it takes the argument url);
-///   - zz_approve_requests declares nothing: it is unclassified.
+///   - zz_approve_requests declares nothing: it is unclassified;
+///   - zz_gate_note (Story 3.6) is safe, read-only and trusted output, and besides recording that it ran it logs one event-log info row, so that a
+///     test can read the session and the message id that the job had when the tool ran (the held-call test of the production's runner job).
 /// A tool method runs inside AI Hub's callback, so it makes no AI Hub call and no Python call (AD-6).
 Class OcuTalon.Test.Bridge.ZzGateTool Extends %AI.Tool
 {
@@ -38,6 +42,12 @@ Parameter CLASSIFICATIONZZGATETRUSTED = "safe";
 Parameter READONLYZZGATETRUSTED = 1;
 
 Parameter TRUSTEDOUTPUTZZGATETRUSTED = 1;
+
+Parameter CLASSIFICATIONZZGATENOTE = "safe";
+
+Parameter READONLYZZGATENOTE = 1;
+
+Parameter TRUSTEDOUTPUTZZGATENOTE = 1;
 
 Parameter CLASSIFICATIONZZGATERISKYREAD = "risky";
 
@@ -126,6 +136,14 @@ ClassMethod ReadOutside() As %DynamicObject
 ClassMethod ReadOwn() As %DynamicObject
 {
 	Quit ..Ran("zz_gate_trusted")
+}
+
+/// Safe, read-only and trusted output: logs one event-log info row, whose session and message id are the job's own.
+ClassMethod Note() As %DynamicObject
+{
+	Set result = ..Ran("zz_gate_note")
+	$$$LOGINFO("zz_gate_note ran")
+	Quit result
 }
 
 /// Risky and read-only.
