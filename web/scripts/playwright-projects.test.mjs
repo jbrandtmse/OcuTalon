@@ -60,7 +60,10 @@ const reportOf = (script) => (listed[script] ??= listedReport(script));
 /** The spec files that an npm script lists, in the config's own terms (relative to e2e/). */
 const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).sort();
 
-/** The directories of web/e2e/ that have a project of their own; chromium runs everything else. Add a directory here with its project. */
+/**
+ * The directories of web/e2e/ that have a project of their own; chromium runs everything else. A new directory goes here together
+ * with its project in the config, its script in the list of the "every spec file on disk" case and an exact-listing case of its own.
+ */
 const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor'];
 const inOwnProjectDir = (name) => OWN_PROJECT_DIRS.some((dir) => name.startsWith(`${dir}/`));
 

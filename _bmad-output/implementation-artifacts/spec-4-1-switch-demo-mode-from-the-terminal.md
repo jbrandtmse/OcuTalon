@@ -224,6 +224,21 @@ Rejected:
 - `low` Acceptance: step 5 starts polling after step 4's checks -- every answer from the 61st second is polled and compared, and a lasting change of chat or rail cannot hide in the few seconds before the first poll.
 - Acceptance: `MESSAGEFAILED` and `MESSAGEUNKNOWN` can reach the terminal although the Never line names only V2's texts -- the Tasks and the matrix specify those reused texts; the fix would edit the spec.
 
+Code review 2026-10-25, rework re-review (iteration 1 of 3; diff `2bb605c..HEAD`, the `[CI]` item; `bmad-code-review`, full mode, 4 layers on the full-opus tier). 11 layer findings (blind-hunter 8, edge-case-hunter 3, verification-gap 0, acceptance-auditor 0); after triage 1 entry (high 0, med 0, low 1), patched; 10 rejected (appendix). Checklist: `[CI]` fixed. The chromium case's rule is the config's `testIgnore` (`demo-path/`, `demo-switch/`, `floor/`), and the `demo-switch` case lists exactly `demo-switch/`. The test still fails on a spec no project lists (reviewer's mutations: `'**/e2e/rail/**'` in the chromium `testIgnore` alone -> the chromium and "every spec file on disk" cases red; with `'rail'` also in `OWN_PROJECT_DIRS` -> the "every spec file on disk" case alone red, 13 of 14; config and test restored, md5 identical). `npm --prefix web test` 567 of 567, `npm --prefix web run lint` exit 0, `bash docker/tests/test-mock.sh` 94 of 94. DW-207 and DW-208 stand as filed.
+
+- [x] [Review][Patch] The comment above `OWN_PROJECT_DIRS` named one of the three edits a new project directory needs (not its script in the "every spec file on disk" case's list, nor its own exact-listing case), so following it leaves that case red with no pointer [web/scripts/playwright-projects.test.mjs:63] -- low, fix-risk low (comment only), in-story: the comment names all three.
+
+Rejected:
+- `false` Blind: the "every spec file on disk" mutation used `api/`, which the sign-in API case also reads, so its evidence is not clean -- the co-red is recorded in the line and comes from the API run case, not a listing case; with `rail/` the union case is the only red (13 of 14).
+- `false` Blind + Edge: `review_loop_iteration: 0` disagrees with the cycle log's `review_loop_iteration=1` -- the frontmatter counts build-auto's bad_spec loopbacks (its step-04), and none happened; the log's field is the lead's rework count.
+- `low` Blind: `baseline_commit: '2bb605c'` is abbreviated -- it resolves uniquely, and an ambiguity would fail loudly in git; the fix edits the spec's frontmatter (the lead's and build-auto's state).
+- `false` Edge: the rework overwrote `baseline_commit`, so a later review misses the earlier commits -- the rework re-review protocol sets it to the rework's baseline; `baseline_revision` keeps `e8e2ea9`, and adjudication reads the story base.
+- `low` Blind: the Code Map and the lane line do not name `web/scripts/playwright-projects.test.mjs`, and the Code Map's chromium line is the pre-story config -- the fix edits the spec; the footprint note goes to the lead.
+- `false` Blind: the web job's later steps never ran on this story -- Web build and Lint passed on c8b4354 before Unit tests, and `bash docker/tests/test-mock.sh` passes 94 of 94 on this head.
+- `low` Blind: two reasons in the rework's triage log do not hold (lint reads no `package.json`; "reading C" is undefined) -- narrative only; the hand-kept script list fails red when a project is missing (the union case), and the fix edits the spec.
+- `low` Blind: the rework's three `mutation:` lines carry no pass label and sit inside the implement pass's list -- they are accurate and current, so Rule 19's missing-or-stale exemption does not apply; the fix edits the spec.
+- `low` Edge: a new directory added to `OWN_PROJECT_DIRS` with no exact-listing case lets its project list specs outside it unnoticed -- it needs a misconfigured project and a skipped case; the fix (generating the cases from one map) is a restructuring, and the patched comment now names the exact-listing case.
+
 ## Spec Change Log
 
 - 2026-10-25, rework iteration 1 (trigger: CI red on c8b4354, the hosted `web` job's unit tests): one `[CI]` item under Tasks & Acceptance.
