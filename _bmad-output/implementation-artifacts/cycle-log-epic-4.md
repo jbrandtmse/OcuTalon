@@ -54,3 +54,5 @@
 2026-10-25T17:06:23Z	Story 4.1	committed	sha=fe413b1 submodules= ci=pending runs=40214823108,40214823117 amendments=none fix_for=4-1-switch-demo-mode-from-the-terminal footprint_extension=+web/scripts/playwright-projects.test.mjs note=rework_1(CI)
 2026-10-25T17:06:23Z	Story 4.1	story_cycle	plan_to_commit_min=321 implement_passes=2 reviews=2 rework=1(ci) first_ci=story models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-10-25T17:10:11Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(spine_diagram_edges_4.1,4.2)+specs_4.1,4.2 model=claude-opus lines=254 subagent_tokens=104471
+2026-10-25T17:27:36Z	Story 4.1	ci_resolved	story=4.1 sha=fe413b1 runs=40214823108,40214823117 result=success failed=none via=none resolved_at=next_plan(before_4.2_implement)
+2026-10-25T17:27:37Z	Story 4.2	stage_spawned	spawn_at=2026-10-25T17:27:37Z stage=implement model=claude-sonnet agent_name=4-2-derive-the-guide-state-and-break-the-feed-availability-on-th-implement-1 cycle_iteration=1 story_base=c4d9278
