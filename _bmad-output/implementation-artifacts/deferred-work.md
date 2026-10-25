@@ -621,3 +621,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: ng build of clean copies: 050ca9a 530.80 kB raw (128.04 kB transfer), a35f7bc 538.57 kB (129.75 kB); the story adds 7.77 kB raw and 1.71 kB transfer (1.5%), not material
 - 2026-10-25T01:26:11Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=the initial bundle passes 600 kB raw or 150 kB transfer, or a page-load measurement misses its target
+
+### DW-190: In WebKit (Safari) a mouse press on the Status button or on the narrow-window note's Close leaves focus on the page body: Safari focuses no pressed button, so Story 2.15's focus hand-back after a click does not run
+- source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Story 2.16 plan Task 0 (macOS, Playwright 1.64.1, WebKit 27.2): G2's and G6's click steps leave document.activeElement on body in WebKit; keyboard paths unaffected
+- 2026-10-25T02:31:37Z status=wontfix-accepted owner=2-16-prove-the-floor-in-chromium-firefox-and-webkit by=spec_gate note=reopen_if=a Safari keyboard path loses focus after the drawer or the note closes, or a Safari mouse user reports losing their place; Story 2.15's Decided 3 held this by inference only
