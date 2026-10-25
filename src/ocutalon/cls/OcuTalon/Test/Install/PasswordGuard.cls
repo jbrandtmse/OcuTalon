@@ -1,10 +1,14 @@
-/// The helpers that the tests of the password guard share (Story 3.8): Test.Install.Users and Test.Install.Public. It holds no test.
+/// The helpers that Test.Install.Users and Test.Install.Public share (Story 3.8): the password guard's, and the clean-up of their fixture
+/// accounts and page size pins. It holds no test.
 ///   - State() takes the instance's PasswordValidationRoutine, whether the guard routine exists and its source; Restore(state) puts the
 ///     setting and the routine back as State found them.
-///   - Source() is the guard routine's source text.
+///   - Leak(expected) is "" when State still equals the expected state, otherwise a sentence that says what differs (never a password).
+///   - Source() is the guard routine's source text, and RoutineExists(name) says whether a routine of %SYS exists.
+///   - Check(user, password) is the guard routine's own answer, called as the password-validation hook calls it.
 ///   - SignInChange(user, old, new) asks the web server of the instance for a password change through a sign-in request, signs out again,
 ///     and gives the HTTP status of the sign-in.
 ///   - PasswordOk(user, password) and TryPassword(user, password) read and write a user's password. Both run in %SYS.
+///   - RemoveUser(user), RemoveUsers(prefix) and ClearPins(prefix) delete fixture users and their page size pins.
 /// They change the security settings of the instance: throwaways and CI only (Rule 21).
 Class OcuTalon.Test.Install.PasswordGuard
 {
@@ -38,6 +42,25 @@ ClassMethod Restore(state As %List)
 	If 'exists, ##class(%Routine).Exists(..#ROUTINE_".mac") Do ##class(%Routine).Delete(..#ROUTINE_".mac", 0)
 }
 
+/// "" when State equals the expected state (the setting, whether the routine exists, and its source), otherwise a sentence that says what
+/// differs. It names no password: the source is compared, not quoted. Runs in %SYS.
+ClassMethod Leak(expected As %List) As %String
+{
+	Set now = ..State()
+	If $List(now, 1) '= $List(expected, 1) Quit "the password-validation setting is '"_$List(now, 1)_"', not '"_$List(expected, 1)_"'"
+	If $List(now, 2) '= $List(expected, 2) Quit "the guard routine "_$Select($List(now, 2): "exists", 1: "is missing")_", not as it was"
+	If $List(now, 3) '= $List(expected, 3) Quit "the source of the guard routine is not as it was"
+	Quit ""
+}
+
+/// The guard routine's own answer for the user and password, as IRIS calls it (1, or an error status). Runs in %SYS.
+ClassMethod Check(user As %String, password As %String) As %Status
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit $$Check^OcuTalonPasswordGuard(user, password)
+}
+
 /// The source text of the guard routine, a line feed after each line, or "" when there is none. Runs in %SYS.
 ClassMethod Source() As %String
 {
@@ -50,6 +73,14 @@ ClassMethod Source() As %String
 		Set text = text_routine.ReadLine()_$Char(10)
 	}
 	Quit text
+}
+
+/// 1 when the routine of the name (without its .mac) exists in %SYS. Runs in %SYS.
+ClassMethod RoutineExists(name As %String) As %Boolean
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ''##class(%Routine).Exists(name_".mac")
 }
 
 /// The PasswordValidationRoutine setting of the instance. Runs in %SYS.
@@ -120,6 +151,43 @@ ClassMethod TryPassword(user As %String, password As %String) As %Status
 	Set $Namespace = "%SYS"
 	Set properties("Password") = password
 	Quit ##class(Security.Users).Modify(user, .properties)
+}
+
+/// Deletes the user when it exists; "" is no user. Runs in %SYS.
+ClassMethod RemoveUser(user As %String)
+{
+	If user = "" Quit
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If ##class(Security.Users).Exists(user) Do ##class(Security.Users).Delete(user)
+}
+
+/// Deletes every user whose name starts with the prefix. Runs in %SYS.
+ClassMethod RemoveUsers(prefix As %String)
+{
+	If prefix = "" Quit
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM Security.Users WHERE Name %STARTSWITH ?", prefix)
+	While result.%Next() {
+		Do ##class(Security.Users).Delete(result.%GetData(1))
+	}
+}
+
+/// Kills the page size settings (^EnsPortal.Settings) of every name that starts with the prefix, in OCUTALON and in OCUORDERS where it
+/// exists.
+ClassMethod ClearPins(prefix As %String)
+{
+	If prefix = "" Quit
+	For namespace = "OCUTALON", "OCUORDERS" {
+		If '##class(%SYS.Namespace).Exists(namespace) Continue
+		Set name = prefix
+		For {
+			Set name = $Order(^|namespace|EnsPortal.Settings(name))
+			If $Extract(name, 1, $Length(prefix)) '= prefix Quit
+			Kill ^|namespace|EnsPortal.Settings(name)
+		}
+	}
 }
 
 }

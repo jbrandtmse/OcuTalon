@@ -221,9 +221,42 @@ The environment is set in the test process (`Test.Agent.KeyScan.SetEnv` and `Uns
 - DW-160: given a fresh flag-on volume, where OCUORDERS does not exist when the Users step runs, when the start reaches its last phase, then `Public.Ready()` calls `Users.PinTrace` for both public accounts before `SetReady`, so the page size is pinned in both namespaces (ledger; routed by spec_gate 2026-10-24). Addressed by row 8 and the `Public.cls` task.
 - Given the fresh `shard lane-a`, `shard lane-b`, `live install-start` and `live install-upgrade`, when they run, then every class and check passes.
 
+### Review Findings
+
+Code review, 2026-10-25 (full mode, review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor; 32 rows: 15 of them grouped into 8 entries and 17 rejected; DW-203 and a Rule 2 copy found by the reviewer make 10 entries). No high finding. Every patch was applied in this pass.
+
+- [x] [Review][Patch] (medium) A later start replaced the live guard before checking it. A failed compile could leave the setting naming a broken routine, which refuses every password change on the instance, and a failed self-check left an unchecked routine live (the M1 mutation shows the demo account then allowed any password). `Guard` now writes and checks each start's routine under the staging name `GUARDSTAGE` (`OcuTalonPasswordGuardNew`), writes the same source over the live routine only after that, checks it again, sets the setting last, and always deletes the staging routine. `Unguard` also deletes a leftover staging routine. New test `TestFailedGuardKeepsTheLiveGuard`. [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:161]
+- [x] [Review][Patch] (medium) DW-203: with multiple domains enabled, IRIS passes `name@domain`, which the exact match let through. The generated `Check` now also matches the name before its last `@` and fails closed. It is pinned in `TestGuardDecidesByNameAndPassword`. [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:192]
+- [x] [Review][Patch] (medium) `TestBadStartValues`: the cap cases were masked by the reserve refusal, whose text also contains `OCUTALON_CONNECTION_CAP`, so the cap's whole-number rule was unpinned and the rule text was never asserted. The cap cases now run with a reserve of 0, an allowance of `1.5` is added, and the error must contain `<variable> must`. [src/ocutalon/cls/OcuTalon/Test/Install/Public.cls:220]
+- [x] [Review][Patch] (medium) `TestFailedGuardLeavesTheSetting` claimed that a line feed breaks the routine's compile. `%Routine.WriteLine` drops CR and LF, so it is the self-check that refuses. The assertions also held if any earlier phase refused. The doc comment is corrected, and the test now asserts that the error names the password guard and that no live or staging routine is written. (The earlier triage rows "a line feed fails the compile" were wrong in the same way.) [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:784]
+- [x] [Review][Patch] (medium, Rule 19) `TestForeignGuardIsRefused`'s "nothing is warned of" counted every warning, so another class's enabled online-demo account turned it red. It now counts only warnings that name either routine (`Warned`, which also replaces three copied counting loops). [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:758]
+- [x] [Review][Patch] (medium, Rule 19) `TestFlagOffRemovesALeftoverGuardRoutine` relied on an empty setting that it did not create. Its stub has no `Check`, so a set guard would have refused every password change until teardown. It now restores the empty state first, as its siblings do. [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:740]
+- [x] [Review][Patch] (medium, Rule 19) Row 9's capitals half was unproven, because the control sign-in used the name as created. The control now signs in with the name in capitals. [src/ocutalon/cls/OcuTalon/Test/Install/Users.cls:654]
+- [x] [Review][Patch] (medium, Rule 2, found by the reviewer) Copies between the two test classes: `PasswordGuard.PasswordOk` repeated `Test.Install.Users.PasswordOk`, and `Test.Install.Public`'s `ClearPins`, `Remove` and the user sweep of `Clean` repeated `Test.Install.Users`'. One copy of each now lives in `PasswordGuard` (`PasswordOk`, `ClearPins(prefix)`, `RemoveUser`, `RemoveUsers(prefix)`), and both classes delegate to it. [src/ocutalon/cls/OcuTalon/Test/Install/PasswordGuard.cls:1]
+- [x] [Review][Patch] (low) `TestFlagOffKeepsARowOfAnotherSpecificity` overwrote, and its teardown then deleted, a wider cap row that it did not make whenever one already existed. It now stops at the failed precondition. [src/ocutalon/cls/OcuTalon/Test/Install/Public.cls:329]
+- [x] [Review][Defer] (low) A flag-on start with renamed published accounts leaves the old online-demo account enabled, with its published password and outside the guard. [src/ocutalon/cls/OcuTalon/Install/Step/Users.cls:89] Deferred: Story 3.1's flag-on path disables online-demo accounts only with the flag off, and fixing it means new account behaviour that no spec states. The ledger closes it as DW-209, `wontfix-accepted`, reopened if the deployment (Story 29.3) renames a published account between flag-on starts.
+
+Rejected:
+- (low) The flag-on budget rows can be outranked by a row that names the host class. No code writes such a row, and the deployment owns the host's rows.
+- (low) The self-check does not try a name that is not public. The generator cannot produce a routine that refuses every name, and `TestGuardDecidesByNameAndPassword` pins the non-public answers.
+- (low) The guard's routine name appeared as literals in several places. The hard-coded call in `CheckGuardRoutine` went away with the staging patch (`$$Check^@(routine)`), and `GUARDENTRY` is the spec's literal.
+- (low) `CompileQuietly` opens `/dev/null` with fixed parameters and closes it even when it was already the current device. No OcuTalon caller runs with the null device as `$IO`, and a failed open costs only one empty log line.
+- (false) The verification record predated QA, and `Install.Users` taking 0.6 s looked too fast. The review's fresh `shard lane-a` ran after every change, and the warm stack showed all 32 methods running with their assertions.
+- (low) No uninstall removes the guard. The package has no uninstall path at all, and a flag-off start removes the guard.
+- (low) A start value beyond IRIS's number range throws instead of naming the variable. Only the deployment sets these values, and the start still fails closed.
+- (false) Empty account variables pass the Public step. That is spec-bound: "not checked here (the Users step refuses empty or clashing accounts)".
+- (low) The setting could change between `CheckGuard` and `Guard`. Nothing else writes it during a start.
+- (low) Every test kills today's capped mark. That is spec-bound for row 7 ("kills today's day mark before and after"), on throwaways only.
+- (low) The rows are keyed by the active production. `OcuTalon.Production` is the only production in OCUTALON on every stack, and `RunnerFixture` is Epic 1's shared fixture.
+- (false) `TestStartValuesReachTheUsersStep` relies on the service role and the user role. Those are the installed package, which is the shard's precondition, not another test's leftovers.
+- (low) `TestFlagOffWritesOnlyTheFlag` assumes no wider cap row. It fails loudly and was already accepted at the implement stage.
+- (reject, spec edit) The Never line "no `PasswordValidationRoutine` change … on a local install" contradicts `Unguard`. The code follows AC 2 and the Boundaries' flag-off bullet. This is noted for the lead.
+- (false) AD-3's switch list does not name test classes. AD-3 prevents scattered switching in product code; `OcuTalon.Install.*` may switch to `%SYS` in a method with `New $Namespace`, and test fixtures switching to `%SYS` is established practice.
+
 ## Spec Change Log
 
 - 2026-10-25, lead spec gate: AD-13 and AD-19 are not amended. The plan's Rule 20 points went into a new Consistency Conventions row "Online-demo start" (light path): the Public step's order, keys and defaults, the malformed-value refusal, the last phase (PinTrace, then readiness), and the password guard's shape and order. Kept as one story despite the `multiple-goals` warning: the three ACs share the Public step and one test stack, and the AC asks for them together. The flag-on proof sets the start values in the test process on a throwaway, as `Test.Install.ProviderEnv` does; a real flag-on start is Lane B's Stories 16.1 and 16.2 (no contended compose or live script is edited). Ruled in the veto window and kept as planned: the instance-wide password guard (a generated `%SYS` routine with salted hashes of the published passwords), a malformed start value failing the start, and the new admin texts.
+- 2026-10-25, lead after code review: the Never line "no `PasswordValidationRoutine` change on a local install" reads as "no change to a routine that is not OcuTalon's": AC 2 and the flag-off bullet require `Unguard` to clear OcuTalon's own setting, which the code does. The guard is now staged under a temporary name before it replaces the live routine, and it matches the name before its last `@` (DW-203); the spine's "Online-demo start" row records both.
 
 ## Review Triage Log
 
@@ -397,7 +430,7 @@ The environment is set in the test process (`Test.Agent.KeyScan.SetEnv` and `Uns
 **Shared surfaces:**
 - **The cap row.** Every flag-off start now leaves the System Default Settings row (`OcuTalon.Production`, `Decide`, `*`, `DailyCostCapUSD`) = 0. Search the test trees for tests that assert no such row or count the rows. `Test.Bridge.Budget`, `Test.Bridge.Decide`, `Test.Agent.Decide` and `WebStatus` snapshot and restore their rows.
 - **`Public.Run()`** now clears readiness, and with the flag on writes every key and the three rows. `Test.Data.PublicSettings.TestPublicStep` (flag off) stays green.
-- **The password-validation setting and the routine.** The instance-wide `PasswordValidationRoutine` and the `%SYS` routine `OcuTalonPasswordGuard` are set by every flag-on `Accounts` call. `Test.Install.Users` and `Test.Install.Public` restore both after every test.
+- **The password-validation setting and the routine.** The instance-wide `PasswordValidationRoutine` and the `%SYS` routine `OcuTalonPasswordGuard` are set by every flag-on `Accounts` call. `Test.Install.Users` and `Test.Install.Public` restore both after every test. (Review) Each flag-on `Accounts` call also writes the staging routine `OcuTalonPasswordGuardNew` and deletes it again before it returns, whatever the outcome. A flag-off `Unguard` removes one that is left over, and `TestFailedGuardLeavesTheSetting` and `TestFailedGuardKeepsTheLiveGuard` assert that none is left.
 - **The public keys, readiness and the fixture names' `^EnsPortal.Settings` pins in both namespaces.**
 - **During row 7:** `Decide`'s `HostSinkClass`, the runners' Config Store keys, today's day mark, and the test's `Usage` rows.
 - **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
@@ -421,7 +454,7 @@ Mutations demonstrated (implement stage, warm stack `e3s8iw`; each applied, obse
 - mutation: `Public.Default` drops the `connectionCap` default (8) -> `Test.Install.Public.TestDefaults` red (the run is refused for the unset cap, so `TestStartValuesReachTheUsersStep` goes red too)
 - mutation: `Public.RunLocal` also writes `messageAllowance` with the flag off -> `Test.Install.Public.TestFlagOffWritesOnlyTheFlag` red
 - mutation: the reserve-below-cap check in `Public.StartValues` removed -> `Test.Install.Public.TestBadStartValues` red (reserve equal to the cap is accepted and written)
-- mutation: `Users.WriteGuard` stores the account name as published, not lower-cased -> `Test.Install.Users.TestGuardWithFlagOn` and `TestInstallerWritesAChangedPassword` red (the self-check refuses the routine)
+- mutation: `Users.GuardSource` (named `WriteGuard` before the review) stores the account name as published, not lower-cased -> `Test.Install.Users.TestGuardWithFlagOn` and `TestInstallerWritesAChangedPassword` red (the self-check refuses the routine). Shown again at review, see below
 - mutation: `Users.Accounts` calls `Guard` after the accounts are written -> `Test.Install.Users.TestInstallerWritesAChangedPassword` red (the old guard refuses the new published password)
 - mutation: `Users.Unguard` returns before clearing the setting -> `Test.Install.Users.TestNoGuardWithFlagOff` red
 - mutation: `Public.DEFAULTCAP` is 0 -> `Test.Install.Public.TestBudgetRows` red
@@ -436,6 +469,30 @@ Mutations demonstrated (implement stage, warm stack `e3s8iw`; each applied, obse
 - mutation: the seed check in `Public.RunLocal` looks only at the exact row (`%ExistsId`, not `%GetSetting`) -> `Test.Install.Public.TestFlagOffKeepsARowOfAnotherSpecificity` red
 - mutation: `Users.Guard` sets the instance's validation routine before it writes the guard -> `Test.Install.Users.TestFailedGuardLeavesTheSetting` red
 - mutation: `Users.CheckGuard` accepts any routine -> `Test.Install.Users.TestForeignGuardIsRefused` red
+
+Mutations recorded at QA (warm stack `e3s8qw`; each applied, observed red, reverted byte-identical with `cmp` against the stage's own backup, the tree confirmed with `git status --short`):
+- mutation: the generated `Check` matches the name by prefix instead of exactly (`Users.GuardSource`, named `WriteGuard` at QA) -> `Test.Install.Users.TestGuardDecidesByNameAndPassword` red (`<name>x` is refused); `TestGuardWithFlagOn` stays green, so only the new test sees it
+- mutation: `Users.Unguard` deletes the routine only when it cleared the setting -> `Test.Install.Users.TestFlagOffRemovesALeftoverGuardRoutine` red (routine kept, no warning)
+- mutation: `Public.Run` skips the `GatewaySpendUSD` row -> `Test.Install.Public.TestDecisionAtTheCap` red, including "no request with its reference reached the mock" (the decide reaches the mock, which the marker-bounded log read finds; the control in the same test shows the finder sees a request)
+- mutation: `PasswordGuard.Restore` leaves the setting when it is the guard's entry -> `Test.Install.Users` red at the leaking test ("the test left the password-validation setting and the guard routine as it found them"), at `OnAfterAllTests` ("The class left the password guard changed") and in the later tests, which fail closed because the routine is deleted while the setting names it
+- (QA, observed) a cleanup that skips `Restore` altogether left a setting that named a deleted routine, and every later password change in the shard was refused: the leak is loud, and the added assertions now name it at the test that caused it
+
+Mutations recorded at code review (warm stack `e3s8rw`). Each was applied with a backup of the stage's own, observed red, and reverted byte-identical (`cmp` against that backup). The class was green again on the same stack after each revert, and the tree was confirmed unchanged afterwards (`git status --short`, `git diff --stat`, md5 of both step classes):
+- mutation: `Users.Guard` writes and checks the live routine directly, with no staging routine -> `Test.Install.Users.TestFailedGuardKeepsTheLiveGuard` red ("the setting and the live routine are as the earlier start left them", and "the live guard still refuses the demo account another password": the unchecked routine let the demo account take any password), with `TestFailedGuardLeavesTheSetting` red too ("no guard routine is written") (AC 2, the residual risk)
+- mutation: the generated `Check` compares only the whole name, without the part before its last `@` (`Users.GuardSource`) -> `Test.Install.Users.TestGuardDecidesByNameAndPassword` red ("`<name>`@zzdomain, the name with a domain, is refused another password") (AC 2, DW-203)
+- mutation: the `whole1` rule of `Public.Accepts` loses `(value ? 1.N)`, so any number above 0 is accepted -> `Test.Install.Public.TestBadStartValues` red, first at `OCUTALON_CONNECTION_CAP '1.5'` (the run is no longer refused) (AC 1, row 3)
+- mutation: the seed check in `Public.RunLocal` looks only at the exact row (`%ExistsId`, not `%GetSetting`) -> `Test.Install.Public.TestFlagOffKeepsARowOfAnotherSpecificity` red (AC 3; shown again after the test's precondition changed)
+- mutation: `Users.GuardSource` stores the account name as published, not lower-cased -> `Test.Install.Users.TestGuardWithFlagOn` and `TestInstallerWritesAChangedPassword` red (AC 2; shown again after the control's change)
+- mutation: `Users.Unguard` deletes the routines only when it cleared the setting -> `Test.Install.Users.TestFlagOffRemovesALeftoverGuardRoutine` red ("the leftover routine is deleted", "with one warning")
+- mutation: `Users.CheckGuard` accepts any routine -> `Test.Install.Users.TestForeignGuardIsRefused` red (refused, routine named, no account, setting unchanged, and "nothing is warned of either routine")
+- mutation: `Users.Unguard` leaves the setting (`SetValidation("")` not called) -> `Test.Install.Users.TestNoGuardWithFlagOff` red ("clears the setting", "warns of no guard"). `TestFlagOffDisablesThePublicAccounts` also went red with `<NOROUTINE>ValidatePassword+20^%SYS.SECURITY`: a setting that names a deleted routine refuses every password change. It was run last, and the class was green again after the revert
+
+Fresh runs at code review, after all of the review's patches: `bash ci/checks.sh` (all scripts passed); `shard lane-a` on throwaway `e3s8r` passed, 47 classes, 0 failed, 414 s wall clock including a 63 s stack start (`Install.Public` 8.79 s, `Install.Users` 0.61 s); `live install-start` passed (94 checks, 231 s). Teardown left nothing tagged `e3s8r` or `e3s8rw`.
+
+Files changed at QA (QA):
+- `src/ocutalon/cls/OcuTalon/Test/Install/PasswordGuard.cls` (QA): `Leak(expected)` and `Check(user, password)`
+- `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` (QA): `TestGuardDecidesByNameAndPassword`, `TestFlagOffRemovesALeftoverGuardRoutine`, the admin-path control in `TestGuardWithFlagOn`, the guard restored first in `OnAfterOneTest` with a leak assertion, and a baseline restored and checked in `OnAfterAllTests`
+- `src/ocutalon/cls/OcuTalon/Test/Install/Public.cls` (QA): the same restore-first, leak assertion and baseline in `OnAfterOneTest` and `OnAfterAllTests`
 
 ## Auto Run Result
 

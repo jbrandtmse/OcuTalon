@@ -50,6 +50,9 @@ Property Rows As %List;
 
 Property GuardState As %List;
 
+/// The guard state as the class found it in OnBeforeAllTests: OnAfterAllTests puts it back and checks it.
+Property GuardBaseline As %List;
+
 /// 1 when the test pointed the runners' keys at the mock (RestoreKeys is then called).
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
@@ -64,6 +67,7 @@ Property ItemIds As %List;
 
 Method OnBeforeAllTests() As %Status
 {
+	Set ..GuardBaseline = $ClassMethod(..#GUARD, "State")
 	Do ..Clean()
 	Set ..Number = $Increment(^OcuTalonTest("Public", "n"))
 	Set ..Demo = "ZzPublic"_..Number_"Demo"
@@ -74,7 +78,12 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	If $ListValid(..GuardBaseline) Do $ClassMethod(..#GUARD, "Restore", ..GuardBaseline)
 	Do ..Clean()
+	If $ListValid(..GuardBaseline) {
+		Set leak = $ClassMethod(..#GUARD, "Leak", ..GuardBaseline)
+		If leak '= "" Quit $SYSTEM.Status.Error(5001, "The class left the password guard changed: "_leak)
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -107,10 +116,13 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Puts everything back, also after a failure: the runners' keys and Decide's sink, today's day mark, the decisions' rows, the variables,
-/// the keys and readiness, the rows, the guard, and removes the fixture accounts.
+/// Puts everything back, also after a failure. The guard comes first, and the method asserts that the password-validation setting and the
+/// guard routine are as the test found them, so that an error further down cannot leave them changed unseen. Then: the runners' keys and
+/// Decide's sink, today's day mark, the decisions' rows, the keys and readiness, the rows, the variables, and the fixture accounts.
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do $ClassMethod(..#GUARD, "Restore", ..GuardState)
+	Do $$$AssertEquals($ClassMethod(..#GUARD, "Leak", ..GuardState), "", "the test left the password-validation setting and the guard routine as it found them")
 	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
 	If $IsObject(..SinkSaved) {
 		Do $ClassMethod(..#FIXTURE, "RestoreItemSetting", "Decide", ..SinkSaved)
@@ -134,7 +146,6 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set ..ItemIds = ""
 	Do $ClassMethod(..#FIXTURE, "RestoreDefaults", ..Rows)
-	Do $ClassMethod(..#GUARD, "Restore", ..GuardState)
 	If $IsObject(..Keys) {
 		Set iterator = ..Keys.%GetIterator()
 		While iterator.%GetNext(.key, .value) {
@@ -203,15 +214,16 @@ Method TestDefaults()
 	Do $$$AssertEquals(..Row("DailyCostCapUSD"), 20, "the daily cap row is the default 20")
 }
 
-/// Matrix row 3: each bad value, one at a time, refuses the step with an error that names the variable and not the value. Every public key
+/// Matrix row 3: each bad value, one at a time, refuses the step with an error that names the variable with its own rule ("<variable>
+/// must ...") and not the value. The cap's cases run with a reserve of 0, so that only the cap's own rule can refuse them. Every public key
 /// and the three rows are as they were, and readiness is "".
 Method TestBadStartValues()
 {
 	Set cases = ""
 	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_RESET_INTERVAL_HOURS", "0"), $ListBuild("OCUTALON_RESET_INTERVAL_HOURS", "x"))
-	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_CONNECTION_CAP", "0"), $ListBuild("OCUTALON_CONNECTION_CAP", "1.5"))
+	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_CONNECTION_CAP", "0", "OCUTALON_CONNECTION_RESERVE", "0"), $ListBuild("OCUTALON_CONNECTION_CAP", "1.5", "OCUTALON_CONNECTION_RESERVE", "0"))
 	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_CONNECTION_RESERVE", "-1"), $ListBuild("OCUTALON_CONNECTION_RESERVE", "8"))
-	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_MESSAGE_ALLOWANCE", "0"))
+	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_MESSAGE_ALLOWANCE", "0"), $ListBuild("OCUTALON_MESSAGE_ALLOWANCE", "1.5"))
 	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_RESET_ANCHOR", "2026-10-25 00:00"), $ListBuild("OCUTALON_RESET_ANCHOR", "2026-02-30T00:00:00Z"))
 	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_LAST_RESET", "2026-10-25T00:00:00+01:00"), $ListBuild("OCUTALON_LAST_RESET", "2026-10-25T25:00:00Z"))
 	Set cases = cases _ $ListBuild($ListBuild("OCUTALON_LAST_RESET_KIND", "manual"))
@@ -232,12 +244,13 @@ Method TestBadStartValues()
 		Set bad = $List(case, 2)
 		Do ..Use({"OCUTALON_ONLINE_DEMO": "1", "OCUTALON_DEMO_USER": "Zz-demo", "OCUTALON_DEMO_PASSWORD": "Zz-demo-pw", "OCUTALON_READONLY_USER": "Zz-ro", "OCUTALON_READONLY_PASSWORD": "Zz-ro-pw"})
 		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv(variable, bad)
+		If $ListGet(case, 3) '= "" Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv($List(case, 3), $List(case, 4))
 		Do $ClassMethod(..#ACCESSOR, "SetReady")
 		Set sc = $ClassMethod(..#STEP, "Run")
 		Set text = $SYSTEM.Status.GetErrorText(sc)
 		Set label = variable_" '"_bad_"'"
 		Do $$$AssertStatusNotOK(sc, "Run is refused for "_label)
-		Do $$$AssertTrue(text [ variable, "and the error names the variable: "_text)
+		Do $$$AssertTrue(text [ (variable_" must"), "and the error names the variable with its rule: "_text)
 		If $Length(bad) > 3 Do $$$AssertNotTrue(text [ bad, "and not the value")
 		Do $$$AssertEquals(..KeyState(), keysBefore, "every public key is as it was for "_label)
 		Do $$$AssertEquals(..RowState(), rowsBefore, "and the three rows for "_label)
@@ -316,7 +329,10 @@ Method TestEmptyCountsAsUnset()
 Method TestFlagOffKeepsARowOfAnotherSpecificity()
 {
 	Set id = ..#PRODUCTION_"||*||*||DailyCostCapUSD"
-	Do $$$AssertNotTrue(##class(Ens.Config.DefaultSettings).%ExistsId(id), "no wider cap row exists before the test")
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+		Do $$$AssertTrue(0, "no wider cap row exists before the test, so the test does not change one that it did not make")
+		Quit
+	}
 	Do ..DeleteRow("DailyCostCapUSD")
 	Set ..WideRow = 1
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(..#PRODUCTION, "*", "DailyCostCapUSD", 7, "Written by a test; the test deletes it."), "the wider cap row is 7")
@@ -547,23 +563,15 @@ ClassMethod DeleteRow(setting As %String) [ Private ]
 /// Kills the page size settings of the fixture names in OCUTALON and OCUORDERS.
 ClassMethod ClearPins() [ Private ]
 {
-	For namespace = "OCUTALON", "OCUORDERS" {
-		If '##class(%SYS.Namespace).Exists(namespace) Continue
-		Set name = "ZzPublic"
-		For {
-			Set name = $Order(^|namespace|EnsPortal.Settings(name))
-			If $Extract(name, 1, 8) '= "ZzPublic" Quit
-			Kill ^|namespace|EnsPortal.Settings(name)
-		}
-	}
+	Do $ClassMethod(..#GUARD, "ClearPins", "ZzPublic")
 }
 
 /// Removes the fixture accounts of this run and their page size settings.
 Method ClearAccounts() [ Private ]
 {
-	Do ..Remove(..Demo)
-	Do ..Remove(..Ro)
-	Do ..Remove(..Readme)
+	For user = ..Demo, ..Ro, ..Readme {
+		Do $ClassMethod(..#GUARD, "RemoveUser", user)
+	}
 	Do ..ClearPins()
 }
 
@@ -571,22 +579,7 @@ Method ClearAccounts() [ Private ]
 ClassMethod Clean() [ Private ]
 {
 	Do ..ClearPins()
-	New $Namespace
-	Set $Namespace = "%SYS"
-	Set statement = ##class(%SQL.Statement).%New()
-	Do statement.%Prepare("SELECT Name FROM Security.Users WHERE Name %STARTSWITH 'ZzPublic'")
-	Set result = statement.%Execute()
-	While result.%Next() {
-		Do ##class(Security.Users).Delete(result.%GetData(1))
-	}
-}
-
-ClassMethod Remove(user As %String) [ Private ]
-{
-	If user = "" Quit
-	New $Namespace
-	Set $Namespace = "%SYS"
-	If ##class(Security.Users).Exists(user) Do ##class(Security.Users).Delete(user)
+	Do $ClassMethod(..#GUARD, "RemoveUsers", "ZzPublic")
 }
 
 }

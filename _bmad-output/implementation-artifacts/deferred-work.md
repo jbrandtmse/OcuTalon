@@ -647,6 +647,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec 3.1 Design Notes, Decided in-stage: The OCUORDERS pin
 - 2026-10-24T13:17:50Z status=routed owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=spec_gate note=routed at Story 3.1's spec gate; 3.8 owns the Public step's last phase
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=Public.Ready()_pins_both_public_accounts'_Visual_Trace_page_size(Users.PinTrace)_after_Production_and_Reconcile,before_SetReady;Test.Install.Public(mutation_recorded)
 
 ### DW-164: ci/warm.sh up printed READY warm 543s while the warm stack's after-start log said RESULT FAILED and not ready (a class package failed to compile), so a stage can believe a failed warm stack is ready; only the first class run showed the failure
 - source: spec-3-1-roles-and-the-service-user-grant-only-what-the-architecture.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -772,3 +773,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Security.System documents the routine's name carries the domain when multiple domains are enabled (implement deferred, unverified)
 - 2026-10-25T14:30:39Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=harvest note=for the 3.8 code review: match the part before the domain too (fails closed), or route with a reason
+- 2026-10-25T15:37:09Z status=open owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=patched by cr: Check also matches the name before its last @; TestGuardDecidesByNameAndPassword pins it (mutation)
+- 2026-10-25T15:40:13Z status=resolved-by:3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=adjudication note=the_generated_guard_also_matches_the_name_before_its_last_@(fails_closed);TestGuardDecidesByNameAndPassword(domain_assertions,mutation_recorded)
+
+### DW-209: A flag-on start with renamed published accounts leaves the old online-demo account enabled with its published password, outside the password guard
+- source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Users.Accounts disables MARKER accounts only with the flag off (DisablePublic); Guard and EnsurePublic cover only the current demoUser and readonlyUser
+- 2026-10-25T15:37:09Z status=wontfix-accepted owner=3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a by=cr note=reopen_if=the deployment renames OCUTALON_DEMO_USER or OCUTALON_READONLY_USER between flag-on starts (Story 29.3)

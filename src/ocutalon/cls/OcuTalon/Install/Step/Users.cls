@@ -16,12 +16,14 @@
 /// roles that hold no resource of their own: the applications grant the database access (AD-13).
 /// The password guard (AD-13, AD-24), flag on: a password-validation routine of the instance, OcuTalonPasswordGuard in %SYS, which the
 /// step generates at every start from the published accounts and sets as the instance's PasswordValidationRoutine, before it writes the
-/// public accounts' passwords. For a public account (the name compared in lower case) it allows only the published password, held as a
-/// salted SHA-512 hash and never in clear; for every other name it allows any password. It is saved, compiled and checked (the name in
-/// capitals with the published password passes, with another password fails) before the setting is set, and a failure refuses the step
-/// with the setting as it was. A setting that names another routine refuses the step, with nothing changed. With the flag off no guard
-/// exists: the step clears the setting when it names this guard, deletes the routine, and warns once, only when it removed something;
-/// another routine is never touched.
+/// public accounts' passwords. For a public account (the name compared in lower case, with or without the domain that IRIS appends when
+/// multiple domains are enabled) it allows only the published password, held as a salted SHA-512 hash and never in clear; for every other
+/// name it allows any password. Each start's routine is first saved, compiled and checked (the name in capitals with the published password
+/// passes, with another password fails) under the staging name GUARDSTAGE, and only then written over the live routine, checked again, and
+/// set; a failure refuses the step with the setting as it was, and a failure in staging also leaves the live routine as it was. A setting
+/// that names another routine refuses the step, with nothing changed. With the flag off no guard exists: the step clears the setting when
+/// it names this guard, deletes the routine (and a staging routine left over), and warns once, only when it removed something; another
+/// routine is never touched.
 Class OcuTalon.Install.Step.Users Extends OcuTalon.Install.Step
 {
 
@@ -57,6 +59,9 @@ Parameter GUARDROUTINE = "OcuTalonPasswordGuard";
 
 /// The password guard's entry, as the instance's PasswordValidationRoutine names it.
 Parameter GUARDENTRY = "Check^OcuTalonPasswordGuard";
+
+/// The routine in %SYS that a start's guard is written to and checked under before it replaces the live one; deleted afterwards.
+Parameter GUARDSTAGE = "OcuTalonPasswordGuardNew";
 
 /// The namespaces whose Visual Trace settings the public accounts are pinned in, each where it exists.
 Parameter TRACENAMESPACES = "OCUTALON,OCUORDERS";
@@ -147,49 +152,65 @@ ClassMethod SetValidation(value As %String) As %Status [ Private ]
 	Quit ##class(Security.System).Modify(, .properties)
 }
 
-/// Writes the guard routine for the accounts (accounts(n) as PublicAccounts builds them), compiles it, checks it, and only then sets it as
-/// the instance's PasswordValidationRoutine. A failed save, compile or check refuses the step and leaves the setting as it was. A routine
-/// that throws, or a setting that names a missing routine, would refuse every password change of the instance, so the setting comes last.
-/// Runs in %SYS.
+/// Generates the guard for the accounts (accounts(n) as PublicAccounts builds them), writes and checks it under GUARDSTAGE, then writes the
+/// same source over GUARDROUTINE, checks that, and only then sets it as the instance's PasswordValidationRoutine when it is not already.
+/// The staging routine is deleted afterwards, whatever happened. A failure refuses the step and leaves the setting as it was, and a failure
+/// in staging leaves the live routine as it was too: a routine that throws, or a setting that names a missing routine, would refuse every
+/// password change of the instance, so a setting that already names the guard never comes to name a routine that was not checked. Runs
+/// in %SYS.
 ClassMethod Guard(ByRef accounts) As %Status [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
 	Try {
-		Set sc = ..WriteGuard(.accounts)
-		If $$$ISOK(sc) Set sc = ..CheckGuardRoutine(.accounts)
+		Set source = ..GuardSource(.accounts)
+		Set sc = ..WriteGuard(..#GUARDSTAGE, source)
+		If $$$ISOK(sc) Set sc = ..CheckGuardRoutine(..#GUARDSTAGE, .accounts)
+		If $$$ISOK(sc) Set sc = ..WriteGuard(..#GUARDROUTINE, source)
+		If $$$ISOK(sc) Set sc = ..CheckGuardRoutine(..#GUARDROUTINE, .accounts)
 		If $$$ISOK(sc), ..Validation() '= ..#GUARDENTRY Set sc = ..SetValidation(..#GUARDENTRY)
 	} Catch exception {
 		Set sc = exception.AsStatus()
+	}
+	Try {
+		If ##class(%Routine).Exists(..#GUARDSTAGE_".mac") Do ##class(%Routine).Delete(..#GUARDSTAGE_".mac", 0)
+	} Catch {
 	}
 	If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
 	Quit sc
 }
 
-/// Generates the routine, saves it and compiles it with -d. For each public account it holds the lower-cased name, a fresh random salt
-/// and the Base64 SHA-512 of salt and published password, and no password in clear. Check(user, password) lower-cases the user; for a public
-/// account it returns 1 only when the hash matches and otherwise an error status, and for every other name 1. It calls nothing but
-/// $SYSTEM, $ZConvert and $SYSTEM.Status and switches no namespace. Runs in %SYS.
-ClassMethod WriteGuard(ByRef accounts) As %Status [ Private ]
+/// The guard's source lines as a list. For each public account it holds the lower-cased name, a fresh random salt and the Base64 SHA-512
+/// of salt and published password, and no password in clear. Check(user, password) lower-cases the user and takes the name both as it
+/// is and before its last "@" (the domain that IRIS appends when multiple domains are enabled); for a public account's name it returns 1
+/// only when the hash matches and otherwise an error status, and for every other name 1. It calls nothing but $SYSTEM and ObjectScript's
+/// own functions, and switches no namespace.
+ClassMethod GuardSource(ByRef accounts) As %List [ Private ]
+{
+	Set lines = $ListBuild(..#GUARDROUTINE_" ; generated by "_$ClassName()_" at every online-demo start; do not edit", $Char(9)_"Quit")
+	Set lines = lines _ $ListBuild("Check(user,password) Public {", $Char(9)_"Set user = $ZConvert(user, ""L"")")
+	Set lines = lines _ $ListBuild($Char(9)_"Set bare = $Select(user [ ""@"": $Piece(user, ""@"", 1, $Length(user, ""@"") - 1), 1: user)")
+	For i = 1:1:accounts {
+		Set name = ..Quoted($ZConvert($List(accounts(i), 1), "L"))
+		Set salt = ..NewPassword()
+		Set hash = ..Digest(salt, $List(accounts(i), 2))
+		Set lines = lines _ $ListBuild($Char(9)_"If (user = "_name_") || (bare = "_name_") {")
+		Set lines = lines _ $ListBuild($Char(9, 9)_"If $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(512, $ZConvert("_..Quoted(salt)_"_password, ""O"", ""UTF8"")), 1) = "_..Quoted(hash)_" Quit 1")
+		Set lines = lines _ $ListBuild($Char(9, 9)_"Quit $SYSTEM.Status.Error(5001, ""The password of this account cannot be changed"")", $Char(9)_"}")
+	}
+	Quit lines _ $ListBuild($Char(9)_"Quit 1", "}")
+}
+
+/// Saves the source lines as the routine (name without its .mac) and compiles it with -d. Runs in %SYS.
+ClassMethod WriteGuard(name As %String, source As %List) As %Status [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
-	Set routine = ##class(%Routine).%New(..#GUARDROUTINE_".mac")
-	Do routine.WriteLine(..#GUARDROUTINE_" ; generated by "_$ClassName()_" at every online-demo start; do not edit")
-	Do routine.WriteLine($Char(9)_"Quit")
-	Do routine.WriteLine("Check(user,password) Public {")
-	Do routine.WriteLine($Char(9)_"Set user = $ZConvert(user, ""L"")")
-	For i = 1:1:accounts {
-		Set name = $ZConvert($List(accounts(i), 1), "L")
-		Set salt = ..NewPassword()
-		Set hash = ..Digest(salt, $List(accounts(i), 2))
-		Do routine.WriteLine($Char(9)_"If user = "_..Quoted(name)_" {")
-		Do routine.WriteLine($Char(9, 9)_"If $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(512, $ZConvert("_..Quoted(salt)_"_password, ""O"", ""UTF8"")), 1) = "_..Quoted(hash)_" Quit 1")
-		Do routine.WriteLine($Char(9, 9)_"Quit $SYSTEM.Status.Error(5001, ""The password of this account cannot be changed"")")
-		Do routine.WriteLine($Char(9)_"}")
+	Set routine = ##class(%Routine).%New(name_".mac")
+	Set position = 0
+	While $ListNext(source, position, line) {
+		Do routine.WriteLine(line)
 	}
-	Do routine.WriteLine($Char(9)_"Quit 1")
-	Do routine.WriteLine("}")
 	Set sc = routine.Save()
 	If $$$ISERR(sc) Quit sc
 	Quit ..CompileQuietly(routine)
@@ -220,9 +241,9 @@ ClassMethod CompileQuietly(routine As %Routine) As %Status [ Private ]
 	Quit sc
 }
 
-/// The generated routine's answer for each account: 1 for the name in capitals with the published password, and an error status for that
-/// name with the published password and a character added. Runs in %SYS.
-ClassMethod CheckGuardRoutine(ByRef accounts) As %Status [ Private ]
+/// The answer of the generated routine (name without its .mac) for each account: 1 for the name in capitals with the published password,
+/// and an error status for that name with the published password and a character added. Runs in %SYS.
+ClassMethod CheckGuardRoutine(routine As %String, ByRef accounts) As %Status [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
@@ -230,10 +251,10 @@ ClassMethod CheckGuardRoutine(ByRef accounts) As %Status [ Private ]
 	For i = 1:1:accounts {
 		Set name = $List(accounts(i), 1)
 		Set password = $List(accounts(i), 2)
-		If $$Check^OcuTalonPasswordGuard($ZConvert(name, "U"), password) '= 1 {
-			Set sc = ..Refuse("the generated routine "_..#GUARDROUTINE_" refuses the published password of '"_name_"'")
-		} ElseIf '$SYSTEM.Status.IsError($$Check^OcuTalonPasswordGuard($ZConvert(name, "U"), password_"x")) {
-			Set sc = ..Refuse("the generated routine "_..#GUARDROUTINE_" allows another password for '"_name_"'")
+		If $$Check^@(routine)($ZConvert(name, "U"), password) '= 1 {
+			Set sc = ..Refuse("the generated routine "_routine_" refuses the published password of '"_name_"'")
+		} ElseIf '$SYSTEM.Status.IsError($$Check^@(routine)($ZConvert(name, "U"), password_"x")) {
+			Set sc = ..Refuse("the generated routine "_routine_" allows another password for '"_name_"'")
 		}
 		If $$$ISERR(sc) Quit
 	}
@@ -252,8 +273,9 @@ ClassMethod Quoted(text As %String) As %String [ Private ]
 	Quit """"_$Replace(text, """", """""")_""""
 }
 
-/// The flag is off: clears the instance's PasswordValidationRoutine only when it is the guard's entry, then deletes the guard routine when
-/// it exists, and warns once, only when it removed something. Another routine is never touched. Runs in %SYS.
+/// The flag is off: clears the instance's PasswordValidationRoutine only when it is the guard's entry, then deletes the guard routine and
+/// a staging routine left over when they exist, and warns once, only when it removed something. Another routine is never touched. Runs in
+/// %SYS.
 ClassMethod Unguard() As %Status [ Private ]
 {
 	New $Namespace
@@ -266,11 +288,13 @@ ClassMethod Unguard() As %Status [ Private ]
 		If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
 		Set removed = 1
 	}
-	If ##class(%Routine).Exists(..#GUARDROUTINE_".mac") {
-		Set sc = ##class(%Routine).Delete(..#GUARDROUTINE_".mac", 0)
-		If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
+	For routine = ..#GUARDROUTINE, ..#GUARDSTAGE {
+		If '##class(%Routine).Exists(routine_".mac") Continue
+		Set sc = ##class(%Routine).Delete(routine_".mac", 0)
+		If $$$ISERR(sc) Quit
 		Set removed = 1
 	}
+	If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
 	If removed Do ..Warn("The online-demo password guard "_..#GUARDROUTINE_" was removed, because the online-demo flag is off")
 	Quit $SYSTEM.Status.OK()
 }
