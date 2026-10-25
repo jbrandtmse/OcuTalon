@@ -14,6 +14,14 @@
 /// anything is applied (PublicAccounts), so a refusal of them changes nothing. A refusal by the instance itself, such as a password that
 /// its policy rejects, is the status of that call with the key named, and leaves what was applied before it. The step also declares the two
 /// roles that hold no resource of their own: the applications grant the database access (AD-13).
+/// The password guard (AD-13, AD-24), flag on: a password-validation routine of the instance, OcuTalonPasswordGuard in %SYS, which the
+/// step generates at every start from the published accounts and sets as the instance's PasswordValidationRoutine, before it writes the
+/// public accounts' passwords. For a public account (the name compared in lower case) it allows only the published password, held as a
+/// salted SHA-512 hash and never in clear; for every other name it allows any password. It is saved, compiled and checked (the name in
+/// capitals with the published password passes, with another password fails) before the setting is set, and a failure refuses the step
+/// with the setting as it was. A setting that names another routine refuses the step, with nothing changed. With the flag off no guard
+/// exists: the step clears the setting when it names this guard, deletes the routine, and warns once, only when it removed something;
+/// another routine is never touched.
 Class OcuTalon.Install.Step.Users Extends OcuTalon.Install.Step
 {
 
@@ -44,6 +52,12 @@ Parameter TRACEPAGESIZE = 100;
 /// The FullName of an account that this step made for the online demo. The step manages no other account.
 Parameter MARKER = "OcuTalon online-demo account";
 
+/// The password guard's routine, in %SYS.
+Parameter GUARDROUTINE = "OcuTalonPasswordGuard";
+
+/// The password guard's entry, as the instance's PasswordValidationRoutine names it.
+Parameter GUARDENTRY = "Check^OcuTalonPasswordGuard";
+
 /// The namespaces whose Visual Trace settings the public accounts are pinned in, each where it exists.
 Parameter TRACENAMESPACES = "OCUTALON,OCUORDERS";
 
@@ -61,9 +75,12 @@ ClassMethod Grants() As %DynamicArray
 /// The accounts of a start, in the order that makes a refusal change nothing:
 ///   1. the online-demo flag, read through Settings.Get (an error status fails the step);
 ///   2. flag on: the four account keys, all validated (PublicAccounts);
-///   3. the service user (EnsureService);
-///   4. flag off: every account made for the online demo disabled (DisablePublic), then the README account, readmeUser, as Ensure makes it;
-///   5. flag on: the two public accounts (EnsurePublic), their page size pins (PinTrace), and the README account disabled when it exists.
+///   3. flag on: the instance's password-validation routine is "" or the guard's (CheckGuard);
+///   4. the service user (EnsureService);
+///   5. flag off: the guard removed (Unguard), every account made for the online demo disabled (DisablePublic), then the README account,
+///      readmeUser, as Ensure makes it;
+///   6. flag on: the guard written and set (Guard), the two public accounts (EnsurePublic), their page size pins (PinTrace), and the
+///      README account disabled when it exists.
 ClassMethod Accounts(readmeUser As %String) As %Status
 {
 	Set flag = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo", .sc)
@@ -72,14 +89,20 @@ ClassMethod Accounts(readmeUser As %String) As %Status
 	If online {
 		Set sc = ..PublicAccounts(readmeUser, .accounts)
 		If $$$ISERR(sc) Quit sc
+		Set sc = ..CheckGuard()
+		If $$$ISERR(sc) Quit sc
 	}
 	Set sc = ..EnsureService()
 	If $$$ISERR(sc) Quit sc
 	If 'online {
+		Set sc = ..Unguard()
+		If $$$ISERR(sc) Quit sc
 		Set sc = ..DisablePublic()
 		If $$$ISERR(sc) Quit sc
 		Quit ..Ensure(readmeUser, ..#PASSWORD, ..#ROLES)
 	}
+	Set sc = ..Guard(.accounts)
+	If $$$ISERR(sc) Quit sc
 	For i = 1:1:accounts {
 		Set name = $List(accounts(i), 1)
 		Set key = $List(accounts(i), 4)_"' and '"_$List(accounts(i), 5)
@@ -90,6 +113,166 @@ ClassMethod Accounts(readmeUser As %String) As %Status
 	}
 	If $$$ISERR(sc) Quit ..Fail("public settings '"_key_"' (account '"_name_"')", sc)
 	Quit ..DisableReadme(readmeUser)
+}
+
+/// Refuses the step, naming the routine, when the instance's PasswordValidationRoutine is another routine than the guard's: it is
+/// someone else's, and the installer neither replaces nor removes it. "" and the guard's entry pass. Runs in %SYS.
+ClassMethod CheckGuard() As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set current = ..Validation(.sc)
+	If $$$ISERR(sc) Quit ..Fail("the instance's password-validation routine", sc)
+	If (current = "") || (current = ..#GUARDENTRY) Quit $SYSTEM.Status.OK()
+	Quit ..Refuse("the instance's password-validation routine is '"_current_"', which is not the online demo's password guard, so the guard cannot be installed and nothing is changed")
+}
+
+/// The instance's PasswordValidationRoutine. Runs in %SYS.
+ClassMethod Validation(Output sc As %Status) As %String [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Kill properties
+	Set sc = ##class(Security.System).Get(, .properties)
+	Quit $Get(properties("PasswordValidationRoutine"))
+}
+
+/// Sets the instance's PasswordValidationRoutine; "" clears it. Runs in %SYS.
+ClassMethod SetValidation(value As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Kill properties
+	Set properties("PasswordValidationRoutine") = value
+	Quit ##class(Security.System).Modify(, .properties)
+}
+
+/// Writes the guard routine for the accounts (accounts(n) as PublicAccounts builds them), compiles it, checks it, and only then sets it as
+/// the instance's PasswordValidationRoutine. A failed save, compile or check refuses the step and leaves the setting as it was. A routine
+/// that throws, or a setting that names a missing routine, would refuse every password change of the instance, so the setting comes last.
+/// Runs in %SYS.
+ClassMethod Guard(ByRef accounts) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Try {
+		Set sc = ..WriteGuard(.accounts)
+		If $$$ISOK(sc) Set sc = ..CheckGuardRoutine(.accounts)
+		If $$$ISOK(sc), ..Validation() '= ..#GUARDENTRY Set sc = ..SetValidation(..#GUARDENTRY)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
+	Quit sc
+}
+
+/// Generates the routine, saves it and compiles it with -d. For each public account it holds the lower-cased name, a fresh random salt
+/// and the Base64 SHA-512 of salt and published password, and no password in clear. Check(user, password) lower-cases the user; for a public
+/// account it returns 1 only when the hash matches and otherwise an error status, and for every other name 1. It calls nothing but
+/// $SYSTEM, $ZConvert and $SYSTEM.Status and switches no namespace. Runs in %SYS.
+ClassMethod WriteGuard(ByRef accounts) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set routine = ##class(%Routine).%New(..#GUARDROUTINE_".mac")
+	Do routine.WriteLine(..#GUARDROUTINE_" ; generated by "_$ClassName()_" at every online-demo start; do not edit")
+	Do routine.WriteLine($Char(9)_"Quit")
+	Do routine.WriteLine("Check(user,password) Public {")
+	Do routine.WriteLine($Char(9)_"Set user = $ZConvert(user, ""L"")")
+	For i = 1:1:accounts {
+		Set name = $ZConvert($List(accounts(i), 1), "L")
+		Set salt = ..NewPassword()
+		Set hash = ..Digest(salt, $List(accounts(i), 2))
+		Do routine.WriteLine($Char(9)_"If user = "_..Quoted(name)_" {")
+		Do routine.WriteLine($Char(9, 9)_"If $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(512, $ZConvert("_..Quoted(salt)_"_password, ""O"", ""UTF8"")), 1) = "_..Quoted(hash)_" Quit 1")
+		Do routine.WriteLine($Char(9, 9)_"Quit $SYSTEM.Status.Error(5001, ""The password of this account cannot be changed"")")
+		Do routine.WriteLine($Char(9)_"}")
+	}
+	Do routine.WriteLine($Char(9)_"Quit 1")
+	Do routine.WriteLine("}")
+	Set sc = routine.Save()
+	If $$$ISERR(sc) Quit sc
+	Quit ..CompileQuietly(routine)
+}
+
+/// Compiles the routine with -d. The compile still prints one empty line, which goes to the null device so that the start log keeps none.
+ClassMethod CompileQuietly(routine As %Routine) As %Status [ Private ]
+{
+	Set original = $IO
+	Set device = $Select($ZVersion(1) = 2: "//./nul", 1: "/dev/null")
+	Set opened = 0
+	Try {
+		Open device:"WNS":2
+		If $Test Set opened = 1
+	} Catch {
+		Set opened = 0
+	}
+	Try {
+		If opened Use device
+		Set sc = routine.Compile("-d")
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If opened {
+		Use original
+		Close device
+	}
+	Quit sc
+}
+
+/// The generated routine's answer for each account: 1 for the name in capitals with the published password, and an error status for that
+/// name with the published password and a character added. Runs in %SYS.
+ClassMethod CheckGuardRoutine(ByRef accounts) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set sc = $SYSTEM.Status.OK()
+	For i = 1:1:accounts {
+		Set name = $List(accounts(i), 1)
+		Set password = $List(accounts(i), 2)
+		If $$Check^OcuTalonPasswordGuard($ZConvert(name, "U"), password) '= 1 {
+			Set sc = ..Refuse("the generated routine "_..#GUARDROUTINE_" refuses the published password of '"_name_"'")
+		} ElseIf '$SYSTEM.Status.IsError($$Check^OcuTalonPasswordGuard($ZConvert(name, "U"), password_"x")) {
+			Set sc = ..Refuse("the generated routine "_..#GUARDROUTINE_" allows another password for '"_name_"'")
+		}
+		If $$$ISERR(sc) Quit
+	}
+	Quit sc
+}
+
+/// The Base64 SHA-512 of the salt and the password, as the generated routine computes it.
+ClassMethod Digest(salt As %String, password As %String) As %String [ Private ]
+{
+	Quit $SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.SHAHash(512, $ZConvert(salt_password, "O", "UTF8")), 1)
+}
+
+/// The text as an ObjectScript string literal.
+ClassMethod Quoted(text As %String) As %String [ Private ]
+{
+	Quit """"_$Replace(text, """", """""")_""""
+}
+
+/// The flag is off: clears the instance's PasswordValidationRoutine only when it is the guard's entry, then deletes the guard routine when
+/// it exists, and warns once, only when it removed something. Another routine is never touched. Runs in %SYS.
+ClassMethod Unguard() As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set removed = 0
+	Set current = ..Validation(.sc)
+	If $$$ISERR(sc) Quit ..Fail("the instance's password-validation routine", sc)
+	If current = ..#GUARDENTRY {
+		Set sc = ..SetValidation("")
+		If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
+		Set removed = 1
+	}
+	If ##class(%Routine).Exists(..#GUARDROUTINE_".mac") {
+		Set sc = ##class(%Routine).Delete(..#GUARDROUTINE_".mac", 0)
+		If $$$ISERR(sc) Quit ..Fail("the password guard "_..#GUARDROUTINE, sc)
+		Set removed = 1
+	}
+	If removed Do ..Warn("The online-demo password guard "_..#GUARDROUTINE_" was removed, because the online-demo flag is off")
+	Quit $SYSTEM.Status.OK()
 }
 
 /// Creates the account when it does not exist, holding the comma list of roles, with PasswordNeverExpires 1,

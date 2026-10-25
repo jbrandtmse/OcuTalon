@@ -2,13 +2,21 @@
 title: 'Story 3.8: The online demo''s settings, password guard and spending cap are ready'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5f98fa227825bcedb40973e1e05b7cab55935533'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-19 "Online-demo start values" and "Public settings", AD-13 "Password changes", AD-24 "Page size" and the password sentence of its accounts bullet, AD-23 the after-start steps 3 to 6, AD-20 "The online demo", and AD-3 "Only these classes switch namespace")'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The password guard matches the lower-cased name exactly, so on an instance with multiple domains enabled the name IRIS passes carries the domain and a public account's password change would pass.
+    evidence: |-
+      Security.System documents that the name passed to the validation routine "will contain the domain name if multiple domains are enabled". OcuTalon's image does not enable multiple domains; whether any deployment can is not settled. Would be settled by checking that the demo host's instance (docker/**, Story 29.3) keeps multiple domains off, or by matching the name before the domain too.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Users.cls WriteGuard
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -218,6 +226,51 @@ The environment is set in the test process (`Test.Agent.KeyScan.SetEnv` and `Uns
 
 ## Review Triage Log
 
+### 2026-10-25 — Review pass
+- verdicts: 37 findings — high 0, medium 9, low 24, false 3, maybe-false 1 (the 9 medium rows group into 4 entries: sign-in status, start-value tests, failed guard, seed specificity)
+- findings:
+  - Blind hunter:
+    - `[maybe-false]` `[defer]` The guard compares the lower-cased name exactly, so on an instance with multiple domains enabled (the name then carries the domain) a public account's password change would pass — evidence: Security.System documents the domain suffix; OcuTalon's image does not enable multiple domains, whether any deployment can is not settled here (deferred, medium unverified).
+    - `[medium]` `[patch]` Two sign-in refusal assertions discard the request's status, so they pass when no request is made — `SignInChange`'s status is now asserted > 0 for each public account in `Test.Install.Users.TestGuardWithFlagOn` and `Test.Install.Public.TestStartValuesReachTheUsersStep`.
+    - `[medium]` `[patch]` Bad-value tests leave stated rules unchecked (empty means unset, an unreal time, a near-miss flag) — added `TestEmptyCountsAsUnset`, `TestOnlyOneIsOn` and two unreal-time cases in `TestBadStartValues`; the reserve-equal-to-cap case was already there (reserve 8 over the default cap 8), and the `$Length(bad) > 3` limit stays (a short value such as `0` appears in the rule text).
+    - `[low]` `[reject]` Numeric rules accept `1E2`, `+5`, `.5`, `007` and set no upper bound — the spec asks for "a number" and "a whole number"; the readers parse numerically, and no product bound exists to enforce; not worth guards (wontfix-accepted, reopen_if a reader of a public key compares the text).
+    - `[low]` `[reject]` The write phase is not atomic after validation — the spec promises "nothing written" only for a refused value; a write error is an internal fault (wontfix-theoretical).
+    - `[low]` `[reject]` A flag-on to flag-off start leaves the gateway rows and the cap — by design: Design Notes "Flag off: no clean-up of rows an earlier flag-on start wrote".
+    - `[medium]` `[patch]` No test shows that a guard that cannot be written leaves the setting as it was — added `Test.Install.Users.TestFailedGuardLeavesTheSetting` (a line feed in the demo account's name breaks the routine's compile); special-character passwords stay untested (low, reject: passwords only enter the hash).
+    - `[low]` `[patch]` `CheckGuardRoutine` says it runs in %SYS but does not switch — it now switches like its siblings.
+  - Edge case hunter:
+    - `[low]` `[reject]` A second start replaces the live routine before the new one is checked, so a failed compile or check leaves the setting naming a changed routine — the setting is as it was (the spec's wording), the failure refuses the step, and password changes are refused (fail-closed); wontfix-accepted, reopen_if a start with valid accounts fails the compile.
+    - `[low]` `[reject]` A control character in an account name breaks or injects into the routine — quotes are doubled, so a name cannot leave its literal; a line feed fails the compile and the step (pinned by `TestFailedGuardLeavesTheSetting`).
+    - `[low]` `[reject]` Numeric values stored verbatim — same as the blind hunter's numeric row.
+    - `[low]` `[reject]` The write loop can fail midway — same as the blind hunter's atomicity row.
+    - `[low]` `[reject]` `PasswordGuard.Restore` could set a setting naming a missing routine — it restores a state `State` just read, where the routine existed (wontfix-theoretical).
+    - `[low]` `[reject]` `SignInChange` ignores the sign-out's status — best effort; a left session is not an assertion (wontfix-accepted, reopen_if licence use grows during the suite).
+    - `[medium]` `[patch]` Empty-means-unset has no test — same as the blind hunter's bad-value row (`TestEmptyCountsAsUnset`).
+    - `[false]` `[reject]` The self-check does not try the lower-cased name — `Check` lower-cases its argument, so the upper-case call runs the same path.
+    - `[low]` `[reject]` Claim: "leaves the setting as it was" while the routine was already replaced — the claim is about the setting and holds; see the first row.
+    - `[low]` `[reject]` Claim: only the first bad variable is named, and readiness is cleared first — both are the spec's wording (AD-23, "refuses the step with an error that names the variable").
+  - Verification gap:
+    - `[medium]` `[patch]` Sign-in assertions can pass vacuously — the blind hunter's sign-in row.
+    - `[medium]` `[patch]` No test for a failed guard leaving the setting — the blind hunter's failed-guard row.
+    - `[medium]` `[patch]` The real-time half of the time rule is unpinned — two unreal times added to `TestBadStartValues`, mutation recorded.
+    - `[medium]` `[patch]` The flag's exactness is unpinned — `TestOnlyOneIsOn`; the claim that the old code took `01` as on is false (the old `= 1` compared strings too), and the recorded mutation uses a numeric comparison.
+    - `[medium]` `[patch]` The seed's any-specificity check is unpinned — `TestFlagOffKeepsARowOfAnotherSpecificity` with a row on the item `*`, mutation recorded.
+    - `[low]` `[patch]` `TestEveryStartValue` has no recorded mutation — recorded (skip `messageAllowance`).
+    - `[low]` `[patch]` `TestBadStartValues` has only the reserve mutation — the time-clause mutation recorded.
+    - `[low]` `[reject]` `TestGuardWithFlagOn`'s second named mutation (`Check` returns 1 for all) is not demonstrated — one demonstrated mutation per AC is the bar.
+    - `[low]` `[patch]` `TestForeignGuardIsRefused` has no mutation line — recorded (`CheckGuard` accepts any routine).
+    - `[low]` `[reject]` `TestNoGuardWithFlagOff` has only the setting mutation — one per AC is the bar.
+    - `[low]` `[reject]` A run across midnight can flake `today` — a seconds-wide window shared with Epic 1's tests (wontfix-theoretical).
+    - `[low]` `[reject]` The seed assertion relies on no other-specificity row existing — it fails loudly, never falsely green (wontfix-accepted).
+    - `[low]` `[reject]` Teardown ignores the statuses of `Restore` — a later test fails loudly on a bad state (wontfix-accepted).
+  - Intent alignment (descriptive; no divergence from the spec's own Where-tests-run and Lane B boundaries):
+    - `[low]` `[reject]` No test runs the Registry order or the after-start script with the flag on — the contract fixes in-process proofs; the real flag-on start is Lane B's Stories 16.1 and 16.2.
+    - `[low]` `[reject]` The start log's emptiness after the compile is not asserted — the null-device redirect is in the spec's own measured plan; wontfix-accepted, reopen_if the flag-on start log shows an empty line.
+    - `[low]` `[reject]` The guard-before-passwords order is proved only through row 10 — that test goes red when the order flips.
+    - `[low]` `[reject]` The sign-in test hard-codes port 52773 and row 6 has no control — the request runs inside the container, where the port is measured; the status assertion now shows the request was answered.
+    - `[false]` `[reject]` Validation details looser than the contract — the contract says "a number" and "whole numbers"; same as the numeric rows above.
+    - `[false]` `[reject]` The shard rule — measured: the fresh `lane-a` took 412 s in the shard, under the 460 s line.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -258,6 +311,13 @@ The environment is set in the test process (`Test.Agent.KeyScan.SetEnv` and `Uns
 - **In-process proofs.** No compose file passes the online-demo variables, and a flag-on live unit would need a new `docker/tests` script (contended), so AC 4 runs the steps in process with the variables set in the test process, as `Test.Install.ProviderEnv` does. Lane B's online-demo runs (Stories 16.1 and 16.2) cover the real start and the other S17 forms.
 - **One sign-in form.** `TestGuardWithFlagOn` uses the current field names by POST. The other S17 forms are Story 16.1's.
 - **Sign out after every sign-in.** (inference, AD-13 S13) A signed-in CSP session holds a licence connection.
+- **Implement stage (3.8):**
+  - `PasswordGuard.ROUTINE` is the literal `OcuTalonPasswordGuard`: `State`, `Restore` and `Source` run in `%SYS`, which holds no OcuTalon class to ask for the step's parameter. `State()` also returns the routine's source (third element), so `Restore` can write back a routine that existed before the test.
+  - The sign-in change on build 154 answers HTTP 303, not 200 (planning measured 200 for another request shape). The tests do not pin the status. `TestGuardWithFlagOn`'s control user, whose password the same request changes, proves that the request reaches the password path, and the `Guard not called` mutation shows the public accounts' password changing without the guard.
+  - `TestForeignGuardIsRefused` creates a real foreign routine `ZzForeign` (entry `ZzOther`, allows every password) in `%SYS` and deletes it afterwards: a setting that names a missing routine refuses every password change, including the README account's create in the flag-off run.
+  - The reserve-against-cap refusal names `OCUTALON_CONNECTION_RESERVE`. The reserve is checked against the effective cap, so an unset reserve (2) with a cap of 2 is refused.
+  - `Users.CompileQuietly` opens the null device around `Compile("-d")` so the empty line it prints stays off the start log. Its effect is not asserted by a test; the flag-on start is not run by the live units.
+  - The step's start variables map in one parameter, `Public.VARIABLES` (`public:<key>` or `decide:<setting>`); defaults and rules are in `Default` and `Rule`.
 
 **For the lead:**
 - **The veto window.** No item is owner-only.
@@ -356,16 +416,51 @@ The environment is set in the test process (`Test.Agent.KeyScan.SetEnv` and `Uns
 | AC 4 | `TestStartValuesReachTheUsersStep` | `Guard` is not called |
 | DW-160 | `TestReadyPinsThePublicAccounts` | `Ready` does not call `PinTrace` |
 
+Mutations demonstrated (implement stage, warm stack `e3s8iw`; each applied, observed red, reverted byte-identical with `cmp`, and the class green again on the same stack):
+- mutation: `Public.Default` drops the `connectionCap` default (8) -> `Test.Install.Public.TestDefaults` red (the run is refused for the unset cap, so `TestStartValuesReachTheUsersStep` goes red too)
+- mutation: `Public.RunLocal` also writes `messageAllowance` with the flag off -> `Test.Install.Public.TestFlagOffWritesOnlyTheFlag` red
+- mutation: the reserve-below-cap check in `Public.StartValues` removed -> `Test.Install.Public.TestBadStartValues` red (reserve equal to the cap is accepted and written)
+- mutation: `Users.WriteGuard` stores the account name as published, not lower-cased -> `Test.Install.Users.TestGuardWithFlagOn` and `TestInstallerWritesAChangedPassword` red (the self-check refuses the routine)
+- mutation: `Users.Accounts` calls `Guard` after the accounts are written -> `Test.Install.Users.TestInstallerWritesAChangedPassword` red (the old guard refuses the new published password)
+- mutation: `Users.Unguard` returns before clearing the setting -> `Test.Install.Users.TestNoGuardWithFlagOff` red
+- mutation: `Public.DEFAULTCAP` is 0 -> `Test.Install.Public.TestBudgetRows` red
+- mutation: the seed in `Public.RunLocal` always writes (the `%GetSetting` check removed) -> `Test.Install.Public.TestFlagOffWritesOnlyTheFlag` red (an existing cap row of 7 is overwritten)
+- mutation: `Public.Run` skips the `GatewaySpendUSD` row -> `Test.Install.Public.TestDecisionAtTheCap` red (not capped, the decide reaches the mock)
+- mutation: `Users.Accounts` does not call `Guard` -> `Test.Install.Public.TestStartValuesReachTheUsersStep` red (the sign-in change succeeds)
+- mutation: `Public.Ready` does not call `PinTrace` -> `Test.Install.Public.TestReadyPinsThePublicAccounts` red
+- mutation: `Public.Run` skips the `messageAllowance` key -> `Test.Install.Public.TestEveryStartValue` red (`TestDefaults` and `TestEmptyCountsAsUnset` too)
+- mutation: the real-time clause (`$ZDateTimeH`) removed from the `time` rule of `Public.Accepts` -> `Test.Install.Public.TestBadStartValues` red (`2026-02-30T00:00:00Z` and `2026-10-25T25:00:00Z` are accepted)
+- mutation: the flag compared as a number (`+GetEnviron(...) '= 1`) in `Public.Run` -> `Test.Install.Public.TestOnlyOneIsOn` red (`01` and `1.0` turn the demo on)
+- mutation: a variable that is set but empty counts as set (`Public.StartValues` applies the default only for an unset one) -> `Test.Install.Public.TestEmptyCountsAsUnset` red
+- mutation: the seed check in `Public.RunLocal` looks only at the exact row (`%ExistsId`, not `%GetSetting`) -> `Test.Install.Public.TestFlagOffKeepsARowOfAnotherSpecificity` red
+- mutation: `Users.Guard` sets the instance's validation routine before it writes the guard -> `Test.Install.Users.TestFailedGuardLeavesTheSetting` red
+- mutation: `Users.CheckGuard` accepts any routine -> `Test.Install.Users.TestForeignGuardIsRefused` red
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan (this pass).**
-- **Summary.** Planned Story 3.8:
-  - the `Public` step's start values: the twelve keys, defaults, checks, readiness cleared first, the three `Decide` rows with the flag on, and the seed cap with the flag off;
-  - the Users step's generated password guard in `%SYS`, removed with the flag off;
-  - `Ready()`'s page-size pins (DW-160).
-- **Tests.** In process on throwaways: a new `Test.Install.Public` (8 tests), four new tests in `Test.Install.Users`, and one shared helper.
-- **Measured at planning** on the warm throwaway `e3s8pw` (torn down): the validation routine's hook on `Create`, `Modify` and a sign-in request, its fail-closed behaviour, and the generated-routine flow.
-- **No commit.** The spec is left uncommitted for the lead's validation gate.
+**Summary.** The `Public` step reads AD-19's start values, checks them before it writes, and writes the twelve keys and, with the flag on, the three `Decide` rows (the cap's seed of 0 with the flag off); `Ready()` pins both public accounts' page size before readiness (DW-160). The Users step writes a salted-hash password guard into `%SYS` at every flag-on start, sets it as the instance's validation routine last, refuses a foreign routine, and removes its own guard with the flag off.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Install/Step/Public.cls` -- start values, checks, keys, rows, seed, `Ready()` pins.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Users.cls` -- `GUARDROUTINE`, `GUARDENTRY`, `CheckGuard`, `Guard`, `Unguard` and the new `Accounts` order.
+- `src/ocutalon/cls/OcuTalon/Test/Install/PasswordGuard.cls` (new) -- the shared helpers for the guard's tests.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Public.cls` (new) -- 11 tests (rows 1 to 8, plus `TestOnlyOneIsOn`, `TestEmptyCountsAsUnset`, `TestFlagOffKeepsARowOfAnotherSpecificity`).
+- `src/ocutalon/cls/OcuTalon/Test/Install/Users.cls` -- `TestGuardWithFlagOn`, `TestInstallerWritesAChangedPassword`, `TestNoGuardWithFlagOff`, `TestForeignGuardIsRefused`, `TestFailedGuardLeavesTheSetting`, and the guard's save and restore.
+
+**Review.** 37 findings from four layers: 13 rows patched (sign-in status asserted; empty-as-unset, unreal-time and near-miss-flag tests; the failed-guard test; the wider-specificity seed test; `CheckGuardRoutine`'s namespace switch; three mutation lines), 1 deferred (domain-qualified names, medium unverified), 23 rejected with the reasons in the triage log. No high. Patched at entry verdict: medium 4, so a follow-up review is recommended; the unverified risk is that the new tests and the failed-guard patch were verified by mutation and by the fresh runs but not read by a second reviewer.
+
+**Verification performed.**
+- `bash ci/checks.sh`: all scripts passed.
+- Warm stack `e3s8iw` (torn down): `Test.Install.Public`, `Test.Install.Users`, `Test.Install.Registry`, `Test.Data.PublicSettings` and `Test.Bridge.Budget` passed after every mutation was reverted; 18 mutations went red on the named tests (the table above).
+- Fresh stack `e3s8i` (torn down, nothing left): `shard lane-a` passed (47 classes) in 412 s inside the tool, 419 s measured by the stage (line 460 s; `Install.Public` 8.9 s, `Install.Users` 0.6 s); `shard lane-b` passed (24 classes, 75 s); `live install-start` and `live install-upgrade` passed.
+- Slot A: one `Users.cls` compile by the handoff subagent; no security change there.
+
+**Residual risks.**
+- The flag-on start itself (real environment variables, the Registry order, the start log after the guard's compile) is not run anywhere in this story; Lane B's Stories 16.1 and 16.2 run it. `CompileQuietly`'s null-device redirect is unasserted.
+- The sign-in password change answers 303 on build 154; the tests assert only that the request is answered and that the password stays.
+- The guard replaces the live routine before the new one is verified: a failed compile on a later start leaves the setting naming a routine that may refuse every change (fail-closed).
+- Multiple-domain instances (the deferred item).
+- Shard time is 412 s of the 460 s line; the next Lane A story that adds tests should measure it.

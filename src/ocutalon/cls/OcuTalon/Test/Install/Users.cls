@@ -3,7 +3,17 @@
 /// roles are created in OnBeforeAllTests and removed in OnAfterAllTests; the real README account is never touched, and the real service user
 /// and its role are removed again when the tests made them. The fixture's number comes from ^OcuTalonTest("Users","n"), which is never reset,
 /// so no two runs share a fixture name. The five public keys are saved before each test and restored after it, and the real service user,
-/// which some tests change by hand, is put right again after each test.
+/// which some tests change by hand, is put right again after each test. The instance's password-validation setting and the password guard
+/// routine are saved before each test and put back after it (Test.Install.PasswordGuard), and the control user ZzUsers<n>Ctl and the
+/// foreign routine ZzForeign are removed.
+/// Story 3.8 adds, for the password guard of the online demo (AD-13, AD-24):
+///   - TestGuardWithFlagOn: the guard is set, holds no password in clear, and refuses a password change of either public account by
+///     Security.Users.Modify and by a sign-in request, while a user that is not public changes its password the same way;
+///   - TestInstallerWritesAChangedPassword: a changed published password is written by the installer, and the guard then refuses the old one;
+///   - TestNoGuardWithFlagOff: no guard locally, and the flag turned off removes the guard with one warning;
+///   - TestForeignGuardIsRefused: another routine is refused with the flag on, and never touched with the flag off.
+///   - TestFailedGuardLeavesTheSetting: a guard that cannot be written refuses the step and leaves the setting as it was.
+/// They set and restore the security settings of the instance: throwaways and CI only.
 Class OcuTalon.Test.Install.Users Extends %UnitTest.TestCase
 {
 
@@ -31,6 +41,12 @@ Property Demo As %String;
 
 Property Ro As %String;
 
+/// The control user, who is not public.
+Property Ctl As %String;
+
+/// The password-validation setting and the guard routine before a test (Test.Install.PasswordGuard.State).
+Property GuardState As %List;
+
 /// The values of the public keys before a test, as a list in the order of KEYS.
 Property Saved As %List;
 
@@ -48,6 +64,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Readme = "ZzUsers"_..Number_"Readme"
 	Set ..Demo = "ZzUsers"_..Number_"Demo"
 	Set ..Ro = "ZzUsers"_..Number_"Ro"
+	Set ..Ctl = "ZzUsers"_..Number_"Ctl"
 	Set ..ServiceUserBefore = ..UserExists($Parameter(..#STEP, "SERVICEUSER"))
 	Set ..ServiceRoleBefore = ..RoleExists($Parameter(..#STEP, "SERVICEROLE"))
 	Set sc = ..CreateRoles()
@@ -73,6 +90,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 		Set saved = saved _ $ListBuild(##class(OcuTalon.Data.Public.Settings).Get(key))
 	}
 	Set ..Saved = saved
+	Set ..GuardState = ##class(OcuTalon.Test.Install.PasswordGuard).State()
 	Do ..ClearAccounts()
 	Quit $SYSTEM.Status.OK()
 }
@@ -88,6 +106,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Set index = index + 1
 		Do ##class(OcuTalon.Data.Public.Settings).Set(key, $ListGet(..Saved, index))
 	}
+	Do ##class(OcuTalon.Test.Install.PasswordGuard).Restore(..GuardState)
+	Do ..RemoveForeign()
 	If ..UserExists($Parameter(..#STEP, "SERVICEUSER")) Do $ClassMethod(..#STEP, "EnsureService")
 	Do ..ClearAccounts()
 	Quit $SYSTEM.Status.OK()
@@ -583,6 +603,135 @@ Method TestPinSkipsANamespaceThatDoesNotExist()
 	Do $$$AssertEquals($Data(^|"OCUORDERS"|EnsPortal.Settings(..Demo)), 0, "and pins no namespace that is not in the list")
 }
 
+/// Matrix row 9: with the flag on, Accounts sets the guard as the literal Check^OcuTalonPasswordGuard, and the routine's source holds
+/// neither published password. For each public account, a Modify to another password is refused and the password is unchanged, and so is
+/// a sign-in request with the old and the new password with the name in capitals. A user that is not public changes its password with the
+/// same request, as the control.
+Method TestGuardWithFlagOn()
+{
+	Set guard = "OcuTalon.Test.Install.PasswordGuard"
+	Set accounts = $ListBuild($ListBuild(..Demo, "Zz-demo-pw-1"), $ListBuild(..Ro, "Zz-ro-pw-1"))
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts runs with the flag on")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), "Check^OcuTalonPasswordGuard", "the instance's password-validation routine is the guard")
+	Set source = $ClassMethod(guard, "Source")
+	Do $$$AssertTrue(source '= "", "the guard routine exists and has source")
+	Do $$$AssertNotTrue(source [ "Zz-demo-pw-1", "the source holds no demo password")
+	Do $$$AssertNotTrue(source [ "Zz-ro-pw-1", "and no read-only password")
+	Do $$$AssertTrue(source [ $ZConvert(..Demo, "L"), "the source holds the demo account's name in lower case")
+	Set position = 0
+	While $ListNext(accounts, position, account) {
+		Set name = $List(account, 1)
+		Set password = $List(account, 2)
+		Set sc = $ClassMethod(guard, "TryPassword", name, "Zz-other-pw-9")
+		Do $$$AssertStatusNotOK(sc, name_": Security.Users.Modify to another password is refused")
+		Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", name, password), name_" keeps its published password")
+		Do $$$AssertStatusOK($ClassMethod(guard, "TryPassword", name, password), name_": the published password itself is allowed")
+		Set status = $ClassMethod(guard, "SignInChange", $ZConvert(name, "U"), password, "Zz-other-pw-9")
+		Do $$$AssertTrue(status > 0, name_": the sign-in request is answered, status "_status)
+		Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", name, password), name_": a sign-in change with the name in capitals leaves the published password")
+		Do $$$AssertNotTrue($ClassMethod(guard, "PasswordOk", name, "Zz-other-pw-9"), name_" does not have the new password")
+	}
+	Do $$$AssertStatusOK(..MakeControl("Zz-ctl-pw-1"), "the control user is made")
+	Set status = $ClassMethod(guard, "SignInChange", ..Ctl, "Zz-ctl-pw-1", "Zz-ctl-pw-2")
+	Do $$$AssertTrue(status > 0, "the sign-in request of the control is answered, status "_status)
+	Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", ..Ctl, "Zz-ctl-pw-2"), "control: a user that is not public changes its password with the same request")
+}
+
+/// Matrix row 10: after row 9, the published passwords are changed in the settings and Accounts runs again. It is OK, each account holds the
+/// new password, and the guard refuses the old one: the guard is written before the passwords.
+Method TestInstallerWritesAChangedPassword()
+{
+	Set guard = "OcuTalon.Test.Install.PasswordGuard"
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts runs with the first passwords")
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-2", ..Ro, "Zz-ro-pw-2")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts runs again with other published passwords")
+	Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", ..Demo, "Zz-demo-pw-2"), "the demo account holds the new password")
+	Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", ..Ro, "Zz-ro-pw-2"), "the read-only account holds the new password")
+	Do $$$AssertStatusNotOK($ClassMethod(guard, "TryPassword", ..Demo, "Zz-demo-pw-1"), "the guard now refuses the old demo password")
+	Do $$$AssertStatusNotOK($ClassMethod(guard, "TryPassword", ..Ro, "Zz-ro-pw-1"), "and the old read-only password")
+	Do $$$AssertTrue($ClassMethod(guard, "PasswordOk", ..Demo, "Zz-demo-pw-2"), "the demo account keeps the new password")
+}
+
+/// Matrix row 11: with the flag off, Accounts leaves the setting "" and writes no routine. After a flag-on run, the first flag-off run clears
+/// the setting, deletes the routine and warns once of it; the second warns of nothing.
+Method TestNoGuardWithFlagOff()
+{
+	Set guard = "OcuTalon.Test.Install.PasswordGuard"
+	Set routine = $Parameter(..#STEP, "GUARDROUTINE")
+	Do $ClassMethod(guard, "Restore", $ListBuild("", 0, ""))
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts runs with the flag off")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), "", "the setting is empty")
+	Do $$$AssertNotTrue($ListGet($ClassMethod(guard, "State"), 2), "and no guard routine exists")
+
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts runs with the flag on")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), "Check^OcuTalonPasswordGuard", "the guard is set")
+	Do $$$AssertTrue($ListGet($ClassMethod(guard, "State"), 2), "and its routine exists")
+
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "the first run with the flag off")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), "", "clears the setting")
+	Do $$$AssertNotTrue($ListGet($ClassMethod(guard, "State"), 2), "and deletes the routine")
+	Set warnings = $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Set count = 0
+	Set position = 0
+	While $ListNext(warnings, position, warning) {
+		If warning [ routine Set count = count + 1
+	}
+	Do $$$AssertEquals(count, 1, "and warns once of the guard")
+
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "the second run with the flag off")
+	Set warnings = $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Set count = 0
+	Set position = 0
+	While $ListValid(warnings) && $ListNext(warnings, position, warning) {
+		If warning [ routine Set count = count + 1
+	}
+	Do $$$AssertEquals(count, 0, "warns of no guard")
+}
+
+/// Matrix row 12: another routine in the setting. With the flag on, Accounts is refused, naming it, with no public account made and the
+/// setting unchanged. With the flag off, the setting is unchanged and there is no warning.
+Method TestForeignGuardIsRefused()
+{
+	Set guard = "OcuTalon.Test.Install.PasswordGuard"
+	Set foreign = "ZzOther^ZzForeign"
+	Do $ClassMethod(guard, "Restore", $ListBuild("", 0, ""))
+	Do $$$AssertStatusOK(..MakeForeign(), "the foreign routine exists")
+	Do $$$AssertStatusOK($ClassMethod(guard, "SetSetting", foreign), "the instance's password-validation routine is another routine")
+	Do ..SetPublic(1, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Set sc = $ClassMethod(..#STEP, "Accounts", ..Readme)
+	Do $$$AssertStatusNotOK(sc, "Accounts with the flag on is refused")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ foreign, "and the error names the routine: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Account(..Demo), "<none>", "no demo account is made")
+	Do $$$AssertEquals(..Account(..Ro), "<none>", "and no read-only account")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), foreign, "the setting is unchanged")
+	Do $$$AssertNotTrue($ListGet($ClassMethod(guard, "State"), 2), "and no guard routine is written")
+
+	Do ..SetPublic(0, ..Demo, "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Do $ClassMethod("OcuTalon.Install.Step", "TakeWarnings")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Accounts", ..Readme), "Accounts with the flag off runs")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), foreign, "the setting is unchanged")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Install.Step", "TakeWarnings"), "", "and nothing is warned of")
+}
+
+/// A guard that cannot be written (the demo account's name holds a line feed, which breaks the generated routine) refuses the step: the
+/// instance's password-validation setting stays as it was, and no public account is made.
+Method TestFailedGuardLeavesTheSetting()
+{
+	Set guard = "OcuTalon.Test.Install.PasswordGuard"
+	Do $ClassMethod(guard, "Restore", $ListBuild("", 0, ""))
+	Do ..SetPublic(1, ..Demo_$Char(10)_"x", "Zz-demo-pw-1", ..Ro, "Zz-ro-pw-1")
+	Set sc = $ClassMethod(..#STEP, "Accounts", ..Readme)
+	Do $$$AssertStatusNotOK(sc, "Accounts is refused when the guard cannot be written")
+	Do $$$AssertEquals($ClassMethod(guard, "Setting"), "", "the setting is as it was")
+	Do $$$AssertEquals(..Account(..Ro), "<none>", "and no read-only account is made")
+}
+
 /// --- fixtures ---
 /// Enabled|ChangePassword|PasswordNeverExpires|AccountNeverExpires|Roles|length of the hash|hash and salt of the password, or
 /// "<none>". The hash and the salt are binary and come last, so a "|" in them does not move the fields before them.
@@ -637,6 +786,38 @@ Method AssertPublic(accounts As %List, when As %String) [ Private ]
 			Do $$$AssertEquals(+$SYSTEM.Security.CheckUserPermission(name, resource, "W"), 0, name_" cannot write "_resource_" "_when)
 		}
 	}
+}
+
+/// The control user ZzUsers<n>Ctl, who is not public, with the password: enabled, no forced change, and the user role. Runs in %SYS.
+Method MakeControl(password As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ##class(Security.Users).Create(..Ctl, "OcuTalonUser", password, "OcuTalon test fixture", "OCUTALON", "", "", 0, 1, "Created by a test; the test deletes it.", 1, "", "", , 1, 1)
+}
+
+/// The routine ZzForeign in %SYS with the entry ZzOther, which allows every password. Runs in %SYS.
+ClassMethod MakeForeign() As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set routine = ##class(%Routine).%New("ZzForeign.mac")
+	Do routine.WriteLine("ZzForeign ; a test fixture, another password-validation routine")
+	Do routine.WriteLine($Char(9)_"Quit")
+	Do routine.WriteLine("ZzOther(user,password) Public {")
+	Do routine.WriteLine($Char(9)_"Quit 1")
+	Do routine.WriteLine("}")
+	Set sc = routine.Save()
+	If $$$ISOK(sc) Set sc = routine.Compile("-d")
+	Quit sc
+}
+
+/// Deletes the routine ZzForeign when it exists. Runs in %SYS.
+ClassMethod RemoveForeign() [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If ##class(%Routine).Exists("ZzForeign.mac") Do ##class(%Routine).Delete("ZzForeign.mac", 0)
 }
 
 /// The public keys, set through the accessor.
@@ -754,6 +935,7 @@ Method ClearAccounts() [ Private ]
 	Do ..Remove(..Demo)
 	Do ..Remove(..Ro)
 	Do ..Remove("ZzUsers"_..Number_"Svc")
+	Do ..Remove(..Ctl)
 	Do ..ClearNodes()
 	Do ..ClearPins()
 }
@@ -817,6 +999,7 @@ ClassMethod ClearNodes() [ Private ]
 /// Deletes every fixture user and role that an earlier run may have left, and the fixture's nodes but the counter.
 ClassMethod Clean() [ Private ]
 {
+	Do ..RemoveForeign()
 	Do ..ClearNodes()
 	Do ..ClearPins()
 	New $Namespace
