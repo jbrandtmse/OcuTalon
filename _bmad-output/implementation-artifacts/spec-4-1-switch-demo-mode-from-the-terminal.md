@@ -2,7 +2,7 @@
 title: 'Story 4.1: Switch demo mode from the terminal'
 type: 'feature'
 created: '2026-10-25'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 baseline_commit: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 review_loop_iteration: 0
@@ -173,6 +173,8 @@ deferred: []
   - If that also fails, run the step in a JOBbed process that returns its status and warnings, and wait for it inside `CommandsIn`'s 120 s timeout.
   - Record which form held, with the off and on durations, under `## Verification`.
 
+- [ ] [CI] `ci` workflow, job `web`, step "Unit tests" (`npm --prefix web test`): `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/" fails on c8b4354, because this story put `**/e2e/demo-switch/**` in the `chromium` project's `testIgnore` while the test still expects chromium to list `demo-switch/badge.spec.ts` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40209803845/job/121218409733 -- make the test's rule match the config (chromium lists every spec outside `demo-path/`, `floor/` and `demo-switch/`, and the `demo-switch` project lists exactly `demo-switch/`), keeping its ability to fail on a spec that no project lists; add `npm --prefix web test` as a `(loop)` line under `## Verification`, and run it green.
+
 **Acceptance Criteria:**
 - Given a fresh install, when it first starts, then demo mode is `"1"` on the Docker install and `"0"` without the image's version file (IPM), written as a seed that a later write survives at restarts and upgrades.
   - No code changes for this. It is already pinned by `Test.Demo.Step` (TestDefaultMode, TestMode) and `live:install-start` row 6.
@@ -223,6 +225,8 @@ Rejected:
 - Acceptance: `MESSAGEFAILED` and `MESSAGEUNKNOWN` can reach the terminal although the Never line names only V2's texts -- the Tasks and the matrix specify those reused texts; the fix would edit the spec.
 
 ## Spec Change Log
+
+- 2026-10-25, rework iteration 1 (trigger: CI red on c8b4354, the hosted `web` job's unit tests): one `[CI]` item under Tasks & Acceptance.
 
 - 2026-10-25, spec gate (runner): V1 ruled strict (`OcuTalonAdmin` only; `%All` alone refused) per AD-19 as written (U7 step 1); V2 and V3 kept as veto items; rows, tasks and criteria updated to match.
 
