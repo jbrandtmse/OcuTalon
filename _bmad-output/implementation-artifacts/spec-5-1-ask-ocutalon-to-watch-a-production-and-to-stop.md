@@ -2,7 +2,7 @@
 title: 'Ask OcuTalon to watch a production, and to stop'
 type: 'feature'
 created: '2026-10-25'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -154,8 +154,9 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
   - `Test/Install/Production.cls:625`: `WatchOps` `"stub": 0`.
 - `ci/warm.sh`, plus one optional check argument on `ci/iris.sh` `stack_ready` that runs before its `READY` line (fresh calls pass none) -- for DW-164, `warm up` prints `READY` only when the after-start log's last `RESULT` line is `RESULT OK`. Otherwise it prints `FAIL` naming that line, exits 1 and tears the project down.
 - `docker/tests/test-ci-warm.sh` -- append one self-contained block at the end that stubs the after-start log for both cases (`RESULT FAILED` and `RESULT OK`).
-- [CONTENDED, Epic 4; implement only after the ruling in Auto Run Result] `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` -- next to the trace role, grant `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` only, in `System(1)`. The off and keep paths remove it.
-- [CONTENDED, Epic 4; same condition] `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` -- remove the `StartWatch|WatchOps|web_user` row from `TestStubOwnersAnswerPlainEnglish` and update its header ("each owner's story rewrites its row").
+- [Epic 4's file; one-time footprint extension by orchestrator ruling, veto U-79] `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls` -- a minimal, self-contained addition beside the trace role's OCUORDERS grants, reusing `WithOrders`' pattern (for example a pure sibling helper that adds or removes `%DB_OCUORDERS_DATA:R` alone): with demo mode on, `System(1)` gives `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` only (no code database, no SQL grant, no write); the off and keep paths remove it. Do not reshape existing methods beyond what the addition needs. The service role exists at that point (the Roles step composes it from the tool `RESOURCES` before `Demo`); a missing role fails the step with a plain sentence, like the trace role's.
+- [Epic 4's file; footprint extension by orchestrator ruling (decide)] `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` -- remove the `StartWatch|WatchOps|web_user` row from `TestStubOwnersAnswerPlainEnglish`'s table and take WatchOps out of the stub-owners header comments. Change nothing else.
+- Pin the grant (orchestrator ruling) in Lane A's own test classes, never under `Test/Demo/**` (Epic 4's): (a) the pure helper: add, idempotent add, remove, remove when absent, the code database never added; (b) on a throwaway started with demo mode on, `OcuTalonServiceRole` holds `%DB_OCUORDERS_DATA:R` and no `%DB_OCUORDERS_CODE`; (c) `Watch.Reader` finds Orders with the grant, and not without it (the test takes the grant away and puts it back); (d) the off path removes it: either a test that reruns `Install.Step.Demo.Run()` with demo mode off and then on again (restoring OCUORDERS and its production before it returns; throwaway only), or a self-contained block appended at the end of an existing live script; the keep path shares the off path's role edit, and where a live script already ends in the keep state (`docker/tests/test-install-start.sh`), one appended block there asserts the service role holds no OCUORDERS resource. Changing no existing line of a `docker/tests` script.
 
 **Acceptance Criteria:**
 - Given a user turn "Watch the Orders production and only tell me if something needs me." with `[[mock:watch-start-orders]]`, through the real ChatAgent, `CommandsIn` and `WatchOps` in a throwaway with demo mode on:
@@ -170,8 +171,11 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - Given a start_watch or stop_watch call with the job's `%Ensemble("SessionId")` set, when it returns (a failed submit included), then the id is unchanged and a warning logged afterwards is in that session (DW-74).
 - Given `ci/warm.sh up` whose after-start log ends `RESULT FAILED`, when it runs, then it prints no `READY` line and no `WARM up … ready` line, prints `FAIL`, exits 1 and leaves no project of the tag. With `RESULT OK`, its output is unchanged (DW-164).
 - Given `CALLBACKHELPERS`, when `TestCallbackRule` runs, then every listed class, BridgeSink's callees included, is compiled, scanned and clean (DW-177).
+- Given a throwaway with demo mode on, when the Demo step has run, then `OcuTalonServiceRole` holds `%DB_OCUORDERS_DATA:R` and no other OCUORDERS resource, and `Watch.Reader` finds Orders only while it does; given demo mode off (or kept), then the role holds no OCUORDERS resource (U-79).
 
 ## Spec Change Log
+
+- 2026-10-25, spec gate (Epic 5 runner): the plan's intent gap was ruled by the orchestrator (option (a)); the two Epic 4 paths became footprint extensions, the grant gained its pinning tests and an acceptance criterion, the TRUSTEDOUTPUT classification was ruled veto U-80; status set to `ready-for-dev`. Rulings under Design Notes.
 
 ## Review Triage Log
 
@@ -231,7 +235,14 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 **Declined:** none. DW-38 (the reader's own-production rule and its matrix row), DW-74, DW-164 and DW-177 are all addressed above.
 
-**Footprint extensions** (not contended): `Agent/Chat.cls`, `Test/Agent/{Instructions,Runners}.cls`, `Test/Bridge/{Gate,CodeRules,Decide}.cls`, `Test/Install/Production.cls` (the `WatchOps` row only), `ci/warm.sh`, `ci/iris.sh` (`stack_ready` hook), and `docker/tests/test-ci-warm.sh` (one block appended).
+**Footprint extensions** (not contended): `Agent/Chat.cls`, `Test/Agent/{Instructions,Runners}.cls`, `Test/Bridge/{Gate,CodeRules,Decide}.cls`, `Test/Install/Production.cls` (the `WatchOps` row only), `ci/warm.sh`, `ci/iris.sh` (`stack_ready` hook), and `docker/tests/test-ci-warm.sh` (one block appended). By orchestrator ruling also Epic 4's `Install/Step/Demo.cls` and `Test/Core/CommandsInProduction.cls` (below), and, if used, one block appended at the end of `docker/tests/test-install-start.sh`.
+
+**Orchestrator rulings (2026-10-25, on the plan's intent gap):**
+- `Install/Step/Demo.cls`: allowed as a one-time footprint extension. The minimal addition grants `OcuTalonServiceRole` `%DB_OCUORDERS_DATA:R` only with demo mode on; off and keep remove it. A privilege grant: veto, inbox item U-79 (recorded by the orchestrator). Recorded in the spine as the Consistency Conventions row "Service role, OCUORDERS read" (Rule 20 light path; no AD text changed). Pinned by tests (Tasks). DW-213 routes the security overview's demo-mode-only listing to Story 14.1. If Epic 4 later edits the file, the second integrate-forward is a plain union.
+- `Test/Core/CommandsInProduction.cls`: allowed (decide), per the test's own header. Remove only the WatchOps row and its header mention; the one-line conflict with Epic 4's SettingsOps removal resolves as a plain union (both removals).
+- The other out-of-footprint edits listed above are accepted as reported. DW-74 needs no `Core/Commands.cls` change.
+
+**Spec-gate ruling (Epic 5 runner, 2026-10-25):** the three watch tools are `TRUSTEDOUTPUT` 1, as planned: veto, inbox item U-80 (precedent U-60). The spine's "Tool classification" row now names them.
 
 ## Verification
 
@@ -244,6 +255,7 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - (once) `<lane> OCUTALON_RUN_TAG=e5s1i ci/iris.sh shard lane-a` -- expected: passed. Split it into per-class calls if it nears 8 minutes; Epic 3's last run took about 410 s.
 - (once) `<lane> OCUTALON_RUN_TAG=e5s1i ci/iris.sh shard lane-b` -- expected: passed. It holds `Test.Core.CommandsInProduction`.
 - (once) `bash ci/checks.sh` and `bash docker/tests/test-mock.sh` -- expected: all pass.
+- (once, only if a block is appended to `docker/tests/test-install-start.sh`) `<lane> OCUTALON_RUN_TAG=e5s1i ci/iris.sh live install-start` -- expected: passed (fresh only; never warm).
 - (once) `<lane> OCUTALON_RUN_TAG=e5s1iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e5s1i ci/iris.sh teardown`.
 
 **Shared surfaces:**
@@ -269,39 +281,7 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap — Story 5.1 genuinely needs two paths that Epic 4 (running) holds: (1) `src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls`, to grant `OcuTalonServiceRole` Read on `%DB_OCUORDERS_DATA` with demo mode on (this is also a new privilege for the service user, a veto-window item); (2) `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls`, whose `StartWatch|WatchOps` stub row fails once `WatchOps` is built; one veto-window classification also needs confirming (details below).
+Status: ready-for-dev
+Blocking condition: none
 
-Plan stage, 2026-10-25. Everything else in the spec is planned to the READY FOR DEVELOPMENT standard. It is not `ready-for-dev` only because of the dependencies below, which the spec may not plan around.
-
-**1. The service user's read on OCUORDERS** (`Install/Step/Demo.cls`, Lane B, contended by Epic 4; a privileges veto item).
-- **Why it is needed.**
-  - The AC, "Orders finds the Orders production", is checked through `$SYSTEM.Security.CheckUserPermission` for the service user (AD-3, FR-23).
-  - `OcuTalonServiceRole` holds only tool `RESOURCES` (`Install/Step/Tools.cls`), and no tool declares any. So with no grant, the reader can't see OCUORDERS on a real install, UJ-1's watch step fails, and only a test fixture could make the story green.
-- **Why it must go in the Demo step.**
-  - AD-23 says the OCUORDERS grants "are created by this step or after it, never before (the roles step rebuilds the roles without them on every start …; a demo-mode switch reruns only this step)".
-  - `Install/Step/Roles.cls:60` refuses a resource that doesn't exist yet.
-  - Story 0.10's spec planned this grant for 5.1 in the same terms.
-  - A new Lane A step after `Demo` in `Install/Registry.cls` would amend AD-23's order and would miss a runtime demo-mode switch. So it is not recommended.
-- **Recommended change.**
-  - In `Demo.System(1)`, grant `OcuTalonServiceRole` `%DB_OCUORDERS_DATA:R` (the data database only) next to the trace role. Remove it in the off and keep paths.
-  - Add a matching line to AD-23's Demo-step bullet and to AD-24's service-user privileges (Rule 20).
-  - Either serialize (5.1 applies the change once Epic 4 merges), or have Epic 4 or the orchestrator apply it.
-
-**2. The stub-owner test** (`Test/Core/CommandsInProduction.cls`, contended by Epic 4).
-- `TestStubOwnersAnswerPlainEnglish` expects `StartWatch` to `WatchOps` to answer `0|not_built`. Its header says "each owner's story rewrites its row here when it builds the owner".
-- Building `WatchOps` (Story 5.1's AC 1) turns that assertion red in shard `lane-b`.
-- **Recommended change:** remove only the `StartWatch|WatchOps|web_user` row and the matching header words. This is a region-limited, one-row edit beside Epic 4's own `SettingsOps` row.
-
-**3. Veto-window classification** (security posture).
-- The plan declares start_watch, stop_watch and list_productions `TRUSTEDOUTPUT` 1. Their answers are code-built from the owner's `CommandResult` and IRIS's production registry, and carry the same names as `check_status`'s trusted rows.
-- If list_productions tainted the turn, the gate would deny a start_watch that followed it in the same turn, which breaks UJ-1.
-- The ACs are silent on this. Epic 5's compiled context implies list_productions is not trusted output.
-- **Recommendation:** keep it as planned.
-
-**Evidence gathered (read-only Task 0 on slot A, build 154, port 52790):**
-- `GetNSInfo` gives each namespace's data-database resource with no switch to `%SYS`.
-- OCUTALON holds a compiled `OcuTalon.Demo.Orders.Production` row with the description "Orders" (DW-38).
-- `GetProductionStatus` is the own-production rule the spec uses.
-
-No file outside this spec was changed. Nothing was committed.
+Plan stage, 2026-10-25: the plan halted `blocked` on two Epic 4 paths and one veto classification; the epic runner applied the orchestrator's rulings and its own spec-gate ruling (Design Notes, Spec Change Log) and set the spec `ready-for-dev`. Task 0 evidence (slot A, read-only): `GetNSInfo` gives each namespace's data-database resource without `%SYS`; OCUTALON holds a compiled `OcuTalon.Demo.Orders.Production` row described "Orders" (DW-38); `GetProductionStatus` gives each namespace's own production.
