@@ -53,7 +53,7 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
     - step 3: the incident, fallback or no-fix notice arrived in the current run;
     - step 4: its approval request was answered;
     - step 5: the trace-opened marker is set.
-  - **Finish state:** shows only after an approved fix and a resolved incident. After a fallback notice, a no-fix notice or a rejection, the guide keeps the matching step 4 hint.
+  - **Finish state:** shows only after an approved fix and a resolved incident. After a fallback notice, a no-fix notice or a rejection, the guide keeps the matching step 4 hint and shows no finish text.
   - **Run again:** resets the guide's markers only, never the session's data.
 - **Timing.**
   - Against the mock, a tell-now notification reaches the simulated phone within 5 seconds of its decision. Story 4.5 turns on this half of Story 2.7's CI check.
@@ -67,7 +67,7 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
   - **`OcuTalon.Core.Admin.SetDemoMode(mode)`:**
     - It accepts only 0 or 1, checked before the role.
     - It then requires `OcuTalonAdmin` in `$ROLES`. The check is strict, and `$ROLES` can't be self-escalated.
-    - It puts the caller's `$USERNAME` in the new `SetDemoMode.ActingUser` and calls `Commands.Submit` with origin `system`. The command goes to `CommandsIn`, which routes `SetDemoMode` to `SettingsOps` from `web_admin` and `system` only, and refuses it from `tool`.
+    - It puts the caller's `$USERNAME` in `SetDemoMode.ActingUser` and calls `Commands.Submit` with origin `system`. `CommandsIn` routes `SetDemoMode` to `SettingsOps` from `web_admin` and `system` only, and refuses it from `tool`.
     - The terminal prints the `CommandResult`'s fixed plain-English text. The refusal reuses `CommandsIn`'s `MESSAGEADMINONLY`. `Admin.ErrorText(sc)` is the one helper that strips status text.
   - **`SettingsOps`:** the only run-time settings writer. Its allow-list holds one key, `demo.mode`, in release 1. It works in this order:
     1. It writes the `Settings` audit entry. The redacted data names `ActingUser`, because the audit's `Username` is the job's user. If the audit write fails, nothing changes.
@@ -78,7 +78,7 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
 - **Dependency edges in the spine's diagram.**
   - `Core --> Install.Step.Demo.Run()`: only `SettingsOps`, on a demo-mode switch (AD-23).
   - `Guide --> Telegram.In.Included()`.
-  - `Guide --> Install.Step.Demo`: its constants `MODEKEY`, `NAMESPACE` and `PRODUCTION`.
+  - `Guide --> Install.Step.Demo`, for its constants: the demo-mode key, the Orders namespace and production names (`MODEKEY`, `NAMESPACE`, `PRODUCTION`).
   - Web and Data (with Live) call Guide.
   - Demo, Live and Data have no edge to Core. So `Guide.DemoOn` repeats `Core.Rule.Functions.DemoOn`, and Core code such as the tick reuses the original.
 - **`OcuTalon.Install.Step.Demo` (this epic's file, not Epic 3's).**
@@ -100,36 +100,38 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
     4. writes the `BreakFeedRun` row as `sending` and publishes `breakfeed.progress`;
     5. calls `PartnerTrigger`;
     6. marks the run `sent` and publishes again.
+  - **`BreakFeedRun.StartedAt`:** Story 4.3 is its only writer. Write it from `Data.Time.NowUtc()` (UTC ISO 8601): `Guide.Compute` and `BreakFeedRun.RecentSessions` (the tick's 240 s window) compare and age it in that format.
   - **Incidents:** `IncidentManager` (Lane A) is the only writer of incidents. Ownership reads hide an incident until its notice sets `NoticedAt`. Before that, only `watch.progress` events go out (`noticed`, `settling`, `diagnosing`, keyed by the incident's `Ref`), and they drive the box's status lines.
   - **The production class:** edit only the Lane B region.
-- **The guide (planned in Story 4.2).**
-  - **The single source:** `OcuTalon.Demo.Guide.Compute(SessionRef)` reads the session's rows through `Data.Ownership`: the Orders watch, a reminder, the Orders incident and its approval requests, and the latest `BreakFeedRun`. It also reads the markers and the clock. The new reads are kinds appended as a block to `Ownership.Statement`, reusing `INCIDENTVISIBLE`. `/state` and `guide.state` carry the result, and the page never decides any of it.
+- **The guide (built in Story 4.2).**
+  - **The single source:** `OcuTalon.Demo.Guide.Compute(SessionRef)` reads the session's rows through `Data.Ownership`: the Orders watch, a reminder, the Orders incident and its approval requests, and the latest `BreakFeedRun`. Story 4.2 appended six kinds as a block (`ReminderSetOrFired`, `NewestIncident`, `IncidentInProgress`, `IncidentApprovals`, `LatestBreakFeedRun`, and `LastEvent` for the refresh's comparison), reusing `INCIDENTVISIBLE` and `APPROVALVISIBLE`. It also reads the markers and the clock. `/state` and `guide.state` carry the result, and the page never decides any of it. `Guide.Blank()` is the view of a session with no rows. Compute's median is about 0.5 ms.
   - **The `guide.state` payload:**
-    - It keeps `runEpoch`, `step` and `finished`, and adds `steps`, `breakFeed` (active, reason, stage, `startedAt`), `step4Variant` and `telegramRow`.
-    - The new parts are `Part.GuideStep` and `Part.GuideBreakFeed`. The guide's availability is not `BreakFeedProgress`, which is the run row's own view.
+    - `runEpoch`, `step`, `finished`, `steps`, `breakFeed` (active, reason, stage, `startedAt`), `step4Variant` and `telegramRow`, with the parts `Part.GuideStep` and `Part.GuideBreakFeed`. The guide's availability is not `BreakFeedProgress`, which is the run row's own view.
     - Closed values, in snake_case:
       - reason: `not_watching` or `incident_in_progress`;
       - stage: `sending`, `waiting`, `still_waiting` (from 90 s), `no_notice` (from 180 s, which makes the control available again) or `notice_arrived`. When more than one applies, the first in this order wins: `notice_arrived`, `no_notice`, `sending`, `still_waiting`, `waiting`;
       - variant: `paired`, `unpaired`, `rejected`, `fallback` or `no_fix`.
-  - **`GuideState`** holds `TraceOpened`, `RunEpoch` and the new `RunStartedAt`, appended as storage slot 5. With no row, the epoch is 1.
+    - `stage` and `startedAt` are empty while the session doesn't watch Orders (the box then points to step 1).
+  - **`GuideState`** holds `TraceOpened`, `RunEpoch` and `RunStartedAt`. With no row, the epoch is 1.
   - **The run window:** the current run starts at the epoch's latest Break the feed run, or at the epoch's start. Steps 3 and 4, the variant and the finish read the newest visible Orders incident noticed in that window. A second press therefore makes them wait for the new notice. Step 5 is reset only by Run again.
   - **Readings:**
-    - "Orders" means namespace `OCUORDERS` (any case) and production `OcuTalon.Demo.Orders.Production`.
+    - "Orders" means namespace `OCUORDERS` (any case) and production `OcuTalon.Demo.Orders.Production` (exact case).
     - The current step is the lowest step not done. With the variant `rejected`, `fallback` or `no_fix`, a 5 becomes 4.
-    - **Answered:** approved, rejected, executing, done or failed. Expired and cancelled requests are not answered.
+    - **Answered:** approved, rejected, executing, done or failed. Expired and cancelled requests are not answered; `expired` gives the paired/unpaired variant (no UX text exists for it; Story 4.7 may revisit).
     - **Approved fix:** approved, executing, done or failed.
     - **Finished:** step 5 done, an approved request, and an incident that is `resolved`, or `closed` with an `OpenVariant` outside `INCIDENTOPENVARIANT`.
     - **Availability** reads the session's latest run in any epoch, so a batch in flight still blocks after Run again. The stage is reported only for a run of the current epoch. Run ages are UTC arithmetic.
-  - **Publishing:** `Live.Publish.RefreshGuide` is the one publisher of `guide.state`.
-    - It runs after `Publish` releases the stream lock. It holds `LOCK ^OcuTalon.Demo.Guide(sessionRef)` (5 s) over compute, compare and publish.
-    - It compares with the stream's last durable `guide.state` event, or with `Blank()` when there is none, and publishes only on a change. It skips a stream that belongs to no session.
+  - **Publishing:** `Live.Publish.RefreshGuide(sessionRef, , lockWait)` is the one publisher of `guide.state`.
+    - It holds `LOCK ^OcuTalon.Demo.Guide(sessionRef)` over compute, compare and publish, so the last refresh publishes the newest view. It runs after `Publish` releases the stream lock, so no lock-order cycle exists.
+    - **Lock wait:** `lockWait` bounds both the guide lock and the stream lock (default `LOCKWAIT`, 5 s). `Publish`'s hook passes its own caller's wait, so `BridgeSink`'s one-second bound (AD-31: it waits on no lock longer than one second) also bounds the refresh it triggers. Any new trigger publisher inherits this; `TestHeldLockCallerWait` pins it.
+    - It compares with the stream's last durable `guide.state` event, or with `Blank()` when there is none, and publishes only on a change. It skips a stream that belongs to no session and the instance stream. A refresh that times out is not retried; `/state` recomputes on every load.
     - It has three callers:
-      - the `Publish` hook, after the seven trigger types (`chat.message`, `incident`, `approval`, `check`, `reminder`, `pairing`, `breakfeed.progress`), with demo mode on;
-      - `StatusMonitor.GuideTick()`, one call added before `Quit $$$OK`, for sessions with a run started in the last 240 s;
+      - the `Publish` hook, with demo mode on, after exactly the seven trigger types in `GUIDETRIGGERS`: `chat.message`, `incident`, `approval`, `check`, `reminder`, `pairing`, `breakfeed.progress`. `Test.Live.GuideRefresh` pins them by name (`TestEachTriggerType`) and pins that others such as `turn.step` are not triggers (`TestNonTriggerTypes`);
+      - `StatusMonitor.GuideTick()`, for sessions with a run started in the last 240 s (`GUIDESECONDS`);
       - the marker endpoint.
   - **REST:**
-    - `POST /api/v1/guide/markers` takes `{"marker": "trace_opened" | "run_again"}`. It writes only `GuideState` and answers 200 with the guide view, the same object as `/state`'s `guide`.
-    - Its checks run in order: 404 (demo off), 400 (`MESSAGEBADMARKER`), then 500.
+    - `POST /api/v1/guide/markers` takes `{"marker": "trace_opened" | "run_again"}` (other members ignored). It writes only `GuideState` and answers 200 with the guide view, the same object as `/state`'s `guide`.
+    - Its checks run in order: 404 (demo off), 400 (`MESSAGEBADMARKER`), then 500. A failed refresh after a committed write is a 500, so a retried `run_again` can advance the epoch twice (accepted).
     - `/state`'s `guide` is the last key, present only with demo mode on.
   - **"Telegram is on"** means `Telegram.In.Included()` returns 1 and `Guide.TelegramState()` returns `on`. `TelegramState()` mirrors `/state`'s literal `"off"` until Story 10.3. The paired variant needs Telegram on.
 - **Channels.**
@@ -159,15 +161,15 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
     - State-changing calls need `application/json`, `X-OcuTalon-Request: 1` and a matching `Origin`.
 - **Testing.**
   - **`%UnitTest`:** classes live in `OcuTalon.Test.<Area>`, with doubles in `OcuTalon.Test.Demo`. They run in the `lane-b` shard through `ci/iris.sh`.
-    - Probe subclasses override private seams called through `..`, as `AdminProbe` and `SettingsOpsProbe` do.
-    - `Test.Demo.Step`'s `Saved`, `Put`, `Remove` and `PutBack` save and restore the `demo.mode` row.
-    - New guide test classes stay separate from Epic 8's `Test/Core/StatusMonitor.cls`.
+    - Probe subclasses override private seams called through `..`, as `AdminProbe`, `SettingsOpsProbe` and `GuideProbe` do.
+    - `Test.Demo.Step`'s `Saved`, `Put`, `Remove` and `PutBack` save and restore the `demo.mode` row. `Fixture.Clean` drops a fixture session's `GuideState` and `BreakFeedRun` rows.
+    - Guide tests have their own classes (`Test.Demo.Guide`, `Test.Data.OwnershipGuide`, `Test.Live.GuideRefresh`, `Test.Core.StatusMonitorGuide`, `Test.Web.GuideApi`), separate from Epic 8's `Test/Core/StatusMonitor.cls`.
+    - The production's real `StatusMonitor` ticks every 15 s on the test stack. A test that needs demo mode off must switch it off before it creates the session's rows.
   - **Guide tests:** they drive every step and Break the feed state with fixture `BackgroundCheck`, `Reminder`, `Incident`, `ApprovalRequest` and `BreakFeedRun` rows.
-  - **Pinned surfaces:** turning a route on or adding a snapshot key means updating `Test.Web.Api` (`TestStateBody`, `TestRoutes`) and `web/e2e/api/api.spec.ts` (`UNBUILT`, the exact `/state` keys).
+  - **Pinned surfaces:** turning a route on or adding a snapshot key means updating `Test.Web.Api` (`TestStateBody`, `TestRoutes`), `web/e2e/api/api.spec.ts` (`UNBUILT`, the exact `/state` keys) and `web/e2e/frame/frame.spec.ts` F9 (the exact `/state` keys). A payload change means `Test.Live.Payloads` and `payloads.mjs --check`; a table change means `Test.Data.Tables` and `test-storage.sh`.
   - **`live:demo-switch`** (`docker/tests/test-demo-switch.sh`) is the destructive switch check, on its own stack.
     - It is in the `image` CI group and in `BROWSER_UNITS`.
-    - It runs the Playwright `demo-switch` project (`web/e2e/demo-switch/`, `npm run e2e:demo-switch`) with only `OCUTALON_URL` and `OCUTALON_E2E_DEMO_MODE=0|1` set.
-    - Story 4.2 adds `guide.spec.ts` to that folder.
+    - It runs the Playwright `demo-switch` project (`web/e2e/demo-switch/`, `npm run e2e:demo-switch`) with only `OCUTALON_URL` and `OCUTALON_E2E_DEMO_MODE=0|1` set. It holds `guide.spec.ts` (Story 4.2), which uses relative assertions so a re-run passes.
   - **`web/scripts/playwright-projects.test.mjs`** pins the Playwright projects. It once turned 4.1's CI red, so update it for any new e2e folder or project.
     - `chromium` lists exactly the specs outside `demo-path/`, `demo-switch/` and `floor/`.
     - Each of those three projects runs only its own folder.
@@ -218,12 +220,12 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
 
 - **Order inside the epic.**
   - Story 4.1 is done. It built `Admin.SetDemoMode`, the real `SettingsOps`, `Setting.Set`, `SetDemoMode.ActingUser` and `live:demo-switch`. The badge and the Demo step came from earlier epics.
-  - Story 4.2 (spec ready) builds `Guide.Compute`, `RefreshGuide`, the marker endpoint and `/state`'s `guide`.
-  - Stories 4.2, 4.3 and 4.6 each add the demo-off 404 to the endpoints they build. The 404 reads the `demo.mode` that `SettingsOps` writes.
+  - Story 4.2 is done. It built `Guide.Compute` and `Blank`, the six `Ownership` kinds, `GuideState.RunStartedAt`, `RefreshGuide` with its hook and `GuideTick`, the marker endpoint and `/state`'s `guide`.
+  - Stories 4.3 and 4.6 each add the demo-off 404 to the endpoints they build (4.2 did for the markers). The 404 reads the `demo.mode` that `SettingsOps` writes.
   - **Story 4.3:**
-    - `BreakFeedIn`'s locked check reads `Compute().BreakFeed`.
-    - It writes the first real `BreakFeedRun` rows.
-    - Its `breakfeed.progress` publishes trigger the guide refresh.
+    - `BreakFeedIn`'s locked check reads `Compute().BreakFeed` (`Active`, `Reason`).
+    - It writes the first real `BreakFeedRun` rows and their `StartedAt`.
+    - Its `breakfeed.progress` publishes trigger the guide refresh under the publisher's own lock wait.
   - **Story 4.4:**
     - It renders `steps`, `step`, `breakFeed` and `telegramRow`: the reason as the hint, the stage as the box line, and `startedAt` as the elapsed time.
     - It needs `StateSnapshot.guide` in the contended `web/src/app/api/api-types.ts`. That edit is a planning item.
@@ -232,13 +234,15 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
 - **Paths not merged yet.**
   - Not merged: the Orders watch and `IncidentManager` (Epic 5) and approvals (Epic 3). Tests use fixture rows and an `IncidentManager` double, and Epic 11 turns the path on end to end.
   - Epic 8's reminders are not merged. `ReminderOps` and `ReminderTimer` are still stubs, so tests use fixture `Reminder` rows.
+- **Session streams gain `guide.state` events.**
+  - With demo mode on, a session stream gets a `guide.state` after any trigger publish that changes its view (for example a reminder event once the session has a pending reminder).
+  - Any test, in this epic or another (Epic 8's Stories 8.3 to 8.5 especially), that asserts a stream's exact events must expect it or switch demo mode off. Look for `Live.Event).Since(`, `EventSeqs(`, `.States(`, `LastSeq(` and `streams.session` in tests whose session has an Orders check, reminder, Orders incident, `BreakFeedRun` or `GuideState` row.
 - **Shared with Epic 8.**
   - `StatusMonitor` and `Web.Api` are shared by function. Each epic edits only its own conditions, fields and handlers, and prefers new methods to reshaping shared ones.
-  - With demo mode on, a session stream gains a `guide.state` event after any trigger publish that changes its view. Epic 8 tests that assert a stream's exact events must expect it or switch demo mode off.
   - The B mock scenarios and the demo-path specs 01 to 04 and 06 are this epic's.
 - **Waiting on this epic.**
   - Epic 6: incidents and approvals on the phone.
-  - Stories 8.3 to 8.5: the phone, and guide step 2 from real reminders.
+  - Stories 8.3 to 8.5: the phone, and guide step 2 from real reminders (`Ownership.ReminderSetOrFired`).
   - **Stories that switch demo mode from a terminal:**
     - Story 10.2: the README quotes `SetDemoMode`.
     - Story 11.2: the upgrade harness switches demo mode off with `SetDemoMode(0)`.
@@ -252,3 +256,4 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It adds
   - **DW-98 (Story 4.3):** with the real batch, assert that a `decision.recorded` and a `turn.step` emitted by the bridge reach the session's stream through `BridgeSink`.
   - **DW-198 (Story 4.4):** fix the WebKit focus-ring margin flake at 1280x600.
   - **DW-146 (Story 4.7):** check whether trace tabs hold licence connections, and if so, sign the specs' trace tabs out.
+  - **DW-215 (Story 4.7):** `Compute` could report `finished` true together with step 4 current and a `rejected`, `fallback` or `no_fix` variant, if a resolved incident keeps that `OpenVariant` (unverified until Story 5.5's `IncidentManager` exists). When rendering the finish state and the step 4 hints, make the finish condition exclude an incident with one of those variants, or prove with a test that a resolved incident never keeps one.
