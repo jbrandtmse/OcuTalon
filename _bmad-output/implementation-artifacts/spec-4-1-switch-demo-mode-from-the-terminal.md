@@ -2,11 +2,11 @@
 title: 'Story 4.1: Switch demo mode from the terminal'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-progress'
+status: 'done'
 baseline_revision: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 baseline_commit: 'e8e2ea9470589265f16dbeb70df95ab1c9524c14'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred: []
@@ -173,7 +173,7 @@ deferred: []
   - If that also fails, run the step in a JOBbed process that returns its status and warnings, and wait for it inside `CommandsIn`'s 120 s timeout.
   - Record which form held, with the off and on durations, under `## Verification`.
 
-- [ ] [CI] `ci` workflow, job `web`, step "Unit tests" (`npm --prefix web test`): `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/" fails on c8b4354, because this story put `**/e2e/demo-switch/**` in the `chromium` project's `testIgnore` while the test still expects chromium to list `demo-switch/badge.spec.ts` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40209803845/job/121218409733 -- make the test's rule match the config (chromium lists every spec outside `demo-path/`, `floor/` and `demo-switch/`, and the `demo-switch` project lists exactly `demo-switch/`), keeping its ability to fail on a spec that no project lists; add `npm --prefix web test` as a `(loop)` line under `## Verification`, and run it green.
+- [x] [CI] `ci` workflow, job `web`, step "Unit tests" (`npm --prefix web test`): `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/ and floor/" fails on c8b4354, because this story put `**/e2e/demo-switch/**` in the `chromium` project's `testIgnore` while the test still expects chromium to list `demo-switch/badge.spec.ts` -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40209803845/job/121218409733 -- make the test's rule match the config (chromium lists every spec outside `demo-path/`, `floor/` and `demo-switch/`, and the `demo-switch` project lists exactly `demo-switch/`), keeping its ability to fail on a spec that no project lists; add `npm --prefix web test` as a `(loop)` line under `## Verification`, and run it green.
 
 **Acceptance Criteria:**
 - Given a fresh install, when it first starts, then demo mode is `"1"` on the Docker install and `"0"` without the image's version file (IPM), written as a seed that a later write survives at restarts and upgrades.
@@ -253,6 +253,17 @@ Rejected:
   - `[low]` `[reject]` VG: no mutation line for the 501 route, the badge appearing, `Admin.ErrorText` or `Setting.Set`'s public key — one mutation per AC is the bar; those are existing consumers (AC 4 has three) and `Setting.Set`'s refusal has TestSet's "without its key check" line.
   - `[low]` `[reject]` VG: `notify_probe`'s fixed `Hang 3` could flake step 2 red — it can only turn a green red, never the reverse, and ran green in four fresh runs; a 3 s margin on a router that answers in under a second.
   - `[low]` `[reject]` Intent: no documentation change, and `Admin.ErrorText` is a Core to Core dependency — documenting is Story 10.2's (README is contended); the shared helper is Decided in-stage 10 (Rule 2).
+
+### 2026-10-25 — Review pass (rework iteration 1, the `[CI]` item only; diff since 2bb605c)
+- verdicts: 6 findings — high 0, medium 0, low 5, false 1, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the "every spec on disk is listed" case adds almost no coverage -- it fails when a directory is in `OWN_PROJECT_DIRS` and ignored by chromium with no project listing it, a case the chromium case misses (its expected set drops the directory too); demonstrated by the mutation line.
+  - `[low]` `[reject]` Blind: `OWN_PROJECT_DIRS` is a second hand-kept copy of the config -- by design, the test pins the config against an independent statement of it; deriving it from the config would make the test agree with any config; the header says to add a directory with its project.
+  - `[low]` `[reject]` Blind: the `demo-switch` project's engine and `testDir` are not pinned -- the exact listing case pins its `testDir`, the engine is covered by the project's own run; unlikely in everyday use.
+  - `[low]` `[reject]` Edge: the script list of the union case is hand-kept -- same reason; a new project without a script is also a new `package.json` line the lint reviews.
+  - `[low]` `[reject]` Edge: the spec records no result for `npm --prefix web test` -- recorded in this pass's `## Auto Run Result`.
+  - `[low]` `[patch]` Verification-gap: the union case and the `e2e:demo-switch` case have no `mutation:` line -- both mutations demonstrated (union red alone among the target cases; demo-switch case red), both lines written under `## Verification`, both files restored byte-identical.
+- intent-alignment: no divergence between the readings and the diff that needs work; reading C (derive the rule from the config) is rejected above.
 
 ## Design Notes
 
@@ -369,6 +380,7 @@ The integration checks run against a real throwaway, not a mock.
 - `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Core.ProductionItems` (loop) -- expected: passed.
 - `<lane B vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e4s1iw ci/iris.sh class OcuTalon.Test.Core.CommandsInProduction` (loop) -- expected: passed.
 - `<lane B vars> OCUTALON_RUN_TAG=e4s1i ci/iris.sh live demo-switch` (loop; fresh, destructive; also Task 0) -- expected: every line PASS, exit 0.
+- `npm --prefix web test` (loop) -- expected: all tests pass.
 - `npm --prefix web run lint` (loop) -- expected: exit 0.
 - `bash docker/tests/test-ci-config.sh` (loop) -- expected: all rules pass.
 - `<lane B vars> OCUTALON_RUN_TAG=e4s1i ci/iris.sh shard lane-b` (once) -- expected: every class passed.
@@ -414,6 +426,9 @@ The integration checks run against a real throwaway, not a mock.
 - mutation: AC 5, `ALLOWLIST` gains `digest.time` -> TestAllowList red.
 - mutation: AC 5, `SettingsOps` accepts any command class -> TestOtherCommand red.
 - mutation: `Admin.SetDemoMode` accepts 2 -> TestInvalidArgument red.
+- mutation: `**/e2e/demo-switch/**` dropped from the chromium `testIgnore` in `web/playwright.config.ts` -> `web/scripts/playwright-projects.test.mjs` case "chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/ and floor/" red (chromium lists demo-switch/badge.spec.ts); config restored from backup.
+- mutation: `'**/e2e/api/**'` added to the chromium `testIgnore` and `'api'` added to `OWN_PROJECT_DIRS` in the test, with no `api` project -> `web/scripts/playwright-projects.test.mjs` case "every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch and floor scripts" red (the chromium case stays green because its expected set drops `api/` too; the sign-in API case also went red because `api/` specs no longer list); both files restored from backup.
+- mutation: the `demo-switch` project's `testDir` changed from `./e2e/demo-switch` to `./e2e` -> `web/scripts/playwright-projects.test.mjs` case "demo-switch (the e2e:demo-switch script) lists exactly the spec files inside demo-switch/" red; config restored from backup.
 - mutation: `Setting.Set` does not drop the cache entry -> TestSet red ("Get in this process sees the new value at once"); `Setting.Set` without its key check -> TestSet red (a subscript error on the empty key).
 - mutation: `SetDemoMode.ActingUser` MAXLEN 160 -> 100 -> `Test.Msg.Contracts` TestContracts red.
 - mutation: `SettingsOps` answers `Ok 0 not_built` after a switch -> `Test.Core.CommandsInProduction` TestSettingsOpsSwitches red (run after the `SettingsOps` item was toggled, Decided in-stage 16).
@@ -474,3 +489,5 @@ Blocking condition: none
 **Verification.** Warm class runs of `Test.Core.SettingsOps`, `Core.Admin`, `Data.Setting`, `Msg.Contracts`, `Install.Production` (reads ProductionItems) and `Core.CommandsInProduction` passed; `live demo-switch` passed (35 PASS plus step 8's Notify check, the mutated run red at steps 2 and 8); `npm --prefix web run lint`, `test-ci-config.sh`, `shard lane-b` (44 classes), `shard lane-a` (41 classes) and `ci/checks.sh` passed. The mutations listed under `## Verification` were each applied, seen red and reverted. No stack with the `e4s1` tags is left.
 
 **Residual risks.** The runner duration of `live:demo-switch` is an inference (8 to 10 minutes; 244 s on ARM). A switch reaches an open page only at its next snapshot load (T1 and T2 say to reload). Cross-epic notes for the lead: the dependency edge `Core -> Install.Step.Demo.Run()` (AD-23) goes into the spine under Rule 20, and the V1 reversal is the owner's (`Admin.Allowed`, TestAllowed, `live:demo-switch` steps 3, 4 and 7).
+
+**Rework iteration 1 (the `[CI]` item only).** `web/scripts/playwright-projects.test.mjs` now states the chromium rule against `OWN_PROJECT_DIRS` (`demo-path`, `demo-switch`, `floor`), has a case that `e2e:demo-switch` lists exactly `demo-switch/`, and a case that every spec on disk is listed by one of the four scripts. `web/playwright.config.ts` is unchanged. Review: 6 findings, 1 patched (two missing `mutation:` lines, written after demonstrating both reds), 5 rejected with their reasons in the Review Triage Log. Follow-up review recommended: false (no high patched). Verification: `npm --prefix web test` 567 of 567 passed, `npm --prefix web run lint` exit 0, `bash ci/checks.sh` all scripts passed. Residual risk: the hosted `web` job itself runs on the next push.
