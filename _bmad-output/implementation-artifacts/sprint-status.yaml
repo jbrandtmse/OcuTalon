@@ -96,8 +96,8 @@ development_status:
   3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: backlog
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-switch-demo-mode-from-the-terminal: ready-for-dev
+  epic-4: in-progress
+  4-1-switch-demo-mode-from-the-terminal: in-progress
   4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: backlog
   4-3-break-the-feed-with-a-real-batch-of-50-orders: backlog
   4-4-show-the-demo-guide-and-the-break-the-feed-box: backlog
