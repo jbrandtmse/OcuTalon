@@ -2113,6 +2113,7 @@ So that two answers can never both act and an old request can't be approved by s
 **Given** a `TaskResponse` reaches ApprovalHold
 **When** it handles the response
 **Then** it acts only if the row already shows that answer; on approval, rejection or expiry it sends `ApprovalOutcome` to the row's `ResultTarget`, except that an approved `tool_call` gets the replay instead (Story 30.3, AD-11; until it merges, an approved `tool_call` gets neither and runs nothing [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: was Story 3.6]), a rejection runs nothing, and `HostSinkClass` receives `approval.answered`, `approval.expired` or `approval.cancelled` with the `Ref` (FR-8, NFR-13, AD-11, AD-31)
+- DW-186: ApprovalHold's expiry timer is set in whole seconds rounded down, so it can fire up to 1 s before the row's ExpiresAt; the expiry path must not require the clock to be past ExpiresAt, or the request stays pending (ledger; routed by harvest 2026-10-25)
 
 ### Story 3.6: A risky tool call waits for approval and runs nothing
 
@@ -2133,6 +2134,8 @@ So that my own risky tools never run without a yes.
 **Given** the NFR-13 tests in `OcuTalon.Test.Bridge`
 **When** they run
 **Then** the risky test tool never runs without an approved request, and a rejected or expired request runs nothing (FR-7, NFR-13) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: "an approved request runs the call exactly once" moved to Story 30.3]
+- DW-187: Approval.Raise inside an open transaction: its ApprovalStartIn ProcessInput commits every open transaction level of the caller, and the hold's job cannot see an uncommitted row; measure the TLevel inside %CanExecute before the gate calls Raise (ledger; routed by harvest 2026-10-25, effect corrected by 3.4's review)
+- DW-191: Approval.StartHold runs ApprovalStartIn's ProcessInput in the caller's job, which replaces the job's session and current header ids; from the runner's job the gate's later event-log rows would lose their session; restore them after the call, or start the hold another way (ledger; routed by cr 2026-10-25)
 
 ### Story 3.7: Every action and governance event is in the IRIS audit log
 
@@ -2189,6 +2192,7 @@ So that the online-demo epics (Lane A's Epic 29 and Lane B's Epic 16 [AMENDED 20
 **Given** a test stack with the online-demo start values
 **When** the three are exercised
 **Then** the public keys read back through `OcuTalon.Data.Public.Settings`, a password change for either public account is refused while the installer's write succeeds, and a decision at the cap falls back with `daily_cap` without a request being sent (FR-40, FR-59)
+- DW-160: On a fresh flag-on volume's first start the Users step cannot pin the public accounts' Visual Trace page size in OCUORDERS (the Demo step creates OCUORDERS after Users), so the Public step's last phase (after Production and Reconcile, before SetReady) calls Users.PinTrace for both public accounts (ledger; routed by spec_gate 2026-10-24)
 
 ## Epic 4: The demo page: guide, simulated phone and mailbox, and Break the feed
 

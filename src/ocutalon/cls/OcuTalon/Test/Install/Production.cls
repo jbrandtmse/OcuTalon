@@ -10,7 +10,7 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
-///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0;
+///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4);
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -613,8 +613,8 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
  {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
- {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 1, "settings": []},
- {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 1, "settings": []},
+ {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
+ {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}, {"target": "Host", "name": "ReplyClass", "value": "OcuTalon.Bridge.Msg.DecisionPayload"}]},
  {"lane": "A", "name": "DiagnosisAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Diagnosis"}]},
  {"lane": "A", "name": "ChatAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Chat"}]},

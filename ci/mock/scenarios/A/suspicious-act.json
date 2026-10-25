@@ -1,0 +1,31 @@
+{
+  "name": "suspicious-act",
+  "match": {
+    "marker": "suspicious-act"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_resend_failed",
+          "input": {}
+        },
+        {
+          "name": "zz_change_endpoint",
+          "input": {
+            "url": "https://order-partner.example/new-orders"
+          }
+        },
+        {
+          "name": "zz_approve_requests",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "The CI mock offered the three actions to the user."
+    }
+  ]
+}

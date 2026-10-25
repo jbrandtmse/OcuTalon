@@ -1,0 +1,19 @@
+{
+  "name": "gate-public",
+  "match": {
+    "marker": "gate-public"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_public",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock ran the public gate test tool."
+    }
+  ]
+}

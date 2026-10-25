@@ -1,0 +1,19 @@
+{
+  "name": "gate-safe",
+  "match": {
+    "marker": "gate-safe"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_safe",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock ran the safe gate test tool."
+    }
+  ]
+}
