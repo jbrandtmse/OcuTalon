@@ -475,3 +475,4 @@
 2026-10-25T11:47:04Z	Epic 2	epic_status_done	stories=17 note=after_fix-forward_2.17
 2026-10-25T11:47:30Z	Epic 2	integrated_forward	feature=a5df41d head=39e8042 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml,_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md,_bmad/custom/skill-rules.md semantic=docker/tests/test-class-rules.sh,docker/tests/test-ci-warm.sh(dc776e9),fix-forward_Story_2.17(Epic_2_tests_vs_Epic_1_real_Decide) suite=all_six_groups_green_on_the_merged_tree+checks+web_node;CI_6e4596c_success smoke=pass(2.17_smoke_on_the_merged_tree)
 2026-10-25T11:47:30Z	Epic 2	epic_runner_complete	stories_completed=17
+2026-10-25T12:00:12Z	Epic 2	epic_merged_to_feature	repos=. feature_sha=61b51b5 merge_sha=61b51b5 head=3d860fb submodules= verified=origin_merge-base

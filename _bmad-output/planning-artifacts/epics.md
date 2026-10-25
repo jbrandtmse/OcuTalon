@@ -2283,6 +2283,7 @@ So that I see OcuTalon handle a genuine failure, not a canned one.
 **Then** it is a production message in Visual Trace and never a turn: it creates no `Turn` row and no attention decision, and it never counts toward the session's message allowance (FR-16, UX-DR49, UX-DR126)
 **And** it is written to the IRIS audit log as an `Action` naming the IRIS user, the `SessionRef` and the channel, through `OcuTalon.Bridge.Audit` (FR-9, AD-17)
 **And** the REL-2 spec for UJ-1's incident step presses Break the feed and checks the press and the batch, using fixtures for Lane A's incident path; Epic 11 turns it on end to end; NFR-7's 60 seconds from the press to the notice is measured in the rehearsal, not asserted in CI (NFR-7, REL-2, AD-29, UX-DR102)
+- DW-98: No test drives the bridge's own emission of `decision.recorded` and `turn.step` into BridgeSink; every test calls OnEvent directly. With Lane A's emitter merged (Epic 1), this story's real batch makes the real Decide record decisions for a session: assert that a `decision.recorded` (and a `turn.step`) the bridge emits reaches that session's stream through BridgeSink (ledger; routed by burndown 2026-10-25)
 
 ### Story 4.4: Show the demo guide and the Break the feed box
 
@@ -2320,6 +2321,7 @@ So that I can follow the two-minute demo without reading any instructions.
 **Given** the guide's size and visibility
 **When** I press "Hide guide" (only that collapses it)
 **Then** the guide collapses to one bar, "Demo guide · step {n} of 5 · Show guide", whose "Show guide" button carries `aria-expanded`, with the Break the feed box keeping its place and rules at the bar's right end, and the choice is remembered per browser; under 680px tall the guide uses its compact single row, and from 1024 to 1279px wide the steps show numbers instead of labels (UX-DR46, UX-DR128)
+- DW-198: flake: floor-webkit G1 (`web/e2e/floor/layout.spec.ts:136`) at 1280x600 on the Linux CI host: a rail Trace link's focus ring ends 0.78 px past the viewport's bottom (600.78 vs 600), beyond the ring check's half-pixel tolerance. This story adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs (ledger; routed by flake 2026-10-25)
 
 ### Story 4.5: Get notifications on the simulated phone
 
@@ -2424,6 +2426,7 @@ So that I finish the demo in about two minutes and know what I saw.
 **Given** the REL-2 specs under `web/e2e/demo-path/`
 **When** this epic's page parts are on the integration branch
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
+- DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 
@@ -2462,6 +2465,7 @@ So that a background check starts or stops without any configuration.
 **And** an injected "stop watching" in an untrusted item stops nothing (NFR-14, AD-22)
 
 - DW-38: Matching a production by its display name finds only productions registered in their own namespace, so the never-running `OcuTalon.Demo.Orders.Production` row that compiling the package leaves in OCUTALON (description "Orders") is never offered as the Orders production (measured in Story 0.10) (ledger; routed by code review 2026-10-20)
+- DW-74: Commands.Submit's ProcessInput kills the calling job's job-local SessionId on exit, so event-log rows a tool's job writes after a Submit may carry no SessionId and drop out of the turn's Visual Trace thread. This story's start-watch tool is the first tool job that calls Commands.Submit inside a traced turn: check on a throwaway that event-log rows its job writes after Submit keep the turn's SessionId, and if they don't, restore the id after Submit (`Core/Commands.cls`) with a test (ledger; routed by burndown 2026-10-25)
 
 ### Story 5.2: New failures are picked up within seconds
 
@@ -2626,6 +2630,7 @@ So that I can see when each check last ran and what it found.
 **Given** incidents that aren't closed
 **When** `Checks` runs
 **Then** it sends `closeQuiet` to `IncidentManager` for each incident whose last failure is older than 15 minutes, and `IncidentManager` applies it only where the transition table allows (Story 5.5) (FR-24, P26, AD-15)
+- DW-66: Web.Api.CheckView copies what a Live.Payload.Check.FromRow would do, because the check payload is Lane A's; its traceNamespace is the check's namespace. The check event's publisher (Checks) adds Check.FromRow, confirms or replaces traceNamespace, and StateBody switches to it (ledger; routed by harvest 2026-10-22)
 
 ### Story 5.7: Asked whether everything is fine, OcuTalon never gives a false all-clear
 
@@ -2652,6 +2657,7 @@ So that an all-clear means every check passed.
 **When** the user asks "is everything OK?"
 **Then** the reply contains no all-clear, and `Render` names the failing check first (FR-37)
 **And** with a mock scenario under `ci/mock/scenarios/A/` in which the model claims everything is fine while a check fails, the reply still contains no all-clear (FR-37)
+- DW-90: `checks.notEverything` and `notEverythingRestPassed` take a whatFailed slot that the pinned `Checks.Render(results, *rows)` has no way to return, so the page (Story 2.6) shows no sentence for those keys. This story says how the page gets whatFailed (from the failing row, or a slot path through Render), and the page renders both keys (ledger; routed by spec_gate 2026-10-22)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
@@ -2725,6 +2731,8 @@ So that nothing risky happens without my yes, and I know at once whether my answ
 **When** the card applies the result or the `approval` event
 **Then** the label reads "Approval request", the answered status replaces the two buttons in the same row ("Approved from the web chat at 14:15", with no final period), the fixed-targets line, the expiry and "Nothing has changed yet." are removed, and the dry run stays as a record; if a button had focus, focus moves to the status line (`tabindex="-1"`) (FR-8, UX-DR75, UX-DR76, UX-DR131)
 **And** a press that lost the race shows "Already answered: approved from Telegram at 14:15.", channels read "the web chat", "the simulated phone" or "Telegram", and on a local install with more than one OcuTalon user the status names who answered ("Approved by sam from the web chat at 14:15") (FR-8, UX-DR76)
+- DW-68: Session.Recipients answers no recipients for an instance incident when Ownership.Watchers' checked prepare fails, which it will as the signed-in user in a REST request. Story 2.8 made the failed read loud (Watchers and Recipients pass its status on; BridgeSink logs it and publishes nothing). Residual for this story: its web answer path runs Approval.Answer in the signed-in user's REST request, where these checked cross-owner reads fail, so other watchers' rails keep an answered instance request until reload; this story hands the instance fan-out to a production job (or asks for an AD-13 amendment), with a test of the real failing read (see DW-113) (ledger; routed by adjudication 2026-10-23)
+- DW-113: The failing branches of Ownership.Watchers and Ownership.ApprovalIncident, and Session.Recipients passing Watchers' status on, are run by no test, so dropping the pass-through (DW-68's bug) leaves every test green; no role change, login or bound value makes the checked prepare fail in %UnitTest. This story's privilege-limited REST answer path is where the read really fails: pin those branches there (ledger; routed by merge_gate 2026-10-25)
 
 ### Story 6.3: Answer on the simulated phone and see every answer everywhere
 
@@ -2762,6 +2770,7 @@ So that I can approve from the phone and trust that one answer settles the reque
 **When** `NoticesIn` (`OcuTalon.Core.NoticesIn`, an adapterless service, a real item, not a stub) receives it, asynchronously
 **Then** it joins the turn's own thread through the bridge context's `ThreadSessionId` when there is one, forwards the notification to `Notify`, and a test with a fixture notification finds it delivered on each of the session's channels (AD-26, AD-31, AD-32)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] `BridgeSink`'s own sends through `NoticesIn` arrive with Story 31.2 (a tool call's notifications) and Story 16.9 (the daily-cap message)
+- DW-128: BridgeSink.Step drops every `turn.step` of a SessionBroken retry: the bridge context carries `RetryItemId(turn.ItemId)`, and Step publishes only when the context's ItemId is the running turn's own. With Epic 1's step emitter merged, a retry's `turn.step` is now reachable: Step also accepts `RetryItemId(running.ItemId)` (`Core/BridgeSink.cls`), with a test of a retried turn's steps (ledger; routed by burndown 2026-10-25)
 
 ### Story 6.4: Close the loop with results, rejections, expiry, fallbacks and Dismiss
 
@@ -2805,6 +2814,7 @@ So that I always know the outcome and can start a new run.
 **Given** a resolved incident left alone, or replaced by a new Break the feed run, or, with demo mode off, an Open one left alone
 **When** `IncidentManager` closes it after 15 quiet minutes or by the replay rule (P26)
 **Then** the card compacts to its headline and result in place, and a later same-cause failure opens a new card (FR-24, UX-DR73)
+- DW-105: Test.Core.ConversationTurns leaves its ConversationProbe event-log rows (Begin, Ask, Tell, OnResponse) in the Ens log on every run. This story's fallbacks extend Conversation's turn tests: remove those rows in the test's teardown, the Observe.RemoveWarnings shape (Rule 19) (ledger; routed by burndown 2026-10-25)
 
 ## Epic 7: Approve the fix and the orders go through
 
@@ -4107,6 +4117,7 @@ So that the IPM install is as durable as the Docker one.
 **Given** the author has published 1.0.0 to the package registry, on the author's word
 **When** the registry install path is run once on a clean build 154 instance with the README's two commands
 **Then** it gives the same working OcuTalon, and the result is recorded in the release notes (FR-57, REL-8, REL-11)
+- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
 
 ## Epic 16: Anyone can try the online demo
 
@@ -6342,6 +6353,7 @@ So that my own risky tools work through the bridge and never run without a yes.
 **Given** a test answers an approval request and replays its approved test tool
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
+- DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
 
 ### Story 30.4: A stopped production or a disabled item is reported once
 
