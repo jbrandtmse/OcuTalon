@@ -1246,16 +1246,16 @@ ClassMethod Items(chat As %DynamicArray) As %String [ Private ]
 }
 
 /// Story 16.1: the snapshot's traceAccount is the read-only account's user name and password, the last key, only when onlineDemo
-/// is 1 and both values are set. Flag 0 with both set: no key and the local key list. Flag 1 with both: the key, last, with both
-/// values. Flag 1 with an empty password, and with an empty user name: no key. The three public settings are put back, also after
-/// a failure; the fixture session is zzapitrace<n>.
+/// is 1 and both values are set. Flag 0 with both set: no key, and the snapshot's keys (whose list TestStateBody pins) are the
+/// baseline of the other cases. Flag 1 with both: the baseline and then the key, last, with both values. Flag 1 with an empty
+/// password, and with an empty user name: the baseline, no key. The three public settings are put back, also after a failure; the
+/// fixture session is zzapitrace<n>.
 Method TestStateTraceAccount()
 {
 	Set names = $ListBuild("onlineDemo", "readonlyUser", "readonlyPassword")
 	For i = 1:1:$ListLength(names) {
 		Set saved($List(names, i)) = ##class(OcuTalon.Data.Public.Settings).Get($List(names, i))
 	}
-	Set local = "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status"
 	Set error = ""
 	Try {
 		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapitrace"_..Number, .sc)
@@ -1265,8 +1265,9 @@ Method TestStateTraceAccount()
 
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 		Set body = ##class(OcuTalon.Web.Api).StateBody(session)
-		Do $$$AssertEquals(..KeyList(body), local, "flag 0 with both read-only values set: the local key list, no traceAccount")
-		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "unassigned", "flag 0: traceAccount is absent")
+		Set local = ..KeyList(body)
+		Do $$$AssertEquals(body.%GetTypeOf("traceAccount"), "unassigned", "flag 0 with both read-only values set: traceAccount is absent")
+		Do $$$AssertNotTrue((","_local_",") [ ",traceAccount,", "flag 0: no traceAccount among the keys ("_local_")")
 
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set body = ##class(OcuTalon.Web.Api).StateBody(session)

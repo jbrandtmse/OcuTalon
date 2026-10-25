@@ -28,7 +28,8 @@ interface CredentialRow {
  * - A copy that succeeds writes exactly the value to the clipboard, shows "Copied" in that row for 2 seconds and announces
  *   "Copied" through the Announcer.
  * - A copy that fails (a rejected promise, or no clipboard) shows "Couldn't copy. Select the text and copy it yourself." under
- *   the rows until the next copy or until the rows go away with their popover, announces it, and selects that row's value text.
+ *   the rows as a field error (the circle-alert icon, danger ink) until the next copy or until the rows go away with their
+ *   popover, announces it, and selects that row's value text.
  */
 @Component({
   selector: 'app-credential-rows',
@@ -50,7 +51,10 @@ interface CredentialRow {
       </div>
     }
     @if (failed()) {
-      <p class="failure">{{ texts.copyFailed }}</p>
+      <p class="failure">
+        <app-icon name="circle-alert" />
+        {{ texts.copyFailed }}
+      </p>
     }
   `,
   styles: `
@@ -103,6 +107,9 @@ interface CredentialRow {
       padding: 0;
     }
     .failure {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
       margin: 0;
       color: var(--danger-ink);
       font-size: var(--type-body-sm-font-size);

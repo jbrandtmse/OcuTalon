@@ -1,8 +1,10 @@
 import { expect, test, type BrowserContext, type Locator, type Page, type Response } from '@playwright/test';
 
 import { STATE } from '../e2e/support/api';
+import { settled } from '../e2e/support/floor';
 import { fixtureUser } from '../e2e/support/iris';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
+import { scanPage } from '../e2e/support/scan';
 import { drawnMessages, postTurn, type Cursor, type Turn } from '../e2e/support/trace';
 import { signIn } from '../e2e/sign-in/helpers';
 import { signOutGroup } from './support';
@@ -17,6 +19,11 @@ import { signOutGroup } from './support';
  *   button each; a press puts the exact value on the clipboard, shows "Copied" in its row and announces "Copied" once.
  * - O6: when the clipboard rejects the write, the row shows the failure line, announces it and the page's selection is exactly the row's
  *   value; a later copy that succeeds takes the failure line away.
+ * - O7 to O9 (QA): the copy buttons in focus order and on Enter and Space; "Copied" lasting about 2 seconds; no clipboard at all, and the
+ *   failure line gone once the menu is closed and opened again.
+ * - O10 (review): the in-house scan of support/scan.ts (the floor's U2 scans the menu only on a local stack, without the rows) finds
+ *   nothing on the page with the menu and its rows open, in the light and the dark theme, once with the failure line and once with
+ *   "Copied".
  * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 120_000 });
@@ -172,6 +179,137 @@ test('O6: a copy that fails shows the failure line and selects the value', async
     await menu.getByRole('button', { name: COPY_USER, exact: true }).click();
     await expect(menu.getByText('Copied', { exact: true }), 'a copy that succeeds says Copied').toBeVisible();
     await expect(menu.getByText(COPY_FAILED, { exact: true }), 'and takes the failure line away').toHaveCount(0);
+  } finally {
+    await signOutGroup(page);
+  }
+});
+
+/** The Visual Trace menu of the signed-in demo account, open on a page that has a turn of its own. */
+async function openMenu(page: Page, tag: number): Promise<Locator> {
+  const cursor = await open(page);
+  await postTurn(page.request, cursor, tag, 'online-demo');
+  await traceMenu(page).click();
+  const menu = page.getByRole('dialog', { name: 'Visual Trace', exact: true });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+/** O7 (QA): the rows are reachable by keyboard in order, and Enter and Space on a copy button copy. */
+test('O7: the copy buttons follow the conversation link in focus order and copy on Enter and Space', async ({ page, context }) => {
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const menu = await openMenu(page, 4);
+    const account = published();
+    const conversation = menu.getByRole('link', { name: CONVERSATION_NAME, exact: true });
+    const copyUser = menu.getByRole('button', { name: COPY_USER, exact: true });
+    const copyPassword = menu.getByRole('button', { name: COPY_PASSWORD, exact: true });
+    const userRow = menu.locator('app-credential-rows .row').nth(0);
+    const passwordRow = menu.locator('app-credential-rows .row').nth(1);
+    const clipboard = (): Promise<string> => page.evaluate(() => navigator.clipboard.readText());
+
+    await expect(conversation, 'the link is the first focus').toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(copyUser, 'Tab reaches the user name button next').toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(copyPassword, 'then the password button').toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(copyUser, 'Shift+Tab goes back to the user name button').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(userRow.getByText('Copied', { exact: true }), 'Enter copies the user name').toBeVisible();
+    expect(await clipboard(), 'the clipboard holds the user name').toBe(account.user);
+    await expect(copyUser, 'the button keeps its focus after the copy').toBeFocused();
+
+    await page.keyboard.press('Tab');
+    await expect(copyPassword).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(passwordRow.getByText('Copied', { exact: true }), 'Space copies the password').toBeVisible();
+    expect(await clipboard(), 'the clipboard holds the password').toBe(account.password);
+    await expect(userRow.getByText('Copied', { exact: true }), 'and the user name row no longer says Copied').toHaveCount(0);
+  } finally {
+    await signOutGroup(page);
+  }
+});
+
+/** O8 (QA): "Copied" stays for 2 seconds: still there after 1 second, gone before 4. */
+test('O8: Copied stays about 2 seconds in its row', async ({ page, context }) => {
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const menu = await openMenu(page, 5);
+    const copied = menu.getByText('Copied', { exact: true });
+    await menu.getByRole('button', { name: COPY_USER, exact: true }).click();
+    await expect(copied, 'the press shows Copied').toBeVisible();
+    await page.waitForTimeout(1000);
+    await expect(copied, 'a second later it is still there').toHaveCount(1);
+    await expect(copied, 'and it is gone well before the timer could be long').toHaveCount(0, { timeout: 2500 });
+  } finally {
+    await signOutGroup(page);
+  }
+});
+
+/** O9 (QA): with no clipboard at all the row gives the failure line and the selection, and closing the menu drops the line. */
+test('O9: no clipboard gives the failure line and the selection, and closing the menu clears the line', async ({ page }) => {
+  try {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'clipboard', { configurable: true, get: () => undefined });
+    });
+    const menu = await openMenu(page, 6);
+    const account = published();
+    expect(await page.evaluate(() => navigator.clipboard), 'the page has no clipboard').toBeUndefined();
+
+    await menu.getByRole('button', { name: COPY_USER, exact: true }).click();
+    await expect(menu.getByText(COPY_FAILED, { exact: true }), 'the failure line shows').toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? ''), 'the selection is exactly the user name').toBe(account.user);
+    await expect.poll(() => announcements(page, COPY_FAILED), { message: 'the failure is announced', timeout: 5000 }).toBe(1);
+
+    await page.keyboard.press('Escape');
+    await expect(menu, 'Escape closes the menu').toHaveCount(0);
+    await traceMenu(page).click();
+    const again = page.getByRole('dialog', { name: 'Visual Trace', exact: true });
+    await expect(again).toBeVisible();
+    await expect(again.locator('app-credential-rows .row'), 'the rows are back').toHaveCount(2);
+    await expect(again.getByText(COPY_FAILED, { exact: true }), 'with no failure line').toHaveCount(0);
+    await expect(again.getByText('Copied', { exact: true })).toHaveCount(0);
+  } finally {
+    await signOutGroup(page);
+  }
+});
+
+/** The scan of support/scan.ts in the light and then the dark theme; settle waits for the page to draw first (not while its clock is paused). */
+async function expectNoFinding(page: Page, what: string, settle: boolean): Promise<void> {
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    if (settle) await settled(page);
+    expect(await scanPage(page, `${what} (${scheme})`), `${what}, ${scheme}: the scan finds nothing`).toEqual([]);
+  }
+}
+
+/** O10 (review): the page with the Visual Trace menu and its rows open has no scan finding, with the failure line and with "Copied". */
+test('O10: the Visual Trace menu with the credential rows has no scan finding, in both themes', async ({ page }) => {
+  try {
+    await page.clock.install();
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: () => Promise.reject(new Error('denied')) });
+    });
+    await open(page);
+    await traceMenu(page).click();
+    const menu = page.getByRole('dialog', { name: 'Visual Trace', exact: true });
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('app-credential-rows .row'), 'the two credential rows').toHaveCount(2);
+    await menu.getByRole('button', { name: COPY_PASSWORD, exact: true }).click();
+    await expect(menu.getByText(COPY_FAILED, { exact: true }), 'the failure line shows').toBeVisible();
+    await expectNoFinding(page, 'the Visual Trace menu with the copy failure line', true);
+
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: () => Promise.resolve() });
+    });
+    await menu.getByRole('button', { name: COPY_USER, exact: true }).click();
+    const copied = menu.getByText('Copied', { exact: true });
+    await expect(copied, 'a copy that succeeds says Copied').toBeVisible();
+    // The page's clock stops here, so that "Copied" (2 seconds) stays through both scans; nothing after this waits on a page timer.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1));
+    await expectNoFinding(page, 'the Visual Trace menu with Copied', false);
+    await expect(copied, 'Copied stayed through both scans').toBeVisible();
   } finally {
     await signOutGroup(page);
   }

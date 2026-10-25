@@ -14,9 +14,10 @@
 #     page has no old-password or repeat-password field and neither has a trace application's page for %CSP.PasswordChange.cls with no
 #     session; F12 posts IRIS's own password-change page of each trace application (served to a signed-in user on build 154) the same way;
 #   - the browser (rows 7 to 12): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
-#   - neither published password is in the container's output, messages.log, the after-start log or the production event log;
-#   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting unchanged and the
-#     demo account still signs in with its published password.
+#   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
+#     events or the audit log, checked after the browser and again after the restart;
+#   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
+#     Check^OcuTalonPasswordGuard and both public accounts still sign in with their published passwords.
 # Test start values (a compose override written to this run's temporary folder, never a tracked file): OCUTALON_ONLINE_DEMO=1, the demo
 # account DemoVisitor and the read-only account TraceReader with random passwords per run (hex, passed to compose by ${VAR} interpolation so
 # that they are in no file, and replaced by <redacted> in every line this script prints), a 4-hour reset step from the anchor
@@ -61,7 +62,8 @@ last_reset=2026-10-25T08:00:00Z
 # F11 (names in mixed case) changes it at /ocutalon/, F1 and F3 also at /ocutalon/api/v1/state and at both trace applications, and F12 at both.
 CHANGE_FORMS="F1@root F1@state F1@trace-ocutalon F1@trace-ocuorders F2@root F3@root F3@state F3@trace-ocutalon F3@trace-ocuorders F4@root F5@root F6@root F7@root F8@root F9@root F10@root F12@pwpage-ocutalon F12@pwpage-ocuorders"
 
-# Everything this script prints passes through redact: no password of the run, current or attempted, reaches the terminal.
+# No password of the run, current or attempted, is printed: the checks print names, outcomes and counts (a password is compared
+# inside IRIS or by curl), and every tail of a log that this script shows passes through redact.
 redact() { sed "s/$demo_password/<redacted>/g; s/$readonly_password/<redacted>/g; s/$control_password/<redacted>/g"; }
 
 # An attempted (new) password is random too, and is never printed.
@@ -191,7 +193,6 @@ CHK|row|GatewaySpendDate|[]" \
 # --- row 4: the public accounts and the guard ---
 # The README account is not enabled: on a fresh flag-on volume it is never created, and one that exists is disabled; both read as 0.
 
-validation_before=$(printf '%s\n' 'Do ##class(Security.System).Get(,.sp) Write !,"CHK|validation|",$Get(sp("PasswordValidationRoutine"))' 'Halt' | session_value %SYS validation)
 check_session "row 4: the accounts, the README account, the guard and the page size pins" %SYS \
   "CHK|acct|$demo_user|OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
 CHK|acct|$readonly_user|OcuTalonTraceViewer|1|0|1|1
@@ -422,11 +423,14 @@ fi
 # no OcuTalon page offers a change, but IRIS's does, so the guard decides, as F12 above shows for both public accounts.
 for app in ocutalon ocuorders; do
   next_probe
-  anonymous=$(curl -s --max-time 30 "$base/ocutalon/trace/$app/%25CSP.PasswordChange.cls?probe=$probes")
-  if [ -n "$anonymous" ] && ! printf '%s' "$anonymous" | grep -Eqi 'name="?[^" >]*(OldPassword|RepeatPassword)'; then
-    pass "row 6: with no session the $app trace application's page for %CSP.PasswordChange.cls has no old-password or repeat-password field"
+  answer=$(curl -s --max-time 30 -w '\n%{http_code}' "$base/ocutalon/trace/$app/%25CSP.PasswordChange.cls?probe=$probes")
+  code=${answer##*$'\n'}
+  anonymous=${answer%$'\n'*}
+  if [ "$code" = 200 ] && printf '%s' "$anonymous" | grep -Eq 'name="?IRISPassword' \
+    && ! printf '%s' "$anonymous" | grep -Eqi 'name="?[^" >]*(OldPassword|RepeatPassword)'; then
+    pass "row 6: with no session the $app trace application's page for %CSP.PasswordChange.cls is IRIS's sign-in page (200, a password field) with no old-password or repeat-password field"
   else
-    fail "row 6: with no session the $app trace application's page for %CSP.PasswordChange.cls is empty or offers a password-change field"
+    fail "row 6: with no session the $app trace application's page for %CSP.PasswordChange.cls is not IRIS's sign-in page (status '$code', or no password field) or offers a password-change field"
   fi
 done
 
@@ -478,13 +482,27 @@ check_password_not_logged() {
     fail "$label: '$n' line(s) of the container's output, messages.log or the after-start log hold it"
   fi
 }
-check_password_not_logged OCUTALON_DEMO_PASSWORD "the demo account's password"
-check_password_not_logged OCUTALON_READONLY_PASSWORD "the read-only account's password"
-check_session "the production event log holds neither published password" OCUTALON \
-  "CHK|eventlog|OCUTALON_DEMO_PASSWORD|0
-CHK|eventlog|OCUTALON_READONLY_PASSWORD|0" \
-  'For p="OCUTALON_DEMO_PASSWORD","OCUTALON_READONLY_PASSWORD" { Set e=$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ ?",e) Set n=$Select(e="":"<unset>",rs.%Next():rs.%GetData(1),1:"<no row>") Write !,"CHK|eventlog|",p,"|",n }' \
-  'Halt'
+# check_logs_clean <when>: neither published password is in the logs above, in a row of the production event log or of the live
+# events (OCUTALON), or in an audit entry (%SYS); only counts are printed. It runs after the browser and again after the restart,
+# whose start writes both passwords again and rewrites the after-start log.
+check_logs_clean() {
+  check_password_not_logged OCUTALON_DEMO_PASSWORD "$1: the demo account's password"
+  check_password_not_logged OCUTALON_READONLY_PASSWORD "$1: the read-only account's password"
+  check_session "$1: the production event log and the live events hold neither published password" OCUTALON \
+    "CHK|eventlog|OCUTALON_DEMO_PASSWORD|0
+CHK|eventlog|OCUTALON_READONLY_PASSWORD|0
+CHK|liveevent|OCUTALON_DEMO_PASSWORD|0
+CHK|liveevent|OCUTALON_READONLY_PASSWORD|0" \
+    'For p="OCUTALON_DEMO_PASSWORD","OCUTALON_READONLY_PASSWORD" { Set e=$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ ?",e) Set n=$Select(e="":"<unset>",rs.%Next():rs.%GetData(1),1:"<no row>") Write !,"CHK|eventlog|",p,"|",n }' \
+    'For p="OCUTALON_DEMO_PASSWORD","OCUTALON_READONLY_PASSWORD" { Set e=$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ?",e) Set n=$Select(e="":"<unset>",rs.%Next():rs.%GetData(1),1:"<no row>") Write !,"CHK|liveevent|",p,"|",n }' \
+    'Halt'
+  check_session "$1: no audit entry holds either published password" %SYS \
+    "CHK|audit|OCUTALON_DEMO_PASSWORD|0
+CHK|audit|OCUTALON_READONLY_PASSWORD|0" \
+    'For p="OCUTALON_DEMO_PASSWORD","OCUTALON_READONLY_PASSWORD" { Set e=$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?",e,e) Set n=$Select(e="":"<unset>",rs.%Next():rs.%GetData(1),1:"<no row>") Write !,"CHK|audit|",p,"|",n }' \
+    'Halt'
+}
+check_logs_clean "after the first start"
 
 # --- row 13: every start, a restart ---
 
@@ -498,7 +516,7 @@ expected_run "cleared" "present $ipm_version" "already mapped" "ok" "skipped $ve
 check_log "row 13" "$tmp/expected.row13"
 check_session "row 13: ready again, the guard setting unchanged" OCUTALON \
   "CHK|ready|1
-CHK|validation|$validation_before" \
+CHK|validation|Check^OcuTalonPasswordGuard" \
   'Write !,"CHK|ready|",##class(OcuTalon.Data.Public.Settings).Get("ready")' \
   'New $Namespace Set $Namespace="%SYS" Do ##class(Security.System).Get(,.sp) Write !,"CHK|validation|",$Get(sp("PasswordValidationRoutine"))' \
   'Halt'
@@ -514,6 +532,7 @@ if [ "$restart_readonly" = norole ]; then
 else
   fail "row 13: after the restart the read-only account's sign-in gives '$restart_readonly', wanted norole"
 fi
+check_logs_clean "after the restart"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-online-demo: $fails check(s) failed (project $P)"

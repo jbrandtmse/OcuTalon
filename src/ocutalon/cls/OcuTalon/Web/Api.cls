@@ -7,7 +7,7 @@
 ///     Telegram is not included. The two routes that name a record (approvals/:ref/answer, incidents/:ref/dismiss)
 ///     answer 404 first for a ref the session can't see. The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
-///     and the active status conditions.
+///     and the active status conditions, and, on the online demo only, traceAccount: the read-only Visual Trace account.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -267,7 +267,8 @@ ClassMethod Pairing() As %Status
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
-/// and the session's pairing, and status: the active status conditions. instanceStream is the stream reported as
+/// and the session's pairing, and status: the active status conditions; after status, traceAccount (TraceAccount: the read-only
+/// account's user name and password) only when onlineDemo is 1 and both read-only values are set. instanceStream is the stream reported as
 /// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {

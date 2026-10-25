@@ -1148,3 +1148,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: src/ocutalon/cls/OcuTalon/Web/Api.cls:1-20 and the StateBody comment ('keys in this order, ending at status')
 - 2026-10-25T19:56:52Z status=open owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=harvest note=two-way door: the code-review stage may edit those comment lines (doc-only; a conflict with Epic 4 on them is a plain union, lead ruling)
+- 2026-10-25T20:53:31Z status=resolved-by:16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=adjudication note=code-review patched both comment lines of Web/Api.cls (class comment :10, StateBody comment :270-271) to name traceAccount and its condition
+
+### DW-219: test-online-demo.sh's Never-line password scan searches no production message body (the logs, event log, live events and audit are searched)
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: The Never line names a log line, a live event, a production message and an audit entry; check_logs_clean covers all but message bodies, which have no generic search across body classes.
+- 2026-10-25T20:49:40Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=cr note=reopen_if=a message body or live payload gains a field fed from readonlyPassword or demoPassword (grep src/)
+
+### DW-220: live:online-demo joined the image group on a unit-against-group comparison (116-138 s local against the group's 600 s CI guideline)
+- source: spec-16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: image ran 9m42s-13m50s on CI before (Rule 21); +116-138 s local is about +280-540 s on CI at the measured 2.4-3.9x factor, so the group likely passes 600 s; the group is the lead's call.
+- 2026-10-25T20:49:40Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=cr note=reopen_if=the image job of the first CI run with online-demo is the longest IRIS job, or the run passes 35 min
+- 2026-10-25T20:53:31Z status=wontfix-accepted owner=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac by=adjudication note=lead keeps live:online-demo in image (CI image job ~1050-1065 s today, ~+300-500 s: about 25 min, inside the 40 min job timeout and REL-4's 35 min run budget; production stays web-bundle-free; a seventh group needs ci.yml, Epic 10's) reopen_if=the image job passes 30 min or a whole ci run passes 35 min
