@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-25-2026 13:40
+last_updated: 10-25-2026 14:30
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -88,7 +88,7 @@ development_status:
   3-5-the-first-answer-wins-and-unanswered-requests-expire: done
   3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing: done
   3-7-every-action-and-governance-event-is-in-the-iris-audit-log: done
-  3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: in-progress
+  3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: review
   epic-3-retrospective: optional
 
   epic-4: backlog
