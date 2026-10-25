@@ -166,6 +166,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-8-the-demo-path-test-signs-in-and-loads-the-page.md | severity: med | fix-risk: med | footprint: out-of-epic
 - evidence: ci.yml iris job if: push or same-repository PR (CON-1, REL-4); code review of 0.8, October 20
 - 2026-10-20T03:35:26Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=adjudication note=branch protection or a maintainer-run path must require the demo path for fork PRs before the repo goes public (owner-only settings)
+- 2026-10-25T04:09:47Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=orchestrator note=owner decision via the Contest Planner 2026-10-25 (the owner: 'We won't make the repo public until we release on Open Exchange.'): GitHub Free gives a private repository no branch protection (HTTP 403), so branch protection, with the demo path required for fork pull requests, is set up at the public flip together with the Open Exchange release; while private, Story 11.5 checks every ci.yml and lane-a.yml job on the PR head itself (b258031)
 
 ### DW-28: flake: test-production.sh's two 'another production' checks failed once on the first run with the compose-level TZ file, then passed on three unchanged reruns
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: in-epic
