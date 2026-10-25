@@ -140,7 +140,7 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, call As %D
 {
 	Set type = call.%GetTypeOf("arguments")
 	If (type '= "object") && (type '= "string") && (type '= "null") && (type '= "unassigned") {
-		$$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments of the call are a " _ type _ ", not an object or a JSON text"))
+		$$$ThrowStatus($SYSTEM.Status.Error(5001, "The arguments of the call are of the type " _ type _ ", not an object or a JSON text"))
 	}
 	Set arguments = ..ArgumentsOf(call)
 	If $IsObject(arguments) {

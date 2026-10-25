@@ -10,7 +10,8 @@
 /// deletes the fixture Workflow role of TestReconcileCancelsOnlyOrphans and its task. The settings row, Decide's HostSinkClass, the item state and
 /// the Workflow objects that a test changed are put back. Reconcile's tests move a fixture row's RaisedAt and ExpiresAt directly and settle one.
 /// Story 3.6: TestRaiseKeepsTheCallersJobIds (row 5a, DW-191) shows that Raise leaves the caller's session and current header ids as they were.
-/// Its helpers Clean, TaskIds, WaitHoldSettled, Age, TrackOwner, WaitTask, HoldMessages and HoldRequests are public class methods, which
+/// TestRaiseRefusesInATransaction (DW-187) shows that Raise itself refuses at $TLevel above 0 and leaves the caller's transaction open and uncommitted.
+/// Its helpers Clean, TaskIds, WaitHoldSettled, Age, TrackOwner, WaitTask, HoldMessages, HoldRequests, HoldCount and StartsSince are public class methods, which
 /// Test.Bridge.Gate reuses: TrackOwner tracks every row of an owner, so that the gate's held requests are ended and deleted by Clean.
 /// Story 3.5's tests, with the rows of its matrix:
 ///   - TestAnswerApprovesAFix (row 1): the answer is recorded with the given action, channel and user, the task is completed with Approve by
@@ -355,6 +356,57 @@ Method TestRaiseKeepsTheCallersJobIds()
 		Do $$$AssertStatusOK(exception.AsStatus(), "StartHold did not throw")
 	}
 	Kill %Ensemble("SessionId"), %Ensemble("CurrentHeaderId")
+}
+
+/// DW-187: Raise inside an open transaction is refused before anything is written, with an error that names $TLevel and its value: ref is empty, no
+/// row exists, no hold started and the sink got no call. The caller's transaction stays open at the same level with its own uncommitted write, which
+/// the test's rollback then undoes: nothing of the caller's work was committed by a round trip through ApprovalStartIn (which commits every level).
+/// Also refused at level 2.
+Method TestRaiseRefusesInATransaction()
+{
+	If '..Ready() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Kill ^OcuTalonTest("Approval", "tx")
+	Set outcome = ""
+	For depth = 1, 2 {
+		Set rowsBefore = ..RowCount()
+		Set headerMark = $ClassMethod(fixture, "HeaderMark")
+		Kill ^||ZzProbeSink
+		Set ref = "unset"
+		Set sc = ""
+		Set level = ""
+		Set written = ""
+		Set rows = ""
+		Set starts = ""
+		For i = 1:1:depth {
+			TSTART
+		}
+		Try {
+			Set ^OcuTalonTest("Approval", "tx") = depth
+			Set sc = ..Raise(..NewRow("tool_call"), .ref)
+			Set level = $TLevel
+			Set written = $Get(^OcuTalonTest("Approval", "tx"))
+			Set rows = ..RowCount() - rowsBefore
+			Set starts = ..StartsSince(headerMark)
+		} Catch exception {
+			Set outcome = outcome _ " " _ exception.DisplayString()
+		}
+		While $TLevel > 0 {
+			TROLLBACK 1
+		}
+		Set label = "at level " _ depth _ ": "
+		Do $$$AssertStatusNotOK(sc, label _ "Raise is refused")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ ("$TLevel is " _ depth), label _ "the error names $TLevel and its value: " _ $SYSTEM.Status.GetErrorText(sc))
+		Do $$$AssertEquals(ref, "", label _ "ref is empty")
+		Do $$$AssertEquals(level, depth, label _ "the caller's transaction is still open at its level")
+		Do $$$AssertEquals(written, depth, label _ "with its own write in place")
+		Do $$$AssertEquals(rows, 0, label _ "no row was written")
+		Do $$$AssertEquals(starts, 0, label _ "no hold was started")
+		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, label _ "the sink got no call")
+		Do $$$AssertEquals($Data(^OcuTalonTest("Approval", "tx")), 0, label _ "the rollback undid the caller's write: nothing was committed")
+	}
+	Do $$$AssertEquals(outcome, "", "Raise did not throw")
+	Do $$$AssertEquals($TLevel, 0, "the test left no transaction open")
 }
 
 /// Raises the request inside a bridge context of the session and the SuperSession, with Raise's own session arguments, and ends the context.
@@ -1667,7 +1719,7 @@ ClassMethod RowCount() As %Integer [ Private ]
 }
 
 /// The number of ApprovalHold instances, of the Ref when there is one (live or not).
-ClassMethod HoldCount(ref As %String = "") As %Integer [ Private ]
+ClassMethod HoldCount(ref As %String = "") As %Integer
 {
 	If ref = "" {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Process.ApprovalHold")
@@ -1679,7 +1731,7 @@ ClassMethod HoldCount(ref As %String = "") As %Integer [ Private ]
 }
 
 /// The number of ApprovalStart messages sent to ApprovalHold after the header mark.
-ClassMethod StartsSince(mark As %Integer) As %Integer [ Private ]
+ClassMethod StartsSince(mark As %Integer) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalStart'", mark)
 	Do result.%Next()

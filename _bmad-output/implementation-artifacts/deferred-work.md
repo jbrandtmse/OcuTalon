@@ -699,6 +699,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CALLBACKHELPERS lists OcuTalon.Core.BridgeSink only; BridgeSink's publishing callees are Lane B's (Epic 2)
 - 2026-10-24T18:06:19Z status=routed owner=burndown by=harvest note=lead: severity raised to med (a deadlock in the gate's callback once BridgeSink publishes); extend CALLBACKHELPERS in Test/Bridge once Epic 2's BridgeSink is on the feature branch
+- 2026-10-25T09:16:27Z occurrence=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing
 
 ### DW-182: A tool's own code can lower the context's Tainted or rewrite its Provenance through Context.Put, which the gate's step 4 reads
 - source: spec-3-3-content-that-didn-t-come-from-the-user-can-only-look-notify.md | severity: low | fix-risk: med | footprint: in-story
@@ -721,6 +722,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Review triage Blind 2 / Edge 5 (rejected for 3.4: no release-1 caller raises inside a transaction); the gate is 3.6's first caller
 - 2026-10-25T02:07:44Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=harvest note=3.6 Task 0: measure TLevel inside %CanExecute on build 154 and either commit-safe the call or refuse clearly
 - 2026-10-25T03:03:19Z occurrence=3-4-each-risky-action-becomes-one-approval-request-held-in-iris by=cr note=effect corrected: ProcessInput TCommits every open level, so Raise silently commits the caller's transaction
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=measured_TLevel_0_inside_%CanExecute_on_build_154;Raise_refuses_at_TLevel>0_leaving_the_caller's_transaction_open;TestRaiseRefusesInATransaction(levels_1,2)+Gate_row4b(mutation_recorded)
 
 ### DW-188: Approval.LiveHold finds a hold by scanning ApprovalHold instances by Ref with no index
 - source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: low | fix-risk: med | footprint: in-story
@@ -736,6 +738,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-4-each-risky-action-becomes-one-approval-request-held-in-iris.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: irislib Ens/BusinessService.cls ProcessInput ends with Kill $$$JobSessionId, SendRequestSync sets $$$JobCurrentHeaderId, and Ens/Util/Log.cls:87-88 reads both for every event-log row; Core.Commands.Submit (Lane B) starts its service the same way
 - 2026-10-25T03:03:19Z status=routed owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=3.6 measures the runner's session and header after Raise (spec Consumed-by) and restores them; Commands.Submit shares it
+- 2026-10-25T09:18:58Z status=resolved-by:3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=adjudication note=StartHold_puts_the_job's_session_and_current_header_ids_back_after_the_ApprovalStartIn_round_trip(also_after_an_error);TestRaiseKeepsTheCallersJobIds(mutation_recorded);exception_branch_untested(residual,DW-196_wontfix-accepted)
 
 ### DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no ApprovalOutcome is sent until the next Reconcile
 - source: spec-3-5-the-first-answer-wins-and-unanswered-requests-expire.md | severity: med | fix-risk: med | footprint: in-story
@@ -752,3 +755,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Approval.SaveAndStart deletes the row when StartHold errors (incl. the 10 s timeout); nothing cancels a hold that answers later; Reconcile cancels the orphan task only at the next start (unverified)
 - 2026-10-25T08:18:18Z status=routed owner=burndown by=harvest note=3.4's path (cr_complete): measure with ApprovalStartIn held past STARTSECONDS; fix by the hold re-checking the row before it sends the task, or by cancelling the late hold
+
+### DW-196: TestRaiseKeepsTheCallersJobIds' 'both ids still undefined' checks cannot fail in the unit-test process, so StartHold's re-kill of an undefined id is unpinned
+- source: spec-3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Outside a production job, closing ApprovalStartIn (OnTearDown) kills the whole %Ensemble array before the restore, so deleting both Else-Kill arms keeps every test green; row 5b has both ids defined.
+- 2026-10-25T09:16:27Z status=wontfix-accepted owner=3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing by=cr note=reopen_if=a production job with no session or header id (a service before its first send) calls Raise or StartHold

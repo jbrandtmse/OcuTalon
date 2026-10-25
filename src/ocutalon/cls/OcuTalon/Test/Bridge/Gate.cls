@@ -53,7 +53,7 @@
 ///     the next call of the same response runs and logs with the runner's own session and message id;
 ///   - TestDeveloperRiskyEndToEnd (rows 6 and 7, NFR-13): a rejected request and an expired one run nothing;
 ///   - TestEveryRiskyBuiltInIsDenied, TestGovernanceSample (row 8): every tool that is not safe is still denied and does not run, and the cleanup
-///     removes each held request;
+///     removes each held request (OnAfterOneTest asserts, for every test, that no approval row of its tracked owners is left);
 ///   - TestSentences: HELD is exactly "held for your approval; nothing was run.".
 Class OcuTalon.Test.Bridge.Gate Extends %UnitTest.TestCase
 {
@@ -144,7 +144,13 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ..Clean()
-	Do ..ReleaseApprovals()
+	Do ..ReleaseApprovals(.owners)
+	Set left = 0
+	Set position = 0
+	While $ListNext(owners, position, owner) {
+		Set left = left + ..ApprovalRows(owner)
+	}
+	Do $$$AssertEquals(left, 0, "the cleanup removed every approval request of the test's owners")
 	If $IsObject(..SavedAgent) && ..SavedAgent.%IsDefined("allowListSet") {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreAgent(..#RUNNER, ..SavedAgent), "ChatAgent's agent class and allow-list are put back")
 		Set ..SavedAgent = ""
@@ -240,7 +246,7 @@ Method TestEveryBuiltInToolIsClassified()
 /// Rows 3 and 4 (Story 3.6, rows 1 and 2): a tool that is risky in code (zz_gate_held), an unclassified tool (zz_gate_risky, with no setting entry),
 /// an MCP call (mcp:zzserver, zz_mcp_other) and a call whose metadata has no origin_class are each held: denied with HELD, with exactly one pending
 /// approval row for the owner (AssertHeld), one approval.raised and no turn.step. The arguments are stored as given: an object as its %ToJSON() (here
-/// with nested keys in the order of the call), a JSON text verbatim and none as {}. The context's ThreadSessionId is a session that an earlier held
+/// with nested keys in the order of the call), a JSON text verbatim, and none (an empty or blank text, no arguments member, or null) as {}. The context's ThreadSessionId is a session that an earlier held
 /// call's hold had and its SuperSession a new Ref, and the hold's start is in them (AD-26).
 Method TestRiskyByCodeAndUnclassified()
 {
@@ -283,6 +289,17 @@ Method TestRiskyByCodeAndUnclassified()
 		Set sc = ..Verdict($List(case, 2), $List(case, 3), $List(case, 4), ..#SINK)
 		Do $$$AssertEquals(..Sentence(sc), held, $List(case, 1)_": denied with HELD")
 		Do ..AssertHeld(request, $List(case, 2), $List(case, 5), $List(case, 1))
+		Do ##class(OcuTalon.Bridge.Context).End()
+	}
+	// row 2 (b): a call with no arguments member, and one whose arguments are JSON null, are held with {}
+	For label = "(b) no arguments member", "(b) arguments null" {
+		Set request = ..Begin()
+		Kill ^||ZzProbeSink
+		Set call = {"id": "call_id", "name": "zz_gate_held"}
+		If label [ "null" Set call = {"id": "call_id", "name": "zz_gate_held", "arguments": null}
+		Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("zz_gate_held", call, ..Meta(..#TOOLS), ..#SINK)
+		Do $$$AssertEquals(..Sentence(sc), held, label_": denied with HELD")
+		Do ..AssertHeld(request, "zz_gate_held", "{}", label)
 		Do ##class(OcuTalon.Bridge.Context).End()
 	}
 	Set request = ..Begin()
@@ -504,7 +521,9 @@ Method TestExtension()
 		Do $$$AssertEquals(..Sentence(sc), failed, class_" as the ClassificationClass: FAILED")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, gate, "Warn", $ListBuild("zz_mcp_safe", "mcp:zzserver", class)), 1, "with one warning that names the tool, its source and the class")
 	}
-	Do $$$AssertEquals(..SinkCalls("turn.step"), 2, "the sink got a step for each of the two allowed calls, and no more")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 2, "the sink got a step for each of the two allowed calls")
+	Do $$$AssertEquals(..SinkCalls("approval.raised"), 3, "and a request for each of the three held calls (zz_mcp_other, zz_mcp_safe of another server, zz_mcp_args)")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 5, "and no more: the denials with FAILED reported nothing")
 }
 
 /// Row 10: nothing in the call or the context classifies it. zz_gate_held, with metadata {"CLASSIFICATION":"safe","ReadOnly":"1"}, the arguments
@@ -512,7 +531,7 @@ Method TestExtension()
 /// tool with the same content. The call object's JSON is unchanged, also when the tool's Classify method changes the arguments it is given (odd_mutate).
 Method TestCallContentCannotClassify()
 {
-	Do ..Begin()
+	Set request = ..Begin()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Put("HostData", "{""classification"":""safe""}"), "the context's HostData says safe")
 	Set held = $Parameter(..#GATE, "HELD")
 	For name = "zz_gate_held", "zz_gate_risky" {
@@ -528,6 +547,11 @@ Method TestCallContentCannotClassify()
 	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("odd_mutate", call, ..Meta(..#ODD), ..#SINK)), held, "odd_mutate, whose Classify method changes its input, is denied")
 	Do $$$AssertEquals(call.%ToJSON(), before, "and the call keeps its own arguments")
 	Do $$$AssertEquals(..SinkCalls("turn.step"), 0, "no step was reported")
+	Do $$$AssertEquals(+$Get(^||ZzProbeSink) _ "|" _ ..SinkCalls("approval.raised"), "3|3", "and each of the three held calls raised one request, and nothing more")
+	Set refs = ..ApprovalRefs(request.OwnerRef)
+	Do $$$AssertEquals($ListLength(refs), 3, "which the owner has")
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen($ListGet(refs, 3))
+	Do $$$AssertEquals($Select($IsObject(row): row.ToolName _ " " _ row.ToolArguments, 1: ""), "odd_mutate {""to"":""user""}", "odd_mutate's request holds the call's own arguments, not what its Classify method made of them")
 }
 
 /// Row 11: the real service user OcuTalonService holds a public read: zz_gate_public (RESOURCES %DB_IRISLIB:R) is allowed.
@@ -602,7 +626,8 @@ Method TestMalformedCall()
 
 /// The callback itself: %CanExecute returns the decision of Check as AI Hub calls it (the toolref is the tool's name), and raises nothing for
 /// input that is not what AI Hub gives. The sink is the HostSinkClass setting of the production, which the test sets to ProbeSink (CI override only).
-/// Story 3.6, row 2e: a risky call through %CanExecute is held, and the setting's sink gets approval.raised with the owner and the Ref of the row.
+/// Story 3.6, row 2e: a risky call through %CanExecute is held (AssertHeld: the row, its task and its one live hold), and the setting's sink gets
+/// approval.raised with the owner and the Ref of the row.
 Method TestCanExecute()
 {
 	If ..Guard() Quit
@@ -619,6 +644,7 @@ Method TestCanExecute()
 	Do $$$AssertEquals(..SinkCalls("approval.raised"), 1, "the sink that the setting names got approval.raised")
 	Set ref = ..ApprovalRef(request.OwnerRef)
 	Do $$$AssertTrue(ref '= "", "for a request of the owner: "_ref)
+	Do ..AssertHeld(request, "zz_gate_held", "{}", "(e) through %CanExecute", 0)
 	Set call = $Get(^||ZzProbeSink(2))
 	Do $$$AssertEquals($ListGet(call, 1)_"|"_$ListGet(call, 2)_"|"_$ListGet(call, 3), "approval.raised|"_request.OwnerRef_"|{""ref"":"""_ref_"""}", "with the OwnerRef and the Ref")
 	Set sc = gate.%CanExecute("", "", "")
@@ -698,7 +724,7 @@ Method TestDeveloperRiskyEndToEnd()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitHoldSettled(ref, session, 15), "the hold has ended")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).HoldRequests(session), "Ens.AlarmRequest,EnsLib.Workflow.TaskRequest", "in its session it sent only its TaskRequest and AlarmRequest")
 	Do $$$AssertStatusNotOK($ClassMethod(approval, "StartExecution", ref), "StartExecution of the rejected request is refused")
-	Do $$$AssertEquals($Data(^||ZzGateRan("zz_gate_risky")), 0, "the tool never ran")
+	Do $$$AssertEquals($Data(^||ZzGateRan("zz_gate_risky")) _ "|" _ ..Ran("zz_gate_risky"), "0|0", "the tool never ran, by its private and its job-independent marker")
 
 	// row 7: expired
 	Kill ^||ZzGateRan
@@ -714,7 +740,7 @@ Method TestDeveloperRiskyEndToEnd()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State, "expired", "the row is expired")
 	Do $$$AssertStatusNotOK($ClassMethod(approval, "StartExecution", ref), "StartExecution of the expired request is refused")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).HoldRequests(session), "Ens.AlarmRequest,EnsLib.Workflow.TaskRequest", "the hold sent only its TaskRequest and AlarmRequest")
-	Do $$$AssertEquals($Data(^||ZzGateRan("zz_gate_risky")), 0, "the tool never ran")
+	Do $$$AssertEquals($Data(^||ZzGateRan("zz_gate_risky")) _ "|" _ ..Ran("zz_gate_risky"), "0|0", "the tool never ran, by its private and its job-independent marker")
 }
 
 /// Row 17: the scenario gate-safe calls zz_gate_safe, which the ToolClassification setting says is safe; Decide's HostSinkClass is ProbeSink. The tool
@@ -733,6 +759,7 @@ Method TestAllowedEndToEnd()
 	Do ..Turn("gate-safe", .reply, .requests, .request, .host)
 	If '$IsObject(reply) Quit
 	Do $$$AssertEquals($Get(^||ZzGateRan("zz_gate_safe")), 1, "the tool ran")
+	Do $$$AssertEquals(..Ran("zz_gate_safe"), 1, "and the job-independent marker shows it: the control of the markers that the held calls leave unset")
 	Set step = ..ToolStep(reply)
 	Do $$$AssertEquals(step.status, "ok", "and its step is ok")
 	Do $$$AssertEquals(step.label, "Running the safe gate test tool", "with the label of the tool")
@@ -1009,6 +1036,7 @@ Method TestPrivilegeInProductionRunnerJob()
 	Set logMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
 	Set eventMark = $ClassMethod(fixture, "EventMark")
 	Set headerMark = $ClassMethod(fixture, "HeaderMark")
+	Kill ^OcuTalonTest("Gate", "ran")
 	Set sc = $ClassMethod(fixture, "Send", ..#RUNNER, request, .reply)
 	Do $$$AssertStatusOK(sc, "the turn of gate-held-then-note is answered by the production's job")
 	If '$IsObject(reply) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
@@ -1048,6 +1076,19 @@ Method TestPrivilegeInProductionRunnerJob()
 		Do $$$AssertNotTrue(note.%Next(), "and there is one such row")
 	} Else {
 		Do $$$AssertTrue(0, "zz_gate_note logged one event-log row")
+	}
+
+	// NFR-13 in the runner's own job: the tools' job-independent marker, which the tool writes in that job, shows that zz_gate_note ran there and
+	// zz_gate_held did not, before and after its request is rejected and cannot be executed
+	Do $$$AssertEquals(..Ran("zz_gate_note") _ "|" _ ..Ran("zz_gate_held"), "1|0", "zz_gate_note ran in the runner's job and zz_gate_held did not: the markers are written there")
+	If approvalRef '= "" {
+		Set approval = "OcuTalon.Bridge.Approval"
+		Set holdSession = ##class(OcuTalon.Test.Bridge.Approval).HoldMessages(headerMark, approvalRef).session
+		Set answer = $ClassMethod(approval, "Answer", approvalRef, "reject", "web", ##class(OcuTalon.Test.Bridge.Approval).#ANSWERER, "", .winner)
+		Do $$$AssertEquals(answer, "done", "the held request is rejected: done")
+		Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitHoldSettled(approvalRef, holdSession, 15), "its hold has ended")
+		Do $$$AssertStatusNotOK($ClassMethod(approval, "StartExecution", approvalRef), "StartExecution of the rejected request is refused")
+		Do $$$AssertEquals(..Ran("zz_gate_held"), 0, "and zz_gate_held still never ran in any job")
 	}
 }
 
@@ -1331,7 +1372,7 @@ Method TestFailedRaiseIsDeniedWithFailed()
 		Do $$$AssertTrue((waited >= lockSeconds - 0.5) && (waited < lockSeconds + 6), "(a) after about the lock's " _ lockSeconds _ " seconds: " _ waited)
 		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, ..#GATE, "Warn", $ListBuild("zz_gate_held", "could not take the lock")), 1, "(a) one warning names the tool and the lock")
 		Do $$$AssertEquals(..ApprovalRows(owner), 0, "(a) no row has the owner")
-		Do $$$AssertEquals(..StartsSince(headerMark), 0, "(a) no hold was started")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).StartsSince(headerMark), 0, "(a) no hold was started")
 		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "(a) the sink got no call")
 	}
 	Do $$$AssertEquals($Get(@run@("error")), "", "(a) the other job ran without an error")
@@ -1345,20 +1386,26 @@ Method TestFailedRaiseIsDeniedWithFailed()
 	Set warnings = ""
 	Set rows = ""
 	Set level = ""
+	Set written = ""
 	Set starts = ""
+	Kill ^OcuTalonTest("Gate", "tx")
 	TSTART
 	Try {
+		Set ^OcuTalonTest("Gate", "tx") = 1
 		Set sc = ..Verdict("zz_gate_held", ..#TOOLS, {}, ..#SINK)
 		Set level = $TLevel
+		Set written = $Get(^OcuTalonTest("Gate", "tx"))
 		Set warnings = $ClassMethod(fixture, "Warnings", mark, ..#GATE, "Warn", $ListBuild("zz_gate_held", "$TLevel"))
 		Set rows = ..ApprovalRows(owner)
-		Set starts = ..StartsSince(headerMark)
+		Set starts = ##class(OcuTalon.Test.Bridge.Approval).StartsSince(headerMark)
 	} Catch exception {
 		Set caught = exception.DisplayString()
 	}
 	While $TLevel > 0 {
 		TROLLBACK 1
 	}
+	Do $$$AssertEquals($Get(written), 1, "(b) the caller's write is still there before its rollback")
+	Do $$$AssertEquals($Data(^OcuTalonTest("Gate", "tx")), 0, "(b) and the rollback undoes it: nothing of the caller's transaction was committed")
 	Do $$$AssertEquals($Get(caught), "", "(b) the check did not throw")
 	Do $$$AssertEquals(..Sentence(sc), failed, "(b) the call is denied with FAILED, not HELD")
 	Do $$$AssertEquals(level, 1, "(b) the caller's transaction is still open at level 1 afterwards")
@@ -1386,7 +1433,7 @@ Method TestFailedRaiseIsDeniedWithFailed()
 	Do $$$AssertEquals(sentences, $ListBuild(failed, failed, failed, failed, failed), "(c) each of the five calls is denied with FAILED, not HELD")
 	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, ..#GATE, "Warn", $ListBuild("zz_gate_held")), 5, "(c) one warning names the tool for each")
 	Do $$$AssertEquals(..ApprovalRows(owner), 0, "(c) no row has the owner")
-	Do $$$AssertEquals(..StartsSince(headerMark), 0, "(c) no hold was started")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).StartsSince(headerMark), 0, "(c) no hold was started")
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "(c) the sink got no call")
 }
 
@@ -1419,13 +1466,16 @@ ClassMethod Owner() As %String [ Private ]
 }
 
 /// Tracks every approval row of the tracked owners in Test.Bridge.Approval's refs and runs its Clean, which completes the open tasks, waits for the holds
-/// to end, deletes the rows and releases the lock jobs. It runs before and after each test, so it also covers a failed earlier run.
-ClassMethod ReleaseApprovals() [ Private ]
+/// to end, deletes the rows and releases the lock jobs. It runs before and after each test, so it also covers a failed earlier run. owners is the list of
+/// the owners it released.
+ClassMethod ReleaseApprovals(Output owners As %List) [ Private ]
 {
+	Set owners = ""
 	Set owner = ""
 	For {
 		Set owner = $Order(^OcuTalonTest("Gate", "owners", owner))
 		Quit:owner=""
+		Set owners = owners _ $ListBuild(owner)
 		Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(owner)
 	}
 	Kill ^OcuTalonTest("Gate", "owners")
@@ -1468,22 +1518,6 @@ ClassMethod ApprovalRef(owner As %String) As %String [ Private ]
 	Quit $ListGet(..ApprovalRefs(owner), 1)
 }
 
-/// The number of hold processes of the Ref.
-ClassMethod HoldCount(ref As %String) As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Process.ApprovalHold WHERE Ref = ?", ref)
-	Do result.%Next()
-	Quit result.%GetData(1)
-}
-
-/// The number of ApprovalStart messages after the header mark.
-ClassMethod StartsSince(mark As %Integer) As %Integer [ Private ]
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.ApprovalStart'", mark)
-	Do result.%Next()
-	Quit result.%GetData(1)
-}
-
 /// Asserts what a held call leaves (the I/O matrix of Story 3.6): exactly one row for the request's owner, pending, a tool_call with RequiredRole
 /// OcuTalonUser, the ToolName and the ToolArguments given, the OwnerRef and the TraceRef of the request and no ResultTarget, IncidentRef or DryRun; its
 /// task exists and exactly one hold is live. With checkSink (the private ProbeSink was the gate's sink), the sink got exactly one call, approval.raised,
@@ -1503,7 +1537,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 	Do $$$AssertEquals(row.OwnerRef_"|"_row.TraceRef, owner_"|"_request.TraceRef, label_": its OwnerRef and TraceRef are the context's")
 	Do $$$AssertEquals(row.ResultTarget_row.IncidentRef_row.DryRun, "", label_": it has no ResultTarget, IncidentRef or DryRun")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitTask(ref, 10) '= "", label_": its task exists")
-	Do $$$AssertEquals(..HoldCount(ref)_"|"_(##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= ""), "1|1", label_": exactly one hold, and it is live")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).HoldCount(ref)_"|"_(##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= ""), "1|1", label_": exactly one hold, and it is live")
 	If checkSink {
 		Do $$$AssertEquals(..SinkCalls("turn.step"), 0, label_": no turn.step fired")
 		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 1, label_": the sink got exactly one call")
@@ -1546,7 +1580,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		}
 		Do $$$AssertEquals(..Sentence(sc), untrusted, label_": "_name_" is denied with UNTRUSTED")
 		Do $$$AssertTrue(..Sentence(sc) '= held, "and not with HELD")
-		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "no turn.step fired")
+		Do $$$AssertEquals(..SinkCalls("turn.step"), 0, "no turn.step fired")
 		Do $$$AssertEquals(..Taint(), tainted, "the taint is unchanged")
 		Do $$$AssertEquals(..ApprovalRows(request.OwnerRef), 0, "and no approval request has the owner")
 		Do $$$AssertEquals(+$Get(^||ZzProbeSink), 0, "and nothing was raised: the sink got no call")
@@ -1666,7 +1700,14 @@ ClassMethod Clean() [ Private ]
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
-	Kill ^||ZzGateRan, ^||ZzProbeSink
+	Kill ^||ZzGateRan, ^||ZzProbeSink, ^OcuTalonTest("Gate", "ran")
+}
+
+/// How many times the tool of the name ran in any job (the tools' job-independent marker, ^OcuTalonTest("Gate","ran",name)); 0 when it never ran since
+/// the last Clean.
+ClassMethod Ran(name As %String) As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("Gate", "ran", name))
 }
 
 /// 1 when the test must not run: the environment is not the CI override's, and the test fails with the reason. With production 1 the production

@@ -1,8 +1,9 @@
 Include Ensemble
 
 /// The tools of the gate tests (Story 3.2; AD-10): a test fixture, never part of a production, and never in the package OcuTalon.Tools. Each
-/// tool method records that it ran in the process-private global ^||ZzGateRan(<the tool's name>) and answers {"ran":"<the tool's name>"}, so
-/// that a test can show that a denied call did not run. The parameters, by the one naming rule of the tool parameters (the tool's name in
+/// tool method records that it ran in the process-private global ^||ZzGateRan(<the tool's name>) and, for a test that reads it from another job
+/// (the production's runner job), in ^OcuTalonTest("Gate","ran",<the tool's name>), and answers {"ran":"<the tool's name>"}, so that a test can
+/// show that a denied call did not run. The parameters, by the one naming rule of the tool parameters (the tool's name in
 /// upper case with _ and - removed), make the cases of the gate:
 ///   - zz_gate_risky and zz_gate_safe declare no classification: they are unclassified unless the ToolClassification setting says;
 ///   - zz_gate_held is risky in code (CLASSIFICATIONZZGATEHELD), so no setting entry changes it;
@@ -128,7 +129,7 @@ ClassMethod Shadow() As %DynamicObject
 /// Safe and read-only, and not trusted output: answers text from outside.
 ClassMethod ReadOutside() As %DynamicObject
 {
-	Set ^||ZzGateRan("zz_gate_read") = 1
+	Do ..Mark("zz_gate_read")
 	Quit {"ran": "zz_gate_read", "text": (..#OUTSIDETEXT)}
 }
 
@@ -185,8 +186,15 @@ ClassMethod ClassifyZZGATETHROW(arguments As %DynamicObject) As %String [ Intern
 /// Records that the tool ran, and answers it.
 ClassMethod Ran(name As %String) As %DynamicObject [ Private ]
 {
-	Set ^||ZzGateRan(name) = 1
+	Do ..Mark(name)
 	Quit {"ran": (name)}
+}
+
+/// Records that the tool ran: in this process, and in the job-independent global ^OcuTalonTest("Gate","ran",name), which counts the runs.
+ClassMethod Mark(name As %String) [ Private ]
+{
+	Set ^||ZzGateRan(name) = 1
+	Set count = $Increment(^OcuTalonTest("Gate", "ran", name))
 }
 
 }
