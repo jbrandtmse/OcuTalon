@@ -44,3 +44,4 @@
 2026-10-25T16:35:31Z	Story 4.1	ci_red_classified	run=40209803845 workflow=.github/workflows/ci.yml class=story test=web/scripts/playwright-projects.test.mjs:chromium_lists_exactly_the_spec_files_outside_demo-path_and_floor job=web first_red=c8b4354
 2026-10-25T16:35:31Z	Story 4.1	ci_resolved	story=4.1 sha=c8b4354 runs=40209803845,40209803816 result=failure failed=.github/workflows/ci.yml(web) via=none resolved_at=next_plan first_ci=story note=lane-a_success;all_six_iris_groups_success(live:demo-switch_in_image)
 2026-10-25T16:35:31Z	Story 4.1	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:web_unit_test_playwright-projects.test.mjs scope_baseline=461bdeb note=4.2_spec_waits_at_ready-for-dev
+2026-10-25T16:35:36Z	Story 4.1	stage_spawned	spawn_at=2026-10-25T16:35:36Z stage=implement model=claude-sonnet agent_name=4-1-switch-demo-mode-from-the-terminal-implement-2 cycle_iteration=2 rework=1
