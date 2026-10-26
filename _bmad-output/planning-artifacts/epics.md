@@ -2686,6 +2686,8 @@ So that I know what broke without reading every error.
 **Given** a recorded snapshot of the demo's date-format failures and its mock scenario under `ci/mock/scenarios/A/`
 **When** the incident is noticed
 **Then** the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order (FR-24, NFR-7, AD-15, AD-22)
+- DW-264: The evidence pack and the `read_event_log` tool send `Ens_Util.Log` row ids (`logId`) to the model, while the spine's Identifiers row lets only Ens header and session ids leave the server: use a pack-local log reference (an ordinal) instead (ledger; routed by spec_gate 2026-10-26)
+- DW-261: `EvidencePack.Sentence` repeats `FailurePoller`'s `ErrorText.Sentence(Redact.Text(raw))`; the fallback notice's error summary needs the same composition, so make it one `ErrorText` helper that all three use (ledger; routed by spec_gate 2026-10-26)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 

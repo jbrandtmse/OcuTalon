@@ -1280,6 +1280,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Rule 2 copy with no stated reason: the spec's Extend-don't-copy note says a second call site moves into one ErrorText helper; Watch/EvidencePack.cls Sentence and Watch/FailurePoller.cls:112
 - 2026-10-26T12:03:18Z status=routed owner=burndown by=cr note=in-epic:ErrorText,FailurePoller_are_Story_5.2's(done);add_one_ErrorText_helper_and_use_it_in_both
+- 2026-10-26T12:41:18Z owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=5.8's_fallback_notice_needs_the_same_redacted_first_sentence:unify_FailurePoller's_and_EvidencePack's_Sentence(Redact.Text(raw))_into_one_ErrorText_helper_there
 
 ### DW-262: Test.Watch.Diagnose Row and Test.Watch.Evidence Fixture build incident rows that Test.Data.Fixture.Incident already builds
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: low | footprint: in-story
@@ -1295,6 +1296,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: The spec's pack shape defines logId (EvidencePack LogMessage, EventLog); whether the model provider counts as leaving the server is an interpretation of the row
 - 2026-10-26T12:03:18Z status=decision-pending owner=burndown by=cr note=Identifiers_row:does_the_model_provider_count_as_leaving_the_server?if_yes,a_pack-local_log_reference
+- 2026-10-26T12:41:18Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=decided(U5_decision_dependency;spine_Identifiers_row:database_row_ids_never_leave_the_server,and_the_model_provider_is_outside_it):the_pack_and_read_event_log_carry_a_pack-local_log_reference(an_ordinal),never_an_Ens_Util.Log_row_id;Ens_header_and_session_ids_may_stay
 
 ### DW-265: The watch read tools open the failed message's body object, so a watched body class's %OnOpen or property getters run inside AI Hub's callback
 - source: spec-5-4-the-diagnosis-explains-the-cause-from-the-failed-messages.md | severity: med | fix-risk: med | footprint: in-story
