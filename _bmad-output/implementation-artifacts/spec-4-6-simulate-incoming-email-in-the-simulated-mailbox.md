@@ -928,6 +928,21 @@ deferred:
 
 Every test added or changed passes on a fresh environment, in either order.
 
+**QA stage (QA)** (fresh `e4s6q`, warm `e4s6qw`; gaps found against rows 2 to 14 and the 18 recorded mutations):
+- `(QA)` `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls`: `TestStateMailboxTrace` (row 7, "with its traceUrl": a snapshot entry's decision carries `traceHeaderId`, `traceNamespace` and `traceUrl`, and none when the decision has no trace).
+- `(QA)` `web/e2e/demo-switch/mailbox.spec.ts` (mode 1; each case answers `/state` with a fixture mailbox and publishes fixture events, so it writes no SimMessage row):
+  - `MB7` (rows 11 and 12): a snapshot entry's own decision gives its chip silently; a fallback shows Tell now, the Fallback flag and its reason first in the warning style; a sent email has no status and opens with no decision strip; an undecided email says Deciding\u2026 in the row and the open email; the trace link follows `traceUrl`.
+  - `MB8` (rows 7 and 11): a turn decision of the same item gives no chip (the page polls every second); a decide decision joins by `itemId`, is announced once and shows its reason.
+  - `MB9` (row 9): a refused chip press shows the server's message under the chips and marks no field; an accepted press is announced as arrived once its row is in the list, then as decided.
+  - `MB10` (row 12): with the storage throwing for the opened-list key, an opened email is read for the life of the page and no error is logged.
+- Stability: `MB2`, `MB3` and `MB4` passed in three further fresh `live demo-switch` runs (the unmutated ones at 291 s and 297 s, 13 page specs passed at mode 1; the 8 cases of mode 0 hold); `live demo-switch` stays under 8 minutes. `live sign-in` and `live floor` were not touched.
+- mutation: AC4 the snapshot entry's decision loses its `traceNamespace` (`MailboxItems`) -> `Test.Web.Api.TestStateMailboxTrace` red (both trace assertions), nothing else
+- mutation: AC6 the row's chip ignores the fallback flag (`outcomeOf(decision.outcome, undefined)`) -> `MB7` red (the fallback row shows Digest)
+- mutation: AC6 `decisionOf` takes any decision with the itemId, not only kind decide -> `MB8` red (a turn decision gives the row a chip) and `MB4` red (Act's untrusted turn leaves a turn decision of the same item: the chip shows Tell now)
+- mutation: AC6 an opened email re-reads the storage instead of keeping its own memory (`opened.set(readText(...))` after `writeFlag`) -> `MB10` red (the dot stays)
+- mutation: AC5 a refused chip press shows no message (`chipError.set('')`) -> `MB9` red (no message under the chips)
+- mutation: AC5 an accepted chip press is not announced as arrived (the `arrivedText` call removed) -> `MB9` red (arrival announced 0 times), every other case green
+
 ## Auto Run Result
 
 Status: done
