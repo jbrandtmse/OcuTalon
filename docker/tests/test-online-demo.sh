@@ -44,8 +44,8 @@
 #     on build 154, so the cap, set from the baseline, brings the status to the boundary in place of more sessions); with S1 and S2 signed in,
 #     a cap of the baseline plus the reserve plus 1 gives a status that is not busy with no X-OcuTalon-Busy header and the baseline plus the
 #     reserve gives busy with the header and status 200 (row 1), the splash of a fresh jar shows the busy error and link with the header and
-#     the splash's exact policy (row 2); at that boundary a proxied sign-in is allowed, because the check leaves out the new session's own
-#     connection (row 6), and with the cap one lower a proxied sign-in and one with a valid resume cookie are refused with the busy splash,
+#     the splash's exact policy, and with the cap one higher a fresh splash shows no busy error and no header (row 2); at that boundary a proxied sign-in is allowed, because the check leaves out the new session's own
+#     connection (row 6), and with the cap one lower (so that row 6 pins OWNCONNECTIONS at 1) a proxied sign-in and one with a valid resume cookie are refused with the busy splash,
 #     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
@@ -1133,6 +1133,19 @@ if [ "$busy_ok" = 1 ]; then
       fail "row 2: while busy the splash gave status '$splash_code', busy page '$(busy_page "$tmp/splash.body")', header '$splash_marker', autofocus '$splash_focus', envelope '$splash_policy'"
     fi
 
+    # Row 2, not busy: with the cap one higher a fresh splash shows no busy error and carries no marker header.
+    set_cap "$cap_free" > /dev/null
+    free_code=$(splash_get /ocutalon/)
+    free_error=$(grep -c 'id="ocu-error"' "$tmp/splash.body")
+    free_text=$(grep -cF "$busy_text" "$tmp/splash.body")
+    free_marker=$(marker_in "$tmp/splash.headers")
+    if [ "$free_code" = 200 ] && [ "$free_error" = 0 ] && [ "$free_text" = 0 ] && [ "$free_marker" = none ]; then
+      pass "row 2: with a place free the splash shows no busy error (no #ocu-error, no busy text) and carries no X-OcuTalon-Busy header"
+    else
+      fail "row 2: with the cap at $cap_free the splash gave status '$free_code', #ocu-error $free_error, busy text $free_text, header '$free_marker' (wanted 200, 0, 0, none)"
+    fi
+    set_cap "$cap_busy" > /dev/null
+
     # Task 0 (f): whether the web gateway answers two GETs of one status URL, with the cap changed between them, differently.
     next_probe
     cache_url="$base/ocutalon/public/status?probe=cache$probes"
@@ -1162,11 +1175,12 @@ if [ "$busy_ok" = 1 ]; then
       fail "row 6: with the cap at $cap_busy a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s); the script read ${conn_before_s5:-<unknown>} connections before it (view $view_base, OWNCONNECTIONS $own)"
     fi
 
-    # Rows 5 and 6, past the boundary: one connection lower, the connections without the new session's own are at cap minus reserve, so
-    # a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are refused with the busy splash.
-    cap_refuse=$((view_base - own + reserve_start))
+    # Rows 5 and 6, past the boundary: with the cap one below the allowed one, the connections without the new session's own (OWNCONNECTIONS
+    # = 1) are at cap minus reserve, so a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are refused with the busy
+    # splash. The allowed sign-in above needs OWNCONNECTIONS >= 1 and this refusal OWNCONNECTIONS <= 1, so row 6 pins it at 1.
+    cap_refuse=$((cap_busy - 1))
     if [ "$cap_refuse" -lt 1 ] || [ "$(set_cap "$cap_refuse")" != "$cap_refuse" ]; then
-      fail "row 5: the connection cap could not be set to $cap_refuse (the baseline $view_base less OWNCONNECTIONS $own plus the reserve)"
+      fail "row 5: the connection cap could not be set to $cap_refuse (one below $cap_busy, the baseline $view_base plus the reserve)"
     else
       conn_before_s3=$(script_connections)
       rows_before=$(session_rows)
@@ -1207,7 +1221,7 @@ if [ "$busy_ok" = 1 ]; then
         fail "row 5: S3 (status '$s3_code', session state '$s3_state') ok=$s3_ok, failed:${s3_why:- none}; the cookie sign-in (status '$s4_code') ok=$s4_ok, failed:${s4_why:- none}; the script read ${conn_before_s3:-<unknown>} connections before S3 (view $view_base)"
       fi
       if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ]; then
-        pass "row 6: one connection lower than the allowed sign-in the proxied sign-in is refused: the boundary lies between the cap at the baseline plus the reserve less OWNCONNECTIONS and the one above it"
+        pass "row 6: one connection lower than the allowed sign-in the proxied sign-in is refused: the boundary lies between the caps $cap_refuse and $cap_busy, so the check leaves out exactly one own connection (OWNCONNECTIONS = $own)"
       else
         fail "row 6: the sign-in at the boundary gave '$s5_outcome' and the one past it refused=$s3_ok (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3)"
       fi

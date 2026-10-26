@@ -310,6 +310,35 @@ Method TestDemoBusy()
 	Do $$$AssertEquals(header, "", "and no header")
 }
 
+/// (QA) A local install never shows the busy state (Story 16.5, AC 1 and 6): with the flag off or unset and the cap and reserve forced
+/// busy, Login.Show writes the local page byte for byte as it does with no cap, for no state and for the state "busy", with no marker
+/// header, no busy text and no error element. With the flag on, the same settings show the busy error and the header (the contrast).
+Method TestLocalNeverShowsBusy()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	For flag = "0", "" {
+		Do $ClassMethod(settings, "Set", "onlineDemo", flag)
+		Do $ClassMethod(settings, "Set", "connectionCap", "")
+		Set baseline = ..Render("show", "", .policy, "", "", 0, "", .header)
+		Do $$$AssertTrue(baseline [ "<title>Sign in &middot; OcuTalon</title>", "flag '"_flag_"': the page is the local one")
+		Do $$$AssertEquals(header, "", "flag '"_flag_"': no cap, no header")
+		Do $ClassMethod(settings, "Set", "connectionCap", 1)
+		Do $ClassMethod(settings, "Set", "connectionReserve", 9)
+		For state = "", "busy" {
+			Set page = ..Render("show", state, .policy, "", "", 0, "", .header)
+			Do $$$AssertEquals(page, baseline, "flag '"_flag_"', state '"_state_"': the same local page as with no cap")
+			Do $$$AssertEquals(header, "", "flag '"_flag_"', state '"_state_"': no marker header")
+			Do $$$AssertTrue(page '[ "The demo is busy", "flag '"_flag_"', state '"_state_"': no busy text")
+			Do $$$AssertTrue(page '[ "id=""ocu-error""", "flag '"_flag_"', state '"_state_"': no error element")
+			Do $$$AssertEquals(policy, ##class(OcuTalon.Web.Public.Login).Policy(), "flag '"_flag_"', state '"_state_"': the local policy")
+		}
+	}
+	Do $ClassMethod(settings, "Set", "onlineDemo", "1")
+	Set busy = ..Render("show", "", .policy, "", "", 0, "", .header)
+	Do $$$AssertTrue(busy [ "The demo is busy right now.", "with the flag on the same settings show the busy text")
+	Do $$$AssertEquals(header, "1", "and the marker header")
+}
+
 /// The README link as the footer of a page writes it: the anchor, from its tag to its end tag.
 ClassMethod Link(page As %String) As %String [ Private ]
 {

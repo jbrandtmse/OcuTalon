@@ -8,8 +8,11 @@ import { DemoBusyWatch } from './demo-busy';
 /** The address of the public status, which needs no session. */
 const STATUS = '/ocutalon/public/status';
 
-/** How long a status check waits for its answer: a check that is silent for this long opens the window (the proxy's busy page covers a full demo). */
-export const STATUS_TIMEOUT_MS = 5000;
+/**
+ * How long a status check waits for its answer: a check that is silent for this long opens the window (the proxy's busy page covers a
+ * full demo). It stays well inside the 5 s that a click's activation lasts, because a window opened after that is blocked.
+ */
+export const STATUS_TIMEOUT_MS = 3000;
 
 /**
  * The online demo's busy state of the signed-in page (Story 16.5; AD-13, AD-25), kept in the page by one DemoBusyWatch.

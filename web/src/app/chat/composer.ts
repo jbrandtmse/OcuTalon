@@ -14,7 +14,7 @@ const MAX_LINES = 5;
  * size keeps the lines it holds in view with no keystroke; the lines are counted again at the next input. It is never disabled: each message becomes its own turn, also while another turn runs. After a
  * send the field is empty, shrunk and focused. It takes no focus on its own.
  * On the online demo a message that the server refused with 503 comes back (Story 16.5): the outbox offers its text and the field takes
- * it only while it is empty, never moving focus; a field that holds other text keeps it.
+ * it only while it is empty or blank, never moving focus; a field that holds other text keeps it.
  */
 @Component({
   selector: 'app-composer',
@@ -79,10 +79,10 @@ export class Composer {
     inject(DestroyRef).onDestroy(this.outbox.takeBackTo((text) => this.takeBack(text)));
   }
 
-  /** Puts a refused message's text back into the field when the field is empty, without a focus; false when the field holds text. */
+  /** Puts a refused message's text back into the field when the field is empty or blank, without a focus; false when the field holds text. */
   private takeBack(text: string): boolean {
     const field = this.field().nativeElement;
-    if (field.value !== '') {
+    if (field.value.trim() !== '') {
       return false;
     }
     field.value = text;

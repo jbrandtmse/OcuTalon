@@ -368,7 +368,47 @@ Where each row runs:
 - Given `docker/maintenance.html`, when a browser opens it with IRIS unreachable, then it shows the 320px logo and the 400px card with both texts under "Resetting · OcuTalon", with only its inline styles and the logo files beside it, loads nothing from IRIS, reloads itself until the demo answers and then lands on the splash, sets `lang="en"`, and passes the public-text check with no infrastructure detail. Rows 15 and 16 hold.
 - Given the busy answers IRIS renders (the splash's busy state, a busy status, the post-sign-in refusal), when any is sent, then it carries `X-OcuTalon-Busy: 1`. A test lowers the cap so that two signed-in test sessions make the demo busy, and checks the status answer, the splash error, the refusal, the header on each, the trace-window check and the page's handling of a 503. Rows 1, 2, 5, 9 and 11 hold.
 
+### Review Findings
+
+Code review, 2026-10-26 (runner C, full-opus tier: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). 39 raw findings, grouped into 13 entries (0 high, 2 medium, 11 low), all patched in-story; 0 decision-needed, 0 deferred; the rest rejected (appendix).
+
+- [x] [Review][Patch] (medium) A status check that gets no answer cannot open the window. `STATUS_TIMEOUT_MS` was 5000, the same as a click's transient activation (Chromium measured under Verification; Firefox's `dom.user_activation.transient.timeout` is 5000 ms; WebKit's is "a few seconds"). So the `window.open` that follows the timeout lands on the activation's edge: in Chromium with its blocker on, a window opened 5.0 s after the click was blocked in six of nine trials (three anchor presses, B3c's among them, still opened), and every one from 5.05 s was blocked. With `noopener` nothing tells the page: the press does nothing, with no tab and no banner. Fix: 3000 ms, inside the activation, so that the fail-open rule ("no answer within 5 s ... opens the window") still opens it [web/src/app/live/demo-busy-state.ts:12]
+- [x] [Review][Patch] (medium) The fail-open timeout path has no test, and Task 0 (e) could not see a popup block. Playwright launches Chromium with `--disable-popup-blocking`, so a window opened 5.1 s after the click opens there. Measured in review with a standalone page: headless shell, with the blocker off or on, opened at 300 ms, 3 s and 5.1 s; full Chromium (`channel: 'chromium'`) with the blocker on opened at 300 ms and 3 s and blocked at 5.1 s. Fix: `busy.spec.ts` runs in Chromium with its blocker on, and B3c presses a Trace link while the status never answers [web/e2e-online/busy.spec.ts]
+- [x] [Review][Patch] (low) No test checks that the status check carries the unique `?t=<ms>` query (B3's route matched with or without it) [web/e2e-online/busy.spec.ts B3]
+- [x] [Review][Patch] (low) No test checks that a quiet re-check that fails keeps the banner (`DemoBusyState.recheck` calls `checkFailed`; the node test drives the watch only). With `statusChecked(false)` in its place, every test stayed green [web/e2e-online/busy.spec.ts B3]
+- [x] [Review][Patch] (low) "The popover closes as it does today" is not asserted after the online press [web/e2e-online/busy.spec.ts B1]
+- [x] [Review][Patch] (low) B1's live row 7 cannot fail. At cap view + reserve, `Busy(OWNCONNECTIONS)` lets even a proxied sign-in in (Task 0 (d)), so the third sign-in gets the shell whether or not the exemption works. Fix: one lower, where a proxied one is refused [web/e2e-online/busy.spec.ts:99]
+- [x] [Review][Patch] (low) B1 closes its fresh context before the group sign-out, which then fails silently (test discipline: every context ends with `?IRISLogout=end`) [web/e2e-online/busy.spec.ts:126]
+- [x] [Review][Patch] (low) The unit has no live "not busy" half of row 2 (a fresh splash with a free cap: no `#ocu-error`, no header) [docker/tests/test-online-demo.sh:1121]
+- [x] [Review][Patch] (low) Row 6's refusing cap is derived from `OWNCONNECTIONS` (`view - own + reserve`), so the refusal holds for any `own` and an `OWNCONNECTIONS` of 2 passes. Fix: one below the allowed cap, so that row 6 pins `own` = 1 [docker/tests/test-online-demo.sh:1167]
+- [x] [Review][Patch] (low) The composer's take-back treats a field holding only whitespace as holding text, although its own send treats trimmed-empty text as empty, so the message failed and was announced [web/src/app/chat/composer.ts:85]
+- [x] [Review][Patch] (low) `docker/maintenance.html` carries CSS for elements it does not have (`.card p + p`, `.sr-only`, `.icon`, `.link*`) [docker/maintenance.html:59]
+- [x] [Review][Patch] (low) `catalog.mjs`' header still says "the nine banner.* texts" (Rule 14: a wrong claim is replaced) [web/scripts/catalog.mjs:14]
+- [x] [Review][Patch] (low) Row 3's precedence (the wrong-credentials and no-role messages win over busy) has no demonstrated mutation: the recorded `&& 0` leaves those assertions green. Closed with a `mutation:` line under Verification [src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls TestDemoBusy]
+
+**Rejected (appendix):**
+- `low` (Blind) The maintenance page's 10 s meta refresh (WCAG F41) -- spec-bound: the intent contract fixes `<meta http-equiv="refresh" content="10; url=/ocutalon/">` and bans script; NFR-25 claims keyboard use, labels and contrast. A change is a UX amendment, not a review patch.
+- `low` (Edge) The splash says busy at the boundary while a proxied sign-in passes -- spec-bound (AD-13: "reaches" before sign-in, "exceeds" after); already ruled at the implement review; no new fact.
+- `low` (Edge) Middle-click or context-menu opens a trace tab with no check -- spec-bound (Design Notes: middle-click is not taken over).
+- `low` (Edge) A re-check and a press check in flight together, the older answer last -- not user-reachable (a busy flip inside the milliseconds between two answers); already ruled.
+- `low` (Edge) The maintenance logo at a nested path -- ruled (DW-240, Story 29.3).
+- `low` (Edge) The flip under-reads a view above the script's count -- theoretical: the view is measured as r - 1, and a view above r needs a connection that the reading script's own process does not see.
+- `low` (Edge) An empty `OWNCONNECTIONS` read -- the arithmetic gives a cap below 1 here and the row fails loudly; after the row 6 patch the refusing cap no longer uses it.
+- `low` (Edge) Empty epoch or row reads compare vacuously in row 5 -- S2's sign-in (shell) and its resume cookie are asserted first; adding guards for a broken reading script is complexity for no reachable case.
+- `low` (Edge) S3 and S4's rows are not dropped when the refusal regresses -- only after a red row, which already fails the unit.
+- `low` (Edge, Verification, Acceptance) `TestBusyOwn` reads the count once and `Busy` reads it again -- already ruled; nothing else takes a licence connection during a class run (Task 0 (b)); no new fact.
+- `low` (Edge) `TestNoHighWaterMark` scans method bodies only -- spec-bound (row 4 names method bodies); the acceptance auditor found no reference anywhere in `src`, `web` or `ci`.
+- `low` (Edge, Verification) H2's served list while the 10 s refresh runs -- already ruled; the assertions run within a second of the load.
+- `low` (Verification) B1's "busy again once S3 has signed out" passes on its first read -- a guard that the cap still holds before row 9, not a defect.
+- `low` (Verification) The live row 4 cannot fail (the view is 0 whatever the pages do) -- DW-251's consequence (ruled, routed to 29.4); `TestNoHighWaterMark` is the falsifiable pin; no new fact for DW-251.
+- `low` (Verification) `TestNoHighWaterMark`'s sample control -- already ruled; the scan itself has a recorded mutation.
+- `low` (Verification) B3 relies on the start cap that B1 restores -- B1 restores in `finally` after sign-outs that swallow their errors, the unit reads the cap back after the browser step, and a fresh stack starts at 8.
+- `low` (Acceptance) `DEMO_BUSY_STATUS` beside `contact-watch.ts`' `BUSY_STATUS` (Rule 2) -- weak reason: both framework-free modules import nothing so that Node runs them as they are, and each is pinned to 503 by its own node test; a shared constant needs an import seam they do not have. reopen_if: a third copy of the busy status appears, or either constant changes.
+- `low` (Blind, Acceptance) `#ocu-error` being the button's next sibling is not asserted -- "under the button" is pinned by order, as the other splash states' tests pin it; nothing user-visible differs.
+
 ## Spec Change Log
+
+- 2026-10-26, lead (runner C), after code review: the signed-in page's status check before a trace window now gives up after 3 s, not the Boundaries' 5 s (measured: Chromium blocks a window opened 5 s or more after the click; a timeout is an implementation detail, decide). Every other Boundaries rule stands.
 
 ## Review Triage Log
 
@@ -634,6 +674,35 @@ Everything else is inside the footprint: `Web/Public/**`, `Web/SessionEvents.cls
 - mutation: `busy.spec.ts` B3 -- `TraceLink.press` skips `openTrace` -- red: B3 failed ("after the press: the Demo busy banner shows") and `demo-account.spec.ts` O4 failed (no tab opened); run in one unit run with the next three.
 - mutation: `busy.spec.ts` B3b -- `openTrace` returns when the status check gave no answer (`status === undefined`) -- red: B3b failed ("a status answer that is not JSON opens the tab").
 - mutation: `busy.spec.ts` B2, second half -- the composer takes a refused message's text back without the empty-field check; and the envelope interceptor does not report a 2xx to `DemoBusyState` -- red: B2 failed in that unit run; the two were applied together, so which of the two assertions failed first was not captured (inference: either alone turns B2 red).
+
+**QA stage (2026-10-26).** Gaps found by reading the implement stage's tests against the candidates; the other candidates (the marker header on the three busy responses and its absence when not busy, the refusal's no row and no counter, the exempt non-proxied sign-in, the typed text kept through a 503 and the banner clearing, the host pages' loads, texts, `lang` and reload) are already pinned by `TestBusyHeader`, `TestDemoBusy`, the unit's rows 2 and 5, `TestBusyRefusal`, `TestBusyExempt`, B1, B2, H1, H2 and `host-pages.test.mjs`, and got no new test. The flag-off page in a browser is the local suites' 503 cases and banners B16 (unchanged, `ownBanners` count 0 under 40 s of 503s). On a warm lane-C stack (tag `e16s5qw`, `RESULT OK` checked first, torn down after):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/Splash.cls` `TestLocalNeverShowsBusy` -- with the flag off or unset and the cap forced busy, `Login.Show` writes the local page byte for byte as with no cap, for no state and for the state "busy": no marker header, no busy text, no `ocu-error`, the local policy; with the flag on the same settings show the busy text and the header. Class passes.
+  - mutation: `Login.Show` hands the state "busy" to the splash even with the flag off (`If ..UseSplash() || (state = "busy")`) -> `TestLocalNeverShowsBusy` red ("the same local page as with no cap", "the local policy", for flag '0' and flag ''; `TestDemoBusy` also red from the recursion).
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` `TestFlagOffIgnoresBusy` -- flag unset and "0", a proxy set, the cap forced busy: a proxied sign-in attaches the user's one durable session, records no refusal, sets no cookie and writes no counter row. Rows are adopted by `Fixture` and removed in `OnAfterOneTest`. Class passes.
+  - mutation: `AttachFor`'s flag-off branch checks `Status.Busy(OWNCONNECTIONS)` and records the busy marker instead of attaching -> `TestFlagOffIgnoresBusy` red ("the user's durable session is attached", "no refusal is recorded", "the user keeps one row"), both flags.
+  - Each mutation was applied from a backup in the QA scratchpad, observed red, reverted (`shasum -c` OK; `git status --short` and `git diff --stat` identical to before), and the class was green again after the revert.
+
+**Code review (2026-10-26).** Patches under Review Findings. Tags `e16s5rw` (warm, `RESULT OK 0.1.0` checked first) and `e16s5r` (fresh), lane C's variables on every call; both torn down, no lock left; HEAD `298e228` throughout.
+- **Task 0 (e), corrected.** The first record ran in Playwright's default Chromium, which launches with `--disable-popup-blocking`; its headless shell has no blocker at all. MEASURED in review, on a standalone page in Playwright 1.64.1 (Chromium 156):
+  - In the default launch, and in the headless shell with the flag removed, a `window.open(url, '_blank', 'noopener,noreferrer')` 300 ms, 3 s or 5.1 s after the click opened.
+  - In full Chromium (`channel: 'chromium'`) with the flag removed, it opened at 300 ms, 3 s, 4.8 s and 4.95 s. It was blocked from 5.05 s on, and at 5.0 s in six of nine trials (`navigator.userActivation.isActive` false at 5003 ms; three anchor presses were still active).
+  - The same held under the test runner's `test.use`.
+  - `busy.spec.ts` now runs in full Chromium with the blocker on. B1's last press (the status answered at once) and B3b open there, so (e)'s rule holds in Chromium with its blocker on.
+  - Firefox's activation is 5000 ms (`dom.user_activation.transient.timeout`). WebKit's is "a few seconds" (its User Activation API post). (inference) The same edge holds there; neither is measured here.
+- **DW-220.** The `online-demo` unit took 280 s with the review's patches (39 browser cases, B3c new; B3 longer by its two failed re-checks), and 285 s and 246 s on the two mutation runs.
+- **Also run:**
+  - `npm --prefix web test`: 598 pass.
+  - `npm --prefix web run lint`, `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh`: pass.
+  - Warm `OcuTalon.Test.Web.Splash`: passes before and after its mutation.
+- Each mutation below was applied from a backup in the review scratchpad, observed red, and reverted. `shasum -c` was OK, and `git status --short` and `git diff --stat` were identical to before. Mutation run A applied the timeout at 5000 ms together with the re-check, popover, row 2 and row 6 mutations. Mutation run B applied the 6000 ms timeout together with the query and row 7 mutations. Each mutation turned a different test red.
+  - mutation: `Test.Web.Splash.TestDemoBusy` (row 3, the other messages win) -- Splash's `OnPreHTTP` drops the `Message(...) = ""` term -- red: `TestDemoBusy` ("the wrong-credentials error wins", "and marks both fields", "and shows no busy text", "and sets no header"); green again after the revert (warm).
+  - mutation: `busy.spec.ts` B3c -- `STATUS_TIMEOUT_MS` 6000, past the click's activation -- red: B3c ("the check gives up while the click still allows a window, and the tab opens"). At 5000, the old value, B3c stayed green in run A: the activation's edge, as measured above.
+  - mutation: `busy.spec.ts` B3, the unique query -- the check asks `/ocutalon/public/status` with no `?t=` -- red: B3 ("with one query, t").
+  - mutation: `busy.spec.ts` B3, a failed re-check -- `DemoBusyState.recheck` calls `statusChecked(false)` in place of `checkFailed()` -- red: B3 ("two quiet re-checks fail, the second armed by the first": 1).
+  - mutation: `busy.spec.ts` B1, the popover -- the online press skips `closeTrace()` -- red: B1 ("the Visual Trace menu closes, as it does today").
+  - mutation: `busy.spec.ts` B1, row 7 live -- the busy check ignores `proxied` (`If ##class(...Status).Busy(..#OWNCONNECTIONS)`) -- red: B1 ("and gets the shell, not the splash"), so B1 now pins the exemption beside `TestBusyExempt`.
+  - mutation: the unit's row 2, not busy -- Splash's `OnPreHTTP` sets the marker header on every page -- red: row 2 ("with the cap at 3 ... header '1'").
+  - mutation: the unit's row 6 -- `OWNCONNECTIONS` = 2 -- red: row 6 ("the one past it refused=0 ... OWNCONNECTIONS 2") and row 5 (S3 let in).
 
 ## Auto Run Result
 

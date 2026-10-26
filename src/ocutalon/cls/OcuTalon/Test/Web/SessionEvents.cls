@@ -332,6 +332,31 @@ Method TestBusyBeforeTheCounter()
 	Do $$$AssertEquals(..CounterRows(address), 5, "and the counter rows are still five")
 }
 
+/// (QA) A local install is never refused as busy (Story 16.5, AC 2 and 6): with the flag off or unset, a proxy set and the cap forced
+/// busy, a proxied sign-in attaches the user's one durable session as before, sets no cookie, writes no counter row and records no
+/// refusal.
+Method TestFlagOffIgnoresBusy()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Do ..ForceBusy()
+	Set counters = ..CounterTotal()
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	For flag = "", "0" {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", flag)
+		Set address = ..Address("busyoff")
+		Do $$$AssertStatusOK(..SignIn("", "ZzBusyOff"_flag, "192.0.2.10", address, .session, .response), "flag '"_flag_"': a proxied sign-in while busy answers OK")
+		Set ref = $Get(session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+		Do $$$AssertTrue($IsObject(row), "flag '"_flag_"': the user's durable session is attached")
+		If $IsObject(row), before = 0 Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+		Do $$$AssertEquals($Data(session.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "flag '"_flag_"': no refusal is recorded")
+		Do $$$AssertEquals($Order(response.Cookies("")), "", "flag '"_flag_"': no cookie is set")
+		Do $$$AssertEquals(..CounterRows(address), 0, "flag '"_flag_"': no counter row for the address")
+	}
+	Do $$$AssertEquals(..CounterTotal(), counters, "no counter row is written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), $Select(before = 0: 1, 1: before), "the user keeps one row")
+}
+
 /// Forces the busy state: a reserve larger than the cap is always busy, whatever the connections are.
 Method ForceBusy() [ Private ]
 {

@@ -21,12 +21,17 @@ import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, 
  * - B2: a message that the server refuses with 503 comes back to an empty composer with no "Not sent" and no announcement, the banner shows
  *   while the 503s last and clears at the first 2xx poll, and Send then posts the text; with other text already in the composer the message
  *   stays as "Not sent" with Retry sending (today's failure).
- * - B3: a reply's Trace link, pressed while the status says busy, opens nothing and shows the banner.
+ * - B3: a reply's Trace link, pressed while the status says busy, opens nothing and shows the banner; the check asks the status with a
+ *   unique ?t= query; a quiet re-check that fails keeps the banner, and the real status clears it.
  * - B3b: the same press while the status check fails (an answer that is not JSON) opens the tab and shows no banner.
+ * - B3c: the same press while the status never answers opens the tab within the click's activation, and shows no banner.
+ * The file runs in full Chromium with its popup blocker on (Playwright's default launch turns the blocker off, and its headless shell has
+ * none), so a window that the page opens after the click's activation has run out is blocked, as in a visitor's browser.
  * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env['OCUTALON_ONLINE_PROXIED'] === '1', 'runs in the browser step, where nothing is proxied');
+test.use({ channel: 'chromium', launchOptions: { ignoreDefaultArgs: ['--disable-popup-blocking'] } });
 
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
 const CONVERSATION_NAME = 'Open my conversation in Visual Trace (opens in a new tab)';
@@ -96,7 +101,9 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     const busy = await readStatus(status);
     expect(busy, 'the status is busy with exactly P and S2, with the marker header and the status code 200').toEqual({ busy: true, header: '1', code: 200 });
 
-    // Row 7: a request that is not proxied is exempt: a third sign-in is let in, and signed out at once.
+    // Row 7: a request that is not proxied is exempt. The cap goes one lower first, where a proxied sign-in is refused (the unit's row 5),
+    // so only the exemption lets the third sign-in in; it is signed out at once and the cap goes back to the view plus the reserve.
+    await setPublic('connectionCap', String(view + reserve - 1));
     const third = await signInOverHttpFrom(playwright, '203.0.113.212');
     others.push(third.api);
     try {
@@ -107,6 +114,7 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
       epochs.push(((await stateThree.json()) as { epoch: string }).epoch);
     } finally {
       await third.api.get(SIGN_OUT).catch(() => undefined);
+      await setPublic('connectionCap', String(view + reserve));
     }
     await expect.poll(async () => (await readStatus(status)).busy, { message: 'the demo is busy again with P and S2 once S3 has signed out', timeout: 30_000 }).toBe(true);
 
@@ -123,6 +131,7 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     await expect(splash.getByRole('button', { name: 'Sign in and start', exact: true }), 'the button is enabled').toBeEnabled();
     await expect(splash.getByLabel('User name', { exact: true }), 'no field is marked').not.toHaveAttribute('aria-invalid', /.*/);
     await expect(splash.getByLabel('Password', { exact: true })).not.toHaveAttribute('aria-invalid', /.*/);
+    await signOutGroup(fresh);
     await fresh.close();
 
     // P presses "Open my conversation in Visual Trace".
@@ -133,6 +142,7 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     const conversation = menu.getByRole('link', { name: CONVERSATION_NAME, exact: true });
     await expect(conversation).toHaveAttribute('href', turn.traceUrl);
     await conversation.click();
+    await expect(menu, 'the Visual Trace menu closes, as it does today').toBeHidden();
     await expectBanner(page, 'after the press');
     await page.waitForTimeout(3000);
     expect(opened().length, 'no new page opens within 3 s of the press').toBe(0);
@@ -148,7 +158,7 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     await traceMenu(page).click();
     const [popup] = await Promise.all([context.waitForEvent('page'), conversation.click()]);
     await expectAtTrace(popup, turn, 'the next press');
-    console.log('MEASURED Task 0 (e): Chromium opened the window that window.open asked for after the awaited status check, with no popup block');
+    console.log('MEASURED Task 0 (e): Chromium, with its popup blocker on, opened the window that window.open asked for after the awaited status check');
     await popup.close();
   } finally {
     await signOutGroup(page);
@@ -244,13 +254,29 @@ test('B3: a reply\'s Trace link pressed while the status says busy opens nothing
     await expect(link, 'the turn has its Trace link').toHaveCount(1, { timeout: 30_000 });
     await expect(link).toHaveAccessibleName(TRACE_NAME);
     const opened = watchPages(context);
+    const asked: string[] = [];
     await page.route('**/ocutalon/public/status*', async (route) => {
+      asked.push(route.request().url());
       await route.fulfill({ status: 200, headers: { 'X-OcuTalon-Busy': '1' }, json: { ready: true, nextReset: null, busy: true, lastReset: null, lastResetKind: null } });
     });
     await link.click();
     await expectBanner(page, 'after the press');
+    const check = new URL(asked[0] ?? 'http://stack.invalid/none');
+    expect(check.pathname, 'the press asks the public status').toBe('/ocutalon/public/status');
+    expect([...check.searchParams.keys()], 'with one query, t').toEqual(['t']);
+    expect(check.searchParams.get('t'), 'a time in milliseconds, so that no cache answers').toMatch(/^\d{13}$/);
     await page.waitForTimeout(3000);
     expect(opened().length, 'no new page opens within 3 s of the press').toBe(0);
+
+    // A quiet re-check that fails (no answer it can read) does not say the demo is free: the banner stays and the next re-check is armed.
+    await page.unroute('**/ocutalon/public/status*');
+    let failed = 0;
+    await page.route('**/ocutalon/public/status*', async (route) => {
+      failed += 1;
+      await route.abort();
+    });
+    await expect.poll(() => failed, { message: 'two quiet re-checks fail, the second armed by the first', timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+    await expect(page.locator(BANNER), 'the banner stays through a failed re-check').toHaveCount(1);
     await page.unroute('**/ocutalon/public/status*');
     await expect(page.locator(BANNER), 'with the real status, the quiet re-check clears the banner').toHaveCount(0, { timeout: 25_000 });
   } finally {
@@ -275,6 +301,32 @@ test('B3b: a reply\'s Trace link pressed while the status check fails opens the 
     await link.click();
     await expect.poll(() => opened().length, { message: 'a status answer that is not JSON opens the tab', timeout: 15_000 }).toBe(1);
     await expectAtTrace(opened()[0]!, turn, 'after the failed check');
+    await opened()[0]!.close();
+    await expect(page.locator(BANNER), 'and shows no banner').toHaveCount(0);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+test('B3c: a reply\'s Trace link pressed while the status never answers opens the tab within the click\'s activation, and shows no banner', async ({ context, page }) => {
+  let epoch = '';
+  try {
+    const signedIn = await open(page);
+    epoch = signedIn.epoch;
+    const turn = await postTurn(page.request, signedIn.cursor, 1, 'online-busy-silent');
+    const link = page.locator(`app-chat-panel [data-part="reply"][data-key="${turn.clientId}"] app-decision-strip app-trace-link a`);
+    await expect(link, 'the turn has its Trace link').toHaveCount(1, { timeout: 30_000 });
+    const opened = watchPages(context);
+    let asked = 0;
+    await page.route('**/ocutalon/public/status*', () => {
+      asked += 1;
+    });
+    await link.click();
+    await expect.poll(() => asked, { message: 'the press asks the status, which never answers' }).toBe(1);
+    await expect.poll(() => opened().length, { message: 'the check gives up while the click still allows a window, and the tab opens', timeout: 15_000 }).toBe(1);
+    await expectAtTrace(opened()[0]!, turn, 'after the silent check');
     await opened()[0]!.close();
     await expect(page.locator(BANNER), 'and shows no banner').toHaveCount(0);
   } finally {

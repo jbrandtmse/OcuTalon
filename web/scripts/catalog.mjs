@@ -11,7 +11,7 @@
 // keys with their texts and slot types; the two are merged, and a key in both is refused) and the REASONKEYS parameter of
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key), and keeps an allowlist of the
 // keys the page renders: conversation.turnFallback, the check sentences checks.allPassed, checks.everythingElsePassed and
-// checks.nothingWatched, the nine banner.* texts, the three bannerAction.* texts the page renders (installYourself, howToSetKey
+// checks.nothingWatched, the ten banner.* texts, the three bannerAction.* texts the page renders (installYourself, howToSetKey
 // and setUpBot) and every fallbackReason.*. An entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS
 // (the slot types of each listed key), REASON_KEYS and renderPageText. A fallbackReason slot renders as its reason text; a time,
 // count or cost slot takes the string the caller formatted (the page formats times, costs and counts itself, AD-32), cleaned
