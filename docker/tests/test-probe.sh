@@ -11,7 +11,7 @@
 #   row 13  the other endings, the command conventions and the state files;
 #   row 14  configuration errors: exit 2, one line naming the variable, no request, nothing written;
 #   row 15  the file itself.
-# The test password is random per run and is never printed. Starts no container. Needs Node 24 or later and curl.
+# The test password is random per run and is never printed. Starts no container. Needs Node and curl.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
 
@@ -47,6 +47,7 @@ message="Health check from the online demo's probe. Reply with one short sentenc
 flags="$tmp/flags"
 requests="$tmp/requests.jsonl"
 commands="$tmp/commands"
+cmd_env="$tmp/cmd-env"
 : > "$flags"
 : > "$requests"
 : > "$commands"
@@ -87,7 +88,7 @@ const readFlags = () => new Set(fs.readFileSync(flagsFile, "utf8").split(/\s+/).
 const shell = "<!doctype html><html><head><title>OcuTalon</title></head><body><app-root></app-root></body></html>";
 const splash = (f) => {
   const token = f.has("splash_token") ? '<input type="hidden" name="IRISSessionToken" value="tok-9f2c">' : "";
-  return `<!DOCTYPE html><html><head><title>Try OcuTalon</title></head><body><form name="Login" method="post" action="/ocutalon/">${token}<input type="text" name="IRISUsername" value="${user}"><input type="text" name="IRISPassword" value="published"><button name="IRISLogin" value="Sign in and start">Sign in and start</button></form></body></html>`;
+  return `<!DOCTYPE html><html><head><title>Try OcuTalon</title></head><body><form name="Login" method="post" action="/ocutalon/">${token}<input type="text" name="IRISUsername" value="PrefilledVisitor"><input type="text" name="IRISPassword" value="published"><button name="IRISLogin" value="Sign in and start">Sign in and start</button></form></body></html>`;
 };
 const local = '<!DOCTYPE html><html><head><title>Sign in &middot; OcuTalon</title></head><body><form method="post"><input name="IRISUsername"><input type="password" name="IRISPassword"></form></body></html>';
 const event = (seq, stream, type, payload) => ({ seq, stream, ts: "2026-10-26T10:00:00Z", type, payload });
@@ -127,7 +128,8 @@ const server = http.createServer((req, res) => {
       return send(200, json, JSON.stringify({ ready: true, nextReset: "2026-10-26T12:00:00Z", busy: f.has("status_busy"), lastReset: null, lastResetKind: null }));
     }
     if (req.method === "GET" && p === "/ocutalon/") {
-      if (authed.has(sid)) return send(200, html, shell);
+      if (authed.has(sid)) return send(200, html, f.has("shell_other") ? "<!doctype html><html><head><title>Something else</title></head><body>hello</body></html>" : shell);
+      if (f.has("splash_hang")) return;
       if (f.has("splash_503")) return send(503, html, "busy");
       if (f.has("splash_404")) return send(404, html, "not found");
       if (f.has("splash_local")) return send(200, html, local);
@@ -213,10 +215,12 @@ new_state() {
   state="$tmp/state.$n_state"
   mkdir -p "$state"
   : > "$commands"
+  : > "$cmd_env"
 }
 # probe_run <flags> [VAR=value | -u VAR]...: one run of the probe against the stub with the flags; leaves the exit code in rc, stdout in
 # $tmp/out and stderr in $tmp/err. A VAR=value replaces the base setting; a -u VAR removes the variable (an inner env does it, so that
-# the base setting cannot bring it back). With probe_term=1 the run is sent TERM after its first events poll.
+# the base setting cannot bring it back). With probe_term=1 the run is sent TERM (or the signal in probe_sig) after its first events poll.
+# With probe_limit=<s> a run still going after that many seconds is killed (exit 137), so that a probe that hangs cannot hang the test.
 probe_run() {
   local args=() unsets=() cmd term_pid
   printf '%s\n' "$1" > "$flags"
@@ -233,7 +237,7 @@ probe_run() {
   : > "$requests"
   cmd=(env OCUTALON_PROBE_URL="$url" OCUTALON_DEMO_USER="$user" OCUTALON_DEMO_PASSWORD="$password"
     OCUTALON_PROBE_ALERT_COMMAND="$tmp/alert.sh" OCUTALON_PROBE_RESET_COMMAND="$tmp/reset.sh"
-    OCUTALON_PROBE_STATE_DIR="$state" OCUTALON_PROBE_DECISION_WAIT=2 PROBE_TEST_RECORD="$commands" TMPDIR="$work_root" ${args[@]+"${args[@]}"}
+    OCUTALON_PROBE_STATE_DIR="$state" OCUTALON_PROBE_DECISION_WAIT=2 PROBE_TEST_RECORD="$commands" PROBE_TEST_ENV="$cmd_env" TMPDIR="$work_root" ${args[@]+"${args[@]}"}
     env ${unsets[@]+"${unsets[@]}"} bash "$probe")
   if [ "${probe_term:-}" = 1 ]; then
     "${cmd[@]}" > "$tmp/out" 2> "$tmp/err" < /dev/null &
@@ -242,7 +246,16 @@ probe_run() {
       if [ "$(n_requests GET /ocutalon/api/v1/events)" -ge 1 ]; then break; fi
       sleep 0.1
     done
-    kill -TERM "$term_pid" 2> /dev/null
+    kill -"${probe_sig:-TERM}" "$term_pid" 2> /dev/null
+    wait "$term_pid"
+  elif [ -n "${probe_limit:-}" ]; then
+    "${cmd[@]}" > "$tmp/out" 2> "$tmp/err" < /dev/null &
+    term_pid=$!
+    for _ in $(seq 1 "$((probe_limit * 10))"); do
+      kill -0 "$term_pid" 2> /dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "$term_pid" 2> /dev/null
     wait "$term_pid"
   else
     "${cmd[@]}" > "$tmp/out" 2> "$tmp/err" < /dev/null
@@ -282,6 +295,10 @@ if (JSON.stringify(seq.slice(0, 5)) !== JSON.stringify(head)) bad("the first fiv
 const polls = records.filter((r) => r.method === "GET" && r.path === "/ocutalon/api/v1/events");
 if (polls.length < 1) bad("no events poll");
 if (seq.slice(5).join("|") !== polls.map(() => "GET /ocutalon/api/v1/events").concat(["POST /ocutalon/api/v1/session/end"]).join("|")) bad("the requests after the message are " + seq.slice(5).join(" | "));
+if (problems.length) {
+  console.log("PROBLEMS " + problems.join("; "));
+  process.exit(0);
+}
 const [status, splash, signin, shell, message_post] = records;
 const splashCookie = (splash.setCookie.match(/CSPSESSIONID=([^;]+)/) || [])[1] || "";
 if (!splashCookie) bad("the splash set no session cookie");
@@ -331,6 +348,11 @@ if [ ! -s "$commands" ] && [ "$(stored_count)" = 0 ]; then
   pass "row 10: a healthy run calls neither command and stores a count of 0"
 else
   fail "row 10: a healthy run called a command ($(wc -l < "$commands" | tr -d ' ') line(s)) or stored '$(stored_count)'"
+fi
+if [ "$(ls -A "$state" | tr '\n' ' ')" = "counted-failures probe.log " ]; then
+  pass "row 10: the state folder holds only the state files (no cookie jar, no resume reference)"
+else
+  fail "row 10: the state folder holds '$(ls -A "$state" | tr '\n' ' ')'"
 fi
 if ! grep -qF "$password" "$tmp/out" "$tmp/err" "$state"/* "$commands"; then
   pass "row 10: the password is in no stdout, stderr, state file or command record"
@@ -387,6 +409,17 @@ if [ "$(stored_count)" = 1 ] && [ "$(n_calls 'alert no_splash ')" = 3 ] && [ "$(
 else
   fail "row 12: count '$(stored_count)', $(n_calls alert) alert(s), $(n_calls reset) reset(s)"
 fi
+# A splash that never answers: the request's time limit ends the run as no_splash (one 20 s request), long before the next run.
+new_state
+hang_start=$SECONDS
+probe_limit=40 probe_run "splash_hang"
+hang_secs=$((SECONDS - hang_start))
+expect_run "row 12: a splash that never answers" 1 "no_splash count=0"
+if [ "$hang_secs" -lt 35 ] && [ "$(n_calls 'alert no_splash ')" = 1 ]; then
+  pass "row 12: a splash that never answers ends the run in ${hang_secs} s (the request's time limit) with one alert"
+else
+  fail "row 12: a splash that never answers: the run took ${hang_secs} s (exit $rc), $(n_calls alert) alert(s)"
+fi
 
 # --- row 13: the other endings, the commands and the state files ---
 
@@ -395,6 +428,12 @@ probe_run "msg_500"
 expect_run "row 13: a 500 at the message POST" 1 "no_decision count=1"
 probe_run "events_nodecision"
 expect_run "row 13: no decision within the wait" 1 "no_decision count=2 reset=0"
+polls=$(n_requests GET /ocutalon/api/v1/events)
+if [ "$polls" -ge 2 ] && [ "$polls" -le 3 ]; then
+  pass "row 13: a 2 s wait polled the events $polls times (every 2 s, up to the wait)"
+else
+  fail "row 13: a 2 s wait polled the events $polls times, wanted 2 or 3 (every 2 s, up to the wait)"
+fi
 if [ "$(n_calls reset)" = 1 ] && [ "$(stored_count)" = 0 ] && [ "$(n_calls alert)" = 2 ]; then
   pass "row 13: the second counted failure ran the reset once and cleared the count"
 else
@@ -526,6 +565,19 @@ config_case "a wait of 121" 121 OCUTALON_PROBE_DECISION_WAIT=121
 grep -qF OCUTALON_PROBE_DECISION_WAIT "$tmp/err" || fail "row 14: a wait of 121: the line does not name OCUTALON_PROBE_DECISION_WAIT"
 config_case "a wait that is not a number" wordzz OCUTALON_PROBE_DECISION_WAIT=wordzz
 grep -qF OCUTALON_PROBE_DECISION_WAIT "$tmp/err" || fail "row 14: a wait that is not a number: the line does not name OCUTALON_PROBE_DECISION_WAIT"
+config_case "a TMPDIR that does not exist" nonexistzz TMPDIR="$tmp/nonexistzz/deeper"
+grep -qF TMPDIR "$tmp/err" || fail "row 14: a TMPDIR that does not exist: the line does not name TMPDIR"
+
+# A URL with the scheme's default port: curl leaves port 80 out of the Host header, so the Origin of every POST must leave it out too
+# (IRIS compares Origin with the scheme and Host). The stub is reached as an HTTP proxy, so that the URL can name port 80 and no name
+# is looked up.
+new_state
+probe_run "decision_first" OCUTALON_PROBE_URL="http://probe.test:80" http_proxy="$url" -u NO_PROXY -u no_proxy
+if [ "$rc" = 0 ] && sed 's/^[^ ]* //' "$tmp/out" | grep -qx 'healthy count=0' && [ "$(grep -c '"origin":"http://probe.test"' "$requests")" = 3 ]; then
+  pass "row 14: a URL with the default port 80 gives a healthy run, and its three POSTs carry the Origin without the port"
+else
+  fail "row 14: a URL with the default port 80: exit $rc, '$(sed 's/^[^ ]* //' "$tmp/out")', $(grep -c '"origin":"http://probe.test"' "$requests") POST(s) with the Origin without the port"
+fi
 
 new_state
 gone="$tmp/made/deeper"
@@ -534,6 +586,229 @@ if [ "$rc" = 0 ] && [ -f "$gone/probe.log" ] && sed 's/^[^ ]* //' "$gone/probe.l
   pass "row 14: a missing state folder is created, a trailing slash on the URL is dropped, and the run goes on"
 else
   fail "row 14: a missing state folder: exit $rc, log $([ -f "$gone/probe.log" ] && echo present || echo absent)"
+fi
+
+# --- (QA) the gaps the first rows leave: the password on every path, a configuration error over a used state folder, the counting
+# --- sequences, the UTC day of the busy count, the sign-out on every path and the order of the API calls ---
+
+wrong=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2> /dev/null | head -c 32)
+
+# Stub commands that also dump their whole environment and arguments, so that a password handed down to the host's commands shows.
+for kind in alert reset; do
+  cat > "$tmp/qa-$kind.sh" <<'EOF'
+#!/bin/sh
+code=0
+case $1 in --exit=*) code=${1#--exit=}; shift ;; esac
+KIND_LINE
+{ echo "args: $*"; env; } >> "$PROBE_TEST_ENV"
+exit "$code"
+EOF
+done
+sed -i.bak 's/^KIND_LINE$/echo "alert $1 $2" >> "$PROBE_TEST_RECORD"/' "$tmp/qa-alert.sh"
+sed -i.bak 's/^KIND_LINE$/echo "reset" >> "$PROBE_TEST_RECORD"/' "$tmp/qa-reset.sh"
+rm -f "$tmp"/qa-*.bak
+chmod 755 "$tmp/qa-alert.sh" "$tmp/qa-reset.sh"
+qa_cmds=(OCUTALON_PROBE_ALERT_COMMAND="$tmp/qa-alert.sh" OCUTALON_PROBE_RESET_COMMAND="$tmp/qa-reset.sh")
+
+# leak_lines: the number of lines of the run's stdout, stderr, state files, command record and command environments that hold a password.
+leak_lines() {
+  { cat "$tmp/out" "$tmp/err" "$commands" "$cmd_env" 2> /dev/null; find "$state" -type f -exec cat {} + 2> /dev/null; } | grep -cF -e "$password" -e "$wrong"
+}
+# request_leaks: the number of recorded requests that hold a password and are not the sign-in POST.
+request_leaks() {
+  grep -F -e "$password" -e "$wrong" "$requests" | grep -vc '^{"method":"POST","path":"/ocutalon/"'
+}
+# verify_bracket <sign-outs wanted>: with a sign-in, every API call comes after the sign-in's redirect GET and the one session/end is the last
+# request; with none, the run made no API call at all.
+verify_bracket() {
+  node - "$requests" "$1" <<'EOF'
+const fs = require("fs");
+const recs = fs.readFileSync(process.argv[2], "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const want = Number(process.argv[3]);
+const idx = (f) => recs.map((r, i) => (f(r) ? i : -1)).filter((i) => i >= 0);
+const apis = idx((r) => r.path.startsWith("/ocutalon/api/"));
+const ends = idx((r) => r.method === "POST" && r.path === "/ocutalon/api/v1/session/end");
+const signins = idx((r) => r.method === "POST" && r.path === "/ocutalon/");
+const problems = [];
+if (ends.length !== want) problems.push(`session/end posted ${ends.length} time(s), wanted ${want}`);
+if (want === 0) {
+  if (apis.length) problems.push(`${apis.length} API call(s) without a sign-in`);
+} else {
+  if (signins.length !== 1) problems.push(`${signins.length} sign-in POSTs`);
+  else if (apis.some((i) => i < signins[0] + 2)) problems.push("an API call came before the sign-in's redirect GET");
+  if (ends.length === 1 && ends[0] !== recs.length - 1) problems.push("a request came after the sign-out");
+}
+console.log(problems.length ? "PROBLEMS " + problems.join("; ") : "OK");
+EOF
+}
+
+# qa_path <label> <flags> <exit> <text> <sign-outs> [VAR=value]...: one run on a fresh state with the dumping commands. It checks the
+# outcome, the sign-out count and order, and that no password is anywhere but in the sign-in POST body.
+qa_path() {
+  local label=$1 fl=$2 want_rc=$3 want_text=$4 want_so=$5 verdict
+  shift 5
+  new_state
+  probe_run "$fl" "${qa_cmds[@]}" "$@"
+  expect_run "QA path, $label" "$want_rc" "$want_text"
+  verdict=$(verify_bracket "$want_so")
+  if [ "$verdict" = OK ]; then
+    pass "QA path, $label: $want_so sign-out(s), and no API call before the sign-in or after the sign-out"
+  else
+    fail "QA path, $label: $verdict"
+  fi
+  if [ "$(leak_lines)" = 0 ] && [ "$(request_leaks)" = 0 ]; then
+    pass "QA path, $label: no password in stdout, stderr, the state files, the commands' arguments and environment, or any request but the sign-in POST"
+  else
+    fail "QA path, $label: a password is in $(leak_lines) output line(s) or $(request_leaks) request(s) that are not the sign-in POST"
+  fi
+}
+
+qa_path "a healthy run" decision_first 0 "healthy count=0" 1
+qa_path "a capped run" "decision_daily_cap decision_first" 0 "capped count=0 fallback=daily_cap" 1
+qa_path "a healthy run with the fallback error" "decision_error decision_first" 0 "healthy count=0 fallback=error" 1
+qa_path "a decision timeout" events_nodecision 1 "no_decision count=1" 1
+qa_path "a 500 at the message POST" msg_500 1 "no_decision count=1" 1
+qa_path "a 503 at the message POST" msg_503 1 "busy count=0" 1
+qa_path "a 503 at the second events poll" events_503_2 1 "busy count=0" 1
+qa_path "the form back after the sign-in POST" signin_form_back 1 "auth_failed count=1" 0
+qa_path "a wrong password" "" 1 "auth_failed count=1" 0 OCUTALON_DEMO_PASSWORD="$wrong"
+qa_path "a page that is neither the shell nor the form after the sign-in" shell_other 1 "no_decision count=1" 0
+qa_path "a 503 at the sign-in POST" signin_503 1 "busy count=0" 0
+qa_path "no splash" splash_local 1 "no_splash count=0" 0
+qa_path "a busy status" status_busy 1 "busy count=0" 0
+
+# A failing reset (over a stored count of 1) and a failing alert hand the password nowhere either.
+new_state
+printf '1\n' > "$state/counted-failures"
+probe_run "signin_form_back" OCUTALON_PROBE_ALERT_COMMAND="$tmp/qa-alert.sh --exit=1" OCUTALON_PROBE_RESET_COMMAND="$tmp/qa-reset.sh --exit=3" OCUTALON_DEMO_PASSWORD="$wrong"
+if [ "$rc" = 1 ] && [ "$(sed 's/^[^ ]* //' "$tmp/out")" = "auth_failed count=2 reset=3" ] && [ "$(leak_lines)" = 0 ] && [ "$(request_leaks)" = 0 ] \
+  && [ -s "$cmd_env" ] && grep -q '^args: auth_failed ' "$cmd_env"; then
+  pass "QA path, a failing reset and a failing alert after a wrong password: no password in the output, the state, the commands' arguments or environment"
+else
+  fail "QA path, a failing reset and a failing alert: exit $rc, '$(sed 's/^[^ ]* //' "$tmp/out")', $(leak_lines) leaking line(s)"
+fi
+
+# A run sent HUP or TERM while it waits for the decision signs out once, last, and holds no password either.
+for sig in TERM HUP; do
+  new_state
+  probe_term=1 probe_sig=$sig probe_run "events_nodecision" "${qa_cmds[@]}" OCUTALON_PROBE_DECISION_WAIT=120
+  verdict=$(verify_bracket 1)
+  if [ "$rc" = 130 ] && [ "$verdict" = OK ] && [ "$(leak_lines)" = 0 ] && [ "$(request_leaks)" = 0 ]; then
+    pass "QA path, a run sent $sig in the decision wait: exit 130, one sign-out as the last request, no password anywhere"
+  else
+    fail "QA path, a run sent $sig: exit $rc, $verdict, $(leak_lines) leaking line(s)"
+  fi
+done
+
+# --- a configuration error over a state folder that holds files: no request, no command, and every file byte-identical ---
+
+state_fingerprint() { { ls -A "$state"; find "$state" -type f -exec cat {} +; } 2> /dev/null | cksum; }
+cfg_used_case() { # cfg_used_case <label> <variable the line must name> [VAR=value | -u VAR]...
+  local label=$1 named=$2 before after
+  shift 2
+  new_state
+  printf '1\n' > "$state/counted-failures"
+  printf '2026-10-24 3\n' > "$state/busy-per-day"
+  printf '2026-10-26T10:00:00Z auth_failed count=1\n' > "$state/probe.log"
+  before=$(state_fingerprint)
+  probe_run "" "${qa_cmds[@]}" "$@"
+  after=$(state_fingerprint)
+  if [ "$rc" = 2 ] && [ ! -s "$tmp/out" ] && [ "$(wc -l < "$tmp/err" | tr -d ' ')" = 1 ] && grep -qF "$named" "$tmp/err" && [ ! -s "$requests" ] \
+    && [ ! -s "$commands" ] && [ "$before" = "$after" ] && [ "$(leak_lines)" = 0 ]; then
+    pass "QA row 14: $label over a used state folder gives exit 2, no request, no command, and the folder is byte-identical"
+  else
+    fail "QA row 14: $label over a used state folder: exit $rc, stderr '$(head -c 160 "$tmp/err")', requests $(wc -l < "$requests" | tr -d ' '), folder $([ "$before" = "$after" ] && echo same || echo CHANGED)"
+  fi
+}
+cfg_used_case "a wait of 0" OCUTALON_PROBE_DECISION_WAIT OCUTALON_PROBE_DECISION_WAIT=0
+cfg_used_case "a wait of 121" OCUTALON_PROBE_DECISION_WAIT OCUTALON_PROBE_DECISION_WAIT=121
+cfg_used_case "a URL with a path" OCUTALON_PROBE_URL OCUTALON_PROBE_URL="$url/x"
+cfg_used_case "an unset URL" OCUTALON_PROBE_URL -u OCUTALON_PROBE_URL
+cfg_used_case "an unset password" OCUTALON_DEMO_PASSWORD -u OCUTALON_DEMO_PASSWORD
+cfg_used_case "an alert command of white space only" OCUTALON_PROBE_ALERT_COMMAND OCUTALON_PROBE_ALERT_COMMAND="   "
+cfg_used_case "a reset command of white space only" OCUTALON_PROBE_RESET_COMMAND OCUTALON_PROBE_RESET_COMMAND="   "
+
+new_state
+printf 'x\n' > "$tmp/not-a-folder"
+probe_run "" "${qa_cmds[@]}" OCUTALON_PROBE_STATE_DIR="$tmp/not-a-folder/sub"
+if [ "$rc" = 2 ] && [ ! -s "$tmp/out" ] && [ "$(wc -l < "$tmp/err" | tr -d ' ')" = 1 ] && grep -qF OCUTALON_PROBE_STATE_DIR "$tmp/err" && [ ! -s "$requests" ] && [ ! -s "$commands" ]; then
+  pass "QA row 14: a state folder that cannot be created gives exit 2 naming OCUTALON_PROBE_STATE_DIR, with no request and no command"
+else
+  fail "QA row 14: an uncreatable state folder: exit $rc, stderr '$(head -c 160 "$tmp/err")', requests $(wc -l < "$requests" | tr -d ' ')"
+fi
+
+# --- the counting sequence: only auth_failed and no_decision count; busy and no_splash between two of them leave the count; the second counted failure
+# --- in a row runs the reset once and clears the count; a healthy run clears it ---
+
+new_state
+seq_total=0
+seq_step() { # seq_step <label> <flags> <exit> <log text> <alerts so far> <resets so far> <stored count>
+  probe_run "$2"
+  expect_run "QA sequence, $1" "$3" "$4"
+  if [ "$(n_calls alert)" = "$5" ] && [ "$(n_calls reset)" = "$6" ] && [ "$(stored_count)" = "$7" ]; then
+    pass "QA sequence, $1: $5 alert(s), $6 reset(s) so far, stored count $7"
+  else
+    fail "QA sequence, $1: $(n_calls alert) alert(s), $(n_calls reset) reset(s), stored count '$(stored_count)' (wanted $5, $6, $7)"
+  fi
+}
+seq_step "counted failure 1 (auth_failed)" signin_form_back 1 "auth_failed count=1" 1 0 1
+seq_step "busy between two counted failures" status_busy 1 "busy count=1" 2 0 1
+seq_step "no_splash between two counted failures" splash_local 1 "no_splash count=1" 3 0 1
+seq_step "counted failure 2 (no_decision): the reset runs once" events_nodecision 1 "no_decision count=2 reset=0" 4 1 0
+seq_step "busy after the reset" status_busy 1 "busy count=0" 5 1 0
+seq_step "counted failure 1 again" signin_form_back 1 "auth_failed count=1" 6 1 1
+seq_step "healthy clears the count" decision_first 0 "healthy count=0" 6 1 0
+seq_step "counted failure 1 after a healthy run" signin_form_back 1 "auth_failed count=1" 7 1 1
+seq_step "counted failure 2 (auth_failed): the second reset" signin_form_back 1 "auth_failed count=2 reset=0" 8 2 0
+seq_step "counted failure 1 after the second reset" msg_500 1 "no_decision count=1" 9 2 1
+seq_step "capped clears the count" "decision_daily_cap decision_first" 0 "capped count=0 fallback=daily_cap" 9 2 0
+
+new_state
+printf '5\n' > "$state/counted-failures"
+probe_run "signin_form_back"
+expect_run "QA sequence, a stored count of 5" 1 "auth_failed count=6 reset=0"
+if [ "$(n_calls reset)" = 1 ] && [ "$(stored_count)" = 0 ]; then
+  pass "QA sequence, a stored count of 5: the reset ran once and the count is cleared"
+else
+  fail "QA sequence, a stored count of 5: $(n_calls reset) reset(s), stored count '$(stored_count)'"
+fi
+
+# --- the busy count per UTC day: a date shim fixes the clock, and the run's time zone is not UTC ---
+
+shim="$tmp/shim"
+mkdir -p "$shim"
+real_date=$(command -v date)
+if "$real_date" -d @0 +%s > /dev/null 2>&1; then
+  printf '#!/bin/sh\nexec "%s" -d "@$FAKE_EPOCH" "$@"\n' "$real_date" > "$shim/date"
+else
+  printf '#!/bin/sh\nexec "%s" -r "$FAKE_EPOCH" "$@"\n' "$real_date" > "$shim/date"
+fi
+chmod 755 "$shim/date"
+epoch_of() { node -e 'console.log(Date.UTC(...process.argv.slice(1).map(Number)) / 1000)' "$1" "$(($2 - 1))" "$3" "$4" "$5" "$6"; }
+day_run() { # day_run <epoch> <time zone>
+  probe_run "status_busy" PATH="$shim:$PATH" FAKE_EPOCH="$1" TZ="$2"
+}
+new_state
+printf '2026-10-24 4\n' > "$state/busy-per-day"
+day_run "$(epoch_of 2026 10 25 23 59 30)" Pacific/Auckland
+day_run "$(epoch_of 2026 10 25 23 59 40)" Pacific/Auckland
+if [ "$(cat "$state/busy-per-day")" = "$(printf '2026-10-24 4\n2026-10-25 2')" ] && sed 's/^[^ ]* //' "$tmp/out" | grep -qx 'busy count=0' && grep -q '^2026-10-25T23:59:40Z busy' "$tmp/out"; then
+  pass "QA row 4: two busy runs just before the UTC midnight, in a time zone 13 hours ahead, count on the UTC day (2026-10-25 2), time in UTC"
+else
+  fail "QA row 4: before the UTC midnight busy-per-day is '$(tr '\n' '|' < "$state/busy-per-day")', the log line '$(cat "$tmp/out")'"
+fi
+day_run "$(epoch_of 2026 10 26 0 0 10)" America/Los_Angeles
+if [ "$(cat "$state/busy-per-day")" = "$(printf '2026-10-24 4\n2026-10-25 2\n2026-10-26 1')" ] && grep -q '^2026-10-26T00:00:10Z busy' "$tmp/out"; then
+  pass "QA row 4: just after the UTC midnight, in a time zone 7 hours behind, the count rolls over to a new day (2026-10-26 1) and the earlier days stay"
+else
+  fail "QA row 4: after the UTC midnight busy-per-day is '$(tr '\n' '|' < "$state/busy-per-day")'"
+fi
+day_run "$(epoch_of 2026 10 26 0 5 0)" America/Los_Angeles
+day_run "$(epoch_of 2027 1 1 0 0 5)" UTC
+if [ "$(cat "$state/busy-per-day")" = "$(printf '2026-10-24 4\n2026-10-25 2\n2026-10-26 2\n2027-01-01 1')" ] && grep -Eqx '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]+' "$state/busy-per-day"; then
+  pass "QA row 4: later runs add to the same day, a new year starts a new line, and every earlier day stays a readable line"
+else
+  fail "QA row 4: busy-per-day ends as '$(tr '\n' '|' < "$state/busy-per-day")'"
 fi
 
 # --- the probe's temporary folder: every run above (healthy, busy, no_splash, auth_failed, no_decision, killed, a configuration error) removed its own ---

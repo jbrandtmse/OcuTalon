@@ -22,7 +22,8 @@
 #
 # Configuration: environment variables only, and this file names none of their values.
 #   OCUTALON_PROBE_URL             the origin of IRIS: the http or https scheme, a host and an optional port, no path (one trailing
-#                                  slash is dropped). It is also the Origin of every POST.
+#                                  slash is dropped, and so is the scheme's default port, 80 or 443, as in the Host header). It is
+#                                  also the Origin of every POST.
 #   OCUTALON_DEMO_USER, OCUTALON_DEMO_PASSWORD   the published demo account (AD-19's names).
 #   OCUTALON_PROBE_ALERT_COMMAND   the host's alert command.
 #   OCUTALON_PROBE_RESET_COMMAND   the host's reset command.
@@ -39,7 +40,9 @@
 #   no_splash              alert; the count is unchanged                                              exit 1
 #   auth_failed, no_decision   alert; the count plus one; at two the reset command runs once and the count is cleared   exit 1
 # A configuration error (a missing variable, a URL that is not an origin, a wait outside 1-120) makes no request, writes nothing,
-# prints one line on stderr naming the variable, and exits 2.
+# prints one line on stderr naming the variable, and exits 2. A run that receives INT, TERM or HUP signs out and exits 130, with no
+# log line, alert or count update. Each request may take 5 s to connect and 20 s in all, so a run's own requests end within about
+# 5 minutes; the probe sets no time limit on the host's alert and reset commands.
 #
 # State folder: probe.log (one appended line per run, also printed on stdout: <UTC time> <outcome> count=<n>[ fallback=<reason>]
 # [ reset=<exit status>]), counted-failures (the count, written whole through a rename), busy-per-day (one "YYYY-MM-DD <n>" line per
@@ -67,6 +70,7 @@ case $url in */) url=${url%/} ;; esac
 if ! printf '%s\n' "$url" | grep -Eq '^https?://[A-Za-z0-9._-]+(:[0-9]{1,5})?$'; then
   config_error "OCUTALON_PROBE_URL is not an origin (a scheme, a host and an optional port, no path)"
 fi
+case $url in http://*:80) url=${url%:80} ;; https://*:443) url=${url%:443} ;; esac
 
 decision_wait=${OCUTALON_PROBE_DECISION_WAIT:-120}
 case $decision_wait in
@@ -89,7 +93,7 @@ state_dir=$OCUTALON_PROBE_STATE_DIR
 default_message="Health check from the online demo's probe. Reply with one short sentence."
 message=${OCUTALON_PROBE_MESSAGE:-$default_message}
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-probe.XXXXXX") || config_error "TMPDIR is not usable for a temporary folder"
+work=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-probe.XXXXXX" 2> /dev/null) || config_error "TMPDIR is not usable for a temporary folder"
 chmod 700 "$work"
 if ! mkdir -p "$state_dir" 2>/dev/null || [ ! -w "$state_dir" ]; then
   rm -rf "$work"

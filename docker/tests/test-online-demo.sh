@@ -49,8 +49,10 @@
 #     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
-#     before the password-log checks: eight runs on one state folder with stub alert and reset commands that append "alert <outcome>
-#     <line>" or "reset" to one record file: P1 healthy (row 1: exit 0, no alert or reset, exactly one new Session row whose CSP session
+#     before the password-log checks, with the three runners' model keys pointed at the mock key variable for the phase
+#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back after it: eight runs on one state folder
+#     with stub alert and reset commands that append "alert <outcome> <line>" or "reset" to one record file: P1 healthy (row 1: exit 0,
+#     no alert or reset, exactly one new Session row whose CSP session
 #     no longer exists), P2 a wrong password (row 2, auth_failed count=1), P3 the online-demo flag "0" (row 3, no_splash), P4 the cap at the
 #     HTTP view plus the reserve (row 4, busy, today's line of busy-per-day, no new Session row), P5 the Conversation item disabled with a
 #     10 s wait (row 5, no_decision count=2, the reset line right before the alert line), P6 a wrong password (row 6, the count starts
@@ -1268,7 +1270,8 @@ fi
 # with the demo account and its published password, a state folder of its own and two stub commands that append one line per call to one
 # record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Eight runs on one state folder:
 # P1 healthy, P2 wrong password, P3 online-demo flag "0", P4 cap lowered to the boundary, P5 Conversation disabled, P6 wrong password,
-# P7 the daily-cap mock marker, P8 wrong password. Every setting a run changes is put back at once and read back at the end of the phase.
+# P7 the daily-cap mock marker, P8 wrong password. Every setting a run changes is put back at once and read back at the end of the phase;
+# the runners' model keys, pointed at the mock key variable before P1, are put back and read back after the phase.
 probe_started=$SECONDS
 probe_state="$tmp/probe-state"
 probe_record="$tmp/probe-record"
@@ -1402,11 +1405,11 @@ else
   mark_before=$(capped_mark)
   conv_start=$(conversation_enabled 1)
   echo "MEASURED Task 0 (c): the Conversation item reads '$conv_start' (status ok, enabled items) before the phase"
-  if [ "$flag_start" = 1 ] && [ "$(public_value connectionCap)" = "$cap_start" ] && [ "$conv_start" = "1,1" ]; then
-    pass "Story 16.6: the phase starts with the flag '1', the cap $cap_start and the Conversation item enabled"
+  if [ "$flag_start" = 1 ] && [ "$(public_value connectionCap)" = "$cap_start" ] && [ "$conv_start" = "1,1" ] && case $mark_before in 0 | 1 | 10 | 11) true ;; *) false ;; esac; then
+    pass "Story 16.6: the phase starts with the flag '1', the cap $cap_start, the Conversation item enabled and the day's capped mark read ('$mark_before')"
   else
     probe_ok=0
-    fail "Story 16.6: the phase's start values are not the flag '1', the cap $cap_start and Conversation enabled (flag '$flag_start', cap '$(public_value connectionCap)', Conversation '$conv_start')"
+    fail "Story 16.6: the phase's start values are not the flag '1', the cap $cap_start, Conversation enabled and a read of the capped mark (flag '$flag_start', cap '$(public_value connectionCap)', Conversation '$conv_start', mark '$mark_before')"
   fi
 fi
 keys_attempted=0
@@ -1537,7 +1540,9 @@ if [ "$probe_ok" = 1 ]; then
   conv_off=$(conversation_enabled 0)
   p5_post=$(turn_events 'zz measure disabled' 0)
   echo "MEASURED Task 0 (c): with the Conversation item disabled the director reads '$conv_off' (status ok, enabled items), and POST /messages answers ${p5_post%% *}"
+  p5_newest_before=$(session_newest)
   probe_run p5 OCUTALON_PROBE_DECISION_WAIT=10
+  p5_newest_after=$(session_newest)
   conv_on=$(conversation_enabled 1)
   probe_expect p5 "row 5" 1 "no_decision count=2 reset=0"
   if [ "$conv_off" = "1,0" ] && [ "$conv_on" = "1,1" ]; then
@@ -1546,6 +1551,14 @@ if [ "$probe_ok" = 1 ]; then
     fail "Story 16.6, row 5: the Conversation item reads '$conv_off' after being disabled and '$conv_on' after being enabled (wanted 1,0 and 1,1)"
   fi
   probe_calls_ok "row 5" 4 1
+  # (QA) the sign-out on the decision-timeout path: the run's own Session row names a CSP session that no longer exists.
+  p5_csp=""
+  if [ "${p5_newest_after:-0}" -gt "${p5_newest_before:-0}" ]; then p5_csp=$(session_csp "$p5_newest_after"); fi
+  if [ -n "$p5_csp" ] && { csp_gone "$p5_csp" || wait_until 9 csp_gone "$p5_csp"; }; then
+    pass "Story 16.6, row 5 (QA): the run that waited out its decision signed out, and its CSP session no longer exists"
+  else
+    fail "Story 16.6, row 5 (QA): the no_decision run's CSP session '${p5_csp:-<none; newest id $p5_newest_before to $p5_newest_after>}' still exists after its run (no sign-out on the timeout path)"
+  fi
   if [ "$(sed -n 4p "$probe_record")" = reset ] && [ "$(sed -n 5p "$probe_record" | cut -c1-18)" = "alert no_decision " ] && [ "$(cat "$probe_state/counted-failures" 2> /dev/null)" = 0 ]; then
     pass "Story 16.6, row 5: the reset line comes right before this run's alert line, and the stored count is 0"
   else
@@ -1608,6 +1621,11 @@ if [ "$probe_ok" = 1 ]; then
     pass "Story 16.6, row 9: neither the published nor the wrong password is in the probe's stdout, stderr, state files or record"
   else
     fail "Story 16.6, row 9: a password is in $leaks line(s) of the probe's output, state files or record"
+  fi
+  if [ "$(ls -A "$probe_state" | tr '\n' ' ')" = "busy-per-day counted-failures probe.log " ]; then
+    pass "Story 16.6, row 9: the state folder holds only busy-per-day, counted-failures and probe.log (no cookie jar, no resume reference)"
+  else
+    fail "Story 16.6, row 9: the state folder holds '$(ls -A "$probe_state" | tr '\n' ' ')'"
   fi
 
   # The settings the phase changed, read back.

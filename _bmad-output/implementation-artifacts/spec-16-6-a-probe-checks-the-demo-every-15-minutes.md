@@ -282,6 +282,44 @@ Where each row runs:
 
   Rows 9, 14 and 15 hold.
 
+### Review Findings
+
+Code review (2026-10-26, four layers, 36 findings grouped into 13 entries: 0 high, 4 medium, 9 low; 20 rejected).
+
+- [x] [Review][Decision] An accepted sign-in whose next page is not the shell is never signed out — after a 3xx, a redirect GET that answers busy, times out or serves another page ends the run before `signed_in=1`, so no session/end is posted and the CSP session holds its connection until its 120 s timeout. Resolved `by-design` (Rule 15, spec-bound): Boundaries define signed in as `<app-root` and forbid any API call before it, and row 10 forbids an IRIS field in a query string, so neither `session/end` nor `?IRISLogout=end` fits without a spec amendment; the path only occurs on a demo that already alerts. Ledgered DW-268 (by-design, medium, fix-risk med).
+- [x] [Review][Patch] A URL with the scheme's default port (`:80`, `:443`) sends an `Origin` that IRIS's envelope check refuses (curl drops a default port from `Host`), so every message POST is `wrong_origin`, every run a counted `no_decision`, and a healthy demo is reset every 30 minutes — drop the default port when the URL is read [docker/probe.sh:84]
+- [x] [Review][Patch] The request time limits and "a timeout is `no_splash`" are untested: without `--max-time` a splash that never answers hangs the probe with no alert [docker/tests/test-probe.sh:886]
+- [x] [Review][Patch] Nothing checks that the state folder holds only the three state files ("no resume reference is stored"; a jar moved into it stays green) [docker/tests/test-probe.sh:1088]
+- [x] [Review][Patch] The probe's header omits the signal exit (130, no log line) and the bound on a run's own requests [docker/probe.sh:55]
+- [x] [Review][Patch] The stub pre-fills the account's own user name, so "never read from the splash's prefilled fields" is pinned for the password only [docker/tests/test-probe.sh:847]
+- [x] [Review][Patch] `verify_requests` throws on a run that stops before the message POST or makes no events poll, so the FAIL line carries no reason — it now reports the request sequence and stops [docker/tests/test-probe.sh:1073]
+- [x] [Review][Patch] The live unit's header and phase comment omit the runners' model keys, which the phase points at the mock and puts back [docker/tests/test-online-demo.sh:349]
+- [x] [Review][Patch] The hermetic script's header claims Node 24 or later; the hosted `checks` job sets up no Node and the script needs none of 24's features [docker/tests/test-probe.sh:770]
+- [x] [Review][Patch] A failed read of the day's capped mark (empty) takes row 7's "existed before" branch and row 9's restore condition, both green while the mark stays — require a `$Data` value at the phase start [docker/tests/test-online-demo.sh:507]
+- [x] [Review][Patch] The 2 s interval between events polls is unverified (`sleep 2` removed stays green) — bound the polls of a 2 s wait [docker/tests/test-probe.sh:1155]
+- [x] [Review][Patch] No `mutation:` line for the `no_splash` label and count, or for "passes `test-boundaries.sh`" (AC 2, 3, 6) [spec ## Verification]
+- [x] [Review][Patch] A `TMPDIR` that cannot hold the temporary folder prints mktemp's own line, with the path, before the configuration error line [docker/probe.sh:111]
+
+**Rejected** (verdict and reason):
+- false: row 9's `AddressCounter` check "cannot fail" — it fails if IRIS counts a sign-in that does not come from the proxy address, which is the exemption row 9 observes with the probe's real requests (two layers).
+- false: the session stream passing 200 events before the turn's done event — every run opens a fresh session (row 1: exactly one new `Session` row) that holds only this turn.
+- false: AC 5 has no mutation line — its pinning rows 1 to 9 carry the live mutations M1 to M3 (Verification says so).
+- false: an IPv6 host is rejected — it exits 2 with the configuration line, loudly; the contract asks for a host name or address the host provides.
+- low: row 5 does not assert the message POST's 202 — Task 0 (c) measured 202 on the pinned build 154, and the spec accepts either answer as `no_decision`.
+- low: the busy marker is tested on the splash only — one `busy_answer` serves every step, the 503 cases pin it at five steps, and IRIS sends the marker only on the status, login and busy pages.
+- low: a URL or command variable with a line break, or a port outside 1-65535 — a misconfiguration that still alerts `no_splash` every run or exits 2; a guard adds code for a host value Story 29.3 writes once.
+- low: a signal during the reset leaves the count at 2 and no log line — writing 0 first trades it for an interrupted reset waiting two more failures; both need the host's scheduler to kill the probe mid-reset (Story 29.3).
+- low: a second signal during the sign-out leaves the temporary folder — two signals within one 20 s request; the folder is private (mode 700).
+- low: no lock and no timeout on the host's commands — the contract says no lock, and the commands are the host's (first review, Story 29.3).
+- low: the test-only message override with control characters — never set by the host (first review).
+- low: the phase's 150 s deadline gate — the spec gate's value; the phase took 27 s.
+- low: `today` computed once in the hermetic script — a false red only when a 30 s run crosses UTC midnight.
+- low: the stub crashes on a body that is not JSON — only after an escaping regression that row 13 already turns red.
+- low: the 120 s default pinned by reading the assignment — the spec names that pin (row 15); a behavioural 120 s run costs two minutes of the hosted job, and the poll bound added here pins that the wait follows the variable.
+- low: row 9's Conversation read-back also enables — row 5's `conv_on` check reads the restore back; the end-of-phase call is the safety restore.
+- low: `no_splash` is not in AD-25's outcome list — the spine's "Online-demo probe" row (spec gate, Rule 20) names it, and it neither counts nor resets, which keeps AD-25's counting rule; adding it to the AD itself is an AD amendment (veto window).
+- low: the spine row omits the two test-only overrides and `TMPDIR` — the row is the host's interface; the probe's header marks the overrides test-only and the host never sets them.
+
 ## Spec Change Log
 
 - Implement stage (2026-10-26): the live phase also points the runners' model keys at the mock key variable (`Test.Agent.RunnerFixture.PointKeys`, put back by `RestoreKeys` and read back by `KeysAre`). The spec assumed the mock answers the probe's fixed message; a throwaway in the CI override has no key, so Decide stops at `no_key` first (see "Measured"). No ObjectScript changed; the helper is Lane A's existing test class, called through `iris_script` (Rule 2).
@@ -519,7 +557,30 @@ Implement stage (2026-10-26). Each mutation was applied to `docker/probe.sh` onl
 - mutation (review pass, hermetic): `cleanup` no longer posts session/end -> row 13 "a run sent TERM" red (session/end posted 0 times).
 - mutation (review pass, hermetic): the message text is no longer JSON-escaped -> row 13 "a message with a quote and a backslash" red.
 - mutation (review pass, hermetic): `read_count` accepts a leading zero -> row 13 "a stored count with a leading zero" red.
+- (QA) QA stage (2026-10-26), mutations applied to `docker/probe.sh` only, observed red, reverted byte-identical (`cmp` against a scratchpad backup, `git status --short`, `git diff --stat`). The hermetic ones ran through `bash docker/tests/test-probe.sh`, the live one through `ci/iris.sh live online-demo` (tag `e16s6q`, lane C).
+- (QA) mutation: the `unset OCUTALON_DEMO_PASSWORD` line is removed (the host's alert and reset commands inherit the password) -> hermetic "QA path" checks red on every path that calls a command (11 of them), and the failing-reset check (AC 6).
+- (QA) mutation: the `auth_failed` path also prints the password on stderr -> hermetic "QA path, the form back after the sign-in POST", "a wrong password" and "a failing reset and a failing alert" red (the row 10 password check only ran on a healthy run) (AC 6).
+- (QA) mutation: `config_error` appends a line to an existing `probe.log` -> "QA row 14 ... over a used state folder" red in all 7 variants (AC 6, row 14).
+- (QA) mutation: `busy` clears the count (and writes 0) -> "QA sequence, busy between two counted failures", the no_splash, reset and later steps red (AC 3).
+- (QA) mutation: `utc()` drops `TZ=UTC0` -> "QA row 4" red in all three day checks (the busy count is keyed on the local day; AC 4).
+- (QA) mutation: the decision timeout path sets `signed_in=0` before the outcome (no sign-out) -> hermetic "QA path, a decision timeout" red (session/end posted 0 times), and live "row 5 (QA): the run that waited out its decision signed out" red; nothing else red in the live unit (AC 1).
+- (QA) mutation: a page that is neither the shell nor the form after the sign-in counts as signed in -> "QA path, a page that is neither the shell nor the form" red (4 API calls without a sign-in; AC 1).
+- (QA) mutation: the trap drops `HUP` (`trap 'exit 130' INT TERM`) -> "QA path, a run sent HUP" red (exit 129, no sign-out; AC 1).
+- (QA) New checks, all marked (QA), all passing on the unmutated tree:
+  - `docker/tests/test-probe.sh` (changed; already in `CHECK_SCRIPTS` as `probe`, so `ci/checks.sh` runs it): 148 PASS lines, about 28 s alone, the `probe` block 27 s in `bash ci/checks.sh`. New: "QA path" (13 paths, each with the outcome, the sign-out count and order, no API call before the sign-in or after the sign-out, and no password outside the sign-in POST body, in stdout, stderr, state, commands' arguments and environment), a failing reset and alert, HUP and TERM in the decision wait, "QA row 14" (7 configuration errors and an uncreatable state folder over a used state folder: byte-identical), "QA sequence" (12 steps, busy and no_splash between counted failures, two resets, healthy and capped clearing, a stored 5), "QA row 4" (a date shim, UTC rollover at midnight in two non-UTC zones, a new year).
+  - `docker/tests/test-online-demo.sh` (changed): "Story 16.6, row 5 (QA)", the CSP session of the decision-timeout run no longer exists after the run. The stub cannot show that IRIS ended the session. `ci/iris.sh live online-demo` on lane C: exit 0, 172 PASS lines, no FAIL, 311 s wall clock (the implement stage's 290 to 304 s plus a build).
+  - The stub gained a flag (`shell_other`) and `probe_run` passes `PROBE_TEST_ENV` and honours `probe_sig`; the new `qa-alert.sh` and `qa-reset.sh` stubs are written by the test into its own temporary folder.
 - AC 5 has no mutation of its own: it is pinned by rows 1 to 9, whose mutations are the live ones above (AC 2 and AC 3).
+- (CR) Code review (2026-10-26). Mutations applied to `docker/probe.sh` only, observed red, and reverted byte-identical (`cmp` against a scratchpad copy of the patched file, `git status --short` and `git diff --stat` unchanged). The first five ran as one batch, and each of that run's 22 red checks follows from exactly one of them (the `no_splash` one also turns the QA no_splash path and the QA sequence red); the others ran alone. The hermetic ones ran through `bash docker/tests/test-probe.sh`.
+- (CR) mutation: the scheme's default port is no longer dropped from `OCUTALON_PROBE_URL` -> hermetic row 14 "a URL with the default port 80" red (exit 1, `no_decision count=1`: the stub refused the message POST's `Origin`, as IRIS's envelope check does) (AC 1).
+- (CR) mutation: the cookie jar is kept in the state folder (`jar="$state_dir/jar"`) -> hermetic row 10 "the state folder holds only the state files" red (`counted-failures jar probe.log`) (Never: no resume reference stored).
+- (CR) mutation: `sleep 2` removed from the decision loop -> hermetic row 13 "a 2 s wait polled the events" red (117 polls) (AC 1, step 5).
+- (CR) mutation: mktemp's stderr is no longer silenced -> hermetic row 14 "a TMPDIR that does not exist" red (mktemp's line with the path before the configuration line) (AC 6).
+- (CR) mutation: `no_splash` counts like `auth_failed` -> hermetic row 12 red (`no_splash count=2 reset=0` for the local sign-in page and for nothing listening) (AC 2, AC 3).
+- (CR) mutation: `--max-time 20` removed from the request options -> hermetic row 12 "a splash that never answers" red (killed by the test's 40 s limit, exit 137, no alert) and the temporary-folder check red (AC 2: a timeout is `no_splash`; the "No lock" design note).
+- (CR) mutation: the sign-in posts `IRISUsername` from the splash's prefilled field -> hermetic row 10 red (`auth_failed count=1`, both variants; the stub pre-fills another name) (AC 1; Never: the published values are not read from the splash).
+- (CR) mutation: a non-ASCII byte in the probe's header comment -> `bash docker/tests/test-boundaries.sh` red ("ascii", `docker/probe.sh:2`) (AC 6: passes `test-boundaries.sh`).
+- (CR) Measured after the review's patches: `bash docker/tests/test-probe.sh` 154 PASS, 48 s (the hang row adds one 20 s request); `bash ci/checks.sh` every script passes, 123 s, the `probe` block 48 s. `ci/iris.sh live online-demo` on lane C (tag `e16s6r`, after `ci/iris.sh build`): exit 0, 173 PASS lines, no FAIL, 308 s wall clock; the probe phase took 27 s and left 260 s of the 540 s deadline (DW-220). `ci/iris.sh teardown` for `e16s6r`: nothing left.
 
 **Measured (implement stage):**
 - `bash docker/tests/test-probe.sh`: all checks PASS, about 11 s. `bash ci/checks.sh`: every block passes (`probe`, `boundaries`, `ci-config`).

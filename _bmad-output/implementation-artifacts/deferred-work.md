@@ -1240,3 +1240,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Story 16.6 implement: on a stack with no model key the probe logs 'healthy ... fallback=no_key'; the AC defines healthy as 'a decision' and only daily_cap as capped
 - 2026-10-26T11:11:47Z status=decision-pending owner=burndown by=harvest note=product call for the decision sheet: should a non-daily_cap fallback (no_key, timeout, rate_limit) alert the author without counting toward a reset? Recommended: yes, as an alert-only outcome like busy, if the owner agrees (it changes the AC's outcome list)
+
+### DW-268: The probe never signs out a sign-in IRIS accepted (3xx) when the redirect GET is not the shell (busy, timeout, other page), so the CSP session holds its connection until its 120 s timeout
+- source: spec-16-6-a-probe-checks-the-demo-every-15-minutes.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: docker/probe.sh step 3 sets signed_in=1 only on <app-root; signout() returns when it is 0; hermetic QA path shell_other expects 0 sign-outs (edge-case-hunter, acceptance-auditor)
+- 2026-10-26T12:16:12Z status=by-design owner=16-6-a-probe-checks-the-demo-every-15-minutes by=cr note=spec Boundaries: signed in = shell, no API call before it, no IRIS query field; reopen via spec amendment
