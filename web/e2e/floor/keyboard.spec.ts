@@ -377,7 +377,9 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
       if (await page.locator('app-composer button').evaluate((el) => el === document.activeElement)) break;
     }
     expect(stops[0], 'the walk starts at the first skip link').toContain(SKIP_CHAT);
-    expect(stops[stops.length - 1], 'and ends at Send').toContain('Send');
+    expect(stops[stops.length - 1], 'and ends at Send, the composer\'s (the walk breaks at the button of app-composer)').toContain('Send');
+    expect(stops.filter((one) => one.includes('"Step ')).length, 'it passed the five steps of the demo guide, before main').toBe(5);
+    expect(stops.filter((one) => one === 'button "Send"').length, 'and two Send buttons: the guide\'s prompt bar, then the composer\'s').toBe(2);
     expect(stops.filter((one) => /^a[ #]/.test(one) && one.includes('Trace')).length, 'it passed the Trace link of every rail row').toBeGreaterThanOrEqual(12);
     expect(stops.length, 'at every stop of the page').toBeGreaterThan(30);
 

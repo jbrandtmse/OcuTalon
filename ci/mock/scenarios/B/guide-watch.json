@@ -1,0 +1,12 @@
+{
+  "name": "guide-watch",
+  "match": {
+    "prompt": "Watch the Orders production and only tell me if something needs me."
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "The CI mock answered the guide's watch prompt."
+    }
+  ]
+}

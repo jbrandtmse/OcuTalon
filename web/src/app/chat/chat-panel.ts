@@ -106,7 +106,7 @@ const ANNOUNCE_FORMAT: ChatAnnounceFormat = {
     >
       <div class="content" #content>
         @if (fresh()) {
-          <app-empty-chat />
+          <app-empty-chat [demo]="demo()" />
         } @else {
           <div class="entries">
             @for (entry of entries(); track entry.key) {
@@ -235,6 +235,9 @@ export class ChatPanel {
   private heard: ChatHeard | undefined;
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
+
+  /** True in demo mode: the empty chat points at the demo guide. */
+  protected readonly demo = computed(() => this.live.snapshot()?.demoMode === true);
 
   /** True while the empty chat panel shows. */
   protected readonly fresh = computed(() => isFreshChat(this.live.store()?.chat ?? [], this.outbox.entries()));

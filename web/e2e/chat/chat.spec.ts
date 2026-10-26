@@ -83,7 +83,7 @@ const sendWithEnter = (page: Page, field: Locator, text: string): Promise<{ post
 
 /** Types the text, clicks Send and returns the POST that it made, with the server's answer. */
 const sendWithClick = (page: Page, field: Locator, text: string): Promise<{ posted: Posted; status: number }> =>
-  sendBy(page, field, text, () => page.getByRole('button', { name: 'Send', exact: true }).click());
+  sendBy(page, field, text, () => page.getByRole('main').getByRole('button', { name: 'Send', exact: true }).click());
 
 const userOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="user"][data-key="${key}"]`);
 const replyOf = (page: Page, key: string): Locator => page.locator(`app-chat-panel [data-part="reply"][data-key="${key}"]`);
@@ -183,7 +183,7 @@ test('C1: the empty chat panel, the composer, no live region and the page policy
   await expect(empty.locator('.line')).toHaveText([
     'It watches your productions from inside IRIS, and every decision is a production message you can trace.',
     'Anything risky waits for your approval.',
-    'Ask OcuTalon to watch a production, set a reminder, or say what you need.',
+    'Start with step 1 of the demo guide above.',
   ]);
   await expect(empty.locator('.line').first()).toHaveCSS('font-size', '14px');
 
@@ -304,7 +304,7 @@ test('C3: Shift+Enter, growth to 5 lines, the name, and a second message mid-tur
   await field.press('Enter');
   await field.fill('  \n \t ');
   await field.press('Enter');
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Send', exact: true }).click();
   await field.fill('composing');
   // The two signs of an open composition, one at a time: isComposing, and keyCode 229, which Safari's committing Enter carries alone.
   await field.dispatchEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true });
@@ -319,7 +319,7 @@ test('C3: Shift+Enter, growth to 5 lines, the name, and a second message mid-tur
   expect(first.status).toBe(202);
   await expect(replyOf(page, first.posted.clientId).locator('.indicator')).toHaveText(DECIDING);
   await expect(field, 'the composer stays enabled during a turn').toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
+  await expect(page.getByRole('main').getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   const second = await sendWithClick(page, field, unique('C3 second'));
   expect(second.status).toBe(202);
   await expect(field, 'a click on Send leaves the field empty').toHaveValue('');

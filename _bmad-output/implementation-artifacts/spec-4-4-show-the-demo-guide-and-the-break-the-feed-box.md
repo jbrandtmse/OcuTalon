@@ -2,9 +2,10 @@
 title: 'Story 4.4: Show the demo guide and the Break the feed box'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '59409294fa4171ceb00d4f826c9c26f41d83f333'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -331,6 +332,45 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 35 findings -- high 0, medium 2, low 26, false 7, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: `dropBreakFeed` never fails (its CHK line is unconditional) -- `web/e2e/support/guide.ts` now captures the prepare status and the delete's `%SQLCODE` and prints 0 on an error; the guard can fail.
+  - `[low]` `[patch]` blind: the guide's prompt wording is copied into the scenario files, `GuidePrompts`, `GUIDE_TEXTS` and two specs with nothing linking them -- `guide-view.test.mjs` now reads both B scenarios and asserts their `match.prompt` equals `GUIDE_TEXTS`.
+  - `[low]` `[patch]` blind: `GuidePrompts.Turn` swallows a `LogSince` failure -- the status now reaches `Decide answers the turn`, so the real cause is the failure text.
+  - `[low]` `[patch]` blind: `TestReminderPrompt` promises "no reminder is set" and the tool input without checking them -- it now asserts the `set_reminder` input (`stretch|60`) and the Reminder row count before and after.
+  - `[low]` `[patch]` blind: the step row can overflow at large text sizes above 1024px -- `.row1` now wraps (`flex-wrap: wrap`); nothing pins it (reopen_if: a floor case that doubles the font tokens at 1280px reads the row's right edge).
+  - `[low]` `[reject]` blind: two buttons named "Send" -- the matrix (row 5) and EXPERIENCE name the prompt bar's button "Send" and give it the "Next:" prompt line as context; a distinct name is a spec amendment.
+  - `[low]` `[reject]` blind: a reload mid-run drops the run's `watch.progress` refs into the baseline -- Decided 7 states this fallback; a ref only arrives after the guide view that carries the run's `startedAt`, so no real order produces it.
+  - `[low]` `[reject]` blind: the 90 s and 3 min lines depend on the browser clock -- Decided 4 chose the page's elapsed time (the AC says "the page's elapsed time"); the server's stage still moves the line forward.
+  - `[low]` `[reject]` blind: `BoxView.busy` is unused by the template, and `current` is not clamped -- a field no user reaches; the server sends steps 1 to 5.
+  - `[false]` `[reject]` blind: unrelated behaviour bundled (reveal-ring, F8) -- both are listed Tasks of the spec (DW-198, and the F8 mouse position that the guide's empty-chat chip made unstable).
+  - `[low]` `[reject]` edge: Do step 1 while the guide is hidden changes a hidden selection -- the AC asks only that it selects step 1; the hint and button sit in the collapsed bar, and Show guide shows the selection. A user must press Hide guide first.
+  - `[false]` `[reject]` edge: the chat and rail say "the guide above" when the guide is hidden or absent -- hidden leaves the "Demo guide" bar above; the server sends `guide` whenever demo mode is on.
+  - `[false]` `[reject]` edge: `guideOf` has no fallback when demo mode is on but no guide came -- the spec (row 1, "no guide view: no region") says so, and the server always sends `guide` in demo mode.
+  - `[low]` `[reject]` edge: browser clock ahead of the server shows the 3 min line at once -- the same as the clock finding above (Decided 4).
+  - `[low]` `[reject]` edge: Object.prototype keys as a code, reason or stage -- the values come from the server's fixed vocabularies (Guide.REASONS, STAGES, WatchProgress.STAGES).
+  - `[low]` `[reject]` edge: a waiting run with an empty `startedAt` renders empty elapsed spans -- the server writes `startedAt` with every run.
+  - `[low]` `[reject]` edge: `heldSent` releases on object identity of a re-delivered equal view -- Decided 5 releases on a view with a different or no `startedAt`; a stale poll after the 200 is the only path and the next view corrects it.
+  - `[low]` `[reject]` edge: `heldSent` stays while the view never leaves `sending` -- the view leaves `sending` within a poll; `no_notice` frees the control by 195 s.
+  - `[low]` `[reject]` edge: `watchLine` takes the last ref in store order, so an older incident can win -- one run has one incident; baseline refs are the earlier ones.
+  - `[low]` `[reject]` edge: this run's `watch.progress` could land in the baseline when it precedes its `guide.state` -- the server publishes `guide.state` at the press, long before a notice.
+  - `[low]` `[patch]` edge: `GuidePrompts.OnAfterAllTests` skips the restore when the production is not running -- the `Running` condition is removed; a failed restore now fails the class.
+  - `[low]` `[patch]` edge: the module doc says the button "always follows" `active` while a press holds it -- the doc now names the two local holds.
+  - `[low]` `[patch]` verification-gap: no recorded mutation line for AC1 to AC9 -- the ten mutations are in `## Verification`, each observed red and reverted.
+  - `[medium]` `[patch]` verification-gap: the focus rule's removed-element branch is unpinned (M3's Send persists across 1 to 2) -- floor case M6 (focus on the prompt bar's Send at step 2, advance to step 3; and focus in the composer through 1 to 2); red under the `whenGone` mutation.
+  - `[medium]` `[patch]` verification-gap: the box's baseline capture is unpinned (M4's store held no earlier ref) -- M4 now publishes an earlier run's `watch.progress` first, waits for a following event of the same stream, and asserts the sent line survives; red under the baseline mutation.
+  - `[low]` `[patch]` verification-gap: G1's two added assertions cannot fail -- removed; the guide-Send assertion before them stays.
+  - `[low]` `[patch]` verification-gap: Q6 checks absence before the system is ready -- a settle after the busy press, and a positive signal (the 500 was served) before its absences.
+  - `[low]` `[patch]` verification-gap: cases rely on state they did not create -- Q3 and Q5 serve an empty chat; M4's fixed 4 s wait is `settleBatch` (the batch stops growing). Q1's blank guide and the floor's empty FLOOR session are the spec's own design (Decided 14).
+  - `[low]` `[patch]` verification-gap: the AC9 planned mutation cannot go red on a real mode-0 stack -- the row now names the chat's demo flag, which the badge spec catches.
+  - `[low]` `[patch]` verification-gap: the AC8 planned mutation would not go red in M4 -- the row now names the baseline mutation, which M4 catches.
+  - `[low]` `[reject]` verification-gap: components have no unit host -- the project hosts components in Playwright only; Q and M cases cover them.
+  - `[false]` `[reject]` intent: tests exercise pure functions and faked snapshots more than the real server -- the spec places the real server at M3, M4 and Q1 by design.
+  - `[false]` `[reject]` intent: row 17's test sends a Decide request, not a page send -- the spec's `GuidePrompts` task names `RunnerFixture.NewRequest/Run`.
+  - `[false]` `[reject]` intent: the box's activity "always follows" `active` against row 10's local hold -- row 10 states the hold.
+  - `[false]` `[reject]` intent: the baseline is taken at the run's first sight, not at the `waiting` stage -- equivalent: no notice precedes `waiting`.
+
 ## Design Notes
 
 **Lead rulings at the spec gate (runner, 2026-10-26; policy 9e90866):**
@@ -481,8 +521,20 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
 | 6 | the hidden flag not stored | Q8 (after reload) |
 | 6 | the compact row dropped | M5 (one row at 1280x600) |
 | 7 | `MARGIN` 0 and no rounding | `reveal-ring.test` (fractional case) |
-| 8 | the box renders a local `active` after a 200 | M4 (inactive after the real 200) |
-| 9 | the guide shown whatever `demoMode` says (as AC1's first row) | the demo-switch badge spec in mode 0 (no region) |
+| 8 | the box ignores the `watch.progress` baseline (an earlier run's ref shows its line) | M4 (the sent line must survive an earlier run's ref) |
+| 9 | the chat's demo line shown whatever `demoMode` says | the demo-switch badge spec in mode 0 (the line must be `emptyAsk`) |
+
+**Recorded mutations (Rule 19).** Each was applied to the tree, observed red, and reverted; `git diff | md5` and `git status --short` were identical before and after every one. The browser units were rebuilt with `ci/iris.sh build` before each run (a `live` call alone does not rebuild the web bundle).
+- AC1: mutation: `guideOf` ignores `demoMode` -> `guide-view.test` "is undefined outside demo mode, even for a snapshot that still carries a guide and a store that holds one" red.
+- AC2: mutation: `advance` also announces for the first view -> `guide-view.test` "is silent for the first view, a view of the same step, a lower step and another run" red.
+- AC2: mutation: `whenGone` returns null for the prompt bar's keys (the removed Send hands focus to the main region) -> `live floor` M6 red, 79 other cases passed.
+- AC3: mutation: `guide-reminder.json` keys P2 with one character changed -> `guide-view.test` "key the exact text of the guide's step 1 and step 2 prompts" red.
+- AC4: mutation: the "Next step" tag ignores the in-flight press -> `break-feed-view.test` "is busy with \"Sending 50 orders...\" while the press has no answer, and the tag is gone" red.
+- AC5: mutation: the 90 s line shows only from the server's `still_waiting` -> `break-feed-view.test` "shows the 90 s line from the page's clock at 90 s, and the sent line at 89 s, while the server still says waiting" (and two more) red.
+- AC6: mutation: the compact media block of `demo-guide.ts` never applies -> `live floor` M5 red.
+- AC7: mutation: `MARGIN` 0 and no `Math.ceil` -> `reveal-ring.test` "scrolls down by the overflow and the gutter when the control passes the bottom" (and five more) red.
+- AC8: mutation: both baseline captures of `break-feed-box.ts` use an empty ref set -> `live floor` M4 red (an earlier run's `watch.progress` line replaced the sent line).
+- AC9: mutation: the chat's `demo` is always true -> `live demo-switch` badge spec red in mode 0 ("Start with step 1 of the demo guide above." where `emptyAsk` belongs).
 
 **Shared surfaces:**
 - the page's region order and tab order (F1, G1, G4, G5, K1, K4);
@@ -501,7 +553,26 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as the dispatch asked. No code was changed. The spec needs the lead's spec-gate attention for three things: veto items V1 (the guide-owned break-feed caller, convention L926) and V2 (the done and upcoming step names), and the Story 8.4 and Story 5.1 scenario-file notes under "For the lead". The ledger item DW-198 is addressed (Tasks, matrix row 16, AC7).
+**Summary.** The page shows the demo guide and the Break the feed box in demo mode. `app-demo-guide` (steps, prompt bar, Hide and Show, compact row, numbers band, stacked order) sits between the banners and the rail; `app-break-feed-box` reads the guide view, the page's own press (V1's guide-owned `BreakFeedApi`) and `watch.progress`. The empty chat and Background checks have their demo lines. DW-198's fix (1 px margin, whole pixels) is in `reveal-ring.ts`. Two CI mock scenarios answer P1 and P2, and `Test.Demo.GuidePrompts` runs them through Decide.
+
+**Files changed.**
+- `web/src/app/guide/{guide-view,demo-guide}.ts`, `web/src/app/feed/{break-feed-view,break-feed-api,break-feed-box}.ts` -- new: view models, the guide, the box and the press call.
+- `web/src/app/{app,chat/chat-panel,chat/chat-view,chat/empty-chat,chat/page-time,icon/icon,rail/rail-view,rail/status-rail,shared/layout-view,shared/reveal-ring,shared/server-button}.ts` -- the guide slot, the demo lines, `elapsedText`, `chevron-right`, the height query, the ring margin and the inactive input.
+- `ci/mock/scenarios/B/guide-{watch,reminder}.json` and `src/ocutalon/cls/OcuTalon/Test/Demo/GuidePrompts.cls` -- the scenarios and their test.
+- `web/scripts/*.test.mjs` (two new, ten edited), `web/e2e/guide/guide.spec.ts`, `web/e2e/floor/guide.spec.ts` (M1 to M6), `web/e2e/support/guide.ts`, and the edited chat, rail, frame, banners, demo-path, demo-switch and floor specs.
+
+**Review.** 35 findings: 0 high, 2 medium, 26 low, 7 false. Patched: 15 rows (the unpinned focus branch and baseline capture, the vacuous and premature assertions, the dropBreakFeed and GuidePrompts gaps, the prompt-link test, the step row's wrap, the module doc, the two planned-mutation rows, the ten mutation lines). Deferred: none. Rejected: 20 rows (13 low, 7 false) with their reasons in the log above.
+
+**Follow-up review recommended: true.** Two medium findings were patched (patched counts: medium 2, low 13). The unverified risk: the `.row1` wrap (`flex-wrap: wrap`) has no test of its own, and the new floor cases M6 and M4's extension were written after the review layers read the diff.
+
+**Verification.** `npm --prefix web test` 622 pass; `npm --prefix web run lint` exit 0; `bash docker/tests/test-mock.sh` 94 pass; `GuidePrompts` passed (no skip); `live sign-in` 203 passed, 1 skipped (not a guide case); `live floor` 80 passed in Chromium, Firefox and WebKit (M1 to M6, G1, K4, A7, W2); `live demo-path` all checks passed (floor 4 of 4); `live demo-switch` all checks passed; `shard lane-b` 54 classes passed; `shard lane-a` 47 classes passed; `bash docker/tests/test-web-build.sh` and `bash ci/checks.sh` passed (after the non-ASCII literals of ten source lines became `\u2026` and `\u00B7`, which `boundaries` flagged). The web bundle was rebuilt with `ci/iris.sh build` before the final floor and sign-in runs.
+
+**Residual risks.**
+- DW-198's "green over several Linux CI runs" can only come from CI (`floor-webkit` G1).
+- The initial bundle was over its 500 kB warning before this story (540 kB) and is 561 kB now; no budget error.
+- In the collapsed bar with an inactive box the hint wraps under the button, so the bar is about 70 px tall; M5 holds it under 110 px.
+- Departures from the spec text, all small: M4 publishes `watch.progress` through `Live.Publish` (`BridgeSink` ignores that type); Hide and Show store `1` and `0`; `boxView` takes the elapsed formatter as a parameter (view modules import no values); the existing chat and banners specs scope their Send locator to `main`, and frame F8 moves the mouse to a point with no tooltip.
+- Edits outside Epic 4's listed footprint, all Lane B home areas and none contended: `web/src/app/{app.ts,chat/*,rail/*,shared/*,icon/icon.ts}`, `web/scripts/*.test.mjs`, `web/e2e/{chat,rail,frame,floor,banners}/*.spec.ts`, the new `web/e2e/guide/` and `web/e2e/support/guide.ts`.

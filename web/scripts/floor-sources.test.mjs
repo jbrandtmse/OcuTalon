@@ -7,7 +7,7 @@
 //   banned   none of the patterns UX-DR129 bans appears (toasts, sounds, drag and drop, progress bars, intersection observers,
 //            self-switching tabs, native dialogs and alerts, celebrations, modal notifications, controls that exist only on hover);
 //   bands    every width @media of the page is one of the four queries of layout-view.ts, and Layout reads matchMedia with them only
-//            (Story 2.15);
+//            (Story 2.15); the one height query of layout-view.ts (the demo guide's compact row, Story 4.4) is not a width band;
 //   sticky   nothing is sticky but the compact header below 1024px, and nothing fixed but the skip links (Story 2.15).
 // The browser cases K1 to K6, W1 to W4 and G1 to G7 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
 // sources, so a state no case reaches cannot bring one of these back without a test turning red. Each list below names the files that
@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { sourceFiles } from './source-files.mjs';
 
-const { LAYOUT_QUERIES } = await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'shared', 'layout-view.ts')).href);
+const { HEIGHT_QUERIES, LAYOUT_QUERIES } = await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'app', 'shared', 'layout-view.ts')).href);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sources = join(here, '..', 'src');
@@ -64,7 +64,7 @@ const reducedMotion = (text) => blocksAfter(text, '@media (prefers-reduced-motio
 function cssOf(one) {
   if (one.name.endsWith('.css')) return one.code;
   if (!one.name.endsWith('.ts')) return '';
-  return [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1].replace(/\$\{LAYOUT_QUERIES\.(\w+)\}/g, (_whole, name) => LAYOUT_QUERIES[name] ?? `\${LAYOUT_QUERIES.${name}}`)).join('\n');
+  return [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1].replace(/\$\{LAYOUT_QUERIES\.(\w+)\}/g, (_whole, name) => LAYOUT_QUERIES[name] ?? `\${LAYOUT_QUERIES.${name}}`).replace(/\$\{HEIGHT_QUERIES\.(\w+)\}/g, (_whole, name) => HEIGHT_QUERIES[name] ?? `\${HEIGHT_QUERIES.${name}}`)).join('\n');
 }
 
 /** The rules of some CSS that hold no rule of their own: the selector and the declarations. */
@@ -406,7 +406,13 @@ describe('the banned patterns (UX-DR129)', () => {
 describe('the width bands (Story 2.15)', () => {
   const QUERIES = Object.values(LAYOUT_QUERIES);
   /** The condition of every `@media` rule that holds a width, or an interpolation, which may hold one. */
-  const widthConditions = (css) => [...css.matchAll(/@media\s*((?:\$\{[^}]*\}|[^{])*)\{/g)].map((match) => match[1].trim()).filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{/.test(condition));
+  /** A condition on the viewport's height alone, written out or as an interpolation of HEIGHT_QUERIES: not a width band (Story 4.4). */
+  const heightOnly = (condition) => /^(?:\(height\s*[<>]=?\s*\d+px\)|\$\{HEIGHT_QUERIES\.\w+\})$/.test(condition);
+  const widthConditions = (css) =>
+    [...css.matchAll(/@media\s*((?:\$\{[^}]*\}|[^{])*)\{/g)]
+      .map((match) => match[1].trim())
+      .filter((condition) => !heightOnly(condition))
+      .filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{/.test(condition));
 
   it('catches a width media query that is none of the four, in any syntax', () => {
     assert.deepEqual(widthConditions('@media (max-width: 1000px) { a { b: c } }'), ['(max-width: 1000px)']);
@@ -419,6 +425,23 @@ describe('the width bands (Story 2.15)', () => {
     assert.deepEqual(widthConditions('@media (forced-colors: active) { a { b: c } }'), []);
   });
 
+  it('does not take a height condition for a width band, and still catches a width condition beside a height one', () => {
+    assert.deepEqual(widthConditions('@media (height < 680px) { a { b: c } }'), []);
+    assert.deepEqual(widthConditions('@media ${HEIGHT_QUERIES.compact} { a { b: c } }'), []);
+    assert.deepEqual(widthConditions('@media (height < 680px) and (width < 900px) { a { b: c } }'), ['(height < 680px) and (width < 900px)']);
+    assert.deepEqual(widthConditions('@media (max-width: 900px) { a { b: c } }'), ['(max-width: 900px)']);
+  });
+
+  it('keeps the one height query of the page apart from the four width queries', () => {
+    assert.deepEqual({ ...HEIGHT_QUERIES }, { compact: '(height < 680px)' });
+    assert.deepEqual(
+      Object.values(HEIGHT_QUERIES).filter((query) => QUERIES.includes(query)),
+      [],
+    );
+    const used = files.filter((one) => /^app\/.*\.ts$/.test(one.name) && /\$\{HEIGHT_QUERIES\./.test(one.code)).map((one) => one.name);
+    assert.deepEqual(used, ['app/guide/demo-guide.ts']);
+  });
+
   it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {
     const found = [];
     for (const one of files.filter((one) => /^(app|styles)\//.test(one.name))) {
@@ -428,7 +451,7 @@ describe('the width bands (Story 2.15)', () => {
     for (const [name, condition] of found) assert.ok(QUERIES.includes(condition), `${name}: ${condition} is one of the four queries`);
     assert.deepEqual(
       [...new Set(found.map(([name]) => name))].sort(),
-      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
+      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
     );
   });
 

@@ -1,0 +1,523 @@
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+
+import { signInReadme } from '../sign-in/helpers';
+import { changeSnapshot, MESSAGES } from '../support/api';
+import { announcedTexts, plain, recordAnnouncements } from '../support/page';
+
+/**
+ * The demo guide and the Break the feed box on the sign-in stack, with the README account (Story 4.4, matrix rows 1 to 14). Q1 reads the real
+ * blank guide of the README session (it watches nothing on this stack, api.spec.ts); every other case answers the page's /state with a
+ * guide that it names (changeSnapshot), routes the page's POSTs and writes nothing to the server. The stack is in demo mode (every
+ * throwaway is), so the guide shows in all of them.
+ */
+const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
+
+const P1 = 'Watch the Orders production and only tell me if something needs me.';
+const P2 = 'Remind me in 1 minute to stretch.';
+const H1 = 'Ask OcuTalon to watch the Orders production first (step 1).';
+const H2 = 'Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.';
+const SENT = 'Sent. OcuTalon usually notices within a minute.';
+const SENDING = 'Sending 50 orders\u2026';
+const STILL = 'Still waiting. The notice will appear in the chat and on the Simulated phone tab.';
+const NO_NOTICE = "No notice after 3 minutes, so something went wrong with this run. Open the Orders watch's trace in Background checks, or try again.";
+const LABELS = ['Watch', 'Reminder', 'Break the feed', 'Approve', 'Open the trace'];
+
+/** A guide view whose first `done` steps are done and whose current step is the next; `over` replaces fields of it. */
+function guideOf(done: number, over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    runEpoch: 1,
+    step: Math.min(5, done + 1),
+    finished: false,
+    steps: [1, 2, 3, 4, 5].map((step) => ({ step, done: step <= done })),
+    breakFeed: { active: false, reason: 'not_watching' },
+    step4Variant: 'unpaired',
+    telegramRow: false,
+    ...over,
+  };
+}
+
+/** The accessible name of a step: "Step 3, Break the feed, current". */
+const stepName = (n: number, state: 'current' | 'done' | 'upcoming'): string => `Step ${n}, ${LABELS[n - 1]}, ${state}`;
+
+const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'Demo guide' });
+const stepOf = (page: Page, n: number, state: 'current' | 'done' | 'upcoming'): Locator => guideRegion(page).getByRole('button', { name: stepName(n, state), exact: true });
+const breakButton = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Break the feed', exact: true });
+const boxOf = (page: Page): Locator => page.locator('app-break-feed-box');
+const promptOf = (page: Page): Locator => guideRegion(page).locator('.prompt');
+
+/** Answers the page's /state with the guide that `holder.guide` names when the page loads; the demo mode is the stack's. */
+async function serve(page: Page, holder: { guide: Record<string, unknown>; chat?: boolean }): Promise<void> {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = holder.guide;
+    if (holder.chat === false) {
+      snapshot['chat'] = [];
+      (snapshot['rail'] as { checks: unknown[] }).checks = [];
+    }
+  });
+}
+
+/** Signs in and waits for the loaded page. */
+async function open(page: Page): Promise<void> {
+  await signInReadme(page);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+}
+
+/** Reloads the page with the guide that the holder names now. */
+async function reopen(page: Page): Promise<void> {
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+}
+
+/** The page's clock now (ms). */
+const now = (page: Page): Promise<number> => page.evaluate(() => Date.now());
+
+/** An ISO time to the second, as the server writes startedAt. */
+const iso = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+/** Q1: the real blank guide of the README session: the region, its first row, the prompt bar and the box. */
+test('Q1: the real blank guide shows between the banners and the rail, with its first row, prompt bar and box', async ({ page }) => {
+  await open(page);
+
+  const guide = guideRegion(page);
+  await expect(guide, 'the region Demo guide, labelled by its visible label').toHaveCount(1);
+  await expect(guide).toHaveAccessibleName('Demo guide');
+  await expect(guide.getByRole('heading'), 'it has no heading').toHaveCount(0);
+  const order = await page.evaluate(() => {
+    const nodes = ['.banner-slot', 'app-demo-guide', 'section.rail', 'main'].map((selector) => document.querySelector(selector));
+    return nodes.map((node, i) => i === 0 || (!!node && !!nodes[i - 1] && !!(nodes[i - 1]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)));
+  });
+  expect(order, 'between the banner slot and the rail and main').toEqual([true, true, true, true]);
+  await expect(page.locator('main > app-demo-guide, main app-demo-guide'), 'and outside main').toHaveCount(0);
+
+  const steps = guide.getByRole('list').getByRole('button');
+  await expect(steps, 'five steps').toHaveCount(5);
+  await expect(stepOf(page, 1, 'current'), 'step 1 is current').toHaveAttribute('aria-current', 'step');
+  for (const n of [2, 3, 4, 5]) {
+    await expect(stepOf(page, n, 'upcoming'), `step ${n} is upcoming`).not.toHaveAttribute('aria-current', /.*/);
+  }
+  await expect(guide.locator('.step.current .marker'), 'the current marker is a disc with the number').toHaveText('1');
+  await expect(guide.locator('.step.upcoming .marker'), 'the others are hollow circles with theirs').toHaveText(['2', '3', '4', '5']);
+  await expect(guide.locator('[aria-hidden="true"] svg').first(), 'the chevrons are decorative').toBeAttached();
+  await expect(guide.locator('.step-label'), 'with the step labels').toHaveText(LABELS);
+  await expect(guide.getByText('About 2 minutes', { exact: true })).toBeVisible();
+  const hide = guide.getByRole('button', { name: 'Hide guide', exact: true });
+  await expect(hide, 'Hide guide is a ghost button').toHaveClass(/button-ghost/);
+  await expect(hide, 'and has no aria-expanded').not.toHaveAttribute('aria-expanded', /.*/);
+
+  const prompt = promptOf(page);
+  await expect(prompt.locator('.next')).toHaveText('Next:');
+  await expect(prompt.locator('.prompt-text')).toHaveText(`"${P1}"`);
+  await expect(prompt.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
+  const sunken = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--sunken)';
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  await expect(prompt, 'the prompt bar is sunken').toHaveCSS('background-color', sunken);
+
+  const box = boxOf(page);
+  await expect(box.getByText('Demo control', { exact: true }), 'the box always shows Demo control').toBeVisible();
+  const button = breakButton(page);
+  await expect(button, 'the inactive button is Break the feed').toHaveAttribute('aria-disabled', 'true');
+  await expect(button).not.toHaveAttribute('disabled', /.*/);
+  await expect(button).toHaveClass(/button-inactive/);
+  await expect(button, 'described by its hint').toHaveAccessibleDescription(H1);
+  await expect(box.locator('.hint'), 'the hint under it').toHaveText(H1);
+  await expect(box.getByRole('button', { name: 'Do step 1', exact: true }), 'and a Do step 1 link-styled button').toBeVisible();
+
+  await expect(guide.locator('[aria-live], [aria-atomic], [role="log"], [role="status"], [role="alert"], [role="timer"]'), 'neither the guide nor the box is live').toHaveCount(0);
+});
+
+/** Q1: the demo texts replace the old ones in the empty chat and in Background checks. */
+test('Q1: the empty chat and Background checks point at the guide (the old texts return outside demo mode)', async ({ page }) => {
+  await serve(page, { guide: guideOf(0), chat: false });
+  await open(page);
+
+  const lines = page.getByRole('main').locator('app-empty-chat .line');
+  await expect(lines).toHaveText([
+    'It watches your productions from inside IRIS, and every decision is a production message you can trace.',
+    'Anything risky waits for your approval.',
+    'Start with step 1 of the demo guide above.',
+  ]);
+  await expect(page.getByRole('region', { name: 'Status', exact: true }).locator('.empty').nth(1)).toHaveText('Nothing yet. Step 1 of the guide sets up a watch.');
+  await expect(page.getByRole('heading', { level: 2 }), 'the guide adds no heading').toHaveText(['Status', 'Chat']);
+});
+
+/** Q2: any step can be selected in any order; steps 3 to 5 hold no prompt; nothing is marked done by a click. */
+test('Q2: selecting steps changes the prompt and the bar under the step, and marks nothing done', async ({ page }) => {
+  await serve(page, { guide: guideOf(0) });
+  await open(page);
+
+  const prompt = promptOf(page).locator('.prompt-text');
+  await expect(prompt).toHaveText(`"${P1}"`);
+  await stepOf(page, 2, 'upcoming').click();
+  await expect(prompt, 'step 2 shows its prompt').toHaveText(`"${P2}"`);
+  const bar = await stepOf(page, 2, 'upcoming').evaluate((el) => getComputedStyle(el, '::after').borderBottomWidth);
+  expect(bar, 'the selected step has a 2px bottom bar').toBe('2px');
+  const barColor = await stepOf(page, 2, 'upcoming').evaluate((el) => getComputedStyle(el, '::after').borderBottomColor);
+  expect(barColor, 'in ink, never a teal ring').toBe(await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--ink)';
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  }));
+  await expect(stepOf(page, 1, 'current'), 'aria-current stays on the current step').toHaveAttribute('aria-current', 'step');
+  await expect(stepOf(page, 2, 'upcoming')).not.toHaveAttribute('aria-current', /.*/);
+
+  for (const n of [5, 4, 3]) {
+    await stepOf(page, n, 'upcoming').click();
+    await expect(page.getByRole('region', { name: 'Demo guide' }).locator('.prompt-text'), `step ${n} holds no prompt (Story 4.7)`).toHaveCount(0);
+    await expect(promptOf(page).getByRole('button'), `and no button`).toHaveCount(0);
+  }
+  await stepOf(page, 1, 'current').click();
+  await expect(prompt, 'back to step 1, in any order').toHaveText(`"${P1}"`);
+  for (const n of [2, 3, 4, 5]) {
+    await expect(stepOf(page, n, 'upcoming'), `a click marked step ${n} done: it did not`).toHaveCount(1);
+  }
+  await expect(guideRegion(page).locator('.step.done'), 'nothing is done').toHaveCount(0);
+});
+
+/** Q2: a step is done only from the view: the server's view with two steps done shows their check, and the current step is the view's. */
+test('Q2: the markers, names and aria-current come from the guide view', async ({ page }) => {
+  await serve(page, { guide: guideOf(2, { breakFeed: { active: true } }) });
+  await open(page);
+
+  await expect(stepOf(page, 1, 'done')).toHaveCount(1);
+  await expect(stepOf(page, 2, 'done')).toHaveCount(1);
+  await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
+  await expect(stepOf(page, 4, 'upcoming')).toHaveCount(1);
+  await expect(stepOf(page, 5, 'upcoming')).toHaveCount(1);
+  await expect(guideRegion(page).locator('.step.done .marker svg'), 'a check for each done step').toHaveCount(2);
+  await expect(guideRegion(page).locator('.step.selected'), 'the selection starts on the current step').toHaveAttribute('aria-label', stepName(3, 'current'));
+  await expect(promptOf(page).locator('.prompt-text'), 'which holds no prompt yet').toHaveCount(0);
+});
+
+/** Q3: Send posts the exact prompt with fromGuide, shows its caption, announces nothing, and a second press while the first is sending sends nothing. */
+test('Q3: Send posts the exact prompt as the guide\'s, shows its caption and announces nothing', async ({ page }) => {
+  const bodies: Array<{ clientId: string; text: string; fromGuide: boolean }> = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let holdFirst = true;
+  await page.route(`**${MESSAGES}`, async (route: Route) => {
+    const body = route.request().postDataJSON() as { clientId: string; text: string; fromGuide: boolean };
+    bodies.push(body);
+    if (holdFirst) {
+      holdFirst = false;
+      await gate;
+    }
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
+  });
+  await serve(page, { guide: guideOf(0), chat: false });
+  await recordAnnouncements(page);
+  await open(page);
+
+  const send = promptOf(page).getByRole('button', { name: 'Send', exact: true });
+  await send.dblclick();
+  await expect.poll(() => bodies.length, { message: 'the first press posted' }).toBe(1);
+  await page.waitForTimeout(300);
+  expect(bodies, 'a second press while the first message is still sending posts nothing').toHaveLength(1);
+  expect(bodies[0]!.text, 'the exact prompt of step 1').toBe(P1);
+  expect(bodies[0]!.fromGuide, 'from the guide').toBe(true);
+  expect(Object.keys(bodies[0]!).sort(), 'with the clientId, the text and the flag, and no session').toEqual(['clientId', 'fromGuide', 'text']);
+  release();
+  const message = page.getByRole('main').locator('app-user-message').filter({ hasText: P1 });
+  await expect(message).toHaveCount(1);
+  await expect(message.locator('.when'), 'with the caption and the time').toHaveText(/^From the demo guide \u00B7 \S+/);
+
+  await stepOf(page, 2, 'upcoming').click();
+  await promptOf(page).getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]!.text, 'the exact prompt of step 2').toBe(P2);
+  expect(bodies[1]!.fromGuide).toBe(true);
+  await expect(page.getByRole('main').locator('app-user-message').filter({ hasText: P2 }).locator('.when')).toHaveText(/^From the demo guide/);
+  await page.waitForTimeout(1500);
+  expect(await announcedTexts(page), 'the guide sends are not announced').toEqual([]);
+});
+
+/** Q4: the Telegram row shows before the prompt when the view says so. */
+test('Q4: the Telegram row follows the view and has no button', async ({ page }) => {
+  const holder = { guide: guideOf(0, { telegramRow: true }) };
+  await serve(page, holder);
+  await open(page);
+
+  const line = promptOf(page).locator('.telegram');
+  await expect(line).toHaveText('Optional: scan the QR code in the Telegram card to get the notice on your own phone.');
+  await expect(promptOf(page).getByRole('button'), 'the row has no button of its own: Send is the prompt\'s').toHaveCount(1);
+  const order = await promptOf(page).evaluate((el) => [...el.children].map((child) => child.className));
+  expect(order, 'it comes before the prompt line').toEqual(['telegram', 'prompt-line']);
+
+  holder.guide = guideOf(0);
+  await reopen(page);
+  await expect(promptOf(page).locator('.telegram'), 'false: absent').toHaveCount(0);
+});
+
+/** Q5: the box's look follows the view: inactive with the reason's hint, the attention style, the tag and bar on step 3, secondary on step 5. */
+test('Q5: the box shows the hints, the styles, the tag and Do step 1 as the view says', async ({ page }) => {
+  const holder = { guide: guideOf(0), chat: false };
+  await serve(page, holder);
+  await open(page);
+
+  // Not watching: Do step 1 selects step 1.
+  await stepOf(page, 3, 'upcoming').click();
+  await expect(promptOf(page).locator('.prompt-text')).toHaveCount(0);
+  await expect(breakButton(page)).toHaveAccessibleDescription(H1);
+  await boxOf(page).getByRole('button', { name: 'Do step 1', exact: true }).click();
+  await expect(promptOf(page).locator('.prompt-text'), 'Do step 1 selects step 1').toHaveText(`"${P1}"`);
+  await expect(page.getByRole('main').locator('app-user-message'), 'and sends nothing').toHaveCount(0);
+
+  // Incident in progress: the other hint, and no Do step 1.
+  holder.guide = guideOf(3, { breakFeed: { active: false, reason: 'incident_in_progress', stage: 'notice_arrived', startedAt: iso(Date.now() - 30_000) } });
+  await reopen(page);
+  await expect(breakButton(page)).toHaveAttribute('aria-disabled', 'true');
+  await expect(breakButton(page)).toHaveAccessibleDescription(H2);
+  await expect(boxOf(page).locator('.hint')).toHaveText(H2);
+  await expect(boxOf(page).getByRole('button', { name: 'Do step 1', exact: true }), 'no Do step 1').toHaveCount(0);
+  await expect(boxOf(page).locator('.line'), 'and no status line after the notice').toHaveCount(0);
+
+  // Active on step 3: attention, zap, the tag and the 4px bar.
+  holder.guide = guideOf(2, { breakFeed: { active: true } });
+  await reopen(page);
+  const button = breakButton(page);
+  await expect(button).toHaveClass(/button-attention/);
+  await expect(button).not.toHaveAttribute('aria-disabled', /.*/);
+  await expect(button.locator('svg'), 'with the zap icon').toHaveCount(1);
+  await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag shows on step 3').toBeVisible();
+  const action = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--action)';
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  await expect(boxOf(page), 'the 4px action bar on its left').toHaveCSS('border-left-width', '4px');
+  await expect(boxOf(page)).toHaveCSS('border-left-color', action);
+  await expect(button, 'an active button has no description').not.toHaveAttribute('aria-describedby', /.*/);
+
+  // Active on another step: attention, no tag; on step 5: secondary, no tag.
+  holder.guide = guideOf(0, { breakFeed: { active: true } });
+  await reopen(page);
+  await expect(breakButton(page)).toHaveClass(/button-attention/);
+  await expect(boxOf(page).getByText('Next step', { exact: true })).toHaveCount(0);
+  holder.guide = guideOf(4, { breakFeed: { active: true } });
+  await reopen(page);
+  await expect(breakButton(page)).toHaveClass(/button-secondary/);
+  await expect(boxOf(page).getByText('Next step', { exact: true })).toHaveCount(0);
+
+  // A press on an inactive button sends nothing.
+  holder.guide = guideOf(0);
+  let pressed = 0;
+  await page.route(BREAK_FEED, async (route) => {
+    pressed += 1;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await reopen(page);
+  await breakButton(page).click({ force: true });
+  await breakButton(page).focus();
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  expect(pressed, 'a press on the inactive button makes no request').toBe(0);
+  await expect(breakButton(page), 'and it stays focusable').toBeFocused();
+});
+
+/** Q6: a press: busy with its line, then sent and announced once with the elapsed time; a 409 shows its reason; a 500 adds no text. */
+test('Q6: a press is busy, then sent (announced once, with the elapsed time), and the 409s and the 500 are handled', async ({ page }) => {
+  const holder = { guide: guideOf(2, { breakFeed: { active: true } }) };
+  let answer: (route: Route) => Promise<void> = async () => undefined;
+  const requests: string[] = [];
+  await page.route(BREAK_FEED, async (route) => {
+    requests.push(route.request().postData() ?? '');
+    await answer(route);
+  });
+  await page.clock.install();
+  await serve(page, holder);
+  await recordAnnouncements(page);
+  await open(page);
+
+  // A delayed 200.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let startedAt = '';
+  answer = async (route) => {
+    await gate;
+    startedAt = iso(await now(page));
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'sent', startedAt }) });
+  };
+  const button = breakButton(page);
+  await expect(button).toHaveClass(/button-attention/);
+  await button.click();
+  await expect(button, 'busy while the press has no answer').toHaveAttribute('aria-busy', 'true');
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await expect(boxOf(page).locator('.line')).toHaveText(SENDING);
+  await expect(button, 'described by the line').toHaveAccessibleDescription(SENDING);
+  await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag leaves once it is pressed').toHaveCount(0);
+  await button.click({ force: true });
+  await page.waitForTimeout(300);
+  expect(requests, 'a press on the busy button sends nothing more').toHaveLength(1);
+  expect(requests[0], 'the body is empty and names no session').toBe('{}');
+
+  release();
+  await expect(boxOf(page).locator('.line')).toContainText(SENT);
+  await expect(button, 'inactive after the 200, whatever the view still says').toHaveAttribute('aria-disabled', 'true');
+  await expect(button).not.toHaveAttribute('aria-busy', /.*/);
+  await expect(button).toHaveClass(/button-inactive/);
+  await expect(boxOf(page).locator('.line .elapsed')).toContainText(/^\d+ s/);
+  await expect.poll(async () => (await announcedTexts(page)).filter((text) => text.includes(SENT)).length, { message: 'announced' }).toBe(1);
+  await page.clock.fastForward(23_000);
+  await expect(boxOf(page).locator('.line [aria-hidden="true"]'), 'the elapsed time ticks, as "{n} s"').toHaveText(/^2\d s$/);
+  await expect(boxOf(page).locator('.line .visually-hidden'), 'and is spoken in full words').toHaveText(/^2\d seconds$/);
+  await page.clock.fastForward(40_000);
+  await expect(boxOf(page).locator('.line [aria-hidden="true"]'), 'a minute on, in minutes').toHaveText('1 min');
+  await page.waitForTimeout(500);
+  expect((await announcedTexts(page)).filter((text) => text.includes(SENT)), 'nothing more is announced for the ticking, and Sent once').toHaveLength(1);
+
+  // 409: each code shows its reason until the next view, and announces nothing.
+  for (const [code, hint] of [['not_watching', H1], ['incident_in_progress', H2]] as const) {
+    holder.guide = guideOf(2, { breakFeed: { active: true } });
+    await reopen(page);
+    answer = async (route) => {
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code, message: hint } }) });
+    };
+    const before = (await announcedTexts(page)).length;
+    await breakButton(page).click();
+    await expect(boxOf(page).locator('.hint'), `${code}: its hint`).toHaveText(hint);
+    await expect(breakButton(page)).not.toHaveAttribute('aria-busy', /.*/);
+    expect((await announcedTexts(page)).length, `${code}: nothing was announced`).toBe(before);
+    await expect(boxOf(page).getByRole('button', { name: 'Do step 1', exact: true }), `${code}: Do step 1 only for not_watching`).toHaveCount(code === 'not_watching' ? 1 : 0);
+  }
+
+  // 500: no new text, and the box follows the view.
+  holder.guide = guideOf(2, { breakFeed: { active: true } });
+  await reopen(page);
+  let refused = false;
+  answer = async (route) => {
+    await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) });
+    refused = true;
+  };
+  await breakButton(page).click();
+  await expect.poll(() => refused, { message: 'the 500 was served' }).toBe(true);
+  await page.waitForTimeout(300);
+  await expect(breakButton(page)).not.toHaveAttribute('aria-busy', /.*/);
+  await expect(boxOf(page).locator('.line'), 'no line').toHaveCount(0);
+  await expect(boxOf(page).locator('.hint'), 'no hint').toHaveCount(0);
+  await expect(breakButton(page), 'the button follows the view: active').toHaveClass(/button-attention/);
+});
+
+/** Q7: the stages come from the view and the page's clock: the lines at 90 s and 3 min, and the button follows the server only. */
+test('Q7: the sent line gives way to the 90 s and 3 min lines by the page\'s clock, and the button follows the server', async ({ page }) => {
+  const holder = { guide: guideOf(2) };
+  await page.clock.install();
+  await serve(page, holder);
+  await open(page);
+  const startedAt = Date.parse(iso((await now(page)) - 5_000));
+  const run = (stage: string, active = false): Record<string, unknown> =>
+    guideOf(2, { breakFeed: { active, reason: active ? undefined : 'incident_in_progress', stage, startedAt: iso(startedAt) } });
+  const at = async (seconds: number): Promise<void> => {
+    await page.clock.fastForward(Math.max(0, startedAt + seconds * 1000 - (await now(page))));
+  };
+
+  holder.guide = run('waiting');
+  await reopen(page);
+  const line = boxOf(page).locator('.line');
+  await expect(line, 'waiting shows the sent line').toContainText(SENT);
+  await at(89);
+  await expect(line, 'at 89 s still the sent line').toContainText(SENT);
+  await expect(line.locator('[aria-hidden="true"]')).toHaveText('1 min');
+  await at(90);
+  await expect(line, 'at 90 s, by the page\'s clock, the 90 s line').toContainText(STILL);
+  await expect(breakButton(page), 'the button is still the server\'s: inactive').toHaveAttribute('aria-disabled', 'true');
+
+  // The server still says still_waiting at 3 min on the page's clock.
+  holder.guide = run('still_waiting');
+  await reopen(page);
+  await expect(line).toContainText(STILL);
+  await at(180);
+  await expect(line, 'at 180 s the 3 min line').toHaveText(NO_NOTICE);
+  await expect(line.locator('.elapsed'), 'with no elapsed time').toHaveCount(0);
+  await expect(breakButton(page), 'and the button still inactive until the server says active').toHaveAttribute('aria-disabled', 'true');
+  await expect(breakButton(page)).toHaveClass(/button-inactive/);
+
+  // The server's no_notice with active: the line shows and the button is active, with the tag.
+  holder.guide = run('no_notice', true);
+  await reopen(page);
+  await expect(line).toHaveText(NO_NOTICE);
+  await expect(breakButton(page), 'the button is active when the server says so').not.toHaveAttribute('aria-disabled', /.*/);
+  await expect(breakButton(page)).toHaveClass(/button-attention/);
+  await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag returns on step 3').toBeVisible();
+
+  // Sending with no press of this page: the sending line, inactive, no spinner.
+  holder.guide = run('sending');
+  await reopen(page);
+  await expect(line).toHaveText(SENDING);
+  await expect(breakButton(page)).toHaveAttribute('aria-disabled', 'true');
+  await expect(breakButton(page), 'with no spinner and no busy state').not.toHaveAttribute('aria-busy', /.*/);
+  await expect(breakButton(page).locator('.spinner')).toHaveCount(0);
+
+  // The notice arrived: the lines end.
+  holder.guide = guideOf(3, { breakFeed: { active: false, reason: 'incident_in_progress', stage: 'notice_arrived', startedAt: iso(startedAt) } });
+  await reopen(page);
+  await expect(line).toHaveCount(0);
+  await expect(boxOf(page).locator('.hint')).toHaveText(H2);
+});
+
+/** Q8: Hide guide and Show guide: the bar, its aria-expanded button, focus, the stored choice, and a storage that throws. */
+test('Q8: Hide guide collapses to one bar with Show guide, keeps the box, moves focus, and is remembered', async ({ page }) => {
+  const holder = { guide: guideOf(1, { breakFeed: { active: false, reason: 'not_watching' } }) };
+  await serve(page, holder);
+  await open(page);
+
+  const guide = guideRegion(page);
+  await guide.getByRole('button', { name: 'Hide guide', exact: true }).click();
+  const show = guide.getByRole('button', { name: 'Show guide', exact: true });
+  await expect(show, 'Show guide has aria-expanded false').toHaveAttribute('aria-expanded', 'false');
+  await expect(show, 'and takes focus').toBeFocused();
+  await expect(guide, 'one bar: the label, the step and Show guide').toContainText('Demo guide \u00B7 step 2 of 5 \u00B7');
+  await expect(guide.getByRole('list'), 'no steps').toHaveCount(0);
+  await expect(promptOf(page), 'and no prompt bar').toHaveCount(0);
+  const bar = (await guide.boundingBox())!;
+  expect(bar.height, 'the bar is at least 40px').toBeGreaterThanOrEqual(40);
+  const box = (await boxOf(page).boundingBox())!;
+  expect(box.x + box.width, 'the box keeps its place at the right end of the bar').toBeGreaterThanOrEqual(bar.x + bar.width - 1);
+  await expect(boxOf(page).getByText('Demo control', { exact: true }), 'with its label inline').toBeVisible();
+  await expect(breakButton(page), 'and its rules').toHaveAttribute('aria-disabled', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('ocutalon.guide.hidden')), 'the choice is stored').toBe('1');
+  await expect(guide).toHaveAccessibleName('Demo guide');
+
+  await reopen(page);
+  await expect(show, 'it survives a reload').toBeVisible();
+  await show.click();
+  await expect(guide.getByRole('button', { name: 'Hide guide', exact: true }), 'Show guide restores the guide, with focus on Hide guide').toBeFocused();
+  await expect(stepOf(page, 2, 'current')).toBeVisible();
+  await reopen(page);
+  await expect(guide.getByRole('button', { name: 'Hide guide', exact: true }), 'and that survives a reload too').toBeVisible();
+});
+
+/** Q8: a storage that throws leaves the choice to the page's life, with no console error. */
+test('Q8: with a storage that throws, Hide and Show work for the page\'s life and the console stays clean', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+  await serve(page, { guide: guideOf(0) });
+  await open(page);
+  await page.evaluate(() => {
+    const fail = (): never => {
+      throw new DOMException('denied', 'SecurityError');
+    };
+    Object.defineProperty(window, 'localStorage', { get: fail, configurable: true });
+  });
+
+  const guide = guideRegion(page);
+  await guide.getByRole('button', { name: 'Hide guide', exact: true }).click();
+  await expect(guide.getByRole('button', { name: 'Show guide', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await guide.getByRole('button', { name: 'Show guide', exact: true }).click();
+  await expect(guide.getByRole('button', { name: 'Hide guide', exact: true })).toBeFocused();
+  expect(errors.filter((text) => !/Failed to load resource/.test(text)), 'no console error').toEqual([]);
+  expect(plain(await guide.locator('.label').first().textContent())).toBe('Demo guide');
+});

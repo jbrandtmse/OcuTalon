@@ -346,6 +346,8 @@ test('A7: the page has one live region, and announces nothing from the first sna
       ['the rail', railOf(page)],
       ['the turn indicator', indicator],
       ['the countdown', countdown],
+      ['the demo guide', page.locator('app-demo-guide')],
+      ['the Break the feed box', page.locator('app-break-feed-box')],
     ];
     for (const [name, place] of places) {
       for (const attribute of ['aria-live', 'aria-atomic', 'aria-relevant']) {

@@ -41,7 +41,7 @@ test('signs in with the README account and loads the page snapshot', { tag: '@fl
 /**
  * The floor of the chat part of step 1: a fresh install shows the README account the empty chat panel and the composer. The stack
  * has no fixture user and no model key, so nothing is sent: Shift+Enter adds a line to the field and no POST /messages is seen. The
- * test checks what both demo modes show, so it leaves out the panel's last line (the demo mode has its own).
+ * stack is in demo mode (every throwaway is), so the panel's last line points at the demo guide above, and the rail's empty checks say that step 1 of the guide sets up a watch (Story 4.4).
  */
 test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);
@@ -65,6 +65,7 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
   ]);
   await expect(empty.locator('.line').first()).toHaveText('It watches your productions from inside IRIS, and every decision is a production message you can trace.');
   await expect(empty.locator('.line').nth(1)).toHaveText('Anything risky waits for your approval.');
+  await expect(empty.locator('.line').nth(2), 'the stack is in demo mode: the last line points at the demo guide').toHaveText('Start with step 1 of the demo guide above.');
 
   const field = main.getByRole('textbox', { name: 'Message OcuTalon' });
   await expect(field).toBeVisible();
@@ -99,7 +100,7 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
   await expect(rail.locator('h3 > [aria-hidden="true"]'), 'and shows it').toHaveText(names.map((label) => `${label} (0)`));
   await expect(rail.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',
-    'Ask OcuTalon to watch a production.',
+    'Nothing yet. Step 1 of the guide sets up a watch.',
     'None pending.',
     'No decisions yet.',
   ]);

@@ -55,28 +55,39 @@ describe('revealRing', () => {
 
   it('scrolls down by the overflow and the gutter when the control passes the bottom', () => {
     revealRing(list, control(list, 170, 220));
-    assert.deepEqual(list.calls, [{ top: 24, behavior: 'instant' }]);
+    assert.deepEqual(list.calls, [{ top: 25, behavior: 'instant' }]);
   });
 
   it('scrolls up by the overflow and the gutter when the control passes the top', () => {
     revealRing(list, control(list, 80, 120));
-    assert.deepEqual(list.calls, [{ top: -24, behavior: 'instant' }]);
+    assert.deepEqual(list.calls, [{ top: -25, behavior: 'instant' }]);
   });
 
-  it('does nothing for a control whose box and gutter are inside', () => {
-    revealRing(list, control(list, 104, 196));
+  it('does nothing for a control whose box, gutter and 1 px margin are inside', () => {
+    revealRing(list, control(list, 105, 195));
     assert.deepEqual(list.calls, []);
+    revealRing(list, control(list, 104, 196));
+    assert.deepEqual(list.calls, [{ top: -1, behavior: 'instant' }], 'one pixel short of the margin scrolls that pixel');
+  });
+
+  it('scrolls a whole pixel, rounded up, for a fractional shortfall, in both directions (DW-198)', () => {
+    revealRing(list, control(list, 170.2, 195.3));
+    revealRing(list, control(list, 104.6, 150));
+    assert.deepEqual(list.calls, [
+      { top: 1, behavior: 'instant' },
+      { top: -1, behavior: 'instant' },
+    ]);
   });
 
   it('scrolls by the gutter alone when the box fits but the ring would not', () => {
     revealRing(list, control(list, 101, 150));
-    assert.deepEqual(list.calls, [{ top: -3, behavior: 'instant' }]);
+    assert.deepEqual(list.calls, [{ top: -4, behavior: 'instant' }]);
   });
 
   it('reads a scroll-padding that is not a length as 0', () => {
     list = scroller({ padding: { top: 'auto', bottom: 'auto' } });
     revealRing(list, control(list, 170, 220));
-    assert.deepEqual(list.calls, [{ top: 20, behavior: 'instant' }]);
+    assert.deepEqual(list.calls, [{ top: 21, behavior: 'instant' }]);
   });
 
   it('does nothing for the scroller itself, a target outside it, a null target and a scroller with no overflow', () => {

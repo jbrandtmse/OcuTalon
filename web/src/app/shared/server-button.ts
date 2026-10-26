@@ -21,6 +21,9 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
  * answer, early or late, ends the busy state and clears the notice. With no answer in 10 seconds the button is
  * restored and a warning notice under it says so, and the polite announcer reads the notice once.
  *
+ * A button that the server says cannot act now (`inactive`) is held aria-disabled in the same way, and a press on it makes no call; it
+ * shows no spinner. The server's state, not the button's, decides when it acts again.
+ *
  * The button is described (aria-describedby) by the text that explains it: the ids in `describedBy`, and the notice's id while the
  * notice shows. The notice's id is the button's own, so two buttons never share one. With neither, the button has no description.
  */
@@ -33,7 +36,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'attention' | 'ghost' | 'i
       type="button"
       [class]="'button button-' + variant()"
       [attr.aria-busy]="busy() ? 'true' : null"
-      [attr.aria-disabled]="busy() ? 'true' : null"
+      [attr.aria-disabled]="busy() || inactive() ? 'true' : null"
       [attr.aria-describedby]="described()"
       (click)="press()"
     >
@@ -60,6 +63,9 @@ export class ServerButton {
 
   /** The call that a press makes: its answer, an Observable (its first value) or a Promise, ends the busy state. */
   readonly action = input.required<() => Observable<unknown> | Promise<unknown>>();
+
+  /** True while the server says the control is unavailable: the button is aria-disabled and a press is ignored. */
+  readonly inactive = input(false);
 
   /** The ids of the text that explains the button, such as the error beside it. */
   readonly describedBy = input<readonly string[]>([]);
@@ -91,7 +97,7 @@ export class ServerButton {
   }
 
   protected press(): void {
-    if (!this.state.press()) {
+    if (this.inactive() || !this.state.press()) {
       return;
     }
     const call = this.state.call;
