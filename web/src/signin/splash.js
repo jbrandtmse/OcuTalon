@@ -130,6 +130,10 @@
     };
   }
 
+  function timeFormat() {
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
   function startCountdown() {
     var stamp = document.getElementById('ocu-reset-time');
     var shown = document.getElementById('ocu-countdown');
@@ -142,7 +146,7 @@
     if (isNaN(due)) {
       return;
     }
-    var formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+    var formatter = timeFormat();
     var first = due;
     var drawn = NaN;
 
@@ -176,7 +180,7 @@
     if (isNaN(at)) {
       return;
     }
-    stamp.textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(at));
+    stamp.textContent = timeFormat().format(new Date(at));
   }
 
   var form = document.forms.Login;

@@ -17,12 +17,14 @@ import { RESUME_COOKIE, removeSession, resumeCookie, sessionRow, sha256url, sign
  * - R1: the first sign-in sets OcuTalonResume (22 base64url characters, the next reset as its expiry, HttpOnly, Secure, SameSite
  *   strict, path /ocutalon/), the browser keeps it, one new row stores only its SHA-256, and the page opens on an empty chat.
  * - R2: after the group sign-out, and coming from another site (which sends no Strict cookie to the splash), the same browser's
- *   sign-in resumes the row: the same epoch, its turn, its approval request, no new row, the new CSP session on the row, and its
- *   pairing and break-the-feed run still named by its Ref; skeletons show while /state is held.
+ *   sign-in resumes the row: the same epoch, its turn, its approval request, no new Session row, and its pairing and break-the-feed
+ *   run still named by its Ref; skeletons show while /state is held. (Build 154 may reuse the CSP session id, so the attach of the
+ *   new CSP session is pinned in process, by Test.Web.SessionEvents.TestResume.)
  * - R4: a cookie that names no row gives a new session and a new cookie.
  * - R5: two browsers get two sessions: A's turns, events and a body or query that names B's Ref never reach B, and the second turn is A's;
  *   a context that signed in only at the trace application has no session for the API (it never gets the shared account's row).
- * The texts are written out here, as the independent oracle of the page's own.
+ * The texts are written out here, as the independent oracle of the page's own. A cookie value is a resume reference, so it is compared
+ * as a boolean and never handed to an assertion that would print it.
  */
 test.describe.configure({ timeout: 180_000 });
 
@@ -42,6 +44,11 @@ async function readState(page: Pick<Page, 'request'>): Promise<{ epoch: string; 
   return { epoch: state.epoch, chat: JSON.stringify(state.chat), session: state.streams.session };
 }
 
+/** The number of Session rows, read in the container (the project runs one case at a time). */
+async function sessionCount(): Promise<string> {
+  return chk(await irisScript('Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session")\nDo rs.%Next()\nWrite !,"CHK|rows|",rs.%GetData(1)'), 'rows') ?? '';
+}
+
 /** A new, valid-looking resume reference that no row has: 16 random bytes as base64url. */
 const unknownReference = (): string => randomBytes(16).toString('base64url');
 
@@ -54,7 +61,7 @@ test('R1: the first sign-in sets the resume cookie and opens a session of its ow
     const cookieLine = (headers['set-cookie'] ?? '').split('\n').find((line) => line.startsWith(`${RESUME_COOKIE}=`)) ?? '';
     expect(cookieLine, "the sign-in POST's answer sets the resume cookie").not.toBe('');
     const value = cookieLine.slice(RESUME_COOKIE.length + 1).split(';')[0];
-    expect(value, 'its value is 22 base64url characters').toMatch(REFERENCE);
+    expect(REFERENCE.test(value), 'its value is 22 base64url characters').toBe(true);
     const attributes = cookieLine.split(';').slice(1).map((part) => part.trim().toLowerCase());
     expect(attributes, 'HttpOnly').toContain('httponly');
     expect(attributes, 'Secure').toContain('secure');
@@ -70,7 +77,7 @@ test('R1: the first sign-in sets the resume cookie and opens a session of its ow
 
     const kept = await resumeCookie(context);
     expect(kept, 'the browser keeps the cookie').toBeDefined();
-    expect(kept!.value, "and it is the answer's value").toBe(value);
+    expect(kept!.value === value, "and it is the answer's value").toBe(true);
     expect(kept!.httpOnly, 'HttpOnly').toBe(true);
     expect(kept!.secure, 'Secure').toBe(true);
     expect(kept!.sameSite, 'SameSite Strict').toBe('Strict');
@@ -87,7 +94,7 @@ test('R1: the first sign-in sets the resume cookie and opens a session of its ow
     expect(row!.irisUser.toLowerCase(), "the demo account's row").toBe(fixtureUser(KIND).user.toLowerCase());
     expect(row!.resumeHash, 'it stores the SHA-256 of the cookie value').toBe(sha256url(value));
     expect(row!.cspSessionId, 'and the CSP session').not.toBe('');
-    expect([row!.ref, row!.traceRef, row!.epoch, row!.irisUser, row!.resumeHash, row!.cspSessionId], 'no property equals the cookie value').not.toContain(value);
+    expect([row!.ref, row!.traceRef, row!.epoch, row!.irisUser, row!.resumeHash, row!.cspSessionId].includes(value), 'no property equals the cookie value').toBe(false);
   } finally {
     await signOutGroup(page);
     if (epoch) await removeSession(epoch);
@@ -124,7 +131,9 @@ test('R2: the same browser signs in again and resumes its conversation, approval
 
     await signOutGroup(page);
     expect((await page.request.get(STATE)).status(), 'the CSP session ended').toBe(401);
-    expect((await resumeCookie(context))?.value, 'and the cookie stays').toBe(cookie.value);
+    expect((await resumeCookie(context))?.value === cookie.value, 'and the cookie stays').toBe(true);
+    const rowsBefore = await sessionCount();
+    expect(rowsBefore, 'the Session rows are counted').toMatch(/^[0-9]+$/);
 
     await context.route('http://elsewhere.test/**', (route) =>
       route.fulfill({ contentType: 'text/html', body: `<!doctype html><title>elsewhere</title><a id="go" href="${new URL(probed('/ocutalon/'), process.env['OCUTALON_URL']).href}">go</a>` }),
@@ -137,7 +146,7 @@ test('R2: the same browser signs in again and resumes its conversation, approval
     await page.locator('#go').click();
     await expect(page.getByRole('button', { name: 'Sign in and start', exact: true })).toBeVisible();
     await expect.poll(() => sent.some((one) => one.method === 'GET'), { message: 'the splash GET was seen' }).toBe(true);
-    expect(sent.find((one) => one.method === 'GET')!.cookie, 'the splash GET from another site carries no resume cookie').not.toContain(RESUME_COOKIE);
+    expect(sent.find((one) => one.method === 'GET')!.cookie.includes(RESUME_COOKIE), 'the splash GET from another site carries no resume cookie').toBe(false);
 
     const hold = await holdState(page);
     const answered = page.waitForResponse((response) => response.request().method() === 'POST');
@@ -156,10 +165,11 @@ test('R2: the same browser signs in again and resumes its conversation, approval
     await expect(page.locator('app-chat-panel').getByText(text, { exact: true }), "the turn's text is in the chat").toBeVisible();
     await expect(rail(page).getByRole('heading', { level: 3 }).first(), 'the approval request is in the rail').toHaveAccessibleName('Approval requests, 1');
     const resumed = (await sessionRow(epoch))!;
-    expect(resumed.ref, 'no new row: the row is the first one').toBe(first.ref);
+    expect(resumed.ref, 'the epoch still names the first row').toBe(first.ref);
+    expect(await sessionCount(), 'no new Session row').toBe(rowsBefore);
     expect(resumed.traceRef, 'its TraceRef is unchanged').toBe(first.traceRef);
     expect(resumed.resumeHash, 'its hash is unchanged').toBe(first.resumeHash);
-    expect((await resumeCookie(context))?.value, 'the resume sets no new cookie').toBe(cookie.value);
+    expect((await resumeCookie(context))?.value === cookie.value, 'the resume sets no new cookie').toBe(true);
     const owners = await irisScript(
       [
         `Write !,"CHK|pairing|",##class(OcuTalon.Data.Pairing).RefIndexOpen(${quoted(fixtures[2])}).SessionRef`,
@@ -192,8 +202,8 @@ test('R4: an unknown resume cookie gives a fresh session and a new cookie', asyn
     const row = await sessionRow(epoch);
     expect(row, 'a new session has its own row').toBeDefined();
     const fresh = await resumeCookie(context);
-    expect(fresh?.value, 'a new cookie is set').toMatch(REFERENCE);
-    expect(fresh!.value, 'with a different value').not.toBe(unknown);
+    expect(REFERENCE.test(fresh?.value ?? ''), 'a new cookie is set').toBe(true);
+    expect(fresh!.value !== unknown, 'with a different value').toBe(true);
     expect(row!.resumeHash, "the row stores the new value's hash").toBe(sha256url(fresh!.value));
     const opened = await irisScript(`Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE ResumeHash = ?",${quoted(sha256url(unknown))})\nDo rs.%Next()\nWrite !,"CHK|opens|",rs.%GetData(1)`);
     expect(chk(opened, 'opens'), "the old value's hash opens no row").toBe('0');
@@ -221,7 +231,7 @@ test('R5: two browsers each get their own session, and no request chooses anothe
     expect(stateA.epoch, 'two epochs').not.toBe(stateB.epoch);
     const cookieA = (await resumeCookie(a))!.value;
     const cookieB = (await resumeCookie(b))!.value;
-    expect(cookieA, 'two cookie values').not.toBe(cookieB);
+    expect(cookieA !== cookieB, 'two cookie values').toBe(true);
     const rowB = (await sessionRow(stateB.epoch))!;
     expect(rowB, "B's row is found").toBeDefined();
 
@@ -251,7 +261,7 @@ test('R5: two browsers each get their own session, and no request chooses anothe
     const carried = await browser.newContext();
     try {
       const traceOnly = await carried.newPage();
-      await traceOnly.goto('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen');
+      await traceOnly.goto(probed('/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen'));
       await signInToTrace(traceOnly, KIND);
       await expect(traceOnly, 'the trace application signed in').toHaveTitle(/Message Viewer/, { timeout: 30_000 });
       const unattached = await carried.request.get(STATE);

@@ -105,6 +105,7 @@ Method TestPurgeAddressCounter()
 		Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
 		Set old = ..CounterRow(hash, 3660)
 		Set recent = ..CounterRow(hash, 3540)
+		Do $$$AssertTrue((old '= "") && (recent '= ""), "both counter rows are saved (days "_days_")")
 		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
 		Set payload.Ref = "ZzWeb"_..Number_"c"_days
 		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "an event is published")
@@ -119,13 +120,13 @@ Method TestPurgeAddressCounter()
 	Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
 }
 
-/// A counter row of the hash created the given number of seconds ago; returns its id.
+/// A counter row of the hash created the given number of seconds ago; returns its id, or "" when it could not be saved.
 ClassMethod CounterRow(hash As %String, secondsAgo As %Integer) As %Integer [ Private ]
 {
 	Set row = ##class(OcuTalon.Data.AddressCounter).%New()
 	Set row.AddressHash = hash
 	Set row.CreatedAt = ##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
-	Do row.%Save()
+	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
 	Quit row.%Id()
 }
 

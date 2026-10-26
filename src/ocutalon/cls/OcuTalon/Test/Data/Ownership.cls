@@ -26,6 +26,13 @@ Method OnBeforeAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+/// Each test starts with the flag off, also after a test that turned it on and stopped on an error.
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -172,7 +179,9 @@ Method TestResumeAndStartVisitor()
 	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set foreignRow = ##class(OcuTalon.Data.Session).RefIndexOpen(foreign)
 	Set foreignRow.ResumeHash = ##class(OcuTalon.Data.Session).Hash(other)
-	Do foreignRow.%Save()
+	Do $$$AssertStatusOK(foreignRow.%Save(), "the other user's row takes a resume hash")
+	Set opened = ##class(OcuTalon.Data.Session).ForResume(other)
+	Do $$$AssertEquals($Select($IsObject(opened): opened.Ref, 1: ""), foreign, "and its reference opens it")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Resume(other, .sc), "", "another user's row is not resumed")
 	Do $$$AssertStatusOK(sc, "with OK")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(foreign).CspSessionId, "", "and is not touched")

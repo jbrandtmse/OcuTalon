@@ -1,8 +1,9 @@
 /// The session events of the application /ocutalon (AD-4). OnLogin runs at the sign-in request, as the signed-in
-/// user with the application's roles, and attaches the user's durable OcuTalon session to the CSP session
-/// (Ownership.Attach), so that the first API call finds it. A user without the OcuTalon user role gets no session
-/// row. OnLogin always answers OK: an error status would neither log the user out nor show the sign-in page, and
-/// a session that was not attached here is attached by the first API call (Ownership.SessionRef). A failure is
+/// user with the application's roles, and on a local or IPM install attaches the user's durable OcuTalon session to the
+/// CSP session (Ownership.Attach), so that the first API call finds it. A user without the OcuTalon user role gets no
+/// session row, cookie or counter row. OnLogin always answers OK: an error status would neither log the user out nor show
+/// the sign-in page. On a local install a session that was not attached here is attached by the first API call
+/// (Ownership.SessionRef); on the online demo it is not, and the API answers that CSP session with an error. A failure is
 /// written to the console log, without the user name.
 /// On the online demo (onlineDemo on, read through Data.Setting) the sign-in gives the visitor a session of their own
 /// instead (AD-4, AD-13, Story 16.3), and only /ocutalon does so, because the trace applications have no session event class:
@@ -19,14 +20,14 @@ Class OcuTalon.Web.SessionEvents Extends %CSP.SessionEvents [ ProcedureBlock ]
 /// The name of the resume cookie (AD-4). Story 16.4 expires it at sign-out.
 Parameter RESUMECOOKIE = "OcuTalonResume";
 
-/// Attaches the signed-in user's durable session when the user holds the OcuTalon user role.
+/// Attaches the signed-in user's session when the user holds the OcuTalon user role (AttachFor).
 ClassMethod OnLogin() As %Status
 {
 	Quit ..AttachFor(##class(OcuTalon.Web.Public.Shell).HasRole())
 }
 
-/// OnLogin's work for a user who holds the role (hasRole 1) or does not (0): the role attaches the durable session,
-/// no role does nothing. The answer is OK in every case, and a failure is logged.
+/// OnLogin's work for a user who holds the role (hasRole 1) or does not (0): the role attaches the durable session, or on the
+/// online demo the visitor's own (AttachVisitor); no role does nothing. The answer is OK in every case, and a failure is logged.
 ClassMethod AttachFor(hasRole As %Boolean) As %Status
 {
 	Try {

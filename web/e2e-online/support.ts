@@ -141,10 +141,11 @@ export async function removeSession(epoch: string): Promise<void> {
 
 /**
  * Signs the demo account in over HTTP from a client that the proxy would see as the address: an API context whose requests carry
- * X-Forwarded-For. It returns the context (the caller signs it out with SIGN_OUT and disposes it) and the answer to the sign-in.
+ * X-Forwarded-For, at the splash with a fresh probe. It returns the context (the caller signs it out with SIGN_OUT and disposes it)
+ * and the answer to the sign-in.
  */
 export async function signInOverHttpFrom(playwright: PlaywrightWorkerArgs['playwright'], address: string): Promise<{ api: APIRequestContext; answer: Awaited<ReturnType<typeof signInOverHttp>> }> {
   const api = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'], extraHTTPHeaders: { 'X-Forwarded-For': address } });
   const { user, password } = fixtureUser('DEMOACCOUNT');
-  return { api, answer: await signInOverHttp(api, user, password) };
+  return { api, answer: await signInOverHttp(api, user, password, probedSplash()) };
 }

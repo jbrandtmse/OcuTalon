@@ -107,6 +107,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-19T17:28:35Z status=routed owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=16.3 extends Ownership's resolution (one method, 2.2) with the per-sign-in branch; test: two sign-ins of the shared demo account get different sessions
 - 2026-10-21T03:37:13Z status=routed owner=29-2-signing-in-opens-a-session-this-browser-resumes-until-the-re by=lead note=owner decision Oct 20: moved from 16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re
 - 2026-10-21T13:18:50Z owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=load note=renumbered_at_the_unattended_launch:Story_29.2_is_Story_16.3_again(owner_decision,worked_out_with_the_Contest_Planner)
+- 2026-10-26T04:29:55Z status=resolved-by:16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=adjudication note=Ownership.SessionRef stays the one resolver; on the online demo it resolves from the CSP session OnLogin attached (resume cookie or a new row), never by IRIS user (answers empty with an error); resume.spec R5 two sign-ins of the shared account get two epochs, two cookies, isolated chats and /events; a sessionRef in body or query is ignored; Test.Data.Ownership.TestSessionRefOnTheOnlineDemo (mutation recorded)
 
 ### DW-17: Unchecked SQL prepares (%Prepare(sql,0)) are allowed by AD-13 only for the API's two ownership-filtered queries; nothing stops the exception spreading
 - source: Contest Planner note 2026-10-19 (0.5 review) | severity: med | fix-risk: low | footprint: in-epic
@@ -1177,3 +1178,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 (b) measured the splash form's inputs as IRISPassword and IRISUsername (plus the IRISLogin button); row 7, S7, TestPage and the unit read AD-25 as only-these; a proxy built on the literal word would refuse every sign-in
 - 2026-10-26T00:29:46Z status=wontfix-accepted owner=16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details by=cr note=reopen_if=Story 29.3's proxy or its stand-in refuses a sign-in POST that carries no IRISSessionToken
 - 2026-10-26T00:55:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=adjudication note=integration risk for the demo host, not a LOW to close: the splash's first sign-in POST carries IRISUsername, IRISPassword and IRISLogin with no IRISSessionToken (measured, Story 16.2); 29.3's proxy allow-list must admit any subset of the four names (only-these), never require all four, else every online-demo sign-in is refused; test it with the splash's real POST
+
+### DW-233: The address counter stores an unsalted SHA-256 of the client address, so an IPv4 value can be brute-forced from a row within its one-hour life
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: AddressCounter.Add stores Session.Hash(address), a plain SHA-256 (AD-13: a hashed address); the 2^32 IPv4 values can be enumerated in minutes; rows live one hour, in OCUTALON_PRIVATE
+- 2026-10-26T04:26:20Z status=decision-pending owner=burndown by=cr note=veto (stored data, security): recommend an HMAC with a per-instance key in the private DB, renewed at each reset
+
+### DW-234: On the online demo a proxy address that is unset or not equal to REMOTE_ADDR exactly (a changed proxy IP, another address form) exempts every sign-in, so the per-address limit silently stops
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: SessionEvents.ClientAddress counts a sign-in only when proxyAddress = REMOTE_ADDR exactly and exempts the rest (AC 5, epics 16.3, AD-13); nothing reports a proxy address that never matches
+- 2026-10-26T04:26:20Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=cr note=launch check on the host: one proxied sign-in writes a counter row (the unit's phase 2 precondition); pin the proxy IP
+
+### DW-235: AddressCounter.Shift and SessionEvents.CookieExpiry repeat Public.Settings' private ToSeconds/FromSeconds UTC parsing instead of sharing one helper
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Shift is ToSeconds + n + FromSeconds (Data/Public/Settings.cls ToSeconds/FromSeconds, private, read-only in 16.3); CookieExpiry parses the same form again
+- 2026-10-26T04:26:20Z status=routed owner=16-8-the-page-counts-down-to-the-reset-and-waits-it-out by=cr note=Rule 2: one public UTC-seconds helper in Public.Settings; Shift and CookieExpiry delegate to it
+
+### DW-236: test-online-demo.sh's ref_script and check_ref_session copy lib-live.sh's iris_script and check_session only to pass an environment variable
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ref_script repeats iris_script's retry loop and CHK filter (docker/tests/lib-live.sh:307-317) adding -e; lib-live.sh is a contended path, so 16.3 could not extend it
+- 2026-10-26T04:26:20Z status=escalated owner=burndown by=cr note=Rule 2: give iris_script an env pass-through and let ref_script/check_ref_session delegate (contended file)
+
+### DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
+- 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
+
+### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ForUser's SELECT has no ResumeHash IS NULL; only Ownership.Attach calls it, on the flag-off path; visitor rows exist only on a demo instance
+- 2026-10-26T04:26:21Z status=wontfix-theoretical owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=real if a demo instance restarts with onlineDemo off and keeps its data; fix: AND ResumeHash IS NULL
+
+### DW-239: Test.Web.Install.CounterRow repeats Test.Data.AddressCounter.Row (a counter row of a given age)
+- source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: two 5-line fixture helpers in test classes of two areas; sharing one would tie the Web-area class to the Data-area class
+- 2026-10-26T04:26:21Z status=wontfix-accepted owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=reopen_if=a third test class builds AddressCounter rows by hand

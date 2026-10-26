@@ -3,8 +3,9 @@
 /// OnLogin neither logs the user out nor shows the sign-in page, and writes a failed attach to the console log (messages.log)
 /// as one line that names the error code and no user. The role is passed to AttachFor, which OnLogin calls with
 /// Shell.HasRole(). The session row that the test may create for the running user is removed by Test.Data.Fixture.Clean.
-/// Story 16.3 adds the online demo's branch (TestFirstSignIn, TestResume, TestUnknownCookie, TestLimit, TestExempt,
-/// TestClientAddress, TestFlagOff): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
+/// Story 16.3 adds the online demo's branch (TestFirstSignIn, TestResume, TestUnknownCookie, TestLimit, TestLimitIsTheSetting,
+/// TestExempt, TestClientAddress, TestFlagOff, TestNoRoleOnTheOnlineDemo, and QA's TestTamperedCookie,
+/// TestFlagOffIgnoresTheCookie and TestClientAddressEdges): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
 /// resetAnchor, resetIntervalHours and the address limit's row, and removes its session rows and counter rows after, also
 /// when it failed. The sign-ins are in process, with a stand-in request and response, as the user that runs the tests.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
@@ -157,7 +158,9 @@ Method TestResume()
 	Set foreignRow = ##class(OcuTalon.Data.Session).RefIndexOpen(foreign)
 	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set foreignRow.ResumeHash = ##class(OcuTalon.Data.Session).Hash(other)
-	Do foreignRow.%Save()
+	Do $$$AssertStatusOK(foreignRow.%Save(), "the other user's row takes a resume hash")
+	Set opened = ##class(OcuTalon.Data.Session).ForResume(other)
+	Do $$$AssertEquals($Select($IsObject(opened): opened.Ref, 1: ""), foreign, "and its reference opens it")
 	Do $$$AssertStatusOK(..SignIn(other, "ZzResumeFour", , , .fourth, .response), "another user's cookie answers OK")
 	Set freshRef = $Get(fourth.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
 	Do $$$AssertTrue((freshRef '= "") && (freshRef '= foreign) && (freshRef '= ref), "it gives a fresh row")
@@ -177,7 +180,8 @@ Method TestUnknownCookie()
 	Set deletedReference = $Get(response.Cookies(1, "v"))
 	Set deletedRef = $Get(gone.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
 	Do ##class(OcuTalon.Data.Session).%DeleteId(##class(OcuTalon.Data.Session).RefIndexOpen(deletedRef).%Id())
-	Set cases = $ListBuild(##class(OcuTalon.Bridge.Ids).NewRef(), "short", "!!!!!!!!!!!!!!!!!!!!!!", ##class(OcuTalon.Bridge.Ids).NewRef()_"x", deletedReference)
+	Set unknown = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set cases = $ListBuild(unknown, "short", "!!!!!!!!!!!!!!!!!!!!!!", ##class(OcuTalon.Bridge.Ids).NewRef()_"x", deletedReference)
 	Set position = 0
 	While $ListNext(cases, position, cookie) {
 		Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
@@ -193,7 +197,7 @@ Method TestUnknownCookie()
 		If $IsObject(row) Do $$$AssertEquals(row.ResumeHash, ##class(OcuTalon.Data.Session).Hash(reference), "the row keeps the new reference's hash")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(deletedReference), "", "the deleted row's hash opens no row")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(cookie), "", "nor does the unknown value")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(unknown), "", "nor does the unknown value")
 }
 
 /// The limit (matrix row 10): at the proxy, five creations for one address are counted and the sixth is refused with the marker
@@ -335,6 +339,104 @@ Method TestFlagOff()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), had, "and seeds nothing")
 }
 
+/// (QA) A tampered or malformed cookie is never an error and never a resume (matrix row 5, AC 3): every decoration of a REAL reference
+/// (one character changed, a character added, one removed, padding, white space, a line feed, a NUL, the other case, standard base64
+/// letters, a wide character) answers OK, writes no log line, creates a fresh row with a new cookie, never touches the real row, and
+/// opens no row through ForResume; at the end the real reference still resumes its row. A value of 4000 characters and one of no
+/// permitted character behave the same.
+Method TestTamperedCookie()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Set sessionKey = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Do ..SignIn("", "ZzTamperOrig", , , .original, .response)
+	Set reference = $Get(response.Cookies(1, "v"))
+	Set ref = $Get(original.Data(sessionKey))
+	Do $$$AssertTrue((reference '= "") && (ref '= ""), "the real session and its cookie exist")
+	If (reference = "") || (ref = "") Quit
+	Do ..AdoptRef(ref)
+	Set first = $Extract(reference, 1)
+	Set cases = $ListBuild($Select(first = "A": "B", 1: "A")_$Extract(reference, 2, 22), reference_"=", reference_"x", $Extract(reference, 1, 21), $Extract(reference, 2, 22), reference_$Char(10), " "_reference, reference_" ", reference_$Char(0), $Extract(reference, 1, 21)_$Char(233), $Extract(reference, 1, 21)_$Char(25991), $Extract(reference, 1, 20)_"+/", $Extract(reference, 1, 21)_"=", $ZConvert(reference, "U"), $ZConvert(reference, "L"), $Translate(reference, "-_", "+/"), $Translate($Justify("", 4000), " ", "A"), $Translate($Justify("", 22), " ", "!"))
+	Set log = $System.Util.ManagerDirectory()_"messages.log"
+	Set mark = ##class(%File).GetFileSize(log)
+	Set position = 0
+	Set n = 0
+	While $ListNext(cases, position, cookie) {
+		If cookie = reference Continue
+		Set n = n + 1
+		Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).ForResume(cookie), "", "case "_n_": the value opens no row")
+		Do $$$AssertStatusOK(..SignIn(cookie, "ZzTamper"_n, , , .session, .response), "case "_n_": the sign-in answers OK")
+		Set fresh = $Get(session.Data(sessionKey))
+		Do $$$AssertTrue((fresh '= "") && (fresh '= ref), "case "_n_": a fresh session, not the real one")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), before + 1, "case "_n_": exactly one row is created")
+		Do ..AdoptRef(fresh)
+		Set newReference = $Get(response.Cookies(1, "v"))
+		Do $$$AssertTrue((newReference ? 22(1AN,1"-",1"_")) && (newReference '= cookie) && (newReference '= reference), "case "_n_": a new cookie with a new value")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzTamperOrig", "case "_n_": the real row is not touched")
+	}
+	Do $$$AssertTrue(n >= 15, "at least fifteen distinct values were tried: "_n)
+	Do $$$AssertEquals($ListLength(..LinesSince(log, mark)), 0, "none wrote a line of OcuTalon.Web.SessionEvents to the console log")
+	Do $$$AssertStatusOK(..SignIn(reference, "ZzTamperBack", , , .back, .response), "the real reference signs in")
+	Do $$$AssertEquals($Get(back.Data(sessionKey)), ref, "and resumes its row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).CspSessionId, "ZzTamperBack", "which records the new CSP session")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "with no cookie")
+}
+
+/// (QA) A local (flag off) sign-in never reads the resume cookie (matrix row 9, AC 4): with a cookie that opens a visitor row of the
+/// same user, it still attaches the user's one durable session (the first row of the user), records nothing on the visitor's row, sets
+/// no cookie and writes no counter row, also at the proxy.
+Method TestFlagOffIgnoresTheCookie()
+{
+	Set sessionKey = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Do ..SignIn("", "ZzOffCookieD", , , .durable, .response)
+	Set durableRef = $Get(durable.Data(sessionKey))
+	Do $$$AssertTrue(durableRef '= "", "the flag-off sign-in attaches the user's durable session")
+	If durableRef = "" Quit
+	If before = 0 Do ..AdoptRef(durableRef)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ..SignIn("", "ZzOffCookieV", , , .visitor, .response)
+	Set visitorRef = $Get(visitor.Data(sessionKey))
+	Set reference = $Get(response.Cookies(1, "v"))
+	Do $$$AssertTrue((visitorRef '= "") && (visitorRef '= durableRef) && (reference '= ""), "the flag-on sign-in makes a visitor row of the same user with a cookie")
+	If (visitorRef = "") || (reference = "") Quit
+	Do ..AdoptRef(visitorRef)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Set address = ..Address("offcookie")
+	Set rows = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set counters = ..CounterTotal()
+	Do $$$AssertStatusOK(..SignIn(reference, "ZzOffCookieOff", "192.0.2.10", address, .local, .response), "the flag-off sign-in with the visitor's cookie answers OK")
+	Do $$$AssertEquals($Get(local.Data(sessionKey)), durableRef, "it attaches the user's durable session, not the visitor's row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(visitorRef).CspSessionId, "ZzOffCookieV", "the visitor's row is not touched")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "no cookie is set")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), rows, "no row is created")
+	Do $$$AssertEquals(..CounterTotal(), counters, "no counter row is written")
+	Do $$$AssertEquals($Data(local.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "and no refusal is recorded")
+}
+
+/// (QA) ClientAddress's edges (matrix row 12, AC 5): behind the proxy, tabs and runs of spaces around the right-most
+/// entry are stripped, IPv6 entries and long lists give the right-most entry whole, a header of commas or white space gives the proxy's
+/// own address; a request that is not the proxy's is exempt however long its list is.
+Method TestClientAddressEdges()
+{
+	Set class = "OcuTalon.Web.SessionEvents"
+	Set proxy = "192.0.2.10"
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "a,"_$Char(9)_"b"_$Char(9), proxy, .proxied), "b", "a tab-padded entry gives b")
+	Do $$$AssertEquals(proxied, 1, "proxied")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "a ,   b", proxy, .proxied), "b", "a run of spaces before the entry is stripped")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "2001:db8::1, 2001:db8::2", proxy, .proxied), "2001:db8::2", "an IPv6 entry is kept whole")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "a, b, c, d, e", proxy, .proxied), "e", "the last of five entries")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "203.0.113.9, 198.51.100.4", proxy, .proxied), "198.51.100.4", "an address the client put first is not the one counted")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, ",", proxy, .proxied), proxy, "a header of one comma gives the proxy's own address")
+	Do $$$AssertEquals(proxied, 1, "still proxied")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy, "   ", proxy, .proxied), proxy, "a header of spaces gives the proxy's own address")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", "203.0.113.5", "a, b, c, d, e", proxy, .proxied), "", "not from the proxy: a long list is ignored")
+	Do $$$AssertEquals(proxied, 0, "not proxied")
+	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", proxy_" ", "a, b", proxy, .proxied), "", "a remote address that only starts with the proxy's is not the proxy")
+	Do $$$AssertEquals(proxied, 0, "not proxied")
+}
+
 /// The number of nodes of the OCUTALON namespace's globals that sit in the given databases (names, comma-separated) and hold the value in a
 /// subscript or in their data: the unit's scan for the resume reference (matrix row 6). It prints and keeps nothing, and answers -1 for an
 /// empty value or a database that does not exist, so that an empty search never reads as a clean one. It reads the databases' directories
@@ -379,9 +481,38 @@ ClassMethod ReferenceHits(value As %String, databases As %String = "OCUTALON_DAT
 	Quit hits
 }
 
+/// The online demo's sign-in of a user without the OcuTalon user role (matrix row 9's no-role contract): behind the proxy, with a visitor's
+/// cookie and a forwarded address, it answers OK and attaches, creates, sets, counts and records nothing, writes no console line and
+/// leaves the visitor's row untouched.
+Method TestNoRoleOnTheOnlineDemo()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Set sessionKey = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Do ..SignIn("", "ZzNoRoleVisitor", , , .visitor, .response)
+	Set visitorRef = $Get(visitor.Data(sessionKey))
+	Set reference = $Get(response.Cookies(1, "v"))
+	Do $$$AssertTrue((visitorRef '= "") && (reference '= ""), "a visitor's row and cookie exist")
+	If (visitorRef = "") || (reference = "") Quit
+	Do ..AdoptRef(visitorRef)
+	Set address = ..Address("norole")
+	Set rows = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set log = $System.Util.ManagerDirectory()_"messages.log"
+	Set mark = ##class(%File).GetFileSize(log)
+	Do $$$AssertStatusOK(..SignIn(reference, "ZzNoRole", "192.0.2.10", address, .session, .response, 0), "the no-role sign-in answers OK")
+	Do $$$AssertEquals($Get(session.Data(sessionKey)), "", "it attaches nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), rows, "it creates no row")
+	Do $$$AssertEquals($Order(response.Cookies("")), "", "it sets no cookie")
+	Do $$$AssertEquals(..CounterRows(address), 0, "it writes no counter row")
+	Do $$$AssertEquals($Data(session.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "it records no refusal")
+	Do $$$AssertEquals($ListLength(..LinesSince(log, mark)), 0, "it writes no console line")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(visitorRef).CspSessionId, "ZzNoRoleVisitor", "and the visitor's row is not touched")
+}
+
 /// The OnLogin work for a sign-in in process: a CSP session with the id, a stand-in request with the cookie, the remote address,
-/// the forwarded list and a response; the CSP session and the response come back in session and response. The status is AttachFor's.
-Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", forwarded As %String = "", Output session, Output response) As %Status [ Private ]
+/// the forwarded list and a response; the CSP session and the response come back in session and response. hasRole is AttachFor's
+/// argument (the user holds the OcuTalon user role by default). The status is AttachFor's.
+Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", forwarded As %String = "", Output session, Output response, hasRole As %Boolean = 1) As %Status [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/")
@@ -390,7 +521,7 @@ Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", f
 	If forwarded '= "" Set %request.CgiEnvs("HTTP_X_FORWARDED_FOR") = forwarded
 	Set %response = ##class(%CSP.Response).%New()
 	Set %session = ##class(%CSP.Session).%New(sessionId, 0)
-	Set sc = ##class(OcuTalon.Web.SessionEvents).AttachFor(1)
+	Set sc = ##class(OcuTalon.Web.SessionEvents).AttachFor(hasRole)
 	Set session = %session
 	Set response = %response
 	Quit sc

@@ -5,7 +5,9 @@
 /// blocks. UseSplash returns 0 here, so the hand-over does not loop. Like the local page it runs before sign-in with no roles
 /// and keeps %CSP.Login's form contract: the action Error:FullURL, InsertHiddenFields right after the form tag, and the fields
 /// IRISUsername, IRISPassword and IRISLogin. Its POST carries no field but IRISSessionToken and those three.
-/// Every value comes from OcuTalon.Data.Public.Settings and is HTML-escaped where it is written. The page has one inline style,
+/// The state "addressLimit" (a sign-in that the per-address limit refused, Story 16.3) shows TOOMANY under the button, with a time
+/// element whose datetime is the until time that Show was given and that the script fills in page time.
+/// Every other value comes from OcuTalon.Data.Public.Settings and is HTML-escaped where it is written. The page has one inline style,
 /// one inline script, no style attribute, no external file and no font. Its own texts are parameters, each equal to a splash.*
 /// catalog key except the interval words, which the UX does not quote alone; the labels and the error texts are Login's, equal to
 /// signIn.* keys (AD-3). A non-ASCII character in them would be an HTML entity.

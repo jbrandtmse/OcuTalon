@@ -25,6 +25,12 @@
 #     logs, the event log, the live events, the audit log and every global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC (counts
 #     only; it runs with the password searches, after the browser and after the restart); row 14, the seeded address limit; Task 0's
 #     MEASURED lines (the resume Set-Cookie attributes, the browser's Secure cookie, the host's REMOTE_ADDR, CSP session id reuse);
+#     (QA) row 5 over HTTP: a dozen tampered or malformed cookies (a real reference with a character changed, added or removed, padding,
+#     the other case, standard base64 letters, a wide character, escapes, 2000 characters, 22 of no permitted one) each get the shell, a
+#     new cookie and a new session, never an error or a console log line, and the real reference still resumes its own session; and the
+#     reference searches' controls: the three log sources are readable and not empty, and each searched record (the event log, the live
+#     events, the production message headers, the audit log, each of the three databases of the global scan) holds something the search
+#     can find, so that a count of 0 cannot come from a search that sees nothing;
 #   - the browser (rows 7 to 12, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2, and Story
 #     16.3's R1, R2, R4 and R5): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - the proxied phase (Story 16.3, rows 10 and 11 and Task 0 (c)): the public proxy address is set to the address IRIS sees for this
@@ -91,6 +97,8 @@ new_attempt() { hexpw; }
 # --- the test start values: an override in this run's temporary folder; the passwords come from the environment of docker compose ---
 
 export OCUTALON_TEST_DEMO_PASSWORD="$demo_password" OCUTALON_TEST_READONLY_PASSWORD="$readonly_password"
+# The proxy address's start value: the override sets it, row 2 reads it back, the proxied phase puts it back.
+proxy_start=192.0.2.10
 printf '%s\n' \
   'services:' \
   '  iris:' \
@@ -104,7 +112,7 @@ printf '%s\n' \
   "      OCUTALON_RESET_ANCHOR: \"$anchor\"" \
   "      OCUTALON_LAST_RESET: \"$last_reset\"" \
   '      OCUTALON_LAST_RESET_KIND: scheduled' \
-  '      OCUTALON_PROXY_ADDRESS: 192.0.2.10' \
+  "      OCUTALON_PROXY_ADDRESS: $proxy_start" \
   '      OCUTALON_CONNECTION_CAP: "8"' \
   '      OCUTALON_CONNECTION_RESERVE: "2"' \
   '      OCUTALON_MESSAGE_ALLOWANCE: "50"' \
@@ -151,7 +159,7 @@ CHK|resetIntervalHours|4|4
 CHK|resetAnchor|$anchor|$anchor
 CHK|lastReset|$last_reset|$last_reset
 CHK|lastResetKind|scheduled|scheduled
-CHK|proxyAddress|192.0.2.10|192.0.2.10
+CHK|proxyAddress|$proxy_start|$proxy_start
 CHK|connectionCap|8|8
 CHK|connectionReserve|2|2
 CHK|messageAllowance|50|50
@@ -261,29 +269,42 @@ logout_all() {
   curl -s --max-time 30 -o /dev/null -b "$1" -c "$1" "$base/ocutalon/?IRISLogout=end&probe=$probes"
 }
 
+# online_signin <jar> <forwarded address or ""> <resume cookie value or ""> [<user> <password>]: the splash GET and the sign-in POST of the
+# account (by default the demo account) on the jar, with X-Forwarded-For when an address is given and the resume cookie when a value is
+# given. It prints the POST's HTTP status, and leaves the POST's headers in <jar>.h, the final page in <jar>.b and, after a redirect, the
+# first /ocutalon/ GET's headers in <jar>.g.
+online_signin() {
+  local jar=$1 forwarded=$2 cookie=$3 user=${4-$demo_user} password=${5-$demo_password} code
+  local args=(-s --max-time 30 -c "$jar" -b "$jar")
+  if [ -n "$forwarded" ]; then args+=(-H "X-Forwarded-For: $forwarded"); fi
+  if [ -n "$cookie" ]; then args+=(-b "OcuTalonResume=$cookie"); fi
+  rm -f "$jar.h" "$jar.g" "$jar.b"
+  next_probe
+  curl "${args[@]}" -o /dev/null "$base/ocutalon/?probe=$probes"
+  next_probe
+  code=$(curl "${args[@]}" -D "$jar.h" -o "$jar.b" -w '%{http_code}' --data-urlencode "IRISUsername=$user" --data-urlencode "IRISPassword=$password" \
+    --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/?probe=$probes")
+  case $code in
+    3??)
+      next_probe
+      curl "${args[@]}" -D "$jar.g" -o "$jar.b" "$base/ocutalon/?probe=$probes"
+      ;;
+  esac
+  printf '%s' "$code"
+}
+
 # signin_outcome <user> <password>: a plain sign-in POST to /ocutalon/, on a jar of its own, and what it led to, ended with a sign-out:
 #   shell    IRIS accepted it and the page is the application's shell;
 #   norole   IRIS accepted it and the page says the account has no OcuTalon user role;
 #   refused  the sign-in page with the failed-sign-in error (aria-invalid);
 #   other    anything else.
 signin_outcome() {
-  local jar answer code body outcome
+  local jar outcome
   next_probe
   jar="$tmp/jar.$probes"
   : > "$jar"
-  curl -s --max-time 30 -o /dev/null -c "$jar" -b "$jar" "$base/ocutalon/?probe=$probes"
-  next_probe
-  answer=$(curl -s --max-time 30 -c "$jar" -b "$jar" -w '\n%{http_code}' --data-urlencode "IRISUsername=$1" --data-urlencode "IRISPassword=$2" \
-    --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/?probe=$probes")
-  code=${answer##*$'\n'}
-  body=${answer%$'\n'*}
-  case $code in
-    3??)
-      next_probe
-      body=$(curl -s --max-time 30 -c "$jar" -b "$jar" "$base/ocutalon/?probe=$probes")
-      ;;
-  esac
-  case $body in
+  online_signin "$jar" "" "" "$1" "$2" > /dev/null
+  case $(cat "$jar.b" 2>/dev/null) in
     *'aria-invalid="true"'*) outcome=refused ;;
     *'user role. Ask an OcuTalon admin to add it.'*) outcome=norole ;;
     *'<app-root'*) outcome=shell ;;
@@ -577,29 +598,6 @@ done
 
 # --- Story 16.3: the visitor's own session (rows 4, 6, 12 and 14, and Task 0's MEASURED lines) ---
 
-# online_signin <jar> <forwarded address or ""> <resume cookie value or "">: the splash GET and the sign-in POST of the demo account on the
-# jar, with X-Forwarded-For when an address is given and the resume cookie when a value is given. It prints the POST's HTTP status, and
-# leaves the POST's headers in <jar>.h, the final page in <jar>.b and, after a redirect, the first /ocutalon/ GET's headers in <jar>.g.
-online_signin() {
-  local jar=$1 forwarded=$2 cookie=$3 code
-  local args=(-s --max-time 30 -c "$jar" -b "$jar")
-  if [ -n "$forwarded" ]; then args+=(-H "X-Forwarded-For: $forwarded"); fi
-  if [ -n "$cookie" ]; then args+=(-b "OcuTalonResume=$cookie"); fi
-  rm -f "$jar.h" "$jar.g" "$jar.b"
-  next_probe
-  curl "${args[@]}" -o /dev/null "$base/ocutalon/?probe=$probes"
-  next_probe
-  code=$(curl "${args[@]}" -D "$jar.h" -o "$jar.b" -w '%{http_code}' --data-urlencode "IRISUsername=$demo_user" --data-urlencode "IRISPassword=$demo_password" \
-    --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/?probe=$probes")
-  case $code in
-    3??)
-      next_probe
-      curl "${args[@]}" -D "$jar.g" -o "$jar.b" "$base/ocutalon/?probe=$probes"
-      ;;
-  esac
-  printf '%s' "$code"
-}
-
 # set_cookie_value <headers file>: the value of the Set-Cookie of OcuTalonResume in the headers, or nothing. It is the resume reference:
 # the caller keeps it in a variable and never prints it.
 set_cookie_value() {
@@ -723,6 +721,7 @@ epoch_one=$(jar_epoch "$jar")
 csp_one=$(row_field "$epoch_one" CspSessionId)
 if [ -z "$resume_ref" ] || [ -z "$epoch_one" ]; then
   fail "row 6: the sign-in gave no resume cookie ('${resume_ref:+set}') or no epoch ('$epoch_one')"
+  logout_all "$jar" /ocutalon/
 else
   client_id="zz-row6-$(date +%s)"
   next_probe
@@ -752,6 +751,57 @@ else
     fail "row 6: signing in again with the cookie gave the epoch '$epoch_two' (wanted '$epoch_one') or set a cookie"
   fi
   echo "MEASURED CSP session id reused on resume: $([ -n "$csp_one" ] && [ "$csp_one" = "$csp_two" ] && echo yes || echo no)"
+  logout_all "$jar" /ocutalon/
+fi
+
+# --- (QA) row 5 over HTTP: tampered and malformed cookies never resume and never fail ---
+
+if [ -z "$resume_ref" ] || [ -z "$epoch_one" ]; then
+  fail "row 5 (QA): row 6 kept no resume reference or epoch, so the tampered cookies have nothing to be tampered from"
+else
+  swap=A
+  if [ "${resume_ref:0:1}" = A ]; then swap=B; fi
+  upper=$(printf '%s' "$resume_ref" | tr 'a-z' 'A-Z')
+  tamper_values=("${swap}${resume_ref:1}" "${resume_ref}=" "${resume_ref}x" "${resume_ref:0:21}" "${resume_ref:1}" "${resume_ref:0:20}+/" "${resume_ref:0:21}!" "${resume_ref}%0A"
+    "${resume_ref:0:20}%C3%A9" "${resume_ref:0:20}$(printf '\303\251')" "$upper" "$(printf '!%.0s' $(seq 1 22))" "$(printf 'A%.0s' $(seq 1 2000))")
+  tamper_lines_before=$(console_lines)
+  tamper_n=0
+  tamper_good=0
+  tamper_bad=""
+  for value in "${tamper_values[@]}"; do
+    if [ "$value" = "$resume_ref" ]; then continue; fi
+    tamper_n=$((tamper_n + 1))
+    jar="$tmp/jar.tamper.$tamper_n"
+    : > "$jar"
+    code=$(online_signin "$jar" "" "$value")
+    outcome=$(page_outcome "$jar.b")
+    new_value=$(set_cookie_value "$jar.h")
+    epoch=$(jar_epoch "$jar")
+    if [ "$outcome" = shell ] && [ -n "$new_value" ] && [ "$new_value" != "$value" ] && [ "$new_value" != "$resume_ref" ] && [ -n "$epoch" ] && [ "$epoch" != "$epoch_one" ]; then
+      tamper_good=$((tamper_good + 1))
+    else
+      tamper_bad="$tamper_bad $tamper_n:$code/$outcome"
+    fi
+    logout_all "$jar" /ocutalon/
+  done
+  if [ "$tamper_n" -ge 12 ] && [ "$tamper_good" = "$tamper_n" ]; then
+    pass "row 5 (QA): $tamper_n tampered or malformed cookies each gave the shell, a new cookie and a new session"
+  else
+    fail "row 5 (QA): of $tamper_n tampered or malformed cookies $tamper_good gave the shell, a new cookie and a new session (the others, as n:status/page:$tamper_bad)"
+  fi
+  if [ "$(console_lines)" = "$tamper_lines_before" ]; then
+    pass "row 5 (QA): none of them wrote an OcuTalon.Web.SessionEvents line to messages.log"
+  else
+    fail "row 5 (QA): the tampered cookies wrote OcuTalon.Web.SessionEvents lines to messages.log ($tamper_lines_before to $(console_lines))"
+  fi
+  jar="$tmp/jar.tamper.back"
+  : > "$jar"
+  online_signin "$jar" "" "$resume_ref" > /dev/null
+  if [ "$(jar_epoch "$jar")" = "$epoch_one" ] && [ -z "$(set_cookie_value "$jar.h")" ]; then
+    pass "row 5 (QA): after them the real reference still resumes its own session and sets no cookie"
+  else
+    fail "row 5 (QA): after the tampered cookies the real reference no longer resumes its own session, or sets a cookie"
+  fi
   logout_all "$jar" /ocutalon/
 fi
 
@@ -795,7 +845,6 @@ grep -h '^MEASURED' "$e2e_log" | redact
 # --- Story 16.3, the proxied phase (rows 10 and 11, Task 0 (c)) ---
 
 # The public proxy address is set to the address that IRIS sees for this host's requests, and put back to the start value on every path.
-proxy_start=192.0.2.10
 set_proxy() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"proxyAddress\",\"$1\")" "Write !,\"CHK|proxy|\",##class(OcuTalon.Data.Public.Settings).Get(\"proxyAddress\")" 'Halt' | session_value OCUTALON proxy; }
 # host_address: the container's default gateway, from /proc/net/route (little-endian hex), which is the source address of a request that the
 # host publishes a port for; nothing when the table has no default route.
@@ -978,6 +1027,43 @@ $live" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?\",e,e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|audit|\",p,\"|\",n }" \
     'Halt'
 }
+# check_search_controls <when> (QA): the searches of check_logs_clean can see what they search. A search that reads nothing, because a
+# file is missing or a table is empty or a database is not scanned, would also count 0, so each source is shown to hold something: the
+# three log sources are readable and not empty; the event log, the live events, the production message headers and the audit log hold
+# rows; and the global scan finds the row 6 session's resume hash (which only OCUTALON_PRIVATE holds), the row 6 message's text (the
+# production's message body, in OCUTALON_DATA) and the public proxy address (OCUTALON_PUBLIC). Only these controls' words are printed.
+check_search_controls() {
+  local readable=1 f out_n hash
+  out_n=$(dc logs --no-color iris 2>&1 | wc -l | tr -d ' ')
+  if [ "${out_n:-0}" -lt 1 ]; then readable=0; fi
+  for f in "$mgr/messages.log" /durable/ocutalon-after-start.log; do
+    if ! dc exec -T iris test -s "$f" 2>/dev/null; then readable=0; fi
+  done
+  if [ "$readable" = 1 ]; then
+    pass "$1: row 6 control: the container's output, messages.log and the after-start log are readable and not empty"
+  else
+    fail "$1: row 6 control: the container's output ('$out_n' lines), messages.log or the after-start log is unreadable or empty, so a search of them proves nothing"
+  fi
+  hash=$(row_field "$epoch_one" ResumeHash)
+  check_session "$1: row 6 control: the searched records hold rows, and the global scan reads each of its three databases" OCUTALON \
+    "CHK|control|eventlog|seen
+CHK|control|liveevent|seen
+CHK|control|messages|seen
+CHK|control|scan-private|seen
+CHK|control|scan-data|seen
+CHK|control|scan-public|seen" \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens_Util.Log") Do rs.%Next() Write !,"CHK|control|eventlog|",$Select(rs.%GetData(1)>0:"seen",1:"blind")' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Live.Event") Do rs.%Next() Write !,"CHK|control|liveevent|",$Select(rs.%GetData(1)>0:"seen",1:"blind")' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader") Do rs.%Next() Write !,"CHK|control|messages|",$Select(rs.%GetData(1)>0:"seen",1:"blind")' \
+    "Write !,\"CHK|control|scan-private|\",\$Select(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(\"$hash\",\"OCUTALON_PRIVATE\")>0:\"seen\",1:\"blind\")" \
+    'Write !,"CHK|control|scan-data|",$Select(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits("zz row six","OCUTALON_DATA")>0:"seen",1:"blind")' \
+    "Write !,\"CHK|control|scan-public|\",\$Select(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(\"$proxy_start\",\"OCUTALON_PUBLIC\")>0:\"seen\",1:\"blind\")" \
+    'Halt'
+  check_session "$1: row 6 control: the audit log holds entries" %SYS \
+    "CHK|control|audit|seen" \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit") Do rs.%Next() Write !,"CHK|control|audit|",$Select(rs.%GetData(1)>0:"seen",1:"blind")' \
+    'Halt'
+}
 # check_logs_clean <when>: neither published password is in the logs above, in a row of the production event log or of the live
 # events (OCUTALON), or in an audit entry (%SYS); only counts are printed. After row 6 the same searches run for the resume reference, and
 # a scan of every global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC (production messages included) adds to them. It runs
@@ -1000,6 +1086,7 @@ check_logs_clean() {
     "CHK|globals|0" \
     'Write !,"CHK|globals|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($SYSTEM.Util.GetEnviron("OCUTALON_T16_REF"))' \
     'Halt'
+  check_search_controls "$1"
 }
 check_logs_clean "after the first start"
 

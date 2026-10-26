@@ -4373,6 +4373,8 @@ So that a reset never surprises me or leaves me on a broken page.
 **When** it takes a signed-in page through the last 10 minutes before a reset
 **Then** the countdown turns urgent at 10 minutes, the banner appears at 5, the resetting view shows at the reset, and the page lands once on the splash with the reset notice when status reports ready (FR-15, FR-59)
 
+- DW-235: `AddressCounter.Shift` and `SessionEvents.CookieExpiry` (Story 16.3) repeat `OcuTalon.Data.Public.Settings`' private UTC parsing (`ToSeconds`/`FromSeconds`); while this story computes the next reset from the same settings, share one helper and make both callers use it (ledger; routed by cr 2026-10-26)
+
 ### Story 16.9: Allowances cap messages, model cost and simulated emails
 
 As a judge,
