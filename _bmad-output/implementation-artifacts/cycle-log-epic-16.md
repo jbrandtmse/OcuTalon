@@ -74,3 +74,5 @@
 2026-10-26T04:41:01Z	Story 16.3	fresh_check	env=recipe(ci/iris.sh_throwaways,tag=e16s3fc,lane-c) tests=shard_lane-b(44_classes_incl_Test.Data.{AddressCounter,Ownership,Session,Tables,Setting},Test.Web.{SessionEvents,Install,Splash,PublicTexts},Test.Msg.Catalog:124s_fwd,123s_rev),live_online-demo(fresh,smoke_run),checks.sh,npm_web_test,lint result=pass order=forward,reverse teardown=clean(0_left)
 2026-10-26T04:41:42Z	Story 16.3	committed	sha=4ded1e0 submodules= ci=pending runs=40270323742,40270323777 amendments=epics.md:Story_16.8_DW-235_bullet(ledger_routed) footprint_extensions=Msg/Catalog/Core.cls,Test/Msg/Catalog.cls
 2026-10-26T04:41:42Z	Story 16.3	story_cycle	plan_to_commit_min=214 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-10-26T04:47:01Z	Epic 16	epic_context_compiled	reason=planning_artifact_newer(epics.md_DW-235_bullet) model=claude-opus-5-5 bytes=15300
+2026-10-26T04:47:01Z	Story 16.5	stage_spawned	stage=plan spawn_at=2026-10-26T04:47:01Z model=claude-opus-5-5 agent_name=16-5-plan-1 cycle_iteration=1
