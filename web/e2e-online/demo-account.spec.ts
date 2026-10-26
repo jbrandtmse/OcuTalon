@@ -113,7 +113,7 @@ test('O5: the Visual Trace menu shows the read-only credentials with working cop
     const account = published();
     const snapshot = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
     expect(snapshot['traceAccount'], '/state carries the read-only account').toEqual({ user: account.user, password: account.password });
-    expect(Object.keys(snapshot).at(-1), 'as its last key').toBe('traceAccount');
+    expect(Object.keys(snapshot).slice(-2), 'then nextReset, the last key (Story 16.8)').toEqual(['traceAccount', 'nextReset']);
 
     await traceMenu(page).click();
     const menu = page.getByRole('dialog', { name: 'Visual Trace', exact: true });

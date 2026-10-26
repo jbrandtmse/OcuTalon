@@ -184,6 +184,18 @@ body {
 }
 .notice .icon { margin-top: 1px; color: var(--inline-notice-warning-icon-color); }
 .notice p { margin: 0; }
+.notice-info {
+  max-width: 920px;
+  margin: 0 auto var(--space-4);
+  border-radius: var(--inline-notice-info-radius);
+  background: var(--inline-notice-info-background);
+  color: var(--inline-notice-info-foreground);
+  font-size: var(--inline-notice-info-typography-font-size);
+  font-weight: var(--inline-notice-info-typography-font-weight);
+  line-height: var(--inline-notice-info-typography-line-height);
+}
+.notice-info .icon { color: var(--inline-notice-info-icon-color); }
+.notice-soon { margin: 0 0 var(--space-3); }
 .btn-primary {
   display: flex;
   align-items: center;

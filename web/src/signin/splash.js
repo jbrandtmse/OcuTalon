@@ -7,11 +7,15 @@
   The next reset's time and countdown are filled in the browser's zone and hour format, as web/src/app/chat/page-time.ts writes
   them (pageTime and countdownText; the words below are WHEN_TEXTS' countdown words), and recounted every second. Once the reset
   has passed, it rolls forward by the interval.
+  The reset-soon notice under the sign-in card's title is shown while 0 < remaining <= 300 s against the reset line's time (after its
+  roll-forward) and hidden otherwise; its countdown and time are filled with the reset line's. A notice that appears after the page
+  loaded is announced once through the live region. The time of the after-reset notice above the cards is filled like the error's.
   The form carries the address's fragment through sign-in: the server's redirect names no fragment, so the browser gives the page
   it lands on the fragment of the address that the form was posted to.
 */
 (function () {
   var COPIED_MS = 2000;
+  var SOON_MS = 300000;
   var WORDS = {
     seconds: 'in {n} s',
     secondsOne: 'in {n} second',
@@ -134,6 +138,15 @@
     return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
   }
 
+  function plainText(node) {
+    var copy = node.cloneNode(true);
+    var hidden = copy.querySelectorAll('[aria-hidden]');
+    for (var i = 0; i < hidden.length; i += 1) {
+      hidden[i].parentNode.removeChild(hidden[i]);
+    }
+    return copy.textContent.replace(/\s+/g, ' ').trim();
+  }
+
   function startCountdown() {
     var stamp = document.getElementById('ocu-reset-time');
     var shown = document.getElementById('ocu-countdown');
@@ -141,6 +154,11 @@
     if (!stamp || !shown || !spoken) {
       return;
     }
+    var soon = document.getElementById('ocu-reset-soon');
+    var soonShown = document.getElementById('ocu-soon-countdown');
+    var soonSpoken = document.getElementById('ocu-soon-countdown-spoken');
+    var soonTime = document.getElementById('ocu-soon-time');
+    var announced = false;
     var due = Date.parse(stamp.getAttribute('datetime'));
     var step = Number(stamp.getAttribute('data-step')) * 1000;
     if (isNaN(due)) {
@@ -161,18 +179,39 @@
         if (due !== first) {
           stamp.setAttribute('datetime', new Date(due).toISOString());
         }
+        if (soonTime) {
+          soonTime.textContent = stamp.textContent;
+          soonTime.setAttribute('datetime', stamp.getAttribute('datetime'));
+        }
       }
       var left = countdown(due, now);
       shown.textContent = left.text;
       spoken.textContent = left.spoken;
+      if (soon && soonShown && soonSpoken) {
+        var remaining = due - now;
+        var near = remaining > 0 && remaining <= SOON_MS;
+        if (near) {
+          soonShown.textContent = left.text;
+          soonSpoken.textContent = left.spoken;
+          if (soon.hidden) {
+            soon.hidden = false;
+            if (!announced) {
+              announced = true;
+              announce(plainText(soon));
+            }
+          }
+        } else {
+          soon.hidden = true;
+        }
+      }
     }
 
     tick();
     window.setInterval(tick, 1000);
   }
 
-  function fillErrorTime() {
-    var stamp = document.getElementById('ocu-error-time');
+  function fillTime(id) {
+    var stamp = document.getElementById(id);
     if (!stamp) {
       return;
     }
@@ -199,5 +238,6 @@
     });
   }
   startCountdown();
-  fillErrorTime();
+  fillTime('ocu-error-time');
+  fillTime('ocu-notice-time');
 }());

@@ -471,6 +471,21 @@ XData Entries [ MimeType = application/json ]
   "slots": {"interval": "text", "time": "text", "countdown": "text"},
   "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
  },
+ "splash.resetNotice": {
+  "text": "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one.",
+  "slots": {"time": "text"},
+  "source": "EXPERIENCE State Patterns / Session ended by a scheduled reset"
+ },
+ "splash.restartNotice": {
+  "text": "The demo was restarted, which cleared your session. Sign in again for a fresh one.",
+  "slots": {},
+  "source": "EXPERIENCE State Patterns / Session ended by an unscheduled restart"
+ },
+ "splash.resetSoon": {
+  "text": "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}.",
+  "slots": {"countdown": "text", "time": "text"},
+  "source": "EXPERIENCE State Patterns / Reset soon at sign-in"
+ },
  "splash.ownLine": {
   "text": "Your chat, phone, mailbox and orders are yours alone.",
   "slots": {},

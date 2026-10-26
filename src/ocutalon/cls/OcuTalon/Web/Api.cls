@@ -254,6 +254,24 @@ ClassMethod TraceAccount() As %DynamicObject [ Private ]
 	Quit {"user": (user), "password": (password)}
 }
 
+/// The online demo's reset fields of the snapshot (Story 16.8, AD-12, AD-19): the active resetSoon condition appended to status (the
+/// StatusMonitor.ResetSoon computation, exported through Status.ActiveOf), then, as the snapshot's last key, nextReset: the one
+/// next reset, Public.Settings.NextReset, set only when there is one. With the flag off it adds nothing, so a local install's
+/// snapshot keeps its keys. A page-only field: the reset event carries the same value.
+ClassMethod AddReset(body As %DynamicObject) [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 Quit
+	Set conditions = ##class(%Library.ListOfObjects).%New()
+	Do conditions.Insert(##class(OcuTalon.Core.StatusMonitor).ResetSoon())
+	Set active = ##class(OcuTalon.Live.Payload.Status).ActiveOf(conditions)
+	Set iterator = active.%GetIterator()
+	While iterator.%GetNext(.position, .condition) {
+		Do body.status.%Push(condition)
+	}
+	Set next = ##class(OcuTalon.Data.Public.Settings).NextReset()
+	If next '= "" Set body.nextReset = next
+}
+
 /// The pairing routes: 404 while the release doesn't include Telegram, otherwise 501 until Story 10.3.
 ClassMethod Pairing() As %Status
 {
@@ -268,7 +286,8 @@ ClassMethod Pairing() As %Status
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, and status: the active status conditions; after status, traceAccount (TraceAccount: the read-only
-/// account's user name and password) only when onlineDemo is 1 and both read-only values are set. instanceStream is the stream reported as
+/// account's user name and password) only when onlineDemo is 1 and both read-only values are set; on the online demo, resetSoon is
+/// appended to status when active and the last key is nextReset when there is a next reset (AddReset). instanceStream is the stream reported as
 /// instance: Live.Publish's instance stream unless the caller names another. A read that fails throws.
 ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %String = {##class(OcuTalon.Live.Publish).#INSTANCE}) As %DynamicObject
 {
@@ -307,6 +326,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	Set body.telegram = telegram
 	Set body.status = ##class(OcuTalon.Live.Payload.Status).Active(sessionRef)
 	Set account = ..TraceAccount()  Set:$IsObject(account) body.traceAccount = account
+	Do ..AddReset(body)
 	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
 	Do ##class(OcuTalon.Web.TraceLink).Add(body, .viewer)
 	Quit body

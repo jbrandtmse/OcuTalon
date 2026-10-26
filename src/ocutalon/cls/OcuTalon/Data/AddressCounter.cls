@@ -81,11 +81,7 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 /// A UTC time, YYYY-MM-DDThh:mm:ssZ, moved by a number of seconds; "" for an unreadable time.
 ClassMethod Shift(utc As %String, seconds As %Integer) As %String
 {
-	If utc '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
-	Set horolog = $ZDateTimeH($Translate($Extract(utc, 1, 19), "T", " "), 3, 1, , , , , , , "")
-	If horolog = "" Quit ""
-	Set total = ($Piece(horolog, ",", 1) * 86400) + $Piece(horolog, ",", 2) + seconds
-	Quit $Translate($ZDateTime((total \ 86400)_","_(total # 86400), 3, 1), " ", "T")_"Z"
+	Quit ##class(OcuTalon.Data.Public.Settings).Shift(utc, seconds)
 }
 
 Storage Default

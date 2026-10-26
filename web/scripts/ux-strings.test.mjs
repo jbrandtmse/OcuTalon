@@ -48,6 +48,7 @@ const IMPORTED = [
   ['shared/announce-queue.ts', ['NEW_UPDATES']],
   ['chat/page-time.ts', ['WHEN_TEXTS']],
   ['msg/catalog.ts', ['PAGE_TEXTS']],
+  ['live/reset-schedule.ts', ['RESET_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -279,6 +280,9 @@ const SOURCES = {
     'Theme',
     'Chat',
     'Retry',
+    'The demo is resetting.',
+    'It usually takes a few minutes. This page returns to the sign-in screen by itself.',
+    'Resetting \u00b7 OcuTalon',
   ],
   design: [
     'Repair and resend',
@@ -288,6 +292,7 @@ const SOURCES = {
     'Story 2.6: Show every decision with its reasons and cost (the Details labels Tokens, Model, Agent steps, Duration, Decision message and Cost)': ['Agent steps', 'Decision message'],
     'Story 2.8: Show the status rail (the approval request row, "Raised 14:13 \u00b7 expires tomorrow at 14:13")': ['Raised {when}'],
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
+    'Story 16.8: The page counts down to the reset (the reset countdown reads "Next reset {time} \u00b7 in {countdown}")': ['Next reset {time} \u00b7 in {countdown}'],
   },
   ruled: {
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [

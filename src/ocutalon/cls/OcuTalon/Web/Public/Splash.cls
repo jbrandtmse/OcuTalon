@@ -54,6 +54,17 @@ Parameter TELEGRAMLINE = "Have Telegram? You can scan a QR code inside to get th
 
 Parameter LIMITLINE = "Each session can send {limit} messages an hour in the chat or Telegram.";
 
+/// The notice above both cards after a reset (EXPERIENCE: Session ended by a scheduled reset); {time} is written by the server as the
+/// page's time element (datetime is the last reset) and filled by the script.
+Parameter RESETNOTICE = "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one.";
+
+/// The notice above both cards after an unscheduled restart (EXPERIENCE: Session ended by an unscheduled restart).
+Parameter RESTARTNOTICE = "The demo was restarted, which cleared your session. Sign in again for a fresh one.";
+
+/// The reset-soon notice under the sign-in card's title (EXPERIENCE: Reset soon at sign-in). The script fills "in {countdown}" (the
+/// countdown words start with "in") and {time}.
+Parameter RESETSOON = "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}.";
+
 /// The address-limit error (EXPERIENCE: Too many sessions); {time} is written by the server as the page's time element and
 /// filled by the script.
 Parameter TOOMANY = "Too many new sessions from your network this hour. You can start another at {time}.";
@@ -83,12 +94,15 @@ Parameter INTERVALOTHER = "{n} hours";
 
 Parameter README = "https://github.com/jbrandtmse/OcuTalon#readme";
 
-/// Lucide copy, external-link and triangle-alert (ISC), drawn on a 24 grid; the triangle marks the warning notice.
+/// Lucide copy, external-link, triangle-alert and info (ISC), drawn on a 24 grid; the triangle marks the warning notice, the info mark the
+/// info notice.
 Parameter ICONCOPY = "<rect width=""14"" height=""14"" x=""8"" y=""8"" rx=""2"" ry=""2""/><path d=""M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2""/>";
 
 Parameter ICONEXTERNAL = "<path d=""M15 3h6v6""/><path d=""M10 14 21 3""/><path d=""M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6""/>";
 
 Parameter ICONWARNING = "<path d=""m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3""/><path d=""M12 9v4""/><path d=""M12 17h.01""/>";
+
+Parameter ICONINFO = "<circle cx=""12"" cy=""12"" r=""10""/><path d=""M12 16v-4""/><path d=""M12 8h.01""/>";
 
 /// The splash does not hand the page on again.
 ClassMethod UseSplash() As %Boolean
@@ -150,9 +164,11 @@ ClassMethod OnLoginPage() As %Status
 	Write "<h1>", ..#HEADING, "</h1>", !
 	Write "<p class=""subhead"">", ..#SUBHEADING, "</p>", !
 	Write "<p class=""lead"">", ..#DESCRIPTION, "</p>", !
+	Write ..InfoNotice(), !
 	Write "<div class=""splash-cards"">", !
 
 	Write "<section class=""card"" aria-labelledby=""ocu-signin-h"" data-card><h2 class=""card-title"" id=""ocu-signin-h"">", ..#SIGNINHEADING, "</h2>", !
+	Write ..ResetSoonNotice(), !
 	Write "<form name=""Login"" method=""post"" action=""", action, """>", !
 	Write ..InsertHiddenFields($ZConvert($Get(%request.Data("Error:URL", 1)), "O", "HTML")), !
 	Write "<div class=""field"" data-row><label class=""field-label"" for=""ocu-user"">", ..#USERLABEL, "</label>"
@@ -190,6 +206,38 @@ ClassMethod OnLoginPage() As %Status
 	Write "<script>", ..#SCRIPT, "</script>", !
 	Write "</body></html>", !
 	Quit $SYSTEM.Status.OK()
+}
+
+/// The info notice above both cards, or "" (Story 16.8). It names the reset that cleared the visitor's session: only when the request's
+/// since (the time the page loaded, UTC to the second) and the public lastReset are both readable times and lastReset is strictly
+/// later. The kind unscheduled gives RESTARTNOTICE; any other kind gives RESETNOTICE, whose {time} is a time element for the script
+/// to fill in the browser's zone. The value of since is never written into the page.
+ClassMethod InfoNotice() As %String [ Private ]
+{
+	Set since = ##class(OcuTalon.Data.Public.Settings).ToSeconds($Get(%request.Data("since", 1)))
+	Set last = ##class(OcuTalon.Data.Public.Settings).Get("lastReset")
+	Set lastSeconds = ##class(OcuTalon.Data.Public.Settings).ToSeconds(last)
+	If (since = "") || (lastSeconds = "") || (lastSeconds <= since) Quit ""
+	If ##class(OcuTalon.Data.Public.Settings).Get("lastResetKind") = "unscheduled" {
+		Set text = ..#RESTARTNOTICE
+	} Else {
+		Set text = $Replace(..#RESETNOTICE, "{time}", "<time class=""tnum"" id=""ocu-notice-time"" datetime="""_$ZConvert(last, "O", "HTML")_"""></time>")
+	}
+	Quit "<div class=""notice notice-info"" id=""ocu-notice"">"_..Icon(..#ICONINFO)_"<p>"_text_"</p></div>"
+}
+
+/// The reset-soon notice for the sign-in card, written whenever the reset line is (a next reset and an interval), with the hidden
+/// attribute unless the reset is soon at render (Settings.ResetSoon). The script fills its countdown and time and shows or hides it
+/// against the reset line's time. "in {countdown}" becomes the visible countdown and its spoken form, so the text carries one "in".
+ClassMethod ResetSoonNotice() As %String [ Private ]
+{
+	Set next = ##class(OcuTalon.Data.Public.Settings).NextReset()
+	If (next = "") || (##class(OcuTalon.Data.Public.Settings).Get("resetIntervalHours") = "") Quit ""
+	Set countdown = "<span class=""tnum"" id=""ocu-soon-countdown"" aria-hidden=""true""></span><span class=""sr-only"" id=""ocu-soon-countdown-spoken""></span>"
+	Set time = "<time class=""tnum"" id=""ocu-soon-time"" datetime="""_$ZConvert(next, "O", "HTML")_"""></time>"
+	Set text = $Replace($Replace(..#RESETSOON, "in {countdown}", countdown), "{time}", time)
+	Set hidden = $Select(##class(OcuTalon.Data.Public.Settings).ResetSoon(): "", 1: " hidden")
+	Quit "<div class=""notice notice-soon"" id=""ocu-reset-soon"""_hidden_">"_..Icon(..#ICONWARNING)_"<p>"_text_"</p></div>"
 }
 
 /// The README link: the footer's, and the busy error's.

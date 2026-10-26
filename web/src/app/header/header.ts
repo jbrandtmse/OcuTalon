@@ -33,6 +33,7 @@ import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
 import { CredentialRows } from './credential-rows';
+import { ResetCountdown } from './reset-countdown';
 
 /** The theme menu's options, in order. */
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemeChoice; label: string }> = [
@@ -63,6 +64,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * account (traceAccount), the popover also shows its user name and password below the link, each with a copy button
  * (CredentialRows); a local install's snapshot has no traceAccount and its popover has no such rows.
  *
+ * On the online demo the right group also holds the reset countdown pill (ResetCountdown, Story 16.8), after the Status button and before
+ * the Visual Trace menu. It is silent: the header announces nothing.
+ *
  * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
  * rail's heading), both hidden from assistive technology beside the spoken name ("Status, 2 approval requests"). Before the snapshot
@@ -75,7 +79,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, Icon, TraceHelpBlock, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -106,6 +110,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
             }
           </button>
         }
+        <app-reset-countdown />
         <button
           #traceTrigger
           type="button"

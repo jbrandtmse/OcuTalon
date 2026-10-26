@@ -84,6 +84,9 @@ export class LiveState {
   /** The live store: the snapshot's state with the events applied. */
   readonly store = signal<LiveStore | undefined>(undefined);
 
+  /** Counts the answers of the live path (a snapshot taken in, a poll applied): the reset watch checks its clock at each one. */
+  readonly answers = signal(0);
+
   /** The page's contact with OcuTalon: `ok` until the live path has gone 10 s with no answer, then `reconnecting`, then `unreachable` at 30 s. */
   readonly contact = this.contactState.asReadonly();
 
@@ -183,6 +186,7 @@ export class LiveState {
     this.store.set(fromSnapshot(snapshot));
     this.status.set('loaded');
     this.watch.answered();
+    this.answers.update((count) => count + 1);
     if (!this.polling) {
       this.polling = true;
       this.schedulePoll();
@@ -257,6 +261,7 @@ export class LiveState {
       this.store.set(result.store);
     }
     this.watch.answered();
+    this.answers.update((count) => count + 1);
     this.schedulePoll();
   }
 

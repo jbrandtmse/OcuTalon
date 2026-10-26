@@ -89,11 +89,12 @@ ClassMethod File(path As %String) As %Status
 	Quit ..Serve(path)
 }
 
-/// POST /<path>: the sign-in form's target, answered with a redirect to the page that was asked for.
+/// POST /<path>: the sign-in form's target, answered with a redirect to the page that was asked for. The address drops every since
+/// pair (the splash's after-reset marker, Story 16.8), so that the signed-in page never carries it.
 ClassMethod Redirect(path As %String) As %Status
 {
 	Set %response.Status = "303 See Other"
-	Do %response.SetHeader("Location", ..FullUrl())
+	Do %response.SetHeader("Location", ..RedirectUrl())
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -135,6 +136,19 @@ ClassMethod HasRole() As %Boolean
 ClassMethod RelativePath() As %String [ Private ]
 {
 	Quit $Extract(%request.URL, $Length(%request.Application) + 1, *)
+}
+
+/// FullUrl without the since pairs of the query string; the other pairs keep their order.
+ClassMethod RedirectUrl() As %String [ Private ]
+{
+	Set query = $Get(%request.CgiEnvs("QUERY_STRING"))
+	Set kept = ""
+	For i = 1:1:$Length(query, "&") {
+		Set pair = $Piece(query, "&", i)
+		If $Piece(pair, "=", 1) '= "since" Set kept = kept_$ListBuild(pair)
+	}
+	Set query = $ListToString(kept, "&")
+	Quit $Translate(%request.URL_$Select(query '= "": "?"_query, 1: ""), $Char(13, 10))
 }
 
 /// The request's URL with its query string, on one line.

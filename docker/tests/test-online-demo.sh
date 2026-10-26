@@ -31,7 +31,8 @@
 #     reference searches' controls: the three log sources are readable and not empty, and each searched record (the event log, the live
 #     events, the production message headers, the audit log, each of the three databases of the global scan) holds something the search
 #     can find, so that a count of 0 cannot come from a search that sees nothing;
-#   - the browser (rows 7 to 12, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2, and Story
+#   - the browser (rows 7 to 12, Story 16.8's reset.spec.ts (the last ten minutes before a reset on a controlled clock, and a real reset four
+#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2, and Story
 #     16.3's R1, R2, R4 and R5): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - the proxied phase (Story 16.3, rows 10 and 11 and Task 0 (c)): the public proxy address is set to the address IRIS sees for this
 #     host's requests, a first proxied sign-in must write a counter row (else the check fails naming the derived address), then five
@@ -68,7 +69,7 @@
 # Test start values (a compose override written to this run's temporary folder, never a tracked file): OCUTALON_ONLINE_DEMO=1, the demo
 # account DemoVisitor and the read-only account TraceReader with random passwords per run (hex, passed to compose by ${VAR} interpolation so
 # that they are in no file, and replaced by <redacted> in every line this script prints), a 4-hour reset step from the anchor
-# 2026-10-18T00:00:00Z (quoted in the override, which compose would otherwise read as a timestamp), the last reset 2026-10-25T08:00:00Z (scheduled), the proxy address 192.0.2.10 (TEST-NET: no request of this test is
+# two hours after the unit's start, to the minute (quoted in the override, which compose would otherwise read as a timestamp), the last reset 2026-10-25T08:00:00Z (scheduled), the proxy address 192.0.2.10 (TEST-NET: no request of this test is
 # proxied), a connection cap of 8 with a reserve of 2, 50 messages an hour, a daily cost cap of 20 USD and no gateway variable.
 # Every request that signs in ends with ?IRISLogout=end on its application and on /ocutalon/, each with its own cookie jar, so that no form
 # leaves a licence connection held; every page request carries a unique probe=<n> query parameter, because the web gateway keeps the answer
@@ -99,7 +100,9 @@ control_user=ZzOnlineControl
 demo_password=$(hexpw)
 readonly_password=$(hexpw)
 control_password=$(hexpw)
-anchor=2026-10-18T00:00:00Z
+# The reset anchor is two hours ahead of the unit's start, to the minute (Story 16.8): the next reset is the anchor itself, so no real reset or
+# reset-soon period falls inside a run, and the splash's reset-soon notice and the page's resetting view never show in the other specs.
+anchor=$(node -e 'const t = Math.floor(Date.now() / 60000) * 60000 + 2 * 3600 * 1000; console.log(`${new Date(t).toISOString().slice(0, 19)}Z`);')
 last_reset=2026-10-25T08:00:00Z
 
 # The forms of S17 that change a password on build 154, as "<form>@<where>" for every request that does (Task 0 measured them; the unit
@@ -852,8 +855,10 @@ run_e2e() {
     OCUTALON_E2E_TIMEOUT_MS=$(((left - 20) * 1000)) \
     npm --prefix web run e2e:online-demo -- "$@" > "$e2e_log" 2>&1
 }
+browser_started=$SECONDS
 run_e2e
 e2e_status=$?
+echo "MEASURED Story 16.8 Task 0 (d): the browser step took $((SECONDS - browser_started)) s; the unit has run $SECONDS s at this point (DW-220: 310 to 325 s for the whole unit before this story)"
 if [ "$e2e_status" -eq 0 ]; then
   show_log 20
   pass "rows 7 to 12: the specs of the online-demo project pass ($(grep -Eo '[0-9]+ passed' "$e2e_log" | tr '\n' ' ' | sed 's/ $//'))"

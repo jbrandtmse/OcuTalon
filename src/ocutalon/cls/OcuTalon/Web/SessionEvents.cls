@@ -109,10 +109,9 @@ ClassMethod ClientAddress(remote As %String, forwarded As %String, proxy As %Str
 /// empty or unreadable time, which makes the cookie a browser-session cookie.
 ClassMethod CookieExpiry(nextReset As %String) As %String
 {
-	If nextReset '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
-	Set horolog = $ZDateTimeH($Translate($Extract(nextReset, 1, 19), "T", " "), 3, 1, , , , , , , "")
-	If horolog = "" Quit ""
-	Set weekday = $Piece(##class(OcuTalon.Data.Time).#WEEKDAYS, ",", ($ZDate(+horolog, 10) + 1))
+	Set seconds = ##class(OcuTalon.Data.Public.Settings).ToSeconds(nextReset)
+	If seconds = "" Quit ""
+	Set weekday = $Piece(##class(OcuTalon.Data.Time).#WEEKDAYS, ",", ($ZDate(seconds \ 86400, 10) + 1))
 	Set month = $Piece(##class(OcuTalon.Data.Time).#MONTHS, ",", +$Extract(nextReset, 6, 7))
 	Quit $Extract(weekday, 1, 3)_", "_$Extract(nextReset, 9, 10)_" "_month_" "_$Extract(nextReset, 1, 4)_" "_$Extract(nextReset, 12, 19)_" GMT"
 }

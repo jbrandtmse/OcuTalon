@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 90 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 93 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,9 +77,9 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 90, "the expected Core list has 90 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 93, "the expected Core list has 93 keys")
 	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 90 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 93 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 112 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 115 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1031,6 +1031,9 @@ XData Keys [ MimeType = application/json ]
   "splash.copyFailed",
   "splash.beforeHeading",
   "splash.resetLine",
+  "splash.resetNotice",
+  "splash.restartNotice",
+  "splash.resetSoon",
   "splash.ownLine",
   "splash.telegramLine",
   "splash.limitLine",
@@ -1259,6 +1262,9 @@ XData Fixtures [ MimeType = application/json ]
  "splash.copyFailed": {"slots": {}, "text": "Couldn't copy. Select the text and copy it yourself."},
  "splash.beforeHeading": {"slots": {}, "text": "Before you start"},
  "splash.resetLine": {"slots": {"interval": "4 hours", "time": "16:00", "countdown": "in 1 h 42 min"}, "text": "The demo resets every 4 hours. Next reset: 16:00 (in 1 h 42 min)."},
+ "splash.resetNotice": {"slots": {"time": "08:00"}, "text": "The demo was reset at 08:00, which cleared your session. Sign in again for a fresh one."},
+ "splash.restartNotice": {"slots": {}, "text": "The demo was restarted, which cleared your session. Sign in again for a fresh one."},
+ "splash.resetSoon": {"slots": {"countdown": "4 min", "time": "16:00"}, "text": "The demo resets in 4 min, which may cut your run short. You can start now or come back after 16:00."},
  "splash.ownLine": {"slots": {}, "text": "Your chat, phone, mailbox and orders are yours alone."},
  "splash.telegramLine": {"slots": {}, "text": "Have Telegram? You can scan a QR code inside to get the notices on your own phone."},
  "splash.limitLine": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat or Telegram."},

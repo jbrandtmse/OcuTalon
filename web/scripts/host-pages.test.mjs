@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const { PAGE_TEXTS } = await import(pathToFileURL(join(root, 'web', 'src', 'app', 'msg', 'catalog.ts')).href);
+const { RESET_TEXTS } = await import(pathToFileURL(join(root, 'web', 'src', 'app', 'live', 'reset-schedule.ts')).href);
 const { README_URL } = await import(pathToFileURL(join(root, 'web', 'src', 'app', 'links.ts')).href);
 const experience = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 
@@ -118,6 +119,34 @@ describe('the maintenance page', () => {
   it('names no address but the splash\'s and the four logo files, and no README link', () => {
     assert.deepEqual([...new Set(addresses(page))].sort(), ['/ocutalon/', ...LOGOS].sort());
     assert.ok(!page.includes(README_URL), 'the maintenance page has no README link');
+  });
+});
+
+describe('the resetting view (Story 16.8)', () => {
+  const page = pages.maintenance;
+  const view = readFileSync(join(root, 'web', 'src', 'app', 'live', 'resetting-view.ts'), 'utf8');
+  const withoutHeading = page.replace(/<h1[\s\S]*?<\/h1>/, '');
+
+  it('has the maintenance page\'s heading, text and tab title', () => {
+    assert.equal(RESET_TEXTS.heading, textOf(page, 'h1'));
+    assert.equal(RESET_TEXTS.body, textOf(withoutHeading, 'p'));
+    assert.equal(RESET_TEXTS.title, textOf(page, 'title').replace('&middot;', '\u00b7'));
+  });
+
+  it('shows the same four logo files at 320px, from the app\'s brand folder, and a 400px card', () => {
+    const files = [...view.matchAll(/assets\/brand\/(OcuTalon-Logo-[a-z]+-\d+\.png)/g)].map((match) => match[1]);
+    assert.deepEqual([...new Set(files)].sort(), [...LOGOS].sort());
+    assert.equal((view.match(/width="320"/g) ?? []).length, 2, 'light and dark, each at width 320');
+    assert.equal((view.match(/alt="OcuTalon"/g) ?? []).length, 2);
+    assert.ok(/\.logo \{[^}]*width: 320px;/.test(view), 'the logo is 320px wide');
+    assert.ok(/\.card \{[^}]*width: 400px;/.test(view), 'the card is 400px wide');
+  });
+
+  it('takes its colours from the tokens only: no colour literal in its styles', () => {
+    const styles = /styles: `([^`]*)`/.exec(view)?.[1] ?? '';
+    assert.ok(styles.length > 100, 'the view has styles');
+    assert.ok(!/#[0-9A-Fa-f]{3,8}\b|\brgba?\(/.test(styles), 'no colour literal');
+    assert.ok(styles.includes('var(--splash-canvas-background)'), 'the splash canvas');
   });
 });
 

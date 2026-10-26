@@ -36,7 +36,7 @@ Method TestCopiesEqualTheCatalog()
 			Do $$$AssertEquals(decoded, text, class_"."_name_" equals the catalog key "_key)
 		}
 	}
-	Do $$$AssertEquals(count, 37, "37 parameters are compared with the catalog")
+	Do $$$AssertEquals(count, 40, "40 parameters are compared with the catalog")
 }
 
 /// Every own parameter of every class of both public packages is in exactly one list, and no list names a parameter that the
@@ -79,9 +79,9 @@ Method TestEveryParameterIsClassified()
 			}
 		}
 	}
-	Do $$$AssertEquals(counts("compared"), 37, "37 parameters are compared")
+	Do $$$AssertEquals(counts("compared"), 40, "40 parameters are compared")
 	Do $$$AssertEquals(counts("notInUx"), 2, "2 parameters are not in the UX")
-	Do $$$AssertEquals(counts("notText"), 27, "27 parameters are not texts")
+	Do $$$AssertEquals(counts("notText"), 29, "29 parameters are not texts")
 	Do $$$AssertEquals(twice, "", "no parameter is in two lists")
 	Set unlisted = ""
 	Set stale = ""
@@ -158,6 +158,9 @@ XData Classified [ MimeType = application/json ]
    "TELEGRAMLINE": "splash.telegramLine",
    "LIMITLINE": "splash.limitLine",
    "TOOMANY": "splash.tooManySessions",
+   "RESETNOTICE": "splash.resetNotice",
+   "RESTARTNOTICE": "splash.restartNotice",
+   "RESETSOON": "splash.resetSoon",
    "BUSY": "banner.demoBusy",
    "SHELLLINE": "splash.shellLine",
    "VISUALTRACE": "splash.visualTrace",
@@ -176,10 +179,10 @@ XData Classified [ MimeType = application/json ]
   "OcuTalon.Web.Public.Login": ["FAVICON", "ICONALERT", "ICONEYE", "IMAGES", "LOGODARK", "LOGOLIGHT"],
   "OcuTalon.Web.Public.Shell": ["CONTENTTYPE", "REFUSALKEY", "ROLE", "UseSession"],
   "OcuTalon.Web.Public.SignInAssets": ["CSS", "SCRIPT"],
-  "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "ICONWARNING", "README"],
+  "OcuTalon.Web.Public.Splash": ["ICONCOPY", "ICONEXTERNAL", "ICONINFO", "ICONWARNING", "README"],
   "OcuTalon.Web.Public.SplashAssets": ["CSS", "SCRIPT"],
   "OcuTalon.Web.Public.Status": ["BUSYHEADER", "CONTENTTYPE", "HandleCorsRequest", "UseSession"],
-  "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY"]
+  "OcuTalon.Data.Public.Settings": ["GLOBALNAME", "KEYS", "READY", "RESETSOONSECONDS"]
  }
 }
 }

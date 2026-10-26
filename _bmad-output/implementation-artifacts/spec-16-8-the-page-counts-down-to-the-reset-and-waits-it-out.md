@@ -2,7 +2,8 @@
 title: 'Story 16.8: The page counts down to the reset and waits it out'
 type: 'feature'
 created: '2026-10-26'
-status: 'in-progress'
+status: 'done'
+baseline_revision: '21c67e4e46e86fd7682f31382042c46da0f6d635'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -382,6 +383,52 @@ Any test whose outcome depends on how near a reset is sets the anchor relative t
 
 ## Review Triage Log
 
+### 2026-10-26 -- Review pass
+- verdicts: 42 findings -- high 0, medium 7, low 27, false 8, maybe-false 0
+- findings:
+  - `low` `reject` (blind) Browser clock decides the switch; no skew correction -- the pill, the switch and `since` use the page's clock by the Times convention and the spec's Decided in-stage; a skewed clock shows the time it believes. Not worth a server-time channel.
+  - `low` `reject` (blind) The resetting view cannot be left for up to 15 minutes if the schedule moves -- AD-25 bounds the reset at 15 minutes and the view exits on the first ready answer after that; a schedule changed inside the warning period is an operator action.
+  - `false` `reject` (blind) `Settings.ToSeconds` is strict and may silently disable a hand-set anchor -- matrix row 1 requires exactly the `Public` step's `time` rule, which is also what stores the anchor.
+  - `low` `reject` (blind) A throwing `ResetSoon()` suppresses the other conditions of the run -- `ResetSoon` and `NextReset` catch their parsing and cannot throw on stored text; a guard would be speculative.
+  - `medium` `patch` (blind) No test for the 401 at or after the reset -- R3 added (mutation line written).
+  - `low` `reject` (blind) `RedirectUrl` compares the raw key, so `?%73ince=` is not stripped -- needs a hand-built address and the only consequence is a `since` in the signed-in address that nothing reads.
+  - `low` `reject` (blind) R2's thin timing margin and a left-over anchor if it dies -- row 14 mandates a four-minute reset; the finally restores the anchor and the case passed in every run.
+  - `low` `patch` (blind) The comment at `docker/tests/test-online-demo.sh:72` still names the fixed anchor -- reworded to the computed anchor.
+  - `low` `reject` (blind) `ResetSoonNotice` depends on the literal `in {countdown}` -- `Test.Web.PublicTexts` and `TestResetSoonNotice` fail at once if the catalog text changes.
+  - `low` `reject` (blind) `InSeconds` copied in two test classes (and the time arithmetic in two others) -- a four-line private helper; sharing it would couple two test classes for no gain.
+  - `false` `reject` (edge) `ResetWatch` is not gated on `onlineDemo` -- `nextReset` is in the snapshot and the `reset` event is published only on the online demo (`Api.AddReset`, `StatusMonitor.PublishReset`).
+  - `low` `reject` (edge) The 15-minute window sits behind `ready` in `shouldNavigate` -- by design (matrix row 12: navigate on a ready answer); a demo that is not ready would land the visitor on the maintenance page.
+  - `low` `reject` (edge) A failed first run makes the next run publish a `reset` event -- the event carries the same time every page already holds; pages ignore an equal offer.
+  - `low` `reject` (edge) `Do conditions.Insert(..ResetSoon())` inside the one Try -- same as the blind finding on a throwing `ResetSoon`.
+  - `low` `reject` (edge) Browser versus server clock skew -- same as the blind finding.
+  - `low` `reject` (edge) R2 anchor margin against its 240 s timeout -- same as the blind finding.
+  - `low` `reject` (edge) `anchor=$(node ...)` could print nothing -- the unit already needs node for every browser step, and the row 2 step check would name the empty anchor.
+  - `low` `reject` (edge) The reset-soon notice reads with empty spans where scripting is off -- the splash fills every time and countdown in script (the reset line and the too-many error do the same).
+  - `false` `reject` (edge) `ToSeconds` dropped the old tolerance -- same as the blind finding on strictness.
+  - `low` `reject` (edge) `FromSeconds` is unguarded for a huge interval -- it was outside the old `Try` too (pre-existing), and `Shift` is guarded.
+  - `low` `patch` (edge) The stale anchor comment in the unit -- fixed with the blind finding.
+  - `medium` `patch` (gap) The 401 and lost-contact entry paths of `ResetWatch` have no test -- R3 (401) and R3b (contact) added, each with a mutation line.
+  - `medium` `patch` (gap) The `reset` event's wiring into the pending reset has no test -- R4 added, with a mutation line.
+  - `medium` `patch` (gap) The splash script's reveal, hide and announce-once has no test -- R5 added, with a mutation line.
+  - `medium` `patch` (gap) R1's "no Cookie header" assertion cannot fail at a routed request -- removed; `credentials: 'omit'` stays pinned by the Node test of row 12 (Decided in-stage).
+  - `low` `reject` (gap) A failed `reset` publish and its retry are untested -- it mirrors the existing condition publisher's rule and is not an acceptance criterion.
+  - `low` `reject` (gap) `TestUtcHelper` proves the absence of `$ZDateTimeH` by source text -- the spec asks for exactly that check, and runtime assertions sit beside it.
+  - `low` `reject` (gap) `host-pages.test.mjs` checks the view's logo and card by regex -- R1 measures the same at runtime; the regex only adds the file names.
+  - `low` `reject` (gap) R1's negative assertions use fixed sleeps -- weak, not vacuous: the navigation would come on the answer's tick.
+  - `false` `reject` (gap) R1 relies on the unit's start values for `lastReset` -- it asserts that `lastReset` parses, so it fails loudly without them.
+  - `low` `reject` (gap) Row 16 has no pinning check -- the unit's anchor is one line and its existing step check runs; a shorter lead would show as a failing spec.
+  - `low` `reject` (gap) `PublishReset` sub-behaviours have no mutation lines of their own -- Rule 19 asks one demonstrated mutation per AC, and AC 1 has three.
+  - `low` `reject` (intent) `PublicTexts` notText is 29, not row 9's 28 -- `RESETSOONSECONDS` is a class parameter; recorded under Decided in-stage.
+  - `low` `reject` (intent) The sign-in redirect dropping `since` is pinned at class level only -- `Shell.Redirect` is the code that drops it and `TestRedirectDropsSince` runs it.
+  - `medium` `patch` (intent) The 401 and lost-contact paths are tested nowhere -- R3 and R3b.
+  - `false` `reject` (intent) Row 15: `ResetWatch` is not gated on the flag -- the server sends no `nextReset` with the flag off.
+  - `medium` `patch` (intent) The splash script's hide, reveal and announcement are untested -- R5.
+  - `false` `reject` (intent) R1 fabricates the answers -- row 13 specifies controlled answers.
+  - `false` `reject` (intent) Row 16 is not visible in the diff -- the anchor line is in the unit script, which the diff shows.
+  - `low` `reject` (intent) Doc comments of `Api.cls` and `StatusMonitor.cls` were reworded -- they describe the new behaviour; the ruling protects other epics' entries and lines of behaviour.
+  - `false` `reject` (intent) `NextReset` now returns "" unless the value is exactly `YYYY-MM-DDThh:mm:ssZ` -- row 1 names this strictness.
+  - `low` `reject` (intent) `PublishReset` remembers the value when the flag is off or the value is empty -- intended: a later change is compared with what the last run saw.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -442,6 +489,20 @@ Any test whose outcome depends on how near a reset is sets the anchor relative t
 - **`Shell.Redirect` drops `since`.** Otherwise the signed-in page keeps `/ocutalon/?since=…`, and reopening that address after the CSP session ended would claim "which cleared your session" about a session that still exists.
 - **The live unit's anchor is now + 2 h at its start.** Its fixed anchor put a real reset or `resetSoon` period inside about 1 run in 30, which would show the splash's notice under the fold checks or switch a spec's page to the view. Row 2's step check holds with a future anchor (`NextReset` before the anchor is the anchor).
 - **The resetting view announces nothing new.** It is not a banner, and the announcement table has no row for it. Focus goes to its main region through the focus rule when the switch removed the focused element, which tells assistive technology what replaced the page, and the title changes.
+
+- **Implement pass (2026-10-26):**
+  - `Settings.RESETSOONSECONDS` is a class parameter, so `Test.Web.PublicTexts` classifies it `notText` and that count is 29, not 28 (compared 40 as planned).
+  - The splash never writes `since` into the notice. The form's action keeps the address it was served at (`Error:FullURL`, `%CSP.Login`'s contract), so it can hold `since`; a refused sign-in then keeps its notice.
+  - The server writes the reset-soon notice without `hidden` when the reset is soon, and the script would show it either way, so `reset.spec.ts` R2 reads the served markup for that attribute.
+  - The `frame.spec.ts` assertion is in F2 (demo mode off), whose snapshot callback also sets `nextReset`: the flag-off stack has no schedule, so only a snapshot with a `nextReset` lets the pill's `onlineDemo` rule show.
+  - `LiveState.answers` (a counter of the live path's answers) is the one line added to `live-state.ts`, for the watch's check at every poll answer.
+  - The pill's timer needs no slack: it is set to the exact moment the text or urgency changes. The paused clock fires the page's change-detection timer only when it moves, so `reset.spec.ts` runs the clock 20 ms past each target.
+  - The resetting view's images carry no `height` attribute and no `height: auto` (the floor's fixed-height list stays as it is); their width and the 400px card are pinned by `host-pages.test.mjs`.
+  - Task 0 (d) is a `MEASURED` line of the unit: the browser step took 170 s with the new spec and the whole unit 324 s wall-clock, run alone (DW-220: 310 to 325 s before).
+  - `ci/checks.sh` `boundaries`: its `paths` rule fails on `_bmad-output/implementation-artifacts/cycle-log-epic-16.md:130`, which this story did not touch; nothing of this story trips it.
+  - Review pass: Task 0 (c) cannot be measured in the browser: a routed request carries no network headers, so a `Cookie` assertion there passes whatever the poller sends. `credentials: 'omit'` is pinned by the Node test of matrix row 12, and R1 no longer asserts or prints a Cookie measurement.
+  - Review pass: `reset.spec.ts` gained R3 (a 401 past the reset), R3b (lost contact past the reset), R4 (a `reset` event moves the pill) and R5 (the splash script reveals, announces and hides the reset-soon notice). The wall clock of R3 and R3b jumps with `page.clock.setSystemTime`, which moves `Date.now()` and leaves the page's timers where they are, so only the answer of the API or the contact change can show the reset.
+  - Review pass: the `online-demo` unit's browser step took 187 s with R1 to R5 and R3b (45 cases); Task 0 (d) before the review pass: 170 s.
 
 **Integration ACs:**
 - `OcuTalon.Data.AddressCounter` (`Recent`, `Purge`) and `OcuTalon.Web.SessionEvents.CookieExpiry` read the shared helper and still count the same window and write the same cookie date. Their existing rows stay green, and on the real flag-on stack the resume cookie still expires at the status's `nextReset` (`web/e2e-online/resume.spec.ts:70-85`) -- row 1.
@@ -612,15 +673,53 @@ Everything else is in the footprint:
 | AC 4 | `reset-schedule.test.mjs`, row 12 | navigate on `ready` alone, without the `lastReset` rule |
 | AC 5 | Playwright row 13 | the poller keeps polling after navigating (or navigates on every ready answer): "lands once" goes red |
 | AC 5 | Playwright row 13 | entering the view doesn't call `LiveState.stop()`: "no API request after the switch" goes red |
+| AC 4 | Playwright R3 | `SessionGate.onSignedOut` doesn't ask `ResetWatch.enterIfDue()` first: the 401 past the reset goes to the signed-out page |
+| AC 4 | Playwright R3b | `ResetWatch` has no check at a change of the page's contact or an answer of the live path |
+| AC 2 | Playwright R4 | `ResetWatch` doesn't offer the `reset` event's time (the `eventReset` effect is removed) |
+| AC 3 | Playwright R5 | the splash script never takes `hidden` off the reset-soon notice |
 | AC 6 | `Test.Data.PublicSettings`, row 1 | `ToSeconds` accepts a time without the trailing "Z" |
 | AC 6 | `Test.Data.PublicSettings`, row 1 | `CookieExpiry` keeps its own `$ZDateTimeH` parse (the source check) |
 
-**Mutation record:** the stage that adds or changes each pinning test writes its `mutation:` line here.
+**Mutation record:**
+- mutation: AC 1, `StateBody`'s `nextReset` is the following slot (`Settings.Shift(next, 14400)`) -> `Test.Web.ResetSchedule` red (`/state gives the next reset`); reverted, tree byte-identical.
+- mutation: AC 1, `NextReset` takes `lastReset` as the anchor when `lastResetKind` is `unscheduled` -> `Test.Data.PublicSettings` red (`an unscheduled reset leaves the schedule`); reverted.
+- mutation: AC 1, `PublishReset` has no comparison (publishes every run) -> `Test.Web.ResetSchedule` red (`run 3 changes nothing and publishes nothing`, `three runs with the same schedule publish nothing`); reverted.
+- mutation: AC 2, the accessible text uses `countdownText().spoken` (`countdownSpokenMinutes` returns it unchanged) -> `page-time.test.mjs` and `reset-schedule.test.mjs` red (the last minute reads `in 59 seconds`); reverted.
+- mutation: AC 2, urgent from 300 s instead of 600 s (`URGENT_MS`) -> `reset.spec.ts` R1 red (`urgent from 10 minutes before`); reverted.
+- mutation: AC 2, the pill ignores `onlineDemo` -> `web/e2e/frame/frame.spec.ts` F2 red (the snapshot there carries a `nextReset`); reverted. (A flag-off stack has no schedule, so only a snapshot with `nextReset` can show this.)
+- mutation: AC 2, `StateBody` writes `nextReset` whatever the flag (the `onlineDemo` line of `AddReset` removed) -> `Test.Web.ResetSchedule` red (`flag 0: no nextReset`); reverted.
+- mutation: AC 3, `RESETSOONSECONDS` is 600 -> `Test.Web.ResetSchedule` red (`400 s ahead is not soon`); reverted.
+- mutation: AC 3, the reset-soon notice is written without `hidden` when the reset is not soon -> `Test.Web.Splash` red (`400 s ahead is not soon`); reverted.
+- mutation: AC 3, `ResetSoonNotice` writes `hidden` when the reset is soon -> `reset.spec.ts` R2 red (the served markup has no `<div class="notice notice-soon" id="ocu-reset-soon">`; the script shows the notice anyway, so the case reads the markup); reverted.
+- mutation: AC 4, the `since` comparison is inverted -> `Test.Web.Splash` red (`one info notice with since earlier than lastReset`); reverted.
+- mutation: AC 4, the restart text is never chosen -> `Test.Web.Splash` red (`the restart text`); reverted.
+- mutation: AC 4, `Redirect` keeps `since` (`FullUrl` for `RedirectUrl`) -> `Test.Web.Shell` red (`TestRedirectDropsSince`); reverted.
+- mutation: AC 4, a later offer replaces the pending reset inside its last 5 minutes -> `reset-schedule.test.mjs` red (`is replaced by a later offer only while the clock is more than 300 s before it`); reverted.
+- mutation: AC 4, navigate on `ready` alone -> `reset-schedule.test.mjs` red (rows 11 and 12: `goes to the splash on ready ...`, `asks at once and then every 10 s ...`); reverted.
+- mutation: AC 5, the poller keeps polling after navigating (`this.stop()` removed) -> `reset-schedule.test.mjs` red (`it stopped polling`, `no timer is left`). `reset.spec.ts` R1 cannot see it: the navigation unloads the old document within the same moment, so it pins "navigates once" through the navigation count only. Reverted.
+- mutation: AC 5, entering the view does not call `LiveState.stop()` -> `reset.spec.ts` R1 red (the live path goes on polling after the switch; the unit prints only the last 80 lines of the failure, which had the case's cleanup error); reverted.
+- mutation: AC 6, `ToSeconds` accepts a time without the trailing `Z` (`2N.1"Z"` in the pattern) -> `Test.Data.PublicSettings` red (`ToSeconds gives nothing for '2026-10-18T00:00:00'`); reverted.
+- mutation: AC 6, `CookieExpiry` keeps its own `$ZDateTimeH` parse -> `Test.Data.PublicSettings` red (`CookieExpiry has no $ZDateTimeH of its own`); reverted.
+- mutation: AC 4, `SessionGate.onSignedOut` does not ask `enterIfDue()` first -> `reset.spec.ts` R3 red (the page went to `/ocutalon/?signedOut=1#/` and no resetting view showed); reverted, tree byte-identical.
+- mutation: AC 4, `ResetWatch` has no check at a change of contact or at an answer (the effect on `contact()` and `answers()` removed) -> `reset.spec.ts` R3b red (no resetting view after the API stopped answering past the reset); reverted, tree byte-identical.
+- mutation: AC 2, `ResetWatch` does not offer the `reset` event's time (the `eventReset` effect removed) -> `reset.spec.ts` R4 red (the pill stayed on the earlier reset, `Next reset 0:57 \u00b7 in 1 h 54 min`); reverted, tree byte-identical.
+- mutation: AC 3, the splash script never takes `hidden` off the reset-soon notice (`SplashAssets` regenerated with `web/scripts/tokens.mjs`) -> `reset.spec.ts` R5 red (the notice stayed hidden five minutes before the reset); reverted from backups, `tokens.mjs --check` current, tree byte-identical.
+- After the mutations: `git status --short` was unchanged, the class files and web files matched their backups byte for byte, and the final `live online-demo`, `live sign-in` and `shard lane-b` runs were green on the reverted tree.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement pass and review (2026-10-26).**
+- The server, splash, page and tests of the plan are in place. Verification, on lane C throwaways only:
+  - `npm --prefix web test` 623 pass; `npm --prefix web run lint` and the `tokens`, `payloads` and `catalog` checks are current;
+  - the 13 classes of the plan pass on the warm stack, and `shard lane-b` passes on a fresh one (45 classes);
+  - `live online-demo` passes with 45 browser cases (`reset.spec.ts` R1, R2, R3, R3b, R4 and R5 included; the browser step took 187 s), `live sign-in` 192 cases, `live floor` 70 cases in three browsers.
+  - `ci/checks.sh`: every block passes except `boundaries`, whose `paths` rule fails on `_bmad-output/implementation-artifacts/cycle-log-epic-16.md:130` (a tracked file this story did not touch; it holds a local machine path).
+- Review (blind, edge-case, verification-gap, intent-alignment layers; 42 findings): 7 medium rows patched (the 401 and contact entry paths, the `reset` event wiring, the splash script's reveal and announcement, and an unfalsifiable Cookie assertion removed), 2 low rows patched (a stale unit comment); the rest rejected with their reasons in the Review Triage Log. Patched counts: 0 high, 5 medium entries (R3, R3b, R4, R5, Cookie). Nothing deferred.
+- Follow-up review recommended: false (no high patched; the medium patches add tests only).
+- Task 0: (a) a sessionless `GET /ocutalon/?since=...` reaches `Splash` with `since` set; (b) the installed clock carries across the view's `location.replace` (the splash read `2026-10-25T08:00:30Z` for a reset at `08:00:00Z`); (c) not measurable at a routed request (see Decided in-stage; the Node test pins `credentials: 'omit'`); (d) the browser step took 170 s (187 s after the review pass added R3 to R5) and the unit 324 s wall-clock before it.
 
 **Plan (2026-10-26).**
 - Planned and checked against the READY FOR DEVELOPMENT standard; the run halted after planning, as the dispatch asked.

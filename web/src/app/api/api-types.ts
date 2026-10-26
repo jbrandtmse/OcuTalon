@@ -49,6 +49,8 @@ export interface StateSnapshot {
   status: StatusPayload[];
   /** The read-only Visual Trace account that the online demo publishes; present only on the online demo, never on a local install. */
   traceAccount?: { user: string; password: string };
+  /** The next scheduled reset, UTC to the second; present only on the online demo with a schedule, and the last key (Story 16.8). */
+  nextReset?: string;
 }
 
 /** GET /ocutalon/api/v1/events?after=<sessionSeq>&afterInstance=<instanceSeq>: the session's events, then the instance's. */

@@ -28,6 +28,9 @@ Method TestTexts()
 	Set texts = texts_$ListBuild($ListBuild("OWNLINE", "Your chat, phone, mailbox and orders are yours alone."))
 	Set texts = texts_$ListBuild($ListBuild("TELEGRAMLINE", "Have Telegram? You can scan a QR code inside to get the notices on your own phone."))
 	Set texts = texts_$ListBuild($ListBuild("LIMITLINE", "Each session can send {limit} messages an hour in the chat or Telegram."))
+	Set texts = texts_$ListBuild($ListBuild("RESETNOTICE", "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one."))
+	Set texts = texts_$ListBuild($ListBuild("RESTARTNOTICE", "The demo was restarted, which cleared your session. Sign in again for a fresh one."))
+	Set texts = texts_$ListBuild($ListBuild("RESETSOON", "The demo resets in {countdown}, which may cut your run short. You can start now or come back after {time}."))
 	Set texts = texts_$ListBuild($ListBuild("TOOMANY", "Too many new sessions from your network this hour. You can start another at {time}."))
 	Set texts = texts_$ListBuild($ListBuild("BUSY", "The demo is busy right now. Try again in a few minutes, or install it yourself."))
 	Set texts = texts_$ListBuild($ListBuild("SHELLLINE", "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."))
@@ -439,6 +442,97 @@ Method TestEdgeValues()
 	}
 }
 
+/// The opening of the info notice's element.
+Parameter INFO = "<div class=""notice notice-info""";
+
+/// Row 6: the info notice above both cards. It shows only when since is a readable time and the public lastReset is a readable time
+/// strictly later. The kind unscheduled gives the restart text, any other kind the reset text with a time element for the script.
+/// The value of since is never written, and the local sign-in page never changes.
+Method TestInfoNotice()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Do $ClassMethod(settings, "Set", "lastReset", "2026-10-25T08:00:00Z")
+	Do $ClassMethod(settings, "Set", "lastResetKind", "scheduled")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 1, "one info notice with since earlier than lastReset")
+	Set notice = $Piece($Piece(page, "<div class=""notice notice-info"" id=""ocu-notice"">", 2), "</div>", 1)
+	Do $$$AssertTrue(notice [ "<svg class=""icon"" viewBox=""0 0 24 24"" aria-hidden=""true"" focusable=""false""><circle cx=""12"" cy=""12"" r=""10""/>", "it has the info icon")
+	Do $$$AssertTrue(notice [ "<p>The demo was reset at <time class=""tnum"" id=""ocu-notice-time"" datetime=""2026-10-25T08:00:00Z""></time>, which cleared your session. Sign in again for a fresh one.</p>", "the reset text with the last reset's time element")
+	Do $$$AssertTrue($Find(page, ..#INFO) < $Find(page, "<div class=""splash-cards"">"), "it comes before both cards")
+	Do $$$AssertTrue($Find(page, "<p class=""lead"">") < $Find(page, ..#INFO), "and after the lead")
+	Do $$$AssertTrue(page '[ "07:49:30", "the value of since is not in the page")
+
+	Do $ClassMethod(settings, "Set", "lastResetKind", "unscheduled")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 1, "an unscheduled reset shows one info notice")
+	Do $$$AssertTrue(page [ "<p>The demo was restarted, which cleared your session. Sign in again for a fresh one.</p>", "the restart text")
+	Do $$$AssertTrue(page '[ "id=""ocu-notice-time""", "which has no time element")
+
+	Do $ClassMethod(settings, "Set", "lastResetKind", "scheduled")
+	For since = "2026-10-25T08:00:00Z", "2026-10-25T08:00:01Z", "2027-01-01T00:00:00Z", "2026-10-25T07:49:30", "<b>zz</b>", "", "2026-02-30T00:00:00Z", "2026-10-25T07:49:30.5Z" {
+		Set page = ..PageWith("since="_since)
+		Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice for since '"_since_"'")
+		Do $$$AssertTrue(page '[ "zz", "since '"_since_"' is not echoed")
+	}
+	Set page = ..PageWith("")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice without since")
+
+	Do $ClassMethod(settings, "Set", "lastReset", "")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice without a last reset")
+	Do $ClassMethod(settings, "Set", "lastReset", "not a time")
+	Set page = ..PageWith("since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice with an unreadable last reset")
+
+	Do $ClassMethod(settings, "Set", "lastReset", "2026-10-25T08:00:00Z")
+	Set local = ..Render("login", "", , , , , , , "since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(local, ..Render("login", ""), "the local sign-in page is the same with since")
+	Do $$$AssertTrue(local '[ ..#INFO, "and has no info notice")
+}
+
+/// Row 7: the reset-soon notice, a warning notice right after the sign-in card's title. It is written whenever the reset line is, with
+/// the hidden attribute unless the reset is at most 300 s away; without an interval there is neither. The form, its fields and the
+/// button are the same in every case.
+Method TestResetSoonNotice()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set title = "<h2 class=""card-title"" id=""ocu-signin-h"">Sign in to the demo</h2>"_$Char(10)
+	Set button = "<button class=""btn-primary"" type=""submit"" name=""IRISLogin"" value=""Sign in and start"" aria-describedby=""ocu-warning"">Sign in and start</button>"
+
+	Do $ClassMethod(settings, "Set", "resetAnchor", ..InSeconds(120))
+	Set next = $ClassMethod(settings, "NextReset")
+	Set soon = ..Page("", "", "")
+	Set opening = title_"<div class=""notice notice-soon"" id=""ocu-reset-soon""><svg"
+	Do $$$AssertTrue(soon [ opening, "120 s ahead: the warning notice follows the title, and is not hidden")
+	Set notice = $Piece($Piece(soon, "id=""ocu-reset-soon"">", 2), "</div>", 1)
+	Do $$$AssertTrue(notice [ "<path d=""m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3""/>", "it draws the warning triangle")
+	Do $$$AssertTrue(notice [ "<p>The demo resets <span class=""tnum"" id=""ocu-soon-countdown"" aria-hidden=""true""></span><span class=""sr-only"" id=""ocu-soon-countdown-spoken""></span>, which may cut your run short. You can start now or come back after <time class=""tnum"" id=""ocu-soon-time"" datetime="""_next_"""></time>.</p>", "the text carries one 'in', with the countdown spans and the time element")
+	Do $$$AssertTrue(soon [ button, "the button is the same")
+	Do $$$AssertEquals(..Count(soon, "name=""IRISUsername"""), 1, "and so are the fields")
+
+	Do $ClassMethod(settings, "Set", "resetAnchor", ..InSeconds(3600))
+	Set far = ..Page("", "", "")
+	Do $$$AssertTrue(far [ title_"<div class=""notice notice-soon"" id=""ocu-reset-soon"" hidden><svg", "3600 s ahead: the same element, hidden")
+	Do $$$AssertTrue(far [ button, "the button is the same")
+	Do $$$AssertEquals(..Count(far, "id=""ocu-reset-soon"""), 1, "one such element")
+
+	Do $ClassMethod(settings, "Set", "resetAnchor", ..InSeconds(400))
+	Do $$$AssertTrue(..Page("", "", "") [ "id=""ocu-reset-soon"" hidden>", "400 s ahead is not soon")
+
+	Do $ClassMethod(settings, "Set", "resetAnchor", ..InSeconds(120))
+	Do $ClassMethod(settings, "Set", "resetIntervalHours", "")
+	Set none = ..Page("", "", "")
+	Do $$$AssertTrue(none '[ "id=""ocu-reset-soon""", "no interval: no notice")
+	Do $$$AssertTrue(none '[ "id=""ocu-reset-time""", "and no reset line")
+	Do $$$AssertTrue(none [ button, "the button is the same")
+}
+
+/// The UTC time that is the given number of seconds from now.
+ClassMethod InSeconds(seconds As %Integer) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Public.Settings).Shift($Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z", seconds)
+}
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Kill ^||SplashSaved
@@ -491,6 +585,12 @@ ClassMethod Count(text As %String, what As %String) As %Integer [ Private ]
 	Quit $Length(text, what) - 1
 }
 
+/// The splash for a first visit whose query string is query: pairs name=value joined by "&", set unencoded in the request's data.
+Method PageWith(query As %String) As %String [ Private ]
+{
+	Quit ..Render("splash", "", , , , , , , query)
+}
+
 /// The splash for a state, the server's error code and the typed user name (and the query signedOut=1 when signedOut is 1).
 Method Page(state As %String, code As %String, user As %String, signedOut As %Boolean = 0) As %String [ Private ]
 {
@@ -502,7 +602,7 @@ Method Page(state As %String, code As %String, user As %String, signedOut As %Bo
 ///   login   Login's own OnPreHTTP, then its OnPage
 ///   show    Login.Show with no header to write, as the shell's dispatch calls it
 /// busyHeader is the marker header that the response then holds.
-Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "", Output busyHeader As %String) As %String [ Private ]
+Method Render(mode As %String, state As %String, Output policy As %String, code As %String = "", user As %String = "", signedOut As %Boolean = 0, until As %String = "", Output busyHeader As %String, query As %String = "") As %String [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(%CSP.Request).%New()
@@ -513,6 +613,10 @@ Method Render(mode As %String, state As %String, Output policy As %String, code 
 	If code '= "" Set %request.Data("Error:ErrorCode", 1) = code
 	If user '= "" Set %request.Data("IRISUsername", 1) = user
 	If signedOut Set %request.Data("signedOut", 1) = 1
+	For i = 1:1:$Length(query, "&") {
+		Set pair = $Piece(query, "&", i)
+		If pair '= "" Set %request.Data($Piece(pair, "=", 1), 1) = $Piece(pair, "=", 2, *)
+	}
 	Set %OcuTalonState = state
 	Set %OcuTalonUntil = until
 	Set file = ##class(%File).TempFilename("html")
