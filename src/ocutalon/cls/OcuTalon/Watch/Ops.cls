@@ -3,8 +3,9 @@
 ///   - StartWatch: the session is the command's SessionRef (a Session row), and the asking IRIS user is that row's IrisUser, never a field of the
 ///     message. The production must be an entry of OcuTalon.Watch.Reader, whatever the origin of the command. A session that already watches the
 ///     production (the natural key: SessionRef, Kind production, Namespace, Production) gets no second row: the answer is already_watching with
-///     the existing Ref, so a repeat of a command is harmless. Otherwise one row is written: Kind production, the reader's display name, NextDueAt
-///     the creation time (UTC, so that the first heartbeat runs the check) and an empty Result. The answer is started with the new Ref.
+///     the existing Ref, so a repeat of a command is harmless. Otherwise one row is written: Kind production, the reader's display name, CreatedAt and
+///     NextDueAt the creation time (the same UTC value: NextDueAt makes the first heartbeat run the check, and CreatedAt is where the failures of
+///     the watch start, see OcuTalon.Watch.Mark) and an empty Result. The answer is started with the new Ref.
 ///   - StopWatch: removes the session's own row for the namespace and production, and no other session's. The answer is stopped, or
 ///     not_watching with Ok 0 when the session had none.
 ///   - A command for an unknown session answers no_session, and a StartWatch for a production that the reader does not list answers
@@ -71,7 +72,8 @@ Method OnStart(request As OcuTalon.Msg.Command.StartWatch, Output response As Oc
 			Set row.Production = request.Production
 			Set row.DisplayName = displayName
 			Set row.AskedBy = session.IrisUser
-			Set row.NextDueAt = ##class(OcuTalon.Data.Time).NowUtc()
+			Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+			Set row.NextDueAt = row.CreatedAt
 			Set sc = row.%Save()
 			If $$$ISOK(sc) {
 				Set sc = ..Answer(.response, 1, "started", ..#MESSAGESTARTED, row.Ref)

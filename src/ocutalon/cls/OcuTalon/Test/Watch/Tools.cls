@@ -20,6 +20,11 @@
 ///   - TestSubmitKeepsTheJobSession (DW-74): the event-log session of the job is as it was after an answered submit and after a failed one, and the
 ///     warning of the failed one is logged in it;
 ///   - TestRefusal: the owner's refusal reaches the model as ok false with the owner's message, the outcome and the production;
+///   - TestResolveStop (Story 5.2, DW-222): stop_watch resolves from the session's own watches first, with the reader's matching rule: an own row that
+///     the reader does not list is stopped, two own matches are ambiguous (the namespace argument picks one), another session's rows and a name that no own row
+///     matches take the reader's path as before, and the answers carry the display name of the row;
+///   - TestStopWatchOfAnUnlistedProduction (AC 5; no double): session A watches Orders, the service role loses Read on its data, the reader no longer lists
+///     Orders, and stop_watch("Orders") through the real CommandsIn and WatchOps answers stopped and removes the row;
 ///   - TestKeys: the keys of a turn's commands are <ItemId>:1, :2, ... in the order of the calls, and a call that submits nothing takes no position.
 Class OcuTalon.Test.Watch.Tools Extends OcuTalon.Test.Watch.Case
 {
@@ -31,6 +36,8 @@ Parameter TOOLSET = "OcuTalon.Tools.Watching";
 Parameter ANSWERS = "OcuTalon.Tools.WatchAnswers";
 
 Parameter CALL = "OcuTalon.Tools.CommandCall";
+
+Parameter READER = "OcuTalon.Watch.Reader";
 
 
 
@@ -379,6 +386,68 @@ Method TestKeys()
 	If calls.%Size() = 2 {
 		Do $$$AssertEquals(calls.%Get(0).key_"|"_calls.%Get(1).key, itemId_":1|"_itemId_":2", "numbered from 1: a refused call and a list take no position")
 	}
+}
+
+Method TestResolveStop()
+{
+	If '..Ready() Quit
+	If '..UseDouble() Quit
+	Set a = ..Session("resolveA")
+	Set b = ..Session("resolveB")
+	Set created = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..UnlistedWatch(a, "ZZNS1", "Zz.Orders", "Zz Orders")
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(b, "ZZNS3", "Zz.Other", {"DisplayName": "Zz Other", "AskedBy": "zzfixture", "CreatedAt": (created)})
+	Do $$$AssertEquals($ClassMethod(..#READER, "Find", "Zz Orders").%Size(), 0, "control: the reader lists no production named Zz Orders")
+	Set refusal = $ClassMethod(..#ANSWERS, "ResolveStop", "zz orders production", "", a, .match)
+	Do $$$AssertEquals(refusal, "", "an own watch that the reader does not list is resolved")
+	Do $$$AssertEquals($Select($IsObject(match): match.namespace_"|"_match.production_"|"_match.displayName, 1: "<none>"), "ZZNS1|Zz.Orders|Zz Orders", "to the row's namespace, production and display name")
+	Set refusal = $ClassMethod(..#ANSWERS, "ResolveStop", "Zz Other", "", a, .match)
+	Do $$$AssertEquals($Select($IsObject(refusal): refusal.outcome, 1: "<none>"), "unknown_production", "another session's watch is not an own match: the reader's path refuses it")
+	Set refusal = $ClassMethod(..#ANSWERS, "ResolveStop", "Orders", "", a, .match)
+	Do $$$AssertEquals(refusal, "", "a name that no own row matches is resolved by the reader, as before")
+	Do $$$AssertEquals(match.namespace_"|"_match.production, ..#ORDERS_"|"_..#ORDERSPRODUCTION, "to Orders")
+	Do ..UnlistedWatch(a, "ZZNS2", "Zz.Orders", "Zz Orders")
+	Set refusal = $ClassMethod(..#ANSWERS, "ResolveStop", "Zz Orders", "", a, .match)
+	Do ..AssertObject(refusal, {"ok": false, "outcome": "ambiguous", "name": "Zz Orders", "matches": [{"name": "Zz Orders", "namespace": "ZZNS1"}, {"name": "Zz Orders", "namespace": "ZZNS2"}]}, "two own matches are ambiguous, with each one's name and namespace")
+	Set refusal = $ClassMethod(..#ANSWERS, "ResolveStop", "Zz Orders", "zzns2", a, .match)
+	Do $$$AssertEquals(refusal_"|"_match.namespace, "|ZZNS2", "the namespace argument picks one")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Begin(a, itemId)
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StopWatch("Zz Orders", "ZZNS1")
+	Do ..AssertObject(answer, {"ok": true, "message": "The CI double stopped the watch.", "ref": ($Parameter(..#DOUBLE, "WATCHREF")), "outcome": "stopped", "production": "Zz Orders"}, "stop_watch of an own watch that the reader does not list")
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "the double recorded one command")
+	If calls.%Size() = 1 {
+		Set call = calls.%Get(0)
+		Do $$$AssertEquals(call.class_"|"_call.sessionRef_"|"_call.fields.Namespace_"|"_call.fields.Production, "OcuTalon.Msg.Command.StopWatch|"_a_"|ZZNS1|Zz.Orders", "a StopWatch of the session for the own row's namespace and production")
+	}
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StopWatch("Zz Orders")
+	Do $$$AssertEquals(answer.outcome, "ambiguous", "without the namespace the two own rows are ambiguous")
+	Do $$$AssertEquals(..Calls().%Size(), 1, "and nothing more is submitted")
+}
+
+Method TestStopWatchOfAnUnlistedProduction()
+{
+	If '..Ready() Quit
+	If '..RestoreDouble() Quit
+	Set a = ..Session("realstop")
+	Set ref = ..Watch(a)
+	Do $$$AssertEquals(..Rows(a).%Size(), 1, "session A watches Orders")
+	Do ..RevokeRole(..#ORDERSDATA)
+	Do $$$AssertEquals($ClassMethod(..#READER, "Find", "Orders").%Size(), 0, "the service role cannot read Orders any more, so the reader no longer lists it")
+	Do ..Begin(a, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set answer = ##class(OcuTalon.Tools.WatchTools).StopWatch("Orders")
+	Do ..AssertObject(answer, {"ok": true, "message": ($Parameter("OcuTalon.Watch.Ops", "MESSAGESTOPPED")), "ref": (ref), "outcome": "stopped", "production": "Orders"}, "stop_watch('Orders') through the real CommandsIn and WatchOps")
+	Do $$$AssertEquals(..Rows(a).%Size(), 0, "A's row is gone")
+}
+
+/// An own watch of the session on a production that no reader lists: the row, made now.
+Method UnlistedWatch(session As %String, namespace As %String, production As %String, displayName As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(session, namespace, production, {"DisplayName": (displayName), "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc())})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
 }
 
 /// --- helpers ---

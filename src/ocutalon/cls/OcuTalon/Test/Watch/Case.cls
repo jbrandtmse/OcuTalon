@@ -7,7 +7,13 @@
 ///     and RevokeRole (a resource of the service role), and Described (a production's description in a namespace's definition table);
 ///   - UseDouble and RestoreDouble (Test.Tools.CommandsDouble behind the CommandsIn item), Begin (a bridge context for a turn), Calls (what the double
 ///     recorded), Rows and Row (the BackgroundCheck rows of a session) and Watch (a fixture session's watch of Orders);
-///   - OnAfterOneTest and OnAfterAllTests delete the BackgroundCheck rows of the run's sessions, so a row that a test made through WatchOps is gone too.
+///   - OnAfterOneTest and OnAfterAllTests delete the BackgroundCheck rows of the run's sessions, so a row that a test made through WatchOps is gone too;
+///   - for the tests of the failure reading (Story 5.2): Fail (failing orders in OCUORDERS through the partner), WaitFailed, LateHeader and LateError (a
+///     header that enters the error status later), HeaderlessLog (an event-log row with no session), Since and Batches (the FailureBatch messages that
+///     IncidentManager holds, as plain objects), WaitBatched and Ids, StopPoller and StartPoller (the item's temporary stop), StopOrders, StartOrders and
+///     OrdersRunning, and ClearMark. Every message and row that they make in OCUORDERS (the headers after the first Fail, the fixture headers and log
+///     rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
+///     stopped them.
 /// It has no Test methods.
 Class OcuTalon.Test.Watch.Case Extends OcuTalon.Test.Core.InProduction [ Abstract, DependsOn = (OcuTalon.Install.Step.Demo, OcuTalon.Install.Step.Users) ]
 {
@@ -35,6 +41,19 @@ Parameter ORDERSCODE = {"%DB_"_##class(OcuTalon.Install.Step.Demo).#CODEDB};
 
 Parameter HOMEDATA = "%DB_OCUTALON_DATA";
 
+/// The sentence of a failing order of Fail, as ErrorText.Sentence gives it.
+Parameter ORDERDATETEXT = "The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.";
+
+/// The item that picks up failures, and the item that receives its batches.
+Parameter POLLER = "FailurePoller";
+
+Parameter MANAGER = "IncidentManager";
+
+/// The longest a test waits for a batch, in seconds (a test bound, not NFR-7), and the pause that proves no further batch comes: two polls.
+Parameter WAITBATCH = 30;
+
+Parameter QUIET = 7;
+
 /// What the CommandsIn item had before the double was put behind it, as JSON text, or "" while the double is not behind it.
 Property Swap As %String(MAXLEN = "");
 
@@ -60,10 +79,33 @@ Property Pointed As %Boolean [ InitialExpression = 0 ];
 /// The SessionMark of the saved AI sessions when a test began.
 Property SessionMark As %Integer;
 
+/// The newest header id and log id of OCUORDERS before the first failing order of a test, "" before it.
+Property OrdersFloor As %Integer;
+
+Property OrdersLogFloor As %Integer;
+
+/// The newest header id of OCUTALON before the test first asked for it (Since), "" before it.
+Property HomeFloor As %Integer;
+
+/// The ids of the fixture headers and log rows that a test made in OCUORDERS.
+Property FixtureHeaders As %List;
+
+Property FixtureLogs As %List;
+
+/// 1 while the test has the FailurePoller item temporarily stopped, and while it has stopped the Orders production.
+Property PollerStopped As %Boolean [ InitialExpression = 0 ];
+
+Property OrdersStopped As %Boolean [ InitialExpression = 0 ];
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
+	Set ..OrdersFloor = ""
+	Set ..OrdersLogFloor = ""
+	Set ..HomeFloor = ""
+	Set ..FixtureHeaders = ""
+	Set ..FixtureLogs = ""
 	If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 	Quit $$$OK
 }
@@ -82,22 +124,20 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..ItemIds = ""
 	If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() && (..SessionMark '= "") Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ..DropRows()
+	Do ..DropMessages()
 	Quit sc
 }
 
 Method OnAfterAllTests() As %Status
 {
 	Set sc = ..PutBack()
-	If ..Swap '= "" {
-		Set saved = {}.%FromJSON(..Swap)
-		Set ..Swap = ""
-		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemClass(..#ITEM, saved))
-	}
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..Unswap())
 	If ..Pointed && ##class(OcuTalon.Test.Agent.RunnerFixture).Running() {
 		Set ..Pointed = 0
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys())
 	}
 	Do ..DropRows()
+	Do ..DropMessages()
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
 
@@ -228,6 +268,14 @@ ClassMethod LoadDefinition(namespace As %String, production As %String) As %Stat
 Method PutBack() As %Status [ Private ]
 {
 	Set sc = $$$OK
+	If ..PollerStopped {
+		Set ..PollerStopped = 0
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(Ens.Director).TempStopConfigItem(..#POLLER, 0, 1))
+	}
+	If ..OrdersStopped {
+		Set ..OrdersStopped = 0
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..StartOrdersNow())
+	}
 	If ..RoleSaved {
 		Set ..RoleSaved = 0
 		Set sc = ..WriteRole(..RoleBefore)
@@ -262,6 +310,24 @@ Method UseDouble() As %Boolean [ Private ]
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemClass(..#ITEM, ..#DOUBLE, .saved)
 	If $IsObject(saved) Set ..Swap = saved.%ToJSON()
 	Do $$$AssertStatusOK(sc, "the double is put behind the "_..#ITEM_" item")
+	Quit $$$ISOK(sc)
+}
+
+/// Puts the real CommandsIn class back behind the item when the double is there; OK when it was not.
+Method Unswap() As %Status [ Private ]
+{
+	If ..Swap = "" Quit $$$OK
+	Set saved = {}.%FromJSON(..Swap)
+	Set ..Swap = ""
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemClass(..#ITEM, saved)
+}
+
+/// For a test that needs the real service behind the item: puts it back if an earlier test of the class put the double there (UseDouble puts the double
+/// there again).
+Method RestoreDouble() As %Boolean [ Private ]
+{
+	Set sc = ..Unswap()
+	Do $$$AssertStatusOK(sc, "the real "_..#ITEM_" is behind the item")
 	Quit $$$ISOK(sc)
 }
 
@@ -309,13 +375,13 @@ ClassMethod Calls() As %DynamicArray
 }
 
 /// The BackgroundCheck rows of the session, by ID, as a dynamic array of {"ref","kind","namespace","production","displayName","askedBy","nextDueAt",
-/// "lastRunAt","result"}.
+/// "lastRunAt","result","createdAt"}.
 ClassMethod Rows(sessionRef As %String) As %DynamicArray
 {
 	Set rows = []
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Kind, Namespace, Production, DisplayName, AskedBy, NextDueAt, LastRunAt, Result FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? ORDER BY ID", sessionRef)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Kind, Namespace, Production, DisplayName, AskedBy, NextDueAt, LastRunAt, Result, CreatedAt FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? ORDER BY ID", sessionRef)
 	While rs.%Next() {
-		Do rows.%Push({"ref": (rs.%GetData(1)), "kind": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "askedBy": (rs.%GetData(6)), "nextDueAt": (rs.%GetData(7)), "lastRunAt": (rs.%GetData(8)), "result": (rs.%GetData(9))})
+		Do rows.%Push({"ref": (rs.%GetData(1)), "kind": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "askedBy": (rs.%GetData(6)), "nextDueAt": (rs.%GetData(7)), "lastRunAt": (rs.%GetData(8)), "result": (rs.%GetData(9)), "createdAt": (rs.%GetData(10))})
 	}
 	Quit rows
 }
@@ -328,10 +394,11 @@ ClassMethod RowCount() As %Integer
 	Quit rs.%GetData(1)
 }
 
-/// A fixture row: the session watches the production of OCUORDERS under the display name Orders. The Ref of the row is given back.
+/// A fixture row: the session watches the production of OCUORDERS under the display name Orders, created now (CreatedAt, as WatchOps writes it). The
+/// Ref of the row is given back.
 Method Watch(sessionRef As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture"})
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(sessionRef, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "Orders", "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
 }
@@ -342,6 +409,432 @@ Method DropRows() [ Private ]
 	For i = 1:1:$Length(..Sessions, ",") {
 		Set ref = $Piece(..Sessions, ",", i)
 		If ref '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", ref)
+	}
+}
+
+/// The newest id of the table of the namespace, 0 when it is empty. In the namespace, calling only SQL while it is there.
+ClassMethod Top(table As %String, namespace As %String) As %Integer
+{
+	New $NAMESPACE
+	Set $NAMESPACE = namespace
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM "_table)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// Sends count orders dated 2026-10-16 in the date format that fails (MM/DD/YYYY), so that each one fails with the sentence ORDERDATETEXT, every message tagged
+/// with the trace reference (none when empty), through the Orders partner of OCUORDERS (a copy of the Demo test's private three-line Send, which is Epic 4's). Asserts that the partner accepts them.
+Method Fail(count As %Integer, traceRef As %String = "") As %Boolean [ Private ]
+{
+	If ..OrdersFloor = "" {
+		Set ..OrdersFloor = ..Top("Ens.MessageHeader", ..#ORDERS)
+		Set ..OrdersLogFloor = ..Top("Ens_Util.Log", ..#ORDERS)
+	}
+	Set sc = ..SendOrders(count, traceRef)
+	Do $$$AssertStatusOK(sc, count_" failing orders are sent"_$Select(traceRef '= "": " with a trace reference", 1: " with none"))
+	Quit $$$ISOK(sc)
+}
+
+ClassMethod SendOrders(count As %Integer, traceRef As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, "MM/DD/YYYY", traceRef, "2026-10-16")
+}
+
+/// The failed headers (Status 8) of OCUORDERS after the first Fail of the test, as a dynamic array of {"id", "superSession", "at"}, by id.
+ClassMethod Failed(floor As %Integer) As %DynamicArray
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set failed = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SuperSession, TimeProcessed FROM Ens.MessageHeader WHERE ID > ? AND Status = 8 ORDER BY ID", floor)
+	While rs.%Next() {
+		Do failed.%Push({"id": (rs.%GetData(1)), "superSession": (rs.%GetData(2)), "at": (rs.%GetData(3))})
+	}
+	Quit failed
+}
+
+/// Waits up to WAITBATCH seconds, polling every half second, for count failed headers in OCUORDERS after the test's first Fail; the failed headers.
+Method WaitFailed(count As %Integer) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITBATCH
+	For {
+		Set failed = ..Failed(..OrdersFloor)
+		If (failed.%Size() '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertEquals(failed.%Size(), count, count_" orders are in the error status in OCUORDERS")
+	Quit failed
+}
+
+/// The ids of the headers as a comma-separated list, in the order given.
+ClassMethod HeaderIds(failed As %DynamicArray) As %String
+{
+	Set ids = ""
+	Set iterator = failed.%GetIterator()
+	While iterator.%GetNext(, .failure) {
+		Set ids = ids_$Select(ids = "": "", 1: ",")_failure.id
+	}
+	Quit ids
+}
+
+/// A header in OCUORDERS that has not failed yet: a request from zzPollerSource to zzPollerTarget in the SuperSession, Status 3 (delivered), created and
+/// processed five minutes ago, in a session of its own. LateError moves it to the error status later. Its id is given back, and removed with the test.
+Method LateHeader(superSession As %String) As %Integer [ Private ]
+{
+	Set earlier = ##class(OcuTalon.Watch.Mark).Shift(##class(OcuTalon.Watch.Mark).Normal(##class(OcuTalon.Data.Time).NowUtc()), -300)
+	Set id = ..MakeHeader(superSession, earlier)
+	Set ..FixtureHeaders = ..FixtureHeaders_$ListBuild(id)
+	Quit id
+}
+
+ClassMethod MakeHeader(superSession As %String, stamp As %String) As %Integer [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.SuperSession = superSession
+	Set header.TimeCreated = stamp
+	Set header.TimeProcessed = stamp
+	Set header.SourceConfigName = "zzPollerSource"
+	Set header.TargetConfigName = "zzPollerTarget"
+	Set header.Type = 1
+	Set header.Status = 3
+	Set sc = header.%Save()
+	If $$$ISOK(sc) {
+		Set header.SessionId = header.%Id()
+		Set sc = header.%Save()
+	}
+	Quit $Select($$$ISOK(sc): header.%Id(), 1: "")
+}
+
+/// Moves the fixture header to the error status (SetStatus, which sets its TimeProcessed to now).
+ClassMethod LateError(id As %Integer) As %Status
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set header = ##class(Ens.MessageHeader).%OpenId(id)
+	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_id)
+	Do header.SetStatus(8)
+	Quit $$$OK
+}
+
+/// A header in OCUORDERS from zzPollerSource to zzPollerTarget for the fields (an object; all optional): Status (8), Type (1), IsError (0), ErrorStatus (a status
+/// text, "" for none) and SessionId (its own id). TimeProcessed is now; removed with the test. Its id is given back.
+Method FixtureHeader(fields As %DynamicObject) As %Integer [ Private ]
+{
+	Set id = ..MakeFixtureHeader(fields)
+	Set ..FixtureHeaders = ..FixtureHeaders_$ListBuild(id)
+	Quit id
+}
+
+ClassMethod MakeFixtureHeader(fields As %DynamicObject) As %Integer [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set now = $ZDateTime($ZTimeStamp, 3, 1, 3)
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.TimeCreated = now
+	Set header.TimeProcessed = now
+	Set header.SourceConfigName = "zzPollerSource"
+	Set header.TargetConfigName = "zzPollerTarget"
+	Set header.Type = $Select(fields.%IsDefined("Type"): fields.Type, 1: 1)
+	Set header.Status = $Select(fields.%IsDefined("Status"): fields.Status, 1: 8)
+	Set header.IsError = $Select(fields.%IsDefined("IsError"): fields.IsError, 1: 0)
+	If fields.ErrorStatus '= "" Set header.ErrorStatus = $SYSTEM.Status.Error(5001, fields.ErrorStatus)
+	Set sc = header.%Save()
+	If $$$ISOK(sc) {
+		Set header.SessionId = $Select(fields.%IsDefined("SessionId"): fields.SessionId, 1: header.%Id())
+		Set sc = header.%Save()
+	}
+	Quit $Select($$$ISOK(sc): header.%Id(), 1: "")
+}
+
+/// A Type 2 event-log row of OCUORDERS in the session, naming the message id (may be empty) and the ConfigName; removed with the test. Its id is given back.
+Method FixtureLog(sessionId As %Integer, messageId As %Integer, config As %String, text As %String) As %Integer [ Private ]
+{
+	Set id = ..MakeSessionLog(sessionId, messageId, config, text)
+	Set ..FixtureLogs = ..FixtureLogs_$ListBuild(id)
+	Quit id
+}
+
+ClassMethod MakeSessionLog(sessionId As %Integer, messageId As %Integer, config As %String, text As %String) As %Integer [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set log = ##class(Ens.Util.Log).%New()
+	Set log.Type = 2
+	Set log.ConfigName = config
+	Set log.SessionId = sessionId
+	Set log.MessageId = messageId
+	Set log.Text = text
+	Set log.TimeLogged = $ZDateTime($ZTimeStamp, 3, 1, 3)
+	Set sc = log.%Save()
+	Quit $Select($$$ISOK(sc): log.%Id(), 1: "")
+}
+
+/// An event-log row of OCUORDERS with no session, of the type (2 error, 6 alert) and the ConfigName; removed with the test. Its id is given back.
+Method HeaderlessLog(type As %Integer, config As %String) As %Integer [ Private ]
+{
+	Set id = ..MakeLog(type, config)
+	Set ..FixtureLogs = ..FixtureLogs_$ListBuild(id)
+	Quit id
+}
+
+ClassMethod MakeLog(type As %Integer, config As %String) As %Integer [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set log = ##class(Ens.Util.Log).%New()
+	Set log.Type = type
+	Set log.ConfigName = config
+	Set log.Text = "A fixture row with no session: "_config
+	Set log.TimeLogged = $ZDateTime($ZTimeStamp, 3, 1, 3)
+	Set sc = log.%Save()
+	Quit $Select($$$ISOK(sc): log.%Id(), 1: "")
+}
+
+/// The newest header id of OCUTALON, where the poller's batches arrive; the first call of a test also fixes the floor that the clean-up removes from.
+Method Since() As %Integer [ Private ]
+{
+	Set top = ..Top("Ens.MessageHeader", $Namespace)
+	If ..HomeFloor = "" Set ..HomeFloor = top
+	Quit top
+}
+
+/// The FailureBatch messages that IncidentManager holds after the header id since, as a dynamic array in id order of {"id", "status", "sessionId",
+/// "superSession", "namespace", "production", "ownerRef", "polledAt", "failures": [{"kind", "headerId", "sessionId", "item", "source", "bodyClass",
+/// "errorText", "failedAt", "logId"}]}.
+ClassMethod Batches(since As %Integer) As %DynamicArray
+{
+	Set batches = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Status, SessionId, SuperSession, MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = ? AND MessageBodyClassName = 'OcuTalon.Watch.Msg.FailureBatch' ORDER BY ID", since, ..#MANAGER)
+	While rs.%Next() {
+		Set body = ##class(OcuTalon.Watch.Msg.FailureBatch).%OpenId(rs.%GetData(5))
+		If '$IsObject(body) Continue
+		Set failures = []
+		For i = 1:1:body.Failures.Count() {
+			Set failure = body.Failures.GetAt(i)
+			Do failures.%Push({"kind": (failure.Kind), "headerId": (failure.HeaderId), "sessionId": (failure.SessionId), "item": (failure.ItemName), "source": (failure.SourceName), "bodyClass": (failure.BodyClass), "errorText": (failure.ErrorText), "failedAt": (failure.FailedAt), "logId": (failure.LogId)})
+		}
+		Do batches.%Push({"id": (rs.%GetData(1)), "status": (rs.%GetData(2)), "sessionId": (rs.%GetData(3)), "superSession": (rs.%GetData(4)), "namespace": (body.Namespace), "production": (body.Production), "ownerRef": (body.OwnerRef), "polledAt": (body.PolledAt), "failures": (failures)})
+	}
+	Quit batches
+}
+
+/// The number of failures in the batches, of the owner when it is not empty.
+ClassMethod Count(batches As %DynamicArray, owner As %String = "") As %Integer
+{
+	Set count = 0
+	Set iterator = batches.%GetIterator()
+	While iterator.%GetNext(, .batch) {
+		If (owner = "") || (batch.ownerRef = owner) Set count = count + batch.failures.%Size()
+	}
+	Quit count
+}
+
+/// Waits up to WAITBATCH seconds, polling every half second, until the batches after since hold at least count failures (of the owner, when it is
+/// not empty); the batches then. A shortfall is the caller's assertion.
+Method WaitBatched(since As %Integer, count As %Integer, owner As %String = "") As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITBATCH
+	For {
+		Set batches = ..Batches(since)
+		If (..Count(batches, owner) '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit batches
+}
+
+/// The header ids of the failures of the batches (of the owner when it is not empty), ascending, each as many times as it appears.
+ClassMethod Ids(batches As %DynamicArray, owner As %String = "") As %String
+{
+	Set iterator = batches.%GetIterator()
+	While iterator.%GetNext(, .batch) {
+		If (owner '= "") && (batch.ownerRef '= owner) Continue
+		Set at = batch.failures.%GetIterator()
+		While at.%GetNext(, .failure) {
+			Set key = $Select(failure.headerId '= "": failure.headerId, 1: "l"_failure.logId)
+			Set seen(key) = $Get(seen(key)) + 1
+		}
+	}
+	Set ids = ""
+	Set key = ""
+	For {
+		Set key = $Order(seen(key))
+		Quit:key=""
+		For i = 1:1:seen(key) {
+			Set ids = ids_$Select(ids = "": "", 1: ",")_key
+		}
+	}
+	Quit ids
+}
+
+/// Waits the pause that two polls take (QUIET seconds).
+ClassMethod Settle()
+{
+	Hang ..#QUIET
+}
+
+/// Deletes the WatchMark rows of the namespace (the poller is the only writer of the mark; a test that needs a reading from the watch's CreatedAt on
+/// begins by clearing it).
+ClassMethod ClearMark(namespace As %String)
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.WatchMark WHERE Namespace = ?", namespace)
+}
+
+/// The WatchMark row of the production as {"exists", "markAt", "seen"}.
+ClassMethod Mark(namespace As %String, production As %String) As %DynamicObject
+{
+	Set row = ##class(OcuTalon.Data.WatchMark).NamespaceProductionIndexOpen(namespace, production)
+	If '$IsObject(row) Quit {"exists": 0, "markAt": "", "seen": ""}
+	Quit {"exists": 1, "markAt": (row.MarkAt), "seen": (row.Seen)}
+}
+
+/// Waits up to WAITBATCH seconds for the WatchMark row of the production (the poller saves it just after it sends); its state as Mark gives it.
+Method WaitMark(namespace As %String, production As %String) As %DynamicObject [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITBATCH
+	For {
+		Set mark = ..Mark(namespace, production)
+		If mark.exists || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit mark
+}
+
+/// Stops the FailurePoller item for the test (TempStopConfigItem, which leaves the definition as it is); OnAfterOneTest starts it again.
+Method StopPoller() As %Boolean [ Private ]
+{
+	Set ..PollerStopped = 1
+	Set sc = ##class(Ens.Director).TempStopConfigItem(..#POLLER, 1, 1)
+	Do $$$AssertStatusOK(sc, "the "_..#POLLER_" item is stopped for the test")
+	Quit $$$ISOK(sc)
+}
+
+/// Starts the FailurePoller item again.
+Method StartPoller() As %Boolean [ Private ]
+{
+	Set sc = ##class(Ens.Director).TempStopConfigItem(..#POLLER, 0, 1)
+	Do $$$AssertStatusOK(sc, "the "_..#POLLER_" item is started again")
+	If $$$ISOK(sc) Set ..PollerStopped = 0
+	Quit $$$ISOK(sc)
+}
+
+/// Stops the Orders production in OCUORDERS for the test; OnAfterOneTest starts it again.
+Method StopOrders() As %Boolean [ Private ]
+{
+	Set ..OrdersStopped = 1
+	Set sc = ..StopOrdersNow()
+	Do $$$AssertStatusOK(sc, "the Orders production is stopped")
+	Quit $$$ISOK(sc)
+}
+
+/// Starts the Orders production in OCUORDERS again, and asserts that it runs.
+Method StartOrders() As %Boolean [ Private ]
+{
+	Set sc = ..StartOrdersNow()
+	Do $$$AssertStatusOK(sc, "the Orders production is started again")
+	Do $$$AssertTrue(..OrdersRunning(), "and it runs")
+	If $$$ISOK(sc) Set ..OrdersStopped = 0
+	Quit $$$ISOK(sc)
+}
+
+ClassMethod StopOrdersNow() As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Quit ##class(Ens.Director).StopProduction(10, 1)
+}
+
+ClassMethod StartOrdersNow() As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	If ##class(Ens.Director).IsProductionRunning() Quit $$$OK
+	Quit ##class(Ens.Director).StartProduction(..#ORDERSPRODUCTION)
+}
+
+/// 1 when the Orders production runs in OCUORDERS.
+ClassMethod OrdersRunning() As %Boolean
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Quit ''##class(Ens.Director).IsProductionRunning(.name) && (name = ..#ORDERSPRODUCTION)
+}
+
+/// Removes what the test made in OCUORDERS (the headers after the floor, with their bodies and the log rows of their sessions, the tagged messages of the
+/// run, the fixture headers and log rows) and the FailureBatch messages that the poller sent to IncidentManager after the test's floor.
+Method DropMessages() [ Private ]
+{
+	If (..OrdersFloor '= "") || (..FixtureHeaders '= "") || (..FixtureLogs '= "") {
+		If ..OrdersFloor '= "" Do ..DropOrders(..OrdersFloor, ..OrdersLogFloor)
+		Do ..DropFixtures(..FixtureHeaders, ..FixtureLogs)
+		If (..OrdersFloor '= "") && (..Supers.%Size() > 0) Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers, ..#ORDERS)
+	}
+	If ..HomeFloor '= "" Do ..DropBatches(..HomeFloor)
+	Set ..OrdersFloor = ""
+	Set ..HomeFloor = ""
+	Set ..FixtureHeaders = ""
+	Set ..FixtureLogs = ""
+}
+
+/// The headers of OCUORDERS after the floor, their bodies and the log rows of their sessions, and the log rows after the log floor that have no
+/// session and a type of error or alert. In the namespace, calling only Ens, % and the message bodies' classes while it is there.
+ClassMethod DropOrders(floor As %Integer, logFloor As %Integer) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionId, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE ID > ?", floor)
+	While rs.%Next() {
+		Set ids(rs.%GetData(1)) = $ListBuild(rs.%GetData(3), rs.%GetData(4))
+		If rs.%GetData(2) '= "" Set sessions(rs.%GetData(2)) = ""
+	}
+	Set id = ""
+	For {
+		Set id = $Order(ids(id), 1, body)
+		Quit:id=""
+		If $List(body, 1) '= "" Do $ClassMethod($List(body, 1), "%DeleteId", $List(body, 2))
+		Do ##class(Ens.MessageHeader).%DeleteId(id)
+	}
+	Set session = ""
+	For {
+		Set session = $Order(sessions(session))
+		Quit:session=""
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE SessionId = ?", session)
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SessionId IS NULL AND Type IN (2, 6) AND ConfigName LIKE 'zz%'", logFloor)
+}
+
+/// The fixture headers and log rows of OCUORDERS by id.
+ClassMethod DropFixtures(headers As %List, logs As %List) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set position = 0
+	While $ListNext(headers, position, id) {
+		Do ##class(Ens.MessageHeader).%DeleteId(id)
+	}
+	Set position = 0
+	While $ListNext(logs, position, id) {
+		Do ##class(Ens.Util.Log).%DeleteId(id)
+	}
+}
+
+/// The FailureBatch messages after the header id in OCUTALON (the header and the body of each).
+ClassMethod DropBatches(floor As %Integer) [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = ? AND MessageBodyClassName = 'OcuTalon.Watch.Msg.FailureBatch'", floor, ..#MANAGER)
+	While rs.%Next() {
+		Set ids(rs.%GetData(1)) = rs.%GetData(2)
+	}
+	Set id = ""
+	For {
+		Set id = $Order(ids(id), 1, body)
+		Quit:id=""
+		Do ##class(OcuTalon.Watch.Msg.FailureBatch).%DeleteId(body)
+		Do ##class(Ens.MessageHeader).%DeleteId(id)
 	}
 }
 

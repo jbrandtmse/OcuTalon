@@ -2,7 +2,8 @@
 title: 'New failures are picked up within seconds'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c8bedd4468f71aaef38c21a1345cb152f1b3bbcf'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -128,6 +129,41 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 
 ## Review Triage Log
 
+### 2026-10-25 -- Review pass
+- verdicts: 31 findings -- high 0, medium 2, low 22, false 6, maybe-false 1
+- findings:
+  - `[false]` `[reject]` Blind 1 / Edge 8: a header read before its log row is committed batches an empty ErrorText that is never refreshed -- Task 0 measured the log row `TimeLogged` about 10 ms BEFORE `TimeProcessed` (the BP logs, then sets Status 8), so the row exists when the header enters Status 8; the `IsError` fallback covers the rest
+  - `[low]` `[reject]` Blind 2 / Edge 4: a failed send after another scope's send re-sends the earlier scopes at the next poll -- recorded residual risk in Design Notes (send then save; Story 5.3 dedupes by header id); spec-bound, a per-scope save would change the specified one-mark write
+  - `[low]` `[patch]` Blind 3: `Test.Watch.Poller` leaves the Orders/OCUTALON `WatchMark` rows behind (the product keeps marks by design) -- `Poller.OnAfterOneTest` now clears both marks after the base clean-up
+  - `[low]` `[reject]` Blind 4 / Edge 1: a watch row with an empty `CreatedAt` and no mark starts each poll at its own time -- the spec states that start ("the poll time when no row has one") and `WatchOps` always writes `CreatedAt` now; only pre-5.2 rows of an unreleased build lack it; spec-bound
+  - `[low]` `[patch]` Blind 5: `Watched()` grouping (one read per production however many sessions watch it) had no test -- TestFlood now has two sessions watching the probe-only production and asserts one read and one batch per poll; mutation recorded
+  - `[low]` `[reject]` Blind 6: `CreatedAt` is whole seconds, so a failure up to 999 ms before the watch in the same second counts as after it -- `CreatedAt` UTC to the second is the specified shape (same as `NextDueAt`); the test waits 1.2 s for it
+  - `[low]` `[reject]` Blind 7: `Reader.Current` does a lot inside the one switching method and a text lookup per failed header -- the spec requires the read inside that one method (AD-3), at most 500 headers per poll; the inner `Quit` only ends the innermost loop and the outer loops then quit at once
+  - `[low]` `[reject]` Blind 8: `TraceRefIndexOpen` once per failure -- at most 500 indexed opens per 3 s poll; a per-poll cache adds a branch for no reachable harm
+  - `[low]` `[reject]` Blind 9 / Edge 6 / Edge 7: `Mark.Normal` accepts an out-of-range date and a non-stamp `at` -- every value comes from IRIS's own stored times or `NowUtc()`, never user text; no reachable input
+  - `[low]` `[reject]` Blind 10: `Productions` lists a `GetActiveProductionName()` whose definition class was deleted -- the spec says the last started production; a stale LastProduction of a deleted class is not a user-reachable state
+  - `[false]` `[reject]` Blind 11: non-batch request to `IncidentManager` untested; `Msg.Failure`/`FailureBatch` not in the Tables contracts -- `TestStubsAnswer` sends an `Ens.StringRequest` to every STUB item and expects 5003 (mutation "accepts every request" is red there); `Test.Data.Tables` lists only the classes the spec names and passed on lane-b
+  - `[low]` `[reject]` Edge 2 / Edge 3: unreadable and not_current outcomes log nothing -- the spec's matrix says nothing is read and the mark is unchanged, and a warning every 3 s for a revoked grant would flood the log; the class description claimed otherwise, so its wording is corrected (see the next row)
+  - `[low]` `[patch]` Edge 3 (claim): the `FailurePoller` description said a warning per production "that could not be read" -- reworded to one warning per poll whose read or send threw; unreadable logs nothing
+  - `[low]` `[reject]` Edge 5: a production that fails every poll logs a warning every 3 s -- the specified Read or send error row (one Type 3 warning per failing poll, same pattern as StatusMonitor); throttling would add state
+  - `[low]` `[reject]` Edge 9: a `TimeProcessed` set more than 2 s before its Status 8 commit falls below the window -- the 2-second overlap is the decided value (IRIS assigns the time just before the write commits); no measurement shows more
+  - `[low]` `[reject]` Edge 10: `Sentence` of a text that begins with a line break or `  > ` -- not a shape the BP wrapper produces; the measured and plain forms are tested
+  - `[low]` `[reject]` Edge 11: rows tie-ordered headers before log rows at one time rather than (time, id) -- the Reader's own description states the tie rule; capped rows beyond a tie are re-read next poll (not in Seen), so none is lost
+  - `[false]` `[reject]` Edge 12: batches stay in IncidentManager when a test never calls `Since` -- every Poller test that waits for a batch calls `Since()` first, which fixes the floor `DropBatches` uses
+  - `[medium]` `[patch]` Vgap 1: the reader limit `MAXFAILURES` + Seen count was never asserted -- TestFlood asserts the limits 500 then 503 through the probe; mutation (limit = MAXFAILURES only) red
+  - `[low]` `[patch]` Vgap 2: the error-text fallbacks (session's log row at the target, header ErrorStatus, empty) and the IsError-only negative had no test -- `Test.Watch.Reader.TestFailureDefinition` added with fixture headers and log rows; three mutations red
+  - `[medium]` `[patch]` Vgap 3: TestNotOwnProduction could not fail from the defect it names (no failed header in OCUTALON) -- a Status 8 header is made in OCUTALON after the watch's CreatedAt; mutation (drop the not_current check) red at the poller level
+  - `[low]` `[patch]` Vgap 4 (Rule 19): AC 6 had no mutation line -- three recorded (pool 0, CallInterval removed, IncidentManager accepts every request), each red in `Test.Install.Production`
+  - `[low]` `[reject]` Vgap: matrix rows Headerless log row and Read error have no mutation line (not ACs; informational) -- both are asserted by exact-value tests whose subjects are constructed
+  - `[low]` `[reject]` Vgap: `limit` 0 assertion cannot detect removing the `limit > 0` guard -- the guard is a short-circuit, not a behavior; the control reads fail first
+  - `[low]` `[reject]` Vgap other: inner `Quit` in the merge loop is redundant -- same as Blind 7; output unaffected
+  - `[false]` `[reject]` Intent: 50 failing orders (UJ-1 volume) are not run through the live poller -- AC 1 is specified with 3 + 2 orders; the cap is pinned by TestFlood; the demo-path test of Story 5.7 owns the 50
+  - `[low]` `[reject]` Intent: `stop_watch` against a cleanly stopped production and the live poller against one are not tested -- the matrix rows pin the reader (list, find, failures read, start admitted) and the stop from own rows; reading uses the same `Current`
+  - `[false]` `[reject]` Intent: `Ownership` is not in `READERCLASSES` -- it is in `CALLBACKHELPERS` already (spec Code Map); `BackgroundCheck` was added to both
+  - `[low]` `[patch]` Intent: the negative of the failure definition (a response header with only IsError) had no test -- covered by TestFailureDefinition (same patch as Vgap 2)
+  - `[false]` `[reject]` Intent: no scan proves only `Current` switches namespace -- 5.1's existing rule/test for the one switching method stands, and the diff adds no second `New $NAMESPACE` in `Reader`; `Failures` calls `Current`
+  - `[maybe-false]` `[reject]` Intent: a real session-less log row may not match `SessionId IS NULL` -- IRIS SQL maps the empty string to NULL and Ens writes the row through `Ens.Util.Log` `%New`/`%Save` as the fixture does; a maybe-false at low severity
+
 ## Design Notes
 
 **Governing ADs:**
@@ -170,6 +206,17 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - `IncidentManager` keeps `STUB`: it is still unbuilt for grouping and commands, so the stub test and the contended `CommandsInProduction` rows stay true.
 - DW-222 stop: resolution reads the session's own watches through the ownership API (the sanctioned read of session-owned records), never the table directly; `WatchOps.OnStop` needs no change.
 
+**Decided in-stage (implement, 2026-10-25):**
+- Review patches (this stage): `Test.Watch.Reader.TestFailureDefinition` (fixture headers and log rows for the text fallbacks and the IsError-only negative; `Test.Watch.Case.FixtureHeader` and `FixtureLog`); `Test.Watch.Poller` TestNotOwnProduction makes a failed header in OCUTALON, TestFlood has two watching sessions and asserts the reader's limits, `OnAfterOneTest` clears the two marks; the `FailurePoller` description says a warning only when a read or send threw.
+- The Flood row and the failed-send half of the Read or send error row are pinned in `Test.Watch.Poller` (TestFlood, TestSendErrorWarns) through `Test.Watch.PollerProbe`'s rows mode (the probe's read answers a test feed, its send is kept in-process or fails), on a production no running job reads (`Zz.FloodProduction`), so the class stays about 58 s.
+- Task 0 held on build 154; no measurement contradicted it.
+- The overlap is applied in `Mark.Start` (the later of `MarkAt` less 2 s and the earliest `CreatedAt`), so `Seen` keeps exactly the failures read whose time is not before `MarkAt` less 2 s; `Reader.Failures` is given `MAXFAILURES` plus the number of `Seen` keys as its limit, so the 500 new ones are never crowded out by the Seen ones that the overlap reads again.
+- `Reader.Current` gained optional parameters (production, from, limit, Output rows, outcome, fault) instead of a second switching method; `fault` carries a caught error out so that `Failures` throws it (a poll warning) while `Productions` still leaves an unenterable namespace out. `Failures` answers `not_current` for an empty namespace or production, with no switch.
+- A warning logged by a shadow instance of `Test.Watch.PollerProbe` has the probe as its `SourceClass`, so `Test.Watch.Poller` filters on the probe class.
+- `Test.Watch.Case.Watch` now writes `CreatedAt` (as WatchOps does), and `Case.Rows` returns it as `createdAt`; `Case.WaitMark` waits for the mark row because the poller saves it just after its sends.
+- The serial `Watch.Msg.Failure` carries the compiler's `StreamLocation` `^OcuTalon.Watch.Msg.FailureS`; a serial object has no extent and the global is never written, and `docker/tests/test-storage.sh` checks only classes with `DEFAULTGLOBAL`.
+- `Test.Watch.Poller` keeps 5 "no further batch" waits (session-tagged, restart, watch-after-failures, unreadable, not-own-production) and drops them from the late-error, headerless and the end of the unreadable test, so the class takes about 56 s fresh.
+
 **DW entries:** DW-35 is addressed (failure definition, `Reader.Failures` error text, `ErrorText.Sentence`, matrix row Session-tagged, `Test.Watch.Mark`). DW-222 is addressed (matrix rows Stopped production and Stop from own rows, AC 4 and 5). **Declined:** none.
 
 **Footprint extensions** (not contended): `Test/Install/Production.cls` (the `FailurePoller` row), `Test/Bridge/CodeRules.cls` (one class in two lists). By orchestrator ruling also Epic 16's `Test/Data/Tables.cls` (two Contracts entries only).
@@ -205,23 +252,47 @@ All `OcuTalon/...` paths are under `src/ocutalon/cls/`.
 - OCUORDERS' message store and event log (test failures are tagged and removed) and OCUTALON's event log (the poller logs only warnings, and only on errors).
 - Every test added or changed passes on a fresh environment, in either order.
 
-**Planned pinning mutations** (Rule 19; the implement stage records the observed red):
-- Every failure scoped `instance` → `Test.Watch.Poller` session-tagged test.
-- One batch per failure → the scopes-in-one-poll test (two batches with one `PolledAt` and `OwnerRef`).
-- Skip the `Seen` filter → duplicate header ids across batches.
-- Mark by header id instead of time → the late-error test.
-- Keep the mark in a property instead of `WatchMark` → the restart test.
-- Drop the readability check in `Reader.Failures` → the unreadable test.
-- Start from `MarkAt` only (ignore `CreatedAt`) → the watch-after-failures test.
-- `ErrorText.Sentence` returns its input → `Test.Watch.Mark` and the poller's `ErrorText` assertion.
-- Drop the `GetActiveProductionName` fallback → `Test.Watch.Reader` stopped-production test.
-- `StopWatch` calls `Resolve` instead of `ResolveStop` → the `Test.Watch.Tools` own-row and real-path tests.
-- `IncidentManager` answers 5003 to a batch → AC 1's `Completed` assertion.
-- `WatchOps` writes no `CreatedAt` → `Test.Watch.Ops`.
+**Pinning mutations** (Rule 19; each applied, run, observed red, reverted byte-identical; fresh = `Test.Watch.Poller` on a fresh lane-A stack, warm = the class on the warm stack, green again on the same stack after the revert):
+- mutation: every failure scoped `instance` (`Set scope = ..#INSTANCE` for a found session) -> red (fresh): `Test.Watch.Poller` TestSessionTaggedAndUntagged (A's and the instance scope), TestScopesInOnePoll, TestAgainAfterRestart, TestLateError, TestUnreadable.
+- mutation: one batch per failure (a unique key per failure in `Poll`) -> red (fresh): TestScopesInOnePoll ("three batches: one per scope", "one poll's batches") and TestAgainAfterRestart ("the two arrive in one batch").
+- mutation: skip the `Seen` filter (`Mark.Fresh(rows, "")` in `Poll`) -> red (fresh): duplicates in TestSessionTaggedAndUntagged ("no batch follows within two polls"), TestAgainAfterRestart, TestLateError, TestUnreadable, TestWatchAfterFailures.
+- mutation: mark by header id instead of time (`Mark.Fresh` drops a header below the highest `Seen` header id) -> red (fresh): TestLateError only ("it is batched once, later").
+- mutation: keep the mark in a property of the poller instead of `WatchMark` -> red (fresh): TestAgainAfterRestart ("the first not again") and TestUnreadable ("the first failure made the mark").
+- mutation: drop the readability check in `Reader.Failures` -> red (warm): `Test.Watch.Reader` TestFailuresUnreadable; red (fresh): `Test.Watch.Poller` TestUnreadable.
+- mutation: start from `MarkAt` only (`Mark.Start` ignores `CreatedAt`, and starts at 2000-01-01 with no mark) -> red (fresh): TestWatchAfterFailures.
+- mutation: `ErrorText.Sentence` returns its input -> red (warm): `Test.Watch.Mark` TestSentence (seven asserts); the poller's `ErrorText` assertion (TestSessionTaggedAndUntagged) takes the same text.
+- mutation: drop the `GetActiveProductionName` fallback in `Reader.Current` -> red (warm): `Test.Watch.Reader` TestStoppedProduction (listed, Find, Admits, failures read, start admitted).
+- mutation: `StopWatch` calls `Resolve` instead of `ResolveStop` -> red (warm): `Test.Watch.Tools` TestResolveStop and TestStopWatchOfAnUnlistedProduction.
+- mutation: `IncidentManager` answers 5003 to a batch -> red (fresh): TestSessionTaggedAndUntagged ("batch N is Completed at IncidentManager").
+- mutation: `Mark.MAXFAILURES` 500 -> 5000 (the Flood row: the cap and the limit given to the reader) -> red (fresh): `Test.Watch.Poller` TestFlood (first batch, second poll, rest, third poll); reverted byte-identical, class green again.
+- mutation: `Poll` ignores the status of the send (`Do ..SendRequestAsync(...)` for `$$$ThrowOnError(...)`) -> red (fresh): `Test.Watch.Poller` TestSendErrorWarns (the warning, the missing mark, the batch after the send is back); reverted byte-identical, class green again.
+- mutation: the not_current check dropped in `Reader.Current` (`If (name = "") {`) -> red (fresh): `Test.Watch.Poller` TestNotOwnProduction (the control, no batch, no mark: a failed header in OCUTALON is read); reverted byte-identical, class green again.
+- mutation: `Poll` asks the reader for `MAXFAILURES` only (no Seen allowance) -> red (fresh): `Test.Watch.Poller` TestFlood ("the reader is asked for 500, then for 500 and the 3 failures ..."); reverted byte-identical.
+- mutation: `Watched()` makes every watch row its own entry (`_$Increment(zzn)` in the key) -> red (fresh): `Test.Watch.Poller` TestFlood ("the first poll sends one batch", "read once"); reverted byte-identical.
+- mutation: the session's-log-row-at-the-target branch of `Reader.Current` off (`If 'exact && 0`) -> red (warm): `Test.Watch.Reader` TestFailureDefinition (the target row's text); the header-ErrorStatus branch off (`&& 0`) -> red (warm): TestFailureDefinition (the header's own status); the query `(Status = 8 OR IsError = 1)` -> red (warm): TestFailureDefinition ("a response header with only IsError is not a failure"); each reverted byte-identical, the class green again on the same stack.
+- mutation (AC 6): `FailurePoller` `PoolSize="0"` in `Production.cls` -> red (warm): `Test.Install.Production` TestDefinition ("item 11 is FailurePoller as the ownership table says"); the `CallInterval` setting removed -> red (warm): the same assertion; `IncidentManager.OnRequest` quitting OK for every request -> red (warm): TestStubsAnswer ("IncidentManager answers code 5003"); each reverted byte-identical, the class green again on the same stack.
+- mutation: `WatchOps` writes no `CreatedAt` -> red (warm): `Test.Watch.Ops` TestStart ("CreatedAt is the same time as NextDueAt").
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage, 2026-10-25: the plan halted `blocked` on the contended `Test/Data/Tables.cls` (Epic 16) and one schema veto item; the epic runner applied the orchestrator's ruling (option (a)) and its own spec-gate rulings (Design Notes, Spec Change Log) and set the spec `ready-for-dev`. Task 0 was measured on the lane-A warm throwaway `e5s2pw` (Code Map, "Platform measured"; started and torn down by the plan stage).
+Implement and review pass, 2026-10-25.
+
+**Summary.** `FailurePoller` is an `Ens.InboundAdapter` service (pool 1, `CallInterval` 3) that reads each watched production's new failures through `Reader.Failures` (inside the reader's one switching method), scopes them by `TraceRef` (else `instance`), sends `IncidentManager` one `FailureBatch` per production and scope per poll, then saves the time-based `WatchMark` (`MarkAt`, `Seen`, 2 s overlap, 500 cap). `IncidentManager` completes a batch and still answers 5003 to anything else (`STUB` stays). `Reader` lists a cleanly stopped production (`GetActiveProductionName`) and `stop_watch` resolves from the session's own watches first (DW-222). DW-35 (`ErrorText.Sentence`) addressed.
+
+**Files changed** (all under `src/ocutalon/cls/OcuTalon/`):
+- `Data/WatchMark.cls`, `Data/BackgroundCheck.cls`: `MarkAt`, `Seen`; `CreatedAt` (storage appended).
+- `Watch/FailurePoller.cls`, `Watch/IncidentManager.cls`, `Watch/Reader.cls` (`Failures`, `Matches`, `Current` fallback), `Watch/Ops.cls` (`CreatedAt`), `Watch/ErrorText.cls`, `Watch/Mark.cls`, `Watch/Msg/Failure.cls`, `Watch/Msg/FailureBatch.cls`.
+- `Tools/WatchAnswers.cls` (`ResolveStop`), `Tools/WatchTools.cls` (`StopWatch`).
+- `Production.cls` (Lane A region: pool 1, `CallInterval` 3), `Test/Install/Production.cls` (oracle row), `Test/Bridge/CodeRules.cls` (`BackgroundCheck` in two lists), `Test/Data/Tables.cls` (the two ruled Contracts entries only).
+- Tests: new `Test/Watch/Mark.cls`, `Poller.cls`, `PollerProbe.cls`; extended `Reader.cls`, `Ops.cls`, `Tools.cls`, `Case.cls`.
+
+**Review.** Four layers (blind, edge-case, verification-gap, intent-alignment); 31 findings triaged (Review Triage Log): 0 high, 2 medium, 22 low, 6 false, 1 maybe-false. Patches applied (7 entries, 2 medium, 5 low): the reader limit assertion (medium), the poller-level not-own-production assertion with a failed OCUTALON header (medium), the error-text fallbacks and IsError-only negative (`TestFailureDefinition`), the two-sessions-one-read assertion, the mark clean-up, the corrected `FailurePoller` description, AC 6's mutation lines. Deferred: none. Rejected: every other finding with its reason in the log (spec-bound residuals: re-send after a failed send, empty-`CreatedAt` start, second-resolution `CreatedAt`; the rest unreachable or already covered).
+
+**Follow-up review recommended:** false (no high patched; two medium patched, both test-strengthening only, no product code changed after the first review beyond a doc comment).
+
+**Verification.** Warm stack (`e5s2iw`): `Test.Watch.Mark`, `.Reader`, `.Ops`, `.Tools`, `.Grant`, `.Turns`, `Test.Install.Production`, `Test.Bridge.CodeRules` passed (the Reader and Production classes again after the review patches). Fresh stack (`e5s2i`): `Test.Watch.Poller` passed (58 s class time) before and after the patches; `shard lane-a` passed, 54 classes, 539 s (ready in 93 s; just under the 540 s line); `shard lane-b` passed, 42 classes, 108 s (holds `Test.Data.Tables`); `bash ci/checks.sh` exit 0. Every Rule 19 mutation (Verification) was applied, observed red and reverted byte-identical (`cmp` against own backups), the class green again. Warm and fresh stacks torn down (`ci/warm.sh status`: none; no `e5s2` container left).
+
+**Residual risks.** A crash between the send and the mark save, or a failed send after another scope's send, re-sends that poll's failures; Story 5.3 must dedupe by header id. A watch row with no `CreatedAt` (none is written by `WatchOps` any more) starts each poll at its own time. The serial `Watch.Msg.Failure` carries the compiler's `StreamLocation` `^OcuTalon.Watch.Msg.FailureS`, which is never written; `docker/tests/test-storage.sh` checks only classes with `DEFAULTGLOBAL`. The lane-a shard took 539 s with 54 classes: any further class pushes it past 540 s (the lead decides the split).

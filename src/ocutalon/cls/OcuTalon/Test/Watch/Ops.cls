@@ -3,7 +3,8 @@
 /// does), in this process; TestThroughTheProduction sends one through the item WatchOps of the running production, whose job reads the production
 /// in its own process.
 ///   - TestStart (matrix "Start"): one row, with the session, Kind production, OCUORDERS, the Orders production, the reader's display name (not the
-///     command's), the session's IrisUser as AskedBy, NextDueAt now (UTC, to the second) and no result yet; the answer is Ok, started, with the row's Ref;
+///     command's), the session's IrisUser as AskedBy, NextDueAt now (UTC, to the second), CreatedAt the same time (Story 5.2: where the watch's failures
+///     start) and no result yet; the answer is Ok, started, with the row's Ref;
 ///     Ownership.Checks lists it (what /state shows);
 ///   - TestRepeat ("Repeat"): the same command again, and a new key for the same production, make no second row and answer already_watching with the
 ///     same Ref; another session gets a row of its own;
@@ -46,6 +47,8 @@ Method TestStart()
 	Do $$$AssertEquals(row.displayName, "Orders", "the display name is the reader's, not the command's")
 	Do $$$AssertEquals(row.askedBy, user, "AskedBy is the IrisUser of the session")
 	Do $$$AssertTrue((row.nextDueAt '< before) && (row.nextDueAt '> after) && (row.nextDueAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "NextDueAt is the creation time, UTC to the second: "_row.nextDueAt)
+	Do $$$AssertEquals(row.createdAt, row.nextDueAt, "CreatedAt is the same time as NextDueAt: the creation time")
+	Do $$$AssertTrue((row.createdAt '< before) && (row.createdAt '> after) && (row.createdAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"), "and UTC to the second: "_row.createdAt)
 	Do $$$AssertEquals(row.lastRunAt_"|"_row.result, "|", "it has not run yet")
 	Do $$$AssertEquals($Length(response.Ref), 22, "the Ref has 22 characters")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(session)

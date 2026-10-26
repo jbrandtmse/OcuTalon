@@ -1,7 +1,8 @@
 /// The methods behind OcuTalon.Tools.Watching (AD-1, AD-3, AD-4, AD-9, AD-10, AD-18): the three watch tools of the Chat agent, start_watch,
 /// stop_watch and list_productions. start_watch and stop_watch resolve the name the user gave through OcuTalon.Watch.Reader, the only reader of
-/// the productions, and submit StartWatch or StopWatch through OcuTalon.Tools.CommandCall, so the tools never read or write a watch themselves:
-/// WatchOps owns the BackgroundCheck rows and checks every start again. The session comes from the bridge context of the call, never from an
+/// the productions, and submit StartWatch or StopWatch through OcuTalon.Tools.CommandCall, so the tools never write a watch themselves:
+/// WatchOps owns the BackgroundCheck rows and checks every start again. stop_watch reads the session's own watches through the ownership API
+/// (OcuTalon.Data.Ownership.Checks) before it asks the reader, so that a watch on a production the reader no longer lists can still be stopped. The session comes from the bridge context of the call, never from an
 /// argument. list_productions reads the reader's list and submits nothing.
 ///   - A call that is not a session's turn answers NOSESSION before anything is read or submitted.
 ///   - A name that no production matches submits nothing and answers unknown_production with the name, the list of the names that can be watched
@@ -70,14 +71,15 @@ ClassMethod StartWatch(name As %String(DESCRIPTION = "The name of the production
 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Submitted(result, match))
 }
 
-/// Stops watching a production for the user in this conversation. Call it directly with the name the user gave, such as Orders. The answer has
+/// Stops watching a production for the user in this conversation. Call it directly with the name the user gave, such as Orders. The watches of this
+/// conversation are read first (through the ownership API), then the list of the productions. The answer has
 /// an outcome. stopped: the watch is off. not_watching: the user was not watching it. unknown_production, only_orders and ambiguous are as for
 /// start_watch. Anything else: the message says why nothing was done.
 ClassMethod StopWatch(name As %String(DESCRIPTION = "The name of the production, exactly as the user gave it, such as Orders."), namespace As %String(DESCRIPTION = "Only when an earlier answer was ambiguous: the namespace of the production that the user picked. Otherwise leave it out.") = "") As %DynamicObject
 {
-	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session()
+	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
 	If $IsObject(refusal) Quit ..Return(refusal)
-	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).Resolve(name, namespace, .match)
+	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).ResolveStop(name, namespace, context.OwnerRef, .match)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Set command = ##class(OcuTalon.Msg.Command.StopWatch).%New()
 	Set command.Namespace = match.namespace

@@ -26,6 +26,9 @@ Property DisplayName As %String(MAXLEN = 128);
 /// The IRIS user who asked for the check.
 Property AskedBy As %String(MAXLEN = 128);
 
+/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these.
+Property CreatedAt As %String(MAXLEN = 20);
+
 /// When the check is next due.
 Property NextDueAt As %String(MAXLEN = 20);
 
@@ -88,6 +91,9 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>LastRunHeaderId</Value>
+</Value>
+<Value name="14">
+<Value>CreatedAt</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.CheckD</DataLocation>

@@ -461,6 +461,7 @@ XData Contracts [ MimeType = application/json ]
    "Production": "%String(MAXLEN=128)",
    "DisplayName": "%String(MAXLEN=128)",
    "AskedBy": "%String(MAXLEN=128)",
+   "CreatedAt": "%String(MAXLEN=20)",
    "NextDueAt": "%String(MAXLEN=20)",
    "LastRunAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
@@ -477,7 +478,9 @@ XData Contracts [ MimeType = application/json ]
   "super": "%Persistent",
   "props": {
    "Namespace": "%String(MAXLEN=128)",
-   "Production": "%String(MAXLEN=128)"
+   "Production": "%String(MAXLEN=128)",
+   "MarkAt": "%String(MAXLEN=23)",
+   "Seen": "%String(MAXLEN=)"
   },
   "indexes": {
    "NamespaceProductionIndex": "Namespace,Production unique"
