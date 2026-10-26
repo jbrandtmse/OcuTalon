@@ -1,10 +1,10 @@
 /// Tests of OcuTalon.Core.Admin (Story 4.1; AD-1, AD-19). Safe on a slot: a probe subclass supplies the roles
 /// and takes the submit, so nothing reaches the production. The login of a user with the roles of a case and the switch itself
 /// run in docker/tests/test-demo-switch.sh.
-///   - TestAllowed: the role check is by whole name, and a holder of %All alone is refused;
-///   - TestSubmits: an OcuTalonAdmin holder's command is submitted once with the mode and the process's $USERNAME, and its
-///     answer is returned and printed;
-///   - TestRefused: a caller without OcuTalonAdmin, a holder of %All included, gets the admin-only text and submits nothing;
+///   - TestAllowed: the role check is by whole name, and OcuTalonAdmin or %All is accepted (DW-275);
+///   - TestSubmits: an OcuTalonAdmin holder's or a %All holder's command is submitted once with the mode and the process's
+///     $USERNAME, and its answer is returned and printed;
+///   - TestRefused: a caller with neither OcuTalonAdmin nor %All gets the admin-only text and submits nothing;
 ///   - TestNotRunning: a submit that answers an error status (no production) prints the not-running text;
 ///   - TestSubmitThrows: a submit that throws prints the text with the error, and a submit with no answer is failed;
 ///   - TestPrinted: the answer's message is the one line that SetDemoMode prints, for an admin's switch, a refusal and a bad
@@ -40,13 +40,17 @@ Method OnAfterAllTests() As %Status
 	Quit $$$OK
 }
 
-/// OcuTalonAdmin counts, alone or in a list; %All alone, other roles, an empty list and a longer role name do not.
+/// %All counts, alone or in a list (DW-275), and so does OcuTalonAdmin; other roles, an empty list and a longer or prefixed role
+/// name do not.
 Method TestAllowed()
 {
-	For roles = "OcuTalonAdmin", "%All,OcuTalonAdmin", "%Developer,OcuTalonAdmin", "OcuTalonUser,OcuTalonAdmin,%Developer" {
+	For roles = "%All", "%All,OcuTalonUser", "OcuTalonAdmin", "%All,OcuTalonAdmin" {
 		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Allowed(roles), 1, roles_" is allowed")
 	}
-	For roles = "%All", "OcuTalonUser,OcuTalonTraceViewer", "", "OcuTalonAdmins", "xOcuTalonAdmin", "%Developer,%DB_OCUTALON_DATA" {
+	For roles = "%Developer,OcuTalonAdmin", "OcuTalonUser,OcuTalonAdmin,%Developer" {
+		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Allowed(roles), 1, roles_" is allowed")
+	}
+	For roles = "OcuTalonUser,OcuTalonTraceViewer", "", "OcuTalonAdmins", "xOcuTalonAdmin", "%Alls", "x%All", "%Developer,%DB_OCUTALON_DATA" {
 		Do $$$AssertEquals(##class(OcuTalon.Core.Admin).Allowed(roles), 0, "'"_roles_"' is not allowed")
 	}
 }
@@ -92,12 +96,17 @@ Method TestSubmits()
 	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent", 1, "origin")), "system", "from the origin system")
 	Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode("1")
 	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent", 2, "demoMode")), 1, "the string 1 submits DemoMode 1")
+	Do ..Reset("%All")
+	Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(0)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|zzdone", "a %All caller without OcuTalonAdmin: the submit's answer is returned")
+	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent")), 1, "one command was submitted")
+	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent", 1, "demoMode"))_"|"_$Get(^OcuTalonTest("AdminProbe", "sent", 1, "actingUser"))_"|"_$Get(^OcuTalonTest("AdminProbe", "sent", 1, "origin")), "0|"_$USERNAME_"|system", "with the mode, $USERNAME and the origin system")
 }
 
-/// No OcuTalonAdmin, %All alone included: not_allowed with CommandsIn's admin-only text, and nothing is submitted.
+/// Neither OcuTalonAdmin nor %All: not_allowed with CommandsIn's admin-only text, and nothing is submitted.
 Method TestRefused()
 {
-	For roles = "%Developer,%DB_OCUTALON_CODE,OcuTalonUser", "%All", "" {
+	For roles = "%Developer,%DB_OCUTALON_CODE,OcuTalonUser", "OcuTalonUser", "" {
 		Do ..Reset(roles)
 		Set result = ##class(OcuTalon.Test.Core.AdminProbe).SetDemoMode(0)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_allowed", "'"_roles_"' is refused")
@@ -137,7 +146,7 @@ Method TestPrinted()
 {
 	Do ..Reset("OcuTalonAdmin")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture(1), "zz done"_$Char(10), "an admin's switch prints the message and a line feed")
-	Do ..Reset("%All")
+	Do ..Reset("OcuTalonUser")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture(1), "Only an OcuTalon admin can change settings. Nothing was changed."_$Char(10), "a refusal prints its line")
 	Do $$$AssertEquals($Get(^OcuTalonTest("AdminProbe", "sent"), 0), 0, "and submits nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.AdminProbe).Capture("on"), "SetDemoMode takes 1 (on) or 0 (off). Nothing was changed."_$Char(10), "a bad argument prints its line")

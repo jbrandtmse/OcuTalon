@@ -1,6 +1,7 @@
 /// Operation, the abstract base of the channel operations (WebChatOut, SimPhoneOut; AD-14, AD-4, AD-12). It holds what they share:
 /// the check that a message's owner is a session, and the publish of a live event that is logged and goes no further when it fails.
-/// A subclass sets LOGNOTASESSION and LOGPUBLISH, the start of its two warnings.
+/// A subclass sets LOGNOTASESSION and LOGPUBLISH, the start of its two warnings. Keep records a device message with its
+/// Delivery row in one transaction.
 Class OcuTalon.Channel.Operation Extends Ens.BusinessOperation [ Abstract ]
 {
 
@@ -30,6 +31,30 @@ Method Announce(ownerRef As %String, type As %String, payloadClass As %String, r
 	} Catch exception {
 		$$$LOGWARNING(..#LOGPUBLISH_exception.DisplayString())
 	}
+}
+
+/// Saves the message and its Delivery row (the message's Ref as ChannelMessageId, no text) in one transaction; row is the
+/// saved message. On a failure nothing is kept and row is empty.
+Method Keep(message As OcuTalon.Data.SimMessage, channel As %String, approvalRef As %String, kind As %String, decisionRef As %String, Output row As OcuTalon.Data.SimMessage) As %Status
+{
+	Set row = ""
+	Set started = 0
+	Set sc = $$$OK
+	Try {
+		TSTART
+		Set started = 1
+		Set sc = message.%Save()
+		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.Delivery).Record(message.SessionRef, channel, message.Ref, approvalRef, kind, "", decisionRef)
+		If $$$ISOK(sc) {
+			TCOMMIT
+			Set started = 0
+			Set row = message
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If started TROLLBACK 1
+	Quit sc
 }
 
 }

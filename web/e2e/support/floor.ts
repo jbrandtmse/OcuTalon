@@ -113,7 +113,7 @@ export function stepKeys(page: Page): Promise<StepKeys> {
  * The regions that a walk or a skip link reaches and that draw their ring inside their own edge (the class ring-inside of
  * styles/base.css, which a banner also carries; a banner is no stop of a walk).
  */
-export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list', 'app-device-panel section', 'app-simulated-phone .feed', 'app-device-panel .mailbox'] as const;
+export const INSIDE_RING = ['section.rail', 'main.main', 'app-chat-panel .list', 'app-device-panel section', 'app-simulated-phone .feed'] as const;
 
 /** Seeds one attention decision with a trace link, whose row is a disclosure with a Trace link beside it, and returns its summary. */
 export async function seedRow(user: string, refs: string[], label: string): Promise<string> {

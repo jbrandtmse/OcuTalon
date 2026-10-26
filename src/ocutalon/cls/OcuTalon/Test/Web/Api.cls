@@ -121,7 +121,8 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,phone,guide", "the snapshot's keys, with the phone and then the guide last while demo mode is on")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
+	Do $$$AssertEquals(body.%GetTypeOf("mailbox")_"|"_body.mailbox.%Size(), "array|0", "mailbox is an empty array for a session with no mail")
 	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
 	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
 	Do $$$AssertEquals(body.guide.%ToJSON(), guideJson, "the guide is Demo.Guide.Compute's view")
@@ -176,17 +177,18 @@ Method TestStateFlags()
 			Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", label_": both are booleans")
 			Do $$$AssertEquals(body.%IsDefined("guide"), mode, label_": guide is present exactly when demoMode is true")
 			Do $$$AssertEquals(body.%IsDefined("phone"), mode, label_": phone is present exactly when demoMode is true")
+			Do $$$AssertEquals(body.%IsDefined("mailbox"), mode, label_": mailbox is present exactly when demoMode is true")
 		}
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do ##class(OcuTalon.Test.Demo.Step).Remove()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.onlineDemo_body.demoMode, "00", "an absent setting and an absent row are both false")
-	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone"), "00", "and the snapshot has no guide and no phone")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone")_body.%IsDefined("mailbox"), "000", "and the snapshot has no guide, no phone and no mailbox")
 	Do ##class(OcuTalon.Test.Demo.Step).Put("yes", ##class(OcuTalon.Data.Time).NowUtc())
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.demoMode, 0, "demo mode is on only for the value 1")
-	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone"), "00", "and the snapshot has no guide and no phone for another value")
+	Do $$$AssertEquals(body.%IsDefined("guide")_body.%IsDefined("phone")_body.%IsDefined("mailbox"), "000", "and the snapshot has no guide, no phone and no mailbox for another value")
 }
 
 /// The snapshot's phone holds the session's own simulated-phone messages (Kind phone) as Phone payloads, the newest PHONEMAX,
@@ -228,6 +230,67 @@ Method TestStatePhone()
 	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
 	Do $$$AssertEquals(body.phone.%Size(), ##class(OcuTalon.Web.Api).#PHONEMAX, "at most PHONEMAX messages")
 	Do $$$AssertEquals(body.phone.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the three older messages are cut")
+}
+
+/// The snapshot's mailbox holds the session's own simulated-mailbox emails (Kind mailbox, incoming and sent) as Mailbox payloads,
+/// the newest MAILMAX, oldest first, with unread true. An email that the session decided carries the member decision, the
+/// Decision payload of the session's own decide decision of its ItemId; another owner's decision, a decision of kind turn and a
+/// sent email's empty ItemId give none. A phone message and another session's email are not in it, and with demo mode off the
+/// snapshot has no mailbox.
+Method TestStateMailbox()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapimail"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapimailother"_..Number)
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(mine)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Set item1 = ##class(OcuTalon.Bridge.Ids).NewRef(), item2 = ##class(OcuTalon.Bridge.Ids).NewRef(), item3 = ##class(OcuTalon.Bridge.Ids).NewRef(), item4 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set m1 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:01Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item1), "Sender": "zz Dana <dana@example.com>", "Subject": "zz Invoice", "Text": ("zz body"_$Char(10)_"second line")})
+	Set m2 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "out", "Sender": "OcuTalon", "Subject": "zz Hello", "Text": "zz Hello"})
+	Set m3 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:02Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item2), "Sender": "zz B", "Subject": "zz two", "Text": "zz two"})
+	Set m4 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:03Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item3), "Sender": "zz C", "Subject": "zz three", "Text": "zz three"})
+	Set m5 = $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:04Z", "Kind": "mailbox", "Direction": "in", "ItemId": (item4), "Sender": "zz D", "Subject": "zz four", "Text": "zz four"})
+	Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T10:00:09Z", "Text": "zz phone"})
+	Do $ClassMethod(fixture, "SimMessage", theirs, {"CreatedAt": "2030-01-01T10:00:09Z", "Kind": "mailbox", "Direction": "in", "Text": "zz theirs"})
+	Set own = $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:00:05Z", {"ItemId": (item1)})
+	Do $ClassMethod(fixture, "Decision", theirs, "decide", "2030-01-01T10:00:05Z", {"ItemId": (item2)})
+	Do $ClassMethod(fixture, "Decision", mine, "turn", "2030-01-01T10:00:05Z", {"ItemId": (item3)})
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Set refs = ""
+	For i = 0:1:body.mailbox.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_body.mailbox.%Get(i).ref
+	}
+	Do $$$AssertEquals(refs, m1_","_m2_","_m3_","_m4_","_m5, "the session's five emails, oldest first, the later ID last at the same second, with no phone message and no one else's email")
+	Set first = body.mailbox.%Get(0)
+	Do $$$AssertEquals(first.direction_"|"_first.itemId_"|"_first.sender_"|"_first.subject_"|"_first.text_"|"_first.unread_"|"_first.createdAt, "in|"_item1_"|zz Dana <dana@example.com>|zz Invoice|zz body"_$Char(10)_"second line|1|2030-01-01T10:00:01Z", "an email is a Mailbox payload")
+	Do $$$AssertEquals(first.%GetTypeOf("unread"), "boolean", "unread is a boolean")
+	Set sent = body.mailbox.%Get(1)
+	Do $$$AssertEquals(sent.direction_"|"_sent.sender_"|"_sent.subject_"|"_sent.itemId, "out|OcuTalon|zz Hello|", "sent mail has its sender and subject and no item")
+	Do $$$AssertEquals(first.%IsDefined("decision"), 1, "the decided email carries a decision")
+	Do $$$AssertEquals(first.decision.ref_"|"_first.decision.itemId_"|"_first.decision.kind, own_"|"_item1_"|decide", "the session's own decide decision of the email's ItemId")
+	Do $$$AssertEquals(sent.%IsDefined("decision")_body.mailbox.%Get(2).%IsDefined("decision")_body.mailbox.%Get(3).%IsDefined("decision")_body.mailbox.%Get(4).%IsDefined("decision"), "0000", "a sent email, one decided by another owner, one with a turn decision and an undecided one carry none")
+	Set payload = ##class(OcuTalon.Live.Payload.Mailbox).FromRow(##class(OcuTalon.Data.SimMessage).RefIndexOpen(m1))
+	Do payload.%JSONExportToString(.json)
+	Set expected = ##class(%DynamicObject).%FromJSON(json)
+	Do first.%Remove("decision")
+	Do $$$AssertEquals(first.%ToJSON(), expected.%ToJSON(), "an entry without its decision is the Mailbox payload")
+	For i = 1:1:21 {
+		Do $ClassMethod(fixture, "Decision", mine, "decide", "2030-01-01T10:10:"_$Select(i < 10: "0", 1: "")_i_"Z", {"ItemId": (##class(OcuTalon.Bridge.Ids).NewRef())})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Set oldest = body.mailbox.%Get(0)
+	Do $$$AssertEquals(oldest.%IsDefined("decision"), 1, "an email keeps its decision when more than 20 newer decide decisions exist")
+	If oldest.%IsDefined("decision") Do $$$AssertEquals(oldest.decision.ref, own, "and it is the email's own")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, ##class(OcuTalon.Data.Time).NowUtc())
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.%IsDefined("mailbox"), 0, "with demo mode off the snapshot has no mailbox")
+	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	For i = 1:1:##class(OcuTalon.Web.Api).#MAILMAX {
+		Do $ClassMethod(fixture, "SimMessage", mine, {"CreatedAt": "2030-01-01T11:00:00Z", "Kind": "mailbox", "Direction": "in"})
+	}
+	Set body = ##class(OcuTalon.Web.Api).StateBody(session)
+	Do $$$AssertEquals(body.mailbox.%Size(), ##class(OcuTalon.Web.Api).#MAILMAX, "at most MAILMAX emails")
+	Do $$$AssertEquals(body.mailbox.%Get(0).createdAt, "2030-01-01T11:00:00Z", "the newest ones: the five older emails are cut")
 }
 
 /// Every section of the snapshot comes from the session's own rows through Ownership, in its order and with its
@@ -773,7 +836,7 @@ Method TestErrorTexts()
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming NotBuilt", "POST /v1/mailbox/samples/:name NotBuilt", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
 	Do $$$AssertEquals($ListLength(found), 12, "12 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")

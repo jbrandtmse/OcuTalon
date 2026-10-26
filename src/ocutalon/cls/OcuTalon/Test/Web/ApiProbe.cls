@@ -30,4 +30,23 @@ ClassMethod Press(input As %RegisteredObject, Output output As %String) As %Stat
 	Quit $SYSTEM.Status.OK()
 }
 
+/// The email that SimMailboxIn would record (Story 4.6): each input's session, sample and fields are recorded under
+/// ^OcuTalonTest("ApiProbe", "mails", n) as "session", "sample", "sender", "subject" and "text", and the answer comes from
+/// ^OcuTalonTest("ApiProbe", "mail"): "fail" is an error status, any other text is the service's output as it is, and an
+/// absent value is {"ref":"zzMailRef0123456789abc"}.
+ClassMethod Mail(input As %RegisteredObject, Output output As %String) As %Status [ Private ]
+{
+	Set output = ""
+	Set n = $Increment(^OcuTalonTest("ApiProbe", "mails"))
+	Set ^OcuTalonTest("ApiProbe", "mails", n, "session") = input.SessionRef
+	Set ^OcuTalonTest("ApiProbe", "mails", n, "sample") = input.Sample
+	Set ^OcuTalonTest("ApiProbe", "mails", n, "sender") = input.Sender
+	Set ^OcuTalonTest("ApiProbe", "mails", n, "subject") = input.Subject
+	Set ^OcuTalonTest("ApiProbe", "mails", n, "text") = input.Text
+	Set answer = $Get(^OcuTalonTest("ApiProbe", "mail"), {"ref": "zzMailRef0123456789abc"}.%ToJSON())
+	If answer = "fail" Quit $SYSTEM.Status.Error(5001, "zz SimMailboxIn is not running")
+	Set output = answer
+	Quit $SYSTEM.Status.OK()
+}
+
 }

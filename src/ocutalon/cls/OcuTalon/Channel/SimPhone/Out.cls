@@ -51,34 +51,19 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	Quit $$$OK
 }
 
-/// Saves the phone message and its Delivery row in one transaction; row is the saved message. On a failure nothing is kept.
+/// Saves the phone message and its Delivery row in one transaction (Operation.Keep); row is the saved message. On a failure
+/// nothing is kept.
 Method Save(request As OcuTalon.Msg.Notification, text As %String, Output row As OcuTalon.Data.SimMessage) As %Status [ Private ]
 {
 	Set row = ""
-	Set started = 0
-	Set sc = $$$OK
-	Try {
-		TSTART
-		Set started = 1
-		Set message = ##class(OcuTalon.Data.SimMessage).%New()
-		Set message.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-		Set message.SessionRef = request.SessionRef
-		Set message.Kind = "phone"
-		Set message.Direction = "out"
-		Set message.Text = text
-		Set message.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
-		Set sc = message.%Save()
-		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, message.Ref, request.ApprovalRef, request.Kind, "", request.DecisionRef)
-		If $$$ISOK(sc) {
-			TCOMMIT
-			Set started = 0
-			Set row = message
-		}
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	If started TROLLBACK 1
-	Quit sc
+	Set message = ##class(OcuTalon.Data.SimMessage).%New()
+	Set message.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set message.SessionRef = request.SessionRef
+	Set message.Kind = "phone"
+	Set message.Direction = "out"
+	Set message.Text = text
+	Set message.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit ..Keep(message, ..#CHANNEL, request.ApprovalRef, request.Kind, request.DecisionRef, .row)
 }
 
 }

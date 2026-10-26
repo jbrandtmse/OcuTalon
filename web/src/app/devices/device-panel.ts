@@ -5,6 +5,8 @@ import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
+import { SimulatedMailbox } from '../mailbox/simulated-mailbox';
+import { type MailboxSnapshot, mailOf } from '../mailbox/mailbox-view';
 import { SimulatedPhone } from '../phone/simulated-phone';
 import { type PhoneSnapshot, phoneOf } from '../phone/phone-view';
 import { DeviceTabs } from './device-tabs';
@@ -29,8 +31,8 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
  * tab: a tab that is not selected shows a badge with the count of what arrived live since it was last selected, and the count is part
  * of the tab's name ("Simulated mailbox, 2 new"). What was there when the page loaded is never new.
  *
- * The phone tab holds the simulated phone; the mailbox tab holds only its header, "Simulated mailbox" and the Simulated label, until the
- * story that builds the mailbox. The region takes focus for the skip link (tabindex -1). Nothing in it is a live region; the chat card
+ * The phone tab holds the simulated phone; the mailbox tab holds its header, "Simulated mailbox" and the Simulated label, and then the
+ * simulated mailbox (Story 4.6), which has its own tab stops: the panel itself is none. The region takes focus for the skip link (tabindex -1). Nothing in it is a live region; the chat card
  * announces an event once. Beside the chat the phone fills the panel body: its screen keeps its minimum height while the column has
  * room for it and yields to the body's height when the column is shorter, so its feed scrolls inside the screen and New messages
  * stays in view; in the stacked column the screen keeps its minimum. The panel body scrolls on its own when what it holds is taller
@@ -39,7 +41,7 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
  */
 @Component({
   selector: 'app-device-panel',
-  imports: [SimulatedLabel, SimulatedPhone],
+  imports: [SimulatedLabel, SimulatedMailbox, SimulatedPhone],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.on]': 'demo()' },
   template: `
@@ -70,11 +72,12 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
           <div class="panel" role="tabpanel" [id]="panelOf('phone')" [attr.aria-labelledby]="idOf('phone')" [hidden]="selected() !== 'phone'">
             <app-simulated-phone [labelledBy]="idOf('phone')" />
           </div>
-          <div class="panel mailbox ring-inside" role="tabpanel" tabindex="0" [id]="panelOf('mailbox')" [attr.aria-labelledby]="idOf('mailbox')" [hidden]="selected() !== 'mailbox'">
+          <div class="panel mailbox" role="tabpanel" [id]="panelOf('mailbox')" [attr.aria-labelledby]="idOf('mailbox')" [hidden]="selected() !== 'mailbox'">
             <div class="mailbox-header">
               <span class="mailbox-title">{{ texts.mailboxTab }}</span>
               <app-simulated-label />
             </div>
+            <app-simulated-mailbox />
           </div>
         </div>
       </section>
@@ -197,6 +200,7 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
     }
     .mailbox {
       flex: none;
+      gap: var(--space-3);
     }
     .mailbox-header {
       display: flex;
@@ -245,7 +249,7 @@ export class DevicePanel {
       const snapshot = this.live.snapshot();
       const store = this.live.store();
       const selected = this.selected();
-      untracked(() => this.note(snapshot as PhoneSnapshot | undefined, store, selected));
+      untracked(() => this.note(snapshot as (PhoneSnapshot & MailboxSnapshot) | undefined, store, selected));
     });
     effect(() => {
       this.live.store();
@@ -301,10 +305,10 @@ export class DevicePanel {
    * Counts what arrived live on each tab that is not selected. A new snapshot (the first load, or a reload) records what is there and
    * counts none of it; selecting a tab clears its count.
    */
-  private note(snapshot: PhoneSnapshot | undefined, store: ReturnType<LiveState['store']>, selected: DeviceTab): void {
+  private note(snapshot: (PhoneSnapshot & MailboxSnapshot) | undefined, store: ReturnType<LiveState['store']>, selected: DeviceTab): void {
     const refs: Record<DeviceTab, string[]> = {
       phone: (phoneOf(snapshot, store) ?? []).map((one) => one.ref ?? ''),
-      mailbox: Object.keys(store?.mailboxes ?? {}),
+      mailbox: (mailOf(snapshot, store) ?? []).map((one) => one.ref ?? ''),
     };
     if (snapshot !== this.looked) {
       this.looked = snapshot;

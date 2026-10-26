@@ -67,6 +67,18 @@ export interface MessageAccepted {
   clientId: string;
 }
 
+/** POST /ocutalon/api/v1/mailbox/incoming: one simulated email. The session is the caller's; the body never names one. */
+export interface MailboxEmail {
+  from: string;
+  subject: string;
+  body: string;
+}
+
+/** The 202 answer to a simulated email or a sample: the Ref of the email it recorded. */
+export interface MailboxAccepted {
+  ref: string;
+}
+
 /** The body of every error answer. */
 export interface ApiError {
   error: { code: string; message: string };

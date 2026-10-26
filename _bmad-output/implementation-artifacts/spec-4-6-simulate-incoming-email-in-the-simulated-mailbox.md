@@ -2,12 +2,21 @@
 title: 'Story 4.6: Simulate incoming email in the simulated mailbox'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6fd9f79dd7938a5c051b5e3dc2e397f42b203e0b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      An email's body has no length cap, so one large body or many sends can fill SimMessage and make each Decide call large.
+    evidence: |-
+      MailBody and SimMailboxIn.Accept cap only from and subject at 1000 characters. SimMessage.Text and Mail.Text are unbounded and the
+      form's textarea has no maxlength. The display window (100 rows) is the only bound. The 20-emails-an-hour allowance is Story 16.9.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Api.cls:MailBody, src/ocutalon/cls/OcuTalon/Channel/SimMailbox/In.cls:Accept
+    severity: medium
 ---
 
 <intent-contract>
@@ -373,11 +382,11 @@ deferred: []
 **Execution** (in dependency order):
 
 *Server*
-- [ ] `src/ocutalon/cls/OcuTalon/Data/SimMessage.cls`: append `Property Sender As %String(MAXLEN = 1000)` ("the email's sender, as the From line gives it; empty for a phone row") and `Property Subject As %String(MAXLEN = 1000)` as storage Values 9 and 10 (V1). Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/Operation.cls`: add `Keep(message As OcuTalon.Data.SimMessage, channel, approvalRef, kind, decisionRef, Output row) As %Status`. In one transaction it saves the message and `Delivery.Record(message.SessionRef, channel, message.Ref, approvalRef, kind, "", decisionRef)`. A failure keeps nothing (`TROLLBACK 1`) and `row` is the saved message. Rule 2.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls`: `Save` builds the message and calls `Keep`. Behaviour is unchanged: `Test.Demo.SimPhoneOut` stays green as written.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Mail.cls` (new, `%RegisteredObject`, never stored or sent): `SessionRef`, `Sample`, `Sender`, `Subject` and `Text`. The class doc says what REST hands `SimMailboxIn`.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/In.cls`: the real service (rows 1-5 and 15). Remove `STUB`.
+- [x] `src/ocutalon/cls/OcuTalon/Data/SimMessage.cls`: append `Property Sender As %String(MAXLEN = 1000)` ("the email's sender, as the From line gives it; empty for a phone row") and `Property Subject As %String(MAXLEN = 1000)` as storage Values 9 and 10 (V1). Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/Operation.cls`: add `Keep(message As OcuTalon.Data.SimMessage, channel, approvalRef, kind, decisionRef, Output row) As %Status`. In one transaction it saves the message and `Delivery.Record(message.SessionRef, channel, message.Ref, approvalRef, kind, "", decisionRef)`. A failure keeps nothing (`TROLLBACK 1`) and `row` is the saved message. Rule 2.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls`: `Save` builds the message and calls `Keep`. Behaviour is unchanged: `Test.Demo.SimPhoneOut` stays green as written.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Mail.cls` (new, `%RegisteredObject`, never stored or sent): `SessionRef`, `Sample`, `Sender`, `Subject` and `Text`. The class doc says what REST hands `SimMailboxIn`.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/In.cls`: the real service (rows 1-5 and 15). Remove `STUB`.
   - **Parameters:** `TARGET = "Intake"`, `CHANNEL = "mailbox"`, `SAMPLES = "newsletter,partner-notice,suspicious-request"`, the nine sample parameters holding T(sample) exactly, `ERROR*` texts and `LOGPUBLISH`.
   - **`IsSample(name)` and `Sample(name, Output sender, Output subject, Output text) As %Boolean`:** public; Story 9.3's evaluation reads them.
   - **`OnProcessInput`:** a `Mail`, else an error status.
@@ -389,7 +398,7 @@ deferred: []
     5. Build the Item and call the private `Send(target, request)` seam (`SendRequestAsync`). If it fails, `%DeleteId` the row and return the error.
     6. Publish `mailbox` with `Mailbox.FromRow(row)` through a private publish-and-warn (Rule 2 copy, see Design Notes).
     7. `pOutput` is `{"ref":<Ref>}` as JSON text.
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Out.cls`: the real operation (row 6). It extends `Channel.Operation`; remove `STUB`.
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Out.cls`: the real operation (row 6). It extends `Channel.Operation`; remove `STUB`.
   - **Parameters:** `CHANNEL = "mailbox"`, `TEXTCHANNEL = "mailbox"`, `SENDER = "OcuTalon"`, `LOGNOTASESSION` and `LOGPUBLISH`.
   - **Message map:** `OcuTalon.Msg.Outbound` → `OnOutbound`.
   - **`OnOutbound`:**
@@ -400,15 +409,15 @@ deferred: []
     5. `Announce(session, "mailbox", "OcuTalon.Live.Payload.Mailbox", row)`.
 
     The response is "".
-- [ ] `src/ocutalon/cls/OcuTalon/Live/Payload/Mailbox.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Live/Payload/Mailbox.cls`:
   - Add `ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Mailbox`: every column, with `Unread` 1.
   - No new property.
   - Restate `Unread`'s doc: "1 for every mail the server serves: the server records no reading; the page keeps which mails were opened in its browser".
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` (additive entries only):
+- [x] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` (additive entries only):
   - **`recentMail`:** `SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' ORDER BY CreatedAt DESC, ID DESC` (binds `ao`), with the public `RecentMail(sessionRef, max = 100, .sc)`.
   - **`decisionOfItem`:** `SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ? AND OwnerRef = ? AND Kind = 'decide'` (binds `ao`, exact compare after the read, as in `TurnOfItem`), with the public `DecisionOfItem(itemId, ownerRef, .sc)`.
   - Add both to the header's list.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Api.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Web/Api.cls`:
   - **Routes:** `/v1/mailbox/incoming` → `MailboxIncoming`, `/v1/mailbox/samples/:name` → `MailboxSample`.
   - **Parameters:** `MAILMAX = 100`, `MESSAGEEMPTYSUBJECT`, `MESSAGEEMPTYBODY` and `MESSAGEBADEMAIL` (T(err*)).
   - **`MailboxIncoming`, in order:** demo off gives 404; `MailBody(.from, .subject, .body, .message)` gives 400 `bad_email` with the message (row 3); the session gives 500; then a `Mail` through the private `Mail(input, .output)` seam (`CreateBusinessService("SimMailboxIn")` + `ProcessInput`). An error is 500; success is 202 `{"ref"}` from the service's output.
@@ -418,17 +427,17 @@ deferred: []
     - When `row.ItemId` is set and `Ownership.DecisionOfItem(row.ItemId, sessionRef)` finds a row, the entry also gets `decision` = `PayloadObject(Decision.FromRow(decision))`. `TraceLink.Add` then gives it its `traceUrl`.
     - Both readers' statuses go through `..Check(sc)`.
   - Update the class doc and `StateBody`'s doc. Remove the mailbox routes from the 501 sentence.
-- [ ] `src/ocutalon/cls/OcuTalon/Core/Admin.cls` (DW-275):
+- [x] `src/ocutalon/cls/OcuTalon/Core/Admin.cls` (DW-275):
   - `Allowed(roles)` is 1 when the comma-separated roles hold `OcuTalonAdmin` or `%All`, by whole name. Add `Parameter ALLROLE = "%All"`.
   - Update the docs of `Allowed` and `SetDemoMode`: a terminal holder of `%All` is accepted, because it could grant itself the role; the audit entry still names `$USERNAME`; the web endpoints stay `OcuTalonAdmin` only.
-- [ ] `ci/mock/scenarios/B/mail-ignore.json`, `mail-digest.json`, `mail-tell-now.json`, `mail-act.json` (new, marker scenarios):
+- [x] `ci/mock/scenarios/B/mail-ignore.json`, `mail-digest.json`, `mail-tell-now.json`, `mail-act.json` (new, marker scenarios):
   - **Shape:** one decide reply each, in `A/decide-ignore.json`'s format: `{"outcome":"ignore|digest|tellnow|act","reasons":["The CI mock ignores this email." | "The CI mock keeps this email for the digest." | "The CI mock tells you about this email now." | "The CI mock asks for an action on this email."],"confidence":0.8}`.
   - **`mail-tell-now`:** carries `"delayMs": 2000` (the grammar of `ci/mock/scenarios.mjs`; `A/usage-decide.json`).
   - **`mail-act`:** its single reply also answers Intake's untrusted turn, where k = 0, as `A/suspicious-triage.json` does.
 
 *Server tests*
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxInProbe.cls` (new): a subclass of `Channel.SimMailbox.In` whose `Send` records the Item under `^OcuTalonTest("SimMailboxInProbe")` and answers an error when told to. It has no Test methods.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxIn.cls` (new, lane-b `Demo`; shadow instance of the probe, plus `Observe` and `Fixture`):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxInProbe.cls` (new): a subclass of `Channel.SimMailbox.In` whose `Send` records the Item under `^OcuTalonTest("SimMailboxInProbe")` and answers an error when told to. It has no Test methods.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxIn.cls` (new, lane-b `Demo`; shadow instance of the probe, plus `Observe` and `Fixture`):
   - **Unit cases:**
     - `TestArrival` (row 1 exactly: the row, the recorded Item's every field, one `mailbox` event and its payload, and the output);
     - `TestSamples` (each name gives exactly T(sample); the Item equals a typed one with the same fields, apart from ItemId; no property holds the sample name);
@@ -442,7 +451,7 @@ deferred: []
     - No body property holds "simulat", "sample" or "demo" (rows 2 and 15, AC8).
     - Clean the Decision rows it causes, as `Test.Core.RoutingProduction` does.
   - Clean everything in `OnAfterAllTests`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxOut.cls` (new, modelled on `Test.Demo.SimPhoneOut`):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/SimMailboxOut.cls` (new, modelled on `Test.Demo.SimPhoneOut`):
   - `TestSent` (row 6 exactly);
   - `TestCatalogText`;
   - `TestNotASession`;
@@ -450,15 +459,15 @@ deferred: []
   - `TestSaveFailureKeepsNothing`;
   - `TestPublishFailure`;
   - `TestThroughProduction`: a fixture `Outbound` from a `CreateBusinessService` host to `SimMailboxOut` in the running production gives the row within 5 s; the header has body class `OcuTalon.Msg.Outbound`, is completed with no error, and no property reveals the simulation (row 15).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/ApiProbe.cls`: one self-contained block appended at the end (a contended file, reported). `ClassMethod Mail(input, Output output)` records each input's fields under `^OcuTalonTest("ApiProbe","mails",n)` and answers `^OcuTalonTest("ApiProbe","mail")`: `fail` is an error, any other text is the output, and the default is `{"ref":"zzMailRef0123456789abc"}`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/MailboxApi.cls` (new; through `Test.Web.ApiProbe`, like `Test.Web.BreakFeedApi`):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/ApiProbe.cls`: one self-contained block appended at the end (a contended file, reported). `ClassMethod Mail(input, Output output)` records each input's fields under `^OcuTalonTest("ApiProbe","mails",n)` and answers `^OcuTalonTest("ApiProbe","mail")`: `fail` is an error, any other text is the output, and the default is `{"ref":"zzMailRef0123456789abc"}`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Web/MailboxApi.cls` (new; through `Test.Web.ApiProbe`, like `Test.Web.BreakFeedApi`):
   - `TestIncoming` (202 `{"ref"}`; the service is asked once, with the CSP session's Ref and the three fields; a `sessionRef` in the body is ignored);
   - `TestFieldErrors` (row 3, every case; the service is never asked);
   - `TestSamples` (the three names give 202 and pass `Sample`; an unknown name gives 404; the body is not read);
   - `TestDemoOff` (row 5, both routes);
   - `TestFailures` (no session, a service error, and an output that isn't JSON give 500);
   - `TestRoutes`.
-- [ ] Server pins:
+- [x] Server pins:
   - **`Test/Data/Tables.cls`:** SimMessage gains `"Sender": "%String(MAXLEN=1000)"` and `"Subject": "%String(MAXLEN=1000)"`.
   - **`Test/Data/Ownership.cls`:** `recentMail` and `decisionOfItem` join both kind lists (`:359`, `:408`). Add `TestRecentMail` (oldest and newest, the cap, phone rows and another session's rows absent) and `TestDecisionOfItem` (own decide decision found; another owner's, a turn-kind one and an empty ItemId give none).
   - **`Test/Web/Api.cls`:**
@@ -467,7 +476,7 @@ deferred: []
     - New `TestStateMailbox` (row 7: content, oldest first, the cap, phone rows absent, `decision` set from the session's own decide decision and absent for another owner's decision, a turn decision or an out row).
     - `TestRoutes` lists `MailboxIncoming` and `MailboxSample` (still 12 routes).
   - **`Test/Core/ProductionItems.cls:20-21`:** `"stub": 0` for both.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls` (DW-275):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/Admin.cls` (DW-275):
   - `TestAllowed` gets three groups:
     - accepted: `%All` alone, `%All,OcuTalonUser`, `OcuTalonAdmin`, `%All,OcuTalonAdmin`;
     - accepted: the other OcuTalonAdmin lists as now;
@@ -476,24 +485,24 @@ deferred: []
   - `TestRefused` drops `%All`.
   - `TestPrinted`'s refusal uses `OcuTalonUser`.
   - Update the header lines 4 and 7.
-- [ ] `docker/tests/test-demo-switch.sh` (DW-275; Epic 4's own file):
+- [x] `docker/tests/test-demo-switch.sh` (DW-275; Epic 4's own file):
   - **Step 3:** only the plain user is refused.
   - **Step 4:** irisowner (`run_admin "" "" 0`, `%All` without OcuTalonAdmin) switches off, and the checks expect `admin_user` = irisowner. Step 6 stays the admin's switch on.
   - **Step 7:** one Settings entry names irisowner from 1 to 0 and one names `$adminuser` from 0 to 1, both from the channel `system`; the total is +2; none names `$plainuser`.
   - Update the header (`:9-21`) and the label texts.
 
 *Page*
-- [ ] `web/src/app/icon/icon.ts`: `mail` joins `IconName`, with a `@case` for Lucide's `mail` path (bundled; the licence notice is kept).
-- [ ] `web/src/app/shared/stored-flag.ts`: add `readText(open, key): string` ("" when absent or unreadable) beside `readFlag`. Rule 2: `writeFlag` already writes any text.
-- [ ] `web/src/app/shared/server-button.ts`:
+- [x] `web/src/app/icon/icon.ts`: `mail` joins `IconName`, with a `@case` for Lucide's `mail` path (bundled; the licence notice is kept).
+- [x] `web/src/app/shared/stored-flag.ts`: add `readText(open, key): string` ("" when absent or unreadable) beside `readFlag`. Rule 2: `writeFlag` already writes any text.
+- [x] `web/src/app/shared/server-button.ts`:
   - Add an optional `label` input, bound as `aria-label`.
   - Add a `chip` variant, styled in the component from `--sample-email-chip-*` (pill radius, `border-strong` outline, hover fill, at least `--space-target-min` tall). `controls.css` keeps no pill.
 
   Rule 2: the chips and Send get busy, focus-keeping and the 10 s notice from it. The Break the feed box and Retry are unchanged.
-- [ ] `web/src/app/api/api-types.ts` and `web/src/app/api/api-client.ts` (additive entries):
+- [x] `web/src/app/api/api-types.ts` and `web/src/app/api/api-client.ts` (additive entries):
   - Types `MailboxEmail {from, subject, body}` and `MailboxAccepted {ref}`.
   - `postMailboxIncoming(email)` and `postMailboxSample(name)`, each 202 only, in `postMessage`'s pattern.
-- [ ] `web/src/app/mailbox/mailbox-view.ts` (new; framework-free, erasable TS):
+- [x] `web/src/app/mailbox/mailbox-view.ts` (new; framework-free, erasable TS):
   - **`MAILBOX_TEXTS`:** every string under Design Notes, "Texts".
   - **`SAMPLES`:** the chips' names and labels, in order.
   - **`type MailboxEntry`** (`MailboxPayload & { decision?: DecisionPayload }`) and **`type MailboxSnapshot`** (`StateSnapshot & { mailbox?: MailboxEntry[] }`).
@@ -503,7 +512,7 @@ deferred: []
   - **`fieldErrors(subject, body)`.**
   - **`chipName(label)`, `arrivedText(subject)` and `decidedText(subject, label)`.**
   - **`openedRefs(text)` and `withOpened(text, ref)`:** a space-separated list of at most 100 refs, newest kept, under `OPENED_KEY = 'ocutalon.mailbox.opened'`.
-- [ ] `web/src/app/mailbox/simulated-mailbox.ts` (new component `app-simulated-mailbox`; rows 8-13):
+- [x] `web/src/app/mailbox/simulated-mailbox.ts` (new component `app-simulated-mailbox`; rows 8-13):
   - **Always shown:** the chips (`app-server-button` variant `chip`, `label` = `chipName`, the `mail` icon), the caption, and the `button-secondary` T(simulate).
   - **Below them, one of three views:**
     - **list:** a `ul` of rows. Each row is a `button` with `[data-key]` = ref, showing the dot and hidden T(unread), sender, subject, time, and T(deciding) or `app-outcome-chip`. With no rows, T(empty).
@@ -511,23 +520,23 @@ deferred: []
     - **open:** Back; the `h3`; From and time; the body; and the strip: `app-outcome-chip`, `app-fallback-flag`, `reasonLines`, `app-trace-link`.
   - **Behaviour:** the announcements and focus under Design Notes. Opened refs go through `readText`/`writeFlag`.
   - **No:** no `tablist` or `tabpanel` word, no live attribute, no key handler.
-- [ ] `web/src/app/devices/device-panel.ts`:
+- [x] `web/src/app/devices/device-panel.ts`:
   - The mailbox tabpanel keeps its header and then holds `<app-simulated-mailbox />`. Drop `tabindex="0"`: the chips are focusable (APG).
   - The badge's mailbox refs come from `mailOf(snapshot, store)`.
   - Update the doc.
-- [ ] `web/scripts/mailbox-view.test.mjs` (new): `mailOf` (demo off; the merge and newest first; a ref in both), `decisionOf` (store by itemId; a turn decision ignored; the fallback to `mail.decision`; an out mail), `senderName`, `fieldErrors` (blank and whitespace), the opened list (parse, add, cap at 100, garbage), and the three text helpers.
-- [ ] Shared-surface unit tests, each edited with its reason:
+- [x] `web/scripts/mailbox-view.test.mjs` (new): `mailOf` (demo off; the merge and newest first; a ref in both), `decisionOf` (store by itemId; a turn decision ignored; the fallback to `mail.decision`; an out mail), `senderName`, `fieldErrors` (blank and whitespace), the opened list (parse, add, cap at 100, garbage), and the three text helpers.
+- [x] Shared-surface unit tests, each edited with its reason:
   - **`announce-focus-sources.test.mjs`:** speakers gain `mailbox/simulated-mailbox.ts`; `FOCUS_CALLS` gains its exact count; the `afterNextRender` allow-list gains it if it focuses after a view change.
   - **`ux-strings.test.mjs`:** `IMPORTED` gains `['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']]`; `SOURCES` gains every new string (`ux` for the UX ones, `ruled` for V2's, each with its reason).
   - **`floor-sources.test.mjs`:** only if the component declares a width media query (it should not).
 
 *E2E*
-- [ ] `web/e2e/support/devices.ts`:
+- [x] `web/e2e/support/devices.ts`:
   - `publishMailbox(user, ref, fields?)` publishes a full payload, by default a sent (`out`) mail from "OcuTalon" with a subject and text. D3 is unchanged.
   - Add `mailRows(user)` (the count of the session's Kind `mailbox` rows).
   - Add `pointKeys()` and `restoreKeys()` (`RunnerFixture.PointKeys`/`RestoreKeys` through `irisScript`, `CHK|keys|1` required).
   - Add `dropMail(user)` (deletes the session's Kind `mailbox` SimMessage rows).
-- [ ] `web/e2e/demo-switch/mailbox.spec.ts` (new; the demo-switch project, README, `stackMode()`):
+- [x] `web/e2e/demo-switch/mailbox.spec.ts` (new; the demo-switch project, README, `stackMode()`):
   - **Mode-1 setup:** `beforeAll` calls `pointKeys()` and `afterAll` calls `restoreKeys()`, so Decide answers from the mock.
   - **Cases:** each skips in the other mode, and each removes what it made in `finally` (`dropPhone(README, start)`).
     - MB1 (row 8): `dropMail` and a reload first, then the empty text, the header, the chips' names and caption, and the secondary button.
@@ -548,7 +557,7 @@ deferred: []
       - Act: a card and a phone message, no approval in the rail and no `Turn`.
     - MB5 (row 13): markup in from, subject and body is shown as text; `window.zzMail` stays undefined, and the mailbox holds no `img`.
     - MB6 (row 17, mode 0): no region; both routes answer 404 `not_found` (signed-in `page.request` with the envelope headers); `mailRows` +0.
-- [ ] `web/e2e/floor/devices.spec.ts`:
+- [x] `web/e2e/floor/devices.spec.ts`:
   - **D1:** after the mailbox tab, the next stop is the first chip, "Sample: newsletter, send sample email", with its ring inside.
   - **D6** (new, Chromium; FLOOR; fixture `publishMailbox` rows only, so no server writes):
     - With the mailbox selected, the tab order is the three chips, T(simulate), then the rows.
@@ -557,7 +566,7 @@ deferred: []
     - The form's order is From, Subject, Body, Send, Back, with rings inside at 1280x600 and no page scroll.
     - At 1000px (stacked) the mailbox sits in the devices column.
   - `web/e2e/support/floor.ts:116`: `INSIDE_RING` drops `'app-device-panel .mailbox'`.
-- [ ] Existing e2e:
+- [x] Existing e2e:
   - **`api/api.spec.ts`:**
     - `UNBUILT` goes, since no route answers 501 any more.
     - Row 16 is retitled. It asserts that `mailbox/incoming` with `{}` answers 400 `bad_email` and `mailbox/samples/zz` answers 404 `not_found`, with no new case.
@@ -585,6 +594,47 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-26 - Review pass
+- verdicts: 36 findings - high 0, medium 8, low 21, false 7, maybe-false 0
+- note: `ci/checks.sh` (boundaries) also flagged literal ellipses in two test files, patched to `\u2026` escapes (not a reviewer finding)
+- findings (blind-hunter B, edge-case-hunter E, verification-gap V, intent-alignment I):
+  - `[medium]` `[patch]` B2/E1 a send that throws leaves the row with no Item - the Catch only set `sc`; the row now deletes on any failure after the save (`saved` flag); `TestSendThrows` pins it
+  - `[medium]` `[defer]` B1/E4 no body length cap - real, but the cap and the hourly allowance belong with Story 16.9; ledgered in `deferred:`
+  - `[medium]` `[patch]` V1 MB2 asserted chip focus before the row existed - moved after the row is decided
+  - `[medium]` `[patch]` V2 nothing pinned silence for decisions present at a reload - MB2 asserts zero announcements after the reload
+  - `[medium]` `[patch]` V3 no test seeded more than 20 newer decisions - `TestStateMailbox` seeds 21
+  - `[medium]` `[patch]` V4/B8 MB4 read Delivery counts at the wrong moment - polls for act, re-reads after the wait for ignore and digest
+  - `[medium]` `[patch]` V5 the page's error answers were untested - MB3 routes a 400 and asserts the message under Send and no marked field
+  - `[medium]` `[patch]` V8 `Reveals` had no positive control (and threw on its first finding) - rewritten, `TestRevealsFlags` added
+  - `[low]` `[patch]` V6 `readText` untested - node cases for a missing key and a storage that throws
+  - `[low]` `[patch]` V7 mutation lines missing or only in the result block - 18 recorded under Verification, browser ones run
+  - `[low]` `[patch]` V9 `TestSamples` compared two "(no call)" values - asserts both Items were sent
+  - `[low]` `[reject]` B3 one DecisionOfItem query per incoming email - up to 100 indexed lookups on a snapshot, no user-visible cost; the fix is a new query shape
+  - `[false]` `[reject]` B4 DW-275 is bundled - the intent names it; the long comment lines are cosmetic
+  - `[low]` `[reject]` B5 sample names repeated in a parameter and a chain - one class, pinned by `TestSamples`; a table adds an XData block for three entries
+  - `[low]` `[reject]` B6 `Announce` repeats `Operation.Announce` - a service cannot extend an operation, and a shared helper would touch contended `Live.Publish`
+  - `[low]` `[reject]` B7/E6 `SimMailboxOut` accepts blank text - the text comes from Notify's catalog render, no user path
+  - `[low]` `[reject]` B9/V13 the samples depend on the mock's default decide reply - the mock's default scenario is part of the stack MB2 runs on
+  - `[false]` `[reject]` B10 `unread` is always true - the intent and the payload define it so; the page owns read state
+  - `[low]` `[reject]` E2 `%DeleteId` status ignored - a failed cleanup of a row just written is not worth a branch
+  - `[false]` `[reject]` E3 empty `TraceRef` - set at session creation and unique, as for WebChatIn
+  - `[false]` `[reject]` E5 `MailAccepted` 500 after a recorded email - SimMailboxIn always answers the ref JSON on success
+  - `[low]` `[reject]` E7 `DecisionOfItem` has no ORDER BY - one decide decision per ItemId
+  - `[low]` `[reject]` E8 the open view is empty if its row leaves the 100-row window - needs 100 newer emails while it is open
+  - `[low]` `[reject]` E9 an awaited chip row never announced after a snapshot reload - a reload within the seconds of one press
+  - `[low]` `[reject]` E10 sent mail shows the unread dot - the intent shows the dot until opened; only the status is absent for sent mail
+  - `[low]` `[reject]` E11 client and server differ on Unicode white space - the client is the stricter side
+  - `[false]` `[reject]` E12 `SimPhoneOut.Save` behaviour - `NewRef` and `NowUtc` do not throw; `Test.Demo.SimPhoneOut` stays green
+  - `[false]` `[reject]` E13 the UNBUILT list - informational; the remaining 501 routes are not this story's
+  - `[low]` `[reject]` V10 the unknown-sample refusal cannot tell the checks apart - the route test (`Test.Web.MailboxApi.TestSamples`) is mutation-pinned
+  - `[low]` `[reject]` V11 `TestRoutes` matches source text - `Test.Web.Api.TestRoutes` covers the table
+  - `[low]` `[reject]` V12 `TestThroughIntake` assumes a keyless stack - the throwaway and CI stacks are keyless
+  - `[low]` `[reject]` V14 MB3 expects "Deciding" within the mock's 2 s - two immediate assertions after the row is counted
+  - `[low]` `[reject]` V15 the MB specs act on the shared README session - documented in the spec and cleaned in `finally`
+  - `[low]` `[reject]` V16 the badge counts snapshot-held emails - follows the shared `looked` logic, covered by D3
+  - `[false]` `[reject]` I1 no test exercises the Visual Trace headers - `TestThroughIntake` and `TestThroughProduction` read them
+  - `[low]` `[reject]` I2 the diff touches floor and frame specs - needed for D1/D7 and the new snapshot key
 
 ## Design Notes
 
@@ -838,6 +888,27 @@ deferred: []
 | 10 | the samples route answers 202 with demo mode off | MB6 |
 | 11 | the mailbox panel keeps `tabindex="0"` | D1 (the next stop is the panel, not the first chip) |
 
+**Mutations recorded** (Rule 19; each applied, observed red, reverted, the file confirmed byte-identical to its backup; server mutations on the warm stack `e4s6iw` with the class green again after the revert, browser mutations in a fresh `live demo-switch` or `live floor`).
+- mutation: AC1 the Item's `ItemId` is a new Ref, not the row's -> `TestArrival`, `TestSamples` and `TestThroughIntake` (itemId match) red
+- mutation: AC1 a send that throws keeps the row (no delete in the failure path) -> `TestSendFailure` and `TestSendThrows` red
+- mutation: AC1 `MailboxIncoming` without the demo-off check -> `Test.Web.MailboxApi.TestDemoOff` red
+- mutation: AC2 the Item carries `CatalogKey` "sample" -> `TestArrival` ("every other field is empty or 0") and `TestThroughIntake` (no body names the simulation) red
+- mutation: AC3 `Keep` commits after a failed `Delivery.Record` -> `TestSaveFailureKeepsNothing` red in `Test.Demo.SimMailboxOut` and in `Test.Demo.SimPhoneOut`
+- mutation: AC4 `/state` builds the phone and mailbox sections whatever `demoMode` -> `Test.Web.Api.TestStateFlags` red
+- mutation: AC4 `decisionOfItem` without the owner check (statement and post-filter) -> `TestDecisionOfItem` and `TestIsolationEveryRowKind` red
+- mutation: AC4 `decisionOfItem` limited to the newest 20 decisions -> `Test.Web.Api.TestStateMailbox` red (an email keeps its decision with more than 20 newer decide decisions)
+- mutation: AC4 `decisionOf` ignores the entry's own `decision` -> `mailbox-view.test.mjs` red (the fallback case)
+- mutation: AC5 a chip press moves focus to the row once it arrives -> `MB2` red (focus stays on the chip, now asserted after the row is decided)
+- mutation: AC5 the form keeps a blank Subject and sends -> `MB3` red
+- mutation: AC6 a decision present at load is announced -> `MB2` red (no announcement for a decision present at the reload)
+- mutation: AC6 the body is bound through `[innerHTML]` -> `MB5` red (browser) and `page-safety.test.mjs` red
+- mutation: AC7 `mail-ignore.json` answers `digest` -> `MB4` red (the chip is Digest, not Ignore)
+- mutation: AC8 the Item's Subject is "[simulated] " plus the subject -> `TestArrival` and `TestThroughIntake` (no body names the simulation) red
+- mutation: AC9 `Allowed` accepts `%Alls` (a prefix match) -> `TestAllowed` red
+- mutation: AC10 the samples route without the demo-off check -> `Test.Web.MailboxApi.TestDemoOff` red
+- mutation: AC11 the mailbox panel keeps `tabindex="0"` -> `D1` red in Chromium, Firefox and WebKit, and `D7` red
+- The page's error path (`messageOf`, the Send error under the button, no field marked) is pinned by `MB3`'s routed 400; the storage read by `mailbox-view.test.mjs` ("readText"); `Reveals` by `TestRevealsFlags` (a body that holds the word is named; before this pass the helper threw on its first finding).
+
 **Shared surfaces:**
 - `/state`'s keys (`Test.Web.Api` `TestStateBody`, `api.spec.ts:116`, F9) and the routes (`TestRoutes`; `api.spec` `UNBUILT`, row 16);
 - SimMessage's contract (`Test.Data.Tables`, `test-storage.sh`'s append-only rule);
@@ -858,7 +929,7 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Planned** (plan stage, HALT after planning).
@@ -869,3 +940,66 @@ Blocking condition: none
   - two spine conventions edits: the snapshot's `mailbox` key, and `bad_email`;
   - the footprint extensions listed under Design Notes, "For the lead". The one contended edit is a single block appended at the end of `Test/Web/ApiProbe.cls`.
 - **Timing:** the mailbox's browser specs run in `live demo-switch` (expected under about 8 minutes). `live sign-in` gains no case.
+
+**Implementation result (implement stage).**
+- **Measured.**
+  - `live demo-switch` took 4 min 48 s end to end (288 s) with the mailbox spec, all 36 checks PASS (step 3 refuses only the plain user, step 4 is irisowner's switch off, step 7 names irisowner and the admin, the page specs 9 passed at mode 1, 5 passed at mode 0 with MB6 in them). The expected ceiling was about 8 minutes, so it is not split.
+  - `live floor` took 4 min 48 s, 92 passed (Chromium: every case; Firefox and WebKit: the `@browsers` cases, `D1` among them).
+  - Fresh class runs `Test.Demo.SimMailboxIn` (with `TestThroughIntake`), `Test.Demo.SimMailboxOut` (with `TestThroughProduction`) and `Test.Demo.SimPhoneOut` passed with no skip. Warm class runs of `Test.Web.MailboxApi`, `Test.Web.Api`, `Test.Data.Ownership`, `Test.Data.Tables`, `Test.Live.Payloads`, `Test.Core.Admin`, `Test.Core.WebChatOut`, `Test.Core.SettingsOps`, `Test.Install.Production` and `Test.Core.RoutingProduction` passed. `npm --prefix web test` (668 tests), `npm --prefix web run lint` and `bash docker/tests/test-mock.sh` (94 tests) are green.
+- **Decided in-stage** (small, reversible, within the intent):
+  - The floor case that the Tasks call `D6` is `D7` (`D6` is Story 4.5's live-region case and is tagged in `playwright-projects.test.mjs`). `D7` is Chromium only, so no Playwright registry changes.
+  - `arrivedText` is the decided pattern with the row's "Deciding\u2026" as the outcome, so the page holds no ellipsis string that the UX does not write (`ux-strings.test.mjs` requires it). The text is the one under "Texts"; `MAILBOX_TEXTS` has no `arrived` and no `errEmail` (the page shows the server's `error.message`).
+  - `decidedText` fills both slots in one pass, so a subject that holds `{outcome}` stays literal.
+  - A 400 or other error answer shows `error.message` only when the body is the API's error shape; an unreachable server shows the server button's own notice.
+  - The open email's trace link is named by the shared `app-trace-link` (in the demo-switch stack "Open in Visual Trace (shows sign-in help first)"), so `MB2` asserts that it names the trace and has `target=_blank`.
+  - `Keep` takes the SimMessage object, not the property list; `SimPhoneOut.Save` builds the message and calls it.
+- **Paths edited outside Epic 4's own footprint** (for `footprint_extensions`):
+  - Server classes: `Channel/Operation.cls`, `Data/SimMessage.cls` (columns `Sender`, `Subject`: V1), `Data/Ownership.cls` (`RecentMail`, `DecisionOfItem`), `Live/Payload/Mailbox.cls` (`FromRow`, the `Unread` doc);
+  - Server tests: `Test/Data/Tables.cls`, `Test/Data/Ownership.cls`, `Test/Web/Api.cls`, `Test/Core/ProductionItems.cls` (two rows), `Test/Web/ApiProbe.cls` (one block appended at its end: `Mail`; contended), `Test/Web/MailboxApi.cls` (new; contended folder);
+  - Page: `web/src/app/icon/icon.ts`, `web/src/app/shared/stored-flag.ts` (`readText`), `web/src/app/shared/server-button.ts` (`label`, `chip`), `web/src/app/api/api-client.ts` and `api-types.ts` (additive), `web/scripts/{announce-focus-sources,ux-strings}.test.mjs` (edited), `web/scripts/mailbox-view.test.mjs` (new);
+  - E2E: `web/e2e/support/{devices,floor}.ts`, `web/e2e/floor/devices.spec.ts`, `web/e2e/api/api.spec.ts`, `web/e2e/frame/frame.spec.ts`.
+  - Inside the footprint: `Channel/SimMailbox/**`, `Channel/SimPhone/Out.cls`, `Web/Api.cls`, `Core/Admin.cls`, `Test/Demo/**`, `Test/Core/Admin.cls`, `docker/tests/test-demo-switch.sh`, `ci/mock/scenarios/B/mail-*.json`, `web/src/app/{mailbox,devices}/**`, `web/e2e/demo-switch/mailbox.spec.ts`.
+- **Not touched:** `web/src/app/live/**` (the generated `payloads.ts` is as it was), the spine, `Notify`, `Core.Intake`, `Data.Delivery`, `docker/tests/test-sign-in.sh` and `test-demo-path.sh`.
+
+**Mutations run (Rule 19)** (each applied, observed red, reverted, and the file confirmed byte-identical to its backup):
+- mutation: AC1 `SimMailboxIn` sends provenance `user` -> `TestArrival` red (the Item's provenance), `TestThroughIntake` red (no decision event; the Item's fields)
+- mutation: AC1 the failed send keeps the row (no `%DeleteId`) -> `TestSendFailure` red (the row is deleted)
+- mutation: AC1 a blank body is checked before a blank subject (`MailBody` tests the body's text for the subject) -> `TestFieldErrors` red
+- mutation: AC1 the sample route drops the `IsSample` check -> `TestSamples` (`Test.Web.MailboxApi`) red (404 for an unknown name)
+- mutation: AC2 `PARTNERSUBJECT` "Friday" -> "Saturday" -> `TestSamples` (`Test.Demo.SimMailboxIn`) red (the fields, the row, the typed email's equality)
+- mutation: AC3 `SimMailboxOut` sender `"Someone"` instead of `OcuTalon` -> `TestSent` red (the row and the payload)
+- mutation: AC3 `Keep` records the Delivery row without the message's Ref -> `TestSent` red (ChannelMessageId)
+- mutation: AC3 `Mailbox.FromRow` sets `Unread` 0 -> `TestSent` red
+- mutation: AC4 `/state.mailbox` skips the decision -> `TestStateMailbox` red (the decided email carries no decision)
+- mutation: AC4 `/state.mailbox` is newest first -> `TestStateMailbox` red (order, payload, decision)
+- mutation: AC4 `recentMail` without `Kind = 'mailbox'` -> `TestRecentMail` and `TestIsolationEveryRowKind` red (phone rows in the mailbox)
+- mutation: AC4 `decisionOfItem` without `Kind = 'decide'` -> `TestDecisionOfItem` red (a turn decision is found)
+- mutation: AC6 `decisionOf` ignores the decision's kind -> `mailbox-view.test.mjs` red (a turn decision is no decision of the email)
+- mutation: AC5 `mailOf` returns oldest first -> `mailbox-view.test.mjs` red (three cases)
+- mutation: AC6 `decidedText` fills the slots in two passes -> `mailbox-view.test.mjs` red (a subject that holds `{outcome}`)
+- mutation: AC6 `withOpened` keeps the oldest refs -> `mailbox-view.test.mjs` red (the cap keeps the newest)
+- mutation: AC9 `Admin.Allowed` accepts only `OcuTalonAdmin` -> `TestAllowed` and `TestSubmits` red (`%All`)
+- Review pass: the browser, node and server mutations recorded under `## Verification`, "Mutations recorded".
+
+**Review and finalize (implement stage).**
+- **Review layers:** blind hunter, edge-case hunter, verification-gap and intent-alignment. 36 findings (grouped in the triage log): 0 high, 8 medium, 21 low, 7 false.
+- **Patched (11):**
+  - `SimMailboxIn.Accept` deletes the row on any failure after the save, a thrown send included (`TestSendThrows`);
+  - MB2 asserts focus on the chip after the row is decided, and zero announcements after the reload;
+  - MB3 routes a 400 and asserts the message under Send with no field marked;
+  - MB4 polls the Delivery count for Act and re-reads it after the wait for Ignore and Digest;
+  - `TestStateMailbox` seeds 21 newer decide decisions; `readText` has node cases;
+  - `Reveals` is rewritten (it threw on its first finding) with `TestRevealsFlags` as its positive control; `TestSamples` asserts both Items were sent;
+  - the ellipsis literals in two test files are `\u2026` escapes (`ci/checks.sh` boundaries).
+- **Deferred (1):** the email body has no length cap (Story 16.9's allowance is the home of abuse limits). It is in `deferred:`.
+- **Rejected:** 25 rows with their reasons in the triage log.
+- **Follow-up review recommended:** true (7 medium patched). The unverified risk: the new browser assertions of MB2, MB3 and MB4 ran green once in `live demo-switch` and red under mutation; the `\u2026` escape edit in `mailbox.spec.ts` was made after that run (checked by `tsc`, `npm test` and `ci/checks.sh`, not by a browser run).
+- **Verification performed (final tree, tag `e4s6i` fresh, `e4s6iw` warm):**
+  - node: `npm --prefix web test` 670 pass; `npm --prefix web run lint` exit 0; `docker/tests/test-mock.sh` 94 pass;
+  - fresh classes: `Test.Demo.SimMailboxIn` (with `TestThroughIntake`), `SimMailboxOut` (with `TestThroughProduction`), `SimPhoneOut` passed, no skip;
+  - warm classes passed: `Test.Web.MailboxApi`, `Web.Api`, `Data.Ownership`, `Data.Tables`, `Live.Payloads`, `Core.Admin`, `Core.WebChatOut`, `Core.SettingsOps`, `Demo.SimMailboxIn`, `Demo.SimMailboxOut`, `Demo.SimPhoneOut`;
+  - `live demo-switch` all PASS in 292 s (4 min 52 s; ceiling 8 min, not split); `live floor` 92 passed in 292 s; `live sign-in` 217 passed in 461 s (the case count is unchanged);
+  - `shard lane-b` 58 classes and `shard lane-a` 47 classes passed; `live production` and `live demo-path` PASS; `docker/tests/test-web-build.sh` and `bash ci/checks.sh` exit 0.
+- **Footprint extensions** are listed under the implementation result above (the one contended edit is the block appended to `Test/Web/ApiProbe.cls`; `Test/Web/MailboxApi.cls` is a new file). The review pass edited no further path outside Epic 4's own footprint.
+- **Left for the lead:** the spine's conventions rows for the `mailbox` snapshot key and the REST code `bad_email` (already updated by the lead, per the dispatch); the veto-window items V1 to V3.
+- **Residual risks:** the browser cases MB1-MB6 depend on the mock's default decide reply for the unmarked samples; the README session's `Decision` rows from MB4 stay on the rail after the run.

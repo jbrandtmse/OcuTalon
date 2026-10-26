@@ -52,6 +52,7 @@ const IMPORTED = [
   ['feed/break-feed-view.ts', ['FEED_TEXTS']],
   ['devices/device-view.ts', ['DEVICE_TEXTS']],
   ['phone/phone-view.ts', ['PHONE_TEXTS']],
+  ['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -310,8 +311,19 @@ const SOURCES = {
     'Simulated',
     '{tab}, {n} new',
     "Notifications, reminders and approval requests appear here. The simulated phone is a real channel in the production; you'll see it in the trace.",
+    'Send one and see what OcuTalon decides.',
+    'Simulate an incoming email',
+    'No emails yet. Simulate an incoming email, or send a sample.',
+    "Email '{subject}': {outcome}",
+    ', send sample email',
+    'From',
+    'Subject',
+    'Body',
+    'Back',
+    'Results Partner IT <it@results-partner.example>',
   ],
   design: [
+    'Unread',
     'Repair and resend',
     'Repair and resend {n} {noun}',
     'step {n} of 5',
@@ -324,6 +336,7 @@ const SOURCES = {
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
   },
   ruled: {
+    'Story 4.6 veto item V2 (the field errors of the compose form)': ['Enter a subject.', 'Enter a body.'],
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [
       'Close reset notice',
       'Close reconnecting notice',

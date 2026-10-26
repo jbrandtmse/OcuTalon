@@ -7,7 +7,8 @@
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
 ///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
-///     cards (RecentNotices), the messages of the simulated phone (RecentPhone) and the delivery of an approval message
+///     cards (RecentNotices), the messages of the simulated phone (RecentPhone), the emails of the simulated mailbox
+///     (RecentMail), the session's own decide decision of an Item (DecisionOfItem) and the delivery of an approval message
 ///     (DeliveryFor).
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
@@ -273,6 +274,33 @@ ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output s
 ClassMethod RecentPhone(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("recentPhone", sessionRef, .sc, +max)
+}
+
+/// The session's newest simulated-mailbox emails: the SimMessage rows of Kind mailbox (incoming and sent), newest CreatedAt
+/// first and then newest ID first, at most max. sc is an error status when the read failed.
+ClassMethod RecentMail(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("recentMail", sessionRef, .sc, +max)
+}
+
+/// The session's own decision of Kind decide for the Item with this ItemId, or "": a decision of another owner, a decision of
+/// another kind, an unknown ItemId, an empty one, and one that differs only in case all answer like a missing one. The
+/// statement narrows the rows by the collated index; the value is then compared exactly. itemId comes from a mailbox row the
+/// product wrote; it is only ever a bound value. sc is an error status when the read failed.
+ClassMethod DecisionOfItem(itemId As %String, ownerRef As %String, Output sc As %Status) As OcuTalon.Bridge.Data.Decision
+{
+	Set sc = $SYSTEM.Status.OK()
+	If itemId = "" Quit ""
+	Set rows = ..Rows("decisionOfItem", ownerRef, .sc, itemId)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (row.ItemId = itemId) && (row.OwnerRef = ownerRef) {
+			Set found = row
+			Quit
+		}
+	}
+	Quit found
 }
 
 /// The session's newest Delivery row for the approval request and channel, or "": a row of owner eval, instance or another
@@ -607,6 +635,14 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
 		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "recentMail" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "ao"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' ORDER BY CreatedAt DESC, ID DESC"
+	}
+	If kind = "decisionOfItem" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ? AND OwnerRef = ? AND Kind = 'decide'"
 	}
 	If kind = "deliveryByApproval" {
 		Set class = "OcuTalon.Data.Delivery", binds = "aao"

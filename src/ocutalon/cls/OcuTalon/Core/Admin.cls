@@ -1,5 +1,5 @@
-/// The admin terminal entry point (AD-1, AD-19): an OcuTalon admin switches demo mode from a terminal in the OCUTALON
-/// namespace with do ##class(OcuTalon.Core.Admin).SetDemoMode(0|1). Each method checks the caller's roles before it submits
+/// The admin terminal entry point (AD-1, AD-19): an OcuTalon admin, or a holder of %All, switches demo mode from a terminal in
+/// the OCUTALON namespace with do ##class(OcuTalon.Core.Admin).SetDemoMode(0|1). Each method checks the caller's roles before it submits
 /// anything, sets the command's ActingUser from the process's $USERNAME, submits it through Commands.Submit with the origin
 /// system, prints the plain-English line of the answer and returns the CommandResult.
 Class OcuTalon.Core.Admin
@@ -8,6 +8,9 @@ Class OcuTalon.Core.Admin
 /// The role that may change settings.
 Parameter ROLE = "OcuTalonAdmin";
 
+/// The role that also may: a terminal holder of %All could grant itself OcuTalonAdmin.
+Parameter ALLROLE = "%All";
+
 Parameter MESSAGEINVALID = "SetDemoMode takes 1 (on) or 0 (off). Nothing was changed.";
 
 Parameter MESSAGENOTRUNNING = "OcuTalon isn't taking commands now: its production isn't running or CommandsIn is disabled. Nothing was changed.";
@@ -15,8 +18,10 @@ Parameter MESSAGENOTRUNNING = "OcuTalon isn't taking commands now: its productio
 Parameter MESSAGESUBMITFAILED = "OcuTalon couldn't submit the change: {error}. Nothing was changed.";
 
 /// Switches demo mode on (1) or off (0), as a number or a string. Prints the answer's line and returns the CommandResult.
-/// Anything else is invalid, and a caller whose roles do not include OcuTalonAdmin is refused with the text of CommandsIn's
-/// admin-only refusal; neither submits anything. A production that is not running, and an error thrown by the submit, are
+/// Anything else is invalid, and a caller whose roles include neither OcuTalonAdmin nor %All is refused with the text of
+/// CommandsIn's admin-only refusal; neither submits anything. A holder of %All is accepted because it could grant itself the
+/// role; the command's ActingUser, and so the audit entry, is still the caller's $USERNAME. The web endpoints stay OcuTalonAdmin
+/// only. A production that is not running, and an error thrown by the submit, are
 /// answered with the text that says so. The result is never an error status and never thrown.
 ClassMethod SetDemoMode(mode As %String = "") As OcuTalon.Msg.CommandResult
 {
@@ -55,10 +60,11 @@ ClassMethod Send(command As OcuTalon.Msg.Command, origin As %String, Output resu
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, origin, .result)
 }
 
-/// 1 when the comma-separated roles include OcuTalonAdmin, by whole name. A holder of %All without OcuTalonAdmin gets 0.
+/// 1 when the comma-separated roles include OcuTalonAdmin or %All, by whole name.
 ClassMethod Allowed(roles As %String) As %Boolean
 {
-	Quit ''$ListFind($ListFromString($Get(roles)), ..#ROLE)
+	Set list = $ListFromString($Get(roles))
+	Quit ''($ListFind(list, ..#ROLE) || $ListFind(list, ..#ALLROLE))
 }
 
 /// The text of an error status for a plain-English line: without its code prefix (ERROR #n: or, for an Interoperability error,

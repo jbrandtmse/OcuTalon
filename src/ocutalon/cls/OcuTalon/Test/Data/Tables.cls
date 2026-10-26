@@ -399,7 +399,9 @@ XData Contracts [ MimeType = application/json ]
    "Direction": "%String(MAXLEN=32)",
    "ItemId": "%String(MAXLEN=22)",
    "CreatedAt": "%String(MAXLEN=20)",
-   "Text": "%String(MAXLEN=)"
+   "Text": "%String(MAXLEN=)",
+   "Sender": "%String(MAXLEN=1000)",
+   "Subject": "%String(MAXLEN=1000)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

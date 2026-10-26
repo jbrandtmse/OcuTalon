@@ -33,7 +33,8 @@ import { fromBottom, scrollListTo } from '../support/page';
  * height, so the document does not scroll at 1280x600 and 1280x480 and the announcer's element is a clipped pixel out of the flow. A
  * case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR session is no fixture
  * session, so Fixture.Clean keeps them. The fixture messages of D2, D4 and D5 are named by their text and live only in the snapshot
- * that the page receives.
+ * that the page receives. D7 (Story 4.6, Chromium) is the simulated mailbox's: its tab order, rings, wrapping and form on fixture emails
+ * of the snapshot, with no server write (the sample deliveries and the compose form's send are the demo-switch unit's).
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -50,6 +51,9 @@ const MAILBOX_TAB = 'Simulated mailbox';
 const regionOf = (page: Page): Locator => page.locator('app-device-panel section');
 const tabOf = (page: Page, name: string): Locator => regionOf(page).getByRole('tab', { name, exact: true });
 const phoneOf = (page: Page): Locator => page.locator('app-simulated-phone');
+const chipOf = (page: Page, label: string): Locator => page.locator('app-simulated-mailbox').getByRole('button', { name: `${label}, send sample email`, exact: true });
+const simulateOf = (page: Page): Locator => page.locator('app-simulated-mailbox').getByRole('button', { name: 'Simulate an incoming email', exact: true });
+const mailRowsOf = (page: Page): Locator => page.locator('app-simulated-mailbox .row');
 const feedOf = (page: Page): Locator => page.locator('app-simulated-phone .feed');
 const messageOf = (page: Page, text: string): Locator => page.locator('app-simulated-phone .notification').filter({ hasText: text });
 const newMessagesOf = (page: Page): Locator => phoneOf(page).getByRole('button', { name: 'New messages', exact: true });
@@ -118,7 +122,7 @@ test('D1: the device tabs and the phone feed are tab stops in order, the arrows 
     await expect(tabOf(page, MAILBOX_TAB), 'and selects it').toHaveAttribute('aria-selected', 'true');
     expectRingInside((await readFocus(page))!, 'the mailbox tab');
     await page.keyboard.press(keys.next);
-    await expect(page.locator('app-device-panel .mailbox'), 'the next stop is the mailbox panel, which has no focusable content').toBeFocused();
+    await expect(chipOf(page, 'Sample: newsletter'), 'the next stop is the first sample chip: the mailbox panel itself is no stop').toBeFocused();
     await expectStopRing(page, (await readFocus(page))!);
     await page.keyboard.press(keys.back);
     await expect(tabOf(page, MAILBOX_TAB)).toBeFocused();
@@ -436,4 +440,102 @@ test('D6: after an announcement the page does not scroll in a short window, and 
   } finally {
     await dropPhone(user, start);
   }
+});
+
+/** A fixture email of the snapshot's mailbox, named as one by its ref. */
+const mailFixture = (n: number, over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  ref: `zzmail${String(n).padStart(2, '0')}`,
+  direction: 'in',
+  itemId: `zzitem${String(n).padStart(2, '0')}`,
+  sender: `Zz Sender ${n} <zz${n}@example.com>`,
+  subject: `zz D7 subject ${n}`,
+  text: `zz D7 body ${n}`,
+  unread: true,
+  createdAt: `2030-01-01T10:${String(n).padStart(2, '0')}:00Z`,
+  ...over,
+});
+
+/** Answers /state with this mailbox. */
+async function withMailbox(page: Page, mailbox: Array<Record<string, unknown>>): Promise<void> {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['mailbox'] = mailbox;
+  });
+}
+
+/**
+ * D7 (Story 4.6): the simulated mailbox on the floor, on fixture emails of the snapshot. With the mailbox tab selected the tab order is
+ * the three sample chips, "Simulate an incoming email", then the rows, newest first, with every ring inside the viewport at 1280x720 and
+ * 1280x600; the chips wrap inside the 352px panel with no horizontal overflow; the compose form's order is From, Subject, Body, Send
+ * and Back, with its rings inside at 1280x600 and no page scroll; and at 1000px (stacked) the mailbox sits in the devices column.
+ */
+test('D7: the mailbox tab order is the chips, Simulate and the rows, the chips wrap, the form has its order, and the mailbox stacks in the devices column', async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await withMailbox(page, [
+    mailFixture(1, { decision: { ref: 'zzdecision01', kind: 'decide', itemId: 'zzitem01', outcome: 'digest', reasons: 'zz first reason.', fallback: false } }),
+    mailFixture(2),
+    mailFixture(3, { direction: 'out', itemId: '', sender: 'OcuTalon', subject: 'zz D7 sent' }),
+  ]);
+  await openFloor(page);
+  await tabOf(page, MAILBOX_TAB).click();
+  await expect(tabOf(page, MAILBOX_TAB)).toHaveAttribute('aria-selected', 'true');
+  await expect(mailRowsOf(page), 'the snapshot gives three rows').toHaveCount(3);
+  await expect(mailRowsOf(page).first(), 'newest first').toContainText('zz D7 sent');
+  for (const height of [720, 600]) {
+    await page.setViewportSize({ width: 1280, height });
+    await settled(page);
+    const keys = await stepKeys(page);
+    await tabOf(page, MAILBOX_TAB).focus();
+    const order = [chipOf(page, 'Sample: newsletter'), chipOf(page, 'Sample: partner notice'), chipOf(page, 'Sample: suspicious request'), simulateOf(page), mailRowsOf(page).nth(0), mailRowsOf(page).nth(1), mailRowsOf(page).nth(2)];
+    for (const [at, stop] of order.entries()) {
+      await page.keyboard.press(keys.next);
+      await expect(stop, `stop ${at + 1} of the mailbox at ${height}px`).toBeFocused();
+      await expectStopRing(page, (await readFocus(page))!);
+    }
+  }
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await settled(page);
+  const fit = await page.evaluate(() => {
+    const body = document.querySelector('app-device-panel .body') as HTMLElement;
+    const chips = Array.from(document.querySelectorAll('app-simulated-mailbox .chips app-server-button')).map((one) => {
+      const box = one.getBoundingClientRect();
+      return { top: Math.round(box.top), right: box.right };
+    });
+    const bodyBox = body.getBoundingClientRect();
+    return { overflowX: body.scrollWidth - body.clientWidth, tops: new Set(chips.map((one) => one.top)).size, rightmost: Math.max(...chips.map((one) => one.right)), bodyRight: bodyBox.right, panelWidth: bodyBox.width };
+  });
+  expect(fit.overflowX, `the panel body has no horizontal overflow (${JSON.stringify(fit)})`).toBeLessThanOrEqual(0);
+  expect(fit.tops, 'the three chips wrap to more than one row in the 352px panel').toBeGreaterThan(1);
+  expect(fit.rightmost, 'and none is past the panel body').toBeLessThanOrEqual(fit.bodyRight + 0.5);
+
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await settled(page);
+  await simulateOf(page).click();
+  const from = page.getByRole('textbox', { name: 'From', exact: true });
+  await expect(from, 'the form opens with focus on From').toBeFocused();
+  await expect(from, 'prefilled with a sample sender').toHaveValue('Results Partner IT <it@results-partner.example>');
+  const keys = await stepKeys(page);
+  const form = [page.getByRole('textbox', { name: 'Subject', exact: true }), page.getByRole('textbox', { name: 'Body', exact: true }), page.locator('app-simulated-mailbox .form').getByRole('button', { name: 'Send', exact: true }), page.locator('app-simulated-mailbox .form').getByRole('button', { name: 'Back', exact: true })];
+  await expectStopRing(page, (await readFocus(page))!);
+  for (const [at, stop] of form.entries()) {
+    await page.keyboard.press(keys.next);
+    await expect(stop, `form stop ${at + 2}`).toBeFocused();
+    await expectStopRing(page, (await readFocus(page))!);
+  }
+  const scrolls = await page.evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight);
+  expect(scrolls, 'the page does not scroll with the form open').toBeLessThanOrEqual(0);
+
+  await page.setViewportSize({ width: 1000, height: 720 });
+  await settled(page);
+  const stacked = await page.evaluate(() => {
+    const panel = document.querySelector('app-device-panel')!.getBoundingClientRect();
+    const mailbox = document.querySelector('app-simulated-mailbox')!.getBoundingClientRect();
+    const main = document.querySelector('main.main')!.getBoundingClientRect();
+    return { panelTop: panel.top, panelLeft: panel.left, panelRight: panel.right, mailLeft: mailbox.left, mailRight: mailbox.right, mailTop: mailbox.top, mailBottom: mailbox.bottom, panelBottom: panel.bottom, mainBottom: main.bottom };
+  });
+  expect(stacked.mailLeft, `at 1000px the mailbox is inside the devices column (${JSON.stringify(stacked)})`).toBeGreaterThanOrEqual(stacked.panelLeft - 0.5);
+  expect(stacked.mailRight).toBeLessThanOrEqual(stacked.panelRight + 0.5);
+  expect(stacked.mailBottom).toBeLessThanOrEqual(stacked.panelBottom + 0.5);
+  expect(stacked.panelTop, 'and the column follows main').toBeGreaterThanOrEqual(stacked.mainBottom - 0.5);
 });

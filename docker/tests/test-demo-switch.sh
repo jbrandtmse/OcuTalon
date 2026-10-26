@@ -7,18 +7,19 @@
 #      Demo step's surfaces (F0) and the number of Settings audit entries. The two fixture users are created first, so that F0 holds
 #      their roles too;
 #   2. control: a tell-now Notification sent into Notify from a host made with CreateBusinessService leaves a header to SimPhoneOut;
-#   3. a user without OcuTalonAdmin, and irisowner (the session's OS login, %All without OcuTalonAdmin), run the command: the
-#      refusal line is printed, no header goes to SettingsOps, and the setting and the surfaces are unchanged (step 7 checks the
-#      audit log, whose entries become readable only about a minute after they are written);
-#   4. an OcuTalonAdmin holder (no %All) runs SetDemoMode(0): the off line is printed, the row is "0", the surfaces equal F0 less
-#      OCUORDERS, and the off checks of the Demo step pass. The Demo step ran in the SettingsOps job (Story 4.1, Task 0);
+#   3. a user with neither OcuTalonAdmin nor %All runs the command: the refusal line is printed, no header goes to SettingsOps, and
+#      the setting and the surfaces are unchanged (step 7 checks the audit log, whose entries become readable only about a minute
+#      after they are written);
+#   4. irisowner (the session's OS login: %All without OcuTalonAdmin, accepted since DW-275) runs SetDemoMode(0): the off line is
+#      printed for irisowner, the row is "0", the surfaces equal F0 less OCUORDERS, and the off checks of the Demo step pass. The
+#      Demo step ran in the SettingsOps job (Story 4.1, Task 0);
 #   5. from 61 s after step 4 returned, every /state answer reports demoMode false (polled every 2 s), the chat and rail equal S0,
 #      POST /v1/demo/break-feed answers 404 not_found (Story 4.3), a new tell-now Notification leaves no header to SimPhoneOut, and the
 #      page shows no demo badge (web/e2e/demo-switch/badge.spec.ts with OCUTALON_E2E_DEMO_MODE=0);
-#   6. the admin runs SetDemoMode(1): the on line is printed, the row is "1", the on checks pass, the Orders production runs with its
+#   6. the OcuTalonAdmin holder (no %All) runs SetDemoMode(1): the on line is printed, the row is "1", the on checks pass, the Orders production runs with its
 #      two jobs, and the surfaces equal F0;
-#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for the admin (irisUser) from "1" to "0" and one from "0"
-#      to "1", both from the channel system, and no other Settings entry (none names the refused users);
+#   7. within 180 s the audit log holds one OcuTalon/Settings/Settings entry for irisowner (irisUser) from "1" to "0" and one for the
+#      admin from "0" to "1", both from the channel system, and no other Settings entry (none names the refused user);
 #   8. from 61 s after step 6, /state reports demoMode true with the chat and rail equal S0, a tell-now Notification leaves a header
 #      to SimPhoneOut again, and the page shows the demo badge.
 # The project is unique, publishes its web port only on 127.0.0.1 (first free port of 52800-52819, or OCUTALON_TEST_WEB_PORT) and
@@ -263,21 +264,14 @@ esac
 
 # --- step 3: refused users change nothing ---
 
-for who in plain owner; do
-  if [ "$who" = plain ]; then
-    run_admin "$plainuser" "$plainpassword" 0
-    label="a user without OcuTalonAdmin"
-  else
-    run_admin "" "" 0
-    label="irisowner (%All, no OcuTalonAdmin)"
-  fi
-  if [ "$admin_login" = 1 ] && [ "$admin_outcome" = not_allowed ] && [ "$admin_lines" = "$text_refused" ]; then
-    pass "step 3: $label ($admin_user) is refused with the exact line"
-  else
-    echo "  login '$admin_login' user '$admin_user' outcome '$admin_outcome' printed '$admin_lines'"
-    fail "step 3: $label was not refused with the exact line"
-  fi
-done
+run_admin "$plainuser" "$plainpassword" 0
+label="a user with neither OcuTalonAdmin nor %All"
+if [ "$admin_login" = 1 ] && [ "$admin_outcome" = not_allowed ] && [ "$admin_lines" = "$text_refused" ]; then
+  pass "step 3: $label ($admin_user) is refused with the exact line"
+else
+  echo "  login '$admin_login' user '$admin_user' outcome '$admin_outcome' printed '$admin_lines'"
+  fail "step 3: $label was not refused with the exact line"
+fi
 if [ "$(setting_row)" = 1 ] && [ "$(settingsops_headers)" = "$heads0" ]; then
   pass "step 3: the row and the headers to SettingsOps are unchanged (step 7 checks the audit log)"
 else
@@ -286,17 +280,17 @@ fi
 demo_surfaces "$tmp/s3.surf"
 compare_surfaces "step 3: the surfaces equal F0" "$tmp/f0.surf" "$tmp/s3.surf"
 
-# --- step 4: the admin switches demo mode off ---
+# --- step 4: irisowner (%All, no OcuTalonAdmin) switches demo mode off ---
 
 began=$SECONDS
-run_admin "$adminuser" "$adminpassword" 0
+run_admin "" "" 0
 off_s=$((SECONDS - began))
 t_off=$SECONDS
-if [ "$admin_login" = 1 ] && [ "$admin_user" = "$adminuser" ] && [ "$admin_outcome" = off ] && [ "$admin_lines" = "$text_off" ]; then
-  pass "step 4: $adminuser prints the off line (outcome off; the Demo step ran in the SettingsOps job and succeeded, off in $off_s s)"
+if [ "$admin_login" = 1 ] && [ "$admin_user" = irisowner ] && [ "$admin_outcome" = off ] && [ "$admin_lines" = "$text_off" ]; then
+  pass "step 4: irisowner (%All, no OcuTalonAdmin) prints the off line (outcome off; the Demo step ran in the SettingsOps job and succeeded, off in $off_s s)"
 else
   echo "  login '$admin_login' user '$admin_user' outcome '$admin_outcome' printed '$admin_lines'"
-  fail "step 4: the admin's SetDemoMode(0) did not print the off line"
+  fail "step 4: irisowner's SetDemoMode(0) did not print the off line"
 fi
 echo "INFO Task 0: SetDemoMode(0) took $off_s s end to end, outcome '$admin_outcome'"
 if [ "$(setting_row)" = 0 ]; then
@@ -347,21 +341,21 @@ check_orders_jobs "step 6"
 demo_surfaces "$tmp/s6.surf"
 compare_surfaces "step 6: the surfaces equal F0" "$tmp/f0.surf" "$tmp/s6.surf"
 
-# --- step 7: the audit log names the admin, and nobody else ---
+# --- step 7: the audit log names irisowner and the admin, and nobody else ---
 
 settings_audit_seen() {
-  [ "$(settings_audit_rows "$adminuser" 1 0 system)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 0 1 system)" = 1 ]
+  [ "$(settings_audit_rows irisowner 1 0 system)" = 1 ] && [ "$(settings_audit_rows "$adminuser" 0 1 system)" = 1 ]
 }
 if wait_until 180 settings_audit_seen; then
-  pass "step 7: one OcuTalon/Settings/Settings entry names $adminuser (irisUser) from 1 to 0 and one from 0 to 1, both from the channel system"
+  pass "step 7: one OcuTalon/Settings/Settings entry names irisowner (irisUser) from 1 to 0 and one names $adminuser from 0 to 1, both from the channel system"
 else
-  fail "step 7: the audit log holds '$(settings_audit_rows "$adminuser" 1 0 system)' entry(ies) from 1 to 0 and '$(settings_audit_rows "$adminuser" 0 1 system)' from 0 to 1 from the channel system for $adminuser within 180 s ('$(settings_audit_rows "$adminuser" 1 0)' and '$(settings_audit_rows "$adminuser" 0 1)' from any channel)"
+  fail "step 7: the audit log holds '$(settings_audit_rows irisowner 1 0 system)' entry(ies) for irisowner from 1 to 0 and '$(settings_audit_rows "$adminuser" 0 1 system)' for $adminuser from 0 to 1 from the channel system within 180 s ('$(settings_audit_rows irisowner 1 0)' and '$(settings_audit_rows "$adminuser" 0 1)' from any channel)"
 fi
 total=$(settings_audit_total)
-if [ "$total" = "$((audit0 + 2))" ] && [ "$(settings_audit_rows "$plainuser" '' '')" = 0 ] && [ "$(settings_audit_rows irisowner '' '')" = 0 ]; then
-  pass "step 7: those are the only two new Settings entries, and none names $plainuser or irisowner"
+if [ "$total" = "$((audit0 + 2))" ] && [ "$(settings_audit_rows "$plainuser" '' '')" = 0 ]; then
+  pass "step 7: those are the only two new Settings entries, and none names $plainuser"
 else
-  fail "step 7: the Settings entries are $total (wanted $((audit0 + 2))); $plainuser: $(settings_audit_rows "$plainuser" '' ''), irisowner: $(settings_audit_rows irisowner '' '')"
+  fail "step 7: the Settings entries are $total (wanted $((audit0 + 2))); $plainuser: $(settings_audit_rows "$plainuser" '' '')"
 fi
 
 # --- step 8: the page and /state follow ---
