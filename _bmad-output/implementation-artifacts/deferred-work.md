@@ -1213,3 +1213,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: two 5-line fixture helpers in test classes of two areas; sharing one would tie the Web-area class to the Data-area class
 - 2026-10-26T04:26:21Z status=wontfix-accepted owner=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re by=cr note=reopen_if=a third test class builds AddressCounter rows by hand
+
+### DW-240: The demo host must serve the four logo files (logo/web/) beside docker/maintenance.html; the page names them and loads nothing from IRIS
+- source: spec-16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 16.5 spec gate: AC 'with only its own inline styles and the logo files beside it'; a PNG in docker/ fails test-boundaries.sh on macOS grep, so the logos stay in logo/web/ and the host copies them beside the page
+- 2026-10-26T05:22:26Z status=routed owner=29-3-the-demo-host-is-adapted-for-the-launch by=spec_gate note=29.3 deploys docker/busy.html and docker/maintenance.html with the logo/web/ files the maintenance page names, beside it
