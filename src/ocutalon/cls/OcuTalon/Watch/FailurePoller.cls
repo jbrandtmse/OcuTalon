@@ -109,7 +109,7 @@ Method Poll(namespace As %String, production As %String, created As %String) [ P
 		Set item.ItemName = failure.item
 		Set item.SourceName = failure.source
 		Set item.BodyClass = failure.bodyClass
-		Set item.ErrorText = ##class(OcuTalon.Watch.ErrorText).Sentence(##class(OcuTalon.Bridge.Redact).Text(failure.errorText))
+		Set item.ErrorText = ##class(OcuTalon.Watch.ErrorText).Text(failure.errorText)
 		Set item.FailedAt = ##class(OcuTalon.Watch.Mark).FailedAt(failure.at)
 		Set item.LogId = failure.logId
 		Do batch(scope).Failures.Insert(item)

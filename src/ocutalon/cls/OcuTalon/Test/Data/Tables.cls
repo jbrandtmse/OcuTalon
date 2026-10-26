@@ -509,7 +509,11 @@ XData Contracts [ MimeType = application/json ]
    "FallbackReason": "%String(MAXLEN=32)",
    "DecisionRef": "%String(MAXLEN=22)",
    "TraceHeaderId": "%Integer",
-   "ClosedAt": "%String(MAXLEN=20)"
+   "ClosedAt": "%String(MAXLEN=20)",
+   "FirstHeaderId": "%Integer",
+   "SampleHeaderId": "%Integer",
+   "SampleError": "%String(MAXLEN=1000)",
+   "RequestRefs": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -525,10 +529,20 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRef": "%String(MAXLEN=22)",
    "ItemName": "%String(MAXLEN=128)",
    "ErrorPattern": "%String(MAXLEN=1000)",
-   "Seen": "%String(MAXLEN=)"
+   "Seen": "%String(MAXLEN=)",
+   "Seq": "%Integer",
+   "Count": "%Integer",
+   "FirstAt": "%String(MAXLEN=20)",
+   "LastAt": "%String(MAXLEN=20)",
+   "NoticeCount": "%Integer",
+   "ErrorSummary": "%String(MAXLEN=1000)"
   },
   "indexes": {
-   "IncidentRefIndex": "IncidentRef"
+   "IncidentRefIndex": "IncidentRef",
+   "SeqIndex": "IncidentRef,Seq unique"
+  },
+  "sql": {
+   "Count": "FailureCount"
   }
  },
  "OcuTalon.Data.FixRun": {

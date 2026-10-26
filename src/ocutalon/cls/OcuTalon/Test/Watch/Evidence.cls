@@ -11,14 +11,15 @@
 ///   - TestUnreadable (row Unreadable / not current): an incident of a namespace that the service user cannot read, of one that does not exist, and of a
 ///     production that is not the namespace's own gives a pack with the counts and the pattern and no sample, settings or trace;
 ///   - TestCredentialsLeftOut (row Credentials): the settings Credentials, SMTPPassword, BotToken, ApiKey, ClientSecret, SSLPassphrase, Passwd, AuthHeader and
-///     TargetConfigName of a snapshot item reach the pack as TargetConfigName alone, and Reader.CredentialName keeps only that name;
+///     TargetConfigName of a snapshot item, and (DW-273) BearerValue, SessionCookie and XCOOKIEJAR, whose names hold only bearer or only cookie in mixed case, reach the
+///     pack as TargetConfigName alone, and Reader.CredentialName keeps only that name;
 ///   - TestRedaction: a secret planted in a snapshot's body value, in an array of the body, in the sentence of its error text, in a non-credential setting value
 ///     and in a trace entry is replaced by the redactor's mark in the pack, and so is the value of a body property named Password (the redactor's key rule);
 ///   - TestMultiLineError: the error of a header and of a log row whose text has a second line is the sentence of the first line, as FailurePoller makes it;
 ///   - TestEventLogCapped: a session of 105 log rows gives Reader LOGMAX (100) event-log rows from Reader.Evidence and EvidencePack MAXLOG (20) from
 ///     read_event_log;
 ///   - TestLogKeys: an incident whose group holds a log key gives the log row as the sample and as the failed message, the tools redact its text, and
-///     Evidence reads the row by its id;
+///     Evidence reads the row by its id; the pack and the two tools carry logRef, the row's position in the event log, and no logId (DW-264);
 ///   - TestReaderDropsCredentialSettings (QA, row Credentials, the Reader side): a Credentials, a SMTPPassword, a BotToken and an ApiKey setting that the test adds
 ///     to the OrdersFromPartner item of the Orders definition in OCUORDERS (a throwaway; the test removes them again, also after a failure) never leave
 ///     Reader.Evidence, while the other settings stay;
@@ -160,6 +161,7 @@ Method Fixture(owner As %String, ids As %String, namespace As %String = {..#ORDE
 	Do $$$AssertStatusOK(incident.%Save(), "a fixture incident is saved")
 	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
 	Set group.IncidentRef = incident.Ref
+	Set group.Seq = 1
 	Set group.ItemName = "OrdersFromPartner"
 	Set group.ErrorPattern = ##class(OcuTalon.Watch.Settle).Pattern(..#ORDERDATETEXT)
 	Set keys = ""
@@ -250,14 +252,18 @@ Method TestCredentialsLeftOut()
 	Do settings.%Set("SSLPassphrase", "pp-1")
 	Do settings.%Set("Passwd", "pw-1")
 	Do settings.%Set("AuthHeader", "ah-1")
+	Do settings.%Set("BearerValue", "bv-1")
+	Do settings.%Set("SessionCookie", "sc-1")
+	Do settings.%Set("XCOOKIEJAR", "xc-1")
 	Do $$$AssertEquals(snapshot.items.%Get(1).name, "OrdersFromPartner", "the item that gets the settings is the failing one")
 	Do $$$AssertStatusOK($ClassMethod(..#PACK, "Build", snapshot, .pack), "the pack is built")
 	If '$IsObject($Get(pack)) Quit
 	Do $$$AssertEquals(..SortedKeys(pack.settings), "TargetConfigName", "only TargetConfigName reaches the pack")
 	Do $$$AssertTrue(pack.%ToJSON() '[ "hunter2", "and no secret value is in it")
+	Do $$$AssertTrue((pack.%ToJSON() '[ "bv-1") && (pack.%ToJSON() '[ "sc-1") && (pack.%ToJSON() '[ "xc-1"), "nor the value of a setting whose name holds bearer or cookie, in any case")
 	Set rule = "OcuTalon.Watch.Reader"
 	Set kept = ""
-	For name = "Credentials", "SMTPPassword", "BotToken", "ApiKey", "TargetConfigName", "apikey", "MyPassWord", "TOKENS", "ClientSecret", "SSLPassphrase", "Passwd", "AuthHeader", "Credential" {
+	For name = "Credentials", "SMTPPassword", "BotToken", "ApiKey", "TargetConfigName", "apikey", "MyPassWord", "TOKENS", "ClientSecret", "SSLPassphrase", "Passwd", "AuthHeader", "Credential", "BearerValue", "SessionCookie", "XCOOKIEJAR", "bearer", "Cookie" {
 		If '$ClassMethod(rule, "CredentialName", name) Set kept = kept _ $Select(kept = "": "", 1: ",") _ name
 	}
 	Do $$$AssertEquals(kept, "TargetConfigName", "the name rule of Reader keeps only that name, in any case")
@@ -303,18 +309,21 @@ Method TestLogKeys()
 	If snapshot.eventLog.%Size() = 1 Do $$$AssertEquals(snapshot.eventLog.%Get(0).id, id, "the row of the key")
 	Do $$$AssertStatusOK($ClassMethod(..#PACK, "Build", incident, .pack), "the pack is built from the incident")
 	If $IsObject($Get(pack)) {
-		Do $$$AssertEquals(pack.sample.logId_"|"_pack.sample.bodyClass, id_"|", "its sample is the log row, with no body class")
+		Do $$$AssertEquals(pack.sample.logRef_"|"_pack.sample.bodyClass, "1|", "its sample is the log row, by its position in the event log (logRef), with no body class")
+		Do $$$AssertEquals(pack.sample.%IsDefined("logId"), 0, "and no log row id")
 		Do $$$AssertTrue(pack.%ToJSON() '[ "ABCDEFGHIJ", "and the secret of its text is not in the pack")
 	}
 	Do ..Begin(owner, incident.Ref, "untrusted")
 	Set result = $ClassMethod(..#TOOLS, "ReadFailedMessages")
 	Do $$$AssertEquals(result.count_"|"_result.items.%Size(), "1|1", "read_failed_messages gives the log row as the failed message")
 	If result.items.%Size() = 1 {
-		Do $$$AssertEquals(result.items.%Get(0).logId, id, "with its id")
+		Do $$$AssertEquals(result.items.%Get(0).logRef, 1, "with its logRef, the position in the event log")
+		Do $$$AssertEquals(result.items.%Get(0).%IsDefined("logId"), 0, "and no log row id")
 		Do $$$AssertTrue(result.items.%Get(0).error '[ "ABCDEFGHIJ", "and its text redacted")
 	}
 	Set result = $ClassMethod(..#TOOLS, "ReadEventLog")
 	Do $$$AssertEquals(result.items.%Size(), 1, "read_event_log gives the row")
+	If result.items.%Size() = 1 Do $$$AssertEquals(result.items.%Get(0).logRef_"|"_result.items.%Get(0).%IsDefined("logId"), "1|0", "as logRef 1, the same as read_failed_messages gave, and with no log row id")
 	If result.items.%Size() = 1 Do $$$AssertTrue((result.items.%Get(0).text [ mark) && (result.items.%Get(0).text '[ "ABCDEFGHIJ"), "with its text redacted: "_result.items.%Get(0).text)
 }
 
@@ -350,6 +359,13 @@ Method TestEventLogCapped()
 	Do ..Begin(owner, incident.Ref, "untrusted")
 	Set result = $ClassMethod(..#TOOLS, "ReadEventLog")
 	Do $$$AssertEquals(result.items.%Size(), $Parameter(..#PACK, "MAXLOG"), "read_event_log gives EvidencePack MAXLOG (20) rows")
+	Set refs = ""
+	Set expected = ""
+	For i = 0:1:result.items.%Size() - 1 {
+		Set refs = refs_","_result.items.%Get(i).logRef
+		Set expected = expected_","_(i + 1)
+	}
+	Do $$$AssertEquals(refs, expected, "the rows carry logRef 1 to n, each its position in the event log (DW-264)")
 }
 
 Method TestReaderDropsCredentialSettings()
@@ -424,7 +440,8 @@ Method TestToolsReadTheIncident()
 	}
 	Set result = $ClassMethod(..#TOOLS, "ReadEventLog")
 	Do $$$AssertTrue(result.items.%Size() > 0, "read_event_log gives the log rows of the sessions")
-	If result.items.%Size() > 0 Do $$$AssertEquals(..SortedKeys(result.items.%Get(0)), "at,item,logId,text,type", "each with its fields")
+	If result.items.%Size() > 0 Do $$$AssertEquals(..SortedKeys(result.items.%Get(0)), "at,item,logRef,text,type", "each with its fields, a logRef and no log row id")
+	If result.items.%Size() > 0 Do $$$AssertEquals(result.items.%Get(0).logRef, 1, "the first row is logRef 1, its position in the event log of the read")
 	Do $$$AssertTrue(result.items.%Size() '> 20, "at most twenty")
 	Set result = $ClassMethod(..#TOOLS, "ReadItemSettings")
 	Do $$$AssertEquals(result.item_"|"_result.settings.%ToJSON(), "OrdersFromPartner|{""TargetConfigName"":""OrdersToWarehouse""}", "read_item_settings gives the failing item and its settings")

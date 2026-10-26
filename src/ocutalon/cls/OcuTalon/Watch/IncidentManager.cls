@@ -27,8 +27,20 @@
 ///     0) also sets Cause, CauseCategory, Element, FixSummary and, when the payload gives both forms, ItemNoun, from the checked payload, and a fallback
 ///     stores none of them (AD-8). An error status from Decide is a refused request: it stores Fallback 1 with the reason error and logs one Type 3
 ///     warning. The answer is written only to a row that exists, is not closed and has no NoticedAt; otherwise it is dropped without an error.
-///   - NoticedAt, the notice and the incident's states beyond open are not set here: the notice is the sibling story's (5.8) and the state table is
-///     Story 5.5's.
+///   - What the rows keep for the notice and Show details (Story 5.8): each FailureGroup has its Seq (1 for an incident's first group), Count, FirstAt and
+///     LastAt (kept by Record like the incident's), NoticeCount (set with the incident's at the settle end, in one transaction) and ErrorSummary
+///     (OcuTalon.Watch.ErrorText.Summary of its first failure's text); the Incident has FirstHeaderId (the header id of the earliest failure, empty when
+///     that is a log row), SampleHeaderId and SampleError (the live pack's sample, stored at the settle end with the code noun) and RequestRefs (written
+///     by the story that raises the requests). The groups of an incident are read only through OcuTalon.Data.FailureGroup.OfIncident.
+///   - The notice (Story 5.8; AD-15, AD-32): as soon as Answered or Refused has stored the outcome, Notice acts on the row if it exists, is not closed and
+///     has no NoticedAt. OcuTalon.Watch.Notice gives the catalog key, the open variant and the slots (producers never render): a fallback, an unknown cause
+///     or a cause with no fix gets a notice; a usable data-format diagnosis (a fix) gets none and no row change, because its notice goes out with the dry
+///     run and the approval request. Deliver sets NoticedAt (UTC now), the state and the open variant in one save and, after the commit, sends one
+///     OcuTalon.Msg.Notification of kind incident to the Notify item, asynchronously and from the waiter, so that it lies in the incident's trace
+///     session (AD-26), and publishes the incident event (Live.Payload.Incident.FromRow) on the stream of each session that Session.Recipients gives; the
+///     one read of the recipients serves both (Tell). Nobody to tell (owner eval, or instance on the online demo) sends and publishes nothing, with no
+///     warning. A failed read of the recipients logs one Type 3 warning and sends nothing; a failed send leaves the other sessions their notice and
+///     event and logs one Type 3 warning for the notice. The row stays noticed either way. The incident's states beyond open are Story 5.5's.
 ///   - Anything else is still answered "not implemented" (the stub's answer), so the commands and the approval outcomes that Story 5.5 builds are not
 ///     accepted by mistake.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
@@ -63,7 +75,19 @@ Parameter REFUSEDREASON = "error";
 /// The longest summary of a request, in characters (Bridge.Msg.Request).
 Parameter SUMMARYMAX = 80;
 
+/// The item that routes a Notification (AD-32), and the kind of an incident notice (Msg.Enum NOTIFICATIONKIND).
+Parameter NOTIFY = "Notify";
+
+Parameter NOTICEKIND = "incident";
+
+/// The live event type of an incident's public view.
+Parameter INCIDENTEVENT = "incident";
+
 Parameter LOGDIAGNOSE = "IncidentManager could not diagnose incident ";
+
+Parameter LOGNOTICE = "IncidentManager could not notice incident ";
+
+Parameter LOGSEND = "IncidentManager could not send the notice of incident ";
 
 Parameter LOGTELL = "IncidentManager could not tell the sessions of incident ";
 
@@ -144,6 +168,7 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 			Set cause = causes
 			Set itemOf(cause) = failure.ItemName
 			Set patternOf(cause) = text
+			Set textOf(cause) = failure.ErrorText
 			Set keysOf(cause) = ""
 		}
 		Set key = ##class(OcuTalon.Watch.Mark).KeyOf(failure.Kind, failure.HeaderId, failure.LogId)
@@ -170,14 +195,24 @@ Method Record(batch As OcuTalon.Watch.Msg.FailureBatch, Output count As %Integer
 				Set group.IncidentRef = incident.Ref
 				Set group.ItemName = itemOf(cause)
 				Set group.ErrorPattern = patternOf(cause)
+				Set group.Seq = 1
+				Set group.ErrorSummary = ##class(OcuTalon.Watch.ErrorText).Summary(textOf(cause))
 			}
 			Set group.Seen = ##class(OcuTalon.Watch.Settle).Hold(group.Seen, keysOf(cause), .fresh)
 			If fresh = "" Continue
 			For i = 1:1:$Length(fresh, ",") {
-				Set at = failedAt(cause, $Piece(fresh, ",", i))
-				If (incident.FirstAt = "") || (incident.FirstAt ] at) Set incident.FirstAt = at
+				Set key = $Piece(fresh, ",", i)
+				Set at = failedAt(cause, key)
+				Set header = $Select($Extract(key) = "h": $Extract(key, 2, *), 1: "")
+				If (incident.FirstAt = "") || (incident.FirstAt ] at) || ((incident.FirstAt = at) && (header '= "") && (incident.FirstHeaderId '= "") && (header < incident.FirstHeaderId)) {
+					Set incident.FirstAt = at
+					Set incident.FirstHeaderId = header
+				}
 				If (incident.LastAt = "") || (at ] incident.LastAt) Set incident.LastAt = at
+				If (group.FirstAt = "") || (group.FirstAt ] at) Set group.FirstAt = at
+				If (group.LastAt = "") || (at ] group.LastAt) Set group.LastAt = at
 			}
+			Set group.Count = group.Count + $Length(fresh, ",")
 			Set incident.Count = incident.Count + $Length(fresh, ",")
 			$$$ThrowOnError(group.%Save())
 			$$$ThrowOnError(incident.%Save())
@@ -218,17 +253,10 @@ Method Find(batch As OcuTalon.Watch.Msg.FailureBatch, item As %String, pattern A
 	Quit $Select($IsObject(group): incident, 1: "")
 }
 
-/// The group rows of the incident, by ID, as a list of objects.
+/// The group rows of the incident, in Seq order, as a list of objects (FailureGroup.OfIncident).
 ClassMethod Groups(ref As %String) As %ListOfObjects [ Private ]
 {
-	Set list = ##class(%ListOfObjects).%New()
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID", ref)
-	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failure groups could not be read: "_rs.%Message))
-	While rs.%Next() {
-		Set group = ##class(OcuTalon.Data.FailureGroup).%OpenId(rs.%GetData(1))
-		If $IsObject(group) && (group.IncidentRef = ref) Do list.Insert(group)
-	}
-	Quit list
+	Quit ##class(OcuTalon.Data.FailureGroup).OfIncident(ref)
 }
 
 /// Sends the incident's waiter: a Settle request to this item, started with the session cleared, so that the waiter has a trace session of its own, and
@@ -259,7 +287,8 @@ Method Begin(request As OcuTalon.Watch.Msg.Settle) As %Status [ Private ]
 	Quit ..Check(request.IncidentRef)
 }
 
-/// The settle rule at this moment, from the rows: the rule ends (NoticeCount is set to Count) or the waiter waits on for the seconds that are left.
+/// The settle rule at this moment, from the rows: the rule ends (NoticeCount is set to Count, on the incident and on each of its groups, in one transaction)
+/// or the waiter waits on for the seconds that are left.
 Method Check(ref As %String) As %Status [ Private ]
 {
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
@@ -267,19 +296,41 @@ Method Check(ref As %String) As %Status [ Private ]
 	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
 	Set seconds = ##class(OcuTalon.Watch.Settle).Wait(incident.FirstAt, incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max)
 	If seconds > 0 Quit ..SetTimer(##class(OcuTalon.Watch.Settle).Alarm(seconds), ..#ALARMKEY)
-	Set incident.NoticeCount = incident.Count
-	Set sc = incident.%Save()
+	Set sc = $$$OK
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set groups = ..Groups(incident.Ref)
+		For i = 1:1:groups.Count() {
+			Set group = groups.GetAt(i)
+			Set group.NoticeCount = group.Count
+			$$$ThrowOnError(group.%Save())
+		}
+		Set incident.NoticeCount = incident.Count
+		$$$ThrowOnError(incident.%Save())
+		TCOMMIT
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $TLevel > level TROLLBACK 1
 	If $$$ISERR(sc) Quit sc
 	Quit ..Diagnose(incident)
 }
 
-/// The diagnosis of the incident whose settle rule has just ended (see the class description): the pack, the code noun on the row, watch.progress
+/// The diagnosis of the incident whose settle rule has just ended (see the class description): the pack, the code noun and the pack's sample on the row, watch.progress
 /// diagnosing after the commit and the request to Decide. A pack that cannot be built, or a request that cannot be sent, is a refused request (Refused).
 Method Diagnose(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 {
 	Set sc = ##class(OcuTalon.Watch.EvidencePack).Build(incident, .pack)
 	If $$$ISOK(sc) {
 		Set incident.ItemNoun = ##class(OcuTalon.Watch.ItemNoun).For($Select($IsObject(pack.sample): pack.sample.bodyClass, 1: ""))
+		Set incident.SampleHeaderId = ""
+		Set incident.SampleError = ""
+		If $IsObject(pack.sample) {
+			Set header = pack.sample.headerId
+			If (header '= "") && (header = (header \ 1)) && (header > 0) Set incident.SampleHeaderId = header
+			Set incident.SampleError = $Extract(pack.sample.error, 1, 1000)
+		}
 		Set sc = incident.%Save()
 	}
 	If $$$ISERR(sc) {
@@ -305,8 +356,8 @@ Method Diagnose(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 }
 
 /// The answer of Decide to the diagnose request of the incident: DecisionRef, Fallback and FallbackReason go on the row, and, for a usable answer, the
-/// cause, its category, the element, the fix summary and the noun of the checked payload. Written only to a row that exists, is not closed and has
-/// no NoticedAt; any other answer is dropped. A payload that cannot be read is a refused request.
+/// cause, its category, the element, the fix summary and the noun of the checked payload; then the notice step (Notice). Written only to a row that exists,
+/// is not closed and has no NoticedAt; any other answer is dropped. A payload that cannot be read is a refused request.
 Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) As %Status [ Private ]
 {
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
@@ -337,11 +388,13 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 	Set incident.DecisionRef = answer.DecisionRef
 	Set incident.Fallback = +answer.Fallback
 	Set incident.FallbackReason = answer.FallbackReason
-	Quit incident.%Save()
+	Set sc = incident.%Save()
+	If $$$ISOK(sc) Do ..Notice(ref)
+	Quit sc
 }
 
-/// The incident stored as refused: Fallback 1 with the reason error and no diagnosis, and one Type 3 warning with the error (through the redactor). Written
-/// only to a row that exists, is not closed and has no NoticedAt. The warning is logged either way.
+/// The incident stored as refused: Fallback 1 with the reason error and no diagnosis, and one Type 3 warning with the error (through the redactor), then the
+/// notice step (Notice). Written only to a row that exists, is not closed and has no NoticedAt. The warning is logged either way.
 Method Refused(ref As %String, error As %Status) [ Private ]
 {
 	$$$LOGWARNING(..#LOGDIAGNOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(error)))
@@ -354,7 +407,63 @@ Method Refused(ref As %String, error As %Status) [ Private ]
 	Set incident.Fallback = 1
 	Set incident.FallbackReason = ..#REFUSEDREASON
 	Set sc = incident.%Save()
-	If $$$ISERR(sc) $$$LOGWARNING(..#LOGDIAGNOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGDIAGNOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit
+	}
+	Do ..Notice(ref)
+}
+
+/// The notice step after the outcome of the diagnosis is stored: acts only on a row that exists, is not closed and has no NoticedAt. The key, the open
+/// variant and the slots come from OcuTalon.Watch.Notice. A usable diagnosis with a fix gets nothing here (Notice.Key is empty): the row stays open and
+/// unnoticed. Slots that cannot be built, or an error thrown in the step, log one Type 3 warning (the row stays as it was saved: a thrown error after the
+/// notice's save leaves it noticed).
+Method Notice(ref As %String) [ Private ]
+{
+	Try {
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '..Open(incident) Quit
+		Set key = ##class(OcuTalon.Watch.Notice).Key(incident)
+		If key = "" Quit
+		Set slots = ##class(OcuTalon.Watch.Notice).Slots(incident, , .sc)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Quit
+		}
+		Do ..Deliver(incident, ..#OPEN, ##class(OcuTalon.Watch.Notice).Variant(incident), key, slots)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+	}
+}
+
+/// Notices the incident: sets NoticedAt (UTC now), the state and the open variant in one save and, after the commit, sends one Notification of kind incident
+/// with the catalog key, the slots, the row's DecisionRef and the approval request's Ref (empty for a notice without one) to each recipient session, then
+/// publishes the incident event on that session's stream (Tell). The row stays noticed whatever happens to the sends. A save that fails logs one Type 3
+/// warning and sends nothing.
+Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") [ Private ]
+{
+	Set incident.NoticedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set incident.State = state
+	Set incident.OpenVariant = variant
+	Set sc = incident.%Save()
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit
+	}
+	Set notice = ##class(OcuTalon.Msg.Notification).%New()
+	Set notice.Kind = ..#NOTICEKIND
+	Set notice.CatalogKey = key
+	Set notice.Slots = slots.%ToJSON()
+	Set notice.IncidentRef = incident.Ref
+	Set notice.DecisionRef = incident.DecisionRef
+	Set notice.ApprovalRef = approvalRef
+	Do ..Tell(incident, ..#INCIDENTEVENT, ##class(OcuTalon.Live.Payload.Incident).FromRow(incident), notice)
+}
+
+/// Sends the notification to the Notify item, asynchronously, with no answer wanted (a seam for the tests).
+Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#NOTIFY, notification, 0)
 }
 
 /// 1 when the incident exists, is not closed and has no NoticedAt: its diagnosis may still be written.
@@ -370,10 +479,11 @@ ClassMethod Waiting(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
 	Quit ..Groups(incident.Ref).Count() > 0
 }
 
-/// Publishes the payload as an event of the type on the stream of each session that Session.Recipients gives for the incident. An error in reading them
-/// publishes nothing, and an error in a publish leaves the other sessions their event; each logs one Type 3 warning per event (with the first failed
-/// publish's error), and the rows stand.
-Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %RegisteredObject) [ Private ]
+/// Publishes the payload as an event of the type on the stream of each session that Session.Recipients gives for the incident and, when a notification is
+/// given, first sends a copy of it to each of them (its SessionRef set to the session; one read of the recipients serves both). An error in reading them
+/// publishes and sends nothing, and an error in a send or a publish leaves the other sessions their notice and event; each logs one Type 3 warning per event
+/// or per notice (with the first failed one's error), and the rows stand. A failed send does not keep the event from its session.
+Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %RegisteredObject, notification As OcuTalon.Msg.Notification = "") [ Private ]
 {
 	Set recipients = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
 	If $$$ISERR(sc) {
@@ -381,10 +491,20 @@ Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %Reg
 		Quit
 	}
 	Set failed = ""
+	Set unsent = ""
 	Set position = 0
 	While $ListNext(recipients, position, stream) {
+		If $IsObject(notification) {
+			Set copy = notification.%ConstructClone()
+			Set copy.SessionRef = stream
+			Set sc = ..SendNotice(copy)
+			If $$$ISERR(sc) && (unsent = "") Set unsent = sc
+		}
 		Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)
 		If $$$ISERR(sc) && (failed = "") Set failed = sc
+	}
+	If unsent '= "" {
+		$$$LOGWARNING(..#LOGSEND_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(unsent)))
 	}
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGPUBLISH_incident.Ref_" ("_type_"): "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))

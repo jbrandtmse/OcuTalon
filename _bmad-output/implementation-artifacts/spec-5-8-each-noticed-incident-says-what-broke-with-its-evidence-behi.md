@@ -2,9 +2,10 @@
 title: 'Each noticed incident says what broke, with its evidence behind Show details'
 type: 'feature'
 created: '2026-10-26'
-status: 'in-progress'
+status: 'done'
+baseline_revision: '86cc5bf1453806047c5687ba0aa052f8032e3823'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
 deferred: []
@@ -170,6 +171,37 @@ Every path is under `src/ocutalon/cls/` unless noted.
 
 ## Review Triage Log
 
+### 2026-10-26 - Review pass
+- verdicts: 26 entries (the layers' findings grouped by shared root cause; members keep the one row) - high 0, medium 3, low 20, false 3, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1 / Edge: a data_format_change diagnosis with an empty fix summary stays unnoticed - `DiagnosisPayload.Validate` refuses a data_format_change with a blank fixSummary, so a usable one always has it.
+  - `[low]` `[reject]` Blind 2 / Edge 2: a notice whose slots cannot be built is never retried - the spec says one Type 3 warning and the row stays unnoticed; a retry or a generic notice is a new behavior.
+  - `[low]` `[reject]` Blind 3 / Edge 1 / Edge 13: rows saved before this change have no Seq - V1 (ruled, veto U-93): no released install holds incidents, no migration is planned.
+  - `[low]` `[reject]` Blind 4 / Edge 5 / Edge 6 / gap "Other 1": OfIncident stops at the first Seq gap or MAXGROUPS, Record always writes Seq 1 - the spec fixes the reader ("to the first gap, at most a fixed maximum") and later groups are Story 7.2's (DW-271 context).
+  - `[medium]` `[patch]` Blind 5 / Edge 3: an error thrown after NoticedAt is saved leaves the handler failing and the notice half sent - `IncidentManager.Notice` now runs in Try/Catch and logs one Type 3 warning (Notice step guarded; Edge 3's Deliver case is the same fix).
+  - `[low]` `[reject]` Blind 6: logRef is a position within one read - the spec defines it so (R-decided, Design Notes `logRef`); the tool docs say it.
+  - `[low]` `[reject]` Blind 7: Summary cuts at ". ", "? ", "! " - the spec's definition.
+  - `[low]` `[reject]` Blind 8, gap-coverage bullets: second-batch group accumulation, FirstHeaderId across batches and the Check rollback have no test - beyond the spec's Incidents row; no realistic failure shown.
+  - `[low]` `[reject]` Blind 9: Payloads.Clean ignores statement status - existing fixture-cleanup pattern; a wrong name would show as leftover fixture rows in the next run.
+  - `[false]` `[reject]` Blind 10: body/trace redaction does not know bearer/cookie - DW-273 (U-91) widens only Reader.CREDENTIALPARTS (settings); the spec's acceptance criterion is the settings.
+  - `[low]` `[reject]` Edge 4: NoticedAt is set when nobody is to be told - the spec's "Nobody to tell" row says exactly this.
+  - `[low]` `[reject]` Edge 7 / Edge 8: non-numeric or non-positive header ids become trace targets - ids come from header keys the poller built from numeric ids; no reachable path.
+  - `[low]` `[reject]` Edge 9: duplicate or padded RequestRefs - Story 7.2 writes them (DW-271); nothing writes them in Epic 5.
+  - `[low]` `[reject]` Edge 10: FromRow loads each group's Seen list - up to MAXGROUPS rows, one in practice.
+  - `[false]` `[reject]` Edge 11: stale NoticeCount after a rolled-back transaction - Check returns the error status and drops both objects; no later save of them.
+  - `[low]` `[reject]` Edge 12: Notice reopens the row instead of taking the saved object - the reopen is the intended fresh read.
+  - `[medium]` `[patch]` Gap 1: `TestBurstThroughThePoller`'s "unnoticed" negatives ran before the diagnosis answer - they now wait for the diagnosis and one second for the notice step (mutation recorded on `Incidents`).
+  - `[low]` `[reject]` Gap 2: the poll can land between Answered's two saves (about a millisecond) - the mutation went red on TestDemoDiagnosis; the Burst test now waits a second.
+  - `[medium]` `[patch]` Gap 3: `Diagnose` variants/fallback counted Notifications right after NoticedAt - `WaitNotices` moved to `Case` and used there.
+  - `[low]` `[patch]` Gap 4: no assertion that logRef is 1..n - added to `Evidence.TestEventLogCapped`, mutation recorded.
+  - `[low]` `[patch]` Gap 5: the no-SQL scan covered `Live.Payload.Incident` only - it now covers `Data.FailureGroup` too, mutation recorded.
+  - `[low]` `[patch]` Gap 6: missing `mutation:` lines (AC 2, AC 3, AC 4 on `Notices`; AC 5 channels; AC 6 with-fix; AC 8; Not to notice; Nobody to tell) - each applied, observed red and recorded in `## Verification`.
+  - `[low]` `[patch]` Gap 7: `TestInstanceNotice`'s last label read "and no Notification" - now "and no further Notification".
+  - `[low]` `[reject]` Gap: `Tell.TestNobodyToNotice`, `Summary(Text(raw))` equality and `Text` vs `Sentence(Redact.Text)` repeat the definition - the pinning mutations are `Tell` adding the owner (red) and `Text` skipping `Redact` (red); the repeated assertions are secondary.
+  - `[low]` `[reject]` Gap: `Notices.TestNoticeVariants` has no `ClearMark` - `Diagnose.TestDiagnosisVariants` runs the same way and passes in either order; unverified claim.
+  - `[low]` `[reject]` Gap: `Tell.OnAfterOneTest` mixes session and incident refs in `Refs` - harmless.
+  - The intent-alignment auditor reported readings, not findings: it names three readings of the intent (end-to-end behaviour, the producer contract, the data model), finds the diff implements the first with the third underneath, and notes the known surfaces (one group per incident in product code, a probe in place of the send in the shadow tests, the trace session by construction). No row.
+
 ## Design Notes
 
 **Rulings (R2 and R3 RULED 2026-10-26 by the orchestrator as recommended, veto U-92; V1 and V2 RULED by the epic lead, vetoes U-93 and U-94; the moved criteria travel as ledger entries DW-270 and DW-271 (owner 7.2) and DW-272 (owner 7.4), and Epic 5's blocks carry `[AMENDED … U-92]` markers; the spine rows were written by the lead).** Originally: rulings pending the orchestrator (R2, R3). This spec is written to the recommended answers, carried from Story 5.4's Design Notes. Both move part of an epics criterion of 5.8 to a not-yet-planned Epic 7 story in the same release (veto item 7). The lead applies the ruling at the spec gate.
@@ -251,6 +283,14 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 - **The summary's cut** at a word with U+2026 is a format choice; the UX fixes only "at most 80 characters".
 - **Object access is not an "unchecked path"** in AD-13's sense: `Web.Api.CurrentSession` and `Approval.FromRow` already read rows by id in REST (spine candidate below).
 - **`Diagnosis`' instructions are unchanged.** The tool descriptions name `logRef`.
+- **`Watch.Notice` takes the groups as an argument.** `Slots` and `Groups` accept the incident's group list (default: `FailureGroup.OfIncident`), so `NoticeText` renders every variant from unsaved rows and runs warm.
+- **Two lenient reads in `Watch.Notice`.** `count` is the `Count` when `NoticeCount` is empty, and a group line takes the incident's `FirstAt` when the group has none, so a legacy row still renders.
+- **A failed send does not keep its own session from the event.** `Tell` sends, then publishes, for each session whatever the send answered; the warning is one per notice (the first error).
+- **`FirstHeaderId` ties.** At equal times a lower header id replaces the held one; a held log-row first failure (empty id) is never replaced at an equal time.
+- **`SampleHeaderId`** is stored only when the pack's sample has a positive whole-number `headerId`; a log-row sample leaves it empty.
+- **`Test.Watch.Incidents` points the runners at the CI mock in every test** (`Case.PointKeys`). Without a key the diagnosis is the `no_key` fallback, and a fallback is now noticed at once; with the mock, the default diagnosis is the data-format one, which stays unnoticed (the "nothing noticed" assertions of `TestBurstThroughThePoller`, `TestTwoSessions` and `TestInstanceShared` hold).
+- **`/state` targets carry a link.** `Web.TraceLink.Add` (contended, untouched) adds `traceUrl` to each snapshot trace target, so `Notices` compares `groups` and `evidence` as JSON and the targets as `name=id@namespace`.
+- **`ci/checks.sh`** fails only the `boundaries` rule "no local machine path" on `cycle-log-epic-5.md` line 121 (the orchestrator's stage log, committed before this stage); the rule passes for everything this story changed.
 
 **(inference), to be pinned by the tests:**
 - `OcuTalonUser` cannot run a checked query in `/state` (AD-13 states it; the no-SQL test pins the code).
@@ -310,9 +350,58 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 | DW-264 | `LogMessage` gives `logId` again | `Evidence.TestLogKeys` |
 | DW-273 | `CREDENTIALPARTS` loses `cookie` (or `bearer`) | `Evidence.TestCredentialsLeftOut` |
 
+**Results (implement stage, 2026-10-26; re-run after the review patches).** Warm (`e5s8iw`): `NoticeText`, `Tell`, `Evidence`, `Payloads`, `CodeRules` passed after the patches (`Tables`, `Decide` and `Web.Api` passed before them and are in the shards). Fresh (`e5s8i`): `Notices`, `Diagnose`, `Incidents`, `Poller` passed after the patches. `shard lane-a --part 1/2` passed (31 classes, 377 s), `--part 2/2` passed (31 classes, 395 s); `shard lane-b` passed (42 classes, 114 s). `ci/checks.sh`: every script passes but `boundaries`, which fails only on `_bmad-output/implementation-artifacts/cycle-log-epic-5.md:121` (the lead's committed `stage_dead` line holds a local path; it is in the baseline commit and in no file of this diff, so it is the lead's to fix). The warm stack and the throwaway stacks were torn down.
+
+**Pinning mutations applied (Rule 19).** Each was applied, observed red, and reverted with the tree byte-identical (`git status --short` and the file hashes matched the pre-mutation state).
+- mutation: the notice step skips `no_fix` (`IncidentManager.Notice` quits for variant no_fix) -> `Notices.TestNoticeVariants` red (no notice, no incident event, no Delivery row for the no-fix and unknown incidents)
+- mutation: the Notification's `Kind` is `tellnow` (`IncidentManager` `NOTICEKIND`) -> `Notices.TestNoticeVariants` red (the `incident` Delivery rows and the Notification kind) and `Notices.TestInstanceNotice` red
+- mutation: `Deliver` publishes no `incident` event (`Tell` publishes only when it has no notification) -> `Tell.TestNoticeToEachRecipient` red (and `TestFailedSendLeavesTheOthersTheirNotice`)
+- mutation: `Tell` sends the notice only to the first recipient -> `Tell.TestNoticeToEachRecipient` red (and `TestFailedSendLeavesTheOthersTheirNotice`)
+- mutation: `FromRow` leaves `Evidence` out (`Set payload.Evidence` dropped) -> `Payloads.TestFromRowEvidence` red
+- mutation: `Watch.Notice` gives `Count` for `count` -> `NoticeText` red (`TestNoFix`, `TestUnknown`, `TestWithFix`)
+- mutation: `unknown` gets `incident.noFix` (`Notice.Key`) -> `NoticeText` red (`TestKeysAndVariants`, `TestUnknown`)
+- mutation: the notice step treats `data_format_change` as no-fix (`Notice.Key` gives `incident.noFix`) -> `Diagnose.TestDemoDiagnosis` red (NoticedAt set, a Notification and an `incident` event)
+- mutation: an unknown fallback reason is passed as it is (`Notice.Reason`) -> `NoticeText.TestFallback` red (the `zz` reason)
+- mutation: the first failed send stops the loop (`Tell` quits after a failed send) -> `Tell.TestFailedSendLeavesTheOthersTheirNotice` red
+- mutation: `sample` takes `$Namespace` (`FromRow`) -> `Payloads.TestFromRowEvidence` red
+- mutation: `FromRow` skips the `IncidentRef` check of a request -> `Payloads.TestFromRowEvidence` red
+- mutation: `FromRow` reads groups with `%ExecDirect` -> `Payloads.TestIncidentFromRowReadsNoSql` red
+- mutation: `Record` leaves the group `Count` -> `Incidents.TestBurstThroughThePoller` red
+- mutation: `Summary` cuts at 100 (`SUMMARYMAX`) -> `NoticeText.TestSummary` red
+- mutation: `Text` skips `Redact.Text` -> `NoticeText` red (`TestErrorText`, `TestSummary`) and `Evidence` red (`TestLogKeys`, `TestRedaction`)
+- mutation: `LogMessage` gives `logId` again -> `Evidence.TestLogKeys` red
+- mutation: `CREDENTIALPARTS` loses `cookie` -> `Evidence.TestCredentialsLeftOut` red
+- mutation: `Tell` sends the notice only to the first recipient -> `Notices.TestInstanceNotice` red (two Notifications, A and B, the event on each stream)
+- mutation: `Tell` publishes no event (`Set sc = $$$OK` for the publish) -> `Notices.TestNoticeVariants` red (A's stream in Seq order, four incident events) and `Notices.TestInstanceNotice` red
+- mutation: `FromRow` leaves `Evidence` out (`Set payload.Evidence = ""`) -> `Notices.TestNoticeVariants` red (an error on the missing evidence object in the `/state` comparison)
+- mutation: `WithFixSlots` leaves `fixSummary` out -> `NoticeText.TestWithFix` red (the UJ-1 text no longer renders) and `NoticeText.TestEveryChannel` red (incident.withFix on web, phone, mailbox and telegram)
+- mutation: `Tell` adds the owner to the recipients -> `Tell.TestNobodyToNotice` red (a send and a log line for an `eval` or an online-demo `instance` owner), and `TestNoticeToEachRecipient`, `TestFailedSendLeavesTheOthersTheirNotice` red
+- mutation: the `Open` check is dropped from `Refused` and `Notice` (dropping it from `Notice` alone is covered by `Refused`'s own check and stays green) -> `Diagnose.TestRefusedRequest` red (a noticed incident is written, a closed one too)
+- mutation: `EvidencePack.EventLog` gives `logRef` 1 for every row -> `Evidence.TestEventLogCapped` red (logRef 1 to n)
+- mutation: a second code line in `FailureGroup.OfIncident` runs `%SQL.Statement.%ExecDirect` -> `Payloads.TestIncidentFromRowReadsNoSql` red (the scan now covers `Data.FailureGroup` as well)
+- mutation: `Watch.Notice.Key` treats `data_format_change` as no-fix, run against `Incidents` (whose negatives now wait for the diagnosis) -> `Incidents.TestTwoSessions` red (an unnoticed incident is noticed)
+- mutation: `Watch.Notice.Key` publishes an `incident` event (a second publisher) -> `Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` red (AC 8: `IncidentManager` stays the only publisher)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage, 2026-10-26: the plan halted `blocked` on R2 and R3 as the lead asked; the orchestrator ruled both as recommended (veto U-92) and the epic runner ruled V1 and V2 (vetoes U-93, U-94) and set the spec `ready-for-dev` at the spec gate.
+**Summary.** Story 5.8 is implemented in full. As soon as `Answered` or `Refused` stores an outcome, `IncidentManager.Notice` sends the incident notice: a fallback, an unknown cause or a cause with no fix gets one kind-`incident` Notification per `Session.Recipients` session (key and slots from the new pure `Watch.Notice`), `NoticedAt`, `open` and the open variant on the row, and the `incident` event on each watcher's stream. A usable data-format diagnosis stays stored and unnoticed (R2 (a)). `FromRow` fills `groups`, `evidence`, `traceTargets` and `requests` from rows only, with no SQL. The rows keep the new group and incident fields (V1). DW-261 (`ErrorText.Text`/`Summary`), DW-264 (`logRef`) and DW-273 (`bearer`, `cookie` in `Reader.CREDENTIALPARTS`) are settled.
+
+**Files changed** (all under `src/ocutalon/cls/OcuTalon/`):
+- `Data/FailureGroup.cls`, `Data/Incident.cls`: the new fields, the unique `SeqIndex`, `FailureGroup.OfIncident`; `Test/Data/Tables.cls`: their Contracts entries.
+- `Watch/Notice.cls` (new, pure): key, open variant, slots and group lines of each notice, and the with-fix builder.
+- `Watch/IncidentManager.cls`: group fields in `Record`, `NoticeCount` per group in `Check`, the sample in `Diagnose`, `Notice`/`Deliver`/`SendNotice` and the `Tell` extension.
+- `Live/Payload/Incident.cls`: `FromRow` fills the Show-details fields by object access.
+- `Watch/ErrorText.cls`, `Watch/FailurePoller.cls`, `Watch/EvidencePack.cls`, `Tools/WatchReads.cls`: `Text`/`Summary`, `logRef`, `OfIncident`.
+- `Watch/Reader.cls`: DW-273.
+- Tests: new `Test/Watch/NoticeText.cls`, `Test/Watch/Notices.cls`; changed `IncidentProbe`, `Case`, `Tell`, `Diagnose`, `Incidents`, `Evidence`, `Test/Live/Payloads.cls`.
+
+**Review.** Four layers (blind hunter, edge-case hunter, verification-gap, intent-alignment). Patches applied: 3 medium (`Notice` runs in Try/Catch; the Burst test's "unnoticed" assertions wait for the diagnosis; the Diagnose tests wait for the Notification, with `WaitNotices` moved to `Case`) and 4 low (a `logRef` 1..n assertion, the no-SQL scan over `Data.FailureGroup`, the label of one assertion, ten missing `mutation:` lines now demonstrated). Nothing deferred. Rejected: 3 false and 17 low entries, each with its reason in the Review Triage Log (mostly spec-fixed behavior: no migration, one group per incident until Story 7.2, notice not retried, row noticed when nobody is told).
+
+**Follow-up review recommended: true.** Three medium entries were patched. The unverified risk: the two test-timing patches (the one-second grace after the diagnosis in `Incidents.TestBurstThroughThePoller`, and `WaitNotices` in `Diagnose`) passed once each on fresh stacks and are not run in reverse order or repeated.
+
+**Verification.** Warm and fresh classes of the `(loop)` lines passed after the patches (`Evidence`, `Payloads`, `NoticeText`, `Tell`, `CodeRules`; `Notices`, `Diagnose`, `Incidents`, `Poller`). `(once)` lines after the last patch: `shard lane-a --part 1/2` 377 s and `--part 2/2` 395 s (31 classes each), `shard lane-b` 114 s (42 classes), all passed; stacks torn down. `ci/checks.sh`: all scripts pass except `boundaries`, which fails only on `_bmad-output/implementation-artifacts/cycle-log-epic-5.md:121`, the lead's `stage_dead` log line (it holds a local path, is in the baseline commit and in no file of this diff). The lead must correct that line before CI. Every pinning mutation of the spec's table, and ten more for the review's gaps, was applied, observed red and reverted (`git status --short` and the file hashes identical).
+
+**Residual risks.** The `boundaries` red above (not this story's file). The real `Notify` route is exercised only in `Notices` (fresh); the shadow-instance tests use the probe's `SendNotice`. `Test.Web.Api` ran in the shards, unchanged.

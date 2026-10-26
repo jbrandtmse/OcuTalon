@@ -2,7 +2,7 @@
 /// object of one shape from both of its sources, a live incident (through OcuTalon.Watch.Reader.Evidence) or a recorded reader snapshot
 /// (ocutalon.readerSnapshot/1, Story 0.10):
 ///   {format "ocutalon.evidencePack/1", namespace, production, item, count, firstAt, lastAt, errorPattern,
-///    sample {headerId | logId, bodyClass, body{}, error, at}, settings{}, trace[]}
+///    sample {headerId | logRef, bodyClass, body{}, error, at}, settings{}, trace[]}
 ///   - Live: count is the incident's NoticeCount (Count before it settles); the times, the item and the pattern are the rows'. The sample is the
 ///     oldest key held in the incident's group (Seen): a header key if there is one, else a log key. The settings are the item's own, the trace the
 ///     sample's session headers, at most Reader TRACEMAX.
@@ -10,7 +10,8 @@
 ///     the pattern Settle.Pattern of its error sentence. The sample is the first failure, the settings the item's entry of items, the trace trace.
 ///   - A read that is unreadable, not current or failed leaves out the sample, the settings and the trace; the counts and the pattern stay.
 /// A setting whose name Reader.CredentialName gives is left out, and every string taken from the watched production goes through
-/// OcuTalon.Bridge.Redact.Text; a body, the settings and a trace entry go through it as one JSON object, so that its key rule applies. An error text is ErrorText.Sentence(Redact.Text(raw)), as FailurePoller makes it. Read is what the pack and the
+/// OcuTalon.Bridge.Redact.Text; a body, the settings and a trace entry go through it as one JSON object, so that its key rule applies. An error text is ErrorText.Text(raw), as FailurePoller makes it. A sample or failed
+/// message that is an event-log row has no log row id: it carries logRef, the row's 1-based position in the event log of the read that made the answer. Read is what the pack and the
 /// read tools of the Diagnosis agent (OcuTalon.Tools.WatchReads) share; the tools take the incident of the bridge context (Scope). A tool method runs
 /// inside AI Hub's callback, so this class makes no AI Hub call and no Python call, and writes nothing (AD-6).
 Class OcuTalon.Watch.EvidencePack
@@ -72,14 +73,11 @@ ClassMethod Read(incident As OcuTalon.Data.Incident, max As %Integer, Output sna
 	Quit ##class(OcuTalon.Watch.Reader).Evidence(incident.Namespace, incident.Production, $Select($IsObject(group): group.ItemName, 1: ""), $Select(headers '= "": headers, 1: logs), .snapshot)
 }
 
-/// The first failure group of the incident, or "".
+/// The first failure group of the incident (the first of FailureGroup.OfIncident), or "".
 ClassMethod Group(ref As %String) As OcuTalon.Data.FailureGroup [ Private ]
 {
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID", ref)
-	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failure group could not be read: "_rs.%Message))
-	If 'rs.%Next() Quit ""
-	Set group = ##class(OcuTalon.Data.FailureGroup).%OpenId(rs.%GetData(1))
-	Quit $Select($IsObject(group) && (group.IncidentRef = ref): group, 1: "")
+	Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(ref)
+	Quit $Select(groups.Count() > 0: groups.GetAt(1), 1: "")
 }
 
 /// The pack of the source into pack: an OcuTalon.Data.Incident (live) or a reader snapshot (a dynamic object of format SNAPSHOTFORMAT).
@@ -131,7 +129,7 @@ ClassMethod Recorded(snapshot As %DynamicObject) As %DynamicObject [ Private ]
 		If (firstAt = "") || (firstAt ] at) Set firstAt = at
 		If at ] lastAt Set lastAt = at
 	}
-	Set pattern = ##class(OcuTalon.Watch.Settle).Pattern(..Sentence(first.error))
+	Set pattern = ##class(OcuTalon.Watch.Settle).Pattern(..Text(first.error))
 	Set pack = ..Head(snapshot.source.namespace, snapshot.source.production, first.targetConfigName, snapshot.failures.%Size(), firstAt, lastAt, pattern)
 	Do ..Detail(pack, snapshot)
 	Quit pack
@@ -149,7 +147,7 @@ ClassMethod Detail(pack As %DynamicObject, snapshot As %DynamicObject) [ Private
 	If snapshot.failures.%Size() > 0 {
 		Set pack.sample = ..Message(snapshot.failures.%Get(0), 0)
 	} ElseIf snapshot.eventLog.%Size() > 0 {
-		Set pack.sample = ..LogMessage(snapshot.eventLog.%Get(0), 0)
+		Set pack.sample = ..LogMessage(snapshot.eventLog.%Get(0), 0, 1)
 	}
 	Set pack.settings = ..Settings(snapshot, pack.item)
 	Set trace = []
@@ -169,19 +167,20 @@ ClassMethod Message(failure As %DynamicObject, item As %Boolean) As %DynamicObje
 	Set message.at = failure.timeProcessed
 	Set message.bodyClass = ..Clean(failure.bodyClass)
 	Set message.body = ..Cleaned(failure.body)
-	Set message.error = ..Sentence(failure.error)
+	Set message.error = ..Text(failure.error)
 	Quit message
 }
 
-/// A failure that is a log row: {logId, [item,] at, bodyClass, body, error}, redacted. item is 1 for the tools.
-ClassMethod LogMessage(row As %DynamicObject, item As %Boolean) As %DynamicObject [ Private ]
+/// A failure that is a log row: {logRef, [item,] at, bodyClass, body, error}, redacted. logRef is position, the row's 1-based place in the event log of the
+/// read (the row's own id never leaves the product, DW-264). item is 1 for the tools.
+ClassMethod LogMessage(row As %DynamicObject, item As %Boolean, position As %Integer) As %DynamicObject [ Private ]
 {
-	Set message = {"logId": (row.id)}
+	Set message = {"logRef": (position)}
 	If item Set message.item = ..Clean(row.configName)
 	Set message.at = row.timeLogged
 	Set message.bodyClass = ""
 	Set message.body = {}
-	Set message.error = ..Sentence(row.text)
+	Set message.error = ..Text(row.text)
 	Quit message
 }
 
@@ -202,10 +201,10 @@ ClassMethod Settings(snapshot As %DynamicObject, item As %String) As %DynamicObj
 	Quit ..Cleaned(settings)
 }
 
-/// The error sentence of a raw error text: ErrorText.Sentence(Redact.Text(raw)).
-ClassMethod Sentence(raw As %String) As %String [ Private ]
+/// The error sentence of a raw error text: ErrorText.Text(raw).
+ClassMethod Text(raw As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Watch.ErrorText).Sentence(##class(OcuTalon.Bridge.Redact).Text($Get(raw)))
+	Quit ##class(OcuTalon.Watch.ErrorText).Text($Get(raw))
 }
 
 /// The text through the redactor.
@@ -252,7 +251,7 @@ ClassMethod Load(file As %String, Output snapshot As %DynamicObject) As %Status
 	Quit sc
 }
 
-/// The answer of read_failed_messages for the incident: {count, items} with at most MAXMESSAGES failed messages, each {headerId | logId, item, at,
+/// The answer of read_failed_messages for the incident: {count, items} with at most MAXMESSAGES failed messages, each {headerId | logRef, item, at,
 /// bodyClass, body, error}. The items are empty when the read is not "read" or fails.
 ClassMethod FailedMessages(incident As OcuTalon.Data.Incident) As %DynamicObject
 {
@@ -265,8 +264,8 @@ ClassMethod FailedMessages(incident As OcuTalon.Data.Incident) As %DynamicObject
 			}
 			If snapshot.failures.%Size() = 0 {
 				Set iterator = snapshot.eventLog.%GetIterator()
-				While iterator.%GetNext(, .row) {
-					Do answer.items.%Push(..LogMessage(row, 1))
+				While iterator.%GetNext(.index, .row) {
+					Do answer.items.%Push(..LogMessage(row, 1, index + 1))
 				}
 			}
 		}
@@ -276,7 +275,7 @@ ClassMethod FailedMessages(incident As OcuTalon.Data.Incident) As %DynamicObject
 	Quit answer
 }
 
-/// The answer of read_event_log for the incident: {items} with at most MAXLOG rows of the event log of the sample sessions, each {logId, at, type,
+/// The answer of read_event_log for the incident: {items} with at most MAXLOG rows of the event log of the sample sessions, each {logRef, at, type,
 /// item, text}, redacted.
 ClassMethod EventLog(incident As OcuTalon.Data.Incident) As %DynamicObject
 {
@@ -284,9 +283,9 @@ ClassMethod EventLog(incident As OcuTalon.Data.Incident) As %DynamicObject
 	Try {
 		If ..Read(incident, ..#MAXMESSAGES, .snapshot) = "read" {
 			Set iterator = snapshot.eventLog.%GetIterator()
-			While iterator.%GetNext(, .row) {
+			While iterator.%GetNext(.index, .row) {
 				If answer.items.%Size() '< ..#MAXLOG Quit
-				Do answer.items.%Push({"logId": (row.id), "at": (row.timeLogged), "type": (row.type), "item": (..Clean(row.configName)), "text": (..Clean(row.text))})
+				Do answer.items.%Push({"logRef": (index + 1), "at": (row.timeLogged), "type": (row.type), "item": (..Clean(row.configName)), "text": (..Clean(row.text))})
 			}
 		}
 	} Catch {

@@ -7,18 +7,21 @@ Include Ensemble
 /// for a diagnosis, polling every half second (a test bound, not NFR-7). The rows, events and decisions of a test are removed after it.
 ///   - TestDemoDiagnosis (rows Demo and What the model saw): session A watches Orders and 50 failing orders tagged with A become an incident whose stream gets
 ///     noticed, settling and diagnosing in that order; Decide records one diagnose decision for the incident in the incident's own trace session; the row holds the
-///     scenario's diagnosis, the noun order/orders, no fallback and the decision's Ref, and NoticedAt is still empty with no Notification and no incident event;
+///     scenario's diagnosis, the noun order/orders, no fallback and the decision's Ref, the sample's header id (one of the real failed orders) and its error, and NoticedAt is
+///     still empty with no Notification and no incident event (a usable data-format diagnosis has a fix, so its notice is Story 7.2's);
 ///     the first model request holds the pack, the second the result of read_failed_messages built from the real failed orders;
 ///   - TestDiagnosisVariants (rows No fix, Unknown, Invalid / refusal): one batch of four failures whose texts hold the markers diagnosis-nofix,
 ///     diagnosis-unknown, invalid-reply and refusal gives four incidents that settle together: partner_outage without a fix and with the noun message/messages,
 ///     unknown without a fix and with the diagnosis's own noun (invoice/invoices), and two fallbacks (invalid, refusal) with no cause, category, element or fix, the code noun and the fallback decision's Ref;
 ///     beside them, a failure of a real failed order of OCUORDERS whose text holds invalid-reply gives a fallback whose code noun is that of the sample's body
-///     class, order/orders;
+///     class, order/orders. Since Story 5.8 each of the five is noticed: NoticedAt is set, the state is open and the open variant is no_fix (no fix, unknown) or
+///     fallback (invalid, refusal), and A has one Notification of the incident;
 ///   - TestGoneBeforeTheAnswer: an incident deleted after `diagnosing` while the delayed reply (diagnosis-late) is on its way gets no row back and no error;
 ///   - TestRefusedRequest: the error handler of the diagnose request (through Test.Watch.IncidentProbe, a shadow instance in the test process) stores the fallback
-///     error with one Type 3 warning and leaves the row otherwise as it was; an incident that is noticed, closed or gone is not written. The answer handler
-///     (the probe's Answer) writes a usable answer to an open incident, and neither to a noticed nor to a closed one, and the empty answer that follows an
-///     error writes nothing.
+///     error with one Type 3 warning and notices the incident as a fallback (one recorded Notification) and leaves the row otherwise as it was; an incident that is
+///     noticed, closed or gone is not written and gets no notice. The answer handler
+///     (the probe's Answer) writes a usable answer to an open incident and notices it, and writes and notices neither a noticed nor a closed one, and the empty
+///     answer that follows an error writes and notices nothing.
 Class OcuTalon.Test.Watch.Diagnose Extends OcuTalon.Test.Watch.Case
 {
 
@@ -71,7 +74,9 @@ Method TestDemoDiagnosis()
 		Do $$$AssertEquals(row.FixSummary, ..#FIXSUMMARY, "and its fix summary")
 		Do $$$AssertEquals(row.ItemNoun, ..#ORDERNOUN, "the noun is order and orders")
 		Do $$$AssertEquals(row.DecisionRef, decision.Ref, "the DecisionRef is the decision's")
-		Do $$$AssertEquals(row.NoticedAt_"|"_row.State_"|"_row.OpenVariant, "|open|", "NoticedAt is empty and the state is as the waiter left it")
+		Do $$$AssertEquals(row.NoticedAt_"|"_row.State_"|"_row.OpenVariant, "|open|", "NoticedAt is empty and the state is as the waiter left it: a diagnosis with a fix is not noticed here")
+		Do $$$AssertTrue((row.SampleHeaderId '= "") && (("," _ ..HeaderIds(failed) _ ",") [ ("," _ row.SampleHeaderId _ ",")), "the sample is one of the real failed orders: header "_row.SampleHeaderId)
+		Do $$$AssertEquals(row.SampleError, ..#ORDERDATETEXT, "and its error is the measured sentence")
 		Do $$$AssertEquals(row.NoticeCount, 50, "NoticeCount is the 50 failures")
 	}
 	Do $$$AssertEquals(..Notifications(ref), 0, "no notification carries the incident's Ref")
@@ -144,7 +149,12 @@ Method TestDiagnosisVariants()
 			Continue
 		}
 		Do $$$AssertEquals(row.DecisionRef, decision.Ref, marker_": the DecisionRef is the decision's")
-		Do $$$AssertEquals(row.NoticedAt, "", marker_": NoticedAt is empty")
+		Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", marker_": the incident is noticed")
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		Do $$$AssertEquals(row.State_"|"_row.OpenVariant, "open|"_$Select($Piece(marker, "-", 1) = "diagnosis": "no_fix", 1: "fallback"), marker_": open, with the variant of its outcome")
+		Do ..WaitNotices(ref, 1)
+		Do $$$AssertEquals(..Notifications(ref), 1, marker_": A has one Notification of the incident")
 		If marker = "diagnosis-nofix" {
 			Do $$$AssertEquals(row.Fallback_"|"_row.CauseCategory_"|"_(row.Cause '= "")_"|"_row.FixSummary_"|"_row.Element, "0|partner_outage|1||", marker_": partner_outage with a cause and no fix")
 			Do $$$AssertEquals(row.ItemNoun, ..#MESSAGENOUN, marker_": the scenario gives no noun, so the noun is message and messages")
@@ -166,6 +176,13 @@ Method TestDiagnosisVariants()
 	Do $$$AssertTrue(..WaitDiagnosed(ref), "it holds its diagnosis")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.ItemNoun, "1|invalid|"_..#ORDERNOUN, "its fallback keeps the code noun of the sample's body class: order and orders")
+	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and it is noticed")
+	Kill row
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Do ..WaitNotices(ref, 1)
+	Set note = ..NoticeBodies(ref)
+	Do $$$AssertEquals(row.OpenVariant_"|"_note.%Size(), "fallback|1", "as a fallback, with one Notification")
+	If note.%Size() = 1 Do $$$AssertEquals(note.%Get(0).slots.itemNoun.other_"|"_note.%Get(0).slots.fallbackReason, "orders|invalid", "which says orders and the reason")
 }
 
 Method TestGoneBeforeTheAnswer()
@@ -226,8 +243,14 @@ Method TestRefusedRequest()
 	Do $$$AssertStatusOK(host.Refuse(ref, error), "the handler of the diagnose key answers OK")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Cause_row.CauseCategory_row.Element_row.FixSummary_"|"_row.DecisionRef, "1|error||", "the incident holds the fallback error and no diagnosis")
-	Do $$$AssertEquals(row.State_"|"_row.NoticedAt_"|"_row.NoticeCount_"|"_row.ItemNoun, "open||7|"_..#MESSAGENOUN, "the row stands as it was")
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= "")_"|"_row.NoticeCount_"|"_row.ItemNoun, "open|fallback|1|7|"_..#MESSAGENOUN, "the row is noticed as a fallback and otherwise stands as it was")
 	Kill row
+	Do $$$AssertEquals(host.Sent.%Size(), 1, "one Notification was recorded")
+	If host.Sent.%Size() = 1 {
+		Set note = host.Sent.%Get(0)
+		Set slots = {}.%FromJSON(note.slots)
+		Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.incidentRef_"|"_slots.fallbackReason_"|"_slots.count, a_"|incident|incident.fallback|"_ref_"|error|7", "to A: a fallback notice of the incident, with the reason error")
+	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Refused", log_ref), 1, "one Type 3 warning names the incident")
 	Do $$$AssertTrue(text [ "no runner", "and holds the error: "_text)
 	Set noticed = ..Row(a, ##class(OcuTalon.Data.Time).NowUtc())
@@ -239,6 +262,7 @@ Method TestRefusedRequest()
 	Set gone = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do host.Refuse(gone, error)
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(gone), 0, "and one that is gone is not made again")
+	Do $$$AssertEquals(host.Sent.%Size(), 1, "and none of the three got a notice")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Refused", log)
 
 	Set answer = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
@@ -249,20 +273,24 @@ Method TestRefusedRequest()
 	Do $$$AssertStatusOK(host.Answer(open, answer), "the answer handler answers OK")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(open)
 	Do $$$AssertEquals(row.Cause_"|"_row.CauseCategory_"|"_row.DecisionRef, "zz late cause|unknown|"_answer.DecisionRef, "a usable answer is written to an open incident")
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_(row.NoticedAt '= ""), "open|no_fix|1", "which is noticed, as no fix")
 	Kill row
+	Do $$$AssertEquals(host.Sent.%Size() _ "|" _ $Select(host.Sent.%Size() = 2: host.Sent.%Get(1).catalogKey, 1: ""), "2|incident.noFixUnknown", "with the unknown notice")
 	For each = $ListBuild(noticed, "a noticed incident"), $ListBuild(closed, "a closed one") {
 		Do $$$AssertStatusOK(host.Answer($List(each, 1), answer), "the answer handler answers OK for "_$List(each, 2))
 		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen($List(each, 1))
 		Do $$$AssertEquals(row.Cause_"|"_row.DecisionRef_"|"_row.Fallback, "||0", "and a late answer does not write "_$List(each, 2))
 		Kill row
 	}
+	Do $$$AssertEquals(host.Sent.%Size(), 2, "nor send a notice for them")
 	Set blank = ..Row(a, "")
 	Do $$$AssertStatusOK(host.Answer(blank, ""), "the empty answer that follows an error answers OK")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(blank)
-	Do $$$AssertEquals(row.DecisionRef_"|"_row.Fallback_"|"_row.Cause, "|0|", "and writes nothing")
+	Do $$$AssertEquals(row.DecisionRef_"|"_row.Fallback_"|"_row.Cause_"|"_row.NoticedAt, "|0||", "and writes and notices nothing")
+	Do $$$AssertEquals(host.Sent.%Size(), 2, "and sends nothing")
 }
 
-/// The Ref of an incident row of the owner (a fixture): count 7, the code noun, NoticedAt and the state as given. The row is not kept open, so that
+/// The Ref of an incident row of the owner (a fixture): count 7, the code noun, NoticedAt and the state as given, and its one group (Seq 1, NoticeCount 7). The row is not kept open, so that
 /// what a test reads afterwards comes from the database.
 Method Row(owner As %String, noticedAt As %String, state As %String = "open") As %String [ Private ]
 {
@@ -274,9 +302,22 @@ Method Row(owner As %String, noticedAt As %String, state As %String = "open") As
 	Set incident.State = state
 	Set incident.Count = 7
 	Set incident.NoticeCount = 7
+	Set incident.FirstAt = "2026-10-26T10:00:00Z"
+	Set incident.LastAt = "2026-10-26T10:00:30Z"
 	Set incident.NoticedAt = noticedAt
 	Set incident.ItemNoun = ..#MESSAGENOUN
 	Do $$$AssertStatusOK(incident.%Save(), "a fixture incident is saved")
+	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set group.IncidentRef = incident.Ref
+	Set group.Seq = 1
+	Set group.ItemName = "zzDiagnoseItem"
+	Set group.ErrorPattern = "Field 'Qty' was empty"
+	Set group.ErrorSummary = "Field 'Qty' was empty."
+	Set group.Count = 7
+	Set group.NoticeCount = 7
+	Set group.FirstAt = incident.FirstAt
+	Set group.LastAt = incident.LastAt
+	Do $$$AssertStatusOK(group.%Save(), "and its group")
 	Quit incident.Ref
 }
 

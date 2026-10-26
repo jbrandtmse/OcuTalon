@@ -35,7 +35,7 @@ Parameter READONLYREADITEMSETTINGS = 1;
 
 Parameter TRUSTEDOUTPUTREADITEMSETTINGS = 0;
 
-/// The oldest failed messages of the incident, at most five: {count, items}, each item {headerId | logId, item, at, bodyClass, body, error}.
+/// The oldest failed messages of the incident, at most five: {count, items}, each item {headerId | logRef, item, at, bodyClass, body, error}.
 ClassMethod ReadFailedMessages() As %DynamicObject
 {
 	Set incident = ##class(OcuTalon.Watch.EvidencePack).Scope()
@@ -43,7 +43,7 @@ ClassMethod ReadFailedMessages() As %DynamicObject
 	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).FailedMessages(incident))
 }
 
-/// The event log of the sessions of those messages, at most twenty rows: {items}, each {logId, at, type, item, text}.
+/// The event log of the sessions of those messages, at most twenty rows: {items}, each {logRef, at, type, item, text}.
 ClassMethod ReadEventLog() As %DynamicObject
 {
 	Set incident = ##class(OcuTalon.Watch.EvidencePack).Scope()

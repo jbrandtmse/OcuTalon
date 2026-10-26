@@ -29,7 +29,7 @@
 ///     Story 0.10 (format ocutalon.readerSnapshot/1): failures (one per header key: the header's fields, its error text chosen as Failures
 ///     chooses it, and body, the stored datatype properties of its message body, read through the class dictionary), eventLog (the rows of
 ///     the failures' sessions and of the log keys), items (the named item only, with its settings) and trace (the first failure's session, at
-///     most TRACEMAX headers). The settings whose name holds credential, password, passwd, passphrase, secret, token, key or auth
+///     most TRACEMAX headers). The settings whose name holds credential, password, passwd, passphrase, secret, token, key, auth, bearer or cookie
 ///     (CredentialName) are left out after the switch, before Evidence returns, also when the read fails. The texts are raw, line breaks
 ///     included: the caller redacts them.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
@@ -51,7 +51,7 @@ Parameter LOGMAX = 100;
 Parameter VALUEMAX = 1000;
 
 /// The parts of a setting's name that make its value one that must never leave the reader, in lower case, comma-separated.
-Parameter CREDENTIALPARTS = "credential,password,passwd,passphrase,secret,token,key,auth";
+Parameter CREDENTIALPARTS = "credential,password,passwd,passphrase,secret,token,key,auth,bearer,cookie";
 
 /// The trailing word that a name may carry: "the Orders production".
 Parameter SUFFIX = " production";

@@ -15,7 +15,8 @@
 ///     rows) and every batch that the poller sent is removed by OnAfterOneTest and OnAfterAllTests, and the poller and Orders are started again if a test
 ///     stopped them.
 ///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
-///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
+///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects; Group also lists every group, Story 5.8), Stream (a session's events
+///     of any type in Seq order) and NoticeBodies (the Notification messages of an incident's Ref as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
 ///     sets NoticedAt and NoticeCount as a notice will), Notifications, and (Story 5.4) WaitDiagnosed, which a test calls before Notice so that a whole-row save by
 ///     IncidentManager cannot write over the fixture. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
@@ -915,7 +916,8 @@ Method SendBatch(namespace As %String, production As %String, ownerRef As %Strin
 }
 
 /// The Incident rows of the owner for the production, by ID, as a dynamic array of {"id", "ref", "ownerRef", "namespace", "production", "state", "openVariant",
-/// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "traceHeaderId"}.
+/// "noticedAt", "count", "noticeCount", "firstAt", "lastAt", "traceHeaderId", "firstHeaderId", "sampleHeaderId", "sampleError", "requestRefs", "decisionRef",
+/// "fallback", "fallbackReason", "causeCategory"}.
 ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArray
 {
 	Set incidents = []
@@ -923,20 +925,22 @@ ClassMethod Incidents(ownerRef As %String, production As %String) As %DynamicArr
 	While rs.%Next() {
 		Set row = ##class(OcuTalon.Data.Incident).%OpenId(rs.%GetData(1))
 		If '$IsObject(row) Continue
-		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "traceHeaderId": (row.TraceHeaderId)})
+		Do incidents.%Push({"id": (row.%Id()), "ref": (row.Ref), "ownerRef": (row.OwnerRef), "namespace": (row.Namespace), "production": (row.Production), "state": (row.State), "openVariant": (row.OpenVariant), "noticedAt": (row.NoticedAt), "count": (row.Count), "noticeCount": (row.NoticeCount), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "traceHeaderId": (row.TraceHeaderId), "firstHeaderId": (row.FirstHeaderId), "sampleHeaderId": (row.SampleHeaderId), "sampleError": (row.SampleError), "requestRefs": (row.RequestRefs), "decisionRef": (row.DecisionRef), "fallback": (+row.Fallback), "fallbackReason": (row.FallbackReason), "causeCategory": (row.CauseCategory)})
 	}
 	Quit incidents
 }
 
-/// The failure groups of the incident as {"count", "itemName", "errorPattern", "seen"}: the number of groups and the first one's fields.
+/// The failure groups of the incident as {"count", "itemName", "errorPattern", "seen", "groups"}: the number of groups, the first one's fields, and "groups", a
+/// dynamic array of every group in ID order as {"seq", "itemName", "errorPattern", "seen", "count", "firstAt", "lastAt", "noticeCount", "errorSummary"}.
 ClassMethod Group(ref As %String) As %DynamicObject
 {
-	Set group = {"count": 0, "itemName": "", "errorPattern": "", "seen": ""}
+	Set group = {"count": 0, "itemName": "", "errorPattern": "", "seen": "", "groups": []}
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ? ORDER BY ID", ref)
 	While rs.%Next() {
 		Set row = ##class(OcuTalon.Data.FailureGroup).%OpenId(rs.%GetData(1))
 		If '$IsObject(row) || (row.IncidentRef '= ref) Continue
 		Set group.count = group.count + 1
+		Do group.groups.%Push({"seq": (row.Seq), "itemName": (row.ItemName), "errorPattern": (row.ErrorPattern), "seen": (row.Seen), "count": (row.Count), "firstAt": (row.FirstAt), "lastAt": (row.LastAt), "noticeCount": (row.NoticeCount), "errorSummary": (row.ErrorSummary)})
 		If group.count = 1 {
 			Set group.itemName = row.ItemName
 			Set group.errorPattern = row.ErrorPattern
@@ -1015,12 +1019,45 @@ ClassMethod Notice(ref As %String) As %Status
 	Quit row.%Save()
 }
 
+/// The events on the session's stream, of any type, in Seq order, as the envelopes {seq, stream, ts, type, payload}.
+ClassMethod Stream(session As %String) As %DynamicArray
+{
+	Quit ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
+}
+
+/// The Notification messages that carry the incident's Ref, oldest first, as a dynamic array of {"sessionRef", "kind", "catalogKey", "slots" (the parsed
+/// object, {} when empty), "approvalRef", "incidentRef", "decisionRef"}.
+ClassMethod NoticeBodies(ref As %String) As %DynamicArray
+{
+	Set bodies = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Msg.Notification WHERE IncidentRef = ? ORDER BY ID", ref)
+	While rs.%Next() {
+		Set note = ##class(OcuTalon.Msg.Notification).%OpenId(rs.%GetData(1))
+		If '$IsObject(note) Continue
+		Set slots = {}
+		If note.Slots '= "" Set slots = {}.%FromJSON(note.Slots)
+		Do bodies.%Push({"sessionRef": (note.SessionRef), "kind": (note.Kind), "catalogKey": (note.CatalogKey), "slots": (slots), "approvalRef": (note.ApprovalRef), "incidentRef": (note.IncidentRef), "decisionRef": (note.DecisionRef)})
+	}
+	Quit bodies
+}
+
 /// The number of Notification messages that carry the incident's Ref.
 ClassMethod Notifications(ref As %String) As %Integer
 {
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Msg.Notification WHERE IncidentRef = ?", ref)
 	Do rs.%Next()
 	Quit +rs.%GetData(1)
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every half second, until count Notification messages carry the incident's Ref (the send follows the save
+/// of NoticedAt).
+Method WaitNotices(ref As %String, count As %Integer) [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		If (..Notifications(ref) '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
 }
 
 /// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups and their diagnose

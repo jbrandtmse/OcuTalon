@@ -5,9 +5,12 @@ Include Ensemble
 /// keeps its old code). Failures arrive either from the real poller (the burst) or as FailureBatch messages that the test sends from an adapterless host
 /// (Case.SendBatch); the incident and group rows and the session streams are read as plain data. They fail with the reason where OCUORDERS or demo mode is
 /// missing. The settle settings are the code defaults, 10 and 30 seconds: no setting row is written. A test waits at most 20 seconds (45 for the trickle),
-/// polling every half second: a test bound, not NFR-7. The rows, events and batches of a test are removed after it.
+/// polling every half second: a test bound, not NFR-7. The rows, events and batches of a test are removed after it. Every test points the runners at the CI
+/// mock (Case.PointKeys), whose default diagnosis is the one with a fix (a data-format change), which is stored and not noticed here (Story 5.8): with no key
+/// the diagnosis is a fallback, and a fallback is noticed at once.
 ///   - TestBurstThroughThePoller (rows Burst and Trace): session A watches Orders and 50 failing orders tagged with A's TraceRef become one open incident of A
-///     with one group, `noticed`, `settling` and (Story 5.4, once the settle rule has ended) `diagnosing` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
+///     with one group (Story 5.8: Seq 1, Count 50, the incident's FirstAt and LastAt, NoticeCount 50, the error summary "The order date was not in the expected format."
+///     and, on the incident, FirstHeaderId the earliest failed header), `noticed`, `settling` and (Story 5.4, once the settle rule has ended) `diagnosing` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
 ///     NoticedAt, and the incident's own trace session whose first header carries A's TraceRef;
 ///   - TestTrickle: one failure every 4 seconds for 24 seconds: the settle ends 30 seconds after the first failure, before the quiet time has passed, with
 ///     the count by then, and the batches that joined it published no second noticed, settling or diagnosing; a later failure raises Count and keeps NoticeCount, in
@@ -61,7 +64,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 Method TestBurstThroughThePoller()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("burst")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Do ..ClearMark(..#ORDERS)
@@ -74,6 +77,8 @@ Method TestBurstThroughThePoller()
 	If rows.%Size() < 1 Quit
 	Set ref = rows.%Get(0).ref
 	Set noticeCount = ..WaitNoticeCount(ref)
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis, so the negatives below follow the notice step")
+	Hang 1
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row = ..Incidents(a, ..#ORDERSPRODUCTION).%Get(0)
 	Do $$$AssertEquals(..Incidents(a, ..#ORDERSPRODUCTION).%Size(), 1, "and still one when the settle has ended")
@@ -81,19 +86,27 @@ Method TestBurstThroughThePoller()
 	Do $$$AssertEquals(row.count, 50, "its Count is the 50 failures")
 	Set first = ""
 	Set last = ""
+	Set firstId = ""
 	Set iterator = failed.%GetIterator()
 	While iterator.%GetNext(, .header) {
 		Set at = ##class(OcuTalon.Watch.Mark).FailedAt(header.at)
-		If (first = "") || (first ] at) Set first = at
+		If (first = "") || (first ] at) || ((first = at) && (header.id < firstId)) {
+			Set first = at
+			Set firstId = header.id
+		}
 		If (last = "") || (at ] last) Set last = at
 	}
 	Do $$$AssertEquals(row.firstAt_"|"_row.lastAt, first_"|"_last, "FirstAt and LastAt are the first and last FailedAt")
-	Do $$$AssertEquals(row.noticedAt, "", "NoticedAt is empty: the notice is not sent before the diagnosis")
+	Do $$$AssertEquals(row.noticedAt, "", "NoticedAt is empty: the notice is not sent before the diagnosis, and a usable data-format diagnosis has a fix, which Story 7.2 notices")
 	Do $$$AssertEquals(noticeCount, 50, "NoticeCount is 50 once the quiet time has passed since LastAt")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Settle).Wait(row.firstAt, row.lastAt, now, 10, 30), 0, "and the settle rule has ended by then")
 	Set group = ..Group(ref)
 	Do $$$AssertEquals(group.count_"|"_group.itemName_"|"_group.errorPattern, "1|OrdersFromPartner|"_##class(OcuTalon.Watch.Settle).Pattern(..#ORDERDATETEXT), "one group: OrdersFromPartner and the pattern of the measured sentence")
 	Do $$$AssertEquals($Length(group.seen, ","), 50, "which holds the 50 keys")
+	Set kept = group.groups.%Get(0)
+	Do $$$AssertEquals(kept.seq_"|"_kept.count_"|"_kept.firstAt_"|"_kept.lastAt_"|"_kept.noticeCount, "1|50|"_row.firstAt_"|"_row.lastAt_"|50", "the group is Seq 1 with the 50 failures, the incident's times and the NoticeCount")
+	Do $$$AssertEquals(kept.errorSummary, "The order date was not in the expected format.", "its error summary is the first sentence of the error")
+	Do $$$AssertEquals(..Incidents(a, ..#ORDERSPRODUCTION).%Get(0).firstHeaderId, firstId, "FirstHeaderId is the earliest failed header, the lowest id among equal times")
 	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 20)
 	Do $$$AssertEquals(progress.%Size(), 3, "A's stream holds three watch.progress events")
 	If progress.%Size() = 3 {
@@ -121,7 +134,7 @@ Method TestBurstThroughThePoller()
 
 Method TestTrickle()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("trickle")
 	Set item = ..Item("t")
 	Set since = ..Since()
@@ -159,7 +172,7 @@ Method TestTrickle()
 
 Method TestResent()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("resent")
 	Set item = ..Item("r")
 	Set since = ..Since()
@@ -191,7 +204,7 @@ Method TestResent()
 
 Method TestPattern()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("pattern")
 	Set item = ..Item("p")
 	Set other = ..Item("q")
@@ -224,7 +237,7 @@ Method TestPattern()
 
 Method TestTwoSessions()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("two1")
 	Set b = ..Session("two2")
 	Set item = ..Item("s")
@@ -272,7 +285,7 @@ Method TestTwoSessions()
 
 Method TestInstanceShared()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("inst1")
 	Set b = ..Session("inst2")
 	Do ..Watch(a)
@@ -325,7 +338,7 @@ Method TestInstanceShared()
 
 Method TestClosedOpensNew()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("closed")
 	Set item = ..Item("c")
 	Set since = ..Since()
@@ -360,7 +373,7 @@ Method TestClosedOpensNew()
 
 Method TestWaitersAfterRestart()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("restart")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Set kept = ..Item("k")
@@ -419,7 +432,7 @@ Method TestWaitersAfterRestart()
 
 Method TestNobodyToTell()
 {
-	If '..Ready() Quit
+	If '..Ready() || '..PointKeys() Quit
 	Set a = ..Session("nobody")
 	Set item = ..Item("n")
 	Set since = ..Since()
