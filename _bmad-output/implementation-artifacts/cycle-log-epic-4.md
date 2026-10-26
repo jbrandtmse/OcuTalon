@@ -199,3 +199,5 @@
 2026-10-26T18:04:55Z	Story 4.5	ci_red_classified	run=40367647349 workflow=.github/workflows/ci.yml class=story test=web/e2e/floor/devices.spec.ts:143_D2(1280x600_page_scrolls_21px) job=iris(shards):live:floor first_red=d341d29 cause=DW-274(announcer_text_below_page;timing_on_Linux)
 2026-10-26T18:04:55Z	Story 4.5	ci_resolved	story=4.5 sha=d341d29 runs=40367647349,40367647221 result=failure failed=.github/workflows/ci.yml(iris_shards:live_floor_D2) via=none resolved_at=next_plan(before_4.6_implement) first_ci=story
 2026-10-26T18:04:55Z	Story 4.5	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:D2_1280x600_page_scroll(DW-274_announcer_style) scope_baseline=3cd71f4 note=4.6_spec_waits_at_ready-for-dev;DW-274_moved_from_4.7
+2026-10-26T18:05:05Z	Story 4.7	ledger_routed_planned	story=4-7-finish-the-demo-guide entries=-1(DW-274_bullet_removed;moved_to_4.5_CI_rework) excess=0 by=rework
+2026-10-26T18:05:05Z	Story 4.5	stage_spawned	spawn_at=2026-10-26T18:05:05Z stage=implement model=claude-sonnet agent_name=4-5-get-notifications-on-the-simulated-phone-implement-2 cycle_iteration=2 rework=1(ci)
