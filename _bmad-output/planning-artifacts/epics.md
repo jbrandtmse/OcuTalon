@@ -2690,6 +2690,7 @@ So that I know what broke without reading every error.
 **Then** the notification's slots give 50 orders and the first failure's time, and CI sees `noticed`, `settling`, `diagnosing`, then the notice, in that order (FR-24, NFR-7, AD-15, AD-22) [AMENDED 2026-10-26, Story 5.8, moved to Story 7.2, DW-270, U-92: the date-format snapshot is a data-format cause, whose notice 7.2 sends]
 - DW-264: The evidence pack and the `read_event_log` tool send `Ens_Util.Log` row ids (`logId`) to the model, while the spine's Identifiers row lets only Ens header and session ids leave the server: use a pack-local log reference (an ordinal) instead (ledger; routed by spec_gate 2026-10-26)
 - DW-261: `EvidencePack.Sentence` repeats `FailurePoller`'s `ErrorText.Sentence(Redact.Text(raw))`; the fallback notice's error summary needs the same composition, so make it one `ErrorText` helper that all three use (ledger; routed by spec_gate 2026-10-26)
+- DW-273: The owner's answer U-91: the evidence pack's credential-name rule (`Watch.Reader` `CREDENTIALPARTS`, matched case-insensitively as a substring of the setting's name) also leaves out settings whose name holds `bearer` or `cookie`, so the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie; a false positive only hides a value, a miss sends one to the model (ledger; routed by spec_gate 2026-10-26)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 

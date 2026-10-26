@@ -2,7 +2,7 @@
 title: 'Each noticed incident says what broke, with its evidence behind Show details'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'in-progress'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -146,6 +146,7 @@ Every path is under `src/ocutalon/cls/` unless noted.
   - `TestRefusedRequest`: the open fixture is noticed as `fallback` with one recorded notice, and noticed, closed and gone rows get none.
 - `src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls` -- `TestBurstThroughThePoller` also asserts: one group with `Seq` 1, `Count` 50, the incident's `FirstAt`/`LastAt`, `NoticeCount` 50, `ErrorSummary` "The order date was not in the expected format.", and `FirstHeaderId` the earliest failed header (the lowest id among equal times).
 - `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls` -- `logRef` at L306, L313 and L427 (and no `logId` anywhere in the three answers); the fixture group gets `Seq` 1.
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` -- DW-273 (the owner's answer U-91): `CREDENTIALPARTS` also holds `bearer` and `cookie`, still matched case-insensitively as a substring of the setting's name, so the parts are credential, password, passwd, passphrase, secret, token, key, auth, bearer, cookie ("credential" covers credentials). Update the class doc's list (L32) to match. `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls` `TestCredentialsLeftOut`: the snapshot item also gets settings whose names hold only `bearer` or only `cookie`, in mixed case (for example `BearerValue`, `SessionCookie`, `XCOOKIEJAR`); they stay out of the pack, and the name-rule loop also lists them (and still keeps `TargetConfigName` alone). Update the test's class-doc row.
 - `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls` (Incident rows only):
   - `TestFromRow`: the row's `TraceHeaderId` now gives `traceTargets.diagnosis`; `groups`, `requests` and `evidence` stay absent for a row without them;
   - add `TestFromRowEvidence` (the Show details rows and the Requests row, from ZzPay fixture rows);
@@ -159,11 +160,13 @@ Every path is under `src/ocutalon/cls/` unless noted.
 - Given the noticed no-fix incident of a real failed order, when `Web.Api.StateBody(A)` builds the snapshot, then its chat incident carries the same `groups`, `evidence` and `traceTargets` as the published event (Integration AC: consumer `/state` of `FromRow`).
 - Given each variant's slots from `Watch.Notice`, when `Catalog.RenderAt` renders them, then the no-fix text is exactly "{count} {item noun} failed since {time}. {cause}. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.", then "Failures:", one line per group and "Details and trace: on your OcuTalon page.". The unknown text's first line is "{count} {item noun} failed since {time}. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed.". Every variant renders on all four channels (Integration AC: consumer `Catalog.Render`).
 - Given a usable data-format diagnosis of 50 real failed orders, when it is stored, then the incident stays unnoticed with no Notification and no `incident` event, and the with-fix builder's slots, with fixture dry-run slots, render the UJ-1 notice text (R2 (a); the sent notice is Story 7.2's).
+- Given a snapshot item with settings whose names hold `bearer` or `cookie` in any case, when the pack is built and `Reader.CredentialName` judges each name, then none of those values reaches the pack and the rule marks each name as a credential, while `TargetConfigName` stays (DW-273, the owner's answer U-91: a false positive only hides a value; a miss sends one to the model).
 - Given the product source, when `Test.Bridge.CodeRules` and `ci/checks.sh` run, then they pass: `IncidentManager` is still the only writer and publisher, the watch tools call only listed classes, and no unchecked prepare or embedded SQL is added.
 
 ## Spec Change Log
 
 - 2026-10-26, spec gate (Epic 5 runner): R2 and R3 ruled by the orchestrator (veto U-92; DW-270, DW-271, DW-272 routed to Stories 7.2 and 7.4; Epic 5's blocks amended); V1 and V2 ruled vetoes U-93 and U-94; spine rows written; status set to `ready-for-dev`.
+- 2026-10-26, resume after the owner's quota hold (Epic 5 runner, run 20261026T1518Z-1-37): the first implement pass was stopped mid-stage; its tree was saved outside git as evidence and taken out (`stage_dead`), so this pass implements the whole spec from the committed source. The owner's answer U-91 is added as DW-273 (a Tasks & Acceptance item, an acceptance criterion and a pinning mutation); status set to `in-progress`.
 
 ## Review Triage Log
 
@@ -236,6 +239,7 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 **Ledger inbox:**
 - DW-261 is addressed: Always "DW-261", the `ErrorText` task, the Error summary row and `NoticeText`.
 - DW-264 is addressed: Always "DW-264", the `EvidencePack` task and the DW-264 row. `Evidence.cls` asserts `logRef` and no `logId`.
+- DW-273 is addressed (added by the lead at the resume, the owner's answer U-91): the `Reader.cls` task, its acceptance criterion and the DW-273 mutation row.
 
 **Decided in-stage:**
 - **The notice step follows the stored outcome** in the same waiter job: no new message, alarm or state.
@@ -304,6 +308,7 @@ Conventions: "Diagnosis", "Watch failures" (`ErrorText.Text` is the row's compos
 | Error summary | `Summary` cuts at 100 | `NoticeText` |
 | DW-261 | `Text` skips `Redact.Text` | `NoticeText`, `Evidence.TestLogKeys` (its redacted text) |
 | DW-264 | `LogMessage` gives `logId` again | `Evidence.TestLogKeys` |
+| DW-273 | `CREDENTIALPARTS` loses `cookie` (or `bearer`) | `Evidence.TestCredentialsLeftOut` |
 
 ## Auto Run Result
 

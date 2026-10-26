@@ -1327,3 +1327,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling U-92 (R3): FixRun holds only ApprovalRef, IncidentRef and StartedAt; no table stores a fix run's counts before Epic 7
 - 2026-10-26T13:11:27Z status=routed owner=7-4-ocutalon-reports-how-many-orders-went-through by=spec_gate note=moved_criterion(U-92);the_orchestrator_writes_its_bullet_into_7.4_at_Epic_5's_merge
+
+### DW-273: Owner answer U-91: the evidence pack's credential-name rule (Watch.Reader CREDENTIALPARTS, case-insensitive substring) also leaves out settings whose name holds bearer or cookie; the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie
+- source: inbox U-91 (owner decision 2026-10-26T13:11:36Z#273) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Reader.cls CREDENTIALPARTS = credential,password,passwd,passphrase,secret,token,key,auth (5.4, 61e074e); a setting named SessionCookie or BearerValue reaches the pack and the settings tool
+- 2026-10-26T15:31:39Z status=routed owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=spec_gate note=owner_decision U-91 at=2026-10-26T13:11:36Z#273: keep and widen; a false positive only hides a value, a miss sends one to the model
