@@ -592,6 +592,42 @@ deferred:
 - **AC10.** (Integration) Given the demo-switch stack, when it runs in mode 0 and mode 1, then row 17 holds on the real switch.
 - **AC11.** Given the floor stack, when the floor suite runs, then D1 (edited, in Chromium, Firefox and WebKit) and D6 pass, and so do the existing floor cases.
 
+### Review Findings
+
+Code review, 2026-10-26 (`bmad-code-review`, full mode; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, all at the full tier). 27 rows from the layers (9 rejected below, with two notes) and 2 of the reviewer's own Rule 2 checks, grouped into 17 entries, plus the in-story ledger entry DW-280: high 0, med 3, low 15. Each entry: severity, fix-risk, footprint, spec-status.
+
+- [x] [Review][Patch] DW-280: an email's body has no length cap. The server now caps the body at 10000 characters (`SimMailboxIn.BODYMAX`), checked by `MailBody` (400 `bad_email`, T(errEmail) widened to name the cap) and again in `SimMailboxIn.Accept`; the form's Body has `maxlength="10000"` (med; fix-risk low, one bound and its tests; in-story; clear) [src/ocutalon/cls/OcuTalon/Web/Api.cls:MailBody, src/ocutalon/cls/OcuTalon/Channel/SimMailbox/In.cls:94]
+- [x] [Review][Patch] Rule 2: `mailRows` and `turnRows` repeat `phoneRows` line for line (Story 4.5's sibling in the same file); the three now share one counting helper (med; fix-risk low, test support only, every caller runs in `live demo-switch`; in-story; clear) [web/e2e/support/devices.ts:75]
+- [x] [Review][Patch] Rule 19 (hermeticity): MB8 asserts "no chip from a turn decision" after a 3 s sleep, and MB4 asserts "no Delivery row" for Ignore and Digest 1.5 s after the chip, with no sign that the page or the production had got that far. MB8 now waits for a later sentinel event of the same stream; MB4 re-reads the quiet emails' Delivery counts after Act's notification has landed (med; fix-risk low, test only; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:398, :249]
+- [x] [Review][Patch] A refused chip press is not tied to the chip: Send is described by its error, the chips are not (low; fix-risk low; in-story; clear) [web/src/app/mailbox/simulated-mailbox.ts:99]
+- [x] [Review][Patch] MB9's "marks no field" counts `aria-invalid` in the list view, which has no field, so it cannot fail; it now asserts that the chip is described by the error (low; fix-risk low; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:430]
+- [x] [Review][Patch] MB9's "nothing is announced before the row is in the list" filters on a subject the page cannot know before the row, so it cannot fail; it now asserts that no mailbox announcement was made at all (low; fix-risk low; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:439]
+- [x] [Review][Patch] MB3's `mailRows` check after the routed 400 cannot fail (the route answers in the browser); removed (low; fix-risk low; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:201]
+- [x] [Review][Patch] No mailbox test reads the open email's trace link address; MB7 now asserts `href` is the decision's `traceUrl` (low; fix-risk low; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:366]
+- [x] [Review][Patch] MB4's Recent decisions row is found by the marker subject only; it is now found by the run's stamped sender (low; fix-risk low; in-story; clear) [web/e2e/demo-switch/mailbox.spec.ts:255]
+- [x] [Review][Patch] Pressing Simulate while the form is open wiped the draft; the form keeps its fields and focuses From (low; fix-risk low; in-story; clear) [web/src/app/mailbox/simulated-mailbox.ts:534]
+- [x] [Review][Patch] A decision announced before the chip's 202 was handled was announced again by the awaiting branch of `note()`; the awaiting branch now announces only the arrival (low; fix-risk low; in-story; clear) [web/src/app/mailbox/simulated-mailbox.ts:607]
+- [x] [Review][Patch] `isBlank` does not strip C1 controls (U+0080-U+009F), which the server's `$ZStrip(x,"<>WC")` does (measured on slot B), so such a subject passed the page and came back as the server's 400 under Send (low; fix-risk low; in-story; clear) [web/src/app/mailbox/mailbox-view.ts:99]
+- [x] [Review][Patch] `messageOf`'s comment says the server button's notice covers an unreachable server; it shows only after 10 s with no answer, and an immediate failure is covered by the page's Reconnecting and Unreachable banners (Break the feed's precedent: other failures add no text). Comment corrected (low; fix-risk low; in-story; clear) [web/src/app/mailbox/simulated-mailbox.ts:65]
+- [x] [Review][Patch] Raw values where a DESIGN token exists: `.input` min-height (`--text-input-min-height`) and the sender's weight (`--type-body-strong-font-weight`); the unread dot's 8px has no token and stays (low; fix-risk low; in-story; clear) [web/src/app/mailbox/simulated-mailbox.ts:294, :339]
+- [x] [Review][Patch] Stale docs: `SimMailboxOut`'s class comment calls the Subject "the first line of the text" (it is `Conversation.Summary`: the first line, cut at 80 characters); `Channel.Operation`'s list of subclasses and `playwright.config.ts`'s demo-switch line (both Story 4.5's lines) leave out the mailbox (low; fix-risk low; in-story and in-epic; clear) [src/ocutalon/cls/OcuTalon/Channel/SimMailbox/Out.cls:5, src/ocutalon/cls/OcuTalon/Channel/Operation.cls:1, web/playwright.config.ts:10]
+- [x] [Review][Patch] Rule 19 mutation lines: AC10's only recorded mutation reds a unit test, not its integration pin MB6, and AC9's "`Allowed` refuses `%All`" line sits only in the Auto Run Result; both recorded under `## Verification` (low; fix-risk low; tracking; clear) [## Verification]
+- [x] [Review][Defer] Rule 2: `ApiClient`'s private `accepted<T>()` repeats `postMessage`'s 202-only body; `postMessage` is another epic's line in a shared-by-entry file, so it cannot be moved onto the helper here. Closed `wontfix-accepted` (DW-283) [web/src/app/api/api-client.ts:50] — deferred: the copy is forced by the shared-by-entry rule; reopen_if a third 202-only POST joins ApiClient, or postMessage's success rule changes
+- [x] [Review][Defer] Rule 2: `Test.Web.MailboxApi`'s `Csp` and `Post` repeat `Test.Web.BreakFeedApi`'s; BreakFeedApi is an existing file in contended `Test/Web/**`, so no shared helper can replace its copy. Closed `wontfix-accepted` (DW-284) [src/ocutalon/cls/OcuTalon/Test/Web/MailboxApi.cls:191] — deferred: unification needs a contended file; reopen_if a third route test class copies Csp/Post
+
+**Rejected:**
+- `false` A1 two publishers of `mailbox` against AD-12/AD-33's "single publisher": AD-33's Rule names the Structural Seed's table as the authority, and that table has listed `SimMailboxIn` (arrivals) and `SimMailboxOut` (sent mail) since the spine's first commit (6106cbd). For the lead: the heading's "single publisher" wording.
+- `false` B4 the body collapses runs of spaces (`pre-line`): the Always list names `white-space: pre-line` for the body (spec-bound).
+- `false` E1 `SimMailboxIn` calls no `Allowance.TryConsume`: AD-20's allowance is the 50 messages of chat and Telegram; the 20 emails an hour are Story 16.9's (Never list, Consumed-by).
+- `low` E2 `SimMailboxOut` records a blank text: nothing routes to it in release 1 and its texts come from Notify's catalog render (already adjudicated; real when Story 22.7 sends mail).
+- `low` E4 the open view is empty when its row leaves the list: needs 100 newer emails while it is open, or a reset; the fix is a new effect (already adjudicated).
+- `low` E6 a snapshot replaced in the instant of a chip's 202 clears the awaited ref: a reload within one press (already adjudicated as E9).
+- `low` E7 two tabs overwrite each other's opened list: two demo tabs at once, and the merge needs a de-duplication the cap does not have.
+- `low` E9 a failed `%DeleteId` after a failed send is not logged: a delete of the row just written, in the same process (already adjudicated).
+- `low` V4 `TestThroughProduction`'s "nothing reveals the simulation" reads only the test's own Outbound: `SimMailboxOut` sends no body, so the property holds by construction; the spec's task asks for the check (real when a sender exists, Story 22.7).
+- `low` the reader-error column of row 7 has no test: it is the shared `..Check(sc)` throw of every `/state` reader, and a failing `RecentMail` needs a seam.
+- `low` B2/E3 (behaviour) an immediate non-API failure shows no text: Break the feed's rule, and an unreachable server raises the page's banners; a fallback text would be public text outside the UX. (Its wrong comment is patched above.)
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -745,7 +781,7 @@ deferred:
 - **Errors (V2):**
   - errSubject: "Enter a subject.";
   - errBody: "Enter a body.";
-  - errEmail: "An email needs a subject and a body, and from and subject can be at most 1000 characters.".
+  - errEmail: "An email needs a subject and a body. From and subject can be at most 1000 characters, and the body at most 10000." (widened at code review for DW-280; veto U-101).
 - **Sent mail:** ocutalon: "OcuTalon".
 - **Samples** (E:617-619, the bodies without the table's delimiting quotes):
   - **newsletter:**
@@ -942,6 +978,15 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: AC6 an opened email re-reads the storage instead of keeping its own memory (`opened.set(readText(...))` after `writeFlag`) -> `MB10` red (the dot stays)
 - mutation: AC5 a refused chip press shows no message (`chipError.set('')`) -> `MB9` red (no message under the chips)
 - mutation: AC5 an accepted chip press is not announced as arrived (the `arrivedText` call removed) -> `MB9` red (arrival announced 0 times), every other case green
+
+**Code review (CR)** (fresh `e4s6cr`, warm `e4s6crw`; each mutation applied, observed red, reverted from a backup and confirmed byte-identical with `git status --short` and `git diff --stat`; warm classes green again after the revert, browser mutations in a fresh `live demo-switch`):
+- mutation: DW-280 `MailBody` without the body bound -> `Test.Web.MailboxApi.TestFieldErrors` red ("a body over 10000 characters: 400")
+- mutation: DW-280 `SimMailboxIn.Accept` without the body bound -> `Test.Demo.SimMailboxIn.TestRefused` red (the long body accepted, recorded and sent)
+- mutation: AC9 `Admin.Allowed` accepts only `OcuTalonAdmin` (refuses `%All` again) -> `TestAllowed` and `TestSubmits` red (the implement stage's run, recorded here from the Auto Run Result)
+- mutation: AC10 the samples route without its demo-off check -> `MB6` red at mode 0 (`samples/newsletter` answered 202 `{"ref"}`, expected 404), the integration pin
+- mutation: AC6 (re-run, MB8's 3 s sleep is now a later sentinel event) `decisionOf` takes any decision with the itemId -> `MB8` red after the sentinel (the turn decision gave the row a chip) and `MB4` red
+- mutation: `isBlank` without the C1 range -> `mailbox-view.test.mjs` red ("counts the C1 controls as blank")
+- Clean runs on the final tree: `live demo-switch` all PASS in 321 s (mode 1: 13 page specs; mode 0: 5); `live floor` 92 passed in 304 s; `npm --prefix web test` 671 pass; lint exit 0; `bash ci/checks.sh` exit 0; warm `Test.Web.MailboxApi`, `Test.Demo.SimMailboxIn`, `Test.Web.Api`, `Test.Demo.SimMailboxOut` passed. `live sign-in` was not run: its one mailbox case (api row 16, an empty email) reads no path this pass changed.
 
 ## Auto Run Result
 

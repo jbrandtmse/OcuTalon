@@ -1194,8 +1194,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Contest Planner under the owner's delegation, 2026-10-26: strict check makes the README's documented command fail on a default install (terminal holds only %All)
 - 2026-10-26T16:52:48Z status=routed owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=owner_decision note=deliver before Epic 4's contract; Story 4.1 is done strict (Core/Admin.cls, Test/Core/Admin.cls)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=7d32b66 Core.Admin.Allowed accepts %All or OcuTalonAdmin; Test.Core.Admin %All accepted, OcuTalonAdmin accepted, neither refused; test-demo-switch.sh steps 3,4,7 (irisowner switches, audit names it)
 
 ### DW-280: An email's body has no length cap, so one large body or many sends can fill SimMessage and make each Decide call large
 - source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: MailBody and SimMailboxIn.Accept cap only from and subject at 1000 characters; SimMessage.Text and Mail.Text unbounded; the textarea has no maxlength (Web/Api.cls:MailBody, Channel/SimMailbox/In.cls:Accept)
 - 2026-10-26T21:41:08Z status=open owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=harvest note=in-story MED for the code review to patch (a body cap is an implementation detail; the hourly allowance is Story 16.9)
+- 2026-10-26T23:18:31Z status=resolved-by:4-6-simulate-incoming-email-in-the-simulated-mailbox by=adjudication note=code review: SimMailboxIn.BODYMAX 10000 checked in MailBody (400 bad_email) and Accept, form maxlength; TestIncoming/TestFieldErrors/TestRefused pin it
+
+### DW-283: ApiClient's private accepted<T>() repeats postMessage's 202-only body (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: web/src/app/api/api-client.ts accepted<T>() (Story 4.6) and postMessage (another epic's lines, shared-by-entry file): the same 8-line 202 check; postMessage cannot be moved onto the helper here
+- 2026-10-26T23:16:44Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=copy forced by the shared-by-entry rule; reopen_if=a third 202-only POST joins ApiClient or postMessage's success rule changes
+
+### DW-284: Test.Web.MailboxApi's Csp and Post repeat Test.Web.BreakFeedApi's (Rule 2 copy)
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: MailboxApi.cls:191-216 and BreakFeedApi.cls:139-158: the CSP session and stand-in request helpers; BreakFeedApi is an existing file in contended Test/Web/**, so no shared helper can replace its copy
+- 2026-10-26T23:16:50Z status=wontfix-accepted owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=cr note=unification needs a contended file; reopen_if=a third route test class copies Csp/Post
