@@ -103,7 +103,7 @@ test('F2: demo mode off', async ({ page }) => {
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   await expect(page.locator('.context-badge')).toHaveCount(0);
-  await expect(page.locator('.reset-countdown, app-resetting-view'), 'no reset countdown and no resetting view off the online demo, whatever the snapshot says').toHaveCount(0);
+  await expect(page.locator('.reset-countdown, app-resetting-view'), 'no reset countdown off the online demo, even with a nextReset in the snapshot, and no resetting view').toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Demo guide' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Simulated devices' })).toHaveCount(0);
 

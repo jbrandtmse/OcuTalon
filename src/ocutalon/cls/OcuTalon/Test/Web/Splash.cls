@@ -472,7 +472,11 @@ Method TestInfoNotice()
 	For since = "2026-10-25T08:00:00Z", "2026-10-25T08:00:01Z", "2027-01-01T00:00:00Z", "2026-10-25T07:49:30", "<b>zz</b>", "", "2026-02-30T00:00:00Z", "2026-10-25T07:49:30.5Z" {
 		Set page = ..PageWith("since="_since)
 		Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice for since '"_since_"'")
-		Do $$$AssertTrue(page '[ "zz", "since '"_since_"' is not echoed")
+		If since '= "" {
+			Do $$$AssertTrue(page '[ since, "since '"_since_"' is not echoed")
+			Do $$$AssertTrue(page '[ $ZConvert(since, "O", "HTML"), "nor its escaped form")
+		}
+		Do $$$AssertTrue(page '[ "zz", "no part of since '"_since_"' is echoed")
 	}
 	Set page = ..PageWith("")
 	Do $$$AssertEquals(..Count(page, ..#INFO), 0, "no notice without since")

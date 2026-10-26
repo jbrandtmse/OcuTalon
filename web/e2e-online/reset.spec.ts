@@ -24,13 +24,21 @@ import { publicValue, recordSplashAnnouncements, removeSession, setPublic, signI
  *   reset, /state's status holds resetSoon, the pill is urgent, the banner shows, and a fresh browser's splash shows the reset-soon notice
  *   under the sign-in card's title, not hidden, from which signing in still opens the page.
  * - R3 (row 11, AC 4): a 401 at or after the pending reset enters the resetting view and does not take the signed-out path. The page's
- *   wall clock jumps past the reset while its timers stay where they were, and every call to /ocutalon/api/ then answers 401.
+ *   wall clock jumps past the reset while its timers stay where they were, and /state and /events then answer 401.
  * - R3b (row 11, AC 4): lost contact past the pending reset enters the view: the same jump of the wall clock, with the API refusing calls.
+ * - R3c (row 11, AC 4): an answer of the live path past the pending reset enters the view: the same jump, with the API answering.
  * - R4 (row 11, AC 2): a reset event that moves the next reset later, while more than five minutes remain, moves the pill.
  * - R5 (row 7, AC 3): the splash's script shows the reset-soon notice when the reset comes within five minutes, announces it once and
  *   hides it after the reset; the server wrote it hidden.
- * Task 0 (a), (b) and the unit's time print MEASURED lines; (c), that the status polls send no Cookie, cannot be seen at a routed request (it carries
- * no network headers), and the poller's `credentials: 'omit'` is pinned by the Node test of matrix row 12. The texts are written out here, as the independent oracle of the page's own.
+ * - R6 (row 11, AC 4): a 401 before the pending reset is not the reset's. It takes the signed-out path (the sign-in page with
+ *   signedOut=1), and the page never enters the resetting view.
+ * - R7 (AC 4): the resetting view shows the logo of the page's theme, the light one in a light scheme and the dark one in a dark scheme,
+ *   and follows the scheme when it changes.
+ * - R8 (AC 2): the pill sits in the header's right group after the Status button (drawer band) and before the Visual Trace button, and the
+ *   header still fits the window with it at 1024px and at 640px.
+ * - R9 (row 13, AC 4, Task 0 (c)): the resetting view asks the public status with no cookie, while the signed-in page's own request
+ *   carries the session; both are real requests that no route answers, so their headers are the network's.
+ * Task 0 (a), (b), (c) and the unit's time print MEASURED lines. The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env['OCUTALON_ONLINE_PROXIED'] === '1', 'runs in the browser step, where nothing is proxied');
@@ -190,6 +198,7 @@ test('R1: the pill turns urgent at 10 minutes, the banner comes at 5, the resett
     // The reset: the resetting view replaces the page, and the live path stops.
     await runTo(page, reset - 1000);
     await expect(page.locator('app-resetting-view')).toHaveCount(0);
+    const historyBefore = await page.evaluate(() => history.length);
     await page.getByRole('button', { name: 'Visual Trace', exact: true }).focus();
     await runTo(page, reset);
     const view = page.locator('app-resetting-view');
@@ -234,6 +243,7 @@ test('R1: the pill turns urgent at 10 minutes, the banner comes at 5, the resett
     expect(Date.parse(since), 'it is the page\'s load time on its clock').toBeGreaterThanOrEqual(start - 1000);
     expect(Date.parse(since)).toBeLessThanOrEqual(loadedAt);
     expect(navigations.length, 'exactly one navigation').toBe(baseline + 1);
+    expect(await page.evaluate(() => history.length), 'the splash replaced the page (location.replace): no new history entry').toBe(historyBefore);
 
     expect(api.slice(apiBefore), 'no request of the page goes to /ocutalon/api/ after the switch').toEqual([]);
 
@@ -336,9 +346,9 @@ test('R2: with a reset four minutes away /state, the public status and the ancho
 const UNAUTHORIZED = { status: 401, contentType: 'application/json', body: '{}' } as const;
 
 /**
- * Routes the live path of a signed-in page for R3 and R4: /state answers nextReset `reset` with no real resetSoon, /events carries no
- * real reset or resetSoon event, and `inject` may add one event to the next /events answer. While `blocked()` is true every call to
- * /ocutalon/api/ answers 401.
+ * Routes the live path of a signed-in page: /state answers nextReset `reset` with no real resetSoon, /events carries no real reset or
+ * resetSoon event, and `inject` may add one event to the next /events answer. While `blocked()` is true /state and /events answer 401,
+ * and while `dropped()` is true they are refused.
  */
 async function routeLivePath(
   page: Page,
@@ -436,15 +446,42 @@ test('R3b: lost contact after the pending reset shows the resetting view', async
   }
 });
 
-/** R4: a reset event moves the pending reset while more than five minutes remain. */
+/** R3c: an answer of the live path past the pending reset belongs to the reset. */
+test('R3c: an answer of the live path after the pending reset shows the resetting view before the reset timer would', async ({ page }) => {
+  let epoch = '';
+  const lastReset = await publicValue('lastReset');
+  expect(Date.parse(lastReset), 'the stack has a last reset (the start values give one)').not.toBeNaN();
+  const reset = Date.parse(lastReset);
+  try {
+    await page.clock.install({ time: new Date(reset - 240_000) });
+    await routeLivePath(page, lastReset, { blocked: () => false, inject: () => undefined, epoch: (value) => (epoch = value) });
+    await page.route(`**${STATUS}*`, (route) => route.fulfill({ status: 200, json: { ready: false, nextReset: null, busy: false, lastReset: null, lastResetKind: null } }));
+
+    await signInFromSplash(page);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page.locator('app-resetting-view'), 'four minutes before the reset the page is still the page').toHaveCount(0);
+
+    // The wall clock moves past the reset while the live path keeps answering and the page's contact stays ok; the reset timer is still
+    // about four minutes away, so only the check at an answer can show the reset within the wait below.
+    await page.clock.setSystemTime(new Date(reset + 2000));
+    await expect(page.locator('app-resetting-view'), 'the next answer past the reset shows the resetting view').toBeVisible({ timeout: 30_000 });
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+/**
+ * R4: a reset event moves the pending reset while more than five minutes remain. The page's next reset is the case's own, two hours
+ * ahead on the routed /state, so the case does not depend on the stack's schedule.
+ */
 test('R4: a reset event with a later time moves the pill', async ({ page }) => {
   let epoch = '';
   let send = false;
   let sent = false;
   try {
-    const status = (await (await page.request.get(`${STATUS}?probe=${Date.now()}`)).json()) as { nextReset: string };
-    const next = status.nextReset;
-    expect(Date.parse(next), 'the stack has a next reset').not.toBeNaN();
+    const next = iso(Math.floor(Date.now() / 60_000) * 60_000 + 2 * 3_600_000);
     const later = iso(Date.parse(next) + 4 * 3_600_000);
     await routeLivePath(page, next, {
       blocked: () => false,
@@ -501,5 +538,157 @@ test('R5: the splash reveals the reset-soon notice at five minutes, announces it
     await expect(soon, 'after the reset the notice is hidden again (the next reset is hours away)').toBeHidden();
   } finally {
     await signOutGroup(page);
+  }
+});
+
+/** Routes a signed-in page for R6 and R7: the live path of R3 with the pending reset `lastReset`, and a status that is not ready. */
+async function routeBeforeReset(page: Page, lastReset: string, hooks: { blocked: () => boolean; epoch: (epoch: string) => void }): Promise<void> {
+  await routeLivePath(page, lastReset, { blocked: hooks.blocked, inject: () => undefined, epoch: hooks.epoch });
+  await page.route(`**${STATUS}*`, (route) => route.fulfill({ status: 200, json: { ready: false, nextReset: null, busy: false, lastReset: null, lastResetKind: null } }));
+}
+
+test('R6: a 401 before the pending reset signs the page out and does not show the resetting view', async ({ page }) => {
+  let epoch = '';
+  const lastReset = await publicValue('lastReset');
+  expect(Date.parse(lastReset), 'the stack has a last reset (the start values give one)').not.toBeNaN();
+  const reset = Date.parse(lastReset);
+  const navigations: string[] = [];
+  let blocked = false;
+  try {
+    await page.clock.install({ time: new Date(reset - 240_000) });
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url());
+    });
+    await routeBeforeReset(page, lastReset, { blocked: () => blocked, epoch: (value) => (epoch = value) });
+
+    await signInFromSplash(page);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(pill(page), 'the page has its pending reset, four minutes ahead').toBeVisible();
+    await expect(page.locator('app-resetting-view')).toHaveCount(0);
+
+    // The page's clock stays four minutes before the reset; the API stops accepting the session, and the CSP session ends, as it does
+    // when a session ends elsewhere (while it lasts, the sign-in address would serve the page again).
+    blocked = true;
+    await signOutGroup(page);
+    await page.waitForURL(/[?&]signedOut=1/, { timeout: 60_000, waitUntil: 'commit' });
+    expect(navigations.some((url) => url.includes('since=')), 'the page did not go to the splash as after a reset').toBe(false);
+    await expect(page.locator('app-resetting-view'), 'and the resetting view never showed').toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Sign in and start', exact: true }), 'the sign-in page shows').toBeVisible();
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+test('R7: the resetting view shows the logo of the page\'s theme and follows a change of scheme', async ({ page }) => {
+  let epoch = '';
+  const lastReset = await publicValue('lastReset');
+  expect(Date.parse(lastReset), 'the stack has a last reset (the start values give one)').not.toBeNaN();
+  const reset = Date.parse(lastReset);
+  let blocked = false;
+  try {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.clock.install({ time: new Date(reset - 240_000) });
+    await routeBeforeReset(page, lastReset, { blocked: () => blocked, epoch: (value) => (epoch = value) });
+
+    await signInFromSplash(page);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    blocked = true;
+    await page.clock.setSystemTime(new Date(reset + 2000));
+    const view = page.locator('app-resetting-view');
+    await expect(view, 'the 401 past the reset shows the resetting view').toBeVisible({ timeout: 60_000 });
+
+    const light = view.locator('img[src*="OcuTalon-Logo-light-"]');
+    const dark = view.locator('img[src*="OcuTalon-Logo-dark-"]');
+    await expect(dark, 'a dark scheme shows the dark logo').toBeVisible();
+    await expect(light, 'and not the light one').toBeHidden();
+    expect((await dark.boundingBox())?.width ?? 0, 'at 320px').toBeCloseTo(320, 0);
+
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(light, 'a light scheme shows the light logo').toBeVisible();
+    await expect(dark, 'and not the dark one').toBeHidden();
+    expect((await light.boundingBox())?.width ?? 0, 'at 320px').toBeCloseTo(320, 0);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+test('R8: the pill sits after the Status button and before the Visual Trace button in the header', async ({ page }) => {
+  let epoch = '';
+  /** The header's right group by what each child is: the Status button, the pill, the Visual Trace button, or something else. */
+  const rightGroup = (): Promise<string[]> =>
+    page.evaluate(() =>
+      [...(document.querySelector('app-header .side.right')?.children ?? [])].map((el) =>
+        el.matches('.status-button') ? 'status' : el.matches('app-reset-countdown') ? 'pill' : (el.textContent ?? '').includes('Visual Trace') ? 'trace' : 'other',
+      ),
+    );
+  try {
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await signInFromSplash(page);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    epoch = ((await (await page.request.get(STATE)).json()) as { epoch: string }).epoch;
+    await expect(pill(page), 'the online demo has its pill (the unit\'s reset is two hours ahead)').toBeVisible();
+    await expect(page.locator('app-header .status-button'), 'the drawer band has the Status button').toBeVisible();
+    expect((await rightGroup()).filter((one) => one !== 'other'), 'drawer band: Status, then the pill, then Visual Trace').toEqual(['status', 'pill', 'trace']);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator('app-header .status-button'), 'the wide layout has no Status button').toHaveCount(0);
+    await expect(pill(page)).toBeVisible();
+    expect((await rightGroup()).filter((one) => one !== 'other'), 'wide: the pill, then Visual Trace').toEqual(['pill', 'trace']);
+
+    // With the pill, the header still fits the narrowest drawer band and the stacked column's 640px.
+    for (const width of [1024, 640]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect(pill(page)).toBeVisible();
+      const fit = await page.evaluate(() => {
+        const root = document.scrollingElement ?? document.documentElement;
+        const header = document.querySelector('app-header .header')?.getBoundingClientRect();
+        const ends = [...(document.querySelector('app-header .side.right')?.children ?? [])].map((el) => el.getBoundingClientRect().right);
+        return { across: root.scrollWidth - root.clientWidth, past: Math.max(...ends) - (header?.right ?? 0) };
+      });
+      console.log(`MEASURED R8 at ${width}px with the pill: the page scrolls across by ${fit.across}px; the header's right group ends ${fit.past}px past the header's edge`);
+      expect(fit.across, `at ${width}px the page does not scroll across`).toBeLessThanOrEqual(0);
+      expect(fit.past, `at ${width}px the header's right group ends inside the header`).toBeLessThanOrEqual(0);
+    }
+  } finally {
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
+/** R9: the resetting view's status polls carry no credentials; the signed-in page's own requests carry the session. */
+test('R9: the resetting view asks the public status with no cookie', async ({ page }) => {
+  let epoch = '';
+  const documents: Request[] = [];
+  const polls: Request[] = [];
+  try {
+    page.on('request', (one: Request) => {
+      const url = new URL(one.url());
+      if (url.pathname === STATUS && url.searchParams.has('t')) polls.push(one);
+      else if (one.resourceType() === 'document' && url.pathname === '/ocutalon/') documents.push(one);
+    });
+    // The page's pending reset is a few seconds ahead on the routed /state (or already past, on a slow sign-in); the public status is not
+    // routed, so the view's polls reach the server (ready, with the stack's old last reset, so the view stays).
+    const reset = iso(Date.now() + 12_000);
+    await routeLivePath(page, reset, { blocked: () => false, inject: () => undefined, epoch: (value) => (epoch = value) });
+
+    await signInFromSplash(page);
+    await expect(page.locator('app-resetting-view'), 'the page enters the resetting view at its pending reset').toBeVisible({ timeout: 90_000 });
+    const control = documents.at(-1);
+    expect(control, 'the signed-in page was a document request to /ocutalon/').toBeTruthy();
+    await expect.poll(() => polls.length, { message: 'the view asks the public status', timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    await polls[0]!.response();
+    const sent = await polls[0]!.allHeaders();
+    const own = await control!.allHeaders();
+    console.log(`MEASURED Story 16.8 Task 0 (c): the view's status poll carries a Cookie header: ${sent['cookie'] !== undefined}; the signed-in page's request carries one: ${own['cookie'] !== undefined}`);
+    expect(own['cookie'] ?? '', 'the control: the signed-in page\'s own request carries the session cookie').not.toBe('');
+    expect(sent['cookie'], 'the status poll carries no cookie').toBeUndefined();
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
   }
 });

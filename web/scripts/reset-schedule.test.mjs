@@ -2,10 +2,12 @@
 // texts, urgency, visibility and update times; the pending reset (an earlier offer replaces it, a later one only while more than 300 s
 // remain, an empty one never); the "due" rule; and the resetting view's poller (a GET with no credentials and no cache every 10 s, a
 // 3 s limit, a failed, timed-out or non-JSON answer counting as not ready, and exactly one navigation, to the splash with the load
-// time, when the status is ready with a last reset later than the load time or the page is 15 minutes past the reset). The module is
-// imported as it is (Node strips its types); the clock, timers and fetch are fakes.
+// time, when the status is ready with a last reset later than the load time or the page is 15 minutes past the reset); and that the
+// reset-soon threshold is the same in the server (Public.Settings), the splash script and the page. The module is imported as it is
+// (Node strips its types); the clock, timers and fetch are fakes.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -123,6 +125,18 @@ describe('the pending reset (row 11)', () => {
     assert.equal(isDue(iso(T), T + HOUR), true);
     assert.equal(isDue('', T), false);
     assert.equal(isDue('not a time', T), false);
+  });
+});
+
+describe('the reset-soon threshold', () => {
+  it('is the same 300 s in Public.Settings, the splash script and the page', () => {
+    const settings = readFileSync(join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Data', 'Public', 'Settings.cls'), 'utf8');
+    const splash = readFileSync(join(here, '..', 'src', 'signin', 'splash.js'), 'utf8');
+    const server = /^Parameter RESETSOONSECONDS = (\d+);$/m.exec(settings);
+    const script = /\bvar SOON_MS = (\d+);/.exec(splash);
+    assert.ok(server && script, 'both thresholds are found');
+    assert.equal(Number(server[1]) * SECOND, RESET_SOON_MS, 'Settings.RESETSOONSECONDS');
+    assert.equal(Number(script[1]), RESET_SOON_MS, 'splash.js SOON_MS');
   });
 });
 

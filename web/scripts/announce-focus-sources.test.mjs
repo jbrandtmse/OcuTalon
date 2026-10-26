@@ -132,8 +132,9 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/chat/chat-panel.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
-  it('gives the banner stack, the rail, the chat panel, the main page and the header the shared rule, and each its own rule only', () => {
+  it('gives the banner stack, the rail, the chat panel, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {
     const hosts = {
+      'app/app.ts': /const RESETTING_RULE: FocusRule = \{\};/,
       'app/header/header.ts': /const STATUS_RULE: FocusRule = \{ within: '\.status-button' \}/,
       'app/banners/banner-stack.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{BANNER_ID\}\]`/,
       'app/rail/status-rail.ts': /const FOCUS_RULE: FocusRule = \{[\s\S]*?item: `\[\$\{ROW_KEY\}\]`/,
@@ -142,7 +143,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     };
     for (const [name, rule] of Object.entries(hosts)) {
       const { code: text } = file(name);
-      assert.match(text, /import \{ type FocusRule, keepFocus \} from '\.\.\/shared\/focus-rule';/, `${name} imports the shared rule`);
+      assert.match(text, /import \{ type FocusRule, keepFocus \} from '\.\.?\/shared\/focus-rule';/, `${name} imports the shared rule`);
       assert.match(text, /untracked\(\(\) => keepFocus\(this\.host\.nativeElement, this\.injector, this\.popovers, [A-Z_]+\)\)/, `${name} calls it from an effect`);
       assert.match(text, rule, `${name} has its own rule`);
     }

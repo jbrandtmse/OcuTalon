@@ -90,6 +90,7 @@ import { RESET_TEXTS } from './reset-schedule';
     h1 {
       margin: 0 0 var(--space-4);
       color: var(--ink);
+      font-family: var(--font-display);
       font-size: var(--type-display-lg-font-size);
       font-weight: var(--type-display-lg-font-weight);
       line-height: var(--type-display-lg-line-height);

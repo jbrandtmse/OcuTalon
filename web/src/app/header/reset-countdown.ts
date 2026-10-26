@@ -37,7 +37,7 @@ const FORMAT: PillFormat = {
       border-radius: var(--reset-countdown-radius);
       background: var(--reset-countdown-background);
       color: var(--reset-countdown-foreground);
-      font-family: var(--font-ui);
+      font-family: var(--reset-countdown-typography-font-family), var(--font-ui);
       font-size: var(--reset-countdown-typography-font-size);
       font-weight: var(--reset-countdown-typography-font-weight);
       line-height: var(--reset-countdown-typography-line-height);

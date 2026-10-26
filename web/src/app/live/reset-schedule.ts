@@ -1,5 +1,5 @@
 /**
- * The page's view of the demo's reset (Story 16.8; AD-12, AD-13, AD-25). A framework-free module: it imports nothing and uses only
+ * The page's view of the demo's reset (Story 16.8; AD-12, AD-13, AD-25). A framework-free module: it imports only a type and uses only
  * erasable TypeScript syntax, so Node runs it as it is, and its clock, timers and fetch are injected.
  *
  * - offerReset: the pending reset. It starts from the snapshot's nextReset; every later snapshot and every reset event offers a
@@ -10,6 +10,7 @@
  * - ResetPoller: the resetting view's quiet wait: it asks the public status at once and every RESET_POLL_MS, with no credentials, and
  *   navigates once, to the splash, when the demo is ready after the reset.
  */
+import type { PublicStatus } from '../api/api-types';
 
 /** The warning period before a reset, in milliseconds: the pending reset does not move later inside it. */
 export const RESET_SOON_MS = 300_000;
@@ -125,10 +126,7 @@ export function pillDelayMs(pending: string, nowMs: number): number | undefined 
 }
 
 /** What the poller reads from the public status. */
-export interface StatusAnswer {
-  ready: boolean;
-  lastReset: string | null;
-}
+export type StatusAnswer = Pick<PublicStatus, 'ready' | 'lastReset'>;
 
 /** The status JSON as an answer, or undefined for anything else (the maintenance page's HTML, an error, a body of another shape). */
 export function parseStatus(body: unknown): StatusAnswer | undefined {

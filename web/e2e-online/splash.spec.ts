@@ -470,7 +470,10 @@ test.describe('S5 to S7, signing in', () => {
     }
   });
 
-  /** S7: the form's POST carries no field but the four of the proxy's allow-list. */
+  /**
+   * S7: the form's POST carries no field but the four of the proxy's allow-list, and the redirect that answers it drops since (Story
+   * 16.8; the page that then loads normalizes its address to /ocutalon/#/, so the redirect's Location is where Shell.Redirect shows).
+   */
   test('S7: the sign-in POST carries only IRISSessionToken, IRISUsername, IRISPassword and IRISLogin', async ({ page }) => {
     try {
       const allowed = ALLOWED_FIELDS;
@@ -485,8 +488,11 @@ test.describe('S5 to S7, signing in', () => {
           });
         };
         page.on('request', watch);
-        await signInFromSplash(page, undefined, undefined, path);
+        const answer = await signInFromSplash(page, undefined, undefined, path);
         await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+        const location = answer.headers()['location'] ?? '';
+        expect(location, `the sign-in POST answers with a redirect (from ${path})`).not.toBe('');
+        expect(new URL(location, page.url()).searchParams.has('since'), `the redirect after the sign-in POST drops since (from ${path}: ${location})`).toBe(false);
         page.off('request', watch);
         const sent = posts.find((one) => new URL(one.url).pathname === '/ocutalon/');
         expect(sent, `the form was posted at ${path}`).toBeTruthy();

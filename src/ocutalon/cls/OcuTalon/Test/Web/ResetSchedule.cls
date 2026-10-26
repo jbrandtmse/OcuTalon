@@ -104,14 +104,17 @@ Method TestOneNextResetEverywhere()
 }
 
 /// Row 4: with the flag off and an anchor set, or with the flag on and no anchor, /state has no nextReset, its keys are the local
-/// ones and its status has no resetSoon.
+/// ones (those of the flag off with no schedule, whose list Test.Web.Api.TestStateBody pins) and its status has no resetSoon.
 Method TestLocalSnapshotKeepsItsKeys()
 {
 	Set error = ""
 	Try {
-		Set local = "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status"
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "")
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
+		Set local = ..KeyList(##class(OcuTalon.Web.Api).StateBody(..Session))
+		Do $$$AssertTrue(local [ ",status", "the local keys end with status ("_local_")")
 
 		Do ..Schedule(0, 120)
 		Set state = ##class(OcuTalon.Web.Api).StateBody(..Session)
@@ -196,6 +199,42 @@ Method TestResetEventPublishesOnChangeOnly()
 	} Catch exception {
 		Set error = exception.DisplayString()
 	}
+	Do ..Restore()
+	Do $$$AssertEquals(error, "", "the checks ran without an error")
+}
+
+/// A reset event that Publish refuses leaves the run returning OK with one warning and the change unremembered, so the next run
+/// publishes it; once published it is remembered, and a run that follows publishes nothing.
+Method TestRefusedResetPublishIsPublishedAtTheNextRun()
+{
+	Set error = ""
+	Try {
+		Do ..Schedule(1, 3600)
+		Set probe = ..Probe()
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", ..InSeconds(7200))
+		Set moved = ##class(OcuTalon.Data.Public.Settings).NextReset()
+
+		TSTART
+		Set sc = probe.OnProcessInput($$$NULLOREF, .output)
+		Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "PublishReset", ##class(OcuTalon.Core.StatusMonitor).#LOGPUBLISH)
+		Set published = ..Events().%Size()
+		TROLLBACK
+		Do $$$AssertStatusOK(sc, "inside an open transaction, where Publish refuses: the run returns OK")
+		Do $$$AssertEquals(warned, 1, "and one warning says that the event could not be published: "_$Get(text))
+		Do $$$AssertEquals(published, 0, "no reset event was published (counted inside the transaction, which sees its own rows)")
+
+		Do $$$AssertStatusOK(probe.OnProcessInput($$$NULLOREF, .output), "the next run returns OK")
+		Set events = ..Events()
+		Do $$$AssertEquals(events.%Size(), 1, "it publishes the change that was refused")
+		Do $$$AssertEquals(events.%Get(0).type_"|"_events.%Get(0).payload.%ToJSON(), "reset|{""nextReset"":"""_moved_"""}", "the reset event with the new time")
+		Do probe.OnProcessInput($$$NULLOREF, .output)
+		Do $$$AssertEquals(..Events().%Size(), 1, "and once it is published it is remembered")
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	If $TLevel > 0 TROLLBACK
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "PublishReset", ##class(OcuTalon.Core.StatusMonitor).#LOGPUBLISH)
 	Do ..Restore()
 	Do $$$AssertEquals(error, "", "the checks ran without an error")
 }

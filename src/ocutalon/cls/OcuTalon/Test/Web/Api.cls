@@ -1248,11 +1248,12 @@ ClassMethod Items(chat As %DynamicArray) As %String [ Private ]
 /// Story 16.1: the snapshot's traceAccount is the read-only account's user name and password, the last key, only when onlineDemo
 /// is 1 and both values are set. Flag 0 with both set: no key, and the snapshot's keys (whose list TestStateBody pins) are the
 /// baseline of the other cases. Flag 1 with both: the baseline and then the key, last, with both values. Flag 1 with an empty
-/// password, and with an empty user name: the baseline, no key. The three public settings are put back, also after a failure; the
-/// fixture session is zzapitrace<n>.
+/// password, and with an empty user name: the baseline, no key. The reset anchor is cleared for the checks, so that the online demo's
+/// nextReset (Story 16.8, after traceAccount) is absent whatever the stack's schedule. The four public settings are put back, also
+/// after a failure; the fixture session is zzapitrace<n>.
 Method TestStateTraceAccount()
 {
-	Set names = $ListBuild("onlineDemo", "readonlyUser", "readonlyPassword")
+	Set names = $ListBuild("onlineDemo", "readonlyUser", "readonlyPassword", "resetAnchor")
 	For i = 1:1:$ListLength(names) {
 		Set saved($List(names, i)) = ##class(OcuTalon.Data.Public.Settings).Get($List(names, i))
 	}
@@ -1260,6 +1261,7 @@ Method TestStateTraceAccount()
 	Try {
 		Set session = ##class(OcuTalon.Data.Session).ForUser("zzapitrace"_..Number, .sc)
 		Do $$$AssertStatusOK(sc, "the fixture session")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("resetAnchor", "")
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyUser", "TraceReader"_..Number)
 		Do ##class(OcuTalon.Data.Public.Settings).Set("readonlyPassword", "pw"_..Number_"zz")
 
