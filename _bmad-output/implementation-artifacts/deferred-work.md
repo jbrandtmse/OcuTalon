@@ -1169,3 +1169,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Test/Watch/Turns.cls and Test/Watch/Case.cls repeat Test/Tools/Reminders.cls 874-1085 nearly line for line; the spec named them templates; sharing needs one helper across ZoneCase and InProduction
 - 2026-10-25T21:52:41Z status=wontfix-accepted owner=5-1-ask-ocutalon-to-watch-a-production-and-to-stop by=cr note=reopen_if=a third test class copies these helpers, or a fix to one copy (such as the mock-log read) is missed in another
+
+### DW-227: The fresh lane-a shard (54 classes) took 539 s on the developer machine, about a minute under the 10-minute foreground cap that every stage and the lead's fresh check run inside; one more class pushes a fresh run past the cap. Give ci/iris.sh shard a local split (for example --part k/n over the sorted class list, with --reverse taking the parts of the reversed list), CI unchanged
+- source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 5.2 implement: shard lane-a passed 54 classes in 539 s (5.1: 52 classes 422-475 s; Epic 3: ~400 s); runner brief: split long runs into calls that finish well inside the cap; ci/iris.sh is not contended (Epic 5 footprint extension), test-ci-config.sh takes an appended block
+- 2026-10-26T00:59:33Z status=routed owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=lead_routed:tooling_before_5.3's_own_tests_grow_the_shard;CI_groups_unchanged(no_REL-4_impact)

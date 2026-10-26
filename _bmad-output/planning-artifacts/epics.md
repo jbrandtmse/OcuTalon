@@ -2532,6 +2532,7 @@ So that I get one message, not fifty.
 **When** the incident is noticed
 **Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with one notice per watcher session and its events on each watcher's stream (FR-23, AD-4, UX-DR74)
 **And** failures tagged with two different sessions' `TraceRef`s form two incidents, each seen only by its own session (AD-4, UX-DR104)
+- DW-227: The fresh `lane-a` shard took 539 s with 54 classes, about a minute under the 10-minute foreground cap every stage runs inside. Give `ci/iris.sh shard` a local split (for example `--part k/n` over the sorted class list, `--reverse` taking the parts of the reversed list), with the CI groups unchanged (ledger; routed by harvest 2026-10-25)
 
 ### Story 5.4: The diagnosis explains the cause from the failed messages
 
