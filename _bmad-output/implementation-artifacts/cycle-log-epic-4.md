@@ -146,3 +146,5 @@
 2026-10-26T10:02:51Z	Story 4.4	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=rework_born_none;DW-198_residual_already_with_burndown model=claude-opus-5-5
 2026-10-26T10:02:51Z	Story 4.4	smoke_complete	method=browser(live:floor_3_engines) result=pass iterations=2 defects_caught=0 evidence=throwaway_e4s4s2(80_passed;guide_floor_M1-M6) model=claude-opus-5-5
 2026-10-26T10:02:51Z	Story 4.4	fresh_check	env=recipe(ci/iris.sh_fresh,tag_e4s4f2,lock=lane-b) tests=live_sign-in(210+1skip;Q9,Q11)+live_floor(smoke)+web_test+ci/checks.sh result=pass order=forward(live_units) leftovers=none model=claude-opus-5-5
+2026-10-26T10:03:17Z	Story 4.4	committed	sha=0cd85a2 submodules= ci=pending runs=40304315110,40304315077 amendments=none fix_for=4-4-show-the-demo-guide-and-the-break-the-feed-box note=rework_1(CI_Q9);pushed_with_b4709dc
+2026-10-26T10:03:17Z	Story 4.4	story_cycle	plan_to_commit_min=530 implement_passes=2 reviews=2 rework=1(ci) first_ci=story models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
