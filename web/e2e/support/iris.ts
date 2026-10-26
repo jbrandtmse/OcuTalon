@@ -1,13 +1,15 @@
 import { execFileSync, spawn } from 'node:child_process';
 
 /**
- * What the specs of Story 2.2 need from the throwaway stack that docker/tests/test-sign-in.sh starts (or, for the floor specs of
- * e2e/floor/, docker/tests/test-floor.sh): the fixture users it created, and a way to run a line of ObjectScript in the OCUTALON
- * namespace of its IRIS container (the stack publishes no management port). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
+ * What the e2e specs need from the throwaway stack that their script starts (docker/tests/test-sign-in.sh, test-floor.sh for the floor
+ * specs of e2e/floor/, or test-demo-path.sh): the fixture users the sign-in and floor scripts created, and a way to run a line of
+ * ObjectScript in the OCUTALON namespace of the stack's IRIS container (the stack publishes no management port). The container is named
+ * by OCUTALON_E2E_IRIS_CONTAINER, which the sign-in and floor scripts set, or else found by the web port of OCUTALON_URL, which the
+ * demo-path script sets (irisContainer). Every variable is read when a helper is called, never at import, so that listing the specs needs none.
  */
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} must be set by docker/tests/test-sign-in.sh (or docker/tests/test-floor.sh for the floor user)`);
+  if (!value) throw new Error(`${name} must be set by the e2e unit's script (docker/tests/test-sign-in.sh, test-floor.sh or test-demo-path.sh)`);
   return value;
 }
 
@@ -17,9 +19,9 @@ let foundContainer: string | undefined;
 /**
  * The IRIS container of the stack under test. Two ways name it, in this order:
  *   - OCUTALON_E2E_IRIS_CONTAINER, which the sign-in and floor scripts set;
- *   - the web port of OCUTALON_URL, which the demo-path script sets: the one container that publishes that port (only the iris service of
- *     ci/compose.ci.yml publishes it, and each runner and lane uses its own port). Exactly one container must publish it, else this fails
- *     naming the variable and the port.
+ *   - the web port of OCUTALON_URL, which the demo-path script sets: the one container that publishes that host port (docker ps
+ *     --filter publish matches the host port; only the iris service publishes it, through the override of lib-live.sh's live_web_port,
+ *     and each runner and lane uses its own port). Exactly one container must publish it, else this fails naming the variable and the port.
  */
 function irisContainer(): string {
   const named = process.env['OCUTALON_E2E_IRIS_CONTAINER'];

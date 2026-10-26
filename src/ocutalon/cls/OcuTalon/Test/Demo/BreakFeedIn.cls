@@ -6,11 +6,17 @@
 ///     after it; the events are sending and sent with one startedAt; the send carries the session, the channel and the TraceRef;
 ///   - TestNotWatching, TestBusy: an inactive press answers its reason and writes and sends nothing;
 ///   - TestReplayClosesFirst, TestCloseRefused, TestCloseFails: the session's own resolved Orders incidents are closed, oldest
-///     first, before any run is written; a refusal or an error leaves no run and no send;
-///   - TestTriggerFails: the run stays sending, with one event, and the error status is the answer;
+///     first, before any run is written; a refusal (incident_in_progress), an error or a close with no answer (an error status) leaves
+///     no run and no send;
+///   - TestTriggerFails: a trigger that errors or has no answer leaves the run sending, with one event, and the answer is an error status;
 ///   - TestHeldLock: a press that can't take the session's lock in LOCKWAIT seconds answers incident_in_progress;
 ///   - TestBadInput: a press that is none, has no session or has a session with no row is an error status and writes nothing;
-///   - TestNotATurn: no Turn and no Decision, and the press's methods name no Allowance, WebChatIn or Conversation.
+///   - TestNotATurn: a sent press makes no Turn and no Decision, and the press's methods name no Allowance, WebChatIn, Conversation or
+///     Core.Trace (the press never joins a turn's trace, AD-26);
+///   - TestPublishFailureGoesOn (QA): a breakfeed.progress publish that fails (the stream's lock is held) logs one warning each and the
+///     press goes on: the batch is triggered, the run is sent and the answer is sent;
+///   - TestSeamsAreSynchronous (QA): the real Close and Trigger are SendRequestSync to the production's IncidentManager and
+///     PartnerTrigger items, with the timeouts (the probe replaces both, so the real send is pinned by its code and the production test).
 Class OcuTalon.Test.Demo.BreakFeedIn Extends %UnitTest.TestCase
 {
 
@@ -68,6 +74,7 @@ Method TestSent()
 	Set run = ##class(OcuTalon.Data.Ownership).LatestBreakFeedRun(ref, .sc)
 	Do $$$AssertEquals(answer.startedAt, run.StartedAt, "the answer's startedAt is the run's")
 	Do $$$AssertTrue(run.StartedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "StartedAt is a UTC time to the second")
+	Do $$$AssertTrue(run.Age(##class(OcuTalon.Data.Time).NowUtc()) < 30, "StartedAt is now (the press ran a moment ago)")
 	Set events = ..Events(ref)
 	Do $$$AssertEquals(events.%Size(), 2, "two events besides the guide's")
 	Do $$$AssertEquals(events.%Get(0).state, "sending", "the first is sending")
@@ -92,7 +99,7 @@ Method TestNotWatching()
 /// notice, refuses the press with incident_in_progress: nothing is sent or written.
 Method TestBusy()
 {
-	Set cases = $ListBuild("open", "open rejected", "open fallback", "open no_fix", "awaiting_approval", "fixing")
+	Set cases = $ListBuild("open", "open rejected", "open fallback", "open no_fix", "open expired", "awaiting_approval", "fixing")
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set ref = ..Watching()
@@ -155,45 +162,46 @@ Method TestCloseRefused()
 	Do $$$AssertEquals(..Calls(), "close", "one close and no trigger")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "0:", "no run is written")
 	Do $$$AssertEquals(..Events(ref).%Size(), 0, "no event is published")
-	Kill ^OcuTalonTest("BreakFeedInProbe")
-	Set ref = ..Watching()
-	Do ##class(OcuTalon.Test.Data.Fixture).Incident(ref, , ..#NS, ..#PROD, {"State": "resolved"})
-	Set ^OcuTalonTest("BreakFeedInProbe", "answer", "close") = "none"
-	Set output = ..Press(ref, .sc)
-	Do $$$AssertEquals(output, {"outcome": "inactive", "reason": "incident_in_progress"}.%ToJSON(), "a close with no answer is a refusal too")
-	Do $$$AssertEquals(..Calls(), "close", "and nothing else is sent")
 }
 
-/// Row 8 (the failure): a close that errors or times out is an error status, with no run and no trigger.
+/// Row 8 (the failure): a close that errors, or that has no answer within CLOSETIMEOUT ("none": SendRequestSync succeeds with no
+/// response), is an error status, with no run and no trigger.
 Method TestCloseFails()
 {
-	Set ref = ..Watching()
-	Do ##class(OcuTalon.Test.Data.Fixture).Incident(ref, , ..#NS, ..#PROD, {"State": "resolved"})
-	Set ^OcuTalonTest("BreakFeedInProbe", "answer", "close") = "error"
-	Set output = ..Press(ref, .sc)
-	Do $$$AssertStatusNotOK(sc, "the press is an error status")
-	Do $$$AssertEquals(output, "", "there is no answer")
-	Do $$$AssertEquals(..Calls(), "close", "one close and no trigger")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "0:", "no run is written")
-	Do $$$AssertEquals(..Events(ref).%Size(), 0, "no event is published")
-	Do ..AssertUnlocked(ref)
+	For answer = "error", "none" {
+		Kill ^OcuTalonTest("BreakFeedInProbe")
+		Set ref = ..Watching()
+		Do ##class(OcuTalon.Test.Data.Fixture).Incident(ref, , ..#NS, ..#PROD, {"State": "resolved"})
+		Set ^OcuTalonTest("BreakFeedInProbe", "answer", "close") = answer
+		Set output = ..Press(ref, .sc)
+		Do $$$AssertStatusNotOK(sc, "a close answered "_answer_": the press is an error status")
+		Do $$$AssertEquals(output, "", "a close answered "_answer_": there is no answer")
+		Do $$$AssertEquals(..Calls(), "close", "a close answered "_answer_": one close and no trigger")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "0:", "a close answered "_answer_": no run is written")
+		Do $$$AssertEquals(..Events(ref).%Size(), 0, "a close answered "_answer_": no event is published")
+		Do ..AssertUnlocked(ref)
+	}
 }
 
-/// Row 9: a trigger that fails is an error status; the run stays sending, with its one sending event.
+/// Row 9: a trigger that fails, or that has no answer within SENDTIMEOUT ("none"), is an error status; the run stays sending, with its
+/// one sending event.
 Method TestTriggerFails()
 {
-	Set ref = ..Watching()
-	Set ^OcuTalonTest("BreakFeedInProbe", "answer", "trigger") = "error"
-	Set output = ..Press(ref, .sc)
-	Do $$$AssertStatusNotOK(sc, "the press is an error status")
-	Do $$$AssertEquals(output, "", "there is no answer")
-	Do $$$AssertEquals(..Calls(), "trigger", "the trigger was asked once")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "1:sending", "the run stays sending")
-	Set events = ..Events(ref)
-	Do $$$AssertEquals(events.%Size(), 1, "one event")
-	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).state, "sending", "it is sending")
-	Do $$$AssertEquals(##class(OcuTalon.Demo.Guide).Compute(ref).BreakFeed.Stage, "sending", "the guide reports the stage sending")
-	Do ..AssertUnlocked(ref)
+	For answer = "error", "none" {
+		Kill ^OcuTalonTest("BreakFeedInProbe")
+		Set ref = ..Watching()
+		Set ^OcuTalonTest("BreakFeedInProbe", "answer", "trigger") = answer
+		Set output = ..Press(ref, .sc)
+		Do $$$AssertStatusNotOK(sc, "a trigger answered "_answer_": the press is an error status")
+		Do $$$AssertEquals(output, "", "a trigger answered "_answer_": there is no answer")
+		Do $$$AssertEquals(..Calls(), "trigger", "a trigger answered "_answer_": the trigger was asked once")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "1:sending", "a trigger answered "_answer_": the run stays sending")
+		Set events = ..Events(ref)
+		Do $$$AssertEquals(events.%Size(), 1, "a trigger answered "_answer_": one event")
+		If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).state, "sending", "a trigger answered "_answer_": it is sending")
+		Do $$$AssertEquals(##class(OcuTalon.Demo.Guide).Compute(ref).BreakFeed.Stage, "sending", "a trigger answered "_answer_": the guide reports the stage sending")
+		Do ..AssertUnlocked(ref)
+	}
 }
 
 /// Row 6 (the lock): a press that can't take the session's lock within LOCKWAIT seconds answers incident_in_progress and does nothing.
@@ -254,12 +262,14 @@ Method TestBadInput()
 	Do $$$AssertEquals(result.%GetData(1), 0, "no run is written for the session with no row")
 }
 
-/// Row 11: a press is not a turn. The session has no Turn and no Decision after it, and the methods of BreakFeedIn, PartnerTrigger and
-/// Web.Api.BreakFeed name no Core.Allowance, WebChatIn or Conversation.
+/// Row 11: a press is not a turn. The session has no Turn and no Decision after a sent press, and the methods of BreakFeedIn,
+/// PartnerTrigger and Web.Api.BreakFeed name no Core.Allowance, WebChatIn, Conversation or Core.Trace (AD-26: no Trace.Join).
 Method TestNotATurn()
 {
 	Set ref = ..Watching()
-	Do ..Press(ref, .sc)
+	Set output = ..Press(ref, .sc)
+	Do $$$AssertStatusOK(sc, "the press is accepted")
+	Do $$$AssertEquals($Select(output = "": "", 1: {}.%FromJSON(output).outcome), "sent", "the press is sent")
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?", ref)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 0, "the session has no Turn")
@@ -269,10 +279,90 @@ Method TestNotATurn()
 	For class = "OcuTalon.Demo.BreakFeedIn", "OcuTalon.Demo.PartnerTrigger", "OcuTalon.Web.Api" {
 		Set text = ..Code(class, $Select(class = "OcuTalon.Web.Api": "BreakFeed,Press", 1: ""))
 		Do $$$AssertTrue($Length(text) > 100, class_": its code was read")
-		For name = "Allowance", "WebChatIn", "Conversation", "Core.Turn", "Msg.Item" {
+		For name = "Allowance", "WebChatIn", "Conversation", "Core.Turn", "Msg.Item", "Core.Trace" {
 			Do $$$AssertTrue(text '[ name, class_" does not name "_name)
 		}
 	}
+}
+
+/// QA, row 1 and 4 (the failed publish): a breakfeed.progress that can't be published (the stream's lock is held by another process,
+/// so each of the two publishes gives up after Publish's own wait) is logged as one warning each and the press goes on: the trigger is
+/// asked, the run is marked sent and the answer is sent. Nothing is published while the lock is held, and the session's own lock is
+/// free afterwards.
+Method TestPublishFailureGoesOn()
+{
+	Set ref = ..Watching()
+	Set mark = ..LogMark()
+	Kill ^OcuTalonTest("BreakFeedIn", "hold", ref)
+	Job ##class(OcuTalon.Test.Demo.BreakFeedIn).StreamHolder(ref)
+	Do ..WaitFor($Name(^OcuTalonTest("BreakFeedIn", "hold", ref, "ready")), 30)
+	Do $$$AssertEquals($Get(^OcuTalonTest("BreakFeedIn", "hold", ref, "ready")), 1, "the holder has the stream's lock")
+	Set output = ..Press(ref, .sc)
+	Set ^OcuTalonTest("BreakFeedIn", "hold", ref, "release") = 1
+	Do ..WaitFor($Name(^OcuTalonTest("BreakFeedIn", "hold", ref, "done")), 30)
+	Do $$$AssertStatusOK(sc, "the press is accepted although its publishes failed")
+	Do $$$AssertEquals($Select(output = "": "", 1: {}.%FromJSON(output).outcome), "sent", "the outcome is sent")
+	Do $$$AssertEquals(..Calls(), "trigger", "the trigger was asked once")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "1:sent", "the run is written and marked sent")
+	Do $$$AssertEquals(..Events(ref).%Size(), 0, "nothing was published while the stream was locked")
+	Set warnings = ..Warnings(mark)
+	Do $$$AssertEquals(warnings, 2, "one warning for each of the two failed publishes")
+	Do ..AssertUnlocked(ref)
+}
+
+/// The job body of TestPublishFailureGoesOn: takes the stream's lock and holds it until released.
+ClassMethod StreamHolder(ref As %String)
+{
+	Lock +^OcuTalonP.LiveEventC(ref):5
+	If '$Test {
+		Set ^OcuTalonTest("BreakFeedIn", "hold", ref, "ready") = 0
+		Quit
+	}
+	Set ^OcuTalonTest("BreakFeedIn", "hold", ref, "ready") = 1
+	Set deadline = $ZHorolog + 60
+	While '$Get(^OcuTalonTest("BreakFeedIn", "hold", ref, "release")) && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Lock -^OcuTalonP.LiveEventC(ref)
+	Set ^OcuTalonTest("BreakFeedIn", "hold", ref, "done") = 1
+}
+
+/// The last ID of the event log.
+ClassMethod LogMark() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The warnings (Type 3) of BreakFeedIn (or its probe, which is the class that runs) about a failed publish that were logged after the mark; they are removed.
+ClassMethod Warnings(mark As %Integer) As %Integer [ Private ]
+{
+	Set text = ##class(OcuTalon.Demo.BreakFeedIn).#LOGPUBLISH
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass [ 'BreakFeedIn' AND Text %STARTSWITH ?", mark, text)
+	Do result.%Next()
+	Set count = +result.%GetData(1)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass [ 'BreakFeedIn' AND Text %STARTSWITH ?", mark, text)
+	Quit count
+}
+
+/// QA, rows 7 and 8 (the real sends): the probe replaces Close and Trigger, so their code is pinned here. Each is a synchronous send
+/// (SendRequestSync, never the asynchronous one: a close that is not awaited would read as a refusal, and a trigger that is not
+/// awaited would mark the run sent before the batch left), to the production item of its name, with its timeout; the item names are
+/// items of OcuTalon.Production.
+Method TestSeamsAreSynchronous()
+{
+	Set close = ..Code("OcuTalon.Demo.BreakFeedIn", "Close")
+	Set trigger = ..Code("OcuTalon.Demo.BreakFeedIn", "Trigger")
+	Do $$$AssertTrue(close [ "Quit ..SendRequestSync(..#INCIDENTTARGET, command, .result, ..#CLOSETIMEOUT)", "Close sends the command synchronously, waiting CLOSETIMEOUT, takes the answer and returns the send's status")
+	Do $$$AssertTrue(trigger [ "Quit ..SendRequestSync(..#TARGET, request, .response, ..#SENDTIMEOUT)", "Trigger sends the request synchronously, waiting SENDTIMEOUT, takes the answer and returns the send's status")
+	Do $$$AssertTrue((close_trigger) '[ "SendRequestAsync", "neither seam sends asynchronously")
+	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Production||ProductionDefinition").Data.Read(1000000)
+	Do $$$AssertEquals(##class(OcuTalon.Demo.BreakFeedIn).#INCIDENTTARGET, "IncidentManager", "the close goes to IncidentManager")
+	Do $$$AssertEquals(##class(OcuTalon.Demo.BreakFeedIn).#TARGET, "PartnerTrigger", "the trigger goes to PartnerTrigger")
+	Do $$$AssertTrue(xdata [ "<Item Name=""IncidentManager""", "the production has the IncidentManager item")
+	Do $$$AssertTrue(xdata [ "<Item Name=""PartnerTrigger""", "the production has the PartnerTrigger item")
+	Do $$$AssertTrue((##class(OcuTalon.Demo.BreakFeedIn).#CLOSETIMEOUT + ##class(OcuTalon.Demo.BreakFeedIn).#SENDTIMEOUT + ##class(OcuTalon.Demo.BreakFeedIn).#LOCKWAIT) '> 60, "the waits of one resolved incident stay under the gateway's 60 s")
 }
 
 /// The code of the methods of the class (the names in the comma-separated list, or every method of the class when it is empty),

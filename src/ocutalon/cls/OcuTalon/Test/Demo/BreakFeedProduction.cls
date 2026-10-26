@@ -6,10 +6,13 @@
 /// as Web.Api sends it, and the real PartnerTrigger makes the real partner send its batch. Only the IncidentManager item is swapped, for
 /// Test.Demo.IncidentManagerDouble (Test.Agent.RunnerFixture.UseItemClass), until OnAfterAllTests puts the class back; the item's pool of
 /// the real stack is a stub until Epic 5.
-///   - TestPressSendsFiftyRealFailures: rows 1 and 2;
+///   - TestPressSendsFiftyRealFailures: rows 1, 2 and 11 (every message of the press is BreakFeedIn to PartnerTrigger; no Turn, no Decision);
 ///   - TestOtherMeansFailTheSame: row 3;
 ///   - TestTwoQuickPressesSendOneBatch: row 6;
 ///   - TestReplayClosesTheResolvedIncident and TestRefusedCloseSendsNothing: rows 7 and 8;
+///   - TestFailuresAreErrors: rows 8, 9 and 10 (the failures): a close that the double answers with an error, and a press whose audit
+///     write fails (the Action event disabled for the test), are error statuses through the real sends; the first writes no run, the
+///     second leaves its run sending and sends no order;
 ///   - TestPressIsAudited: row 10;
 ///   - TestTwoSessionsGetTheirOwnBatch: row 12.
 /// Each session's messages, in OCUORDERS and in OCUTALON, are removed with Fixture.RemoveMessages in OnAfterAllTests.
@@ -128,6 +131,7 @@ Method TestPressSendsFiftyRealFailures()
 		Do $$$AssertEquals(body.SessionRef, ref, "it carries the SessionRef")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "BreakFeedIn", "IncidentManager").%Size(), 0, "none goes to IncidentManager")
+	Do ..AssertNotATurn(ref, headers)
 
 	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.Production).WaitCount(trace, "OrdersFromPartner", 8, 50), 50, "50 orders fail at OrdersFromPartner")
 	Do ..AssertBatch(trace, 50)
@@ -263,6 +267,37 @@ Method TestRefusedCloseSendsNothing()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident was not closed")
 }
 
+/// Rows 8, 9 and 10 (the failures), through the real sends: a close that the double answers with an error is an error status, with no
+/// run and no PartnerTrigger message; a press whose audit write fails (the Action event disabled, and enabled again after the press) is
+/// an error status from PartnerTrigger, the run stays sending and no order is sent.
+Method TestFailuresAreErrors()
+{
+	If '..Guard() Quit
+	Set ref = ..Watching()
+	Set trace = ..TraceOf(ref)
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(ref, , ..#NS, ..#PROD, {"State": "resolved"})
+	Set ^OcuTalonTest("IncidentManagerDouble", "answer") = "error"
+	Set output = ..Press(ref, .sc)
+	Do $$$AssertStatusNotOK(sc, "a close answered with an error: the press is an error status")
+	Do $$$AssertEquals(output, "", "there is no answer")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "0:", "no run")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "BreakFeedIn", "PartnerTrigger").%Size(), 0, "no message to PartnerTrigger")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident was not closed")
+
+	Kill ^OcuTalonTest("IncidentManagerDouble")
+	Set ref = ..Watching()
+	Set trace = ..TraceOf(ref)
+	Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#EVENT, 0)
+	Set output = ..Press(ref, .sc)
+	Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(..#EVENT, 1)
+	Do $$$AssertStatusNotOK(sc, "the audit write failed: the press is an error status")
+	Do $$$AssertEquals(output, "", "there is no answer")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.BreakFeedInProbe).Runs(ref), "1:sending", "the run stays sending")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "BreakFeedIn", "PartnerTrigger").%Size(), 1, "PartnerTrigger was asked once")
+	Hang 1
+	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.Production).Headers(trace).%Size(), 0, "no order in OCUORDERS")
+}
+
 /// Row 10: one press, one Action entry in the audit log within 180 s, naming the session, the user and the channel web; a refused press
 /// writes none.
 Method TestPressIsAudited()
@@ -284,7 +319,8 @@ Method TestPressIsAudited()
 		Do $$$AssertEquals(data.counts.orders, 50, "it counts 50 orders")
 		Do $$$AssertEquals(entries.%Get(0).description, "Break the feed: 50 orders", "its description")
 	}
-	Do ..Press(refused, .sc)
+	Set output = ..Press(refused, .sc)
+	Do $$$AssertEquals(output, {"outcome": "inactive", "reason": "not_watching"}.%ToJSON(), "the second press is refused: its session watches nothing")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "Action", refused, "", 1, 3).%Size(), 0, "a refused press writes no entry")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Action", "Action", ref).%Size(), 1, "and still one entry names the session")
 }
@@ -326,6 +362,25 @@ Method TestTwoSessionsGetTheirOwnBatch()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Demo.Production).WaitCount(control, "OrdersToWarehouse", 9, 1), 1, "it completes at OrdersToWarehouse")
 }
 
+/// QA, row 11 in the real production: a press is production messages and no turn. Every message that carries the TraceRef in OCUTALON is
+/// between BreakFeedIn and PartnerTrigger (none to WebChatIn, Conversation or any other item), and the session has no Turn and no Decision.
+Method AssertNotATurn(ref As %String, headers As %DynamicArray) [ Private ]
+{
+	Set stray = ""
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If '$ListFind($ListBuild("BreakFeedIn", "PartnerTrigger"), header.source) || '$ListFind($ListBuild("BreakFeedIn", "PartnerTrigger"), header.target) Set stray = stray_header.source_"->"_header.target_" "
+	}
+	Do $$$AssertEquals(stray, "", "every message of the press is between BreakFeedIn and PartnerTrigger")
+	Do $$$AssertTrue(headers.%Size() > 0, "and there is at least one")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?", ref)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "the session has no Turn")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ?", ref)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "the session has no Decision")
+}
+
 /// The batch of the TraceRef: count headers at OrdersFromPartner, all in status Error, none at OrdersToWarehouse, in count different
 /// sessions, each with the transform's error "Expected YYYY-MM-DD, got '<MM/DD/YYYY>'." in its event log.
 Method AssertBatch(trace As %String, count As %Integer) [ Private ]
@@ -358,27 +413,15 @@ ClassMethod ErrorOf(session As %String) As %Boolean [ Private ]
 	Quit (i < texts.%Size())
 }
 
-/// The settings of the item in the Orders production as one text (the item's name, class, pool size, enabled flag and each setting's
-/// target, name and value), "" when the item is not there. Switches to OCUORDERS and returns to the namespace it was called in.
+/// The item of the Orders production as JSON text (name, className, enabled, poolSize and settings, as Test.Demo.Production.Snapshot
+/// reads the production definition), "" when the item is not there. The snapshot is taken for a reference that has no messages.
 ClassMethod ItemSettings(item As %String) As %String [ Private ]
 {
-	Set namespace = ..#NS
-	Set production = ..#PROD
-	New $NAMESPACE
-	Set $NAMESPACE = namespace
-	Set definition = ##class(Ens.Config.Production).%OpenId(production)
-	If '$IsObject(definition) Quit ""
-	For i = 1:1:definition.Items.Count() {
-		Set one = definition.Items.GetAt(i)
-		If one.Name '= item Continue
-		Set text = one.Name_"|"_one.ClassName_"|"_one.PoolSize_"|"_one.Enabled
-		For j = 1:1:one.Settings.Count() {
-			Set setting = one.Settings.GetAt(j)
-			Set text = text_"|"_setting.Target_"."_setting.Name_"="_setting.Value
-		}
-		Quit
+	Set items = ##class(OcuTalon.Test.Demo.Production).Snapshot(##class(OcuTalon.Bridge.Ids).NewRef()).items
+	For i = 0:1:items.%Size() - 1 {
+		If items.%Get(i).name = item Return items.%Get(i).%ToJSON()
 	}
-	Quit $Get(text)
+	Quit ""
 }
 
 /// The live events of the stream that the press made (breakfeed.progress and guide.state), in order, as an array of {type, payload}.

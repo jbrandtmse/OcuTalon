@@ -3,8 +3,9 @@
 /// one. Each seam call is recorded under ^OcuTalonTest("BreakFeedInProbe", "calls", n) as "close" or "trigger", with the number and the
 /// states of the pressing session's runs at that moment ("runs", for example "1:sending"), and the SuperSession that the service holds
 /// ("superSession"); a close also records the command ("verb", "ref", "session", "origin") and a trigger the request ("session",
-/// "channel"). The answers come from ^OcuTalonTest("BreakFeedInProbe", "answer", seam): "" is OK (a close answers Ok 1), "refuse" is a
-/// close answered Ok 0, "error" is an error status, and "none" is a close answered OK with no result. LOCKWAIT is 1, so that a test of a
+/// "channel"). The answers come from ^OcuTalonTest("BreakFeedInProbe", "answer", seam): "" is OK (a close answers Ok 1, a trigger an
+/// Ens.Response), "refuse" is a close answered Ok 0, "error" is an error status, and "none" is OK with no answer, as SendRequestSync
+/// returns when its timeout runs out. LOCKWAIT is 1, so that a test of a
 /// held lock does not wait for the real ten seconds. The product never refers to it.
 Class OcuTalon.Test.Demo.BreakFeedInProbe Extends OcuTalon.Demo.BreakFeedIn
 {
@@ -28,12 +29,17 @@ Method Close(command As OcuTalon.Msg.IncidentCommand, Output result As OcuTalon.
 	Quit $SYSTEM.Status.OK()
 }
 
-Method Trigger(request As OcuTalon.Demo.Msg.SendOrders) As %Status [ Private ]
+Method Trigger(request As OcuTalon.Demo.Msg.SendOrders, Output response As Ens.Response) As %Status [ Private ]
 {
+	Set response = ""
 	Set n = ..Record("trigger", request.SessionRef)
 	Set ^OcuTalonTest("BreakFeedInProbe", "calls", n, "session") = request.SessionRef
 	Set ^OcuTalonTest("BreakFeedInProbe", "calls", n, "channel") = request.Channel
-	Quit $Select($Get(^OcuTalonTest("BreakFeedInProbe", "answer", "trigger")) = "error": $SYSTEM.Status.Error(5001, "zz trigger failed"), 1: $SYSTEM.Status.OK())
+	Set answer = $Get(^OcuTalonTest("BreakFeedInProbe", "answer", "trigger"))
+	If answer = "error" Quit $SYSTEM.Status.Error(5001, "zz trigger failed")
+	If answer = "none" Quit $SYSTEM.Status.OK()
+	Set response = ##class(Ens.Response).%New()
+	Quit $SYSTEM.Status.OK()
 }
 
 /// Records a call of the seam, with the runs of the session and the SuperSession, and returns its number.

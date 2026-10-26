@@ -2,7 +2,8 @@
 /// Test.Demo.PartnerTriggerProbe, which answers the audit write and the send from ^OcuTalonTest and records them, so that no production and
 /// no OCUORDERS are needed. The real batch and the real audit entry are Test.Demo.BreakFeedProduction's.
 ///   - TestAuditBeforeSend: the Action audit data is exactly the type's shape with the session's user, session and channel, it passes the
-///     redaction unchanged and Bridge.Audit.Record accepts its shape; the audit comes before the send, and the send gets the TraceRef;
+///     redaction unchanged and Bridge.Audit.Record accepts its shape; the audit comes before the send, the send gets the TraceRef, and the
+///     answer is an Ens.Response. It enables the Action audit event for its run and puts back the state it found;
 ///   - TestFailedAuditSendsNothing: a failed audit is an error status and nothing is sent;
 ///   - TestRefusedSendsNothing: an unknown session, another class and no request are an error status, with no audit and no send;
 ///   - TestFailedSendIsAnError: a send that fails is an error status, after the audit;
@@ -45,9 +46,14 @@ Method TestAuditBeforeSend()
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzpartner"_..Number)
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set event = "OcuTalon/Action/Action"
+	Set was = ##class(OcuTalon.Test.Bridge.AuditLog).EventState(event)
+	If was = 0 Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(event, 1)
 	Set ^OcuTalonTest("PartnerTriggerProbe", "answer", "audit") = "record"
-	Set sc = ..Ask(ref, "web")
+	Set sc = ..Ask(ref, "web", .response)
+	If was = 0 Do ##class(OcuTalon.Test.Bridge.AuditLog).SetEvent(event, 0)
 	Do $$$AssertStatusOK(sc, "the request is carried out")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA("Ens.Response"), "the answer is an Ens.Response, which tells BreakFeedIn the batch was sent")
 	Do $$$AssertEquals(..Calls(), "audit,send", "the audit comes before the send, and each happens once")
 	Set data = {}.%FromJSON(^OcuTalonTest("PartnerTriggerProbe", "calls", 1, "data"))
 	Set expected = {"action": "Break the feed", "target": "OcuTalon.Demo.Orders.Production (MM/DD/YYYY)", "result": "50 orders", "counts": {"orders": 50}, "approvalRef": "", "irisUser": (session.IrisUser), "sessionRef": (ref), "channel": "web"}
@@ -117,9 +123,10 @@ Method TestBatch()
 	Do $$$AssertEquals(switching, "Send", "Send is the one method that switches namespace")
 }
 
-/// Sends the operation a SendOrders for the session, on a shadow instance of the probe; the status of its answer.
-Method Ask(ref As %String, channel As %String) As %Status [ Private ]
+/// Sends the operation a SendOrders for the session, on a shadow instance of the probe; the status of its answer, and the answer in response.
+Method Ask(ref As %String, channel As %String, Output response As %Library.Persistent) As %Status [ Private ]
 {
+	Set response = ""
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Demo.PartnerTriggerProbe", .sc)
 	If '$IsObject(probe) Quit sc
 	Set request = ##class(OcuTalon.Demo.Msg.SendOrders).%New()

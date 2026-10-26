@@ -14,9 +14,10 @@
 /// no Decision, never asks the allowance and never sends to WebChatIn or Conversation. Its messages carry the SessionRef, and the session's
 /// TraceRef as SuperSession, in a trace session of their own (AD-26).
 /// The output is JSON text: {"outcome":"sent","state","startedAt"} or {"outcome":"inactive","reason"}. A bad input (not a Press, an empty
-/// SessionRef, a session with no row) is an error status and nothing is written. An error from the close or the send is an error status;
-/// a run whose send failed stays sending, and the guide's rule frees the control after NOTICEWAIT seconds. A publish that fails logs one
-/// warning, and the press goes on.
+/// SessionRef, a session with no row) is an error status and nothing is written. An error from the close or the send is an error status,
+/// and so is a close or a send with no answer within its timeout (SendRequestSync then succeeds with no response; the close answers a
+/// CommandResult and PartnerTrigger an Ens.Response); a run whose send failed stays sending, and the guide's rule frees the control after
+/// NOTICEWAIT seconds. A publish that fails logs one warning, and the press goes on.
 Class OcuTalon.Demo.BreakFeedIn Extends Ens.BusinessService
 {
 
@@ -50,6 +51,10 @@ Parameter LOGPUBLISH = "BreakFeedIn could not publish the run's progress: ";
 Parameter LOGTRIGGER = "BreakFeedIn could not make the partner send its orders: ";
 
 Parameter LOGCLOSE = "BreakFeedIn could not close a resolved incident for the replay: ";
+
+Parameter ERRORCLOSEUNANSWERED = "IncidentManager did not answer the close in time.";
+
+Parameter ERRORTRIGGERUNANSWERED = "PartnerTrigger did not answer in time.";
 
 /// Takes a press; pOutput is the JSON text of the answer.
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
@@ -97,7 +102,11 @@ Method Press(session As OcuTalon.Data.Session, Output output As %String) As %Sta
 		Kill result
 		Set sc = ..Close(command, .result)
 		If $SYSTEM.Status.IsError(sc) Quit
-		If '$IsObject($Get(result)) || 'result.Ok {
+		If '$IsObject($Get(result)) {
+			Set sc = $SYSTEM.Status.Error(5001, ..#ERRORCLOSEUNANSWERED)
+			Quit
+		}
+		If 'result.Ok {
 			Set output = ..Inactive("incident_in_progress")
 			Quit
 		}
@@ -115,7 +124,9 @@ Method Press(session As OcuTalon.Data.Session, Output output As %String) As %Sta
 	Set request = ##class(OcuTalon.Demo.Msg.SendOrders).%New()
 	Set request.SessionRef = ref
 	Set request.Channel = ..#CHANNEL
-	Set sc = ..Trigger(request)
+	Kill response
+	Set sc = ..Trigger(request, .response)
+	If $SYSTEM.Status.IsOK(sc) && '$IsObject($Get(response)) Set sc = $SYSTEM.Status.Error(5001, ..#ERRORTRIGGERUNANSWERED)
 	If $SYSTEM.Status.IsError(sc) {
 		$$$LOGERROR(..#LOGTRIGGER_$SYSTEM.Status.GetErrorText(sc))
 		Quit sc
@@ -147,8 +158,9 @@ Method Close(command As OcuTalon.Msg.IncidentCommand, Output result As OcuTalon.
 	Quit ..SendRequestSync(..#INCIDENTTARGET, command, .result, ..#CLOSETIMEOUT)
 }
 
-/// The one send of the class: the request to PartnerTrigger, answered synchronously. Private; a test subclass overrides it.
-Method Trigger(request As OcuTalon.Demo.Msg.SendOrders) As %Status [ Private ]
+/// The one send of the class: the request to PartnerTrigger, answered synchronously; response is PartnerTrigger's answer, none when it
+/// did not answer within SENDTIMEOUT. Private; a test subclass overrides it.
+Method Trigger(request As OcuTalon.Demo.Msg.SendOrders, Output response As Ens.Response) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(..#TARGET, request, .response, ..#SENDTIMEOUT)
 }

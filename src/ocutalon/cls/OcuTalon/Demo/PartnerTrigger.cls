@@ -4,7 +4,8 @@
 ///   - reads the session row, which holds the IRIS user and the TraceRef (no user name travels in a message, AD-4);
 ///   - writes the Action audit entry (AD-17), through Bridge.Audit.Record, and sends nothing when that fails;
 ///   - sends the batch: COUNT orders written in DATEFORMAT, with no order date (the partner uses its local date today), every
-///     message carrying the session's TraceRef as SuperSession. The orders carry no SessionRef.
+///     message carrying the session's TraceRef as SuperSession. The orders carry no SessionRef;
+///   - answers an Ens.Response once the batch is sent, so that BreakFeedIn can tell an answer from a send that timed out.
 /// Send is the one method of the press that switches namespace (New $NAMESPACE, to the Orders namespace); the constants are read before it.
 Class OcuTalon.Demo.PartnerTrigger Extends Ens.BusinessOperation
 {
@@ -32,7 +33,9 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, ..#ERRORSESSION)
 	Set sc = ..WriteAudit(..AuditData(session, pRequest.Channel), ..#ACTION_": "_..#COUNT_" orders")
 	If $SYSTEM.Status.IsError(sc) Quit $SYSTEM.Status.Error(5001, ..#ERRORAUDIT_$SYSTEM.Status.GetErrorText(sc))
-	Quit ..Send(session.TraceRef)
+	Set sc = ..Send(session.TraceRef)
+	If $SYSTEM.Status.IsOK(sc) Set pResponse = ##class(Ens.Response).%New()
+	Quit sc
 }
 
 /// The audit data of the press, in the shape of the Action type (Bridge.Audit.Record): the action and the result that make the
