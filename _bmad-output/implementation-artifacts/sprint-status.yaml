@@ -115,7 +115,7 @@ development_status:
   5-6-the-production-watch-runs-on-every-heartbeat: backlog
   5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
   5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
-  5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: ready-for-dev
+  5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: in-progress
   epic-5-retrospective: optional
 
   epic-6: backlog
