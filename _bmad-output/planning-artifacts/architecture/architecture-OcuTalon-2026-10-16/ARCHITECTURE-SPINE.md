@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: release 1 (0.1.0), the 1.0.0 kit, and build steps 2 to 7'
 status: final
 created: '2026-10-16'
-updated: '2026-10-25'
+updated: '2026-10-26'
 binds: [FR-1..FR-62, NFR-1..NFR-26, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
