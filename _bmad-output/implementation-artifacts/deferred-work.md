@@ -1176,3 +1176,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 8.4 (about L3074); ci/mock scenarios.mjs:255 duplicate-prompt refusal
 - 2026-10-26T02:35:44Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=spec_gate note=coordination: extend Epic 4's B scenario
+
+### DW-253: flake: docker/tests/test-lib-live.sh check live_first_start 'a failed wait was not reported' failed once in the hosted checks job (first start not ready after 101 s, RC=1), green on an unchanged rerun
+- source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 40285090544 job 121446738063 failed, rerun job 121457043804 success on ca4838f; 4.4 touched no lib-live file
+- 2026-10-26T09:02:44Z status=routed owner=burndown by=flake note=a timing-sensitive hermetic check; Epics 10 and 13 own docker/tests; re-own at the burn-down
