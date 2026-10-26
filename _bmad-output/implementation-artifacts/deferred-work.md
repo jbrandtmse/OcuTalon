@@ -1192,3 +1192,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: every Poller test watches one production; the probe's throw mode throws for every production; a second probe mode would be needed
 - 2026-10-26T02:18:48Z status=wontfix-accepted owner=5-2-new-failures-are-picked-up-within-seconds by=cr note=reopen_if=after a FailurePoller warning for one production, another watched production's mark stops moving while its failures arrive
+
+### DW-241: The error branches of IncidentManager.Tell (a failed Session.Recipients read; a failed publish while other recipients still get the event) have no test
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Tests assert only that no warning is logged on the success and nobody-watches paths; forcing Recipients or Publish to fail needs a seam the story does not add; the code logs one Type 3 warning per event and leaves the rows standing
+- 2026-10-26T05:39:47Z status=open owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=implement_deferred(build-auto_review)
