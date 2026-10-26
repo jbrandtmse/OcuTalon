@@ -12,16 +12,20 @@ import { Popovers } from '../shared/popover';
 import { readFlag, writeFlag } from '../shared/stored-flag';
 import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, type GuideSnapshot } from './guide-view';
 
-/** The attribute that marks the elements that focus may need to find again: the prompt bar's parts and the Hide and Show buttons. */
+/** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
+
+/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it. */
+const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
 /** The prompt bar's action, its text and the bar itself, which take focus in that order when an advance replaces what held it. */
 const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
 
 /**
  * Where focus goes when an update removes the element that holds it (UX-DR131, EXPERIENCE: focus replacement): Hide guide and Show guide
- * hand it to each other, and the prompt bar's action, text or the bar itself hand it to the first of the three that is still there (the
- * action button that now carries the next step, else the prompt text, else the bar). Focus anywhere else is never moved.
+ * hand it to each other, the box's Do step 1 hands it to the Break the feed button beside it, and the prompt bar's action, text or the bar
+ * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
+ * else the bar). Focus anywhere else is never moved.
  */
 const FOCUS_RULE: FocusRule = {
   item: `[${FOCUS_KEY}]`,
@@ -30,6 +34,9 @@ const FOCUS_RULE: FocusRule = {
     const find = (name: string) => host.querySelector<HTMLElement>(`[${FOCUS_KEY}="${name}"]`);
     if (key === 'hide' || key === 'show') {
       return find(key === 'hide' ? 'show' : 'hide');
+    }
+    if (key === 'step1') {
+      return host.querySelector<HTMLElement>(BREAK_FEED_BUTTON);
     }
     return PROMPT_KEYS.map(find).find((element) => element !== null) ?? null;
   },
@@ -151,12 +158,17 @@ const FOCUS_RULE: FocusRule = {
       display: flex;
       align-items: center;
       gap: 10px;
-      min-height: 30px;
+      min-height: var(--space-target-min);
       flex-wrap: wrap;
       white-space: nowrap;
     }
     .row1 > * {
       flex: none;
+    }
+    /* The steps take a line of their own when the row is too narrow for them, and wrap inside it at large text sizes. */
+    .row1 > .steps {
+      flex: 0 1 auto;
+      min-width: 0;
     }
     .label {
       color: var(--attention-ink);
@@ -174,6 +186,7 @@ const FOCUS_RULE: FocusRule = {
     }
     .steps {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       margin: 0;
       padding: 0;
@@ -193,7 +206,7 @@ const FOCUS_RULE: FocusRule = {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      min-height: 30px;
+      min-height: var(--space-target-min);
       padding: 0 3px;
       border: 0;
       background: none;

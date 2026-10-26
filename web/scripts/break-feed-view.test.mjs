@@ -119,6 +119,21 @@ describe('boxView: a press of this page (row 10)', () => {
     assert.equal(show(idle(3), local).hint, '');
   });
 
+  it('shows the sent line for a press from an earlier run\'s no_notice view, not that run\'s 3 min line, until a later view', () => {
+    const earlier = run('no_notice', { active: true, reason: undefined, startedAt: '2026-10-26T11:50:00Z' });
+    const local = { pressing: false, sentAt: STARTED, base: earlier };
+    const box = show(earlier, local, '', at(4));
+    assert.deepEqual([box.line, box.inactive, box.style, box.hint, box.nextStep], [FEED_TEXTS.sent, true, 'inactive', '', false]);
+    assert.deepEqual(box.elapsed, { text: '4 s', spoken: '4 seconds' }, 'with this run\'s elapsed time');
+  });
+
+  it('drops the Next step tag while a 409 holds, though the button still follows the view, and the next view brings it back', () => {
+    const local = { pressing: false, conflict: 'not_watching', base };
+    const box = show(base, local);
+    assert.deepEqual([box.nextStep, box.style, box.hint], [false, 'attention', FEED_TEXTS.notWatching]);
+    assert.equal(show(idle(3), local).nextStep, true, 'a later view ends the 409');
+  });
+
   it('follows the view\'s activity under a 409: the button stays as the server says', () => {
     const local = { pressing: false, conflict: 'incident_in_progress', base };
     assert.equal(show(base, local).inactive, false);

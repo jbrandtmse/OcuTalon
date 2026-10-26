@@ -231,6 +231,7 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
+  let pressed = false;
   try {
     const check = await seedWatch(user, refs);
     const reminder = await seedStretch(user, refs);
@@ -254,6 +255,7 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
 
     const button = breakOf(page);
     await button.click();
+    pressed = true;
     await expect(button, 'busy while the press has no answer').toHaveAttribute('aria-busy', 'true');
     await expect(boxOf(page).locator('.line')).toHaveText(SENDING);
     await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag leaves once it is pressed').toHaveCount(0);
@@ -276,10 +278,13 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
     await publishWatchProgress(user, { ref: `zz${Date.now().toString(36)}`, stage: 'noticed' });
     await expect(boxOf(page).locator('.line'), 'the run\'s own watch.progress line').toContainText(NOTICED, { timeout: CARD_MS });
     await expect(boxOf(page).locator('.line .elapsed'), 'the elapsed time stays').toHaveCount(1);
-    expect(await boxOf(page).locator('.line').textContent(), 'and no line shows a count').not.toMatch(/\b50\b/);
+    const words = await boxOf(page)
+      .locator('.line')
+      .evaluate((node) => [...node.childNodes].filter((child) => child.nodeType === Node.TEXT_NODE).map((child) => child.textContent ?? '').join(''));
+    expect(words, 'and the line, read without its elapsed time, shows no count').not.toMatch(/\b50\b/);
     expect((await announcedTexts(page)).length, 'the progress line is not announced').toBe(1);
   } finally {
-    await settleBatch(user);
+    if (pressed) await settleBatch(user);
     await cleanFixtureRows(refs);
     await dropBreakFeed(user);
   }

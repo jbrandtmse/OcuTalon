@@ -327,6 +327,42 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
 - **AC8.** Given the floor stack's FLOOR session with seeded Orders check and reminder rows, when their check and reminder events publish and the page presses Break the feed, then the page renders the real `guide.state` and the real `POST /v1/demo/break-feed` answer as rows 6, 8, 10 and 11 describe (M3, M4: Integration).
 - **AC9.** Given the demo-switch stack, when demo mode is switched off and on for real, then the page hides and shows the guide and its texts (Integration).
 
+### Review Findings
+
+Code review 2026-10-26 (`review_mode` full; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, plus the reviewer's Rule 2 check). Each line: severity, fix-risk, footprint (all in-story, spec-clear). All patched; `npm --prefix web test` 624 pass, lint 0, `ci/checks.sh` 0, `live sign-in` 209 passed, `live floor` 80 passed (Chromium, Firefox, WebKit), `live demo-switch` passed.
+
+- [x] [Review][Patch] A press from the server's `no_notice` view (the "try again" path) showed the earlier run's 3 min line, with "Sent" announced, until the next view -- med, fix-risk low (the view's stage is ignored while a sent press holds over another run's view) [web/src/app/feed/break-feed-view.ts:149]
+- [x] [Review][Patch] The steps never wrapped: at twice the text size with labels (1280-1439px wide, 680px tall or more) they ran 41.6px past the row into the box -- med, fix-risk low (`.steps` wraps and may shrink) [web/src/app/guide/demo-guide.ts:169]
+- [x] [Review][Patch] Focus on Do step 1 fell to `main.main` when an update removed it (EXPERIENCE focus replacement: nearest container) -- med, fix-risk low (keyed `step1`; `whenGone` gives the Break the feed button) [web/src/app/guide/demo-guide.ts:38, web/src/app/feed/break-feed-box.ts:60]
+- [x] [Review][Patch] The live-view "Sent" announcement and the first view's silence after a reload were unpinned in the component -- med, fix-risk low (two Q10 cases routing `guide.state` events into real polls) [web/src/app/feed/break-feed-box.ts:236]
+- [x] [Review][Patch] The `watch.progress` baseline taken in `follow()` was unpinned (the AC8 mutation emptied both captures) -- med, fix-risk low (Q10 baseline case) [web/src/app/feed/break-feed-box.ts:234]
+- [x] [Review][Patch] The box's 10 s no-answer path had no test -- med, fix-risk low (new Q6 case on the page clock) [web/src/app/feed/break-feed-box.ts:220]
+- [x] [Review][Patch] Q7 asserted the 89 s sent line before the box redrew (Rule 19: acting before ready) -- med, fix-risk low (the redraw signal first) [web/e2e/guide/guide.spec.ts:Q7]
+- [x] [Review][Patch] Q1's demo-texts case and the badge spec read Background checks as `.empty` nth(1), relying on README having no approvals (Rule 19: state not created) -- med, fix-risk low (the served snapshot empties approvals) [web/e2e/guide/guide.spec.ts:serve, web/e2e/demo-switch/badge.spec.ts:45]
+- [x] [Review][Patch] Rule 2: three inline copies of `support/page.ts`'s `tokenColor` -- med, fix-risk low (the helper is used) [web/e2e/guide/guide.spec.ts:Q1,Q2,Q5]
+- [x] [Review][Patch] After a 409 on step 3 the "Next step" tag and bar stayed beside the reason's hint (DESIGN: the marker leaves once pressed) -- low, fix-risk low [web/src/app/feed/break-feed-view.ts:188]
+- [x] [Review][Patch] Floor cleanup: `dropBreakFeed` dropped `RemoveMessages`'s status; M4's `finally` ran `settleBatch` with no press; its doc said 30 s -- low, fix-risk low [web/e2e/support/guide.ts:44, web/e2e/floor/guide.spec.ts:M4]
+- [x] [Review][Patch] GuidePrompts' docs said the turn's input is exactly the prompt; NewRequest appends the turn's ref -- low, fix-risk low (doc only; compiled on slot B) [src/ocutalon/cls/OcuTalon/Test/Demo/GuidePrompts.cls:1]
+- [x] [Review][Patch] M4's no-count check matched `\b50\b` against the line with its elapsed time (a false red at 50 s) -- low, fix-risk low (text nodes only) [web/e2e/floor/guide.spec.ts:M4]
+- [x] [Review][Patch] Q1's demo-texts title claimed the old texts return outside demo mode without checking it -- low, fix-risk low (renamed; the badge spec's mode 0 pins them) [web/e2e/guide/guide.spec.ts:Q1]
+- [x] [Review][Patch] The step buttons were 30px tall, under DESIGN's 32px target minimum (L732) -- low, fix-risk low (`--space-target-min`; Q1 measures it) [web/src/app/guide/demo-guide.ts:209]
+
+Rejected:
+- low: Do step 1 changes nothing visible on the blank guide -- Decided 9 (it selects step 1; focus stays): spec-bound.
+- low: the Telegram line shows while steps 2-5 are selected -- AC2 has it follow `telegramRow`, which the server ends at step 1 done; Telegram is off until 0.1.1.
+- low: GuidePrompts leaves a reminder if the owner check regresses -- only on a run whose assertion already failed; the fix guards a state the test asserts never happens.
+- low: the spec's closing sections are stale after QA -- the fix edits the spec under review.
+- low: a late answer after the 10 s timeout overwrites a second press -- needs a POST hung past 10 s while the view stays active; the fix adds a press-id guard.
+- low: a run first seen in the same poll as its own `watch.progress` hides its progress -- adjudicated at implement: `guide.state` is published at the press, and this page's press takes the press-time refs.
+- false: nine planned mutations unrecorded -- Rule 19 asks one observed-red mutation per AC; AC1-AC9 each carry one, and this review adds eight.
+- false: QA's edits are uncommitted -- stages never commit; the lead commits after the smoke gate.
+- low: Q1, M1, M2 and M5 rely on README's and FLOOR's starting state -- Decided 14; each asserts that state, so a leftover fails red, never green.
+- low: raw px lengths in the new components -- no user-visible harm, the tokens have no 3, 6, 10 or 13px steps, and Epic 2's header and rail do the same.
+- low: the collapsed bar takes two lines with an inactive box -- DESIGN's Inactive rule puts the hint beneath the button, and row 14 keeps the box's rules in the bar.
+- low: two planned-mutation rows were rewritten without a Spec Change Log line -- the fix edits the spec; the triage log records why.
+- low: `elapsedText` has no hour form -- unreachable: the elapsed time shows only under 180 s.
+- false: frontmatter `done` against sprint `review` -- `status:` is build-auto's machine state; sprint-status carries the review state.
+
 ## Spec Change Log
 
 - 2026-10-26, spec gate (runner): V1 and V2 kept as veto items (U-84, U-85); DW-231 and DW-232 filed; focus reading confirmed against the spine.
@@ -536,6 +572,25 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
 - AC7: mutation: `MARGIN` 0 and no `Math.ceil` -> `reveal-ring.test` "scrolls down by the overflow and the gutter when the control passes the bottom" (and five more) red.
 - AC8: mutation: both baseline captures of `break-feed-box.ts` use an empty ref set -> `live floor` M4 red (an earlier run's `watch.progress` line replaced the sent line).
 - AC9: mutation: the chat's `demo` is always true -> `live demo-switch` badge spec red in mode 0 ("Start with step 1 of the demo guide above." where `emptyAsk` belongs).
+
+**QA stage additions (Rule 19; all (QA)).** `web/e2e/guide/guide.spec.ts` gains Q9 and four strengthened cases; each mutation was applied, observed red in `live sign-in` after `ci/iris.sh build`, reverted from a backup, and `git diff | md5` and `git status --short` matched the pre-mutation values.
+- (QA) `web/e2e/guide/guide.spec.ts` Q9 (new): the step row wraps at a larger text size (the text tokens scaled between "the steps alone fit" and "everything fits") and nothing runs past the row.
+- (QA) Q1 now counts the four chevrons and asks each for `aria-hidden`; Q5 and Q6 assert the box has its 1px divider (no 4px action bar) while inactive, active without the tag, on step 5, and once pressed; Q2 asserts that selecting steps announces nothing; Q8 asserts that the two `\u00B7` separators of the collapsed bar are `aria-hidden`.
+- AC6: mutation (QA): `flex-wrap: wrap` removed from `.row1` of `demo-guide.ts` -> `live sign-in` Q9 red ("the row wraps onto a second line": 1 line, expected more than 1).
+- AC4: mutation (QA): the box's base `border-inline-start` made the 4px action bar -> `live sign-in` Q5 and Q6 red ("no 4px bar while inactive": 4px, expected 1px).
+- AC1: mutation (QA): the chevron span loses `aria-hidden="true"` -> `live sign-in` Q1 red ("each is aria-hidden").
+- AC2: mutation (QA): `select()` also announces -> `live sign-in` Q2 red ("selecting a step announces nothing") and Q3 red.
+
+**Code review additions (Rule 19; all (CR)).** Run A carried the three box mutations together with the code from before the review's fixes, and run C carried one mutation over the fixed tree. Each run was rebuilt with `ci/iris.sh build`, red only where named, and reverted from a backup; the box's md5 and `git diff | md5` matched the pre-mutation values. Node mutations were observed with `npm --prefix web test`.
+- AC5: mutation (CR): `follow()` no longer marks the first view's run as announced -> `live sign-in` Q10 "a page loaded during a run announces nothing for that run's later views" red ("Sent" announced).
+- AC5: mutation (CR): `follow()`'s "Sent" announcement removed -> `live sign-in` Q10 "a run first seen through a live view is announced once" red (expected 1, received 0).
+- AC8: mutation (CR): `follow()`'s baseline is an empty set -> `live sign-in` Q10 "an earlier run's watch.progress never shows ..." red (the earlier run's diagnosing line).
+- AC5: mutation (CR): the box's 10 s timer removed -> `live sign-in` Q6 "a press with no answer in 10 s ..." red (the sending line stayed).
+- AC2: mutation (CR): Do step 1 without its focus key (the code before the fix) -> `live sign-in` Q10 "when an update removes the focused Do step 1 ..." red (focus not on Break the feed).
+- AC6: mutation (CR): `.steps` without wrap and `flex: none` (the code before the fix) -> `live sign-in` Q9 red at twice the text (41.6px past the row).
+- AC1: mutation (CR): the steps' 30px minimum height (the code before the fix) -> `live sign-in` Q1 red (30, expected at least 32).
+- AC5: mutation (CR): the view's stage read under a sent press over another run's view (before the fix) -> `break-feed-view.test` "shows the sent line for a press from an earlier run's no_notice view ..." red.
+- AC4: mutation (CR): the tag ignores a held 409 (before the fix) -> `break-feed-view.test` "drops the Next step tag while a 409 holds ..." red.
 
 **Shared surfaces:**
 - the page's region order and tab order (F1, G1, G4, G5, K1, K4);

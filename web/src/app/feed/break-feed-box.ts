@@ -57,7 +57,7 @@ const NO_REFS: ReadonlySet<string> = new Set<string>();
     @if (box().hint !== '') {
       <p class="hint" [id]="hintId">{{ box().hint }}</p>
       @if (box().doStep1) {
-        <button type="button" class="link step1" (click)="doStep1.emit()">{{ texts.doStep1 }}</button>
+        <button type="button" class="link step1" data-guide-focus="step1" (click)="doStep1.emit()">{{ texts.doStep1 }}</button>
       }
     }
   `,

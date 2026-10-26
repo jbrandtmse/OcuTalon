@@ -1,5 +1,6 @@
-/// Tests of the two guide-prompt scenarios of the CI mock (Story 4.4; matrix row 17; AD-22): a Chat turn whose input is exactly the demo guide's
-/// prompt for step 1 or step 2 is answered by the scenario that ci/mock/scenarios/B/ keys by that text, selected by the prompt and not by a marker or the
+/// Tests of the two guide-prompt scenarios of the CI mock (Story 4.4; matrix row 17; AD-22): a Chat turn whose input holds the demo guide's exact
+/// prompt for step 1 or step 2 (followed by the turn's ref, which RunnerFixture.NewRequest adds) is answered by the scenario that ci/mock/scenarios/B/
+/// keys by that text, which the mock finds contained in the message, selected by the prompt and not by a marker or the
 /// mock key, with the scenario's reply and no fallback. THESE TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), as Test.Tools.Reminders does: they
 /// need OcuTalon.Production running after the Production step, the CI override's environment (the mock's base URL and OCUTALON_MOCK_KEY_HEADER=1) and the
 /// mock's request log, and they fail with the reason where they do not have them. OnBeforeAllTests points the Config Store entry of each runner at the
@@ -120,7 +121,8 @@ Method Ready() As %Boolean [ Private ]
 	Quit 1
 }
 
-/// Sends a user turn with exactly the text through Decide (RunnerFixture.Run), with an owner of its own, and reads the mock's log for it: answer is the Reply
+/// Sends a user turn whose input is the text followed by the turn's ref (RunnerFixture.NewRequest) through Decide (RunnerFixture.Run), with an owner of its
+/// own, and reads the mock's log for it: answer is the Reply
 /// and requests the entries of the mock's log for the turn, in order. The turn's ItemId is remembered for OnAfterOneTest.
 Method Turn(text As %String, Output answer As %Persistent, Output requests As %DynamicArray) As %Status [ Private ]
 {

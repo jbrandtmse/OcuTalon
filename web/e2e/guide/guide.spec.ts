@@ -2,12 +2,13 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import { signInReadme } from '../sign-in/helpers';
 import { changeSnapshot, MESSAGES } from '../support/api';
-import { announcedTexts, plain, recordAnnouncements } from '../support/page';
+import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
  * The demo guide and the Break the feed box on the sign-in stack, with the README account (Story 4.4, matrix rows 1 to 14). Q1 reads the real
  * blank guide of the README session (it watches nothing on this stack, api.spec.ts); every other case answers the page's /state with a
- * guide that it names (changeSnapshot), routes the page's POSTs and writes nothing to the server. The stack is in demo mode (every
+ * guide that it names (changeSnapshot), routes the page's POSTs (Q10 also adds session events to its polls, liveEvents) and writes nothing
+ * to the server. The stack is in demo mode (every
  * throwaway is), so the guide shows in all of them.
  */
 const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
@@ -45,15 +46,58 @@ const breakButton = (page: Page): Locator => guideRegion(page).getByRole('button
 const boxOf = (page: Page): Locator => page.locator('app-break-feed-box');
 const promptOf = (page: Page): Locator => guideRegion(page).locator('.prompt');
 
-/** Answers the page's /state with the guide that `holder.guide` names when the page loads; the demo mode is the stack's. */
+/**
+ * Answers the page's /state with the guide that `holder.guide` names when the page loads; the demo mode is the stack's. With `chat: false`
+ * the chat, the approvals and the checks are empty, so Background checks holds the rail's second empty text.
+ */
 async function serve(page: Page, holder: { guide: Record<string, unknown>; chat?: boolean }): Promise<void> {
   await changeSnapshot(page, (snapshot) => {
     snapshot['guide'] = holder.guide;
     if (holder.chat === false) {
       snapshot['chat'] = [];
-      (snapshot['rail'] as { checks: unknown[] }).checks = [];
+      const rail = snapshot['rail'] as { approvals: unknown[]; checks: unknown[] };
+      rail.approvals = [];
+      rail.checks = [];
     }
   });
+}
+
+/** One session event that a case adds to the page's polls. */
+type QueuedEvent = { type: string; payload: Record<string, unknown> };
+
+/**
+ * Routes the page's polls: each batch that the returned function queues goes into the next real answer, after its session events and with
+ * the Seqs that follow them, so the page applies it as a live update (no skip, no reload). The function resolves once that answer is served.
+ */
+async function liveEvents(page: Page): Promise<(events: QueuedEvent[]) => Promise<void>> {
+  const queue: QueuedEvent[][] = [];
+  let queued = 0;
+  let served = 0;
+  await page.route(/\/ocutalon\/api\/v1\/events\?/, async (route) => {
+    const response = await route.fetch();
+    const batch = queue.shift();
+    if (batch === undefined) {
+      await route.fulfill({ response });
+      return;
+    }
+    const body = (await response.json()) as { events: Array<Record<string, unknown>> };
+    let seq = Number(new URL(route.request().url()).searchParams.get('after'));
+    for (const event of body.events) {
+      if (event['stream'] === 'session') seq = Math.max(seq, Number(event['seq']));
+    }
+    for (const event of batch) {
+      seq += 1;
+      body.events.push({ seq, stream: 'session', ts: iso(Date.now()), type: event.type, payload: event.payload });
+    }
+    await route.fulfill({ response, json: body });
+    served += 1;
+  });
+  return async (events) => {
+    queued += 1;
+    const target = queued;
+    queue.push(events);
+    await expect.poll(() => served, { message: 'a poll carried the queued events' }).toBeGreaterThanOrEqual(target);
+  };
 }
 
 /** Signs in and waits for the loaded page. */
@@ -98,6 +142,8 @@ test('Q1: the real blank guide shows between the banners and the rail, with its 
   await expect(guide.locator('.step.current .marker'), 'the current marker is a disc with the number').toHaveText('1');
   await expect(guide.locator('.step.upcoming .marker'), 'the others are hollow circles with theirs').toHaveText(['2', '3', '4', '5']);
   await expect(guide.locator('[aria-hidden="true"] svg').first(), 'the chevrons are decorative').toBeAttached();
+  await expect(guide.locator('.chevron'), 'four chevrons join the five steps').toHaveCount(4);
+  expect(await guide.locator('.chevron').evaluateAll((nodes) => nodes.every((node) => node.getAttribute('aria-hidden') === 'true')), 'and each is aria-hidden').toBe(true);
   await expect(guide.locator('.step-label'), 'with the step labels').toHaveText(LABELS);
   await expect(guide.getByText('About 2 minutes', { exact: true })).toBeVisible();
   const hide = guide.getByRole('button', { name: 'Hide guide', exact: true });
@@ -108,15 +154,7 @@ test('Q1: the real blank guide shows between the banners and the rail, with its 
   await expect(prompt.locator('.next')).toHaveText('Next:');
   await expect(prompt.locator('.prompt-text')).toHaveText(`"${P1}"`);
   await expect(prompt.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
-  const sunken = await page.evaluate(() => {
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--sunken)';
-    document.body.append(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  });
-  await expect(prompt, 'the prompt bar is sunken').toHaveCSS('background-color', sunken);
+  await expect(prompt, 'the prompt bar is sunken').toHaveCSS('background-color', await tokenColor(page, '--sunken'));
 
   const box = boxOf(page);
   await expect(box.getByText('Demo control', { exact: true }), 'the box always shows Demo control').toBeVisible();
@@ -129,10 +167,12 @@ test('Q1: the real blank guide shows between the banners and the rail, with its 
   await expect(box.getByRole('button', { name: 'Do step 1', exact: true }), 'and a Do step 1 link-styled button').toBeVisible();
 
   await expect(guide.locator('[aria-live], [aria-atomic], [role="log"], [role="status"], [role="alert"], [role="timer"]'), 'neither the guide nor the box is live').toHaveCount(0);
+  const heights = await steps.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+  expect(Math.min(...heights), 'every step is at least the 32px target of DESIGN').toBeGreaterThanOrEqual(32);
 });
 
-/** Q1: the demo texts replace the old ones in the empty chat and in Background checks. */
-test('Q1: the empty chat and Background checks point at the guide (the old texts return outside demo mode)', async ({ page }) => {
+/** Q1: the demo texts replace the old ones in the empty chat and in Background checks (the old texts outside demo mode: the demo-switch badge spec). */
+test('Q1: the empty chat and Background checks point at the guide in demo mode', async ({ page }) => {
   await serve(page, { guide: guideOf(0), chat: false });
   await open(page);
 
@@ -149,6 +189,7 @@ test('Q1: the empty chat and Background checks point at the guide (the old texts
 /** Q2: any step can be selected in any order; steps 3 to 5 hold no prompt; nothing is marked done by a click. */
 test('Q2: selecting steps changes the prompt and the bar under the step, and marks nothing done', async ({ page }) => {
   await serve(page, { guide: guideOf(0) });
+  await recordAnnouncements(page);
   await open(page);
 
   const prompt = promptOf(page).locator('.prompt-text');
@@ -158,14 +199,7 @@ test('Q2: selecting steps changes the prompt and the bar under the step, and mar
   const bar = await stepOf(page, 2, 'upcoming').evaluate((el) => getComputedStyle(el, '::after').borderBottomWidth);
   expect(bar, 'the selected step has a 2px bottom bar').toBe('2px');
   const barColor = await stepOf(page, 2, 'upcoming').evaluate((el) => getComputedStyle(el, '::after').borderBottomColor);
-  expect(barColor, 'in ink, never a teal ring').toBe(await page.evaluate(() => {
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--ink)';
-    document.body.append(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  }));
+  expect(barColor, 'in ink, never a teal ring').toBe(await tokenColor(page, '--ink'));
   await expect(stepOf(page, 1, 'current'), 'aria-current stays on the current step').toHaveAttribute('aria-current', 'step');
   await expect(stepOf(page, 2, 'upcoming')).not.toHaveAttribute('aria-current', /.*/);
 
@@ -180,6 +214,7 @@ test('Q2: selecting steps changes the prompt and the bar under the step, and mar
     await expect(stepOf(page, n, 'upcoming'), `a click marked step ${n} done: it did not`).toHaveCount(1);
   }
   await expect(guideRegion(page).locator('.step.done'), 'nothing is done').toHaveCount(0);
+  expect(await announcedTexts(page), 'selecting a step announces nothing: only an advance of the view does').toEqual([]);
 });
 
 /** Q2: a step is done only from the view: the server's view with two steps done shows their check, and the current step is the view's. */
@@ -266,6 +301,7 @@ test('Q5: the box shows the hints, the styles, the tag and Do step 1 as the view
   await stepOf(page, 3, 'upcoming').click();
   await expect(promptOf(page).locator('.prompt-text')).toHaveCount(0);
   await expect(breakButton(page)).toHaveAccessibleDescription(H1);
+  await expect(boxOf(page), 'no 4px bar while inactive: the box has its 1px divider').toHaveCSS('border-left-width', '1px');
   await boxOf(page).getByRole('button', { name: 'Do step 1', exact: true }).click();
   await expect(promptOf(page).locator('.prompt-text'), 'Do step 1 selects step 1').toHaveText(`"${P1}"`);
   await expect(page.getByRole('main').locator('app-user-message'), 'and sends nothing').toHaveCount(0);
@@ -287,16 +323,8 @@ test('Q5: the box shows the hints, the styles, the tag and Do step 1 as the view
   await expect(button).not.toHaveAttribute('aria-disabled', /.*/);
   await expect(button.locator('svg'), 'with the zap icon').toHaveCount(1);
   await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag shows on step 3').toBeVisible();
-  const action = await page.evaluate(() => {
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--action)';
-    document.body.append(probe);
-    const color = getComputedStyle(probe).color;
-    probe.remove();
-    return color;
-  });
   await expect(boxOf(page), 'the 4px action bar on its left').toHaveCSS('border-left-width', '4px');
-  await expect(boxOf(page)).toHaveCSS('border-left-color', action);
+  await expect(boxOf(page)).toHaveCSS('border-left-color', await tokenColor(page, '--action'));
   await expect(button, 'an active button has no description').not.toHaveAttribute('aria-describedby', /.*/);
 
   // Active on another step: attention, no tag; on step 5: secondary, no tag.
@@ -304,10 +332,12 @@ test('Q5: the box shows the hints, the styles, the tag and Do step 1 as the view
   await reopen(page);
   await expect(breakButton(page)).toHaveClass(/button-attention/);
   await expect(boxOf(page).getByText('Next step', { exact: true })).toHaveCount(0);
+  await expect(boxOf(page), 'and no 4px bar without the tag').toHaveCSS('border-left-width', '1px');
   holder.guide = guideOf(4, { breakFeed: { active: true } });
   await reopen(page);
   await expect(breakButton(page)).toHaveClass(/button-secondary/);
   await expect(boxOf(page).getByText('Next step', { exact: true })).toHaveCount(0);
+  await expect(boxOf(page), 'nor on step 5').toHaveCSS('border-left-width', '1px');
 
   // A press on an inactive button sends nothing.
   holder.guide = guideOf(0);
@@ -356,6 +386,7 @@ test('Q6: a press is busy, then sent (announced once, with the elapsed time), an
   await expect(boxOf(page).locator('.line')).toHaveText(SENDING);
   await expect(button, 'described by the line').toHaveAccessibleDescription(SENDING);
   await expect(boxOf(page).getByText('Next step', { exact: true }), 'the tag leaves once it is pressed').toHaveCount(0);
+  await expect(boxOf(page), 'and the 4px bar with it').toHaveCSS('border-left-width', '1px');
   await button.click({ force: true });
   await page.waitForTimeout(300);
   expect(requests, 'a press on the busy button sends nothing more').toHaveLength(1);
@@ -408,6 +439,28 @@ test('Q6: a press is busy, then sent (announced once, with the elapsed time), an
   await expect(breakButton(page), 'the button follows the view: active').toHaveClass(/button-attention/);
 });
 
+/** Q6: a press with no answer in 10 s: ServerButton's notice shows, and the box drops the sending line and follows the view again. */
+test('Q6: a press with no answer in 10 s shows ServerButton\'s notice and ends the box\'s sending line', async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route(BREAK_FEED, async (route) => {
+    await gate;
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+  await page.clock.install();
+  await serve(page, { guide: guideOf(2, { breakFeed: { active: true } }) });
+  await open(page);
+
+  await breakButton(page).click();
+  await expect(boxOf(page).locator('.line'), 'the press has no answer yet').toHaveText(SENDING);
+  await page.clock.fastForward(10_000);
+  await expect(boxOf(page).getByText("Couldn't reach OcuTalon. Try again. Nothing was changed.", { exact: true }), 'ServerButton\'s notice after 10 s').toBeVisible();
+  await expect(breakButton(page), 'the button is no longer busy').not.toHaveAttribute('aria-busy', /.*/);
+  await expect(boxOf(page).locator('.line'), 'and the box drops the sending line with it').toHaveCount(0);
+  await expect(breakButton(page), 'the box follows the view again').toHaveClass(/button-attention/);
+  release();
+});
+
 /** Q7: the stages come from the view and the page's clock: the lines at 90 s and 3 min, and the button follows the server only. */
 test('Q7: the sent line gives way to the 90 s and 3 min lines by the page\'s clock, and the button follows the server', async ({ page }) => {
   const holder = { guide: guideOf(2) };
@@ -426,8 +479,8 @@ test('Q7: the sent line gives way to the 90 s and 3 min lines by the page\'s clo
   const line = boxOf(page).locator('.line');
   await expect(line, 'waiting shows the sent line').toContainText(SENT);
   await at(89);
+  await expect(line.locator('[aria-hidden="true"]'), 'the box has redrawn at 89 s').toHaveText('1 min');
   await expect(line, 'at 89 s still the sent line').toContainText(SENT);
-  await expect(line.locator('[aria-hidden="true"]')).toHaveText('1 min');
   await at(90);
   await expect(line, 'at 90 s, by the page\'s clock, the 90 s line').toContainText(STILL);
   await expect(breakButton(page), 'the button is still the server\'s: inactive').toHaveAttribute('aria-disabled', 'true');
@@ -478,6 +531,7 @@ test('Q8: Hide guide collapses to one bar with Show guide, keeps the box, moves 
   await expect(show, 'and takes focus').toBeFocused();
   await expect(guide, 'one bar: the label, the step and Show guide').toContainText('Demo guide \u00B7 step 2 of 5 \u00B7');
   await expect(guide.getByRole('list'), 'no steps').toHaveCount(0);
+  await expect(guide.locator('.bar-text [aria-hidden="true"]'), 'the two separators are decorative').toHaveText(['\u00B7', '\u00B7']);
   await expect(promptOf(page), 'and no prompt bar').toHaveCount(0);
   const bar = (await guide.boundingBox())!;
   expect(bar.height, 'the bar is at least 40px').toBeGreaterThanOrEqual(40);
@@ -520,4 +574,130 @@ test('Q8: with a storage that throws, Hide and Show work for the page\'s life an
   await expect(guide.getByRole('button', { name: 'Hide guide', exact: true })).toBeFocused();
   expect(errors.filter((text) => !/Failed to load resource/.test(text)), 'no console error').toEqual([]);
   expect(plain(await guide.locator('.label').first().textContent())).toBe('Demo guide');
+});
+
+/**
+ * Q9: at a larger text size the step row wraps onto a second line instead of running past the guide (row 1 at 1280px, where the labels
+ * show). The row's width is measured, and the text tokens are scaled by a factor between "the steps alone fit" and "everything fits":
+ * the row wraps if and only if flex-wrap lets the label, the steps, the duration and Hide guide share more than one line.
+ */
+test('Q9: the step row wraps at a larger text size and nothing runs past the row', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await serve(page, { guide: guideOf(0) });
+  await open(page);
+  const row = guideRegion(page).locator('.row1');
+  await expect(guideRegion(page).locator('.step-label').first(), 'the labels show at 1280x800').toBeVisible();
+
+  /** How many lines the row's children make (their vertical centres, a gap above 8px apart), and how far the widest runs past the row. */
+  const read = (): Promise<{ lines: number; past: number; width: number; total: number; steps: number }> =>
+    row.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const kids = [...node.children].map((child) => child.getBoundingClientRect());
+      const centres = kids.map((kid) => kid.top + kid.height / 2).sort((a, b) => a - b);
+      const lines = centres.filter((centre, i) => i === 0 || centre - centres[i - 1]! > 8).length;
+      const steps = node.querySelector('.steps')!.getBoundingClientRect().width;
+      return {
+        lines,
+        past: Math.max(...kids.map((kid) => kid.right)) - box.right,
+        width: box.width,
+        total: kids.reduce((sum, kid) => sum + kid.width, 0) + 10 * (kids.length - 1),
+        steps,
+      };
+    });
+
+  const before = await read();
+  expect(before.lines, 'at the normal size the row is one line').toBe(1);
+  expect(before.past, 'and nothing runs past it').toBeLessThanOrEqual(1);
+
+  // A factor at which the steps alone still fit the row but the whole row no longer does.
+  const scale = Math.sqrt((before.width / before.total) * (before.width / before.steps));
+  expect(scale, 'the larger size is larger').toBeGreaterThan(1.05);
+  await page.addStyleTag({
+    content: `:root { --type-body-font-size: ${14 * scale}px; --type-label-font-size: ${12 * scale}px; --type-caption-font-size: ${12 * scale}px; --guide-step-current-typography-font-size: ${14 * scale}px; }`,
+  });
+  await expect.poll(async () => (await read()).lines, { message: 'the row wraps onto a second line' }).toBeGreaterThan(1);
+  const after = await read();
+  expect(after.past, 'and nothing runs past the row').toBeLessThanOrEqual(1);
+  expect(await row.evaluate((node) => node.scrollWidth - node.clientWidth), 'the row does not scroll sideways').toBeLessThanOrEqual(0);
+  await expect(stepOf(page, 1, 'current'), 'every step is still there').toBeVisible();
+  await expect(guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true })).toBeVisible();
+
+  // At twice the text size the steps no longer fit one line of the row: they wrap inside it and none runs into the box.
+  await page.addStyleTag({
+    content: ':root { --type-body-font-size: 28px; --type-label-font-size: 24px; --type-caption-font-size: 24px; --guide-step-current-typography-font-size: 28px; }',
+  });
+  await expect(guideRegion(page).locator('.row1 .label'), 'the text is twice its size').toHaveCSS('font-size', '24px');
+  const doubled = await read();
+  expect(doubled.past, 'at twice the size nothing runs past the row').toBeLessThanOrEqual(1);
+  const rightmost = await guideRegion(page).locator('.step').evaluateAll((nodes) => Math.max(...nodes.map((node) => node.getBoundingClientRect().right)));
+  const boxLeft = (await boxOf(page).boundingBox())!.x;
+  expect(rightmost, 'and no step reaches the box').toBeLessThanOrEqual(boxLeft + 1);
+});
+
+/** Q10: a page loaded during a run treats it as begun: a later view of the same run announces nothing. */
+test('Q10: a page loaded during a run announces nothing for that run\'s later views', async ({ page }) => {
+  const startedAt = iso(Date.now() - 30_000);
+  const runView = (stage: string): Record<string, unknown> => guideOf(2, { breakFeed: { active: false, reason: 'incident_in_progress', stage, startedAt } });
+  await serve(page, { guide: runView('waiting') });
+  const push = await liveEvents(page);
+  await recordAnnouncements(page);
+  await open(page);
+
+  const line = boxOf(page).locator('.line');
+  await expect(line, 'the first view shows the run').toContainText(SENT);
+  await push([{ type: 'guide.state', payload: runView('still_waiting') }]);
+  await expect(line, 'a later view of the same run reached the box').toContainText(STILL);
+  await page.waitForTimeout(1500);
+  expect((await announcedTexts(page)).filter((text) => text.includes(SENT)), 'the run began before the page loaded: no Sent').toEqual([]);
+});
+
+/** Q10: a run that a live view shows first (not this page's press) is announced once, and its later views announce nothing more. */
+test('Q10: a run first seen through a live view is announced once', async ({ page }) => {
+  await serve(page, { guide: guideOf(2, { breakFeed: { active: true } }) });
+  const push = await liveEvents(page);
+  await recordAnnouncements(page);
+  await open(page);
+  await expect(breakButton(page)).toHaveClass(/button-attention/);
+
+  const startedAt = iso(Date.now() - 5_000);
+  const runView = (stage: string): Record<string, unknown> => guideOf(2, { breakFeed: { active: false, reason: 'incident_in_progress', stage, startedAt } });
+  await push([{ type: 'guide.state', payload: runView('waiting') }]);
+  await expect(boxOf(page).locator('.line'), 'the run reached the box').toContainText(SENT);
+  await expect.poll(async () => (await announcedTexts(page)).filter((text) => text.includes(SENT)).length, { message: 'Sent is announced' }).toBe(1);
+  await push([{ type: 'guide.state', payload: runView('still_waiting') }]);
+  await expect(boxOf(page).locator('.line')).toContainText(STILL);
+  await page.waitForTimeout(1500);
+  expect((await announcedTexts(page)).filter((text) => text.includes(SENT)), 'once for the run').toHaveLength(1);
+});
+
+/** Q10: a `watch.progress` that the page held before a run (first seen through a live view) never shows as that run's line; the run's own does. */
+test('Q10: an earlier run\'s watch.progress never shows for a run first seen through a live view', async ({ page }) => {
+  await serve(page, { guide: guideOf(2, { breakFeed: { active: true } }) });
+  const push = await liveEvents(page);
+  await open(page);
+
+  await push([{ type: 'watch.progress', payload: { ref: 'zzQ10earlier', stage: 'diagnosing' } }]);
+  const startedAt = iso(Date.now() - 5_000);
+  await push([{ type: 'guide.state', payload: guideOf(2, { breakFeed: { active: false, reason: 'incident_in_progress', stage: 'waiting', startedAt } }) }]);
+  const line = boxOf(page).locator('.line');
+  await expect(line, 'the run shows its sent line').toContainText(SENT);
+  await page.waitForTimeout(1000);
+  await expect(line, 'not the earlier run\'s progress line').not.toContainText('Working out the cause');
+  await push([{ type: 'watch.progress', payload: { ref: 'zzQ10own', stage: 'noticed' } }]);
+  await expect(line, 'the run\'s own progress line replaces it').toContainText('OcuTalon noticed failures in the Orders production');
+});
+
+/** Q10: when an update removes Do step 1 while it holds focus, focus goes to the Break the feed button beside it, not to the chat. */
+test('Q10: when an update removes the focused Do step 1, focus goes to the Break the feed button', async ({ page }) => {
+  await serve(page, { guide: guideOf(0) });
+  const push = await liveEvents(page);
+  await open(page);
+
+  const step1 = boxOf(page).getByRole('button', { name: 'Do step 1', exact: true });
+  await step1.focus();
+  await expect(step1).toBeFocused();
+  await push([{ type: 'guide.state', payload: guideOf(1, { breakFeed: { active: true } }) }]);
+  await expect(stepOf(page, 2, 'current'), 'the view advanced to step 2').toHaveAttribute('aria-current', 'step');
+  await expect(step1, 'Do step 1 is gone').toHaveCount(0);
+  await expect(breakButton(page), 'focus is on the Break the feed button').toBeFocused();
 });

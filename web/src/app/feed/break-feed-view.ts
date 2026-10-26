@@ -139,11 +139,14 @@ export type ElapsedFormat = (sinceIso: string, nowMs: number) => Countdown;
  *   until the next view.
  * - The 90 s and 3 min lines show from the page's elapsed time or from the server's stage, whichever comes first, over a waiting run
  *   and a sent press. They never change the button: only the view's `active` does.
+ * - While a sent press holds over a view of another run (the view the page held when the answer came), that view's stage is not this
+ *   run's: the box shows the sent press, never the earlier run's lines.
+ * - The "Next step" tag leaves once the button is pressed: while the press has no answer, after its 200, and while its 409 holds.
  */
 export function boxView(view: GuideStatePayload, local: LocalPress, progressLine: string, nowMs: number, elapsed: ElapsedFormat): BoxView {
   const feed = breakFeedOf(view);
-  const stage = feed.stage ?? '';
   const sent = heldSent(local, view);
+  const stage = sent && feed.startedAt !== local.sentAt ? '' : (feed.stage ?? '');
   const pressing = local.pressing;
   const conflict = heldConflict(local, view) ? local.conflict : undefined;
   const reason = conflict ?? feed.reason ?? '';
@@ -182,7 +185,7 @@ export function boxView(view: GuideStatePayload, local: LocalPress, progressLine
   const wantsHint = !inFlight && (inactive || conflict !== undefined);
   result.hint = wantsHint ? (HINTS[reason] ?? '') : '';
   result.doStep1 = result.hint === FEED_TEXTS.notWatching;
-  result.nextStep = current === 3 && !inactive && !pressing && !sent;
+  result.nextStep = current === 3 && !inactive && !pressing && !sent && conflict === undefined;
   return result;
 }
 

@@ -41,8 +41,9 @@ export async function dropBreakFeed(user: string): Promise<void> {
       'Set sc=st.%Prepare("DELETE FROM OcuTalon_Data.BreakFeedRun WHERE SessionRef = ?")',
       'Set rs=st.%Execute(s.Ref)',
       'Set tr=s.TraceRef',
-      'If tr\'="" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages([(tr)],"OCUORDERS")',
-      'Write !,"CHK|dropped|",$Select($System.Status.IsOK(sc)&&(rs.%SQLCODE>=0):1,1:0)',
+      'Set rm=1',
+      'If tr\'="" Set rm=##class(OcuTalon.Test.Data.Fixture).RemoveMessages([(tr)],"OCUORDERS")',
+      'Write !,"CHK|dropped|",$Select($System.Status.IsOK(sc)&&(rs.%SQLCODE>=0)&&$System.Status.IsOK(rm):1,1:0)',
     ].join('\n'),
   );
   if (chk(lines, 'dropped') !== '1') throw new Error(`the Break the feed runs could not be removed (${lines.join(' ')})`);
@@ -50,7 +51,8 @@ export async function dropBreakFeed(user: string): Promise<void> {
 
 /**
  * Waits until the batches that the user's session sent to OCUORDERS stop growing (two reads one second apart agree, with at least one
- * message), so that dropBreakFeed does not run while a run's messages are still arriving. It gives up after 30 s and lets the removal run.
+ * message), so that dropBreakFeed does not run while a run's messages are still arriving. It gives up after 30 reads (each a call into
+ * IRIS, then a 1 s pause) and lets the removal run; a case calls it only after a press.
  */
 export async function settleBatch(user: string): Promise<void> {
   let before = -1;

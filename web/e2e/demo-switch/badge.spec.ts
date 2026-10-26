@@ -41,7 +41,9 @@ test('the demo guide, the Break the feed box and the demo texts follow the demo 
   const mode = stackMode();
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
-    (snapshot['rail'] as { checks: unknown[] }).checks = [];
+    const rail = snapshot['rail'] as { approvals: unknown[]; checks: unknown[] };
+    rail.approvals = [];
+    rail.checks = [];
   });
 
   await signInReadme(page);
