@@ -1130,6 +1130,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 40187895230 attempt 1, job 121152465590 (shards, Linux WebKit 27.2): G1 red at a Trace link stop; unchanged rerun (attempt 2) green; e805585 green with the same case; macOS WebKit never showed it
 - 2026-10-25T11:46:51Z status=routed owner=4-4-show-the-demo-guide-and-the-break-the-feed-box by=flake note=Story 4.4 adds the demo guide to the page layout and its floor cases: make revealRing keep a 1 px margin past the ring (or reveal the rail's last stops with the ring's full outset) in WebKit, then confirm G1 at 1280x600 green over several Linux runs; a second red is an occurrence
 - 2026-10-25T21:33:15Z occurrence=16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac note=ci run 40233631799 iris(shards) floor-webkit G1 ring bottom 600.78 at 1280x600, sha ab3203b; rerun
+- 2026-10-26T05:22:57Z occurrence=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re note=ci run 40270323742 iris(shards) floor-webkit G1 at 1280x600, sha 4ded1e0; rerun
 
 ### DW-199: AnswersIn's web handler must pass Approval.Answer either an empty sessionRef or the signed-in session's 22-character Ref: since Story 3.7, Answer answers not_allowed for any other sessionRef
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
