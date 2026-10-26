@@ -110,7 +110,7 @@ development_status:
   5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
   5-2-new-failures-are-picked-up-within-seconds: done
   5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
-  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: ready-for-dev
+  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: in-progress
   5-5-an-incident-moves-through-its-states-and-closes: backlog
   5-6-the-production-watch-runs-on-every-heartbeat: backlog
   5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
