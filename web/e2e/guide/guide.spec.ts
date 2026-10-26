@@ -576,47 +576,64 @@ test('Q8: with a storage that throws, Hide and Show work for the page\'s life an
   expect(plain(await guide.locator('.label').first().textContent())).toBe('Demo guide');
 });
 
-/**
- * Q9: at a larger text size the step row wraps onto a second line instead of running past the guide (row 1 at 1280px, where the labels
- * show). Once the page's fonts have loaded, the row's children are measured (whether they fit one line at the normal size is read from
- * the host's metrics, never assumed), and the text tokens are scaled by a factor between "the steps alone fit" and "everything fits":
- * the row wraps if and only if flex-wrap lets the label, the steps, the duration and Hide guide share more than one line.
- */
-test('Q9: the step row wraps at a larger text size and nothing runs past the row', async ({ page }) => {
+/** Row 1 of the guide at 1280x800, where the labels show, once the page's Inter faces (400 and 600, the two that row 1 uses) have loaded. */
+async function openRow1(page: Page): Promise<Locator> {
   await page.setViewportSize({ width: 1280, height: 800 });
   await serve(page, { guide: guideOf(0) });
   await open(page);
-  const row = guideRegion(page).locator('.row1');
   await expect(guideRegion(page).locator('.step-label').first(), 'the labels show at 1280x800').toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.fonts.check('400 14px Inter') && document.fonts.check('600 14px Inter')), { message: 'the page\'s fonts have loaded before anything is measured' })
     .toBe(true);
+  return guideRegion(page).locator('.row1');
+}
 
-  /** How many lines the row's children make (their vertical centres, a gap above 8px apart), and how far the widest runs past the row. */
-  const read = (): Promise<{ lines: number; past: number; width: number; total: number; steps: number }> =>
-    row.evaluate((node) => {
-      const box = node.getBoundingClientRect();
-      const kids = [...node.children].map((child) => child.getBoundingClientRect());
-      const centres = kids.map((kid) => kid.top + kid.height / 2).sort((a, b) => a - b);
-      const lines = centres.filter((centre, i) => i === 0 || centre - centres[i - 1]! > 8).length;
-      const steps = node.querySelector('.steps')!.getBoundingClientRect().width;
-      return {
-        lines,
-        past: Math.max(...kids.map((kid) => kid.right)) - box.right,
-        width: box.width,
-        total: kids.reduce((sum, kid) => sum + kid.width, 0) + Number.parseFloat(getComputedStyle(node).columnGap) * (kids.length - 1),
-        steps,
-      };
-    });
+/**
+ * Row 1's children: how many lines they make (their vertical centres, a gap above 8px apart), how far the widest runs past the row, the
+ * row's width, the children's widths plus the row's gaps, and the steps' width.
+ */
+const readRow1 = (row: Locator): Promise<{ lines: number; past: number; width: number; total: number; steps: number }> =>
+  row.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const kids = [...node.children].map((child) => child.getBoundingClientRect());
+    const centres = kids.map((kid) => kid.top + kid.height / 2).sort((a, b) => a - b);
+    const lines = centres.filter((centre, i) => i === 0 || centre - centres[i - 1]! > 8).length;
+    const steps = node.querySelector('.steps')!.getBoundingClientRect().width;
+    return {
+      lines,
+      past: Math.max(...kids.map((kid) => kid.right)) - box.right,
+      width: box.width,
+      total: kids.reduce((sum, kid) => sum + kid.width, 0) + Number.parseFloat(getComputedStyle(node).columnGap) * (kids.length - 1),
+      steps,
+    };
+  });
 
-  // Whether the row fits one line at the normal size depends on the host's font metrics, so it is recorded, not asserted; what holds
-  // on every host is that nothing runs past the row, whether it fits or wraps.
+/**
+ * Q11: at 1280x800 and the normal text size, row 1 (the label, the five labelled steps, "About 2 minutes" and Hide guide) fits one line,
+ * measured in Inter once its faces have loaded. Linux Chromium rounds each glyph to whole pixels, so the row is wider there than on macOS;
+ * the message carries the widths, so a red names the host's fit.
+ */
+test('Q11: row 1 fits one line at 1280px at the normal text size', async ({ page }) => {
+  const fit = await readRow1(await openRow1(page));
+  expect(fit.lines, `row 1 is one line: its children take ${fit.total.toFixed(1)}px of a ${fit.width.toFixed(1)}px row`).toBe(1);
+});
+
+/**
+ * Q9: at a larger text size the step row wraps onto a second line instead of running past the guide (row 1 at 1280px, where the labels
+ * show). The row's children are measured at the normal size, and the text tokens are scaled by the geometric mean of the factors at which
+ * "everything fits" and "the steps alone fit" (1.1 at least): the row wraps if and only if flex-wrap lets the label, the steps, the
+ * duration and Hide guide share more than one line. Q9 holds whether or not the row fits one line at the normal size; Q11 pins that fit.
+ */
+test('Q9: the step row wraps at a larger text size and nothing runs past the row', async ({ page }) => {
+  const row = await openRow1(page);
+  const read = (): ReturnType<typeof readRow1> => readRow1(row);
+
+  // At the normal size nothing runs past the row, whether it fits one line (Q11) or wraps.
   const before = await read();
-  test.info().annotations.push({ type: 'row1 fit at 1280px', description: `children ${before.total.toFixed(1)}px in a row of ${before.width.toFixed(1)}px` });
   expect(Number.isFinite(before.total), 'the row has a measurable gap').toBe(true);
   expect(before.past, 'and nothing runs past it').toBeLessThanOrEqual(1);
 
-  // A factor at which the steps alone still fit the row but the whole row no longer does.
+  // A factor past "everything fits" and short of "the steps alone fit" (for a row that fits one line), so the whole row no longer fits.
   const scale = Math.max(1.1, Math.sqrt((before.width / before.total) * (before.width / before.steps)));
   await page.addStyleTag({
     content: `:root { --type-body-font-size: ${14 * scale}px; --type-label-font-size: ${12 * scale}px; --type-caption-font-size: ${12 * scale}px; --guide-step-current-typography-font-size: ${14 * scale}px; }`,

@@ -366,6 +366,29 @@ Rejected:
 - low: `elapsedText` has no hour form -- unreachable: the elapsed time shows only under 180 s.
 - false: frontmatter `done` against sprint `review` -- `status:` is build-auto's machine state; sprint-status carries the review state.
 
+Code review 2026-10-26, rework re-review (iteration 1 of 3; `review_mode` full; the diff `5f34241..HEAD` of the web files; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus tier). Each line: severity, fix-risk, footprint (in-story, spec-clear).
+- Checklist `[CI]`: confirmed fixed.
+  - Q9 no longer depends on font metrics. It holds whether row 1 fits or wraps at the normal size, waits for both Inter faces, and still goes red on the `.row1` `nowrap` mutation, alone (re-observed on the final Q9).
+  - The spacing uses `--space-1` and `--space-2`. The steps keep their 32px height, and row 1's items, the 1024-1279px numbers and the compact row are unchanged (Q1, M1 and M5 green).
+- The accepted risk needed a pin. Measured with a reproduction of row 1 at 1280x800, Inter loaded:
+  - macOS Chromium 156: 844.0px of 896px, 52.0px free. The `[CI]` note's 850.0px and 46px came from Q9's old hard-coded 10px gap.
+  - Linux Chromium 156: 857.2px, 38.8px free. Linux rounds each glyph to whole pixels. Measured in an arm64 container from the local `node:24.15.0-slim` with Playwright 1.64.1's system packages; x64 is assumed to match (inference).
+  - The pre-rework CSS takes 907.2px on Linux and wraps. So the CI red came from Linux's text metrics with Inter loaded, not from a fallback-font race (the Linux fallback is narrower: 791.1px).
+- Verified after the patches: `npm --prefix web test` 624 pass, lint exit 0, `ci/checks.sh` exit 0, `live sign-in` 210 passed and 1 skipped (not a guide case).
+
+- [x] [Review][Patch] Row 1's one-line fit at 1280px was not asserted -- med, fix-risk low (a test-only assertion with 38.8px of measured margin on Linux) [web/e2e/guide/guide.spec.ts:Q11]
+  - Its only record, a Playwright annotation, never reaches the CI output (the list reporter, and the sign-in unit's 30-line tail).
+  - So a wrapped row 1 left Q9 green (its larger-size half passes on a wrapped baseline), and the rework's `reopen_if` could not fire.
+  - Fix: the new Q11 asserts one line after the font wait, and its message carries the widths. Q9's opening and reading moved into `openRow1` and `readRow1` (Rule 2).
+- [x] [Review][Patch] Q9's comments said the factor lies between "the steps alone fit" and "everything fits", which is untrue under the 1.1 floor (a wrapped baseline) -- low, fix-risk low; the comments now state the floor and that Q11 pins the fit [web/e2e/guide/guide.spec.ts:Q9]
+
+Rejected (re-review):
+- low: the step padding and the selected bar's inset are raw 2px, off the 4px scale, and must match -- round 1 ruled on raw px in these components (the tokens have no 2, 3, 6 or 10px step); the rework kept the pair in step, and a shared variable adds a name to guard against a 1px cosmetic drift.
+- false: the 1.1 floor can pass "the steps alone fit", and a zero-width step list makes the scale Infinity -- unreachable: the steps take 553px (macOS) to about 566px (Linux) of 896px (a factor of about 1.6), and Q9 first asserts that the labelled steps show.
+- false: the numbered steps (1024-1279px) are 24px wide, under `--space-target-min` -- DESIGN L732 makes the target minimum a height ("at least ... tall"), and 24px meets WCAG 2.5.8's 24px.
+- low: the rework's triage reason "the widths are above 44px" does not hold in the numbered band (24px) -- the fix edits the spec's log; the conclusion stands on DESIGN L732.
+- low: the `[CI]` note's figures (894.0 to 850.0px, 46px, 5.1 %) and its "spacing tokens" wording do not match the change (50px removed; the step padding is a raw 2px) -- the fix edits the spec under review. The measured figures are above, and Q11 now pins the fit, which supersedes the rework's Decided in-stage note ("held ... not by an assertion").
+
 ## Spec Change Log
 
 - 2026-10-26, rework iteration 1 (trigger: CI red on ca4838f, `live:sign-in` Q9 on the Linux host): one `[CI]` item under Tasks & Acceptance.
@@ -606,7 +629,8 @@ Rejected:
 - AC8: mutation (CR): `follow()`'s baseline is an empty set -> `live sign-in` Q10 "an earlier run's watch.progress never shows ..." red (the earlier run's diagnosing line).
 - AC5: mutation (CR): the box's 10 s timer removed -> `live sign-in` Q6 "a press with no answer in 10 s ..." red (the sending line stayed).
 - AC2: mutation (CR): Do step 1 without its focus key (the code before the fix) -> `live sign-in` Q10 "when an update removes the focused Do step 1 ..." red (focus not on Break the feed).
-- AC6: mutation (rework 1): `flex-wrap: wrap` of `.row1` changed to `nowrap` in `demo-guide.ts` (the final Q9 and the 850px row) -> `live sign-in` Q9 red alone ("the row wraps onto a second line": 1 line, expected more than 1; 208 passed, 1 failed), reverted from a backup, `git status --short` and `git diff --stat` identical to before.
+- AC6: mutation (rework 1): `flex-wrap: wrap` of `.row1` changed to `nowrap` in `demo-guide.ts` (the final Q9 and the 850px row) -> `live sign-in` Q9 red alone ("the row wraps onto a second line": 1 line, expected more than 1; 208 passed, 1 failed), reverted from a backup, `git status --short` and `git diff --stat` identical to before. Re-observed by the re-review on the refactored Q9 (`openRow1` and `readRow1`) and the final tree: Q9 red alone (Received 1, expected more than 1; 209 passed, 1 failed), reverted from a backup, `git diff | md5` identical.
+- AC1: mutation (CR, re-review): `.step`'s padding `0 var(--space-2)` instead of `0 2px` in `demo-guide.ts` (row 1 60px wider) -> `live sign-in` Q11 red alone ("row 1 is one line: its children take 904.0px of a 896.0px row"; 209 passed, 1 failed; Q9 stayed green on the wrapped baseline), reverted from a backup, `git diff | md5` and `git status --short` identical to before.
 - AC6: mutation (CR): `.steps` without wrap and `flex: none` (the code before the fix) -> `live sign-in` Q9 red at twice the text (41.6px past the row).
 - AC1: mutation (CR): the steps' 30px minimum height (the code before the fix) -> `live sign-in` Q1 red (30, expected at least 32).
 - AC5: mutation (CR): the view's stage read under a sent press over another run's view (before the fix) -> `break-feed-view.test` "shows the sent line for a press from an earlier run's no_notice view ..." red.
