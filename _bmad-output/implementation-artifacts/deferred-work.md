@@ -1356,3 +1356,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Rule 2: no shared group fixture; the natural home Test/Data/Fixture.cls is contended while another epic is live
 - 2026-10-26T18:49:28Z status=wontfix-accepted owner=5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi by=cr note=reopen_if=a FailureGroup schema change has to edit more than two hand-built fixture groups under Test/
+
+### DW-281: The real Execute order (target FixExecutor, the incident's trace SessionId and the kept SuperSession) is observed only at the test seam (IncidentProbe overrides SendExecute), not on a real message header
+- source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: IncidentManager.Execute/SendExecute; Lifecycle.TestExecuteTarget pins the item name only; FixExecutor is a stub until Story 7.3
+- 2026-10-26T21:49:47Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=harvest note=reopen_if=Story 7.3's FixExecutor tests pass without observing a real Execute header (target FixExecutor, SessionId = the incident's TraceHeaderId); 7.3 consumes this send
