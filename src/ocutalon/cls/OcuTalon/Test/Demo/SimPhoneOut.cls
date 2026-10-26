@@ -100,7 +100,7 @@ Method TestTellNow()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 0, "and the phone's Delivery row is not a card of the web chat")
 }
 
-/// A reminder (reminder.due) is a phone message with the rendered text. A reminder with no due slot is rendered the same way.
+/// A reminder (reminder.due) is a phone message with the rendered text, and its phone Delivery row has no text and no due time.
 Method TestReminder()
 {
 	Set session = ..Session("reminder")
@@ -136,6 +136,7 @@ Method TestTextIsTheTelegramWording()
 	Do $$$AssertEquals(rows.Count(), 1, "one phone message")
 	If rows.Count() = 1 Do $$$AssertEquals(rows.GetAt(1).Text, telegram, "with the telegram wording")
 	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
 	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.text, telegram, "and so has its event")
 }
 
@@ -163,7 +164,8 @@ Method TestOnlineDemoTimesNameTheZone()
 }
 
 /// Any other kind records its phone Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text and no
-/// ChannelMessageId, no SimMessage and no event.
+/// ChannelMessageId, no SimMessage and no event; the text is not rendered (its key is unknown), and an incident whose text would
+/// render makes no message either.
 Method TestOtherKindsRecordOnly()
 {
 	Set session = ..Session("other")
@@ -181,16 +183,21 @@ Method TestOtherKindsRecordOnly()
 		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "phone|"_kind_"|ZzApproval"_kind_"|ZzDecision"_kind, kind_": its channel, kind, approval and decision")
 		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId_"|"_row.DueAt_"|"_row.FallbackReason, "|||", kind_": no text, no message id, no due time and no reason")
 	}
+	Set before = ##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)
+	Do $$$AssertStatusOK(..Out().OnNotification(..Notification(session, "incident", "notice.tellNow", {"whatHappened": "zz summary", "reason": "zz reason."}), .response), "an incident whose text renders is delivered")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), before + 1, "and records its row")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 10).Count(), 0, "no kind makes a phone message")
 	Do $$$AssertEquals(..Phones(session).%Size(), 0, "and none publishes an event")
 }
 
 /// A message for an owner that is not a session (instance, eval, an empty Ref, a Ref with no Session row, the control owner of the
-/// demo-switch test) records no row and publishes no event, for a card kind with a slot set that cannot be rendered too (the owner
-/// check comes first), and each logs one warning; the status is OK, so that the operation does not retry.
+/// demo-switch test) records no row and publishes no event, for a card whose text renders and for a card kind with a slot set that
+/// cannot be rendered too (the owner check comes first), and each logs one warning; the status is OK, so that the operation does not
+/// retry. The instance stream is read from its Seq before the test.
 Method TestNotASession()
 {
 	Set mark = ..LastLog()
+	Set instanceSeq = ##class(OcuTalon.Live.Publish).LastSeq("instance")
 	Set unknown = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set owners = $ListBuild("instance", "eval", "", unknown, "Instance", "zzswitch")
 	Set position = 0
@@ -203,13 +210,20 @@ Method TestNotASession()
 		Set notification.CatalogKey = "notice.tellNow"
 		Set notification.Slots = "{}"
 		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "'"_owner_"': a card notification with unrenderable slots is dropped with an OK status")
+		Set renders = ..Notification(owner, "tellnow", "notice.tellNow", {"whatHappened": "zz summary", "reason": "zz reason."})
+		Do $$$AssertStatusOK(..Out().OnNotification(renders, .response), "'"_owner_"': so is a card whose text renders")
 		Set other = ..Notification(owner, "incident", "zz.notRendered", {"zz": "slot"})
-		Do $$$AssertStatusOK(..Out().OnNotification(other, .response), "'"_owner_"': so is an incident notification")
+		Do $$$AssertStatusOK(..Out().OnNotification(other, .response), "'"_owner_"': and an incident notification")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(owner), before, "'"_owner_"': no row is recorded")
-		Do $$$AssertEquals(..Warnings(mark) - warned, 2, "'"_owner_"': one warning each")
+		Do $$$AssertEquals(..Warnings(mark) - warned, 3, "'"_owner_"': one warning each")
 		Do $$$AssertEquals(..PhoneCount(owner), 0, "'"_owner_"': and no phone message")
 	}
-	Do $$$AssertEquals(..Phones(unknown).%Size()_"|"_..Phones("instance").%Size(), "0|0", "and no event is published")
+	Set instancePhones = 0
+	Set events = ##class(OcuTalon.Live.Event).Since("instance", instanceSeq, 1000)
+	For i = 0:1:events.%Size() - 1 {
+		If events.%Get(i).type = "phone" Set instancePhones = instancePhones + 1
+	}
+	Do $$$AssertEquals(..Phones(unknown).%Size()_"|"_instancePhones, "0|0", "and no event is published")
 	Do ..RemoveWarnings(mark)
 }
 
@@ -274,7 +288,8 @@ Method TestPublishFailure()
 /// In the running production with demo mode on, a Notification sent to Notify for a fixture session reaches both WebChatOut and
 /// SimPhoneOut as the same message: the Ens.MessageHeaders from Notify to the two have the same body class
 /// (OcuTalon.Msg.Notification), body id and session, both are completed with no error and neither has a response header; only
-/// the target differs (AC3, the Visual Trace clause). The SimMessage is there within WAIT seconds of the send.
+/// the target differs (AC3, the Visual Trace clause). The SimMessage is there within WAIT seconds of the send, with its one phone
+/// Delivery row and its one phone event.
 Method TestThroughNotify()
 {
 	If '##class(Ens.Director).IsProductionRunning(.name) {
@@ -302,6 +317,15 @@ Method TestThroughNotify()
 	If rows.Count() = 1 Do $$$AssertEquals(rows.GetAt(1).Text, "zz Disk almost full"_$Char(10)_"Why now: you asked to hear about disk space", "with the rendered text")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "SimPhoneOut", 1, 20), "SimPhoneOut has handled the Notification")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "WebChatOut", 1, 20), "WebChatOut has handled it")
+	Set messageRef = $Select(rows.Count() = 1: rows.GetAt(1).Ref, 1: "(none)")
+	Set phoneRows = "", deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	For i = 1:1:deliveries.Count() {
+		If deliveries.GetAt(i).Channel = "phone" Set phoneRows = phoneRows_$Select(phoneRows = "": "", 1: ",")_deliveries.GetAt(i).ChannelMessageId
+	}
+	Do $$$AssertEquals(phoneRows, messageRef, "one phone Delivery row, for the message")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "phone", 1, ..#WAIT)
+	Do $$$AssertEquals(events.%Size(), 1, "and one phone event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref, messageRef, "for the message")
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Set toWeb = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "WebChatOut")
 	Set toPhone = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Notify", "SimPhoneOut")

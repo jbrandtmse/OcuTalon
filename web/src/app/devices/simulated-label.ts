@@ -19,7 +19,7 @@ import { DEVICE_TEXTS } from './device-view';
     .label {
       display: inline-flex;
       align-items: center;
-      min-height: 20px;
+      min-height: var(--space-5);
       padding: 0 var(--space-2);
       background: var(--simulated-label-background);
       color: var(--simulated-label-foreground);

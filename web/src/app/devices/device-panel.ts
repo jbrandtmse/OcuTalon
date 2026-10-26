@@ -31,8 +31,11 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
  *
  * The phone tab holds the simulated phone; the mailbox tab holds only its header, "Simulated mailbox" and the Simulated label, until the
  * story that builds the mailbox. The region takes focus for the skip link (tabindex -1). Nothing in it is a live region; the chat card
- * announces an event once. The panel body scrolls on its own when the column is shorter than the phone's minimum; it is no tab stop
- * (tabindex -1, so that no engine makes a stop of it): the controls inside it scroll it as focus reaches them.
+ * announces an event once. Beside the chat the phone fills the panel body: its screen keeps its minimum height while the column has
+ * room for it and yields to the body's height when the column is shorter, so its feed scrolls inside the screen and New messages
+ * stays in view; in the stacked column the screen keeps its minimum. The panel body scrolls on its own when what it holds is taller
+ * than the column; it is no tab stop (tabindex -1, so that no engine makes a stop of it): the controls inside it scroll it as focus
+ * reaches them.
  */
 @Component({
   selector: 'app-device-panel',
@@ -111,11 +114,6 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
         border-left: 0;
         border-top: var(--simulated-device-panel-border-left);
       }
-      /* In the one scrolling column the phone's screen keeps its minimum, unless the window is so short that the screen would not fit
-         under the sticky header: then it is 70% of the window, as the chat list is, so that a ring at its feed stays inside the window. */
-      app-simulated-phone {
-        --phone-screen-min: min(var(--space-phone-screen-min-height), 70vh);
-      }
     }
     .tabs {
       display: flex;
@@ -160,7 +158,7 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
       font-weight: var(--tab-badge-typography-font-weight);
       line-height: var(--tab-badge-typography-line-height);
     }
-    /* The body scrolls on its own when the column is shorter than the phone's minimum. */
+    /* The body scrolls on its own when what its panel holds is taller than the column. */
     .body {
       display: flex;
       flex: 1;
@@ -170,11 +168,29 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
       overflow-y: auto;
       scroll-padding: var(--space-scroll-gutter);
     }
+    /* Beside the chat the phone's panel is the body's height and the phone has no minimum of its own: its screen is at least its
+       minimum high while the body has room for it, and yields to the body's height when the column is shorter, so that the feed
+       scrolls inside the screen and New messages stays at the screen's visible bottom. */
     .panel {
       display: flex;
-      flex: 1 0 auto;
+      flex: 1 1 0;
       flex-direction: column;
       min-width: 0;
+      min-height: 0;
+    }
+    app-simulated-phone {
+      --phone-screen-min: 0px;
+    }
+    @media ${LAYOUT_QUERIES.stacked} {
+      /* In the one scrolling column the panel is as tall as the phone, and the phone's screen keeps its minimum, unless the window is
+         so short that the screen would not fit under the sticky header: then it is 70% of the window, as the chat list is, so that a
+         ring at its feed stays inside the window. */
+      .panel {
+        flex: 1 0 auto;
+      }
+      app-simulated-phone {
+        --phone-screen-min: min(var(--space-phone-screen-min-height), 70vh);
+      }
     }
     .panel[hidden] {
       display: none;
@@ -269,13 +285,14 @@ export class DevicePanel {
     this.deviceTabs.select(tab);
   }
 
-  /** Left and right arrows move to the other tab, focusing and selecting it; they wrap, and no other key is handled. */
+  /** Left and right arrows move from the focused tab to the other one, focusing and selecting it; they wrap, and no other key is handled. */
   protected onKey(event: KeyboardEvent): void {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
       return;
     }
     event.preventDefault();
-    const next = otherTab(this.selected());
+    const focused = TABS.find((tab) => tabId(tab) === (event.target as HTMLElement | null)?.id) ?? this.selected();
+    const next = otherTab(focused);
     this.deviceTabs.select(next);
     this.host.nativeElement.querySelector<HTMLElement>(`#${tabId(next)}`)?.focus();
   }

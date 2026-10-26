@@ -77,6 +77,10 @@ test('P1: the region has the two tabs, the arrows move between them, and the cho
   await page.keyboard.press('ArrowLeft');
   await expect(mailbox, 'ArrowLeft wraps the other way').toBeFocused();
   await expect(mailbox).toHaveAttribute('aria-selected', 'true');
+  await phone.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(mailbox, 'an arrow moves from the focused tab, also when it is not the selected one').toBeFocused();
+  await expect(mailbox).toHaveAttribute('aria-selected', 'true');
 
   await page.reload();
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
@@ -159,6 +163,7 @@ test('P3: the messages are notifications, newest at the bottom, with their line 
   ]);
   const messages = phoneOf(page).locator('.notification');
   await expect(messages, 'three notifications').toHaveCount(3);
+  await expect(phoneOf(page).locator('.empty'), 'the empty text is gone once the phone holds a message').toHaveCount(0);
   await expect(messages.locator('.text'), 'in the snapshot\'s order, the newest at the bottom').toHaveText(['zz fixture first', 'zz fixture second\nWhy now: zz reason', '<b>zz fixture markup</b>'], { useInnerText: true });
   await expect(messages.nth(2).locator('b'), 'markup is text, not an element').toHaveCount(0);
   const second = messages.nth(1).locator('.text');

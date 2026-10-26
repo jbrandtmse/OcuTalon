@@ -72,7 +72,7 @@ export async function phoneRows(user: string): Promise<number> {
       'Write !,"CHK|rows|",r.%GetData(1)',
     ].join('\n'),
   );
-  const count = Number(chk(lines, 'rows'));
-  if (!Number.isInteger(count)) throw new Error(`the phone rows could not be counted (${lines.join(' ')})`);
-  return count;
+  const raw = chk(lines, 'rows') ?? '';
+  if (!/^\d+$/.test(raw)) throw new Error(`the phone rows could not be counted (${lines.join(' ')})`);
+  return Number(raw);
 }

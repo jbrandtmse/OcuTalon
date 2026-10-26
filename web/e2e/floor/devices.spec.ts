@@ -21,15 +21,17 @@ import { cleanFixtureRows, fixtureUser, sendNotification } from '../support/iris
 import { fromBottom, scrollListTo } from '../support/page';
 
 /**
- * Story 4.5, the simulated device panel and the simulated phone on the floor stack, as the FLOOR user (D1 to D4; the floor stack is in
+ * Story 4.5, the simulated device panel and the simulated phone on the floor stack, as the FLOOR user (D1 to D5b; the floor stack is in
  * demo mode). D1 runs in all three engines (tag @browsers): the tab stops of the panel in order, the arrow keys and the rings inside the
  * viewport at 1280x720 and 1280x600. D2 reads the layout: 384px from 1440px and 352px below it, the column under the Break the feed
- * box, the drawer band, the stacked order and the short window. D3 sends real notifications through Notify and SimPhoneOut and reads
- * the phone: the feed follows at the bottom and holds when scrolled up, New messages focuses the first new message, and an unselected
- * tab shows a badge with its count and is never switched by content. D4 holds the feed for a pending approval request that a message
- * names. A case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR session is no
- * fixture session, so Fixture.Clean keeps them. The fixture messages of D2 and D4 are named by their text and live only in the
- * snapshot that the page receives.
+ * box, the drawer band, the stacked order and the short windows, where the phone screen yields to the column. D3 sends real
+ * notifications through Notify and SimPhoneOut and reads the phone: the feed follows at the bottom and holds when scrolled up, New
+ * messages focuses the first new message, and an unselected tab shows a badge with its count and is never switched by content. D4
+ * holds the feed for a pending approval request that a message names. D5 and D5b hold an arrival in the 1280x600 window: New messages
+ * is the tab stop after the feed and Enter on it focuses the first new message (D5), and the button is in view of the panel body and
+ * the window (D5b). A case that sends removes the FLOOR session's phone and web rows from its start (dropPhone) in finally; the FLOOR
+ * session is no fixture session, so Fixture.Clean keeps them. The fixture messages of D2, D4 and D5 are named by their text and live
+ * only in the snapshot that the page receives.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -80,33 +82,9 @@ async function arrive(page: Page, user: string, text: string): Promise<void> {
 }
 
 /**
- * Judges the ring of the focused phone feed. When the panel body is as tall as the feed and its gutter, the ring is the page's inside
- * ring, wholly inside the viewport and every scroller (expectStopRing). In a column shorter than that (1280x600: the Break the feed box
- * leaves the column under 330px, and the phone's screen keeps its 360px minimum) the feed cannot be wholly in view whatever the engine
- * does: the ring is still the inside ring, it is inside the viewport across, and the engine has scrolled at least 85% of the feed into
- * the panel body's view.
+ * D1: the stops of the panel in order, the arrow keys, and every ring inside the viewport, at two heights. At 1280x600 the column is
+ * shorter than the phone's minimum, so the screen yields to it and the feed's ring is still wholly inside the viewport and every scroller.
  */
-async function expectFeedRing(page: Page): Promise<void> {
-  const reading = (await readFocus(page))!;
-  const room = await page.evaluate(() => {
-    const body = document.querySelector('app-device-panel .body') as HTMLElement;
-    const feed = document.querySelector('app-simulated-phone .feed') as HTMLElement;
-    return body.clientHeight - feed.offsetHeight - 2 * 4;
-  });
-  if (room >= 0) {
-    await expectStopRing(page, reading);
-    return;
-  }
-  expect(reading.outlineStyle + reading.outlineWidth + reading.outlineOffset, 'the feed draws the inside ring').toBe('solid2px-2px');
-  expect(reading.ring.left, 'the ring is inside the viewport on the left').toBeGreaterThanOrEqual(reading.viewport.left - 0.5);
-  expect(reading.ring.right, 'and on the right').toBeLessThanOrEqual(reading.viewport.right + 0.5);
-  const body = reading.scrollers.find((one) => one.what.startsWith('div.body'));
-  expect(body, 'the panel body is the scroller around the feed').toBeDefined();
-  const visible = Math.min(reading.ring.bottom, body!.bottom, reading.viewport.bottom) - Math.max(reading.ring.top, body!.top, reading.viewport.top);
-  expect(visible, `at least 85% of the feed is in view in a column shorter than the phone (${JSON.stringify({ ring: reading.ring, body })})`).toBeGreaterThanOrEqual(0.85 * (reading.ring.bottom - reading.ring.top));
-}
-
-/** D1: the stops of the panel in order, the arrow keys, and every ring inside the viewport, at two heights. */
 test('D1: the device tabs and the phone feed are tab stops in order, the arrows move between the tabs, and every ring is inside the viewport', { tag: '@browsers' }, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await openFloor(page);
@@ -129,7 +107,7 @@ test('D1: the device tabs and the phone feed are tab stops in order, the arrows 
     await expect(feedOf(page), 'then the phone feed, which is the region named by its tab').toBeFocused();
     await expect(feedOf(page)).toHaveAttribute('role', 'region');
     await expect(page.getByRole('region', { name: PHONE_TAB, exact: true }), 'it is named by the tab').toHaveCount(1);
-    await expectFeedRing(page);
+    await expectStopRing(page, (await readFocus(page))!);
     await page.keyboard.press(keys.back);
     await expect(tabOf(page, PHONE_TAB)).toBeFocused();
 
@@ -161,8 +139,8 @@ function columns(page: Page): Promise<{ panelLeft: number; panelWidth: number; p
   });
 }
 
-/** D2: the layout at every width: the column's width and place, the drawer band, the stacked order, and the short window. */
-test('D2: the panel is 384px from 1440px and 352px below it, aligned under the box, stacked below 1024px, and scrolls on its own when short', async ({ page }) => {
+/** D2: the layout at every width: the column's width and place, the drawer band, the stacked order, and the short windows. */
+test('D2: the panel is 384px from 1440px and 352px below it, aligned under the box, stacked below 1024px, and the phone yields to a short column', async ({ page }) => {
   test.setTimeout(150_000);
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
@@ -241,17 +219,30 @@ async function layoutCase(page: Page): Promise<void> {
   expect(short.page, 'at 1280x600 the page does not scroll').toBeLessThanOrEqual(0);
   expect(short.bottom, 'the panel ends inside the window').toBeLessThanOrEqual(short.height + 0.5);
   expect(short.overflowY, 'and the panel body scrolls on its own').toBe('auto');
-  await page.setViewportSize({ width: 1280, height: 480 });
-  await settled(page);
-  const tiny = await page.evaluate(() => {
-    const root = document.scrollingElement!;
-    const body = document.querySelector('app-device-panel .body') as HTMLElement;
-    body.scrollTop = body.scrollHeight;
-    return { page: root.scrollHeight - root.clientHeight, bodyScrolls: body.scrollHeight - body.clientHeight, moved: body.scrollTop };
-  });
-  expect(tiny.page, 'in a window of 480px high the page still does not scroll').toBeLessThanOrEqual(0);
-  expect(tiny.bodyScrolls, 'the panel body holds more than it shows').toBeGreaterThan(0);
-  expect(tiny.moved, 'and scrolls').toBeGreaterThan(0);
+  for (const height of [600, 480]) {
+    await page.setViewportSize({ width: 1280, height });
+    await settled(page);
+    const fit = await page.evaluate(() => {
+      const app = document.querySelector('app-root') as HTMLElement;
+      const body = document.querySelector('app-device-panel .body') as HTMLElement;
+      const view = body.getBoundingClientRect();
+      const screen = document.querySelector('app-simulated-phone .screen')!.getBoundingClientRect();
+      const feed = document.querySelector('app-simulated-phone .feed') as HTMLElement;
+      return {
+        app: app.scrollHeight - window.innerHeight,
+        bodyScrolls: body.scrollHeight - body.clientHeight,
+        screen: screen.height,
+        screenBottom: screen.bottom,
+        bodyBottom: view.top + body.clientTop + body.clientHeight,
+        feedScrolls: feed.scrollHeight - feed.clientHeight,
+      };
+    });
+    expect(fit.app, `in a window of ${height}px high nothing of the page reaches below the window`).toBeLessThanOrEqual(0);
+    expect(fit.screen, `the column is shorter than the phone, so its screen yields to it (${JSON.stringify(fit)})`).toBeLessThan(359.5);
+    expect(fit.bodyScrolls, 'and the panel body holds nothing that it does not show').toBeLessThanOrEqual(1);
+    expect(fit.screenBottom, 'the screen ends inside the panel body').toBeLessThanOrEqual(fit.bodyBottom + 0.5);
+    expect(fit.feedScrolls, 'and its feed scrolls inside it').toBeGreaterThan(0);
+  }
 }
 
 /** D3: real notifications reach the phone: the feed follows at the bottom, holds when scrolled up, and a tab with new content gets a badge. */
@@ -270,6 +261,8 @@ test('D3: the feed follows at the bottom and holds when scrolled up, and an unse
     await arrive(page, user, followed);
     await expect.poll(() => fromBottom(feed), { message: 'the newest message is in view' }).toBeLessThanOrEqual(24);
     await expect(newMessagesOf(page), 'with no New messages button').toHaveCount(0);
+    await expect(tabOf(page, PHONE_TAB), 'the selected phone tab gets no count from what arrives on it').toHaveAttribute('aria-selected', 'true');
+    await expect(regionOf(page).locator('.badge'), 'and no badge').toHaveCount(0);
 
     await scrollListTo(feed, 'top');
     const held = unique('D3 held');
@@ -343,4 +336,67 @@ test('D4: with a pending approval request on the phone, an arrival does not move
   } finally {
     await dropPhone(user, start);
   }
+});
+
+/**
+ * Holds a short window (1280x600, where the column is shorter than the phone's minimum and its screen yields to the panel body) with a
+ * held arrival: the feed is scrolled up, so the next real arrival shows New messages. `check` reads the page at that point.
+ */
+async function heldInShortWindow(page: Page, label: string, check: (text: string) => Promise<void>): Promise<void> {
+  const { user } = fixtureUser(KIND);
+  const start = startTime();
+  try {
+    await withPhone(page, Array.from({ length: 12 }, (_unused, n) => fixture(n + 1, `zz ${label} fixture message ${n + 1}\nWhy now: zz fixture`)));
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await openFloor(page);
+    const feed = feedOf(page);
+    await expect(phoneOf(page).locator('.notification')).toHaveCount(12);
+    await scrollListTo(feed, 'top');
+    const text = unique(`${label} arrival`);
+    await arrive(page, user, text);
+    await settled(page);
+    await expect(newMessagesOf(page), 'the held arrival shows New messages').toBeVisible();
+    await check(text);
+  } finally {
+    await dropPhone(user, start);
+  }
+}
+
+/**
+ * D5: in a window shorter than the phone, New messages is the tab stop after the feed, its ring is inside the viewport and the panel
+ * body's view, and Enter on it focuses the first new message.
+ */
+test('D5: in a short window New messages is the tab stop after the feed and Enter focuses the first new message', async ({ page }) => {
+  test.setTimeout(150_000);
+  await heldInShortWindow(page, 'D5', async (text) => {
+    const keys = await stepKeys(page);
+    await feedOf(page).focus();
+    await expect(feedOf(page)).toBeFocused();
+    await page.keyboard.press(keys.next);
+    await expect(newMessagesOf(page), 'the stop after the feed is New messages').toBeFocused();
+    expectRingInside((await readFocus(page))!, 'New messages');
+    await page.keyboard.press('Enter');
+    await expect(messageOf(page, text), 'Enter focuses the first new message').toBeFocused();
+    await expect(newMessagesOf(page), 'and the button goes').toHaveCount(0);
+  });
+});
+
+/**
+ * D5b: at 1280x600 the column is shorter than the phone's 360px minimum, so the phone's screen yields to the panel body's height and
+ * New messages sits at the screen's visible bottom: a pointer user who has scrolled up sees the button for a held arrival without
+ * scrolling the panel (EXPERIENCE L265 and L301, row 15).
+ */
+test('D5b: in a short window the New messages button is in view without scrolling the panel', async ({ page }) => {
+  test.setTimeout(150_000);
+  await heldInShortWindow(page, 'D5b', async () => {
+    const seen = await newMessagesOf(page).evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const body = document.querySelector('app-device-panel .body') as HTMLElement;
+      const box = body.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, bodyTop: box.top + body.clientTop, bodyBottom: box.top + body.clientTop + body.clientHeight, height: window.innerHeight };
+    });
+    expect(seen.top, `the button is not above the panel body's view (${JSON.stringify(seen)})`).toBeGreaterThanOrEqual(seen.bodyTop - 0.5);
+    expect(seen.bottom, `nor below it, where the panel body clips it (${JSON.stringify(seen)})`).toBeLessThanOrEqual(seen.bodyBottom + 0.5);
+    expect(seen.bottom, 'and it is inside the window').toBeLessThanOrEqual(seen.height + 0.5);
+  });
 });

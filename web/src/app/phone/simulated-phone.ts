@@ -150,8 +150,8 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
     .time {
       align-self: flex-end;
       color: var(--ink-muted);
-      font-size: var(--tab-badge-typography-font-size);
-      line-height: var(--tab-badge-typography-line-height);
+      font-size: var(--type-caption-font-size);
+      line-height: var(--type-caption-line-height);
     }
     .empty {
       margin: 0;
