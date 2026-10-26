@@ -1361,3 +1361,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: IncidentManager.Execute/SendExecute; Lifecycle.TestExecuteTarget pins the item name only; FixExecutor is a stub until Story 7.3
 - 2026-10-26T21:49:47Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=harvest note=reopen_if=Story 7.3's FixExecutor tests pass without observing a real Execute header (target FixExecutor, SessionId = the incident's TraceHeaderId); 7.3 consumes this send
+- 2026-10-26T22:32:40Z status=resolved-by:5-5-an-incident-moves-through-its-states-and-closes owner=5-5-an-incident-moves-through-its-states-and-closes by=cr note=Closing.TestApproveSendsExecuteToFixExecutor reads the real header (FixExecutor, TraceHeaderId session, SuperSession)
+
+### DW-282: Test.Watch.Lifecycle's Host, Group and DropGroups repeat Test.Watch.Tell's (a FailureGroup fixture builder now sits in six Watch and Live test classes), a Rule 2 copy with a weak reason
+- source: spec-5-5-an-incident-moves-through-its-states-and-closes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Lifecycle.cls Host/Group/DropGroups vs Tell.cls Host L305, Group L255, DropGroups L271; also Diagnose, Evidence, NoticeText, Live.Payloads; the shared home Test.Data.Fixture is contended
+- 2026-10-26T22:32:40Z status=wontfix-accepted owner=5-5-an-incident-moves-through-its-states-and-closes by=cr note=reopen_if=another test class adds its own FailureGroup or probe-host builder; then add Fixture.Group and Host

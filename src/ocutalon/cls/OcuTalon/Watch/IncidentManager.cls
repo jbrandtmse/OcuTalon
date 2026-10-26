@@ -51,7 +51,8 @@
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
 ///     recipient of the incident), not_quiet (a closeQuiet within QUIETSECONDS of LastAt), not_allowed (the table refuses), failed (the recipients or the save could not be read or made;
 ///     a Type 3 warning is logged) or Ok 1 with the outcome closed;
-///     an answer that found the incident for its caller carries the state and open variant as Data. closeForReplay and closeQuiet check no session: only
+///     an answer that found the incident for its caller carries the state and open variant as stored as Data (a failed save too, read again from the row; a failed
+///     read of the recipients has no caller to tell, like a dismiss from a session that is not a recipient). closeForReplay and closeQuiet check no session: only
 ///     product code sends them.
 ///   - Purge deletes the incidents closed before a cutoff, with their groups (AD-27).
 ///   - Any other request class is an error that names the class.
@@ -474,7 +475,7 @@ Method Notice(ref As %String) [ Private ]
 			$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
 		}
-		If '##class(OcuTalon.Watch.Transitions).Next(incident.State, 0, "notice", {"variant": (##class(OcuTalon.Watch.Notice).Variant(incident))}, .to, .variant) Quit
+		If '##class(OcuTalon.Watch.Transitions).Next(incident.State, incident.NoticedAt '= "", "notice", {"variant": (##class(OcuTalon.Watch.Notice).Variant(incident))}, .to, .variant) Quit
 		Do ..Deliver(incident, to, variant, key, slots)
 	} Catch exception {
 		$$$LOGWARNING(..#LOGNOTICE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
@@ -618,7 +619,7 @@ Method Command(command As OcuTalon.Msg.IncidentCommand, Output response As OcuTa
 	Set sc = ..Apply(incident, verb, "", .accepted)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGMOVE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
-		Quit ..Verdict(.response, 0, "failed", ..#MESSAGEFAILED)
+		Quit ..Verdict(.response, 0, "failed", ..#MESSAGEFAILED, "", $Select($$$ISOK(incident.%Reload()): incident, 1: ""))
 	}
 	If 'accepted Quit ..Verdict(.response, 0, "not_allowed", ..#MESSAGENOTALLOWED, "", incident)
 	Quit ..Verdict(.response, 1, ..#CLOSED, ..#MESSAGECLOSED, incident.Ref, incident)

@@ -1,5 +1,6 @@
 /// What a fix run reports to IncidentManager (AD-16): FixExecutor sends it to IncidentManager as the run goes (Final 0, progress) and when it ends (Final 1, or
-/// Interrupted 1 for a run that was cut short), and Sweep sends one for a run that was interrupted (Stories 7.3 to 7.5). IncidentManager moves the incident
+/// Interrupted 1 for a run that was cut short), and OcuTalon.Fix.Run.Sweep returns a final one for a run reported in progress whose copies have all completed
+/// or failed, and for a run that Reconcile marked interrupted, which Checks sends on (Stories 7.3 to 7.5). IncidentManager moves the incident
 /// by it (OcuTalon.Watch.Transitions): a run that ended moves a fixing incident on, a progress report changes nothing but the incident's published view. The
 /// counts are those of the run: Total records in the affected set, Resent the records sent again, Completed those that completed, FailedAgain those that failed
 /// again and Skipped those that were left out. Lane A.

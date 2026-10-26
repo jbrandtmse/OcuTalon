@@ -179,6 +179,36 @@ Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
 - Given incidents closed 91 and 89 days ago and an older open one, when `IncidentManager.Purge(90)` runs, then only the 91-day-old incident and its groups are deleted.
 - Given the product source, when `Test.Bridge.CodeRules`, `Test.Install.Production`, `Test.Data.Tables` and `ci/checks.sh` run, then they pass: `IncidentManager` carries no `STUB` and is still the only writer and publisher, and no persistent class projects a reserved word.
 
+### Review Findings
+
+Code review, 2026-10-26 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 29 raw findings, 12 entries after grouping, 11 rejected). Each entry: severity / fix-risk / footprint / spec-status.
+
+- [x] [Review][Patch] A `failed` answer to a command whose save failed carried no `Data`, against the Conventions row "Incident commands" ("every answer that found the incident carries `Data`"; Rule 6) — high / low (two lines, the row read again) / in-story / clear. `Command` now answers the stored state (`%Reload`), since a failed `%Save` leaves the object moved; the probe's `FailMove` moves the object first, as a real failed save does, and `Lifecycle.TestFailedSaveChangesNothing` pins `0|failed||open|no_fix`. A failed read of the recipients still answers no `Data`: its caller is unverified, like a non-recipient's `not_found` (AD-4) [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:622]
+- [x] [Review][Patch] `Closing.TestApproveSendsExecuteToFixExecutor` repeated `TestRejectThroughTheHold`'s set-up (about 30 lines) with no stated reason (Rule 2) — med / low / in-story / clear. Both now use `HeldRequest` and `WaitHoldEnds` [src/ocutalon/cls/OcuTalon/Test/Watch/Closing.cls:127]
+- [x] [Review][Patch] "No answer comes back" was asserted the moment the `Execute` header appeared, before `FixExecutor` had handled it, so an answer wanted could pass (Rule 19) — med / low / in-story / clear. The test waits for the header's handled status, then looks for an answer for `NOANSWERSECONDS` [src/ocutalon/cls/OcuTalon/Test/Watch/Closing.cls:167]
+- [x] [Review][Patch] "Other than the event's own" in the `waiting` fact had no pinning test: with the exclusion removed every test stayed green (Rule 19) — med / low / in-story / clear. `TestFixResults` adds a final result whose own request still reads `approved`: `resolved`, no `Execute` [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:552]
+- [x] [Review][Patch] The SuperSession assertion could not fail: the header was found by `SuperSession` — low / low / in-story / clear. It is found by the incident's trace session (`SessionHeaders`) [src/ocutalon/cls/OcuTalon/Test/Watch/Closing.cls:160]
+- [x] [Review][Patch] `Lifecycle`'s `Link`, `SetRequest` and `SetClosedAt` dropped the save status, so a fixture step could fail silently and a refusal pass for the wrong reason — low / low / in-story / clear. They throw on a failed save [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls:838]
+- [x] [Review][Patch] `TestPurge` pinned the cutoff from one side only: a purge that kept a day too long passed — low / low / in-story / clear. An incident closed an hour before the cutoff must go [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls:593]
+- [x] [Review][Patch] `FixResult`'s class doc named Sweep as a sender of interrupted runs only; AD-16: `Sweep` returns final results (ended in-progress runs and interrupted ones) and `Checks` sends them — low / low / in-story / clear [src/ocutalon/cls/OcuTalon/Fix/Msg/FixResult.cls:1]
+- [x] [Review][Patch] `Notice` passed a fixed "not noticed" to the table instead of the row's `NoticedAt` — low / low / in-story / clear [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:478]
+- [x] [Review][Patch] DW-281 still said the real `Execute` header is observed only at the seam, though QA's Closing test reads it — low / low / in-story / clear. Ledger trailer `resolved-by` this story (the spec's frontmatter `deferred:` entry and the Auto Run Result's residual-risk line are build-auto's sections, left for the lead)
+- [x] [Review][Patch] `Transitions.TestQuiet`, the only pin of the 900-second boundary, had no `mutation:` line (Rule 19) — low / low / in-story / clear. Demonstrated and written under Verification
+- [x] [Review][Defer] `Lifecycle`'s `Host`, `Group` and `DropGroups` repeat `Tell`'s; a FailureGroup fixture builder now sits in six Watch and Live test classes (Rule 2, weak reason: "follows Tell") — low / low / out-of-footprint (the shared home, `Test.Data.Fixture`, is contended) / clear [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls:791] — deferred: DW-282 `wontfix-accepted`, reopen_if another test class adds its own FailureGroup or probe-host builder
+
+Rejected:
+- `low` blind: `Execute` on the `earliest` path keeps the SuperSession of whoever sent the `FixResult` — wontfix-theoretical: every sender of this story keeps the incident's SuperSession; real only if Story 7.5's `Checks` relays a `FixResult` with another SuperSession while an approved request waits and a reader attributes by the `Execute`'s SuperSession.
+- `low` blind: `Purge` has no Try/Catch — only a digit string over 145 digits reaches `<MAXNUMBER>`, and the caller is a task's `%Integer` property (Story 30.2).
+- `low` blind + edge: a failed `SendExecute` or a failed async save leaves the incident stuck — the send's handling is the spec's ("A failed send logs one Type 3 warning, and the row stays as saved"; by-design); a failed save of the only writer's own row (PoolSize 1) has no realistic trigger (wontfix-theoretical).
+- `low` blind + auditor: `MESSAGENOTQUIET` says "15 minutes" beside `QUIETSECONDS` — developer text (the "Incident commands" row), and 900 is the PRD's fixed assumption; deriving it adds machinery.
+- `false` edge: a final `FixResult` of a request that is not running resolves the incident — the intent refuses a `FixResult` only when it is not the incident's (spec-bound), and AD-16 sends one final result per run that started.
+- `false` edge: a refused notice on an unnoticed incident that is not `open` is silent — `Notice` runs only on rows that `Open` passes, after `Answered` or `Refused`, and a with-fix diagnosis has no key, so no such row reaches the table.
+- `low` edge: `closeQuiet` can read a demo mode cached for 60 s — `demo.mode` is written only by the install step's `Seed`, and every reader shares the cache (`TraceLink`, `Rule.Functions`); wontfix-theoretical: real if `demo.mode` is switched on while the production runs.
+- `false` edge: `TestApproveSendsExecuteToFixExecutor` leaves its `Execute` header, body and the stub's log row — `InProduction.OnAfterAllTests` removes every session that carries the fixture session's TraceRef (`Fixture.RemoveMessages`), the `Execute`'s session with its body and log rows included.
+- `low` verification-gap: `TestPurge` skips when the namespace holds a closed incident older than 59 days — fresh stacks hold none, and a seam would change `Purge`'s shape; probe: a fresh or CI run of `Test.Watch.Lifecycle` prints `SKIP` for `TestPurge`.
+- `low` verification-gap: `Refuse` compares two empty snapshots for a missing incident — those three cases are carried by `Refuse`'s other assertions (nothing sent, nothing published, one info line).
+- `false` auditor: a second `CommandsInProduction` test changed beyond the plan — recorded under "Beyond the spec's file list", and the file is this story's footprint extension.
+
 ## Spec Change Log
 
 - 2026-10-26, spec gate (Epic 5 runner): R1 ruled (a), decide; Epic 5's 5.5 block amended and Story 5.9 added; spine rows "Incident commands" (new) and "SQL reserved words" (amended) written; status set to `ready-for-dev`.
@@ -372,6 +402,37 @@ Conventions: "SQL reserved words" (applied here to a table name), "Messages", "T
 - mutation: `dismiss` skips the `Recipients` check (`Command`) also turns `Lifecycle.TestInstanceDismiss` red
 - mutation: `Execute` loses `SqlTableName = FixExecute` -> `Test.Data.Tables.TestSqlNames` red (AC 7, reserved-word half)
 - mutation: `Transitions` deletes an incident row (`%DeleteId`) -> `Test.Bridge.CodeRules.TestOnlyIncidentManagerWritesIncidents` red (AC 7, only-writer half)
+
+**QA stage (Rule 19; each mutation reverted byte-identically, checked with `cmp` against a backup made first, and `git status --short` unchanged):**
+
+Audit: every row of the I/O matrix and every AC has a pinning test in the table above. The QA pass found five assertions that no test could fail on and added tests for them (files marked `(QA)` below):
+- the facts rule "an incident's requests are the entries of `RequestRefs` whose row exists and names the incident" (the `IncidentRef` check of `Facts`) was unpinned: `Lifecycle.TestOnlyTheIncidentsOwnRequestsCount` (QA);
+- `Apply` quits on the error of `Move` before it sends an `Execute`, and `Command` answers `failed`: `Lifecycle.TestFailedSaveChangesNothing` (QA), with the probe's `Move` failing (`IncidentProbe.FailMove`; a test-side override, no product seam; a real failed `%Save` needs a row that another process locks);
+- "the line names the incident, the event and the state" was counted but not read: `Lifecycle.TestRefusedLineNamesIncidentEventAndState` (QA);
+- `Purge` with more days than the calendar has: `Lifecycle.TestPurgeFarCutoff` (QA);
+- the real `SendExecute` header (the gap closed as DW-281) is reachable without a seam: `Closing.TestApproveSendsExecuteToFixExecutor` (QA) approves a real request through the real hold and reads the `Execute` header that `IncidentManager` sends to the `FixExecutor` stub (it stays a header with a refused handling; no answer is wanted), with the session and SuperSession. The handler's own behaviour is still Story 7.3's.
+- Still without a test, by cause: the `failed` answer of a failed `Session.Recipients` read of `Dismiss` (it needs a process without %All, so an IRIS user made for the purpose, which is a privilege change: see `Test.Watch.Tell`).
+
+- mutation: `Facts` drops the `IncidentRef` check -> `Lifecycle.TestOnlyTheIncidentsOwnRequestsCount` red
+- mutation: `Apply` ignores the error of `Move` -> `Lifecycle.TestFailedSaveChangesNothing` red
+- mutation: `Drop` logs the event where the state belongs -> `Lifecycle.TestRefusedLineNamesIncidentEventAndState` red
+- mutation: `Purge` loses the `day < 0` guard -> `Lifecycle.TestPurgeFarCutoff` red (an exception)
+- mutation: `Execute` does not set the incident's trace session -> `Closing.TestApproveSendsExecuteToFixExecutor` red (the real header's `sessionId`)
+
+**Code review (Rule 19; each mutation reverted from a backup, checked with `cmp`, and `git status --short` and `git diff --stat` unchanged; warm `e5s5cw`, fresh `e5s5c`):**
+
+- mutation: `Command`'s `failed` answer gives the object without reading the row again (AC 2, the "Incident commands" row's `Data`) -> `Lifecycle.TestFailedSaveChangesNothing` red
+- mutation: `Facts` counts the event's own request (`|| (ref = own)` dropped) -> `Lifecycle.TestFixResults` red (the own request that still reads approved)
+- mutation: `Purge` keeps one day too many (`- daysToKeep - 1`) -> `Lifecycle.TestPurge` red (the incident closed an hour before the cutoff)
+- mutation: `Settle.Quiet` takes 900 seconds as quiet (`>` to `'<`) -> `Transitions.TestQuiet` red
+- mutation: `SendExecute` asks for an answer (`SendRequestAsync(..., 1)`) -> `Closing.TestApproveSendsExecuteToFixExecutor` red ("no answer comes back")
+- mutation: `Execute` clears the SuperSession for the send -> `Closing.TestApproveSendsExecuteToFixExecutor` red ("with the SuperSession kept")
+
+Code review runs: warm `Test.Watch.Lifecycle`, `Transitions`, `Tell`, `Test.Bridge.CodeRules` passed after the reverts on the same stack; fresh `Test.Watch.Closing` (29 s test, 104 s with the start) and `Test.Watch.Notices` passed; `bash ci/checks.sh` passed. Both tags are torn down.
+
+QA files (`(QA)`): `src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls` (four tests and two helpers added), `src/ocutalon/cls/OcuTalon/Test/Watch/Closing.cls` (one test added), `src/ocutalon/cls/OcuTalon/Test/Watch/IncidentProbe.cls` (`FailMove` and a `Move` override). No new class.
+
+QA runs: warm (`e5s5qw`): `Test.Watch.Lifecycle`, `Test.Watch.Tell`, `Test.Bridge.CodeRules` passed; fresh (`e5s5q`): `Test.Watch.Closing` passed (27 s test, about 110 s with the start); `bash ci/checks.sh` passed.
 
 **Runs (stage loop):** warm (`e5s5iw`, up in 80 s): `Test.Watch.Transitions`, `Lifecycle`, `Tell`, `Settle`, `Test.Bridge.CodeRules`, `Test.Data.Tables`, `Test.Install.Production` passed. Fresh (`e5s5i`): `Closing` (27 s test, 100 s with the start), `Notices`, `Diagnose`, `Incidents`, `Test.Core.CommandsInProduction`, `Test.Bridge.Approval` passed.
 

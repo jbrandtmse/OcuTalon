@@ -9,6 +9,11 @@
 ///   - TestRejectThroughTheHold: A's fixture incident is noticed and awaiting approval, and a real fix request (Approval.Raise, with the probe sink and
 ///     ResultTarget IncidentManager) is raised for it and listed in the incident's RequestRefs. The ANSWERER account's Answer (reject) ends the real hold, which
 ///     sends the ApprovalOutcome to IncidentManager: the incident is open with the variant rejected, and an incident event for it reaches A's stream.
+///   - TestApproveSendsExecuteToFixExecutor (QA): the same set-up, and the ANSWERER account's Answer (approve) ends the hold with an approved outcome: the incident is
+///     fixing, and the real SendExecute puts one Execute (the request's Ref) on the way from IncidentManager to FixExecutor, in the incident's trace session
+///     (TraceHeaderId) with the SuperSession kept (the request's TraceRef), and once FixExecutor has handled it (the stub refuses it), no answer comes back to
+///     IncidentManager within NOANSWERSECONDS. This reaches the header that the probe's SendExecute stands in for (DW-281); the handler's own test is still Story 7.3's.
+///   The two hold tests share their set-up (HeldRequest) and the wait for the end of the hold (WaitHoldEnds).
 /// The rows and events of a test are removed after it, and so are the request, its hold and its task.
 Class OcuTalon.Test.Watch.Closing Extends OcuTalon.Test.Watch.Case
 {
@@ -20,6 +25,15 @@ Parameter SYNTH = "Zz.Closing";
 
 /// The README account that answers (Install.Step.Users USER), the local install's real approver.
 Parameter ANSWERER = "ocutalon";
+
+/// The item that carries out an approved fix (a stub until Story 7.3: the header of the order is what the test reads).
+Parameter FIXEXECUTOR = "FixExecutor";
+
+/// The statuses of a request header that its target has handled (Ens.DataType.MessageStatus: Discarded, Aborted, Error, Completed).
+Parameter HANDLED = "4,7,8,9";
+
+/// Seconds to look for an answer to the Execute after FixExecutor has handled it (an answer, when one is wanted, follows the handling at once).
+Parameter NOANSWERSECONDS = 2;
 
 /// The sink of the host events in this process.
 Parameter SINK = "OcuTalon.Test.Bridge.ProbeSink";
@@ -96,43 +110,10 @@ Method TestDismissThroughCommandsIn()
 Method TestRejectThroughTheHold()
 {
 	If '..Ready() Quit
-	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
-	If reason '= "" {
-		Do $$$AssertEquals(reason, "", "the production is ready")
-		Quit
-	}
-	Set user = ..#ANSWERER
-	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(user, .roles)
-	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
-	Do $$$AssertTrue(holds, "the answerer "_user_" holds OcuTalonUser")
-	If 'holds Quit
 	Set a = ..Session("hold")
-	Set rows = ""
-	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", "ApprovalRole")
-	Set ..SavedRole = rows
-	Set ..RoleSaved = 1
-	Do ##class(Ens.Config.DefaultSettings).%DeleteId(##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", "ApprovalRole"))
+	If '..HeldRequest(a, "hold", "", .incident, .approval) Quit
 
-	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(a, ##class(OcuTalon.Data.Time).NowUtc(), ..#SYNTHNS, ..#SYNTH_".hold"_..Number, {"State": "awaiting_approval", "OpenVariant": ""})
-	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
-	Set request.Kind = "fix"
-	Set request.OwnerRef = a
-	Set request.TraceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
-	Set request.IncidentRef = incident
-	Set request.ResultTarget = ..#MANAGER
-	Set request.DryRun = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""OrderDate"",""before"":""10/24/2026"",""after"":""2026-10-24"",""itemNoun"":""orders""}"
-	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .approval, ..#SINK)
-	If approval '= "" Set ^OcuTalonTest("Approval", "refs", approval) = ""
-	Do $$$AssertStatusOK(sc, "a fix request is raised for the incident")
-	If $$$ISERR(sc) Quit
-	Kill request
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-	Set row.RequestRefs = approval
-	Do $$$AssertStatusOK(row.%Save(), "the request is listed in the incident's RequestRefs")
-	Kill row
-	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitTask(approval, 10) '= "", "the request is held: its task exists")
-
-	Set done = ##class(OcuTalon.Bridge.Approval).Answer(approval, "reject", "web", user, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
+	Set done = ##class(OcuTalon.Bridge.Approval).Answer(approval, "reject", "web", ..#ANSWERER, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
 	Do $$$AssertEquals(done, "done", "the answerer rejects the request")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, ..#WAITINCIDENT)
 	Do $$$AssertEquals(events.%Size(), 1, "an incident event reaches A's stream")
@@ -140,6 +121,114 @@ Method TestRejectThroughTheHold()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.ClosedAt, "open|rejected|", "and so is its row")
 	Kill row
+	Do ..WaitHoldEnds(approval)
+}
+
+Method TestApproveSendsExecuteToFixExecutor()
+{
+	If '..Ready() Quit
+	Set a = ..Session("approve")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
+	// the incident has a trace session of its own (a number that no real header has)
+	Set traceId = ..#SYNTHFIRST + 70000 + ..Number
+	If '..HeldRequest(a, "approve", {"TraceHeaderId": (traceId)}, .incident, .approval) Quit
+
+	Set done = ##class(OcuTalon.Bridge.Approval).Answer(approval, "approve", "web", ..#ANSWERER, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
+	Do $$$AssertEquals(done, "done", "the answerer approves the request")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(a, "incident", 1, ..#WAITINCIDENT)
+	Do $$$AssertEquals(events.%Size(), 1, "an incident event reaches A's stream")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.state, incident_"|fixing", "the incident is fixing")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.ClosedAt, "fixing||", "and so is its row")
+	Kill row
+
+	// the real send: one Execute header from IncidentManager to FixExecutor in the incident's trace session, read once FixExecutor has handled it
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	Set sent = []
+	While $ZHorolog < end {
+		Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(traceId), 1, ..#MANAGER, ..#FIXEXECUTOR)
+		If (sent.%Size() '= 0) && ..Handled(sent.%Get(0).status) Quit
+		Hang 0.2
+	}
+	Do $$$AssertEquals(sent.%Size(), 1, "one request header goes from IncidentManager to FixExecutor, in the incident's trace session")
+	If sent.%Size() '= 1 Quit
+	Set header = sent.%Get(0)
+	Do $$$AssertTrue(..Handled(header.status), "and FixExecutor has handled it (status "_header.status_")")
+	Do $$$AssertEquals(header.bodyClass, "OcuTalon.Fix.Msg.Execute", "its body is an Execute")
+	Set body = ##class(OcuTalon.Fix.Msg.Execute).%OpenId(header.bodyId)
+	Do $$$AssertTrue($IsObject(body) && (body.ApprovalRef = approval), "which carries the Ref of the approved request")
+	Do $$$AssertEquals(header.superSession, trace, "with the SuperSession kept")
+	Set answers = []
+	Set end = $ZHorolog + ..#NOANSWERSECONDS
+	While (answers.%Size() = 0) && ($ZHorolog < end) {
+		Set answers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).SessionHeaders(traceId), 2, ..#FIXEXECUTOR, ..#MANAGER)
+		If answers.%Size() = 0 Hang 0.2
+	}
+	Do $$$AssertEquals(answers.%Size(), 0, "and no answer comes back to IncidentManager: none was wanted")
+	Do ..WaitHoldEnds(approval)
+}
+
+/// --- helpers ---
+/// The set-up of the hold tests: the production is ready and the answerer holds OcuTalonUser (else the test fails with the reason, and this gives 0); the
+/// ApprovalRole default of Decide is set aside (OnAfterOneTest puts it back); a fixture incident of the session, awaiting approval, with the fields after the
+/// defaults, in a production of the name; and a real fix request for it (Approval.Raise with the probe sink and ResultTarget IncidentManager), listed in the
+/// incident's RequestRefs and held (its task exists). incident and approval are their Refs; 1 when the set-up is done.
+Method HeldRequest(session As %String, name As %String, fields As %DynamicObject, Output incident As %String, Output approval As %String) As %Boolean [ Private ]
+{
+	Set (incident, approval) = ""
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
+	If reason '= "" {
+		Do $$$AssertEquals(reason, "", "the production is ready")
+		Quit 0
+	}
+	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(..#ANSWERER, .roles)
+	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
+	Do $$$AssertTrue(holds, "the answerer "_..#ANSWERER_" holds OcuTalonUser")
+	If 'holds Quit 0
+	Set rows = ""
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", "ApprovalRole")
+	Set ..SavedRole = rows
+	Set ..RoleSaved = 1
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId(##class(OcuTalon.Test.Agent.RunnerFixture).DefaultId("Decide", "ApprovalRole"))
+
+	Set all = {"State": "awaiting_approval", "OpenVariant": ""}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.key, .value) {
+			Do all.%Set(key, value)
+		}
+	}
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, ##class(OcuTalon.Data.Time).NowUtc(), ..#SYNTHNS, ..#SYNTH_"."_name_..Number, all)
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Kind = "fix"
+	Set request.OwnerRef = session
+	Set request.TraceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set request.IncidentRef = incident
+	Set request.ResultTarget = ..#MANAGER
+	Set request.DryRun = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""OrderDate"",""before"":""10/24/2026"",""after"":""2026-10-24"",""itemNoun"":""orders""}"
+	Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .approval, ..#SINK)
+	If approval '= "" Set ^OcuTalonTest("Approval", "refs", approval) = ""
+	Do $$$AssertStatusOK(sc, "a fix request is raised for the incident")
+	If $$$ISERR(sc) Quit 0
+	Kill request
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = approval
+	Do $$$AssertStatusOK(row.%Save(), "the request is listed in the incident's RequestRefs")
+	Kill row
+	Set task = ##class(OcuTalon.Test.Bridge.Approval).WaitTask(approval, 10)
+	Do $$$AssertTrue(task '= "", "the request is held: its task exists")
+	Quit (task '= "")
+}
+
+/// 1 when a request header's status is one of HANDLED.
+ClassMethod Handled(status As %String) As %Boolean [ Private ]
+{
+	Quit ((","_..#HANDLED_",") [ (","_status_","))
+}
+
+/// Waits at most WAITINCIDENT seconds for the hold of the request to end, and asserts that it has.
+Method WaitHoldEnds(approval As %String) [ Private ]
+{
 	Set end = $ZHorolog + ..#WAITINCIDENT
 	While (##class(OcuTalon.Bridge.Approval).LiveHold(approval) '= "") && ($ZHorolog < end) {
 		Hang 0.2
@@ -147,7 +236,6 @@ Method TestRejectThroughTheHold()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(approval), "", "the hold ends")
 }
 
-/// --- helpers ---
 /// A Dismiss of the incident for the session.
 Method Dismissal(session As %String, incident As %String) As OcuTalon.Msg.Command.Dismiss [ Private ]
 {
