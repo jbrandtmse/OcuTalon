@@ -107,7 +107,7 @@ Method TestDiagnosis()
 }
 
 /// Triage has no toolset, Diagnosis has the Watch toolset, and a fresh tool manager discovers exactly the three tools
-/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one to the dynamic object {"items":[]}. Chat has the Reminders and the Watching toolsets,
+/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one, which takes no argument and has no bridge context here, to the dynamic object {"items":[]}. Chat has the Reminders and the Watching toolsets,
 /// and a fresh tool manager discovers exactly the other six tools of OcuTalon.Tools.Names, each once; with no bridge context each of them that takes
 /// arguments (all but list_productions, which lists the productions and submits nothing) runs to the dynamic object {"ok": false, "message": NOSESSION}
 /// and submits nothing.
@@ -130,7 +130,7 @@ Method TestToolsets()
 		Do $$$AssertTrue($ListFind(expected, tool.name), tool.name_" is one of the names")
 		Do $$$AssertEquals(tool.metadata.ReadOnly, "1", tool.name_" is read-only")
 		Do $$$AssertEquals(tool."requires_auth", 0, tool.name_" needs no authorization")
-		Set result = manager.ExecuteTool(tool.name, {"production": "OcuTalon.Production"})
+		Set result = manager.ExecuteTool(tool.name, {})
 		Do $$$AssertTrue($IsObject(result.value) && result.value.%IsA("%Library.DynamicObject"), tool.name_" returns a dynamic object, not a JSON string")
 		Do $$$AssertEquals($Select($IsObject(result.value): result.value.%ToJSON(), 1: result.value), "{""items"":[]}", tool.name_" returns {""items"":[]}")
 	}

@@ -201,7 +201,7 @@ Method TestExtensionBases()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.ReplyFilter).Filter("text"), "text", "the default filter returns the text")
 	Do $$$AssertEquals(##class(OcuTalon.Checks.ReplyGuard).Filter("Everything I checked passed."), "Everything I checked passed.", "ReplyGuard returns the text, until Story 5.7")
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Checks.ReplyGuard", "%Extends", "OcuTalon.Bridge.Ext.ReplyFilter"), "ReplyGuard extends ReplyFilter")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("OcuTalon.Tools.WatchFixture", "read_event_log"), "", "Classify returns an empty string")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("OcuTalon.Tools.WatchReads", "read_event_log"), "", "Classify returns an empty string")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("mcp:docs", "read_event_log", {"a": 1}), "", "also for an MCP source and with arguments")
 }
 

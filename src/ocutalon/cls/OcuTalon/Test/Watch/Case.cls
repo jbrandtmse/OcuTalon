@@ -16,7 +16,8 @@
 ///     stopped them.
 ///   - for the tests of the incidents (Story 5.3): SendBatch (a FailureBatch from an adapterless host, as the poller sends it, with synthetic header ids), Item (a
 ///     run's own item name), Incidents and Group (the rows of IncidentManager as plain objects), WaitIncident, WaitCount and WaitNoticeCount, Notice (the fixture that
-///     sets NoticedAt and NoticeCount as Story 5.4's notice will) and Notifications. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
+///     sets NoticedAt and NoticeCount as a notice will), Notifications, and (Story 5.4) WaitDiagnosed, which a test calls before Notice so that a whole-row save by
+///     IncidentManager cannot write over the fixture. OnAfterOneTest and OnAfterAllTests delete the Incident and FailureGroup
 ///     rows that the run's sessions own, and the instance incidents made after the test (the class) began, with their groups, so the instance incidents that the
 ///     untagged failures of the poller tests make are gone too.
 /// It has no Test methods.
@@ -59,6 +60,9 @@ Parameter MANAGER = "IncidentManager";
 Parameter WAITINCIDENT = 20;
 
 Parameter WAITTRICKLE = 45;
+
+/// The longest a test waits for the diagnosis of an incident, from the moment the incident exists (the settle rule runs up to 30 seconds first), in seconds.
+Parameter WAITDIAGNOSIS = 90;
 
 /// The first synthetic header id of the failures that SendBatch makes (above any real header id of a throwaway).
 Parameter SYNTHFIRST = 900000000;
@@ -985,7 +989,23 @@ Method WaitRow(ref As %String, property As %String, least As %Integer, seconds A
 	Quit $Select($IsObject(row): $Property(row, property), 1: "")
 }
 
-/// The fixture of a notice: sets NoticedAt (now) and NoticeCount (the Count at that moment) of the incident, as Story 5.4's notice will.
+/// Waits up to seconds (WAITDIAGNOSIS by default), polling every half second, until the incident holds its diagnosis or the fallback of it: DecisionRef is set or
+/// Fallback is 1. The row is opened afresh each time. 1 when it does; 0 when the time has passed or the incident is gone.
+Method WaitDiagnosed(ref As %String, seconds As %Integer = {..#WAITDIAGNOSIS}) As %Boolean [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	For {
+		Kill row
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+		If '$IsObject(row) Quit
+		If (row.DecisionRef '= "") || row.Fallback || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit $IsObject(row) && ((row.DecisionRef '= "") || row.Fallback)
+}
+
+/// The fixture of a notice: sets NoticedAt (now) and NoticeCount (the Count at that moment) of the incident, as a notice will. The caller first waits for the
+/// diagnosis (WaitDiagnosed): the waiter saves the row after the settle rule ends and again when the diagnosis arrives.
 ClassMethod Notice(ref As %String) As %Status
 {
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
@@ -1003,7 +1023,8 @@ ClassMethod Notifications(ref As %String) As %Integer
 	Quit +rs.%GetData(1)
 }
 
-/// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups.
+/// Deletes the Incident rows that the run's sessions own and the instance incidents with an ID above the floor, with their failure groups and their diagnose
+/// decisions (and the usage and steps of those).
 Method DropIncidents(floor As %Integer) [ Private ]
 {
 	For i = 1:1:$Length(..Sessions, ",") {
@@ -1025,6 +1046,9 @@ ClassMethod DropIncidentRows(select As %String, value As %String) [ Private ]
 		Quit:id=""
 		Set row = ##class(OcuTalon.Data.Incident).%OpenId(id)
 		If '$IsObject(row) Continue
+		If ##class(OcuTalon.Test.Agent.RunnerFixture).Running() Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(row.Ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", row.Ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", row.Ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", row.Ref)
 		Do ##class(OcuTalon.Data.Incident).%DeleteId(id)
 	}

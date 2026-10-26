@@ -7,10 +7,10 @@ Include Ensemble
 /// missing. The settle settings are the code defaults, 10 and 30 seconds: no setting row is written. A test waits at most 20 seconds (45 for the trickle),
 /// polling every half second: a test bound, not NFR-7. The rows, events and batches of a test are removed after it.
 ///   - TestBurstThroughThePoller (rows Burst and Trace): session A watches Orders and 50 failing orders tagged with A's TraceRef become one open incident of A
-///     with one group, `noticed` then `settling` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
+///     with one group, `noticed`, `settling` and (Story 5.4, once the settle rule has ended) `diagnosing` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
 ///     NoticedAt, and the incident's own trace session whose first header carries A's TraceRef;
 ///   - TestTrickle: one failure every 4 seconds for 24 seconds: the settle ends 30 seconds after the first failure, before the quiet time has passed, with
-///     the count by then, and the batches that joined it published no second noticed or settling; a later failure raises Count and keeps NoticeCount, in
+///     the count by then, and the batches that joined it published no second noticed, settling or diagnosing; a later failure raises Count and keeps NoticeCount, in
 ///     the same incident;
 ///   - TestResent: a batch that repeats held keys adds only its new keys, and none of its times, and a batch that joins an unnoticed incident publishes no
 ///     incident event;
@@ -94,11 +94,12 @@ Method TestBurstThroughThePoller()
 	Set group = ..Group(ref)
 	Do $$$AssertEquals(group.count_"|"_group.itemName_"|"_group.errorPattern, "1|OrdersFromPartner|"_##class(OcuTalon.Watch.Settle).Pattern(..#ORDERDATETEXT), "one group: OrdersFromPartner and the pattern of the measured sentence")
 	Do $$$AssertEquals($Length(group.seen, ","), 50, "which holds the 50 keys")
-	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 2, 5)
-	Do $$$AssertEquals(progress.%Size(), 2, "A's stream holds two watch.progress events")
-	If progress.%Size() = 2 {
+	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 20)
+	Do $$$AssertEquals(progress.%Size(), 3, "A's stream holds three watch.progress events")
+	If progress.%Size() = 3 {
 		Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(0).payload.ref, "noticed|"_ref, "the first is noticed for the incident")
-		Do $$$AssertEquals(progress.%Get(1).payload.stage_"|"_progress.%Get(1).payload.ref, "settling|"_ref, "and the second settling")
+		Do $$$AssertEquals(progress.%Get(1).payload.stage_"|"_progress.%Get(1).payload.ref, "settling|"_ref, "the second settling")
+		Do $$$AssertEquals(progress.%Get(2).payload.stage_"|"_progress.%Get(2).payload.ref, "diagnosing|"_ref, "and the third diagnosing, once the settle rule has ended")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size(), 0, "no incident event before the notice")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incidents(a).Count(), 0, "A's ownership read leaves the unnoticed incident out")
@@ -145,9 +146,9 @@ Method TestTrickle()
 	Do $$$AssertEquals(noticeCount, ..#TRICKLE, "the settle ends with the count by then: all "_..#TRICKLE_" failures")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Settle).Wait(row.firstAt, row.lastAt, now, 10, 30), 0, "the rule has ended")
 	Do $$$AssertTrue(##class(OcuTalon.Watch.Settle).Wait(row.firstAt, row.lastAt, now, 10, 1000) > 0, "by the maximum, before the quiet time since the last failure has passed")
-	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress")
-	Do $$$AssertEquals(progress.%Size(), 2, "the batches that joined the incident announced it no more and started no other waiter")
-	If progress.%Size() = 2 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(1).payload.ref, "noticed|settling|"_ref, "noticed and settling once each, for the incident")
+	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 20)
+	Do $$$AssertEquals(progress.%Size(), 3, "the batches that joined the incident announced it no more and started no other waiter")
+	If progress.%Size() = 3 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(2).payload.stage_"|"_progress.%Get(1).payload.ref, "noticed|settling|diagnosing|"_ref, "noticed, settling and diagnosing once each, for the incident")
 	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 99", "at": (..Stamp(0))}])
 	Set count = ..WaitCount(ref, ..#TRICKLE + 1)
 	Set row = ..Incidents(a, ..#SYNTH).%Get(0)
@@ -240,12 +241,14 @@ Method TestTwoSessions()
 	Do $$$AssertTrue(refA '= refB, "two incidents, with two Refs")
 	Do $$$AssertEquals(..WaitCount(refA, 2), 2, "A's holds A's two failures")
 	Do $$$AssertEquals(..Incidents(b, ..#SYNTH).%Get(0).count, 1, "and B's holds B's one")
-	Set progressA = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 2, 5)
-	Set progressB = ##class(OcuTalon.Test.Core.Observe).Events(b, "watch.progress", 2, 5)
-	Do $$$AssertEquals(progressA.%Size()_"|"_progressB.%Size(), "2|2", "each stream holds two watch.progress events")
-	If (progressA.%Size() = 2) && (progressB.%Size() = 2) {
-		Do $$$AssertEquals(progressA.%Get(0).payload.ref_"|"_progressA.%Get(1).payload.ref, refA_"|"_refA, "A's are for A's incident")
-		Do $$$AssertEquals(progressB.%Get(0).payload.ref_"|"_progressB.%Get(1).payload.ref, refB_"|"_refB, "and B's for B's")
+	Do $$$AssertTrue(..WaitDiagnosed(refA), "A's incident holds its diagnosis")
+	Do $$$AssertTrue(..WaitDiagnosed(refB), "and B's holds its")
+	Set progressA = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress", 3, 5)
+	Set progressB = ##class(OcuTalon.Test.Core.Observe).Events(b, "watch.progress", 3, 5)
+	Do $$$AssertEquals(progressA.%Size()_"|"_progressB.%Size(), "3|3", "each stream holds three watch.progress events, the third once the settle rule has ended")
+	If (progressA.%Size() = 3) && (progressB.%Size() = 3) {
+		Do $$$AssertEquals(progressA.%Get(0).payload.ref_"|"_progressA.%Get(1).payload.ref_"|"_progressA.%Get(2).payload.ref, refA_"|"_refA_"|"_refA, "A's are for A's incident")
+		Do $$$AssertEquals(progressB.%Get(0).payload.ref_"|"_progressB.%Get(1).payload.ref_"|"_progressB.%Get(2).payload.ref, refB_"|"_refB_"|"_refB, "and B's for B's")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size() + ##class(OcuTalon.Test.Core.Observe).Events(b, "incident").%Size(), 0, "no incident event before a notice")
 	For each = a, b {
@@ -284,10 +287,11 @@ Method TestInstanceShared()
 	Set ref = rows.%Get(0).ref
 	Do $$$AssertEquals(..Group(ref).itemName, item, "it is the incident of the test's item")
 	Do $$$AssertEquals(..WaitCount(ref, 3), 3, "with the three failures")
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis, so the fixture's save is the last")
 	For each = a, b {
-		Set progress = ##class(OcuTalon.Test.Core.Observe).Events(each, "watch.progress", 2, 5)
-		Do $$$AssertEquals(progress.%Size(), 2, "the stream of a watching session holds two watch.progress events")
-		If progress.%Size() = 2 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(0).payload.ref, "noticed|settling|"_ref, "noticed then settling, for the incident")
+		Set progress = ##class(OcuTalon.Test.Core.Observe).Events(each, "watch.progress", 3, 5)
+		Do $$$AssertEquals(progress.%Size(), 3, "the stream of a watching session holds three watch.progress events")
+		If progress.%Size() = 3 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(2).payload.stage_"|"_progress.%Get(0).payload.ref, "noticed|settling|diagnosing|"_ref, "noticed, settling then diagnosing, for the incident")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(each, "incident").%Size(), 0, "and no incident event")
 	}
 	Set row = ..Incidents("instance", ..#ORDERSPRODUCTION).%Get(0)

@@ -2,12 +2,48 @@
 title: 'The diagnosis explains the cause from the failed messages'
 type: 'feature'
 created: '2026-10-26'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0f030338fe4e8f0c4076b339307b448963c92b42'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The credential-name rule (credentials, password, token, key) misses names such as Secret, Passphrase, Passwd and Auth.
+    evidence: |-
+      The rule is fixed by the story's intent and equals the recorded snapshot rule; a setting named ClientSecret reaches the pack and the settings tool, with only the redactor's patterns as a backstop. Widening the list is a security-posture change.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/Reader.cls CredentialName
+    severity: medium
+  - summary: >-
+      Only Cause and FixSummary are in the reply class's FILTERED list, so the stored Element and the model's noun forms bypass the reply filter (AD-31 says every stored model text is filtered).
+    evidence: |-
+      DiagnosisPayload FILTERED is fixed by the intent; the ReplyGuard is a stub until Story 5.7. Element (128) and itemNoun one/other are model text that Story 5.8's notice may render. Settle when the guard lands: widen FILTERED to ElementAtFault and filter the noun forms.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls, src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls Answered
+    severity: medium
+  - summary: >-
+      Message body properties are read in logical form, so a %Date or a Boolean property reaches the model as its internal value.
+    evidence: |-
+      Reader.Current reads each stored datatype property with $Property, as the spec says; the demo's OrderDate is a string. A date-format diagnosis on a %Date field would see a day number. Settling it needs a measured LogicalToDisplay of each property's datatype class while switched.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/Reader.cls Current (evidence body)
+    severity: medium
+  - summary: >-
+      The credential removal inside Reader.Evidence is never run against a credential-named setting, because EvidencePack.Settings removes the same names again.
+    evidence: |-
+      Deleting the loop in Reader.Evidence leaves every test green. A test needs a production item with a Credentials or Password setting in OCUORDERS.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Watch/Reader.cls Evidence
+    severity: low
+  - summary: >-
+      Test.Bridge.CodeRules does not check that a watch tool calls only the classes of CALLBACKHELPERS and READERCLASSES; it scans the listed classes only.
+    evidence: |-
+      A call to an unlisted class (OcuTalon.Data.Delivery) added to a WatchReads method leaves CodeRules green (demonstrated warm). The mechanism pre-dates this story (Story 5.1); the story adds four classes to the lists.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls
+    severity: medium
 ---
 
 <intent-contract>
@@ -249,6 +285,54 @@ Every `OcuTalon/...` path is under `src/ocutalon/cls/` unless it starts with `Br
 
 ## Review Triage Log
 
+### 2026-10-26 -- Review pass
+- verdicts: 41 findings -- high 0, medium 11, low 25, false 5, maybe-false 0
+- findings (Blind Hunter, in order):
+  - `[medium]` `[defer]` credential-name rule misses Secret, Passphrase, Auth names -- the rule is fixed by the intent (credentials, password, token, key) and equals the recorded snapshot rule; widening it is a security-posture change for the lead and the veto window; ledgered.
+  - `[low]` `[defer]` the removal inside `Reader.Evidence` is never run against a credential-named setting -- `EvidencePack.Settings` strips the same names again, so the guarantee holds at the surface; a test needs a production item with such a setting; ledgered.
+  - `[medium]` `[defer]` only `Cause` and `FixSummary` are filtered; `Element` and `itemNoun` forms are stored model text -- `FILTERED` is fixed by the intent and the guard is a stub until Story 5.7; ledgered for 5.7 or the lead.
+  - `[low]` `[patch]` instructions state no field lengths, so a long evidence reference makes the reply `invalid` -- the instructions now state the lengths (evidence 32, element and noun forms 128, cause and fix 1000). The filter-lengthening and `h:mm` false-positive parts are rejected: the `h:mm` rule is the intent's, and the stub filter does not lengthen.
+  - `[false]` `[reject]` the refusal of a diagnose request without a `ReplyClass` is untested -- `Test.Bridge.Decide` L282 asserts it ("a diagnose request is refused while DiagnosisAgent has no ReplyClass") and passed.
+  - `[medium]` `[patch]` the log-key path has no test -- `TestLogKeys` added (Reader.Evidence by id, the pack sample, both tools); the header-over-log preference is the spec's rule.
+  - `[medium]` `[defer]` body values are read in logical form (a `%Date` shows as a number) -- the spec names `$Property`; the demo body holds strings; ledgered.
+  - `[low]` `[reject]` the tools repeat the cross-namespace read and the event log is not prioritised -- efficiency only; the spec fixes the limits.
+  - `[low]` `[reject]` the manager builds the pack synchronously, a dying job leaves no diagnosis, whole-row saves may lose concurrent updates -- `IncidentManager` has pool 1 and is the only writer, so saves are serial; a job that dies mid-step is the framework's.
+  - `[low]` `[patch]` `TestTwoSessions` short-circuits two waits, "1 failures" wording, stale CodeRules wording, prompt wording -- the waits are separate asserts now; the CodeRules message says "watch tools"; "1 failures" is the spec's code-written text and the prompt wording is cosmetic (rejected).
+- findings (Edge Case Hunter, in order):
+  - `[low]` `[reject]` `OnResponse` ignores a diagnose answer that is not a `DecisionResponse` -- Decide's contract is a `DecisionResponse` or an error status.
+  - `[false]` `[reject]` a Decide that never answers leaves the incident undiagnosed -- `Decide` has `TimerSeconds` 60 and answers a fallback `DecisionResponse` on a timeout.
+  - `[false]` `[reject]` a stale whole-row save in `Diagnose` overwrites `Count` -- `IncidentManager` is the only writer and runs with pool 1.
+  - `[medium]` `[defer]` `Element` and the model's noun are stored without the `FILTERED` pass -- same root cause as the Blind Hunter's third row.
+  - `[low]` `[patch]` an evidence reference over 32 characters invalidates the diagnosis -- same fix as the Blind Hunter's fourth row (lengths in the instructions).
+  - `[low]` `[reject]` a multi-line cause or "3 pm" passes the check -- the intent fixes the clock-time rule as `h:mm`.
+  - `[medium]` `[defer]` `CredentialName` misses Secret, Passwd, Pwd, Auth -- same root cause as the Blind Hunter's first row.
+  - `[false]` `[reject]` a numeric-looking body value skips `Redact.Text` -- no `Redact` pattern matches a digits-only value, so nothing would change.
+  - `[low]` `[reject]` one unreadable property empties the whole body -- a rare read fault leaves the sample without a body; the diagnosis still runs.
+  - `[low]` `[reject]` the trace session is only set on the first key -- needs the first header purged while later ones remain.
+  - `[low]` `[reject]` header keys are preferred outright over log keys -- the spec's rule.
+  - `[low]` `[reject]` the event-log cap is shared across sessions -- the spec's limits; the sample session comes first.
+  - `[low]` `[reject]` a read fault in `Live` is not logged -- the pack leaves out the sample as the spec says; a log line is added complexity for a rare fault.
+  - `[low]` `[reject]` a refused incident whose pack build failed has no code noun -- needs an incident without a group row, which `Waiting` excludes.
+  - `[low]` `[reject]` `Seen` holds only the newest keys, so "oldest" is the oldest held -- that is the spec's wording ("the oldest key held in the group's Seen").
+  - `[low]` `[reject]` `diagnosing` is published after the pack build -- the code noun needs the sample's body class, so the build comes first; the stream order is unchanged.
+- findings (Verification Gap, in order):
+  - `[medium]` `[patch]` nothing checks the redaction of pack and tool strings -- `TestRedaction` and `TestLogKeys` added, with mutation lines.
+  - `[medium]` `[patch]` the diagnosis's own noun is never told from the code noun -- `diagnosis-unknown.json` gives invoice/invoices and `TestDiagnosisVariants` asserts it; mutation line added.
+  - `[medium]` `[patch]` `TestGoneBeforeTheAnswer` sleeps 3 s before asserting absence -- it now waits for the completed Decide-to-IncidentManager response header; mutation re-run.
+  - `[low]` `[defer]` the credential loop in `Reader.Evidence` is shadowed by `EvidencePack.Settings` -- same root cause as the Blind Hunter's second row.
+  - `[medium]` `[patch]` two AC clauses had no mutation line -- the no-notice mutation (`NoticedAt` set) and the CodeRules register mutation are recorded; the CodeRules check does not catch a tool that calls an unlisted class, and that mechanism is not this story's (ledgered).
+  - `[medium]` `[patch]` `Test.Watch.Incidents` read exactly two `watch.progress` events at a time the settle end may pass -- the reads now wait for the diagnosis and expect three.
+  - `[low]` `[reject]` the pack-build and send failure branches of `Diagnose` are untested -- both go to `Refused`, which `TestRefusedRequest` covers.
+  - `[low]` `[reject]` leftover `Usage` and step rows after a cleanup -- the spec accepts it.
+  - `[low]` `[reject]` the live pack takes `NoticeCount` over `Count` and the fixtures set both alike -- equal at the settle end.
+- findings (Intent Alignment, in order):
+  - `[low]` `[reject]` the pack is built before the noun and `diagnosing` -- same as the Edge Case Hunter's `diagnosing` row.
+  - `[low]` `[reject]` `Refused` logs its warning even when the row write is dropped -- the spec asks one warning for a refused request; harmless.
+  - `[low]` `[defer]` the extended CodeRules lists cannot fail for the four new classes -- same root cause as the Verification Gap's two-clause row; ledgered.
+  - `[false]` `[reject]` `Reader.Current` opens the body class while switched against "no OcuTalon class is called while switched" -- the body class is the watched production's own; no OcuTalon helper runs while switched.
+  - `[low]` `[reject]` `TestRefusedRequest` drives the error handler, not a Decide error answer -- the spec defines it that way.
+  - `[low]` `[reject]` the pack-build and send failure branches are untested -- same as the Verification Gap's row.
+
 ## Design Notes
 
 **Rulings this plan halts on (R1 to R3).** The spec above is written as if each is ruled as recommended. Under R1 (a), the spec stands as written.
@@ -346,11 +430,21 @@ Spine conventions: "Watch failures", "Redaction", "Tool classification", "Text O
 - **The answer handler** writes only to an unclosed, unnoticed row that still exists. The incident remains unnoticed until the sibling's notice.
 - **Scenario selection.** Tests choose a mock scenario with a `[[mock:<name>]]` marker in a synthetic failure's error text. The marker flows into the pack's `errorPattern`, because it holds no digits. `diagnosis.json` stays the default for real Orders failures.
 
+**Decided in-stage (implement stage):**
+- **Order at the settle end.** `Check` saves `NoticeCount` first (the settle end is committed), then `Diagnose` builds the pack, stores the code noun in a second save, publishes `diagnosing` after that commit, and sends the request. A pack that cannot be built, or a send that fails, is a refused request (`Refused`: fallback `error` and one Type 3 warning), so no incident is left without a stored outcome.
+- **A failed read** inside `EvidencePack.Build` (a Reader fault, error 5001) leaves out the sample, settings and trace like an unreadable one: the diagnosis still runs on the counts and the pattern. The tools do the same (`{"items": []}` or empty settings), so no tool throws into AI Hub.
+- **The body is read in the watched namespace** by opening the header's `MessageBodyClassName` object (`%OpenId`), so the body class's own `%OpenId` runs while switched; the class is checked first (it exists and extends `%Library.Persistent`) and any fault leaves `body` empty. Each value is cut at `Reader.VALUEMAX` (1000), the event log at `LOGMAX` (100).
+- **`OnError` for the key `diagnose`** stores the fallback itself and returns OK; the `OnResponse` that follows has no `DecisionResponse` and writes nothing. An error with any other key stays an error. `IncidentProbe.Refuse` wraps `OnError` with that key.
+- **`DiagnosisPayload` also checks** that `evidence` holds at most 20 references (its stated limit) and takes the fix kinds from the parameter `FIXKINDS`.
+- **Diagnosis's system block is now marked for the cache** (its instructions pass `min_tokens_for_cache`), so `Test.Agent.Runners` expects `systemMarked` 1 for Diagnosis as it does for Chat.
+- **`Tools/Watching.cls:4`** needed no change: its comment already says that `OcuTalon.Tools.Watch` is the Diagnosis agent's read-only toolset, and it names no fixture.
+- **`git rm` of `Tools/WatchFixture.cls`** is staged (not committed).
+
 **(inference), pinned by the tests and recorded by the implement stage:**
-- `Decide`'s `TraceSessionId` for a request from the waiter is the waiter's session, the incident's `TraceHeaderId` (`TestDemoDiagnosis`).
-- A marker inside the pack's JSON text survives `Redact.Text` and reaches the mock (`TestDiagnosisVariants`).
-- The body's datatype properties read through the class dictionary while switched (`TestLivePack`).
-- An `Ens.BusinessProcess` waiter that sends a request and gets its response keeps its `%SessionId` across the round trip (`TestDemoDiagnosis`).
+- `Decide`'s `TraceSessionId` for a request from the waiter is the waiter's session, the incident's `TraceHeaderId` (`TestDemoDiagnosis`). Observed: holds (the mutation that clears `%SessionId` turns it red).
+- A marker inside the pack's JSON text survives `Redact.Text` and reaches the mock (`TestDiagnosisVariants`). Observed: holds for the four markers.
+- The body's datatype properties read through the class dictionary while switched (`TestLivePack`). Observed: holds (`OrderNumber`, `OrderDate`, `Sku`, `Quantity` of `PartnerOrder`).
+- An `Ens.BusinessProcess` waiter that sends a request and gets its response keeps its `%SessionId` across the round trip (`TestDemoDiagnosis`). Observed: holds (`OnResponse` finds the incident and stores the answer).
 
 **Ledger inbox:** none was routed to this story. No `DW-n` entry is addressed or declined.
 
@@ -416,9 +510,69 @@ Spine conventions: "Watch failures", "Redaction", "Tool classification", "Text O
 | Gone before the answer | the handler saves a row it could not open as a new one | `TestGoneBeforeTheAnswer` |
 | Refused request | the error handler stores no fallback | `TestRefusedRequest` |
 
+**Mutation results** (implement stage, 2026-10-26; each applied alone or with independent ones whose red tests differ, run in a lane-A throwaway, reverted byte-identically from a backup, and the changed class green again on the same stack or in a fresh one):
+
+- mutation: AC 1 -- the waiter publishes no `diagnosing`. Red: `Test.Watch.Diagnose` `TestDemoDiagnosis` ("A's stream holds three watch.progress events"). Reverted, green.
+- mutation: AC 1, trace -- `%SessionId` cleared before the send. Red: `TestDemoDiagnosis` ("the decision is in the incident's own trace session", "among them the request to Decide"). Reverted, green.
+- mutation: AC 1, row -- `CauseCategory` not stored. Red: `TestDemoDiagnosis` ("the row holds the category and the element, and no fallback"). Reverted, green.
+- mutation: AC 2 -- `ReadFailedMessages` always returns `{"items": []}`. Red: `TestDemoDiagnosis` ("read_failed_messages gave the count and five items", fresh) and `Test.Watch.Evidence` `TestToolsReadTheIncident` ("the count of the incident and at most five items", warm). Reverted, green.
+- mutation: AC 2, pack -- `Input` without the pack. Red: `TestDemoDiagnosis` ("the diagnosis made two model requests": no request holds the pack). Reverted, green.
+- mutation: AC 3 -- `Detail` drops the sample. Red: `Test.Watch.Evidence` `TestSnapshotPack` and `TestLivePack` (warm), `Test.Agent.Decide` `TestSnapshotDiagnosis` ("its sample holds the order date", fresh). Reverted, green.
+- mutation: AC 4 -- the answer handler treats every answer as usable. Red: `TestDiagnosisVariants` (the invalid-reply and refusal rows: "the fallback of the bridge"). Reverted, green.
+- mutation: AC 4, noun -- no code noun at the settle end. Red: `TestDiagnosisVariants` (the nofix row "the scenario gives no noun, so the noun is message and messages" and both fallback rows "the code noun"). Reverted, green.
+- mutation: AC 5 -- `Decide` skips `FILTERED` (`named` empty). Red: `Test.Bridge.Decide` `TestFilterDiagnosis` (five asserts). Reverted, green.
+- mutation: AC 6 -- `ReplyClass` removed from `Production.cls`. Red: `Test.Install.Production` `TestDefinition` ("item 7 is DiagnosisAgent as the ownership table says"). Reverted, green.
+- mutation: Payload check -- `fixKind` accepted on `partner_outage`, and separately outcome `tellnow` accepted. Red: `Test.Watch.Payload` `TestPayloadRefused` ("a fixKind on partner_outage is refused", "outcome tellnow is refused"). Reverted, green (warm, green again on the same stack).
+- mutation: Item noun -- the map gives message for `PartnerOrder`. Red: `Test.Watch.Payload` `TestItemNoun`. Reverted, green.
+- mutation: Credentials -- `CredentialName` checks only "password". Red: `Test.Watch.Evidence` `TestCredentialsLeftOut` (both asserts). Reverted, green.
+- mutation: Tools in scope -- `Scope` ignores `OwnerRef`. Red: `TestToolsReadTheIncident` ("another owner: ReadEventLog / ReadItemSettings gives {""items"":[]}"). Reverted, green.
+- mutation: Gone before the answer -- the handler saves a row it could not open as a new one. Red: `TestGoneBeforeTheAnswer` ("no row came back"). Reverted, green.
+- mutation: Refused request -- the error handler stores no fallback. Red: `TestRefusedRequest` ("the incident holds the fallback error and no diagnosis"). Reverted, green.
+- mutation: Gone before the answer, review pass -- same mutation, with the test now waiting for the Decide-to-IncidentManager response header to complete instead of sleeping. Red: `TestGoneBeforeTheAnswer` ("no row came back"). Reverted, green.
+- mutation: AC 1, no notice -- the answer handler sets `NoticedAt`. Red: `TestDemoDiagnosis` ("NoticedAt is empty and the state is as the waiter left it") and `TestDiagnosisVariants` (both usable rows: "NoticedAt is empty"). Reverted, green.
+- mutation: Diagnosis noun -- the handler never stores the payload's `itemNoun`. Red: `TestDiagnosisVariants` (diagnosis-unknown: "the scenario's own noun replaces the code noun"). Reverted, green.
+- mutation: Redaction -- `EvidencePack.Clean` returns its input. Red (warm): `Test.Watch.Evidence` `TestRedaction` (four asserts) and `TestLogKeys` ("with its text redacted"). Reverted, green.
+- mutation: Log keys -- `EvidencePack.Read` ignores log keys. Red (warm): `TestLogKeys` (the sample, read_failed_messages, read_event_log). Reverted, green.
+- mutation: AC 6, register -- `Watch.EvidencePack` removed from `CALLBACKHELPERS`. Red (warm): `Test.Bridge.CodeRules` `TestCallbackRule` ("the watch tools run OcuTalon.Watch.EvidencePack inside the callback, so it is in CALLBACKHELPERS and scanned"). Reverted, green. (A call to an unlisted class inside a tool is not caught by CodeRules; see `deferred`.)
+
+**Implement-stage runs** (lane A throwaways, tags e5s4ih fresh and e5s4ihw warm; the lane-a shards and lane-b were left to the spawning agent):
+
+- `bash docker/tests/test-mock.sh`: 94 of 94. `bash ci/checks.sh`: all scripts passed.
+- Warm, passed: `Test.Watch.Payload`, `Evidence`, `Reader`, `Test.Bridge.CodeRules`, `Test.Bridge.Gate` (25 s), `Test.Tools.Result`.
+- Fresh, passed: `Test.Watch.Diagnose` (45 s), `Test.Agent.Decide` (103 s), `Test.Agent.Runners` (35 s), `Test.Agent.Instructions`, `Test.Bridge.Decide` (9 s), `Test.Watch.Incidents` (80 s), `Test.Install.Production`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 Plan stage, 2026-10-26: the plan halted `blocked` on R1 (split), R2 and R3; the epic runner ruled R1 (split; Story 5.8 takes the notice) and left R2 and R3 to Story 5.8, which this spec does not depend on (it sends no notice). Status set to `ready-for-dev` at the spec gate.
+
+Implement and review stage, 2026-10-26.
+
+**Summary.** At the settle end `IncidentManager` stores the code noun, publishes `watch.progress` `diagnosing`, builds the live evidence pack and sends one `diagnose` request through `Decide` in the incident's own trace session. `DiagnosisAgent` answers with a `DiagnosisPayload` (`ReplyClass`), using the real read-only watch tools (`Tools.WatchReads`). The diagnosis, or the bridge's fallback, is stored on the incident row; no notice is sent and `NoticedAt` stays empty (Story 5.8). `Decide` now filters each property that a reply class names in `FILTERED` and validates again.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: the generic `FILTERED` hook in `Interpret`.
+- `src/ocutalon/cls/OcuTalon/Watch/`: `Msg/DiagnosisPayload.cls`, `Msg/FixParameters.cls`, `ItemNoun.cls`, `EvidencePack.cls` (new); `Reader.cls` (`Evidence`, `CredentialName`); `IncidentManager.cls` (the diagnosis step, answer and error handlers).
+- `src/ocutalon/cls/OcuTalon/Tools/`: `WatchReads.cls` (new, replaces `WatchFixture.cls`); `Watch.cls` (provider name).
+- `src/ocutalon/cls/OcuTalon/Agent/Diagnosis.cls` (instructions); `Production.cls` and `Test/Install/Production.cls` (`ReplyClass`).
+- `ci/mock/scenarios/A/`: `diagnosis.json` (the payload) and `diagnosis-nofix.json`, `diagnosis-unknown.json`, `diagnosis-late.json`.
+- Tests: new `Test/Watch/Payload.cls`, `Evidence.cls`, `Diagnose.cls`; changed `Test/Watch/Case.cls`, `IncidentProbe.cls`, `Incidents.cls`, `Test/Agent/{Decide,Instructions,RunnerFixture,Runners}.cls`, `Test/Bridge/{CodeRules,Decide,Ext,Gate}.cls`, `Test/Tools/Result.cls`.
+
+**Review findings.** 41 findings from four layers (high 0, medium 11, low 25, false 5). Patches applied (9 rows, 6 of them medium): `TestRedaction` and `TestLogKeys` added; the diagnosis's own noun pinned (`diagnosis-unknown.json` gives invoice/invoices); `TestGoneBeforeTheAnswer` waits for the response header instead of sleeping; `Test.Watch.Incidents` reads wait for the diagnosis and expect three `watch.progress` events; `TestTwoSessions` waits separately; the instructions state the field lengths; stale CodeRules wording; the no-notice and register mutation lines. Deferred (5, in the frontmatter): credential-name list breadth, `FILTERED` breadth for `Element` and the noun forms (AD-31, for Story 5.7), body values in logical form, the Reader-level credential removal untested, and CodeRules not enforcing "tools call only listed classes". Rejected rows and their reasons are in the Review Triage Log.
+
+**Verification.**
+- `bash docker/tests/test-mock.sh`: 94 of 94. `bash ci/checks.sh`: all scripts passed (one key-shaped test literal was split after the boundaries check flagged it).
+- Warm, passed (final pass): `Test.Watch.Payload`, `Evidence`, `Reader`, `Test.Bridge.CodeRules`, `Gate`, `Test.Tools.Result`.
+- Fresh, passed (final pass): `Test.Watch.Diagnose` (44 s), `Test.Agent.Decide` (105 s), `Runners` (35 s), `Instructions`, `Test.Watch.Incidents` (81 s); `Test.Bridge.Decide` and `Test.Install.Production` passed on the first pass (their files did not change since).
+- `ci/iris.sh shard lane-a --part 1/2`: passed, 375 s. `--part 2/2`: passed, 355 s. `shard lane-b`: passed, 109 s.
+- Pinning mutations: all rows of the table, plus the review pass's six, were applied, red, reverted byte-identically and green (see Mutation results).
+- Throwaways torn down (tags e5s4i and e5s4iw); `HEAD` unchanged at the baseline until the finalize commit.
+
+**Residual risks.**
+- Only the CI mock has answered `DiagnosisAgent`; a real model's reply shape, its field lengths and the 20-second diagnosis are measured in the rehearsal.
+- The `h:mm` rule makes a cause that quotes a clock time `invalid` (a fallback).
+- The five deferred items above.
+
+**Follow-up review recommended: true.** Six medium findings were patched in this pass (the redaction and log-key tests, the noun pin, the response-header wait, the three-event progress reads, the mutation lines). The unverified risk: the new tests passed in their own class runs and the shards, but a real model's reply against the new instructions and field lengths has not been seen.

@@ -67,7 +67,7 @@ Parameter ODD = "OcuTalon.Test.Bridge.ZzGateOdd";
 
 Parameter REMINDERS = "OcuTalon.Tools.ReminderTools";
 
-Parameter WATCH = "OcuTalon.Tools.WatchFixture";
+Parameter WATCH = "OcuTalon.Tools.WatchReads";
 
 /// The class of the Chat agent's watch tools (Story 5.1).
 Parameter WATCHING = "OcuTalon.Tools.WatchTools";
@@ -90,7 +90,7 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// and document results are never trusted output).
 Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions";
 
-Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchFixture:read_failed_messages,OcuTalon.Tools.WatchFixture:read_event_log,OcuTalon.Tools.WatchFixture:read_item_settings";
+Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings";
 
 /// The suspicious-request sample of the UX (EXPERIENCE.md, Simulated devices and sample emails), as it arrives.
 Parameter SAMPLEFROM = "Order Partner Support <support@order-partner.example>";

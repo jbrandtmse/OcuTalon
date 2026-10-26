@@ -36,7 +36,7 @@
 ///   - TestToolsHaveStepLabels (Story 1.10, DW-85; AD-9, Consistency Conventions: Agent step labels): every tool that a class of OcuTalon.Tools offers,
 ///     a toolset's or a provider's (Result left out), has a step label of its own: StepBuffer.LabelFor of its provider and name, which reads the class
 ///     parameter STEPLABEL<NAME> or STEPLABEL, is not the generic label. The scanner is first shown to flag the probe tool, which declares none, and to
-///     pass the labelled sample of the step tests; no two tools of the package share one label, and the watch fixture's three labels are the ones that the
+///     pass the labelled sample of the step tests; no two tools of the package share one label, and the watch tools' three labels are the ones that the
 ///     veto window kept (QA);
 ///   - TestToolsLeaveRemindersToTheirOwner (Story 1.10; AD-1, AD-33): no class of OcuTalon.Tools names the Reminder class, its table or its globals, the
 ///     schedule package or ReminderOps: a tool changes a reminder only by submitting a command. The scanner is first shown to flag samples that break
@@ -64,10 +64,10 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
 /// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator, the clock, the request row
 /// that it validates and saves, and the start message that the service sends.
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
 
-/// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck).
-Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo";
+/// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
+Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
 
 /// The classes that BridgeSink calls once it publishes, from the gate's callback (DW-177): the publisher and its event, the owner of the rows it reads, the session and
 /// the turn and incident rows behind them, and the payload builders of the events.
@@ -431,7 +431,7 @@ Method TestToolsReturnThroughResult()
 		If problem '= "" Set offending = offending _ " " _ class _ " (" _ problem _ ")"
 	}
 	Do $$$AssertTrue(providers '< 1, "the scan found the tool providers of OcuTalon.Tools: "_$ListToString(found, ","))
-	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchFixture"), "the Watch fixture is one of them")
+	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.WatchReads"), "the Watch tools provider is one of them")
 	Do $$$AssertTrue($ListFind(found, "OcuTalon.Tools.ReminderTools"), "and so is the class of the reminder tools")
 	Do $$$AssertEquals(offending, "", "every one extends OcuTalon.Tools.Result and returns only through ..Return(")
 }
@@ -439,7 +439,7 @@ Method TestToolsReturnThroughResult()
 /// Every tool that a class of OcuTalon.Tools offers has a step label of its own (Story 1.10, DW-85; AD-9). For each class of the package that extends
 /// %AI.Tool, Result left out, toolsets and providers alike, the tools that its discovery lists (each with its provider and its name) get a label from
 /// StepBuffer.LabelFor that is not the generic one. The scanner is first shown to flag the probe tool, whose tool declares no label, and to pass the labelled
-/// sample of the step tests, whose class declares STEPLABEL; the watch fixture's three tools are scanned like the others.
+/// sample of the step tests, whose class declares STEPLABEL; the watch tools' three tools are scanned like the others.
 Method TestToolsHaveStepLabels()
 {
 	Set probe = ..UnlabelledTools("OcuTalon.Test.Bridge.ProbeTool")
@@ -448,7 +448,7 @@ Method TestToolsHaveStepLabels()
 	Do $$$AssertEquals($ListLength(..UnlabelledTools("OcuTalon.Test.Bridge.StepsTools")), 0, "also through a toolset")
 
 	Set classes = ..ToolClasses(1)
-	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchFixture") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
+	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Tools.Watch") && $ListFind(classes, "OcuTalon.Tools.WatchReads") && $ListFind(classes, "OcuTalon.Tools.Reminders") && $ListFind(classes, "OcuTalon.Tools.ReminderTools"), "the scan finds the watch and the reminder tools: "_$ListToString(classes, ","))
 	Set tools = 0
 	Set offending = ""
 	Set shared = ""
@@ -470,9 +470,9 @@ Method TestToolsHaveStepLabels()
 	Do $$$AssertEquals(offending, "", "every one has a step label of its own")
 	Do $$$AssertEquals(shared, "", "and no two tools share a label, so that each label is its tool's own: "_shared)
 	Set names = "OcuTalon.Tools.Names"
-	Set watch = "OcuTalon.Tools.WatchFixture"
+	Set watch = "OcuTalon.Tools.WatchReads"
 	Set step = "OcuTalon.Bridge.Adapter.StepBuffer"
-	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READFAILEDMESSAGES")), "Reading the failed messages", "the watch fixture's labels are the ones that the veto window kept: read_failed_messages")
+	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READFAILEDMESSAGES")), "Reading the failed messages", "the watch tools' labels are the ones that the veto window kept: read_failed_messages")
 	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READEVENTLOG")), "Reading the event log", "read_event_log")
 	Do $$$AssertEquals($ClassMethod(step, "LabelFor", watch, $Parameter(names, "READITEMSETTINGS")), "Reading the item settings", "and read_item_settings")
 }
@@ -681,8 +681,8 @@ Method TestToolCodeScan()
 	Set clean = ..ToolCodeClean("", .problems, governed)
 	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string and has the governance names in comments: "_problems)
 	Do $$$AssertEquals(problems, "", "and has nothing to say")
-	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchFixture", .problems)
-	Do $$$AssertEquals(clean, 1, "the Watch fixture is clean: "_problems)
+	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchReads", .problems)
+	Do $$$AssertEquals(clean, 1, "the Watch tools provider is clean: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Test.Bridge.ProbeTool", .problems)
 	Do $$$AssertEquals(clean, 1, "and so is the probe tool: "_problems)
 	Set clean = ..ToolCodeClean("OcuTalon.Tools.ReminderTools", .problems)

@@ -18,8 +18,17 @@
 ///     failure that came meanwhile moves the end. The settle rule ends when the quiet time (setting watch.settleQuietSeconds, 10 by default) has passed
 ///     since LastAt or the maximum (watch.settleMaxSeconds, 30) since FirstAt, whichever comes first: it sets NoticeCount to Count, once, and completes.
 ///     A waiter whose incident is gone, closed or settled completes and writes nothing.
-///   - NoticedAt, the notice and the incident's states beyond open are not set here: the notice is sent after the diagnosis (Story 5.4) and the state
-///     table is Story 5.5's.
+///   - At the settle end the waiter diagnoses the incident (Story 5.4, AD-6, AD-15): it stores the code noun of the sample's body class
+///     (OcuTalon.Watch.ItemNoun) on the row, publishes watch.progress diagnosing after the commit, builds the evidence pack of the live incident
+///     (OcuTalon.Watch.EvidencePack) and sends one OcuTalon.Bridge.Msg.Request to the Decide item, asynchronously, with a response required and the
+///     completion key diagnose: kind diagnose, provenance untrusted, ItemId the incident's Ref, OwnerRef its owner, TraceRef the waiter's
+///     SuperSession, ThreadSessionId the waiter's own session (the incident's TraceHeaderId), a code-written Summary and the pack as Input. It never
+///     goes to OutcomeRouter (AD-30). The answer (a DecisionResponse) sets DecisionRef, Fallback and FallbackReason on the row; a usable answer (Fallback
+///     0) also sets Cause, CauseCategory, Element, FixSummary and, when the payload gives both forms, ItemNoun, from the checked payload, and a fallback
+///     stores none of them (AD-8). An error status from Decide is a refused request: it stores Fallback 1 with the reason error and logs one Type 3
+///     warning. The answer is written only to a row that exists, is not closed and has no NoticedAt; otherwise it is dropped without an error.
+///   - NoticedAt, the notice and the incident's states beyond open are not set here: the notice is the sibling story's (5.8) and the state table is
+///     Story 5.5's.
 ///   - Anything else is still answered "not implemented" (the stub's answer), so the commands and the approval outcomes that Story 5.5 builds are not
 ///     accepted by mistake.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
@@ -37,6 +46,25 @@ Parameter CLOSED = "closed";
 /// The completion key of the waiter's alarm.
 Parameter ALARMKEY = "settle";
 
+/// The completion key of the diagnose request.
+Parameter DIAGNOSEKEY = "diagnose";
+
+/// The configuration item that diagnoses (AD-6).
+Parameter DECIDE = "Decide";
+
+/// The request kind and provenance of the diagnosis.
+Parameter KIND = "diagnose";
+
+Parameter PROVENANCE = "untrusted";
+
+/// The fallback reason of a request that Decide refused (Msg.Enum FALLBACKREASON).
+Parameter REFUSEDREASON = "error";
+
+/// The longest summary of a request, in characters (Bridge.Msg.Request).
+Parameter SUMMARYMAX = 80;
+
+Parameter LOGDIAGNOSE = "IncidentManager could not diagnose incident ";
+
 Parameter LOGTELL = "IncidentManager could not tell the sessions of incident ";
 
 Parameter LOGPUBLISH = "IncidentManager could not publish to the sessions of incident ";
@@ -51,10 +79,24 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Quit $$$ERROR($$$NotImplemented)
 }
 
-/// The alarm of the waiter has gone off: look at the rows again and end the settle rule or wait on.
+/// An answer by the key of the call: the alarm of the waiter has gone off (look at the rows again and end the settle rule or wait on), or Decide has
+/// answered the diagnose request (store the diagnosis or its fallback). An error status of Decide was stored by OnError, so no answer comes with it.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
-	If $IsObject(request) && request.%IsA("OcuTalon.Watch.Msg.Settle") Quit ..Check(request.IncidentRef)
+	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit $$$OK
+	If pCompletionKey = ..#DIAGNOSEKEY {
+		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") Quit ..Answered(request.IncidentRef, callresponse)
+		Quit $$$OK
+	}
+	Quit ..Check(request.IncidentRef)
+}
+
+/// An error answer to the diagnose request: Decide refused it, so the incident is stored with the fallback error (Refused). An error with any other
+/// key stays an error, so that the framework logs it.
+Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
+{
+	If (pCompletionKey '= ..#DIAGNOSEKEY) || '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit pErrorStatus
+	Do ..Refused(request.IncidentRef, pErrorStatus)
 	Quit $$$OK
 }
 
@@ -226,7 +268,99 @@ Method Check(ref As %String) As %Status [ Private ]
 	Set seconds = ##class(OcuTalon.Watch.Settle).Wait(incident.FirstAt, incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max)
 	If seconds > 0 Quit ..SetTimer(##class(OcuTalon.Watch.Settle).Alarm(seconds), ..#ALARMKEY)
 	Set incident.NoticeCount = incident.Count
+	Set sc = incident.%Save()
+	If $$$ISERR(sc) Quit sc
+	Quit ..Diagnose(incident)
+}
+
+/// The diagnosis of the incident whose settle rule has just ended (see the class description): the pack, the code noun on the row, watch.progress
+/// diagnosing after the commit and the request to Decide. A pack that cannot be built, or a request that cannot be sent, is a refused request (Refused).
+Method Diagnose(incident As OcuTalon.Data.Incident) As %Status [ Private ]
+{
+	Set sc = ##class(OcuTalon.Watch.EvidencePack).Build(incident, .pack)
+	If $$$ISOK(sc) {
+		Set incident.ItemNoun = ##class(OcuTalon.Watch.ItemNoun).For($Select($IsObject(pack.sample): pack.sample.bodyClass, 1: ""))
+		Set sc = incident.%Save()
+	}
+	If $$$ISERR(sc) {
+		Do ..Refused(incident.Ref, sc)
+		Quit $$$OK
+	}
+	Set payload = ##class(OcuTalon.Live.Payload.WatchProgress).%New()
+	Set payload.Ref = incident.Ref
+	Set payload.Stage = "diagnosing"
+	Do ..Tell(incident, "watch.progress", payload)
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = ..#KIND
+	Set request.Provenance = ..#PROVENANCE
+	Set request.ItemId = incident.Ref
+	Set request.OwnerRef = incident.OwnerRef
+	Set request.TraceRef = ..%SuperSession
+	Set request.ThreadSessionId = ..%SessionId
+	Set request.Summary = $Extract(incident.NoticeCount_" failures at "_pack.item, 1, ..#SUMMARYMAX)
+	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(pack)
+	Set sc = ..SendRequestAsync(..#DECIDE, request, 1, ..#DIAGNOSEKEY)
+	If $$$ISERR(sc) Do ..Refused(incident.Ref, sc)
+	Quit $$$OK
+}
+
+/// The answer of Decide to the diagnose request of the incident: DecisionRef, Fallback and FallbackReason go on the row, and, for a usable answer, the
+/// cause, its category, the element, the fix summary and the noun of the checked payload. Written only to a row that exists, is not closed and has
+/// no NoticedAt; any other answer is dropped. A payload that cannot be read is a refused request.
+Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) As %Status [ Private ]
+{
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If '..Open(incident) Quit $$$OK
+	Set incident.Cause = ""
+	Set incident.CauseCategory = ""
+	Set incident.Element = ""
+	Set incident.FixSummary = ""
+	If 'answer.Fallback {
+		Set sc = $$$OK
+		Try {
+			Set diagnosis = ##class(%DynamicObject).%FromJSON(answer.Payload)
+			Set incident.Cause = diagnosis.cause
+			Set incident.CauseCategory = diagnosis.causeCategory
+			Set incident.Element = diagnosis.elementAtFault
+			Set incident.FixSummary = diagnosis.fixSummary
+			If $IsObject(diagnosis.itemNoun) && (diagnosis.itemNoun.one '= "") && (diagnosis.itemNoun.other '= "") {
+				Set incident.ItemNoun = {"one": (diagnosis.itemNoun.one), "other": (diagnosis.itemNoun.other)}.%ToJSON()
+			}
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $$$ISERR(sc) {
+			Do ..Refused(ref, sc)
+			Quit $$$OK
+		}
+	}
+	Set incident.DecisionRef = answer.DecisionRef
+	Set incident.Fallback = +answer.Fallback
+	Set incident.FallbackReason = answer.FallbackReason
 	Quit incident.%Save()
+}
+
+/// The incident stored as refused: Fallback 1 with the reason error and no diagnosis, and one Type 3 warning with the error (through the redactor). Written
+/// only to a row that exists, is not closed and has no NoticedAt. The warning is logged either way.
+Method Refused(ref As %String, error As %Status) [ Private ]
+{
+	$$$LOGWARNING(..#LOGDIAGNOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(error)))
+	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	If '..Open(incident) Quit
+	Set incident.Cause = ""
+	Set incident.CauseCategory = ""
+	Set incident.Element = ""
+	Set incident.FixSummary = ""
+	Set incident.Fallback = 1
+	Set incident.FallbackReason = ..#REFUSEDREASON
+	Set sc = incident.%Save()
+	If $$$ISERR(sc) $$$LOGWARNING(..#LOGDIAGNOSE_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+}
+
+/// 1 when the incident exists, is not closed and has no NoticedAt: its diagnosis may still be written.
+ClassMethod Open(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
+{
+	Quit $IsObject(incident) && (incident.State '= ..#CLOSED) && (incident.NoticedAt = "")
 }
 
 /// 1 when the incident exists, is not closed, has not settled and has a group row: its settle rule still runs.

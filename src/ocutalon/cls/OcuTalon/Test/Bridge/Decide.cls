@@ -607,6 +607,40 @@ Method TestFilterBlanks()
 	Do $$$AssertEquals(row.Fallback, 0, "it is no fallback")
 }
 
+/// The reply class of a diagnosis (Story 5.4, AD-31): Decide filters each property that the class names in its FILTERED parameter (cause and fixSummary)
+/// once, after the reasons and before the payload is checked again. The row's Payload holds the filtered texts, and a cause that the filter blanks makes the
+/// reply invalid (a fallback with no payload). A reply class without FILTERED (DecisionPayload) is filtered as before: reasons only.
+Method TestFilterDiagnosis()
+{
+	Set diagnosis = "OcuTalon.Watch.Msg.DiagnosisPayload"
+	Set json = "{""outcome"":""act"",""causeCategory"":""data_format_change"",""elementAtFault"":""OrderDate"",""fixKind"":""repair_resend"",""fixParameters"":{""field"":""OrderDate"",""sourceFormat"":""a"",""targetFormat"":""b""},""cause"":""Cause A."",""fixSummary"":""fix B"",""reasons"":[""Reason R.""],""confidence"":0.9}"
+	Kill ^||ZzProbeFilter
+	Set request = ..NewRequest("diagnose")
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply(json), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Do $$$AssertStatusOK(sc, "a diagnosis reply is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 3, "the filter ran once on the reason, once on the cause and once on the fix summary")
+	Do $$$AssertEquals($Get(^||ZzProbeFilter(1))_"|"_$Get(^||ZzProbeFilter(2))_"|"_$Get(^||ZzProbeFilter(3)), "Reason R.|Cause A.|fix B", "in that order, each as the model wrote it")
+	Set row = ..RowOf(request.ItemId, "diagnose")
+	Do $$$AssertEquals(row.Fallback, 0, "it is no fallback")
+	Set stored = {}.%FromJSON(row.Payload)
+	Do $$$AssertEquals(stored.cause_"|"_stored.fixSummary, "[f] Cause A.|[f] fix B", "the stored Payload holds the filtered cause and fix summary")
+	Do $$$AssertEquals(stored.reasons.%Get(0), "[f] Reason R.", "and the filtered reason")
+	Do $$$AssertEquals(response.Payload, row.Payload, "which the response repeats")
+
+	Kill ^||ZzProbeFilter
+	Set request = ..NewRequest("diagnose")
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), ..NewReply($Replace(json, "Cause A.", "Gone {blank}")), diagnosis, ..#FILTER, "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Do $$$AssertStatusOK(sc, "a diagnosis whose cause the filter blanks is recorded")
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason_"|"_response.Payload, "1|invalid|", "as a fallback with the reason invalid and no payload")
+	Do $$$AssertEquals(..RowOf(request.ItemId, "diagnose").Fallback, 1, "the row is the fallback")
+
+	Kill ^||ZzProbeFilter
+	Set request = ..NewRequest("decide")
+	Set sc = ..Conclude(request, ..NewReply(..#DIGEST), .response, ..#FILTER)
+	Do $$$AssertStatusOK(sc, "a decide reply of a class without FILTERED is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 1, "the filter ran on its one reason only")
+}
+
 /// The lost save race: another call saves its row for the item and kind after Conclude's check for an existing row and before
 /// Conclude's own save (the stand-in request ProbeRaceRequest saves it when Conclude reads its Summary). Conclude answers with the
 /// row that won, records no second row and fires no event.

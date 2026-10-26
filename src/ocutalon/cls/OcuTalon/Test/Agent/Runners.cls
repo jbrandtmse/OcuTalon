@@ -43,9 +43,12 @@
 /// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS, its system
 /// prompt (which now holds the watch sentences) reaches min_tokens_for_cache, so AssertRequests expects Chat's system block marked (systemMarked 1), and
 /// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch and list_productions.
+/// Added by Story 5.4 (AD-6, AD-7): Diagnosis's instructions now describe the evidence pack and the reply object, so its system prompt reaches min_tokens_for_cache
+/// and AssertRequests expects Diagnosis's system block marked (systemMarked 1), as Chat's is; its tools take no argument and the final text is the
+/// DiagnosisPayload object of diagnosis.json.
 /// Added by Story 1.10 (AD-7, AD-10, AD-18): Chat has the toolset OcuTalon.Tools.Reminders, so its requests offer exactly cancel_reminder, list_reminders and
 /// set_reminder (the literal of TestRequestsUnderTheModelRules), and TestToolInventory expects those three for ChatAgent, each a method of
-/// OcuTalon.Tools.ReminderTools, beside the three watch tools of Diagnosis, each a method of OcuTalon.Tools.WatchFixture. AssertRequests takes the cache
+/// OcuTalon.Tools.ReminderTools, beside the three watch tools of Diagnosis, each a method of OcuTalon.Tools.WatchReads. AssertRequests takes the cache
 /// marker that each agent's request carries on its last tool: Diagnosis's and, since the three reminder tools bring the prefix of system prompt and tools
 /// past min_tokens_for_cache, Chat's (measured in Story 1.10); Triage has no tool, so no block of it is marked.
 Class OcuTalon.Test.Agent.Runners Extends %UnitTest.TestCase
@@ -290,7 +293,7 @@ Method TestRequestsUnderTheModelRules()
 	Do $$$AssertTrue($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"), "with a Reply")
 	If $IsObject(reply) Do $$$AssertEquals(reply.Text, $Parameter(fixture, "DIAGNOSISTEXT"), "whose text is the final text of diagnosis.json")
 	Do $$$AssertEquals(requests.%Size(), 2, "Diagnosis makes two requests, one more for the result of its tool")
-	Do ..AssertRequests(requests, "high", "OcuTalon.Agent.Diagnosis", ..#WATCHTOOLS, "Diagnosis", 1)
+	Do ..AssertRequests(requests, "high", "OcuTalon.Agent.Diagnosis", ..#WATCHTOOLS, "Diagnosis", 1, 1)
 	If requests.%Size() = 2 {
 		Set results = $ClassMethod(fixture, "ToolResults", requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "Diagnosis's second request carries the result of its one tool call")
@@ -316,7 +319,7 @@ Method TestToolInventory()
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
 	Set provider("TriageAgent") = ""
-	Set provider("DiagnosisAgent") = "OcuTalon.Tools.WatchFixture"
+	Set provider("DiagnosisAgent") = "OcuTalon.Tools.WatchReads"
 	Set provider("ChatAgent") = "OcuTalon.Tools.ReminderTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#STARTWATCH) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#STOPWATCH) = "OcuTalon.Tools.WatchTools"
