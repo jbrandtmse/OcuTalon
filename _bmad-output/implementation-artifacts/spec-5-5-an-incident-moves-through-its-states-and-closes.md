@@ -1,0 +1,311 @@
+---
+title: 'An incident moves through its states and closes'
+type: 'feature'
+created: '2026-10-26'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context: []
+warnings: ['multiple-goals', 'oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** After Story 5.8, an incident is grouped, settled, diagnosed and noticed, but it never leaves `open`. `IncidentManager` still carries `STUB` and answers every `IncidentCommand`, `ApprovalOutcome` and `FixResult` with "not implemented". So a dismissal through `CommandsIn` gets `not_built`, nothing ever closes an incident, the Fix area's `Execute` and `FixResult` messages do not exist, and closed incidents are never purged.
+
+**Approach:** AD-15's transition table lives in one new pure class, `OcuTalon.Watch.Transitions`, and is unit-tested row by row. `IncidentManager` applies it to every input: the notice step, the synchronous `IncidentCommand` verbs (`dismiss`, `closeForReplay`, `closeQuiet`), `ApprovalOutcome` and `FixResult`. For each accepted move it saves the new state, publishes the incident's full view and, where the table says so, sends `Execute`. The story also creates `OcuTalon.Fix.Msg.Execute` and `FixResult`, and adds the Watch area's `Purge(daysToKeep)`. The spec is written to ruling R1 (a) (Design Notes): the chat dismiss tool moves to a sibling story, 5.9.
+
+## Boundaries & Constraints
+
+**Always:**
+- **The table** is `Transitions.Next(state, noticed, event, facts, .to, .variant, .execute)`. It is pure and returns 1 for an accepted move and 0 for a refused one. `noticed` matters only for `open`. `execute` is `own` (the event's request), `earliest` (the earliest waiting request) or "". The rows:
+  - (none) + `first` → `open`, no variant;
+  - `open`, not noticed + `notice` (with facts `variant` `fallback` or `no_fix`) → `open` with that variant;
+  - `open`, not noticed + `raised` → `awaiting_approval`;
+  - `awaiting_approval` + `approved` → `fixing`, `execute` `own`;
+  - `awaiting_approval` + `rejected` or `expired` → `open` with variant `rejected` or `expired` when `pending` is 0, else `awaiting_approval`;
+  - `fixing` + `progress` → `fixing`;
+  - `fixing` + `finished`: `waiting` 1 gives `fixing` with `execute` `earliest`; otherwise `awaiting_approval` when `pending` is 1, else `resolved`;
+  - `fixing` + `approved`, `rejected` or `expired` → `fixing` (an approved request waits);
+  - `awaiting_approval` or `resolved` + `raised` → `awaiting_approval`; `fixing` + `raised` → `fixing`;
+  - `resolved` + `dismiss`, `closeForReplay` or `closeQuiet` → `closed`;
+  - `open`, noticed + `dismiss` → `closed`; + `closeQuiet` → `closed` only when `demoMode` is 0.
+
+  Every other move is refused, and so is every event on a `closed` incident. The variant is kept only while the state is `open`: any other target clears it.
+- **Facts come from the rows (AD-11).** An incident's requests are the entries of `RequestRefs` whose `ApprovalRequest` row exists and names the incident (`IncidentRef`).
+  - `pending`: another of its requests is `pending`, or is `approved` while the incident is `awaiting_approval` (that request's outcome is still on its way).
+  - `waiting`: while the incident is `fixing`, another of its requests, other than the event's own, is `approved`. The earliest one in `RequestRefs` order is the one whose `Execute` goes.
+  - `demoMode`: the setting `Install.Step.Demo` `MODEKEY` is "1". It is read through one private method, `DemoMode()`.
+- **`IncidentCommand`** is answered synchronously with a `CommandResult`. The checks run in this order:
+  1. A verb that is not one of `VERBS` is `unknown_command`.
+  2. A missing incident is `not_found`.
+  3. A `dismiss` whose `SessionRef` is not in `Session.Recipients(OwnerRef, Ref)` is also `not_found`. A failed read of the recipients is `failed` and logs one Type 3 warning.
+  4. A `closeQuiet` whose `LastAt` is not more than `QUIETSECONDS` (900) before now (`Settle.Quiet`) is `not_quiet`.
+  5. A move the table refuses is `not_allowed`.
+  6. An accepted move is `Ok` 1 with `Outcome` `closed` and `Ref` set.
+
+  Each answer that found the incident carries `Data` `{"state","openVariant"}` (after the command). `Message` is a plain-English class parameter, as in `WatchOps`. Neither `closeForReplay` nor `closeQuiet` checks a session: they have no `CommandsIn` route, and only product code sends them.
+- **A close** sets `State` `closed`, `ClosedAt` (UTC now) and an empty `OpenVariant` in one save. Nothing is notified: the `incident` event is the only output.
+- **`ApprovalOutcome`** maps to the events `approved`, `rejected` and `expired`. It is refused when its incident or request is not the incident's (see Facts), when `Outcome` is anything else (`cancelled` included, which the hold never sends), or when the request's row does not show that outcome (a repeat or a stale one).
+- **`FixResult`** is `finished` when `Final` or `Interrupted` is 1, and `progress` otherwise. It is refused when its request is not one of the incident's.
+- **An accepted event** saves the row when its state, variant or `ClosedAt` changes. After the commit, for a noticed incident, it publishes one `incident` event (`FromRow`) through `Tell`, even when the state stays the same, because the payload's `requests` may have changed. Then, when the table says so, it sends one `OcuTalon.Fix.Msg.Execute` (only `ApprovalRef`) to `FixExecutor`:
+  - asynchronously, with no answer wanted;
+  - in the incident's trace session (`TraceHeaderId`, with the `SuperSession` kept, AD-26);
+  - through one private seam, `SendExecute`.
+
+  A failed send logs one Type 3 warning, and the row stays as saved.
+- **A refused event** writes, sends and publishes nothing. A refused `ApprovalOutcome` or `FixResult` logs one Type 4 info line (`LOGREFUSED`) that names the incident, the event and the state.
+- **The notice step goes through the table.** `Notice` takes the state and the variant from `Next(…, "notice", {variant})`. A new private `Move(incident, to, variant, notification)` saves and then calls `Tell`, and `Deliver` becomes `NoticedAt` plus `Move`. `Record` takes a new incident's state from the `first` row.
+- **`IncidentManager.Purge(daysToKeep)`** is a `ClassMethod` and stays on the only writer (`CodeRules`).
+  - It deletes the incidents that are `closed` with a `ClosedAt` before the cutoff, together with their groups (`FailureGroup.OfIncident`), one incident per transaction. The cutoff is now (UTC) moved back `daysToKeep` days, by `Digest.Data.Item.Purge`'s rule.
+  - It keeps every other incident, including a closed one with an empty `ClosedAt`.
+  - A `daysToKeep` that is not a whole number of at least 1 is an error status, and nothing is deleted.
+- **The Fix messages** (AD-16), both `Ens.Request`, neither with a `SessionRef`:
+  - `Execute`: `ApprovalRef` (22), with `[ SqlTableName = FixExecute ]`, because `Execute` is an SQL reserved word (measured on slot A, build 154);
+  - `FixResult`: `ApprovalRef` and `IncidentRef` (22), `Final` and `Interrupted` (`%Boolean`), `Total`, `Resent`, `Completed`, `FailedAgain` and `Skipped` (`%Integer`), and `Reason` (1000).
+- **`STUB` goes.** The item is built: every input that AD-15 names is handled. Any other request class answers a 5001 error that names the class, not 5003.
+- **Unchanged:** `PoolSize` 1; `IncidentManager` stays the only writer of `Incident` and `FailureGroup` and the only publisher of `incident` and `watch.progress`; `Tell`'s recipients and warnings; 5.8's notice.
+
+**Never:**
+- No chat dismiss tool, no `Tools/**` change and no `Agent/Chat.cls` change (R1: those belong to Story 5.9).
+- None of the following, each owned by a later story:
+  - no `answered` or `result` notification, no `FixRun`, no `requests` result and no `Raise` (Stories 7.2 to 7.4);
+  - no `Execute` handler in `FixExecutor` (Story 7.3);
+  - no `Checks` sender (Story 5.6), no `BreakFeedIn` (Story 4.3) and no REST change (Story 6.4);
+  - no Install step (Story 30.2).
+- No change to the `Incident`, `FailureGroup` or catalog definitions, and no `Live/Payload` change.
+- No edit to a contended path or to product code of another lane: `Web/**`, `Core/**` (product code; `Test/Core/CommandsInProduction.cls` is the one test changed, below), `Data/{Ownership,Session,Setting}.cls`, `Install/**`, `Demo/**`, `Channel/**`, `Test/{Web,Data,Demo}/**`.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Dismiss | Session A's noticed `open` `no_fix` incident, and a `resolved` one; `dismiss` from A | `1`, `closed`, the Ref; each row is `closed` with `ClosedAt` and no variant; one `incident` event (`closed`) on A's stream | none |
+| Dismiss refused | From B, which is not a recipient; on `awaiting_approval`, `fixing`, `closed`, or an unnoticed `open` incident | `0`, `not_found` (B); `0`, `not_allowed`, `Data` with the state (the rest). Nothing is written or published | refusal |
+| Instance dismiss | An instance incident watched by A and not by C | A gets `closed`; C gets `not_found` | refusal |
+| Replay | `closeForReplay` on `resolved`; on `open`, `awaiting_approval` or `fixing` | `closed`; else `not_allowed` with the state | refusal |
+| Quiet close | `LastAt` 16 min ago: `resolved`; noticed `open` with demo mode off, then on; `awaiting_approval`; `fixing`. `LastAt` 14 min ago | `closed`; `closed`, then `not_allowed`; `not_allowed`; `not_allowed`. `not_quiet` and nothing changes | refusal |
+| Approved | `awaiting_approval`, R1's row `approved` | `fixing`; one `Execute` (R1) in the incident's trace session; one event | none |
+| Rejected or expired | `awaiting_approval`, nothing else pending | `open`, with `rejected` or `expired` | none |
+| Overlap, pending | R1 rejected while R2 is `pending`, or `approved` with its outcome not yet here | `awaiting_approval`; when R2's approval then arrives: `fixing` and `Execute` R2 | none |
+| Overlap, fixing | `fixing` (R1): R2 approved; R2 rejected or expired; R1 in progress | `fixing`, no `Execute`, one event each | none |
+| Finished | `fixing` R1, final (or `Interrupted` 1): nothing else; R2 pending; R2 and R3 approved | `resolved`; `awaiting_approval`; `fixing` with one `Execute` for R2 only | none |
+| Refused events | `cancelled`; an outcome its row does not show (a repeat of R1 `approved` after R1 is `done`); a Ref not in `RequestRefs` or of another incident; no incident; a `FixResult` outside `fixing`; any event on `closed` | Nothing written, sent or published; one info line | dropped |
+| Closed, then the same cause | The real production: A's dismissed no-fix incident, then a same-cause failure | A new incident with a new Ref and its own notice | none |
+| Purge | Closed 91 and 89 days ago, both with groups; an `open` incident older than that; `daysToKeep` 90, then 0 and "x" | The 91-day one and its groups are gone, the rest stay; 0 and "x" are errors and nothing is deleted | error status |
+
+</intent-contract>
+
+## Code Map
+
+Every path is under `src/ocutalon/cls/OcuTalon/` unless noted.
+
+- `Watch/IncidentManager.cls` (519 lines):
+  - the class doc L35-45 (it ends "states beyond open are Story 5.5's" and "still answered not implemented": rewrite it);
+  - `STUB` L51, `OPEN` and `CLOSED` L54-56, `OnRequest` L96 (only `FailureBatch` and `Settle`), `Record` L151 (`State = ..#OPEN` at L193), `Find` L234 (skips `closed` at L237 and L242);
+  - `Notice` L421 (calls `Deliver` with `..#OPEN` at L433), `Deliver` L443, `SendNotice` L464 (the seam pattern), `Open` L470, `Tell` L486.
+- `Watch/Settle.cls`: `Wait` and the private `Seconds` (the time arithmetic that `Quiet` reuses). `Watch/Notice.cls`: `Key` and `Variant` L46-55.
+- `Msg/IncidentCommand.cls` (`VERBS`, `IncidentRef`), `Msg/Command.cls` (`Origin`, `IdempotencyKey`, `SessionRef`) and `Msg/CommandResult.cls` (`Ok`, `Message`, `Outcome`, `Ref`, `Data`). The parameter style of `Watch/Ops.cls` L18-35.
+- `Msg/Enum.cls`: `INCIDENTSTATE` L18, `INCIDENTOPENVARIANT` L21, `APPROVALSTATE` L24.
+- `Core/CommandsIn.cls` (shared by entry; unchanged): `Dismiss` reaches `IncidentManager` as an `IncidentCommand` (`Dismissal` L133). A tool's dismissal is limited to `Ownership.Incident` (L74-78). `IsStub` L145 maps 5003 to `not_built`.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/ApprovalOutcome.cls` (`ApprovalRef`, `IncidentRef`, `Outcome`). `Bridge/Approval.cls` `HoldResponse` L584: on its expiry key it sends the row's `approved` or `rejected` state again, so a repeated outcome is possible (inference). `Bridge/Data/ApprovalRequest.cls`: `RefIndex`, `State`, `IncidentRef`.
+- `Data/Incident.cls`: `State`, `OpenVariant`, `NoticedAt`, `LastAt`, `ClosedAt`, `TraceHeaderId`, `RequestRefs`. `Data/FailureGroup.cls` `OfIncident`. `Data/Session.cls` `Recipients` L93 (contended; call only).
+- `Install/Step/Demo.cls` `MODEKEY` L40 ("demo.mode"; contended, read only, as `Web/TraceLink.cls` L36 does). `Digest/Data/Item.cls` `Purge` L64 (the validation and the cutoff). `Production.cls` L40 (`IncidentManager`) and L44 (`FixExecutor`, a stub until Story 7.3). `Fix/Executor.cls`.
+- Tests:
+  - `Test/Watch/IncidentProbe.cls`: the shadow-instance pattern (`SendNotice` override, `FailFor`).
+  - `Test/Watch/Tell.cls`: `Host` L305, `Group` L255, `DropGroups` L271, `Events` L322, and the clean-up L62-82.
+  - `Test/Data/Fixture.cls` (contended; call only): `Session` L19, `Check` L65, `Incident` L81 (defaults: state `open`, `LastAt` in 2030), `Approval` L102.
+  - `Test/Watch/Case.cls`: `SendBatch` L888, `Incidents` L924 (add `closedAt`), `WaitIncident` L958, `WaitNotices` L1058, `NoticeBodies` L1034, `Stream` L1027, `PointKeys` L371.
+  - `Test/Watch/Notices.cls` L30-62: the marker batches and the waits.
+  - `Test/Watch/Incidents.cls` `TestClosedOpensNew` L340 (with a fixture close).
+  - `Test/Bridge/Approval.cls`: `NewRow` L1552, `Raise` L1570 (with the probe `SINK` L87), `Answerer` L2118 (`ANSWERER` L93), `RaiseHeld` L2129, `WaitOutcomes` L2243, `TestAnswerRejects` L861.
+  - `Test/Core/CommandsInProduction.cls` `TestToolDismissReachesIncidentManager` L151 (L169 asserts `0|not_built`).
+  - `Test/Install/Production.cls`: the class doc L13 ("IncidentManager keeps STUB"), oracle row L624 (`IncidentManager`, `stub` 1) and `TestStubsAnswer` L139.
+  - `Test/Bridge/CodeRules.cls` `TestOnlyIncidentManagerWritesIncidents` L268. `Test/Contract.cls` `AssertSqlNames` L46 (checks table names too).
+
+## Tasks & Acceptance
+
+**Execution:**
+- `src/ocutalon/cls/OcuTalon/Fix/Msg/Execute.cls`, `src/ocutalon/cls/OcuTalon/Fix/Msg/FixResult.cls`: new. Their properties, types and table name are given in Always (the Fix messages). The class docs name the sender and handler of each (Stories 7.3 to 7.5). The `Storage` blocks are as the compiler writes them.
+- `src/ocutalon/cls/OcuTalon/Watch/Transitions.cls`: new and pure. It holds `Next` and the table of Always, with parameters for the states, events and variants, and a class doc that lays out the table.
+- `src/ocutalon/cls/OcuTalon/Watch/Settle.cls`: add `Quiet(lastAt, now, seconds) As %Boolean`. It gives 1 when `lastAt` is more than `seconds` before `now`, and 0 for a time it cannot read.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`:
+  - `OnRequest` dispatches `IncidentCommand`, `Bridge.Msg.ApprovalOutcome` and `Fix.Msg.FixResult`;
+  - add the facts read, `Move`, `SendExecute`, `DemoMode` and `Purge`;
+  - `Notice`, `Deliver` and `Record` use the table;
+  - remove `STUB`;
+  - add the parameters (`QUIETSECONDS`, `FIXEXECUTOR` "FixExecutor", the messages, `LOGREFUSED`, `LOGEXECUTE`);
+  - rewrite the class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/IncidentProbe.cls`: `SendExecute` records `{approvalRef, sessionId}` in `Executed` and answers OK, or an error when `FailExecute` is set; `DemoMode` gives `DemoModeIs` when it is set. Doc: why it overrides.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Transitions.cls`: new and pure (runs warm).
+  - `TestRows`: every row of Always, each fact combination included.
+  - `TestRefusedMoves`: every pair of state (unnoticed and noticed `open`, `awaiting_approval`, `fixing`, `resolved`, `closed`) and event (`first`, `notice`, `raised`, `approved`, `rejected`, `expired`, `progress`, `finished`, `dismiss`, `closeForReplay`, `closeQuiet`), with each fact at 0 and at 1, is refused unless it is a listed row.
+  - `TestQuiet`: `Settle.Quiet` at 899, 900 and 901 seconds, and with an unreadable time.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls`: new; probe tests with `Fixture` rows on ZZNS (runs warm). It drives every message row through the probe's `OnRequest` with real `IncidentCommand`, `ApprovalOutcome` and `FixResult` objects.
+  - Tests: `TestDismiss`, `TestInstanceDismiss`, `TestCloseForReplay`, `TestCloseQuiet`, `TestApprovalOutcomes`, `TestFixResults`, `TestRefusedEvents`, `TestEveryChangePublishes` (accepted: exactly one `incident` event, with the row's state, on each recipient's stream; refused: none), `TestRepeatDismiss`, `TestExecuteSendFails`, `TestPurge` and `TestFixMessages` (the properties and types of Always, and that `FixExecute` is not a reserved word).
+  - After each test it removes its rows, its groups, its approval rows, its streams and its log lines.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Closing.cls`: new; it extends `Case` and runs over the running production (fresh only, about 100 s at most).
+  - `TestDismissThroughCommandsIn`: a no-fix incident of A (a `[[mock:diagnosis-nofix]]` batch on ZZNS), once noticed, is dismissed with `Commands.Submit(Dismiss, "web_user")`. Then:
+    - the result is `1|closed`, the row is `closed`, and the newest `incident` event on A's stream is `closed`;
+    - the same `Dismiss` from session B is `0|not_found`;
+    - a same-cause batch makes a second incident with a new Ref, and one `Notification` carries that Ref.
+  - `TestRejectThroughTheHold`:
+    - set-up: A's fixture incident is noticed and `awaiting_approval`; a real fix request is raised for it (as `Test.Bridge.Approval` does, with its probe sink and `ResultTarget` `IncidentManager`), and the row's `RequestRefs` is set to that request's Ref;
+    - the `ANSWERER` account's `Answer(reject)` leaves the incident `open` and `rejected`, with an `incident` event on A's stream;
+    - the hold ends, and the request row is removed afterwards.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls`: `Incidents` also gives `closedAt`.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: the `IncidentManager` oracle row gets `"stub": 0`, and the class doc (L13) lists `IncidentManager` among the built items (Lane A row and its doc line only).
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls`: in `TestToolDismissReachesIncidentManager` (doc and L169), the session's own noticed incident now reaches the real `IncidentManager` and is closed (`1|closed`). The other assertions are unchanged.
+
+**Acceptance Criteria:**
+- Given AD-15's table, when `Transitions.Next` is called for every pair of state and event and every combination of facts, then the rows of Always give their target, variant and `execute`, and every other pair is refused, including `dismiss` while `awaiting_approval` or `fixing` and anything on a `closed` incident.
+- Given fixture incidents, requests and sessions, when the probe's `OnRequest` receives each `IncidentCommand`, `ApprovalOutcome` and `FixResult` of the matrix, then the row, the `CommandResult`, the recorded `Execute` and the published events match the matrix. One fix runs at a time, and a refused event changes, sends and publishes nothing.
+- Given A's noticed no-fix incident on the running production, when A submits `Dismiss` through `Commands.Submit` with origin `web_user`, then `CommandsIn` and `IncidentManager` close it synchronously (`Ok` 1, `closed`), and an `incident` event in state `closed` reaches A's stream. The same `Dismiss` from B is `not_found` (Integration AC: consumer `CommandsIn` of `IncidentManager`'s `dismiss`).
+- Given a real fix request of an `awaiting_approval` incident, when it is rejected through `Approval.Answer`, then `ApprovalHold`'s `ApprovalOutcome` moves the incident to `open` with `rejected`, and its `incident` event reaches the owner's stream (Integration AC: `IncidentManager` consumes the real hold's outcome).
+- Given a closed incident, when a failure with the same cause arrives, then a new incident opens with its own Ref and its own notice.
+- Given incidents closed 91 and 89 days ago and an older open one, when `IncidentManager.Purge(90)` runs, then only the 91-day-old incident and its groups are deleted.
+- Given the product source, when `Test.Bridge.CodeRules`, `Test.Install.Production`, `Test.Data.Tables` and `ci/checks.sh` run, then they pass: `IncidentManager` carries no `STUB` and is still the only writer and publisher, and no persistent class projects a reserved word.
+
+## Spec Change Log
+
+- 2026-10-26, spec gate (Epic 5 runner): R1 ruled (a), decide; Epic 5's 5.5 block amended and Story 5.9 added; spine rows "Incident commands" (new) and "SQL reserved words" (amended) written; status set to `ready-for-dev`.
+
+## Review Triage Log
+
+## Design Notes
+
+**Ruling (R1) RULED 2026-10-26 by the epic lead as recommended (a)** (unattended, decide: a split into siblings planned next in the same epic, within `limits.split_children`). Epic 5's 5.5 block carries an `[AMENDED …]` marker, Story 5.9 "Ask OcuTalon in the chat to dismiss an incident" is added (key `5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident`, run right after 5.5), and the three spine candidates below are written: the Conventions row "Incident commands" (the result codes, `Data`, the session rule, `QUIETSECONDS`, and what "pending" means in AD-15's overlap rows; recorded as a Conventions row, so AD-15's text is unchanged) and the "SQL reserved words" row's `SqlTableName` clause. Originally: the plan halted on R1.
+- **R1. Split** (product default 6; the lead asks for a split when a story does not fit one implement pass). Story 5.5's block holds two units, each the size of a story:
+  - the incident lifecycle in `IncidentManager`: the table, its overlap rows, the Fix messages, the two message handlers with `Execute`, the three commands, a new incident after a close, and `Purge`;
+  - the Chat agent's dismiss tool.
+
+  The tool is a separate area: `Tools/WatchTools` and `Watching`, `Agent/Chat.cls`'s instructions, a mock scenario and a real-turn test. It also changes a shared surface: the tool list offered to the model, which `Test.Agent.Runners`, `Test.Agent.Instructions`, `Test.Tools.Reminders`, `Test.Watch.Turns`, `Test.Watch.Tools`, `Test.Bridge.Gate` and `Test.Bridge.Decide` (tool JSON size) assert. Planned whole, the story would be well over 5.8's size, which already carried `oversized`.
+  - **Recommended (a):** two siblings.
+    - 5.5 keeps every criterion of its block except the third paragraph ("Given a user asks in the chat to dismiss an incident", with its `And`).
+    - A new sibling, **Story 5.9 "Ask OcuTalon in the chat to dismiss an incident"**, takes that paragraph verbatim. It is planned next and runs right after 5.5, before 5.6: UJ-1's rejected path says "Dismiss the incident in the chat" (product default 1). It consumes `IncidentManager`'s `dismiss` from this story and the `dismiss_incident` name already in `Tools/Names.cls`. `CommandsIn`'s tool limit (`Ownership.Incident`) is already built (`Test.Core.CommandsRouting.TestToolDismissOwnIncident`).
+  - **Alternatives:** (b) one story, which is oversized; (c) a third child for `Purge`, which would be thin (about 40 lines and one test) and belongs with the only writer.
+  - Under (a) the lead amends Epic 5's 5.5 block, adds the 5.9 block and its tracker key, and sets this spec to `ready-for-dev`.
+
+**Governing ADs:**
+- AD-1: commands reach the owner through `CommandsIn` and are answered synchronously.
+- AD-4: `Recipients` decides who may dismiss, and gets the events.
+- AD-5: the rows are the state.
+- AD-11: the request row is the truth, so the facts are read from it.
+- AD-12: the full view is published after commit.
+- AD-15: the table, the overlap rule, `closeQuiet` and the variants.
+- AD-16: the Fix messages, and `Execute` carries only the Ref.
+- AD-22: throwaways and the mock.
+- AD-26: `Execute` goes in the incident's trace session.
+- AD-27: `Purge(daysToKeep)`.
+- AD-29 and AD-33: Lane A, the only writer and publisher.
+
+Conventions: "SQL reserved words" (applied here to a table name), "Messages", "Times", "Logging and errors".
+
+**Integration ACs, Consumes, Consumed-by:**
+- New: `Transitions`; `IncidentManager`'s handling of the three commands, `ApprovalOutcome` and `FixResult`; `Execute` and `FixResult`; `Purge`.
+- Integration ACs: AC 3 (consumer `CommandsIn`) and AC 4 (the real `ApprovalHold`'s outcome), both on the running production.
+- Consumes:
+  - 5.8: `Notice`, `Deliver`, `Tell`;
+  - 5.3: `Record`, `Find`;
+  - Epic 0: `IncidentCommand`, `CommandResult`, `Live.Payload.Incident`;
+  - Epic 2: `Session.Recipients`, `CommandsIn`'s `Dismiss` route, `Live.Publish`;
+  - Epic 3: `ApprovalHold`'s `ApprovalOutcome`, `ApprovalRequest` rows, `Approval.Raise` and `Answer` (tests).
+- Consumed-by:
+  - 5.9: the dismiss tool, through `CommandsIn`;
+  - 5.6: `Checks` sends `closeQuiet` and reads `not_quiet` and `not_allowed`;
+  - 4.3: `BreakFeedIn` sends `closeForReplay` (`closed`, else `not_allowed` with `Data.state`);
+  - 6.4: REST dismiss and the incident cards (the state chip follows the table);
+  - 7.2: `raised` rows through `Transitions`, `Deliver` with `awaiting_approval`, and the answered notice added to the rejected and expired moves;
+  - 7.3: `FixExecutor` handles the `Execute` that this story sends;
+  - 7.4: records the `FixResult` counts;
+  - 7.5: `Sweep`'s `FixResult` through `Checks`;
+  - 30.2: the purge task calls `IncidentManager.Purge`.
+
+**Extend, don't copy:**
+- `Transitions` sits beside `Settle` and `Notice`, as a pure helper of `IncidentManager`. No table sibling exists.
+- `Move` is `Deliver`'s save-then-`Tell` shape, and `Deliver` now calls it.
+- `SendExecute` follows `SendNotice`. The probe's overrides follow `SendNotice` and `FailFor`.
+- `Settle.Quiet` reuses `Settle.Seconds`.
+- `Purge` copies `Digest.Data.Item.Purge`'s three-line cutoff. `Data.Time` has no days-before helper, and unifying the two would touch Digest, outside this story.
+- `Lifecycle` follows `Tell`'s probe tests. `Closing` follows `Notices` and `Test.Bridge.Approval`'s `RaiseHeld` and `Answerer`.
+
+**Ledger inbox:** none.
+
+**Decided in-stage:**
+- **The 5.5 block and AD-16 ("its unit test of IncidentManager covers every AD-15 row") select this reading:** `IncidentManager` handles `ApprovalOutcome` and `FixResult` and sends `Execute` now. Story 7.3's "IncidentManager sends Execute and handles FixResult" then consumes what exists. Epic 7 keeps `FixExecutor`'s side, the answered and result notices, the counts and `Sweep`.
+- **"Pending" in the overlap rows** covers a request that is `approved` while the incident is still `awaiting_approval`. Its outcome is still on its way, so a rejection that arrives first must not lose the approval. This is the simplest reading consistent with AD-11 (the row is the truth). Spine candidate below.
+- **Row checks make repeats harmless.** An outcome whose row does not show it is refused, and the `FixResult`'s own request is never counted as waiting, so an `Execute` that `FixExecutor` would refuse is never sent.
+- **An accepted event publishes even when the state stays the same.** The payload's `requests` reads the rows live. A refused event publishes nothing.
+- **The variant is cleared when the state leaves `open`.** `Fallback` keeps the fallback flag.
+- **The result codes:** `closed`, `not_found`, `not_allowed`, `not_quiet`, `unknown_command` and `failed`, with `Data` `{state, openVariant}`. The messages are owner parameters, as `WatchOps` has them (5.9 and 6.4 write the words users see).
+- **A repeated `dismiss` with the same key** finds the incident closed and answers `not_allowed` with state `closed`. The row is the idempotency, so no key is stored.
+- **`closeForReplay` and `closeQuiet` take no session check** (no `CommandsIn` route). A `dismiss` from a session that is not a recipient answers `not_found`, like a missing incident (6.4's 404).
+- **`QUIETSECONDS` is 900, a parameter** (PRD `[ASSUMPTION: 15 minutes]`). Like `Checks`, `IncidentManager` re-checks `LastAt` itself, so a failure that arrived meanwhile changes nothing.
+- **A refused async event logs an info line, not a warning:** the hold's repeated outcomes are expected (inference). A failed `Execute` send is a warning.
+- **`STUB` goes,** and an unknown request class is a 5001 error.
+- **`Execute`'s SQL table is `FixExecute`.** Measured: `$SYSTEM.SQL.IsReservedWord("Execute")` is 1 on slot A (build 154), and none of `FixResult`'s property names is reserved.
+
+**(inference), to be pinned by the tests:** a shadow instance's `OnRequest` returns the `CommandResult` in `response` without a primary header; the hold may deliver an outcome twice (task, then timer); `Approval.Raise` with the probe sink needs no `BridgeSink`.
+
+**Footprint extensions** (none contended):
+- `Fix/Msg/*.cls` (the Fix area);
+- `Test/Install/Production.cls` (the Lane A oracle row);
+- `Test/Core/CommandsInProduction.cls` (one assertion that this story breaks, Rule 19).
+
+**Spine candidates (Rule 20, for the lead):**
+- a Consistency Conventions row "Incident commands": the result codes, `Data`, the session rule and `QUIETSECONDS`;
+- an AD-15 clarification: "pending" includes an approved request whose outcome has not arrived, and repeated outcomes are refused by the row;
+- the row "SQL reserved words" extended to table names (`SqlTableName`).
+
+## Verification
+
+`<lane>` stands for `env OCUTALON_LOCK_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/../.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=5 stage=implement'`. Run one command per call, each with `timeout: 600000`. Never put two IRIS test runs in one message, and chain nothing after a shard part.
+
+**Commands:**
+- (loop) `<lane> OCUTALON_RUN_TAG=e5s5iw ci/warm.sh up` -- once per stage. Expected: READY.
+- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e5s5iw ci/iris.sh class <Class>`, one call per class: `OcuTalon.Test.Watch.Transitions`, `OcuTalon.Test.Watch.Lifecycle`, `OcuTalon.Test.Watch.Tell`, `OcuTalon.Test.Watch.Settle`, `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Install.Production` -- expected: `CLASS … passed`.
+- (loop) `<lane> OCUTALON_RUN_TAG=e5s5i ci/iris.sh class <Class>`, fresh, one call per class, because the production item `IncidentManager` changed: `OcuTalon.Test.Watch.Closing`, `OcuTalon.Test.Watch.Notices`, `OcuTalon.Test.Watch.Diagnose`, `OcuTalon.Test.Watch.Incidents`, `OcuTalon.Test.Core.CommandsInProduction`, `OcuTalon.Test.Bridge.Approval` -- expected: passed.
+- (once) `<lane> OCUTALON_RUN_TAG=e5s5i ci/iris.sh shard lane-a --part 1/2`, then, in its own call, `... --part 2/2`. Record each part's time. If a part takes more than 480 s, run `--part k/3` instead (three calls) and record those times.
+- (once) `<lane> OCUTALON_RUN_TAG=e5s5i ci/iris.sh shard lane-b` -- `Test.Core`, `Test.Data`, `Test.Web` and `Test.Live` are in it. Expected: passed.
+- (once) `bash ci/checks.sh` -- expected: all pass (class rules, storage blocks, boundaries).
+- (once) `<lane> OCUTALON_RUN_TAG=e5s5iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e5s5i ci/iris.sh teardown`.
+
+**Shared surfaces:**
+- **`IncidentManager` answers what was "not implemented":** `Test.Core.CommandsInProduction` (`not_built` becomes `closed`; updated), `Test.Bridge.Approval` (outcomes sent to `IncidentManager`: still handled), and `Test.Install.Production` (the stub oracle; updated).
+- **Incidents now close:** every test that reads an incident's `state`, `ClosedAt` or the `incident` events of a watch session (`Test.Watch.*`, `Test.Web.Api`; the contended ones are run, never changed).
+- **The `lane-a` class list:** three new classes, run in parts.
+- Every test added or changed passes on a fresh environment, in either order.
+
+**Pinning mutations to apply** (Rule 19). The implement stage applies each one, observes red, reverts byte-identically and records it here.
+
+| AC or row | Mutation | Expected red |
+|---|---|---|
+| AC 1 | `dismiss` is accepted in `awaiting_approval` | `Transitions.TestRefusedMoves`, `Lifecycle.TestDismiss` |
+| Overlap, pending | `pending` ignores an `approved` request while the incident is `awaiting_approval` | `Transitions.TestRows`, `Lifecycle.TestApprovalOutcomes` |
+| Finished | `finished` ignores `waiting` | `Transitions.TestRows`, `Lifecycle.TestFixResults` |
+| Earliest | the latest waiting request gets the `Execute` | `Lifecycle.TestFixResults` |
+| Repeats | an outcome is accepted whatever its row shows | `Lifecycle.TestRefusedEvents` |
+| AD-26 | `SendExecute` clears the session | `Lifecycle.TestApprovalOutcomes` |
+| Quiet close | `closeQuiet` closes an `open` incident with demo mode on | `Lifecycle.TestCloseQuiet` |
+| `not_quiet` | the `LastAt` check is dropped | `Lifecycle.TestCloseQuiet` |
+| Recipient | `dismiss` skips `Recipients` | `Lifecycle.TestDismiss`, `Closing.TestDismissThroughCommandsIn` |
+| Publish | an accepted move publishes nothing | `Lifecycle.TestEveryChangePublishes`, `Closing` |
+| Close | `ClosedAt` is left empty | `Lifecycle.TestDismiss`, `Lifecycle.TestPurge` |
+| AC 4 | `rejected` maps to `expired` | `Closing.TestRejectThroughTheHold` |
+| AC 5 | `Find` takes `closed` incidents | `Closing.TestDismissThroughCommandsIn`, `Incidents.TestClosedOpensNew` |
+| Purge | the cutoff moves by one day (`daysToKeep - 1`), or `open` rows are deleted too | `Lifecycle.TestPurge` |
+| Fix messages | `FixResult` loses `Skipped` | `Lifecycle.TestFixMessages` |
+| AC 7 | `STUB` is kept | `Install.Production.TestStubsAnswer` |
+| Notice | `Notice` sets `fixing` | `Tell.TestNoticeToEachRecipient` |
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
+
+Spec gate, 2026-10-26: the lead ruled R1 (a) and set the spec `ready-for-dev`. The plan stage's halt read: intent gap: R1 (split). Story 5.5's block holds two story-sized units: the incident lifecycle in IncidentManager, and the chat dismiss tool (Tools, Agent/Chat.cls instructions, a mock turn, and seven tests that assert the tool list). Recommended (a): 5.5 keeps every criterion except the "Given a user asks in the chat to dismiss an incident" paragraph and its And. That paragraph moves verbatim to a new sibling, Story 5.9 "Ask OcuTalon in the chat to dismiss an incident", planned next and run right after 5.5, before 5.6. The spec is written to (a). On that ruling the lead amends Epic 5's blocks and sets status ready-for-dev.
+
+Plan stage, 2026-10-26: the plan is complete and checked against the READY-FOR-DEVELOPMENT standard. The only open item is R1, a split that the lead decides (the 5.4 precedent).

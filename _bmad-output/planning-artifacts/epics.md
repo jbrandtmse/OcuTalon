@@ -2582,10 +2582,7 @@ So that I'm never asked twice about the same failures and a new problem opens a 
 **Then** it closes synchronously, while a dismiss from any other session is refused (FR-24, AD-4, AD-15, UX-DR74)
 **And** `closeForReplay` closes a resolved incident synchronously, and is refused with its reason while the incident is open, awaiting approval or fixing (FR-24, FR-16, AD-12, AD-15, UX-DR50)
 
-**Given** a user asks in the chat to dismiss an incident
-**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
-**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
-**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
+[AMENDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split into siblings planned next, within limits.split_children): the chat dismiss tool's criteria ("Given a user asks in the chat to dismiss an incident" and its And) moved verbatim to Story 5.9, which runs right after 5.5 and before 5.6]
 
 **Given** a `closeQuiet` command
 **When** the incident's last same-cause failure is more than 15 minutes old
@@ -2691,6 +2688,21 @@ So that I know what broke without reading every error.
 - DW-264: The evidence pack and the `read_event_log` tool send `Ens_Util.Log` row ids (`logId`) to the model, while the spine's Identifiers row lets only Ens header and session ids leave the server: use a pack-local log reference (an ordinal) instead (ledger; routed by spec_gate 2026-10-26)
 - DW-261: `EvidencePack.Sentence` repeats `FailurePoller`'s `ErrorText.Sentence(Redact.Text(raw))`; the fallback notice's error summary needs the same composition, so make it one `ErrorText` helper that all three use (ledger; routed by spec_gate 2026-10-26)
 - DW-273: The owner's answer U-91: the evidence pack's credential-name rule (`Watch.Reader` `CREDENTIALPARTS`, matched case-insensitively as a substring of the setting's name) also leaves out settings whose name holds `bearer` or `cookie`, so the list is credential(s), password, token, key, secret, passphrase, passwd, auth, bearer, cookie; a false positive only hides a value, a miss sends one to the model (ledger; routed by spec_gate 2026-10-26)
+
+### Story 5.9: Ask OcuTalon in the chat to dismiss an incident
+
+[ADDED 2026-10-26, Story 5.5 spec gate, unattended ruling (decide: split of Story 5.5 into siblings planned next); its criteria are Story 5.5's chat dismiss criteria, moved verbatim. It runs right after 5.5 and before 5.6, because UJ-1's rejected path says to dismiss the incident in the chat.]
+
+As a user,
+I want to dismiss an incident by asking OcuTalon in the chat,
+So that I can close what I've dealt with without hunting for a button.
+
+**Acceptance Criteria:**
+
+**Given** a user asks in the chat to dismiss an incident
+**When** the Chat agent calls the dismiss tool in `OcuTalon.Tools`
+**Then** the tool finds the incident among the session's own open or resolved incidents and submits the dismiss verb for its `Ref` through `Commands.Submit` with origin `tool` and an `IdempotencyKey`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents, and returns `IncidentManager`'s `CommandResult` (FR-24, AD-1, AD-15)
+**And** the tool is classified safe but not read-only, so it runs in a user's turn without approval and is denied in an untrusted or tainted turn, and its tests run against a `CommandsIn` test double in `OcuTalon.Test.Watch` (FR-7, NFR-14, AD-10)
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
