@@ -2530,7 +2530,7 @@ So that I get one message, not fifty.
 
 **Given** several local sessions watching the same production, and failures with scope `instance`
 **When** the incident is noticed
-**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with one notice per watcher session and its events on each watcher's stream (FR-23, AD-4, UX-DR74)
+**Then** they share one incident per cause, whose sessions come from `OcuTalon.Data.Session.Recipients(ownerRef, incidentRef)`, with its events on each watcher's stream (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: "one notice per watcher session" moved to Story 5.4's notice criterion, because the notice needs 5.4's diagnosis; 5.3 ends at the settle rule]
 **And** failures tagged with two different sessions' `TraceRef`s form two incidents, each seen only by its own session (AD-4, UX-DR104)
 - DW-227: The fresh `lane-a` shard took 539 s with 54 classes, about a minute under the 10-minute foreground cap every stage runs inside. Give `ci/iris.sh shard` a local split (for example `--part k/n` over the sorted class list, `--reverse` taking the parts of the reversed list), with the CI groups unchanged (ledger; routed by harvest 2026-10-25)
 
@@ -2553,6 +2553,7 @@ So that I know what broke without reading every error.
 **Given** a usable diagnosis, with outcome `act` and its proposed fix (a data-format cause; Story 7.2 adds the dry run and the approval request)
 **When** `IncidentManager` consumes it, never routing it to `OutcomeRouter`
 **Then** it sends one `OcuTalon.Msg.Notification` per recipient session with kind `incident`, the incident notice's catalog key from `OcuTalon.Msg.Catalog.Watch`, and `Slots` holding the count, the start time as UTC ISO 8601, the item noun as `itemNoun: {"one", "other"}` (from the diagnosis's `ItemNoun`; the `*Out` operation picks the form by the `count` slot) and the agent's cause and fix summary as plain sentences without times, sets `NoticedAt`, and publishes the `incident` event in state `open` (FR-24, AD-15, AD-30, AD-32, UX-DR113)
+**And** for an `instance` incident with several local watcher sessions, the notice is one `Notification` per session of `Session.Recipients(ownerRef, incidentRef)`, with the `incident` event on each watcher's stream, whichever notice variant it is (FR-23, AD-4, UX-DR74) [AMENDED 2026-10-26, Story 5.3 spec gate, unattended ruling, veto U-86: moved from Story 5.3]
 
 **Given** a usable diagnosis whose cause has no fix in the fixed set (any cause other than a data-format change, `unknown` included)
 **When** `IncidentManager` consumes it
