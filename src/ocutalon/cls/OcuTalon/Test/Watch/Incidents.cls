@@ -10,7 +10,8 @@ Include Ensemble
 ///     with one group, `noticed` then `settling` on A's stream and no incident event, a NoticeCount of 50 once the quiet time has passed since LastAt, no
 ///     NoticedAt, and the incident's own trace session whose first header carries A's TraceRef;
 ///   - TestTrickle: one failure every 4 seconds for 24 seconds: the settle ends 30 seconds after the first failure, before the quiet time has passed, with
-///     the count by then; a later failure raises Count and keeps NoticeCount, in the same incident;
+///     the count by then, and the batches that joined it published no second noticed or settling; a later failure raises Count and keeps NoticeCount, in
+///     the same incident;
 ///   - TestResent: a batch that repeats held keys adds only its new keys, and none of its times, and a batch that joins an unnoticed incident publishes no
 ///     incident event;
 ///   - TestPattern: two dates of one sentence are one group, another item and other words are other incidents, and so are the same item and text in another
@@ -18,12 +19,14 @@ Include Ensemble
 ///   - TestTwoSessions (rows Two sessions and Before the notice): the same cause for sessions A and B makes two incidents, each stream holds its own
 ///     incident's events, nobody sees an unnoticed incident, and once both are noticed each session lists its own;
 ///   - TestInstanceShared (rows Instance shared and After the notice): an untagged cause on a production that A and B watch is one instance incident, announced
-///     on both streams, with an empty SuperSession; once it is noticed (fixture), a same-cause batch moves Count and LastAt but not NoticeCount, makes one
-///     incident event for each of the two sessions, no second incident and no notification;
-///   - TestClosedOpensNew: a same-cause failure after the incident is closed makes a new incident with its own Ref;
+///     on both streams, with an empty SuperSession; the ownership API finds it for nobody before the notice and, once it is noticed (fixture), for A and B
+///     but not for a session that does not watch; a same-cause batch then moves Count and LastAt but not NoticeCount, makes one incident event for each of
+///     the two sessions, no second incident and no notification;
+///   - TestClosedOpensNew: a same-cause failure after the incident is closed (once its waiter has started) makes a new incident with its own Ref;
 ///   - TestWaitersAfterRestart (row Restart while settling): with the item stopped and started during the wait, the settle still ends once, and the waiter of a
 ///     deleted incident completes with no error and writes nothing;
-///   - TestNobodyToTell: an instance incident of a production that nobody watches makes its rows, publishes nothing on the instance stream and logs no warning.
+///   - TestNobodyToTell: an instance incident of a production that nobody watches makes its rows, publishes nothing on the instance stream and logs no warning,
+///     also once its waiter has started; its failure has no FailedAt, so it is held at the batch's PolledAt.
 Class OcuTalon.Test.Watch.Incidents Extends OcuTalon.Test.Watch.Case
 {
 
@@ -142,6 +145,9 @@ Method TestTrickle()
 	Do $$$AssertEquals(noticeCount, ..#TRICKLE, "the settle ends with the count by then: all "_..#TRICKLE_" failures")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Settle).Wait(row.firstAt, row.lastAt, now, 10, 30), 0, "the rule has ended")
 	Do $$$AssertTrue(##class(OcuTalon.Watch.Settle).Wait(row.firstAt, row.lastAt, now, 10, 1000) > 0, "by the maximum, before the quiet time since the last failure has passed")
+	Set progress = ##class(OcuTalon.Test.Core.Observe).Events(a, "watch.progress")
+	Do $$$AssertEquals(progress.%Size(), 2, "the batches that joined the incident announced it no more and started no other waiter")
+	If progress.%Size() = 2 Do $$$AssertEquals(progress.%Get(0).payload.stage_"|"_progress.%Get(1).payload.stage_"|"_progress.%Get(1).payload.ref, "noticed|settling|"_ref, "noticed and settling once each, for the incident")
 	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 99", "at": (..Stamp(0))}])
 	Set count = ..WaitCount(ref, ..#TRICKLE + 1)
 	Set row = ..Incidents(a, ..#SYNTH).%Get(0)
@@ -244,14 +250,18 @@ Method TestTwoSessions()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(a, "incident").%Size() + ##class(OcuTalon.Test.Core.Observe).Events(b, "incident").%Size(), 0, "no incident event before a notice")
 	For each = a, b {
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Incidents(each, .sc).Count(), 0, "an unnoticed incident is not in Incidents")
+		Do $$$AssertStatusOK(sc, "which read without an error")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentIncidents(each, 10, .sc).Count(), 0, "nor in RecentIncidents")
-		Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Ownership).Incident(refA, each, .sc)) + $IsObject(##class(OcuTalon.Data.Ownership).Incident(refB, each, .sc)), 0, "nor found by its Ref")
+		Do $$$AssertStatusOK(sc, "which read without an error")
+		Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Ownership).Incident(refA, each, .scA)) + $IsObject(##class(OcuTalon.Data.Ownership).Incident(refB, each, .scB)), 0, "nor found by its Ref")
+		Do $$$AssertTrue($$$ISOK(scA) && $$$ISOK(scB), "which read without an error")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Tell", "IncidentManager could not"), 0, "and no warning was logged")
 	Do $$$AssertStatusOK(..Notice(refA), "A's incident is noticed (fixture)")
 	Do $$$AssertStatusOK(..Notice(refB), "and B's")
-	Set listA = ##class(OcuTalon.Data.Ownership).Incidents(a, .sc)
-	Set listB = ##class(OcuTalon.Data.Ownership).Incidents(b, .sc)
+	Set listA = ##class(OcuTalon.Data.Ownership).Incidents(a, .scA)
+	Set listB = ##class(OcuTalon.Data.Ownership).Incidents(b, .scB)
+	Do $$$AssertTrue($$$ISOK(scA) && $$$ISOK(scB), "the noticed incidents are read without an error")
 	Do $$$AssertEquals(listA.Count()_"|"_listB.Count(), "1|1", "each session now lists one incident")
 	If (listA.Count() = 1) && (listB.Count() = 1) Do $$$AssertEquals(listA.GetAt(1).Ref_"|"_listB.GetAt(1).Ref, refA_"|"_refB, "its own")
 	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Ownership).Incident(refA, b, .sc)) + $IsObject(##class(OcuTalon.Data.Ownership).Incident(refB, a, .sc)), 0, "and neither finds the other's by its Ref")
@@ -283,9 +293,13 @@ Method TestInstanceShared()
 	Set row = ..Incidents("instance", ..#ORDERSPRODUCTION).%Get(0)
 	Do $$$AssertTrue(row.traceHeaderId '= "", "the incident has a trace session")
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).SessionHeaders(row.traceHeaderId)
+	Do $$$AssertTrue(headers.%Size() > 0, "which holds messages")
 	If headers.%Size() > 0 Do $$$AssertEquals(headers.%Get(0).id_"|"_headers.%Get(0).superSession, row.traceHeaderId_"|", "its first header has an empty SuperSession, the scope being instance")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Tell", "IncidentManager could not"), 0, "no warning was logged")
+	Set c = ..Session("inst3")
+	Do $$$AssertEquals(..Finds(ref, a, b, c), "000", "before the notice no session finds the instance incident by its Ref")
 	Do $$$AssertStatusOK(..Notice(ref), "the incident is noticed (fixture)")
+	Do $$$AssertEquals(..Finds(ref, a, b, c), "110", "after it, the two watching sessions find it and a session that does not watch the production does not")
 	Set later = ..Stamp(0)
 	Do ..Deliver(..#ORDERS, ..#ORDERSPRODUCTION, "instance", [{"item": (item), "text": "Field 'Qty' was empty in order 4", "at": (later)}])
 	Do $$$AssertEquals(..WaitCount(ref, 4), 4, "Count moves to 4")
@@ -318,6 +332,7 @@ Method TestClosedOpensNew()
 		Quit
 	}
 	Set first = rows.%Get(0).ref
+	Do $$$AssertTrue(..WaitWaiter(a, ..#SYNTH), "its waiter has started, so the close cannot race the waiter's save")
 	Do $$$AssertEquals(..CloseIncident(first), 1, "the incident is closed (fixture)")
 	Do ..Deliver(..#SYNTHNS, ..#SYNTH, a, [{"item": (item), "text": "Field 'Qty' was empty in order 2", "at": (..Stamp(0))}])
 	Set rows = ..WaitIncident(a, ..#SYNTH, 2)
@@ -406,11 +421,17 @@ Method TestNobodyToTell()
 	Set since = ..Since()
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set before = ##class(OcuTalon.Test.Core.Observe).Events("instance", "watch.progress").%Size()
-	Do ..Deliver(..#SYNTHNS, "Zz.Nobody", "instance", [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": (..Stamp(-1))}])
+	Set polledFrom = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..Deliver(..#SYNTHNS, "Zz.Nobody", "instance", [{"item": (item), "text": "Field 'Qty' was empty in order 1", "at": ""}])
+	Set polledTo = ##class(OcuTalon.Data.Time).NowUtc()
 	Set rows = ..WaitIncident("instance", "Zz.Nobody")
 	Do $$$AssertEquals(rows.%Size(), 1, "the incident row is made")
 	If rows.%Size() '= 1 Quit
 	Do $$$AssertEquals(..Group(rows.%Get(0).ref).itemName, item, "with its group")
+	Set row = rows.%Get(0)
+	Do $$$AssertTrue((row.firstAt = row.lastAt) && '(polledFrom ] row.firstAt) && '(row.firstAt ] polledTo), "a failure with no FailedAt is held at the batch's PolledAt: "_row.firstAt)
+	Do $$$AssertTrue(..WaitWaiter("instance", "Zz.Nobody"), "its waiter has started")
+	Hang 1
 	Set end = $ZHorolog + ..#WAITBATCH
 	For {
 		Set batches = ..Batches(since)
@@ -428,6 +449,31 @@ Method Deliver(namespace As %String, production As %String, ownerRef As %String,
 {
 	Set sc = ..SendBatch(namespace, production, ownerRef, failures, .keys)
 	Do $$$AssertStatusOK(sc, "a batch of "_failures.%Size()_" failure(s) for '"_ownerRef_"' is sent")
+}
+
+/// Waits up to WAITINCIDENT seconds, polling every half second, until the owner's newest incident of the production has a trace session: its waiter has started
+/// and saved it. 1 when it has.
+Method WaitWaiter(ownerRef As %String, production As %String) As %Boolean [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set rows = ..Incidents(ownerRef, production)
+		Set started = (rows.%Size() > 0) && (rows.%Get(rows.%Size() - 1).traceHeaderId '= "")
+		If started || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit started
+}
+
+/// For each of the three sessions, 1 when the ownership API finds the incident by its Ref for it, else 0; an error in the read is the caller's red.
+ClassMethod Finds(ref As %String, a As %String, b As %String, c As %String) As %String
+{
+	Set found = ""
+	For each = a, b, c {
+		Set incident = ##class(OcuTalon.Data.Ownership).Incident(ref, each, .sc)
+		Set found = found_$Select($$$ISERR(sc): "e", 1: $IsObject(incident))
+	}
+	Quit found
 }
 
 /// The stamp of the second that is seconds from now, as a failure carries it.

@@ -955,34 +955,34 @@ Method WaitIncident(ownerRef As %String, production As %String, count As %Intege
 	Quit incidents
 }
 
-/// Waits up to seconds (WAITINCIDENT by default), polling every half second, until the incident's NoticeCount is set (the row is opened afresh each time, as an
-/// object that is still held would show the values it was opened with); the NoticeCount then. "" when the incident is gone.
+/// Waits up to seconds (WAITINCIDENT by default), polling every half second, until the incident's NoticeCount is set; the NoticeCount then. "" when the
+/// incident is gone.
 Method WaitNoticeCount(ref As %String, seconds As %Integer = {..#WAITINCIDENT}) As %Integer [ Private ]
 {
-	Set end = $ZHorolog + seconds
-	For {
-		Kill row
-		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-		If '$IsObject(row) Quit
-		If (row.NoticeCount '= "") || ($ZHorolog > end) Quit
-		Hang 0.5
-	}
-	Quit $Select($IsObject(row): row.NoticeCount, 1: "")
+	Quit ..WaitRow(ref, "NoticeCount", "", seconds)
 }
 
 /// Waits up to seconds (WAITINCIDENT by default), polling every half second, until the incident's Count is at least count; the Count then. "" when the incident
 /// is gone.
 Method WaitCount(ref As %String, count As %Integer, seconds As %Integer = {..#WAITINCIDENT}) As %Integer [ Private ]
 {
+	Quit ..WaitRow(ref, "Count", count, seconds)
+}
+
+/// Waits up to seconds, polling every half second, until the incident's property is set (least "") or at least least; the property's value then, "" when
+/// the incident is gone. The row is opened afresh each time, as an object that is still held would show the values it was opened with.
+Method WaitRow(ref As %String, property As %String, least As %Integer, seconds As %Integer) As %String [ Private ]
+{
 	Set end = $ZHorolog + seconds
 	For {
 		Kill row
 		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If '$IsObject(row) Quit
-		If (row.Count '< count) || ($ZHorolog > end) Quit
+		Set value = $Property(row, property)
+		If $Select(least = "": value '= "", 1: value '< least) || ($ZHorolog > end) Quit
 		Hang 0.5
 	}
-	Quit $Select($IsObject(row): row.Count, 1: "")
+	Quit $Select($IsObject(row): $Property(row, property), 1: "")
 }
 
 /// The fixture of a notice: sets NoticedAt (now) and NoticeCount (the Count at that moment) of the incident, as Story 5.4's notice will.

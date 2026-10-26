@@ -145,6 +145,37 @@ Every `OcuTalon/...` path is under `src/ocutalon/cls/`.
 - Given `OcuTalon.Production`, when `Test.Install.Production` and Epic 4's `Test.Core.CommandsInProduction` run, then `IncidentManager` still has pool 1 and `STUB`, answers 5003 to an `Ens.StringRequest`, and a `Dismiss` still answers `not_built`; both classes are unchanged.
 - Given `ci/iris.sh shard lane-a --part k/n [--reverse]` (DW-227), when it runs, then it runs exactly the k-th contiguous part of the shard's (reversed) name-ordered class list and titles it `part k/n`; bad values exit 2, and without `--part` the behaviour is unchanged. `bash docker/tests/test-ci-config.sh` prints `PASS shard part`, and `ci/units.sh` and `.github/workflows/*` are unchanged.
 
+### Review Findings
+
+Code review 2026-10-26 (four layers, full-opus tier): 39 rows, grouped into 23 entries (high 1, med 2, low 20) plus 1 rejected. Every patch below is applied; each line gives severity, fix-risk, footprint and the Rule 15 disposition.
+
+- [x] [Review][Patch] AD-5: the settle waiter could hold a timer longer than two minutes when both settle settings exceed 120 s (only ApprovalHold and ReminderTimer may) — high (Rule 6), fix-risk low (the waiter re-reads the rows on each wake, so an early wake only re-arms), in-story; `Settle.Alarm` caps each alarm at `LONGESTALARM` 120 and `Check` uses it; `TestAlarm` pins it [src/ocutalon/cls/OcuTalon/Watch/Settle.cls:79, Watch/IncidentManager.cls:227]
+- [x] [Review][Patch] `TestClosedOpensNew` closed the incident before its waiter had started, so `Begin`'s whole-row save could write `open` back over `closed` (Rule 19 hermeticity) — med, fix-risk low, in-story; the test now waits for the trace session first (`WaitWaiter`) [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:335]
+- [x] [Review][Patch] `Case.WaitNoticeCount` was a near-copy of `Case.WaitCount` (Rule 2; both new, no stated reason) — med, fix-risk low, in-story; both now call one `WaitRow` [src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls:974]
+- [x] [Review][Patch] A failed publish: the class doc said "publishes nothing more" while `Tell` delivers to the other sessions, and the warning carried the last failed publish's error, not the first that the in-stage note names — low, fix-risk low, in-story; doc corrected, `Tell` keeps the first error [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:13, :253]
+- [x] [Review][Patch] AC 2's instance branch was untested (no ownership read of an `instance` incident before or after the notice), and `TestTwoSessions` ignored the reads' status — low, fix-risk low, in-story; `TestInstanceShared` checks `Ownership.Incident` for both watchers and a non-watcher before and after the notice (`000` then `110`); the reads' `sc` is asserted [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:270]
+- [x] [Review][Patch] The empty-`FailedAt` fallback to `PolledAt` had no test — low, fix-risk low, in-story; `TestNobodyToTell` sends `"at": ""` and pins `FirstAt` = `LastAt` within the batch's send window [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:432]
+- [x] [Review][Patch] A joining batch that announced `noticed` again or started a second waiter left every test green — low, fix-risk low, in-story; `TestTrickle` asserts exactly `noticed` and `settling` once each after the trickle [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:149]
+- [x] [Review][Patch] `TestNobodyToTell` asserted before the waiter had run its `Tell` — low, fix-risk low, in-story; it now waits for the waiter's trace session [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:416]
+- [x] [Review][Patch] The instance half of the Trace row could be skipped silently (`If headers.%Size() > 0` with no non-empty assertion) — low, fix-risk low, in-story [src/ocutalon/cls/OcuTalon/Test/Watch/Incidents.cls:296]
+- [x] [Review][Patch] `Test.Watch.Tell`'s "the incident row stands" read the row object the test still held, so it could not see a stored change — low, fix-risk low, in-story; it reads `FailureCount` from the table [src/ocutalon/cls/OcuTalon/Test/Watch/Tell.cls:92]
+- [x] [Review][Patch] The AC 3 scan missed `%Delete(oid)`, SQL with `%` keyword options and `INSERT` without `INTO` — low, fix-risk low, in-story; pattern and four sample lines added, the product scan stays clean [src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:114]
+- [x] [Review][Patch] The `shard part` block did not check that the first `count mod n` parts are the larger, `--part` as the last argument, or the refusal message of `--part=` — low, fix-risk low, in-story (inside the appended block only) [docker/tests/test-ci-config.sh:1739, :1762]
+- [x] [Review][Patch] `## Verification`'s Shared surfaces still said two new lane-a classes after QA added a third — low, fix-risk low, in-story (tracking section)
+- [x] [Review][Defer] DW-241's text still says both `Tell` error branches are untested — low; occurrence appended. Judgment for the lead's adjudication: the failed-publish branch is resolved by QA's `Test.Watch.Tell`; the failed-`Recipients` branch remains (a private seam plus probe and test is about 28 lines, not a two-way door), so `wontfix-accepted` with a `reopen_if` fits it; DW-113 (owner 6-2) would make it reachable through the real `Session.Recipients` [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:244] — deferred: DW-241
+- [x] [Review][Defer] The rolled-back batch (`Record`) and failed `Settle` send (`Start`) branches have no test, and the build review's deferral of them was recorded nowhere — low, fix-risk med (needs a seam), in-story [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:75] — deferred: DW-242 `wontfix-accepted`
+- [x] [Review][Defer] The waiter's closed and already-settled guards are unpinned, and a resent `Settle` would start a second waiter — low, in-story; AD-15's table never closes or settles an unnoticed incident outside its waiter [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:210] — deferred: DW-243 `wontfix-theoretical`
+- [x] [Review][Defer] No test shows that the waiter reads the settle settings (only `Settle.Values` in the test process) — low, fix-risk med (a setting row the job reads past the 60 s cache; the spec seeds none), in-story [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:225] — deferred: DW-244 `wontfix-accepted`
+- [x] [Review][Defer] Failures picked up late settle at once, the maximum running from the first `FailedAt` — low, spec-bound (Decided in-stage: times are the failures' own) [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:227] — deferred: DW-245 `by-design`
+- [x] [Review][Defer] Hex ids or GUIDs in an error text are not masked by the pattern — low, spec-bound (the Always rule defines the pattern) [src/ocutalon/cls/OcuTalon/Watch/Settle.cls:32] — deferred: DW-246 `by-design`
+- [x] [Review][Defer] `Publish` waits up to 5 s per held stream inside the single IncidentManager job — low, out of reach in normal operation; `Live/Publish.cls` is contended [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:252] — deferred: DW-247 `wontfix-theoretical`
+- [x] [Review][Defer] A multi-line `--part` value exits 1, not 2 — low [ci/iris.sh:379] — deferred: DW-248 `wontfix-theoretical`
+- [x] [Review][Defer] Empty `OwnerRef`, `Namespace`, `Production` or `PolledAt` in a batch would open a new incident per batch or blank `FirstAt` — low; FailurePoller always sets them [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:160] — deferred: DW-249 `wontfix-theoretical`
+- [x] [Review][Defer] The `shard part` block prints only `FAIL shard part`, not which check failed — low, about 20 changed lines, not a two-way door [docker/tests/test-ci-config.sh:1771] — deferred: DW-250 `wontfix-accepted`
+
+**Rejected:**
+- `low` The Auto Run Result's review counts, its "Files changed" list (no QA files) and the frontmatter `deferred:` text are stale (blind-hunter, acceptance-auditor): the fix edits build-auto's record of the spec under review, outside `## Verification`; the ledger and this section hold the current state.
+
 ## Spec Change Log
 
 - 2026-10-26, spec gate (Epic 5 runner): R1 ruled by the orchestrator (option (a), decide; standing ruling for Lane A tables' Contracts entries) with the schema change as veto U-87; R2 ruled by the runner (option (a), veto U-86; epics.md 5.3 and 5.4 blocks amended); the spine candidates written into the "Watch failures" row; status set to `ready-for-dev`.
@@ -311,12 +342,34 @@ Results (implement stage, fresh lane-A stack): all three hold. A `Settle` sent w
 - mutation: Restart row, the waiter's wake answers an error status when its incident is gone -> red: `TestWaitersAfterRestart` ("the event log holds no error of the item"; the same mutation was green before the test read the event log); green again after the revert.
 - mutation: AC 5, the `--part=*` branch removed -> `FAIL shard part`; an empty `--part` skipping validation -> `FAIL shard part`; both reverted byte-identically (`shasum`).
 
+**QA-stage results (lane-A throwaways, tags e5s3q / e5s3qw):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Watch/Tell.cls` (new, warm-capable, about 15 s): `TestFailedPublishLeavesTheOthersTheirEvent`, the ledger entry DW-241's failed-publish branch of `IncidentManager.Tell`. Another job holds the stream lock of the first recipient (the precedent of `Test.Core.BridgeSink`), the second still gets the event, one Type 3 warning (LOGPUBLISH) names the incident and the event type, none says the recipients could not be read; with both streams held the event is logged once, and with both free again the next event reaches both with no warning.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Watch/IncidentProbe.cls` (new): an `IncidentManager` subclass whose public `Say` is `Tell`, made as a shadow instance (`class||...`) in the test process, as `Test.Watch.Poller` does with `PollerProbe`. Not an item of any production; it carries the `Storage Default` block that `test-storage.sh` asks of a persistent class.
+- The failed `Session.Recipients` read branch of `Tell` has no test (see the QA decision in the run's report): `Recipients` is called by name, and it errors only through the privilege check of its watchers' statement, which needs a process without `%All`; `SET $ROLES` only adds roles (measured: `%All` stays), so only a purpose-made IRIS user would do, and that is a security-affecting fixture. DW-241 stays open for that branch; a private `Recipients` seam in IncidentManager (as BridgeSink has) would close it.
+- mutation: DW-241 others still get the event, `Tell` quits at the first failed publish -> red: `Test.Watch.Tell` `TestFailedPublishLeavesTheOthersTheirEvent` (warm; green again on the same stack after the revert).
+- mutation: DW-241 one warning per event, the warning logged inside the loop for each failed recipient -> red: `Test.Watch.Tell` (warm; green again after the revert).
+- mutation: Nobody to tell, `Tell` publishes to the `instance` stream when there are no recipients -> red: `Test.Watch.Incidents` `TestNobodyToTell` ("nothing is published on the instance stream"; fresh, green again on a fresh stack after the revert).
+- mutation: `Settle.Wait` picks the later of the two ends (`>` for `<`) -> red: `Test.Watch.Settle` `TestWait` (burst, trickle, max below quiet; warm, green again after the revert).
+- mutation: `Settle.Hold` cut one key too many (`SEENMAX` trim) -> red: `Test.Watch.Settle` `TestHold` (the 1000 cut; warm, green again after the revert). A first attempt on `Wait` (`'<` to `>` at the boundary) stayed green and is an equivalent mutant: at `now` = end both give 0.
+- Every revert was checked against a `shasum` of a backup and `git diff --stat` (clean); `git status --short` after the stage shows only the two new files above.
+- Runs: `Test.Watch.Tell` warm green; `Test.Watch.Incidents` fresh green (60 s); `shard lane-a --part 2/2` passed (28 classes, 295 s, `Test.Watch.Tell` in it, 15 s); `--part 1/2` passed (29 classes, 377 s). The new class moved one class from part 2 to part 1 (29/28), both under 480 s. `bash ci/checks.sh`: all scripts passed; `bash docker/tests/test-ci-config.sh`: all rules passed, `PASS shard part`. Teardown of both tags left nothing behind.
+
+**Code-review results (lane-A throwaways, tags e5s3r / e5s3rw, after the review patches):**
+- `bash docker/tests/test-ci-config.sh`: all rules passed, then `PASS shard part`; `bash ci/checks.sh`: all scripts passed.
+- Warm: `Test.Watch.Settle`, `Test.Bridge.CodeRules`, `Test.Watch.Tell` passed. Fresh: `Test.Watch.Incidents` passed (63.97 s class time), `Test.Watch.Poller` passed (63.70 s).
+- mutation: AD-5 alarm cap, `Settle.Alarm` returns the wait uncapped -> red: `Test.Watch.Settle` `TestAlarm` (warm; green again on the same stack after the revert).
+- mutation: Burst/Trickle "noticed and settling once", `Batch` starts a waiter for every cause that gained failures, not only new ones -> red: `TestTrickle` ("the batches that joined the incident announced it no more and started no other waiter"; fresh).
+- mutation: empty `FailedAt` held at `PolledAt`, the fallback dropped (`failedAt = failure.FailedAt`) -> red: `TestNobodyToTell` ("a failure with no FailedAt is held at the batch's PolledAt"; fresh, the same run as the previous mutation, two independent tests).
+- mutation: AC 3, the scan pattern as it was before this review (no `%Delete`, no `%` keyword options, `INTO` required) -> red: `Test.Bridge.CodeRules` `TestOnlyIncidentManagerWritesIncidents` (its four new sample lines; warm, green again after the revert).
+- mutation: AC 5, the extra classes given to the last parts instead of the first -> `FAIL shard part`.
+- Every revert was restored from a backup and checked by `shasum` against it.
+
 **Shared surfaces:**
 - The `Incident` and `FailureGroup` tables: the real IncidentManager now makes rows from every watched failure, `Test.Watch.Poller`'s included, and the `Case` cleanup removes them.
 - The `FailureGroup` contract (`Test.Data.Tables`, R1).
 - The fixture sessions' live streams: `watch.progress` and `incident` events, which `Fixture.Clean` drops.
 - IncidentManager's accepted requests (`Settle`). The stub oracle and `CommandsInProduction`'s `Dismiss` row are unchanged.
-- The `lane-a` class list: two new classes, run as parts.
+- The `lane-a` class list: three new classes (`Test.Watch.Settle`, `Test.Watch.Incidents`, `Test.Watch.Tell`), run as parts.
 - `CodeRules`' rule list.
 - The settings keys (read only; no test writes a setting row).
 - Every test added or changed passes on a fresh environment, in either order.

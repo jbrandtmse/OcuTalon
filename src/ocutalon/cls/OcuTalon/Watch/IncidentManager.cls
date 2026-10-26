@@ -10,10 +10,11 @@
 ///   - After the commit, each new incident is announced on its recipients' streams (watch.progress noticed), each new group gets one waiter (a
 ///     OcuTalon.Watch.Msg.Settle that IncidentManager sends itself, with the session cleared so that the incident has its own trace session, AD-26),
 ///     and, for an incident that has been noticed (NoticedAt set), the new count goes out as one incident event (Live.Payload.Incident.FromRow) to
-///     each recipient. The recipients are those of OcuTalon.Data.Session.Recipients. A failed read of them, or a failed publish, logs one Type 3
-///     warning and publishes nothing more; the rows stand, and a failed read never means that nobody watches.
+///     each recipient. The recipients are those of OcuTalon.Data.Session.Recipients. A failed read of them logs one Type 3 warning and publishes
+///     nothing, and never means that nobody watches; a failed publish to a session leaves the other sessions their event and logs one Type 3 warning
+///     for the event. The rows stand either way.
 ///   - The waiter records the incident's trace session (TraceHeaderId), publishes watch.progress settling, and waits with an alarm
-///     (Ens.BusinessProcess.SetTimer) for as long as OcuTalon.Watch.Settle.Wait says. On each wake it re-reads the incident and group rows, so a
+///     (Ens.BusinessProcess.SetTimer) for as long as OcuTalon.Watch.Settle.Wait says, at most two minutes per alarm (Settle.Alarm, AD-5). On each wake it re-reads the incident and group rows, so a
 ///     failure that came meanwhile moves the end. The settle rule ends when the quiet time (setting watch.settleQuietSeconds, 10 by default) has passed
 ///     since LastAt or the maximum (watch.settleMaxSeconds, 30) since FirstAt, whichever comes first: it sets NoticeCount to Count, once, and completes.
 ///     A waiter whose incident is gone, closed or settled completes and writes nothing.
@@ -223,7 +224,7 @@ Method Check(ref As %String) As %Status [ Private ]
 	If '..Waiting(incident) Quit $$$OK
 	Do ##class(OcuTalon.Watch.Settle).Values(.quiet, .max)
 	Set seconds = ##class(OcuTalon.Watch.Settle).Wait(incident.FirstAt, incident.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), quiet, max)
-	If seconds > 0 Quit ..SetTimer(seconds, ..#ALARMKEY)
+	If seconds > 0 Quit ..SetTimer(##class(OcuTalon.Watch.Settle).Alarm(seconds), ..#ALARMKEY)
 	Set incident.NoticeCount = incident.Count
 	Quit incident.%Save()
 }
@@ -236,7 +237,8 @@ ClassMethod Waiting(incident As OcuTalon.Data.Incident) As %Boolean [ Private ]
 }
 
 /// Publishes the payload as an event of the type on the stream of each session that Session.Recipients gives for the incident. An error in reading them
-/// publishes nothing, and an error in a publish leaves the other sessions their event; each logs one Type 3 warning, and the rows stand.
+/// publishes nothing, and an error in a publish leaves the other sessions their event; each logs one Type 3 warning per event (with the first failed
+/// publish's error), and the rows stand.
 Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %RegisteredObject) [ Private ]
 {
 	Set recipients = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
@@ -248,7 +250,7 @@ Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %Reg
 	Set position = 0
 	While $ListNext(recipients, position, stream) {
 		Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, type, payload)
-		If $$$ISERR(sc) Set failed = sc
+		If $$$ISERR(sc) && (failed = "") Set failed = sc
 	}
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGPUBLISH_incident.Ref_" ("_type_"): "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))

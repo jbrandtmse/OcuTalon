@@ -1177,6 +1177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 5.2 implement: shard lane-a passed 54 classes in 539 s (5.1: 52 classes 422-475 s; Epic 3: ~400 s); runner brief: split long runs into calls that finish well inside the cap; ci/iris.sh is not contended (Epic 5 footprint extension), test-ci-config.sh takes an appended block
 - 2026-10-26T00:59:33Z status=routed owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=lead_routed:tooling_before_5.3's_own_tests_grow_the_shard;CI_groups_unchanged(no_REL-4_impact)
 - 2026-10-26T02:18:48Z occurrence=5-2-new-failures-are-picked-up-within-seconds
+- 2026-10-26T07:01:49Z status=resolved-by:5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=adjudication note=ci/iris.sh shard <name> --part k/n runs the k-th contiguous part of the (reversed) name-ordered class list, larger parts first, bad values exit 2; the appended test-ci-config.sh block prints PASS shard part; lane-a measured 377 s (part 1/2, 29 classes) and 295 s (part 2/2, 28 classes); ci/units.sh and the workflows unchanged
 
 ### DW-228: FailurePoller keeps a not_current production's mark, so when another production ran in the namespace meanwhile and the watched one is current again, the other's failures since the mark are batched as the watched one's
 - source: spec-5-2-new-failures-are-picked-up-within-seconds.md | severity: med | fix-risk: low | footprint: in-story
@@ -1197,3 +1198,50 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Tests assert only that no warning is logged on the success and nobody-watches paths; forcing Recipients or Publish to fail needs a seam the story does not add; the code logs one Type 3 warning per event and leaves the rows standing
 - 2026-10-26T05:39:47Z status=open owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=harvest note=implement_deferred(build-auto_review)
+- 2026-10-26T06:56:42Z occurrence=5-3-same-cause-failures-become-one-incident-by-the-settle-rule
+- 2026-10-26T07:01:49Z status=wontfix-accepted by=adjudication note=the failed-publish branch is covered by Test.Watch.Tell (QA, cr-patched); the failed Session.Recipients read needs a production seam to force (about 28 lines with probe and test) and only a privilege-check failure reaches it; reopen_if=a Recipients read error in IncidentManager leaves no Type 3 warning, or DW-113 (6-2) makes the branch reachable through the real Session.Recipients
+
+### DW-242: IncidentManager's rolled-back batch (Record) and failed Settle send (Start) branches have no test
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Neither branch can be forced without a seam in IncidentManager; the build review deferred them to the frontmatter, which lists only Tell's branches
+- 2026-10-26T06:56:31Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=a FailureBatch in error leaves Incident rows, or an incident lacks TraceHeaderId 60 s after its FirstAt
+
+### DW-243: The settle waiter's guards for a closed or already-settled incident are unpinned, and a resent Settle request would start a second waiter
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Waiting's closed/NoticeCount checks and Begin's overwrite of TraceHeaderId are reached by no test; AD-15's table never closes or settles an unnoticed incident outside its waiter
+- 2026-10-26T06:56:31Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if an unnoticed incident can close or settle outside its waiter, or an operator resends a Settle request
+
+### DW-244: No test shows that the settle waiter reads watch.settleQuietSeconds and watch.settleMaxSeconds; only Settle.Values is tested in the test process
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Replacing Check's Settle.Values call with constants leaves every test green; a test needs a setting row the job reads past Data.Setting's 60 s cache, and the spec seeds none
+- 2026-10-26T06:56:31Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=once watch.settle* can be set, changing watch.settleQuietSeconds does not move when NoticeCount is set
+
+### DW-245: The settle maximum runs from the first failure's FailedAt, so failures picked up late (a poller backlog) settle at once with the first batch's count
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Check compares now with FirstAt + max, and FirstAt is the failure's own FailedAt, not the time the incident was made
+- 2026-10-26T06:56:42Z status=by-design owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=spec Decided in-stage: times are the failures' own FailedAt; AD-15: 30 s after the first failure
+
+### DW-246: The error pattern masks only digit runs, so error texts that carry hex ids or GUIDs can split one cause into several incidents
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Settle.Pattern replaces each run of digits with # and collapses white space; letters a-f of a hex id stay
+- 2026-10-26T06:56:42Z status=by-design owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=spec Always rule defines the error pattern; it changes only by spec amendment
+
+### DW-247: Tell's Publish waits up to Live.Publish's LOCKWAIT (5 s) per held session stream inside IncidentManager's single job, stalling batches and wakes
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Publish(stream, type, payload) takes the stream lock with LOCKWAIT 5; IncidentManager has PoolSize 1; Live/Publish.cls is a contended path
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if a session stream lock is held for seconds in normal operation; Publish holds it for one append
+
+### DW-248: ci/iris.sh shard --part with a value that contains a newline exits 1 instead of 2, because the k/n check greps line by line
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: printf | grep -Eq accepts a value whose first line is k/n; the arithmetic expansion then fails
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if a caller passes a multi-line --part value; every caller passes k/n literally
+
+### DW-249: IncidentManager assumes a batch's OwnerRef, Namespace, Production and PolledAt are set: empty ones open a new incident per batch or blank FirstAt
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Find's SQL equality never matches an empty bound value; an empty FailedAt with an empty PolledAt sets FirstAt to empty, so Settle.Wait ends the rule at once
+- 2026-10-26T06:56:42Z status=wontfix-theoretical owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=real if FailurePoller sent a batch without those fields; it always sets them (polledAt = NowUtc())
+
+### DW-250: The shard part block of test-ci-config.sh prints only FAIL shard part, not which of its checks failed
+- source: spec-5-3-same-cause-failures-become-one-incident-by-the-settle-rule.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: About 20 checks feed one part_ok flag; neighbouring blocks name the failed rule
+- 2026-10-26T06:56:42Z status=wontfix-accepted owner=5-3-same-cause-failures-become-one-incident-by-the-settle-rule by=cr note=reopen_if=a FAIL shard part takes more than one rerun to find the failing check

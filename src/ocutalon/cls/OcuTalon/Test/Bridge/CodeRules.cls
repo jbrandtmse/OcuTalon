@@ -13,8 +13,8 @@
 ///     $SYSTEM.Security.Audit, ##class(%SYSTEM.Security).Audit or Audit's raw writer Write, so that product code writes only through Record and every
 ///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
 ///   - TestOnlyIncidentManagerWritesIncidents (Story 5.3; AD-15, AD-33): no OcuTalon class outside the Test package, except OcuTalon.Watch.IncidentManager,
-///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New or %DeleteId, also through $ClassMethod), runs SQL that
-///     inserts, updates or deletes in their tables, or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
+///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New, %Delete or %DeleteId, also through $ClassMethod), runs SQL
+///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
 ///     to flag those forms and to pass the payload classes, reads, other event types and comment lines. A static scan cannot see a %Save of a row that was
 ///     opened elsewhere, nor an event type that a variable or a helper's argument holds, nor a call that spans lines;
 ///   - TestRunnerStartsNoJob: the runner and its adapter start no job and use no work manager, because the pool size is the
@@ -108,10 +108,10 @@ Parameter AUDITCALLS = "\$system\.security\.audit|\#\#class\(\s*%system\.securit
 /// The one class that may write an audit entry.
 Parameter AUDITWRITERS = "OcuTalon.Bridge.Audit";
 
-/// A line that creates or deletes a row of the incident tables (%New or %DeleteId of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup, as a class
-/// reference or through $ClassMethod), runs SQL that inserts, updates or deletes in them, or publishes the event type incident or watch.progress by its
-/// literal name (AD-15, AD-33).
-Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*%(new|deleteid|deleteextent|killextent)\s*\(|ocutalon\.data\.(incident|failuregroup)[""']\s*,\s*[""']%(new|deleteid|deleteextent|killextent)[""']|(insert\s+(or\s+update\s+)?into|update|delete(\s+from)?|truncate\s+table)\s+ocutalon_data\.(incident|failuregroup)\b|publish\(.*[""'](incident|watch\.progress)[""']";
+/// A line that creates or deletes a row of the incident tables (%New, %Delete or %DeleteId of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup, as a
+/// class reference or through $ClassMethod), runs SQL that inserts, updates or deletes in them (INTO and FROM optional, % keyword options allowed), or
+/// publishes the event type incident or watch.progress by its literal name (AD-15, AD-33).
+Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*%(new|delete|deleteid|deleteextent|killextent)\s*\(|ocutalon\.data\.(incident|failuregroup)[""']\s*,\s*[""']%(new|delete|deleteid|deleteextent|killextent)[""']|(insert(\s+or\s+update)?(\s+%\w+)*(\s+into)?|update(\s+%\w+)*|delete(\s+%\w+)*(\s+from)?|truncate\s+table)\s+ocutalon_data\.(incident|failuregroup)\b|publish\(.*[""'](incident|watch\.progress)[""']";
 
 /// The one class that may write the incident tables and publish those events.
 Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
@@ -239,6 +239,10 @@ Method TestOnlyIncidentManagerWritesIncidents()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""DELETE OcuTalon_Data.FailureGroup WHERE IncidentRef = ?"", ref)", pattern), "and SQL DELETE without FROM")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""INSERT OR UPDATE INTO OcuTalon_Data.Incident (Ref) VALUES (?)"", ref)", pattern), "and INSERT OR UPDATE")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(OcuTalon.Data.Incident).%DeleteExtent()", pattern), "and %DeleteExtent")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(OcuTalon.Data.FailureGroup).%Delete(oid)", pattern), "and %Delete")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""DELETE %NOLOCK FROM OcuTalon_Data.Incident WHERE Ref = ?"", ref)", pattern), "and SQL with a % keyword option")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""UPDATE %NOCHECK OcuTalon_Data.FailureGroup SET Seen = ''"")", pattern), "in an UPDATE too")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do ##class(%SQL.Statement).%ExecDirect(, ""INSERT OcuTalon_Data.Incident SET Ref = ?"", ref)", pattern), "and an INSERT without INTO")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""incident"", payload)", pattern), "and Publish of the incident event")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, ""watch.progress"", payload, .seq)", pattern), "and of watch.progress")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ##CLASS(OCUTALON.DATA.INCIDENT).%NEW()", pattern), "in any case")

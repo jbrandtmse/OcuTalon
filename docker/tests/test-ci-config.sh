@@ -1736,6 +1736,7 @@ for part_n in 1 2 3; do
         case $part_title in "lane-a part "*) ;; *) part_ok=0 ;; esac
       fi
       if [ "$part_size" -lt 1 ]; then part_ok=0; fi
+      if [ "$part_k" -eq 1 ]; then part_first=$part_size; fi
       if [ "$part_size" -lt "$part_min" ]; then part_min=$part_size; fi
       if [ "$part_size" -gt "$part_max" ]; then part_max=$part_size; fi
       part_joined=$(printf '%s\n%s' "$part_joined" "$part_list")
@@ -1744,6 +1745,7 @@ for part_n in 1 2 3; do
     part_joined=$(printf '%s\n' "$part_joined" | sed 1d)
     if [ -n "$part_dir" ]; then part_want=$part_all_rev; else part_want=$part_all; fi
     if [ "$part_joined" != "$part_want" ] || [ $((part_max - part_min)) -gt 1 ]; then part_ok=0; fi
+    if [ "$part_size" -gt "$part_first" ]; then part_ok=0; fi
   done
 done
 part_eq=$(shard_part_run lane-a --part=2/3)
@@ -1757,9 +1759,12 @@ for part_bad in 0/2 3/2 2 a/b 1/0 1/999 1/1000000 ""; do
   if [ "$part_status" -ne 2 ]; then part_ok=0; fi
   case $part_msg in *--part*) ;; *) part_ok=0 ;; esac
 done
-part_status=0
-part_msg=$(shard_part_run lane-a --part= 2>&1) || part_status=$?
-if [ "$part_status" -ne 2 ]; then part_ok=0; fi
+for part_form in "--part=" "--part"; do
+  part_status=0
+  part_msg=$(shard_part_run lane-a "$part_form" 2>&1) || part_status=$?
+  if [ "$part_status" -ne 2 ]; then part_ok=0; fi
+  case $part_msg in *--part*) ;; *) part_ok=0 ;; esac
+done
 if [ "$part_ok" -eq 1 ]; then
   echo "PASS shard part"
 else

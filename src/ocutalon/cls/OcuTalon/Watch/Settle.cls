@@ -5,6 +5,8 @@
 ///   - Values gives the settle settings (Data.Setting keys watch.settleQuietSeconds and watch.settleMaxSeconds); a value that is not a positive whole
 ///     number gives the default.
 ///   - Wait says how long the settle rule still runs: it ends when LastAt is quiet seconds ago or FirstAt is max seconds ago, whichever comes first.
+///   - Alarm gives the seconds of the waiter's next alarm: the wait, at most LONGESTALARM, because only two business processes hold a timer longer than two
+///     minutes (AD-5). The waiter re-reads the rows on each wake, so a longer wait is several alarms.
 ///   - Hold gives a group's Seen set after a batch, and which of the batch's keys were new. A key already in the set is never counted again.
 /// A stamp is UTC, YYYY-MM-DDTHH:MM:SSZ, as the failures of a batch carry it.
 Class OcuTalon.Watch.Settle
@@ -22,6 +24,9 @@ Parameter MAXDEFAULT = 30;
 /// The most keys that a group's Seen set holds: its newest failures. The poller re-sends at most the last poll's failures (Mark MAXFAILURES per
 /// production), so this is two polls' worth.
 Parameter SEENMAX = 1000;
+
+/// The longest alarm of the settle waiter, in seconds (AD-5: two minutes).
+Parameter LONGESTALARM = 120;
 
 /// The error pattern of an error text (see the class description).
 ClassMethod Pattern(text As %String) As %String
@@ -68,6 +73,12 @@ ClassMethod Wait(firstAt As %String, lastAt As %String, now As %String, quiet As
 	If (first = "") || (last = "") || (current = "") Quit 0
 	Set end = $Select((last + quiet) < (first + max): last + quiet, 1: first + max)
 	Quit $Select(current '< end: 0, 1: end - current)
+}
+
+/// The seconds of the waiter's next alarm for a wait of seconds: the wait, at most LONGESTALARM.
+ClassMethod Alarm(seconds As %Integer) As %Integer
+{
+	Quit $Select(seconds > ..#LONGESTALARM: ..#LONGESTALARM, 1: seconds)
 }
 
 /// A stamp as seconds since the start of the IRIS calendar, "" when it is not a stamp.

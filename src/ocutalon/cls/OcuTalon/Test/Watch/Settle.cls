@@ -4,6 +4,8 @@
 ///     pattern while another item's words, other words and a different case are not; an empty or undefined text is empty;
 ///   - TestWait: the burst edge (the quiet time ends the rule), the trickle edge (the maximum ends it), a maximum below the quiet time, a failure time after now,
 ///     the second before an end (at least 1), and stamps that are not stamps (the rule has ended);
+///   - TestAlarm: the waiter's alarm is the wait up to two minutes and two minutes for a longer wait (AD-5), so settings of more than 120 seconds never make
+///     a longer timer;
 ///   - TestHold: the keys that the set holds are not new, a key twice in one batch is new once, the order is oldest first, and the set is cut to its newest
 ///     1000 keys while the new keys are all given;
 ///   - TestValues: the settings (given only in the process's own cache of Data.Setting, which the test puts back, so that no setting row is written and no
@@ -71,6 +73,15 @@ Method TestWait()
 	Do $$$AssertEquals($ClassMethod(settle, "Wait", ..At(0), "2026-10-25 08:00:00", ..At(0), 10, 30), 0, "so does a last time that is not a stamp")
 	Do $$$AssertEquals($ClassMethod(settle, "Wait", ..At(0), ..At(0), "x", 10, 30), 0, "and a now")
 	Do $$$AssertEquals($ClassMethod(settle, "Wait", ..At(0), "2026-13-45T25:61:61Z", ..At(0), 10, 30), 0, "and so does a stamp of the right shape that is no date or time")
+}
+
+Method TestAlarm()
+{
+	Set settle = ..#SETTLE
+	Do $$$AssertEquals($ClassMethod(settle, "Alarm", 8)_"|"_$ClassMethod(settle, "Alarm", 120), "8|120", "a wait of up to two minutes is one alarm of that length")
+	Set wait = $ClassMethod(settle, "Wait", ..At(0), ..At(0), ..At(0), 600, 900)
+	Do $$$AssertEquals(wait_"|"_$ClassMethod(settle, "Alarm", wait), "600|120", "settings of 600 and 900 seconds wait 600 seconds, as alarms of at most two minutes (AD-5)")
+	Do $$$AssertEquals($ClassMethod(settle, "Alarm", 121), 120, "one second more than two minutes is still two minutes")
 }
 
 Method TestHold()
