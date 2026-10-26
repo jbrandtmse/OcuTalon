@@ -1194,3 +1194,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Contest Planner under the owner's delegation, 2026-10-26: strict check makes the README's documented command fail on a default install (terminal holds only %All)
 - 2026-10-26T16:52:48Z status=routed owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=owner_decision note=deliver before Epic 4's contract; Story 4.1 is done strict (Core/Admin.cls, Test/Core/Admin.cls)
+
+### DW-280: An email's body has no length cap, so one large body or many sends can fill SimMessage and make each Decide call large
+- source: spec-4-6-simulate-incoming-email-in-the-simulated-mailbox.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: MailBody and SimMailboxIn.Accept cap only from and subject at 1000 characters; SimMessage.Text and Mail.Text unbounded; the textarea has no maxlength (Web/Api.cls:MailBody, Channel/SimMailbox/In.cls:Accept)
+- 2026-10-26T21:41:08Z status=open owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=harvest note=in-story MED for the code review to patch (a body cap is an implementation detail; the hourly allowance is Story 16.9)
