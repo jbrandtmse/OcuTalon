@@ -1181,3 +1181,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-4.md (Story 4.4 CI, run 40285090544) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 40285090544 job 121446738063 failed, rerun job 121457043804 success on ca4838f; 4.4 touched no lib-live file
 - 2026-10-26T09:02:44Z status=routed owner=burndown by=flake note=a timing-sensitive hermetic check; Epics 10 and 13 own docker/tests; re-own at the burn-down
+
+### DW-274: The CDK live announcer's element has no visually-hidden style until a dialog's focus trap loads it, so its last text lies below a framed page and the page scrolls by a line
+- source: spec-4-5-get-notifications-on-the-simulated-phone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 4.5 cr, D2 at 1280x480: div.cdk-live-announcer-element.cdk-visually-hidden is position static at 480-501px, document 501px tall in a 480px window; CDK 22.2.3 LiveAnnouncer loads no visually-hidden style and web/src has no .cdk-visually-hidden rule
+- 2026-10-26T16:49:28Z status=routed owner=burndown by=cr note=pre-existing (Story 2.12 announcer); D2 now checks app-root overflow; fix: style .cdk-visually-hidden
+- 2026-10-26T16:52:48Z status=routed owner=4-7-finish-the-demo-guide by=adjudication note=in-epic MED routed to the story that adds the finish-state and step announcements on the framed page: style .cdk-visually-hidden so the live announcer never lies below the page (D2 at 1280x480)
+
+### DW-275: U-72 (owner decision): the terminal command SetDemoMode accepts a caller holding OcuTalonAdmin OR %All; every other caller is refused as now; the web endpoints stay OcuTalonAdmin only; the audit entry still names the person (U-74's ActingUser) and T5 still refuses when the audit entry cannot be written; tests: %All accepted, OcuTalonAdmin accepted, neither refused (AD-19 terminal entry amended)
+- source: inbox U-72 at=2026-10-26T03:34:47Z#253 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Contest Planner under the owner's delegation, 2026-10-26: strict check makes the README's documented command fail on a default install (terminal holds only %All)
+- 2026-10-26T16:52:48Z status=routed owner=4-6-simulate-incoming-email-in-the-simulated-mailbox by=owner_decision note=deliver before Epic 4's contract; Story 4.1 is done strict (Core/Admin.cls, Test/Core/Admin.cls)

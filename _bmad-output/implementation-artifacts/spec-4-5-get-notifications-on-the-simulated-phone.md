@@ -373,6 +373,38 @@ Conventions:
 - **AC7.** Given a new phone notification, when I have scrolled up or an approval request is pending in the phone, then the phone does not scroll and "New messages" applies; otherwise the notification scrolls into view. The region is never a live region (rows 12-13).
 - **AC8.** Given the floor stack, when the floor suite runs, then D1-D4 and the edited floor cases pass, with D1 in Chromium, Firefox and WebKit (rows 14-15).
 
+### Review Findings
+
+Code review 2026-10-26 (stage `e4s5cr`, full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 33 rows: 9 entries survive (high 0, medium 2, low 7), all `patch`, all applied; 0 decision-needed. One more entry came from the review's own verification run (DW-274, routed). Each entry: severity, fix-risk, footprint, spec-status.
+- [x] [Review][Patch] At 1280x600 the phone screen keeps its 360px minimum in a shorter column, so New messages lies below the panel body's view; apply the lead's ruling (the screen yields to the body's height beside the chat), drop D5b's `test.fail()` and D1's 85% ring branch, and make D2's short-window clauses pin the ruling (medium; fix-risk low, CSS only, the stacked rule kept; in-story; clear, Design Notes ruling) [web/src/app/devices/device-panel.ts:173]
+- [x] [Review][Patch] `TestThroughNotify` pins the SimMessage but not the production path's phone Delivery row and `phone` event that the Integration AC names (medium; fix-risk low, assertions only; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:301]
+- [x] [Review][Patch] `TestNotASession` and `TestOtherKindsRecordOnly` assert "no phone message, no event" only for inputs that can never reach `Save`, and read the instance stream from its oldest event; add a card that renders and read the instance stream from a mark (low; fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:210]
+- [x] [Review][Patch] `TestTextIsTheTelegramWording` checks its event only `If events.%Size() = 1`, with no count assertion (low; fix-risk low; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:139]
+- [x] [Review][Patch] `TestReminder`'s doc claims a no-due-slot case that it never sends (low; fix-risk low, a comment; in-story; clear) [src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls:103]
+- [x] [Review][Patch] `devices.spec.ts`'s header names D1 to D4 only; D5 and D5b are undescribed (low; fix-risk low, a comment; in-story; clear) [web/e2e/floor/devices.spec.ts:24]
+- [x] [Review][Patch] The Simulated label's `min-height: 20px` is a raw value, and the phone caption takes the tab badge's typography instead of DESIGN's caption (low; fix-risk low, value-identical tokens; in-story; clear) [web/src/app/devices/simulated-label.ts:22]
+- [x] [Review][Patch] An arrow key on a focused tab that is not the selected one moves from the selected tab, not the focused one (reachable by a press dragged off a tab); the arrows now move from the focused tab, and P1 pins it (low; fix-risk low; in-story; clear) [web/src/app/devices/device-panel.ts:278]
+- [x] [Review][Patch] `phoneRows` reads an empty CHK value as 0, so a failed count would pass the demo-off "+0" check (low; fix-risk low; in-story; clear) [web/e2e/support/devices.ts:75]
+- [x] [Review][Defer] The CDK live announcer's element has no visually-hidden style until a dialog's focus trap loads it, so its last text lies below a framed page and the page scrolls by a line (D2's probe at 1280x480: the element is static at 480-501px after the narrow-window note) [web/src/app/shared/announcer.ts:18] — deferred: pre-existing (Story 2.12), in-epic MED, fix-risk low; DW-274 `routed owner=burndown`. D2's short-window loop therefore checks that nothing of `app-root` reaches below the window; G1 and D2's 600px document check are unchanged.
+
+Applied: the device panel's phone panel is the body's height beside the chat (`flex: 1 1 0`, `--phone-screen-min: 0px`), and the stacked rule keeps `min(360px, 70vh)` with the panel as tall as the phone; D1 uses the strict ring check at both heights; D2's 600px and 480px clauses pin the yield (screen under 360px, nothing hidden in the body, the screen inside it, the feed scrolling); D5b runs without `test.fail()`. Runs (fresh lane-B throwaways, tag `e4s5cr`, after `ci/iris.sh build`): `live floor` 88 passed in the three projects; `live sign-in` 217 passed; `class OcuTalon.Test.Demo.SimPhoneOut` passed with no skip; `npm --prefix web test` 640 of 640; lint exit 0.
+
+**Rejected** (verdict, then why):
+- `low` The badge counts reset when LiveState reloads the snapshot (new epoch or skipped Seq), so an existing badge clears without a selection (blind-hunter, edge-case-hunter, verification-gap) - reloads come only from an epoch change or a lost event, the reset is the documented contract ("a reload records what is there"), and a fix adds branches that a demo-mode change would make miscount.
+- `low` ArrowLeft and ArrowRight act with Alt, Ctrl, Meta or Shift held (blind-hunter, edge-case-hunter) - Back from the page while focus is on a device tab is rare; the fix adds a guard that the ARIA pattern does not ask for.
+- `low` `IsSession` passes a Ref that differs only in case, through the SQLUPPER unique index (edge-case-hunter) - no caller produces such a Ref; the code moved unchanged from WebChatOut, and the fix is in Epic 16's contended `Data/Session.cls`.
+- `low` `TestThroughNotify`'s `$ZHorolog + WAIT` deadline never ends across midnight (edge-case-hunter) - only a run that already fails, within 5 s of midnight; the same deadline form is used in 71 places across the tree.
+- `maybe-false` (would be low) The feed's scroll position resets when its tab is hidden and shown again (edge-case-hunter) - settle by toggling the tabs with the feed scrolled up in the three engines; low either way, and the fix adds saved state.
+- `false` New messages loses focus when its target message is gone (edge-case-hunter) - the target is a ref of the list, and the list only loses refs when demo mode goes off, which removes the panel too.
+- `low` Row 6's phone reader error has no test of its own (verification-gap) - no AC lists row 6; a failing phone read alone needs a fault seam the chat's readers do not have either.
+- `false` AC clauses without their own `mutation:` line (widths, storage that throws, caption time, Visual Trace) (verification-gap) - Rule 19 asks one demonstrated mutation per AC, and every AC has one.
+- `false` `newRefs(new Set(), [])` deep-equals `[]` cannot fail (verification-gap) - a supporting edge assertion that a non-array or a list with `''` fails; the case's first assertion pins it.
+- `false` `TestThroughNotify` relies on demo mode that it did not set (verification-gap) - every docker stack starts in demo mode (Decided 13), and the test asserts it first, like the running production.
+- `low` In the stacked layout the screen minimum is `min(360px, 70vh)`, a raw 70vh, under 360px in short windows (acceptance-auditor) - the fix would edit row 14 or put the feed's ring outside the window again; it follows the lead's yield-to-the-room ruling, residual risk (1), and the chat list's stacked 70vh.
+- `false` `DEVICE_TEXTS` has no skip text (acceptance-auditor) - the text has one source, `SKIP_LINKS`, which `ux-strings` reads; no harm.
+- `false` D1 does not walk the skip links with Tab (acceptance-auditor) - K1 walks the three links in all three engines.
+- `false` While the snapshot loads only two skip links show (acceptance-auditor) - the middle link is shown only while `snapshot.demoMode`, which is unknown before the snapshot (residual risk (2), judged by QA).
+
 ## Spec Change Log
 
 - 2026-10-26, spec gate (runner): V1 kept as a veto item (U-89); spine conventions row updated.
@@ -591,12 +623,16 @@ Rebuild the web bundle with `<B> OCUTALON_RUN_TAG=e4s5i ci/iris.sh build` before
 
 **QA additions (QA)** (stage `e4s5qa`; the tests close three gaps the implement stage left, and one defect they found):
 - `web/e2e/phone/phone.spec.ts` (QA): P3's messages case gains the clause that the empty text is gone once the phone holds a message (row 11).
-- `web/e2e/floor/devices.spec.ts` (QA): D3 gains the clause that the selected phone tab takes no count and no badge from what arrives on it (row 9), and D5 and D5b (row 13 and row 15 together, short window): New messages is the tab stop after the feed, its ring is inside the viewport, Enter focuses the first new message (D5); at 1280x600 the button is in view of the panel body (D5b, `test.fail()`: a known defect, see Issues).
+- `web/e2e/floor/devices.spec.ts` (QA): D3 gains the clause that the selected phone tab takes no count and no badge from what arrives on it (row 9), and D5 and D5b (row 13 and row 15 together, short window): New messages is the tab stop after the feed, its ring is inside the viewport, Enter focuses the first new message (D5); at 1280x600 the button is in view of the panel body (D5b; QA marked it `test.fail()` for the known defect, and the code review removed the marker when it applied the lead's ruling).
 - Judged and left as they are: the loading-time skip link is pinned by K1 (`keyboard.spec.ts`, the page still loading: Skip to chat, then Skip to status); D1's 85% clause at 1280x600 is the engine-neutral reading of a ring that cannot be wholly in view, and D5 and D5b now pin what it left open (the New messages stop and its place).
 - mutation: AC6 the empty text is shown beside messages -> `P3` (messages case) red
 - mutation: AC7 the New messages button placed before the feed in the template -> `D5` red (the stop after the feed is not New messages)
 - mutation: AC2 the badge counts arrivals on the selected tab -> `D3` red (the selected phone tab has a count in its name)
 - mutation: AC7 `aria-live="polite"` on the phone feed -> `announce-focus-sources.test.mjs` red (the live-attribute ban; node test only, no browser run)
+
+**Code review mutations** (stage `e4s5cr`; each applied, observed red on a fresh throwaway, and reverted from a backup with `git status --short` and `git diff --stat` unchanged):
+- mutation: AC7 (row 15) beside the chat the phone keeps its 360px minimum (the device panel's `--phone-screen-min` set to `var(--space-phone-screen-min-height)`) -> `D5b` red (New messages at 615-647px under a panel body view ending at 600px), and `D2` and `D1` red (`D1` in Chromium, Firefox and WebKit)
+- mutation: AC3 `Save` records no phone Delivery row -> `TestThroughNotify` red ("one phone Delivery row, for the message"), with `TestTellNow`, `TestReminder`, `TestPublishFailure` and `TestSaveFailureKeepsNothing`
 
 **Shared surfaces:**
 - `/state`'s keys (`Test.Web.Api`, `api.spec.ts:116`, F9);
