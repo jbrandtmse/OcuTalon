@@ -138,3 +138,4 @@
 2026-10-26T07:51:06Z	Story 4.4	ci_red_classified	run=40285090544 workflow=.github/workflows/ci.yml class=flake?(rerun_pending) test=docker/tests/test-lib-live.sh:live_first_start_a_failed_wait_was_not_reported job=checks first_red=ca4838f note=4.4_touched_no_lib-live_file;checks_green_on_628e486,fa876e3;local_ci/checks.sh_green;job_rerun_requested
 2026-10-26T07:51:06Z	Story 4.4	ci_resolved	story=4.4 sha=ca4838f runs=40285090544,40285090335 result=failure failed=.github/workflows/ci.yml(iris_browser:Q9;checks:lib-live) via=none resolved_at=next_plan first_ci=story
 2026-10-26T07:51:06Z	Story 4.4	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI:Q9_font-dependent_row1_wrap scope_baseline=efb4335 note=4.5_spec_waits_at_ready-for-dev
+2026-10-26T07:51:14Z	Story 4.4	stage_spawned	spawn_at=2026-10-26T07:51:14Z stage=implement model=claude-sonnet agent_name=4-4-show-the-demo-guide-and-the-break-the-feed-box-implement-2 cycle_iteration=2 rework=1
