@@ -157,13 +157,16 @@ const FOCUS_RULE: FocusRule = {
     .row1 {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: var(--space-2);
       min-height: var(--space-target-min);
       flex-wrap: wrap;
       white-space: nowrap;
     }
     .row1 > * {
       flex: none;
+    }
+    .row1 > .button {
+      padding-inline: var(--space-2);
     }
     /* The steps take a line of their own when the row is too narrow for them, and wrap inside it at large text sizes. */
     .row1 > .steps {
@@ -198,16 +201,15 @@ const FOCUS_RULE: FocusRule = {
     }
     .chevron {
       display: inline-flex;
-      padding: 0 1px;
       color: var(--border-strong);
     }
     .step {
       position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--space-1);
       min-height: var(--space-target-min);
-      padding: 0 3px;
+      padding: 0 2px;
       border: 0;
       background: none;
       color: var(--guide-step-upcoming-foreground);
@@ -231,7 +233,7 @@ const FOCUS_RULE: FocusRule = {
     .step.selected::after {
       content: '';
       position: absolute;
-      inset-inline: 3px;
+      inset-inline: 2px;
       bottom: 0;
       border-bottom: 2px solid var(--ink);
     }

@@ -2,11 +2,11 @@
 title: 'Story 4.4: Show the demo guide and the Break the feed box'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '59409294fa4171ceb00d4f826c9c26f41d83f333'
 baseline_commit: '59409294fa4171ceb00d4f826c9c26f41d83f333'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred: []
@@ -307,7 +307,8 @@ The mock's tests run in `docker/tests/test-mock.sh` and need no list update.
   - `floor/words.spec.ts` W2: the box's selector joins the list.
 - [ ] `web/e2e/demo-switch/badge.spec.ts` -- a test: the region "Demo guide" and the box show, and the empty chat's last line is the demo line, exactly when `OCUTALON_E2E_DEMO_MODE` is 1. With 0 there is no region and the line is `emptyAsk` (rows 2-3, on a real switch).
 
-- [ ] [CI] `ci` workflow, job `iris (browser)`, unit `live:sign-in`: `web/e2e/guide/guide.spec.ts:584` Q9 fails on the Linux CI host (ca4838f): "at the normal size the row is one line", expected 1 line, got 2 -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40285090544/job/121446738347 -- with the CI host's Chromium fonts, row 1 already wraps at 1280x800 at the normal text size, so Q9's premise is font-dependent (it passed on macOS). Fix it so the case passes on Linux and macOS alike: preferably keep row 1 on one line from 1280px at the normal size in both font sets (for example tighter gaps or a smaller ghost-button padding, within DESIGN's tokens, or switching to the numbered steps by measured fit instead of only by the 1280px breakpoint), and make Q9 independent of font metrics (it may measure the fit first and assert the wrap and "nothing runs past the row" relative to that); keep the case able to fail on the `.row1` `flex-wrap` mutation. You cannot see Linux fonts locally unless you run the browser in a Linux container; say in the spec how the fix is shown to hold on Linux (CI on the next push counts).
+- [x] [CI] `ci` workflow, job `iris (browser)`, unit `live:sign-in`: `web/e2e/guide/guide.spec.ts:584` Q9 fails on the Linux CI host (ca4838f): "at the normal size the row is one line", expected 1 line, got 2 -- https://github.com/jbrandtmse/OcuTalon/actions/runs/40285090544/job/121446738347 -- with the CI host's Chromium fonts, row 1 already wraps at 1280x800 at the normal text size, so Q9's premise is font-dependent (it passed on macOS). Fix it so the case passes on Linux and macOS alike: preferably keep row 1 on one line from 1280px at the normal size in both font sets (for example tighter gaps or a smaller ghost-button padding, within DESIGN's tokens, or switching to the numbered steps by measured fit instead of only by the 1280px breakpoint), and make Q9 independent of font metrics (it may measure the fit first and assert the wrap and "nothing runs past the row" relative to that); keep the case able to fail on the `.row1` `flex-wrap` mutation. You cannot see Linux fonts locally unless you run the browser in a Linux container; say in the spec how the fix is shown to hold on Linux (CI on the next push counts).
+  - **Done (rework 1, CI item).** Cause: at 1280px, `.row1` held 894.0px of children in a row of 896px on macOS (2px of slack), so any wider text wrapped it. Fix: `demo-guide.ts` takes 44px out of row 1 with the spacing tokens (the row and step gaps `--space-2` and `--space-1` for 10px and 6px, the step padding 2px for 3px, no padding around a chevron, `--space-2` side padding on Hide guide): the children now take 850.0px, which leaves 46px (5.1 %) free. Q9 no longer assumes the fit: it waits for the page's Inter faces to load (`document.fonts.check`), reads the row's children and gap, records the fit as an annotation (`row1 fit at 1280px`), asserts that nothing runs past the row, and scales the text from the measured widths (a wrapped baseline included, floor 1.1). The earlier measurement had no font wait, so on Linux it may also have read fallback-font widths (inference). Shown on Linux: **by reasoning from measured widths, not in a container**. The `mcr.microsoft.com/playwright:v1.64.1-noble` pull never completed on this machine (no layer arrived in 15 minutes; the pull was killed and no image or container was left), so the Linux font metrics were not measured; Q9 needs none, and the 46px of slack covers about 8 % wider text in the text part of the row (inference). The CI run on the next push is the Linux evidence.
 
 **Acceptance Criteria:**
 - **AC1.** Given demo mode on, when the main page renders, then the region "Demo guide" sits between the banners and the rail and chat, with row 1, the sunken prompt bar and the box at the right. Its step markers, names and `aria-current` come from the server's guide view. The empty chat and Background checks show the demo texts. With demo mode off (a faked snapshot or a real switch) none of it shows and the old texts return.
@@ -372,6 +373,19 @@ Rejected:
 - 2026-10-26, spec gate (runner): V1 and V2 kept as veto items (U-84, U-85); DW-231 and DW-232 filed; focus reading confirmed against the spine.
 
 ## Review Triage Log
+
+### 2026-10-26 -- Review pass (rework 1, CI item; follow-up pass; diff of this pass only)
+- verdicts: 16 findings reported (blind 4, edge-case 5, verification-gap 2 and 2 other, intent-alignment 3), 9 rows after grouping repeats of one root cause -- high 0, medium 1, low 7, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: the new relative assertion (`wraps iff the children do not fit`) holds for any flex-wrap row, so it guards nothing -- the assertion was removed; the fit is recorded as an annotation and `past` stays asserted (the `nowrap` mutation still reddens the poll).
+  - `[low]` `[patch]` blind/edge: the `scale > 1.05` assertion and the `+1` tolerance could fail on a host that wraps at the normal size -- the assertion is gone and the scale has a floor of 1.1; the harness showed a wrapped baseline (17px body text) still wraps and passes.
+  - `[low]` `[patch]` blind/edge: `parseFloat(columnGap) || 0` hides an unparsed gap -- `Number.parseFloat` with an `isFinite` assertion.
+  - `[low]` `[reject]` blind/edge/intent: `.row1 > .button` halves Hide guide's side padding at every width, and Show guide in the collapsed bar keeps 16px -- cosmetic; the button keeps its 32px minimum height and is 90px wide; the squeeze exists only where the labels show, and Show guide's bar has room.
+  - `[low]` `[reject]` blind: no target-size assertion for the narrowed padding -- Q1 measures the step buttons' height (32px, `--space-target-min`), the widths are above 44px, and nothing in DESIGN fixes a width.
+  - `[medium]` `[patch]` verification-gap: Q9 measured with no wait for the page's fonts, so the fit annotation and the scale could come from fallback metrics (and that may be the CI red itself) -- a `document.fonts.check('400 14px Inter')` and `600` poll before the first read.
+  - `[low]` `[reject]` verification-gap/edge/intent (4 rows, one root cause): the one-line fit at 1280px is not pinned by an assertion -- the lead's item asks for Q9 to be independent of font metrics; the fit is held by 46px of slack and recorded per run; `reopen_if` a host shows a wrapped row 1 at 1280px at the normal size (also Decided in-stage, rework 1). Closed `wontfix-accepted`.
+  - `[low]` `[patch]` verification-gap: the changed assertion had no observed-red mutation -- the assertion is removed; the `nowrap` mutation was applied to the final Q9 and the final tree and went red (spec Verification, "rework 1").
+  - `[false]` `[reject]` intent: the diff names no Linux evidence -- the `[CI]` item records it (Linux metrics not measured; CI on the next push).
 
 ### 2026-10-25 -- Review pass
 - verdicts: 35 findings -- high 0, medium 2, low 26, false 7, maybe-false 0
@@ -439,6 +453,7 @@ Rejected:
   - L929 and L952: icons are vendored Lucide paths (ISC).
 
 **Decided in-stage:**
+- (Rework 1) Q9 no longer asserts "one line" at the normal size: the fit is recorded, not asserted (font metrics differ between hosts, and the lead asked for a case independent of them). The one-line fit at 1280px is therefore held by the 46px of slack in `demo-guide.ts`, not by an assertion; Q9's `row1 fit at 1280px` annotation records the measured fit of each run. Reopen if a host shows a wrapped row 1 at 1280px at the normal size.
 1. **Focus on advance.** The AC's "focus moves to the prompt bar's action button" is read through UX-DR131 (the AC cites it): "When an update removes the focused element…". The same reading appears in EXPERIENCE L410-415 (focus replacement) and the spine's L913, which names Story 4.4. So focus moves only when the advance replaced the focused element, and focus in the composer or on a step stays. This is not an intent gap: the AC's own citation selects the reading.
 2. **Steps 3-5's prompt bar is empty in this story.** Their texts and buttons are Story 4.7's ACs (epics L2406-2420), and moving them here would be a veto item (moving an AC). Steps 1-2, the Telegram row and the frame are this story's. `whenGone` falls back to the prompt bar itself (EXPERIENCE L410: "or to the nearest container").
 3. **Placement.** The guide goes in `app.ts` between `.banner-slot` and `router-outlet` (release 1 has one route). Inside `main-page.ts` it would break `place()` and floor G4/G5's `section.rail + main.main` adjacency. Without a heading, F1's and B's h2 lists hold, and `main > *` stays 2.
@@ -591,6 +606,7 @@ Rejected:
 - AC8: mutation (CR): `follow()`'s baseline is an empty set -> `live sign-in` Q10 "an earlier run's watch.progress never shows ..." red (the earlier run's diagnosing line).
 - AC5: mutation (CR): the box's 10 s timer removed -> `live sign-in` Q6 "a press with no answer in 10 s ..." red (the sending line stayed).
 - AC2: mutation (CR): Do step 1 without its focus key (the code before the fix) -> `live sign-in` Q10 "when an update removes the focused Do step 1 ..." red (focus not on Break the feed).
+- AC6: mutation (rework 1): `flex-wrap: wrap` of `.row1` changed to `nowrap` in `demo-guide.ts` (the final Q9 and the 850px row) -> `live sign-in` Q9 red alone ("the row wraps onto a second line": 1 line, expected more than 1; 208 passed, 1 failed), reverted from a backup, `git status --short` and `git diff --stat` identical to before.
 - AC6: mutation (CR): `.steps` without wrap and `flex: none` (the code before the fix) -> `live sign-in` Q9 red at twice the text (41.6px past the row).
 - AC1: mutation (CR): the steps' 30px minimum height (the code before the fix) -> `live sign-in` Q1 red (30, expected at least 32).
 - AC5: mutation (CR): the view's stage read under a sent press over another run's view (before the fix) -> `break-feed-view.test` "shows the sent line for a press from an earlier run's no_notice view ..." red.
@@ -612,6 +628,8 @@ Rejected:
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
+
+**Rework 1 (CI item, this pass only).** Status: done. Review of this pass: 16 findings (9 rows), 0 high, 1 medium and 3 low patched, 2 low (the padding rows) and the grouped no-one-line-pin rows rejected with reasons in the triage log. Follow-up review recommended: false (no high patched). Q9 fits and asserts relative to the measured fit (see the `[CI]` item). Verified: `ci/iris.sh build`; `live sign-in` 209 passed (final tree, after the review patches); `live floor` 80 passed (Chromium, Firefox, WebKit); `npm --prefix web test` 624 pass; `npm --prefix web run lint` exit 0; `bash ci/checks.sh` exit 0; the Q9 mutation above. Files: `web/src/app/guide/demo-guide.ts` (spacing), `web/e2e/guide/guide.spec.ts` (Q9). The Linux font metrics were not measured (the Playwright container could not be pulled); the next CI run is the evidence. The `demo-guide` component style is 4.11 kB against its 4 kB warning budget (4.06 kB before).
 
 Status: done
 Blocking condition: none
